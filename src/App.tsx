@@ -11,6 +11,7 @@ import { useNotesStore } from "./stores/useNotesStore";
 
 function openNewWindow() {
   // @ts-ignore
+  if (typeof window === "undefined" || !window.__TAURI__) return;
   import("@tauri-apps/api/window").then(({ WebviewWindow }) => {
     const label = `window-${Date.now()}`;
     new WebviewWindow(label, {
@@ -20,7 +21,7 @@ function openNewWindow() {
       height: 520,
     });
   }).catch(() => {
-    // 非 Tauri 环境（vite dev）忽略
+    // 非 Tauri 环境静默忽略
   });
 }
 
@@ -63,9 +64,12 @@ function App() {
         <DatePicker value={currentDate} onChange={handleDateChange} />
         <DailyOverview />
         <SearchBar onSearch={search} />
-        <button className="btn-new-window" onClick={openNewWindow} title="新窗口">
-          ⊞
-        </button>
+        {/* @ts-ignore */}
+        {typeof window !== "undefined" && (window as any).__TAURI__ && (
+          <button className="btn-new-window" onClick={openNewWindow} title="新窗口">
+            ⊞
+          </button>
+        )}
       </header>
 
       <div className="app-body">

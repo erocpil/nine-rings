@@ -1,85 +1,91 @@
-import { invoke } from "@tauri-apps/api/core";
-import type {
-  Note,
-  DailyPage,
-  CreateNoteInput,
-  UpdateNoteInput,
-  UpdateTodosInput,
-} from "../types/models";
+import { getAdapter } from "./storage";
+import type { Note, DailyPage, NoteVersion, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../types/models";
+
+/**
+ * API 层 — 统一接口，底层自动适配 Tauri IPC / IndexedDB
+ *
+ * 所有 store/component 只通过此模块访问数据，不直接引用 storage adapter。
+ */
+
+// 懒加载适配器，首次使用时 resolve
+let _adapterPromise: Promise<ReturnType<typeof getAdapter>> | null = null;
+function adapter(): Promise<ReturnType<typeof getAdapter>> {
+  if (!_adapterPromise) {
+    _adapterPromise = getAdapter();
+  }
+  return _adapterPromise;
+}
 
 export const api = {
   notes: {
     listByDate: (date: string) =>
-      invoke<Note[]>("get_notes_by_date", { date }),
+      adapter().then((a) => a.getNotesByDate(date)),
 
     create: (data: CreateNoteInput) =>
-      invoke<Note>("create_note", { data }),
+      adapter().then((a) => a.createNote(data)),
 
     update: (id: string, data: UpdateNoteInput) =>
-      invoke<Note>("update_note", { id, data }),
+      adapter().then((a) => a.updateNote(id, data)),
 
     updateOrder: (id: string, sort_order: number) =>
-      invoke<Note>("update_note_order", { id, sort_order }),
+      adapter().then((a) => a.updateNoteOrder(id, sort_order)),
 
     delete: (id: string) =>
-      invoke<void>("delete_note", { id }),
+      adapter().then((a) => a.deleteNote(id)),
 
     search: (query: string) =>
-      invoke<Note[]>("search_notes", { query }),
+      adapter().then((a) => a.searchNotes(query)),
 
     listByTag: (tag: string) =>
-      invoke<Note[]>("get_notes_by_tag", { tag }),
+      adapter().then((a) => a.getNotesByTag(tag)),
   },
 
   tags: {
     listAll: () =>
-      invoke<string[]>("get_all_tags"),
+      adapter().then((a) => a.getAllTags()),
   },
 
   daily: {
     get: (date: string) =>
-      invoke<DailyPage>("get_daily_page", { date }),
+      adapter().then((a) => a.getDailyPage(date)),
 
     updateTodos: (data: UpdateTodosInput) =>
-      invoke<DailyPage>("update_todos", { data }),
+      adapter().then((a) => a.updateTodos(data)),
   },
 
   sync: {
-    push: () => invoke<{ pushed: number }>("sync_push"),
-    pull: () => invoke<{ pulled: number }>("sync_pull"),
+    push: () => adapter().then((a) => a.syncPush()),
+    pull: () => adapter().then((a) => a.syncPull()),
   },
 
-  // ──── 导出/导入 ────
   export: {
-    data: () => invoke<string>("export_data"),
+    data: () => adapter().then((a) => a.exportData()),
 
     import: (json: string) =>
-      invoke<{ notes_imported: number; pages_imported: number }>("import_data", { json }),
+      adapter().then((a) => a.importData(json)),
 
     noteMarkdown: (noteId: string) =>
-      invoke<string>("export_note_markdown", { noteId }),
+      adapter().then((a) => a.exportNoteMarkdown(noteId)),
   },
 
-  // ──── 回收站 ────
   recycle: {
-    list: () => invoke<Note[]>("get_deleted_notes"),
+    list: () => adapter().then((a) => a.getDeletedNotes()),
 
     restore: (id: string) =>
-      invoke<void>("restore_note", { id }),
+      adapter().then((a) => a.restoreNote(id)),
 
     permanentlyDelete: (id: string) =>
-      invoke<void>("permanently_delete_note", { id }),
+      adapter().then((a) => a.permanentlyDeleteNote(id)),
 
     cleanOld: (older_than_days: number) =>
-      invoke<number>("clean_old_deleted", { olderThanDays: older_than_days }),
+      adapter().then((a) => a.cleanOldDeleted(older_than_days)),
   },
 
-  // ──── 版本历史 ────
   versions: {
     list: (noteId: string) =>
-      invoke<NoteVersion[]>("get_note_versions", { noteId }),
+      adapter().then((a) => a.getNoteVersions(noteId)),
 
     restore: (versionId: string) =>
-      invoke<Note>("restore_note_version", { versionId }),
+      adapter().then((a) => a.restoreNoteVersion(versionId)),
   },
 };
