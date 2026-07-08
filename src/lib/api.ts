@@ -55,6 +55,9 @@ export const api = {
 
     import: (json: string) =>
       invoke<{ notes_imported: number; pages_imported: number }>("import_data", { json }),
+
+    noteMarkdown: (noteId: string) =>
+      invoke<string>("export_note_markdown", { noteId }),
   },
 
   // ──── 回收站 ────

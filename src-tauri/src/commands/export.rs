@@ -91,3 +91,12 @@ pub fn clean_old_deleted(state: State<AppState>, older_than_days: i64) -> Result
         .map_err(|e| e.to_string())?;
     Ok(deleted)
 }
+
+#[tauri::command]
+pub fn export_note_markdown(state: State<AppState>, note_id: String) -> Result<String, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let note = crate::db::models::select_note_by_id(&conn, &note_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "note not found".to_string())?;
+    Ok(crate::export::note_to_markdown(&note))
+}

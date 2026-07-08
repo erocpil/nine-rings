@@ -53,6 +53,7 @@ pub fn run() {
             commands::export::restore_note,
             commands::export::permanently_delete_note,
             commands::export::clean_old_deleted,
+            commands::export::export_note_markdown,
             commands::sync::sync_push,
             commands::sync::sync_pull,
         ])

@@ -1,6 +1,66 @@
 use crate::db::models::Note;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+/// 将 Delta JSON 转换为 Markdown 文本
+pub fn delta_to_markdown(content: &Value) -> String {
+    let mut md = String::new();
+    let mut in_code_block = false;
+
+    if let Some(ops) = content.get("ops").and_then(|v| v.as_array()) {
+        for op in ops {
+            let text = op.get("insert").and_then(|v| v.as_str()).unwrap_or("");
+            let attrs = op.get("attributes");
+
+            // 代码块
+            if let Some(a) = attrs {
+                if a.get("code-block").and_then(|v| v.as_bool()).unwrap_or(false) {
+                    if !in_code_block {
+                        md.push_str("```\n");
+                        in_code_block = true;
+                    }
+                    md.push_str(text);
+                    continue;
+                }
+            }
+            if in_code_block {
+                md.push_str("```\n");
+                in_code_block = false;
+            }
+
+            // 换行
+            if text == "\n" {
+                md.push('\n');
+                continue;
+            }
+
+            // 内联格式
+            let bold = attrs.and_then(|a| a.get("bold").and_then(|v| v.as_bool())).unwrap_or(false);
+            let italic = attrs.and_then(|a| a.get("italic").and_then(|v| v.as_bool())).unwrap_or(false);
+            let code = attrs.and_then(|a| a.get("code").and_then(|v| v.as_bool())).unwrap_or(false);
+
+            let mut wrapped = text.to_string();
+            if bold { wrapped = format!("**{}**", wrapped); }
+            if italic { wrapped = format!("*{}*", wrapped); }
+            if code { wrapped = format!("`{}`", wrapped); }
+            md.push_str(&wrapped);
+        }
+    }
+    if in_code_block {
+        md.push_str("```\n");
+    }
+    md.trim().to_string()
+}
+
+/// 将 Note 导出为 .md 字符串
+pub fn note_to_markdown(note: &Note) -> String {
+    let mut md = String::new();
+    md.push_str(&format!("# {}\n\n", note.title.as_deref().unwrap_or("无标题")));
+    md.push_str(&format!("> 日期: {} | 标签: {}\n\n", note.date, note.tags.join(", ")));
+    md.push_str(&delta_to_markdown(&note.content));
+    md
+}
 
 /// 导出格式：全量笔记 + daily page
 #[derive(Serialize, Deserialize)]
