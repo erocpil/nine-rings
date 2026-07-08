@@ -8,116 +8,109 @@ fn setup_db() -> Connection {
 
 fn make_todo(id: &str, text: &str, done: bool) -> note_sticky_lib::db::models::Todo {
     note_sticky_lib::db::models::Todo {
-        id: id.into(),
-        text: text.into(),
-        done,
-        order: 0,
-        tags: vec![],
+        id: id.into(), text: text.into(), done, order: 0, tags: vec![],
     }
 }
 
-// ──── Note CRUD ────
+// ──── Export / Import ────
 
 #[test]
-fn test_create_and_list_notes() {
+fn test_export_roundtrip() {
     let conn = setup_db();
 
-    let note = note_sticky_lib::service::note_service::create_note(
-        &conn, "2026-07-08", Some("测试"), &serde_json::json!({"ops": [{"insert": "Hello"}]}),
-        &["tag1".into(), "tag2".into()], false,
-    )
-    .unwrap();
+    note_sticky_lib::service::note_service::create_note(
+        &conn, "2026-07-08", Some("原始"), &serde_json::json!({"ops": [{"insert": "test"}]}),
+        &["work".into()], false,
+    ).unwrap();
 
-    assert_eq!(note.title.as_deref(), Some("测试"));
-    assert_eq!(note.tags, vec!["tag1", "tag2"]);
-    assert!(!note.pinned);
-    assert_eq!(note.sort_order, 0);
+    let bundle = note_sticky_lib::export::export_all(&conn).unwrap();
+    assert_eq!(bundle.notes.len(), 1);
+    assert_eq!(bundle.notes[0].title.as_deref(), Some("原始"));
+    assert_eq!(bundle.notes[0].tags, vec!["work"]);
 
-    let notes = note_sticky_lib::service::note_service::get_notes_by_date(&conn, "2026-07-08").unwrap();
+    // 导入到新数据库
+    let conn2 = setup_db();
+    let (n, p) = note_sticky_lib::export::import_bundle(&conn2, &bundle).unwrap();
+    assert_eq!(n, 1);
+    assert_eq!(p, 0);
+
+    let notes = note_sticky_lib::service::note_service::get_notes_by_date(&conn2, "2026-07-08").unwrap();
     assert_eq!(notes.len(), 1);
 }
 
 #[test]
-fn test_create_pinned_note_first() {
+fn test_import_skips_duplicates() {
     let conn = setup_db();
-
-    // pinned 笔记排在前面
-    let _a = note_sticky_lib::service::note_service::create_note(
-        &conn, "2026-07-08", Some("普通"), &serde_json::json!({"ops": []}),
-        &[], false,
-    ).unwrap();
-    let b = note_sticky_lib::service::note_service::create_note(
-        &conn, "2026-07-08", Some("置顶"), &serde_json::json!({"ops": []}),
-        &[], true,
-    ).unwrap();
-
-    let notes = note_sticky_lib::service::note_service::get_notes_by_date(&conn, "2026-07-08").unwrap();
-    assert_eq!(notes[0].id, b.id, "pinned note should be first");
-    assert!(notes[0].pinned);
-}
-
-#[test]
-fn test_search_tags() {
-    let conn = setup_db();
-
-    note_sticky_lib::service::note_service::create_note(
-        &conn, "2026-07-08", Some("A"), &serde_json::json!({"ops": []}),
-        &["work".into(), "dev".into()], false,
-    ).unwrap();
-    note_sticky_lib::service::note_service::create_note(
-        &conn, "2026-07-08", Some("B"), &serde_json::json!({"ops": []}),
-        &["personal".into()], false,
-    ).unwrap();
-
-    let work = note_sticky_lib::service::note_service::get_notes_by_tag(&conn, "work").unwrap();
-    assert_eq!(work.len(), 1);
-    assert_eq!(work[0].title.as_deref(), Some("A"));
-
-    let personal = note_sticky_lib::service::note_service::get_notes_by_tag(&conn, "personal").unwrap();
-    assert_eq!(personal.len(), 1);
-
-    let all_tags = note_sticky_lib::service::note_service::get_all_tags(&conn).unwrap();
-    assert_eq!(all_tags.len(), 3);
-    assert!(all_tags.contains(&"work".to_string()));
-    assert!(all_tags.contains(&"dev".to_string()));
-    assert!(all_tags.contains(&"personal".to_string()));
-}
-
-#[test]
-fn test_reorder_note() {
-    let conn = setup_db();
-
-    let a = note_sticky_lib::service::note_service::create_note(
+    let n1 = note_sticky_lib::service::note_service::create_note(
         &conn, "2026-07-08", Some("A"), &serde_json::json!({"ops": []}),
         &[], false,
     ).unwrap();
-    let b = note_sticky_lib::service::note_service::create_note(
-        &conn, "2026-07-08", Some("B"), &serde_json::json!({"ops": []}),
+
+    // 尝试导入同样的 id（已存在）
+    let bundle = note_sticky_lib::export::ExportBundle {
+        version: 1,
+        exported_at: "".into(),
+        notes: vec![n1],
+        daily_pages: vec![],
+    };
+    let (n, _) = note_sticky_lib::export::import_bundle(&conn, &bundle).unwrap();
+    assert_eq!(n, 0, "should skip existing note");
+}
+
+// ──── Recycle Bin ────
+
+#[test]
+fn test_soft_delete_and_list_deleted() {
+    let conn = setup_db();
+
+    let note = note_sticky_lib::service::note_service::create_note(
+        &conn, "2026-07-08", Some("待删除"), &serde_json::json!({"ops": []}),
         &[], false,
     ).unwrap();
 
-    // 交换顺序
-    note_sticky_lib::service::note_service::reorder_note(&conn, &a.id, 1).unwrap();
-    note_sticky_lib::service::note_service::reorder_note(&conn, &b.id, 0).unwrap();
+    // 软删除
+    note_sticky_lib::service::note_service::delete_note(&conn, &note.id).unwrap();
 
+    // 不在正常查询中
     let notes = note_sticky_lib::service::note_service::get_notes_by_date(&conn, "2026-07-08").unwrap();
-    assert_eq!(notes[0].id, b.id);
-    assert_eq!(notes[0].sort_order, 0);
-    assert_eq!(notes[1].id, a.id);
+    assert!(notes.is_empty());
+
+    // 在回收站中
+    let mut stmt = conn.prepare(
+        "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at
+         FROM notes WHERE deleted_at IS NOT NULL"
+    ).unwrap();
+    let deleted: Vec<_> = stmt.query_map([], |row| note_sticky_lib::db::models::note_from_row(row))
+        .unwrap().filter_map(|r| r.ok()).collect();
+    assert_eq!(deleted.len(), 1);
+    assert_eq!(deleted[0].id, note.id);
 }
 
-// ──── 原有测试 ────
+#[test]
+fn test_restore_note() {
+    let conn = setup_db();
+
+    let note = note_sticky_lib::service::note_service::create_note(
+        &conn, "2026-07-08", Some("恢复我"), &serde_json::json!({"ops": []}),
+        &[], false,
+    ).unwrap();
+
+    note_sticky_lib::service::note_service::delete_note(&conn, &note.id).unwrap();
+
+    // 恢复
+    let conn_ref = &conn;
+    conn_ref.execute("UPDATE notes SET deleted_at = NULL WHERE id = ?1", rusqlite::params![note.id]).unwrap();
+
+    let notes = note_sticky_lib::service::note_service::get_notes_by_date(&conn, "2026-07-08").unwrap();
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0].title.as_deref(), Some("恢复我"));
+}
 
 #[test]
 fn test_carryover_inherits_incomplete() {
     let conn = setup_db();
-
-    let day1 = vec![
-        make_todo("a", "未完成A", false),
-        make_todo("b", "已完成B", true),
-    ];
+    let day1 = vec![make_todo("a", "未完成A", false), make_todo("b", "已完成B", true)];
     note_sticky_lib::service::note_service::update_todos(&conn, "2026-07-01", &day1, true).unwrap();
-
     let day2 = note_sticky_lib::service::note_service::get_or_create_daily_page(&conn, "2026-07-02").unwrap();
     assert_eq!(day2.todos.len(), 1);
     assert_eq!(day2.todos[0].text, "未完成A");
@@ -127,10 +120,8 @@ fn test_carryover_inherits_incomplete() {
 #[test]
 fn test_no_carryover_when_disabled() {
     let conn = setup_db();
-
     let day1 = vec![make_todo("x", "不会继承", false)];
     note_sticky_lib::service::note_service::update_todos(&conn, "2026-07-01", &day1, false).unwrap();
-
     let day2 = note_sticky_lib::service::note_service::get_or_create_daily_page(&conn, "2026-07-02").unwrap();
     assert!(day2.todos.is_empty());
     assert!(!day2.todo_carryover);

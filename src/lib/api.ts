@@ -48,4 +48,26 @@ export const api = {
     push: () => invoke<{ pushed: number }>("sync_push"),
     pull: () => invoke<{ pulled: number }>("sync_pull"),
   },
+
+  // ──── 导出/导入 ────
+  export: {
+    data: () => invoke<string>("export_data"),
+
+    import: (json: string) =>
+      invoke<{ notes_imported: number; pages_imported: number }>("import_data", { json }),
+  },
+
+  // ──── 回收站 ────
+  recycle: {
+    list: () => invoke<Note[]>("get_deleted_notes"),
+
+    restore: (id: string) =>
+      invoke<void>("restore_note", { id }),
+
+    permanentlyDelete: (id: string) =>
+      invoke<void>("permanently_delete_note", { id }),
+
+    cleanOld: (older_than_days: number) =>
+      invoke<number>("clean_old_deleted", { olderThanDays: older_than_days }),
+  },
 };

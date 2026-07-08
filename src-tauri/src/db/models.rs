@@ -260,7 +260,7 @@ pub fn select_prev_carryover_page(conn: &Connection, before_date: &str) -> rusql
     rows.next().transpose()
 }
 
-fn note_from_row(row: &rusqlite::Row) -> rusqlite::Result<Note> {
+pub fn note_from_row(row: &rusqlite::Row) -> rusqlite::Result<Note> {
     let content_str: String = row.get(3)?;
     let tags_json: String = row.get(5)?;
     Ok(Note {

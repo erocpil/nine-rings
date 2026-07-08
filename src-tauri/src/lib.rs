@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod db;
+pub mod export;
 pub mod service;
 
 use std::sync::Mutex;
@@ -14,6 +15,7 @@ pub fn run() {
     env_logger::init();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
@@ -43,6 +45,12 @@ pub fn run() {
             commands::note::get_all_tags,
             commands::note::get_daily_page,
             commands::note::update_todos,
+            commands::export::export_data,
+            commands::export::import_data,
+            commands::export::get_deleted_notes,
+            commands::export::restore_note,
+            commands::export::permanently_delete_note,
+            commands::export::clean_old_deleted,
             commands::sync::sync_push,
             commands::sync::sync_pull,
         ])
