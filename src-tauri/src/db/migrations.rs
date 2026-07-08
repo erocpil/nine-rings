@@ -7,6 +7,7 @@ pub fn run(conn: &Connection) -> rusqlite::Result<()> {
             date        TEXT NOT NULL,
             title       TEXT,
             content     TEXT NOT NULL DEFAULT '{}',
+            search_text TEXT NOT NULL DEFAULT '',  -- 从 content 提取的纯文本，供 LIKE 搜索
             created_at  TEXT NOT NULL,
             updated_at  TEXT NOT NULL,
             deleted_at  TEXT
@@ -32,19 +33,19 @@ pub fn run(conn: &Connection) -> rusqlite::Result<()> {
         -- FTS 同步触发器
         CREATE TRIGGER IF NOT EXISTS notes_ai AFTER INSERT ON notes BEGIN
             INSERT INTO notes_fts(rowid, title, content)
-            VALUES (new.rowid, new.title, new.content);
+            VALUES (new.rowid, new.title, new.search_text);
         END;
 
         CREATE TRIGGER IF NOT EXISTS notes_ad AFTER DELETE ON notes BEGIN
             INSERT INTO notes_fts(notes_fts, rowid, title, content)
-            VALUES ('delete', old.rowid, old.title, old.content);
+            VALUES ('delete', old.rowid, old.title, old.search_text);
         END;
 
         CREATE TRIGGER IF NOT EXISTS notes_au AFTER UPDATE ON notes BEGIN
             INSERT INTO notes_fts(notes_fts, rowid, title, content)
-            VALUES ('delete', old.rowid, old.title, old.content);
+            VALUES ('delete', old.rowid, old.title, old.search_text);
             INSERT INTO notes_fts(rowid, title, content)
-            VALUES (new.rowid, new.title, new.content);
+            VALUES (new.rowid, new.title, new.search_text);
         END;"
     )?;
     Ok(())

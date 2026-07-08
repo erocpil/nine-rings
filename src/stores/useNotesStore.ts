@@ -37,7 +37,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
       api.notes.listByDate(date),
       api.daily.get(date),
     ]);
-    set({ notes, dailyPage, selectedNote: notes[0] ?? null, loading: false });
+    set({ notes, dailyPage: dailyPage, selectedNote: notes[0] ?? null, loading: false });
   },
 
   selectNote: (note) => set({ selectedNote: note }),

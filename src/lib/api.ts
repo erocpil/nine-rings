@@ -27,7 +27,7 @@ export const api = {
 
   daily: {
     get: (date: string) =>
-      invoke<DailyPage | null>("get_daily_page", { date }),
+      invoke<DailyPage>("get_daily_page", { date }),
 
     updateTodos: (data: UpdateTodosInput) =>
       invoke<DailyPage>("update_todos", { data }),

@@ -75,9 +75,9 @@ pub fn search_notes(state: State<AppState>, query: String) -> Result<Vec<crate::
 }
 
 #[tauri::command]
-pub fn get_daily_page(state: State<AppState>, date: String) -> Result<Option<crate::db::models::DailyPage>, String> {
+pub fn get_daily_page(state: State<AppState>, date: String) -> Result<crate::db::models::DailyPage, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    service::note_service::get_daily_page(&conn, &date).map_err(|e| e.to_string())
+    service::note_service::get_or_create_daily_page(&conn, &date).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
