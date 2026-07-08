@@ -74,6 +74,49 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* ──── Daily Overview ──── */
+
+.daily-overview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  -webkit-app-region: no-drag;
+}
+
+.daily-date {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.daily-weekday {
+  color: var(--text-secondary);
+}
+
+.daily-stat::before {
+  content: "·";
+  margin-right: 6px;
+}
+
+/* ──── New Window ──── */
+
+.btn-new-window {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 2px 8px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 14px;
+  -webkit-app-region: no-drag;
+}
+
+.btn-new-window:hover {
+  color: var(--text);
+  border-color: var(--text-secondary);
+}
+
 /* ──── Search ──── */
 
 .search-bar {

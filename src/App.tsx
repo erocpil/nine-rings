@@ -5,8 +5,24 @@ import { TodoList } from "./components/TodoList";
 import { Sidebar } from "./components/Sidebar";
 import { NoteEditor } from "./components/NoteEditor";
 import { SearchBar } from "./components/SearchBar";
+import { DailyOverview } from "./components/DailyOverview";
 import { useSearch } from "./hooks/useSearch";
 import { useNotesStore } from "./stores/useNotesStore";
+
+function openNewWindow() {
+  // @ts-ignore
+  import("@tauri-apps/api/window").then(({ WebviewWindow }) => {
+    const label = `window-${Date.now()}`;
+    new WebviewWindow(label, {
+      url: "/",
+      title: "Note Sticky",
+      width: 720,
+      height: 520,
+    });
+  }).catch(() => {
+    // 非 Tauri 环境（vite dev）忽略
+  });
+}
 
 function App() {
   const {
@@ -45,7 +61,11 @@ function App() {
     <div className="app">
       <header className="app-header">
         <DatePicker value={currentDate} onChange={handleDateChange} />
+        <DailyOverview />
         <SearchBar onSearch={search} />
+        <button className="btn-new-window" onClick={openNewWindow} title="新窗口">
+          ⊞
+        </button>
       </header>
 
       <div className="app-body">
