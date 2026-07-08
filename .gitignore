@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Dependencies
 node_modules/
 .pnp
@@ -20,6 +21,8 @@ target
 # Tauri
 src-tauri/target/
 
+=======
+>>>>>>> dfb6604 (feat: Flutter 移动端项目骨架（note_sticky_flutter）)
 # Flutter
 flutter_app/.dart_tool/
 flutter_app/.packages
@@ -35,6 +38,7 @@ flutter_app/android/local.properties
 flutter_app/.idea/
 flutter_app/*.iml
 flutter_app/.metadata
+<<<<<<< HEAD
 
 # IDE
 .idea/
@@ -49,3 +53,5 @@ Thumbs.db
 # Env
 .env
 .env.local
+=======
+>>>>>>> dfb6604 (feat: Flutter 移动端项目骨架（note_sticky_flutter）)
