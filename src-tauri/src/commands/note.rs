@@ -1,0 +1,96 @@
+use crate::service;
+use crate::AppState;
+use serde::Deserialize;
+use tauri::State;
+
+#[derive(Debug, Deserialize)]
+pub struct CreateNoteInput {
+    pub date: String,
+    pub title: Option<String>,
+    pub content: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateNoteInput {
+    pub id: String,
+    pub title: Option<String>,
+    pub content: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateTodosInput {
+    pub date: String,
+    pub todos: Vec<crate::db::models::Todo>,
+    pub todo_carryover: Option<bool>,
+}
+
+#[tauri::command]
+pub fn get_notes_by_date(state: State<AppState>, date: String) -> Result<Vec<crate::db::models::Note>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    service::note_service::get_notes_by_date(&conn, &date).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn create_note(
+    state: State<AppState>,
+    data: CreateNoteInput,
+) -> Result<crate::db::models::Note, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    service::note_service::create_note(
+        &conn,
+        &data.date,
+        data.title.as_deref(),
+        &data.content.unwrap_or(serde_json::json!({"ops": []})),
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_note(
+    state: State<AppState>,
+    id: String,
+    data: UpdateNoteInput,
+) -> Result<crate::db::models::Note, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    service::note_service::update_note(
+        &conn,
+        &id,
+        data.title.as_deref(),
+        &data.content.unwrap_or(serde_json::Value::Null),
+    )
+    .map_err(|e| e.to_string())?
+    .ok_or_else(|| "note not found".to_string())
+}
+
+#[tauri::command]
+pub fn delete_note(state: State<AppState>, id: String) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    service::note_service::delete_note(&conn, &id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn search_notes(state: State<AppState>, query: String) -> Result<Vec<crate::db::models::Note>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    service::note_service::search_notes(&conn, &query).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_daily_page(state: State<AppState>, date: String) -> Result<Option<crate::db::models::DailyPage>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    service::note_service::get_daily_page(&conn, &date).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_todos(
+    state: State<AppState>,
+    data: UpdateTodosInput,
+) -> Result<crate::db::models::DailyPage, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    service::note_service::update_todos(
+        &conn,
+        &data.date,
+        &data.todos,
+        data.todo_carryover.unwrap_or(false),
+    )
+    .map_err(|e| e.to_string())
+}

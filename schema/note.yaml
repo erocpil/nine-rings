@@ -1,0 +1,88 @@
+# Note Sticky — 共享数据格式定义
+
+Note:
+  description: 一条随笔笔记
+  fields:
+    id:
+      type: string
+      format: uuid
+      required: true
+    date:
+      type: string
+      format: date          # "2026-07-08"
+      required: true
+    title:
+      type: string
+      nullable: true
+      description: 随心记标题
+    content:
+      type: Delta           # TipTap/Quill Delta JSON
+      description: 富文本内容
+    created_at:
+      type: string
+      format: datetime
+      required: true
+    updated_at:
+      type: string
+      format: datetime
+      required: true
+
+Todo:
+  description: 待办项
+  fields:
+    id:
+      type: string
+      format: uuid
+      required: true
+    text:
+      type: string
+      required: true
+    done:
+      type: boolean
+      default: false
+    order:
+      type: integer
+      default: 0
+
+DailyPage:
+  description: 每日一页（今日待办聚合）
+  fields:
+    date:
+      type: string
+      format: date
+      required: true
+      pk: true
+    todos:
+      type: Todo[]
+      default: []
+    todo_carryover:
+      type: boolean
+      default: false
+    updated_at:
+      type: string
+      format: datetime
+      required: true
+
+SyncChange:
+  description: 同步变更日志
+  fields:
+    id:
+      type: string
+      format: uuid
+      required: true
+    entity_type:
+      type: enum(daily_page, note)
+    entity_id:
+      type: string
+      required: true
+    action:
+      type: enum(create, update, delete)
+    data:
+      type: json
+    timestamp:
+      type: string
+      format: datetime
+    synced_at:
+      type: string
+      format: datetime
+      nullable: true
