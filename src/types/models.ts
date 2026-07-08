@@ -70,3 +70,14 @@ export interface UpdateTodosInput {
   todos: Todo[];
   todo_carryover?: boolean;
 }
+
+export interface NoteVersion {
+  id: string;
+  note_id: string;
+  title: string | null;
+  content: DeltaOps;
+  tags: string[];
+  pinned: boolean;
+  sort_order: number;
+  saved_at: string;
+}

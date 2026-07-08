@@ -1,6 +1,7 @@
 use crate::db;
-use crate::db::models::{DailyPage, Note, NotePublic, Todo};
+use crate::db::models::{DailyPage, Note, Todo};
 use rusqlite::Connection;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 fn extract_plain_text(content: &Value) -> String {
@@ -21,26 +22,22 @@ fn extract_plain_text(content: &Value) -> String {
     trimmed.to_string()
 }
 
+// ──── Note CRUD ────
+
 pub fn get_notes_by_date(conn: &Connection, date: &str) -> rusqlite::Result<Vec<Note>> {
     db::models::select_notes_by_date(conn, date)
 }
 
 pub fn create_note(
-    conn: &Connection,
-    date: &str,
-    title: Option<&str>,
-    content: &Value,
-    tags: &[String],
-    pinned: bool,
+    conn: &Connection, date: &str, title: Option<&str>, content: &Value,
+    tags: &[String], pinned: bool,
 ) -> rusqlite::Result<Note> {
     let now = chrono::Utc::now().to_rfc3339();
     let search_text = extract_plain_text(content);
-    // 新笔记放在同类 note 的末尾（max order + 1）
     let max_order: i32 = conn
         .query_row(
             "SELECT COALESCE(MAX(sort_order), -1) FROM notes WHERE date = ?1 AND deleted_at IS NULL",
-            rusqlite::params![date],
-            |r| r.get(0),
+            rusqlite::params![date], |r| r.get(0),
         )
         .unwrap_or(-1);
     let note = Note {
@@ -60,22 +57,13 @@ pub fn create_note(
 }
 
 pub fn update_note(
-    conn: &Connection,
-    id: &str,
-    title: Option<&str>,
-    content: &Value,
-    tags: Option<&[String]>,
-    pinned: Option<bool>,
-    sort_order: Option<i32>,
+    conn: &Connection, id: &str, title: Option<&str>, content: &Value,
+    tags: Option<&[String]>, pinned: Option<bool>, sort_order: Option<i32>,
 ) -> rusqlite::Result<Option<Note>> {
-    let now = chrono::Utc::now().to_rfc3339();
-    // 查当前值，只覆盖有提供的字段
-    let current = db::models::select_note_by_id(conn, id)?;
-    let current = match current {
+    let current = match db::models::select_note_by_id(conn, id)? {
         Some(n) => n,
         None => return Ok(None),
     };
-
     let new_content = if content.is_null() { &current.content } else { content };
     let search_text = if content.is_null() {
         current.search_text
@@ -88,7 +76,7 @@ pub fn update_note(
     let new_pinned = pinned.unwrap_or(current.pinned);
     let new_order = sort_order.unwrap_or(current.sort_order);
     let new_title = title.or(current.title.as_deref());
-
+    let now = chrono::Utc::now().to_rfc3339();
     db::models::update_note(conn, id, new_title, new_content, &search_text, new_tags, new_pinned, new_order, &now)?;
     db::models::select_note_by_id(conn, id)
 }
@@ -112,12 +100,12 @@ pub fn get_all_tags(conn: &Connection) -> rusqlite::Result<Vec<String>> {
 
 pub fn reorder_note(conn: &Connection, id: &str, new_order: i32) -> rusqlite::Result<Option<Note>> {
     let now = chrono::Utc::now().to_rfc3339();
-    conn.execute(
-        "UPDATE notes SET sort_order = ?1, updated_at = ?2 WHERE id = ?3",
-        rusqlite::params![new_order, now, id],
-    )?;
+    conn.execute("UPDATE notes SET sort_order = ?1, updated_at = ?2 WHERE id = ?3",
+        rusqlite::params![new_order, now, id])?;
     db::models::select_note_by_id(conn, id)
 }
+
+// ──── DailyPage ────
 
 pub fn get_or_create_daily_page(conn: &Connection, date: &str) -> rusqlite::Result<DailyPage> {
     if let Some(page) = db::models::select_daily_page(conn, date)? {
@@ -128,22 +116,12 @@ pub fn get_or_create_daily_page(conn: &Connection, date: &str) -> rusqlite::Resu
     if let Some(prev) = prev {
         if prev.todo_carryover {
             let incompleted: Vec<Todo> = prev.todos.into_iter().filter(|t| !t.done).collect();
-            let page = DailyPage {
-                date: date.to_string(),
-                todos: incompleted,
-                todo_carryover: true,
-                updated_at: now,
-            };
+            let page = DailyPage { date: date.to_string(), todos: incompleted, todo_carryover: true, updated_at: now };
             db::models::upsert_daily_page(conn, &page)?;
             return Ok(page);
         }
     }
-    let page = DailyPage {
-        date: date.to_string(),
-        todos: vec![],
-        todo_carryover: false,
-        updated_at: now,
-    };
+    let page = DailyPage { date: date.to_string(), todos: vec![], todo_carryover: false, updated_at: now };
     db::models::upsert_daily_page(conn, &page)?;
     Ok(page)
 }
@@ -154,15 +132,98 @@ pub fn get_daily_page(conn: &Connection, date: &str) -> rusqlite::Result<Option<
 
 pub fn update_todos(conn: &Connection, date: &str, todos: &[Todo], todo_carryover: bool) -> rusqlite::Result<DailyPage> {
     let now = chrono::Utc::now().to_rfc3339();
-    let page = DailyPage {
-        date: date.to_string(),
-        todos: todos.to_vec(),
-        todo_carryover,
-        updated_at: now,
-    };
+    let page = DailyPage { date: date.to_string(), todos: todos.to_vec(), todo_carryover, updated_at: now };
     db::models::upsert_daily_page(conn, &page)?;
     Ok(page)
 }
+
+// ──── 版本历史 ────
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NoteVersion {
+    pub id: String,
+    pub note_id: String,
+    pub title: Option<String>,
+    pub content: serde_json::Value,
+    pub tags: Vec<String>,
+    pub pinned: bool,
+    pub sort_order: i32,
+    pub saved_at: String,
+}
+
+fn save_version_snapshot(conn: &Connection, note: &Note) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO note_versions (id, note_id, title, content, search_text, tags, pinned, sort_order, saved_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        rusqlite::params![
+            uuid::Uuid::new_v4().to_string(),
+            note.id, note.title, note.content.to_string(), note.search_text,
+            serde_json::to_string(&note.tags).unwrap_or_default(),
+            note.pinned, note.sort_order, chrono::Utc::now().to_rfc3339(),
+        ],
+    )?;
+    Ok(())
+}
+
+pub fn get_note_versions(conn: &Connection, note_id: &str) -> rusqlite::Result<Vec<NoteVersion>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, note_id, title, content, tags, pinned, sort_order, saved_at
+         FROM note_versions WHERE note_id = ?1
+         ORDER BY saved_at DESC LIMIT 50"
+    )?;
+    let rows = stmt.query_map(rusqlite::params![note_id], |row| {
+        let content_str: String = row.get(3)?;
+        let tags_json: String = row.get(4)?;
+        Ok(NoteVersion {
+            id: row.get(0)?, note_id: row.get(1)?, title: row.get(2)?,
+            content: serde_json::from_str(&content_str).unwrap_or_default(),
+            tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+            pinned: row.get::<_, i32>(5)? != 0, sort_order: row.get(6)?,
+            saved_at: row.get(7)?,
+        })
+    })?;
+    rows.collect()
+}
+
+pub fn restore_note_version(conn: &Connection, version_id: &str) -> rusqlite::Result<Option<Note>> {
+    let version: NoteVersion = match conn.query_row(
+        "SELECT id, note_id, title, content, tags, pinned, sort_order, '' FROM note_versions WHERE id = ?1",
+        rusqlite::params![version_id],
+        |row| {
+            let content_str: String = row.get(3)?;
+            let tags_json: String = row.get(4)?;
+            Ok(NoteVersion {
+                id: version_id.to_string(), note_id: row.get(1)?, title: row.get(2)?,
+                content: serde_json::from_str(&content_str).unwrap_or_default(),
+                tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+                pinned: row.get::<_, i32>(5)? != 0, sort_order: row.get(6)?,
+                saved_at: String::new(),
+            })
+        },
+    ) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let search_text = extract_plain_text(&version.content);
+    db::models::update_note(conn, &version.note_id, version.title.as_deref(), &version.content,
+        &search_text, &version.tags, version.pinned, version.sort_order, &now)?;
+    db::models::select_note_by_id(conn, &version.note_id)
+}
+
+/// 更新时自动保存旧版本快照
+pub fn update_note_with_version(
+    conn: &Connection, id: &str, title: Option<&str>, content: &Value,
+    tags: Option<&[String]>, pinned: Option<bool>, sort_order: Option<i32>,
+) -> rusqlite::Result<Option<Note>> {
+    if let Ok(Some(current)) = db::models::select_note_by_id(conn, id) {
+        save_version_snapshot(conn, &current).ok();
+    }
+    update_note(conn, id, title, content, tags, pinned, sort_order)
+}
+
+// ──── Tests ────
 
 #[cfg(test)]
 mod tests {

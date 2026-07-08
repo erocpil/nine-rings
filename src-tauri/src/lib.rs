@@ -45,6 +45,8 @@ pub fn run() {
             commands::note::get_all_tags,
             commands::note::get_daily_page,
             commands::note::update_todos,
+            commands::note::get_note_versions,
+            commands::note::restore_note_version,
             commands::export::export_data,
             commands::export::import_data,
             commands::export::get_deleted_notes,

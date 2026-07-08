@@ -3,6 +3,8 @@ use crate::AppState;
 use serde::Deserialize;
 use tauri::State;
 
+use crate::service::note_service::NoteVersion;
+
 #[derive(Debug, Deserialize)]
 pub struct CreateNoteInput {
     pub date: String,
@@ -61,7 +63,7 @@ pub fn update_note(
     data: UpdateNoteInput,
 ) -> Result<crate::db::models::Note, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    service::note_service::update_note(
+    service::note_service::update_note_with_version(
         &conn,
         &id,
         data.title.as_deref(),
@@ -129,4 +131,20 @@ pub fn update_todos(
         data.todo_carryover.unwrap_or(false),
     )
     .map_err(|e| e.to_string())
+}
+
+// ──── 版本历史 ────
+
+#[tauri::command]
+pub fn get_note_versions(state: State<AppState>, note_id: String) -> Result<Vec<NoteVersion>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    service::note_service::get_note_versions(&conn, &note_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn restore_note_version(state: State<AppState>, version_id: String) -> Result<crate::db::models::Note, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    service::note_service::restore_note_version(&conn, &version_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "version not found".to_string())
 }

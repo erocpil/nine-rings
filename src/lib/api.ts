@@ -70,4 +70,13 @@ export const api = {
     cleanOld: (older_than_days: number) =>
       invoke<number>("clean_old_deleted", { olderThanDays: older_than_days }),
   },
+
+  // ──── 版本历史 ────
+  versions: {
+    list: (noteId: string) =>
+      invoke<NoteVersion[]>("get_note_versions", { noteId }),
+
+    restore: (versionId: string) =>
+      invoke<Note>("restore_note_version", { versionId }),
+  },
 };
