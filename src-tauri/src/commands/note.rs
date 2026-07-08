@@ -8,6 +8,10 @@ pub struct CreateNoteInput {
     pub date: String,
     pub title: Option<String>,
     pub content: Option<serde_json::Value>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub pinned: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -15,6 +19,9 @@ pub struct UpdateNoteInput {
     pub id: String,
     pub title: Option<String>,
     pub content: Option<serde_json::Value>,
+    pub tags: Option<Vec<String>>,
+    pub pinned: Option<bool>,
+    pub sort_order: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,6 +48,8 @@ pub fn create_note(
         &data.date,
         data.title.as_deref(),
         &data.content.unwrap_or(serde_json::json!({"ops": []})),
+        &data.tags,
+        data.pinned,
     )
     .map_err(|e| e.to_string())
 }
@@ -57,9 +66,24 @@ pub fn update_note(
         &id,
         data.title.as_deref(),
         &data.content.unwrap_or(serde_json::Value::Null),
+        data.tags.as_deref(),
+        data.pinned,
+        data.sort_order,
     )
     .map_err(|e| e.to_string())?
     .ok_or_else(|| "note not found".to_string())
+}
+
+#[tauri::command]
+pub fn update_note_order(
+    state: State<AppState>,
+    id: String,
+    sort_order: i32,
+) -> Result<crate::db::models::Note, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    service::note_service::reorder_note(&conn, &id, sort_order)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "note not found".to_string())
 }
 
 #[tauri::command]
@@ -72,6 +96,18 @@ pub fn delete_note(state: State<AppState>, id: String) -> Result<(), String> {
 pub fn search_notes(state: State<AppState>, query: String) -> Result<Vec<crate::db::models::Note>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     service::note_service::search_notes(&conn, &query).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_notes_by_tag(state: State<AppState>, tag: String) -> Result<Vec<crate::db::models::Note>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    service::note_service::get_notes_by_tag(&conn, &tag).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_all_tags(state: State<AppState>) -> Result<Vec<String>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    service::note_service::get_all_tags(&conn).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

@@ -1,11 +1,14 @@
-// ──── 数据模型 (与 schema/note.yaml 保持同步) ────
+// ──── 数据模型（与 schema/note.yaml 保持一致）────
 
 export interface Note {
-  id: string;            // UUID v4
-  date: string;          // ISO 8601 date "2026-07-08"
-  title: string | null;  // 随心记标题
-  content: DeltaOps;     // Delta JSON
-  created_at: string;    // ISO 8601 datetime
+  id: string;
+  date: string;
+  title: string | null;
+  content: DeltaOps;
+  tags: string[];
+  pinned: boolean;
+  sort_order: number;
+  created_at: string;
   updated_at: string;
 }
 
@@ -14,12 +17,13 @@ export interface Todo {
   text: string;
   done: boolean;
   order: number;
+  tags: string[];
 }
 
 export interface DailyPage {
-  date: string;               // PK, 唯一
+  date: string;
   todos: Todo[];
-  todo_carryover: boolean;    // 是否跨日继承未完成项
+  todo_carryover: boolean;
   updated_at: string;
 }
 
@@ -33,7 +37,6 @@ export interface SyncChange {
   synced_at: string | null;
 }
 
-// TipTap / Quill Delta 格式
 export interface DeltaOps {
   ops: DeltaOp[];
 }
@@ -43,17 +46,23 @@ export interface DeltaOp {
   attributes?: Record<string, unknown>;
 }
 
-// Tauri IPC 命令参数
+// ──── Tauri IPC 参数 ────
+
 export interface CreateNoteInput {
   date: string;
   title?: string;
   content?: DeltaOps;
+  tags?: string[];
+  pinned?: boolean;
 }
 
 export interface UpdateNoteInput {
   id: string;
   title?: string | null;
   content?: DeltaOps;
+  tags?: string[];
+  pinned?: boolean;
+  sort_order?: number;
 }
 
 export interface UpdateTodosInput {

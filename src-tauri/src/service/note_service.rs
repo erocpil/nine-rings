@@ -1,9 +1,8 @@
 use crate::db;
-use crate::db::models::{DailyPage, Note, Todo};
+use crate::db::models::{DailyPage, Note, NotePublic, Todo};
 use rusqlite::Connection;
 use serde_json::Value;
 
-/// 从 Delta JSON 提取纯文本用于搜索
 fn extract_plain_text(content: &Value) -> String {
     let mut out = String::new();
     if let Some(ops) = content.get("ops").and_then(|v| v.as_array()) {
@@ -26,15 +25,33 @@ pub fn get_notes_by_date(conn: &Connection, date: &str) -> rusqlite::Result<Vec<
     db::models::select_notes_by_date(conn, date)
 }
 
-pub fn create_note(conn: &Connection, date: &str, title: Option<&str>, content: &Value) -> rusqlite::Result<Note> {
+pub fn create_note(
+    conn: &Connection,
+    date: &str,
+    title: Option<&str>,
+    content: &Value,
+    tags: &[String],
+    pinned: bool,
+) -> rusqlite::Result<Note> {
     let now = chrono::Utc::now().to_rfc3339();
     let search_text = extract_plain_text(content);
+    // 新笔记放在同类 note 的末尾（max order + 1）
+    let max_order: i32 = conn
+        .query_row(
+            "SELECT COALESCE(MAX(sort_order), -1) FROM notes WHERE date = ?1 AND deleted_at IS NULL",
+            rusqlite::params![date],
+            |r| r.get(0),
+        )
+        .unwrap_or(-1);
     let note = Note {
         id: uuid::Uuid::new_v4().to_string(),
         date: date.to_string(),
         title: title.map(|s| s.to_string()),
         content: content.clone(),
         search_text,
+        tags: tags.to_vec(),
+        pinned,
+        sort_order: max_order + 1,
         created_at: now.clone(),
         updated_at: now,
     };
@@ -42,12 +59,37 @@ pub fn create_note(conn: &Connection, date: &str, title: Option<&str>, content: 
     Ok(note)
 }
 
-pub fn update_note(conn: &Connection, id: &str, title: Option<&str>, content: &Value) -> rusqlite::Result<Option<Note>> {
+pub fn update_note(
+    conn: &Connection,
+    id: &str,
+    title: Option<&str>,
+    content: &Value,
+    tags: Option<&[String]>,
+    pinned: Option<bool>,
+    sort_order: Option<i32>,
+) -> rusqlite::Result<Option<Note>> {
     let now = chrono::Utc::now().to_rfc3339();
-    let search_text = content.as_str()
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| extract_plain_text(content));
-    db::models::update_note(conn, id, title, content, &search_text, &now)?;
+    // 查当前值，只覆盖有提供的字段
+    let current = db::models::select_note_by_id(conn, id)?;
+    let current = match current {
+        Some(n) => n,
+        None => return Ok(None),
+    };
+
+    let new_content = if content.is_null() { &current.content } else { content };
+    let search_text = if content.is_null() {
+        current.search_text
+    } else {
+        content.as_str()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| extract_plain_text(new_content))
+    };
+    let new_tags = tags.unwrap_or(&current.tags);
+    let new_pinned = pinned.unwrap_or(current.pinned);
+    let new_order = sort_order.unwrap_or(current.sort_order);
+    let new_title = title.or(current.title.as_deref());
+
+    db::models::update_note(conn, id, new_title, new_content, &search_text, new_tags, new_pinned, new_order, &now)?;
     db::models::select_note_by_id(conn, id)
 }
 
@@ -60,23 +102,32 @@ pub fn search_notes(conn: &Connection, query: &str) -> rusqlite::Result<Vec<Note
     db::models::search_notes_like(conn, query)
 }
 
-/// 获取指定日期的 DailyPage，不存在时自动创建。
-/// 如果前一天启用了 todo_carryover，则自动继承未完成的待办。
+pub fn get_notes_by_tag(conn: &Connection, tag: &str) -> rusqlite::Result<Vec<Note>> {
+    db::models::select_notes_by_tag(conn, tag)
+}
+
+pub fn get_all_tags(conn: &Connection) -> rusqlite::Result<Vec<String>> {
+    db::models::select_all_tags(conn)
+}
+
+pub fn reorder_note(conn: &Connection, id: &str, new_order: i32) -> rusqlite::Result<Option<Note>> {
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "UPDATE notes SET sort_order = ?1, updated_at = ?2 WHERE id = ?3",
+        rusqlite::params![new_order, now, id],
+    )?;
+    db::models::select_note_by_id(conn, id)
+}
+
 pub fn get_or_create_daily_page(conn: &Connection, date: &str) -> rusqlite::Result<DailyPage> {
     if let Some(page) = db::models::select_daily_page(conn, date)? {
         return Ok(page);
     }
-
     let prev = db::models::select_prev_carryover_page(conn, date)?;
     let now = chrono::Utc::now().to_rfc3339();
-
     if let Some(prev) = prev {
         if prev.todo_carryover {
-            let incompleted: Vec<Todo> = prev
-                .todos
-                .into_iter()
-                .filter(|t| !t.done)
-                .collect();
+            let incompleted: Vec<Todo> = prev.todos.into_iter().filter(|t| !t.done).collect();
             let page = DailyPage {
                 date: date.to_string(),
                 todos: incompleted,
@@ -87,7 +138,6 @@ pub fn get_or_create_daily_page(conn: &Connection, date: &str) -> rusqlite::Resu
             return Ok(page);
         }
     }
-
     let page = DailyPage {
         date: date.to_string(),
         todos: vec![],
@@ -132,13 +182,11 @@ mod tests {
 
     #[test]
     fn test_extract_plain_text_empty() {
-        let json = serde_json::json!({"ops": []});
-        assert_eq!(extract_plain_text(&json), "");
+        assert_eq!(extract_plain_text(&serde_json::json!({"ops": []})), "");
     }
 
     #[test]
     fn test_extract_plain_text_string() {
-        let json = serde_json::Value::String("plain text content".to_string());
-        assert_eq!(extract_plain_text(&json), "plain text content");
+        assert_eq!(extract_plain_text(&serde_json::Value::String("plain".into())), "plain");
     }
 }

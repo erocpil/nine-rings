@@ -1,4 +1,5 @@
 # Note Sticky — 共享数据格式定义
+# Tauri (Rust) 和 Flutter (Dart) 两端共用的数据契约
 
 Note:
   description: 一条随笔笔记
@@ -16,8 +17,19 @@ Note:
       nullable: true
       description: 随心记标题
     content:
-      type: Delta           # TipTap/Quill Delta JSON
+      type: Delta           # TipTap/Quill Delta JSON，两端共用
       description: 富文本内容
+    tags:
+      type: string[]
+      default: []
+      description: 标签列表
+    pinned:
+      type: boolean
+      default: false
+    order:
+      type: integer
+      default: 0
+      description: 同一天内的排序序号，越小越前
     created_at:
       type: string
       format: datetime
@@ -43,6 +55,10 @@ Todo:
     order:
       type: integer
       default: 0
+    tags:
+      type: string[]
+      default: []
+      description: 待办标签
 
 DailyPage:
   description: 每日一页（今日待办聚合）

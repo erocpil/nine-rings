@@ -18,11 +18,22 @@ export const api = {
     update: (id: string, data: UpdateNoteInput) =>
       invoke<Note>("update_note", { id, data }),
 
+    updateOrder: (id: string, sort_order: number) =>
+      invoke<Note>("update_note_order", { id, sort_order }),
+
     delete: (id: string) =>
       invoke<void>("delete_note", { id }),
 
     search: (query: string) =>
       invoke<Note[]>("search_notes", { query }),
+
+    listByTag: (tag: string) =>
+      invoke<Note[]>("get_notes_by_tag", { tag }),
+  },
+
+  tags: {
+    listAll: () =>
+      invoke<string[]>("get_all_tags"),
   },
 
   daily: {

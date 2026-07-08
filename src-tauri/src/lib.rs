@@ -5,7 +5,6 @@ pub mod service;
 use std::sync::Mutex;
 use tauri::Manager;
 
-/// 应用状态: 共享数据库连接
 pub struct AppState {
     pub db: Mutex<rusqlite::Connection>,
 }
@@ -18,7 +17,6 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
-            // 初始化数据库
             let app_dir = app.path().app_data_dir().expect("failed to get app data dir");
             std::fs::create_dir_all(&app_dir).ok();
             let db_path = app_dir.join("note-sticky.db");
@@ -38,8 +36,11 @@ pub fn run() {
             commands::note::get_notes_by_date,
             commands::note::create_note,
             commands::note::update_note,
+            commands::note::update_note_order,
             commands::note::delete_note,
             commands::note::search_notes,
+            commands::note::get_notes_by_tag,
+            commands::note::get_all_tags,
             commands::note::get_daily_page,
             commands::note::update_todos,
             commands::sync::sync_push,
