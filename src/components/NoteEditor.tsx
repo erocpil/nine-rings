@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -7,6 +7,14 @@ import Color from "@tiptap/extension-color";
 import ImageExt from "@tiptap/extension-image";
 import CharacterCount from "@tiptap/extension-character-count";
 import type { DeltaOps } from "../types/models";
+import {
+  proseMirrorToDelta,
+  deltaToProseMirror,
+  isProseMirror,
+  isDelta,
+  pxToNamed,
+  namedToPx,
+} from "../lib/delta-converter";
 
 // ── 自定义字体大小扩展 ──
 
@@ -56,8 +64,6 @@ const PRESET_COLORS = [
   "#7030a0", "#ffffff",
 ];
 
-// ── 字体大小选项 ──
-
 const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32];
 
 // ══════════════════════════════════════
@@ -75,6 +81,13 @@ export function NoteEditor({ title, content, onTitleChange, onContentChange }: N
   const [imageDialog, setImageDialog] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
 
+  // 检测 content 格式并转换
+  const tipTapContent = React.useMemo(() => {
+    if (isProseMirror(content)) return content;
+    if (isDelta(content)) return deltaToProseMirror(content);
+    return content; // fallback
+  }, [content]);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -87,10 +100,12 @@ export function NoteEditor({ title, content, onTitleChange, onContentChange }: N
       ImageExt.configure({ inline: false, allowBase64: true }),
       CharacterCount.configure({ limit: 50000 }),
     ],
-    content: content,
+    content: tipTapContent,
     onUpdate: ({ editor: ed }) => {
-      const json = ed.getJSON();
-      onContentChange(json as unknown as DeltaOps);
+      // 保存时转为 Quill Delta（含字体大小 px→named 映射）
+      const pmJson = ed.getJSON();
+      const delta = proseMirrorToDelta(pmJson);
+      onContentChange(delta as unknown as DeltaOps);
     },
   });
 
@@ -167,7 +182,7 @@ export function NoteEditor({ title, content, onTitleChange, onContentChange }: N
         onChange={(e) => onTitleChange(e.target.value)}
       />
 
-      {/* ── 工具栏 Row 1: 基础格式 ── */}
+      {/* ── 工具栏 Row 1 ── */}
       <div className="editor-menu">
         {btn("B", () => editor.chain().focus().toggleBold().run(), editor.isActive("bold"))}
         {btn("I", () => editor.chain().focus().toggleItalic().run(), editor.isActive("italic"))}
@@ -183,7 +198,7 @@ export function NoteEditor({ title, content, onTitleChange, onContentChange }: N
         {btn("⏹", () => editor.chain().focus().toggleCodeBlock().run(), editor.isActive("codeBlock"))}
       </div>
 
-      {/* ── 工具栏 Row 2: 扩展格式 ── */}
+      {/* ── 工具栏 Row 2 ── */}
       <div className="editor-menu editor-menu-ext">
         {/* 字体大小 */}
         <div className="menu-dropdown">

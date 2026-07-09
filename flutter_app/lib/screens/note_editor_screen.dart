@@ -1,10 +1,22 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../providers/note_provider.dart';
 import '../models/note.dart';
 import '../widgets/tag_editor.dart';
+
+/// 字体大小 named → px 映射（用于统计栏显示，与 Web 端 delta-converter.ts 一致）
+int namedToPx(String name) {
+  switch (name) {
+    case 'small':  return 14;
+    case 'normal': return 16;
+    case 'large':  return 18;
+    case 'huge':   return 24;
+    default:       return 16;
+  }
+}
 
 class NoteEditorScreen extends StatefulWidget {
   final String date;
@@ -42,19 +54,93 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           document: Document.fromJson(delta),
           selection: const TextSelection.collapsed(offset: 0),
         );
+        _quillController.addListener(_onChange);
       } catch (_) {
         _quillController = QuillController.basic();
+        _quillController.addListener(_onChange);
       }
     } else {
       _quillController = QuillController.basic();
+      _quillController.addListener(_onChange);
     }
   }
 
   @override
   void dispose() {
+    _quillController.removeListener(_onChange);
     _quillController.dispose();
     _titleController.dispose();
     super.dispose();
+  }
+
+  /// Listen for changes (used for word count refresh)
+  void _onChange() {
+    if (mounted) setState(() {});
+  }
+
+  /// 字数统计
+  int get _charCount {
+    try {
+      final text = _quillController.document.toPlainText();
+      return text.replaceAll('\n', '').length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  int get _wordCount {
+    try {
+      final text = _quillController.document.toPlainText().trim();
+      return text.isEmpty ? 0 : text.split(RegExp(r'\s+')).length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final picker = ImagePicker();
+    final xFile = await picker.pickImage(source: source, maxWidth: 1024);
+    if (xFile == null) return;
+
+    final bytes = await xFile.readAsBytes();
+    final base64 = base64Encode(bytes);
+    final mimeType = xFile.name.endsWith('.png') ? 'image/png' : 'image/jpeg';
+    final dataUri = 'data:$mimeType;base64,$base64';
+
+    final index = _quillController.selection.baseOffset;
+    _quillController.document.insert(
+      index,
+      BlockEmbed.image(dataUri),
+    );
+  }
+
+  void _showImagePickerDialog() {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('从相册选择'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('拍照'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -177,8 +263,23 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
           const Divider(),
 
-          // Quill editor toolbar
-          QuillSimpleToolbar(controller: _quillController),
+          // Quill editor toolbar + image button
+          QuillSimpleToolbar(
+            controller: _quillController,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                icon: const Icon(Icons.image, size: 20),
+                tooltip: '插入图片',
+                onPressed: _showImagePickerDialog,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                padding: EdgeInsets.zero,
+              ),
+            ),
+          ),
 
           // Quill editor body
           Expanded(
@@ -189,11 +290,38 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               ),
             ),
           ),
+
+          // ── 字数统计 ──
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  '$_charCount 字符 | $_wordCount 词',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).disabledColor,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '图片/字号/颜色均支持',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).disabledColor.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
-}
+} // ← close _NoteEditorScreenState
 
 // ── Version History Bottom Sheet ──
 
