@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tauri::{command, State};
+use tauri::{command, Manager, State};
 use std::sync::Mutex;
 
 /// 应用配置（与 schema/config.yaml 对齐）

@@ -260,6 +260,55 @@ pub fn select_prev_carryover_page(conn: &Connection, before_date: &str) -> rusql
     rows.next().transpose()
 }
 
+/// 获取所有未删除笔记（用于导出）
+pub fn select_all_active_notes(conn: &Connection) -> rusqlite::Result<Vec<Note>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at
+         FROM notes WHERE deleted_at IS NULL
+         ORDER BY updated_at DESC"
+    )?;
+    let rows = stmt.query_map([], |row| note_from_row(row))?;
+    rows.collect()
+}
+
+/// 获取所有每日页（用于导出）
+pub fn select_all_daily_pages(conn: &Connection) -> rusqlite::Result<Vec<DailyPage>> {
+    let mut stmt = conn.prepare(
+        "SELECT date, todos, todo_carryover, updated_at FROM daily_pages ORDER BY date DESC"
+    )?;
+    let rows = stmt.query_map([], |row| {
+        let todos_str: String = row.get(1)?;
+        Ok(DailyPage {
+            date: row.get(0)?,
+            todos: serde_json::from_str(&todos_str).unwrap_or_default(),
+            todo_carryover: row.get(2)?,
+            updated_at: row.get(3)?,
+        })
+    })?;
+    rows.collect()
+}
+
+/// 插入或替换笔记（用于导入）
+pub fn upsert_note(conn: &Connection, note: &Note) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT OR REPLACE INTO notes (id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        rusqlite::params![
+            note.id,
+            note.date,
+            note.title,
+            note.content.to_string(),
+            note.search_text,
+            serde_json::to_string(&note.tags).unwrap_or_default(),
+            note.pinned,
+            note.sort_order,
+            note.created_at,
+            note.updated_at,
+        ],
+    )?;
+    Ok(())
+}
+
 pub fn note_from_row(row: &rusqlite::Row) -> rusqlite::Result<Note> {
     let content_str: String = row.get(3)?;
     let tags_json: String = row.get(5)?;
