@@ -1,6 +1,28 @@
-import type { Note, DailyPage, Todo, NoteVersion, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../../types/models";
+import type { Note, DailyPage, NoteVersion, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../../types/models";
 
-/** StorageAdapter — 抽象存储后端，Tauri (SQLite) 和 Web (IndexedDB) 各有一个实现 */
+// ── 配置类型（与 schema/config.yaml 对齐）──
+
+export interface AppConfig {
+  theme: "system" | "light" | "dark";
+  default_view: "daily" | "list";
+  todo_carryover_default: boolean;
+  auto_clean_days: number;
+  note_font_size: number;
+  enable_sync: boolean;
+  dev_port: number; // 仅 web 模式生效
+}
+
+export const DEFAULT_CONFIG: AppConfig = {
+  theme: "system",
+  default_view: "daily",
+  todo_carryover_default: false,
+  auto_clean_days: 30,
+  note_font_size: 16,
+  enable_sync: false,
+  dev_port: 1420,
+};
+
+/** StorageAdapter — 抽象存储后端 */
 export interface StorageAdapter {
   // ── Notes ──
   getNotesByDate(date: string): Promise<Note[]>;
@@ -19,7 +41,7 @@ export interface StorageAdapter {
   getDailyPage(date: string): Promise<DailyPage>;
   updateTodos(data: UpdateTodosInput): Promise<DailyPage>;
 
-  // ── Sync (存桩，web 版后续对接后端) ──
+  // ── Sync (存桩) ──
   syncPush(): Promise<{ pushed: number }>;
   syncPull(): Promise<{ pulled: number }>;
 
@@ -37,4 +59,8 @@ export interface StorageAdapter {
   // ── Version History ──
   getNoteVersions(noteId: string): Promise<NoteVersion[]>;
   restoreNoteVersion(versionId: string): Promise<Note>;
+
+  // ── Config ──
+  getConfig(): Promise<AppConfig>;
+  setConfig(partial: Partial<AppConfig>): Promise<AppConfig>;
 }

@@ -1,0 +1,45 @@
+# Note Sticky — 应用配置定义
+# Tauri (Rust)、Web (localStorage)、Flutter (shared_preferences) 三方共用
+
+AppConfig:
+  description: 应用全局配置
+  persistence: 本地持久化，各端独立。不参与同步
+  fields:
+    theme:
+      type: enum(system, light, dark)
+      default: system
+      description: 主题模式
+
+    default_view:
+      type: enum(daily, list)
+      default: daily
+      description: 默认视图：daily = 每日聚合，list = 全部列表
+
+    todo_carryover_default:
+      type: boolean
+      default: false
+      description: 新建每日页时默认是否开启待办跨日继承
+
+    auto_clean_days:
+      type: integer
+      default: 30
+      min: 0
+      max: 365
+      description: 回收站自动清理天数。0 表示不自动清理
+
+    note_font_size:
+      type: integer
+      default: 16
+      min: 12
+      max: 32
+      description: 编辑器正文字号
+
+    enable_sync:
+      type: boolean
+      default: false
+      description: 是否启用跨设备同步（需要对接同步后端）
+
+    dev_port:
+      type: integer
+      default: 1420
+      description: Web 开发服务器端口（仅 web 模式生效）

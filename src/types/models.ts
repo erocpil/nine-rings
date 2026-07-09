@@ -81,3 +81,26 @@ export interface NoteVersion {
   sort_order: number;
   saved_at: string;
 }
+
+// ──── 应用的端配置 ────
+
+/** 应用配置（与 schema/config.yaml 对齐） */
+export interface AppConfig {
+  theme: "system" | "light" | "dark";
+  default_view: "daily" | "list";
+  todo_carryover_default: boolean;
+  auto_clean_days: number;
+  note_font_size: number;
+  enable_sync: boolean;
+  dev_port: number;
+}
+
+export const DEFAULT_CONFIG: AppConfig = {
+  theme: "system",
+  default_view: "daily",
+  todo_carryover_default: false,
+  auto_clean_days: 30,
+  note_font_size: 16,
+  enable_sync: false,
+  dev_port: 1420,
+};

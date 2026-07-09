@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod config;
 pub mod db;
 pub mod export;
 pub mod service;
@@ -9,6 +10,8 @@ use tauri::Manager;
 pub struct AppState {
     pub db: Mutex<rusqlite::Connection>,
 }
+
+use commands::config::AppConfig;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -27,6 +30,10 @@ pub fn run() {
             let conn = rusqlite::Connection::open(&db_path)
                 .expect("failed to open database");
             db::migrations::run(&conn).expect("failed to run migrations");
+
+            // 加载配置
+            let user_config = commands::config::read_config(&app_dir);
+            app.manage(Mutex::new(user_config));
 
             app.manage(AppState {
                 db: Mutex::new(conn),
@@ -47,6 +54,8 @@ pub fn run() {
             commands::note::update_todos,
             commands::note::get_note_versions,
             commands::note::restore_note_version,
+            commands::config::get_config,
+            commands::config::set_config,
             commands::export::export_data,
             commands::export::import_data,
             commands::export::get_deleted_notes,

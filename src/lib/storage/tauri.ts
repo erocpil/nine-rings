@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Note, DailyPage, NoteVersion, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../../types/models";
-import type { StorageAdapter } from "./types";
+import type { StorageAdapter, AppConfig } from "./types";
 
 /** TauriAdapter — 通过 IPC invoke 调 Rust 后端 */
 export const tauriAdapter: StorageAdapter = {
@@ -39,4 +39,8 @@ export const tauriAdapter: StorageAdapter = {
   // ── Versions ──
   getNoteVersions: (noteId) => invoke<NoteVersion[]>("get_note_versions", { noteId }),
   restoreNoteVersion: (versionId) => invoke<Note>("restore_note_version", { versionId }),
+
+  // ── Config ──
+  getConfig: () => invoke<AppConfig>("get_config"),
+  setConfig: (partial) => invoke<AppConfig>("set_config", { config: partial }),
 };

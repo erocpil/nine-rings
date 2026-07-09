@@ -4,12 +4,14 @@
  */
 
 import type { Note, DailyPage, Todo, NoteVersion, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../../types/models";
-import type { StorageAdapter } from "./types";
+import type { StorageAdapter, AppConfig, DEFAULT_CONFIG } from "./types";
 
 const DB_NAME = "note_sticky";
 const DB_VERSION = 1;
 
 // ── 工具函数 ──
+
+const CONFIG_KEY = "note_sticky_config";
 
 function uuid(): string {
   return crypto.randomUUID();
@@ -558,6 +560,25 @@ export const idbAdapter: StorageAdapter = {
       await putRecord(noteStore, restored);
       return noteFromDB(restored);
     });
+  },
+
+  // ══════ Config (localStorage) ══════
+
+  async getConfig(): Promise<AppConfig> {
+    const raw = localStorage.getItem(CONFIG_KEY);
+    if (!raw) return { ...DEFAULT_CONFIG };
+    try {
+      return { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
+    } catch {
+      return { ...DEFAULT_CONFIG };
+    }
+  },
+
+  async setConfig(partial: Partial<AppConfig>): Promise<AppConfig> {
+    const current = await this.getConfig();
+    const merged = { ...current, ...partial };
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(merged));
+    return merged;
   },
 };
 

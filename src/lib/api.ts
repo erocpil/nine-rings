@@ -1,5 +1,5 @@
 import { getAdapter } from "./storage";
-import type { Note, DailyPage, NoteVersion, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../types/models";
+import type { Note, DailyPage, NoteVersion, AppConfig, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../types/models";
 
 /**
  * API 层 — 统一接口，底层自动适配 Tauri IPC / IndexedDB
@@ -7,7 +7,6 @@ import type { Note, DailyPage, NoteVersion, CreateNoteInput, UpdateNoteInput, Up
  * 所有 store/component 只通过此模块访问数据，不直接引用 storage adapter。
  */
 
-// 懒加载适配器，首次使用时 resolve
 let _adapterPromise: Promise<ReturnType<typeof getAdapter>> | null = null;
 function adapter(): Promise<ReturnType<typeof getAdapter>> {
   if (!_adapterPromise) {
@@ -87,5 +86,11 @@ export const api = {
 
     restore: (versionId: string) =>
       adapter().then((a) => a.restoreNoteVersion(versionId)),
+  },
+
+  // ── Config ──
+  config: {
+    get: () => adapter().then((a) => a.getConfig()),
+    set: (partial: Partial<AppConfig>) => adapter().then((a) => a.setConfig(partial)),
   },
 };

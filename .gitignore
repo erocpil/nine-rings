@@ -1,4 +1,7 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 53a920d (feat: 配置文件系统（schema + 三端实现）)
 # Dependencies
 node_modules/
 .pnp
@@ -8,6 +11,7 @@ node_modules/
 dist/
 build/
 
+<<<<<<< HEAD
 # Rust/Cargo (from remote)
 debug
 target
@@ -23,6 +27,11 @@ src-tauri/target/
 
 =======
 >>>>>>> dfb6604 (feat: Flutter 移动端项目骨架（note_sticky_flutter）)
+=======
+# Tauri
+src-tauri/target/
+
+>>>>>>> 53a920d (feat: 配置文件系统（schema + 三端实现）)
 # Flutter
 flutter_app/.dart_tool/
 flutter_app/.packages
@@ -39,6 +48,9 @@ flutter_app/.idea/
 flutter_app/*.iml
 flutter_app/.metadata
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 53a920d (feat: 配置文件系统（schema + 三端实现）)
 
 # IDE
 .idea/
@@ -49,9 +61,12 @@ flutter_app/.metadata
 # OS
 .DS_Store
 Thumbs.db
+<<<<<<< HEAD
 
 # Env
 .env
 .env.local
 =======
 >>>>>>> dfb6604 (feat: Flutter 移动端项目骨架（note_sticky_flutter）)
+=======
+>>>>>>> 53a920d (feat: 配置文件系统（schema + 三端实现）)
