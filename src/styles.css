@@ -15,7 +15,40 @@
   --accent: #58a6ff;
   --accent-hover: #79c0ff;
   --danger: #f85149;
+  --success: #3fb950;
   --radius: 6px;
+  --transition: 0.2s ease;
+}
+
+/* ── 浅色主题 ── */
+
+.theme-light {
+  --bg: #ffffff;
+  --surface: #f6f8fa;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --text-secondary: #656d76;
+  --accent: #0969da;
+  --accent-hover: #0550ae;
+  --danger: #cf222e;
+  --success: #1a7f37;
+}
+
+/* ── 系统跟随：@media prefers-color-scheme ── */
+/* 当 !important 未强制 light/dark 时生效 */
+
+@media (prefers-color-scheme: light) {
+  :root:not(.theme-dark) {
+    --bg: #ffffff;
+    --surface: #f6f8fa;
+    --border: #d0d7de;
+    --text: #1f2328;
+    --text-secondary: #656d76;
+    --accent: #0969da;
+    --accent-hover: #0550ae;
+    --danger: #cf222e;
+    --success: #1a7f37;
+  }
 }
 
 body {
@@ -24,6 +57,7 @@ body {
   color: var(--text);
   height: 100vh;
   overflow: hidden;
+  transition: background var(--transition), color var(--transition);
 }
 
 /* ──── App Shell ──── */
@@ -37,11 +71,12 @@ body {
 .app-header {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding: 8px 16px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   -webkit-app-region: drag;
+  transition: background var(--transition);
 }
 
 .app-body {
@@ -54,12 +89,36 @@ body {
   width: 240px;
   border-right: 1px solid var(--border);
   overflow-y: auto;
+  transition: border-color var(--transition);
 }
 
 .app-main {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
+}
+
+/* ──── Icon Button (设置 / 新窗口) ──── */
+
+.btn-icon {
+  -webkit-app-region: no-drag;
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition), border-color var(--transition);
+}
+
+.btn-icon:hover {
+  color: var(--text);
+  border-color: var(--border);
 }
 
 /* ──── Date Picker ──── */
@@ -72,6 +131,7 @@ body {
   border-radius: var(--radius);
   font-size: 14px;
   -webkit-app-region: no-drag;
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
 }
 
 /* ──── Daily Overview ──── */
@@ -99,24 +159,6 @@ body {
   margin-right: 6px;
 }
 
-/* ──── New Window ──── */
-
-.btn-new-window {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  padding: 2px 8px;
-  border-radius: var(--radius);
-  cursor: pointer;
-  font-size: 14px;
-  -webkit-app-region: no-drag;
-}
-
-.btn-new-window:hover {
-  color: var(--text);
-  border-color: var(--text-secondary);
-}
-
 /* ──── Search ──── */
 
 .search-bar {
@@ -134,6 +176,7 @@ body {
   padding: 4px 28px 4px 8px;
   border-radius: var(--radius);
   font-size: 14px;
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
 }
 
 .search-clear {
@@ -173,6 +216,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: background var(--transition), border-color var(--transition);
 }
 
 .btn-new:hover {
@@ -361,6 +405,272 @@ body {
 .search-hit-date {
   font-size: 11px;
   color: var(--text-secondary);
+}
+
+/* ═══════════════════════════════════════
+   设置面板
+   ═══════════════════════════════════════ */
+
+/* ── 遮罩 ── */
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+/* ── 面板本体 ── */
+
+.settings-panel {
+  width: 360px;
+  max-width: 90vw;
+  height: 100%;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.2s ease;
+  overflow: hidden;
+}
+
+/* ── 头部 ── */
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.settings-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 18px;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-close:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+
+/* ── 滚动体 ── */
+
+.settings-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 40px;
+}
+
+.settings-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* ── 字段 ── */
+
+.settings-field {
+  margin-bottom: 24px;
+}
+
+.settings-label {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.settings-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.settings-control {
+  display: flex;
+  align-items: center;
+}
+
+/* ── Radio Group ── */
+
+.settings-radio-group {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.settings-radio {
+  flex: 1;
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.settings-radio:last-child {
+  border-right: none;
+}
+
+.settings-radio:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+
+.settings-radio.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.settings-radio.saving {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* ── Toggle Switch ── */
+
+.settings-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  display: none;
+}
+
+.toggle-track {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  background: var(--border);
+  border-radius: 10px;
+  transition: background var(--transition);
+}
+
+.toggle-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--text);
+  border-radius: 50%;
+  transition: transform var(--transition);
+}
+
+.settings-toggle input:checked + .toggle-track {
+  background: var(--accent);
+}
+
+.settings-toggle input:checked + .toggle-track::after {
+  transform: translateX(16px);
+}
+
+.toggle-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  min-width: 20px;
+}
+
+/* ── Stepper ── */
+
+.settings-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.settings-step-btn {
+  background: none;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-secondary);
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-step-btn:last-child {
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+.settings-step-btn:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+
+.settings-value {
+  padding: 0 12px;
+  font-size: 13px;
+  min-width: 60px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-value.saving {
+  opacity: 0.6;
+}
+
+/* ── Toast ── */
+
+.settings-toast {
+  position: sticky;
+  bottom: 0;
+  text-align: center;
+  padding: 8px;
+  background: var(--success);
+  color: #fff;
+  font-size: 13px;
+  border-radius: var(--radius);
+  margin-top: 16px;
+  animation: fadeIn 0.15s ease;
 }
 
 /* ──── Scrollbar ──── */

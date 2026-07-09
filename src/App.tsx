@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useNotes } from "./hooks/useNotes";
 import { DatePicker } from "./components/DatePicker";
 import { TodoList } from "./components/TodoList";
@@ -6,8 +6,11 @@ import { Sidebar } from "./components/Sidebar";
 import { NoteEditor } from "./components/NoteEditor";
 import { SearchBar } from "./components/SearchBar";
 import { DailyOverview } from "./components/DailyOverview";
+import { SettingsPanel } from "./components/SettingsPanel";
 import { useSearch } from "./hooks/useSearch";
 import { useNotesStore } from "./stores/useNotesStore";
+import { api } from "./lib/api";
+import type { AppConfig } from "./types/models";
 
 function openNewWindow() {
   // @ts-ignore
@@ -42,6 +45,22 @@ function App() {
   const updateTodos = useNotesStore((s) => s.updateTodos);
   const { search, results, query } = useSearch();
 
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [config, setConfig] = useState<AppConfig | null>(null);
+
+  // 启动时加载配置并设置主题
+  useEffect(() => {
+    api.config.get().then((c) => {
+      setConfig(c);
+      applyTheme(c.theme);
+    });
+  }, []);
+
+  const handleConfigChange = useCallback((c: AppConfig) => {
+    setConfig(c);
+    applyTheme(c.theme);
+  }, []);
+
   const handleDateChange = (date: string) => {
     setDate(date);
   };
@@ -64,9 +83,12 @@ function App() {
         <DatePicker value={currentDate} onChange={handleDateChange} />
         <DailyOverview />
         <SearchBar onSearch={search} />
+        <button className="btn-icon" onClick={() => setSettingsOpen(true)} title="设置">
+          ⚙
+        </button>
         {/* @ts-ignore */}
         {typeof window !== "undefined" && (window as any).__TAURI__ && (
-          <button className="btn-new-window" onClick={openNewWindow} title="新窗口">
+          <button className="btn-icon" onClick={openNewWindow} title="新窗口">
             ⊞
           </button>
         )}
@@ -115,8 +137,28 @@ function App() {
           )}
         </main>
       </div>
+
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onConfigChange={handleConfigChange}
+      />
     </div>
   );
+}
+
+function applyTheme(theme: string) {
+  const root = document.documentElement;
+  if (theme === "light") {
+    root.classList.add("theme-light");
+    root.classList.remove("theme-dark");
+  } else if (theme === "dark") {
+    root.classList.add("theme-dark");
+    root.classList.remove("theme-light");
+  } else {
+    // system: detect prefers-color-scheme
+    root.classList.remove("theme-light", "theme-dark");
+  }
 }
 
 export default App;
