@@ -8,18 +8,18 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await DatabaseHelper.instance.initialize();
 
-  runApp(const NoteStickyApp());
+  runApp(const NineRingsApp());
 }
 
-class NoteStickyApp extends StatelessWidget {
-  const NoteStickyApp({super.key});
+class NineRingsApp extends StatelessWidget {
+  const NineRingsApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => NoteProvider(),
       child: MaterialApp(
-        title: 'Note Sticky',
+        title: 'Nine Rings',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(

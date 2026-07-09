@@ -15,7 +15,7 @@ class DatabaseHelper {
     if (_database != null) return;
 
     final dbPath = await getDatabasesPath();
-    final path = p.join(dbPath, 'note_sticky.db');
+    final path = p.join(dbPath, 'nine_rings.db');
 
     _database = await openDatabase(
       path,

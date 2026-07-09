@@ -6,12 +6,12 @@
 import type { Note, DailyPage, Todo, NoteVersion, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../../types/models";
 import type { StorageAdapter, AppConfig, DEFAULT_CONFIG } from "./types";
 
-const DB_NAME = "note_sticky";
+const DB_NAME = "nine_rings";
 const DB_VERSION = 1;
 
 // ── 工具函数 ──
 
-const CONFIG_KEY = "note_sticky_config";
+const CONFIG_KEY = "nine_rings_config";
 
 function uuid(): string {
   return crypto.randomUUID();

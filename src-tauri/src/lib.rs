@@ -24,7 +24,7 @@ pub fn run() {
         .setup(|app| {
             let app_dir = app.path().app_data_dir().expect("failed to get app data dir");
             std::fs::create_dir_all(&app_dir).ok();
-            let db_path = app_dir.join("note-sticky.db");
+            let db_path = app_dir.join("nine-rings.db");
             log::info!("database path: {:?}", db_path);
 
             let conn = rusqlite::Connection::open(&db_path)

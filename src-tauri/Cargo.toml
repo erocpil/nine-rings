@@ -1,10 +1,10 @@
 [package]
-name = "note-sticky"
+name = "nine-rings"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "note_sticky_lib"
+name = "nine_rings_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [build-dependencies]

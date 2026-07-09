@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicehash/tauri/refs/tags/v2.x/crates/tauri-config-schema/schema.json",
-  "productName": "Note Sticky",
+  "productName": "Nine Rings",
   "version": "0.1.0",
-  "identifier": "com.notesticky.app",
+  "identifier": "com.ninerings.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Note Sticky",
+        "title": "Nine Rings",
         "width": 960,
         "height": 680,
         "minWidth": 720,
