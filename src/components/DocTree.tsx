@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 
 interface DocTreeProps {
   onSelect: (note: Note) => void;
+  onFolderSelect?: (path: string) => void;
   selectedId: string | null;
   onCreate: () => void;
   refreshKey?: number;   // 变化时触发刷新
@@ -24,7 +25,7 @@ const STATE_ICONS: Record<string, string> = {
   archives: "📦",
 };
 
-function DocTree({ onSelect, selectedId, onCreate, refreshKey }: DocTreeProps) {
+function DocTree({ onSelect, onFolderSelect, selectedId, onCreate, refreshKey }: DocTreeProps) {
   const [tree, setTree] = useState<PathNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -84,7 +85,7 @@ function DocTree({ onSelect, selectedId, onCreate, refreshKey }: DocTreeProps) {
           <div
             className="doc-tree-node doc-tree-folder"
             style={{ paddingLeft }}
-            onClick={() => toggleCollapse(node.path)}
+            onClick={() => { toggleCollapse(node.path); onFolderSelect?.(node.path); }}
           >
             <span className="doc-tree-toggle">{hasChildren ? (isCollapsed ? "▶" : "▼") : "  "}</span>
             <span className="doc-tree-icon">

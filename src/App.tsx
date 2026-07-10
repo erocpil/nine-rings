@@ -19,6 +19,7 @@ import { api } from "./lib/api";
 import DocTree from "./components/DocTree";
 import DocCreateDialog from "./components/DocCreateDialog";
 import PropertiesPanel from "./components/PropertiesPanel";
+import { DocMOC } from "./components/DocMOC";
 import type { AppConfig } from "./lib/storage/types";
 import type { DeltaOps, Note, DocType } from "./types/models";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
@@ -95,9 +96,11 @@ function App() {
   const handleSetSidebarTab = (tab: 'daily' | 'tree') => {
     setSidebarTab(tab);
     localStorage.setItem(TAB_KEY, tab);
+    if (tab === 'daily') setSelectedFolderPath(null);
   };
   const [docCreateOpen, setDocCreateOpen] = useState(false);
   const [docTreeKey, setDocTreeKey] = useState(0);
+  const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
   const error = useNotesStore((s) => s.error);
   const clearError = useNotesStore((s) => s.clearError);
 
@@ -533,9 +536,9 @@ function App() {
             <DocTree
               onSelect={(note) => {
                 selectNote(note);
-                // 切换到文档所在日期
                 setDate(note.date);
               }}
+              onFolderSelect={setSelectedFolderPath}
               selectedId={selectedNote?.id ?? null}
               onCreate={() => setDocCreateOpen(true)}
               refreshKey={docTreeKey}
@@ -578,6 +581,15 @@ function App() {
                 </div>
               ))}
             </div>
+          ) : selectedFolderPath && sidebarTab === 'tree' && !selectedNote ? (
+            <DocMOC
+              storagePath={selectedFolderPath}
+              onSelect={(note) => {
+                selectNote(note);
+                setDate(note.date);
+              }}
+              selectedId={null}
+            />
           ) : (
             <div className="app-main-split" ref={splitRef}>
               {todoFlex > 0 && (

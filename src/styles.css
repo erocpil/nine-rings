@@ -3287,3 +3287,178 @@ body {
   color: var(--text-tertiary);
   flex-shrink: 0;
 }
+
+/* ── MOC (Map of Content) 文档表格视图 ── */
+
+.moc-loading,
+.moc-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.moc {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.moc-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.moc-breadcrumb {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.moc-count {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.moc-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.moc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.moc-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.moc-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.moc-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.moc-row {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.moc-row:hover {
+  background: var(--hover);
+}
+
+.moc-row-selected {
+  background: var(--accent-bg);
+}
+
+.moc-col-title {
+  min-width: 160px;
+  max-width: 300px;
+}
+
+.moc-title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+  font-weight: 500;
+}
+
+.moc-col-type {
+  width: 70px;
+}
+
+.moc-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.moc-type-none {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.moc-col-concepts {
+  max-width: 200px;
+}
+
+.moc-concepts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.moc-concept-chip {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 11px;
+  background: var(--hover);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.moc-concept-more {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding: 1px 4px;
+}
+
+.moc-col-links {
+  width: 50px;
+  text-align: center;
+}
+
+.moc-link-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--hover);
+  border-radius: 10px;
+  color: var(--text-secondary);
+}
+
+.moc-col-date {
+  width: 100px;
+  text-align: right;
+}
+
+.moc-date {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
