@@ -72,8 +72,16 @@ function App() {
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     return localStorage.getItem(HIDDEN_KEY) === "true";
   });
-  const [sidebarTab, setSidebarTab] = useState<'daily' | 'tree'>('daily');
+  const TAB_KEY = "nr:sidebarTab";
+  const [sidebarTab, setSidebarTab] = useState<'daily' | 'tree'>(() => {
+    return (localStorage.getItem(TAB_KEY) as 'daily' | 'tree') || 'daily';
+  });
+  const handleSetSidebarTab = (tab: 'daily' | 'tree') => {
+    setSidebarTab(tab);
+    localStorage.setItem(TAB_KEY, tab);
+  };
   const [docCreateOpen, setDocCreateOpen] = useState(false);
+  const [docTreeKey, setDocTreeKey] = useState(0);
   const error = useNotesStore((s) => s.error);
   const clearError = useNotesStore((s) => s.clearError);
 
@@ -433,14 +441,14 @@ function App() {
           <div className="sidebar-tabs">
             <button
               className={`sidebar-tab ${sidebarTab === 'daily' ? 'active' : ''}`}
-              onClick={() => setSidebarTab('daily')}
+              onClick={() => handleSetSidebarTab('daily')}
               title="随笔"
             >
               ✏️
             </button>
             <button
               className={`sidebar-tab ${sidebarTab === 'tree' ? 'active' : ''}`}
-              onClick={() => setSidebarTab('tree')}
+              onClick={() => handleSetSidebarTab('tree')}
               title="文档树"
             >
               📂
@@ -514,6 +522,7 @@ function App() {
               }}
               selectedId={selectedNote?.id ?? null}
               onCreate={() => setDocCreateOpen(true)}
+              refreshKey={docTreeKey}
             />
           )}
         </aside>
@@ -625,6 +634,7 @@ function App() {
           onClose={() => setDocCreateOpen(false)}
           onCreated={(note) => {
             setDocCreateOpen(false);
+            setDocTreeKey((k) => k + 1);  // 刷新文档树
             selectNote(note);
             setDate(note.date);
           }}

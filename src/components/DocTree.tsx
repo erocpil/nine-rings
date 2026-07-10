@@ -6,6 +6,7 @@ interface DocTreeProps {
   onSelect: (note: Note) => void;
   selectedId: string | null;
   onCreate: () => void;
+  refreshKey?: number;   // 变化时触发刷新
 }
 
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -23,26 +24,18 @@ const STATE_ICONS: Record<string, string> = {
   archives: "📦",
 };
 
-function DocTree({ onSelect, selectedId, onCreate }: DocTreeProps) {
+function DocTree({ onSelect, selectedId, onCreate, refreshKey }: DocTreeProps) {
   const [tree, setTree] = useState<PathNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [allDocs, setAllDocs] = useState<Map<string, Note>>(new Map());
 
   useEffect(() => {
+    setLoading(true);
     api.docs.tree().then((nodes) => {
       setTree(nodes);
-      // 预加载所有文档元数据
-      api.notes.search("").then((notes) => {
-        const map = new Map<string, Note>();
-        for (const n of notes) {
-          if (n.storagePath) map.set(n.id, n);
-        }
-        setAllDocs(map);
-      });
       setLoading(false);
     });
-  }, []);
+  }, [refreshKey]);
 
   // 按路径分组，构建父子关系
   const childrenMap = new Map<string, PathNode[]>();
@@ -76,9 +69,7 @@ function DocTree({ onSelect, selectedId, onCreate }: DocTreeProps) {
 
   const handleDocClick = async (node: PathNode) => {
     if (!node.noteId) return;
-    const note = allDocs.get(node.noteId)
-      ?? (await api.notes.get(node.noteId))
-      ?? undefined;
+    const note = await api.notes.get(node.noteId);
     if (note) onSelect(note);
   };
 

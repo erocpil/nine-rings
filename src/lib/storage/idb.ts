@@ -259,6 +259,10 @@ export const idbAdapter: StorageAdapter = {
         sort_order: 0,
         created_at: now(),
         updated_at: now(),
+        storagePath: data.storagePath,
+        docType: data.docType,
+        concepts: data.concepts,
+        linkedDocIds: data.linkedDocIds,
       } as any;
 
       // @ts-ignore for sort_order
