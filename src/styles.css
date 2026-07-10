@@ -2379,7 +2379,7 @@ body {
 /* 覆盖 focus-mode 对 ul/ol 的 padding（需在通用规则之后） */
 .focus-mode.show-line-numbers .ProseMirror > ul,
 .focus-mode.show-line-numbers .ProseMirror > ol {
-  padding-left: 44px !important;
+  padding-left: 56px !important;
 }
 .focus-mode.show-line-numbers .ProseMirror > ul::before,
 .focus-mode.show-line-numbers .ProseMirror > ol::before {
