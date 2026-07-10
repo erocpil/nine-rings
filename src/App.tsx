@@ -364,6 +364,16 @@ function App() {
       const ctrl = e.ctrlKey || e.metaKey;
       if (!ctrl) return;
 
+      // Ctrl+Shift+F: 全局搜索
+      if (e.shiftKey && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        document.querySelector<HTMLInputElement>(".search-input")?.focus();
+        return;
+      }
+
+      // 其余 Ctrl+Shift 组合留给编辑器内置快捷键
+      if (e.shiftKey) return;
+
       switch (e.key.toLowerCase()) {
         case "n":
           e.preventDefault();
