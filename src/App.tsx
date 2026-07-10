@@ -18,6 +18,7 @@ import { useNotesStore } from "./stores/useNotesStore";
 import { api } from "./lib/api";
 import DocTree from "./components/DocTree";
 import DocCreateDialog from "./components/DocCreateDialog";
+import PropertiesPanel from "./components/PropertiesPanel";
 import type { AppConfig } from "./lib/storage/types";
 import type { DeltaOps, Note } from "./types/models";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
@@ -611,6 +612,14 @@ function App() {
             </div>
           )}
         </main>
+
+        {selectedNote?.storagePath && (
+          <PropertiesPanel
+            note={selectedNote}
+            onNoteUpdate={(updated) => selectNote(updated)}
+            onClose={() => {}}
+          />
+        )}
       </div>
 
       <SettingsPanel
