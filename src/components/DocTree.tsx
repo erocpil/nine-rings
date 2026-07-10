@@ -26,7 +26,7 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 
 const STATE_ICONS: Record<string, string> = {
   projects: "📁",
-  areas: "🗂",
+  areas: "🧩",
   references: "📚",
   ideas: "💡",
   archives: "📦",
@@ -35,8 +35,47 @@ const STATE_ICONS: Record<string, string> = {
 interface ContextMenuState {
   x: number;
   y: number;
-  noteId: string;
+  type: 'document' | 'folder';
+  noteId?: string;
+  path: string;
   title: string;
+}
+
+// ── InlineRename：自管 state，隔离渲染范围，避免光标跳动 ──
+
+function InlineRename({
+  initialValue,
+  onSubmit,
+  onCancel,
+}: {
+  initialValue: string;
+  onSubmit: (value: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initialValue);
+  const ref = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    ref.current?.focus();
+    ref.current?.select();
+  }, []);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") { e.preventDefault(); onSubmit(value.trim()); }
+    if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+  };
+
+  return (
+    <input
+      ref={ref}
+      className="doc-tree-rename-input"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={handleKeyDown}
+      onBlur={() => onSubmit(value.trim())}
+      onClick={(e) => e.stopPropagation()}
+    />
+  );
 }
 
 function DocTree({
@@ -47,11 +86,16 @@ function DocTree({
 }: DocTreeProps) {
   const [tree, setTree] = useState<PathNode[]>([]);
   const [loading, setLoading] = useState(true);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem("nr:docTreeCollapsed");
+      return raw ? new Set(JSON.parse(raw)) : new Set<string>();
+    } catch {
+      return new Set<string>();
+    }
+  });
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
-  const renameRef = useRef<HTMLInputElement>(null);
 
   // ── 批量选择 ──
   const [selectMode, setSelectMode] = useState(false);
@@ -78,6 +122,11 @@ function DocTree({
     });
   }, [refreshKey]);
 
+  // 持久化折叠状态
+  useEffect(() => {
+    localStorage.setItem("nr:docTreeCollapsed", JSON.stringify([...collapsed]));
+  }, [collapsed]);
+
   useEffect(() => {
     if (contextMenu) {
       const close = () => setContextMenu(null);
@@ -85,13 +134,6 @@ function DocTree({
       return () => document.removeEventListener("click", close);
     }
   }, [contextMenu]);
-
-  useEffect(() => {
-    if (renamingId) {
-      renameRef.current?.focus();
-      renameRef.current?.select();
-    }
-  }, [renamingId]);
 
   const toggleCollapse = (path: string) => {
     setCollapsed((prev) => {
@@ -113,36 +155,32 @@ function DocTree({
   };
 
   const handleContextMenu = (e: React.MouseEvent, node: PathNode) => {
-    if (!node.noteId) return;
     e.preventDefault();
     e.stopPropagation();
     setContextMenu({
       x: e.clientX,
       y: e.clientY,
+      type: node.type,
       noteId: node.noteId,
+      path: node.path,
       title: node.name,
     });
   };
 
-  const handleRename = async (noteId: string) => {
+  const handleRename = (noteId: string) => {
     setContextMenu(null);
     setRenamingId(noteId);
-    const node = findNode(tree, noteId);
-    setRenameValue(node?.name ?? "");
   };
 
-  const submitRename = async (noteId: string) => {
-    const title = renameValue.trim();
+  const submitRename = (noteId: string, title: string) => {
     if (title && onRename) onRename(noteId, title);
+    // 本地更新 tree，立即反映新名称
+    setTree((prev) =>
+      prev.map((n) =>
+        n.noteId === noteId ? { ...n, name: title } : n
+      )
+    );
     setRenamingId(null);
-    setRenameValue("");
-  };
-
-  const findNode = (nodes: PathNode[], noteId: string): PathNode | undefined => {
-    for (const n of nodes) {
-      if (n.noteId === noteId) return n;
-    }
-    return undefined;
   };
 
   const handleDelete = (noteId: string, title: string) => {
@@ -158,13 +196,49 @@ function DocTree({
       const note = await api.notes.get(noteId);
       if (note && onToggleReadonly) {
         onToggleReadonly(noteId, !note.readonly);
+        // 本地更新 tree，立即反映图标变化
+        setTree((prev) =>
+          prev.map((n) =>
+            n.noteId === noteId ? { ...n, readonly: !note.readonly } : n
+          )
+        );
       }
     } catch {}
   };
 
-  const handleRenameKeyDown = (e: React.KeyboardEvent, noteId: string) => {
-    if (e.key === "Enter") { e.preventDefault(); submitRename(noteId); }
-    if (e.key === "Escape") { setRenamingId(null); setRenameValue(""); }
+  // ── 文件夹操作：收集目录下所有文档 ID ──
+  const getDocIdsUnderPath = (folderPath: string): string[] => {
+    return tree
+      .filter((n) => n.type === 'document' && n.noteId && n.path.startsWith(folderPath + "/"))
+      .map((n) => n.noteId!);
+  };
+
+  const handleFolderDelete = (folderPath: string) => {
+    setContextMenu(null);
+    const ids = getDocIdsUnderPath(folderPath);
+    if (ids.length === 0) return;
+    if (confirm(`删除目录「${folderPath.split("/").pop()}」及其下 ${ids.length} 篇文档？\\n删除后可从回收站恢复。`)) {
+      onBatchDelete?.(ids);
+    }
+  };
+
+  const handleFolderToggleReadonly = (folderPath: string) => {
+    setContextMenu(null);
+    const ids = getDocIdsUnderPath(folderPath);
+    if (ids.length === 0) return;
+    // 检查当前大多数文档是否只读
+    const readonlyCount = tree
+      .filter((n) => ids.includes(n.noteId ?? '') && n.readonly)
+      .length;
+    const setTo = readonlyCount < ids.length / 2;
+    onBatchSetReadonly?.(ids, setTo);
+    // 本地更新 tree
+    const idSet = new Set(ids);
+    setTree((prev) =>
+      prev.map((n) =>
+        n.noteId && idSet.has(n.noteId) ? { ...n, readonly: setTo } : n
+      )
+    );
   };
 
   // 按路径分组
@@ -198,6 +272,7 @@ function DocTree({
           <div
             className="doc-tree-node doc-tree-folder"
             style={{ paddingLeft }}
+            onContextMenu={(e) => handleContextMenu(e, node)}
           >
             <span
               className="doc-tree-toggle"
@@ -248,16 +323,12 @@ function DocTree({
           />
         )}
         <span className="doc-tree-toggle" />
-        <span className="doc-tree-icon">📄</span>
+        <span className="doc-tree-icon">{node.readonly ? "🔒" : "📄"}</span>
         {isRenaming && node.noteId ? (
-          <input
-            ref={renameRef}
-            className="doc-tree-rename-input"
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onKeyDown={(e) => handleRenameKeyDown(e, node.noteId!)}
-            onBlur={() => submitRename(node.noteId!)}
-            onClick={(e) => e.stopPropagation()}
+          <InlineRename
+            initialValue={node.name}
+            onSubmit={(value) => submitRename(node.noteId!, value)}
+            onCancel={() => setRenamingId(null)}
           />
         ) : (
           <span className="doc-tree-name">{node.name}</span>
@@ -348,9 +419,22 @@ function DocTree({
           className="doc-context-menu"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
-          <button className="doc-context-item" onClick={() => handleRename(contextMenu.noteId)}>重命名</button>
-          <button className="doc-context-item" onClick={() => handleToggleReadonly(contextMenu.noteId)}>切换只读</button>
-          <button className="doc-context-item doc-context-danger" onClick={() => handleDelete(contextMenu.noteId, contextMenu.title)}>删除</button>
+          {contextMenu.type === 'folder' ? (
+            <>
+              <button className="doc-context-item" onClick={() => handleFolderDelete(contextMenu.path)}>
+                删除目录及其下文档
+              </button>
+              <button className="doc-context-item" onClick={() => handleFolderToggleReadonly(contextMenu.path)}>
+                切换目录下文档只读
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="doc-context-item" onClick={() => handleRename(contextMenu.noteId!)}>重命名</button>
+              <button className="doc-context-item" onClick={() => handleToggleReadonly(contextMenu.noteId!)}>切换只读</button>
+              <button className="doc-context-item doc-context-danger" onClick={() => handleDelete(contextMenu.noteId!, contextMenu.title)}>删除</button>
+            </>
+          )}
         </div>
       )}
     </div>

@@ -19,6 +19,8 @@
   --success: #3fb950;
   --radius: 6px;
   --transition: 0.2s ease;
+  --code-bg: #11161c;
+  --activeline-bg: rgba(88, 166, 255, 0.06);
 }
 
 /* ── 浅色主题 ── */
@@ -33,6 +35,8 @@
   --accent-hover: #0550ae;
   --danger: #cf222e;
   --success: #1a7f37;
+  --code-bg: #f0f2f5;
+  --activeline-bg: rgba(9, 105, 218, 0.05);
 }
 
 /* ── 系统跟随：@media prefers-color-scheme ── */
@@ -49,6 +53,8 @@
     --accent-hover: #0550ae;
     --danger: #cf222e;
     --success: #1a7f37;
+    --code-bg: #f0f2f5;
+    --activeline-bg: rgba(9, 105, 218, 0.05);
   }
 }
 
@@ -813,6 +819,13 @@ body {
 
 /* ──── Todo ──── */
 
+.todo-list {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
 .section-title {
   font-size: 13px;
   font-weight: 600;
@@ -865,6 +878,113 @@ body {
   border-bottom-color: var(--accent);
 }
 
+.todo-edit-input {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 0;
+  font-size: 14px;
+}
+
+.todo-edit-input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+
+/* ── Todo 导出面板 ── */
+
+.section-title-spacer {
+  flex: 1;
+}
+
+.todo-export-btn {
+  font-size: 13px;
+  padding: 1px 6px;
+  border-radius: var(--radius);
+  margin-left: 6px;
+}
+
+.todo-export-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.todo-export-panel {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  background: var(--bg-card);
+}
+
+.todo-export-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.todo-export-format {
+  display: flex;
+  gap: 4px;
+}
+
+.todo-export-fmt-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.todo-export-fmt-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.todo-export-panel {
+  margin-top: 8px;
+  padding: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.todo-export-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  flex: 1;
+  min-height: 0;
+  background: none;
+  color: var(--text);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  padding: 6px 4px;
+  font-size: 14px;
+  font-family: var(--font-mono, monospace);
+  resize: none;
+}
+
+.todo-export-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.todo-export-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
 /* ──── Editor ──── */
 
 .note-title {
@@ -913,6 +1033,12 @@ body {
   background: var(--surface);
   border-color: var(--border);
   color: var(--text);
+}
+
+.menu-btn-sm {
+  padding: 2px 4px;
+  font-size: 11px;
+  min-width: 0;
 }
 
 /* ── 菜单分隔线 ── */
@@ -982,6 +1108,11 @@ body {
   height: 1px;
   background: var(--border);
   margin: 4px 0;
+}
+
+.menu-dropdown-toggle {
+  font-size: 11px;
+  color: var(--text-tertiary);
 }
 
 /* ── 取色器 ── */
@@ -1613,6 +1744,8 @@ body {
   --accent-hover: #7a5da8;
   --danger: #d43b5a;
   --success: #3d8b70;
+  --code-bg: #f0eaf5;
+  --activeline-bg: rgba(139, 111, 192, 0.06);
 }
 
 /* ── 粋 · 新绿主题 ── */
@@ -1627,6 +1760,8 @@ body {
   --accent-hover: #3d7230;
   --danger: #c44a3a;
   --success: #3d8b70;
+  --code-bg: #ecf3e8;
+  --activeline-bg: rgba(74, 138, 58, 0.06);
 }
 
 /* ── 幟 · 金暖主题 ── */
@@ -1641,6 +1776,24 @@ body {
   --accent-hover: #a88028;
   --danger: #c44a3a;
   --success: #5a8a4a;
+  --code-bg: #f3ecdd;
+  --activeline-bg: rgba(196, 154, 60, 0.06);
+}
+
+/* ── 蔚 · 钴蓝主题 ── */
+
+:root.theme-azure {
+  --bg: #f4f7fb;
+  --surface: #eaf0f8;
+  --border: #c8d6e8;
+  --text: #1a2538;
+  --text-secondary: #5a6d8a;
+  --accent: #3b6dcc;
+  --accent-hover: #2d5aaa;
+  --danger: #d43b4a;
+  --success: #3d8b5c;
+  --code-bg: #eef3f9;
+  --activeline-bg: rgba(59, 109, 204, 0.06);
 }
 
 /* ──── Header Clock ──── */
@@ -2099,9 +2252,13 @@ body {
 /* ──── 高亮当前行 ──── */
 
 .ProseMirror-activeline {
-  background: var(--activeline-bg, rgba(128, 128, 128, 0.08));
+  background: var(--activeline-bg);
   border-radius: 3px;
   margin: 2px 0;
+}
+
+.no-active-line .ProseMirror-activeline {
+  background: transparent;
 }
 
 .ProseMirror {
@@ -2116,13 +2273,13 @@ body {
   counter-reset: prose-line;
 }
 
-.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, pre, blockquote, ul, ol) {
+.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap) {
   counter-increment: prose-line;
   position: relative;
   padding-left: 44px;
 }
 
-.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, pre, blockquote, ul, ol)::before {
+.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::before {
   content: counter(prose-line);
   position: absolute;
   left: 0;
@@ -2141,6 +2298,45 @@ body {
   line-height: inherit;
 }
 
+/* 代码块：wrapper 作为普通 block 参与主行号计数 */
+.show-line-numbers .ProseMirror .code-block-wrap {
+  counter-increment: prose-line;
+  padding-left: 44px !important;
+  position: relative;
+}
+.show-line-numbers .ProseMirror .code-block-wrap::before {
+  content: counter(prose-line);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 36px;
+  text-align: right;
+  padding-right: 8px;
+  color: var(--text-secondary);
+  opacity: 0.40;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  user-select: none;
+  font-family: inherit;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  line-height: inherit;
+}
+/* wrapper 内部不重复计数 */
+.show-line-numbers .ProseMirror .code-block-wrap pre {
+  counter-increment: none;
+}
+.show-line-numbers .ProseMirror .code-block-wrap pre::before {
+  display: none;
+}
+
+/* 行号模式下，code 背景由 .code-block-wrap 的 padding-left 撑开 */
+.show-line-numbers .ProseMirror .code-block-wrap .code-block-inner pre code {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
 .show-line-numbers .ProseMirror > ul ul,
 .show-line-numbers .ProseMirror > ol ol,
 .show-line-numbers .ProseMirror > ul ol,
@@ -2148,38 +2344,68 @@ body {
   padding-left: 1.5em;
 }
 
-/* 列表标记不与行号重叠：加大左填充，给行号和标记各自腾空间 */
+/* 列表行号窄化 + padding 左移，圆点和文本在行号右侧 */
 .show-line-numbers .ProseMirror > ul,
 .show-line-numbers .ProseMirror > ol {
-  padding-left: 60px;
+  padding-left: 65px !important;
+}
+.show-line-numbers .ProseMirror > ul::before,
+.show-line-numbers .ProseMirror > ol::before {
+  width: 14px;
+  padding-right: 2px;
+}
+/* 行号模式下，li 的 hanging indent 不需要参与偏移 —— 
+   已由 ul/ol 的 padding-left 统一推右 */
+.show-line-numbers .editor-content li {
+  padding-left: 0;
+  text-indent: 0;
 }
 
-.focus-mode.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, pre, blockquote, ul, ol) {
+.focus-mode.show-line-numbers .ProseMirror .code-block-wrap {
+  padding-left: 36px !important;
+}
+.focus-mode.show-line-numbers .ProseMirror .code-block-wrap::before {
+  width: 28px;
+}
+
+.focus-mode.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap) {
   padding-left: 36px;
 }
 
-.focus-mode.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, pre, blockquote, ul, ol)::before {
+.focus-mode.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::before {
   width: 28px;
 }
 
 /* 覆盖 focus-mode 对 ul/ol 的 padding（需在通用规则之后） */
 .focus-mode.show-line-numbers .ProseMirror > ul,
 .focus-mode.show-line-numbers .ProseMirror > ol {
-  padding-left: 50px;
+  padding-left: 44px !important;
+}
+.focus-mode.show-line-numbers .ProseMirror > ul::before,
+.focus-mode.show-line-numbers .ProseMirror > ol::before {
+  width: 12px;
+  padding-right: 2px;
+}
+.focus-mode.show-line-numbers .editor-content li {
+  padding-left: 0;
+  text-indent: 0;
 }
 
 /* 行号模式：code block 的深色背景从 pre 移到内部 code，避免包住行号 */
-.show-line-numbers .ProseMirror > pre {
+.show-line-numbers .ProseMirror > pre,
+.show-line-numbers .ProseMirror > .code-block-wrap .code-block-inner pre {
   background: none;
   border: none;
 }
-/* 恢复当前行高亮背景（.ProseMirror-activeline 优先级低于上面的 background:none） */
-.show-line-numbers .ProseMirror > pre.ProseMirror-activeline {
-  background: var(--activeline-bg, rgba(128, 128, 128, 0.08));
+/* 恢复当前行高亮背景 */
+.show-line-numbers .ProseMirror > pre.ProseMirror-activeline,
+.show-line-numbers .ProseMirror .code-block-wrap.ProseMirror-activeline .code-block-inner pre {
+  background: var(--activeline-bg);
 }
-.show-line-numbers .ProseMirror > pre code {
+.show-line-numbers .ProseMirror > pre code,
+.show-line-numbers .ProseMirror > .code-block-wrap .code-block-inner pre code {
   display: block;
-  background: var(--surface);
+  background: var(--code-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 2px 12px;
@@ -2191,10 +2417,20 @@ body {
 .editor-content ol {
   padding-left: 1.5em;
   margin: 4px 0;
+  list-style-position: inside;
 }
 
 .editor-content li {
   margin: 2px 0;
+}
+/* inside 模式下 li 内 block p 会导致标记换行 → inline */
+.editor-content li p {
+  display: inline;
+}
+/* 标记与文本间距：hanging indent */
+.editor-content li {
+  padding-left: 0.5em;
+  text-indent: -0.5em;
 }
 
 .editor-content ul {
@@ -2214,10 +2450,10 @@ body {
 }
 
 .editor-content pre {
-  background: var(--surface);
+  background: var(--code-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 2px 12px;
+  padding: 2px;
   overflow-x: auto;
   margin: 4px 0;
 }
@@ -2681,6 +2917,8 @@ body {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  overflow-anchor: none;
+  scroll-padding-bottom: 10vh;
 }
 
 /* 非专注模式：标题/标签/工具栏 sticky 固定在顶部 */
@@ -3562,4 +3800,81 @@ body {
   background: var(--bg);
   color: var(--text);
   outline: none;
+}
+
+/* ──── 代码块行号 ──── */
+
+.code-block-copy {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 2;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.code-block-wrap:hover .code-block-copy {
+  opacity: 1;
+}
+
+.code-block-copy:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.code-block-wrap {
+  /* wrapper 不设 flex，让 ::before position:absolute 正常工作 */
+  position: relative;
+}
+
+.code-block-inner {
+  display: flex;
+}
+
+.code-block-gutter {
+  display: none;
+  flex-shrink: 0;
+  padding: 2px 2px 2px 2px;
+  text-align: right;
+  user-select: none;
+  border-right: 1px solid var(--border);
+  margin-right: 6px;
+  min-width: 2em;
+}
+
+.code-block-gutter span {
+  display: block;
+  font-size: 12px;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  min-width: 1.5em;
+}
+
+.show-code-line-numbers .code-block-wrap.show-numbers .code-block-gutter {
+  display: block;
+}
+
+.code-block-inner pre {
+  flex: 1;
+  margin: 0;
+  background: none;
+  border: none;
+}
+
+/* 无 main 行号时，code 元素显示深色背景 */
+.ProseMirror .code-block-inner pre code {
+  display: block;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px;
+  white-space: pre-wrap;
 }

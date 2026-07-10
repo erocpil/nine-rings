@@ -692,6 +692,7 @@ export const idbAdapter: StorageAdapter = {
           noteId: d.id,
           docType: d.docType,
           updatedAt: d.updated_at,
+          readonly: d.readonly ?? false,
         });
       }
 

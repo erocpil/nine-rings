@@ -82,7 +82,10 @@ function App() {
   const [tagFilteredNotes, setTagFilteredNotes] = useState<Note[] | null>(null);
   const [undo, setUndo] = useState<UndoState | null>(null);
   const [versionOpen, setVersionOpen] = useState(false);
-  const [focusMode, setFocusMode] = useState(false);
+  const FOCUS_KEY = "nr:focusMode";
+  const [focusMode, setFocusMode] = useState(() => {
+    return localStorage.getItem(FOCUS_KEY) === "true";
+  });
   const [stickyTitle, setStickyTitle] = useState<string | null>(null);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const HIDDEN_KEY = "nr:sidebarHidden";
@@ -123,6 +126,11 @@ function App() {
   useEffect(() => {
     localStorage.setItem(HIDDEN_KEY, String(sidebarHidden));
   }, [sidebarHidden]);
+
+  // ── 持久化专注模式 ──
+  useEffect(() => {
+    localStorage.setItem(FOCUS_KEY, String(focusMode));
+  }, [focusMode]);
 
   // ── 禁用双指缩放（浏览器忽略 viewport user-scalable=no）
   useEffect(() => {
@@ -704,7 +712,7 @@ function App() {
 
 function applyTheme(theme: string) {
   const root = document.documentElement;
-  root.classList.remove("theme-light", "theme-dark", "theme-grace", "theme-sui", "theme-zhi");
+  root.classList.remove("theme-light", "theme-dark", "theme-grace", "theme-sui", "theme-zhi", "theme-azure");
   if (theme === "light") {
     root.classList.add("theme-light");
   } else if (theme === "dark") {
@@ -715,6 +723,8 @@ function applyTheme(theme: string) {
     root.classList.add("theme-sui");
   } else if (theme === "zhi") {
     root.classList.add("theme-zhi");
+  } else if (theme === "azure") {
+    root.classList.add("theme-azure");
   }
   // "system" → no class, falls through to @media queries
 }

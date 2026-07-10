@@ -93,15 +93,15 @@ export function proseMirrorToDelta(pmJson: any): any {
 
       case "bulletList":
         for (const item of node.content ?? []) {
-          extractInlineOps(item, ops, { list: "bullet" });
-          ops.push({ insert: "\n" });
+          extractInlineOps(item, ops);
+          ops.push({ insert: "\n", attributes: { list: "bullet" } });
         }
         break;
 
       case "orderedList":
         for (const item of node.content ?? []) {
-          extractInlineOps(item, ops, { list: "ordered" });
-          ops.push({ insert: "\n" });
+          extractInlineOps(item, ops);
+          ops.push({ insert: "\n", attributes: { list: "ordered" } });
         }
         break;
 
@@ -172,15 +172,17 @@ export function deltaToProseMirror(deltaData: any): any {
   const doc: any[] = [];
   let currentParagraph: any = { type: "paragraph", content: [] };
   let isImageBlock = false;
+  let hasFlushed = false; // 首条空段落不推入，之后空段落保留
   /** 正在累积的列表（未推入 doc，等待闭合） */
   let pendingList: { type: string; content: any[] } | null = null;
 
   function flushParagraph() {
-    if (currentParagraph.content.length > 0 || isImageBlock) {
+    if (currentParagraph.content.length > 0 || isImageBlock || hasFlushed) {
       doc.push({ ...currentParagraph });
     }
     currentParagraph = { type: "paragraph", content: [] };
     isImageBlock = false;
+    hasFlushed = true;
   }
 
   /** 把 pendingList 推入 doc 并清空 */
@@ -273,7 +275,10 @@ export function deltaToProseMirror(deltaData: any): any {
   }
 
   flushList();
-  flushParagraph();
+  // 末尾不推入空段落：Delta 最后的 \n 是文档终止符，非有意空行
+  if (currentParagraph.content.length > 0 || isImageBlock) {
+    doc.push({ ...currentParagraph });
+  }
 
   const nodeCount = doc.length;
   const firstType = nodeCount > 0 ? doc[0].type : "—";

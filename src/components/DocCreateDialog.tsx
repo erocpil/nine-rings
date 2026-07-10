@@ -8,11 +8,11 @@ interface DocCreateDialogProps {
 }
 
 const PATH_OPTIONS = [
-  { value: "projects", label: "📁 Projects", desc: "活跃项目" },
-  { value: "areas", label: "🗂 Areas", desc: "持续领域" },
-  { value: "references", label: "📚 References", desc: "参考资料" },
-  { value: "ideas", label: "💡 Ideas", desc: "缓冲想法" },
-  { value: "archives", label: "📦 Archives", desc: "归档" },
+  { value: "projects", label: "📁\uFE0F Projects", desc: "活跃项目" },
+  { value: "areas", label: "🧩\uFE0F Areas", desc: "持续领域" },
+  { value: "references", label: "📚\uFE0F References", desc: "参考资料" },
+  { value: "ideas", label: "💡\uFE0F Ideas", desc: "缓冲想法" },
+  { value: "archives", label: "📦\uFE0F Archives", desc: "归档" },
 ];
 
 const DOC_TYPE_OPTIONS: { value: DocType; label: string; desc: string }[] = [

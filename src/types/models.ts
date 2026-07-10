@@ -36,6 +36,7 @@ export interface PathNode {
   docType?: DocType;    // document 时
   updatedAt?: string;   // document 时
   count?: number;       // folder 时，子文档数
+  readonly?: boolean;   // document 时
 }
 
 export interface Todo {
@@ -121,7 +122,7 @@ export interface NoteVersion {
 
 /** 应用配置（与 schema/config.yaml 对齐） */
 export interface AppConfig {
-  theme: "system" | "light" | "dark" | "grace" | "sui" | "zhi";
+  theme: "system" | "light" | "dark" | "grace" | "sui" | "zhi" | "azure";
   default_view: "daily" | "list";
   todo_carryover_default: boolean;
   auto_clean_days: number;

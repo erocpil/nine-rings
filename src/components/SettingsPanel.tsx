@@ -172,6 +172,7 @@ export function SettingsPanel({ open, onClose, onConfigChange }: Props) {
                 {([["system", "跟随系统", "#8b949e"],
                 ["light", "浅色", "#e2e2e2"],
                 ["dark", "深色", "#0d1117"],
+                ["azure", "蔚", "#3b6dcc"],
                 ["sui", "粋", "#4a8a3a"],
                 ["grace", "雅", "#7c3aed"],
                 ["zhi", "幟", "#c49a3c"]] as const).map(([v, label, color]) => (

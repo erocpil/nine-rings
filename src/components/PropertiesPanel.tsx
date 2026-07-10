@@ -17,7 +17,7 @@ const DOC_TYPE_OPTIONS: { value: DocType; label: string }[] = [
 
 const PATH_ROOT_LABELS: Record<string, string> = {
   projects: "📁 Projects",
-  areas: "🗂 Areas",
+  areas: "🧩 Areas",
   references: "📚 References",
   ideas: "💡 Ideas",
   archives: "📦 Archives",

@@ -161,7 +161,7 @@ export function mdToDelta(mdText: string): DeltaOps {
     }
 
     // ── 标题 ──
-    const hMatch = stripped.match(/^(#{1,3})\s+(.+)$/);
+    const hMatch = stripped.match(/^(#{1,6})\s+(.+)$/);
     if (hMatch) {
       const level = hMatch[1].length;
       const text = hMatch[2];

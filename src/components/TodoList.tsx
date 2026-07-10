@@ -24,6 +24,10 @@ export function TodoList({ todos, onChange }: TodoListProps) {
   const [overdueOpen, setOverdueOpen] = useState(false);
   const [refreshOverdue, setRefreshOverdue] = useState(0);
 
+  // ── 导出 ──
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"text" | "md">("text");
+
   // ── 拖拽状态 ──
   const dragIdxRef = useRef<number | null>(null);
   const dragOverIdxRef = useRef<number | null>(null);
@@ -159,6 +163,52 @@ export function TodoList({ todos, onChange }: TodoListProps) {
     setEditText("");
   };
 
+  // ── 导出 todo 列表 ──
+  const generateExport = (): string => {
+    const active = todos.filter((t) => !t.done);
+    const done = todos.filter((t) => t.done);
+
+    if (exportFormat === "md") {
+      const lines: string[] = [];
+      lines.push("## 今日待办\n");
+      if (active.length === 0) {
+        lines.push("（无）\n");
+      } else {
+        for (const t of active) {
+          lines.push(`- [ ] ${t.text}`);
+        }
+      }
+      if (done.length > 0) {
+        lines.push(`\n## 已完成 (${done.length})\n`);
+        for (const t of done) {
+          lines.push(`- [x] ${t.text}`);
+        }
+      }
+      return lines.join("\n");
+    }
+
+    // 纯文本
+    const lines: string[] = [];
+    lines.push("今日待办");
+    lines.push("────────");
+    if (active.length === 0) {
+      lines.push("（无）");
+    } else {
+      for (const t of active) {
+        lines.push(`☐ ${t.text}`);
+      }
+    }
+    if (done.length > 0) {
+      lines.push("");
+      lines.push(`已完成 (${done.length})`);
+      lines.push("────────");
+      for (const t of done) {
+        lines.push(`☑ ${t.text}`);
+      }
+    }
+    return lines.join("\n");
+  };
+
   const handleOverdueToggle = (item: OverdueItem) => {
     api.daily.get(item.date).then((page) => {
       const updatedTodos = page.todos.map((t) =>
@@ -178,7 +228,31 @@ export function TodoList({ todos, onChange }: TodoListProps) {
   return (
     <div className="todo-list">
       <h3 className="section-title">
-        <span>今日待办 ({todos.length})</span>
+        <span>{exportOpen ? "导出待办" : `今日待办 (${todos.length})`}</span>
+        <span className="section-title-spacer" />
+        {exportOpen && (
+          <span className="todo-export-format">
+            <button
+              className={`todo-export-fmt-btn ${exportFormat === "text" ? "active" : ""}`}
+              onClick={() => setExportFormat("text")}
+            >
+              纯文本
+            </button>
+            <button
+              className={`todo-export-fmt-btn ${exportFormat === "md" ? "active" : ""}`}
+              onClick={() => setExportFormat("md")}
+            >
+              Markdown
+            </button>
+          </span>
+        )}
+        <button
+          className={`btn-icon todo-export-btn ${exportOpen ? "active" : ""}`}
+          onClick={() => setExportOpen((v) => !v)}
+          title={exportOpen ? "取消导出" : "导出待办"}
+        >
+          ⬆
+        </button>
         {overdueItems.length > 0 && (
           <button
             className={`overdue-badge ${overdueOpen ? "open" : ""}`}
@@ -191,7 +265,7 @@ export function TodoList({ todos, onChange }: TodoListProps) {
       </h3>
 
       {/* 过期待办区域 */}
-      {overdueOpen && overdueItems.length > 0 && (
+      {!exportOpen && overdueOpen && overdueItems.length > 0 && (
         <div className="overdue-section">
           <div className="overdue-items">
             {overdueItems.map((item) => (
@@ -229,7 +303,21 @@ export function TodoList({ todos, onChange }: TodoListProps) {
         </div>
       )}
 
-      <div className="todo-items">
+      {/* ── 导出面板 ── */}
+      {exportOpen && (
+        <div className="todo-export-panel">
+          <textarea
+            className="todo-export-textarea"
+            value={generateExport()}
+            readOnly
+            onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+          />
+        </div>
+      )}
+
+      {!exportOpen && (
+        <>
+          <div className="todo-items">
         {todos.map((todo, i) => (
           <div
             key={todo.id}
@@ -286,6 +374,8 @@ export function TodoList({ todos, onChange }: TodoListProps) {
         onKeyDown={addTodo}
         className="todo-input"
       />
+        </>
+      )}
 
       {/* Undo toast */}
       {undoTodo && (

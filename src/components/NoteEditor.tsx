@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -22,6 +22,7 @@ import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { addLog, toggleDebug } from "../lib/debugLog";
+import { CodeBlockLineNumbers } from "../extensions/CodeBlockLineNumbers";
 
 const FontSize = Extension.create({
   name: "fontSize",
@@ -65,13 +66,7 @@ const FontSize = Extension.create({
 const ActiveLinePlugin = Extension.create({
   name: "activeLinePlugin",
 
-  addOptions() {
-    return { enabled: true };
-  },
-
   addProseMirrorPlugins() {
-    if (!this.options.enabled) return [];
-
     return [
       new Plugin({
         key: new PluginKey("activeLine"),
@@ -83,7 +78,6 @@ const ActiveLinePlugin = Extension.create({
             const { selection } = tr;
             if (!selection || !selection.$from) return DecorationSet.empty;
             if (selection.$from.depth === 0) return DecorationSet.empty;
-            // 始终高亮文档的直接子节点（depth=1），确保引用/代码块等外层容器的行号也被高亮
             const start = selection.$from.before(1);
             const end = selection.$from.after(1);
             if (start >= end) return DecorationSet.empty;
@@ -144,10 +138,15 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [tagInput, setTagInput] = useState("");
   const [scrollPos, setScrollPos] = useState(0);
   const [headingOpen, setHeadingOpen] = useState(false);
+  const [headingPage, setHeadingPage] = useState(0); // 0=H3-5（默认）, 1=H1-2/6
   const [blockOpen, setBlockOpen] = useState(false);
   const [styleOpen, setStyleOpen] = useState(false);
   const [clipOpen, setClipOpen] = useState(false);
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 480);
+  const CODE_LN_KEY = "nr:codeLineNumbers";
+  const [showCodeLineNumbers, setShowCodeLineNumbers] = useState(() => {
+    return localStorage.getItem(CODE_LN_KEY) === "true";
+  });
 
   // 检测窄屏（手机竖屏）
   useEffect(() => {
@@ -201,7 +200,8 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
+        heading: { levels: [1, 2, 3, 4, 5, 6] },
+        codeBlock: false,
       }),
       Placeholder.configure({ placeholder: "开始记录..." }),
       TextStyle,
@@ -210,17 +210,12 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       ImageExt.configure({ inline: false, allowBase64: true }),
       LinkExt.configure({ openOnClick: true }),
       CharacterCount.configure({ limit: 50000 }),
-      ActiveLinePlugin.configure({ enabled: highlightActiveLine }),
+      ActiveLinePlugin,
+      CodeBlockLineNumbers,
     ],
     content: tipTapContent,
     editable: !readonly,
-    // 出处：ProseMirror 官方文档 https://prosemirror.net/docs/ref/#view.EditorProps.scrollThreshold
-    // 出处：ProseMirror Discuss #4091 https://discuss.prosemirror.net/t/disable-automatic-scrolling-on-content-change/4091
-    // 设无穷大阻止 ProseMirror 在内容变化时自动滚动
-    editorProps: {
-      scrollThreshold: { top: Infinity, bottom: Infinity, left: Infinity, right: Infinity },
-      scrollMargin: { top: Infinity, bottom: Infinity, left: Infinity, right: Infinity },
-    },
+    editorProps: {},
     onUpdate: ({ editor: ed }) => {
       // 保存时转为 Quill Delta（含字体大小 px→named 映射）
       const pmJson = ed.getJSON();
@@ -233,6 +228,20 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   useEffect(() => {
     editor?.setEditable(!readonly);
   }, [readonly, editor]);
+
+  // 打开标题下拉时自动检测是否存在 H6（切换至页 1）
+  useEffect(() => {
+    if (!headingOpen || !editor) return;
+    try {
+      const json = editor.getJSON();
+      const scan = (node: any): boolean => {
+        if (node.type === 'heading' && node.attrs?.level > 5) return true;
+        if (Array.isArray(node.content)) return node.content.some(scan);
+        return false;
+      };
+      if (scan(json)) setHeadingPage(1);
+    } catch { /* ignore */ }
+  }, [headingOpen, editor]);
 
   // ── 滚动位置记忆（localStorage 持久化，跨刷新保持）──
 
@@ -398,10 +407,62 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   };
   const handleClipboardPaste = async () => {
     try {
+      // 优先读取 HTML 以保留格式，避免纯文本序列化的多余换行
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        if (item.types.includes("text/html")) {
+          const blob = await item.getType("text/html");
+          const html = await blob.text();
+          editor.chain().focus().insertContent(html).run();
+          return;
+        }
+      }
+      // 回退：纯文本，去除首尾空白以防空段落
       const text = await navigator.clipboard.readText();
-      editor.chain().focus().insertContent(text).run();
+      const trimmed = text.replace(/^\s+|\s+$/g, '');
+      if (trimmed) {
+        editor.chain().focus().insertContent(trimmed).run();
+      }
     } catch { /* 权限拒绝静默忽略 */ }
   };
+
+  // ── 代码块：多段选区合并为单个代码块 ──
+  const handleToggleCodeBlock = useCallback(() => {
+    if (!editor) return;
+
+    // 已在代码块中 → 转为普通段落
+    if (editor.isActive('codeBlock')) {
+      editor.chain().focus().setNode('paragraph').run();
+      return;
+    }
+
+    const { from, to } = editor.state.selection;
+
+    // 无选区或单块 → 转为代码块
+    let blockCount = 0;
+    editor.state.doc.nodesBetween(from, to, (node) => {
+      if (node.isBlock && !node.type.name.endsWith('List') && node.type.name !== 'listItem' && node.type.name !== 'doc') blockCount++;
+      return true;
+    });
+
+    if (blockCount <= 1) {
+      editor.chain().focus().setNode('codeBlock').run();
+      return;
+    }
+
+    // 多块选区 → 合并为一个代码块，用 \\n 连接
+    const text = editor.state.doc.textBetween(from, to, '\n');
+    editor.chain().focus()
+      .deleteRange({ from, to })
+      .insertContentAt(from, {
+        type: 'codeBlock',
+        content: text ? [{ type: 'text', text }] : [],
+      })
+      .run();
+
+    // 关闭下拉菜单（窄屏场景）
+    setBlockOpen(false);
+  }, [editor]);
 
   const btn = (label: ReactNode, action: () => void, active?: boolean, title?: string, disabled?: boolean) => (
     <button
@@ -416,7 +477,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   );
 
   return (
-    <div className={`note-editor ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""}`} onPaste={handlePaste} onDrop={handleDrop}>
+    <div className={`note-editor ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""}`} onPaste={handlePaste} onDrop={handleDrop}>
       {/* ── 标题 + 标签 + 工具栏 + 编辑器（滚动区域）── */}
       <div className="note-editor-scroll" ref={scrollRef}>
         <div className="note-editor-sticky">
@@ -516,38 +577,51 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
               >
                 {editor.isActive("heading", { level: 1 }) ? "H1" :
                  editor.isActive("heading", { level: 2 }) ? "H2" :
-                 editor.isActive("heading", { level: 3 }) ? "H3" : "标题 ▾"}
+                 editor.isActive("heading", { level: 6 }) ? "H6" :
+                 editor.isActive("heading", { level: 3 }) ? "H3" :
+                 editor.isActive("heading", { level: 4 }) ? "H4" :
+                 editor.isActive("heading", { level: 5 }) ? "H5" : "标题 ▾"}
               </button>
               {headingOpen && (
                 <div className="menu-dropdown-list">
-                  <button
-                    className={`menu-dropdown-item ${editor.isActive("heading", { level: 1 }) ? "active" : ""}`}
-                    onClick={() => { editor.chain().focus().toggleHeading({ level: 1 }).run(); setHeadingOpen(false); }}
-                    type="button"
-                  >H1 — 大标题</button>
-                  <button
-                    className={`menu-dropdown-item ${editor.isActive("heading", { level: 2 }) ? "active" : ""}`}
-                    onClick={() => { editor.chain().focus().toggleHeading({ level: 2 }).run(); setHeadingOpen(false); }}
-                    type="button"
-                  >H2 — 中标题</button>
-                  <button
-                    className={`menu-dropdown-item ${editor.isActive("heading", { level: 3 }) ? "active" : ""}`}
-                    onClick={() => { editor.chain().focus().toggleHeading({ level: 3 }).run(); setHeadingOpen(false); }}
-                    type="button"
-                  >H3 — 小标题</button>
+                  {(headingPage === 0 ? [3, 4, 5] : [1, 2, 6]).map((lvl) => (
+                    <button
+                      key={lvl}
+                      className={`menu-dropdown-item ${editor.isActive("heading", { level: lvl }) ? "active" : ""}`}
+                      onClick={() => { editor.chain().focus().toggleHeading({ level: lvl as any }).run(); setHeadingOpen(false); }}
+                      type="button"
+                    >H{lvl} — {["","大标题","中标题","小标题","子标题","细标题","微标题"][lvl]}</button>
+                  ))}
                   <div className="menu-dropdown-sep" />
                   <button
                     className="menu-dropdown-item"
                     onClick={() => { editor.chain().focus().clearNodes().run(); setHeadingOpen(false); }}
                     type="button"
                   >清除标题</button>
+                  <div className="menu-dropdown-sep" />
+                  <button
+                    className="menu-dropdown-item menu-dropdown-toggle"
+                    onClick={(e) => { e.stopPropagation(); setHeadingPage(headingPage === 0 ? 1 : 0); }}
+                    type="button"
+                    title="切换 H3–5 / H1–2 H6"
+                  >
+                    {headingPage === 0 ? "▶ H1–2 H6" : "◀ H3–H5"}
+                  </button>
                 </div>
               )}
             </div>
           ) : (<>
-          {btn("H1", () => editor.chain().focus().toggleHeading({ level: 1 }).run(), editor.isActive("heading", { level: 1 }), "标题 1 (Ctrl+Alt+1)", readonly)}
-          {btn("H2", () => editor.chain().focus().toggleHeading({ level: 2 }).run(), editor.isActive("heading", { level: 2 }), "标题 2 (Ctrl+Alt+2)", readonly)}
-          {btn("H3", () => editor.chain().focus().toggleHeading({ level: 3 }).run(), editor.isActive("heading", { level: 3 }), "标题 3 (Ctrl+Alt+3)", readonly)}
+          {(headingPage === 0 ? [3, 4, 5] : [1, 2, 6]).map((lvl) => (
+            <React.Fragment key={lvl}>
+              {btn(`H${lvl}`, () => editor.chain().focus().toggleHeading({ level: lvl as any }).run(), editor.isActive("heading", { level: lvl }), `标题 ${lvl}`, readonly)}
+            </React.Fragment>
+          ))}
+          <button
+            className="menu-btn menu-btn-sm"
+            onClick={() => setHeadingPage(headingPage === 0 ? 1 : 0)}
+            title={headingPage === 0 ? "H1–2 H6" : "H3–H5"}
+            type="button"
+          >{headingPage === 0 ? "»" : "«"}</button>
           </>)}
           <span className="menu-sep" />
           {isNarrow ? (
@@ -577,9 +651,20 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
                   >1. 有序列表</button>
                   <button
                     className={`menu-dropdown-item ${editor.isActive("codeBlock") ? "active" : ""}`}
-                    onClick={() => { editor.chain().focus().toggleCodeBlock().run(); setBlockOpen(false); }}
+                    onClick={handleToggleCodeBlock}
                     type="button"
                   >⏹ 代码块</button>
+                  <div className="menu-dropdown-sep" />
+                  <button
+                    className={`menu-dropdown-item ${showCodeLineNumbers ? "active" : ""}`}
+                    onClick={() => {
+                      const next = !showCodeLineNumbers;
+                      setShowCodeLineNumbers(next);
+                      localStorage.setItem(CODE_LN_KEY, String(next));
+                      setBlockOpen(false);
+                    }}
+                    type="button"
+                  >{showCodeLineNumbers ? "▣ 隐藏代码行号" : "□ 显示代码行号"}</button>
                 </div>
               )}
             </div>
@@ -587,7 +672,17 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           {btn("❝", () => editor.chain().focus().toggleBlockquote().run(), editor.isActive("blockquote"), "引用 (Ctrl+Shift+B)", readonly)}
           {btn("•", () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"), "无序列表 (Ctrl+Shift+8)", readonly)}
           {btn("1.", () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"), "有序列表 (Ctrl+Shift+7)", readonly)}
-          {btn("⏹", () => editor.chain().focus().toggleCodeBlock().run(), editor.isActive("codeBlock"), "代码块 (Ctrl+Alt+C)", readonly)}
+          {btn("⏹", handleToggleCodeBlock, editor.isActive("codeBlock"), "代码块 (Ctrl+Alt+C)", readonly)}
+          <button
+            className={`menu-btn ${showCodeLineNumbers ? "active" : ""}`}
+            onClick={() => {
+              const next = !showCodeLineNumbers;
+              setShowCodeLineNumbers(next);
+              localStorage.setItem(CODE_LN_KEY, String(next));
+            }}
+            title={showCodeLineNumbers ? "隐藏代码行号" : "显示代码行号"}
+            type="button"
+          >#</button>
           </>)}
           <span className="menu-sep" />
           {isNarrow ? (
