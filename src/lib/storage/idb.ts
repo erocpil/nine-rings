@@ -4,7 +4,8 @@
  */
 
 import type { Note, DailyPage, Todo, NoteVersion, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../../types/models";
-import type { StorageAdapter, AppConfig, DEFAULT_CONFIG } from "./types";
+import type { StorageAdapter, AppConfig } from "./types";
+import { DEFAULT_CONFIG } from "./types";
 
 const DB_NAME = "nine_rings";
 const DB_VERSION = 1;
@@ -14,7 +15,14 @@ const DB_VERSION = 1;
 const CONFIG_KEY = "nine_rings_config";
 
 function uuid(): string {
-  return crypto.randomUUID();
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 function now(): string {
@@ -159,6 +167,7 @@ function noteToDB(n: Note): any {
     content: n.content, // stored as DeltaOps (object)
     tags: JSON.stringify(n.tags),
     pinned: n.pinned ? 1 : 0,
+    readonly: n.readonly ? 1 : 0,
     search_text: extractPlainText(n.content),
   };
 }
@@ -168,6 +177,7 @@ function noteFromDB(d: any): Note {
     ...d,
     tags: typeof d.tags === "string" ? JSON.parse(d.tags) : d.tags,
     pinned: d.pinned === 1 || d.pinned === true,
+    readonly: d.readonly === 1 || d.readonly === true,
     content: typeof d.content === "string" ? JSON.parse(d.content) : d.content,
   };
 }
@@ -211,6 +221,15 @@ export const idbAdapter: StorageAdapter = {
     });
   },
 
+  async getNote(id: string): Promise<Note | null> {
+    return withDB(async (db) => {
+      const store = db.transaction("notes", "readonly").objectStore("notes");
+      const note = await getOne<any>(store, id);
+      if (!note || note.deleted_at) return null;
+      return noteFromDB(note);
+    });
+  },
+
   async createNote(data: CreateNoteInput): Promise<Note> {
     return withDB(async (db) => {
       const tx = db.transaction(["notes", "note_versions"], "readwrite");
@@ -223,6 +242,7 @@ export const idbAdapter: StorageAdapter = {
         content: data.content ?? { ops: [] },
         tags: data.tags ?? [],
         pinned: data.pinned ?? false,
+        readonly: false,
         sort_order: 0,
         created_at: now(),
         updated_at: now(),
@@ -250,6 +270,7 @@ export const idbAdapter: StorageAdapter = {
         updated_at: now(),
         tags: data.tags !== undefined ? JSON.stringify(data.tags) : existing.tags,
         pinned: data.pinned !== undefined ? (data.pinned ? 1 : 0) : existing.pinned,
+        readonly: data.readonly !== undefined ? (data.readonly ? 1 : 0) : existing.readonly,
         search_text: data.content ? extractPlainText(data.content) : existing.search_text,
       };
 
@@ -377,6 +398,19 @@ export const idbAdapter: StorageAdapter = {
         todo_carryover: page.todo_carryover === 1 || page.todo_carryover === true,
         updated_at: page.updated_at,
       };
+    });
+  },
+
+  async getAllDailyPages(): Promise<DailyPage[]> {
+    return withDB(async (db) => {
+      const store = db.transaction("daily_pages", "readonly").objectStore("daily_pages");
+      const all = await getAll<any>(store);
+      return all.map((p: any) => ({
+        date: p.date,
+        todos: typeof p.todos === "string" ? JSON.parse(p.todos) : p.todos,
+        todo_carryover: p.todo_carryover === 1 || p.todo_carryover === true,
+        updated_at: p.updated_at,
+      }));
     });
   },
 
@@ -514,6 +548,36 @@ export const idbAdapter: StorageAdapter = {
         }
       }
       return cleaned;
+    });
+  },
+
+  // ══════ Batch ══════
+
+  async batchDelete(ids: string[]): Promise<void> {
+    return withDB(async (db) => {
+      const store = db.transaction("notes", "readwrite").objectStore("notes");
+      const nowStr = now();
+      for (const id of ids) {
+        const existing = await getOne<any>(store, id);
+        if (!existing) continue;
+        existing.deleted_at = nowStr;
+        existing.updated_at = nowStr;
+        await putRecord(store, existing);
+      }
+    });
+  },
+
+  async batchSetReadonly(ids: string[], readonly: boolean): Promise<void> {
+    return withDB(async (db) => {
+      const store = db.transaction("notes", "readwrite").objectStore("notes");
+      const val = readonly ? 1 : 0;
+      for (const id of ids) {
+        const existing = await getOne<any>(store, id);
+        if (!existing) continue;
+        existing.readonly = val;
+        existing.updated_at = now();
+        await putRecord(store, existing);
+      }
     });
   },
 

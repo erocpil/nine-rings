@@ -1,5 +1,12 @@
-import React from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Todo } from "../types/models";
+import { uuid } from "../lib/uuid";
+import { api } from "../lib/api";
+
+interface OverdueItem {
+  todo: Todo;
+  date: string;
+}
 
 interface TodoListProps {
   todos: Todo[];
@@ -7,6 +14,49 @@ interface TodoListProps {
 }
 
 export function TodoList({ todos, onChange }: TodoListProps) {
+  const [undoTodo, setUndoTodo] = useState<{
+    todo: Todo;
+    previousTodos: Todo[];
+  } | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [overdueItems, setOverdueItems] = useState<OverdueItem[]>([]);
+  const [overdueOpen, setOverdueOpen] = useState(false);
+  const [refreshOverdue, setRefreshOverdue] = useState(0);
+
+  // ── 拖拽状态 ──
+  const dragIdxRef = useRef<number | null>(null);
+  const dragOverIdxRef = useRef<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
+  // ── 拉取过期待办 ──
+  useEffect(() => {
+    const today = new Date();
+    const todayStr = today.toISOString().slice(0, 10);
+
+    api.daily.getAll().then((pages) => {
+      const items: OverdueItem[] = [];
+      for (const p of pages) {
+        if (p.date >= todayStr) continue;
+        if (!Array.isArray(p.todos)) continue;
+        for (const t of p.todos) {
+          if (!t.done) {
+            items.push({ todo: t, date: p.date });
+          }
+        }
+      }
+      items.sort((a, b) => b.date.localeCompare(a.date));
+      setOverdueItems(items);
+    }).catch(() => {});
+  }, [refreshOverdue]);
+
+  // Auto-dismiss undo after 5s
+  useEffect(() => {
+    if (!undoTodo) return;
+    const timer = setTimeout(() => setUndoTodo(null), 5000);
+    return () => clearTimeout(timer);
+  }, [undoTodo]);
+
   const toggleTodo = (id: string) => {
     onChange(
       todos.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
@@ -14,7 +64,64 @@ export function TodoList({ todos, onChange }: TodoListProps) {
   };
 
   const removeTodo = (id: string) => {
+    const todo = todos.find((t) => t.id === id);
+    if (!todo) return;
+    setUndoTodo({ todo, previousTodos: todos });
     onChange(todos.filter((t) => t.id !== id));
+  };
+
+  const undoRemove = () => {
+    if (!undoTodo) return;
+    onChange(undoTodo.previousTodos);
+    setUndoTodo(null);
+  };
+
+  const reorder = (from: number, to: number) => {
+    if (from === to) return;
+    const arr = [...todos];
+    const [moved] = arr.splice(from, 1);
+    arr.splice(to, 0, moved);
+    onChange(arr);
+  };
+
+  // ── 拖拽事件处理 ──
+  const handleDragStart = (index: number) => (e: React.DragEvent) => {
+    dragIdxRef.current = index;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(index));
+    // 添加半透明效果
+    (e.currentTarget as HTMLElement).classList.add("todo-dragging");
+  };
+
+  const handleDragOver = (index: number) => (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverIdx !== index) {
+      setDragOverIdx(index);
+      dragOverIdxRef.current = index;
+    }
+  };
+
+  const handleDragLeave = () => {
+    // 使用 setTimeout 避免闪烁
+  };
+
+  const handleDrop = (index: number) => (e: React.DragEvent) => {
+    e.preventDefault();
+    const from = dragIdxRef.current;
+    setDragOverIdx(null);
+    if (from !== null && from !== index) {
+      reorder(from, index);
+    }
+    (e.currentTarget as HTMLElement).classList.remove("todo-dragging");
+  };
+
+  const handleDragEnd = () => {
+    dragIdxRef.current = null;
+    dragOverIdxRef.current = null;
+    setDragOverIdx(null);
+    // 清除所有拖拽状态
+    document.querySelectorAll(".todo-dragging").forEach((el) => el.classList.remove("todo-dragging"));
   };
 
   const addTodo = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -25,37 +132,170 @@ export function TodoList({ todos, onChange }: TodoListProps) {
     input.value = "";
     onChange([
       ...todos,
-      { id: crypto.randomUUID(), text, done: false, order: todos.length },
+      { id: uuid(), text, done: false, order: todos.length, tags: [] },
     ]);
+  };
+
+  const startEdit = (todo: Todo) => {
+    if (todo.done) return;
+    setEditingId(todo.id);
+    setEditText(todo.text);
+  };
+
+  const saveEdit = () => {
+    if (!editingId) return;
+    const text = editText.trim();
+    if (text) {
+      onChange(
+        todos.map((t) => (t.id === editingId ? { ...t, text } : t))
+      );
+    }
+    setEditingId(null);
+    setEditText("");
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditText("");
+  };
+
+  const handleOverdueToggle = (item: OverdueItem) => {
+    api.daily.get(item.date).then((page) => {
+      const updatedTodos = page.todos.map((t) =>
+        t.id === item.todo.id ? { ...t, done: !t.done } : t
+      );
+      return api.daily.updateTodos({ date: item.date, todos: updatedTodos });
+    }).then(() => {
+      setRefreshOverdue((n) => n + 1);
+    }).catch(() => {});
+  };
+
+  const formatDate = (dateStr: string) => {
+    const parts = dateStr.split("-");
+    return `${parseInt(parts[1])}/${parseInt(parts[2])}`;
   };
 
   return (
     <div className="todo-list">
-      <h3 className="section-title">今日待办</h3>
+      <h3 className="section-title">
+        <span>今日待办 ({todos.length})</span>
+        {overdueItems.length > 0 && (
+          <button
+            className={`overdue-badge ${overdueOpen ? "open" : ""}`}
+            onClick={() => setOverdueOpen((v) => !v)}
+            title="点击展开/收起过期待办"
+          >
+            过期待办 ({overdueItems.length})
+          </button>
+        )}
+      </h3>
+
+      {/* 过期待办区域 */}
+      {overdueOpen && overdueItems.length > 0 && (
+        <div className="overdue-section">
+          <div className="overdue-items">
+            {overdueItems.map((item) => (
+              <div key={item.todo.id} className="todo-item overdue-item">
+                <input
+                  type="checkbox"
+                  className="todo-checkbox"
+                  checked={item.todo.done}
+                  onChange={() => handleOverdueToggle(item)}
+                />
+                <span className="todo-text overdue-text">{item.todo.text}</span>
+                <span className="overdue-date">{formatDate(item.date)}</span>
+                <button
+                  className="todo-remove"
+                  onClick={() => {
+                    api.daily.get(item.date).then((page) => {
+                      const updatedTodos = page.todos.filter(
+                        (t) => t.id !== item.todo.id
+                      );
+                      return api.daily.updateTodos({
+                        date: item.date,
+                        todos: updatedTodos,
+                      });
+                    }).then(() => {
+                      setRefreshOverdue((n) => n + 1);
+                    }).catch(() => {});
+                  }}
+                  title="删除"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="todo-items">
-        {todos.map((todo) => (
-          <label key={todo.id} className="todo-item">
+        {todos.map((todo, i) => (
+          <div
+            key={todo.id}
+            className={`todo-item ${dragOverIdx === i ? "todo-drop-target" : ""}`}
+            draggable={editingId !== todo.id}
+            onDragStart={handleDragStart(i)}
+            onDragOver={handleDragOver(i)}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop(i)}
+            onDragEnd={handleDragEnd}
+          >
+            <span className="todo-drag-handle" title="拖拽排序">⋮⋮</span>
             <input
               type="checkbox"
+              className="todo-checkbox"
               checked={todo.done}
               onChange={() => toggleTodo(todo.id)}
             />
-            <span className={todo.done ? "done" : ""}>{todo.text}</span>
+            {editingId === todo.id ? (
+              <input
+                className="todo-edit-input"
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveEdit();
+                  if (e.key === "Escape") cancelEdit();
+                }}
+                onBlur={saveEdit}
+                autoFocus
+              />
+            ) : (
+              <span
+                className={`todo-text ${todo.done ? "done" : ""}`}
+                onDoubleClick={() => startEdit(todo)}
+                title="双击编辑"
+              >
+                {todo.text}
+              </span>
+            )}
             <button
               className="todo-remove"
               onClick={() => removeTodo(todo.id)}
+              title="删除"
             >
               ×
             </button>
-          </label>
+          </div>
         ))}
       </div>
+
       <input
         type="text"
         placeholder="添加待办..."
         onKeyDown={addTodo}
         className="todo-input"
       />
+
+      {/* Undo toast */}
+      {undoTodo && (
+        <div className="todo-undo-bar">
+          <span>已删除「{undoTodo.todo.text}」</span>
+          <button className="todo-undo-btn" onClick={undoRemove}>
+            撤销
+          </button>
+        </div>
+      )}
     </div>
   );
 }

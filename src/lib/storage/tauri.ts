@@ -1,11 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Note, DailyPage, NoteVersion, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../../types/models";
+import type { Note, DailyPage, NoteVersion } from "../../types/models";
 import type { StorageAdapter, AppConfig } from "./types";
 
 /** TauriAdapter — 通过 IPC invoke 调 Rust 后端 */
 export const tauriAdapter: StorageAdapter = {
   // ── Notes ──
   getNotesByDate: (date) => invoke<Note[]>("get_notes_by_date", { date }),
+  getNote: (id) => invoke<Note | null>("get_note", { id }),
   createNote: (data) => invoke<Note>("create_note", { data }),
   updateNote: (id, data) => invoke<Note>("update_note", { id, data }),
   updateNoteOrder: (id, sort_order) => invoke<Note>("update_note_order", { id, sort_order }),
@@ -20,6 +21,7 @@ export const tauriAdapter: StorageAdapter = {
   // ── Daily ──
   getDailyPage: (date) => invoke<DailyPage>("get_daily_page", { date }),
   updateTodos: (data) => invoke<DailyPage>("update_todos", { data }),
+  getAllDailyPages: () => invoke<DailyPage[]>("get_all_daily_pages"),
 
   // ── Sync ──
   syncPush: () => invoke<{ pushed: number }>("sync_push"),
@@ -35,6 +37,10 @@ export const tauriAdapter: StorageAdapter = {
   restoreNote: (id) => invoke<void>("restore_note", { id }),
   permanentlyDeleteNote: (id) => invoke<void>("permanently_delete_note", { id }),
   cleanOldDeleted: (days) => invoke<number>("clean_old_deleted", { olderThanDays: days }),
+
+  // ── Batch ──
+  batchDelete: (ids) => invoke<void>("batch_delete", { ids }),
+  batchSetReadonly: (ids, readonly) => invoke<void>("batch_set_readonly", { ids, readonly }),
 
   // ── Versions ──
   getNoteVersions: (noteId) => invoke<NoteVersion[]>("get_note_versions", { noteId }),

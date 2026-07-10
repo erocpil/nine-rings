@@ -1,25 +1,38 @@
 import { useState, useCallback } from "react";
 import { api } from "../lib/api";
+import type { Note } from "../types/models";
+
+export interface TodoHit {
+  todo: { id: string; text: string; done: boolean };
+  date: string;
+}
+
+export interface SearchResults {
+  notes: Note[];
+  todos: TodoHit[];
+}
 
 /**
- * 搜索 Hook — 防抖 300ms
- * 搜索结果写回 store 由调用方控制
+ * 搜索 Hook — 同时搜索笔记和待办，防抖在 SearchBar 组件中处理
  */
 export function useSearch() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<SearchResults>({ notes: [], todos: [] });
   const [searching, setSearching] = useState(false);
 
   const search = useCallback(async (q: string) => {
     setQuery(q);
     if (!q.trim()) {
-      setResults([]);
+      setResults({ notes: [], todos: [] });
       return;
     }
     setSearching(true);
     try {
-      const res = await api.notes.search(q);
-      setResults(res);
+      const [notes, todoHits] = await Promise.all([
+        api.notes.search(q),
+        api.daily.searchTodos(q),
+      ]);
+      setResults({ notes, todos: todoHits });
     } finally {
       setSearching(false);
     }

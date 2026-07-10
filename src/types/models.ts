@@ -7,9 +7,11 @@ export interface Note {
   content: DeltaOps;
   tags: string[];
   pinned: boolean;
+  readonly: boolean;
   sort_order: number;
   created_at: string;
   updated_at: string;
+  deleted_at?: string;
 }
 
 export interface Todo {
@@ -62,6 +64,7 @@ export interface UpdateNoteInput {
   content?: DeltaOps;
   tags?: string[];
   pinned?: boolean;
+  readonly?: boolean;
   sort_order?: number;
 }
 
@@ -86,13 +89,15 @@ export interface NoteVersion {
 
 /** 应用配置（与 schema/config.yaml 对齐） */
 export interface AppConfig {
-  theme: "system" | "light" | "dark";
+  theme: "system" | "light" | "dark" | "grace" | "sui" | "zhi";
   default_view: "daily" | "list";
   todo_carryover_default: boolean;
   auto_clean_days: number;
   note_font_size: number;
   enable_sync: boolean;
   dev_port: number;
+  highlight_active_line: boolean;
+  editor_show_line_numbers: boolean;
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -103,4 +108,6 @@ export const DEFAULT_CONFIG: AppConfig = {
   note_font_size: 16,
   enable_sync: false,
   dev_port: 1420,
+  highlight_active_line: true,
+  editor_show_line_numbers: false,
 };

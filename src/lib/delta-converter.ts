@@ -151,6 +151,9 @@ function extractInlineOps(
       ops.push({ insert: "\n" });
     } else if (inline.type === "image") {
       ops.push({ insert: { image: inline.attrs?.src ?? "" } });
+    } else if (inline.type === "paragraph" || inline.type === "listItem") {
+      // 递归提取嵌套文本（如 listItem → paragraph → text）
+      extractInlineOps(inline, ops, inheritAttrs);
     }
   }
 }
@@ -158,31 +161,34 @@ function extractInlineOps(
 // ── Quill Delta → ProseMirror ──
 
 export function deltaToProseMirror(deltaData: any): any {
+  // ── dump ──
+  const opsCount = deltaData?.ops?.length ?? 0;
+  const firstInsert = opsCount > 0 ? String(deltaData.ops[0]?.insert).slice(0, 60) : "—";
+  console.log(`[dump/converter] deltaToProseMirror ops=${opsCount} first_op=${JSON.stringify(firstInsert)}`);
+  // ── /dump ──
   // 兼容两种入参：{ops: [...]} 或 {delta: {ops: [...]}}
   const ops: any[] = deltaData?.ops ?? deltaData?.delta?.ops ?? [];
 
   const doc: any[] = [];
   let currentParagraph: any = { type: "paragraph", content: [] };
-  let currentBlockAttrs: Record<string, any> | null = null;
   let isImageBlock = false;
+  /** 正在累积的列表（未推入 doc，等待闭合） */
+  let pendingList: { type: string; content: any[] } | null = null;
 
   function flushParagraph() {
     if (currentParagraph.content.length > 0 || isImageBlock) {
       doc.push({ ...currentParagraph });
     }
     currentParagraph = { type: "paragraph", content: [] };
-    currentBlockAttrs = null;
     isImageBlock = false;
   }
 
-  function startBlock(blockType: string, attrs?: any) {
-    if (blockType === "heading") {
-      currentParagraph = { type: "heading", attrs: { level: attrs?.header ?? 1 }, content: [] };
-    } else if (blockType === "codeBlock") {
-      currentParagraph = { type: "codeBlock", content: [] };
-    } else if (blockType === "blockquote") {
-      currentParagraph = { type: "blockquote", content: [] };
+  /** 把 pendingList 推入 doc 并清空 */
+  function flushList() {
+    if (pendingList && pendingList.content.length > 0) {
+      doc.push({ ...pendingList });
     }
+    pendingList = null;
   }
 
   for (const op of ops) {
@@ -191,35 +197,46 @@ export function deltaToProseMirror(deltaData: any): any {
 
     if (typeof insert === "string") {
       if (insert === "\n") {
-        // Block-level attributes
+        // ── 列表项 ──
+        if (attrs.list === "bullet" || attrs.list === "ordered") {
+          const listType = attrs.list === "bullet" ? "bulletList" : "orderedList";
+          // 如果当前列表类型不同，先刷出旧列表
+          if (pendingList && pendingList.type !== listType) {
+            flushList();
+          }
+          // 没有活跃列表时，新建一个
+          if (!pendingList) {
+            pendingList = { type: listType, content: [] };
+          }
+          // 构建 listItem，content 引用 currentParagraph.content 后重置
+          const itemParaContent = currentParagraph.content;
+          pendingList.content.push({
+            type: "listItem",
+            content: [{ type: "paragraph", content: itemParaContent }],
+          });
+          currentParagraph = { type: "paragraph", content: [] };
+          isImageBlock = false;
+          continue;
+        }
+
+        // ── 非列表块级属性 → 先刷出 pendingList ──
+        flushList();
+
         if (attrs.header) {
-          startBlock("heading", attrs);
+          currentParagraph.type = "heading";
+          currentParagraph.attrs = { level: attrs.header };
           flushParagraph();
         } else if (attrs["code-block"]) {
-          startBlock("codeBlock");
+          currentParagraph.type = "codeBlock";
           flushParagraph();
         } else if (attrs.blockquote) {
-          startBlock("blockquote");
-          flushParagraph();
-        } else if (attrs.list === "bullet") {
-          // List items: wrap in bulletList
-          if (currentParagraph.type === "listItem") {
-            // continue
-          } else {
-            flushParagraph();
-            currentParagraph = { type: "bulletList", content: [] };
-          }
-          const itemContent = currentParagraph.content ?? [];
-          itemContent.push({
-            type: "listItem",
-            content: [{ type: "paragraph", content: extractInlineContent(currentParagraph) }],
-          });
-          // We need to redo this properly - let me use a running list approach
+          currentParagraph.type = "blockquote";
           flushParagraph();
         } else {
           flushParagraph();
         }
       } else if (insert.startsWith("\n")) {
+        flushList();
         // Hard break within paragraph
         currentParagraph.content.push({ type: "hardBreak" });
         const rest = insert.slice(1);
@@ -236,6 +253,7 @@ export function deltaToProseMirror(deltaData: any): any {
         });
       }
     } else if (typeof insert === "object" && insert !== null) {
+      flushList();
       if (insert.image) {
         flushParagraph();
         currentParagraph = { type: "image", attrs: { src: insert.image }, content: [] };
@@ -248,14 +266,17 @@ export function deltaToProseMirror(deltaData: any): any {
     }
   }
 
+  flushList();
   flushParagraph();
 
-  return { type: "doc", content: doc };
-}
+  const nodeCount = doc.length;
+  const firstType = nodeCount > 0 ? doc[0].type : "—";
+  console.log(`[dump/converter] deltaToProseMirror → ${nodeCount} nodes first_type=${firstType}`);
+  if (nodeCount === 0) {
+    console.warn("[dump/converter] ⚠️ 转换后内容为空！输入 Delta ops:", JSON.stringify(deltaData).slice(0, 300));
+  }
 
-/** Helper — simplistic; used only for list reconstruction that delegates up */
-function extractInlineContent(para: any): any[] {
-  return para.content ?? [];
+  return { type: "doc", content: doc };
 }
 
 // ── 格式检测 ──

@@ -1,4 +1,3 @@
-import React from "react";
 import { useNotesStore } from "../stores/useNotesStore";
 
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -18,10 +17,10 @@ export function DailyOverview() {
 
   return (
     <div className="daily-overview">
+      <span className="daily-weekday">{weekday}</span>
       <span className="daily-date">
         {month}月{day}日
       </span>
-      <span className="daily-weekday">{weekday}</span>
       <span className="daily-stat">{notes.length} 篇笔记</span>
       {totalTodos > 0 && (
         <span className="daily-stat">

@@ -3,13 +3,15 @@ import type { Note, DailyPage, NoteVersion, CreateNoteInput, UpdateNoteInput, Up
 // ── 配置类型（与 schema/config.yaml 对齐）──
 
 export interface AppConfig {
-  theme: "system" | "light" | "dark";
+  theme: "system" | "light" | "dark" | "grace" | "sui" | "zhi";
   default_view: "daily" | "list";
   todo_carryover_default: boolean;
   auto_clean_days: number;
   note_font_size: number;
   enable_sync: boolean;
   dev_port: number; // 仅 web 模式生效
+  highlight_active_line: boolean;
+  editor_show_line_numbers: boolean;
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
@@ -20,12 +22,15 @@ export const DEFAULT_CONFIG: AppConfig = {
   note_font_size: 16,
   enable_sync: false,
   dev_port: 1420,
+  highlight_active_line: true,
+  editor_show_line_numbers: false,
 };
 
 /** StorageAdapter — 抽象存储后端 */
 export interface StorageAdapter {
   // ── Notes ──
   getNotesByDate(date: string): Promise<Note[]>;
+  getNote(id: string): Promise<Note | null>;
   createNote(data: CreateNoteInput): Promise<Note>;
   updateNote(id: string, data: UpdateNoteInput): Promise<Note>;
   updateNoteOrder(id: string, sort_order: number): Promise<Note>;
@@ -40,6 +45,7 @@ export interface StorageAdapter {
   // ── Daily Page ──
   getDailyPage(date: string): Promise<DailyPage>;
   updateTodos(data: UpdateTodosInput): Promise<DailyPage>;
+  getAllDailyPages(): Promise<DailyPage[]>;
 
   // ── Sync (存桩) ──
   syncPush(): Promise<{ pushed: number }>;
@@ -55,6 +61,10 @@ export interface StorageAdapter {
   restoreNote(id: string): Promise<void>;
   permanentlyDeleteNote(id: string): Promise<void>;
   cleanOldDeleted(olderThanDays: number): Promise<number>;
+
+  // ── Batch ──
+  batchDelete(ids: string[]): Promise<void>;
+  batchSetReadonly(ids: string[], readonly: boolean): Promise<void>;
 
   // ── Version History ──
   getNoteVersions(noteId: string): Promise<NoteVersion[]>;
