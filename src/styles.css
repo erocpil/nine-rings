@@ -2812,10 +2812,10 @@ body {
 /* ── 批量选择 checkbox ── */
 
 .doc-tree-checkbox {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   flex-shrink: 0;
-  margin: 0 4px 0 0;
+  margin: 0 2px 0 0;
   cursor: pointer;
   accent-color: var(--accent);
 }
@@ -2845,7 +2845,12 @@ body {
 
 .doc-tree-selected {
   background: var(--active-bg) !important;
-  box-shadow: inset 2px 0 0 var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.doc-tree-selected .doc-tree-name {
+  font-weight: 600;
+  color: var(--accent);
 }
 
 .doc-tree-folder {
@@ -2859,10 +2864,10 @@ body {
 }
 
 .doc-tree-toggle {
-  width: 12px;
+  width: 8px;
   text-align: center;
   flex-shrink: 0;
-  font-size: 9px;
+  font-size: 8px;
   color: var(--text-tertiary);
 }
 
