@@ -185,7 +185,7 @@ function DocTree({
     });
 
   const renderNode = (node: PathNode, depth: number) => {
-    const paddingLeft = 8 + depth * 12;  // 缩进 12px/层
+    const paddingLeft = 8 + depth * 10;  // 缩进 10px/层
     const isCollapsed = collapsed.has(node.path);
     const hasChildren = childrenMap.has(node.path) && childrenMap.get(node.path)!.length > 0;
 

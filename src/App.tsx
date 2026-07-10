@@ -380,6 +380,7 @@ function App() {
   // ── 开发模式后台导入 ──
   const refreshView = useCallback(() => {
     setDate(currentDate);
+    setDocTreeKey(k => k + 1);
   }, [currentDate, setDate]);
   useDevImport(refreshView);
 
