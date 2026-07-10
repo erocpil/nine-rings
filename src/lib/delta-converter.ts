@@ -230,8 +230,14 @@ export function deltaToProseMirror(deltaData: any): any {
           currentParagraph.type = "codeBlock";
           flushParagraph();
         } else if (attrs.blockquote) {
-          currentParagraph.type = "blockquote";
+          // ProseMirror 的 blockquote schema 要求 content: "paragraph*"
+          // 文本必须用 paragraph 包裹，不能直接放在 blockquote 下
+          currentParagraph = {
+            type: "blockquote",
+            content: [{ type: "paragraph", content: currentParagraph.content }]
+          };
           flushParagraph();
+          currentParagraph = { type: "paragraph", content: [] };
         } else {
           flushParagraph();
         }

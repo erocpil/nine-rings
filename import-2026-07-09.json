@@ -1,0 +1,2196 @@
+{
+  "version": 1,
+  "exported_at": "2026-07-09T14:06:41.721553+00:00",
+  "notes": [
+    {
+      "id": "527ebf2b-142e-450b-8f3e-14929ec5fc07",
+      "date": "2026-07-09",
+      "title": "BPM Chart 部署层 — 工程实现与架构",
+      "content": {
+        "ops": [
+          {
+            "insert": "BPM Chart 部署层 — 工程实现与架构"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 1
+            }
+          },
+          {
+            "insert": "Chart 目录结构"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 2
+            }
+          },
+          {
+            "insert": "charts/\n├── Chart.yaml                     # 版本声明\n├── values.yaml                    # 默认参数\n├── templates/\n│   ├── _helpers.tpl               # 模板辅助函数\n│   ├── deployment.yaml            # Master Deployment\n│   ├── service.yaml               # ClusterIP Service\n│   ├── configmap.yaml             # 动态配置 ConfigMap\n│   ├── rbac.yaml                  # ServiceAccount + ClusterRole + ClusterRoleBinding\n│   ├── secret.yaml                # Prometheus 认证 Secret\n│   ├── servicemonitor.yaml        # Prometheus ServiceMonitor（可选）\n│   └── prometheusrule.yaml        # Prometheus 告警规则（可选）"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "各模板详解"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 2
+            }
+          },
+          {
+            "insert": "Chart.yaml"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "apiVersion: v2              # Helm 3 API 版本\nappVersion: v1.0.3          # 应用版本\nversion: v1.0.3             # Chart 版本\nname: boson-service-probe   # Chart 名称"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "Chart 版本和 App 版本独立。"
+          },
+          {
+            "insert": "version",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 用于 Helm 仓库的版本管理，"
+          },
+          {
+            "insert": "appVersion",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 是应用自身的版本号。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "_helpers.tpl — 模板辅助函数"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "{{- define \"fullname\" -}}\n{{- if .Values.fullnameOverride }}\n{{- .Values.fullnameOverride | trunc 63 | trimSuffix \"-\" }}\n{{- else }}\n{{- printf \"%s\" .Release.Name | trunc 63 | trimSuffix \"-\" }}\n{{- end }}\n{{- end -}}"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "fullname",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 是所有 K8s 资源名称的基础："
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| 场景 | fullname 值 | 依据 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "|------|------------|------|"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "fullnameOverride",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 为空（默认） | "
+          },
+          {
+            "insert": "boson-service-probe",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | Helm release name |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "fullnameOverride: my-bsp",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "my-bsp",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | 显式覆盖 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| release name 超过 63 字符 | 截断到 63 | K8s DNS 命名规范 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "所有模板都通过 "
+          },
+          {
+            "insert": "{{ template \"fullname\" . }}",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 引用这个函数，确保命名一致。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "deployment.yaml — Master Deployment"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "kind: Deployment\nmetadata:\n  name: {{ template \"fullname\" . }}          # boson-service-probe\n  namespace: {{ .Release.Namespace }}\nspec:\n  replicas: 1                                   # 固定 1 副本（无 leader election）\n  selector:\n    matchLabels:\n      app: {{ template \"fullname\" . }}\n  template:\n    metadata:\n      labels:\n        app: {{ template \"fullname\" . }}\n        chart: \"{{ .Chart.Name }}\"\n        chartversion: \"{{ .Chart.Version }}\"\n        release: \"{{ .Release.Name }}\"\n    spec:\n      serviceAccount: {{ template \"fullname\" . }}\n      containers:\n      - name: manager\n        image: \"{{ .Values.global.probeImage }}\"       # CI/CD 注入的完整镜像地址\n        imagePullPolicy: {{ .Values.imagePullPolicy }}\n        env:\n        - name: POD_NAMESPACE                          # 自动获取当前 namespace\n          valueFrom:\n            fieldRef:\n              fieldPath: metadata.namespace\n        - name: BOSON_PROBE_METRIC_AUTH_USER\n          value: {{ .Values.serviceMonitor.authUser }}\n        - name: BOSON_PROBE_METRIC_AUTH_PASS\n          value: {{ .Values.serviceMonitor.authPass }}\n        command:\n        - /app/bosonprobe\n        args:\n        - serve\n        - --listen :80\n        - --unix /var/run/bosonprobe/bosonprobe.sock\n        - --dynamic-config /etc/bosonprobe/config.yaml\n        ports:\n        - containerPort: 80\n        readinessProbe:\n          httpGet:\n            path: /api/ping\n            port: 80\n          initialDelaySeconds: 3\n          periodSeconds: 10\n        volumeMounts:\n        - mountPath: /etc/bosonprobe\n          name: config-volume\n      volumes:\n      - name: config-volume\n        configMap:\n          name: {{ template \"fullname\" . }}-config     # boson-service-probe-config"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "关键设计点",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "："
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "`POD_NAMESPACE`",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " 通过 Downward API 注入，informer 用这个值决定 worker 的部署 namespace"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "`--dynamic-config`",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " 指向 ConfigMap 挂载路径，scheduler 每分钟从该文件 reload"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "`readinessProbe`",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " 用 "
+          },
+          {
+            "insert": "/api/ping",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 端点确认 master 的 HTTP 服务就绪"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "没有 `hostNetwork`",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "：master 通过 ClusterIP Service 暴露，不直接绑定节点网络。详见下方 "
+          },
+          {
+            "insert": "网络模式对比",
+            "attributes": {
+              "link": "#网络模式对比-clusterip-service-vs-hostnetwork"
+            }
+          },
+          {
+            "insert": "。"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "service.yaml — ClusterIP Service"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "kind: Service\nmetadata:\n  name: {{ template \"fullname\" . }}          # boson-service-probe\n  namespace: {{ .Release.Namespace }}\nspec:\n  type: ClusterIP\n  selector:\n    app: {{ template \"fullname\" . }}\n  ports:\n  - name: tcpmuxer\n    protocol: TCP\n    port: {{ .Values.fixedService.port }}      # 52090\n    targetPort: 80\n  clusterIP: {{ .Values.fixedService.ip }}     # 10.96.0.100"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "关键设计点",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "："
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "固定 ClusterIP",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "："
+          },
+          {
+            "insert": "10.96.0.100",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "，worker 可以用 IP 直连 master，不依赖 DNS"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "端口映射 `52090 → 80`",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "：外部访问用 52090，master 内部监听 80"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "port name = `tcpmuxer`",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "：与 tcpMux 协议复用器名称一致"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "selector 匹配 `app=<fullname>`",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "：与 deployment labels 一致"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "#### 网络模式对比：ClusterIP Service vs hostNetwork"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "Master 选择 ClusterIP Service 而非 hostNetwork 模式，是综合 Worker 连接方式、运维成本和网络兼容性后的决策。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| 维度 | ClusterIP Service（当前） | hostNetwork |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "|------|--------------------------|-------------|"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "网络模型",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " | Pod 在独立 Pod 网络命名空间，经 Service + kube-proxy DNAT 转发 | Pod 直接共享宿主机网络栈，绑宿主机 IP 和端口 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "端口占用",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " | 仅 Pod 内 "
+          },
+          {
+            "insert": ":80",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "，宿主机无端口占用 | 占用宿主机 "
+          },
+          {
+            "insert": ":52090",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "，同节点不能再起第二个 Master |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "Worker 寻址",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " | Worker 通过固定 ClusterIP "
+          },
+          {
+            "insert": "10.96.0.100:52090",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 连接，不依赖 Master Pod 的实际 IP | Worker 需要知道 Master Pod 所在节点的 IP，Pod 漂移后地址变化 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "kube-proxy 开销",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " | 一次 DNAT 转发（微秒级，可忽略） | 无转发，直连 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "源 IP 保留",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " | 默认 SNAT（Worker 看到的 Master 端地址是 Node IP 而非 Worker IP） | 保留真实源 IP |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "OVN 兼容性",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " | ClusterIP 是虚拟 IP，DNAT 转发发生在节点底层网络，"
+          },
+          {
+            "insert": "不经过 OVN 虚拟化层",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "，不受 VPC 边界影响；Worker 连接不了的问题本质是 Worker 所在子网的"
+          },
+          {
+            "insert": "回包路由",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "问题，而非 ClusterIP 本身 | 直走节点网络，同样不受 VPC 边界影响，但引入地址漂移问题 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "Worker 连接方式",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "joinAddr: 10.96.0.100:52090",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "（固定指针，Master 调度到任何节点都不影响） | "
+          },
+          {
+            "insert": "joinAddr",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 必须指向具体节点 IP，Master 漂移后需更新 joinAddr |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "多副本场景",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " | Service 天然负载均衡到多个 Pod Endpoints | 多个 hostNetwork Pod 不能监听同一宿主机端口，必须用不同端口或不同节点 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "运维复杂度",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " | 低。ClusterIP 固定后不需要额外维护 | 高。需要外部负载均衡或 DNS 跟踪 Master 节点位置 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "为什么不选 hostNetwork：",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "Worker 连接地址必须固定。",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " ClusterIP "
+          },
+          {
+            "insert": "10.96.0.100",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 不随 Master Pod 调度位置变化。如果用 hostNetwork，Master 漂移到另一节点后 "
+          },
+          {
+            "insert": "joinAddr",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 必须跟着改 —— 接入层配置维护成本高，且所有 Worker 的 joinAddr 需要同步更新。"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "ordered"
+            }
+          },
+          {
+            "insert": "不占用宿主机端口。",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " hostNetwork 绑定 "
+          },
+          {
+            "insert": ":52090",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 后，同节点无法运行第二个实例，也和其他 hostNetwork 应用有端口冲突风险。"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "ordered"
+            }
+          },
+          {
+            "insert": "Worker 连接问题与 hostNetwork 无关。",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " 1.0 集群上 Worker 连不上 Master 的根因是 "
+          },
+          {
+            "insert": "Worker 在租户 VPC 子网内，VPC 边界阻断 TCP 回程",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "，而不是 kube-proxy 多了一跳 DNAT。ClusterIP → PodIP 的 DNAT 发生在节点底层网络，"
+          },
+          {
+            "insert": "不走 OVN 虚拟化层",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "，因此不受 VPC 边界约束。出问题的是"
+          },
+          {
+            "insert": "回包路径",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "：Worker 在 VPC 子网 → 发包到 Master ClusterIP（节点网络）→ Master 回包到 Worker 时被 VPC 边界拦截。解决方案是 "
+          },
+          {
+            "insert": "disableOVNAttach=true",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 让 Worker 留在默认网络，而不是换成 hostNetwork。"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "ordered"
+            }
+          },
+          {
+            "insert": "hostNetwork 不解决任何现有问题，反而引入新问题：",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " 地址不固定、端口冲突、多副本排他 —— 所以不选它。"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "ordered"
+            }
+          },
+          {
+            "insert": "结论：",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " ClusterIP Service 是标准 K8s 服务暴露方式，适合\"需要固定访问入口 + 多副本潜在扩展 + 不依赖节点 IP\"的场景。hostNetwork 适用于\"需要保留源 IP、性能极致、入口地址可随 Pod 漂移\"的场景。BSP 的 Worker 连接模式决定了固定 ClusterIP 更合适。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "configmap.yaml — 动态配置"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "data:\n  config.yaml: |-\n    debug: {{.Values.debug}}\n    tenantNsSelector:\n      {{- toYaml .Values.tenantNsSelector | trim | nindent 6 }}\n\n    worker:\n      joinAddr: {{ $.Values.fixedService.ip }}:{{ $.Values.fixedService.port }}\n      {{- toYaml .Values.worker | trim | nindent 6 }}\n\n    probes:\n      probeIB:   {{- toYaml .Values.probeIB | trim | nindent 8 }}\n      probeVpcNatgw: {{- toYaml .Values.probeVpcNatgw | trim | nindent 8 }}\n      probeTenant:   {{- toYaml .Values.probeTenant | trim | nindent 8 }}"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "模板渲染后的 ConfigMap 示例："
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "data:\n  config.yaml: |-\n    debug: true\n    tenantNsSelector:\n      creator: \"boson-provider\"\n\n    worker:\n      joinAddr: 10.96.0.100:52090\n      image: registry.sensetime.com/.../boson-service-probe\n      imageTag: 2.0.0-xxx\n      imagePullPolicy: Always\n      disableOVNAttach: false\n      nodeSelector: {}\n      resources:\n        requests:\n          cpu: 10m\n          memory: 10Mi\n        limits:\n          cpu: 1\n          memory: 1Gi\n\n    probes:\n      probeIB:\n        enabled: true\n        namespace: prod-boson\n      probeVpcNatgw:\n        enabled: true\n      probeTenant:\n        enabled: true\n        probes:\n          probe-dns-coredns:\n            ping: [ { addr: 10.96.0.10, count: 5 } ]\n            ..."
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "`{{ $.Values.fixedService.ip }}`",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " 使用 "
+          },
+          {
+            "insert": "$",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 而非 "
+          },
+          {
+            "insert": ".",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "："
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "{{- with .Values.worker }}",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 把 "
+          },
+          {
+            "insert": ".",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 的作用域改为 "
+          },
+          {
+            "insert": ".Values.worker",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "要用 "
+          },
+          {
+            "insert": "$.",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 才能访问根 scope"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "否则 "
+          },
+          {
+            "insert": ".Values.fixedService.ip",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 会被解析为 "
+          },
+          {
+            "insert": ".Values.worker.Values.fixedService.ip",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "（不存在）"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "rbac.yaml — 权限声明"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "apiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: {{ template \"fullname\" . }}    # boson-service-probe\n---\napiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nname: {{ template \"fullname\" . }}\nrules:\n- apiGroups: [\"apps\"]\n  resources: [\"deployments\"]\n  verbs: [\"create\", \"delete\", \"update\", \"get\", \"list\", \"watch\"]     # 创建/管理 worker\n- apiGroups: [\"*\"]\n  resources: [\"namespaces\", \"configmaps\", \"events\", \"pods\"]\n  verbs: [\"get\", \"list\", \"watch\", \"create\", ...]                    # 监听资源 + 写事件\n- apiGroups: [\"kubeovn.io\"]\n  resources: [\"*\"]\n  verbs: [\"get\", \"list\", \"watch\"]                                   # 监听 VPC/Subnet CRD\n- apiGroups: [\"network.sensecore.cn\", \"network.sensetime.com\"]\n  resources: [\"*\"]\n  verbs: [\"get\", \"list\", \"watch\"]                                   # 监听 HANatgw CRD\n---\nkind: ClusterRoleBinding\nsubjects:\n- kind: ServiceAccount\n  name: {{ template \"fullname\" . }}\nroleRef:\n  kind: ClusterRole\n  name: {{ template \"fullname\" . }}"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "权限分析",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "："
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| K8s 资源 | verbs | 用途 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "|---------|-------|------|"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "deployments",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | CRUD + watch | 创建/更新/删除 worker deployment |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "namespaces",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | get/list/watch | 1.0 模式监听 namespace |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "configmaps",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | get/list/watch | 读动态配置（当前通过文件挂载，但 informer 也监听） |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "events",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | create/patch | 写 K8s Event（worker 创建/删除事件） |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "pods",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | get/list/watch | 查询 worker pod 状态 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "pods/exec",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | create | 通过 exec 在 worker 中执行命令 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "kubeovn.io/*",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | get/list/watch | 监听 VPC / Subnet CRD |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "network.sensecore.cn/*",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | get/list/watch | 监听 HANatgw CRD（1.0 版） |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "network.sensetime.com/*",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | get/list/watch | 监听 HANatgw CRD（2.0 版） |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "关键",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "：使用了 "
+          },
+          {
+            "insert": "ClusterRole",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "（而非 Role），因为 master 需要跨 namespace 监听资源（VPC/Subnet CRD 是集群范围的，worker 可能部署在不同 namespace）。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "secret.yaml — Prometheus 认证"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "kind: Secret\nname: {{ template \"fullname\" . }}-metric-auth\ntype: Opaque\ndata:\n  user: {{ default \"bosonprobe\" .Values.serviceMonitor.authUser | b64enc | quote }}\n  password: {{ default \"bosonprobe\" .Values.serviceMonitor.authPass | b64enc | quote }}"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "默认用户名/密码都是 "
+          },
+          {
+            "insert": "bosonprobe",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "通过 "
+          },
+          {
+            "insert": "--set serviceMonitor.authUser=xxx --set serviceMonitor.authPass=yyy",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 覆盖"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "Secret 被 ServiceMonitor 引用，用于 Prometheus 抓取 metrics 时的 Basic Auth"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "servicemonitor.yaml — Prometheus 抓取配置（可选）"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "{{- if .Values.serviceMonitor.enabled }}\napiVersion: monitoring.coreos.com/v1\nkind: ServiceMonitor\nspec:\n  endpoints:\n  - interval: {{ .Values.serviceMonitor.scrapeInterval }}     # 默认 60s\n    scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout }}  # 默认 30s\n    path: /api/metrics\n    port: tcpmuxer\n    basicAuth:\n      password:\n        name: {{ template \"fullname\" . }}-metric-auth\n        key: password\n      username:\n        name: {{ template \"fullname\" . }}-metric-auth\n        key: user\n  namespaceSelector:\n    matchNames:\n    - {{ .Release.Namespace }}\n  selector:\n    matchLabels:\n      app: {{ template \"fullname\" . }}\n{{- end }}"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "由 "
+          },
+          {
+            "insert": "serviceMonitor.enabled",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 控制，默认 "
+          },
+          {
+            "insert": "false",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "抓取路径 "
+          },
+          {
+            "insert": "/api/metrics",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "，使用 Secret 中的凭证认证"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "匹配 label "
+          },
+          {
+            "insert": "app=<release-name>",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 的 Service"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "values.yaml 参数对照"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 2
+            }
+          },
+          {
+            "insert": "Master 配置"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "| 参数 | 默认值 | 说明 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "|------|--------|------|"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "global.probeImage",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | CI/CD 注入 | Master/worker 使用的完整镜像地址 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "imagePullPolicy",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "Always",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | 镜像拉取策略 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "fullnameOverride",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "\"\"",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | 覆盖资源名称（默认 = release name） |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "debug",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "true",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | 开启调试日志 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "网络配置"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "| 参数 | 默认值 | 说明 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "|------|--------|------|"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "fixedService.ip",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "10.96.0.100",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | Service 固定 ClusterIP |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "fixedService.port",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "52090",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | Service 暴露端口 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "Worker 配置"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "| 参数 | 默认值 | 说明 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "|------|--------|------|"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "worker.image",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | CI/CD 注入 | Worker 镜像仓库 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "worker.imageTag",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | CI/CD 注入 | Worker 镜像标签 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "worker.imagePullPolicy",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "Always",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | Worker 镜像拉取策略 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "worker.joinAddr",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | 由 configmap 模板生成 | Worker 连 master 的地址 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "worker.disableOVNAttach",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "false",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | 是否禁用 OVN 子网注解 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "worker.nodeSelector",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "{}",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | Worker 节点选择器 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "worker.tolerations",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "[]",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | Worker 容忍度 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "worker.resources",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | requests: 10m/10Mi, limits: 1/1Gi | Worker 资源限制 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "NodeSelector / Tolerations"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "| 参数 | 默认值 | 说明 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "|------|--------|------|"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "nodeSelector",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "{}",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | Master 节点选择器 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "tolerations",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "[]",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | Master 容忍度 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "affinity",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "{}",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | Master 亲和性 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "Probe 配置"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "| 参数 | 默认值 | 说明 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "|------|--------|------|"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "probeIB.enabled",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "true",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | IB 管理器探测 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "probeIB.namespace",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "prod-boson",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | IB 管理器所在 namespace |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "probeVpcNatgw.enabled",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "true",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | VPC NAT 网关探测 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "probeTenant.enabled",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "true",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | 租户网络探测 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "probeTenant.probes",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | 4 组预设探测 | 探测目标列表 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "Monitoring 配置"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "| 参数 | 默认值 | 说明 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "|------|--------|------|"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "serviceMonitor.enabled",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "false",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | 是否创建 ServiceMonitor |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "serviceMonitor.scrapeInterval",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "60s",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | Prometheus 抓取间隔 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "serviceMonitor.scrapeTimeout",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "30s",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | Prometheus 抓取超时 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "serviceMonitor.authUser",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "bosonprobe",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | metrics 认证用户 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": "serviceMonitor.authPass",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "bosonprobe",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | metrics 认证密码 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "模板渲染流程"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 2
+            }
+          },
+          {
+            "insert": "values.yaml                    Chart.yaml\n    │                              │\n    └──────────┬───────────────────┘\n               │\n               ▼\n    helm template / install / upgrade\n               │\n               ├── _helpers.tpl → fullname 函数\n               │\n               ├── deployment.yaml\n               │     ├── {{ template \"fullname\" . }} → boson-service-probe\n               │     ├── {{ .Values.global.probeImage }} → registry/image:tag\n               │     └── {{ .Values.serviceMonitor.authUser }} → metric-user\n               │\n               ├── service.yaml\n               │     ├── {{ .Values.fixedService.ip }} → 10.96.0.100\n               │     └── {{ .Values.fixedService.port }} → 52090\n               │\n               ├── configmap.yaml\n               │     ├── {{ $.Values.fixedService.ip }} → 10.96.0.100\n               │     └── 注意 $ 和 . 的作用域差异\n               │\n               ├── rbac.yaml\n               │     └── 全部使用 {{ template \"fullname\" . }}\n               │\n               ├── secret.yaml\n               │     └── {{ .Values.serviceMonitor.authUser | b64enc }}\n               │\n               ├── servicemonitor.yaml (条件渲染)\n               │     └── {{- if .Values.serviceMonitor.enabled }}\n               │\n               └── prometheusrule.yaml (条件渲染)\n                     └── {{- if .Values.prometheusRule.enabled }}"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "Helm 渲染后的资源依赖关系",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "："
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "Deployment: boson-service-probe\n  ├── 依赖: ConfigMap boson-service-probe-config（挂载）\n  └── 依赖: ServiceAccount boson-service-probe\n\nService: boson-service-probe\n  └── selector → Deployment labels\n\nConfigMap: boson-service-probe-config\n  └── 数据来源: values.yaml + 模板逻辑\n\nClusterRole + ClusterRoleBinding: boson-service-probe\n  └── 绑定到 ServiceAccount\n\nSecret: boson-service-probe-metric-auth\n  └── 被 ServiceMonitor 引用（if enabled）\n\nServiceMonitor: boson-service-probe (if enabled)\n  └── selector → Service labels"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "典型部署场景"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 2
+            }
+          },
+          {
+            "insert": "2.0 集群（默认）"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "helm install boson-service-probe ./charts \\\n  -n prod-boson \\\n  --set global.probeImage=registry/...:2.0.0-xxx \\\n  --set worker.image=registry/... \\\n  --set worker.imageTag=2.0.0-xxx"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "1.0 集群"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "helm install boson-service-probe ./charts \\\n  -n plat-boson-service \\\n  --set global.probeImage=registry/...:2.0.0-xxx \\\n  --set worker.image=registry/... \\\n  --set worker.imageTag=2.0.0-xxx \\\n  --set worker.disableOVNAttach=true \\\n  --set worker.joinAddr=10.96.0.100:52090"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "仅打测试（不部署）"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "helm template boson-service-probe ./charts \\\n  -n plat-boson-service > rendered.yaml\n\n# 检查渲染结果\ngrep -n \"joinAddr\\|disableOVNAttach\\|image:\" rendered.yaml"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          }
+        ]
+      },
+      "tags": [],
+      "pinned": false,
+      "sort_order": 0,
+      "created_at": "2026-07-09T14:06:41.721553+00:00",
+      "updated_at": "2026-07-09T14:06:41.721553+00:00"
+    }
+  ],
+  "daily_pages": []
+}
