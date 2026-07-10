@@ -1450,6 +1450,24 @@ body {
   color: var(--text-secondary);
 }
 
+.search-hit-snippet {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.search-hit-snippet mark {
+  background: var(--accent);
+  color: #fff;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
 /* ═══════════════════════════════════════
    设置面板
    ═══════════════════════════════════════ */

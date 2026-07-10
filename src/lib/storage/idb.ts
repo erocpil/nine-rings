@@ -8,7 +8,7 @@ import type { StorageAdapter, AppConfig, DocSearchQuery } from "./types";
 import { DEFAULT_CONFIG } from "./types";
 
 const DB_NAME = "nine_rings";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 // ── 工具函数 ──
 
@@ -33,6 +33,83 @@ function today(): string {
   return now().slice(0, 10);
 }
 
+// ── 图片 Blob 存储 ──
+
+/** 将图片 Blob 存入 IndexedDB，返回 `nr-image://<id>` 引用 */
+export async function storeImage(blob: Blob): Promise<string> {
+  const id = uuid();
+  const db = await openDB();
+  try {
+    const tx = db.transaction("images", "readwrite");
+    const store = tx.objectStore("images");
+    await new Promise<void>((resolve, reject) => {
+      const req = store.put({ id, blob, stored_at: now() });
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+    return `nr-image://${id}`;
+  } finally {
+    db.close();
+  }
+}
+
+/** 从 IndexedDB 读取图片并创建 Object URL（调用方负责在适当时机 revoke） */
+export async function getImageUrl(ref: string): Promise<string | null> {
+  const id = ref.replace(/^nr-image:\/\//, "");
+  const db = await openDB();
+  try {
+    const tx = db.transaction("images", "readonly");
+    const store = tx.objectStore("images");
+    const record: any = await new Promise((resolve, reject) => {
+      const req = store.get(id);
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror = () => reject(req.error);
+    });
+    if (!record) return null;
+    return URL.createObjectURL(record.blob);
+  } finally {
+    db.close();
+  }
+}
+
+/** 批量解析 Delta 中的 nr-image:// 引用为 base64（用于导出） */
+export async function resolveImageRefs(delta: any): Promise<any> {
+  if (!delta?.ops) return delta;
+  const ops = [...delta.ops];
+  for (const op of ops) {
+    if (typeof op.insert !== "object") continue;
+    const img = (op.insert as any)?.resizableImage || (op.insert as any)?.image;
+    if (!img?.src || typeof img.src !== "string" || !img.src.startsWith("nr-image://")) continue;
+    const id = img.src.replace(/^nr-image:\/\//, "");
+    const db = await openDB();
+    try {
+      const tx = db.transaction("images", "readonly");
+      const store = tx.objectStore("images");
+      const record: any = await new Promise((resolve, reject) => {
+        const req = store.get(id);
+        req.onsuccess = () => resolve(req.result ?? null);
+        req.onerror = () => reject(req.error);
+      });
+      if (record) {
+        const base64 = await blobToBase64(record.blob);
+        img.src = base64;
+      }
+    } finally {
+      db.close();
+    }
+  }
+  return { ...delta, ops };
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
 /** 从 Delta JSON 提取纯文本用于搜索 */
 function extractPlainText(content: any): string {
   try {
@@ -45,6 +122,30 @@ function extractPlainText(content: any): string {
   } catch {
     return "";
   }
+}
+
+/** 从纯文本中提取匹配片段（带 <mark> 高亮），上下文各约 40 字符 */
+export function extractSnippet(text: string, query: string): string {
+  if (!text || !query) return "";
+  const lower = text.toLowerCase();
+  const qLower = query.toLowerCase();
+  const idx = lower.indexOf(qLower);
+  if (idx === -1) return text.slice(0, 120);
+
+  const contextBefore = 40;
+  const contextAfter = 60;
+  const start = Math.max(0, idx - contextBefore);
+  const end = Math.min(text.length, idx + query.length + contextAfter);
+
+  let snippet = text.slice(start, end);
+  // 分界符
+  if (start > 0) snippet = "\u2026" + snippet;
+  if (end < text.length) snippet = snippet + "\u2026";
+
+  // 高亮所有匹配（不区分大小写）
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(${escaped})`, 'gi');
+  return snippet.replace(re, '<mark>$1</mark>');
 }
 
 /** Delta → Markdown（与 Rust 侧 delta_to_markdown 逻辑一致） */
@@ -112,6 +213,11 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains("note_versions")) {
         const store = db.createObjectStore("note_versions", { keyPath: "id" });
         store.createIndex("note_id", "note_id", { unique: false });
+      }
+
+      // v3: images blob store (for pasted/dropped images)
+      if (!db.objectStoreNames.contains("images")) {
+        db.createObjectStore("images", { keyPath: "id" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -466,13 +572,50 @@ export const idbAdapter: StorageAdapter = {
 
   async exportData(): Promise<string> {
     return withDB(async (db) => {
-      const tx = db.transaction(["notes", "daily_pages"], "readonly");
+      const tx = db.transaction(["notes", "daily_pages", "images"], "readonly");
       const notes = await getAll<any>(tx.objectStore("notes"));
       const dailyPages = await getAll<any>(tx.objectStore("daily_pages"));
+      const imageStore = tx.objectStore("images");
+      const images: Record<string, string> = {};
+
+      // 收集所有 nr-image:// 引用并按需导出图片 blob 为 base64
+      const noteRecords = notes.filter((n) => !n.deleted_at).map(noteFromDB);
+      for (const note of noteRecords) {
+        const ops = note.content?.ops ?? [];
+        for (const op of ops) {
+          if (typeof op.insert !== "object") continue;
+          const img = (op.insert as any)?.resizableImage || (op.insert as any)?.image;
+          if (!img?.src || typeof img.src !== "string" || !img.src.startsWith("nr-image://")) continue;
+          const id = img.src.replace(/^nr-image:\/\//, "");
+          if (images[id]) continue; // already resolved
+          const record: any = await new Promise((resolve, reject) => {
+            const req = imageStore.get(id);
+            req.onsuccess = () => resolve(req.result ?? null);
+            req.onerror = () => reject(req.error);
+          });
+          if (record?.blob) {
+            images[id] = await blobToBase64(record.blob);
+          }
+        }
+      }
+
+      // 替换 delta 中的引用为 base64
+      for (const note of noteRecords) {
+        const ops = note.content?.ops ?? [];
+        for (const op of ops) {
+          if (typeof op.insert !== "object") continue;
+          const img = (op.insert as any)?.resizableImage || (op.insert as any)?.image;
+          if (!img?.src || !img.src.startsWith("nr-image://")) continue;
+          const id = img.src.replace(/^nr-image:\/\//, "");
+          if (images[id]) img.src = images[id];
+        }
+        note.content = { ...note.content, ops };
+      }
+
       return JSON.stringify({
         version: 1,
         exported_at: now(),
-        notes: notes.filter((n) => !n.deleted_at).map(noteFromDB),
+        notes: noteRecords,
         daily_pages: dailyPages.map((p: any) => ({
           ...p,
           todos: typeof p.todos === "string" ? JSON.parse(p.todos) : p.todos,

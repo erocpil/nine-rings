@@ -23,6 +23,7 @@ import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { addLog, toggleDebug } from "../lib/debugLog";
 import { CodeBlockLineNumbers } from "../extensions/CodeBlockLineNumbers";
+import { storeImage } from "../lib/storage/idb";
 
 const FontSize = Extension.create({
   name: "fontSize",
@@ -319,11 +320,9 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           e.preventDefault();
           const file = item.getAsFile();
           if (!file) continue;
-          const reader = new FileReader();
-          reader.onload = () => {
-            (editor.chain().focus() as any).setResizableImage({ src: reader.result as string }).run();
-          };
-          reader.readAsDataURL(file);
+          storeImage(file).then((ref) => {
+            (editor.chain().focus() as any).setResizableImage({ src: ref }).run();
+          });
         }
       }
     },
@@ -337,11 +336,9 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       for (const file of Array.from(files)) {
         if (file.type.startsWith("image/")) {
           e.preventDefault();
-          const reader = new FileReader();
-          reader.onload = () => {
-            (editor.chain().focus() as any).setResizableImage({ src: reader.result as string }).run();
-          };
-          reader.readAsDataURL(file);
+          storeImage(file).then((ref) => {
+            (editor.chain().focus() as any).setResizableImage({ src: ref }).run();
+          });
         }
       }
     },

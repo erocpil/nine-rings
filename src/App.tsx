@@ -16,6 +16,7 @@ import { useSearch } from "./hooks/useSearch";
 import { useDevImport } from "./hooks/useDevImport";
 import { useNotesStore } from "./stores/useNotesStore";
 import { api } from "./lib/api";
+import { extractSnippet } from "./lib/storage/idb";
 import DocTree from "./components/DocTree";
 import DocCreateDialog from "./components/DocCreateDialog";
 import PropertiesPanel from "./components/PropertiesPanel";
@@ -57,12 +58,15 @@ function App() {
   const updateTodos = useNotesStore((s) => s.updateTodos);
   const { search, results, query } = useSearch();
   const [docResults, setDocResults] = useState<Note[] | null>(null);
+  const [docSearchText, setDocSearchText] = useState("");
 
   const handleDocSearch = useCallback(async (q: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => {
     if (!q.text && !q.storagePath && !q.docType && !q.concept) {
       setDocResults(null);
+      setDocSearchText("");
       return;
     }
+    setDocSearchText(q.text || "");
     const notes = await api.docs.search({
       text: q.text || undefined,
       storagePath: q.storagePath,
@@ -594,6 +598,12 @@ function App() {
                   <div className="search-hit-title">{r.title || "无标题"}</div>
                   <div className="search-hit-date">{r.date}</div>
                   {r.storagePath && <div className="search-hit-path">{r.storagePath}</div>}
+                  {(() => {
+                    const targetQuery = docResults ? docSearchText : query;
+                    const snippet = extractSnippet((r as any).search_text ?? "", targetQuery);
+                    if (!snippet) return null;
+                    return <div className="search-hit-snippet" dangerouslySetInnerHTML={{ __html: snippet }} />;
+                  })()}
                 </div>
               ))}
               {!docResults && results.todos.length > 0 && (

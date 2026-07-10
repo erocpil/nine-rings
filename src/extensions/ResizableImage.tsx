@@ -3,10 +3,11 @@
  * 双击恢复原始尺寸
  */
 
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Node } from "@tiptap/core";
 import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
+import { getImageUrl } from "../lib/storage/idb";
 
 // ── React NodeView 组件 ──
 
@@ -14,6 +15,36 @@ function ResizableImageView({ node, updateAttributes, selected }: NodeViewProps)
   const imgRef = useRef<HTMLImageElement>(null);
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const dragStart = useRef<{ x: number; w: number } | null>(null);
+  const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
+
+  const rawSrc = node.attrs.src as string;
+
+  // 解析 nr-image:// 引用为 Object URL
+  useEffect(() => {
+    if (!rawSrc || !rawSrc.startsWith("nr-image://")) {
+      setResolvedSrc(rawSrc);
+      return;
+    }
+    let cancelled = false;
+    getImageUrl(rawSrc).then((url) => {
+      if (cancelled) {
+        if (url) URL.revokeObjectURL(url);
+        return;
+      }
+      objectUrlRef.current = url;
+      setResolvedSrc(url || rawSrc);
+    });
+    return () => {
+      cancelled = true;
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+    };
+  }, [rawSrc]);
+
+  const displaySrc = resolvedSrc ?? rawSrc;
 
   const currentWidth = dragWidth ?? (node.attrs.width ? parseInt(node.attrs.width as string, 10) : null);
 
@@ -54,7 +85,7 @@ function ResizableImageView({ node, updateAttributes, selected }: NodeViewProps)
     <NodeViewWrapper className="resizable-image-wrapper" data-selected={selected ? "true" : undefined}>
       <img
         ref={imgRef}
-        src={node.attrs.src as string}
+        src={displaySrc ?? ""}
         alt={(node.attrs.alt as string) ?? ""}
         title={(node.attrs.title as string) ?? ""}
         style={currentWidth ? { width: currentWidth, maxWidth: "100%" } : { maxWidth: "100%" }}
