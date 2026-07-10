@@ -5,7 +5,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import TextStyle from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
-import ImageExt from "@tiptap/extension-image";
+import { ResizableImage } from "../extensions/ResizableImage";
 import LinkExt from "@tiptap/extension-link";
 import CharacterCount from "@tiptap/extension-character-count";
 import type { DeltaOps } from "../types/models";
@@ -125,8 +125,8 @@ interface NoteEditorProps {
   onStickyTitleChange?: (title: string | null) => void;
 }
 
-// ── 滚动位置显示状态 ──
-let _scrollRaf = 0;
+// ── 模块级状态 ──
+let _lastSaveLog = 0;
 
 export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, highlightActiveLine, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange }: NoteEditorProps) {
   const titleRef = useRef<HTMLDivElement>(null);
@@ -207,7 +207,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       TextStyle,
       Color.configure({ types: ["textStyle"] }),
       FontSize,
-      ImageExt.configure({ inline: false, allowBase64: true }),
+      ResizableImage.configure({ inline: false, allowBase64: true }),
       LinkExt.configure({ openOnClick: true }),
       CharacterCount.configure({ limit: 50000 }),
       ActiveLinePlugin,
@@ -221,6 +221,14 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       const pmJson = ed.getJSON();
       const delta = proseMirrorToDelta(pmJson);
       onContentChange(delta as unknown as DeltaOps);
+      // 节流日志：每秒最多一次
+      const now = Date.now();
+      if (now - _lastSaveLog > 1000) {
+        _lastSaveLog = now;
+        const ch = ed.storage.characterCount?.characters?.() ?? 0;
+        const wd = ed.storage.characterCount?.words?.() ?? 0;
+        addLog(`[变更] ${noteId.slice(0,8)} chars=${ch} words=${wd}`);
+      }
     },
   });
 
@@ -252,9 +260,9 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     const el = scrollRef.current;
     if (!el) return;
     const saved = localStorage.getItem('scrollPos:' + noteId);
-    addLog(`[恢复] 打开笔记 ${noteId.slice(0,8)}，localStorage 值="${saved}"，scrollRef=${!!el}`);
+    const opsCount = Array.isArray(content) ? (content as any[]).length : 0;
+    addLog(`[加载] ${title}  id=${noteId.slice(0,8)} ops=${opsCount} 恢复位置=${saved ?? '无'}`);
     if (saved === null) {
-      addLog(`[恢复] 无保存位置，从顶部开始`);
       return;
     }
     const scrollTop = Number(saved);
@@ -262,7 +270,6 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     const restore = () => {
       requestAnimationFrame(() => {
         el.scrollTop = scrollTop;
-        addLog(`[恢复] 尝试 #${9 - retries}: scrollTop=${el.scrollTop}/${scrollTop}，scrollHeight=${el.scrollHeight}，clientHeight=${el.clientHeight}`);
         if (--retries > 0) restore();
       });
     };
@@ -275,21 +282,13 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    let _scrollLogRaf = 0;
+    let _scrollRaf = 0;
     const handler = () => {
       localStorage.setItem('scrollPos:' + noteId, String(el.scrollTop));
-      // rAF 节流更新显示，避免频繁重渲染
       if (!_scrollRaf) {
         _scrollRaf = requestAnimationFrame(() => {
           setScrollPos(el.scrollTop);
           _scrollRaf = 0;
-        });
-      }
-      // scroll 日志（rAF 节流）
-      if (!_scrollLogRaf) {
-        _scrollLogRaf = requestAnimationFrame(() => {
-          addLog(`[滚动] ${noteId.slice(0,8)} scrollTop=${el.scrollTop}, scrollH=${el.scrollHeight}`);
-          _scrollLogRaf = 0;
         });
       }
     };
@@ -298,7 +297,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       el.removeEventListener("scroll", handler);
       // 关键修复：cleanup 时 DOM 可能已进入销毁阶段，scrollTop 被误读为 0
       // 此时不覆写——滚动事件已经在用户滚动时写入了正确值
-      addLog(`[保存] cleanup ${noteId.slice(0,8)} scrollTop=${el.scrollTop} isConnected=${el.isConnected} scrollH=${el.scrollHeight}`);
+      addLog(`[离开] ${noteId.slice(0,8)} 保存位置=${el.scrollTop}`);
       if (el.isConnected && el.scrollTop > 0) {
         localStorage.setItem('scrollPos:' + noteId, String(el.scrollTop));
       }
@@ -322,7 +321,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           if (!file) continue;
           const reader = new FileReader();
           reader.onload = () => {
-            editor.chain().focus().setImage({ src: reader.result as string }).run();
+            (editor.chain().focus() as any).setResizableImage({ src: reader.result as string }).run();
           };
           reader.readAsDataURL(file);
         }
@@ -340,7 +339,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           e.preventDefault();
           const reader = new FileReader();
           reader.onload = () => {
-            editor.chain().focus().setImage({ src: reader.result as string }).run();
+            (editor.chain().focus() as any).setResizableImage({ src: reader.result as string }).run();
           };
           reader.readAsDataURL(file);
         }
@@ -351,7 +350,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
   const insertImageUrl = () => {
     if (!editor || !imageUrl.trim()) return;
-    editor.chain().focus().setImage({ src: imageUrl.trim() }).run();
+    (editor.chain().focus() as any).setResizableImage({ src: imageUrl.trim() }).run();
     setImageUrl("");
     setImageDialog(false);
   };

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Todo } from "../types/models";
 import { uuid } from "../lib/uuid";
 import { api } from "../lib/api";
@@ -163,6 +163,23 @@ export function TodoList({ todos, onChange }: TodoListProps) {
     setEditText("");
   };
 
+  // ── 导出按钮：双击直接复制 ──
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleExportClick = useCallback(() => {
+    if (clickTimerRef.current) {
+      // 300ms 内第二次点击 → 双击：复制
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+      const text = generateExport();
+      navigator.clipboard.writeText(text).catch(() => {});
+      return;
+    }
+    clickTimerRef.current = setTimeout(() => {
+      clickTimerRef.current = null;
+      setExportOpen((v) => !v);
+    }, 300);
+  }, [todos, exportFormat]);
+
   // ── 导出 todo 列表 ──
   const generateExport = (): string => {
     const active = todos.filter((t) => !t.done);
@@ -248,8 +265,8 @@ export function TodoList({ todos, onChange }: TodoListProps) {
         )}
         <button
           className={`btn-icon todo-export-btn ${exportOpen ? "active" : ""}`}
-          onClick={() => setExportOpen((v) => !v)}
-          title={exportOpen ? "取消导出" : "导出待办"}
+          onClick={handleExportClick}
+          title={exportOpen ? "取消导出" : "单击导出 / 双击复制"}
         >
           ⬆
         </button>
