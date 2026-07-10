@@ -3462,3 +3462,55 @@ body {
   color: var(--text-tertiary);
   white-space: nowrap;
 }
+
+/* ── 文档树右键菜单 ── */
+
+.doc-context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 120px;
+  padding: 4px;
+}
+
+.doc-context-item {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  font-size: 13px;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.doc-context-item:hover {
+  background: var(--hover);
+}
+
+.doc-context-danger {
+  color: var(--danger);
+}
+
+.doc-context-danger:hover {
+  background: var(--danger-bg);
+}
+
+/* ── 文档树重命名输入 ── */
+
+.doc-tree-rename-input {
+  flex: 1;
+  min-width: 0;
+  padding: 1px 4px;
+  font-size: 13px;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+}

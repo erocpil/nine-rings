@@ -101,10 +101,14 @@ function App() {
   const [docCreateOpen, setDocCreateOpen] = useState(false);
   const [docTreeKey, setDocTreeKey] = useState(0);
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
+  const [propertiesOpen, setPropertiesOpen] = useState(false);
   const error = useNotesStore((s) => s.error);
   const clearError = useNotesStore((s) => s.clearError);
 
-  // ── 持久化最后浏览的笔记 ──
+  // ── 属性面板：选中文档时自动打开，选随笔时关闭 ──
+  useEffect(() => {
+    setPropertiesOpen(!!selectedNote?.storagePath);
+  }, [selectedNote]);
   const LAST_NOTE_KEY = "nr:lastNote";
   useEffect(() => {
     if (!selectedNote) return;
@@ -480,7 +484,7 @@ function App() {
 
           {sidebarTab === 'daily' ? (
             <Sidebar
-              notes={query ? results.notes : (activeTag && tagFilteredNotes ? tagFilteredNotes : notes)}
+              notes={(query ? results.notes : (activeTag && tagFilteredNotes ? tagFilteredNotes : notes)).filter(n => !n.storagePath)}
               selectedId={selectedNote?.id ?? null}
               activeTag={activeTag}
               onHide={() => setSidebarHidden(true)}
@@ -542,6 +546,9 @@ function App() {
               selectedId={selectedNote?.id ?? null}
               onCreate={() => setDocCreateOpen(true)}
               refreshKey={docTreeKey}
+              onRename={(id, title) => updateNote(id, { title } as any)}
+              onDelete={(id) => deleteNote(id)}
+              onToggleReadonly={(id, readonly) => updateNote(id, { readonly } as any)}
             />
           )}
         </aside>
@@ -641,11 +648,11 @@ function App() {
           )}
         </main>
 
-        {selectedNote?.storagePath && (
+        {selectedNote?.storagePath && propertiesOpen && (
           <PropertiesPanel
             note={selectedNote}
             onNoteUpdate={(updated) => selectNote(updated)}
-            onClose={() => {}}
+            onClose={() => setPropertiesOpen(false)}
           />
         )}
       </div>
