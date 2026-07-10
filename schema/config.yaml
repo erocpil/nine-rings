@@ -6,9 +6,9 @@ AppConfig:
   persistence: 本地持久化，各端独立。不参与同步
   fields:
     theme:
-      type: enum(system, light, dark)
-      default: system
-      description: 主题模式
+      type: enum(light, dark, fu, azure, azure-dark, grace, sui, zhi)
+      default: dark
+      description: 主题配色
 
     default_view:
       type: enum(daily, list)

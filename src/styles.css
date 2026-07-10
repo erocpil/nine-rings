@@ -39,25 +39,6 @@
   --activeline-bg: rgba(9, 105, 218, 0.05);
 }
 
-/* ── 系统跟随：@media prefers-color-scheme ── */
-/* 当 !important 未强制 light/dark 时生效 */
-
-@media (prefers-color-scheme: light) {
-  :root:not(.theme-dark) {
-    --bg: #ffffff;
-    --surface: #f6f8fa;
-    --border: #d0d7de;
-    --text: #1f2328;
-    --text-secondary: #656d76;
-    --accent: #0969da;
-    --accent-hover: #0550ae;
-    --danger: #cf222e;
-    --success: #1a7f37;
-    --code-bg: #f0f2f5;
-    --activeline-bg: rgba(9, 105, 218, 0.05);
-  }
-}
-
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
@@ -1834,6 +1815,22 @@ body {
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 3px;
+}
+
+/* ── 芙 · Tiffany 蓝主题 ── */
+
+:root.theme-fu {
+  --bg: #f5fbfa;
+  --surface: #ebf6f4;
+  --border: #c0e0db;
+  --text: #1a2c2a;
+  --text-secondary: #5a7a74;
+  --accent: #0ABAB5;
+  --accent-hover: #089b96;
+  --danger: #d44a5a;
+  --success: #3d8b5c;
+  --code-bg: #ecf4f2;
+  --activeline-bg: rgba(10, 186, 181, 0.06);
 }
 
 /* ── 雅 · 淡紫主题 ── */

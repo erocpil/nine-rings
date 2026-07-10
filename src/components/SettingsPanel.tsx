@@ -169,10 +169,10 @@ export function SettingsPanel({ open, onClose, onConfigChange }: Props) {
             {/* ── 主题 ── */}
             <Field label="主题" desc="切换整体配色">
               <div className="settings-radio-group">
-                {([["system", "跟随系统", "#8b949e"],
-                ["light", "浅色", "#e2e2e2"],
-                ["dark", "深色", "#0d1117"],
+                {([["light", "浅", "#e2e2e2"],
+                ["dark", "深", "#0d1117"],
                 ["azure-dark", "暗", "#1e3050"],
+                ["fu", "芙", "#81D8D0"],
                 ["azure", "蔚", "#3b6dcc"],
                 ["sui", "粋", "#4a8a3a"],
                 ["grace", "雅", "#7c3aed"],
