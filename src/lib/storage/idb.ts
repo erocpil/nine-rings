@@ -3,12 +3,12 @@
  * 实现 StorageAdapter 全部接口，与 Tauri (SQLite) 后端语义对齐
  */
 
-import type { Note, DailyPage, Todo, NoteVersion, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../../types/models";
-import type { StorageAdapter, AppConfig } from "./types";
+import type { Note, DailyPage, Todo, NoteVersion, CreateNoteInput, UpdateNoteInput, UpdateTodosInput, PathNode } from "../../types/models";
+import type { StorageAdapter, AppConfig, DocSearchQuery } from "./types";
 import { DEFAULT_CONFIG } from "./types";
 
 const DB_NAME = "nine_rings";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 // ── 工具函数 ──
 
@@ -94,6 +94,15 @@ function openDB(): Promise<IDBDatabase> {
         store.createIndex("pinned_sort", ["pinned", "sort_order"], { unique: false });
       }
 
+      // v2: 添加 storagePath 索引（用于文档分类树）
+      if (db.objectStoreNames.contains("notes")) {
+        const tx = req.transaction!;
+        const store = tx.objectStore("notes");
+        if (!store.indexNames.contains("storagePath")) {
+          store.createIndex("storagePath", "storagePath", { unique: false });
+        }
+      }
+
       // daily_pages store
       if (!db.objectStoreNames.contains("daily_pages")) {
         db.createObjectStore("daily_pages", { keyPath: "date" });
@@ -166,6 +175,8 @@ function noteToDB(n: Note): any {
     ...n,
     content: n.content, // stored as DeltaOps (object)
     tags: JSON.stringify(n.tags),
+    concepts: n.concepts ? JSON.stringify(n.concepts) : undefined,
+    linkedDocIds: n.linkedDocIds ? JSON.stringify(n.linkedDocIds) : undefined,
     pinned: n.pinned ? 1 : 0,
     readonly: n.readonly ? 1 : 0,
     search_text: extractPlainText(n.content),
@@ -176,6 +187,8 @@ function noteFromDB(d: any): Note {
   return {
     ...d,
     tags: typeof d.tags === "string" ? JSON.parse(d.tags) : d.tags,
+    concepts: typeof d.concepts === "string" ? JSON.parse(d.concepts) : d.concepts ?? undefined,
+    linkedDocIds: typeof d.linkedDocIds === "string" ? JSON.parse(d.linkedDocIds) : d.linkedDocIds ?? undefined,
     pinned: d.pinned === 1 || d.pinned === true,
     readonly: d.readonly === 1 || d.readonly === true,
     content: typeof d.content === "string" ? JSON.parse(d.content) : d.content,
@@ -643,6 +656,121 @@ export const idbAdapter: StorageAdapter = {
     const merged = { ...current, ...partial };
     localStorage.setItem(CONFIG_KEY, JSON.stringify(merged));
     return merged;
+  },
+
+  // ══════ Doc Tree（v2 文档分类系统）══════
+
+  /** 构建文档树: 遍历所有有 storagePath 的 Note，按路径前缀聚合 */
+  async getPathTree(): Promise<PathNode[]> {
+    return withDB(async (db) => {
+      const store = db.transaction("notes", "readonly").objectStore("notes");
+      const all = await getAll<any>(store);
+      const docs = all
+        .filter((n) => !n.deleted_at && n.storagePath)
+        .map(noteFromDB);
+
+      // 收集所有唯一路径前缀
+      const folders = new Set<string>();
+      const tree: PathNode[] = [];
+
+      for (const d of docs) {
+        const path = d.storagePath!;
+        // 生成各级父路径
+        const parts = path.split("/");
+        for (let i = 1; i < parts.length; i++) {
+          folders.add(parts.slice(0, i).join("/"));
+        }
+        // 文档节点
+        tree.push({
+          path,
+          name: parts[parts.length - 1],
+          type: 'document',
+          noteId: d.id,
+          docType: d.docType,
+          updatedAt: d.updated_at,
+        });
+      }
+
+      // 文件夹节点（按 count 汇总）
+      const folderCounts = new Map<string, number>();
+      for (const d of docs) {
+        const p = d.storagePath!;
+        const parts = p.split("/");
+        for (let i = 1; i < parts.length; i++) {
+          const prefix = parts.slice(0, i).join("/");
+          folderCounts.set(prefix, (folderCounts.get(prefix) ?? 0) + 1);
+        }
+      }
+
+      for (const f of folders) {
+        tree.push({
+          path: f,
+          name: f.split("/").pop()!,
+          type: 'folder',
+          count: folderCounts.get(f) ?? 0,
+        });
+      }
+
+      return tree;
+    });
+  },
+
+  async getNotesByPath(pathPrefix: string): Promise<Note[]> {
+    return withDB(async (db) => {
+      const store = db.transaction("notes", "readonly").objectStore("notes");
+      const all = await getAll<any>(store);
+      return all
+        .filter((n) => !n.deleted_at && n.storagePath && n.storagePath.startsWith(pathPrefix))
+        .sort((a, b) => (a.storagePath ?? "").localeCompare(b.storagePath ?? ""))
+        .map(noteFromDB);
+    });
+  },
+
+  async searchDocs(query: DocSearchQuery): Promise<Note[]> {
+    return withDB(async (db) => {
+      const store = db.transaction("notes", "readonly").objectStore("notes");
+      const all = await getAll<any>(store);
+      return all
+        .filter((n) => !n.deleted_at)
+        .filter((n) => {
+          if (query.storagePath && !n.storagePath?.startsWith(query.storagePath)) return false;
+          if (query.docType && n.docType !== query.docType) return false;
+          if (query.concept) {
+            const concepts: string[] = typeof n.concepts === "string"
+              ? JSON.parse(n.concepts)
+              : n.concepts ?? [];
+            if (!concepts.includes(query.concept)) return false;
+          }
+          if (query.text) {
+            const text = (n.search_text ?? "") + " " + (n.title ?? "") + " " + (Array.isArray(n.tags) ? n.tags.join(" ") : n.tags ?? "");
+            if (!text.toLowerCase().includes(query.text.toLowerCase())) return false;
+          }
+          if (query.staleBefore) {
+            if ((n.updated_at ?? "") > query.staleBefore) return false;
+          }
+          return true;
+        })
+        .sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""))
+        .map(noteFromDB);
+    });
+  },
+
+  async getAllConcepts(): Promise<string[]> {
+    return withDB(async (db) => {
+      const store = db.transaction("notes", "readonly").objectStore("notes");
+      const all = await getAll<any>(store);
+      const concepts = new Set<string>();
+      for (const n of all) {
+        if (n.deleted_at) continue;
+        try {
+          const list: string[] = typeof n.concepts === "string"
+            ? JSON.parse(n.concepts)
+            : n.concepts ?? [];
+          if (Array.isArray(list)) list.forEach((c) => concepts.add(c));
+        } catch { /* skip */ }
+      }
+      return [...concepts].sort();
+    });
   },
 };
 

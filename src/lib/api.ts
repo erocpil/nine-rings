@@ -1,4 +1,4 @@
-import type { StorageAdapter } from "./storage/types";
+import type { StorageAdapter, DocSearchQuery } from "./storage/types";
 import { getAdapter } from "./storage";
 import type { AppConfig, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../types/models";
 
@@ -172,5 +172,20 @@ export const api = {
   config: {
     get: () => adapter().then((a) => a.getConfig()),
     set: (partial: Partial<AppConfig>) => adapter().then((a) => a.setConfig(partial)),
+  },
+
+  // ── Doc Tree（v2 文档分类系统）──
+  docs: {
+    tree: () =>
+      adapter().then((a) => a.getPathTree()),
+
+    listByPath: (pathPrefix: string) =>
+      adapter().then((a) => a.getNotesByPath(pathPrefix)),
+
+    search: (query: DocSearchQuery) =>
+      adapter().then((a) => a.searchDocs(query)),
+
+    allConcepts: () =>
+      adapter().then((a) => a.getAllConcepts()),
   },
 };

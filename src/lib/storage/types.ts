@@ -1,4 +1,4 @@
-import type { Note, DailyPage, NoteVersion, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../../types/models";
+import type { Note, DailyPage, NoteVersion, CreateNoteInput, UpdateNoteInput, UpdateTodosInput, PathNode, DocType } from "../../types/models";
 
 // ── 配置类型（与 schema/config.yaml 对齐）──
 
@@ -73,4 +73,20 @@ export interface StorageAdapter {
   // ── Config ──
   getConfig(): Promise<AppConfig>;
   setConfig(partial: Partial<AppConfig>): Promise<AppConfig>;
+
+  // ── Doc Tree（v2 文档分类系统）──
+  getPathTree(): Promise<PathNode[]>;
+  getNotesByPath(pathPrefix: string): Promise<Note[]>;
+  searchDocs(query: DocSearchQuery): Promise<Note[]>;
+  getAllConcepts(): Promise<string[]>;
+}
+
+// ── Doc Search Query ──
+
+export interface DocSearchQuery {
+  text?: string;
+  storagePath?: string;
+  docType?: DocType;
+  concept?: string;
+  staleBefore?: string;   // ISO datetime: 更新早于该时间的
 }

@@ -2511,3 +2511,153 @@ body {
   overflow: visible;
   min-height: 300px;
 }
+
+/* ──── Sidebar Tabs ──── */
+
+.sidebar-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.sidebar-tab {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: var(--radius);
+  font-size: 15px;
+  line-height: 1;
+  opacity: 0.5;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.sidebar-tab:hover {
+  opacity: 0.8;
+  background: var(--hover);
+}
+
+.sidebar-tab.active {
+  opacity: 1;
+  background: var(--active-bg);
+}
+
+.sidebar-tab-spacer {
+  flex: 1;
+}
+
+.sidebar-tab-hide {
+  font-size: 11px !important;
+  padding: 2px 4px !important;
+  opacity: 0.4;
+}
+.sidebar-tab-hide:hover {
+  opacity: 0.8;
+}
+
+/* ──── DocTree ──── */
+
+.doc-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.doc-tree-loading,
+.doc-tree-empty {
+  padding: 16px 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.doc-tree-header {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  margin-bottom: 4px;
+}
+
+.doc-tree-title {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.doc-tree-add {
+  font-size: 16px !important;
+  font-weight: bold;
+  padding: 0 6px !important;
+  line-height: 1;
+}
+
+.doc-tree-node {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 6px;
+  cursor: pointer;
+  border-radius: 0;
+  transition: background 0.1s;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.doc-tree-node:hover {
+  background: var(--hover);
+}
+
+.doc-tree-selected {
+  background: var(--active-bg) !important;
+}
+
+.doc-tree-folder {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.doc-tree-doc {
+  color: var(--text);
+  font-weight: 400;
+}
+
+.doc-tree-toggle {
+  width: 12px;
+  text-align: center;
+  flex-shrink: 0;
+  font-size: 9px;
+  color: var(--text-tertiary);
+}
+
+.doc-tree-icon {
+  flex-shrink: 0;
+  font-size: 13px;
+  margin-right: 2px;
+}
+
+.doc-tree-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-tree-type {
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--hover);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.doc-tree-count {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}

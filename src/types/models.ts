@@ -1,5 +1,7 @@
 // ──── 数据模型（与 schema/note.yaml 保持一致）────
 
+export type DocType = 'explanation' | 'how-to' | 'reference' | 'tutorial';
+
 export interface Note {
   id: string;
   date: string;
@@ -12,6 +14,28 @@ export interface Note {
   created_at: string;
   updated_at: string;
   deleted_at?: string;
+
+  // ── 文档分类系统（v2，可选字段，非日记文档使用）──
+  // 生命周期维度: 目录即分类
+  storagePath?: string;       // e.g. "projects/nine-rings", "areas/dpdk", "references", "ideas"
+  // Diátaxis 维度: 写作意图
+  docType?: DocType;
+  // Zettelkasten 维度: 概念标签
+  concepts?: string[];
+  // 关联文档 ID
+  linkedDocIds?: string[];
+}
+
+// ── PathNode: 文档树节点 ──
+
+export interface PathNode {
+  path: string;         // 完整路径, e.g. "projects/nine-rings"
+  name: string;         // 叶子名, e.g. "nine-rings"
+  type: 'folder' | 'document';
+  noteId?: string;      // document 时对应 Note.id
+  docType?: DocType;    // document 时
+  updatedAt?: string;   // document 时
+  count?: number;       // folder 时，子文档数
 }
 
 export interface Todo {
@@ -56,6 +80,10 @@ export interface CreateNoteInput {
   content?: DeltaOps;
   tags?: string[];
   pinned?: boolean;
+  storagePath?: string;
+  docType?: DocType;
+  concepts?: string[];
+  linkedDocIds?: string[];
 }
 
 export interface UpdateNoteInput {
@@ -66,6 +94,10 @@ export interface UpdateNoteInput {
   pinned?: boolean;
   readonly?: boolean;
   sort_order?: number;
+  storagePath?: string;
+  docType?: DocType;
+  concepts?: string[];
+  linkedDocIds?: string[];
 }
 
 export interface UpdateTodosInput {

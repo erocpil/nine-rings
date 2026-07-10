@@ -16,6 +16,7 @@ import { useSearch } from "./hooks/useSearch";
 import { useDevImport } from "./hooks/useDevImport";
 import { useNotesStore } from "./stores/useNotesStore";
 import { api } from "./lib/api";
+import DocTree from "./components/DocTree";
 import type { AppConfig } from "./lib/storage/types";
 import type { DeltaOps, Note } from "./types/models";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
@@ -70,6 +71,7 @@ function App() {
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     return localStorage.getItem(HIDDEN_KEY) === "true";
   });
+  const [sidebarTab, setSidebarTab] = useState<'daily' | 'tree'>('daily');
   const error = useNotesStore((s) => s.error);
   const clearError = useNotesStore((s) => s.clearError);
 
@@ -426,59 +428,95 @@ function App() {
 
       <div className="app-body">
         <aside className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}>
-          <Sidebar
-            notes={query ? results.notes : (activeTag && tagFilteredNotes ? tagFilteredNotes : notes)}
-            selectedId={selectedNote?.id ?? null}
-            activeTag={activeTag}
-            onHide={() => setSidebarHidden(true)}
-            onTagSelect={(tag) => {
-              setActiveTag(tag);
-              if (tag) {
-                api.notes.listByTag(tag).then(setTagFilteredNotes);
-              } else {
-                setTagFilteredNotes(null);
-              }
-            }}
-            onTogglePin={(id, pinned) => {
-              updateNote(id, { pinned } as any);
-            }}
-            onRename={(id, title) => {
-              updateNote(id, { title });
-            }}
-            onSelect={selectNote}
-            onCreate={createNote}
-            onDelete={(id) => {
-              // Find note for undo context
-              const note = notes.find((n) => n.id === id) ?? selectedNote;
-              const title = note?.title || "无标题";
-              deleteNote(id);
-              // Auto-dismiss after 5s
-              const timer = setTimeout(() => setUndo(null), 5000);
-              setUndo({
-                key: `delete-${id}`,
-                message: `已删除「${title}」`,
-                onUndo: async () => {
-                  clearTimeout(timer);
-                  await api.recycle.restore(id);
-                  setDate(currentDate); // reload
-                },
-              });
-            }}
-            onRecycleOpen={() => setRecycleOpen(true)}
-            onReorder={async (id, sortOrder) => {
-              await api.notes.updateOrder(id, sortOrder);
-              // Refresh current date to reflect new order
-              setDate(currentDate);
-            }}
-            onMoveToDate={async (id, date) => {
-              await api.notes.update(id, { date } as any);
-              // Refresh current date to reflect removal
-              setDate(currentDate);
-            }}
-            onToggleReadonly={(id, readonly) => {
-              updateNote(id, { readonly } as any);
-            }}
-          />
+          <div className="sidebar-tabs">
+            <button
+              className={`sidebar-tab ${sidebarTab === 'daily' ? 'active' : ''}`}
+              onClick={() => setSidebarTab('daily')}
+              title="日视图"
+            >
+              📅
+            </button>
+            <button
+              className={`sidebar-tab ${sidebarTab === 'tree' ? 'active' : ''}`}
+              onClick={() => setSidebarTab('tree')}
+              title="文档树"
+            >
+              📂
+            </button>
+            <span className="sidebar-tab-spacer" />
+            <button className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏">
+              ◀
+            </button>
+          </div>
+
+          {sidebarTab === 'daily' ? (
+            <Sidebar
+              notes={query ? results.notes : (activeTag && tagFilteredNotes ? tagFilteredNotes : notes)}
+              selectedId={selectedNote?.id ?? null}
+              activeTag={activeTag}
+              onHide={() => setSidebarHidden(true)}
+              onTagSelect={(tag) => {
+                setActiveTag(tag);
+                if (tag) {
+                  api.notes.listByTag(tag).then(setTagFilteredNotes);
+                } else {
+                  setTagFilteredNotes(null);
+                }
+              }}
+              onTogglePin={(id, pinned) => {
+                updateNote(id, { pinned } as any);
+              }}
+              onRename={(id, title) => {
+                updateNote(id, { title });
+              }}
+              onSelect={selectNote}
+              onCreate={createNote}
+              onDelete={(id) => {
+                // Find note for undo context
+                const note = notes.find((n) => n.id === id) ?? selectedNote;
+                const title = note?.title || "无标题";
+                deleteNote(id);
+                // Auto-dismiss after 5s
+                const timer = setTimeout(() => setUndo(null), 5000);
+                setUndo({
+                  key: `delete-${id}`,
+                  message: `已删除「${title}」`,
+                  onUndo: async () => {
+                    clearTimeout(timer);
+                    await api.recycle.restore(id);
+                    setDate(currentDate); // reload
+                  },
+                });
+              }}
+              onRecycleOpen={() => setRecycleOpen(true)}
+              onReorder={async (id, sortOrder) => {
+                await api.notes.updateOrder(id, sortOrder);
+                // Refresh current date to reflect new order
+                setDate(currentDate);
+              }}
+              onMoveToDate={async (id, date) => {
+                await api.notes.update(id, { date } as any);
+                // Refresh current date to reflect removal
+                setDate(currentDate);
+              }}
+              onToggleReadonly={(id, readonly) => {
+                updateNote(id, { readonly } as any);
+              }}
+            />
+          ) : (
+            <DocTree
+              onSelect={(note) => {
+                selectNote(note);
+                // 切换到文档所在日期
+                setDate(note.date);
+              }}
+              selectedId={selectedNote?.id ?? null}
+              onCreate={() => {
+                // 使用现有 createNote，后续可改为指定 storagePath
+                createNote();
+              }}
+            />
+          )}
         </aside>
 
         {!sidebarHidden && <div className="sidebar-divider" onMouseDown={handleSideMouseDown} onTouchStart={handleSideTouchStart} />}
