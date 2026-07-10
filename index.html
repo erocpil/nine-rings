@@ -16,8 +16,25 @@
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
           navigator.serviceWorker.register("/sw.js").then(
-            () => console.log("[SW] registered"),
-            (err) => console.log("[SW] registration failed:", err)
+            (reg) => {
+              console.log("[SW] registered, scope:", reg.scope);
+              // 检测 SW 更新，强制刷新
+              reg.addEventListener("updatefound", () => {
+                const newWorker = reg.installing;
+                if (newWorker) {
+                  newWorker.addEventListener("statechange", () => {
+                    if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                      console.log("[SW] new version available, reloading");
+                      window.location.reload();
+                    }
+                  });
+                }
+              });
+            },
+            (err) => {
+              console.warn("[SW] registration failed (non-fatal):", err);
+              // SW 注册失败不影响应用使用
+            }
           );
         });
       }

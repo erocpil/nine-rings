@@ -180,22 +180,31 @@ function deltaToMarkdown(content: any): string {
 
 // ── 数据库初始化 ──
 
+let _dbOpenPromise: Promise<IDBDatabase> | null = null;
+let _dbOpenError: Error | null = null;
+
 function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  if (_dbOpenError) return Promise.reject(_dbOpenError);
+  if (_dbOpenPromise) return _dbOpenPromise;
+
+  _dbOpenPromise = new Promise((resolve, reject) => {
+    // 5 秒超时保护：Chrome 移动端 IndexedDB 偶发 hang
+    const timeout = setTimeout(() => {
+      _dbOpenError = new Error("IndexedDB open timeout");
+      reject(_dbOpenError);
+    }, 5000);
+
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
-
-      // notes store
+      // ... stores
       if (!db.objectStoreNames.contains("notes")) {
         const store = db.createObjectStore("notes", { keyPath: "id" });
         store.createIndex("date", "date", { unique: false });
         store.createIndex("deleted_at", "deleted_at", { unique: false });
-        store.createIndex("tags", "tags", { unique: false }); // JSON array string
+        store.createIndex("tags", "tags", { unique: false });
         store.createIndex("pinned_sort", ["pinned", "sort_order"], { unique: false });
       }
-
-      // v2: 添加 storagePath 索引（用于文档分类树）
       if (db.objectStoreNames.contains("notes")) {
         const tx = req.transaction!;
         const store = tx.objectStore("notes");
@@ -203,26 +212,32 @@ function openDB(): Promise<IDBDatabase> {
           store.createIndex("storagePath", "storagePath", { unique: false });
         }
       }
-
-      // daily_pages store
       if (!db.objectStoreNames.contains("daily_pages")) {
         db.createObjectStore("daily_pages", { keyPath: "date" });
       }
-
-      // note_versions store
       if (!db.objectStoreNames.contains("note_versions")) {
         const store = db.createObjectStore("note_versions", { keyPath: "id" });
         store.createIndex("note_id", "note_id", { unique: false });
       }
-
-      // v3: images blob store (for pasted/dropped images)
       if (!db.objectStoreNames.contains("images")) {
         db.createObjectStore("images", { keyPath: "id" });
       }
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      clearTimeout(timeout);
+      resolve(req.result);
+    };
+    req.onerror = () => {
+      clearTimeout(timeout);
+      _dbOpenError = req.error || new Error("IndexedDB open failed");
+      reject(_dbOpenError);
+    };
+    req.onblocked = () => {
+      console.warn("[IDB] blocked — another connection is open");
+    };
   });
+
+  return _dbOpenPromise;
 }
 
 async function withDB<T>(fn: (db: IDBDatabase) => Promise<T>): Promise<T> {
