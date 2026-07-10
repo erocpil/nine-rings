@@ -684,10 +684,10 @@ export const idbAdapter: StorageAdapter = {
         for (let i = 1; i < parts.length; i++) {
           folders.add(parts.slice(0, i).join("/"));
         }
-        // 文档节点
+        // 文档节点（name 用文档标题，path 追加 id 确保唯一）
         tree.push({
-          path,
-          name: parts[parts.length - 1],
+          path: `${path}/${d.id}`,
+          name: d.title || "无标题",
           type: 'document',
           noteId: d.id,
           docType: d.docType,
