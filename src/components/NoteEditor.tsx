@@ -311,10 +311,70 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
   // ── Image: paste / drop ──
 
+  /** 尝试从 URL 抓取页面标题（3s 超时，失败返回 null） */
+  const fetchUrlTitle = async (url: string): Promise<string | null> => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3000);
+    try {
+      const resp = await fetch(url, { signal: ctrl.signal });
+      const html = await resp.text();
+      const m = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+      return m ? m[1].trim().replace(/\s+/g, " ") : null;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  const URL_RE = /^https?:\/\/\S+$/;
+
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
       const items = e.clipboardData?.items;
       if (!items || !editor) return;
+
+      // ── URL 粘贴：自动抓标题 ──
+      const plainText = e.clipboardData.getData("text/plain").trim();
+      if (plainText && URL_RE.test(plainText)) {
+        e.preventDefault();
+        // 先插入 URL
+        editor.chain().focus().insertContent(plainText).run();
+        // 异步抓取标题
+        fetchUrlTitle(plainText).then((title) => {
+          if (!title) {
+            // 抓取失败，把 URL 变成可点击链接
+            const { from } = editor.state.selection;
+            const pos = editor.state.doc.resolve(from);
+            const textBefore = pos.parent?.textContent ?? "";
+            const idx = textBefore.lastIndexOf(plainText);
+            if (idx === -1) return;
+            const start = pos.start() + idx;
+            editor.chain()
+              .setTextSelection({ from: start, to: start + plainText.length })
+              .setLink({ href: plainText })
+              .setTextSelection(start + plainText.length)
+              .run();
+            return;
+          }
+          // 找到刚插入的 URL 文本位置并替换为标题+链接
+          const { from } = editor.state.selection;
+          const pos = editor.state.doc.resolve(from);
+          const textBefore = pos.parent?.textContent ?? "";
+          const idx = textBefore.lastIndexOf(plainText);
+          if (idx === -1) return;
+          const start = pos.start() + idx;
+          editor.chain()
+            .setTextSelection({ from: start, to: start + plainText.length })
+            .deleteSelection()
+            .insertContent(title)
+            .setLink({ href: plainText })
+            .setTextSelection(start + title.length)
+            .run();
+        });
+        return;
+      }
+
       for (const item of Array.from(items)) {
         if (item.type.startsWith("image/")) {
           e.preventDefault();
