@@ -17,6 +17,7 @@ import { useDevImport } from "./hooks/useDevImport";
 import { useNotesStore } from "./stores/useNotesStore";
 import { api } from "./lib/api";
 import DocTree from "./components/DocTree";
+import DocCreateDialog from "./components/DocCreateDialog";
 import type { AppConfig } from "./lib/storage/types";
 import type { DeltaOps, Note } from "./types/models";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
@@ -72,6 +73,7 @@ function App() {
     return localStorage.getItem(HIDDEN_KEY) === "true";
   });
   const [sidebarTab, setSidebarTab] = useState<'daily' | 'tree'>('daily');
+  const [docCreateOpen, setDocCreateOpen] = useState(false);
   const error = useNotesStore((s) => s.error);
   const clearError = useNotesStore((s) => s.clearError);
 
@@ -432,9 +434,9 @@ function App() {
             <button
               className={`sidebar-tab ${sidebarTab === 'daily' ? 'active' : ''}`}
               onClick={() => setSidebarTab('daily')}
-              title="日视图"
+              title="随笔"
             >
-              📅
+              ✏️
             </button>
             <button
               className={`sidebar-tab ${sidebarTab === 'tree' ? 'active' : ''}`}
@@ -511,10 +513,7 @@ function App() {
                 setDate(note.date);
               }}
               selectedId={selectedNote?.id ?? null}
-              onCreate={() => {
-                // 使用现有 createNote，后续可改为指定 storagePath
-                createNote();
-              }}
+              onCreate={() => setDocCreateOpen(true)}
             />
           )}
         </aside>
@@ -621,6 +620,16 @@ function App() {
         onClose={() => setVersionOpen(false)}
         onRestore={() => setDate(currentDate)}
       />
+      {docCreateOpen && (
+        <DocCreateDialog
+          onClose={() => setDocCreateOpen(false)}
+          onCreated={(note) => {
+            setDocCreateOpen(false);
+            selectNote(note);
+            setDate(note.date);
+          }}
+        />
+      )}
     </div>
   );
 }
