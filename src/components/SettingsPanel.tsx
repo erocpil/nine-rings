@@ -427,6 +427,11 @@ export function SettingsPanel({ open, onClose, onConfigChange }: Props) {
 
             {/* ── 保存反馈 ── */}
             {message && <div className="settings-toast">{message}</div>}
+
+            {/* ── 版本 ── */}
+            <div style={{ textAlign: "center", fontSize: 11, color: "var(--text-tertiary)", marginTop: 16, opacity: 0.5 }}>
+              v{__APP_VERSION__}
+            </div>
           </div>
         )}
       </div>

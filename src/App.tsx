@@ -379,15 +379,20 @@ function App() {
     return () => window.removeEventListener("keydown", handler);
   }, [createNote]);
 
-  // ── 时钟更新 ──
+  // ── 时钟更新 + 跨日检测 ──
   useEffect(() => {
     const tick = () => {
       const d = new Date();
       setClock(d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }));
+      // 检测是否跨日：若 store 中 currentDate 与今日不同，自动切换
+      const todayStr = d.toISOString().slice(0, 10);
+      if (todayStr !== currentDate) {
+        setDate(todayStr);
+      }
     };
     const id = setInterval(tick, 30_000);
     return () => clearInterval(id);
-  }, []);
+  }, [currentDate, setDate]);
 
   // ── 开发模式后台导入 ──
   const refreshView = useCallback(() => {
