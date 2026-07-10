@@ -2773,12 +2773,51 @@ body {
 }
 
 .doc-tree-title {
-  flex: 1;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.doc-tree-header-spacer {
+  flex: 1;
+}
+
+.doc-tree-batch-btn {
+  width: 24px;
+  height: 24px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 3px;
+  color: var(--text-tertiary);
+  padding: 0;
+}
+
+.doc-tree-batch-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.doc-tree-batch-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* ── 批量选择 checkbox ── */
+
+.doc-tree-checkbox {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin: 0 4px 0 0;
+  cursor: pointer;
+  accent-color: var(--accent);
 }
 
 .doc-tree-add {
@@ -2806,6 +2845,7 @@ body {
 
 .doc-tree-selected {
   background: var(--active-bg) !important;
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .doc-tree-folder {

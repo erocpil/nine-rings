@@ -549,6 +549,8 @@ function App() {
               onRename={(id, title) => updateNote(id, { title } as any)}
               onDelete={(id) => { deleteNote(id); setDocTreeKey(k => k + 1); }}
               onToggleReadonly={(id, readonly) => updateNote(id, { readonly } as any)}
+              onBatchDelete={(ids) => { ids.forEach(id => deleteNote(id)); setDocTreeKey(k => k + 1); }}
+              onBatchSetReadonly={(ids, readonly) => { ids.forEach(id => updateNote(id, { readonly } as any)); }}
             />
           )}
         </aside>

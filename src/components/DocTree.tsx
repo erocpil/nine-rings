@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { PathNode, Note } from "../types/models";
 import { api } from "../lib/api";
 
@@ -11,6 +11,8 @@ interface DocTreeProps {
   onRename?: (id: string, title: string) => void;
   onDelete?: (id: string) => void;
   onToggleReadonly?: (id: string, readonly: boolean) => void;
+  onBatchDelete?: (ids: string[]) => void;
+  onBatchSetReadonly?: (ids: string[], readonly: boolean) => void;
 }
 
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -38,6 +40,7 @@ interface ContextMenuState {
 function DocTree({
   onSelect, onFolderSelect, selectedId, onCreate, refreshKey,
   onRename, onDelete, onToggleReadonly,
+  onBatchDelete, onBatchSetReadonly,
 }: DocTreeProps) {
   const [tree, setTree] = useState<PathNode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,6 +50,23 @@ function DocTree({
   const [renameValue, setRenameValue] = useState("");
   const renameRef = useRef<HTMLInputElement>(null);
 
+  // ── 批量选择 ──
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelectId = useCallback((noteId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(noteId)) next.delete(noteId); else next.add(noteId);
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    setSelectMode(false);
+  }, []);
+
   useEffect(() => {
     setLoading(true);
     api.docs.tree().then((nodes) => {
@@ -55,7 +75,6 @@ function DocTree({
     });
   }, [refreshKey]);
 
-  // 关闭右键菜单（点击外部触发）
   useEffect(() => {
     if (contextMenu) {
       const close = () => setContextMenu(null);
@@ -64,7 +83,6 @@ function DocTree({
     }
   }, [contextMenu]);
 
-  // 重命名输入自动聚焦
   useEffect(() => {
     if (renamingId) {
       renameRef.current?.focus();
@@ -72,7 +90,6 @@ function DocTree({
     }
   }, [renamingId]);
 
-  // 折叠展开
   const toggleCollapse = (path: string) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
@@ -84,11 +101,14 @@ function DocTree({
 
   const handleDocClick = async (node: PathNode) => {
     if (!node.noteId) return;
+    if (selectMode) {
+      toggleSelectId(node.noteId);
+      return;
+    }
     const note = await api.notes.get(node.noteId);
     if (note) onSelect(note);
   };
 
-  // 右键菜单处理
   const handleContextMenu = (e: React.MouseEvent, node: PathNode) => {
     if (!node.noteId) return;
     e.preventDefault();
@@ -104,16 +124,13 @@ function DocTree({
   const handleRename = async (noteId: string) => {
     setContextMenu(null);
     setRenamingId(noteId);
-    // 从树中找到当前标题
     const node = findNode(tree, noteId);
     setRenameValue(node?.name ?? "");
   };
 
   const submitRename = async (noteId: string) => {
     const title = renameValue.trim();
-    if (title && onRename) {
-      onRename(noteId, title);
-    }
+    if (title && onRename) onRename(noteId, title);
     setRenamingId(null);
     setRenameValue("");
   };
@@ -143,14 +160,8 @@ function DocTree({
   };
 
   const handleRenameKeyDown = (e: React.KeyboardEvent, noteId: string) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      submitRename(noteId);
-    }
-    if (e.key === "Escape") {
-      setRenamingId(null);
-      setRenameValue("");
-    }
+    if (e.key === "Enter") { e.preventDefault(); submitRename(noteId); }
+    if (e.key === "Escape") { setRenamingId(null); setRenameValue(""); }
   };
 
   // 按路径分组
@@ -174,9 +185,9 @@ function DocTree({
     });
 
   const renderNode = (node: PathNode, depth: number) => {
-    const paddingLeft = 12 + depth * 16;
+    const paddingLeft = 8 + depth * 12;  // 缩进 12px/层
     const isCollapsed = collapsed.has(node.path);
-    const hasChildren = childrenMap.has(node.path);
+    const hasChildren = childrenMap.has(node.path) && childrenMap.get(node.path)!.length > 0;
 
     if (node.type === "folder") {
       return (
@@ -184,13 +195,22 @@ function DocTree({
           <div
             className="doc-tree-node doc-tree-folder"
             style={{ paddingLeft }}
-            onClick={() => { toggleCollapse(node.path); onFolderSelect?.(node.path); }}
           >
-            <span className="doc-tree-toggle">{hasChildren ? (isCollapsed ? "▶" : "▼") : "  "}</span>
+            <span
+              className="doc-tree-toggle"
+              onClick={(e) => { e.stopPropagation(); toggleCollapse(node.path); }}
+            >
+              {hasChildren ? (isCollapsed ? "▶" : "▼") : "  "}
+            </span>
             <span className="doc-tree-icon">
               {STATE_ICONS[node.path.split("/")[0]] ?? "📂"}
             </span>
-            <span className="doc-tree-name">{node.name}</span>
+            <span
+              className="doc-tree-name"
+              onClick={() => onFolderSelect?.(node.path)}
+            >
+              {node.name}
+            </span>
             <span className="doc-tree-count">{node.count ?? 0}</span>
           </div>
           {!isCollapsed && hasChildren && (
@@ -205,6 +225,7 @@ function DocTree({
     // document node
     const isSelected = node.noteId === selectedId;
     const isRenaming = node.noteId === renamingId;
+    const isChecked = node.noteId ? selectedIds.has(node.noteId) : false;
 
     return (
       <div
@@ -214,6 +235,15 @@ function DocTree({
         onClick={() => handleDocClick(node)}
         onContextMenu={(e) => handleContextMenu(e, node)}
       >
+        {selectMode && node.noteId && (
+          <input
+            type="checkbox"
+            className="doc-tree-checkbox"
+            checked={isChecked}
+            onChange={() => toggleSelectId(node.noteId!)}
+            onClick={(e) => e.stopPropagation()}
+          />
+        )}
         <span className="doc-tree-toggle" />
         <span className="doc-tree-icon">📄</span>
         {isRenaming && node.noteId ? (
@@ -244,9 +274,58 @@ function DocTree({
     <div className="doc-tree">
       <div className="doc-tree-header">
         <span className="doc-tree-title">文档</span>
-        <button className="btn-icon doc-tree-add" onClick={onCreate} title="新建文档">
-          +
-        </button>
+        <span className="doc-tree-header-spacer" />
+        {selectMode ? (
+          <>
+            <button
+              className="btn-icon doc-tree-batch-btn"
+              onClick={() => {
+                const ids = Array.from(selectedIds);
+                if (ids.length > 0 && confirm(`删除选中的 ${ids.length} 篇文档？`)) {
+                  onBatchDelete?.(ids);
+                  clearSelection();
+                }
+              }}
+              title="批量删除"
+              disabled={selectedIds.size === 0}
+            >
+              🗑
+            </button>
+            <button
+              className="btn-icon doc-tree-batch-btn"
+              onClick={() => {
+                if (selectedIds.size > 0) {
+                  onBatchSetReadonly?.(Array.from(selectedIds), true);
+                  clearSelection();
+                }
+              }}
+              title="批量设为只读"
+              disabled={selectedIds.size === 0}
+            >
+              🔒
+            </button>
+            <button
+              className="btn-icon doc-tree-batch-btn"
+              onClick={clearSelection}
+              title="取消选择"
+            >
+              ✕
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              className="btn-icon doc-tree-batch-btn"
+              onClick={() => setSelectMode(true)}
+              title="批量选择"
+            >
+              ☐
+            </button>
+            <button className="btn-icon doc-tree-add" onClick={onCreate} title="新建文档">
+              +
+            </button>
+          </>
+        )}
       </div>
       {roots.length === 0 ? (
         <div className="doc-tree-empty">暂无文档。点击 + 新建。</div>
@@ -254,30 +333,14 @@ function DocTree({
         sortNodes(roots).map((root) => renderNode(root, 0))
       )}
 
-      {/* 右键菜单 */}
       {contextMenu && (
         <div
           className="doc-context-menu"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
-          <button
-            className="doc-context-item"
-            onClick={() => handleRename(contextMenu.noteId)}
-          >
-            重命名
-          </button>
-          <button
-            className="doc-context-item"
-            onClick={() => handleToggleReadonly(contextMenu.noteId)}
-          >
-            切换只读
-          </button>
-          <button
-            className="doc-context-item doc-context-danger"
-            onClick={() => handleDelete(contextMenu.noteId, contextMenu.title)}
-          >
-            删除
-          </button>
+          <button className="doc-context-item" onClick={() => handleRename(contextMenu.noteId)}>重命名</button>
+          <button className="doc-context-item" onClick={() => handleToggleReadonly(contextMenu.noteId)}>切换只读</button>
+          <button className="doc-context-item doc-context-danger" onClick={() => handleDelete(contextMenu.noteId, contextMenu.title)}>删除</button>
         </div>
       )}
     </div>
