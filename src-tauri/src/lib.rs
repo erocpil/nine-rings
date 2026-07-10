@@ -64,6 +64,10 @@ pub fn run() {
             commands::export::export_note_markdown,
             commands::sync::sync_push,
             commands::sync::sync_pull,
+            commands::doc_tree::search_docs,
+            commands::doc_tree::get_notes_by_path,
+            commands::doc_tree::get_all_concepts,
+            commands::doc_tree::get_path_tree,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

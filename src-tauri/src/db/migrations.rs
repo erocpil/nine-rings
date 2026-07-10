@@ -1,7 +1,7 @@
 use rusqlite::Connection;
 use rusqlite::params;
 
-const SCHEMA_VERSION: i32 = 3;
+const SCHEMA_VERSION: i32 = 4;
 
 pub fn run(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch("CREATE TABLE IF NOT EXISTS _schema_version (version INTEGER PRIMARY KEY);")?;
@@ -13,6 +13,7 @@ pub fn run(conn: &Connection) -> rusqlite::Result<()> {
     if current < 1 { migrate_v1(conn)?; }
     if current < 2 { migrate_v2(conn)?; }
     if current < 3 { migrate_v3(conn)?; }
+    if current < 4 { migrate_v4(conn)?; }
     Ok(())
 }
 
@@ -85,5 +86,26 @@ fn migrate_v3(conn: &Connection) -> rusqlite::Result<()> {
         CREATE INDEX IF NOT EXISTS idx_note_versions_note_id ON note_versions(note_id, saved_at);
         INSERT INTO _schema_version (version) VALUES (3);"
     )?;
+    Ok(())
+}
+
+fn migrate_v4(conn: &Connection) -> rusqlite::Result<()> {
+    // Doc Tree / Zettelkasten 字段
+    for &(col, def) in &[
+        ("storage_path", "TEXT"),
+        ("doc_type", "TEXT"),
+        ("concepts", "TEXT NOT NULL DEFAULT '[]'"),
+        ("linked_doc_ids", "TEXT NOT NULL DEFAULT '[]'"),
+        ("readonly", "INTEGER NOT NULL DEFAULT 0"),
+    ] {
+        let exists: bool = conn
+            .prepare(&format!("SELECT COUNT(*) FROM pragma_table_info('notes') WHERE name='{}'", col))?
+            .query_row([], |r| r.get::<_, i32>(0))
+            .unwrap_or(0) > 0;
+        if !exists {
+            conn.execute_batch(&format!("ALTER TABLE notes ADD COLUMN {} {};", col, def))?;
+        }
+    }
+    conn.execute_batch("INSERT INTO _schema_version (version) VALUES (4);")?;
     Ok(())
 }

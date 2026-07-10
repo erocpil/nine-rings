@@ -50,9 +50,9 @@ export const tauriAdapter: StorageAdapter = {
   getConfig: () => invoke<AppConfig>("get_config"),
   setConfig: (partial) => invoke<AppConfig>("set_config", { config: partial }),
 
-  // ── Doc Tree（暂用 IDB 实现的存根）──
-  getPathTree: () => Promise.reject(new Error("DocTree: Tauri backend not yet implemented")),
-  getNotesByPath: () => Promise.reject(new Error("DocTree: Tauri backend not yet implemented")),
-  searchDocs: () => Promise.reject(new Error("DocTree: Tauri backend not yet implemented")),
-  getAllConcepts: () => Promise.reject(new Error("DocTree: Tauri backend not yet implemented")),
+  // ── Doc Tree ──
+  getPathTree: () => invoke("get_path_tree"),
+  getNotesByPath: (pathPrefix) => invoke<Note[]>("get_notes_by_path", { pathPrefix }),
+  searchDocs: (query) => invoke<Note[]>("search_docs", { query }),
+  getAllConcepts: () => invoke<string[]>("get_all_concepts"),
 };

@@ -13,6 +13,16 @@ pub struct Note {
     pub sort_order: i32,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub storage_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub doc_type: Option<String>,
+    #[serde(default)]
+    pub concepts: Vec<String>,
+    #[serde(default)]
+    pub linked_doc_ids: Vec<String>,
+    #[serde(default)]
+    pub readonly: bool,
 }
 
 impl Note {
@@ -28,6 +38,11 @@ impl Note {
             sort_order: self.sort_order,
             created_at: self.created_at.clone(),
             updated_at: self.updated_at.clone(),
+            storage_path: self.storage_path.clone(),
+            doc_type: self.doc_type.clone(),
+            concepts: self.concepts.clone(),
+            linked_doc_ids: self.linked_doc_ids.clone(),
+            readonly: self.readonly,
         }
     }
 }
@@ -44,6 +59,16 @@ pub struct NotePublic {
     pub sort_order: i32,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub storage_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub doc_type: Option<String>,
+    #[serde(default)]
+    pub concepts: Vec<String>,
+    #[serde(default)]
+    pub linked_doc_ids: Vec<String>,
+    #[serde(default)]
+    pub readonly: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -79,8 +104,8 @@ pub struct SyncChange {
 
 pub fn insert_note(conn: &Connection, note: &Note) -> rusqlite::Result<()> {
     conn.execute(
-        "INSERT INTO notes (id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT INTO notes (id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
         rusqlite::params![
             note.id,
             note.date,
@@ -92,6 +117,11 @@ pub fn insert_note(conn: &Connection, note: &Note) -> rusqlite::Result<()> {
             note.sort_order,
             note.created_at,
             note.updated_at,
+            note.storage_path,
+            note.doc_type,
+            serde_json::to_string(&note.concepts).unwrap_or_default(),
+            serde_json::to_string(&note.linked_doc_ids).unwrap_or_default(),
+            note.readonly,
         ],
     )?;
     Ok(())
@@ -135,7 +165,7 @@ pub fn soft_delete_note(conn: &Connection, id: &str, updated_at: &str) -> rusqli
 
 pub fn select_notes_by_date(conn: &Connection, date: &str) -> rusqlite::Result<Vec<Note>> {
     let mut stmt = conn.prepare(
-        "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at
+        "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly
          FROM notes
          WHERE date = ?1 AND deleted_at IS NULL
          ORDER BY pinned DESC, sort_order ASC, created_at ASC"
@@ -146,7 +176,7 @@ pub fn select_notes_by_date(conn: &Connection, date: &str) -> rusqlite::Result<V
 
 pub fn select_note_by_id(conn: &Connection, id: &str) -> rusqlite::Result<Option<Note>> {
     let mut stmt = conn.prepare(
-        "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at
+        "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly
          FROM notes WHERE id = ?1 AND deleted_at IS NULL"
     )?;
     let mut rows = stmt.query_map(rusqlite::params![id], |row| note_from_row(row))?;
@@ -157,7 +187,7 @@ pub fn select_note_by_id(conn: &Connection, id: &str) -> rusqlite::Result<Option
 pub fn select_notes_by_tag(conn: &Connection, tag: &str) -> rusqlite::Result<Vec<Note>> {
     let pattern = format!("%\"{}\"%", tag.replace('"', ""));
     let mut stmt = conn.prepare(
-        "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at
+        "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly
          FROM notes
          WHERE deleted_at IS NULL AND tags LIKE ?1
          ORDER BY updated_at DESC
@@ -192,7 +222,7 @@ pub fn select_all_tags(conn: &Connection) -> rusqlite::Result<Vec<String>> {
 pub fn search_notes_like(conn: &Connection, query: &str) -> rusqlite::Result<Vec<Note>> {
     let pattern = format!("%{}%", query.replace('%', "\\%").replace('_', "\\_"));
     let mut stmt = conn.prepare(
-        "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at
+        "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly
          FROM notes
          WHERE deleted_at IS NULL
            AND (title LIKE ?1 ESCAPE '\\' OR search_text LIKE ?1 ESCAPE '\\')
@@ -263,7 +293,7 @@ pub fn select_prev_carryover_page(conn: &Connection, before_date: &str) -> rusql
 /// 获取所有未删除笔记（用于导出）
 pub fn select_all_active_notes(conn: &Connection) -> rusqlite::Result<Vec<Note>> {
     let mut stmt = conn.prepare(
-        "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at
+        "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly
          FROM notes WHERE deleted_at IS NULL
          ORDER BY updated_at DESC"
     )?;
@@ -291,8 +321,8 @@ pub fn select_all_daily_pages(conn: &Connection) -> rusqlite::Result<Vec<DailyPa
 /// 插入或替换笔记（用于导入）
 pub fn upsert_note(conn: &Connection, note: &Note) -> rusqlite::Result<()> {
     conn.execute(
-        "INSERT OR REPLACE INTO notes (id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        "INSERT OR REPLACE INTO notes (id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
         rusqlite::params![
             note.id,
             note.date,
@@ -304,6 +334,11 @@ pub fn upsert_note(conn: &Connection, note: &Note) -> rusqlite::Result<()> {
             note.sort_order,
             note.created_at,
             note.updated_at,
+            note.storage_path,
+            note.doc_type,
+            serde_json::to_string(&note.concepts).unwrap_or_default(),
+            serde_json::to_string(&note.linked_doc_ids).unwrap_or_default(),
+            note.readonly,
         ],
     )?;
     Ok(())
@@ -312,6 +347,9 @@ pub fn upsert_note(conn: &Connection, note: &Note) -> rusqlite::Result<()> {
 pub fn note_from_row(row: &rusqlite::Row) -> rusqlite::Result<Note> {
     let content_str: String = row.get(3)?;
     let tags_json: String = row.get(5)?;
+    let concepts_str: String = row.get::<_, Option<String>>(12)?.unwrap_or_default();
+    let linked_str: String = row.get::<_, Option<String>>(13)?.unwrap_or_default();
+    let readonly_raw: i32 = row.get::<_, Option<i32>>(14)?.unwrap_or(0);
     Ok(Note {
         id: row.get(0)?,
         date: row.get(1)?,
@@ -323,5 +361,10 @@ pub fn note_from_row(row: &rusqlite::Row) -> rusqlite::Result<Note> {
         sort_order: row.get(7)?,
         created_at: row.get(8)?,
         updated_at: row.get(9)?,
+        storage_path: row.get::<_, Option<String>>(10)?,
+        doc_type: row.get::<_, Option<String>>(11)?,
+        concepts: serde_json::from_str(&concepts_str).unwrap_or_default(),
+        linked_doc_ids: serde_json::from_str(&linked_str).unwrap_or_default(),
+        readonly: readonly_raw != 0,
     })
 }
