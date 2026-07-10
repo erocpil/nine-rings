@@ -38,8 +38,7 @@ function today(): string {
 /** 将图片 Blob 存入 IndexedDB，返回 `nr-image://<id>` 引用 */
 export async function storeImage(blob: Blob): Promise<string> {
   const id = uuid();
-  const db = await openDB();
-  try {
+  return withDB(async (db) => {
     const tx = db.transaction("images", "readwrite");
     const store = tx.objectStore("images");
     await new Promise<void>((resolve, reject) => {
@@ -48,16 +47,13 @@ export async function storeImage(blob: Blob): Promise<string> {
       req.onerror = () => reject(req.error);
     });
     return `nr-image://${id}`;
-  } finally {
-    db.close();
-  }
+  });
 }
 
 /** 从 IndexedDB 读取图片并创建 Object URL（调用方负责在适当时机 revoke） */
 export async function getImageUrl(ref: string): Promise<string | null> {
   const id = ref.replace(/^nr-image:\/\//, "");
-  const db = await openDB();
-  try {
+  return withDB(async (db) => {
     const tx = db.transaction("images", "readonly");
     const store = tx.objectStore("images");
     const record: any = await new Promise((resolve, reject) => {
@@ -67,24 +63,21 @@ export async function getImageUrl(ref: string): Promise<string | null> {
     });
     if (!record) return null;
     return URL.createObjectURL(record.blob);
-  } finally {
-    db.close();
-  }
+  });
 }
 
 /** 批量解析 Delta 中的 nr-image:// 引用为 base64（用于导出） */
 export async function resolveImageRefs(delta: any): Promise<any> {
   if (!delta?.ops) return delta;
-  const ops = [...delta.ops];
-  for (const op of ops) {
-    if (typeof op.insert !== "object") continue;
-    const img = (op.insert as any)?.resizableImage || (op.insert as any)?.image;
-    if (!img?.src || typeof img.src !== "string" || !img.src.startsWith("nr-image://")) continue;
-    const id = img.src.replace(/^nr-image:\/\//, "");
-    const db = await openDB();
-    try {
-      const tx = db.transaction("images", "readonly");
-      const store = tx.objectStore("images");
+  return withDB(async (db) => {
+    const ops = [...delta.ops];
+    const tx = db.transaction("images", "readonly");
+    const store = tx.objectStore("images");
+    for (const op of ops) {
+      if (typeof op.insert !== "object") continue;
+      const img = (op.insert as any)?.resizableImage || (op.insert as any)?.image;
+      if (!img?.src || typeof img.src !== "string" || !img.src.startsWith("nr-image://")) continue;
+      const id = img.src.replace(/^nr-image:\/\//, "");
       const record: any = await new Promise((resolve, reject) => {
         const req = store.get(id);
         req.onsuccess = () => resolve(req.result ?? null);
@@ -94,11 +87,9 @@ export async function resolveImageRefs(delta: any): Promise<any> {
         const base64 = await blobToBase64(record.blob);
         img.src = base64;
       }
-    } finally {
-      db.close();
     }
-  }
-  return { ...delta, ops };
+    return { ...delta, ops };
+  });
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -242,11 +233,8 @@ function openDB(): Promise<IDBDatabase> {
 
 async function withDB<T>(fn: (db: IDBDatabase) => Promise<T>): Promise<T> {
   const db = await openDB();
-  try {
-    return await fn(db);
-  } finally {
-    db.close();
-  }
+  // SPA: 保持连接打开，不 close()，避免 Safari 报 "connection is closing"
+  return fn(db);
 }
 
 function getOne<T>(store: IDBObjectStore, key: IDBValidKey): Promise<T | null> {
