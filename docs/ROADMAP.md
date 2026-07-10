@@ -31,7 +31,7 @@
 
 | 项目 | 说明 | 状态 |
 |------|------|------|
-| **PWA 离线缓存** | Service Worker + manifest，可「安装」到手机桌面 | ⬜ 待做 |
+| **PWA 离线缓存** | SW (Cache First静态 + Network First HTML) + manifest.json + 注册脚本 | ✅ 已实现 |
 | **云端同步** | 多设备 IndexedDB ↔ 远端（GitHub / WebDAV / S3） | ⬜ 待做 |
 | **Flutter 移动端** | 原生移动端，统一 schema | ⬜ 待做 |
 | **Tauri 桌面端** | 系统托盘、全局热键、原生文件对话框 | ⬜ 待做 |
