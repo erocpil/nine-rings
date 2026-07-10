@@ -20,7 +20,7 @@ import DocTree from "./components/DocTree";
 import DocCreateDialog from "./components/DocCreateDialog";
 import PropertiesPanel from "./components/PropertiesPanel";
 import type { AppConfig } from "./lib/storage/types";
-import type { DeltaOps, Note } from "./types/models";
+import type { DeltaOps, Note, DocType } from "./types/models";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
 
 function openNewWindow() {
@@ -55,6 +55,21 @@ function App() {
   const dailyPage = useNotesStore((s) => s.dailyPage);
   const updateTodos = useNotesStore((s) => s.updateTodos);
   const { search, results, query } = useSearch();
+  const [docResults, setDocResults] = useState<Note[] | null>(null);
+
+  const handleDocSearch = useCallback(async (q: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => {
+    if (!q.text && !q.storagePath && !q.docType && !q.concept) {
+      setDocResults(null);
+      return;
+    }
+    const notes = await api.docs.search({
+      text: q.text || undefined,
+      storagePath: q.storagePath,
+      docType: q.docType,
+      concept: q.concept,
+    });
+    setDocResults(notes);
+  }, []);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [recycleOpen, setRecycleOpen] = useState(false);
@@ -424,7 +439,7 @@ function App() {
             </button>
           </div>
         )}
-        <SearchBar onSearch={search} />
+        <SearchBar onSearch={search} onDocSearch={handleDocSearch} />
         <span className="header-btn-gap" />
         <button className="btn-icon" onClick={() => setSettingsOpen(true)} title="设置">
           ⚙
@@ -531,22 +546,23 @@ function App() {
         {!sidebarHidden && <div className="sidebar-divider" onMouseDown={handleSideMouseDown} onTouchStart={handleSideTouchStart} />}
 
         <main className="app-main">
-          {query ? (
+          {query || docResults ? (
             <div className="search-results">
-              <h3>搜索结果（{results.notes.length + results.todos.length}）</h3>
-              {results.notes.length > 0 && (
+              <h3>搜索结果（{(docResults ? docResults.length : results.notes.length + results.todos.length)}）</h3>
+              {(docResults ? docResults : results.notes).length > 0 && (
                 <div className="search-section-label">笔记</div>
               )}
-              {results.notes.map((r) => (
+              {(docResults ? docResults : results.notes).map((r) => (
                 <div key={r.id} className="search-hit" onClick={() => selectNote(r)}>
                   <div className="search-hit-title">{r.title || "无标题"}</div>
                   <div className="search-hit-date">{r.date}</div>
+                  {r.storagePath && <div className="search-hit-path">{r.storagePath}</div>}
                 </div>
               ))}
-              {results.todos.length > 0 && (
+              {!docResults && results.todos.length > 0 && (
                 <div className="search-section-label">待办</div>
               )}
-              {results.todos.map((t) => (
+              {!docResults && results.todos.map((t) => (
                 <div
                   key={`todo-${t.todo.id}`}
                   className="search-hit"

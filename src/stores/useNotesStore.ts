@@ -66,7 +66,10 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
         );
       }
       // ── /dump ──
-      set({ notes, dailyPage, selectedNote: notes[0] ?? null, loading: false });
+      // 优先恢复上次浏览的笔记，否则取第一项
+      const lastId = localStorage.getItem("nr:lastNote");
+      const preferred = lastId ? notes.find((n) => n.id === lastId) : undefined;
+      set({ notes, dailyPage, selectedNote: preferred ?? notes[0] ?? null, loading: false });
     } catch (e) {
       set({ loading: false, error: `加载失败: ${(e as Error).message}` });
     }
