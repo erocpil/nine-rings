@@ -3,7 +3,7 @@ import type { Note, DailyPage, NoteVersion, CreateNoteInput, UpdateNoteInput, Up
 // ── 配置类型（与 schema/config.yaml 对齐）──
 
 export interface AppConfig {
-  theme: "system" | "light" | "dark" | "grace" | "sui" | "zhi" | "azure";
+  theme: "system" | "light" | "dark" | "grace" | "sui" | "zhi" | "azure" | "azure-dark";
   default_view: "daily" | "list";
   todo_carryover_default: boolean;
   auto_clean_days: number;

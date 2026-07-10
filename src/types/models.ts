@@ -45,6 +45,7 @@ export interface Todo {
   done: boolean;
   order: number;
   tags: string[];
+  remind_at?: string;  // ISO datetime string for Notification API reminder
 }
 
 export interface DailyPage {
@@ -122,7 +123,7 @@ export interface NoteVersion {
 
 /** 应用配置（与 schema/config.yaml 对齐） */
 export interface AppConfig {
-  theme: "system" | "light" | "dark" | "grace" | "sui" | "zhi" | "azure";
+  theme: "system" | "light" | "dark" | "grace" | "sui" | "zhi" | "azure" | "azure-dark";
   default_view: "daily" | "list";
   todo_carryover_default: boolean;
   auto_clean_days: number;

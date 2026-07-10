@@ -3,6 +3,44 @@ import type { Todo } from "../types/models";
 import { uuid } from "../lib/uuid";
 import { api } from "../lib/api";
 
+// ── 提醒调度 ──
+
+const activeTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function scheduleReminder(todo: Todo, onFired: () => void) {
+  if (!todo.remind_at || todo.done) return;
+  const target = new Date(todo.remind_at).getTime();
+  const now = Date.now();
+  if (target <= now) return; // 已过期，不触发
+
+  // 清除已有定时器
+  if (activeTimers.has(todo.id)) {
+    clearTimeout(activeTimers.get(todo.id)!);
+  }
+
+  const timer = setTimeout(() => {
+    activeTimers.delete(todo.id);
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification("⏰ 待办提醒", {
+        body: todo.text,
+        icon: "/favicon.ico",
+        tag: todo.id,
+      });
+    }
+    onFired();
+  }, target - now);
+
+  activeTimers.set(todo.id, timer);
+}
+
+function clearReminder(todoId: string) {
+  const timer = activeTimers.get(todoId);
+  if (timer) {
+    clearTimeout(timer);
+    activeTimers.delete(todoId);
+  }
+}
+
 interface OverdueItem {
   todo: Todo;
   date: string;
@@ -23,6 +61,78 @@ export function TodoList({ todos, onChange }: TodoListProps) {
   const [overdueItems, setOverdueItems] = useState<OverdueItem[]>([]);
   const [overdueOpen, setOverdueOpen] = useState(false);
   const [refreshOverdue, setRefreshOverdue] = useState(0);
+
+  // ── 提醒状态 ──
+  const [remindTodoId, setRemindTodoId] = useState<string | null>(null);
+  const [remindTime, setRemindTime] = useState("");
+  const [notifPerm, setNotifPerm] = useState<NotificationPermission>("default");
+
+  // 请求通知权限
+  useEffect(() => {
+    if ("Notification" in window) {
+      setNotifPerm(Notification.permission);
+    }
+  }, []);
+
+  // 调度所有待办提醒
+  useEffect(() => {
+    // 清理旧定时器
+    activeTimers.forEach((timer) => clearTimeout(timer));
+    activeTimers.clear();
+
+    for (const t of todos) {
+      if (t.remind_at && !t.done) {
+        scheduleReminder(t, () => {
+          // 提醒触发后清除 remind_at（需外部刷新）
+        });
+      }
+    }
+
+    return () => {
+      activeTimers.forEach((timer) => clearTimeout(timer));
+      activeTimers.clear();
+    };
+  }, [todos]);
+
+  const requestNotifPermission = async () => {
+    if (!("Notification" in window)) return;
+    const perm = await Notification.requestPermission();
+    setNotifPerm(perm);
+  };
+
+  const setReminder = (todoId: string, isoTime: string) => {
+    if (!isoTime) {
+      // 清除提醒
+      clearReminder(todoId);
+      onChange(
+        todos.map((t) => t.id === todoId ? { ...t, remind_at: undefined } : t)
+      );
+      return;
+    }
+    onChange(
+      todos.map((t) => t.id === todoId ? { ...t, remind_at: isoTime } : t)
+    );
+  };
+
+  const openRemindPicker = (todoId: string) => {
+    if (notifPerm !== "granted") {
+      requestNotifPermission().then(() => {
+        setRemindTodoId(todoId);
+        // 默认：1小时后
+        const d = new Date(Date.now() + 3600000);
+        setRemindTime(d.toISOString().slice(0, 16));
+      });
+      return;
+    }
+    setRemindTodoId(todoId);
+    const existing = todos.find((t) => t.id === todoId);
+    if (existing?.remind_at) {
+      setRemindTime(existing.remind_at.slice(0, 16));
+    } else {
+      const d = new Date(Date.now() + 3600000);
+      setRemindTime(d.toISOString().slice(0, 16));
+    }
+  };
 
   // ── 导出 ──
   const [exportOpen, setExportOpen] = useState(false);
@@ -375,12 +485,51 @@ export function TodoList({ todos, onChange }: TodoListProps) {
               </span>
             )}
             <button
+              className={`todo-remind-btn ${todo.remind_at ? "active" : ""}`}
+              onClick={(e) => { e.stopPropagation(); openRemindPicker(todo.id); }}
+              title={todo.remind_at ? `已设提醒: ${new Date(todo.remind_at).toLocaleString()}` : "设置提醒"}
+            >
+              {todo.remind_at ? "🔔" : "🔕"}
+            </button>
+            <button
               className="todo-remove"
               onClick={() => removeTodo(todo.id)}
               title="删除"
             >
               ×
             </button>
+
+            {/* 提醒时间选择器 */}
+            {remindTodoId === todo.id && (
+              <div className="todo-remind-picker" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="datetime-local"
+                  className="todo-remind-input"
+                  value={remindTime}
+                  onChange={(e) => setRemindTime(e.target.value)}
+                />
+                <button
+                  className="todo-remind-set"
+                  onClick={() => {
+                    setReminder(todo.id, new Date(remindTime).toISOString());
+                    setRemindTodoId(null);
+                  }}
+                >
+                  设置
+                </button>
+                {todo.remind_at && (
+                  <button
+                    className="todo-remind-clear"
+                    onClick={() => {
+                      setReminder(todo.id, "");
+                      setRemindTodoId(null);
+                    }}
+                  >
+                    清除
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>

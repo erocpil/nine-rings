@@ -737,7 +737,7 @@ function App() {
 
 function applyTheme(theme: string) {
   const root = document.documentElement;
-  root.classList.remove("theme-light", "theme-dark", "theme-grace", "theme-sui", "theme-zhi", "theme-azure");
+  root.classList.remove("theme-light", "theme-dark", "theme-grace", "theme-sui", "theme-zhi", "theme-azure", "theme-azure-dark");
   if (theme === "light") {
     root.classList.add("theme-light");
   } else if (theme === "dark") {
@@ -750,6 +750,8 @@ function applyTheme(theme: string) {
     root.classList.add("theme-zhi");
   } else if (theme === "azure") {
     root.classList.add("theme-azure");
+  } else if (theme === "azure-dark") {
+    root.classList.add("theme-azure-dark");
   }
   // "system" → no class, falls through to @media queries
 }

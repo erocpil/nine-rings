@@ -24,6 +24,7 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { addLog, toggleDebug } from "../lib/debugLog";
 import { CodeBlockLineNumbers } from "../extensions/CodeBlockLineNumbers";
 import { storeImage } from "../lib/storage/idb";
+import { api } from "../lib/api";
 
 const FontSize = Extension.create({
   name: "fontSize",
@@ -149,6 +150,12 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     return localStorage.getItem(CODE_LN_KEY) === "true";
   });
 
+  // ── [[ 双向链接自动补全 ──
+  const [wikiOpen, setWikiOpen] = useState(false);
+  const [wikiSuggestions, setWikiSuggestions] = useState<{ title: string; id: string }[]>([]);
+  const [wikiPos, setWikiPos] = useState({ top: 0, left: 0 });
+  const wikiStartRef = useRef<number | null>(null); // [[ 在文档中的起始位置
+
   // 检测窄屏（手机竖屏）
   useEffect(() => {
     const check = () => setIsNarrow(window.innerWidth < 480);
@@ -229,6 +236,34 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         const ch = ed.storage.characterCount?.characters?.() ?? 0;
         const wd = ed.storage.characterCount?.words?.() ?? 0;
         addLog(`[变更] ${noteId.slice(0,8)} chars=${ch} words=${wd}`);
+      }
+
+      // ── [[ 双向链接检测 ──
+      const { from } = ed.state.selection;
+      const $from = ed.state.doc.resolve(from);
+      const textBefore = $from.parent?.textContent?.slice(0, from - $from.start()) ?? "";
+      const match = textBefore.match(/\[\[([^\]]*)$/);
+      if (match && !readonly) {
+        const query = match[1];
+        wikiStartRef.current = from - query.length - 2; // [[ 位置
+        // 获取光标位置用于定位下拉
+        const view = ed.view;
+        const coords = view.coordsAtPos(from);
+        const editorEl = view.dom.closest(".note-editor-scroll") as HTMLElement;
+        if (editorEl) {
+          const er = editorEl.getBoundingClientRect();
+          setWikiPos({ top: coords.bottom - er.top + 4, left: coords.left - er.left });
+        }
+        setWikiOpen(true);
+        // 异步搜索匹配笔记
+        api.notes.search(query || " ").then((notes) => {
+          setWikiSuggestions(
+            notes.map((n) => ({ title: n.title || "无标题", id: n.id }))
+          );
+        });
+      } else {
+        setWikiOpen(false);
+        wikiStartRef.current = null;
       }
     },
   });
@@ -410,6 +445,23 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     (editor.chain().focus() as any).setResizableImage({ src: imageUrl.trim() }).run();
     setImageUrl("");
     setImageDialog(false);
+  };
+
+  // ── Wiki Link 选择 ──
+
+  const selectWikiLink = (note: { title: string; id: string }) => {
+    if (!editor || wikiStartRef.current === null) return;
+    const start = wikiStartRef.current;
+    const end = editor.state.selection.from;
+    editor.chain()
+      .focus()
+      .deleteRange({ from: start, to: end })
+      .insertContent(note.title)
+      .setLink({ href: `nr-note://${note.id}` })
+      .setTextSelection(start + note.title.length)
+      .run();
+    setWikiOpen(false);
+    wikiStartRef.current = null;
   };
 
   // ── Tags ──
@@ -858,6 +910,28 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
         {/* ── 编辑器内容 ── */}
         <EditorContent editor={editor} className="editor-content" />
+
+        {/* ── [[ 双向链接下拉 ── */}
+        {wikiOpen && (
+          <div
+            className="wiki-dropdown"
+            style={{ top: wikiPos.top, left: wikiPos.left }}
+          >
+            {wikiSuggestions.length === 0 ? (
+              <div className="wiki-empty">无匹配笔记</div>
+            ) : (
+              wikiSuggestions.map((n) => (
+                <div
+                  key={n.id}
+                  className="wiki-item"
+                  onClick={() => selectWikiLink(n)}
+                >
+                  <span className="wiki-title">{n.title}</span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── 底部信息栏（位置 + 字数 + 版本历史）─ */}

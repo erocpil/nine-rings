@@ -29,6 +29,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose }: PropertiesPanelProps) 
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [linkSearch, setLinkSearch] = useState("");
   const [linkResults, setLinkResults] = useState<Note[]>([]);
+  const [backlinks, setBacklinks] = useState<Note[]>([]);
 
   const concepts = note.concepts ?? [];
   const linkedIds = note.linkedDocIds ?? [];
@@ -36,7 +37,34 @@ function PropertiesPanel({ note, onNoteUpdate, onClose }: PropertiesPanelProps) 
 
   useEffect(() => {
     api.docs.allConcepts().then(setExistingConcepts);
-  }, []);
+    // 加载反向链接
+    loadBacklinks();
+  }, [note.id]);
+
+  const loadBacklinks = async () => {
+    try {
+      const allPages = await api.daily.getAll();
+      const results: Note[] = [];
+      for (const page of allPages) {
+        const notes = await api.notes.listByDate(page.date);
+        for (const n of notes) {
+          if ((n.linkedDocIds ?? []).includes(note.id)) {
+            results.push(n);
+          }
+        }
+      }
+      // 也检查文档
+      const docs = await api.docs.listByPath("");
+      for (const n of docs) {
+        if ((n.linkedDocIds ?? []).includes(note.id) && !results.find(r => r.id === n.id)) {
+          results.push(n);
+        }
+      }
+      setBacklinks(results);
+    } catch {
+      setBacklinks([]);
+    }
+  };
 
   // ── 类型变更 ──
   const handleTypeChange = useCallback(async (docType: DocType) => {
@@ -214,6 +242,26 @@ function PropertiesPanel({ note, onNoteUpdate, onClose }: PropertiesPanelProps) 
               </div>
             )}
           </div>
+        </div>
+
+        {/* 反向链接 */}
+        <div className="prop-section">
+          <div className="prop-label">
+            反向链接
+            <span className="prop-count">{backlinks.length}</span>
+          </div>
+          {backlinks.length === 0 ? (
+            <div className="prop-empty">暂无其他笔记引用此文档</div>
+          ) : (
+            <div className="prop-links">
+              {backlinks.map((n) => (
+                <div key={n.id} className="prop-link-item">
+                  <span className="prop-link-title" title={n.title ?? ""}>{n.title || "无标题"}</span>
+                  <span className="prop-link-date">{n.date}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
