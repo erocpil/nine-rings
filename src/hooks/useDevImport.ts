@@ -13,6 +13,9 @@ interface ImportFile {
   title: string;
   content: any;
   tags?: string[];
+  storagePath?: string;
+  docType?: string;
+  concepts?: string[];
 }
 
 export function useDevImport(refresh: () => void) {
@@ -72,6 +75,9 @@ export function useDevImport(refresh: () => void) {
               title,
               content,
               tags: file.tags || [],
+              storagePath: file.storagePath,
+              docType: file.docType as any,
+              concepts: file.concepts,
             });
             count++;
           } catch (e) {

@@ -133,7 +133,8 @@ def main():
     print(f"📂 静态目录: {os.path.abspath(serve_dir)}")
     print(f"🌐 服务地址: http://{args.host}:{args.port}/")
     print(f"📥 导入端点: http://{args.host}:{args.port}/__import")
-    print(f"   CLI: python3 scripts/md-to-nine-rings.py --serve *.md")
+    print(f"   日记导入: python3 scripts/md-to-nine-rings.py --serve *.md")
+    print(f"   文档导入: python3 scripts/md-to-nine-rings.py --serve --path projects/xxx ./docs/")
     print()
 
     server = HTTPServer((args.host, args.port), NineRingsHandler)

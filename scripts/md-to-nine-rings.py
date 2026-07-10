@@ -7,9 +7,23 @@ md-to-nine-rings.py — 批量将 .md 文件导入为 Nine Rings 笔记
   python3 scripts/md-to-nine-rings.py <文件路径> [文件路径...]
   python3 scripts/md-to-nine-rings.py --serve <目录或文件...>
 
+文档导入（导入到 📂 文档视图）:
+  --path <P.A.R.A.路径>    指定存放位置，如 "projects/nine-rings"
+                            不指定时从目录名推断: references/<目录名>
+  --type <类型>             Diátaxis 类型: explanation | how-to | reference | tutorial
+  --concepts <标签,标签>    逗号分隔的概念标签
+  
+示例:
+  # 导入到 references/dpdk
+  python3 scripts/md-to-nine-rings.py --serve --path references/dpdk ./dpdk-docs/
+  
+  # 导入并指定类型和概念
+  python3 scripts/md-to-nine-rings.py --serve --path projects/archethic \
+      --type reference --concepts DPDK,P4,tunnel ./archethic-docs/
+
 输出:
   默认模式：在当前目录生成 import-<日期>.json
-  --serve 模式：直接 POST 给 http://localhost:1420/__import（需 npm run dev 已运行）
+  --serve 模式：直接 POST 给 http://localhost:1420/__import
     浏览器自动接收并创建笔记，刷新即可看到结果
 
 支持的 Markdown 语法:
@@ -195,18 +209,21 @@ def extract_title(md_text, filename):
 def md_files_from_args(args):
     """解析命令行参数，返回 (文件列表, 来源描述)"""
     files = []
+    dir_root = None  # 记录第一个目录，用于路径推断
     for arg in args:
         if os.path.isdir(arg):
+            if dir_root is None:
+                dir_root = arg
             for root, _, filenames in os.walk(arg):
                 for fn in filenames:
                     if fn.endswith('.md'):
                         files.append(os.path.join(root, fn))
         elif os.path.isfile(arg) and arg.endswith('.md'):
             files.append(arg)
-    return sorted(set(files))
+    return sorted(set(files)), dir_root
 
 
-def build_import_json(md_files, today, now):
+def build_import_json(md_files, today, now, storage_path=None, doc_type=None, concepts=None):
     """构建 Nine Rings 导入 JSON"""
     notes = []
     for fp in md_files:
@@ -216,7 +233,7 @@ def build_import_json(md_files, today, now):
         title = extract_title(md_text, os.path.basename(fp))
         delta_ops = {'ops': md_to_delta(md_text)}
 
-        notes.append({
+        note = {
             'id': str(uuid.uuid4()),
             'date': today,
             'title': title,
@@ -226,7 +243,16 @@ def build_import_json(md_files, today, now):
             'sort_order': 0,
             'created_at': now,
             'updated_at': now,
-        })
+        }
+        # ── 文档分类字段 ──
+        if storage_path:
+            note['storagePath'] = storage_path
+        if doc_type:
+            note['docType'] = doc_type
+        if concepts:
+            note['concepts'] = concepts
+
+        notes.append(note)
 
     return {
         'version': 1,
@@ -253,7 +279,29 @@ def main():
 
     sources = [s for s in sys.argv[1:] if not s.startswith('--')]
     serve_mode = '--serve' in sys.argv[1:]
-    md_files = md_files_from_args(sources)
+
+    # ── 文档导入选项 ──
+    storage_path = None
+    doc_type = None
+    concepts = []
+
+    for i, a in enumerate(sys.argv[1:], 1):
+        if a == '--path' and i + 1 < len(sys.argv):
+            storage_path = sys.argv[i + 1]
+        elif a == '--type' and i + 1 < len(sys.argv):
+            doc_type = sys.argv[i + 1]
+        elif a == '--concepts' and i + 1 < len(sys.argv):
+            concepts = [c.strip() for c in sys.argv[i + 1].split(',') if c.strip()]
+
+    md_files, dir_root = md_files_from_args(sources)
+
+    # ── 目录推断 storagePath：如果 --path 未指定且来源是目录 ──
+    if not storage_path and dir_root:
+        # 用目录名作为 storagePath
+        base = os.path.basename(dir_root.rstrip('/'))
+        if base and base != '.':
+            # 放在 references 下（安全默认值，用户可用 --path 覆盖）
+            storage_path = f"references/{base}"
 
     if not md_files:
         print("❌ 未找到 .md 文件")
@@ -263,10 +311,20 @@ def main():
     now = datetime.now(timezone.utc).isoformat()
     today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
 
-    print(f"\n📄 找到 {len(md_files)} 个 .md 文件\n")
+    print(f"\n📄 找到 {len(md_files)} 个 .md 文件")
+    if storage_path:
+        print(f"📂 目标路径: {storage_path}")
+    if doc_type:
+        print(f"📋 文档类型: {doc_type}")
+    if concepts:
+        print(f"🏷  概念标签: {', '.join(concepts)}")
+    print()
 
     # 构建导入 JSON
-    import_data = build_import_json(md_files, today, now)
+    import_data = build_import_json(md_files, today, now,
+                                     storage_path=storage_path,
+                                     doc_type=doc_type,
+                                     concepts=concepts if concepts else None)
 
     # ── --serve 模式：直接 POST 给 dev server ──
     if serve_mode:
@@ -276,11 +334,18 @@ def main():
         opener = urllib.request.build_opener(proxy_handler)
         payload = {'files': []}
         for n in import_data['notes']:
-            payload['files'].append({
+            file_entry = {
                 'title': n['title'],
                 'content': n['content'],
                 'tags': n['tags'],
-            })
+            }
+            if n.get('storagePath'):
+                file_entry['storagePath'] = n['storagePath']
+            if n.get('docType'):
+                file_entry['docType'] = n['docType']
+            if n.get('concepts'):
+                file_entry['concepts'] = n['concepts']
+            payload['files'].append(file_entry)
         body = json.dumps(payload).encode('utf-8')
         req = urllib.request.Request(
             'http://localhost:1420/__import',
