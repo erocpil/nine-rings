@@ -547,7 +547,7 @@ function App() {
               onCreate={() => setDocCreateOpen(true)}
               refreshKey={docTreeKey}
               onRename={(id, title) => updateNote(id, { title } as any)}
-              onDelete={(id) => deleteNote(id)}
+              onDelete={(id) => { deleteNote(id); setDocTreeKey(k => k + 1); }}
               onToggleReadonly={(id, readonly) => updateNote(id, { readonly } as any)}
             />
           )}
