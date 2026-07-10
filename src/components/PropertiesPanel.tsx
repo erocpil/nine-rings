@@ -116,7 +116,9 @@ function PropertiesPanel({ note, onNoteUpdate, onClose }: PropertiesPanelProps) 
           <div className="prop-label">位置</div>
           <div className="prop-path">
             <span className="prop-path-icon">{PATH_ROOT_LABELS[pathRoot] ?? "📂"}</span>
-            <span className="prop-path-text">{note.storagePath}</span>
+            {note.storagePath !== pathRoot && (
+              <span className="prop-path-text">/ {note.storagePath.slice(pathRoot.length + 1)}</span>
+            )}
           </div>
         </div>
 
