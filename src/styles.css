@@ -1066,7 +1066,6 @@ body {
   min-height: 200px;
   font-size: 15px;
   line-height: 1.7;
-  touch-action: auto;
 }
 
 .editor-content:focus {
@@ -1917,6 +1916,7 @@ body {
 .ProseMirror {
   outline: none !important;
   padding-bottom: 35vh;
+  touch-action: auto;
 }
 
 /* ──── 行号 ──── */
