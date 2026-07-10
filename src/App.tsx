@@ -102,6 +102,10 @@ function App() {
   const [docTreeKey, setDocTreeKey] = useState(0);
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
+  const PROP_AUTO_KEY = "nr:propertiesAutoShow";
+  const [propertiesAutoShow, setPropertiesAutoShow] = useState(() => {
+    return localStorage.getItem(PROP_AUTO_KEY) !== "false"; // 默认开
+  });
   const error = useNotesStore((s) => s.error);
   const clearError = useNotesStore((s) => s.clearError);
 
@@ -552,6 +556,13 @@ function App() {
               onToggleReadonly={(id, readonly) => updateNote(id, { readonly } as any)}
               onBatchDelete={(ids) => { ids.forEach(id => deleteNote(id)); setDocTreeKey(k => k + 1); }}
               onBatchSetReadonly={(ids, readonly) => { ids.forEach(id => updateNote(id, { readonly } as any)); }}
+              propertiesAutoShow={propertiesAutoShow}
+              onTogglePropertiesAuto={() => {
+                const next = !propertiesAutoShow;
+                setPropertiesAutoShow(next);
+                localStorage.setItem(PROP_AUTO_KEY, String(next));
+                if (!next) setPropertiesOpen(false);
+              }}
             />
           )}
         </aside>
@@ -651,7 +662,7 @@ function App() {
           )}
         </main>
 
-        {selectedNote?.storagePath && propertiesOpen && (
+        {selectedNote?.storagePath && propertiesAutoShow && propertiesOpen && (
           <PropertiesPanel
             note={selectedNote}
             onNoteUpdate={(updated) => selectNote(updated)}

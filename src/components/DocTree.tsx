@@ -13,6 +13,8 @@ interface DocTreeProps {
   onToggleReadonly?: (id: string, readonly: boolean) => void;
   onBatchDelete?: (ids: string[]) => void;
   onBatchSetReadonly?: (ids: string[], readonly: boolean) => void;
+  propertiesAutoShow?: boolean;
+  onTogglePropertiesAuto?: () => void;
 }
 
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -41,6 +43,7 @@ function DocTree({
   onSelect, onFolderSelect, selectedId, onCreate, refreshKey,
   onRename, onDelete, onToggleReadonly,
   onBatchDelete, onBatchSetReadonly,
+  propertiesAutoShow, onTogglePropertiesAuto,
 }: DocTreeProps) {
   const [tree, setTree] = useState<PathNode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -275,6 +278,13 @@ function DocTree({
       <div className="doc-tree-header">
         <span className="doc-tree-title">文档</span>
         <span className="doc-tree-header-spacer" />
+        <button
+          className={`btn-icon doc-tree-batch-btn ${propertiesAutoShow ? "" : "doc-tree-btn-off"}`}
+          onClick={onTogglePropertiesAuto}
+          title={propertiesAutoShow ? "隐藏属性面板" : "显示属性面板"}
+        >
+          {propertiesAutoShow ? "⊟" : "⊞"}
+        </button>
         {selectMode ? (
           <>
             <button

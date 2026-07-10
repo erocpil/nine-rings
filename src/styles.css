@@ -2809,6 +2809,10 @@ body {
   cursor: default;
 }
 
+.doc-tree-btn-off {
+  opacity: 0.4;
+}
+
 /* ── 批量选择 checkbox ── */
 
 .doc-tree-checkbox {
