@@ -681,7 +681,7 @@ export const idbAdapter: StorageAdapter = {
         const path = d.storagePath!;
         // 生成各级父路径
         const parts = path.split("/");
-        for (let i = 1; i < parts.length; i++) {
+        for (let i = 1; i <= parts.length; i++) {
           folders.add(parts.slice(0, i).join("/"));
         }
         // 文档节点（name 用文档标题，path 追加 id 确保唯一）
@@ -700,7 +700,7 @@ export const idbAdapter: StorageAdapter = {
       for (const d of docs) {
         const p = d.storagePath!;
         const parts = p.split("/");
-        for (let i = 1; i < parts.length; i++) {
+        for (let i = 1; i <= parts.length; i++) {
           const prefix = parts.slice(0, i).join("/");
           folderCounts.set(prefix, (folderCounts.get(prefix) ?? 0) + 1);
         }
