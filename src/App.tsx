@@ -14,6 +14,7 @@ import { VersionHistory } from "./components/VersionHistory";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { DebugPanel } from "./components/DebugPanel";
 import TitleBar from "./components/TitleBar";
+import MobileToolbar from "./components/MobileToolbar";
 import { useSearch } from "./hooks/useSearch";
 import { useDevImport } from "./hooks/useDevImport";
 import { useNotesStore } from "./stores/useNotesStore";
@@ -469,6 +470,43 @@ function App() {
     return () => window.removeEventListener("keydown", handler);
   }, [createNote, setDate]);
 
+  // ── 移动端滑动手势：左边缘右滑 → 打开侧栏，右滑左 → 关闭侧栏 ──
+  useEffect(() => {
+    let touchStartX = 0;
+    let touchStartY = 0;
+    const EDGE_WIDTH = 30; // 左边缘检测宽度（px）
+    const SWIPE_THRESHOLD = 60; // 最小滑动距离
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.changedTouches.length !== 1) return;
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      // 忽略垂直滑动
+      if (Math.abs(dy) > Math.abs(dx)) return;
+
+      if (dx > SWIPE_THRESHOLD && touchStartX < EDGE_WIDTH) {
+        // 左边缘右滑 → 打开侧栏
+        setSidebarHidden(false);
+      } else if (dx < -SWIPE_THRESHOLD) {
+        // 右滑左 → 关闭侧栏
+        setSidebarHidden(true);
+      }
+    };
+
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchend", onTouchEnd);
+    };
+  }, []);
+
   // ── Tauri 全局热键（桌面端系统级快捷键）──
   useEffect(() => {
     const actionsRef = {
@@ -900,6 +938,22 @@ function App() {
           }}
         />
       )}
+
+      {/* 移动端：侧栏遮罩层（点击关闭侧栏） */}
+      <div
+        className={`sidebar-overlay${!sidebarHidden ? " active" : ""}`}
+        onClick={() => setSidebarHidden(true)}
+      />
+
+      {/* 移动端底部工具栏（仅 ≤768px 显示，CSS 控制） */}
+      <MobileToolbar
+        onCreateNote={createNote}
+        onToggleSidebar={() => setSidebarHidden(!sidebarHidden)}
+        onFocusSearch={() => document.querySelector<HTMLInputElement>(".search-input")?.focus()}
+        onOpenSettings={() => setSettingsOpen(true)}
+        sidebarTab={sidebarTab}
+        onToggleTab={() => handleSetSidebarTab(sidebarTab === 'daily' ? 'tree' : 'daily')}
+      />
     </div>
   );
 }
