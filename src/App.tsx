@@ -489,13 +489,15 @@ function App() {
             <span className="arrow arrow-right" />
           </button>
         )}
-        <button
-          className="btn-icon btn-doc-tree-popup"
-          onClick={() => setDocTreePopupOpen(true)}
-          title="文档视图"
-        >
-          📂
-        </button>
+        {sidebarHidden && (
+          <button
+            className="btn-icon btn-doc-tree-popup"
+            onClick={() => setDocTreePopupOpen(true)}
+            title="文档视图"
+          >
+            📂
+          </button>
+        )}
         <DatePicker value={currentDate} onChange={handleDateChange} />
         <span className="header-clock">{clock}</span>
         <DailyOverview />
