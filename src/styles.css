@@ -4359,18 +4359,33 @@ body {
   /* ── Header 紧凑 ── */
   .app-header {
     padding: 6px 10px;
-    gap: 6px;
-    flex-wrap: wrap;
+    gap: 4px;
+    flex-wrap: nowrap;
     min-height: 44px;
+    overflow-x: auto;
   }
 
   .header-clock { display: none; }
+  .header-spacer { display: none; }
 
   .search-input {
-    width: 120px !important;
-    font-size: 13px;
-    padding: 5px 8px;
+    width: 100px !important;
+    font-size: 12px;
+    padding: 4px 6px;
   }
+
+  .search-bar {
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  /* 设置按钮不换行 */
+  .app-header > .btn-icon:last-child {
+    flex-shrink: 0;
+    margin-left: 0;
+  }
+
+  .header-btn-gap { display: none; }
 
   /* ── 编辑器 ── */
   .note-editor {
@@ -4457,28 +4472,29 @@ body {
 
   /* ── 隐藏桌面端元素 ── */
   .header-sticky-area,
-  .header-btn-gap,
   .sidebar-divider {
     display: none;
-  }
-
-  /* ── 搜索 ── */
-  .search-bar {
-    width: 140px;
   }
 }
 
 /* ── 手机 (≤480px) ── */
 @media (max-width: 480px) {
   .app-header {
-    padding: 4px 8px;
-    gap: 4px;
+    padding: 4px 6px;
+    gap: 3px;
     min-height: 40px;
   }
 
   .search-input {
-    width: 100px !important;
+    width: 80px !important;
+    font-size: 11px;
+    padding: 3px 5px;
+  }
+
+  /* DatePicker 紧凑 */
+  .date-picker {
     font-size: 12px;
+    padding: 2px 4px;
   }
 
   .note-editor .editor-title {
