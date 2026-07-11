@@ -169,7 +169,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: '3.42.0'
+          flutter-version: '3.41.9'
 
       - name: Cache Flutter
         uses: actions/cache@v4
