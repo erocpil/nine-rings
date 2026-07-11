@@ -416,7 +416,14 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           const file = item.getAsFile();
           if (!file) continue;
           storeImage(file).then((ref) => {
-            (editor.chain().focus() as any).setResizableImage({ src: ref }).run();
+            const { $from } = editor.state.selection;
+            // ResizableImage 是 block node，不能在段落中间插入。
+            // 在光标所在段落的末尾之后插入图片节点。
+            const pos = $from.after($from.depth);
+            editor.chain().focus().insertContentAt(pos, {
+              type: "resizableImage",
+              attrs: { src: ref },
+            }).run();
           });
         }
       }

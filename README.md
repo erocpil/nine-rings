@@ -210,6 +210,7 @@ nine-rings/
 | [`docs/sync-architecture.md`](./docs/sync-architecture.md) | 跨设备同步架构方案 |
 | [`docs/markdown-import.md`](./docs/markdown-import.md) | Markdown 导入格式说明 |
 | [`docs/features-roadmap.md`](./docs/features-roadmap.md) | 功能路线图 |
+| [`docs/macos-platform-analysis.md`](./docs/macos-platform-analysis.md) | macOS 客户端方案分析（Tauri vs Flutter vs 原生） |
 | [`schema/note.yaml`](./schema/note.yaml) | 数据格式定义（Note / Todo / DailyPage） |
 | [`schema/config.yaml`](./schema/config.yaml) | 配置字段定义 |
 
