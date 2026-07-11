@@ -92,6 +92,22 @@ pub fn clean_old_deleted(state: State<AppState>, older_than_days: i64) -> Result
     Ok(deleted)
 }
 
+// ──── 原生对话框导出/导入（Tauri 桌面端专用）────
+
+#[tauri::command]
+pub fn export_to_file(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, &content).map_err(|e| format!("写入失败: {}", e))
+}
+
+#[tauri::command]
+pub fn import_from_file(
+    state: State<AppState>,
+    path: String,
+) -> Result<ImportResult, String> {
+    let content = std::fs::read_to_string(&path).map_err(|e| format!("读取失败: {}", e))?;
+    import_data(state, content)
+}
+
 #[tauri::command]
 pub fn export_note_markdown(state: State<AppState>, note_id: String) -> Result<String, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;

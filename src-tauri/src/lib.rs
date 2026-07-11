@@ -4,7 +4,12 @@ pub mod export;
 pub mod service;
 
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{
+    menu::{MenuBuilder, MenuItemBuilder},
+    tray::TrayIconBuilder,
+    Emitter,
+    Manager,
+};
 
 pub struct AppState {
     pub db: Mutex<rusqlite::Connection>,
@@ -36,7 +41,54 @@ pub fn run() {
                 db: Mutex::new(conn),
             });
 
+            // ── 系统托盘 ──
+            let tray_menu = {
+                let show = MenuItemBuilder::with_id("show", "显示九戒").build(app)?;
+                let new_note = MenuItemBuilder::with_id("new_note", "新建随笔").build(app)?;
+                let quit = MenuItemBuilder::with_id("quit", "退出").build(app)?;
+                MenuBuilder::new(app)
+                    .item(&show)
+                    .item(&new_note)
+                    .separator()
+                    .item(&quit)
+                    .build()?
+            };
+
+            let _tray = TrayIconBuilder::new()
+                .menu(&tray_menu)
+                .tooltip("九戒")
+                .on_menu_event(|app, event| {
+                    match event.id().as_ref() {
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        "new_note" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                                // 通知前端新建随笔
+                                let _ = window.emit("tray-new-note", ());
+                            }
+                        }
+                        "quit" => {
+                            app.exit(0);
+                        }
+                        _ => {}
+                    }
+                })
+                .build(app)?;
+
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // 关闭窗口 → 隐藏到托盘（不退出应用）
+                let _ = window.hide();
+                api.prevent_close();
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::note::get_notes_by_date,
@@ -55,6 +107,8 @@ pub fn run() {
             commands::config::set_config,
             commands::export::export_data,
             commands::export::import_data,
+            commands::export::export_to_file,
+            commands::export::import_from_file,
             commands::export::get_deleted_notes,
             commands::export::restore_note,
             commands::export::permanently_delete_note,

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { registerShortcuts } from "./lib/global-shortcuts";
 import { useNotes } from "./hooks/useNotes";
 import { DatePicker } from "./components/DatePicker";
 import { TodoList } from "./components/TodoList";
@@ -154,6 +155,19 @@ function App() {
       document.removeEventListener("wheel", preventWheel);
     };
   }, []);
+
+  // ── Tauri 托盘事件："新建随笔" ──
+  useEffect(() => {
+    // @ts-ignore
+    if (typeof window === "undefined" || !window.__TAURI__) return;
+    let unlisten: (() => void) | undefined;
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      listen("tray-new-note", () => {
+        createNote();
+      }).then((fn) => { unlisten = fn; });
+    }).catch(() => {});
+    return () => { unlisten?.(); };
+  }, []); // 仅挂载一次，通过 ref 访问最新值
 
   // 启动时恢复最后浏览的笔记（跨日查找）
   useEffect(() => {
@@ -393,6 +407,21 @@ function App() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [createNote]);
+
+  // ── Tauri 全局热键（桌面端系统级快捷键）──
+  useEffect(() => {
+    const actionsRef = {
+      createNote,
+      focusSearch: () => {
+        document.querySelector<HTMLInputElement>(".search-input")?.focus();
+      },
+      openSettings: () => setSettingsOpen(true),
+    };
+
+    let cleanup: (() => void) | undefined;
+    registerShortcuts(actionsRef).then((fn) => { cleanup = fn; });
+    return () => { cleanup?.(); };
+  }, []); // 仅挂载一次 — registerShortcuts 内部使用传入的闭包
 
   // ── 时钟更新 + 跨日检测 ──
   useEffect(() => {

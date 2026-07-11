@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { api } from "../lib/api";
 import type { AppConfig } from "../types/models";
 import { mdToDelta, extractTitle } from "../lib/md-parser";
+import { isTauri, exportWithDialog, importWithDialog } from "../lib/tauri-desktop";
 
 interface Props {
   open: boolean;
@@ -89,21 +90,52 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport }: Props
   const handleExport = async () => {
     try {
       const data = await api.export.data();
-      const blob = new Blob([data], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `nine-rings-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setMessage("导出成功");
-      setTimeout(() => setMessage(null), 1500);
+      if (isTauri()) {
+        const path = await exportWithDialog(data);
+        if (path) {
+          setMessage(`已保存到 ${path}`);
+        }
+        // 用户取消则不显示任何消息
+      } else {
+        const blob = new Blob([data], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `nine-rings-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setMessage("导出成功");
+      }
+      setTimeout(() => setMessage(null), 2000);
     } catch (e) {
       setMessage(`导出失败: ${e}`);
     }
   };
 
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImport = async () => {
+    setImporting(true);
+    try {
+      if (isTauri()) {
+        const result = await importWithDialog();
+        if (result) {
+          setMessage(`导入完成：${result.notes_imported} 篇笔记, ${result.pages_imported} 个页面`);
+          onImport?.();
+        }
+      } else {
+        // Web 模式：触发隐藏的 file input
+        fileInputRef.current?.click();
+        return; // 后续由 handleImportFile 处理
+      }
+    } catch (e) {
+      setMessage(`导入失败: ${e}`);
+    } finally {
+      setImporting(false);
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
+  /// Web 模式的 file input 回调（Tauri 模式不走这里）
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setImporting(true);
@@ -386,7 +418,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport }: Props
                 </button>
                 <button
                   className="settings-btn-secondary"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={handleImport}
                   disabled={importing}
                 >
                   {importing ? "导入中..." : "导入数据"}
@@ -396,7 +428,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport }: Props
                   type="file"
                   accept=".json"
                   style={{ display: "none" }}
-                  onChange={handleImport}
+                  onChange={handleImportFile}
                 />
               </div>
             </SettingsSection>
