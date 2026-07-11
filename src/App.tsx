@@ -403,6 +403,16 @@ function App() {
         return;
       }
 
+      // Ctrl+Shift+D: 打开每日列表
+      if (e.shiftKey && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        const today = new Date().toISOString().slice(0, 10);
+        setDate(today);
+        setSidebarHidden(false);
+        handleSetSidebarTab('daily');
+        return;
+      }
+
       // 其余 Ctrl+Shift 组合留给编辑器内置快捷键
       if (e.shiftKey) return;
 
@@ -423,7 +433,7 @@ function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [createNote]);
+  }, [createNote, setDate]);
 
   // ── Tauri 全局热键（桌面端系统级快捷键）──
   useEffect(() => {
@@ -433,6 +443,12 @@ function App() {
         document.querySelector<HTMLInputElement>(".search-input")?.focus();
       },
       openSettings: () => setSettingsOpen(true),
+      toggleDaily: () => {
+        const today = new Date().toISOString().slice(0, 10);
+        setDate(today);
+        setSidebarHidden(false);
+        handleSetSidebarTab('daily');
+      },
     };
 
     const hotkeys = { ...DEFAULT_HOTKEYS, ...(config?.hotkeys ?? {}) };
@@ -474,6 +490,10 @@ function App() {
   const handleTitleChange = (title: string) => {
     if (selectedNote) {
       updateNote(selectedNote.id, { title });
+      // 文档笔记：实时刷新 DocTree 以同步名称
+      if (selectedNote.storagePath) {
+        setDocTreeKey(k => k + 1);
+      }
     }
   };
 
@@ -631,7 +651,10 @@ function App() {
                 selectNote(note);
                 setDate(note.date);
               }}
-              onFolderSelect={setSelectedFolderPath}
+              onFolderSelect={(path) => {
+                setSelectedFolderPath(path);
+                selectNote(null);
+              }}
               selectedId={selectedNote?.id ?? null}
               onCreate={() => setDocCreateOpen(true)}
               refreshKey={docTreeKey}
@@ -698,6 +721,7 @@ function App() {
               onSelect={(note) => {
                 selectNote(note);
                 setDate(note.date);
+                setSelectedFolderPath(null);
               }}
               selectedId={null}
             />
@@ -783,7 +807,10 @@ function App() {
                   selectNote(note);
                   setDate(note.date);
                 }}
-                onFolderSelect={setSelectedFolderPath}
+                onFolderSelect={(path) => {
+                  setSelectedFolderPath(path);
+                  selectNote(null);
+                }}
                 selectedId={selectedNote?.id ?? null}
                 onCreate={() => setDocCreateOpen(true)}
                 refreshKey={docTreeKey}

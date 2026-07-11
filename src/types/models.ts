@@ -136,17 +136,19 @@ export interface AppConfig {
 }
 
 export const DEFAULT_HOTKEYS: Record<string, string> = {
-  new_note:      "CommandOrControl+N",
-  quick_capture: "CommandOrControl+Alt+N",
-  focus_search:  "CommandOrControl+E",
-  open_settings: "CommandOrControl+,",
+  new_note:       "CommandOrControl+N",
+  quick_capture:  "CommandOrControl+Alt+N",
+  focus_search:   "CommandOrControl+E",
+  open_settings:  "CommandOrControl+,",
+  go_to_daily:    "CommandOrControl+Shift+D",
 };
 
 export const HOTKEY_LABELS: Record<string, string> = {
-  new_note:      "新建随笔",
-  quick_capture: "快捷记录",
-  focus_search:  "聚焦搜索",
-  open_settings: "打开设置",
+  new_note:       "新建随笔",
+  quick_capture:  "快捷记录",
+  focus_search:   "聚焦搜索",
+  open_settings:  "打开设置",
+  go_to_daily:    "打开每日列表",
 };
 
 export const DEFAULT_CONFIG: AppConfig = {

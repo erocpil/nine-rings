@@ -603,7 +603,8 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             type="text"
             className="note-title"
             placeholder="随心记 — 标题"
-            value={title ?? ""}
+            key={noteId}
+            defaultValue={title ?? ""}
             onChange={(e) => onTitleChange(e.target.value)}
             readOnly={readonly}
           />

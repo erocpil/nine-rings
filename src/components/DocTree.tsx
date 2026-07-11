@@ -154,6 +154,33 @@ function DocTree({
     if (note) onSelect(note);
   };
 
+  const collapseAll = () => {
+    const allFolderPaths = tree
+      .filter((n) => n.type === "folder")
+      .map((n) => n.path);
+    setCollapsed(new Set(allFolderPaths));
+  };
+
+  const collapseOthers = () => {
+    // 找到当前选中文档的父目录
+    const selectedNode = tree.find((n) => n.noteId === selectedId);
+    if (!selectedNode) return;
+    const parts = selectedNode.path.split("/");
+    if (parts.length <= 1) return;
+
+    // 收集所有祖先路径（而非仅直接父目录）
+    // e.g. "projects/nine-rings/docs" → ancestors = {"projects", "projects/nine-rings"}
+    const ancestors = new Set<string>();
+    for (let i = 1; i < parts.length; i++) {
+      ancestors.add(parts.slice(0, i).join("/"));
+    }
+
+    const allFolderPaths = tree
+      .filter((n) => n.type === "folder" && !ancestors.has(n.path))
+      .map((n) => n.path);
+    setCollapsed(new Set(allFolderPaths));
+  };
+
   const handleContextMenu = (e: React.MouseEvent, node: PathNode) => {
     e.preventDefault();
     e.stopPropagation();
@@ -349,6 +376,21 @@ function DocTree({
       <div className="doc-tree-header">
         <span className="doc-tree-title">文档</span>
         <span className="doc-tree-header-spacer" />
+        <button
+          className="btn-icon doc-tree-batch-btn"
+          onClick={collapseAll}
+          title="折叠所有目录"
+        >
+          📁
+        </button>
+        <button
+          className="btn-icon doc-tree-batch-btn"
+          onClick={collapseOthers}
+          title="折叠其它目录（保留当前文档所在目录）"
+          disabled={!selectedId}
+        >
+          📂
+        </button>
         <button
           className={`btn-icon doc-tree-batch-btn ${propertiesAutoShow ? "" : "doc-tree-btn-off"}`}
           onClick={onTogglePropertiesAuto}

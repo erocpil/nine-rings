@@ -188,3 +188,63 @@ i += 1
 ```
 如果此分支被误移入某个 `if` 块内部，普通字符无法推进 `i` → 死循环。
 回归修复的常见原因：补丁时把 `else` 分支误放到缩进内部。
+
+---
+
+## React / 前端交互
+
+### 受控输入 `value={prop}` + 即时 onChange 导致光标跳动
+
+当 `<input value={title} onChange={onTitleChange} />` 中 `onTitleChange` 触发父组件 `updateNote` → store 更新 → `title` prop 回流时，
+React 重新渲染 input，光标被 reset 到末尾，每次输入都跳到末尾。
+
+**修复**：改用非受控模式 `key={noteId}` + `defaultValue={title}`。
+`key` 保证切换笔记时 input 重建并使用新的 `defaultValue`，输入过程中不触发 prop→DOM 回环。
+
+### 受控 input 改为非受控后，外部 prop 更新不会自动反映
+
+非受控 `defaultValue` 只在组件 mount 时生效。如果外部有其他途径修改 title（如 undo），
+input 不会自动更新。需根据场景评估：如果只有这一个输入口，非受控是安全的。
+
+### DocTree 不感知编辑器标题修改
+
+DocTree 的 `tree` 状态在 `useEffect([refreshKey])` 中通过 `api.docs.tree()` 拉取。
+编辑器修改标题后，DocTree 不知道需要刷新。
+
+**修复**：在 `handleTitleChange` 中检测 `selectedNote.storagePath`（文档类笔记），
+自动 `setDocTreeKey(k => k + 1)` 触发 DocTree 重新拉取。
+
+### 条件渲染中的状态竞争：`selectedFolderPath && !selectedNote`
+
+MOC 展示条件是 `selectedFolderPath && sidebarTab === 'tree' && !selectedNote`。
+点击目录设置 `selectedFolderPath`，但若 `selectedNote` 仍指向上次打开的文档，
+MOC 不显示。
+
+**修复**：点击目录时同时 `selectNote(null)`；在 MOC 内选中文档时同时 `setSelectedFolderPath(null)`。
+两状态互斥，确保点击目录 → MOC，点击文档 → 编辑器。
+
+### 快捷键切换视图时需要同时重置日期
+
+`Ctrl+Shift+D` 切换到每日视图 + 展开侧栏，但如果用户之前浏览了其他日期，
+`currentDate` 不是今天，侧栏笔记列表为空。
+
+**修复**：快捷键 handler 中同时 `setDate(today)` 确保显示当日笔记。
+
+---
+
+## DocTree / 折叠逻辑
+
+### "折叠其它目录"需要保留祖先链，而非仅直接父目录
+
+文档路径如 `projects/nine-rings/docs/design.md`，其父目录为 `projects/nine-rings/docs`。
+但仅保留这一个目录不够——祖先 `projects` 和 `projects/nine-rings` 也必须保持展开，
+否则当前目录的父级被折叠后，用户看不到文档树中通往当前文档的路径。
+
+**修复**：遍历 `parts`（按 `/` 切分），用滑动窗口收集所有前缀路径作为祖先：
+```ts
+const ancestors = new Set<string>();
+for (let i = 1; i < parts.length; i++) {
+  ancestors.add(parts.slice(0, i).join("/"));
+}
+```
+折叠时排除 `ancestors` 中的所有路径即可。
