@@ -26,7 +26,7 @@
 | **主题** | 8 套配色（浅 / 深 / 暗 / 芙 / 蔚 / 粋 / 雅 / 幟） |
 | **文件管理** | 导入 / 导出 JSON 备份；Markdown → Nine Rings 一键导入 |
 | **PWA** | 离线可用，Service Worker 缓存策略，可安装到桌面 |
-| **多框架** | Web（React） + macOS/Linux/Windows（Tauri） + iOS/Android（Flutter） |
+| **多框架** | Web（React） + macOS/Linux/Windows（Tauri） + iOS/Android（Flutter，核心功能已实现） |
 
 ---
 
@@ -111,6 +111,47 @@ python3 scripts/md-to-nine-rings.py --serve --port 1420 --path areas/nine-rings 
 ```
 
 要求：应用已在对应端口运行（`npm run dev` 或 `python3 serve.py`）。
+
+### Flutter 移动端
+
+> 状态：核心功能已实现（笔记 CRUD、待办、标签、搜索、回收站、版本历史），尚未与 Web 版完成 parity。
+
+环境要求：Flutter SDK ≥ 3.9.2。
+
+```bash
+cd flutter_app
+
+# 安装依赖
+flutter pub get
+
+# 开发运行
+flutter run
+
+# 构建 APK (Android)
+flutter build apk
+
+# 构建 iOS (macOS)
+flutter build ios
+```
+
+当前 Flutter 版实现的功能：
+
+| 功能 | 状态 |
+|------|------|
+| 按日期浏览笔记 | ✅ |
+| 笔记创建 / 编辑 / 删除 | ✅ |
+| 富文本编辑（flutter_quill） | ✅ |
+| 待办列表（每日独立） | ✅ |
+| 标签系统 | ✅ |
+| 全文搜索 | ✅ |
+| 回收站（软删除 / 恢复） | ✅ |
+| 版本历史 | ✅ |
+| 跨日继承待办 | ✅ |
+| 主题（浅色 / 深色跟随系统） | ✅ |
+| 文档树 / P.A.R.A. 系统 | ❌ 待实现 |
+| 属性面板 / Zettelkasten | ❌ 待实现 |
+| Markdown 导入 | ❌ 待实现 |
+| PWA / Service Worker | N/A |
 
 ---
 
