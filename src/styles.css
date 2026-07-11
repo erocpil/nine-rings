@@ -1599,6 +1599,40 @@ body {
   background: var(--bg);
 }
 
+/* ── 文档树弹窗 ── */
+
+.doc-tree-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-start;
+  animation: fadeIn 0.15s ease;
+}
+
+.doc-tree-popup {
+  width: 320px;
+  max-width: 85vw;
+  height: 100%;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  animation: slideInLeft 0.2s ease;
+  overflow: hidden;
+}
+
+.doc-tree-popup-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
 /* ── 滚动体 ── */
 
 .settings-body {

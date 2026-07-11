@@ -78,6 +78,7 @@ function App() {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [recycleOpen, setRecycleOpen] = useState(false);
+  const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
   const [clock, setClock] = useState(() => {
     const d = new Date();
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -459,6 +460,13 @@ function App() {
             <span className="arrow arrow-right" />
           </button>
         )}
+        <button
+          className="btn-icon btn-doc-tree-popup"
+          onClick={() => setDocTreePopupOpen(true)}
+          title="文档视图"
+        >
+          📂
+        </button>
         <DatePicker value={currentDate} onChange={handleDateChange} />
         <span className="header-clock">{clock}</span>
         <DailyOverview />
@@ -709,6 +717,40 @@ function App() {
         onClose={() => setSettingsOpen(false)}
         onConfigChange={handleConfigChange}
       />
+      {docTreePopupOpen && (
+        <div className="doc-tree-popup-overlay" onClick={() => setDocTreePopupOpen(false)}>
+          <div className="doc-tree-popup" onClick={(e) => e.stopPropagation()}>
+            <div className="settings-header">
+              <h2>文档视图</h2>
+              <button className="settings-close" onClick={() => setDocTreePopupOpen(false)}>✕</button>
+            </div>
+            <div className="doc-tree-popup-body">
+              <DocTree
+                onSelect={(note) => {
+                  selectNote(note);
+                  setDate(note.date);
+                }}
+                onFolderSelect={setSelectedFolderPath}
+                selectedId={selectedNote?.id ?? null}
+                onCreate={() => setDocCreateOpen(true)}
+                refreshKey={docTreeKey}
+                onRename={(id, title) => updateNote(id, { title } as any)}
+                onDelete={(id) => { deleteNote(id); setDocTreeKey(k => k + 1); }}
+                onToggleReadonly={(id, readonly) => updateNote(id, { readonly } as any)}
+                onBatchDelete={(ids) => { ids.forEach(id => deleteNote(id)); setDocTreeKey(k => k + 1); }}
+                onBatchSetReadonly={(ids, readonly) => { ids.forEach(id => updateNote(id, { readonly } as any)); }}
+                propertiesAutoShow={propertiesAutoShow}
+                onTogglePropertiesAuto={() => {
+                  const next = !propertiesAutoShow;
+                  setPropertiesAutoShow(next);
+                  localStorage.setItem(PROP_AUTO_KEY, String(next));
+                  if (!next) setPropertiesOpen(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
       <RecycleBin
         open={recycleOpen}
         onClose={() => setRecycleOpen(false)}
