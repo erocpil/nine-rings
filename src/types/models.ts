@@ -132,10 +132,25 @@ export interface AppConfig {
   dev_port: number;
   highlight_active_line: boolean;
   editor_show_line_numbers: boolean;
+  hotkeys: Record<string, string>;
 }
 
+export const DEFAULT_HOTKEYS: Record<string, string> = {
+  new_note:      "CommandOrControl+N",
+  quick_capture: "CommandOrControl+Alt+N",
+  focus_search:  "CommandOrControl+E",
+  open_settings: "CommandOrControl+,",
+};
+
+export const HOTKEY_LABELS: Record<string, string> = {
+  new_note:      "新建随笔",
+  quick_capture: "快捷记录",
+  focus_search:  "聚焦搜索",
+  open_settings: "打开设置",
+};
+
 export const DEFAULT_CONFIG: AppConfig = {
-  theme: "dark",
+  theme: "light",
   default_view: "daily",
   todo_carryover_default: false,
   auto_clean_days: 30,
@@ -144,4 +159,5 @@ export const DEFAULT_CONFIG: AppConfig = {
   dev_port: 1420,
   highlight_active_line: true,
   editor_show_line_numbers: false,
+  hotkeys: { ...DEFAULT_HOTKEYS },
 };

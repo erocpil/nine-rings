@@ -434,10 +434,10 @@ function App() {
       openSettings: () => setSettingsOpen(true),
     };
 
-    let cleanup: (() => void) | undefined;
-    registerShortcuts(actionsRef).then((fn) => { cleanup = fn; });
-    return () => { cleanup?.(); };
-  }, []); // 仅挂载一次 — registerShortcuts 内部使用传入的闭包
+    const hotkeys = config?.hotkeys ?? {};
+    registerShortcuts(actionsRef, hotkeys);
+    // registerShortcuts 内部管理注销，返回 void
+  }, [config?.hotkeys ? JSON.stringify(config.hotkeys) : ""]);
 
   // ── 时钟更新 + 跨日检测 ──
   useEffect(() => {

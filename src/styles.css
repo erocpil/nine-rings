@@ -4196,3 +4196,85 @@ body {
 .qc-submit:hover {
   opacity: 0.85;
 }
+
+/* ═══════════════════════════════════════════
+   快捷键配置
+   ═══════════════════════════════════════════ */
+
+.hotkey-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hotkey-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hotkey-label {
+  width: 80px;
+  font-size: 13px;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.hotkey-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.hotkey-btn:hover {
+  border-color: var(--accent);
+}
+
+.hotkey-btn kbd {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.hotkey-input {
+  background: var(--bg);
+  border: 1px dashed var(--accent);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--accent);
+  width: 160px;
+  outline: none;
+}
+
+.hotkey-input.recording {
+  animation: hotkey-pulse 1s ease-in-out infinite;
+}
+
+@keyframes hotkey-pulse {
+  0%, 100% { border-color: var(--accent); }
+  50% { border-color: transparent; }
+}
+
+.hotkey-reset {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 4px;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.hotkey-reset:hover:not(:disabled) {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.hotkey-reset:disabled {
+  visibility: hidden;
+}

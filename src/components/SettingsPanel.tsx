@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { api } from "../lib/api";
 import type { AppConfig } from "../types/models";
+import { DEFAULT_HOTKEYS, HOTKEY_LABELS } from "../types/models";
 import { mdToDelta, extractTitle } from "../lib/md-parser";
 import { isTauri, exportWithDialog, importWithDialog } from "../lib/tauri-desktop";
 
@@ -346,6 +347,16 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport }: Props
             </Field>
 
             {/* ═══════════════════════ */}
+            {/* 快捷键 */}
+            {/* ═══════════════════════ */}
+            <SettingsSection title="快捷键" desc="点击快捷键后按下新组合键即可修改">
+              <HotkeyConfig
+                config={config}
+                onUpdate={(hk) => update({ hotkeys: hk })}
+              />
+            </SettingsSection>
+
+            {/* ═══════════════════════ */}
             {/* 标签管理 */}
             {/* ═══════════════════════ */}
             <SettingsSection title="标签管理" desc="管理所有笔记中的标签">
@@ -473,6 +484,95 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport }: Props
       </div>
     </div>
   );
+}
+
+// ── 字段包装 ──
+
+// ── 快捷键配置 ──
+
+function HotkeyConfig({ config, onUpdate }: {
+  config: AppConfig;
+  onUpdate: (hk: Record<string, string>) => void;
+}) {
+  const [recordingId, setRecordingId] = useState<string | null>(null);
+
+  const startRecord = (id: string) => setRecordingId(id);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    e.preventDefault();
+    if (e.key === "Escape") {
+      setRecordingId(null);
+      return;
+    }
+    if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) return;
+
+    const parts: string[] = [];
+    if (e.ctrlKey || e.metaKey) parts.push("CommandOrControl");
+    if (e.altKey) parts.push("Alt");
+    if (e.shiftKey) parts.push("Shift");
+
+    const key = e.key.length === 1 ? e.key.toUpperCase() : e.key;
+    parts.push(key);
+
+    const shortcut = parts.join("+");
+    const updated = { ...config.hotkeys, [recordingId!]: shortcut };
+    onUpdate(updated);
+    setRecordingId(null);
+  };
+
+  const resetHotkey = (id: string) => {
+    const updated = { ...config.hotkeys, [id]: DEFAULT_HOTKEYS[id] };
+    onUpdate(updated);
+  };
+
+  return (
+    <div className="hotkey-list">
+      {Object.entries(HOTKEY_LABELS).map(([id, label]) => {
+        const current = config.hotkeys?.[id] || DEFAULT_HOTKEYS[id];
+        const isRecording = recordingId === id;
+
+        return (
+          <div key={id} className="hotkey-row">
+            <span className="hotkey-label">{label}</span>
+            {isRecording ? (
+              <input
+                className={`hotkey-input recording`}
+                value="按下新快捷键…"
+                readOnly
+                onKeyDown={handleKeyDown}
+                onBlur={() => setRecordingId(null)}
+                autoFocus
+              />
+            ) : (
+              <button
+                className="hotkey-btn"
+                onClick={() => startRecord(id)}
+                title="点击修改快捷键"
+              >
+                <kbd>{formatShortcut(current)}</kbd>
+              </button>
+            )}
+            <button
+              className="hotkey-reset"
+              onClick={() => resetHotkey(id)}
+              title="恢复默认"
+              disabled={current === DEFAULT_HOTKEYS[id]}
+            >
+              ↺
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function formatShortcut(s: string): string {
+  return s
+    .replace("CommandOrControl", navigator.platform.includes("Mac") ? "⌘" : "Ctrl")
+    .replace("Alt", navigator.platform.includes("Mac") ? "⌥" : "Alt")
+    .replace("Shift", navigator.platform.includes("Mac") ? "⇧" : "Shift")
+    .replace(/\+/g, " + ");
 }
 
 // ── 字段包装 ──
