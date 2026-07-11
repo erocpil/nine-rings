@@ -17,11 +17,11 @@ cargo tauri build      # 2. 编译 Rust 后端 + 打包
 
 ## 环境要求
 
-| 组件 | Linux | Windows |
-|------|-------|---------|
-| Rust | ≥ 1.77.0（`rustup` 安装） | ≥ 1.77.0（`rustup` 安装，MSVC 工具链） |
-| Node.js | ≥ 18（`nvm` 推荐） | ≥ 18 |
-| 系统包 | 见下方「系统依赖」 | Visual Studio 2022 Build Tools |
+| 组件 | macOS | Linux | Windows |
+|------|-------|-------|---------|
+| Rust | ≥ 1.77.0（`rustup` 安装） | ≥ 1.77.0（`rustup` 安装） | ≥ 1.77.0（`rustup` 安装，MSVC 工具链） |
+| Node.js | ≥ 18（`nvm` 推荐） | ≥ 18（`nvm` 推荐） | ≥ 18 |
+| 系统包 | Xcode Command Line Tools | 见下方「系统依赖」 | Visual Studio 2022 Build Tools |
 
 > **注意**：Debian 12 仓库自带的 Rust 1.63 版本过旧，不满足 Tauri v2 对 Rust ≥ 1.77 的要求。必须通过 rustup 安装最新稳定版。
 
@@ -210,7 +210,138 @@ npm run tauri build
 
 ---
 
-## 三、Linux → Windows 交叉编译（可选）
+## 三、macOS 构建
+
+### 3.1 从 GitHub 克隆代码
+
+```bash
+git clone https://github.com/erocpil/nine-rings.git
+cd nine-rings
+```
+
+### 3.2 安装 Xcode Command Line Tools
+
+Tauri 在 macOS 上需要 Xcode Command Line Tools 提供编译器和 SDK：
+
+```bash
+xcode-select --install
+```
+
+弹出安装对话框，点击「安装」，等待完成。完成后验证：
+
+```bash
+xcode-select -p
+# 应输出：/Library/Developer/CommandLineTools
+
+cc --version
+# 应显示 Apple Clang 版本信息
+```
+
+> **注意**：仅需 Command Line Tools（~2GB），不需要完整的 Xcode.app（~12GB）。若已安装完整 Xcode，可通过 `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` 切换。
+
+### 3.3 安装 Rust（rustup）
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source "$HOME/.cargo/env"
+rustc --version   # 应 ≥ 1.77.0
+```
+
+### 3.4 安装 Node.js
+
+推荐使用 [nvm](https://github.com/nvm-sh/nvm) 管理 Node.js 版本：
+
+```bash
+# 安装 nvm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+
+# 重新加载 shell 配置（或新开终端）
+source ~/.zshrc
+
+# 安装 Node.js 20 LTS
+nvm install 20
+nvm use 20
+node --version   # 应 ≥ 18
+```
+
+也可通过 [Homebrew](https://brew.sh) 安装：
+
+```bash
+brew install node@20
+```
+
+### 3.5 安装 Node.js 依赖
+
+```bash
+cd nine-rings
+npm install
+```
+
+### 3.6 构建
+
+```bash
+# 方式一：一步完成（前端 + Rust + 打包）
+npm run tauri build
+
+# 方式二：开发模式运行（热重载）
+npm run tauri dev
+```
+
+首次构建 `rusqlite`（`bundled` feature）会从源码编译 SQLite，耗时 3–5 分钟。后续增量构建仅需数秒。
+
+### 3.7 产物位置
+
+| 格式 | 路径 |
+|------|------|
+| `.dmg` | `src-tauri/target/release/bundle/dmg/Nine Rings_0.1.0_x64.dmg` |
+| `.app` | `src-tauri/target/release/bundle/macos/Nine Rings.app` |
+
+> **Apple Silicon (ARM64) 用户**：Tauri 默认编译为 `x64`（通过 Rosetta 2 运行）。若需原生 ARM64 二进制，添加 target 后构建：
+> ```bash
+> rustup target add aarch64-apple-darwin
+> npm run tauri build -- --target aarch64-apple-darwin
+> ```
+> ARM64 构建的 `.dmg` 无法在 Intel Mac 上运行。若需通用分发，建议默认使用 x64（Rosetta 2 开销对便签应用可忽略），或分别构建两个架构版本。
+
+### 3.8 产物使用
+
+**`.dmg`**：双击挂载，将 `Nine Rings.app` 拖入 `Applications` 文件夹即可。数据存储在 `~/Library/Application Support/com.ninerings.app/` 下的 SQLite 数据库中。
+
+**直接运行 `.app`**：
+
+```bash
+open "src-tauri/target/release/bundle/macos/Nine Rings.app"
+```
+
+首次启动时，若从互联网下载的 `.dmg`，macOS Gatekeeper 可能阻止运行。右键点击 `.app` →「打开」即可放行。
+
+### 3.9 公证（可选，用于分发）
+
+将 `.dmg` 分发给他人时，建议通过 Apple 公证流程避免 Gatekeeper 警告：
+
+```bash
+# 1. 对 .app 签名（需要 Apple Developer ID）
+codesign --sign "Developer ID Application: Your Name (TEAMID)" \
+  --force --deep --options runtime \
+  "src-tauri/target/release/bundle/macos/Nine Rings.app"
+
+# 2. 创建 .dmg 并公证
+npm run tauri build -- --bundles dmg
+xcrun notarytool submit \
+  "src-tauri/target/release/bundle/dmg/Nine Rings_0.1.0_x64.dmg" \
+  --apple-id "your@email.com" --team-id "TEAMID" \
+  --password "@keychain:AC_PASSWORD" --wait
+
+# 3. 装订公证票据（支持离线验证）
+xcrun stapler staple \
+  "src-tauri/target/release/bundle/dmg/Nine Rings_0.1.0_x64.dmg"
+```
+
+> 公证需要 [Apple Developer Program](https://developer.apple.com/programs/) 会员（$99/年）及在 [App Store Connect](https://appstoreconnect.apple.com) 中生成的 App-Specific Password。个人使用无需此步骤——右键「打开」即可绕过 Gatekeeper。
+
+---
+
+## 四、Linux → Windows 交叉编译（可选）
 
 在 Linux 上构建 Windows 版本，使用 `cargo-xwin`：
 
@@ -230,7 +361,7 @@ cargo xwin build --release --target x86_64-pc-windows-msvc
 
 ---
 
-## 四、常见问题
+## 五、常见问题
 
 ### Q: error: could not find `tauri-build` in `build-dependencies`
 
@@ -299,7 +430,7 @@ npm install
 
 ---
 
-## 五、CI/CD
+## 六、CI/CD
 
 项目已配置 GitHub Actions，见 `.github/workflows/ci.yml`。每次推送到 `main` 或发起 PR 时自动执行：
 
@@ -308,11 +439,14 @@ npm install
 | Web Frontend | ubuntu-22.04 | `dist/` (artifact) |
 | Tauri Desktop (Linux) | ubuntu-22.04 | `.deb` + `.rpm` + `.AppImage` |
 | Tauri Desktop (Windows) | windows-2022 | `.msi` + `.exe` |
+| Flutter (Android APK) | ubuntu-22.04 | `.apk` |
+
+> **macOS / iOS 不在 CI 中**：GitHub Actions macOS runner 费用是 Linux 的 10 倍（[定价](https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions)）。Tauri macOS `.dmg`、Flutter macOS `.app` 和 Flutter iOS `.ipa` 需在本地 macOS 机器上构建。详见 [`FLUTTER_BUILD.md`](./FLUTTER_BUILD.md)。
 
 CI 运行页：https://github.com/erocpil/nine-rings/actions
 
 ---
 
-## 六、版本号
+## 七、版本号
 
 构建产物版本号继承自 `src-tauri/tauri.conf.json` 中的 `version` 字段（当前 `0.1.0`）。前端界面的运行时版本号由 `vite.config.ts` 自动注入为 `<7位 commit SHA>.<UTC 时间戳>` 格式，仅影响 Web 界面右下角显示，不影响安装包包名。

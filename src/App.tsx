@@ -13,6 +13,7 @@ import type { UndoState } from "./components/UndoToast";
 import { VersionHistory } from "./components/VersionHistory";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { DebugPanel } from "./components/DebugPanel";
+import TitleBar from "./components/TitleBar";
 import { useSearch } from "./hooks/useSearch";
 import { useDevImport } from "./hooks/useDevImport";
 import { useNotesStore } from "./stores/useNotesStore";
@@ -489,6 +490,7 @@ function App() {
 
   return (
     <div className={`app ${focusMode ? "app-focus-mode" : ""}`}>
+      <TitleBar />
       <header className="app-header">
         {error && (
           <div className="error-bar" onClick={clearError}>

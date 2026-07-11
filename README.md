@@ -134,7 +134,7 @@ python3 scripts/md-to-nine-rings.py --serve --port 1420 --path areas/nine-rings 
 
 > 状态：核心功能已实现（笔记 CRUD、待办、标签、搜索、回收站、版本历史），尚未与 Web 版完成 parity。
 
-环境要求：Flutter SDK ≥ 3.9.2。
+环境要求：Flutter SDK ≥ 3.9.2，macOS 需 Xcode。
 
 ```bash
 cd flutter_app
@@ -142,18 +142,20 @@ cd flutter_app
 # 安装依赖
 flutter pub get
 
-# 开发运行
+# macOS 桌面
+flutter build macos
+
+# iOS 模拟器
 flutter run
 
-# 构建 Android APK
+# iOS 真机
+flutter run -d <device_id>
+
+# Android APK
 flutter build apk
-
-# 构建 iOS (需 macOS + Xcode)
-flutter build ios
-
-# 构建 macOS 桌面应用 (需 macOS)
-flutter build macos
 ```
+
+> 完整步骤（从 GitHub clone 到产物运行）见 [`docs/FLUTTER_BUILD.md`](./docs/FLUTTER_BUILD.md)。
 
 当前 Flutter 版实现的功能：
 
@@ -212,7 +214,8 @@ nine-rings/
 
 | 文档 | 说明 |
 |------|------|
-| [`docs/TAURI_BUILD.md`](./docs/TAURI_BUILD.md) | Tauri 桌面端完整构建指南 |
+| [`docs/TAURI_BUILD.md`](./docs/TAURI_BUILD.md) | Tauri 桌面端完整构建指南（macOS / Linux / Windows） |
+| [`docs/FLUTTER_BUILD.md`](./docs/FLUTTER_BUILD.md) | Flutter 移动端 + macOS 桌面构建指南（macOS / iOS） |
 | [`docs/TAURI_DESIGN.md`](./docs/TAURI_DESIGN.md) | Tauri 架构设计文档 |
 | [`docs/document-system-design.md`](./docs/document-system-design.md) | 文档管理系统设计（P.A.R.A. × Zettelkasten × Diátaxis） |
 | [`docs/sync-architecture.md`](./docs/sync-architecture.md) | 跨设备同步架构方案 |
@@ -238,7 +241,7 @@ nine-rings/
 
 自动触发：`push` / `pull_request` to `main`。
 
-> **macOS 不在 CI 中**：GitHub Actions macOS runner 费用是 Linux 的 10 倍（[定价](https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions)）。macOS 产物（Tauri `.dmg`、Flutter `macos`）需在本地构建。
+> **macOS / iOS 不在 CI 中**：GitHub Actions macOS runner 费用是 Linux 的 10 倍（[定价](https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions)）。Tauri macOS `.dmg` 和 Flutter macOS/iOS 产物需在本地构建。详见 [`docs/FLUTTER_BUILD.md`](./docs/FLUTTER_BUILD.md)。
 
 ---
 

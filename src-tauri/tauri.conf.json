@@ -14,11 +14,12 @@
       {
         "title": "Nine Rings",
         "width": 960,
-        "height": 680,
+        "height": 712,
         "minWidth": 720,
         "minHeight": 480,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "decorations": false
       }
     ],
     "security": {
