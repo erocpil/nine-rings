@@ -86,6 +86,8 @@ def parse_inline(text):
             result.append((text[i], {}))
             i += 1
             continue
+        result.append((text[i], {}))
+        i += 1
     return result
 
 
