@@ -130,23 +130,18 @@ pub fn run() {
             // ── Alt+Y 系统级全局热键（Rust 端，不依赖 WebView）──
             {
                 use tauri_plugin_global_shortcut::GlobalShortcutExt;
-                use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
+                use tauri_plugin_global_shortcut::ShortcutState;
 
-                match Shortcut::parse("Alt+Y") {
-                    Ok(shortcut) => {
-                        let app_h = app.handle().clone();
-                        if let Err(e) = app.global_shortcut().register(
-                            shortcut,
-                            move |_app, _s, event| {
-                                if event.state == ShortcutState::Pressed {
-                                    show_main_window(&app_h);
-                                }
-                            },
-                        ) {
-                            log::warn!("failed to register Alt+Y global shortcut: {}", e);
+                let app_h = app.handle().clone();
+                if let Err(e) = app.global_shortcut().on_shortcut(
+                    "Alt+Y",
+                    move |_app, _s, event| {
+                        if event.state == ShortcutState::Pressed {
+                            show_main_window(&app_h);
                         }
-                    }
-                    Err(e) => log::warn!("failed to parse Alt+Y shortcut: {}", e),
+                    },
+                ) {
+                    log::warn!("failed to register Alt+Y global shortcut: {}", e);
                 }
             }
 
