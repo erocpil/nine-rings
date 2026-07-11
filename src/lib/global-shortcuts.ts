@@ -76,6 +76,8 @@ export async function registerShortcuts(
     const unregFns: (() => void)[] = [];
 
     for (const [id, shortcut] of Object.entries(bindings)) {
+      // show_window 由 Rust 端注册（系统级，不依赖 WebView），JS 跳过
+      if (id === "show_window") continue;
       const handler = makeHandler(id, actions, invoke);
       if (!handler) continue;
       if (!shortcut || shortcut.trim() === "") continue;

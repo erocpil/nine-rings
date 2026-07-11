@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 /// 打开/切换 Quick Capture 迷你窗口
 ///
@@ -37,5 +37,17 @@ pub fn toggle_quick_capture(app: AppHandle) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
 
     let _ = window.set_focus();
+    Ok(())
+}
+
+/// QC 窗口向主窗口发送事件（跨窗口通信）
+#[tauri::command]
+pub fn emit_to_main(app: AppHandle, event: String) -> Result<(), String> {
+    if let Some(main) = app.get_webview_window("main") {
+        main.emit(&event, ()).map_err(|e| e.to_string())?;
+        log::info!("[QC] emit_to_main: {} → main window", event);
+    } else {
+        log::warn!("[QC] emit_to_main: main window not found");
+    }
     Ok(())
 }

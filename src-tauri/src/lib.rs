@@ -127,6 +127,29 @@ pub fn run() {
                 Err(e) => log::error!("failed to create tray icon: {} (app will run without tray)", e),
             }
 
+            // ── Alt+Y 系统级全局热键（Rust 端，不依赖 WebView）──
+            {
+                use tauri_plugin_global_shortcut::GlobalShortcutExt;
+                use tauri_plugin_global_shortcut::{Shortcut, ShortcutState};
+
+                match Shortcut::parse("Alt+Y") {
+                    Ok(shortcut) => {
+                        let app_h = app.handle().clone();
+                        if let Err(e) = app.global_shortcut().register(
+                            shortcut,
+                            move |_app, _s, event| {
+                                if event.state == ShortcutState::Pressed {
+                                    show_main_window(&app_h);
+                                }
+                            },
+                        ) {
+                            log::warn!("failed to register Alt+Y global shortcut: {}", e);
+                        }
+                    }
+                    Err(e) => log::warn!("failed to parse Alt+Y shortcut: {}", e),
+                }
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -173,6 +196,7 @@ pub fn run() {
             commands::doc_tree::get_all_concepts,
             commands::doc_tree::get_path_tree,
             commands::quick_capture::toggle_quick_capture,
+            commands::quick_capture::emit_to_main,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

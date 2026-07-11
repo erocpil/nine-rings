@@ -7,8 +7,26 @@
 }
 
 :root {
-  --bg: #0d1117;
+  --bg: #ffffff;
+  --surface: #f6f8fa;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --text-secondary: #656d76;
+  --accent: #0969da;
+  --accent-hover: #0550ae;
+  --danger: #cf222e;
+  --success: #1a7f37;
   touch-action: pan-y;
+  --radius: 6px;
+  --transition: 0.2s ease;
+  --code-bg: #f0f2f5;
+  --activeline-bg: rgba(9, 105, 218, 0.05);
+}
+
+/* ── 深色主题 ── */
+
+.theme-dark {
+  --bg: #0d1117;
   --surface: #161b22;
   --border: #30363d;
   --text: #e6edf3;
@@ -17,13 +35,11 @@
   --accent-hover: #79c0ff;
   --danger: #f85149;
   --success: #3fb950;
-  --radius: 6px;
-  --transition: 0.2s ease;
   --code-bg: #11161c;
   --activeline-bg: rgba(88, 166, 255, 0.06);
 }
 
-/* ── 浅色主题 ── */
+/* ── 浅色主题（覆盖默认值，与 :root 一致，保留兼容） ── */
 
 .theme-light {
   --bg: #ffffff;

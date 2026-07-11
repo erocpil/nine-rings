@@ -13,7 +13,6 @@ function applyQCTheme(theme: string) {
     return;
   }
 
-  // 移除旧主题类
   root.classList.remove(
     "theme-light", "theme-dark", "theme-fu", "theme-grace",
     "theme-sui", "theme-zhi", "theme-azure", "theme-azure-dark",
@@ -42,14 +41,14 @@ export default function QuickCapture() {
 
   // ── 1. 加载配置 + 应用主题 ──
   useEffect(() => {
-    console.log("[QC] 窗口挂载 — 加载配置...");
+    console.log("[QC] ┌─ 窗口挂载 — 加载配置...");
     api.config.get().then((c) => {
-      console.log(`[QC] 配置加载完成: theme=${c.theme} font_size=${c.note_font_size}`);
+      console.log(`[QC] ├─ 配置加载完成: theme=${c.theme} font_size=${c.note_font_size}`);
       applyQCTheme(c.theme);
       setLoading(false);
+      console.log("[QC] └─ 主题已应用，loading=false");
     }).catch((e) => {
-      console.error("[QC] 配置加载失败:", e);
-      // 回退：用浅色主题
+      console.error("[QC] ✗ 配置加载失败:", e);
       applyQCTheme("light");
       setLoading(false);
     });
@@ -58,46 +57,53 @@ export default function QuickCapture() {
   // ── 2. 窗口显示时聚焦输入框 ──
   useEffect(() => {
     if (!loading) {
-      console.log("[QC] 聚焦输入框");
+      console.log("[QC] ▶ 聚焦输入框，等待用户输入");
       textareaRef.current?.focus();
     }
   }, [loading]);
 
   // ── 3. 提交 ──
   const submit = useCallback(async () => {
-    console.log(`[QC] 提交 — 原始文本长度: ${text.length}`);
+    console.log(`[QC] ┌─ submit() 开始 — rawText长度=${text.length}`);
     const content = text.trim();
     if (!content) {
-      console.log("[QC] 空内容，关闭窗口");
+      console.log("[QC] ├─ 空内容 → 直接关闭窗口");
       await getCurrentWindow().hide();
+      console.log("[QC] └─ 窗口已隐藏");
       return;
     }
 
     const lines = content.split("\n");
     const title = lines[0].slice(0, 80);
     const body = lines.length > 1 ? lines.slice(1).join("\n") : "";
-    console.log(`[QC] title="${title}" body_len=${body.length}`);
+    const today = new Date().toISOString().slice(0, 10);
+    console.log(`[QC] ├─ 解析完成: date=${today} title="${title}" bodyLen=${body.length}`);
 
     try {
-      console.log("[QC] 调用 create_note...");
+      console.log("[QC] ├─ invoke create_note ...");
       await invoke("create_note", {
         data: {
           title,
           content: JSON.stringify({ ops: [{ insert: body }] }),
-          date: new Date().toISOString().slice(0, 10),
+          date: today,
           tags: [],
           pinned: false,
           sort_order: 0,
         },
       });
-      console.log("[QC] create_note 成功，通知主窗口刷新");
-      await getCurrentWindow().emit("quick-capture-created");
+      console.log("[QC] ├─ create_note ✓ 成功");
+
+      // 跨窗口通知主窗口刷新（必须用 emit_to_main，不能用 getCurrentWindow().emit）
+      console.log("[QC] ├─ invoke emit_to_main(\"quick-capture-created\")");
+      await invoke("emit_to_main", { event: "quick-capture-created" });
+      console.log("[QC] ├─ emit_to_main ✓ 已通知主窗口刷新");
     } catch (e) {
-      console.error("[QC] create_note 失败:", e);
+      console.error("[QC] ✗ 操作失败:", e);
     } finally {
       setText("");
-      console.log("[QC] 隐藏窗口");
+      console.log("[QC] ├─ 清空输入框 → 隐藏窗口");
       await getCurrentWindow().hide();
+      console.log("[QC] └─ 窗口已隐藏，submit() 结束");
     }
   }, [text]);
 
@@ -106,10 +112,10 @@ export default function QuickCapture() {
     (e: React.KeyboardEvent) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        console.log("[QC] Enter → 提交");
+        console.log("[QC] ⏎ Enter 键 → 调用 submit()");
         submit();
       } else if (e.key === "Escape") {
-        console.log("[QC] Esc → 取消");
+        console.log("[QC] ⎋ Esc 键 → 取消并关闭");
         setText("");
         getCurrentWindow().hide();
       }

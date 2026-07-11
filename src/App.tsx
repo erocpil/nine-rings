@@ -179,11 +179,13 @@ function App() {
     let unlisten: (() => void) | undefined;
     import("@tauri-apps/api/event").then(({ listen }) => {
       listen("quick-capture-created", () => {
-        // quick capture 提交的笔记写入今天日期，重新加载当日列表
         const today = new Date().toISOString().slice(0, 10);
+        addLog(`[QC→主窗口] 收到 quick-capture-created, 切到日期 ${today}`);
         setDate(today);
       }).then((fn) => { unlisten = fn; });
-    }).catch(() => {});
+    }).catch((e) => {
+      console.warn("[QC→主窗口] 事件监听注册失败:", e);
+    });
     return () => { unlisten?.(); };
   }, []);
 
@@ -395,6 +397,20 @@ function App() {
   // 键盘快捷键
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // F11: 全屏切换（Tauri 桌面端；Web 端浏览器原生处理）
+      if (e.key === "F11" && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        // @ts-ignore
+        if (typeof window !== "undefined" && window.__TAURI__) {
+          import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
+            getCurrentWindow().isFullscreen().then((fs) => {
+              getCurrentWindow().setFullscreen(!fs);
+            });
+          }).catch(() => {});
+        }
+        return;
+      }
+
       const ctrl = e.ctrlKey || e.metaKey;
       if (!ctrl) return;
 
@@ -679,7 +695,8 @@ function App() {
                 const next = !propertiesAutoShow;
                 setPropertiesAutoShow(next);
                 localStorage.setItem(PROP_AUTO_KEY, String(next));
-                if (!next) setPropertiesOpen(false);
+                if (next) setPropertiesOpen(true);
+                else setPropertiesOpen(false);
               }}
             />
           )}
@@ -835,7 +852,8 @@ function App() {
                   const next = !propertiesAutoShow;
                   setPropertiesAutoShow(next);
                   localStorage.setItem(PROP_AUTO_KEY, String(next));
-                  if (!next) setPropertiesOpen(false);
+                  if (next) setPropertiesOpen(true);
+                  else setPropertiesOpen(false);
                 }}
               />
             </div>
