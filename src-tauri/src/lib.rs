@@ -50,7 +50,7 @@ pub fn run() {
 
             // ── 系统托盘 ──
             let tray_menu = {
-                let show = MenuItemBuilder::with_id("show", "显示九戒").build(app)?;
+                let show = MenuItemBuilder::with_id("show", "显示九环").build(app)?;
                 let new_note = MenuItemBuilder::with_id("new_note", "新建随笔").build(app)?;
                 let quit = MenuItemBuilder::with_id("quit", "退出").build(app)?;
                 MenuBuilder::new(app)
@@ -63,7 +63,7 @@ pub fn run() {
 
             let _tray = TrayIconBuilder::new()
                 .menu(&tray_menu)
-                .tooltip("九戒")
+                .tooltip("九环")
                 .on_menu_event(|app, event| {
                     match event.id().as_ref() {
                         "show" => {
