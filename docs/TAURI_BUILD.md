@@ -103,11 +103,39 @@ cd .. && npm run tauri build  # 完整构建 + 打包
 
 | 格式 | 路径 |
 |------|------|
-| `.deb` | `src-tauri/target/release/bundle/deb/nine-rings_0.1.0_amd64.deb` |
-| `.AppImage` | `src-tauri/target/release/bundle/appimage/nine-rings_0.1.0_amd64.AppImage` |
+| `.deb` | `src-tauri/target/release/bundle/deb/Nine Rings_0.1.0_amd64.deb` |
+| `.rpm` | `src-tauri/target/release/bundle/rpm/Nine Rings-0.1.0-1.x86_64.rpm` |
+| `.AppImage` | `src-tauri/target/release/bundle/appimage/Nine Rings_0.1.0_amd64.AppImage` |
 | 可执行文件 | `src-tauri/target/release/nine-rings` |
 
-### 1.6 调试运行
+### 1.6 产物使用
+
+**`.deb`（Debian / Ubuntu / Deepin）：**
+
+```bash
+sudo dpkg -i "Nine Rings_0.1.0_amd64.deb"
+# 安装后可通过系统菜单或终端启动：
+nine-rings
+```
+
+**`.rpm`（Fedora / CentOS / openSUSE）：**
+
+```bash
+sudo rpm -ivh "Nine Rings-0.1.0-1.x86_64.rpm"
+# 安装后启动：
+nine-rings
+```
+
+**`.AppImage`（通用 Linux，无需安装）：**
+
+```bash
+chmod +x "Nine Rings_0.1.0_amd64.AppImage"
+./"Nine Rings_0.1.0_amd64.AppImage"
+```
+
+`.AppImage` 自包含所有依赖（GTK、WebKit 等），体积较大（~96 MB），适合不便安装系统包的场景或便携使用。
+
+### 1.7 调试运行
 
 ```bash
 npm run tauri dev    # 开发模式，带热重载
@@ -169,8 +197,16 @@ npm run tauri build
 
 | 格式 | 路径 |
 |------|------|
-| `.msi` | `src-tauri\target\release\bundle\msi\nine-rings_0.1.0_x64.msi` |
-| `.exe`（NSIS） | `src-tauri\target\release\bundle\nsis\nine-rings_0.1.0_x64-setup.exe` |
+| `.msi` | `src-tauri\target\release\bundle\msi\Nine Rings_0.1.0_x64_en-US.msi` |
+| `.exe`（NSIS） | `src-tauri\target\release\bundle\nsis\Nine Rings_0.1.0_x64-setup.exe` |
+
+### 2.7 产物使用
+
+**`.msi`（推荐）：** 双击运行，按向导安装。安装后从开始菜单启动 "Nine Rings"。
+
+**`.exe`（NSIS 安装包）：** 双击运行，与 `.msi` 等效。
+
+安装后程序位于 `%LOCALAPPDATA%\nine-rings\`，数据存储在 `%APPDATA%\com.ninerings.app\` 下的 SQLite 数据库。
 
 ---
 
@@ -241,6 +277,18 @@ npm config set proxy http://proxy.example.com:3128
 npm config set https-proxy http://proxy.example.com:3128
 ```
 
+### Q: AppImage 打包时下载 `AppRun` / `linuxdeploy` 失败
+
+Tauri 打包 AppImage 时需要从 GitHub 下载若干辅助二进制文件。若网络受限，设置代理后重试：
+
+```bash
+export http_proxy=http://proxy.example.com:3128
+export https_proxy=http://proxy.example.com:3128
+npm run tauri build
+```
+
+> 注：`.deb` 和 `.rpm` 打包不受影响——它们不需要下载外部文件。AppImage 下载失败不会阻止前两者生成。
+
 ### Q: Windows 上 `npm run tauri build` 报 `Cannot find module`
 
 ```powershell
@@ -251,39 +299,17 @@ npm install
 
 ---
 
-## 五、CI/CD 建议
+## 五、CI/CD
 
-### GitHub Actions（Linux + Windows 矩阵构建）
+项目已配置 GitHub Actions，见 `.github/workflows/ci.yml`。每次推送到 `main` 或发起 PR 时自动执行：
 
-```yaml
-name: Build
-on: [push, pull_request]
+| Job | Runner | 产物 |
+|-----|--------|------|
+| Web Frontend | ubuntu-22.04 | `dist/` (artifact) |
+| Tauri Desktop (Linux) | ubuntu-22.04 | `.deb` + `.rpm` + `.AppImage` |
+| Tauri Desktop (Windows) | windows-2022 | `.msi` + `.exe` |
 
-jobs:
-  build:
-    strategy:
-      matrix:
-        os: [ubuntu-22.04, windows-2022]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '20' }
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install Linux deps
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt update
-          sudo apt install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
-            libayatana-appindicator3-dev librsvg2-dev libssl-dev \
-            libsoup-3.0-dev libjavascriptcoregtk-4.1-dev patchelf
-      - run: npm ci
-      - run: npm run tauri build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: nine-rings-${{ runner.os }}
-          path: src-tauri/target/release/bundle/
-```
+CI 运行页：https://github.com/erocpil/nine-rings/actions
 
 ---
 
