@@ -48,45 +48,47 @@ pub fn run() {
                 db: Mutex::new(conn),
             });
 
-            // ── 系统托盘 ──
-            let tray_menu = {
+            // ── 系统托盘（非关键：失败不影响应用启动）──
+            match (|| -> Result<_, Box<dyn std::error::Error>> {
                 let show = MenuItemBuilder::with_id("show", "显示九环").build(app)?;
                 let new_note = MenuItemBuilder::with_id("new_note", "新建随笔").build(app)?;
                 let quit = MenuItemBuilder::with_id("quit", "退出").build(app)?;
-                MenuBuilder::new(app)
+                let menu = MenuBuilder::new(app)
                     .item(&show)
                     .item(&new_note)
                     .separator()
                     .item(&quit)
-                    .build()?
-            };
+                    .build()?;
 
-            let _tray = TrayIconBuilder::new()
-                .menu(&tray_menu)
-                .tooltip("九环")
-                .on_menu_event(|app, event| {
-                    match event.id().as_ref() {
-                        "show" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
+                TrayIconBuilder::new()
+                    .menu(&menu)
+                    .tooltip("九环")
+                    .on_menu_event(|app, event| {
+                        match event.id().as_ref() {
+                            "show" => {
+                                if let Some(window) = app.get_webview_window("main") {
+                                    let _ = window.show();
+                                    let _ = window.set_focus();
+                                }
                             }
-                        }
-                        "new_note" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                                // 通知前端新建随笔
-                                let _ = window.emit("tray-new-note", ());
+                            "new_note" => {
+                                if let Some(window) = app.get_webview_window("main") {
+                                    let _ = window.show();
+                                    let _ = window.set_focus();
+                                    let _ = window.emit("tray-new-note", ());
+                                }
                             }
+                            "quit" => app.exit(0),
+                            _ => {}
                         }
-                        "quit" => {
-                            app.exit(0);
-                        }
-                        _ => {}
-                    }
-                })
-                .build(app)?;
+                    })
+                    .build(app)?;
+
+                Ok(())
+            })() {
+                Ok(()) => log::info!("tray icon created"),
+                Err(e) => log::error!("failed to create tray icon: {} (app will run without tray)", e),
+            }
 
             Ok(())
         })
