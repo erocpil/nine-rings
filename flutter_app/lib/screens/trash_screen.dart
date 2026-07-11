@@ -31,6 +31,7 @@ class TrashScreen extends StatelessWidget {
                 ),
               );
               if (confirm == true) {
+                if (!mounted) return;
                 await context.read<NoteProvider>().emptyTrash();
               }
             },

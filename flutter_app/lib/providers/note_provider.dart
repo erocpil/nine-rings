@@ -7,7 +7,7 @@ class NoteProvider extends ChangeNotifier {
   final NoteService _service = NoteService();
 
   // State
-  Map<String, List<Note>> _notesByDate = {};
+  final Map<String, List<Note>> _notesByDate = {};
   List<String> _recentDates = [];
   List<Note> _trashNotes = [];
   List<Note> _searchResults = [];

@@ -18,7 +18,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String _selectedDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+  final String _selectedDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
   final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
@@ -46,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (result == true) {
+      if (!mounted) return;
       await context.read<NoteProvider>().loadNotesByDate(_selectedDate);
     }
   }
@@ -73,6 +74,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (confirm == true) {
+      if (!mounted) return;
       await context.read<NoteProvider>().deleteNote(note.id, _selectedDate);
     }
   }
@@ -198,13 +200,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final provider = context.read<NoteProvider>();
     try {
       final json = await provider.exportAll();
-      // In a real app, use share_plus to share the file
-      if (!context.mounted) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('导出成功 (${json.length} 字符)')),
       );
     } catch (e) {
-      if (!context.mounted) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('导出失败: $e')),
       );

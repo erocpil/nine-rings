@@ -1,5 +1,5 @@
-/// 数据库迁移版本定义
-/// 与 Tauri 后端同步：schema_version = 3
+// 数据库迁移版本定义
+// 与 Tauri 后端同步：schema_version = 3
 
 const int schemaVersion = 3;
 
