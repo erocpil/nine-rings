@@ -10,8 +10,6 @@ pub struct AppState {
     pub db: Mutex<rusqlite::Connection>,
 }
 
-use commands::config::AppConfig;
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::init();

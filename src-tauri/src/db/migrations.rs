@@ -1,7 +1,6 @@
 use rusqlite::Connection;
-use rusqlite::params;
 
-const SCHEMA_VERSION: i32 = 4;
+const _SCHEMA_VERSION: i32 = 4;
 
 pub fn run(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch("CREATE TABLE IF NOT EXISTS _schema_version (version INTEGER PRIMARY KEY);")?;

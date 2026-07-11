@@ -51,6 +51,11 @@ pub fn create_note(
         sort_order: max_order + 1,
         created_at: now.clone(),
         updated_at: now,
+        storage_path: None,
+        doc_type: None,
+        concepts: vec![],
+        linked_doc_ids: vec![],
+        readonly: false,
     };
     db::models::insert_note(conn, &note)?;
     Ok(note)

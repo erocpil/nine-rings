@@ -9,7 +9,7 @@ pub struct DocSearchQuery {
     pub concept: Option<String>,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct PathNode {
     pub name: String,
     pub path: String,
@@ -127,7 +127,7 @@ pub fn get_path_tree(state: State<AppState>) -> Result<Vec<PathNode>, String> {
         folders: std::collections::BTreeSet<String>,
         updated_at: Option<String>,
         count: usize,
-        readonly: bool,
+        _readonly: bool,
     }
     let mut tree: std::collections::BTreeMap<String, DirEntry> = std::collections::BTreeMap::new();
 
