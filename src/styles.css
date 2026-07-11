@@ -4067,3 +4067,79 @@ body {
   padding: 4px;
   white-space: pre-wrap;
 }
+
+/* ═══════════════════════════════════════════
+   Quick Capture 迷你窗口
+   Frameless：窗口无标题栏，CSS 提供拖拽手柄
+   ═══════════════════════════════════════════ */
+
+.qc-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  user-select: none;
+}
+
+.qc-drag-handle {
+  height: 28px;
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.qc-textarea {
+  flex: 1;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 12px 14px;
+}
+
+.qc-textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.qc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+
+.qc-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.qc-submit {
+  font-size: 12px;
+  padding: 4px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.qc-submit:hover {
+  opacity: 0.85;
+}

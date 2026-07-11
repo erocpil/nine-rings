@@ -22,10 +22,18 @@ export async function registerShortcuts(actions: ShortcutActions): Promise<() =>
 
   try {
     const { register } = await import("@tauri-apps/plugin-global-shortcut");
+    const { invoke } = await import("@tauri-apps/api/core");
 
     // Ctrl+N — 新建随笔
     await register("CommandOrControl+N", () => {
       actions.createNote();
+    });
+
+    // Ctrl+Shift+N — Quick Capture 迷你输入窗
+    await register("CommandOrControl+Shift+N", () => {
+      invoke("toggle_quick_capture").catch((e) =>
+        console.warn("[GlobalShortcut] toggle_quick_capture:", e),
+      );
     });
 
     // Ctrl+E — 聚焦搜索
@@ -41,6 +49,7 @@ export async function registerShortcuts(actions: ShortcutActions): Promise<() =>
     return () => {
       import("@tauri-apps/plugin-global-shortcut").then(({ unregister }) => {
         unregister("CommandOrControl+N").catch(() => {});
+        unregister("CommandOrControl+Shift+N").catch(() => {});
         unregister("CommandOrControl+E").catch(() => {});
         unregister("CommandOrControl+,").catch(() => {});
       }).catch(() => {});

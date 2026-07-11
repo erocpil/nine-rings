@@ -169,6 +169,21 @@ function App() {
     return () => { unlisten?.(); };
   }, []); // 仅挂载一次，通过 ref 访问最新值
 
+  // ── Quick Capture 提交后刷新列表 ──
+  useEffect(() => {
+    // @ts-ignore
+    if (typeof window === "undefined" || !window.__TAURI__) return;
+    let unlisten: (() => void) | undefined;
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      listen("quick-capture-created", () => {
+        // quick capture 提交的笔记写入今天日期，重新加载当日列表
+        const today = new Date().toISOString().slice(0, 10);
+        setDate(today);
+      }).then((fn) => { unlisten = fn; });
+    }).catch(() => {});
+    return () => { unlisten?.(); };
+  }, []);
+
   // 启动时恢复最后浏览的笔记（跨日查找）
   useEffect(() => {
     if (loading) return;

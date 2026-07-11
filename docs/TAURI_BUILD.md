@@ -1,6 +1,6 @@
 # Tauri 桌面版构建指南
 
-Nine Rings 使用 Tauri v2 打包为桌面应用，支持 Linux（`.deb` / `.AppImage`）和 Windows（`.msi` / `.exe`）。
+Nine Rings 使用 Tauri v2 打包为桌面应用，支持 macOS（`.dmg`）、Linux（`.deb` / `.AppImage`）和 Windows（`.msi` / `.exe`）。
 
 ---
 

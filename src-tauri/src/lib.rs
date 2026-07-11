@@ -64,10 +64,12 @@ pub fn run() {
             match (|| -> Result<_, Box<dyn std::error::Error>> {
                 let show = MenuItemBuilder::with_id("show", "显示九环").build(app)?;
                 let new_note = MenuItemBuilder::with_id("new_note", "新建随笔    Ctrl+N").build(app)?;
+                let quick_cap = MenuItemBuilder::with_id("quick_capture", "快捷记录    Ctrl+Shift+N").build(app)?;
                 let quit = MenuItemBuilder::with_id("quit", "退出").build(app)?;
                 let menu = MenuBuilder::new(app)
                     .item(&show)
                     .item(&new_note)
+                    .item(&quick_cap)
                     .separator()
                     .item(&quit)
                     .build()?;
@@ -101,6 +103,9 @@ pub fn run() {
                                     let _ = window.emit("tray-new-note", ());
                                 }
                             }
+                            "quick_capture" => {
+                                let _ = commands::quick_capture::toggle_quick_capture(app.clone());
+                            }
                             "quit" => app.exit(0),
                             _ => {}
                         }
@@ -117,9 +122,15 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                // 关闭窗口 → 隐藏到托盘（不退出应用）
-                let _ = window.hide();
-                api.prevent_close();
+                if window.label() == "quick-capture" {
+                    // Quick Capture 窗口：只隐藏，不销毁（复用 WebView）
+                    let _ = window.hide();
+                    api.prevent_close();
+                } else {
+                    // 主窗口：关闭 → 隐藏到托盘
+                    let _ = window.hide();
+                    api.prevent_close();
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -152,6 +163,7 @@ pub fn run() {
             commands::doc_tree::get_notes_by_path,
             commands::doc_tree::get_all_concepts,
             commands::doc_tree::get_path_tree,
+            commands::quick_capture::toggle_quick_capture,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
