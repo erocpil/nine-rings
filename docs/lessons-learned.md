@@ -72,6 +72,13 @@ context.read<Provider>().doSomething();
 
 注意 StatefulWidget 中必须用 `mounted`（State 的属性），不能用 `context.mounted`。
 
+### StatelessWidget 没有 `mounted`
+
+`State.mounted` 只在 `StatefulWidget` 的 `State` 中可用。
+`StatelessWidget` 中需用 `context.mounted`（Flutter ≥3.10），
+但 linter 可能仍报 `use_build_context_synchronously`（它只认 `State.mounted`），
+此时加 `// ignore: use_build_context_synchronously` 抑制。
+
 ### 主题数据从 CSS 到 Flutter 的映射
 
 Web 端 CSS variables → Flutter `ThemeData`：
