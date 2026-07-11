@@ -17,7 +17,7 @@ export default function TitleBar() {
 
   return (
     <div className="titlebar">
-      <span className="titlebar-title">九环</span>
+      <span className="titlebar-title">Nine Rings</span>
       <div className="titlebar-controls">
         <button
           className="titlebar-btn titlebar-btn-minimize"

@@ -7,7 +7,7 @@ use std::sync::Mutex;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct AppConfig {
-    pub theme: String,           // "system" | "light" | "dark"
+    pub theme: String,           // "system" | "light" | "dark" | "fu" | ...
     pub default_view: String,    // "daily" | "list"
     pub todo_carryover_default: bool,
     pub auto_clean_days: i32,
@@ -19,7 +19,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            theme: "system".into(),
+            theme: "light".into(),
             default_view: "daily".into(),
             todo_carryover_default: false,
             auto_clean_days: 30,

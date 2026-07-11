@@ -6,7 +6,7 @@ pub mod service;
 use std::sync::Mutex;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
-    tray::{TrayIconBuilder, TrayIconEvent, MouseButton},
+    tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
     Emitter,
     Manager,
 };
@@ -79,9 +79,10 @@ pub fn run() {
                     .tooltip("九环 · 左键显隐 · 右键菜单")
                     .show_menu_on_left_click(false)
                     .on_tray_icon_event(|tray, event| {
-                        if let TrayIconEvent::Click { button, .. } = event {
-                            if button != MouseButton::Left {
-                                return; // 右键交给菜单系统处理
+                        if let TrayIconEvent::Click { button, button_state, .. } = event {
+                            // 只响应按下（非释放），避免双击效果
+                            if button != MouseButton::Left || button_state != MouseButtonState::Down {
+                                return;
                             }
                             // 左键：toggle 窗口显隐
                             if let Some(window) = tray.app_handle().get_webview_window("main") {

@@ -25,6 +25,7 @@ import PropertiesPanel from "./components/PropertiesPanel";
 import { DocMOC } from "./components/DocMOC";
 import type { AppConfig } from "./lib/storage/types";
 import type { DeltaOps, Note, DocType } from "./types/models";
+import { DEFAULT_HOTKEYS } from "./types/models";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
 
 function openNewWindow() {
@@ -434,7 +435,7 @@ function App() {
       openSettings: () => setSettingsOpen(true),
     };
 
-    const hotkeys = config?.hotkeys ?? {};
+    const hotkeys = { ...DEFAULT_HOTKEYS, ...(config?.hotkeys ?? {}) };
     registerShortcuts(actionsRef, hotkeys);
     // registerShortcuts 内部管理注销，返回 void
   }, [config?.hotkeys ? JSON.stringify(config.hotkeys) : ""]);
@@ -832,6 +833,19 @@ function App() {
 function applyTheme(theme: string) {
   const root = document.documentElement;
   root.classList.remove("theme-light", "theme-dark", "theme-fu", "theme-grace", "theme-sui", "theme-zhi", "theme-azure", "theme-azure-dark");
+
+  if (theme === "system") {
+    // 跟随系统：用 prefers-color-scheme 媒体查询，只区分 light/dark
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const applySystem = () => {
+      root.classList.remove("theme-light", "theme-dark");
+      root.classList.add(mq.matches ? "theme-dark" : "theme-light");
+    };
+    applySystem();
+    mq.addEventListener("change", applySystem);
+    return;
+  }
+
   if (theme === "light") {
     root.classList.add("theme-light");
   } else if (theme === "dark") {
