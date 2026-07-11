@@ -716,6 +716,10 @@ function App() {
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         onConfigChange={handleConfigChange}
+        onImport={() => {
+          setDate(currentDate);
+          setDocTreeKey(k => k + 1);
+        }}
       />
       {docTreePopupOpen && (
         <div className="doc-tree-popup-overlay" onClick={() => setDocTreePopupOpen(false)}>

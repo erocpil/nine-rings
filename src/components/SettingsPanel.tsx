@@ -7,9 +7,10 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onConfigChange: (config: AppConfig) => void;
+  onImport?: () => void;
 }
 
-export function SettingsPanel({ open, onClose, onConfigChange }: Props) {
+export function SettingsPanel({ open, onClose, onConfigChange, onImport }: Props) {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -110,6 +111,7 @@ export function SettingsPanel({ open, onClose, onConfigChange }: Props) {
       const text = await file.text();
       const result = await api.export.import(text);
       setMessage(`导入完成：${result.notes_imported} 篇笔记, ${result.pages_imported} 个页面`);
+      onImport?.();
       e.target.value = "";
     } catch (e) {
       setMessage(`导入失败: ${e}`);
@@ -141,6 +143,7 @@ export function SettingsPanel({ open, onClose, onConfigChange }: Props) {
         count++;
       }
       setMdImportCount(count);
+      onImport?.();
       // Reset input so same files can be re-imported
       e.target.value = "";
     } catch (err) {
