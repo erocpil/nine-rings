@@ -26,7 +26,7 @@
 | **主题** | 8 套配色（浅 / 深 / 暗 / 芙 / 蔚 / 粋 / 雅 / 幟） |
 | **文件管理** | 导入 / 导出 JSON 备份；Markdown → Nine Rings 一键导入 |
 | **PWA** | 离线可用，Service Worker 缓存策略，可安装到桌面 |
-| **多框架** | Web（React） + macOS/Linux/Windows（Tauri） + iOS/Android（Flutter，核心功能已实现） |
+| **多框架** | Web（React） + macOS / Linux / Windows（Tauri） + macOS / iOS / Android（Flutter，核心功能已实现） |
 
 ---
 
@@ -38,9 +38,11 @@
 │  Zustand (状态)  +  Vite 5 (构建)            │
 │  PWA: Workbox SW  +  IndexedDB              │
 ├─ 桌面端 (Tauri) ────────────────────────────┤
-│  Rust  +  SQLite  +  Tauri v2 IPC           │
-├─ 移动端 (Flutter) ──────────────────────────┤
-│  Dart  +  SQLite (sqflite)                   │
+│  Rust + SQLite + Tauri v2 IPC                │
+│  macOS / Linux / Windows                     │
+├─ 移动端 & macOS 桌面 (Flutter) ──────────────┤
+│  Dart + SQLite (sqflite)                     │
+│  Android / iOS / macOS                       │
 ├─ 共享 ──────────────────────────────────────┤
 │  数据契约: YAML Schema (schema/)              │
 │  内容格式: Quill Delta JSON                 │
@@ -75,12 +77,20 @@ python3 serve.py      # 静态服务 → http://localhost:1420
 
 ### Tauri 桌面端
 
-环境要求：Rust ≥ 1.77，系统库（Linux）：
+环境要求：Rust ≥ 1.77。
+
+**Linux** 系统库：
 
 ```bash
 sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev \
   libayatana-appindicator3-dev librsvg2-dev libssl-dev \
   libsoup-3.0-dev libjavascriptcoregtk-4.1-dev patchelf
+```
+
+**macOS** 无需额外系统库，Xcode Command Line Tools 即可：
+
+```bash
+xcode-select --install
 ```
 
 构建：
@@ -127,11 +137,14 @@ flutter pub get
 # 开发运行
 flutter run
 
-# 构建 APK (Android)
+# 构建 Android APK
 flutter build apk
 
-# 构建 iOS (macOS)
+# 构建 iOS (需 macOS + Xcode)
 flutter build ios
+
+# 构建 macOS 桌面应用 (需 macOS)
+flutter build macos
 ```
 
 当前 Flutter 版实现的功能：
@@ -208,11 +221,14 @@ nine-rings/
 
 | Job | 说明 | Runner |
 |-----|------|--------|
-| `Web Frontend` | `npm ci` → `tsc && vite build` | ubuntu-22.04 |
+| `Web Frontend` | `npm ci` → `tsc && vite build` → schema `--check` | ubuntu-22.04 |
 | `Tauri Desktop (Linux)` | Web 构建 + Rust 编译 → `.deb`、`.AppImage` | ubuntu-22.04 |
 | `Tauri Desktop (Windows)` | Web 构建 + Rust 编译 → `.msi`、`.exe` | windows-2022 |
+| `Flutter (Android APK)` | `pub get` → `analyze` → `build apk --debug` | ubuntu-22.04 |
 
 自动触发：`push` / `pull_request` to `main`。
+
+> **macOS 不在 CI 中**：GitHub Actions macOS runner 费用是 Linux 的 10 倍（[定价](https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions)）。macOS 产物（Tauri `.dmg`、Flutter `macos`）需在本地构建。
 
 ---
 
