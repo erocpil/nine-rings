@@ -554,7 +554,9 @@ function App() {
 
   return (
     <div className={`app ${focusMode ? "app-focus-mode" : ""}`}>
-      <TitleBar />
+      {/* 桌面版（Tauri）才需要自定义标题栏；web 版无窗口概念 */}
+      {/* @ts-ignore */}
+      {typeof window !== "undefined" && window.__TAURI__ && <TitleBar />}
       <header className="app-header">
         {error && (
           <div className="error-bar" onClick={clearError}>
