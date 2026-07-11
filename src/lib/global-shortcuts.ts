@@ -16,6 +16,7 @@ export interface ShortcutActions {
   focusSearch: () => void;
   openSettings: () => void;
   toggleDaily: () => void;
+  showWindow: () => void;
 }
 
 type InvokeFn = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
@@ -43,6 +44,8 @@ function makeHandler(
       return () => actions.openSettings();
     case "go_to_daily":
       return () => actions.toggleDaily();
+    case "show_window":
+      return () => actions.showWindow();
     default:
       return null;
   }

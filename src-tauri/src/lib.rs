@@ -103,9 +103,14 @@ pub fn run() {
                             }
                             "new_note" => {
                                 show_main_window(app);
-                                if let Some(window) = app.get_webview_window("main") {
-                                    let _ = window.emit("tray-new-note", ());
-                                }
+                                let app_clone = app.clone();
+                                // 延迟 emit：等 WebView 完成重绘 + React 挂载事件监听
+                                std::thread::spawn(move || {
+                                    std::thread::sleep(std::time::Duration::from_millis(300));
+                                    if let Some(window) = app_clone.get_webview_window("main") {
+                                        let _ = window.emit("tray-new-note", ());
+                                    }
+                                });
                             }
                             "quick_capture" => {
                                 let _ = commands::quick_capture::toggle_quick_capture(app.clone());

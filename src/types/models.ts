@@ -141,6 +141,7 @@ export const DEFAULT_HOTKEYS: Record<string, string> = {
   focus_search:   "CommandOrControl+E",
   open_settings:  "CommandOrControl+,",
   go_to_daily:    "CommandOrControl+Shift+D",
+  show_window:    "Alt+Y",
 };
 
 export const HOTKEY_LABELS: Record<string, string> = {
@@ -149,6 +150,7 @@ export const HOTKEY_LABELS: Record<string, string> = {
   focus_search:   "聚焦搜索",
   open_settings:  "打开设置",
   go_to_daily:    "打开每日列表",
+  show_window:    "显示主窗口",
 };
 
 export const DEFAULT_CONFIG: AppConfig = {

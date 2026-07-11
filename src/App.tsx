@@ -27,6 +27,7 @@ import type { AppConfig } from "./lib/storage/types";
 import type { DeltaOps, Note, DocType } from "./types/models";
 import { DEFAULT_HOTKEYS } from "./types/models";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
+import { addLog } from "./lib/debugLog";
 
 function openNewWindow() {
   // @ts-ignore
@@ -355,6 +356,7 @@ function App() {
   useEffect(() => {
     api.config.get().then((c) => {
       applyTheme(c.theme);
+      addLog(`[启动] 主题: ${c.theme}`);
       setConfig(c);
     });
   }, []);
@@ -448,6 +450,15 @@ function App() {
         setDate(today);
         setSidebarHidden(false);
         handleSetSidebarTab('daily');
+      },
+      showWindow: () => {
+        import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
+          getCurrentWindow().show().then(() => {
+            getCurrentWindow().unminimize().then(() => {
+              getCurrentWindow().setFocus();
+            });
+          });
+        }).catch(() => {});
       },
     };
 
