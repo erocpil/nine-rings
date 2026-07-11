@@ -92,7 +92,7 @@ pub fn delete_note(conn: &Connection, id: &str) -> rusqlite::Result<()> {
 }
 
 pub fn search_notes(conn: &Connection, query: &str) -> rusqlite::Result<Vec<Note>> {
-    db::models::search_notes_like(conn, query)
+    db::models::search_notes(conn, query)
 }
 
 pub fn get_notes_by_tag(conn: &Connection, tag: &str) -> rusqlite::Result<Vec<Note>> {

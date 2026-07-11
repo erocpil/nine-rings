@@ -233,6 +233,62 @@ pub fn search_notes_like(conn: &Connection, query: &str) -> rusqlite::Result<Vec
     rows.collect()
 }
 
+/// FTS5 全文搜索（BM25 排序），CJK 查询回退 LIKE
+///
+/// FTS5 默认 unicode61 分词器对 CJK 支持有限（中文字符不拆词），
+/// 检测到 CJK 字符时回退 LIKE 保证中文搜索可用。
+pub fn search_notes(conn: &Connection, query: &str) -> rusqlite::Result<Vec<Note>> {
+    let has_cjk = query.chars().any(|c| {
+        matches!(c,
+            '\u{4E00}'..='\u{9FFF}'   // CJK Unified
+            | '\u{3400}'..='\u{4DBF}' // CJK Ext-A
+            | '\u{F900}'..='\u{FAFF}' // CJK Compat
+            | '\u{3040}'..='\u{309F}' // Hiragana
+            | '\u{30A0}'..='\u{30FF}' // Katakana
+            | '\u{AC00}'..='\u{D7AF}' // Hangul
+        )
+    });
+
+    if has_cjk || query.trim().is_empty() {
+        return search_notes_like(conn, query);
+    }
+
+    // FTS5 查询：空格分词 + 前缀匹配
+    let fts_query = query
+        .split_whitespace()
+        .map(|t| {
+            let cleaned: String = t.chars()
+                .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
+                .collect();
+            if cleaned.is_empty() { String::new() }
+            else { format!("\"{}\"*", cleaned.replace('"', "")) }
+        })
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(" AND ");
+
+    if fts_query.is_empty() {
+        return search_notes_like(conn, query);
+    }
+
+    // 尝试 FTS5，语法错误时回退 LIKE
+    let sql = "SELECT n.id, n.date, n.title, n.content, n.search_text, n.tags, n.pinned, n.sort_order,
+                      n.created_at, n.updated_at, n.storage_path, n.doc_type, n.concepts, n.linked_doc_ids, n.readonly
+               FROM notes n
+               JOIN notes_fts f ON n.rowid = f.rowid
+               WHERE notes_fts MATCH ?1 AND n.deleted_at IS NULL
+               ORDER BY rank
+               LIMIT 50";
+
+    match conn.prepare(sql).and_then(|mut stmt| {
+        stmt.query_map(rusqlite::params![fts_query], |row| note_from_row(row))?
+            .collect()
+    }) {
+        Ok(results) => Ok(results),
+        Err(_) => search_notes_like(conn, query), // FTS5 语法错误 → LIKE
+    }
+}
+
 // ──── DailyPage DAO ────
 
 pub fn upsert_daily_page(conn: &Connection, page: &DailyPage) -> rusqlite::Result<()> {
