@@ -57,9 +57,15 @@ def parse_inline(text):
         if text[i:i+2] == '**':
             j = text.find('**', i+2)
             if j != -1:
-                result.append((text[i+2:j], {'bold': True}))
-                i = j + 2
-                continue
+                inner = text[i+2:j]
+                if inner:
+                    result.append((inner, {'bold': True}))
+                    i = j + 2
+                    continue
+                # 相邻 **** → 空内容，回退为普通字符逐个处理
+            result.append((text[i], {}))
+            i += 1
+            continue
         if text[i] == '*' and (i+1 >= len(text) or text[i+1] != '*'):
             j = text.find('*', i+1)
             if j != -1:
@@ -70,11 +76,16 @@ def parse_inline(text):
         if text[i] == '`':
             j = text.find('`', i+1)
             if j != -1:
-                result.append((text[i+1:j], {'code': True}))
-                i = j + 1
-                continue
-        result.append((text[i], {}))
-        i += 1
+                inner = text[i+1:j]
+                if inner:
+                    result.append((inner, {'code': True}))
+                    i = j + 1
+                    continue
+                # 相邻反引号 `` → 无内容，当作普通字符
+            # 无匹配闭合反引号，当作普通字符
+            result.append((text[i], {}))
+            i += 1
+            continue
     return result
 
 

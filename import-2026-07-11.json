@@ -1,0 +1,1449 @@
+{
+  "version": 1,
+  "exported_at": "2026-07-11T02:02:18.599510+00:00",
+  "notes": [
+    {
+      "id": "75a26d05-9eea-4ec9-b145-e7bd3d8b86c4",
+      "date": "2026-07-11",
+      "title": "Tauri 桌面版构建指南",
+      "content": {
+        "ops": [
+          {
+            "insert": "Tauri 桌面版构建指南"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 1
+            }
+          },
+          {
+            "insert": "Nine Rings 使用 Tauri v2 打包为桌面应用，支持 Linux（"
+          },
+          {
+            "insert": ".deb",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " / "
+          },
+          {
+            "insert": ".AppImage",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "）和 Windows（"
+          },
+          {
+            "insert": ".msi",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " / "
+          },
+          {
+            "insert": ".exe",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "）。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "构建流程总览"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 2
+            }
+          },
+          {
+            "insert": "npm run build          # 1. 构建前端 → dist/\ncargo tauri build      # 2. 编译 Rust 后端 + 打包"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "tauri.conf.json",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 中已配置 "
+          },
+          {
+            "insert": "beforeBuildCommand: \"npm run build\"",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "，因此 "
+          },
+          {
+            "insert": "cargo tauri build",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 会自动先执行前端构建。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "环境要求"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 2
+            }
+          },
+          {
+            "insert": "| 组件 | Linux | Windows |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "|------|-------|---------|"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| Rust | ≥ 1.77.0（"
+          },
+          {
+            "insert": "rustup",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 安装） | ≥ 1.77.0（"
+          },
+          {
+            "insert": "rustup",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 安装，MSVC 工具链） |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| Node.js | ≥ 18（"
+          },
+          {
+            "insert": "nvm",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 推荐） | ≥ 18 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| 系统包 | 见下方「系统依赖」 | Visual Studio 2022 Build Tools |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "注意",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "：Debian 12 仓库自带的 Rust 1.63 版本过旧，不满足 Tauri v2 对 Rust ≥ 1.77 的要求。必须通过 rustup 安装最新稳定版。"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "blockquote": true
+            }
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "一、Linux 构建"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 2
+            }
+          },
+          {
+            "insert": "1.1 安装 Rust（rustup）"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y\nsource \"$HOME/.cargo/env\"\nrustc --version   # 应 ≥ 1.77.0"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "1.2 安装系统依赖"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "Debian / Ubuntu：",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "sudo apt update\nsudo apt install -y \\\n  libwebkit2gtk-4.1-dev \\\n  libgtk-3-dev \\\n  libayatana-appindicator3-dev \\\n  librsvg2-dev \\\n  libssl-dev \\\n  libsoup-3.0-dev \\\n  libjavascriptcoregtk-4.1-dev \\\n  patchelf"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "Fedora：",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "sudo dnf install -y \\\n  webkit2gtk4.1-devel \\\n  gtk3-devel \\\n  libayatana-appindicator-devel \\\n  librsvg2-devel \\\n  openssl-devel \\\n  libsoup3-devel \\\n  javascriptcoregtk4.1-devel"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "Arch：",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "sudo pacman -S --needed \\\n  webkit2gtk-4.1 \\\n  gtk3 \\\n  libayatana-appindicator \\\n  librsvg \\\n  openssl \\\n  libsoup3 \\\n  patchelf"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "1.3 安装 Node.js 依赖"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "cd /path/to/nine-rings\nnpm install"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "1.4 构建"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "# 方式一：一步完成（前端 + Rust + 打包）\nnpm run tauri build\n\n# 方式二：分步执行（便于调试）\nnpm run build                # 仅前端 → dist/\ncd src-tauri && cargo build --release   # 仅编译 Rust（不打包）\ncd .. && npm run tauri build  # 完整构建 + 打包"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "1.5 产物位置"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "| 格式 | 路径 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "|------|------|"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": ".deb",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "src-tauri/target/release/bundle/deb/Nine Rings_0.1.0_amd64.deb",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": ".rpm",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "src-tauri/target/release/bundle/rpm/Nine Rings-0.1.0-1.x86_64.rpm",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": ".AppImage",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "src-tauri/target/release/bundle/appimage/Nine Rings_0.1.0_amd64.AppImage",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| 可执行文件 | "
+          },
+          {
+            "insert": "src-tauri/target/release/nine-rings",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "1.6 产物使用"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "`.deb`（Debian / Ubuntu / Deepin）：",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "sudo dpkg -i \"Nine Rings_0.1.0_amd64.deb\"\n# 安装后可通过系统菜单或终端启动：\nnine-rings"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "`.rpm`（Fedora / CentOS / openSUSE）：",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "sudo rpm -ivh \"Nine Rings-0.1.0-1.x86_64.rpm\"\n# 安装后启动：\nnine-rings"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "`.AppImage`（通用 Linux，无需安装）：",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "chmod +x \"Nine Rings_0.1.0_amd64.AppImage\"\n./\"Nine Rings_0.1.0_amd64.AppImage\""
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": ".AppImage",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 自包含所有依赖（GTK、WebKit 等），体积较大（~96 MB），适合不便安装系统包的场景或便携使用。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "1.7 调试运行"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "npm run tauri dev    # 开发模式，带热重载"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "二、Windows 构建"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 2
+            }
+          },
+          {
+            "insert": "2.1 安装 Rust（MSVC 工具链）"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "在 PowerShell 中："
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "# 安装 rustup（选择 MSVC 工具链）\nwinget install Rustlang.Rustup\n\n# 或手动安装\n# 从 https://rustup.rs 下载 rustup-init.exe，安装时选 MSVC\n\n# 确认工具链\nrustup default stable-msvc\nrustc --version"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "2.2 安装 Visual Studio 2022 Build Tools"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "下载 "
+          },
+          {
+            "insert": "Visual Studio 2022 Build Tools",
+            "attributes": {
+              "link": "https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022"
+            }
+          },
+          {
+            "insert": "，安装时勾选："
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "MSVC v143 - VS 2022 C++ x64/x86 build tools",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "Windows 11 SDK",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "（或 Windows 10 SDK）"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "list": "bullet"
+            }
+          },
+          {
+            "insert": "或通过命令行静默安装："
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "winget install Microsoft.VisualStudio.2022.BuildTools --override `\n  \"--wait --passive --add Microsoft.VisualStudio.Workload.VCTools `\n  --add Microsoft.VisualStudio.Component.Windows11SDK.22621\""
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "2.3 安装 WebView2"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "Windows 10/11 通常已内置。若缺失，从 "
+          },
+          {
+            "insert": "Microsoft Edge WebView2",
+            "attributes": {
+              "link": "https://developer.microsoft.com/en-us/microsoft-edge/webview2/"
+            }
+          },
+          {
+            "insert": " 下载 Evergreen Bootstrapper 安装。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "2.4 安装 Node.js 依赖"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "cd C:\\path\\to\\nine-rings\nnpm install"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "2.5 构建"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "npm run tauri build"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "2.6 产物位置"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "| 格式 | 路径 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "|------|------|"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": ".msi",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " | "
+          },
+          {
+            "insert": "src-tauri\\target\\release\\bundle\\msi\\Nine Rings_0.1.0_x64_en-US.msi",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| "
+          },
+          {
+            "insert": ".exe",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "（NSIS） | "
+          },
+          {
+            "insert": "src-tauri\\target\\release\\bundle\\nsis\\Nine Rings_0.1.0_x64-setup.exe",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "2.7 产物使用"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "`.msi`（推荐）：",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " 双击运行，按向导安装。安装后从开始菜单启动 \"Nine Rings\"。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "`.exe`（NSIS 安装包）：",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " 双击运行，与 "
+          },
+          {
+            "insert": ".msi",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 等效。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "安装后程序位于 "
+          },
+          {
+            "insert": "%LOCALAPPDATA%\\nine-rings\\",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "，数据存储在 "
+          },
+          {
+            "insert": "%APPDATA%\\com.ninerings.app\\",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 下的 SQLite 数据库。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "三、Linux → Windows 交叉编译（可选）"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 2
+            }
+          },
+          {
+            "insert": "在 Linux 上构建 Windows 版本，使用 "
+          },
+          {
+            "insert": "cargo-xwin",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "："
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "# 安装 xwin\ncargo install cargo-xwin\n\n# 安装 Rust Windows MSVC target\nrustup target add x86_64-pc-windows-msvc\n\n# 构建\ncd src-tauri\ncargo xwin build --release --target x86_64-pc-windows-msvc"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "限制",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "："
+          },
+          {
+            "insert": "cargo-xwin",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 仅编译 Rust 端 "
+          },
+          {
+            "insert": ".exe",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "，不生成 "
+          },
+          {
+            "insert": ".msi",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 安装包。完整打包仍需在 Windows 上执行。"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "blockquote": true
+            }
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "四、常见问题"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 2
+            }
+          },
+          {
+            "insert": "Q: "
+          },
+          {
+            "insert": "error: could not find ",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "tauri-build"
+          },
+          {
+            "insert": " in ",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "build-dependencies"
+          },
+          {
+            "insert": "",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "# 确保在项目根目录执行，而非 src-tauri/\ncd /path/to/nine-rings\nnpm run tauri build"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "Q: "
+          },
+          {
+            "insert": "error: linker 'cc' not found",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "sudo apt install build-essential"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "Q: "
+          },
+          {
+            "insert": "pkg-config",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 找不到 webkit2gtk-4.1"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "# 确认安装的是 4.1 版本（非 4.0）\ndpkg -l | grep webkit2gtk\n# 应显示 libwebkit2gtk-4.1-dev\n\n# 如果没有，安装正确版本\nsudo apt install libwebkit2gtk-4.1-dev"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "Q: "
+          },
+          {
+            "insert": "rusqlite",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 编译耗时很长（首次 5–10 分钟）"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "正常现象。"
+          },
+          {
+            "insert": "Cargo.toml",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 中配置了 "
+          },
+          {
+            "insert": "rusqlite = { features = [\"bundled\"] }",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "，首次构建会从源码编译 SQLite。后续增量构建仅需数秒。"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "Q: "
+          },
+          {
+            "insert": "cargo build",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 内存不足"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "# 限制并行编译任务数\nCARGO_BUILD_JOBS=2 cargo build --release"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "Q: npm install 报 network error"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "设置代理（如需要）："
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "npm config set proxy http://proxy.example.com:3128\nnpm config set https-proxy http://proxy.example.com:3128"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "Q: AppImage 打包时下载 "
+          },
+          {
+            "insert": "AppRun",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " / "
+          },
+          {
+            "insert": "linuxdeploy",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 失败"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "Tauri 打包 AppImage 时需要从 GitHub 下载若干辅助二进制文件。若网络受限，设置代理后重试："
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "export http_proxy=http://proxy.example.com:3128\nexport https_proxy=http://proxy.example.com:3128\nnpm run tauri build"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "注："
+          },
+          {
+            "insert": ".deb",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 和 "
+          },
+          {
+            "insert": ".rpm",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 打包不受影响——它们不需要下载外部文件。AppImage 下载失败不会阻止前两者生成。"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "blockquote": true
+            }
+          },
+          {
+            "insert": "Q: Windows 上 "
+          },
+          {
+            "insert": "npm run tauri build",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 报 "
+          },
+          {
+            "insert": "Cannot find module",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 3
+            }
+          },
+          {
+            "insert": "# 重新安装依赖\nRemove-Item -Recurse node_modules\nnpm install"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "code-block": true
+            }
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "五、CI/CD"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 2
+            }
+          },
+          {
+            "insert": "项目已配置 GitHub Actions，见 "
+          },
+          {
+            "insert": ".github/workflows/ci.yml",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "。每次推送到 "
+          },
+          {
+            "insert": "main",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 或发起 PR 时自动执行："
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| Job | Runner | 产物 |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "|-----|--------|------|"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| Web Frontend | ubuntu-22.04 | "
+          },
+          {
+            "insert": "dist/",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " (artifact) |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| Tauri Desktop (Linux) | ubuntu-22.04 | "
+          },
+          {
+            "insert": ".deb",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " + "
+          },
+          {
+            "insert": ".rpm",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " + "
+          },
+          {
+            "insert": ".AppImage",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "| Tauri Desktop (Windows) | windows-2022 | "
+          },
+          {
+            "insert": ".msi",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " + "
+          },
+          {
+            "insert": ".exe",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " |"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "CI 运行页：https://github.com/erocpil/nine-rings/actions"
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "────────",
+            "attributes": {
+              "strike": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "六、版本号"
+          },
+          {
+            "insert": "\n",
+            "attributes": {
+              "header": 2
+            }
+          },
+          {
+            "insert": "构建产物版本号继承自 "
+          },
+          {
+            "insert": "src-tauri/tauri.conf.json",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 中的 "
+          },
+          {
+            "insert": "version",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 字段（当前 "
+          },
+          {
+            "insert": "0.1.0",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": "）。前端界面的运行时版本号由 "
+          },
+          {
+            "insert": "vite.config.ts",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 自动注入为 "
+          },
+          {
+            "insert": "<7位 commit SHA>.<UTC 时间戳>",
+            "attributes": {
+              "code": true
+            }
+          },
+          {
+            "insert": " 格式，仅影响 Web 界面右下角显示，不影响安装包包名。"
+          },
+          {
+            "insert": "\n"
+          }
+        ]
+      },
+      "tags": [],
+      "pinned": false,
+      "sort_order": 0,
+      "created_at": "2026-07-11T02:02:18.599510+00:00",
+      "updated_at": "2026-07-11T02:02:18.599510+00:00"
+    }
+  ],
+  "daily_pages": []
+}

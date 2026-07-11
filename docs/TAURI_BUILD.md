@@ -232,7 +232,7 @@ cargo xwin build --release --target x86_64-pc-windows-msvc
 
 ## 四、常见问题
 
-### Q: `error: could not find `tauri-build` in `build-dependencies``
+### Q: error: could not find `tauri-build` in `build-dependencies`
 
 ```bash
 # 确保在项目根目录执行，而非 src-tauri/
