@@ -311,3 +311,93 @@ cargo tauri icon source.png
 输出：Linux（`.png` 多尺寸）、Windows（`.ico` 含多分辨率）、macOS（`.icns`）、Android（mipmap 多密度）、iOS（AppIcon 多尺寸）。
 
 源图必须是 PNG。JPG 需先转换：`convert source.jpg source.png`（ImageMagick）。
+
+---
+
+## 任务栏 & 托盘图标
+
+### 任务栏图标黑块 → 缺 16×16 尺寸
+
+部分 Linux 桌面环境（KDE、XFCE）任务栏需要 16×16 图标。如果 `tauri.conf.json` 的 `bundle.icon` 只列了 32×32 及以上尺寸，任务栏找不到合适尺寸显示为黑块。
+
+**修复**：用 `cargo tauri icon` 生成全尺寸后，确保 `tauri.conf.json` icon 列表包含 `"icons/16x16.png"` 和 `"icons/256x256.png"`。
+
+### 托盘图标空白 → Rust 侧未显式设置 `.icon()`
+
+`TrayIconBuilder` 不会自动继承窗口图标。即使 `tauri.conf.json` 配置了图标且窗口正常显示，托盘图标仍需显式 `.icon(app.default_window_icon().unwrap().clone())`。
+
+---
+
+## 快捷键 & 全屏
+
+### F11 全屏必须走 Rust 系统级快捷键
+
+浏览器（含 Tauri WebView）拦截 F11 原语。JS 端 `e.preventDefault()` 无效。必须像 Alt+Y 一样在 Rust 侧用 `app.global_shortcut().on_shortcut("F11", ...)` 注册系统级快捷键，回调中调用 `window.set_fullscreen(!is_fullscreen)`。
+
+注册后权限声明（`capabilities.json`）会自动生成 `core:window:allow-set-fullscreen` + `core:window:allow-is-fullscreen`，需一并提交。
+
+---
+
+## Quick Capture
+
+### Windows: `decorations(false)` + `always_on_top(true)` → WebView2 黑屏
+
+Tauri v2 + WebView2 在 frameless + always-on-top 组合下，窗口渲染表面可能完全不显示内容（纯黑/空白矩形）。这是 WebView2 与 `WS_EX_LAYERED` 窗口风格的已知冲突。
+
+**修复**：`WebviewWindowBuilder::new(...).shadow(false)` 关闭原生阴影，强制走 WebView2 兼容的合成器路径。
+
+### Windows: emit 后立即 hide 截断事件队列
+
+QC 窗口在 `emit_to_main("quick-capture-created")` 后立即 `hide()`。Windows WebView2 事件投递为异步——`emit()` 只是入队，实际投递在 WebView 消息循环中。hide 窗口可能截断未投递的事件。
+
+**修复**：emit 后 `await delay(50ms)` 再 hide。50ms 足够事件投递完成，用户无感知。
+
+### 配置加载失败的兜底超时
+
+QC 组件挂载时调用 `api.config.get()`。如果 IPC 失败（Windows 权限、DB 锁定等），组件永远停在"加载中…"状态无法输入。
+
+**修复**：`useEffect` 中加 3 秒 `setTimeout` 兜底——超时后强制切浅色主题、`setLoading(false)`。正常路径提前 `clearTimeout`。
+
+### 保存失败后不应静默隐藏窗口
+
+QC 的 finally 块无条件 `hide()`，即使 `create_note` 失败用户也看不到错误。修复：成功路径才 hide，失败路径保留窗口 + textarea 显示 `❌ 保存失败\n\n{错误信息}\n\n按 Enter 重试，Esc 关闭`。用 `hasErrorRef` 标记错误状态，Enter 重试时先清空再正常提交。
+
+---
+
+## 主题 & FOWT
+
+### CSS `:root` 默认值必须与 DEFAULT_CONFIG 一致
+
+FOWT（Flash of Wrong Theme）的根因是 CSS `:root` 默认变量为深色，但 JS 默认配置为浅色。WebView 解析 HTML 时立即应用 `:root` 样式（深色），React 挂载后才 `applyTheme("light")` 切浅色——中间闪现深色。
+
+**修复**：
+1. CSS `:root` 变量改为浅色默认
+2. 深色变量挪到 `.theme-dark` class 下
+3. `src/lib/storage/types.ts` `DEFAULT_CONFIG.theme = "light"` 为唯一默认值
+4. 删除 `src/types/models.ts` 中的死代码 `DEFAULT_CONFIG`
+
+---
+
+## Web 端 vs 桌面端
+
+### Web 版应隐藏桌面版专属 UI
+
+TitleBar（窗口标题、最小化/关闭按钮）只为 Tauri frameless 窗口设计，Web 版无需。用 `window.__TAURI__` 条件渲染：
+
+```tsx
+{typeof window !== "undefined" && window.__TAURI__ && <TitleBar />}
+```
+
+### Vercel 部署不需要 CLI
+
+项目已通过 GitHub Vercel 集成绑定：`git push main` 自动触发生产部署到 `https://dist-navy-five-94.vercel.app`。本地 CLI 需要浏览器 OAuth，无头环境无法完成。常规部署不需要 CLI。
+
+### Cloudflare Tunnel 在防火墙环境下需用 HTTP/2 + 代理
+
+`cloudflared tunnel --url ...` 默认走 QUIC（UDP），connectivity pre-checks 中的 UDP 检测会挂死在防火墙环境。两个关键参数：
+
+```bash
+cloudflared tunnel --url http://localhost:8000 --protocol http2
+```
+
+并且 HTTP 代理需要显式 export：`export http_proxy=http://172.16.1.135:3128`。UDP connectivity check 是可容忍的慢但非阻塞——tunnel URL 在 pre-checks 完成前就已分配且可访问。

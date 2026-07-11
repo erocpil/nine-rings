@@ -810,27 +810,26 @@ export const idbAdapter: StorageAdapter = {
 
   // ══════ Doc Tree（v2 文档分类系统）══════
 
-  /** 构建文档树: 遍历所有有 storagePath 的 Note，按路径前缀聚合 */
+  /** 构建文档树: 遍历所有有 storagePath 的 Note，按路径前缀聚合。
+   *  同时将每日随笔（无 storagePath）注入为 daily/YYYY-MM-DD/ 虚拟路径。 */
   async getPathTree(): Promise<PathNode[]> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
       const all = await getAll<any>(store);
-      const docs = all
-        .filter((n) => !n.deleted_at && n.storagePath)
-        .map(noteFromDB);
+      const notes = all.filter((n) => !n.deleted_at).map(noteFromDB);
 
+      // ── 1. 文档类笔记（有 storagePath）──
+      const docNotes = notes.filter((n) => n.storagePath);
       // 收集所有唯一路径前缀
       const folders = new Set<string>();
       const tree: PathNode[] = [];
 
-      for (const d of docs) {
+      for (const d of docNotes) {
         const path = d.storagePath!;
-        // 生成各级父路径
         const parts = path.split("/");
         for (let i = 1; i <= parts.length; i++) {
           folders.add(parts.slice(0, i).join("/"));
         }
-        // 文档节点（name 用文档标题，path 追加 id 确保唯一）
         tree.push({
           path: `${path}/${d.id}`,
           name: d.title || "无标题",
@@ -844,12 +843,47 @@ export const idbAdapter: StorageAdapter = {
 
       // 文件夹节点（按 count 汇总）
       const folderCounts = new Map<string, number>();
-      for (const d of docs) {
+      for (const d of docNotes) {
         const p = d.storagePath!;
         const parts = p.split("/");
         for (let i = 1; i <= parts.length; i++) {
           const prefix = parts.slice(0, i).join("/");
           folderCounts.set(prefix, (folderCounts.get(prefix) ?? 0) + 1);
+        }
+      }
+
+      // ── 2. 每日随笔 → 注入虚拟 daily/YYYY-MM-DD/ 路径 ──
+      const dailyNotes = notes.filter((n) => !n.storagePath);
+      if (dailyNotes.length > 0) {
+        // 收集唯日期
+        const dateSet = new Set<string>();
+        for (const d of dailyNotes) {
+          dateSet.add(d.date);
+        }
+
+        // daily/ 根文件夹
+        folders.add("daily");
+        folderCounts.set("daily", dateSet.size);
+
+        for (const date of [...dateSet].sort().reverse()) {
+          const datePath = `daily/${date}`;
+          folders.add(datePath);
+
+          // 该日期下的每日笔记
+          const dateDocs = dailyNotes.filter((n) => n.date === date);
+          folderCounts.set(datePath, dateDocs.length);
+
+          for (const d of dateDocs) {
+            tree.push({
+              path: `${datePath}/${d.id}`,
+              name: d.title || "无标题",
+              type: 'document',
+              noteId: d.id,
+              docType: d.docType,
+              updatedAt: d.updated_at,
+              readonly: false,
+            });
+          }
         }
       }
 
@@ -870,10 +904,24 @@ export const idbAdapter: StorageAdapter = {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
       const all = await getAll<any>(store);
-      return all
-        .filter((n) => !n.deleted_at && n.storagePath && n.storagePath.startsWith(pathPrefix))
-        .sort((a, b) => (a.storagePath ?? "").localeCompare(b.storagePath ?? ""))
-        .map(noteFromDB);
+      const notes = all.filter((n) => !n.deleted_at).map(noteFromDB);
+
+      // daily/ 前缀 → 返回对应日期的每日随笔（无 storagePath）
+      if (pathPrefix.startsWith("daily/")) {
+        const date = pathPrefix.slice(6); // 去掉 "daily/"
+        if (date) {
+          return notes
+            .filter((n) => n.date === date && !n.storagePath)
+            .sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""));
+        }
+        return notes
+          .filter((n) => !n.storagePath)
+          .sort((a, b) => b.date.localeCompare(a.date) || (b.updated_at ?? "").localeCompare(a.updated_at ?? ""));
+      }
+
+      return notes
+        .filter((n) => n.storagePath && n.storagePath.startsWith(pathPrefix))
+        .sort((a, b) => (a.storagePath ?? "").localeCompare(b.storagePath ?? ""));
     });
   },
 

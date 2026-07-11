@@ -68,6 +68,32 @@ pub fn search_docs(state: State<AppState>, query: DocSearchQuery) -> Result<Vec<
 #[tauri::command]
 pub fn get_notes_by_path(state: State<AppState>, path_prefix: String) -> Result<Vec<crate::db::models::Note>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    // daily/ 前缀 → 返回对应日期的每日随笔（无 storagePath）
+    if path_prefix.starts_with("daily/") {
+        let date = path_prefix.strip_prefix("daily/").unwrap_or("");
+        if !date.is_empty() {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly FROM notes WHERE deleted_at IS NULL AND date = ?1 ORDER BY updated_at DESC"
+                )
+                .map_err(|e| e.to_string())?;
+            let rows = stmt.query_map(rusqlite::params![date], |row| crate::db::models::note_from_row(row))
+                .map_err(|e| e.to_string())?;
+            return rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string());
+        }
+        // 纯 "daily/" → 返回所有每日随笔
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly FROM notes WHERE deleted_at IS NULL AND storage_path IS NULL ORDER BY date DESC, updated_at DESC"
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([], |row| crate::db::models::note_from_row(row))
+            .map_err(|e| e.to_string())?;
+        return rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string());
+    }
+
+    // 普通文档路径
     let mut stmt = conn
         .prepare(
             "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly FROM notes WHERE deleted_at IS NULL AND storage_path LIKE ?1 OR storage_path = ?2 ORDER BY updated_at DESC"
@@ -107,6 +133,8 @@ pub fn get_all_concepts(state: State<AppState>) -> Result<Vec<String>, String> {
 #[tauri::command]
 pub fn get_path_tree(state: State<AppState>) -> Result<Vec<PathNode>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+
+    // ── 1. 文档类笔记（有 storage_path）──
     let mut stmt = conn
         .prepare(
             "SELECT storage_path, updated_at, readonly, COUNT(*) as cnt FROM notes WHERE deleted_at IS NULL AND storage_path IS NOT NULL GROUP BY storage_path ORDER BY storage_path"
@@ -151,6 +179,67 @@ pub fn get_path_tree(state: State<AppState>) -> Result<Vec<PathNode>, String> {
                 entry.count += 1;
             } else {
                 entry.folders.insert(parts[i].to_string());
+            }
+        }
+    }
+
+    // ── 2. 每日随笔 → 注入虚拟 daily/YYYY-MM-DD/ 路径 ──
+    {
+        let mut daily_stmt = conn
+            .prepare(
+                "SELECT id, date, title, updated_at FROM notes WHERE deleted_at IS NULL AND storage_path IS NULL ORDER BY date DESC, updated_at DESC"
+            )
+            .map_err(|e| e.to_string())?;
+        let daily_rows = daily_stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,   // id
+                row.get::<_, String>(1)?,   // date
+                row.get::<_, String>(2)?,   // title
+                row.get::<_, Option<String>>(3)?, // updated_at
+            ))
+        }).map_err(|e| e.to_string())?;
+
+        // 收集所有日期作为 daily 子文件夹
+        let mut dates: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        let mut date_docs: std::collections::BTreeMap<String, Vec<PathNode>> = std::collections::BTreeMap::new();
+
+        for row in daily_rows {
+            let (id, date, title, updated_at) = row.map_err(|e| e.to_string())?;
+            let path = format!("daily/{}/{}", date, id);
+            dates.insert(date.clone());
+            date_docs.entry(date).or_default().push(PathNode {
+                name: title,
+                path,
+                node_type: "document".to_string(),
+                children: vec![],
+                updated_at: updated_at.clone(),
+                count: None,
+                readonly: None,
+            });
+        }
+
+        if !dates.is_empty() {
+            // 先收集所有日期，避免在遍历 tree 时同时可变借用
+            let date_list: Vec<String> = dates.iter().cloned().collect();
+
+            // daily/ 根文件夹
+            let daily_root = tree.entry("daily".to_string()).or_default();
+            daily_root.count = date_list.len();
+
+            for date in &date_list {
+                daily_root.folders.insert(date.clone());
+            }
+            // 释放 daily_root 的可变借用，然后逐日期插入
+            for date in &date_list {
+                let date_path = format!("daily/{}", date);
+                let date_entry = tree.entry(date_path.clone()).or_default();
+                if let Some(docs) = date_docs.get(date) {
+                    date_entry.docs = docs.clone();
+                    date_entry.count = docs.len();
+                    if let Some(last) = docs.last() {
+                        date_entry.updated_at = last.updated_at.clone();
+                    }
+                }
             }
         }
     }
