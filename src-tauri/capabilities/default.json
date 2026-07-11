@@ -1,9 +1,15 @@
 {
   "identifier": "default",
   "description": "Default capabilities for Nine Rings",
-  "windows": ["main"],
+  "windows": ["main", "quick-capture"],
   "permissions": [
     "core:default",
+    "core:window:allow-minimize",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-close",
+    "core:window:allow-toggle-maximize",
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",

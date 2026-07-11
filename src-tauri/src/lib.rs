@@ -6,7 +6,7 @@ pub mod service;
 use std::sync::Mutex;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
-    tray::{TrayIconBuilder, TrayIconEvent},
+    tray::{TrayIconBuilder, TrayIconEvent, MouseButton},
     Emitter,
     Manager,
 };
@@ -64,7 +64,7 @@ pub fn run() {
             match (|| -> Result<_, Box<dyn std::error::Error>> {
                 let show = MenuItemBuilder::with_id("show", "显示九环").build(app)?;
                 let new_note = MenuItemBuilder::with_id("new_note", "新建随笔    Ctrl+N").build(app)?;
-                let quick_cap = MenuItemBuilder::with_id("quick_capture", "快捷记录    Ctrl+Shift+N").build(app)?;
+                let quick_cap = MenuItemBuilder::with_id("quick_capture", "快捷记录    Ctrl+Alt+N").build(app)?;
                 let quit = MenuItemBuilder::with_id("quit", "退出").build(app)?;
                 let menu = MenuBuilder::new(app)
                     .item(&show)
@@ -79,7 +79,10 @@ pub fn run() {
                     .tooltip("九环 · 左键显隐 · 右键菜单")
                     .show_menu_on_left_click(false)
                     .on_tray_icon_event(|tray, event| {
-                        if let TrayIconEvent::Click { .. } = event {
+                        if let TrayIconEvent::Click { button, .. } = event {
+                            if button != MouseButton::Left {
+                                return; // 右键交给菜单系统处理
+                            }
                             // 左键：toggle 窗口显隐
                             if let Some(window) = tray.app_handle().get_webview_window("main") {
                                 if window.is_visible().unwrap_or(false) {
