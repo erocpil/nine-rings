@@ -291,6 +291,16 @@ def main():
     sources = [s for s in sys.argv[1:] if not s.startswith('--')]
     serve_mode = '--serve' in sys.argv[1:]
 
+    # ── 端口 ──
+    serve_port = 1420
+    for i, a in enumerate(sys.argv[1:], 1):
+        if a == '--port' and i + 1 < len(sys.argv):
+            try:
+                serve_port = int(sys.argv[i + 1])
+            except ValueError:
+                print(f"❌ 无效端口: {sys.argv[i + 1]}")
+                sys.exit(1)
+
     # ── 文档导入选项 ──
     storage_path = None
     doc_type = None
@@ -359,7 +369,7 @@ def main():
             payload['files'].append(file_entry)
         body = json.dumps(payload).encode('utf-8')
         req = urllib.request.Request(
-            'http://localhost:1420/__import',
+            f'http://localhost:{serve_port}/__import',
             data=body,
             headers={'Content-Type': 'application/json'},
             method='POST',
