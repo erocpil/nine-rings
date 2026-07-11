@@ -84,6 +84,7 @@ pub fn run() {
                     .build()?;
 
                 TrayIconBuilder::new()
+                    .icon(app.default_window_icon().unwrap().clone())
                     .menu(&menu)
                     .tooltip("九环 · 左键显隐 · 右键菜单")
                     .show_menu_on_left_click(false)

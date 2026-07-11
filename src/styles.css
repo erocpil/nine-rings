@@ -2635,8 +2635,8 @@ body {
 
 .editor-content blockquote {
   border-left: 3px solid var(--accent);
-  padding-left: 12px;
-  margin: 8px 0;
+  padding-left: 20px;
+  margin: 8px 0 8px 4px;
   color: var(--text-secondary);
 }
 
