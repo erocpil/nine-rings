@@ -43,20 +43,36 @@ export default function QuickCapture() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const hasErrorRef = useRef(false); // 标记当前 textarea 显示的是错误信息而非用户输入
 
-  // ── 1. 加载配置 + 应用主题 ──
+  // ── 1. 加载配置 + 应用主题（3 秒超时兜底）──
   useEffect(() => {
     console.log("[QC] ┌─ 窗口挂载 — 加载配置...");
+    let cancelled = false;
+    const timeout = setTimeout(() => {
+      if (!cancelled) {
+        console.warn("[QC] ⚠ 配置加载超时，使用默认浅色主题");
+        applyQCTheme("light");
+        setLoading(false);
+      }
+    }, 3000);
+
     api.config.get().then((c) => {
+      clearTimeout(timeout);
+      if (cancelled) return;
       console.log(`[QC] ├─ 配置加载完成: theme=${c.theme}`);
       applyQCTheme(c.theme);
       setLoading(false);
       console.log("[QC] └─ 主题已应用");
     }).catch((e) => {
+      clearTimeout(timeout);
+      if (cancelled) return;
       console.error("[QC] ✗ 配置加载失败:", e);
       applyQCTheme("light");
       setLoading(false);
     });
+
+    return () => { cancelled = true; clearTimeout(timeout); };
   }, []);
 
   // ── 2. 窗口显示时聚焦输入框 ──
@@ -68,6 +84,13 @@ export default function QuickCapture() {
 
   // ── 3. 提交：创建笔记（Tauri）或保存到 IndexedDB（Web）──
   const submit = useCallback(async () => {
+    // 错误重试：先清空错误标记，让下一次 onChange 回归用户输入模式
+    if (hasErrorRef.current) {
+      hasErrorRef.current = false;
+      setText("");
+      return;
+    }
+
     const content = text.trim();
     if (!content) {
       await getCurrentWindow().hide();
@@ -99,6 +122,10 @@ export default function QuickCapture() {
         try {
           await invoke("emit_to_main", { event: "quick-capture-created" });
           console.log("[QC] ├─ emit_to_main ✓ 已通知主窗口");
+          // Windows: WebView2 事件投递为异步，延迟 50ms 再隐藏
+          // 避免 hide() 截断事件队列导致主窗口收不到
+          await new Promise((r) => setTimeout(r, 50));
+          console.log("[QC] ├─ emit_to_main 投递窗口已过");
         } catch (e) {
           console.warn("[QC] ⚠ emit_to_main 失败（非致命）:", e);
         }
@@ -113,12 +140,18 @@ export default function QuickCapture() {
           console.warn("[QC] ⚠ BroadcastChannel 失败:", e);
         }
       }
-    } catch (e) {
-      console.error("[QC] ✗ 创建笔记失败:", e);
-    } finally {
+
+      // 成功 → 清空并隐藏
       setText("");
       setSubmitting(false);
       await getCurrentWindow().hide();
+    } catch (e) {
+      // 失败 → 保留窗口 + 显示错误提示，不隐藏
+      console.error("[QC] ✗ 创建笔记失败:", e);
+      setSubmitting(false);
+      hasErrorRef.current = true;
+      const errMsg = e instanceof Error ? e.message : String(e);
+      setText(`❌ 保存失败\n\n${errMsg}\n\n请检查后再试（按 Enter 重试，Esc 关闭）`);
     }
   }, [text]);
 
@@ -129,6 +162,7 @@ export default function QuickCapture() {
         e.preventDefault();
         submit();
       } else if (e.key === "Escape") {
+        hasErrorRef.current = false;
         setText("");
         getCurrentWindow().hide();
       }
