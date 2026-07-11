@@ -13,7 +13,7 @@
 [![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)](https://github.com/erocpil/nine-rings/releases)
 [![Web PWA](https://img.shields.io/badge/Web-PWA-FF7139?logo=pwa)](https://dist-navy-five-94.vercel.app)
 
-> 九枚戒环绕指，一念起落成文。
+> 九环绕指，一念成文。
 
 **Nine Rings** 是一款本地优先的跨平台随笔便签应用。按天组织笔记与待办、支持富文本编辑、标签分类、Markdown 导入、版本历史，以及「每日一页」工作流。
 
