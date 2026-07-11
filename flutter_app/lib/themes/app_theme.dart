@@ -43,7 +43,11 @@ class NineRingsTheme {
       onSurface: text,
       onSurfaceVariant: textSecondary,
       primary: accent,
+      onPrimary: const Color(0xFFFFFFFF),
+      secondary: accent,
+      onSecondary: const Color(0xFFFFFFFF),
       error: danger,
+      onError: const Color(0xFFFFFFFF),
     );
   }
 
@@ -57,7 +61,11 @@ class NineRingsTheme {
       onSurface: text,
       onSurfaceVariant: textSecondary,
       primary: accent,
+      onPrimary: const Color(0xFF0D1117),
+      secondary: accent,
+      onSecondary: const Color(0xFF0D1117),
       error: danger,
+      onError: const Color(0xFF0D1117),
     );
   }
 
