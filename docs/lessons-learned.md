@@ -248,3 +248,66 @@ for (let i = 1; i < parts.length; i++) {
 }
 ```
 折叠时排除 `ancestors` 中的所有路径即可。
+
+---
+
+## 配置 & 默认值
+
+### 两份 DEFAULT_CONFIG 分叉：运行时只用一份
+
+`src/types/models.ts` 和 `src/lib/storage/types.ts` 各定义了一份 `AppConfig` + `DEFAULT_CONFIG`，
+且默认值曾不一致（`models.ts` = `"light"`，`storage/types.ts` = `"dark"`）。
+
+**运行时链路**：
+- Tauri 桌面：`App.tsx → api.config.get() → tauriAdapter.getConfig() → invoke("get_config") → Rust state`
+  Rust 侧不走 `DEFAULT_CONFIG`，`AppConfig::default()` = `"light"` ✅
+- Web/PWA：`App.tsx → api.config.get() → idbAdapter.getConfig() → localStorage → fallback DEFAULT_CONFIG`
+  `idb.ts` `import { DEFAULT_CONFIG } from "./types"` — 即 `storage/types.ts` ❌
+
+`models.ts` 的 `DEFAULT_CONFIG` **从头到尾没有任何引用**，是死代码。
+
+**根因**：`96f6b8a` 创建配置系统时在两层各放了一份。后续 `ebac5fb` 移除 `"system"` 类型时将 `storage/types.ts` 默认值从 `"system"` 误改为 `"dark"`；
+`42bc9f3` 把 `models.ts` 改回 `"light"` 但漏掉了 `storage/types.ts`。
+
+**教训**：修改配置默认值时，必须追踪 import 链找到实际消费方，不能只看文件名猜测。
+
+### Tauri plugin API 破坏性变更
+
+`tauri-plugin-global-shortcut` 2.3.2 + `global-hotkey` 0.8.0 API 变更：
+
+| 旧 API | 新 API |
+|--------|--------|
+| `Shortcut::parse("Alt+Y")` | 字符串直接传入 `"Alt+Y"`（`parse` 已移除） |
+| `register(shortcut, callback)` | `on_shortcut("Alt+Y", callback)`（`register` 不再接回调） |
+
+本地 `Cargo.lock` 可能锁旧版通过编译，但 CI 拉最新版时报错。需关注 semantic versioning 的 breaking change。
+
+### `terminal()` 运行 bash，不能 `source ~/.zshrc`
+
+`terminal()` 工具创建的 shell 是 bash，`.zshrc` 中的函数（如 `setproxy`/`unsetproxy`）无法使用。
+需直接操作环境变量：
+
+```bash
+export http_proxy=http://172.16.1.135:3128/
+export https_proxy=http://172.16.1.135:3128/
+export HTTP_PROXY=http://172.16.1.135:3128/
+export HTTPS_PROXY=http://172.16.1.135:3128/
+# 使用完毕后
+unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY
+```
+
+---
+
+## 构建 & 打包
+
+### Tauri 图标生成
+
+从一张 1024×1024 以上的 PNG 源图，一键生成全平台图标：
+
+```bash
+cargo tauri icon source.png
+```
+
+输出：Linux（`.png` 多尺寸）、Windows（`.ico` 含多分辨率）、macOS（`.icns`）、Android（mipmap 多密度）、iOS（AppIcon 多尺寸）。
+
+源图必须是 PNG。JPG 需先转换：`convert source.jpg source.png`（ImageMagick）。
