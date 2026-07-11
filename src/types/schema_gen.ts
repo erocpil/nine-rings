@@ -1,5 +1,4 @@
 // 自动生成自 schema/note.yaml — 请勿手工编辑
-// 生成时间: 2026-07-11T03:14:21Z
 // 工具: scripts/gen-schema.py
 // 注：此文件为 schema 参考，实际类型定义见 src/types/models.ts
 

@@ -129,7 +129,6 @@ def generate_rust(schema):
     """Generate Rust SQL DDL constants."""
     lines = [
         "// 自动生成自 schema/note.yaml — 请勿手工编辑",
-        f"// 生成时间: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}",
         "// 工具: scripts/gen-schema.py",
         "",
         "/// 所有 CREATE TABLE 语句（初始 schema，不含迁移）",
@@ -178,7 +177,6 @@ def generate_dart(schema):
     """Generate Dart SQL DDL constants."""
     lines = [
         "// 自动生成自 schema/note.yaml — 请勿手工编辑",
-        f"// 生成时间: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}",
         "// 工具: scripts/gen-schema.py",
         "",
         "/// 初始 schema 版本号",
@@ -223,7 +221,6 @@ def generate_ts(schema):
     """Generate TypeScript type definitions + IndexedDB schema reference."""
     lines = [
         "// 自动生成自 schema/note.yaml — 请勿手工编辑",
-        f"// 生成时间: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}",
         "// 工具: scripts/gen-schema.py",
         "// 注：此文件为 schema 参考，实际类型定义见 src/types/models.ts",
         "",
