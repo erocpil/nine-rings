@@ -6,13 +6,26 @@ pub mod service;
 use std::sync::Mutex;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
-    tray::TrayIconBuilder,
+    tray::{TrayIconBuilder, TrayIconEvent},
     Emitter,
     Manager,
 };
 
 pub struct AppState {
     pub db: Mutex<rusqlite::Connection>,
+}
+
+/// 显示主窗口并强制 WebView2 重绘
+///
+/// Windows 上 hide() 后 show() 会导致 WebView2 渲染表面丢失、
+/// 界面全白。unminimize() 强制恢复窗口子控件（含 WebView2），
+/// 解决该问题。
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -25,10 +38,8 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             // 第二次双击 → 显示已有窗口，不创建新实例
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+            // show + unminimize 组合修复 Windows WebView2 hide/show 后白屏
+            show_main_window(app);
         }))
         .setup(|app| {
             let app_dir = app.path().app_data_dir().expect("failed to get app data dir");
@@ -49,9 +60,10 @@ pub fn run() {
             });
 
             // ── 系统托盘（非关键：失败不影响应用启动）──
+            // 左键：显示/隐藏窗口  右键：弹出菜单
             match (|| -> Result<_, Box<dyn std::error::Error>> {
                 let show = MenuItemBuilder::with_id("show", "显示九环").build(app)?;
-                let new_note = MenuItemBuilder::with_id("new_note", "新建随笔").build(app)?;
+                let new_note = MenuItemBuilder::with_id("new_note", "新建随笔    Ctrl+N").build(app)?;
                 let quit = MenuItemBuilder::with_id("quit", "退出").build(app)?;
                 let menu = MenuBuilder::new(app)
                     .item(&show)
@@ -62,19 +74,30 @@ pub fn run() {
 
                 TrayIconBuilder::new()
                     .menu(&menu)
-                    .tooltip("九环")
-                    .on_menu_event(|app, event| {
-                        match event.id().as_ref() {
-                            "show" => {
-                                if let Some(window) = app.get_webview_window("main") {
+                    .tooltip("九环 · 左键显隐 · 右键菜单")
+                    .show_menu_on_left_click(false)
+                    .on_tray_icon_event(|tray, event| {
+                        if let TrayIconEvent::Click { .. } = event {
+                            // 左键：toggle 窗口显隐
+                            if let Some(window) = tray.app_handle().get_webview_window("main") {
+                                if window.is_visible().unwrap_or(false) {
+                                    let _ = window.hide();
+                                } else {
                                     let _ = window.show();
+                                    let _ = window.unminimize();
                                     let _ = window.set_focus();
                                 }
                             }
+                        }
+                    })
+                    .on_menu_event(|app, event| {
+                        match event.id().as_ref() {
+                            "show" => {
+                                show_main_window(app);
+                            }
                             "new_note" => {
+                                show_main_window(app);
                                 if let Some(window) = app.get_webview_window("main") {
-                                    let _ = window.show();
-                                    let _ = window.set_focus();
                                     let _ = window.emit("tray-new-note", ());
                                 }
                             }
