@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'database/database_helper.dart';
 import 'providers/note_provider.dart';
 import 'screens/home_screen.dart';
+import 'themes/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,34 +17,16 @@ class NineRingsApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = NineRingsTheme.all[NineRingsTheme.defaultId]!;
+
     return ChangeNotifierProvider(
       create: (_) => NoteProvider(),
       child: MaterialApp(
         title: 'Nine Rings',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.indigo,
-            brightness: Brightness.light,
-          ),
-          useMaterial3: true,
-          appBarTheme: const AppBarTheme(
-            centerTitle: false,
-            elevation: 0,
-          ),
-        ),
-        darkTheme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.indigo,
-            brightness: Brightness.dark,
-          ),
-          useMaterial3: true,
-          appBarTheme: const AppBarTheme(
-            centerTitle: false,
-            elevation: 0,
-          ),
-        ),
-        themeMode: ThemeMode.system,
+        theme: theme.data,
+        darkTheme: theme.data,
+        themeMode: ThemeMode.light, // 显式指定，后续接入设置面板后改用用户选择
         home: const HomeScreen(),
       ),
     );

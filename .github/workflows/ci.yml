@@ -27,6 +27,11 @@ jobs:
 
       - run: npm ci
 
+      - name: Schema consistency check
+        run: |
+          pip install pyyaml
+          python3 scripts/gen-schema.py --check
+
       - run: npm run build
         env:
           NODE_ENV: production
@@ -147,3 +152,40 @@ jobs:
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: warn
+
+  # ──── Flutter 移动端构建 ────
+
+  flutter:
+    name: Flutter (Android APK)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Cache Flutter
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            flutter_app/.dart_tool
+            flutter_app/build
+          key: ${{ runner.os }}-flutter-${{ hashFiles('flutter_app/pubspec.lock') }}
+          restore-keys: ${{ runner.os }}-flutter-
+
+      - run: flutter pub get
+        working-directory: flutter_app
+
+      - run: flutter analyze
+        working-directory: flutter_app
+
+      - run: flutter build apk --debug
+        working-directory: flutter_app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flutter-apk
+          path: flutter_app/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error

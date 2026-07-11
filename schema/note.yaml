@@ -1,104 +1,109 @@
-# Note Sticky — 共享数据格式定义
-# Tauri (Rust) 和 Flutter (Dart) 两端共用的数据契约
+# Nine Rings — 数据格式定义（单一事实来源）
+# Web (IndexedDB)、Tauri (Rust SQLite)、Flutter (Dart SQLite) 三方均从此文件生成 schema。
+#
+# 字段类型说明：
+#   uuid       → SQL: TEXT PRIMARY KEY      | TS: string         | Dart: String
+#   date       → SQL: TEXT NOT NULL          | TS: string         | Dart: String
+#   string     → SQL: TEXT                   | TS: string         | Dart: String
+#   delta      → SQL: TEXT NOT NULL DEFAULT '{}' | TS: DeltaOps | Dart: String (JSON)
+#   json_array → SQL: TEXT NOT NULL DEFAULT '[]' | TS: string[]  | Dart: String (JSON)
+#   boolean    → SQL: INTEGER NOT NULL DEFAULT 0 | TS: boolean   | Dart: bool
+#   integer    → SQL: INTEGER NOT NULL DEFAULT 0 | TS: number    | Dart: int
+#   datetime   → SQL: TEXT NOT NULL          | TS: string         | Dart: String
+#   doc_type   → SQL: TEXT                   | TS: DocType        | Dart: String
+#
+# 约束标记：
+#   pk           → 主键
+#   required     → NOT NULL
+#   nullable     → 允许 NULL
+#   system       → 系统自动维护，不在 API 中暴露
+#   default: X   → 默认值
 
 Note:
-  description: 一条随笔笔记
+  description: 一条随笔笔记 / 文档
+  sql_table: notes
+  ts_interface: Note
+  dart_class: Note
+  indexes:
+    - columns: [date, created_at]
+    - columns: [updated_at]
+    - columns: [deleted_at]
+    - columns: [tags]
+    - columns: [pinned, sort_order]
+    - columns: [storagePath]
+  fts: search_text       # SQLite FTS5 虚拟表列
   fields:
-    id:
-      type: string
-      format: uuid
-      required: true
-    date:
-      type: string
-      format: date          # "2026-07-08"
-      required: true
-    title:
-      type: string
-      nullable: true
-      description: 随心记标题
-    content:
-      type: Delta           # TipTap/Quill Delta JSON，两端共用
-      description: 富文本内容
-    tags:
-      type: string[]
-      default: []
-      description: 标签列表
-    pinned:
-      type: boolean
-      default: false
-    order:
-      type: integer
-      default: 0
-      description: 同一天内的排序序号，越小越前
-    created_at:
-      type: string
-      format: datetime
-      required: true
-    updated_at:
-      type: string
-      format: datetime
-      required: true
+    id:            { type: uuid, pk: true }
+    date:          { type: date, required: true }
+    title:         { type: string, nullable: true }
+    content:       { type: delta }
+    tags:          { type: json_array, default: "[]" }
+    pinned:        { type: boolean, default: false }
+    sort_order:    { type: integer, default: 0 }
+    created_at:    { type: datetime, required: true }
+    updated_at:    { type: datetime, required: true }
+    deleted_at:    { type: datetime, nullable: true }
+    # ── 文档管理系统（v2）──
+    storagePath:   { type: string, nullable: true, description: "P.A.R.A. 目录路径, e.g. projects/nine-rings" }
+    docType:       { type: doc_type, nullable: true, description: "Diátaxis 类型: explanation|how-to|reference|tutorial" }
+    concepts:      { type: json_array, nullable: true, description: "Zettelkasten 概念标签" }
+    linkedDocIds:  { type: json_array, nullable: true, description: "关联文档 ID 列表" }
+    readonly:      { type: boolean, default: false }
+    search_text:   { type: string, system: true, default: "", description: "纯文本提取，用于全文搜索" }
 
 Todo:
-  description: 待办项
+  description: 待办项（嵌入在 DailyPage.todos 中，非独立表）
+  ts_interface: Todo
+  dart_class: Todo
   fields:
-    id:
-      type: string
-      format: uuid
-      required: true
-    text:
-      type: string
-      required: true
-    done:
-      type: boolean
-      default: false
-    order:
-      type: integer
-      default: 0
-    tags:
-      type: string[]
-      default: []
-      description: 待办标签
+    id:       { type: uuid, pk: true }
+    text:     { type: string, required: true }
+    done:     { type: boolean, default: false }
+    order:    { type: integer, default: 0 }
+    tags:     { type: json_array, default: "[]" }
+    remind_at: { type: datetime, nullable: true, description: "提醒时间" }
 
 DailyPage:
-  description: 每日一页（今日待办聚合）
+  description: 每日一页
+  sql_table: daily_pages
+  ts_interface: DailyPage
+  dart_class: DailyPage
   fields:
-    date:
-      type: string
-      format: date
-      required: true
-      pk: true
-    todos:
-      type: Todo[]
-      default: []
-    todo_carryover:
-      type: boolean
-      default: false
-    updated_at:
-      type: string
-      format: datetime
-      required: true
+    date:           { type: date, pk: true }
+    todos:          { type: json_array, default: "[]", description: "Todo[] JSON" }
+    todo_carryover: { type: boolean, default: false }
+    updated_at:     { type: datetime, required: true }
+
+NoteVersion:
+  description: 笔记版本历史
+  sql_table: note_versions
+  ts_interface: NoteVersion
+  dart_class: NoteVersion
+  indexes:
+    - columns: [note_id]
+  fields:
+    id:         { type: uuid, pk: true }
+    note_id:    { type: string, required: true, description: "FK → notes.id" }
+    title:      { type: string, nullable: true }
+    content:    { type: delta }
+    tags:       { type: json_array, default: "[]" }
+    pinned:     { type: boolean, default: false }
+    sort_order: { type: integer, default: 0 }
+    saved_at:   { type: datetime, required: true }
 
 SyncChange:
   description: 同步变更日志
+  sql_table: sync_changes
+  ts_interface: SyncChange
+  dart_class: SyncChange
+  indexes:
+    - columns: [entity_type, entity_id]
+    - columns: [timestamp]
   fields:
-    id:
-      type: string
-      format: uuid
-      required: true
-    entity_type:
-      type: enum(daily_page, note)
-    entity_id:
-      type: string
-      required: true
-    action:
-      type: enum(create, update, delete)
-    data:
-      type: json
-    timestamp:
-      type: string
-      format: datetime
-    synced_at:
-      type: string
-      format: datetime
-      nullable: true
+    id:          { type: uuid, pk: true }
+    entity_type: { type: string, required: true, description: "daily_page | note" }
+    entity_id:   { type: string, required: true }
+    action:      { type: string, required: true, description: "create | update | delete" }
+    data:        { type: string, required: true, description: "JSON string" }
+    timestamp:   { type: datetime, required: true }
+    synced_at:   { type: datetime, nullable: true }
