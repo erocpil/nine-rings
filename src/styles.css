@@ -294,7 +294,8 @@ body {
 
 .search-bar {
   position: relative;
-  flex: 1;
+  flex: 0 1 auto;
+  min-width: 180px;
   max-width: 300px;
   -webkit-app-region: no-drag;
 }
@@ -2026,7 +2027,7 @@ body {
 }
 
 .header-btn-gap {
-  width: 4px;
+  width: 2px;
 }
 
 /* ──── Error Bar ──── */
