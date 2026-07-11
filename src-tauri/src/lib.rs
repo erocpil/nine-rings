@@ -15,11 +15,20 @@ pub struct AppState {
     pub db: Mutex<rusqlite::Connection>,
 }
 
-/// 显示主窗口并强制 WebView2 重绘
-///
-/// Windows 上 hide() 后 show() 会导致 WebView2 渲染表面丢失、
-/// 界面全白。unminimize() 强制恢复窗口子控件（含 WebView2），
-/// 解决该问题。
+/// 切换主窗口显示/隐藏（Alt+Y 等 toggle 型快捷键）
+fn toggle_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        if window.is_visible().unwrap_or(false) {
+            let _ = window.hide();
+        } else {
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+        }
+    }
+}
+
+/// 显示主窗口（托盘点击、二次启动等需确保显示的场景）
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
@@ -137,7 +146,7 @@ pub fn run() {
                     "Alt+Y",
                     move |_app, _s, event| {
                         if event.state == ShortcutState::Pressed {
-                            show_main_window(&app_h);
+                            toggle_main_window(&app_h);
                         }
                     },
                 ) {

@@ -33,20 +33,25 @@ function applyQCTheme(theme: string) {
  *
  * Ctrl+Alt+N 唤起，输入内容后 Enter 保存为便签，Esc 关闭。
  * 窗口本身由 Rust 侧 toggle_quick_capture 命令管理生命周期。
+ *
+ * 内容写入统一走 api.notes.create()——与主窗口共享同一存储路径：
+ *   Tauri 桌面 → invoke("create_note") → Rust SQLite
+ *   Web/PWA    → IndexedDB adapter
  */
 export default function QuickCapture() {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // ── 1. 加载配置 + 应用主题 ──
   useEffect(() => {
     console.log("[QC] ┌─ 窗口挂载 — 加载配置...");
     api.config.get().then((c) => {
-      console.log(`[QC] ├─ 配置加载完成: theme=${c.theme} font_size=${c.note_font_size}`);
+      console.log(`[QC] ├─ 配置加载完成: theme=${c.theme}`);
       applyQCTheme(c.theme);
       setLoading(false);
-      console.log("[QC] └─ 主题已应用，loading=false");
+      console.log("[QC] └─ 主题已应用");
     }).catch((e) => {
       console.error("[QC] ✗ 配置加载失败:", e);
       applyQCTheme("light");
@@ -57,19 +62,15 @@ export default function QuickCapture() {
   // ── 2. 窗口显示时聚焦输入框 ──
   useEffect(() => {
     if (!loading) {
-      console.log("[QC] ▶ 聚焦输入框，等待用户输入");
       textareaRef.current?.focus();
     }
   }, [loading]);
 
-  // ── 3. 提交 ──
+  // ── 3. 提交：创建笔记（Tauri）或保存到 IndexedDB（Web）──
   const submit = useCallback(async () => {
-    console.log(`[QC] ┌─ submit() 开始 — rawText长度=${text.length}`);
     const content = text.trim();
     if (!content) {
-      console.log("[QC] ├─ 空内容 → 直接关闭窗口");
       await getCurrentWindow().hide();
-      console.log("[QC] └─ 窗口已隐藏");
       return;
     }
 
@@ -77,33 +78,37 @@ export default function QuickCapture() {
     const title = lines[0].slice(0, 80);
     const body = lines.length > 1 ? lines.slice(1).join("\n") : "";
     const today = new Date().toISOString().slice(0, 10);
-    console.log(`[QC] ├─ 解析完成: date=${today} title="${title}" bodyLen=${body.length}`);
+
+    console.log(`[QC] ├─ 提交: date=${today} title="${title}" bodyLen=${body.length}`);
+    setSubmitting(true);
 
     try {
-      console.log("[QC] ├─ invoke create_note ...");
-      await invoke("create_note", {
-        data: {
-          title,
-          content: JSON.stringify({ ops: [{ insert: body }] }),
-          date: today,
-          tags: [],
-          pinned: false,
-          sort_order: 0,
-        },
+      // 统一走 api.notes.create()——跨平台（Tauri IPC / IndexedDB）
+      await api.notes.create({
+        date: today,
+        title,
+        content: { ops: [{ insert: body || "\n" }] },
+        tags: [],
+        pinned: false,
       });
-      console.log("[QC] ├─ create_note ✓ 成功");
+      console.log("[QC] ├─ api.notes.create ✓ 成功");
 
-      // 跨窗口通知主窗口刷新（必须用 emit_to_main，不能用 getCurrentWindow().emit）
-      console.log("[QC] ├─ invoke emit_to_main(\"quick-capture-created\")");
-      await invoke("emit_to_main", { event: "quick-capture-created" });
-      console.log("[QC] ├─ emit_to_main ✓ 已通知主窗口刷新");
+      // Tauri 桌面：跨窗口通知主窗口刷新
+      // @ts-ignore
+      if (typeof window !== "undefined" && window.__TAURI__) {
+        try {
+          await invoke("emit_to_main", { event: "quick-capture-created" });
+          console.log("[QC] ├─ emit_to_main ✓ 已通知主窗口");
+        } catch (e) {
+          console.warn("[QC] ⚠ emit_to_main 失败（非致命）:", e);
+        }
+      }
     } catch (e) {
-      console.error("[QC] ✗ 操作失败:", e);
+      console.error("[QC] ✗ 创建笔记失败:", e);
     } finally {
       setText("");
-      console.log("[QC] ├─ 清空输入框 → 隐藏窗口");
+      setSubmitting(false);
       await getCurrentWindow().hide();
-      console.log("[QC] └─ 窗口已隐藏，submit() 结束");
     }
   }, [text]);
 
@@ -112,10 +117,8 @@ export default function QuickCapture() {
     (e: React.KeyboardEvent) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        console.log("[QC] ⏎ Enter 键 → 调用 submit()");
         submit();
       } else if (e.key === "Escape") {
-        console.log("[QC] ⎋ Esc 键 → 取消并关闭");
         setText("");
         getCurrentWindow().hide();
       }
@@ -145,11 +148,14 @@ export default function QuickCapture() {
         onKeyDown={handleKeyDown}
         placeholder="记点什么… Enter 保存  Esc 取消"
         autoFocus
+        disabled={submitting}
       />
       <div className="qc-footer">
-        <span className="qc-hint">Enter 保存 · Esc 取消 · Shift+Enter 换行</span>
-        <button className="qc-submit" onClick={submit}>
-          保存
+        <span className="qc-hint">
+          {submitting ? "保存中…" : "Enter 保存 · Esc 取消 · Shift+Enter 换行"}
+        </span>
+        <button className="qc-submit" onClick={submit} disabled={submitting}>
+          {submitting ? "..." : "保存"}
         </button>
       </div>
     </div>
