@@ -16,7 +16,7 @@ export interface AppConfig {
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
-  theme: "dark",
+  theme: "light",
   default_view: "daily",
   todo_carryover_default: false,
   auto_clean_days: 30,

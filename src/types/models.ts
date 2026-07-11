@@ -152,16 +152,3 @@ export const HOTKEY_LABELS: Record<string, string> = {
   go_to_daily:    "打开每日列表",
   show_window:    "显示主窗口",
 };
-
-export const DEFAULT_CONFIG: AppConfig = {
-  theme: "light",
-  default_view: "daily",
-  todo_carryover_default: false,
-  auto_clean_days: 30,
-  note_font_size: 16,
-  enable_sync: false,
-  dev_port: 1420,
-  highlight_active_line: true,
-  editor_show_line_numbers: false,
-  hotkeys: { ...DEFAULT_HOTKEYS },
-};
