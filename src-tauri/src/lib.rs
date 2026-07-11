@@ -155,6 +155,27 @@ pub fn run() {
                 }
             }
 
+            // ── F11 全屏切换（Rust 端系统级快捷键，不依赖 WebView）──
+            {
+                use tauri_plugin_global_shortcut::GlobalShortcutExt;
+                use tauri_plugin_global_shortcut::ShortcutState;
+
+                let app_h = app.handle().clone();
+                if let Err(e) = app.global_shortcut().on_shortcut(
+                    "F11",
+                    move |_app, _s, event| {
+                        if event.state == ShortcutState::Pressed {
+                            if let Some(window) = app_h.get_webview_window("main") {
+                                let is_fs = window.is_fullscreen().unwrap_or(false);
+                                let _ = window.set_fullscreen(!is_fs);
+                            }
+                        }
+                    },
+                ) {
+                    log::warn!("failed to register F11 global shortcut: {}", e);
+                }
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| {

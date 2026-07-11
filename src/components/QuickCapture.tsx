@@ -102,6 +102,16 @@ export default function QuickCapture() {
         } catch (e) {
           console.warn("[QC] ⚠ emit_to_main 失败（非致命）:", e);
         }
+      } else {
+        // Web 版：BroadcastChannel 跨标签页通知
+        try {
+          const bc = new BroadcastChannel("nine-rings-qc");
+          bc.postMessage("created");
+          bc.close();
+          console.log("[QC] ├─ BroadcastChannel ✓ 已通知主标签页");
+        } catch (e) {
+          console.warn("[QC] ⚠ BroadcastChannel 失败:", e);
+        }
       }
     } catch (e) {
       console.error("[QC] ✗ 创建笔记失败:", e);

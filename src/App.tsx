@@ -174,19 +174,35 @@ function App() {
 
   // ── Quick Capture 提交后刷新列表 ──
   useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Tauri 桌面端：监听 Rust 端 emit_to_main 事件
     // @ts-ignore
-    if (typeof window === "undefined" || !window.__TAURI__) return;
-    let unlisten: (() => void) | undefined;
-    import("@tauri-apps/api/event").then(({ listen }) => {
-      listen("quick-capture-created", () => {
-        const today = new Date().toISOString().slice(0, 10);
-        addLog(`[QC→主窗口] 收到 quick-capture-created, 切到日期 ${today}`);
-        setDate(today);
-      }).then((fn) => { unlisten = fn; });
-    }).catch((e) => {
-      console.warn("[QC→主窗口] 事件监听注册失败:", e);
-    });
-    return () => { unlisten?.(); };
+    if (typeof window !== "undefined" && window.__TAURI__) {
+      let unlisten: (() => void) | undefined;
+      import("@tauri-apps/api/event").then(({ listen }) => {
+        listen("quick-capture-created", () => {
+          addLog(`[QC→主窗口] 收到 quick-capture-created, 切到日期 ${today}`);
+          setDate(new Date().toISOString().slice(0, 10));
+        }).then((fn) => { unlisten = fn; });
+      }).catch((e) => {
+        console.warn("[QC→主窗口] 事件监听注册失败:", e);
+      });
+      return () => { unlisten?.(); };
+    }
+
+    // Web 版：BroadcastChannel 跨标签页通知
+    let bc: BroadcastChannel | undefined;
+    try {
+      bc = new BroadcastChannel("nine-rings-qc");
+      bc.onmessage = () => {
+        addLog(`[QC→主窗口] 收到 BroadcastChannel 通知, 切到日期 ${today}`);
+        setDate(new Date().toISOString().slice(0, 10));
+      };
+    } catch (e) {
+      console.warn("[QC→主窗口] BroadcastChannel 不可用:", e);
+    }
+    return () => { bc?.close(); };
   }, []);
 
   // 启动时恢复最后浏览的笔记（跨日查找）
