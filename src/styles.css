@@ -2485,9 +2485,10 @@ body {
   padding-left: 14px;
   position: relative;
 }
-/* 列表：保留浏览器默认 padding-left 用于圆点/编号，仅加底部间距 */
+/* 列表：固定左侧间距，圆点/编号与普通文本左对齐 */
 .ProseMirror > :is(ul, ol) {
   padding-bottom: 8px;
+  padding-left: 40px;
   position: relative;
 }
 
