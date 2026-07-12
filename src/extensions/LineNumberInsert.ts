@@ -20,46 +20,49 @@ export function createGutterClickHandler(editor: Editor): (e: MouseEvent) => voi
   const GUTTER_WIDTH = 36;
 
   return (e: MouseEvent) => {
-    const target = e.target as HTMLElement;
     const editorDom = editor.view.dom;
 
     // 只处理 .ProseMirror 内部的点击
-    if (!editorDom.contains(target)) return;
+    if (!editorDom.contains(e.target as HTMLElement)) return;
 
-    // 获取点击位置的元素
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    if (!el) return;
+    // 获取点击位置的最顶层元素
+    const clickedEl = document.elementFromPoint(e.clientX, e.clientY);
+    if (!clickedEl) return;
 
     // 向上查找最近的顶层 ProseMirror block
-    let block: Element | null = el.closest(
+    const block = clickedEl.closest(
       ".ProseMirror > p, .ProseMirror > h1, .ProseMirror > h2, .ProseMirror > h3, " +
       ".ProseMirror > h4, .ProseMirror > h5, .ProseMirror > h6, .ProseMirror > blockquote, " +
       ".ProseMirror > pre, .ProseMirror > ul, .ProseMirror > ol, .ProseMirror > .code-block-wrap"
     );
     if (!block) return;
 
-    // 检查点击是否在 gutter 区域（block 左侧 36px 内）
+    // 检查点击是否在 gutter 区域（block 左侧 GUTTER_WIDTH px 内）
     const blockRect = block.getBoundingClientRect();
     const relX = e.clientX - blockRect.left;
     if (relX < 0 || relX > GUTTER_WIDTH) return;
 
-    // 找到该 DOM 元素在 ProseMirror doc 中的位置
+    // 通过 nodeDOM 遍历找到该 DOM 元素在 ProseMirror doc 中的精确节点位置
     const pmView = editor.view;
-    const pos = pmView.posAtDOM(block, 0);
-    if (pos == null) return;
+    let insertPos: number | null = null;
+    pmView.state.doc.descendants((_node, pos) => {
+      if (insertPos !== null) return false; // 已找到，停止
+      if (pmView.nodeDOM(pos) === block) {
+        insertPos = pos;
+        return false;
+      }
+      return true;
+    });
 
-    // 获取该位置的节点信息
-    const $pos = pmView.state.doc.resolve(pos);
-    // 取父节点（顶层 block）的起始位置
-    const blockStart = $pos.start($pos.depth);
+    if (insertPos === null) return;
 
     // 不处理第一个 block（文档开头无需插入）
-    if (blockStart <= 0) return;
+    if (insertPos <= 1) return;
 
-    // 在 block 前插入空段落
+    // 在该 block 前插入空段落
     editor
       .chain()
-      .insertContentAt(blockStart, { type: "paragraph" })
+      .insertContentAt(insertPos, { type: "paragraph" })
       .focus()
       .run();
   };
