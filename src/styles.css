@@ -2488,8 +2488,13 @@ body {
 /* 列表：固定左侧间距，圆点/编号与普通文本左对齐 */
 .ProseMirror > :is(ul, ol) {
   padding-bottom: 8px;
-  padding-left: 40px;
+  padding-left: 48px;
   position: relative;
+}
+
+/* 列表项：收紧编号/圆点与文本间距 */
+.editor-content li {
+  padding-left: 0;
 }
 
 /* 行间 '+' — 位于左侧窄 gutter 中 */
