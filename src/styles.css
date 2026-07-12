@@ -2487,7 +2487,7 @@ body {
   counter-increment: prose-line;
   position: relative;
   padding-left: 44px;
-  padding-bottom: 14px;
+  padding-bottom: 10px;
 }
 
 .show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::before {
@@ -2509,15 +2509,28 @@ body {
   line-height: inherit;
 }
 
+/* 第一个 block：hover 行号时显示 '+'（上方无 block 可提供 ::after '+'） */
+.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):first-child:hover::before {
+  content: "+";
+  color: var(--accent);
+  opacity: 0.60;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  cursor: pointer;
+  pointer-events: auto;
+  background: rgba(128, 128, 128, 0.04);
+  border-radius: 3px;
+}
+
 /* 行间插入 '+' — 每个 block 底部 gutter 区域，用 ::after 实现 */
 .show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::after {
   content: '+';
   position: absolute;
   left: 0;
-  bottom: 2px;
+  bottom: -2px;
   width: 36px;
   text-align: center;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text-secondary);
   opacity: 0.12;
