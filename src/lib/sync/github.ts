@@ -90,9 +90,9 @@ async function fetchRemote(token: string, owner: string, repo: string, path: str
     throw new Error(`GitHub API 返回数据缺少 sha 字段: ${JSON.stringify(Object.keys(data))}`);
   }
 
-  // GitHub Contents API: 文件 >1MB 时不返回 base64 content，改用 download_url
+  // GitHub Contents API: 文件 >1MB 时不返回 base64 content
   const hasContent = data.content && data.content.length > 0 && data.encoding === "base64";
-  console.log(`[fetchRemote] encoding=${data.encoding} contentLen=${data.content?.length ?? 0} size=${data.size} download_url=${!!data.download_url}`);
+  console.log(`[fetchRemote] encoding=${data.encoding} contentLen=${data.content?.length ?? 0} size=${data.size}`);
 
   let decodedContent: string;
 
@@ -101,16 +101,20 @@ async function fetchRemote(token: string, owner: string, repo: string, path: str
     // Pull 侧必须对称解码: atob → escape → decodeURIComponent
     const binaryStr = atob(data.content);
     decodedContent = decodeURIComponent(escape(binaryStr));
-  } else if (data.download_url) {
-    // 大文件或无 base64：走 download_url 直接拉原始内容
-    console.log("[fetchRemote] 用 download_url 拉取原始内容");
-    const rawRes = await fetch(data.download_url, { headers: authHeader(token) });
-    if (!rawRes.ok) {
-      throw new Error(`下载原始文件失败: ${rawRes.status}`);
-    }
-    decodedContent = await rawRes.text();
   } else {
-    throw new Error("GitHub API 未返回文件内容且无 download_url");
+    // 大文件：用 Git Blobs API 拉取（无大小限制 + CORS 友好）
+    console.log(`[fetchRemote] 文件 >1MB，用 Git Blobs API (sha=${data.sha.slice(0, 7)})`);
+    const blobUrl = `https://api.github.com/repos/${owner}/${repo}/git/blobs/${data.sha}`;
+    const blobRes = await fetch(blobUrl, { headers: authHeader(token) });
+    if (!blobRes.ok) {
+      throw new Error(`Git Blobs API ${blobRes.status}`);
+    }
+    const blobData = await blobRes.json();
+    if (!blobData.content || blobData.encoding !== "base64") {
+      throw new Error("Git Blobs API 返回非 base64 内容");
+    }
+    const binaryStr = atob(blobData.content);
+    decodedContent = decodeURIComponent(escape(binaryStr));
   }
 
   return { content: decodedContent, sha: data.sha };
