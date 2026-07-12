@@ -607,6 +607,15 @@ function App() {
     }
   };
 
+  // ── 清除搜索状态（搜索结果点击 / 侧栏选择时调用）──
+  const clearSearchAndSelect = useCallback((note: Note) => {
+    search("");            // 清除常规搜索
+    setDocResults(null);   // 清除文档搜索
+    setDocSearchText("");
+    selectNote(note);
+    setDate(note.date);
+  }, [search, selectNote, setDate]);
+
   return (
     <div className={`app ${focusMode ? "app-focus-mode" : ""}`}>
       {/* 桌面版（Tauri）才需要自定义标题栏；web 版无窗口概念 */}
@@ -725,7 +734,11 @@ function App() {
               onRename={(id, title) => {
                 updateNote(id, { title });
               }}
-              onSelect={selectNote}
+              onSelect={(note) => {
+                search("");
+                setDocResults(null);
+                selectNote(note);
+              }}
               onCreate={createNote}
               onDelete={(id) => {
                 // Find note for undo context
@@ -762,6 +775,8 @@ function App() {
           ) : (
             <DocTree
               onSelect={(note) => {
+                search("");
+                setDocResults(null);
                 selectNote(note);
                 setDate(note.date);
               }}
@@ -799,7 +814,7 @@ function App() {
                 <div className="search-section-label">笔记</div>
               )}
               {(docResults ? docResults : results.notes).map((r) => (
-                <div key={r.id} className="search-hit" onClick={() => selectNote(r)}>
+                <div key={r.id} className="search-hit" onClick={() => clearSearchAndSelect(r)}>
                   <div className="search-hit-title">{r.title || "无标题"}</div>
                   <div className="search-hit-date">{r.date}</div>
                   {r.storagePath && <div className="search-hit-path">{r.storagePath}</div>}
@@ -818,7 +833,7 @@ function App() {
                 <div
                   key={`todo-${t.todo.id}`}
                   className="search-hit"
-                  onClick={() => setDate(t.date)}
+                  onClick={() => { search(""); setDocResults(null); setDate(t.date); }}
                 >
                   <div className="search-hit-title">
                     <span className={`todo-dot ${t.todo.done ? "done" : ""}`}>
@@ -834,6 +849,8 @@ function App() {
             <DocMOC
               storagePath={selectedFolderPath}
               onSelect={(note) => {
+                search("");
+                setDocResults(null);
                 selectNote(note);
                 setDate(note.date);
                 setSelectedFolderPath(null);
@@ -919,6 +936,8 @@ function App() {
             <div className="doc-tree-popup-body">
               <DocTree
                 onSelect={(note) => {
+                  search("");
+                  setDocResults(null);
                   selectNote(note);
                   setDate(note.date);
                 }}
