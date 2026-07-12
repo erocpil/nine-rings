@@ -79,7 +79,24 @@ async function fetchRemote(token: string, owner: string, repo: string, path: str
     const body = await res.text();
     throw new Error(`GitHub API ${res.status}: ${body.slice(0, 200)}`);
   }
-  const data: GitHubContentResponse = await res.json();
+
+  // 防御：先读文本，再解析 JSON，避免空 body 导致 "Unexpected end of JSON input"
+  const text = await res.text();
+  if (!text) {
+    throw new Error("GitHub API 返回空响应体（可能是代理截断或网络问题）");
+  }
+
+  let data: GitHubContentResponse;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`GitHub API 返回非 JSON 内容: ${text.slice(0, 200)}`);
+  }
+
+  if (!data.content || !data.sha) {
+    throw new Error(`GitHub API 返回数据缺少 content/sha 字段: ${JSON.stringify(Object.keys(data))}`);
+  }
+
   return {
     content: atob(data.content),
     sha: data.sha,
@@ -104,7 +121,23 @@ async function putRemote(token: string, owner: string, repo: string, path: strin
     const err = await res.text();
     throw new Error(`GitHub PUT ${res.status}: ${err.slice(0, 200)}`);
   }
-  const data = await res.json();
+
+  const text = await res.text();
+  if (!text) {
+    throw new Error("GitHub PUT 返回空响应体");
+  }
+
+  let data: { content: { sha: string } };
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`GitHub PUT 返回非 JSON: ${text.slice(0, 200)}`);
+  }
+
+  if (!data?.content?.sha) {
+    throw new Error(`GitHub PUT 返回数据缺少 content.sha`);
+  }
+
   return data.content.sha;
 }
 
@@ -156,6 +189,16 @@ export async function pullFromGitHub(config: SyncConfig): Promise<SyncConfig> {
   const remote = await fetchRemote(config.token, config.owner, config.repo, config.path);
   if (!remote) {
     throw new Error("远端仓库中未找到备份文件");
+  }
+
+  // 防御：验证拉取到的内容是有效 JSON
+  if (!remote.content || !remote.content.trim()) {
+    throw new Error("远端备份文件内容为空");
+  }
+  try {
+    JSON.parse(remote.content);
+  } catch {
+    throw new Error(`远端备份文件内容不是有效 JSON（前 100 字符: ${remote.content.slice(0, 100)}）`);
   }
 
   await importFullDB(remote.content);
