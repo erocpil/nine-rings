@@ -161,11 +161,6 @@ function extractInlineOps(
 // ── Quill Delta → ProseMirror ──
 
 export function deltaToProseMirror(deltaData: any): any {
-  // ── dump ──
-  const opsCount = deltaData?.ops?.length ?? 0;
-  const firstInsert = opsCount > 0 ? String(deltaData.ops[0]?.insert).slice(0, 60) : "—";
-  console.log(`[dump/converter] deltaToProseMirror ops=${opsCount} first_op=${JSON.stringify(firstInsert)}`);
-  // ── /dump ──
   // 兼容两种入参：{ops: [...]} 或 {delta: {ops: [...]}}
   const ops: any[] = deltaData?.ops ?? deltaData?.delta?.ops ?? [];
 
@@ -281,8 +276,6 @@ export function deltaToProseMirror(deltaData: any): any {
   }
 
   const nodeCount = doc.length;
-  const firstType = nodeCount > 0 ? doc[0].type : "—";
-  console.log(`[dump/converter] deltaToProseMirror → ${nodeCount} nodes first_type=${firstType}`);
   if (nodeCount === 0) {
     console.warn("[dump/converter] ⚠️ 转换后内容为空！输入 Delta ops:", JSON.stringify(deltaData).slice(0, 300));
   }

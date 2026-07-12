@@ -54,18 +54,6 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
         api.notes.listByDate(date),
         api.daily.get(date),
       ]);
-      // ── dump: 打印从数据库加载的笔记 content 结构 ──
-      for (const n of notes) {
-        const c = n.content as any;
-        const ops = c?.ops ?? [];
-        const isPM = c?.type === "doc";
-        console.log(
-          `[dump/store] note ${(n.id ?? '??').slice(0, 8)} title=${JSON.stringify(n.title)} ` +
-            `format=${isPM ? "ProseMirror" : ops.length ? `Delta(${ops.length}ops)` : "?empty?"} ` +
-            `first_op=${(JSON.stringify(ops[0]?.insert) ?? '—').slice(0, 60)}`,
-        );
-      }
-      // ── /dump ──
       // 优先恢复上次浏览的笔记，否则取第一项
       const lastId = localStorage.getItem("nr:lastNote");
       const preferred = lastId ? notes.find((n) => n.id === lastId) : undefined;
