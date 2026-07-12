@@ -2479,19 +2479,20 @@ body {
 
 /* ──── 行间插入 '+'（通用，不依赖行号） ──── */
 
-/* 所有 block 底部留出 '+' 空间 */
+/* 所有 block 底部留出 '+' 空间，左侧留窄 gutter 放 '+' */
 .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap) {
   padding-bottom: 10px;
+  padding-left: 18px;
   position: relative;
 }
 
-/* 行间 '+' — 浮于左侧，不占内容水平空间 */
+/* 行间 '+' — 位于左侧窄 gutter 中 */
 .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::after {
   content: '+';
   position: absolute;
-  left: -1.1em;
+  left: 2px;
   bottom: -2px;
-  width: 1em;
+  width: 14px;
   text-align: center;
   font-size: 12px;
   font-weight: 700;
@@ -2515,9 +2516,9 @@ body {
 .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):first-child:hover::before {
   content: '+';
   position: absolute;
-  left: -1.1em;
+  left: 2px;
   top: 0;
-  width: 1em;
+  width: 14px;
   text-align: center;
   font-size: 15px;
   font-weight: 700;

@@ -14,7 +14,7 @@ import type { Editor } from "@tiptap/core";
 const PLUS_ZONE = 12;
 
 export function createGutterClickHandler(editor: Editor): (e: MouseEvent) => void {
-  const GUTTER_WIDTH = 36;
+  const GUTTER_WIDTH = 18;
 
   return (e: MouseEvent) => {
     const editorDom = editor.view.dom;
