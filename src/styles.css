@@ -1054,8 +1054,8 @@ body {
   color: var(--text);
   font-size: 22px;
   font-weight: 700;
-  padding: 8px 0;
-  margin-bottom: 8px;
+  padding: 4px 0;
+  margin-bottom: 4px;
 }
 
 .note-title:focus {
@@ -2073,8 +2073,8 @@ body {
   flex-wrap: wrap;
   gap: 4px;
   align-items: center;
-  padding: 4px 0;
-  margin-bottom: 4px;
+  padding: 2px 0;
+  margin-bottom: 2px;
 }
 
 .tag-chip {
