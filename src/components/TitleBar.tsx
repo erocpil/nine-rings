@@ -8,7 +8,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
  */
 export default function TitleBar() {
   const handleMinimize = async () => {
-    await getCurrentWindow().minimize();
+    // 最小化 → 隐藏到托盘，不在任务栏留图标
+    await getCurrentWindow().hide();
   };
 
   const handleClose = async () => {
