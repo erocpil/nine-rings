@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   loadSyncConfig,
   saveSyncConfig,
@@ -9,20 +9,37 @@ import {
   type SyncStatus,
 } from "../lib/sync/github";
 
-export default function SettingsSync() {
+interface Props {
+  /** 同步进行中回调 — 父组件用来 freeze 编辑区 */
+  onBusyChange?: (busy: boolean) => void;
+}
+
+export default function SettingsSync({ onBusyChange }: Props) {
   const [cfg, setCfg] = useState<SyncConfig>(loadSyncConfig);
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"" | "success" | "error">("");
+
+  // 防止 Strict Mode 重复触发
+  const checkRef = useRef("");
 
   // 自动检测连接状态
   useEffect(() => {
-    if (cfg.token && cfg.owner && cfg.repo) {
-      checkStatus(cfg).then(setStatus);
-    } else {
+    if (!cfg.token || !cfg.owner || !cfg.repo) {
       setStatus(null);
+      return;
     }
-  }, [cfg.token, cfg.owner, cfg.repo]);
+    const key = `${cfg.owner}/${cfg.repo}/${cfg.path}`;
+    if (key === checkRef.current) return; // 已在当前会话检查过
+    checkRef.current = key;
+    checkStatus(cfg).then(setStatus);
+  }, [cfg.token, cfg.owner, cfg.repo, cfg.path]);
+
+  // busy 变化时通知父组件
+  useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
 
   const update = useCallback((patch: Partial<SyncConfig>) => {
     setCfg((prev) => {
@@ -34,13 +51,13 @@ export default function SettingsSync() {
 
   const handleCheck = useCallback(async () => {
     setBusy(true);
-    setMessage("");
+    clearMessage();
     try {
       const s = await checkStatus(cfg);
       setStatus(s);
-      setMessage(s.message);
+      showMessage(s.message, s.ok ? "success" : "error");
     } catch (e) {
-      setMessage(`错误: ${(e as Error).message}`);
+      showMessage(`错误: ${(e as Error).message}`, "error");
     } finally {
       setBusy(false);
     }
@@ -48,13 +65,13 @@ export default function SettingsSync() {
 
   const handlePush = useCallback(async () => {
     setBusy(true);
-    setMessage("");
+    clearMessage();
     try {
       const updated = await pushToGitHub(cfg);
       setCfg(updated);
-      setMessage(`已推送 (${new Date().toLocaleTimeString()})`);
+      showMessage(`已推送 (${new Date().toLocaleTimeString()})`, "success");
     } catch (e) {
-      setMessage(`推送失败: ${(e as Error).message}`);
+      showMessage(`推送失败: ${(e as Error).message}`, "error");
     } finally {
       setBusy(false);
     }
@@ -63,19 +80,25 @@ export default function SettingsSync() {
   const handlePull = useCallback(async () => {
     if (!confirm("从 GitHub 拉取将覆盖本地数据，确认？")) return;
     setBusy(true);
-    setMessage("");
+    clearMessage();
     try {
       const updated = await pullFromGitHub(cfg);
       setCfg(updated);
-      setMessage(`已拉取 (${new Date().toLocaleTimeString()})，请刷新页面查看`);
+      showMessage(`已拉取 (${new Date().toLocaleTimeString()})，即将刷新页面…`, "success");
       // 刷新页面使数据生效
-      setTimeout(() => window.location.reload(), 1500);
+      setTimeout(() => window.location.reload(), 2000);
     } catch (e) {
-      setMessage(`拉取失败: ${(e as Error).message}`);
+      showMessage(`拉取失败: ${(e as Error).message}`, "error");
     } finally {
       setBusy(false);
     }
   }, [cfg]);
+
+  const showMessage = (msg: string, type: "success" | "error") => {
+    setMessage(msg);
+    setMessageType(type);
+  };
+  const clearMessage = () => { setMessage(""); setMessageType(""); };
 
   return (
     <div className="settings-section">
@@ -145,7 +168,12 @@ export default function SettingsSync() {
         </div>
       )}
 
-      {message && <div className="sync-msg">{message}</div>}
+      {message && (
+        <div className={`sync-toast ${messageType}`}>
+          {messageType === "success" ? "✓ " : messageType === "error" ? "✗ " : ""}
+          {message}
+        </div>
+      )}
 
       {/* 按钮 */}
       <div className="settings-row" style={{ gap: 8, marginTop: 8 }}>
@@ -159,6 +187,14 @@ export default function SettingsSync() {
           Pull ↓
         </button>
       </div>
+
+      {/* 同步中遮罩 */}
+      {busy && (
+        <div className="sync-loading-overlay">
+          <div className="sync-spinner" />
+          <span>同步中…</span>
+        </div>
+      )}
     </div>
   );
 }

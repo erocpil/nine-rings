@@ -92,6 +92,7 @@ function App() {
   const [tagFilteredNotes, setTagFilteredNotes] = useState<Note[] | null>(null);
   const [undo, setUndo] = useState<UndoState | null>(null);
   const [versionOpen, setVersionOpen] = useState(false);
+  const [syncBusy, setSyncBusy] = useState(false);
   const FOCUS_KEY = "nr:focusMode";
   const [focusMode, setFocusMode] = useState(() => {
     return localStorage.getItem(FOCUS_KEY) === "true";
@@ -888,7 +889,7 @@ function App() {
                     key={selectedNote.id}
                     noteId={selectedNote.id}
                     focusMode={focusMode}
-                    readonly={selectedNote.readonly}
+                    readonly={selectedNote.readonly || syncBusy}
                     title={selectedNote.title}
                     content={selectedNote.content}
                     tags={selectedNote.tags}
@@ -925,6 +926,7 @@ function App() {
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         onConfigChange={handleConfigChange}
+        onSyncBusy={setSyncBusy}
         onImport={() => {
           setDate(currentDate);
           setDocTreeKey(k => k + 1);

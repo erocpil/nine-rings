@@ -292,6 +292,7 @@ export async function pullFromGitHub(config: SyncConfig): Promise<SyncConfig> {
 
 /**
  * 检查连接状态：能否访问仓库，远端是否有备份
+ * 仅做元数据检测（HTTP status），不下载文件内容
  */
 export async function checkStatus(config: SyncConfig): Promise<SyncStatus> {
   if (!config.token || !config.owner || !config.repo) {
@@ -299,13 +300,21 @@ export async function checkStatus(config: SyncConfig): Promise<SyncStatus> {
   }
 
   try {
-    const remote = await fetchRemote(config.token, config.owner, config.repo, config.path);
-    if (!remote) {
+    const url = `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${encodeURIComponent(config.path)}`;
+    const res = await fetch(url, { headers: authHeader(config.token) });
+    if (res.status === 404) {
       return {
         ok: true,
         message: "仓库连接正常，远端暂无备份文件",
         localAt: config.lastSyncAt,
       };
+    }
+    if (res.status === 401) {
+      return { ok: false, message: "Token 无效或无权限" };
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      return { ok: false, message: `API ${res.status}: ${body.slice(0, 100)}` };
     }
     return {
       ok: true,

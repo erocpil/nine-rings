@@ -11,9 +11,11 @@ interface Props {
   onClose: () => void;
   onConfigChange: (config: AppConfig) => void;
   onImport?: () => void;
+  /** 同步进行中回调 — 用来 freeze 编辑区 */
+  onSyncBusy?: (busy: boolean) => void;
 }
 
-export function SettingsPanel({ open, onClose, onConfigChange, onImport }: Props) {
+export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncBusy }: Props) {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -476,7 +478,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport }: Props
             {/* ═══════════════════════ */}
             {/* GitHub 同步 */}
             {/* ═══════════════════════ */}
-            <SettingsSync />
+            <SettingsSync onBusyChange={onSyncBusy} />
 
             {/* ── 保存反馈 ── */}
             {message && <div className="settings-toast">{message}</div>}

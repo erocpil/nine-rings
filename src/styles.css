@@ -3002,10 +3002,51 @@ body {
   opacity: 0.7;
 }
 
-.sync-msg {
-  margin-top: 6px;
-  font-size: 12px;
+.sync-toast {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  animation: toastIn 0.25s ease-out;
+}
+.sync-toast.success {
+  background: rgba(26, 127, 55, 0.12);
+  color: #1a7f37;
+  border: 1px solid rgba(26, 127, 55, 0.2);
+}
+.sync-toast.error {
+  background: rgba(207, 34, 46, 0.12);
+  color: #cf222e;
+  border: 1px solid rgba(207, 34, 46, 0.2);
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sync-loading-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  margin-top: 8px;
+  border-radius: 6px;
+  background: rgba(128, 128, 128, 0.06);
   color: var(--text-secondary);
+  font-size: 13px;
+}
+.sync-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .settings-sep {
