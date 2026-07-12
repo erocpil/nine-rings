@@ -558,7 +558,11 @@ function App() {
       // 检测是否跨日：若 store 中 currentDate 与今日不同，自动切换
       const todayStr = d.toISOString().slice(0, 10);
       if (todayStr !== currentDate) {
-        setDate(todayStr);
+        // 仅随笔视图自动切日期；查看文档时保持不动
+        const sel = useNotesStore.getState().selectedNote;
+        if (!sel?.storagePath) {
+          setDate(todayStr);
+        }
       }
     };
     const id = setInterval(tick, 30_000);
