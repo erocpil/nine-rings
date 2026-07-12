@@ -37,15 +37,6 @@ export interface SyncStatus {
   localAt?: string | null;
 }
 
-interface GitHubContentResponse {
-  name: string;
-  path: string;
-  sha: string;
-  size: number;
-  content: string;       // base64
-  encoding: string;
-}
-
 // ── 配置持久化 ──
 
 const STORAGE_KEY = "nr:github-sync";
@@ -88,24 +79,41 @@ async function fetchRemote(token: string, owner: string, repo: string, path: str
     throw new Error("GitHub API 返回空响应体（可能是代理截断或网络问题）");
   }
 
-  let data: GitHubContentResponse;
+  let data: any;
   try {
     data = JSON.parse(text);
   } catch {
     throw new Error(`GitHub API 返回非 JSON 内容: ${text.slice(0, 200)}`);
   }
 
-  if (data.content == null || data.sha == null) {
-    throw new Error(`GitHub API 返回数据缺少 content/sha 字段: ${JSON.stringify(Object.keys(data))}`);
+  if (data.sha == null) {
+    throw new Error(`GitHub API 返回数据缺少 sha 字段: ${JSON.stringify(Object.keys(data))}`);
   }
 
-  // Push 侧用 btoa(unescape(encodeURIComponent(str))) 编码 UTF-8
-  // Pull 侧必须对称解码: atob → escape → decodeURIComponent
-  const binaryStr = atob(data.content);
-  return {
-    content: decodeURIComponent(escape(binaryStr)),
-    sha: data.sha,
-  };
+  // GitHub Contents API: 文件 >1MB 时不返回 base64 content，改用 download_url
+  const hasContent = data.content && data.content.length > 0 && data.encoding === "base64";
+  console.log(`[fetchRemote] encoding=${data.encoding} contentLen=${data.content?.length ?? 0} size=${data.size} download_url=${!!data.download_url}`);
+
+  let decodedContent: string;
+
+  if (hasContent) {
+    // Push 侧用 btoa(unescape(encodeURIComponent(str))) 编码 UTF-8
+    // Pull 侧必须对称解码: atob → escape → decodeURIComponent
+    const binaryStr = atob(data.content);
+    decodedContent = decodeURIComponent(escape(binaryStr));
+  } else if (data.download_url) {
+    // 大文件或无 base64：走 download_url 直接拉原始内容
+    console.log("[fetchRemote] 用 download_url 拉取原始内容");
+    const rawRes = await fetch(data.download_url, { headers: authHeader(token) });
+    if (!rawRes.ok) {
+      throw new Error(`下载原始文件失败: ${rawRes.status}`);
+    }
+    decodedContent = await rawRes.text();
+  } else {
+    throw new Error("GitHub API 未返回文件内容且无 download_url");
+  }
+
+  return { content: decodedContent, sha: data.sha };
 }
 
 /** 上传/更新远端文件 */
