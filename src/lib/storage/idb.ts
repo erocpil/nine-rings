@@ -634,18 +634,36 @@ export const idbAdapter: StorageAdapter = {
       const notes = data.notes ?? [];
       const pages = data.daily_pages ?? [];
 
-      const tx = db.transaction(["notes", "daily_pages"], "readwrite");
-      for (const n of notes) {
-        await putRecord(tx.objectStore("notes"), noteToDB(n));
-      }
-      for (const p of pages) {
-        await putRecord(tx.objectStore("daily_pages"), {
-          ...p,
-          todos: JSON.stringify(p.todos ?? []),
-          todo_carryover: p.todo_carryover ? 1 : 0,
-        });
-      }
-      return { notes_imported: notes.length, pages_imported: pages.length };
+      return new Promise<{ notes_imported: number; pages_imported: number }>((resolve, reject) => {
+        const tx = db.transaction(["notes", "daily_pages"], "readwrite");
+
+        tx.oncomplete = () => {
+          console.log(`[importData] 事务提交完成: ${notes.length} notes + ${pages.length} pages`);
+          resolve({ notes_imported: notes.length, pages_imported: pages.length });
+        };
+        tx.onerror = () => { console.error("[importData] 事务失败:", tx.error); reject(tx.error); };
+        tx.onabort = () => { console.error("[importData] 事务中止:", tx.error); reject(tx.error); };
+
+        const noteStore = tx.objectStore("notes");
+        const pageStore = tx.objectStore("daily_pages");
+
+        for (const n of notes) {
+          try {
+            noteStore.put(noteToDB(n));
+          } catch (e) {
+            console.error(`[importData] noteToDB 失败 id=${(n as any).id?.slice(0, 8)}:`, e);
+            reject(e as Error);
+            return;
+          }
+        }
+        for (const p of pages) {
+          pageStore.put({
+            ...p,
+            todos: JSON.stringify(p.todos ?? []),
+            todo_carryover: p.todo_carryover ? 1 : 0,
+          });
+        }
+      });
     });
   },
 

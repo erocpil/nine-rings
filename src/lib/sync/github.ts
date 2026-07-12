@@ -157,7 +157,9 @@ async function exportFullDB(): Promise<string> {
 /** 从 JSON 字符串导入全量数据 */
 async function importFullDB(json: string): Promise<void> {
   const { api } = await import("../api");
-  await api.export.import(json);
+  console.log("[importFullDB] 开始导入, json 长度:", json.length);
+  const result = await api.export.import(json);
+  console.log("[importFullDB] 导入完成:", result);
 }
 
 /** 树形 dump 导出数据摘要 */

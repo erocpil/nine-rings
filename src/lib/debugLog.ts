@@ -13,6 +13,8 @@ const _listeners = new Set<() => void>();
 export function addLog(msg: string): void {
   _logs = [..._logs, { time: new Date().toLocaleTimeString(), msg: String(msg) }].slice(-199);
   _listeners.forEach((fn) => fn());
+  // 后备：浏览器 console 同步可见
+  console.log(`[Hermes] ${msg}`);
 }
 
 export function getLogs(): LogEntry[] {
