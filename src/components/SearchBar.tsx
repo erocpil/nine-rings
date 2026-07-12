@@ -5,6 +5,8 @@ import type { DocType } from "../types/models";
 interface SearchBarProps {
   onSearch: (query: string) => void;
   onDocSearch?: (query: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => void;
+  onInputBlur?: () => void;
+  onEscape?: () => void;
 }
 
 const PATH_FILTERS = [
@@ -24,7 +26,7 @@ const TYPE_FILTERS: { value: DocType | ""; label: string }[] = [
   { value: "tutorial", label: "🎓 教程" },
 ];
 
-export function SearchBar({ onSearch, onDocSearch }: SearchBarProps) {
+export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: SearchBarProps) {
   const [value, setValue] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [pathFilter, setPathFilter] = useState("");
@@ -128,6 +130,20 @@ export function SearchBar({ onSearch, onDocSearch }: SearchBarProps) {
           placeholder="搜索笔记..."
           value={value}
           onChange={(e) => handleChange(e.target.value)}
+          onBlur={() => {
+            // 延迟检查：如果焦点移到筛选面板内部则不折叠
+            setTimeout(() => {
+              if (!filterRef.current?.contains(document.activeElement)) {
+                onInputBlur?.();
+              }
+            }, 150);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              onEscape?.();
+              e.preventDefault();
+            }
+          }}
           className="search-input"
         />
         <button

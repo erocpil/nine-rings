@@ -99,6 +99,7 @@ function App() {
   const [stickyTitle, setStickyTitle] = useState<string | null>(null);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const HIDDEN_KEY = "nr:sidebarHidden";
+  const [searchExpanded, setSearchExpanded] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     return localStorage.getItem(HIDDEN_KEY) === "true";
   });
@@ -141,6 +142,15 @@ function App() {
   useEffect(() => {
     localStorage.setItem(FOCUS_KEY, String(focusMode));
   }, [focusMode]);
+
+  // ── 搜索展开时自动聚焦 ──
+  useEffect(() => {
+    if (searchExpanded) {
+      setTimeout(() => {
+        document.querySelector<HTMLInputElement>(".search-input")?.focus();
+      }, 50);
+    }
+  }, [searchExpanded]);
 
   // ── 禁用双指缩放（浏览器忽略 viewport user-scalable=no）
   useEffect(() => {
@@ -638,17 +648,31 @@ function App() {
             </button>
           </div>
         )}
-        <SearchBar onSearch={search} onDocSearch={handleDocSearch} />
-        <span className="header-btn-gap" />
-        <button className="btn-icon" onClick={() => setSettingsOpen(true)} title="设置">
-          ⚙
-        </button>
-        {/* @ts-ignore */}
-        {typeof window !== "undefined" && (window as any).__TAURI__ && (
-          <button className="btn-icon" onClick={openNewWindow} title="新窗口">
-            ⊞
+        <div className="header-right">
+          <button
+            className="btn-icon btn-search-toggle"
+            onClick={() => setSearchExpanded(true)}
+            title="搜索"
+          >🔍</button>
+          <div className={`search-bar-collapse${searchExpanded ? ' expanded' : ''}`}>
+            <SearchBar
+              onSearch={search}
+              onDocSearch={handleDocSearch}
+              onInputBlur={() => setSearchExpanded(false)}
+              onEscape={() => setSearchExpanded(false)}
+            />
+          </div>
+          <span className="header-btn-gap" />
+          <button className="btn-icon" onClick={() => setSettingsOpen(true)} title="设置">
+            ⚙
           </button>
-        )}
+          {/* @ts-ignore */}
+          {typeof window !== "undefined" && (window as any).__TAURI__ && (
+            <button className="btn-icon" onClick={openNewWindow} title="新窗口">
+              ⊞
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="app-body">

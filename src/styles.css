@@ -85,6 +85,18 @@ body {
   transition: background var(--transition);
 }
 
+/* ── header 右侧区域（搜索 + 设置按钮，移动端右对齐）── */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ── 移动端搜索折叠按钮（桌面端隐藏）── */
+.btn-search-toggle {
+  display: none !important;
+}
+
 .app-body {
   display: flex;
   flex: 1;
@@ -4360,10 +4372,31 @@ body {
   /* ── Header 紧凑 ── */
   .app-header {
     padding: 6px 10px;
+    padding-top: calc(6px + var(--safe-top));
     gap: 4px;
     flex-wrap: nowrap;
     min-height: 44px;
     overflow-x: auto;
+  }
+
+  /* header-right 推到右侧（替代隐藏的 spacer） */
+  .header-right {
+    margin-left: auto;
+  }
+
+  /* 搜索折叠：移动端默认隐藏搜索栏，显示 🔍 图标 */
+  .btn-search-toggle {
+    display: inline-flex !important;
+  }
+
+  .search-bar-collapse:not(.expanded) .search-bar {
+    display: none;
+  }
+
+  .search-bar-collapse.expanded .search-bar {
+    display: flex;
+    width: auto;
+    flex-shrink: 0;
   }
 
   .header-clock { display: none; }
@@ -4373,11 +4406,6 @@ body {
     width: 100px !important;
     font-size: 12px;
     padding: 4px 6px;
-  }
-
-  .search-bar {
-    width: auto;
-    flex-shrink: 0;
   }
 
   /* 设置按钮不换行 */
