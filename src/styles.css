@@ -2474,33 +2474,44 @@ body {
 .ProseMirror {
   outline: none !important;
   padding-bottom: 35vh;
+  padding-left: 14px;          /* gutter — 所有 block 的内容向右偏移 */
   touch-action: auto;
 }
 
-/* ──── 行间插入 '+'（通用，不依赖行号） ──── */
+/* ══════════════════════════════════════════
+   Gutter — parent-based（参考 CodeMirror 6）
 
-/* 纯文本 block：统一左侧 gutter 放 '+' */
-.ProseMirror > :is(p, h1, h2, h3, h4, h5, h6) {
+   核心思路：gutter 宽度放在 .ProseMirror 的 padding-left 上，
+   伪元素（行号 / + 按钮）用 position:absolute + 负 left 回拉
+   到 padding 区。各 block 不再设各自的 padding-left，
+   消除 block 类型间的偏移冲突。
+   ══════════════════════════════════════════ */
+
+/* ── 行号模式：更宽的 gutter ── */
+.show-line-numbers .ProseMirror {
+  counter-reset: prose-line;
+  padding-left: 44px;
+}
+.focus-mode.show-line-numbers .ProseMirror {
+  padding-left: 36px;
+}
+
+/* ── 所有顶层 block：相对定位 + 底部间距（无 padding-left！）── */
+.ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap) {
   padding-bottom: 8px;
-  padding-left: 14px;
   position: relative;
 }
-/* 引用块、代码块、列表、pre：保留原有 padding-left，仅加底部间距 */
-.ProseMirror > :is(blockquote, .code-block-wrap, ul, ol, pre) {
-  padding-bottom: 8px;
-  position: relative;
-}
 
-/* 列表项：收紧编号/圆点与文本间距 */
+/* 列表项：收紧编号与文本间距 */
 .editor-content li {
   padding-left: 0;
 }
 
-/* 行间 '+' — 位于左侧窄 gutter 中 */
+/* ── 行间 + 按钮（::after）── 回拉到 gutter ── */
 .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::after {
   content: '+';
   position: absolute;
-  left: 0;
+  left: -14px;
   bottom: -4px;
   width: 14px;
   text-align: center;
@@ -2518,11 +2529,20 @@ body {
   opacity: 0.45;
 }
 
-/* 第一个 block：hover 时在左侧显示 '+'（上方无 block 提供 ::after '+'） */
+.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::after {
+  left: -44px;
+  width: 36px;
+}
+.focus-mode.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::after {
+  left: -36px;
+  width: 28px;
+}
+
+/* ── 第一个 block 顶部 +（::before hover）── */
 .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):first-child:hover::before {
   content: '+';
   position: absolute;
-  left: 0;
+  left: -14px;
   top: 0;
   width: 14px;
   text-align: center;
@@ -2536,22 +2556,26 @@ body {
   border-radius: 3px;
   line-height: 1.5;
 }
-
-/* ──── 行号 ──── */
-
-.show-line-numbers .ProseMirror {
-  counter-reset: prose-line;
+.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):first-child:hover::before {
+  left: -44px;
+  width: 36px;
+  text-align: right;
+  padding-right: 8px;
+  line-height: inherit;
+}
+.focus-mode.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):first-child:hover::before {
+  left: -36px;
+  width: 28px;
 }
 
+/* ── 行号（::before，仅行号模式）── */
 .show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap) {
   counter-increment: prose-line;
-  padding-left: 44px;
 }
-
 .show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::before {
   content: counter(prose-line);
   position: absolute;
-  left: 0;
+  left: -44px;
   top: 0;
   width: 36px;
   text-align: right;
@@ -2566,32 +2590,20 @@ body {
   font-weight: 400 !important;
   line-height: inherit;
 }
-
-/* 行号模式下：'+' 对齐行号 gutter */
-.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::after {
-  left: 0;
-  width: 36px;
-}
-.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):first-child:hover::before {
-  left: 0;
-  width: 36px;
-  text-align: right;
-  padding-right: 8px;
-  line-height: inherit;
-  background: rgba(128, 128, 128, 0.04);
-  border-radius: 3px;
+.focus-mode.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::before {
+  left: -36px;
+  width: 28px;
 }
 
-/* 代码块：wrapper 作为普通 block 参与主行号计数 */
+/* ── 代码块 wrapper：继承父级 gutter，用自己的行号 ── */
 .show-line-numbers .ProseMirror .code-block-wrap {
   counter-increment: prose-line;
-  padding-left: 44px !important;
   position: relative;
 }
 .show-line-numbers .ProseMirror .code-block-wrap::before {
   content: counter(prose-line);
   position: absolute;
-  left: 0;
+  left: -44px;
   top: 0;
   width: 36px;
   text-align: right;
@@ -2606,7 +2618,10 @@ body {
   font-weight: 400 !important;
   line-height: inherit;
 }
-/* wrapper 内部不重复计数 */
+.focus-mode.show-line-numbers .ProseMirror .code-block-wrap::before {
+  left: -36px;
+  width: 28px;
+}
 .show-line-numbers .ProseMirror .code-block-wrap pre {
   counter-increment: none;
 }
@@ -2614,78 +2629,25 @@ body {
   display: none;
 }
 
-/* 行号模式下，code 背景由 .code-block-wrap 的 padding-left 撑开 */
-.show-line-numbers .ProseMirror .code-block-wrap .code-block-inner pre code {
-  background: var(--code-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-
+/* ── 列表：自然缩进，无特殊 gutter 覆盖 ── */
 .show-line-numbers .ProseMirror > ul ul,
 .show-line-numbers .ProseMirror > ol ol,
 .show-line-numbers .ProseMirror > ul ol,
 .show-line-numbers .ProseMirror > ol ul {
   padding-left: 1.5em;
 }
-
-/* 列表行号窄化 + padding 左移，圆点和文本在行号右侧 */
-.show-line-numbers .ProseMirror > ul,
-.show-line-numbers .ProseMirror > ol {
-  padding-left: 65px !important;
-}
-.show-line-numbers .ProseMirror > ul::before,
-.show-line-numbers .ProseMirror > ol::before {
-  width: 14px;
-  padding-right: 2px;
-}
-/* 行号模式下，li 的 hanging indent 不需要参与偏移 —— 
-   已由 ul/ol 的 padding-left 统一推右 */
-.show-line-numbers .editor-content li {
-  padding-left: 0;
-  text-indent: 0;
-}
-
-.focus-mode.show-line-numbers .ProseMirror .code-block-wrap {
-  padding-left: 36px !important;
-}
-.focus-mode.show-line-numbers .ProseMirror .code-block-wrap::before {
-  width: 28px;
-}
-
-.focus-mode.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap) {
-  padding-left: 36px;
-}
-
-.focus-mode.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::before {
-  width: 28px;
-}
-
-.focus-mode.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::after {
-  width: 28px;
-}
-
-/* 覆盖 focus-mode 对 ul/ol 的 padding（需在通用规则之后） */
-.focus-mode.show-line-numbers .ProseMirror > ul,
-.focus-mode.show-line-numbers .ProseMirror > ol {
-  padding-left: 56px !important;
-}
-.focus-mode.show-line-numbers .ProseMirror > ul::before,
-.focus-mode.show-line-numbers .ProseMirror > ol::before {
-  width: 12px;
-  padding-right: 2px;
-}
+.show-line-numbers .editor-content li,
 .focus-mode.show-line-numbers .editor-content li {
   padding-left: 0;
   text-indent: 0;
 }
 
-/* 行号模式：code block 的深色背景从 pre 移到内部 code，避免包住行号 */
+/* ── Pre / code 背景（避免背景覆盖 gutter 区）── */
 .show-line-numbers .ProseMirror > pre,
 .show-line-numbers .ProseMirror > .code-block-wrap .code-block-inner pre {
   background: none;
   border: none;
 }
-/* 恢复当前行高亮背景 */
 .show-line-numbers .ProseMirror > pre.ProseMirror-activeline,
 .show-line-numbers .ProseMirror .code-block-wrap.ProseMirror-activeline .code-block-inner pre {
   background: var(--activeline-bg);
@@ -2697,6 +2659,11 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 2px 12px;
+}
+.show-line-numbers .ProseMirror .code-block-wrap .code-block-inner pre code {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
 /* ──── ProseMirror content ──── */
@@ -2754,54 +2721,13 @@ body {
   line-height: 1.5;
 }
 
-/* ── Blockquote: 竖线统一用 background linear-gradient ──
-   三种模式对齐规则：
-    非行号：bar 在 14px（gutter 右沿），padding-left = 14 + 20 = 34px
-    行号：  bar 在 44px（gutter 右沿），padding-left = 44 + 20 = 64px
-    专注：  bar 在 36px（gutter 右沿），padding-left = 36 + 20 = 56px
-   不用 border-left / box-shadow，避免 padding 偏移导致竖线错位。 */
-
+/* ── Blockquote：border-left 在元素左沿 = gutter 右沿（父级 .ProseMirror 的 padding-left 提供 gutter）
+   三种模式自动对齐，无需模式特化规则。 */
 .editor-content blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 20px;
+  margin: 8px 0;
   color: var(--text-secondary);
-}
-
-/* 非行号模式：14px gutter */
-.ProseMirror > blockquote {
-  border-left: none;
-  margin-left: 0;
-  padding-left: 34px;                /* 14px gutter + 20px */
-  position: relative;
-  background: linear-gradient(
-    to right,
-    transparent 14px,
-    var(--accent) 14px,
-    var(--accent) 17px,
-    transparent 17px
-  );
-}
-
-/* 行号模式：44px gutter */
-.show-line-numbers .ProseMirror > blockquote {
-  padding-left: 64px;                /* 44px gutter + 20px */
-  background: linear-gradient(
-    to right,
-    transparent 44px,
-    var(--accent) 44px,
-    var(--accent) 47px,
-    transparent 47px
-  );
-}
-
-/* 专注 + 行号模式：36px gutter */
-.focus-mode.show-line-numbers .ProseMirror > blockquote {
-  padding-left: 56px;                /* 36px focus gutter + 20px */
-  background: linear-gradient(
-    to right,
-    transparent 36px,
-    var(--accent) 36px,
-    var(--accent) 39px,
-    transparent 39px
-  );
 }
 
 .editor-content h1 { font-size: 1.6em; margin: 12px 0 6px; }
