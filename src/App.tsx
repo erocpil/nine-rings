@@ -696,6 +696,13 @@ function App() {
         </div>
       </header>
 
+      {syncBusy && (
+        <div className="sync-banner">
+          <div className="sync-banner-spinner" />
+          <span>同步中 — 编辑器已置为只读，完成后自动恢复</span>
+        </div>
+      )}
+
       <div className="app-body">
         <aside className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}>
           <div className="sidebar-tabs">
@@ -721,6 +728,7 @@ function App() {
 
           {sidebarTab === 'daily' ? (
             <Sidebar
+              disabled={syncBusy}
               notes={(query ? results.notes : (activeTag && tagFilteredNotes ? tagFilteredNotes : notes)).filter(n => !n.storagePath)}
               selectedId={selectedNote?.id ?? null}
               activeTag={activeTag}
@@ -779,6 +787,7 @@ function App() {
             />
           ) : (
             <DocTree
+              disabled={syncBusy}
               onSelect={(note) => {
                 setQuery("");
                 setDocResults(null);
@@ -870,6 +879,7 @@ function App() {
                   style={{ flex: todoFlex }}
                 >
                   <TodoList
+                    disabled={syncBusy}
                     todos={dailyPage?.todos ?? []}
                     onChange={updateTodos}
                   />
@@ -915,6 +925,7 @@ function App() {
 
         {selectedNote?.storagePath && propertiesAutoShow && propertiesOpen && (
           <PropertiesPanel
+            readonly={syncBusy}
             note={selectedNote}
             onNoteUpdate={(updated) => selectNote(updated)}
             onClose={() => setPropertiesOpen(false)}

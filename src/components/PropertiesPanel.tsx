@@ -6,6 +6,7 @@ interface PropertiesPanelProps {
   note: Note;
   onNoteUpdate: (note: Note) => void;
   onClose: () => void;
+  readonly?: boolean;
 }
 
 const DOC_TYPE_OPTIONS: { value: DocType; label: string }[] = [
@@ -23,7 +24,7 @@ const PATH_ROOT_LABELS: Record<string, string> = {
   archives: "📦 Archives",
 };
 
-function PropertiesPanel({ note, onNoteUpdate, onClose }: PropertiesPanelProps) {
+function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPanelProps) {
   const [conceptInput, setConceptInput] = useState("");
   const [existingConcepts, setExistingConcepts] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -68,9 +69,10 @@ function PropertiesPanel({ note, onNoteUpdate, onClose }: PropertiesPanelProps) 
 
   // ── 类型变更 ──
   const handleTypeChange = useCallback(async (docType: DocType) => {
+    if (readonly) return;
     await api.notes.update(note.id, { docType } as any);
     onNoteUpdate({ ...note, docType });
-  }, [note, onNoteUpdate]);
+  }, [note, onNoteUpdate, readonly]);
 
   // ── 概念 ──
   const handleConceptInput = (value: string) => {
@@ -87,6 +89,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose }: PropertiesPanelProps) 
   };
 
   const addConcept = async (tag: string) => {
+    if (readonly) return;
     const t = tag.trim();
     if (!t || concepts.includes(t)) return;
     const updated = [...concepts, t];
@@ -97,6 +100,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose }: PropertiesPanelProps) 
   };
 
   const removeConcept = async (tag: string) => {
+    if (readonly) return;
     const updated = concepts.filter((c) => c !== tag);
     await api.notes.update(note.id, { concepts: updated } as any);
     onNoteUpdate({ ...note, concepts: updated });
@@ -116,6 +120,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose }: PropertiesPanelProps) 
   };
 
   const addLink = async (linkedNote: Note) => {
+    if (readonly) return;
     const updated = [...linkedIds, linkedNote.id];
     await api.notes.update(note.id, { linkedDocIds: updated } as any);
     onNoteUpdate({ ...note, linkedDocIds: updated });
@@ -124,6 +129,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose }: PropertiesPanelProps) 
   };
 
   const removeLink = async (id: string) => {
+    if (readonly) return;
     const updated = linkedIds.filter((lid) => lid !== id);
     await api.notes.update(note.id, { linkedDocIds: updated } as any);
     onNoteUpdate({ ...note, linkedDocIds: updated });

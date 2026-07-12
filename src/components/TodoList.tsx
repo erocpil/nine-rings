@@ -49,9 +49,10 @@ interface OverdueItem {
 interface TodoListProps {
   todos: Todo[];
   onChange: (todos: Todo[]) => void;
+  disabled?: boolean;
 }
 
-export function TodoList({ todos, onChange }: TodoListProps) {
+export function TodoList({ todos, onChange, disabled }: TodoListProps) {
   const [undoTodo, setUndoTodo] = useState<{
     todo: Todo;
     previousTodos: Todo[];
@@ -101,6 +102,7 @@ export function TodoList({ todos, onChange }: TodoListProps) {
   };
 
   const setReminder = (todoId: string, isoTime: string) => {
+    if (disabled) return;
     if (!isoTime) {
       // 清除提醒
       clearReminder(todoId);
@@ -172,12 +174,14 @@ export function TodoList({ todos, onChange }: TodoListProps) {
   }, [undoTodo]);
 
   const toggleTodo = (id: string) => {
+    if (disabled) return;
     onChange(
       todos.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
     );
   };
 
   const removeTodo = (id: string) => {
+    if (disabled) return;
     const todo = todos.find((t) => t.id === id);
     if (!todo) return;
     setUndoTodo({ todo, previousTodos: todos });
@@ -185,12 +189,14 @@ export function TodoList({ todos, onChange }: TodoListProps) {
   };
 
   const undoRemove = () => {
+    if (disabled) return;
     if (!undoTodo) return;
     onChange(undoTodo.previousTodos);
     setUndoTodo(null);
   };
 
   const reorder = (from: number, to: number) => {
+    if (disabled) return;
     if (from === to) return;
     const arr = [...todos];
     const [moved] = arr.splice(from, 1);
@@ -240,6 +246,7 @@ export function TodoList({ todos, onChange }: TodoListProps) {
 
   const addTodo = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter") return;
+    if (disabled) return;
     const input = e.currentTarget;
     const text = input.value.trim();
     if (!text) return;
@@ -251,13 +258,14 @@ export function TodoList({ todos, onChange }: TodoListProps) {
   };
 
   const startEdit = (todo: Todo) => {
-    if (todo.done) return;
+    if (disabled || todo.done) return;
     setEditingId(todo.id);
     setEditText(todo.text);
   };
 
   const saveEdit = () => {
     if (!editingId) return;
+    if (disabled) return;
     const text = editText.trim();
     if (text) {
       onChange(

@@ -15,6 +15,7 @@ interface DocTreeProps {
   onBatchSetReadonly?: (ids: string[], readonly: boolean) => void;
   propertiesAutoShow?: boolean;
   onTogglePropertiesAuto?: () => void;
+  disabled?: boolean;
 }
 
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -83,6 +84,7 @@ function DocTree({
   onRename, onDelete, onToggleReadonly,
   onBatchDelete, onBatchSetReadonly,
   propertiesAutoShow, onTogglePropertiesAuto,
+  disabled,
 }: DocTreeProps) {
   const [tree, setTree] = useState<PathNode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -200,6 +202,7 @@ function DocTree({
   };
 
   const submitRename = (noteId: string, title: string) => {
+    if (disabled) return;
     if (title && onRename) onRename(noteId, title);
     // 本地更新 tree，立即反映新名称
     setTree((prev) =>
@@ -212,6 +215,7 @@ function DocTree({
 
   const handleDelete = (noteId: string, title: string) => {
     setContextMenu(null);
+    if (disabled) return;
     if (confirm(`删除文档「${title}」？\n删除后可从回收站恢复。`)) {
       onDelete?.(noteId);
     }
@@ -219,6 +223,7 @@ function DocTree({
 
   const handleToggleReadonly = async (noteId: string) => {
     setContextMenu(null);
+    if (disabled) return;
     try {
       const note = await api.notes.get(noteId);
       if (note && onToggleReadonly) {
@@ -242,6 +247,7 @@ function DocTree({
 
   const handleFolderDelete = (folderPath: string) => {
     setContextMenu(null);
+    if (disabled) return;
     const ids = getDocIdsUnderPath(folderPath);
     if (ids.length === 0) return;
     if (confirm(`删除目录「${folderPath.split("/").pop()}」及其下 ${ids.length} 篇文档？\\n删除后可从回收站恢复。`)) {
@@ -251,6 +257,7 @@ function DocTree({
 
   const handleFolderToggleReadonly = (folderPath: string) => {
     setContextMenu(null);
+    if (disabled) return;
     const ids = getDocIdsUnderPath(folderPath);
     if (ids.length === 0) return;
     // 检查当前大多数文档是否只读
@@ -403,6 +410,7 @@ function DocTree({
             <button
               className="btn-icon doc-tree-batch-btn"
               onClick={() => {
+                if (disabled) return;
                 const ids = Array.from(selectedIds);
                 if (ids.length > 0 && confirm(`删除选中的 ${ids.length} 篇文档？`)) {
                   onBatchDelete?.(ids);
@@ -410,20 +418,21 @@ function DocTree({
                 }
               }}
               title="批量删除"
-              disabled={selectedIds.size === 0}
+              disabled={disabled || selectedIds.size === 0}
             >
               🗑
             </button>
             <button
               className="btn-icon doc-tree-batch-btn"
               onClick={() => {
+                if (disabled) return;
                 if (selectedIds.size > 0) {
                   onBatchSetReadonly?.(Array.from(selectedIds), true);
                   clearSelection();
                 }
               }}
               title="批量设为只读"
-              disabled={selectedIds.size === 0}
+              disabled={disabled || selectedIds.size === 0}
             >
               🔒
             </button>
@@ -444,7 +453,7 @@ function DocTree({
             >
               ☐
             </button>
-            <button className="btn-icon doc-tree-add" onClick={onCreate} title="新建文档">
+            <button className="btn-icon doc-tree-add" onClick={disabled ? undefined : onCreate} disabled={disabled} title="新建文档">
               +
             </button>
           </>

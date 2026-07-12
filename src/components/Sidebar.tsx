@@ -63,6 +63,7 @@ interface SidebarProps {
   onTogglePin: (id: string, pinned: boolean) => void;
   onRename: (id: string, title: string) => void;
   onToggleReadonly: (id: string, readonly: boolean) => void;
+  disabled?: boolean;
 }
 
 let _dragId: string | null = null;
@@ -71,6 +72,7 @@ let _dragIndex: number = -1;
 export function Sidebar({
   notes, selectedId, activeTag, onHide, onSelect, onCreate, onDelete, onRecycleOpen,
   onReorder, onMoveToDate, onTagSelect, onTogglePin, onRename, onToggleReadonly,
+  disabled,
 }: SidebarProps) {
   const [moveNoteId, setMoveNoteId] = useState<string | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -158,7 +160,7 @@ export function Sidebar({
   // ── 批量操作 ──
   const [batchBusy, setBatchBusy] = useState(false);
   const batchDelete = async () => {
-    if (batchBusy) return;
+    if (disabled || batchBusy) return;
     if (!confirm(`确定删除 ${selectedIds.size} 篇选中的笔记？`)) return;
     setBatchBusy(true);
     const ids = [...selectedIds];
@@ -171,7 +173,7 @@ export function Sidebar({
   };
 
   const batchSetReadonly = async (ro: boolean) => {
-    if (batchBusy) return;
+    if (disabled || batchBusy) return;
     setBatchBusy(true);
     try {
       await api.recycle.batch.setReadonly([...selectedIds], ro);
@@ -185,6 +187,7 @@ export function Sidebar({
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
+    if (disabled) return;
     onDelete(id);
   };
 
@@ -223,6 +226,7 @@ export function Sidebar({
 
   const handleMoveClick = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
+    if (disabled) return;
     setMoveNoteId(id);
     setTimeout(() => moveInputRef.current?.showPicker?.(), 50);
   };
@@ -236,6 +240,7 @@ export function Sidebar({
   // ── Rename ──
 
   const startRename = (note: Note) => {
+    if (disabled) return;
     setEditingId(note.id);
     setEditValue(note.title || "");
     setTimeout(() => renameInputRef.current?.focus(), 0);
@@ -288,7 +293,7 @@ export function Sidebar({
               </div>
             )}
           </div>
-          <button className="btn-new" onClick={onCreate} title="新建随笔">
+          <button className="btn-new" onClick={disabled ? undefined : onCreate} disabled={disabled} title="新建随笔">
             +
           </button>
         </div>
@@ -354,6 +359,7 @@ export function Sidebar({
                 className="sidebar-item-pin pinned"
                 onClick={(e) => {
                   e.stopPropagation();
+                  if (disabled) return;
                   onTogglePin(note.id, false);
                 }}
                 title="取消置顶"
@@ -368,6 +374,7 @@ export function Sidebar({
                     className="sidebar-item-pin"
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (disabled) return;
                       onTogglePin(note.id, true);
                     }}
                     title="置顶"
@@ -379,6 +386,7 @@ export function Sidebar({
                   className="sidebar-item-ro"
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (disabled) return;
                     onToggleReadonly(note.id, !note.readonly);
                   }}
                   title={note.readonly ? "取消只读" : "设为只读"}
@@ -437,7 +445,7 @@ export function Sidebar({
 
       {/* 回收站入口 */}
       <div className="sidebar-footer">
-        <span className="sidebar-recycle-btn" onClick={onRecycleOpen}>
+        <span className="sidebar-recycle-btn" onClick={disabled ? undefined : onRecycleOpen}>
           🗑 回收站
         </span>
       </div>
