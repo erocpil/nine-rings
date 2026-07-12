@@ -93,12 +93,15 @@ async function fetchRemote(token: string, owner: string, repo: string, path: str
     throw new Error(`GitHub API 返回非 JSON 内容: ${text.slice(0, 200)}`);
   }
 
-  if (!data.content || !data.sha) {
+  if (data.content == null || data.sha == null) {
     throw new Error(`GitHub API 返回数据缺少 content/sha 字段: ${JSON.stringify(Object.keys(data))}`);
   }
 
+  // Push 侧用 btoa(unescape(encodeURIComponent(str))) 编码 UTF-8
+  // Pull 侧必须对称解码: atob → escape → decodeURIComponent
+  const binaryStr = atob(data.content);
   return {
-    content: atob(data.content),
+    content: decodeURIComponent(escape(binaryStr)),
     sha: data.sha,
   };
 }
@@ -192,8 +195,16 @@ export async function pullFromGitHub(config: SyncConfig): Promise<SyncConfig> {
   }
 
   // 防御：验证拉取到的内容是有效 JSON
+  // 空备份文件（0 字节）是合法状态 — 表示远端尚无数据
   if (!remote.content || !remote.content.trim()) {
-    throw new Error("远端备份文件内容为空");
+    // 空文件：跳过导入，仅更新配置
+    const updated = {
+      ...config,
+      lastSyncAt: new Date().toISOString(),
+      remoteSha: remote.sha,
+    };
+    saveSyncConfig(updated);
+    return updated;
   }
   try {
     JSON.parse(remote.content);
