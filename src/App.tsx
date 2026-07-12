@@ -608,10 +608,12 @@ function App() {
   };
 
   // ── 清除搜索状态（搜索结果点击 / 侧栏选择时调用）──
-  const clearSearchAndSelect = useCallback((note: Note) => {
-    search("");            // 清除常规搜索
-    setDocResults(null);   // 清除文档搜索
-    setDocSearchText("");
+  const clearSearchAndSelect = useCallback((note: Note, keepSearch = false) => {
+    if (!keepSearch) {
+      search("");            // 清除常规搜索
+      setDocResults(null);   // 清除文档搜索
+      setDocSearchText("");
+    }
     selectNote(note);
     setDate(note.date);
   }, [search, selectNote, setDate]);
@@ -814,7 +816,7 @@ function App() {
                 <div className="search-section-label">笔记</div>
               )}
               {(docResults ? docResults : results.notes).map((r) => (
-                <div key={r.id} className="search-hit" onClick={() => clearSearchAndSelect(r)}>
+                <div key={r.id} className="search-hit" onClick={(e) => clearSearchAndSelect(r, e.ctrlKey || e.metaKey)}>
                   <div className="search-hit-title">{r.title || "无标题"}</div>
                   <div className="search-hit-date">{r.date}</div>
                   {r.storagePath && <div className="search-hit-path">{r.storagePath}</div>}
