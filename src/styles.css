@@ -2487,6 +2487,7 @@ body {
   counter-increment: prose-line;
   position: relative;
   padding-left: 44px;
+  padding-bottom: 14px;
 }
 
 .show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::before {
@@ -2530,6 +2531,32 @@ body {
   cursor: default;
   pointer-events: none;
   background: none;
+}
+
+/* 行间插入 '+' — 每个 block 底部 gutter 区域，用 ::after 实现 */
+.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::after {
+  content: '+';
+  position: absolute;
+  left: 0;
+  bottom: 2px;
+  width: 36px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  opacity: 0.12;
+  pointer-events: auto;
+  cursor: pointer;
+  line-height: 1;
+  user-select: none;
+  transition: opacity 0.15s;
+}
+.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):hover::after {
+  opacity: 0.45;
+}
+/* 最后一个 block 不需要行间 '+'（后面没有内容可插入） */
+.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):last-child::after {
+  content: none;
 }
 
 /* 代码块：wrapper 作为普通 block 参与主行号计数 */
@@ -2607,6 +2634,10 @@ body {
 }
 
 .focus-mode.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::before {
+  width: 28px;
+}
+
+.focus-mode.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::after {
   width: 28px;
 }
 
@@ -2707,29 +2738,17 @@ body {
   color: var(--text-secondary);
 }
 
-/* 行号模式下：blockquote 竖线移到行号右侧，用 ::after 代替 border-left */
+/* 行号模式下：blockquote 竖线改用 box-shadow，释放 ::after 给行间 '+' 使用 */
 .show-line-numbers .ProseMirror > blockquote {
   border-left: none;
   margin-left: 0;
   padding-left: 50px;
   position: relative;
-}
-.show-line-numbers .ProseMirror > blockquote::after {
-  content: '';
-  position: absolute;
-  left: 40px;
-  top: 0.15em;
-  bottom: 0.15em;
-  width: 3px;
-  background: var(--accent);
-  border-radius: 2px;
-  pointer-events: none;
+  box-shadow: inset 40px 0 0 -37px var(--accent);
 }
 .focus-mode.show-line-numbers .ProseMirror > blockquote {
   padding-left: 42px;
-}
-.focus-mode.show-line-numbers .ProseMirror > blockquote::after {
-  left: 32px;
+  box-shadow: inset 32px 0 0 -29px var(--accent);
 }
 
 .editor-content h1 { font-size: 1.6em; margin: 12px 0 6px; }
