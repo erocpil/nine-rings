@@ -219,6 +219,8 @@ nine-rings/
 | [`docs/TAURI_DESIGN.md`](./docs/TAURI_DESIGN.md) | Tauri 架构设计文档 |
 | [`docs/document-system-design.md`](./docs/document-system-design.md) | 文档管理系统设计（P.A.R.A. × Zettelkasten × Diátaxis） |
 | [`docs/sync-architecture.md`](./docs/sync-architecture.md) | 跨设备同步架构方案 |
+| [`docs/github-sync.md`](./docs/github-sync.md) | GitHub 同步使用指南（Token 生成、配置、多设备工作流） |
+| [`docs/md-import.md`](./docs/md-import.md) | Markdown 导入工具使用指南（`md-to-nine-rings.py`） |
 | [`docs/markdown-import.md`](./docs/markdown-import.md) | Markdown 导入格式说明 |
 | [`docs/features-roadmap.md`](./docs/features-roadmap.md) | 功能路线图 |
 | [`docs/macos-platform-analysis.md`](./docs/macos-platform-analysis.md) | macOS 客户端方案分析（Tauri vs Flutter vs 原生） |
