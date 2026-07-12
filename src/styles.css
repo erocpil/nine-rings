@@ -2761,17 +2761,31 @@ body {
   color: var(--text-secondary);
 }
 
-/* 行号模式下：blockquote 竖线改用 box-shadow，释放 ::after 给行间 '+' 使用 */
+/* 行号模式下：blockquote 竖线改用 background linear-gradient，
+   位于行号 gutter 右侧（44px），bar 宽 3px，内容在 bar 右侧 20px。
+   不用 box-shadow（inset + spread 无法准确定位窄竖线）*/
 .show-line-numbers .ProseMirror > blockquote {
   border-left: none;
   margin-left: 0;
-  padding-left: 50px;
+  padding-left: 64px;                /* 44px gutter + 20px blockquote 缩进 */
   position: relative;
-  box-shadow: inset 40px 0 0 -37px var(--accent);
+  background: linear-gradient(
+    to right,
+    transparent 44px,
+    var(--accent) 44px,
+    var(--accent) 47px,
+    transparent 47px
+  );
 }
 .focus-mode.show-line-numbers .ProseMirror > blockquote {
-  padding-left: 42px;
-  box-shadow: inset 32px 0 0 -29px var(--accent);
+  padding-left: 56px;                /* 36px focus gutter + 20px */
+  background: linear-gradient(
+    to right,
+    transparent 36px,
+    var(--accent) 36px,
+    var(--accent) 39px,
+    transparent 39px
+  );
 }
 
 .editor-content h1 { font-size: 1.6em; margin: 12px 0 6px; }
