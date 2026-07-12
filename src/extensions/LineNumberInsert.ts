@@ -11,10 +11,10 @@
 import type { Editor } from "@tiptap/core";
 
 /** 底部 "+" 区域高度（px，从 block 底部往上算，需与 CSS padding-bottom 对齐） */
-const PLUS_ZONE = 12;
+const PLUS_ZONE = 10;
 
 export function createGutterClickHandler(editor: Editor): (e: MouseEvent) => void {
-  const GUTTER_WIDTH = 18;
+  const GUTTER_WIDTH = 14;
 
   return (e: MouseEvent) => {
     const editorDom = editor.view.dom;

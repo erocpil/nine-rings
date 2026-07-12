@@ -2481,8 +2481,8 @@ body {
 
 /* 所有 block 底部留出 '+' 空间，左侧留窄 gutter 放 '+' */
 .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap) {
-  padding-bottom: 10px;
-  padding-left: 18px;
+  padding-bottom: 8px;
+  padding-left: 14px;
   position: relative;
 }
 
@@ -2490,8 +2490,8 @@ body {
 .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::after {
   content: '+';
   position: absolute;
-  left: 2px;
-  bottom: -2px;
+  left: 0;
+  bottom: -4px;
   width: 14px;
   text-align: center;
   font-size: 12px;
@@ -2507,16 +2507,12 @@ body {
 .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):hover::after {
   opacity: 0.45;
 }
-/* 最后一个 block 不需要行间 '+' */
-.ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):last-child::after {
-  content: none;
-}
 
 /* 第一个 block：hover 时在左侧显示 '+'（上方无 block 提供 ::after '+'） */
 .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):first-child:hover::before {
   content: '+';
   position: absolute;
-  left: 2px;
+  left: 0;
   top: 0;
   width: 14px;
   text-align: center;
