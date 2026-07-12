@@ -7,6 +7,7 @@ interface SearchBarProps {
   onDocSearch?: (query: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => void;
   onInputBlur?: () => void;
   onEscape?: () => void;
+  searchRefreshKey?: number;
 }
 
 const PATH_FILTERS = [
@@ -26,7 +27,7 @@ const TYPE_FILTERS: { value: DocType | ""; label: string }[] = [
   { value: "tutorial", label: "🎓 教程" },
 ];
 
-export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: SearchBarProps) {
+export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape, searchRefreshKey }: SearchBarProps) {
   const [value, setValue] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [pathFilter, setPathFilter] = useState("");
@@ -71,6 +72,13 @@ export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: Sear
       onSearch("");
     }
   }, [onSearch, onDocSearch]);
+
+  // ── 外部触发重新搜索（如 header 🔍 按钮再次点击）──
+  useEffect(() => {
+    if (searchRefreshKey && searchRefreshKey > 0) {
+      fireSearch(value, pathFilter, typeFilter, conceptFilter);
+    }
+  }, [searchRefreshKey]);
 
   const handleChange = useCallback((v: string) => {
     setValue(v);

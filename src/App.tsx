@@ -100,6 +100,7 @@ function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const HIDDEN_KEY = "nr:sidebarHidden";
   const [searchExpanded, setSearchExpanded] = useState(false);
+  const [searchRefreshKey, setSearchRefreshKey] = useState(0);
   const [isTouchDevice] = useState(() => {
     return typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;
   });
@@ -669,8 +670,14 @@ function App() {
         <div className="header-right">
           <button
             className="btn-icon btn-search-toggle"
-            onClick={() => setSearchExpanded(true)}
-            title="搜索"
+            onClick={() => {
+              if (searchExpanded) {
+                setSearchRefreshKey(k => k + 1);
+              } else {
+                setSearchExpanded(true);
+              }
+            }}
+            title={searchExpanded ? "重新搜索" : "搜索"}
           >🔍</button>
           <div className={`search-bar-collapse${searchExpanded ? ' expanded' : ''}`}>
             <SearchBar
@@ -678,6 +685,7 @@ function App() {
               onDocSearch={handleDocSearch}
               onInputBlur={() => setSearchExpanded(false)}
               onEscape={() => setSearchExpanded(false)}
+              searchRefreshKey={searchRefreshKey}
             />
           </div>
           <span className="header-btn-gap" />
