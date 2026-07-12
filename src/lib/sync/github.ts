@@ -9,6 +9,8 @@
  * 设置 → 填入 token + owner/repo → 测试连接 → 手动/定时同步。
  */
 
+import { addLog } from "../debugLog";
+
 // ── 类型 ──
 
 export interface SyncConfig {
@@ -158,6 +160,40 @@ async function importFullDB(json: string): Promise<void> {
   await api.export.import(json);
 }
 
+/** 树形 dump 导出数据摘要 */
+function dumpBundle(label: string, json: string): void {
+  let data: any;
+  try { data = JSON.parse(json); } catch { addLog(`[Sync] ${label}: <非 JSON> ${json.slice(0, 80)}`); return; }
+
+  const notes: any[] = data.notes ?? [];
+  const pages: any[] = data.daily_pages ?? [];
+  const sizeKB = (new TextEncoder().encode(json).length / 1024).toFixed(1);
+
+  addLog(`[Sync] ${label}`);
+  addLog(`[Sync] ├─ 大小: ${sizeKB} KB  |  版本: ${data.version ?? "?"}  |  导出: ${(data.exported_at ?? "").slice(0, 19)}`);
+  addLog(`[Sync] ├─ 笔记: ${notes.length} 篇`);
+  const showNotes = notes.slice(0, 30);
+  showNotes.forEach((n, i) => {
+    const isLast = i === showNotes.length - 1 && pages.length === 0;
+    const prefix = isLast ? "└" : "├";
+    const date = (n.date ?? "").slice(0, 10);
+    const path = n.storagePath ? `  ${n.storagePath}` : "";
+    addLog(`[Sync] │  ${prefix}─ ${(n.id ?? "?").slice(0, 8)}  "${(n.title ?? "无标题").slice(0, 24)}"  ${date}${path}`);
+  });
+  if (notes.length > 30) addLog(`[Sync] │  └─ ... 还有 ${notes.length - 30} 篇`);
+
+  addLog(`[Sync] ├─ 每日页面: ${pages.length} 页`);
+  const showPages = pages.slice(0, 15);
+  showPages.forEach((p, i) => {
+    const isLast = i === showPages.length - 1;
+    const prefix = isLast ? "└" : "├";
+    const todoCount = Array.isArray(p.todos) ? p.todos.length : 0;
+    addLog(`[Sync] │  ${prefix}─ ${p.date}  (${todoCount} todos)`);
+  });
+  if (pages.length > 15) addLog(`[Sync] │  └─ ... 还有 ${pages.length - 15} 页`);
+  addLog("");
+}
+
 /**
  * Push: 本地 → GitHub
  * 返回新的 remoteSha
@@ -167,9 +203,15 @@ export async function pushToGitHub(config: SyncConfig, message?: string): Promis
     throw new Error("请先配置 GitHub Token、Owner 和 Repo");
   }
 
+  addLog("[Sync] ═══ Push → GitHub ═══");
   const content = await exportFullDB();
+  dumpBundle("导出本地数据", content);
+
   const commitMsg = message || `sync: ${new Date().toISOString()}`;
   const newSha = await putRemote(config.token, config.owner, config.repo, config.path, content, config.remoteSha, commitMsg);
+
+  addLog(`[Sync] Push ✓ 完成 — ${config.owner}/${config.repo}/${config.path}  (sha: ${newSha.slice(0, 7)})`);
+  addLog("");
 
   const updated = {
     ...config,
@@ -189,15 +231,18 @@ export async function pullFromGitHub(config: SyncConfig): Promise<SyncConfig> {
     throw new Error("请先配置 GitHub Token、Owner 和 Repo");
   }
 
+  addLog("[Sync] ═══ Pull ← GitHub ═══");
   const remote = await fetchRemote(config.token, config.owner, config.repo, config.path);
   if (!remote) {
     throw new Error("远端仓库中未找到备份文件");
   }
 
+  addLog(`[Sync] 远端 SHA: ${remote.sha.slice(0, 7)}  |  大小: ${(new TextEncoder().encode(remote.content).length / 1024).toFixed(1)} KB`);
+
   // 防御：验证拉取到的内容是有效 JSON
   // 空备份文件（0 字节）是合法状态 — 表示远端尚无数据
   if (!remote.content || !remote.content.trim()) {
-    // 空文件：跳过导入，仅更新配置
+    addLog("[Sync] 远端文件为空 — 跳过导入");
     const updated = {
       ...config,
       lastSyncAt: new Date().toISOString(),
@@ -212,7 +257,15 @@ export async function pullFromGitHub(config: SyncConfig): Promise<SyncConfig> {
     throw new Error(`远端备份文件内容不是有效 JSON（前 100 字符: ${remote.content.slice(0, 100)}）`);
   }
 
+  dumpBundle("拉取远端数据", remote.content);
+
   await importFullDB(remote.content);
+
+  // 解析导入结果
+  const bundle = JSON.parse(remote.content);
+  addLog(`[Sync] Pull ✓ 完成 — 导入 ${bundle.notes?.length ?? 0} 笔记 + ${bundle.daily_pages?.length ?? 0} 页面`);
+  addLog("[Sync] 刷新页面后生效");
+  addLog("");
 
   const updated = {
     ...config,

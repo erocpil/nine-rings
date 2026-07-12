@@ -103,29 +103,48 @@ pub fn export_all(conn: &Connection) -> rusqlite::Result<ExportBundle> {
     })
 }
 
-/// 导入数据：合并到当前数据库（跳过已存在的 id）
+/// 导入数据：INSERT OR REPLACE（覆盖已存在的笔记/页面）
 pub fn import_bundle(conn: &Connection, bundle: &ExportBundle) -> rusqlite::Result<(usize, usize)> {
     let mut notes_imported = 0usize;
     let mut pages_imported = 0usize;
 
     for note in &bundle.notes {
-        let exists: bool = conn
-            .query_row("SELECT COUNT(*) FROM notes WHERE id = ?1", rusqlite::params![note.id], |r| r.get::<_, i32>(0))
-            .unwrap_or(0) > 0;
-        if !exists {
-            crate::db::models::insert_note(conn, note)?;
-            notes_imported += 1;
-        }
+        conn.execute(
+            "INSERT OR REPLACE INTO notes (id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+            rusqlite::params![
+                note.id,
+                note.date,
+                note.title,
+                note.content.to_string(),
+                note.search_text,
+                serde_json::to_string(&note.tags).unwrap_or_default(),
+                note.pinned,
+                note.sort_order,
+                note.created_at,
+                note.updated_at,
+                note.storage_path,
+                note.doc_type,
+                serde_json::to_string(&note.concepts).unwrap_or_default(),
+                serde_json::to_string(&note.linked_doc_ids).unwrap_or_default(),
+                note.readonly,
+            ],
+        )?;
+        notes_imported += 1;
     }
 
     for page in &bundle.daily_pages {
-        let exists: bool = conn
-            .query_row("SELECT COUNT(*) FROM daily_pages WHERE date = ?1", rusqlite::params![page.date], |r| r.get::<_, i32>(0))
-            .unwrap_or(0) > 0;
-        if !exists {
-            crate::db::models::upsert_daily_page(conn, page)?;
-            pages_imported += 1;
-        }
+        conn.execute(
+            "INSERT OR REPLACE INTO daily_pages (date, todos, todo_carryover, updated_at)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![
+                page.date,
+                serde_json::to_string(&page.todos).unwrap_or_default(),
+                page.todo_carryover,
+                page.updated_at,
+            ],
+        )?;
+        pages_imported += 1;
     }
 
     Ok((notes_imported, pages_imported))
