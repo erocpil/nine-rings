@@ -1,0 +1,197 @@
+/**
+ * GitHub 同步服务 — 方案 A：全量 JSON 快照
+ *
+ * 数据流：
+ *   Push: IndexedDB → 序列化 JSON → PUT /repos/{owner}/{repo}/contents/nine-rings-backup.json
+ *   Pull: GET → 下载 JSON → 覆盖 IndexedDB
+ *
+ * 认证：个人访问令牌（Personal Access Token），需 repo 权限。
+ * 设置 → 填入 token + owner/repo → 测试连接 → 手动/定时同步。
+ */
+
+// ── 类型 ──
+
+export interface SyncConfig {
+  /** GitHub Personal Access Token（classic 或 fine-grained，需 repo 权限） */
+  token: string;
+  /** 仓库所有者 */
+  owner: string;
+  /** 仓库名 */
+  repo: string;
+  /** 备份文件在仓库中的路径，默认 "nine-rings-backup.json" */
+  path: string;
+  /** 上次同步时间 */
+  lastSyncAt: string | null;
+  /** 远端文件 SHA（PUT 时需要，防止覆盖冲突） */
+  remoteSha: string | null;
+}
+
+export interface SyncStatus {
+  ok: boolean;
+  message: string;
+  /** 远端最后修改时间 */
+  remoteAt?: string;
+  /** 本地最后同步时间 */
+  localAt?: string | null;
+}
+
+interface GitHubContentResponse {
+  name: string;
+  path: string;
+  sha: string;
+  size: number;
+  content: string;       // base64
+  encoding: string;
+}
+
+// ── 配置持久化 ──
+
+const STORAGE_KEY = "nr:github-sync";
+
+export function loadSyncConfig(): SyncConfig {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return { token: "", owner: "", repo: "", path: "nine-rings-backup.json", lastSyncAt: null, remoteSha: null };
+}
+
+export function saveSyncConfig(config: SyncConfig): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+}
+
+// ── API 调用 ──
+
+function authHeader(token: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+}
+
+/** 获取远端文件内容 + sha */
+async function fetchRemote(token: string, owner: string, repo: string, path: string): Promise<{ content: string; sha: string } | null> {
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`;
+  const res = await fetch(url, { headers: authHeader(token) });
+  if (res.status === 404) return null; // 文件不存在
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`GitHub API ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const data: GitHubContentResponse = await res.json();
+  return {
+    content: atob(data.content),
+    sha: data.sha,
+  };
+}
+
+/** 上传/更新远端文件 */
+async function putRemote(token: string, owner: string, repo: string, path: string, content: string, sha: string | null, message: string): Promise<string> {
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`;
+  const body: Record<string, unknown> = {
+    message,
+    content: btoa(unescape(encodeURIComponent(content))), // 正确处理 UTF-8
+  };
+  if (sha) body.sha = sha;
+
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: { ...authHeader(token), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`GitHub PUT ${res.status}: ${err.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  return data.content.sha;
+}
+
+// ── 同步逻辑 ──
+
+/** 导出全量数据为 JSON 字符串（复用现有导出逻辑） */
+async function exportFullDB(): Promise<string> {
+  const { api } = await import("../api");
+  return await api.export.data();
+}
+
+/** 从 JSON 字符串导入全量数据 */
+async function importFullDB(json: string): Promise<void> {
+  const { api } = await import("../api");
+  await api.export.import(json);
+}
+
+/**
+ * Push: 本地 → GitHub
+ * 返回新的 remoteSha
+ */
+export async function pushToGitHub(config: SyncConfig, message?: string): Promise<SyncConfig> {
+  if (!config.token || !config.owner || !config.repo) {
+    throw new Error("请先配置 GitHub Token、Owner 和 Repo");
+  }
+
+  const content = await exportFullDB();
+  const commitMsg = message || `sync: ${new Date().toISOString()}`;
+  const newSha = await putRemote(config.token, config.owner, config.repo, config.path, content, config.remoteSha, commitMsg);
+
+  const updated = {
+    ...config,
+    lastSyncAt: new Date().toISOString(),
+    remoteSha: newSha,
+  };
+  saveSyncConfig(updated);
+  return updated;
+}
+
+/**
+ * Pull: GitHub → 本地
+ * 返回更新后的配置
+ */
+export async function pullFromGitHub(config: SyncConfig): Promise<SyncConfig> {
+  if (!config.token || !config.owner || !config.repo) {
+    throw new Error("请先配置 GitHub Token、Owner 和 Repo");
+  }
+
+  const remote = await fetchRemote(config.token, config.owner, config.repo, config.path);
+  if (!remote) {
+    throw new Error("远端仓库中未找到备份文件");
+  }
+
+  await importFullDB(remote.content);
+
+  const updated = {
+    ...config,
+    lastSyncAt: new Date().toISOString(),
+    remoteSha: remote.sha,
+  };
+  saveSyncConfig(updated);
+  return updated;
+}
+
+/**
+ * 检查连接状态：能否访问仓库，远端是否有备份
+ */
+export async function checkStatus(config: SyncConfig): Promise<SyncStatus> {
+  if (!config.token || !config.owner || !config.repo) {
+    return { ok: false, message: "未配置" };
+  }
+
+  try {
+    const remote = await fetchRemote(config.token, config.owner, config.repo, config.path);
+    if (!remote) {
+      return {
+        ok: true,
+        message: "仓库连接正常，远端暂无备份文件",
+        localAt: config.lastSyncAt,
+      };
+    }
+    return {
+      ok: true,
+      message: "连接正常",
+      localAt: config.lastSyncAt,
+    };
+  } catch (e) {
+    return { ok: false, message: `连接失败: ${(e as Error).message}` };
+  }
+}

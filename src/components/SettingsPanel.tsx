@@ -4,6 +4,7 @@ import type { AppConfig } from "../types/models";
 import { DEFAULT_HOTKEYS, HOTKEY_LABELS } from "../types/models";
 import { mdToDelta, extractTitle } from "../lib/md-parser";
 import { isTauri, exportWithDialog, importWithDialog } from "../lib/tauri-desktop";
+import SettingsSync from "./SettingsSync";
 
 interface Props {
   open: boolean;
@@ -471,6 +472,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport }: Props
                 />
               </div>
             </SettingsSection>
+
+            {/* ═══════════════════════ */}
+            {/* GitHub 同步 */}
+            {/* ═══════════════════════ */}
+            <SettingsSync />
 
             {/* ── 保存反馈 ── */}
             {message && <div className="settings-toast">{message}</div>}
