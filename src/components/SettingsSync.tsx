@@ -107,6 +107,14 @@ export default function SettingsSync({ onBusyChange }: Props) {
         全量 JSON 快照同步。需要 GitHub Personal Access Token（repo 权限）。
       </p>
 
+      {/* 同步中横幅 */}
+      {busy && (
+        <div className="sync-banner">
+          <div className="sync-banner-spinner" />
+          <span>同步中 — 界面已冻结，完成后自动恢复</span>
+        </div>
+      )}
+
       {/* Token */}
       <label className="settings-label">
         Token
@@ -187,14 +195,6 @@ export default function SettingsSync({ onBusyChange }: Props) {
           Pull ↓
         </button>
       </div>
-
-      {/* 同步中遮罩 */}
-      {busy && (
-        <div className="sync-loading-overlay">
-          <div className="sync-spinner" />
-          <span>同步中…</span>
-        </div>
-      )}
     </div>
   );
 }

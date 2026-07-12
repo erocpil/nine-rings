@@ -696,13 +696,6 @@ function App() {
         </div>
       </header>
 
-      {syncBusy && (
-        <div className="sync-banner">
-          <div className="sync-banner-spinner" />
-          <span>同步中 — 编辑器已置为只读，完成后自动恢复</span>
-        </div>
-      )}
-
       <div className="app-body">
         <aside className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}>
           <div className="sidebar-tabs">
