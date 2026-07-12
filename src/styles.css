@@ -2479,20 +2479,14 @@ body {
 
 /* ──── 行间插入 '+'（通用，不依赖行号） ──── */
 
-/* 所有 block 底部留出 '+' 空间，左侧留窄 gutter 放 '+' */
-.ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote) {
+/* 纯文本 block：统一左侧 gutter 放 '+' */
+.ProseMirror > :is(p, h1, h2, h3, h4, h5, h6) {
   padding-bottom: 8px;
   padding-left: 14px;
   position: relative;
 }
-/* 代码块 wrapper：单独设置，保留内部 pre 默认缩进 */
-.ProseMirror > .code-block-wrap {
-  padding-bottom: 8px;
-  padding-left: 14px;
-  position: relative;
-}
-/* 列表：浏览器默认 padding-left，仅加底部间距 + li 收紧 */
-.ProseMirror > :is(ul, ol) {
+/* 引用块、代码块、列表、pre：保留原有 padding-left，仅加底部间距 */
+.ProseMirror > :is(blockquote, .code-block-wrap, ul, ol, pre) {
   padding-bottom: 8px;
   position: relative;
 }
