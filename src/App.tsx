@@ -100,6 +100,9 @@ function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const HIDDEN_KEY = "nr:sidebarHidden";
   const [searchExpanded, setSearchExpanded] = useState(false);
+  const [isTouchDevice] = useState(() => {
+    return typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;
+  });
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     return localStorage.getItem(HIDDEN_KEY) === "true";
   });
@@ -969,8 +972,9 @@ function App() {
         onClick={() => setSidebarHidden(true)}
       />
 
-      {/* 移动端底部工具栏（仅 ≤768px 显示，CSS 控制） */}
-      <MobileToolbar
+      {/* 移动端底部工具栏（仅触摸设备显示，≤768px 时 CSS 生效） */}
+      {isTouchDevice && (
+        <MobileToolbar
         onCreateNote={createNote}
         onToggleSidebar={() => setSidebarHidden(!sidebarHidden)}
         onFocusSearch={() => document.querySelector<HTMLInputElement>(".search-input")?.focus()}
@@ -978,6 +982,7 @@ function App() {
         sidebarTab={sidebarTab}
         onToggleTab={() => handleSetSidebarTab(sidebarTab === 'daily' ? 'tree' : 'daily')}
       />
+      )}
     </div>
   );
 }
