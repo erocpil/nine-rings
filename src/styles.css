@@ -2754,21 +2754,35 @@ body {
   line-height: 1.5;
 }
 
+/* ── Blockquote: 竖线统一用 background linear-gradient ──
+   三种模式对齐规则：
+    非行号：bar 在 14px（gutter 右沿），padding-left = 14 + 20 = 34px
+    行号：  bar 在 44px（gutter 右沿），padding-left = 44 + 20 = 64px
+    专注：  bar 在 36px（gutter 右沿），padding-left = 36 + 20 = 56px
+   不用 border-left / box-shadow，避免 padding 偏移导致竖线错位。 */
+
 .editor-content blockquote {
-  border-left: 3px solid var(--accent);
-  padding-left: 20px;
-  margin: 8px 0 8px 4px;
   color: var(--text-secondary);
 }
 
-/* 行号模式下：blockquote 竖线改用 background linear-gradient，
-   位于行号 gutter 右侧（44px），bar 宽 3px，内容在 bar 右侧 20px。
-   不用 box-shadow（inset + spread 无法准确定位窄竖线）*/
-.show-line-numbers .ProseMirror > blockquote {
+/* 非行号模式：14px gutter */
+.ProseMirror > blockquote {
   border-left: none;
   margin-left: 0;
-  padding-left: 64px;                /* 44px gutter + 20px blockquote 缩进 */
+  padding-left: 34px;                /* 14px gutter + 20px */
   position: relative;
+  background: linear-gradient(
+    to right,
+    transparent 14px,
+    var(--accent) 14px,
+    var(--accent) 17px,
+    transparent 17px
+  );
+}
+
+/* 行号模式：44px gutter */
+.show-line-numbers .ProseMirror > blockquote {
+  padding-left: 64px;                /* 44px gutter + 20px */
   background: linear-gradient(
     to right,
     transparent 44px,
@@ -2777,6 +2791,8 @@ body {
     transparent 47px
   );
 }
+
+/* 专注 + 行号模式：36px gutter */
 .focus-mode.show-line-numbers .ProseMirror > blockquote {
   padding-left: 56px;                /* 36px focus gutter + 20px */
   background: linear-gradient(
