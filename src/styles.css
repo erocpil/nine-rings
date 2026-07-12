@@ -2508,6 +2508,30 @@ body {
   line-height: inherit;
 }
 
+/* 行号 gutter hover：显示 "+" 插入按钮 */
+.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):hover::before {
+  content: "+";
+  color: var(--accent);
+  opacity: 0.60;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  cursor: pointer;
+  pointer-events: auto;
+  background: rgba(128, 128, 128, 0.04);
+  border-radius: 3px;
+}
+/* 第一个 block 不需要插入按钮 */
+.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):first-child:hover::before {
+  content: counter(prose-line);
+  color: var(--text-secondary);
+  opacity: 0.40;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  cursor: default;
+  pointer-events: none;
+  background: none;
+}
+
 /* 代码块：wrapper 作为普通 block 参与主行号计数 */
 .show-line-numbers .ProseMirror .code-block-wrap {
   counter-increment: prose-line;
@@ -2686,6 +2710,7 @@ body {
 /* 行号模式下：blockquote 竖线移到行号右侧，用 ::after 代替 border-left */
 .show-line-numbers .ProseMirror > blockquote {
   border-left: none;
+  margin-left: 0;
   padding-left: 50px;
   position: relative;
 }

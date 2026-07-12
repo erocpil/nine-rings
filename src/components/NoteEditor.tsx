@@ -23,6 +23,7 @@ import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { addLog, toggleDebug } from "../lib/debugLog";
 import { CodeBlockLineNumbers } from "../extensions/CodeBlockLineNumbers";
+import { createGutterClickHandler } from "../extensions/LineNumberInsert";
 import { storeImage } from "../lib/storage/idb";
 import { api } from "../lib/api";
 
@@ -272,6 +273,16 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   useEffect(() => {
     editor?.setEditable(!readonly);
   }, [readonly, editor]);
+
+  // 行号 gutter 点击：在当前 block 前插入空行
+  useEffect(() => {
+    if (!editor) return;
+    const el = editor.view.dom.closest(".note-editor") as HTMLElement | null;
+    if (!el) return;
+    const handler = createGutterClickHandler(editor);
+    el.addEventListener("mousedown", handler);
+    return () => el.removeEventListener("mousedown", handler);
+  }, [editor]);
 
   // 打开标题下拉时自动检测是否存在 H6（切换至页 1）
   useEffect(() => {
