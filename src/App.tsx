@@ -61,7 +61,7 @@ function App() {
 
   const dailyPage = useNotesStore((s) => s.dailyPage);
   const updateTodos = useNotesStore((s) => s.updateTodos);
-  const { search, results, query } = useSearch();
+  const { search, results, query, setQuery } = useSearch();
   const [docResults, setDocResults] = useState<Note[] | null>(null);
   const [docSearchText, setDocSearchText] = useState("");
 
@@ -610,13 +610,13 @@ function App() {
   // ── 清除搜索状态（搜索结果点击 / 侧栏选择时调用）──
   const clearSearchAndSelect = useCallback((note: Note, keepSearch = false) => {
     if (!keepSearch) {
-      search("");            // 清除常规搜索
-      setDocResults(null);   // 清除文档搜索
+      setQuery("");           // 仅清 query 状态，保留 SearchBar 输入框值
+      setDocResults(null);    // 清除文档搜索
       setDocSearchText("");
     }
     selectNote(note);
     setDate(note.date);
-  }, [search, selectNote, setDate]);
+  }, [setQuery, selectNote, setDate]);
 
   return (
     <div className={`app ${focusMode ? "app-focus-mode" : ""}`}>
@@ -737,7 +737,7 @@ function App() {
                 updateNote(id, { title });
               }}
               onSelect={(note) => {
-                search("");
+                setQuery("");
                 setDocResults(null);
                 selectNote(note);
               }}
@@ -777,7 +777,7 @@ function App() {
           ) : (
             <DocTree
               onSelect={(note) => {
-                search("");
+                setQuery("");
                 setDocResults(null);
                 selectNote(note);
                 setDate(note.date);
@@ -835,7 +835,7 @@ function App() {
                 <div
                   key={`todo-${t.todo.id}`}
                   className="search-hit"
-                  onClick={() => { search(""); setDocResults(null); setDate(t.date); }}
+                  onClick={() => { setQuery(""); setDocResults(null); setDate(t.date); }}
                 >
                   <div className="search-hit-title">
                     <span className={`todo-dot ${t.todo.done ? "done" : ""}`}>
@@ -851,7 +851,7 @@ function App() {
             <DocMOC
               storagePath={selectedFolderPath}
               onSelect={(note) => {
-                search("");
+                setQuery("");
                 setDocResults(null);
                 selectNote(note);
                 setDate(note.date);
@@ -938,7 +938,7 @@ function App() {
             <div className="doc-tree-popup-body">
               <DocTree
                 onSelect={(note) => {
-                  search("");
+                  setQuery("");
                   setDocResults(null);
                   selectNote(note);
                   setDate(note.date);

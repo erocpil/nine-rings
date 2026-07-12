@@ -139,6 +139,10 @@ export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: Sear
             }, 150);
           }}
           onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              // 重新触发搜索（用户可能想用保留的关键词再次搜索）
+              fireSearch(value, pathFilter, typeFilter, conceptFilter);
+            }
             if (e.key === "Escape") {
               onEscape?.();
               e.preventDefault();
