@@ -167,17 +167,14 @@ export function deltaToProseMirror(deltaData: any): any {
   const doc: any[] = [];
   let currentParagraph: any = { type: "paragraph", content: [] };
   let isImageBlock = false;
-  let hasFlushed = false; // 首条空段落不推入，之后空段落保留
   /** 正在累积的列表（未推入 doc，等待闭合） */
   let pendingList: { type: string; content: any[] } | null = null;
 
   function flushParagraph() {
-    if (currentParagraph.content.length > 0 || isImageBlock || hasFlushed) {
-      doc.push({ ...currentParagraph });
-    }
+    // 推入当前累积段落（含空段落——用户可能有意保留空行）
+    doc.push({ ...currentParagraph });
     currentParagraph = { type: "paragraph", content: [] };
     isImageBlock = false;
-    hasFlushed = true;
   }
 
   /** 把 pendingList 推入 doc 并清空 */
