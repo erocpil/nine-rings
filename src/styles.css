@@ -762,7 +762,7 @@ body {
 
 /* ── 编辑器只读徽标 ── */
 .note-readonly-badge {
-  margin-right: 6px;
+  margin-right: 1px;
   font-size: 16px;
   line-height: 1;
 }
