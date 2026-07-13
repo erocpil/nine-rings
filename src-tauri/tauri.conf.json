@@ -21,7 +21,8 @@
         "fullscreen": false,
         "decorations": false,
         "shadow": false,
-        "dataDirectory": "webview-data"
+        "dataDirectory": "webview-data",
+        "additionalBrowserArgs": "--disable-gpu"
       }
     ],
     "security": {
