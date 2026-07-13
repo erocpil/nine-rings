@@ -98,6 +98,11 @@ fn bump_webview2(window: &tauri::WebviewWindow) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // WebView2: 禁用 GPU compositing 以消除 hide()/show() 后 swap chain 崩溃导致的白屏。
+    // additionalBrowserArgs 在 tauri.conf.json 中不被 Tauri v2 支持，改用 WebView2 原生环境变量。
+    #[cfg(target_os = "windows")]
+    std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-gpu-compositing");
+
     startup_log!("=== nine-rings v{} ({}) startup begin ===", env!("CARGO_PKG_VERSION"), env!("GIT_HASH"));
     env_logger::init();
     startup_log!("env_logger initialized");
@@ -125,10 +130,10 @@ pub fn run() {
             // 导致下次启动白屏；清空缓存是最可靠的预防措施。
             {
                 let wv_dir = app_dir.join("webview-data");
-                if wv_dir.exists() {
-                    startup_log!("clearing WebView2 cache (always on startup)");
-                    let _ = std::fs::remove_dir_all(&wv_dir);
-                }
+                startup_log!("clearing WebView2 cache at {:?}", wv_dir);
+                // remove_dir_all 在目录不存在时返回 Err，忽略即可；
+                // 必须记录日志以便确认清除逻辑是否被执行。
+                let _ = std::fs::remove_dir_all(&wv_dir);
             }
             let db_path = app_dir.join("nine-rings.db");
             log::info!("database path: {:?}", db_path);

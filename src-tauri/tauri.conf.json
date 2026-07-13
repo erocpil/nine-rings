@@ -14,15 +14,14 @@
       {
         "title": "Nine Rings",
         "width": 960,
-        "height": 640,
+        "height": 580,
         "minWidth": 720,
         "minHeight": 480,
         "resizable": true,
         "fullscreen": false,
         "decorations": false,
         "shadow": false,
-        "dataDirectory": "webview-data",
-        "additionalBrowserArgs": "--disable-gpu-compositing"
+        "dataDirectory": "webview-data"
       }
     ],
     "security": {
