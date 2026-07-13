@@ -98,10 +98,13 @@ fn bump_webview2(window: &tauri::WebviewWindow) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // WebView2: 禁用 GPU compositing 以消除 hide()/show() 后 swap chain 崩溃导致的白屏。
+    // WebView2: 完全禁用 GPU 加速以避免 hide()/show() 后 swap chain 崩溃导致白屏。
     // additionalBrowserArgs 在 tauri.conf.json 中不被 Tauri v2 支持，改用 WebView2 原生环境变量。
     #[cfg(target_os = "windows")]
-    std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-gpu-compositing");
+    {
+        std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-gpu");
+        startup_log!("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS set to: --disable-gpu");
+    }
 
     startup_log!("=== nine-rings v{} ({}) startup begin ===", env!("CARGO_PKG_VERSION"), env!("GIT_HASH"));
     env_logger::init();
