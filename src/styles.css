@@ -2529,11 +2529,47 @@ body {
   opacity: 0.45;
 }
 
+/* 代码块 wrapper 可能是嵌套子元素（非直接子），单独兜底 + 和定位 */
+.ProseMirror .code-block-wrap {
+  padding-bottom: 4px;
+  position: relative;
+}
+.ProseMirror .code-block-wrap::after {
+  content: '+';
+  position: absolute;
+  left: -14px;
+  bottom: -4px;
+  width: 14px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  opacity: 0.12;
+  pointer-events: auto;
+  cursor: pointer;
+  line-height: 1;
+  user-select: none;
+  transition: opacity 0.15s;
+}
+.ProseMirror .code-block-wrap:hover::after {
+  opacity: 0.45;
+}
+
 .show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::after {
   left: -44px;
   width: 36px;
 }
 .focus-mode.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::after {
+  left: -36px;
+  width: 28px;
+}
+
+/* 代码块 wrapper（嵌套子元素）行号模式覆盖 */
+.show-line-numbers .ProseMirror .code-block-wrap::after {
+  left: -44px;
+  width: 36px;
+}
+.focus-mode.show-line-numbers .ProseMirror .code-block-wrap::after {
   left: -36px;
   width: 28px;
 }

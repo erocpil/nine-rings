@@ -34,7 +34,7 @@ function getGutterWidth(editorDom: HTMLElement): number {
 const BLOCK_SELECTOR =
   ".ProseMirror > p, .ProseMirror > h1, .ProseMirror > h2, .ProseMirror > h3, " +
   ".ProseMirror > h4, .ProseMirror > h5, .ProseMirror > h6, .ProseMirror > blockquote, " +
-  ".ProseMirror > pre, .ProseMirror > ul, .ProseMirror > ol, .ProseMirror > .code-block-wrap";
+  ".ProseMirror > pre, .ProseMirror > ul, .ProseMirror > ol, .ProseMirror .code-block-wrap";
 
 /** 通过 e.target 或 Y 坐标扫描找到被点击的 block */
 function findBlock(e: MouseEvent, editorDom: HTMLElement): Element | null {
@@ -56,7 +56,7 @@ function findBlock(e: MouseEvent, editorDom: HTMLElement): Element | null {
   // 扫描所有直接子 block，按 Y 坐标匹配
   const children = editorDom.querySelectorAll(
     ":scope > p, :scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > h6, " +
-    ":scope > blockquote, :scope > pre, :scope > ul, :scope > ol, :scope > .code-block-wrap"
+    ":scope > blockquote, :scope > pre, :scope > ul, :scope > ol, :scope .code-block-wrap"
   );
   for (const child of children) {
     const r = child.getBoundingClientRect();
