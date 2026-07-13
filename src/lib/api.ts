@@ -27,6 +27,9 @@ export const api = {
     create: (data: CreateNoteInput) =>
       adapter().then((a) => a.createNote(data)),
 
+    upsert: (data: CreateNoteInput) =>
+      adapter().then((a) => a.upsertNote(data)),
+
     update: (id: string, data: UpdateNoteInput) =>
       adapter().then((a) => a.updateNote(id, data)),
 

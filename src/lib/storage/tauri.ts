@@ -8,6 +8,7 @@ export const tauriAdapter: StorageAdapter = {
   getNotesByDate: (date) => invoke<Note[]>("get_notes_by_date", { date }),
   getNote: (id) => invoke<Note | null>("get_note", { id }),
   createNote: (data) => invoke<Note>("create_note", { data }),
+  upsertNote: (data) => invoke<Note>("upsert_note", { data }),
   updateNote: (id, data) => invoke<Note>("update_note", { id, data }),
   updateNoteOrder: (id, sort_order) => invoke<Note>("update_note_order", { id, sort_order }),
   deleteNote: (id) => invoke<void>("delete_note", { id }),

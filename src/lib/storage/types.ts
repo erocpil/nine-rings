@@ -39,6 +39,9 @@ export interface StorageAdapter {
   getNotesByDate(date: string): Promise<Note[]>;
   getNote(id: string): Promise<Note | null>;
   createNote(data: CreateNoteInput): Promise<Note>;
+  /** upsertNote: 若存在同 storagePath 或同 title+date 的笔记则更新，否则新建。
+   *  用于 .md 导入等批量场景，防止重复。保持本地 ID 不变。 */
+  upsertNote(data: CreateNoteInput): Promise<Note>;
   updateNote(id: string, data: UpdateNoteInput): Promise<Note>;
   updateNoteOrder(id: string, sort_order: number): Promise<Note>;
   deleteNote(id: string): Promise<void>;

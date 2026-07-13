@@ -70,7 +70,7 @@ export function useDevImport(refresh: () => void) {
           const title = file.title || "未命名";
           const content = file.content || { ops: [] };
           try {
-            await api.notes.create({
+            await api.notes.upsert({
               date: today,
               title,
               content,

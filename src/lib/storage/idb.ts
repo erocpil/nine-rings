@@ -382,6 +382,86 @@ export const idbAdapter: StorageAdapter = {
     });
   },
 
+  async upsertNote(data: CreateNoteInput): Promise<Note> {
+    return withDB(async (db) => {
+      // ── 查找已存在的匹配笔记 ──
+      let existingId: string | null = null;
+
+      // 1. storagePath 匹配（文档笔记，最可靠）
+      if (data.storagePath) {
+        const sp = data.storagePath;
+        const existing = await new Promise<any | null>((resolve, reject) => {
+          const tx = db.transaction("notes", "readonly");
+          const store = tx.objectStore("notes");
+          const index = store.index("storagePath");
+          const req = index.get(sp);
+          req.onsuccess = () => {
+            const n = req.result;
+            resolve(n && !n.deleted_at ? n : null);
+          };
+          req.onerror = () => reject(req.error);
+        });
+        if (existing) existingId = existing.id;
+      }
+
+      // 2. title + date 匹配（日记/随笔，仅非文档笔记）
+      if (!existingId && data.title) {
+        const existing = await new Promise<any | null>((resolve, reject) => {
+          const tx = db.transaction("notes", "readonly");
+          const store = tx.objectStore("notes");
+          const req = store.getAll();
+          req.onsuccess = () => {
+            const match = req.result.find(
+              (n: any) =>
+                !n.deleted_at &&
+                !n.storagePath &&
+                n.title === data.title &&
+                n.date === data.date,
+            );
+            resolve(match ?? null);
+          };
+          req.onerror = () => reject(req.error);
+        });
+        if (existing) existingId = existing.id;
+      }
+
+      // ── 写事务 ──
+      const tx = db.transaction(["notes", "note_versions"], "readwrite");
+      const noteStore = tx.objectStore("notes");
+
+      const id = existingId ?? uuid();
+      const note: Note = {
+        id,
+        date: data.date ?? today(),
+        title: data.title ?? null,
+        content: data.content ?? { ops: [] },
+        tags: data.tags ?? [],
+        pinned: data.pinned ?? false,
+        readonly: false,
+        sort_order: 0,
+        created_at: existingId
+          ? (await getOne<any>(noteStore, id))?.created_at ?? now()
+          : now(),
+        updated_at: now(),
+        storagePath: data.storagePath,
+        docType: data.docType,
+        concepts: data.concepts,
+        linkedDocIds: data.linkedDocIds,
+      } as any;
+
+      (note as any).sort_order = 0;
+
+      await putRecord(noteStore, noteToDB(note));
+
+      if (existingId && data.content) {
+        const verStore = tx.objectStore("note_versions");
+        await saveVersionSnapshot(verStore, note);
+      }
+
+      return note;
+    });
+  },
+
   async updateNote(id: string, data: UpdateNoteInput): Promise<Note> {
     return withDB(async (db) => {
       const tx = db.transaction(["notes", "note_versions"], "readwrite");
