@@ -20,7 +20,8 @@
         "resizable": true,
         "fullscreen": false,
         "decorations": false,
-        "shadow": false
+        "shadow": false,
+        "dataDirectory": "webview-data"
       }
     ],
     "security": {
