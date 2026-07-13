@@ -139,7 +139,7 @@ export const DEFAULT_HOTKEYS: Record<string, string> = {
   new_note:       "CommandOrControl+N",
   quick_capture:  "CommandOrControl+Alt+N",
   focus_search:   "CommandOrControl+E",
-  open_settings:  "CommandOrControl+,",
+  open_settings:  "Alt+,",
   go_to_daily:    "CommandOrControl+Shift+D",
   show_window:    "Alt+Y",
 };

@@ -465,6 +465,13 @@ function App() {
       // 其余 Ctrl+Shift 组合留给编辑器内置快捷键
       if (e.shiftKey) return;
 
+      // Alt+, → 设置
+      if (e.altKey && e.key === ",") {
+        e.preventDefault();
+        setSettingsOpen(true);
+        return;
+      }
+
       switch (e.key.toLowerCase()) {
         case "n":
           e.preventDefault();
@@ -473,10 +480,6 @@ function App() {
         case "e":
           e.preventDefault();
           document.querySelector<HTMLInputElement>(".search-input")?.focus();
-          break;
-        case ",":
-          e.preventDefault();
-          setSettingsOpen(true);
           break;
       }
     };
