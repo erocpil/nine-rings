@@ -20,9 +20,7 @@
         "resizable": true,
         "fullscreen": false,
         "decorations": false,
-        "shadow": false,
-        "dataDirectory": "webview-data",
-        "additionalBrowserArgs": "--disable-gpu"
+        "shadow": false
       }
     ],
     "security": {

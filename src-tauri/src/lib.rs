@@ -131,12 +131,18 @@ pub fn run() {
             // 用户数据在 SQLite（nine-rings.db）中持久化，WebView2 数据目录仅包含
             // 浏览器临时缓存、localStorage 等。hide()/show() 循环可能污染渲染状态，
             // 导致下次启动白屏；清空缓存是最可靠的预防措施。
+            //
+            // 注：tauri.conf.json 中 dataDirectory / additionalBrowserArgs 不被
+            // Tauri v2 JSON config 支持（不在 schema 中），WebView2 使用默认路径
+            // %LOCALAPPDATA%\<bundle_id>\EBWebView。
             {
-                let wv_dir = app_dir.join("webview-data");
-                startup_log!("clearing WebView2 cache at {:?}", wv_dir);
-                // remove_dir_all 在目录不存在时返回 Err，忽略即可；
-                // 必须记录日志以便确认清除逻辑是否被执行。
-                let _ = std::fs::remove_dir_all(&wv_dir);
+                let local_app_dir = app.path().app_local_data_dir().unwrap_or_else(|_| app_dir.clone());
+                let wv_default = local_app_dir.join("EBWebView");
+                let wv_custom = app_dir.join("webview-data");
+                for dir in [&wv_default, &wv_custom] {
+                    startup_log!("clearing WebView2 cache at {:?}", dir);
+                    let _ = std::fs::remove_dir_all(dir);
+                }
             }
             let db_path = app_dir.join("nine-rings.db");
             log::info!("database path: {:?}", db_path);
