@@ -97,7 +97,7 @@ fn bump_webview2(window: &tauri::WebviewWindow) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    startup_log!("=== nine-rings startup begin ===");
+    startup_log!("=== nine-rings v{} ({}) startup begin ===", env!("CARGO_PKG_VERSION"), env!("GIT_HASH"));
     env_logger::init();
     startup_log!("env_logger initialized");
 
