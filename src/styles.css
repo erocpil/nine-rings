@@ -1487,7 +1487,7 @@ body {
   flex: 1;
   min-height: 200px;
   font-size: 15px;
-  line-height: 1.55;
+  line-height: 1.45;
 }
 
 .editor-content:focus {
@@ -2498,7 +2498,7 @@ body {
 
 /* ── 所有顶层 block：相对定位 + 底部间距（无 padding-left！）── */
 .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap) {
-  padding-bottom: 6px;
+  padding-bottom: 4px;
   position: relative;
 }
 
@@ -3094,7 +3094,7 @@ body {
 
 .settings-sep {
   align-self: flex-end;
-  padding-bottom: 6px;
+  padding-bottom: 4px;
   font-size: 16px;
   color: var(--text-tertiary);
 }
