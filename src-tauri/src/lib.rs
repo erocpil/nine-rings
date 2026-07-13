@@ -24,6 +24,8 @@ fn toggle_main_window(app: &tauri::AppHandle) {
             let _ = window.show();
             let _ = window.unminimize();
             let _ = window.set_focus();
+            #[cfg(target_os = "windows")]
+            bump_webview2(&window);
         }
     }
 }
@@ -34,6 +36,26 @@ fn show_main_window(app: &tauri::AppHandle) {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+        #[cfg(target_os = "windows")]
+        bump_webview2(&window);
+    }
+}
+
+/// Windows WebView2 hide/show 后合成器可能不重绘 → 强制 resize 触发 repaint
+#[cfg(target_os = "windows")]
+fn bump_webview2(window: &tauri::WebviewWindow) {
+    if let Ok(size) = window.inner_size() {
+        let w = size.width;
+        let h = size.height;
+        let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize::new(
+            (w + 1).into(),
+            h.into(),
+        )));
+        std::thread::sleep(std::time::Duration::from_millis(16));
+        let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize::new(
+            w.into(),
+            h.into(),
+        )));
     }
 }
 
@@ -102,6 +124,8 @@ pub fn run() {
                                     let _ = window.show();
                                     let _ = window.unminimize();
                                     let _ = window.set_focus();
+                                    #[cfg(target_os = "windows")]
+                                    bump_webview2(&window);
                                 }
                             }
                         }
