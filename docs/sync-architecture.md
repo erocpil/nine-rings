@@ -155,6 +155,19 @@ CREATE TABLE sync_changelog (
 
 ## 当前进度
 
-- `api.ts` StorageAdapter 已有 `syncPush()` / `syncPull()` 存桩
-- `src-tauri/src/service/sync_service.rs` 存桩
-- 其余均为设计阶段
+**已实现（V1 — GitHub 全量快照）**：
+- ✅ `api.ts` StorageAdapter `syncPush()` / `syncPull()` → GitHub Contents/Blobs API
+- ✅ Push/Pull UI（设置页，含测试连接）
+- ✅ 同步期间界面冻结（金色横幅 + 全部只读）
+- ✅ 大文件自动切换 Git Blobs API（>1MB）
+- ✅ 导入去重（storagePath > title+date）
+- ✅ `.md` 文件导入去重（upsertNote）
+- ✅ 调试面板树形 dump
+
+**设计阶段（V2 — 增量同步）**：
+- 🔲 本地 SyncEngine + ChangeLog 表
+- 🔲 增量 Push/Pull（REST API / WebSocket）
+- 🔲 冲突检测 + 冲突 UI 面板
+- 🔲 端到端加密 + 用户鉴权
+
+详见 [github-sync.md](./github-sync.md)（V1 使用指南）。
