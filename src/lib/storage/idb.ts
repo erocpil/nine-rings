@@ -631,15 +631,37 @@ export const idbAdapter: StorageAdapter = {
   async importData(json: string): Promise<{ notes_imported: number; pages_imported: number }> {
     return withDB(async (db) => {
       const data = JSON.parse(json);
-      const notes = data.notes ?? [];
+      const importedNotes: any[] = data.notes ?? [];
       const pages = data.daily_pages ?? [];
 
+      // ── Step 1: 读取现有笔记，构建去重索引 ──
+      const existingNotes: any[] = await new Promise((resolve, reject) => {
+        const tx = db.transaction("notes", "readonly");
+        const store = tx.objectStore("notes");
+        const req = store.getAll();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+
+      const byStoragePath = new Map<string, any>();
+      const byTitleDate = new Map<string, any>();
+      for (const n of existingNotes) {
+        if (n.deleted_at) continue;
+        if (n.storagePath) byStoragePath.set(n.storagePath, n);
+        if (n.title) {
+          const key = `${n.title}\x00${n.date}`;
+          // title+date 去重仅用于非文档笔记（无 storagePath），
+          // 避免误匹配同标题的文档笔记
+          if (!n.storagePath) byTitleDate.set(key, n);
+        }
+      }
+
+      // ── Step 2: 去重导入 ──
       return new Promise<{ notes_imported: number; pages_imported: number }>((resolve, reject) => {
         const tx = db.transaction(["notes", "daily_pages"], "readwrite");
 
         tx.oncomplete = () => {
-          console.log(`[importData] 事务提交完成: ${notes.length} notes + ${pages.length} pages`);
-          resolve({ notes_imported: notes.length, pages_imported: pages.length });
+          resolve({ notes_imported: importedNotes.length, pages_imported: pages.length });
         };
         tx.onerror = () => { console.error("[importData] 事务失败:", tx.error); reject(tx.error); };
         tx.onabort = () => { console.error("[importData] 事务中止:", tx.error); reject(tx.error); };
@@ -647,15 +669,39 @@ export const idbAdapter: StorageAdapter = {
         const noteStore = tx.objectStore("notes");
         const pageStore = tx.objectStore("daily_pages");
 
-        for (const n of notes) {
+        let merged = 0;
+        for (const imported of importedNotes) {
           try {
-            noteStore.put(noteToDB(n));
+            let target = imported;
+
+            // 去重策略: storagePath（文档笔记）> title+date（日记/随笔）
+            if (imported.storagePath) {
+              const existing = byStoragePath.get(imported.storagePath);
+              if (existing) {
+                target = { ...imported, id: existing.id };
+                merged++;
+              }
+            } else if (imported.title) {
+              const key = `${imported.title}\x00${imported.date}`;
+              const existing = byTitleDate.get(key);
+              if (existing) {
+                target = { ...imported, id: existing.id };
+                merged++;
+              }
+            }
+
+            noteStore.put(noteToDB(target));
           } catch (e) {
-            console.error(`[importData] noteToDB 失败 id=${(n as any).id?.slice(0, 8)}:`, e);
+            console.error(`[importData] noteToDB 失败:`, e);
             reject(e as Error);
             return;
           }
         }
+
+        if (merged > 0) {
+          console.log(`[importData] 去重合并 ${merged} 条，总计 ${importedNotes.length} notes + ${pages.length} pages`);
+        }
+
         for (const p of pages) {
           pageStore.put({
             ...p,
