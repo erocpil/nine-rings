@@ -118,19 +118,15 @@ pub fn run() {
             startup_log!("app_data_dir={:?}", app_dir);
             std::fs::create_dir_all(&app_dir).ok();
 
-            // ── WebView2 缓存版本标记：app 版本变更时清空缓存，避免跨版本污染导致白屏 ──
+            // ── WebView2 缓存：每次启动清空。
+            // 用户数据在 SQLite（nine-rings.db）中持久化，WebView2 数据目录仅包含
+            // 浏览器临时缓存、localStorage 等。hide()/show() 循环可能污染渲染状态，
+            // 导致下次启动白屏；清空缓存是最可靠的预防措施。
             {
-                let version_marker = app_dir.join(".webview_version");
-                let current_version = app.package_info().version.to_string();
-                let should_clear = match std::fs::read_to_string(&version_marker) {
-                    Ok(v) => v.trim() != current_version,
-                    Err(_) => true, // 首次运行
-                };
-                if should_clear {
-                    startup_log!("clearing WebView2 cache (version changed or first run)");
-                    let wv_dir = app_dir.join("webview-data");
+                let wv_dir = app_dir.join("webview-data");
+                if wv_dir.exists() {
+                    startup_log!("clearing WebView2 cache (always on startup)");
                     let _ = std::fs::remove_dir_all(&wv_dir);
-                    let _ = std::fs::write(&version_marker, &current_version);
                 }
             }
             let db_path = app_dir.join("nine-rings.db");
