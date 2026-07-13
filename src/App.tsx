@@ -443,6 +443,14 @@ function App() {
       }
 
       const ctrl = e.ctrlKey || e.metaKey;
+
+      // Alt+, → 设置（在 Ctrl 守卫之前，不依赖 ctrlKey）
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key === ",") {
+        e.preventDefault();
+        setSettingsOpen(true);
+        return;
+      }
+
       if (!ctrl) return;
 
       // Ctrl+Shift+F: 全局搜索
@@ -464,13 +472,6 @@ function App() {
 
       // 其余 Ctrl+Shift 组合留给编辑器内置快捷键
       if (e.shiftKey) return;
-
-      // Alt+, → 设置
-      if (e.altKey && e.key === ",") {
-        e.preventDefault();
-        setSettingsOpen(true);
-        return;
-      }
 
       switch (e.key.toLowerCase()) {
         case "n":
