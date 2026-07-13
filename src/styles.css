@@ -2537,6 +2537,7 @@ body {
 .ProseMirror .code-block-wrap::after {
   content: '+';
   position: absolute;
+  z-index: 1;
   left: -14px;
   bottom: -4px;
   width: 14px;
