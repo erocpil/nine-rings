@@ -11,6 +11,7 @@
  *   - gutter 宽度放在 .ProseMirror 的 padding-left 上
  *   - "+" 伪元素用 position:absolute + left:-Npx 回拉到 gutter
  *   - 所以 relX（相对 block 左沿）为负值
+ *   - e.target 即伪元素的 owning element（block 自身），不依赖 elementFromPoint
  */
 
 import type { Editor } from "@tiptap/core";
@@ -27,19 +28,49 @@ function getGutterWidth(editorDom: HTMLElement): number {
   return 14;
 }
 
+const BLOCK_SELECTOR =
+  ".ProseMirror > p, .ProseMirror > h1, .ProseMirror > h2, .ProseMirror > h3, " +
+  ".ProseMirror > h4, .ProseMirror > h5, .ProseMirror > h6, .ProseMirror > blockquote, " +
+  ".ProseMirror > pre, .ProseMirror > ul, .ProseMirror > ol, .ProseMirror > .code-block-wrap";
+
+/** 通过 e.target 或 Y 坐标扫描找到被点击的 block */
+function findBlock(e: MouseEvent, editorDom: HTMLElement): Element | null {
+  // 方案 A：e.target 是伪元素的 owning element（block 自身）
+  const target = e.target as Element;
+  if (target && editorDom.contains(target)) {
+    const b = target.closest(BLOCK_SELECTOR);
+    if (b) return b;
+  }
+
+  // 方案 B：elementFromPoint
+  const clickedEl = document.elementFromPoint(e.clientX, e.clientY);
+  if (clickedEl) {
+    const b = clickedEl.closest(BLOCK_SELECTOR);
+    if (b) return b;
+  }
+
+  // 方案 C：点击在 gutter 区（parent padding），elementFromPoint 返回 .ProseMirror
+  // 扫描所有直接子 block，按 Y 坐标匹配
+  const children = editorDom.querySelectorAll(
+    ":scope > p, :scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > h6, " +
+    ":scope > blockquote, :scope > pre, :scope > ul, :scope > ol, :scope > .code-block-wrap"
+  );
+  for (const child of children) {
+    const r = child.getBoundingClientRect();
+    if (e.clientY >= r.top && e.clientY <= r.bottom) {
+      return child;
+    }
+  }
+
+  return null;
+}
+
 export function createGutterClickHandler(editor: Editor): (e: MouseEvent) => void {
   return (e: MouseEvent) => {
     const editorDom = editor.view.dom;
     if (!editorDom.contains(e.target as HTMLElement)) return;
 
-    const clickedEl = document.elementFromPoint(e.clientX, e.clientY);
-    if (!clickedEl) return;
-
-    const block = clickedEl.closest(
-      ".ProseMirror > p, .ProseMirror > h1, .ProseMirror > h2, .ProseMirror > h3, " +
-      ".ProseMirror > h4, .ProseMirror > h5, .ProseMirror > h6, .ProseMirror > blockquote, " +
-      ".ProseMirror > pre, .ProseMirror > ul, .ProseMirror > ol, .ProseMirror > .code-block-wrap"
-    );
+    const block = findBlock(e, editorDom);
     if (!block) return;
 
     const gutterWidth = getGutterWidth(editorDom);
@@ -66,7 +97,7 @@ export function createGutterClickHandler(editor: Editor): (e: MouseEvent) => voi
     });
     if (blockPos === null) return;
 
-    // 判断点击区域：行号区（上方）还是行间 "+" 区（底部）
+    // 判断点击区域：底部 "+" 区还是行号区（上方）
     const relFromBottom = blockRect.bottom - e.clientY;
 
     if (relFromBottom >= 0 && relFromBottom <= PLUS_ZONE) {

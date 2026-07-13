@@ -29,7 +29,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     new_note:      "CommandOrControl+N",
     quick_capture: "CommandOrControl+Alt+N",
     focus_search:  "CommandOrControl+E",
-    open_settings: "CommandOrControl+,",
+    open_settings: "Alt+,",
   },
 };
 
