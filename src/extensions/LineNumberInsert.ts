@@ -16,8 +16,11 @@
 
 import type { Editor } from "@tiptap/core";
 
-/** 底部 "+" 区域高度（px，从 block 底部往上算，需与 CSS padding-bottom 对齐） */
-const PLUS_ZONE = 10;
+/** 底部 "+" 区域范围（相对 blockRect.bottom 的偏移）
+    "+" 在 CSS bottom:-4px，字号 12px，实际覆盖约 [-4, 8]。
+    取 [-6, 8] 留少量容差。 */
+const PLUS_ZONE_TOP = 8;
+const PLUS_ZONE_BOTTOM = -6;
 
 /** 计算当前模式下的 gutter 宽度 */
 function getGutterWidth(editorDom: HTMLElement): number {
@@ -101,7 +104,7 @@ export function createGutterClickHandler(editor: Editor): (e: MouseEvent) => voi
     // 判断点击区域：底部 "+" 区还是行号区（上方）
     const relFromBottom = blockRect.bottom - e.clientY;
 
-    if (relFromBottom >= 0 && relFromBottom <= PLUS_ZONE) {
+    if (relFromBottom >= PLUS_ZONE_BOTTOM && relFromBottom <= PLUS_ZONE_TOP) {
       // ── 底部 "+" 区 → 在当前 block 之后插入 ──
       const $pos = pmView.state.doc.resolve(blockPos);
       const node = $pos.nodeAfter;
