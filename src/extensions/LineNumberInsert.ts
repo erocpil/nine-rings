@@ -79,7 +79,8 @@ export function createGutterClickHandler(editor: Editor): (e: MouseEvent) => voi
     const relX = e.clientX - blockRect.left;
     // "+" 在 block 左侧 gutter 区（CSS left: -gutterWidth），relX 为负值
     if (relX >= -gutterWidth && relX < 0) {
-      // inside gutter — proceed
+      // inside gutter — prevent ProseMirror from treating this as a cursor click
+      e.preventDefault();
     } else {
       return;
     }
