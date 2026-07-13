@@ -129,7 +129,7 @@ export function createGutterClickHandler(editor: Editor): (e: MouseEvent) => voi
         .run();
     } else {
       // ── 行号区 → 在当前 block 之前插入 ──
-      if (blockPos <= 0) return;
+      // blockPos 可能为 0（文档第一个 block 之前），ProseMirror 允许在位置 0 插入。
 
       editor
         .chain()

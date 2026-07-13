@@ -80,14 +80,15 @@ fn bump_webview2(window: &tauri::WebviewWindow) {
         let w = size.width;
         let h = size.height;
         startup_log!("bump_webview2: current size {}x{}, resizing to {}x{}", w, h, w+1, h);
-        let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize::new(
-            (w + 1).into(),
-            h.into(),
+        // 使用 PhysicalSize：inner_size() 返回物理像素，set_size 也传物理像素，避免 DPI 缩放
+        let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(
+            w + 1,
+            h,
         )));
         std::thread::sleep(std::time::Duration::from_millis(16));
-        let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize::new(
-            w.into(),
-            h.into(),
+        let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(
+            w,
+            h,
         )));
         startup_log!("bump_webview2 done");
     } else {
