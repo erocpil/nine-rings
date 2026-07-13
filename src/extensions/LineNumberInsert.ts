@@ -15,6 +15,7 @@
  */
 
 import type { Editor } from "@tiptap/core";
+import { addLog } from "../lib/debugLog";
 
 /** 底部 "+" 区域范围（相对 blockRect.bottom 的偏移）
     "+" 在 CSS bottom:-4px，字号 12px，实际覆盖约 [-4, 8]。
@@ -74,17 +75,21 @@ export function createGutterClickHandler(editor: Editor): (e: MouseEvent) => voi
     if (!editorDom.contains(e.target as HTMLElement)) return;
 
     const block = findBlock(e, editorDom);
+    addLog(`[gc] target=${(e.target as HTMLElement)?.tagName}.${(e.target as HTMLElement)?.className?.split(' ')[0] || ''} block=${block?.tagName}.${(block as HTMLElement)?.className?.split(' ')[0] || ''} clientX=${e.clientX} clientY=${e.clientY}`);
     if (!block) return;
 
     const gutterWidth = getGutterWidth(editorDom);
 
     const blockRect = block.getBoundingClientRect();
     const relX = e.clientX - blockRect.left;
+    const relFromBottom = blockRect.bottom - e.clientY;
+    addLog(`[gc] relX=${relX.toFixed(1)} relFromBottom=${relFromBottom.toFixed(1)} gutterWidth=${gutterWidth} blockRect.bottom=${blockRect.bottom.toFixed(1)}`);
     // "+" 在 block 左侧 gutter 区（CSS left: -gutterWidth），relX 为负值
     if (relX >= -gutterWidth && relX < 0) {
       // inside gutter — prevent ProseMirror from treating this as a cursor click
       e.preventDefault();
     } else {
+      addLog(`[gc] relX outside gutter range [-${gutterWidth}, 0): ${relX.toFixed(1)} — skip`);
       return;
     }
 
@@ -93,16 +98,21 @@ export function createGutterClickHandler(editor: Editor): (e: MouseEvent) => voi
     let blockPos: number | null = null;
     pmView.state.doc.descendants((_node, pos) => {
       if (blockPos !== null) return false;
-      if (pmView.nodeDOM(pos) === block) {
+      const dom = pmView.nodeDOM(pos);
+      // NodeView 的 nodeDOM 返回外层 renderer div，
+      // 而 findBlock 返回的是内部 NodeViewWrapper（如 .code-block-wrap）。
+      // 因此用 contains 而非 === 兼容两种场景。
+      if (dom === block || dom?.contains(block)) {
         blockPos = pos;
         return false;
       }
       return true;
     });
+    addLog(`[gc] blockPos=${blockPos !== null ? blockPos : 'null'}`);
     if (blockPos === null) return;
 
     // 判断点击区域：底部 "+" 区还是行号区（上方）
-    const relFromBottom = blockRect.bottom - e.clientY;
+    addLog(`[gc] relFromBottom=${relFromBottom.toFixed(1)} zone=[${PLUS_ZONE_BOTTOM},${PLUS_ZONE_TOP}]`);
 
     if (relFromBottom >= PLUS_ZONE_BOTTOM && relFromBottom <= PLUS_ZONE_TOP) {
       // ── 底部 "+" 区 → 在当前 block 之后插入 ──
