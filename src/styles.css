@@ -2751,8 +2751,8 @@ body {
    三种模式自动对齐，无需模式特化规则。 */
 .editor-content blockquote {
   border-left: 3px solid var(--accent);
-  padding-left: 20px;
-  margin: 8px 0;
+  padding-left: 12px;
+  margin: 4px 0;
   color: var(--text-secondary);
 }
 
