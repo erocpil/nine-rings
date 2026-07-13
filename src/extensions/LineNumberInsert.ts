@@ -24,7 +24,7 @@ const PLUS_ZONE_BOTTOM = -6;
 
 /** 计算当前模式下的 gutter 宽度 */
 function getGutterWidth(editorDom: HTMLElement): number {
-  const showLineNumbers = editorDom.classList.contains("show-line-numbers");
+  const showLineNumbers = !!editorDom.closest(".show-line-numbers");
   const focusMode = !!editorDom.closest(".focus-mode");
   if (focusMode && showLineNumbers) return 36;
   if (showLineNumbers) return 44;
@@ -119,7 +119,7 @@ export function createGutterClickHandler(editor: Editor): (e: MouseEvent) => voi
         .run();
     } else {
       // ── 行号区 → 在当前 block 之前插入 ──
-      if (blockPos <= 1) return;
+      if (blockPos <= 0) return;
 
       editor
         .chain()
