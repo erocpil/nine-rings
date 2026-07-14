@@ -2,6 +2,24 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Todo } from "../types/models";
 import { uuid } from "../lib/uuid";
 import { api } from "../lib/api";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 // ── 提醒调度 ──
 
@@ -11,9 +29,8 @@ function scheduleReminder(todo: Todo, onFired: () => void) {
   if (!todo.remind_at || todo.done) return;
   const target = new Date(todo.remind_at).getTime();
   const now = Date.now();
-  if (target <= now) return; // 已过期，不触发
+  if (target <= now) return;
 
-  // 清除已有定时器
   if (activeTimers.has(todo.id)) {
     clearTimeout(activeTimers.get(todo.id)!);
   }
@@ -52,6 +69,157 @@ interface TodoListProps {
   disabled?: boolean;
 }
 
+// ── 可拖拽待办条目 ──
+
+function SortableTodoItem({
+  todo,
+  index,
+  dragOverIdx,
+  editingId,
+  editText,
+  remindTodoId,
+  remindTime,
+  onToggle,
+  onRemove,
+  onStartEdit,
+  onEditChange,
+  onEditSave,
+  onEditCancel,
+  onRemindClick,
+  onRemindTimeChange,
+  onRemindSet,
+  onRemindClear,
+}: {
+  todo: Todo;
+  index: number;
+  dragOverIdx: number | null;
+  editingId: string | null;
+  editText: string;
+  remindTodoId: string | null;
+  remindTime: string;
+  onToggle: (id: string) => void;
+  onRemove: (id: string) => void;
+  onStartEdit: (todo: Todo) => void;
+  onEditChange: (text: string) => void;
+  onEditSave: () => void;
+  onEditCancel: () => void;
+  onRemindClick: (todoId: string) => void;
+  onRemindTimeChange: (time: string) => void;
+  onRemindSet: (todoId: string, time: string) => void;
+  onRemindClear: (todoId: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: todo.id, disabled: editingId === todo.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    zIndex: isDragging ? 1 : 0,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`todo-item ${dragOverIdx === index ? "todo-drop-target" : ""} ${
+        isDragging ? "todo-dragging" : ""
+      }`}
+    >
+      <span className="todo-drag-handle" title="拖拽排序" {...attributes} {...listeners}>
+        ⋮⋮
+      </span>
+      <input
+        type="checkbox"
+        className="todo-checkbox"
+        checked={todo.done}
+        onChange={() => onToggle(todo.id)}
+      />
+      {editingId === todo.id ? (
+        <input
+          className="todo-edit-input"
+          value={editText}
+          onChange={(e) => onEditChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onEditSave();
+            if (e.key === "Escape") onEditCancel();
+          }}
+          onBlur={onEditSave}
+          autoFocus
+        />
+      ) : (
+        <span
+          className={`todo-text ${todo.done ? "done" : ""}`}
+          onDoubleClick={() => onStartEdit(todo)}
+          title="双击编辑"
+        >
+          {todo.text}
+        </span>
+      )}
+      <button
+        className={`todo-remind-btn ${todo.remind_at ? "active" : ""}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemindClick(todo.id);
+        }}
+        title={
+          todo.remind_at
+            ? `已设提醒: ${new Date(todo.remind_at).toLocaleString()}`
+            : "设置提醒"
+        }
+      >
+        {todo.remind_at ? "🔔" : "🔕"}
+      </button>
+      <button
+        className="todo-remove"
+        onClick={() => onRemove(todo.id)}
+        title="删除"
+      >
+        ×
+      </button>
+
+      {/* 提醒时间选择器 */}
+      {remindTodoId === todo.id && (
+        <div
+          className="todo-remind-picker"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            type="datetime-local"
+            className="todo-remind-input"
+            value={remindTime}
+            onChange={(e) => onRemindTimeChange(e.target.value)}
+          />
+          <button
+            className="todo-remind-set"
+            onClick={() => {
+              onRemindSet(todo.id, new Date(remindTime).toISOString());
+            }}
+          >
+            设置
+          </button>
+          {todo.remind_at && (
+            <button
+              className="todo-remind-clear"
+              onClick={() => onRemindClear(todo.id)}
+            >
+              清除
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 主组件 ──
+
 export function TodoList({ todos, onChange, disabled }: TodoListProps) {
   const [undoTodo, setUndoTodo] = useState<{
     todo: Todo;
@@ -66,7 +234,20 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
   // ── 提醒状态 ──
   const [remindTodoId, setRemindTodoId] = useState<string | null>(null);
   const [remindTime, setRemindTime] = useState("");
-  const [notifPerm, setNotifPerm] = useState<NotificationPermission>("default");
+  const [notifPerm, setNotifPerm] =
+    useState<NotificationPermission>("default");
+
+  // ── 拖拽状态 ──
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // 请求通知权限
   useEffect(() => {
@@ -77,15 +258,12 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
 
   // 调度所有待办提醒
   useEffect(() => {
-    // 清理旧定时器
     activeTimers.forEach((timer) => clearTimeout(timer));
     activeTimers.clear();
 
     for (const t of todos) {
       if (t.remind_at && !t.done) {
-        scheduleReminder(t, () => {
-          // 提醒触发后清除 remind_at（需外部刷新）
-        });
+        scheduleReminder(t, () => {});
       }
     }
 
@@ -104,15 +282,14 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
   const setReminder = (todoId: string, isoTime: string) => {
     if (disabled) return;
     if (!isoTime) {
-      // 清除提醒
       clearReminder(todoId);
       onChange(
-        todos.map((t) => t.id === todoId ? { ...t, remind_at: undefined } : t)
+        todos.map((t) => (t.id === todoId ? { ...t, remind_at: undefined } : t))
       );
       return;
     }
     onChange(
-      todos.map((t) => t.id === todoId ? { ...t, remind_at: isoTime } : t)
+      todos.map((t) => (t.id === todoId ? { ...t, remind_at: isoTime } : t))
     );
   };
 
@@ -120,7 +297,6 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
     if (notifPerm !== "granted") {
       requestNotifPermission().then(() => {
         setRemindTodoId(todoId);
-        // 默认：1小时后
         const d = new Date(Date.now() + 3600000);
         setRemindTime(d.toISOString().slice(0, 16));
       });
@@ -136,34 +312,42 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
     }
   };
 
+  const handleRemindSet = (todoId: string, time: string) => {
+    setReminder(todoId, time);
+    setRemindTodoId(null);
+  };
+
+  const handleRemindClear = (todoId: string) => {
+    setReminder(todoId, "");
+    setRemindTodoId(null);
+  };
+
   // ── 导出 ──
   const [exportOpen, setExportOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<"text" | "md">("text");
-
-  // ── 拖拽状态 ──
-  const dragIdxRef = useRef<number | null>(null);
-  const dragOverIdxRef = useRef<number | null>(null);
-  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   // ── 拉取过期待办 ──
   useEffect(() => {
     const today = new Date();
     const todayStr = today.toISOString().slice(0, 10);
 
-    api.daily.getAll().then((pages) => {
-      const items: OverdueItem[] = [];
-      for (const p of pages) {
-        if (p.date >= todayStr) continue;
-        if (!Array.isArray(p.todos)) continue;
-        for (const t of p.todos) {
-          if (!t.done) {
-            items.push({ todo: t, date: p.date });
+    api.daily
+      .getAll()
+      .then((pages) => {
+        const items: OverdueItem[] = [];
+        for (const p of pages) {
+          if (p.date >= todayStr) continue;
+          if (!Array.isArray(p.todos)) continue;
+          for (const t of p.todos) {
+            if (!t.done) {
+              items.push({ todo: t, date: p.date });
+            }
           }
         }
-      }
-      items.sort((a, b) => b.date.localeCompare(a.date));
-      setOverdueItems(items);
-    }).catch(() => {});
+        items.sort((a, b) => b.date.localeCompare(a.date));
+        setOverdueItems(items);
+      })
+      .catch(() => {});
   }, [refreshOverdue]);
 
   // Auto-dismiss undo after 5s
@@ -175,9 +359,7 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
 
   const toggleTodo = (id: string) => {
     if (disabled) return;
-    onChange(
-      todos.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
-    );
+    onChange(todos.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
   };
 
   const removeTodo = (id: string) => {
@@ -193,55 +375,6 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
     if (!undoTodo) return;
     onChange(undoTodo.previousTodos);
     setUndoTodo(null);
-  };
-
-  const reorder = (from: number, to: number) => {
-    if (disabled) return;
-    if (from === to) return;
-    const arr = [...todos];
-    const [moved] = arr.splice(from, 1);
-    arr.splice(to, 0, moved);
-    onChange(arr);
-  };
-
-  // ── 拖拽事件处理 ──
-  const handleDragStart = (index: number) => (e: React.DragEvent) => {
-    dragIdxRef.current = index;
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", String(index));
-    // 添加半透明效果
-    (e.currentTarget as HTMLElement).classList.add("todo-dragging");
-  };
-
-  const handleDragOver = (index: number) => (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    if (dragOverIdx !== index) {
-      setDragOverIdx(index);
-      dragOverIdxRef.current = index;
-    }
-  };
-
-  const handleDragLeave = () => {
-    // 使用 setTimeout 避免闪烁
-  };
-
-  const handleDrop = (index: number) => (e: React.DragEvent) => {
-    e.preventDefault();
-    const from = dragIdxRef.current;
-    setDragOverIdx(null);
-    if (from !== null && from !== index) {
-      reorder(from, index);
-    }
-    (e.currentTarget as HTMLElement).classList.remove("todo-dragging");
-  };
-
-  const handleDragEnd = () => {
-    dragIdxRef.current = null;
-    dragOverIdxRef.current = null;
-    setDragOverIdx(null);
-    // 清除所有拖拽状态
-    document.querySelectorAll(".todo-dragging").forEach((el) => el.classList.remove("todo-dragging"));
   };
 
   const addTodo = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -281,11 +414,36 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
     setEditText("");
   };
 
+  // ── @dnd-kit 拖拽事件 ──
+
+  const handleDragStart = (_event: DragStartEvent) => {
+    // drag start marker — needed for visual feedback via isDragging
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setDragOverIdx(null);
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = todos.findIndex((t) => t.id === active.id);
+    const newIndex = todos.findIndex((t) => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    onChange(arrayMove(todos, oldIndex, newIndex));
+  };
+
+  const handleDragOver = (event: DragStartEvent) => {
+    const overId = event.active.id as string;
+    const idx = todos.findIndex((t) => t.id === overId);
+    if (idx !== -1 && idx !== dragOverIdx) {
+      setDragOverIdx(idx);
+    }
+  };
+
   // ── 导出按钮：双击直接复制 ──
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleExportClick = useCallback(() => {
     if (clickTimerRef.current) {
-      // 300ms 内第二次点击 → 双击：复制
       clearTimeout(clickTimerRef.current);
       clickTimerRef.current = null;
       const text = generateExport();
@@ -322,7 +480,6 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
       return lines.join("\n");
     }
 
-    // 纯文本
     const lines: string[] = [];
     lines.push("今日待办");
     lines.push("────────");
@@ -345,14 +502,21 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
   };
 
   const handleOverdueToggle = (item: OverdueItem) => {
-    api.daily.get(item.date).then((page) => {
-      const updatedTodos = page.todos.map((t) =>
-        t.id === item.todo.id ? { ...t, done: !t.done } : t
-      );
-      return api.daily.updateTodos({ date: item.date, todos: updatedTodos });
-    }).then(() => {
-      setRefreshOverdue((n) => n + 1);
-    }).catch(() => {});
+    api.daily
+      .get(item.date)
+      .then((page) => {
+        const updatedTodos = page.todos.map((t) =>
+          t.id === item.todo.id ? { ...t, done: !t.done } : t
+        );
+        return api.daily.updateTodos({
+          date: item.date,
+          todos: updatedTodos,
+        });
+      })
+      .then(() => {
+        setRefreshOverdue((n) => n + 1);
+      })
+      .catch(() => {});
   };
 
   const formatDate = (dateStr: string) => {
@@ -411,22 +575,28 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
                   checked={item.todo.done}
                   onChange={() => handleOverdueToggle(item)}
                 />
-                <span className="todo-text overdue-text">{item.todo.text}</span>
+                <span className="todo-text overdue-text">
+                  {item.todo.text}
+                </span>
                 <span className="overdue-date">{formatDate(item.date)}</span>
                 <button
                   className="todo-remove"
                   onClick={() => {
-                    api.daily.get(item.date).then((page) => {
-                      const updatedTodos = page.todos.filter(
-                        (t) => t.id !== item.todo.id
-                      );
-                      return api.daily.updateTodos({
-                        date: item.date,
-                        todos: updatedTodos,
-                      });
-                    }).then(() => {
-                      setRefreshOverdue((n) => n + 1);
-                    }).catch(() => {});
+                    api.daily
+                      .get(item.date)
+                      .then((page) => {
+                        const updatedTodos = page.todos.filter(
+                          (t) => t.id !== item.todo.id
+                        );
+                        return api.daily.updateTodos({
+                          date: item.date,
+                          todos: updatedTodos,
+                        });
+                      })
+                      .then(() => {
+                        setRefreshOverdue((n) => n + 1);
+                      })
+                      .catch(() => {});
                   }}
                   title="删除"
                 >
@@ -452,102 +622,50 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
 
       {!exportOpen && (
         <>
-          <div className="todo-items">
-        {todos.map((todo, i) => (
-          <div
-            key={todo.id}
-            className={`todo-item ${dragOverIdx === i ? "todo-drop-target" : ""}`}
-            draggable={editingId !== todo.id}
-            onDragStart={handleDragStart(i)}
-            onDragOver={handleDragOver(i)}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop(i)}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <span className="todo-drag-handle" title="拖拽排序">⋮⋮</span>
-            <input
-              type="checkbox"
-              className="todo-checkbox"
-              checked={todo.done}
-              onChange={() => toggleTodo(todo.id)}
-            />
-            {editingId === todo.id ? (
-              <input
-                className="todo-edit-input"
-                value={editText}
-                onChange={(e) => setEditText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") saveEdit();
-                  if (e.key === "Escape") cancelEdit();
-                }}
-                onBlur={saveEdit}
-                autoFocus
-              />
-            ) : (
-              <span
-                className={`todo-text ${todo.done ? "done" : ""}`}
-                onDoubleClick={() => startEdit(todo)}
-                title="双击编辑"
-              >
-                {todo.text}
-              </span>
-            )}
-            <button
-              className={`todo-remind-btn ${todo.remind_at ? "active" : ""}`}
-              onClick={(e) => { e.stopPropagation(); openRemindPicker(todo.id); }}
-              title={todo.remind_at ? `已设提醒: ${new Date(todo.remind_at).toLocaleString()}` : "设置提醒"}
+            <SortableContext
+              items={todos.map((t) => t.id)}
+              strategy={verticalListSortingStrategy}
             >
-              {todo.remind_at ? "🔔" : "🔕"}
-            </button>
-            <button
-              className="todo-remove"
-              onClick={() => removeTodo(todo.id)}
-              title="删除"
-            >
-              ×
-            </button>
-
-            {/* 提醒时间选择器 */}
-            {remindTodoId === todo.id && (
-              <div className="todo-remind-picker" onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="datetime-local"
-                  className="todo-remind-input"
-                  value={remindTime}
-                  onChange={(e) => setRemindTime(e.target.value)}
-                />
-                <button
-                  className="todo-remind-set"
-                  onClick={() => {
-                    setReminder(todo.id, new Date(remindTime).toISOString());
-                    setRemindTodoId(null);
-                  }}
-                >
-                  设置
-                </button>
-                {todo.remind_at && (
-                  <button
-                    className="todo-remind-clear"
-                    onClick={() => {
-                      setReminder(todo.id, "");
-                      setRemindTodoId(null);
-                    }}
-                  >
-                    清除
-                  </button>
-                )}
+              <div className="todo-items">
+                {todos.map((todo, i) => (
+                  <SortableTodoItem
+                    key={todo.id}
+                    todo={todo}
+                    index={i}
+                    dragOverIdx={dragOverIdx}
+                    editingId={editingId}
+                    editText={editText}
+                    remindTodoId={remindTodoId}
+                    remindTime={remindTime}
+                    onToggle={toggleTodo}
+                    onRemove={removeTodo}
+                    onStartEdit={startEdit}
+                    onEditChange={setEditText}
+                    onEditSave={saveEdit}
+                    onEditCancel={cancelEdit}
+                    onRemindClick={openRemindPicker}
+                    onRemindTimeChange={setRemindTime}
+                    onRemindSet={handleRemindSet}
+                    onRemindClear={handleRemindClear}
+                  />
+                ))}
               </div>
-            )}
-          </div>
-        ))}
-      </div>
+            </SortableContext>
+          </DndContext>
 
-      <input
-        type="text"
-        placeholder="添加待办..."
-        onKeyDown={addTodo}
-        className="todo-input"
-      />
+          <input
+            type="text"
+            placeholder="添加待办..."
+            onKeyDown={addTodo}
+            className="todo-input"
+          />
         </>
       )}
 

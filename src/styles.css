@@ -882,6 +882,47 @@ body {
   gap: 8px;
   padding: 4px 0;
   font-size: 14px;
+  position: relative;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+/* ── 拖拽手柄 ── */
+
+.todo-drag-handle {
+  cursor: grab;
+  color: var(--text-secondary);
+  font-size: 12px;
+  letter-spacing: -2px;
+  user-select: none;
+  padding: 2px 4px;
+  border-radius: 3px;
+  line-height: 1;
+  touch-action: none;
+}
+
+.todo-drag-handle:hover {
+  color: var(--text-primary);
+  background: var(--hover-bg);
+}
+
+.todo-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* ── 拖拽中 ── */
+
+.todo-dragging {
+  z-index: 1000;
+  box-shadow: 0 2px 8px var(--shadow-color, rgba(0, 0, 0, 0.15));
+  border-radius: 4px;
+}
+
+/* ── 放置目标指示 ── */
+
+.todo-drop-target {
+  border-top: 2px solid var(--accent);
+  padding-top: 2px;
 }
 
 .todo-item .done {
