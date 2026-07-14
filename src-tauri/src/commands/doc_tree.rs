@@ -15,7 +15,14 @@ pub struct PathNode {
     pub path: String,
     #[serde(rename = "type")]
     pub node_type: String, // "folder" | "document"
-    pub children: Vec<PathNode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "noteId")]
+    pub note_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "docType")]
+    pub doc_type: Option<String>,
+    #[serde(skip_serializing)]
+    pub children: Vec<PathNode>, // kept for internal use, not sent to frontend
     pub updated_at: Option<String>,
     pub count: Option<usize>,
     pub readonly: Option<bool>,
@@ -133,53 +140,55 @@ pub fn get_all_concepts(state: State<AppState>) -> Result<Vec<String>, String> {
 #[tauri::command]
 pub fn get_path_tree(state: State<AppState>) -> Result<Vec<PathNode>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let mut nodes: Vec<PathNode> = Vec::new();
+
+    // ── 文件夹计数：path → 该路径下的文档数 ──
+    let mut folder_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut folder_paths: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
 
     // ── 1. 文档类笔记（有 storage_path）──
-    let mut stmt = conn
-        .prepare(
-            "SELECT storage_path, updated_at, readonly, COUNT(*) as cnt FROM notes WHERE deleted_at IS NULL AND storage_path IS NOT NULL GROUP BY storage_path ORDER BY storage_path"
-        )
-        .map_err(|e| e.to_string())?;
-    let rows = stmt.query_map([], |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, Option<String>>(1)?,
-            row.get::<_, Option<i32>>(2)?.unwrap_or(0) != 0,
-            row.get::<_, i32>(3)?,
-        ))
-    }).map_err(|e| e.to_string())?;
+    {
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, title, storage_path, doc_type, updated_at, readonly \
+                 FROM notes WHERE deleted_at IS NULL AND storage_path IS NOT NULL \
+                 ORDER BY storage_path, updated_at DESC"
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,                    // id
+                row.get::<_, Option<String>>(1)?,            // title
+                row.get::<_, String>(2)?,                    // storage_path
+                row.get::<_, Option<String>>(3)?,            // doc_type
+                row.get::<_, Option<String>>(4)?,            // updated_at
+                row.get::<_, Option<i32>>(5)?.unwrap_or(0) != 0, // readonly
+            ))
+        }).map_err(|e| e.to_string())?;
 
-    #[derive(Default)]
-    struct DirEntry {
-        docs: Vec<PathNode>,
-        folders: std::collections::BTreeSet<String>,
-        updated_at: Option<String>,
-        count: usize,
-        _readonly: bool,
-    }
-    let mut tree: std::collections::BTreeMap<String, DirEntry> = std::collections::BTreeMap::new();
+        for row in rows {
+            let (id, title, storage_path, doc_type, updated_at, readonly) =
+                row.map_err(|e| e.to_string())?;
 
-    for row in rows {
-        let (path, updated_at, readonly, _cnt) = row.map_err(|e| e.to_string())?;
-        let parts: Vec<&str> = path.split('/').collect();
-        for i in 1..=parts.len() {
-            let prefix = parts[..i].join("/");
-            let entry = tree.entry(prefix.clone()).or_default();
-            if i == parts.len() {
-                entry.docs.push(PathNode {
-                    name: parts[i - 1].to_string(),
-                    path: path.clone(),
-                    node_type: "document".to_string(),
-                    children: vec![],
-                    updated_at: updated_at.clone(),
-                    count: None,
-                    readonly: Some(readonly),
-                });
-                entry.updated_at = updated_at.clone();
-                entry.count += 1;
-            } else {
-                entry.folders.insert(parts[i].to_string());
+            // 收集文件夹路径及计数
+            let parts: Vec<&str> = storage_path.split('/').collect();
+            for i in 1..=parts.len() {
+                let prefix = parts[..i].join("/");
+                folder_paths.insert(prefix.clone());
+                *folder_counts.entry(prefix).or_default() += 1;
             }
+
+            nodes.push(PathNode {
+                name: title.unwrap_or_else(|| "无标题".to_string()),
+                path: format!("{}/{}", storage_path, id),
+                node_type: "document".to_string(),
+                note_id: Some(id),
+                doc_type,
+                children: vec![],
+                updated_at,
+                count: None,
+                readonly: Some(readonly),
+            });
         }
     }
 
@@ -187,95 +196,67 @@ pub fn get_path_tree(state: State<AppState>) -> Result<Vec<PathNode>, String> {
     {
         let mut daily_stmt = conn
             .prepare(
-                "SELECT id, date, title, updated_at FROM notes WHERE deleted_at IS NULL AND storage_path IS NULL ORDER BY date DESC, updated_at DESC"
+                "SELECT id, date, title, updated_at \
+                 FROM notes WHERE deleted_at IS NULL AND storage_path IS NULL \
+                 ORDER BY date DESC, updated_at DESC"
             )
             .map_err(|e| e.to_string())?;
         let daily_rows = daily_stmt.query_map([], |row| {
             Ok((
-                row.get::<_, String>(0)?,   // id
-                row.get::<_, String>(1)?,   // date
-                row.get::<_, String>(2)?,   // title
-                row.get::<_, Option<String>>(3)?, // updated_at
+                row.get::<_, String>(0)?,              // id
+                row.get::<_, String>(1)?,              // date
+                row.get::<_, Option<String>>(2)?,      // title
+                row.get::<_, Option<String>>(3)?,      // updated_at
             ))
         }).map_err(|e| e.to_string())?;
 
-        // 收集所有日期作为 daily 子文件夹
         let mut dates: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-        let mut date_docs: std::collections::BTreeMap<String, Vec<PathNode>> = std::collections::BTreeMap::new();
 
         for row in daily_rows {
             let (id, date, title, updated_at) = row.map_err(|e| e.to_string())?;
-            let path = format!("daily/{}/{}", date, id);
             dates.insert(date.clone());
-            date_docs.entry(date).or_default().push(PathNode {
-                name: title,
-                path,
+            nodes.push(PathNode {
+                name: title.unwrap_or_else(|| "无标题".to_string()),
+                path: format!("daily/{}/{}", date, id),
                 node_type: "document".to_string(),
+                note_id: Some(id),
+                doc_type: None,
                 children: vec![],
-                updated_at: updated_at.clone(),
+                updated_at,
                 count: None,
-                readonly: None,
+                readonly: Some(false),
             });
         }
 
         if !dates.is_empty() {
-            // 先收集所有日期，避免在遍历 tree 时同时可变借用
-            let date_list: Vec<String> = dates.iter().cloned().collect();
-
             // daily/ 根文件夹
-            let daily_root = tree.entry("daily".to_string()).or_default();
-            daily_root.count = date_list.len();
+            folder_paths.insert("daily".to_string());
+            folder_counts.insert("daily".to_string(), dates.len());
 
-            for date in &date_list {
-                daily_root.folders.insert(date.clone());
-            }
-            // 释放 daily_root 的可变借用，然后逐日期插入
-            for date in &date_list {
+            for date in &dates {
                 let date_path = format!("daily/{}", date);
-                let date_entry = tree.entry(date_path.clone()).or_default();
-                if let Some(docs) = date_docs.get(date) {
-                    date_entry.docs = docs.clone();
-                    date_entry.count = docs.len();
-                    if let Some(last) = docs.last() {
-                        date_entry.updated_at = last.updated_at.clone();
-                    }
-                }
+                folder_paths.insert(date_path.clone());
+                folder_counts.insert(date_path.clone(),
+                    nodes.iter().filter(|n| n.path.starts_with(&format!("{}/", date_path))).count());
             }
         }
     }
 
-    fn build_children(tree: &std::collections::BTreeMap<String, DirEntry>, parent_path: &str) -> Vec<PathNode> {
-        let mut nodes: Vec<PathNode> = Vec::new();
-        if let Some(entry) = tree.get(parent_path) {
-            // 子文件夹
-            for folder_name in &entry.folders {
-                let child_path = if parent_path.is_empty() {
-                    folder_name.clone()
-                } else {
-                    format!("{}/{}", parent_path, folder_name)
-                };
-                let child_entry = tree.get(&child_path);
-                let children = build_children(tree, &child_path);
-                let count = child_entry.map(|e| e.count).unwrap_or(0);
-                let updated_at = child_entry.and_then(|e| e.updated_at.clone());
-                nodes.push(PathNode {
-                    name: folder_name.clone(),
-                    path: child_path.clone(),
-                    node_type: "folder".to_string(),
-                    children,
-                    updated_at,
-                    count: Some(count),
-                    readonly: None,
-                });
-            }
-            // 文档
-            let mut docs = entry.docs.clone();
-            docs.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-            nodes.extend(docs);
-        }
-        nodes
+    // ── 3. 文件夹节点 ──
+    for folder_path in &folder_paths {
+        let parts: Vec<&str> = folder_path.split('/').collect();
+        nodes.push(PathNode {
+            name: parts.last().unwrap_or(&"").to_string(),
+            path: folder_path.clone(),
+            node_type: "folder".to_string(),
+            note_id: None,
+            doc_type: None,
+            children: vec![],
+            updated_at: None,
+            count: Some(*folder_counts.get(folder_path).unwrap_or(&0)),
+            readonly: None,
+        });
     }
 
-    let roots = build_children(&tree, "");
-    Ok(roots)
+    Ok(nodes)
 }
