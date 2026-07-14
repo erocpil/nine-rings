@@ -93,6 +93,9 @@ pub struct AppState {
     pub db: Mutex<rusqlite::Connection>,
 }
 
+/// 应用数据目录 — 在 setup() 中计算一次，避免 IPC 命令中重复调用 app_data_dir()
+pub struct DataDir(pub std::path::PathBuf);
+
 /// 尝试删除 WebView2 profile 目录。
 /// Job Object（JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE）已保证主进程退出时
 /// 内核自动清理所有子进程，因此不再需要 kill_orphaned_webview2。
@@ -268,6 +271,7 @@ pub fn run() {
             let user_config = commands::config::read_config(&app_dir);
             startup_log!("config loaded (theme: {})", user_config.theme);
             app.manage(Mutex::new(user_config));
+            app.manage(DataDir(app_dir.clone()));
             startup_log!("state managed (config)");
 
             app.manage(AppState {

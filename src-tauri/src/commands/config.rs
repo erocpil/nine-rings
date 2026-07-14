@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tauri::{command, Manager, State};
+use tauri::{command, State};
 use std::sync::Mutex;
+use crate::DataDir;
 
 /// 应用配置（与 schema/config.yaml 对齐）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,7 +67,7 @@ pub fn get_config(state: State<'_, Mutex<AppConfig>>) -> Result<AppConfig, Strin
 #[command]
 pub fn set_config(
     state: State<'_, Mutex<AppConfig>>,
-    app_handle: tauri::AppHandle,
+    data_dir: State<'_, DataDir>,
     config: serde_json::Value,
 ) -> Result<AppConfig, String> {
     let mut current = state.lock().map_err(|e| e.to_string())?;
@@ -84,13 +85,9 @@ pub fn set_config(
             serde_json::from_value(serde_json::Value::Object(current_map))
                 .map_err(|e| e.to_string())?;
 
-        // 持久化
-        if let Some(app_dir) = app_handle.path().app_data_dir().ok() {
-            write_config(&app_dir, &merged)?;
-            log::info!("set_config: wrote {:?}", app_dir.join("config.json"));
-        } else {
-            log::warn!("set_config: app_data_dir() returned None — config NOT persisted!");
-        }
+        // 持久化 — 用 setup() 阶段缓存的 DataDir，不依赖 IPC 上下文的 app_data_dir()
+        write_config(&data_dir.0, &merged)?;
+        log::info!("set_config: wrote {:?}", data_dir.0.join("config.json"));
 
         *current = merged.clone();
         Ok(merged)
