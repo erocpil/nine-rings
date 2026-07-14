@@ -205,6 +205,17 @@ fn bump_webview2(window: &tauri::WebviewWindow) {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// 根据环境变量计算应用数据目录（Windows only）。
+/// 等效于 Tauri 的 `app.path().app_data_dir()` 和 `app.path().app_local_data_dir()`。
+/// 在 Tauri 初始化前即可调用——因为 Tauri 根据 `identifier` 字段拼接路径，
+/// 规则为 `{APPDATA|LOCALAPPDATA}/{identifier}`。
+#[cfg(target_os = "windows")]
+fn app_data_dirs() -> (Option<std::path::PathBuf>, Option<std::path::PathBuf>) {
+    let roaming = std::env::var("APPDATA").ok().map(|p| std::path::PathBuf::from(p).join("com.ninerings.app"));
+    let local = std::env::var("LOCALAPPDATA").ok().map(|p| std::path::PathBuf::from(p).join("com.ninerings.app"));
+    (roaming, local)
+}
+
 pub fn run() {
     // ── 根治：主进程退出时内核自动杀死所有 WebView2 子进程 ──
     // 在任何 WebView2 相关操作（包括 tauri::Builder）之前设置 Job Object。
@@ -217,6 +228,20 @@ pub fn run() {
         }
         Err(e) => {
             startup_log!("JobObject: FAILED to enable KILL_ON_CLOSE — {} — child processes will NOT be auto-killed on exit", e);
+        }
+    }
+
+    // ── 孤儿进程清理（必须在 WebView2 启动之前）──
+    // 如果上次退出不干净（Job Object 未生效 / 进程崩溃 / 任务管理器强杀），
+    // 上次运行的 msedgewebview2.exe 子进程可能仍未退出，持有 EBWebView 文件锁。
+    // 此时 WebView2 尚未初始化，taskkill 只会杀掉真正的旧孤儿，不会影响自身。
+    // Job Object 正常生效时这里应该没有旧进程残留，taskkill 零影响。
+    #[cfg(target_os = "windows")]
+    {
+        startup_log!("pre-tauri cleanup: killing orphaned webview2 processes");
+        kill_orphaned_webview2();
+        if let (Some(_roaming), Some(local)) = app_data_dirs() {
+            try_clean_webview2_profile(&local.join("EBWebView"));
         }
     }
 
@@ -250,22 +275,6 @@ pub fn run() {
             let app_dir = app.path().app_data_dir().expect("failed to get app data dir");
             startup_log!("app_data_dir={:?}", app_dir);
             std::fs::create_dir_all(&app_dir).ok();
-
-            // ── WebView2 profile 清理（故障恢复策略，非每次启动都清）──
-            // 如果上次退出不干净（子进程残留、持有文件锁），EBWebView 目录可能
-            // 被锁定或损坏。启动时尝试清理：先杀孤儿进程（仅一次），再删目录。
-            // 删除失败不会阻塞启动——记录日志，让 WebView2 尝试使用现有 profile。
-            // 正常情况下 profile 不存在或能成功删除，启动无额外开销。
-            {
-                #[cfg(target_os = "windows")]
-                kill_orphaned_webview2();
-                let local_app_dir = app.path().app_local_data_dir().unwrap_or_else(|_| app_dir.clone());
-                let wv_default = local_app_dir.join("EBWebView");
-                let wv_custom = app_dir.join("webview-data");
-                for dir in [&wv_default, &wv_custom] {
-                    try_clean_webview2_profile(dir);
-                }
-            }
             let db_path = app_dir.join("nine-rings.db");
             log::info!("database path: {:?}", db_path);
 
