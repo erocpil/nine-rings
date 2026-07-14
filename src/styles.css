@@ -928,6 +928,7 @@ body {
   width: 26px;
   justify-content: center;
   flex-shrink: 0;
+  margin-left: -5px;
 }
 
 .todo-indent-btn {
