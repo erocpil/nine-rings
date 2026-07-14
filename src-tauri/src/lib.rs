@@ -14,16 +14,11 @@ use tauri::{
 };
 
 /// ── Windows Job Object: 主进程退出时内核自动杀死所有子进程 ──
-/// WebView2 创建 msedgewebview2.exe 子进程（GPU、Renderer、Crashpad）。
-/// 默认 Windows 不会因为父进程退出而杀子进程——子进程变成孤儿继续持有
-/// EBWebView/ 文件锁。Job Object + JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-/// 让内核在主进程退出时（无论正常 exit、崩溃、还是被任务管理器强杀）
-/// 立即无条件清理所有子孙进程。这是 Electron/Edge/Chrome 都在用的机制。
-///
-/// 注意：job handle 必须存活到进程退出——用 static 显式声明"故意泄漏"，
-/// 避免被误改或提前 drop 导致 KILL_ON_CLOSE 失效。
+/// ...
+/// 注意：此函数定义在 `startup_log!` 宏之前，因此只用 `log::*` 宏输出；
+/// 调用处会额外用 `startup_log!` 写入文件日志。
 #[cfg(target_os = "windows")]
-fn setup_job_object_kill_on_close() {
+fn setup_job_object_kill_on_close() -> Result<(), String> {
     use std::sync::OnceLock;
     use windows::Win32::System::JobObjects::{
         CreateJobObjectW, SetInformationJobObject, AssignProcessToJobObject,
@@ -34,18 +29,10 @@ fn setup_job_object_kill_on_close() {
     use windows::Win32::Foundation::HANDLE;
     use std::mem::size_of;
 
-    // static 持有 handle，明确表达"故意泄漏、生命周期=进程生命周期"的语义
     static JOB_HANDLE: OnceLock<HANDLE> = OnceLock::new();
 
-    let result = unsafe {
-        let job = match CreateJobObjectW(None, None) {
-            Ok(j) => j,
-            Err(e) => {
-                log::warn!("[JobObject] CreateJobObjectW failed: {:?}", e);
-                startup_log!("JobObject: CreateJobObjectW FAILED — WebView2 child processes will NOT be auto-killed on exit");
-                return;
-            }
-        };
+    let (result, handle) = unsafe {
+        let job = CreateJobObjectW(None, None).map_err(|e| format!("CreateJobObjectW: {:?}", e))?;
         let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
         info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
         if let Err(e) = SetInformationJobObject(
@@ -54,22 +41,20 @@ fn setup_job_object_kill_on_close() {
             &info as *const _ as *const _,
             size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
         ) {
-            log::warn!("[JobObject] SetInformationJobObject failed: {:?}", e);
-            startup_log!("JobObject: SetInformationJobObject FAILED — KILL_ON_CLOSE may not be set");
+            log::warn!("[JobObject] SetInformationJobObject: {:?}", e);
         }
-        AssignProcessToJobObject(job, GetCurrentProcess())
+        let r = AssignProcessToJobObject(job, GetCurrentProcess());
+        (r, job)
     };
     match result {
         Ok(()) => {
-            // 故意泄漏 handle：它必须存活到进程退出，才能保证"退出=触发 kill"
-            let _ = JOB_HANDLE.set(result.unwrap()); // 刚 Assign 成功，unwrap 安全
-            log::info!("[JobObject] KILL_ON_CLOSE enabled — all child processes will be terminated on exit");
-            startup_log!("JobObject: JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE enabled");
+            let _ = JOB_HANDLE.set(handle);
+            log::info!("[JobObject] KILL_ON_CLOSE enabled — child processes auto-killed on exit");
+            Ok(())
         }
         Err(e) => {
-            // 失败通常意味着进程已在另一个 Job 中（如 VS Code 调试器、某些安全软件沙箱）
-            log::warn!("[JobObject] AssignProcessToJobObject FAILED: {:?} — child processes will NOT be auto-killed", e);
-            startup_log!("JobObject: AssignProcessToJobObject FAILED — child processes will NOT be auto-killed on exit");
+            log::warn!("[JobObject] AssignProcessToJobObject: {:?} — child processes NOT auto-killed", e);
+            Err(format!("{:?}", e))
         }
     }
 }
@@ -221,7 +206,14 @@ pub fn run() {
     // 此后无论 app.exit(0)、崩溃、还是被任务管理器强杀，Windows 内核都会
     // 立即清理所有 msedgewebview2.exe 子进程，不再需要 sleep / taskkill。
     #[cfg(target_os = "windows")]
-    setup_job_object_kill_on_close();
+    match setup_job_object_kill_on_close() {
+        Ok(()) => {
+            startup_log!("JobObject: JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE enabled");
+        }
+        Err(e) => {
+            startup_log!("JobObject: FAILED to enable KILL_ON_CLOSE — {} — child processes will NOT be auto-killed on exit", e);
+        }
+    }
 
     // WebView2 诊断与修复环境变量：
     //   --disable-gpu: 避免 GPU 驱动/shaders 导致的白屏（兜底）
