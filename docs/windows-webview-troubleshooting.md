@@ -59,6 +59,11 @@ WebView2 的多个子进程（GPU、Renderer、Crashpad）变成孤儿，
 // 2. 尝试 remove_dir_all 直接删除（此时 WebView2 尚未启动，无锁）
 // 3. 失败不阻塞——os error 2/3（路径不存在）= 静默，
 //    os error 32（被占用）= 记日志但不干预
+//
+// 注意：删除整个 EBWebView 目录是安全的，因为用户数据
+// （笔记、配置）已通过 Tauri IPC 持久化到
+// AppData\Roaming\com.ninerings.app\（SQLite + config.json），
+// 完全独立于此目录。
 ```
 
 ### 时序
