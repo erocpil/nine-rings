@@ -103,7 +103,8 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
         };
       });
     } catch (e) {
-      set({ error: `更新失败: ${(e as Error).message}` });
+      const msg = e instanceof Error ? e.message : String(e ?? "unknown error");
+      set({ error: `更新失败: ${msg}` });
     }
   },
 
