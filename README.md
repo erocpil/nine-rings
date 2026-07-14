@@ -254,6 +254,8 @@ nine-rings/
 
 > 以上链接指向 `main` 分支最近一次 CI 成功的产物。下载后解压即可使用。
 > 由 [nightly.link](https://nightly.link) 提供中转，无需 GitHub 登录。
+>
+> ⚠️ **Linux 和 Android 版本仅通过 CI 构建验证，未经实际运行测试。**
 
 > **macOS / iOS 不在 CI 中**：GitHub Actions macOS runner 费用是 Linux 的 10 倍（[定价](https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions)）。Tauri macOS `.dmg` 和 Flutter macOS/iOS 产物需在本地构建。详见 [`docs/FLUTTER_BUILD.md`](./docs/FLUTTER_BUILD.md)。
 
