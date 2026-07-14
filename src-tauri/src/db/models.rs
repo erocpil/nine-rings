@@ -14,12 +14,15 @@ pub struct Note {
     pub created_at: String,
     pub updated_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(alias = "storagePath")]
     pub storage_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(alias = "docType")]
     pub doc_type: Option<String>,
     #[serde(default)]
     pub concepts: Vec<String>,
     #[serde(default)]
+    #[serde(alias = "linkedDocIds")]
     pub linked_doc_ids: Vec<String>,
     #[serde(default)]
     pub readonly: bool,
@@ -60,12 +63,15 @@ pub struct NotePublic {
     pub created_at: String,
     pub updated_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(alias = "storagePath")]
     pub storage_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(alias = "docType")]
     pub doc_type: Option<String>,
     #[serde(default)]
     pub concepts: Vec<String>,
     #[serde(default)]
+    #[serde(alias = "linkedDocIds")]
     pub linked_doc_ids: Vec<String>,
     #[serde(default)]
     pub readonly: bool,
