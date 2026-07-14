@@ -18,7 +18,6 @@ pub struct CreateNoteInput {
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateNoteInput {
-    pub id: String,
     pub title: Option<String>,
     pub content: Option<serde_json::Value>,
     pub tags: Option<Vec<String>>,
