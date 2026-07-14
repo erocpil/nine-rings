@@ -29,7 +29,15 @@ fn setup_job_object_kill_on_close() -> Result<(), String> {
     use windows::Win32::Foundation::HANDLE;
     use std::mem::size_of;
 
-    static JOB_HANDLE: OnceLock<HANDLE> = OnceLock::new();
+    /// 包装 `HANDLE` 使其可安全存于 `static OnceLock`。
+    /// `HANDLE` 本质是 `*mut c_void`，不实现 `Send`/`Sync`。
+    /// 但 Job Object handle 仅在主线程的 `run()` 入口处创建和存储，
+    /// 此时没有其他线程存在，且此后仅被 leak 持有（永不读取），因此安全。
+    struct JobHandle(HANDLE);
+    unsafe impl Send for JobHandle {}
+    unsafe impl Sync for JobHandle {}
+
+    static JOB_HANDLE: OnceLock<JobHandle> = OnceLock::new();
 
     let (result, handle) = unsafe {
         let job = CreateJobObjectW(None, None).map_err(|e| format!("CreateJobObjectW: {:?}", e))?;
@@ -48,7 +56,7 @@ fn setup_job_object_kill_on_close() -> Result<(), String> {
     };
     match result {
         Ok(()) => {
-            let _ = JOB_HANDLE.set(handle);
+            let _ = JOB_HANDLE.set(JobHandle(handle));
             log::info!("[JobObject] KILL_ON_CLOSE enabled — child processes auto-killed on exit");
             Ok(())
         }
@@ -94,7 +102,7 @@ pub struct AppState {
 /// wmic 在 Windows 11 24H2+ 已被废弃且默认不安装；改用 taskkill /F /IM 全局终止。
 /// 在用户的机器上通常只有本 App 会创建 WebView2 进程，因此安全。
 #[cfg(target_os = "windows")]
-fn kill_orphaned_webview2(profile_dir: &std::path::Path) {
+fn kill_orphaned_webview2(_profile_dir: &std::path::Path) {
     startup_log!("kill_orphaned_webview2: killing all msedgewebview2.exe");
     let result = Command::new("taskkill")
         .args(["/F", "/IM", "msedgewebview2.exe"])
