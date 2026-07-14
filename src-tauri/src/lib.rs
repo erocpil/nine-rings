@@ -44,49 +44,52 @@ pub struct AppState {
 /// 查找并终止占用指定 profile 目录的孤儿 msedgewebview2.exe 进程。
 /// 上次退出时如果 app.exit(0) 暴力终止，WebView2 子进程（GPU、渲染、Crashpad）
 /// 可能变成孤儿，继续持有 EBWebView/ 下的文件锁，导致下次启动时 remove_dir_all 失败。
+///
+/// wmic 在 Windows 11 24H2+ 已被废弃且默认不安装；改用 taskkill /F /IM 全局终止。
+/// 在用户的机器上通常只有本 App 会创建 WebView2 进程，因此安全。
 #[cfg(target_os = "windows")]
 fn kill_orphaned_webview2(profile_dir: &std::path::Path) {
-    let profile_str = profile_dir.to_string_lossy().to_string();
-    startup_log!("kill_orphaned_webview2: scanning for processes using {:?}", profile_dir);
-
-    match Command::new("wmic")
-        .args(["process", "where", "name='msedgewebview2.exe'", "get", "processid,commandline"])
-        .output()
-    {
-        Ok(output) => {
-            let text = String::from_utf8_lossy(&output.stdout);
-            for line in text.lines() {
-                if line.contains(&profile_str) {
-                    if let Some(pid) = line.split_whitespace().last() {
-                        startup_log!("kill_orphaned_webview2: killing PID {}", pid);
-                        let _ = Command::new("taskkill").args(["/PID", pid, "/F"]).output();
-                    }
-                }
-            }
+    startup_log!("kill_orphaned_webview2: killing all msedgewebview2.exe");
+    let result = Command::new("taskkill")
+        .args(["/F", "/IM", "msedgewebview2.exe"])
+        .output();
+    match result {
+        Ok(o) => {
+            let out = String::from_utf8_lossy(&o.stdout);
+            startup_log!("kill_orphaned_webview2: taskkill result: {}", out.trim());
         }
         Err(e) => {
-            startup_log!("kill_orphaned_webview2: wmic failed: {}", e);
+            startup_log!("kill_orphaned_webview2: taskkill failed: {}", e);
         }
     }
+    // 等待进程真正退出
+    std::thread::sleep(std::time::Duration::from_millis(300));
 }
 
 /// 尝试清理 WebView2 profile 目录。先杀孤儿进程，再删目录。
 /// 删除成功返回 true，失败（被锁、权限不足等）返回 false 并在日志记录原因。
+/// 如果删除失败，等待 500ms 后重试一次（等待潜在的文件锁释放）。
 fn try_clean_webview2_profile(dir: &std::path::Path) -> bool {
     #[cfg(target_os = "windows")]
     kill_orphaned_webview2(dir);
 
-    match std::fs::remove_dir_all(dir) {
-        Ok(()) => {
-            startup_log!("try_clean_webview2_profile: removed {:?}", dir);
-            true
-        }
-        Err(e) => {
-            startup_log!("try_clean_webview2_profile: FAILED to remove {:?}: {} (os error {})",
-                dir, e, e.raw_os_error().unwrap_or(-1));
-            false
+    for attempt in 1..=2 {
+        match std::fs::remove_dir_all(dir) {
+            Ok(()) => {
+                startup_log!("try_clean_webview2_profile: removed {:?} (attempt {})", dir, attempt);
+                return true;
+            }
+            Err(e) => {
+                startup_log!("try_clean_webview2_profile: FAILED to remove {:?}: {} (os error {}, attempt {})",
+                    dir, e, e.raw_os_error().unwrap_or(-1), attempt);
+                if attempt < 2 {
+                    // 可能子进程还没完全退出，等待后重试
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                }
+            }
         }
     }
+    false
 }
 
 /// 切换主窗口显示/隐藏（Alt+Y 等 toggle 型快捷键）
@@ -283,7 +286,7 @@ pub fn run() {
                                 app.cleanup_before_exit();
                                 // 给 WebView2 子进程一点收尾时间（Chromium 多进程架构
                                 // 中 GPU/Renderer/Crashpad 可能比主进程晚一拍退出）
-                                std::thread::sleep(std::time::Duration::from_millis(250));
+                                std::thread::sleep(std::time::Duration::from_millis(500));
                                 startup_log!("graceful shutdown complete, exiting");
                                 app.exit(0);
                             }
