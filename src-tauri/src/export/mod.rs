@@ -103,10 +103,12 @@ pub fn export_all(conn: &Connection) -> rusqlite::Result<ExportBundle> {
     })
 }
 
-/// 导入数据：INSERT OR REPLACE（覆盖已存在的笔记/页面）
+/// 导入数据：单事务 INSERT OR REPLACE，原子性保证
 pub fn import_bundle(conn: &Connection, bundle: &ExportBundle) -> rusqlite::Result<(usize, usize)> {
     let mut notes_imported = 0usize;
     let mut pages_imported = 0usize;
+
+    conn.execute_batch("BEGIN;")?;
 
     for note in &bundle.notes {
         conn.execute(
@@ -146,6 +148,8 @@ pub fn import_bundle(conn: &Connection, bundle: &ExportBundle) -> rusqlite::Resu
         )?;
         pages_imported += 1;
     }
+
+    conn.execute_batch("COMMIT;")?;
 
     Ok((notes_imported, pages_imported))
 }

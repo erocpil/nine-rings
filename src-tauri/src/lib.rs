@@ -251,6 +251,10 @@ pub fn run() {
             startup_log!("opening database...");
             let conn = rusqlite::Connection::open(&db_path)
                 .expect("failed to open database");
+            // WAL 模式：写入先到 WAL 文件，定期合并回主 DB。
+            // 即使进程被暴力终止，WAL 中的完整事务也不会丢
+            // （SQLite 下次打开时自动恢复）。
+            conn.execute_batch("PRAGMA journal_mode=WAL;").ok();
             startup_log!("running migrations...");
             db::migrations::run(&conn).expect("failed to run migrations");
             startup_log!("migrations done");
@@ -332,6 +336,15 @@ pub fn run() {
                                 // 先隐藏所有窗口，避免用户看到关闭过程
                                 for (_, w) in app.webview_windows() {
                                     let _ = w.hide();
+                                }
+                                // WAL checkpoint：把 WAL 中所有已提交事务合并回主 DB 文件。
+                                // app.exit(0) 是 std::process::exit，不触发 Rust Drop，
+                                // 必须在此处显式 flush，否则未 checkpoint 的数据会丢失。
+                                if let Some(state) = app.try_state::<AppState>() {
+                                    if let Ok(conn) = state.db.lock() {
+                                        let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+                                        startup_log!("quit: WAL checkpointed to main DB");
+                                    }
                                 }
                                 app.cleanup_before_exit();
                                 // 给 WebView2 子进程一点收尾时间（Chromium 多进程架构
