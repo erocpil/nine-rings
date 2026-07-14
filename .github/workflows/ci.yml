@@ -106,6 +106,52 @@ jobs:
             src-tauri/target/release/bundle/appimage/*.AppImage
           if-no-files-found: warn
 
+  # ──── Tauri 桌面端构建 (macOS) ────
+
+  tauri-macos:
+    name: Tauri Desktop (macOS)
+    if: ${{ !contains(github.event.head_commit.message, '[ci win-only]') }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [aarch64-apple-darwin]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock', 'src-tauri/src/**') }}
+
+      - run: npm ci
+
+      - name: Build Tauri (macOS)
+        run: npm run tauri build
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tauri-macos
+          path: |
+            src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: warn
+
   # ──── Tauri 桌面端构建 (Windows) ────
 
   tauri-windows:
@@ -200,7 +246,7 @@ jobs:
   release:
     name: Publish GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [web, tauri-linux, tauri-windows, flutter]
+    needs: [web, tauri-linux, tauri-macos, tauri-windows, flutter]
     runs-on: ubuntu-22.04
     permissions:
       contents: write
