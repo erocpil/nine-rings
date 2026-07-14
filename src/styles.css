@@ -16,6 +16,7 @@
   --accent-hover: #0550ae;
   --danger: #cf222e;
   --success: #1a7f37;
+  --hover-bg: rgba(0, 0, 0, 0.04);
   touch-action: pan-y;
   --radius: 6px;
   --transition: 0.2s ease;
@@ -35,6 +36,7 @@
   --accent-hover: #79c0ff;
   --danger: #f85149;
   --success: #3fb950;
+  --hover-bg: rgba(255, 255, 255, 0.05);
   --code-bg: #11161c;
   --activeline-bg: rgba(88, 166, 255, 0.06);
 }

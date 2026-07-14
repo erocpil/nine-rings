@@ -557,22 +557,33 @@ function App() {
 
   // ── 时钟更新 + 跨日检测 ──
   useEffect(() => {
+    // 跟踪"上一次检查时的日期"，只在真正跨日时切换
+    const lastToday = new Date().toISOString().slice(0, 10);
+
     const tick = () => {
       const d = new Date();
       setClock(d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }));
-      // 检测是否跨日：若 store 中 currentDate 与今日不同，自动切换
-      const todayStr = d.toISOString().slice(0, 10);
-      if (todayStr !== currentDate) {
-        // 仅随笔视图自动切日期；查看文档时保持不动
+    };
+    // 时钟每秒更新一次
+    const clockId = setInterval(tick, 1_000);
+
+    // 跨日检测：只在新的一天真正到来时才切换
+    const dateId = setInterval(() => {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      if (todayStr !== lastToday) {
+        // 真正跨日了
         const sel = useNotesStore.getState().selectedNote;
         if (!sel?.storagePath) {
           setDate(todayStr);
         }
       }
+    }, 30_000);
+
+    return () => {
+      clearInterval(clockId);
+      clearInterval(dateId);
     };
-    const id = setInterval(tick, 30_000);
-    return () => clearInterval(id);
-  }, [currentDate, setDate]);
+  }, [setDate]);
 
   // ── 开发模式后台导入 ──
   const refreshView = useCallback(() => {
