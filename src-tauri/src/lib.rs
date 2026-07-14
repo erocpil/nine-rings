@@ -4,6 +4,8 @@ pub mod export;
 pub mod service;
 
 use std::sync::Mutex;
+#[cfg(target_os = "windows")]
+use std::process::Command;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
@@ -37,6 +39,54 @@ macro_rules! startup_log {
 
 pub struct AppState {
     pub db: Mutex<rusqlite::Connection>,
+}
+
+/// 查找并终止占用指定 profile 目录的孤儿 msedgewebview2.exe 进程。
+/// 上次退出时如果 app.exit(0) 暴力终止，WebView2 子进程（GPU、渲染、Crashpad）
+/// 可能变成孤儿，继续持有 EBWebView/ 下的文件锁，导致下次启动时 remove_dir_all 失败。
+#[cfg(target_os = "windows")]
+fn kill_orphaned_webview2(profile_dir: &std::path::Path) {
+    let profile_str = profile_dir.to_string_lossy().to_string();
+    startup_log!("kill_orphaned_webview2: scanning for processes using {:?}", profile_dir);
+
+    match Command::new("wmic")
+        .args(["process", "where", "name='msedgewebview2.exe'", "get", "processid,commandline"])
+        .output()
+    {
+        Ok(output) => {
+            let text = String::from_utf8_lossy(&output.stdout);
+            for line in text.lines() {
+                if line.contains(&profile_str) {
+                    if let Some(pid) = line.split_whitespace().last() {
+                        startup_log!("kill_orphaned_webview2: killing PID {}", pid);
+                        let _ = Command::new("taskkill").args(["/PID", pid, "/F"]).output();
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            startup_log!("kill_orphaned_webview2: wmic failed: {}", e);
+        }
+    }
+}
+
+/// 尝试清理 WebView2 profile 目录。先杀孤儿进程，再删目录。
+/// 删除成功返回 true，失败（被锁、权限不足等）返回 false 并在日志记录原因。
+fn try_clean_webview2_profile(dir: &std::path::Path) -> bool {
+    #[cfg(target_os = "windows")]
+    kill_orphaned_webview2(dir);
+
+    match std::fs::remove_dir_all(dir) {
+        Ok(()) => {
+            startup_log!("try_clean_webview2_profile: removed {:?}", dir);
+            true
+        }
+        Err(e) => {
+            startup_log!("try_clean_webview2_profile: FAILED to remove {:?}: {} (os error {})",
+                dir, e, e.raw_os_error().unwrap_or(-1));
+            false
+        }
+    }
 }
 
 /// 切换主窗口显示/隐藏（Alt+Y 等 toggle 型快捷键）
@@ -98,12 +148,16 @@ fn bump_webview2(window: &tauri::WebviewWindow) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // WebView2: 完全禁用 GPU 加速以避免 hide()/show() 后 swap chain 崩溃导致白屏。
-    // additionalBrowserArgs 在 tauri.conf.json 中不被 Tauri v2 支持，改用 WebView2 原生环境变量。
+    // WebView2 诊断与修复环境变量：
+    //   --disable-gpu: 避免 GPU 驱动/shaders 导致的白屏（兜底）
+    //   --enable-logging --v=1: 输出详细日志到 %TEMP%/webview2_debug.log，方便定位问题
     #[cfg(target_os = "windows")]
     {
-        std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--disable-gpu");
-        startup_log!("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS set to: --disable-gpu");
+        std::env::set_var(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            "--disable-gpu --enable-logging --v=1",
+        );
+        startup_log!("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS set");
     }
 
     startup_log!("=== nine-rings v{} ({}) startup begin ===", env!("CARGO_PKG_VERSION"), env!("GIT_HASH"));
@@ -117,8 +171,6 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             startup_log!("single_instance: second launch detected, showing main window");
-            // 第二次双击 → 显示已有窗口，不创建新实例
-            // show + unminimize 组合修复 Windows WebView2 hide/show 后白屏
             show_main_window(app);
         }))
         .setup(|app| {
@@ -127,21 +179,17 @@ pub fn run() {
             startup_log!("app_data_dir={:?}", app_dir);
             std::fs::create_dir_all(&app_dir).ok();
 
-            // ── WebView2 缓存：每次启动清空。
-            // 用户数据在 SQLite（nine-rings.db）中持久化，WebView2 数据目录仅包含
-            // 浏览器临时缓存、localStorage 等。hide()/show() 循环可能污染渲染状态，
-            // 导致下次启动白屏；清空缓存是最可靠的预防措施。
-            //
-            // 注：tauri.conf.json 中 dataDirectory / additionalBrowserArgs 不被
-            // Tauri v2 JSON config 支持（不在 schema 中），WebView2 使用默认路径
-            // %LOCALAPPDATA%\<bundle_id>\EBWebView。
+            // ── WebView2 profile 清理（故障恢复策略，非每次启动都清）──
+            // 如果上次退出不干净（子进程残留、持有文件锁），EBWebView 目录可能
+            // 被锁定或损坏。启动时尝试清理：先杀孤儿进程，再删目录。
+            // 删除失败不会阻塞启动——记录日志，让 WebView2 尝试使用现有 profile。
+            // 正常情况下 profile 不存在或能成功删除，启动无额外开销。
             {
                 let local_app_dir = app.path().app_local_data_dir().unwrap_or_else(|_| app_dir.clone());
                 let wv_default = local_app_dir.join("EBWebView");
                 let wv_custom = app_dir.join("webview-data");
                 for dir in [&wv_default, &wv_custom] {
-                    startup_log!("clearing WebView2 cache at {:?}", dir);
-                    let _ = std::fs::remove_dir_all(dir);
+                    try_clean_webview2_profile(dir);
                 }
             }
             let db_path = app_dir.join("nine-rings.db");
@@ -165,8 +213,7 @@ pub fn run() {
             });
             startup_log!("state managed");
 
-            // ── 系统托盘（非关键：失败不影响应用启动）──
-            // 左键：显示/隐藏窗口  右键：弹出菜单
+            // ── 系统托盘 ──
             startup_log!("setting up tray...");
             match (|| -> Result<_, Box<dyn std::error::Error>> {
                 let show = MenuItemBuilder::with_id("show", "显示九环").build(app)?;
@@ -188,11 +235,9 @@ pub fn run() {
                     .show_menu_on_left_click(false)
                     .on_tray_icon_event(|tray, event| {
                         if let TrayIconEvent::Click { button, button_state, .. } = event {
-                            // 只响应按下（非释放），避免双击效果
                             if button != MouseButton::Left || button_state != MouseButtonState::Down {
                                 return;
                             }
-                            // 左键：toggle 窗口显隐
                             if let Some(window) = tray.app_handle().get_webview_window("main") {
                                 if window.is_visible().unwrap_or(false) {
                                     let _ = window.hide();
@@ -214,7 +259,6 @@ pub fn run() {
                             "new_note" => {
                                 show_main_window(app);
                                 let app_clone = app.clone();
-                                // 延迟 emit：等 WebView 完成重绘 + React 挂载事件监听
                                 std::thread::spawn(move || {
                                     std::thread::sleep(std::time::Duration::from_millis(300));
                                     if let Some(window) = app_clone.get_webview_window("main") {
@@ -225,7 +269,24 @@ pub fn run() {
                             "quick_capture" => {
                                 let _ = commands::quick_capture::toggle_quick_capture(app.clone());
                             }
-                            "quit" => app.exit(0),
+                            "quit" => {
+                                // ── 优雅退出：先让 WebView2 走正常关闭协议 ──
+                                // app.exit(0) 是暴力终止，会留下孤儿 msedgewebview2.exe
+                                // 子进程（GPU、渲染、Crashpad）继续持有 EBWebView 文件锁。
+                                // cleanup_before_exit() 触发 WebView2/wry 的正常销毁流程，
+                                // 释放资源后再退出。
+                                startup_log!("quit requested — starting graceful shutdown");
+                                // 先隐藏所有窗口，避免用户看到关闭过程
+                                for (_, w) in app.webview_windows() {
+                                    let _ = w.hide();
+                                }
+                                app.cleanup_before_exit();
+                                // 给 WebView2 子进程一点收尾时间（Chromium 多进程架构
+                                // 中 GPU/Renderer/Crashpad 可能比主进程晚一拍退出）
+                                std::thread::sleep(std::time::Duration::from_millis(250));
+                                startup_log!("graceful shutdown complete, exiting");
+                                app.exit(0);
+                            }
                             _ => {}
                         }
                     })
@@ -237,7 +298,7 @@ pub fn run() {
                 Err(e) => { startup_log!("tray FAILED: {}", e); log::error!("failed to create tray icon: {} (app will run without tray)", e); },
             }
 
-            // ── Alt+Y 系统级全局热键（Rust 端，不依赖 WebView）──
+            // ── Alt+Y 系统级全局热键 ──
             {
                 startup_log!("registering Alt+Y shortcut...");
                 use tauri_plugin_global_shortcut::GlobalShortcutExt;
@@ -259,7 +320,7 @@ pub fn run() {
                 }
             }
 
-            // ── F11 全屏切换（Rust 端系统级快捷键，不依赖 WebView）──
+            // ── F11 全屏切换 ──
             {
                 startup_log!("registering F11 shortcut...");
                 use tauri_plugin_global_shortcut::GlobalShortcutExt;
@@ -291,11 +352,9 @@ pub fn run() {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 startup_log!("window_event CloseRequested label={}", window.label());
                 if window.label() == "quick-capture" {
-                    // Quick Capture 窗口：只隐藏，不销毁（复用 WebView）
                     let _ = window.hide();
                     api.prevent_close();
                 } else {
-                    // 主窗口：关闭 → 隐藏到托盘
                     let _ = window.hide();
                     api.prevent_close();
                 }
