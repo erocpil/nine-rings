@@ -13,6 +13,48 @@ use tauri::{
     Manager,
 };
 
+/// ── Windows Job Object: 主进程退出时内核自动杀死所有子进程 ──
+/// WebView2 创建 msedgewebview2.exe 子进程（GPU、Renderer、Crashpad）。
+/// 默认 Windows 不会因为父进程退出而杀子进程——子进程变成孤儿继续持有
+/// EBWebView/ 文件锁。Job Object + JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+/// 让内核在主进程退出时（无论正常 exit、崩溃、还是被任务管理器强杀）
+/// 立即无条件清理所有子孙进程。这是 Electron/Edge/Chrome 都在用的机制。
+#[cfg(target_os = "windows")]
+fn setup_job_object_kill_on_close() {
+    use windows::Win32::System::JobObjects::{
+        CreateJobObjectW, SetInformationJobObject, AssignProcessToJobObject,
+        JobObjectExtendedLimitInformation, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+    use windows::Win32::System::Threading::GetCurrentProcess;
+    use std::mem::size_of;
+
+    let result = unsafe {
+        let job = match CreateJobObjectW(None, None) {
+            Ok(j) => j,
+            Err(e) => {
+                startup_log!("JobObject: CreateJobObjectW failed: {:?}", e);
+                return;
+            }
+        };
+        let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        if let Err(e) = SetInformationJobObject(
+            job,
+            JobObjectExtendedLimitInformation,
+            &info as *const _ as *const _,
+            size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+        ) {
+            startup_log!("JobObject: SetInformationJobObject failed: {:?}", e);
+        }
+        AssignProcessToJobObject(job, GetCurrentProcess())
+    };
+    match result {
+        Ok(()) => startup_log!("JobObject: JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE enabled"),
+        Err(e) => startup_log!("JobObject: AssignProcessToJobObject failed: {:?}", e),
+    }
+}
+
 /// 启动日志：写入 %TEMP%/nine-rings-startup.log（Windows 上 stderr 不可见）。
 /// 格式：`[HH:MM:SS.mmm] message`
 macro_rules! startup_log {
@@ -151,6 +193,13 @@ fn bump_webview2(window: &tauri::WebviewWindow) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // ── 根治：主进程退出时内核自动杀死所有 WebView2 子进程 ──
+    // 在任何 WebView2 相关操作（包括 tauri::Builder）之前设置 Job Object。
+    // 此后无论 app.exit(0)、崩溃、还是被任务管理器强杀，Windows 内核都会
+    // 立即清理所有 msedgewebview2.exe 子进程，不再需要 sleep / taskkill。
+    #[cfg(target_os = "windows")]
+    setup_job_object_kill_on_close();
+
     // WebView2 诊断与修复环境变量：
     //   --disable-gpu: 避免 GPU 驱动/shaders 导致的白屏（兜底）
     //   --enable-logging --v=1: 输出详细日志到 %TEMP%/webview2_debug.log，方便定位问题
