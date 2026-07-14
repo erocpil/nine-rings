@@ -683,13 +683,27 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const generateExport = useCallback((): string => {
-    const walk = (items: Todo[], prefix: string): string[] => {
+    // 递归渲染纯文本
+    const walkText = (items: Todo[], prefix: string): string[] => {
       return items.flatMap((t) => {
         const marker = t.done ? "☑" : "☐";
         const lines = [`${prefix}${marker} ${t.text}`];
         const children = getChildren(todos, t.id);
         if (children.length > 0) {
-          lines.push(...walk(children, prefix + "  "));
+          lines.push(...walkText(children, prefix + "  "));
+        }
+        return lines;
+      });
+    };
+
+    // 递归渲染 Markdown
+    const walkMd = (items: Todo[], prefix: string): string[] => {
+      return items.flatMap((t) => {
+        const marker = t.done ? "[x]" : "[ ]";
+        const lines = [`${prefix}- ${marker} ${t.text}`];
+        const children = getChildren(todos, t.id);
+        if (children.length > 0) {
+          lines.push(...walkMd(children, prefix + "  "));
         }
         return lines;
       });
@@ -703,18 +717,11 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
       if (active.length === 0) {
         lines.push("（无）\n");
       } else {
-        for (const t of active) {
-          lines.push(`- [ ] ${t.text}`);
-          for (const c of getChildren(todos, t.id)) {
-            lines.push(`  - [ ] ${c.text}`);
-          }
-        }
+        lines.push(...walkMd(active, ""));
       }
       if (done.length > 0) {
         lines.push(`\n## 已完成 (${done.length})\n`);
-        for (const t of done) {
-          lines.push(`- [x] ${t.text}`);
-        }
+        lines.push(...walkMd(done, ""));
       }
       return lines.join("\n");
     }
@@ -723,11 +730,11 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
     if (active.length === 0) {
       lines.push("（无）");
     } else {
-      lines.push(...walk(active, ""));
+      lines.push(...walkText(active, ""));
     }
     if (done.length > 0) {
       lines.push("", `已完成 (${done.length})`, "────────");
-      lines.push(...done.map((t) => `☑ ${t.text}`));
+      lines.push(...walkText(done, ""));
     }
     return lines.join("\n");
   }, [todos, topLevelTodos, exportFormat]);
