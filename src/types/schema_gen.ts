@@ -38,6 +38,8 @@ export interface SchemaTodo {
   tags: string[];
   /** 提醒时间 */
   remind_at: string | null;
+  /** 父待办 ID，null 表示顶层 */
+  parent_id: string | null;
 }
 
 /** 每日一页 */
