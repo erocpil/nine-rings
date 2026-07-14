@@ -10,6 +10,7 @@
 <br/>
 [![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](https://nightly.link/erocpil/nine-rings/workflows/ci/main/tauri-linux.zip)
 [![Windows](https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white)](https://nightly.link/erocpil/nine-rings/workflows/ci/main/tauri-windows.zip)
+[![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)](https://nightly.link/erocpil/nine-rings/workflows/ci/main/flutter-apk.zip)
 [![Web PWA](https://img.shields.io/badge/Web-PWA-FF7139?logo=pwa)](https://dist-navy-five-94.vercel.app)
 
 > 九环绕指，一念成文。
@@ -238,6 +239,7 @@ nine-rings/
 | `Web Frontend` | `npm ci` → `tsc && vite build` → schema `--check` | ubuntu-22.04 |
 | `Tauri Desktop (Linux)` | Web 构建 + Rust 编译 → `.deb`、`.AppImage` | ubuntu-22.04 |
 | `Tauri Desktop (Windows)` | Web 构建 + Rust 编译 → `.msi`、`.exe` | windows-2022 |
+| `Flutter (Android APK)` | `pub get` → `analyze` → `build apk --debug` | ubuntu-22.04 |
 
 自动触发：`push` / `pull_request` to `main`。
 
@@ -247,6 +249,7 @@ nine-rings/
 |------|------|
 | 🪟 Windows（`.msi` + `.exe`） | [**下载最新**](https://nightly.link/erocpil/nine-rings/workflows/ci/main/tauri-windows.zip) |
 | 🐧 Linux（`.deb` + `.AppImage`） | [**下载最新**](https://nightly.link/erocpil/nine-rings/workflows/ci/main/tauri-linux.zip) |
+| 🤖 Android（`.apk`） | [**下载最新**](https://nightly.link/erocpil/nine-rings/workflows/ci/main/flutter-apk.zip) |
 | 🌐 Web 前端（`dist/`） | [**下载最新**](https://nightly.link/erocpil/nine-rings/workflows/ci/main/web-dist.zip) |
 
 > 以上链接指向 `main` 分支最近一次 CI 成功的产物。下载后解压即可使用。
