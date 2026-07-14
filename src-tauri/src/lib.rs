@@ -149,15 +149,23 @@ fn show_main_window(app: &tauri::AppHandle) {
     }
 }
 
-/// Windows WebView2 hide/show 后合成器可能不重绘 → 强制 resize 触发 repaint
+/// Windows WebView2 hide/show 后合成器可能不重绘 → 强制 repaint
+///
+/// 策略：最大化状态下 set_size() 会退出最大化，改用 toggle maximize 触发重绘。
+/// 普通窗口则用 ±1px resize 触发 repaint。
 #[cfg(target_os = "windows")]
 fn bump_webview2(window: &tauri::WebviewWindow) {
     startup_log!("bump_webview2 called");
-    if let Ok(size) = window.inner_size() {
+    if window.is_maximized().unwrap_or(false) {
+        startup_log!("bump_webview2: window is maximized, toggle-to-trigger-repaint");
+        let _ = window.unmaximize();
+        std::thread::sleep(std::time::Duration::from_millis(16));
+        let _ = window.maximize();
+        startup_log!("bump_webview2 done (maximize toggle)");
+    } else if let Ok(size) = window.inner_size() {
         let w = size.width;
         let h = size.height;
-        startup_log!("bump_webview2: current size {}x{}, resizing to {}x{}", w, h, w+1, h);
-        // 使用 PhysicalSize：inner_size() 返回物理像素，set_size 也传物理像素，避免 DPI 缩放
+        startup_log!("bump_webview2: current size {}x{}, resizing to {}x{}", w, h, w + 1, h);
         let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(
             w + 1,
             h,
