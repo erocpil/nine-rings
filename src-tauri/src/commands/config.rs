@@ -87,6 +87,9 @@ pub fn set_config(
         // 持久化
         if let Some(app_dir) = app_handle.path().app_data_dir().ok() {
             write_config(&app_dir, &merged)?;
+            log::info!("set_config: wrote {:?}", app_dir.join("config.json"));
+        } else {
+            log::warn!("set_config: app_data_dir() returned None — config NOT persisted!");
         }
 
         *current = merged.clone();

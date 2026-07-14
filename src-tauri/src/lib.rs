@@ -249,6 +249,8 @@ pub fn run() {
             log::info!("database path: {:?}", db_path);
 
             startup_log!("opening database...");
+            let db_size_before = std::fs::metadata(&db_path).map(|m| m.len()).unwrap_or(0);
+            startup_log!("db file: {:?} ({} bytes)", db_path, db_size_before);
             let conn = rusqlite::Connection::open(&db_path)
                 .expect("failed to open database");
             // WAL 模式：写入先到 WAL 文件，定期合并回主 DB。
@@ -261,9 +263,12 @@ pub fn run() {
 
             // 加载配置
             startup_log!("loading config...");
+            let config_path = app_dir.join("config.json");
+            startup_log!("config file exists: {}, path: {:?}", config_path.exists(), config_path);
             let user_config = commands::config::read_config(&app_dir);
+            startup_log!("config loaded (theme: {})", user_config.theme);
             app.manage(Mutex::new(user_config));
-            startup_log!("config loaded");
+            startup_log!("state managed (config)");
 
             app.manage(AppState {
                 db: Mutex::new(conn),
