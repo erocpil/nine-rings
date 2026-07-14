@@ -74,7 +74,7 @@ pub struct ExportBundle {
 /// 导出全部数据（不含软删除的笔记）
 pub fn export_all(conn: &Connection) -> rusqlite::Result<ExportBundle> {
     let mut stmt = conn.prepare(
-        "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at
+        "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly
          FROM notes WHERE deleted_at IS NULL
          ORDER BY date, sort_order"
     )?;

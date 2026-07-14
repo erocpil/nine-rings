@@ -47,7 +47,7 @@ pub fn get_deleted_notes(state: State<AppState>) -> Result<Vec<crate::db::models
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare(
-            "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at
+            "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly
              FROM notes WHERE deleted_at IS NOT NULL
              ORDER BY updated_at DESC
              LIMIT 200",
