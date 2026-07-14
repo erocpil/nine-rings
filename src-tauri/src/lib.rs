@@ -19,21 +19,30 @@ use tauri::{
 /// EBWebView/ 文件锁。Job Object + JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
 /// 让内核在主进程退出时（无论正常 exit、崩溃、还是被任务管理器强杀）
 /// 立即无条件清理所有子孙进程。这是 Electron/Edge/Chrome 都在用的机制。
+///
+/// 注意：job handle 必须存活到进程退出——用 static 显式声明"故意泄漏"，
+/// 避免被误改或提前 drop 导致 KILL_ON_CLOSE 失效。
 #[cfg(target_os = "windows")]
 fn setup_job_object_kill_on_close() {
+    use std::sync::OnceLock;
     use windows::Win32::System::JobObjects::{
         CreateJobObjectW, SetInformationJobObject, AssignProcessToJobObject,
         JobObjectExtendedLimitInformation, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
         JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     };
     use windows::Win32::System::Threading::GetCurrentProcess;
+    use windows::Win32::Foundation::HANDLE;
     use std::mem::size_of;
+
+    // static 持有 handle，明确表达"故意泄漏、生命周期=进程生命周期"的语义
+    static JOB_HANDLE: OnceLock<HANDLE> = OnceLock::new();
 
     let result = unsafe {
         let job = match CreateJobObjectW(None, None) {
             Ok(j) => j,
             Err(e) => {
-                startup_log!("JobObject: CreateJobObjectW failed: {:?}", e);
+                log::warn!("[JobObject] CreateJobObjectW failed: {:?}", e);
+                startup_log!("JobObject: CreateJobObjectW FAILED — WebView2 child processes will NOT be auto-killed on exit");
                 return;
             }
         };
@@ -45,13 +54,23 @@ fn setup_job_object_kill_on_close() {
             &info as *const _ as *const _,
             size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
         ) {
-            startup_log!("JobObject: SetInformationJobObject failed: {:?}", e);
+            log::warn!("[JobObject] SetInformationJobObject failed: {:?}", e);
+            startup_log!("JobObject: SetInformationJobObject FAILED — KILL_ON_CLOSE may not be set");
         }
         AssignProcessToJobObject(job, GetCurrentProcess())
     };
     match result {
-        Ok(()) => startup_log!("JobObject: JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE enabled"),
-        Err(e) => startup_log!("JobObject: AssignProcessToJobObject failed: {:?}", e),
+        Ok(()) => {
+            // 故意泄漏 handle：它必须存活到进程退出，才能保证"退出=触发 kill"
+            let _ = JOB_HANDLE.set(result.unwrap()); // 刚 Assign 成功，unwrap 安全
+            log::info!("[JobObject] KILL_ON_CLOSE enabled — all child processes will be terminated on exit");
+            startup_log!("JobObject: JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE enabled");
+        }
+        Err(e) => {
+            // 失败通常意味着进程已在另一个 Job 中（如 VS Code 调试器、某些安全软件沙箱）
+            log::warn!("[JobObject] AssignProcessToJobObject FAILED: {:?} — child processes will NOT be auto-killed", e);
+            startup_log!("JobObject: AssignProcessToJobObject FAILED — child processes will NOT be auto-killed on exit");
+        }
     }
 }
 
@@ -122,6 +141,10 @@ fn try_clean_webview2_profile(dir: &std::path::Path) -> bool {
                 return true;
             }
             Err(e) => {
+                // Job Object 生效后理论上不应再触发此路径；若出现，说明 Job Object 分配失败
+                // （如进程已在另一个 Job 中）或存在其他进程持有锁。
+                log::error!("[ProfileCleanup] FAILED to remove {:?}: {} (os error {}, attempt {}/2) — this should not happen if Job Object is active; child processes may still be alive",
+                    dir, e, e.raw_os_error().unwrap_or(-1), attempt);
                 startup_log!("try_clean_webview2_profile: FAILED to remove {:?}: {} (os error {}, attempt {})",
                     dir, e, e.raw_os_error().unwrap_or(-1), attempt);
                 if attempt < 2 {
