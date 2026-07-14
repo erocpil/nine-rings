@@ -102,7 +102,7 @@ pub struct AppState {
 /// wmic 在 Windows 11 24H2+ 已被废弃且默认不安装；改用 taskkill /F /IM 全局终止。
 /// 在用户的机器上通常只有本 App 会创建 WebView2 进程，因此安全。
 #[cfg(target_os = "windows")]
-fn kill_orphaned_webview2(_profile_dir: &std::path::Path) {
+fn kill_orphaned_webview2() {
     startup_log!("kill_orphaned_webview2: killing all msedgewebview2.exe");
     let result = Command::new("taskkill")
         .args(["/F", "/IM", "msedgewebview2.exe"])
@@ -120,13 +120,10 @@ fn kill_orphaned_webview2(_profile_dir: &std::path::Path) {
     std::thread::sleep(std::time::Duration::from_millis(300));
 }
 
-/// 尝试清理 WebView2 profile 目录。先杀孤儿进程，再删目录。
+/// 尝试清理 WebView2 profile 目录。调用前必须先执行 kill_orphaned_webview2()。
 /// 删除成功返回 true，失败（被锁、权限不足等）返回 false 并在日志记录原因。
 /// 如果删除失败，等待 500ms 后重试一次（等待潜在的文件锁释放）。
 fn try_clean_webview2_profile(dir: &std::path::Path) -> bool {
-    #[cfg(target_os = "windows")]
-    kill_orphaned_webview2(dir);
-
     for attempt in 1..=2 {
         match std::fs::remove_dir_all(dir) {
             Ok(()) => {
@@ -256,10 +253,12 @@ pub fn run() {
 
             // ── WebView2 profile 清理（故障恢复策略，非每次启动都清）──
             // 如果上次退出不干净（子进程残留、持有文件锁），EBWebView 目录可能
-            // 被锁定或损坏。启动时尝试清理：先杀孤儿进程，再删目录。
+            // 被锁定或损坏。启动时尝试清理：先杀孤儿进程（仅一次），再删目录。
             // 删除失败不会阻塞启动——记录日志，让 WebView2 尝试使用现有 profile。
             // 正常情况下 profile 不存在或能成功删除，启动无额外开销。
             {
+                #[cfg(target_os = "windows")]
+                kill_orphaned_webview2();
                 let local_app_dir = app.path().app_local_data_dir().unwrap_or_else(|_| app_dir.clone());
                 let wv_default = local_app_dir.join("EBWebView");
                 let wv_custom = app_dir.join("webview-data");
