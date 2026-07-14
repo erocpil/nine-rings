@@ -96,33 +96,24 @@ pub struct AppState {
 /// 应用数据目录 — 在 setup() 中计算一次，避免 IPC 命令中重复调用 app_data_dir()
 pub struct DataDir(pub std::path::PathBuf);
 
-/// 清理 WebView2 缓存目录（不影响 localStorage / IndexedDB / Service Worker）
+/// 清理 WebView2 profile 目录（白屏修复的核心步骤）
 ///
-/// 只删除已知的缓存子目录，保留用户数据（Local Storage, IndexedDB, etc.）。
-/// Job Object（JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE）已保证主进程退出时
-/// 内核自动清理所有子进程，因此不再需要 kill_orphaned_webview2。
+/// 删除整个 EBWebView 目录。之前的清理是白屏修复的关键：
+/// 上次会话残留的 WebView2 GPU/渲染缓存会导致下次启动白屏。
+///
+/// 用户数据（笔记、配置）已通过 Tauri IPC 持久化到
+/// AppData\\Roaming\\com.ninerings.app\\ (SQLite + config.json)，
+/// 不在此目录中，可以安全删除。
 fn try_clean_webview2_profile(dir: &std::path::Path) {
-    // 只清理缓存子目录，不碰用户数据
-    let cache_dirs = &[
-        "Default/Cache",
-        "Default/Code Cache",
-        "Default/GPUCache",
-        "Default/DawnCache",
-        "GrShaderCache",
-        "ShaderCache",
-    ];
-    for sub in cache_dirs {
-        let p = dir.join(sub);
-        if p.exists() {
-            match std::fs::remove_dir_all(&p) {
-                Ok(()) => startup_log!("try_clean_webview2_profile: removed {:?}", p),
-                Err(e) => {
-                    let code = e.raw_os_error().unwrap_or(-1);
-                    match code {
-                        2 | 3 => {}
-                        _ => startup_log!("try_clean_webview2_profile: cannot remove {:?}: {} (os error {})", p, e, code),
-                    }
-                }
+    match std::fs::remove_dir_all(dir) {
+        Ok(()) => {
+            startup_log!("try_clean_webview2_profile: removed {:?}", dir);
+        }
+        Err(e) => {
+            let code = e.raw_os_error().unwrap_or(-1);
+            match code {
+                2 | 3 => {} // 目录不存在 — 首次启动正常情况
+                _ => startup_log!("try_clean_webview2_profile: cannot remove {:?}: {} (os error {})", dir, e, code),
             }
         }
     }
@@ -213,12 +204,12 @@ pub fn run() {
         }
     }
 
-    // ── 清理 WebView2 缓存目录（不删用户数据如 localStorage/IndexedDB）──
+    // ── 清理 WebView2 profile（白屏修复 — 必须在 WebView2 启动前）──
     #[cfg(target_os = "windows")]
     if let Some(local_dir) = app_local_data_dir() {
         let ebwebview = local_dir.join("EBWebView");
         if ebwebview.exists() {
-            startup_log!("pre-tauri: cleaning WebView2 caches in {:?}", ebwebview);
+            startup_log!("pre-tauri: cleaning EBWebView {:?}", ebwebview);
         }
         try_clean_webview2_profile(&ebwebview);
     }
