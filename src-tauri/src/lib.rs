@@ -424,6 +424,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::note::get_notes_by_date,
+            commands::note::get_note,
             commands::note::create_note,
             commands::note::update_note,
             commands::note::update_note_order,

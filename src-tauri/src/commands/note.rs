@@ -39,6 +39,12 @@ pub fn get_notes_by_date(state: State<AppState>, date: String) -> Result<Vec<cra
 }
 
 #[tauri::command]
+pub fn get_note(state: State<AppState>, id: String) -> Result<Option<crate::db::models::Note>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    crate::db::models::select_note_by_id(&conn, &id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn create_note(
     state: State<AppState>,
     data: CreateNoteInput,
