@@ -174,11 +174,15 @@ fn bump_webview2(window: &tauri::WebviewWindow) {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// 根据环境变量计算应用本地数据目录（Windows only）。
+/// 在 Tauri 初始化前即可调用，用于在 WebView2 启动前尝试清理旧 profile。
+#[cfg(target_os = "windows")]
+fn app_local_data_dir() -> Option<std::path::PathBuf> {
+    std::env::var("LOCALAPPDATA").ok().map(|p| std::path::PathBuf::from(p).join("com.ninerings.app"))
+}
+
 pub fn run() {
     // ── 根治：主进程退出时内核自动杀死所有 WebView2 子进程 ──
-    // 在任何 WebView2 相关操作（包括 tauri::Builder）之前设置 Job Object。
-    // 此后无论 app.exit(0)、崩溃、还是被任务管理器强杀，Windows 内核都会
-    // 立即清理所有 msedgewebview2.exe 子进程。不再需要 taskkill 或手动清理。
     #[cfg(target_os = "windows")]
     match setup_job_object_kill_on_close() {
         Ok(()) => {
@@ -187,6 +191,20 @@ pub fn run() {
         Err(e) => {
             startup_log!("JobObject: FAILED to enable KILL_ON_CLOSE — {} — child processes will NOT be auto-killed on exit", e);
         }
+    }
+
+    // ── 旧 profile 清理（必须在 WebView2 启动之前，不带 kill）──
+    // Job Object 已保证上次退出的子进程全清，正常情况下 EBWebView 目录无锁、
+    // 可直接删除。如果删除失败（os error 32），说明锁来自系统其他组件
+    // 或上次 Job Object 未生效的极端残留——不强制干预，让 WebView2 自行处理。
+    #[cfg(target_os = "windows")]
+    if let Some(local_dir) = app_local_data_dir() {
+        let ebwebview = local_dir.join("EBWebView");
+        // 仅在目录存在时尝试删除并记日志；不存在是正常情况，静默跳过
+        if ebwebview.exists() {
+            startup_log!("pre-tauri: attempting to clean {:?}", ebwebview);
+        }
+        try_clean_webview2_profile(&ebwebview);
     }
 
     // WebView2 诊断与修复环境变量：
@@ -219,16 +237,6 @@ pub fn run() {
             let app_dir = app.path().app_data_dir().expect("failed to get app data dir");
             startup_log!("app_data_dir={:?}", app_dir);
             std::fs::create_dir_all(&app_dir).ok();
-
-            // ── EBWebView profile 温和清理 ──
-            // Job Object 已保证退出时子进程全清，正常情况下这里无事可做。
-            // 仅在极端异常（如系统崩溃导致 Job Object 未触发）时尝试删除旧缓存，
-            // 让 WebView2 从干净状态启动。失败不阻塞——可能系统其他组件正在用。
-            #[cfg(target_os = "windows")]
-            if let Ok(local_dir) = app.path().app_local_data_dir() {
-                try_clean_webview2_profile(&local_dir.join("EBWebView"));
-            }
-
             let db_path = app_dir.join("nine-rings.db");
             log::info!("database path: {:?}", db_path);
 
