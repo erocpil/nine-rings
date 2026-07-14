@@ -8,9 +8,8 @@
 [![Rust](https://img.shields.io/badge/Rust-🦀-dea584?logo=rust)](https://rust-lang.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6?logo=typescript)](https://typescriptlang.org)
 <br/>
-[![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](https://github.com/erocpil/nine-rings/releases)
-[![Windows](https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white)](https://github.com/erocpil/nine-rings/releases)
-[![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)](https://github.com/erocpil/nine-rings/releases)
+[![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](https://nightly.link/erocpil/nine-rings/workflows/ci/main/tauri-linux.zip)
+[![Windows](https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white)](https://nightly.link/erocpil/nine-rings/workflows/ci/main/tauri-windows.zip)
 [![Web PWA](https://img.shields.io/badge/Web-PWA-FF7139?logo=pwa)](https://dist-navy-five-94.vercel.app)
 
 > 九环绕指，一念成文。
@@ -42,19 +41,19 @@
 
 ```
 ┌─ 前端 ─────────────────────────────────────┐
-│  React 18  +  TypeScript  +  TipTap         │
-│  Zustand (状态)  +  Vite 5 (构建)            │
-│  PWA: Workbox SW  +  IndexedDB              │
-├─ 桌面端 (Tauri) ────────────────────────────┤
-│  Rust + SQLite + Tauri v2 IPC                │
-│  macOS / Linux / Windows                     │
-├─ 移动端 & macOS 桌面 (Flutter) ──────────────┤
-│  Dart + SQLite (sqflite)                     │
-│  Android / iOS / macOS                       │
-├─ 共享 ──────────────────────────────────────┤
-│  数据契约: YAML Schema (schema/)              │
-│  内容格式: Quill Delta JSON                 │
-└─────────────────────────────────────────────┘
+│  React 18  +  TypeScript  +  TipTap        │
+│  Zustand (状态)  +  Vite 5 (构建)          │
+│  PWA: Workbox SW  +  IndexedDB             │
+├─ 桌面端 (Tauri) ───────────────────────────┤
+│  Rust + SQLite + Tauri v2 IPC              │
+│  macOS / Linux / Windows                   │
+├─ 移动端 & macOS 桌面 (Flutter) ────────────┤
+│  Dart + SQLite (sqflite)                   │
+│  Android / iOS / macOS                     │
+├─ 共享 ─────────────────────────────────────┤
+│  数据契约: YAML Schema (schema/)           │
+│  内容格式: Quill Delta JSON                │
+└────────────────────────────────────────────┘
 ```
 
 ### 数据契约
@@ -239,9 +238,19 @@ nine-rings/
 | `Web Frontend` | `npm ci` → `tsc && vite build` → schema `--check` | ubuntu-22.04 |
 | `Tauri Desktop (Linux)` | Web 构建 + Rust 编译 → `.deb`、`.AppImage` | ubuntu-22.04 |
 | `Tauri Desktop (Windows)` | Web 构建 + Rust 编译 → `.msi`、`.exe` | windows-2022 |
-| `Flutter (Android APK)` | `pub get` → `analyze` → `build apk --debug` | ubuntu-22.04 |
 
 自动触发：`push` / `pull_request` to `main`。
+
+### 下载最新 CI 构建产物
+
+| 平台 | 下载 |
+|------|------|
+| 🪟 Windows（`.msi` + `.exe`） | [**下载最新**](https://nightly.link/erocpil/nine-rings/workflows/ci/main/tauri-windows.zip) |
+| 🐧 Linux（`.deb` + `.AppImage`） | [**下载最新**](https://nightly.link/erocpil/nine-rings/workflows/ci/main/tauri-linux.zip) |
+| 🌐 Web 前端（`dist/`） | [**下载最新**](https://nightly.link/erocpil/nine-rings/workflows/ci/main/web-dist.zip) |
+
+> 以上链接指向 `main` 分支最近一次 CI 成功的产物。下载后解压即可使用。
+> 由 [nightly.link](https://nightly.link) 提供中转，无需 GitHub 登录。
 
 > **macOS / iOS 不在 CI 中**：GitHub Actions macOS runner 费用是 Linux 的 10 倍（[定价](https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions)）。Tauri macOS `.dmg` 和 Flutter macOS/iOS 产物需在本地构建。详见 [`docs/FLUTTER_BUILD.md`](./docs/FLUTTER_BUILD.md)。
 
