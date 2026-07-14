@@ -62,6 +62,7 @@ Todo:
     order:    { type: integer, default: 0 }
     tags:     { type: json_array, default: "[]" }
     remind_at: { type: datetime, nullable: true, description: "提醒时间" }
+    parent_id: { type: string, nullable: true, description: "父待办 ID，null 表示顶层" }
 
 DailyPage:
   description: 每日一页

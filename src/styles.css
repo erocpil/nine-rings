@@ -918,6 +918,40 @@ body {
   border-radius: 4px;
 }
 
+/* ── 缩进按钮 ── */
+
+.todo-indent-btns {
+  display: flex;
+  gap: 1px;
+  margin-right: -4px;
+}
+
+.todo-indent-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 3px;
+  border-radius: 3px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.todo-item:hover .todo-indent-btn {
+  opacity: 1;
+}
+
+.todo-indent-btn:hover {
+  color: var(--accent);
+  background: var(--hover-bg);
+}
+
+.todo-indent-btn:active {
+  color: var(--accent);
+}
+
 /* ── 放置目标指示 ── */
 
 .todo-drop-target {
@@ -928,6 +962,10 @@ body {
 .todo-item .done {
   text-decoration: line-through;
   color: var(--text-secondary);
+}
+
+.todo-item:hover {
+  background: var(--hover-bg);
 }
 
 .todo-remove {

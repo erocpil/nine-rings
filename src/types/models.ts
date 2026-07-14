@@ -46,6 +46,7 @@ export interface Todo {
   order: number;
   tags: string[];
   remind_at?: string;  // ISO datetime string for Notification API reminder
+  parent_id?: string | null;  // parent todo id, null = top-level
 }
 
 export interface DailyPage {
