@@ -4,8 +4,6 @@ pub mod export;
 pub mod service;
 
 use std::sync::Mutex;
-#[cfg(target_os = "windows")]
-use std::process::Command;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
@@ -95,56 +93,27 @@ pub struct AppState {
     pub db: Mutex<rusqlite::Connection>,
 }
 
-/// 查找并终止占用指定 profile 目录的孤儿 msedgewebview2.exe 进程。
-/// 上次退出时如果 app.exit(0) 暴力终止，WebView2 子进程（GPU、渲染、Crashpad）
-/// 可能变成孤儿，继续持有 EBWebView/ 下的文件锁，导致下次启动时 remove_dir_all 失败。
-///
-/// wmic 在 Windows 11 24H2+ 已被废弃且默认不安装；改用 taskkill /F /IM 全局终止。
-/// 在用户的机器上通常只有本 App 会创建 WebView2 进程，因此安全。
-#[cfg(target_os = "windows")]
-fn kill_orphaned_webview2() {
-    startup_log!("kill_orphaned_webview2: killing all msedgewebview2.exe");
-    let result = Command::new("taskkill")
-        .args(["/F", "/IM", "msedgewebview2.exe"])
-        .output();
-    match result {
-        Ok(o) => {
-            let out = String::from_utf8_lossy(&o.stdout);
-            startup_log!("kill_orphaned_webview2: taskkill result: {}", out.trim());
+/// 尝试删除 WebView2 profile 目录。
+/// Job Object（JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE）已保证主进程退出时
+/// 内核自动清理所有子进程，因此不再需要 kill_orphaned_webview2。
+/// 如果目录仍无法删除（os error 32），说明锁来自系统上其他应用或
+/// 当前正在运行的自身 WebView2 进程——忽略删除失败，不强制干预。
+fn try_clean_webview2_profile(dir: &std::path::Path) {
+    match std::fs::remove_dir_all(dir) {
+        Ok(()) => {
+            startup_log!("try_clean_webview2_profile: removed {:?}", dir);
         }
         Err(e) => {
-            startup_log!("kill_orphaned_webview2: taskkill failed: {}", e);
-        }
-    }
-    // 等待进程真正退出
-    std::thread::sleep(std::time::Duration::from_millis(300));
-}
-
-/// 尝试清理 WebView2 profile 目录。调用前必须先执行 kill_orphaned_webview2()。
-/// 删除成功返回 true，失败（被锁、权限不足等）返回 false 并在日志记录原因。
-/// 如果删除失败，等待 500ms 后重试一次（等待潜在的文件锁释放）。
-fn try_clean_webview2_profile(dir: &std::path::Path) -> bool {
-    for attempt in 1..=2 {
-        match std::fs::remove_dir_all(dir) {
-            Ok(()) => {
-                startup_log!("try_clean_webview2_profile: removed {:?} (attempt {})", dir, attempt);
-                return true;
-            }
-            Err(e) => {
-                // Job Object 生效后理论上不应再触发此路径；若出现，说明 Job Object 分配失败
-                // （如进程已在另一个 Job 中）或存在其他进程持有锁。
-                log::error!("[ProfileCleanup] FAILED to remove {:?}: {} (os error {}, attempt {}/2) — this should not happen if Job Object is active; child processes may still be alive",
-                    dir, e, e.raw_os_error().unwrap_or(-1), attempt);
-                startup_log!("try_clean_webview2_profile: FAILED to remove {:?}: {} (os error {}, attempt {})",
-                    dir, e, e.raw_os_error().unwrap_or(-1), attempt);
-                if attempt < 2 {
-                    // 可能子进程还没完全退出，等待后重试
-                    std::thread::sleep(std::time::Duration::from_millis(500));
-                }
+            // os error 2（文件不存在）是正常情况（首次启动或上次已清理）。
+            // os error 32（文件被占用）说明有其他进程持有锁——可能是系统组件，
+            // 也可能是当前 Tauri 刚初始化的 WebView2。无论哪种都不应强杀。
+            let code = e.raw_os_error().unwrap_or(-1);
+            match code {
+                2 => {} // 目录不存在，无需日志
+                _ => startup_log!("try_clean_webview2_profile: cannot remove {:?}: {} (os error {})", dir, e, code),
             }
         }
     }
-    false
 }
 
 /// 切换主窗口显示/隐藏（Alt+Y 等 toggle 型快捷键）
@@ -205,22 +174,11 @@ fn bump_webview2(window: &tauri::WebviewWindow) {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-/// 根据环境变量计算应用数据目录（Windows only）。
-/// 等效于 Tauri 的 `app.path().app_data_dir()` 和 `app.path().app_local_data_dir()`。
-/// 在 Tauri 初始化前即可调用——因为 Tauri 根据 `identifier` 字段拼接路径，
-/// 规则为 `{APPDATA|LOCALAPPDATA}/{identifier}`。
-#[cfg(target_os = "windows")]
-fn app_data_dirs() -> (Option<std::path::PathBuf>, Option<std::path::PathBuf>) {
-    let roaming = std::env::var("APPDATA").ok().map(|p| std::path::PathBuf::from(p).join("com.ninerings.app"));
-    let local = std::env::var("LOCALAPPDATA").ok().map(|p| std::path::PathBuf::from(p).join("com.ninerings.app"));
-    (roaming, local)
-}
-
 pub fn run() {
     // ── 根治：主进程退出时内核自动杀死所有 WebView2 子进程 ──
     // 在任何 WebView2 相关操作（包括 tauri::Builder）之前设置 Job Object。
     // 此后无论 app.exit(0)、崩溃、还是被任务管理器强杀，Windows 内核都会
-    // 立即清理所有 msedgewebview2.exe 子进程，不再需要 sleep / taskkill。
+    // 立即清理所有 msedgewebview2.exe 子进程。不再需要 taskkill 或手动清理。
     #[cfg(target_os = "windows")]
     match setup_job_object_kill_on_close() {
         Ok(()) => {
@@ -228,20 +186,6 @@ pub fn run() {
         }
         Err(e) => {
             startup_log!("JobObject: FAILED to enable KILL_ON_CLOSE — {} — child processes will NOT be auto-killed on exit", e);
-        }
-    }
-
-    // ── 孤儿进程清理（必须在 WebView2 启动之前）──
-    // 如果上次退出不干净（Job Object 未生效 / 进程崩溃 / 任务管理器强杀），
-    // 上次运行的 msedgewebview2.exe 子进程可能仍未退出，持有 EBWebView 文件锁。
-    // 此时 WebView2 尚未初始化，taskkill 只会杀掉真正的旧孤儿，不会影响自身。
-    // Job Object 正常生效时这里应该没有旧进程残留，taskkill 零影响。
-    #[cfg(target_os = "windows")]
-    {
-        startup_log!("pre-tauri cleanup: killing orphaned webview2 processes");
-        kill_orphaned_webview2();
-        if let (Some(_roaming), Some(local)) = app_data_dirs() {
-            try_clean_webview2_profile(&local.join("EBWebView"));
         }
     }
 
@@ -275,6 +219,16 @@ pub fn run() {
             let app_dir = app.path().app_data_dir().expect("failed to get app data dir");
             startup_log!("app_data_dir={:?}", app_dir);
             std::fs::create_dir_all(&app_dir).ok();
+
+            // ── EBWebView profile 温和清理 ──
+            // Job Object 已保证退出时子进程全清，正常情况下这里无事可做。
+            // 仅在极端异常（如系统崩溃导致 Job Object 未触发）时尝试删除旧缓存，
+            // 让 WebView2 从干净状态启动。失败不阻塞——可能系统其他组件正在用。
+            #[cfg(target_os = "windows")]
+            if let Ok(local_dir) = app.path().app_local_data_dir() {
+                try_clean_webview2_profile(&local_dir.join("EBWebView"));
+            }
+
             let db_path = app_dir.join("nine-rings.db");
             log::info!("database path: {:?}", db_path);
 
