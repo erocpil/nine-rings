@@ -66,23 +66,14 @@ fn setup_job_object_kill_on_close() -> Result<(), String> {
 }
 
 /// 启动日志：写入 %TEMP%/nine-rings-startup.log（Windows 上 stderr 不可见）。
-/// 格式：`[HH:MM:SS.mmm] message`
+/// 格式：`[HH:MM:SS.mmm] message`，使用本地时间。
 macro_rules! startup_log {
     ($($arg:tt)*) => {{
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default();
-        let secs = now.as_secs();
-        let millis = now.subsec_millis();
-        let h = (secs / 3600) % 24;
-        let m = (secs / 60) % 60;
-        let s = secs % 60;
         let msg = format!($($arg)*);
-        let line = format!("[{:02}:{:02}:{:02}.{:03}] {}\n", h, m, s, millis, msg);
-        // 同时输出到 Rust log（如有配置则可见）和文件
         log::info!("{}", msg);
         if let Ok(dir) = std::env::var("TEMP").or_else(|_| std::env::var("TMPDIR")).or_else(|_| std::env::var("TMP")) {
             let path = std::path::PathBuf::from(dir).join("nine-rings-startup.log");
+            let line = format!("[{}] {}\n", chrono::Local::now().format("%H:%M:%S%.3f"), msg);
             let _ = std::fs::OpenOptions::new().create(true).append(true).open(&path)
                 .map(|mut f| { let _ = std::io::Write::write_all(&mut f, line.as_bytes()); });
         }
