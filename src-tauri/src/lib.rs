@@ -109,7 +109,7 @@ fn try_clean_webview2_profile(dir: &std::path::Path) {
             // 也可能是当前 Tauri 刚初始化的 WebView2。无论哪种都不应强杀。
             let code = e.raw_os_error().unwrap_or(-1);
             match code {
-                2 => {} // 目录不存在，无需日志
+                2 | 3 => {} // 目录或父路径不存在——首次启动的正常情况，无需日志
                 _ => startup_log!("try_clean_webview2_profile: cannot remove {:?}: {} (os error {})", dir, e, code),
             }
         }
