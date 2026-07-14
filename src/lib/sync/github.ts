@@ -210,6 +210,9 @@ function dumpBundle(label: string, json: string): void {
 
 /**
  * Push: 本地 → GitHub
+ *
+ * 策略：先 fetchRemote 获取远端当前 SHA（即使本地 remoteSha 丢失也能正确更新），
+ * 再 PUT 带上 SHA。文件不存在（404）时，sha=null 即创建新文件。
  * 返回新的 remoteSha
  */
 export async function pushToGitHub(config: SyncConfig, message?: string): Promise<SyncConfig> {
@@ -221,8 +224,23 @@ export async function pushToGitHub(config: SyncConfig, message?: string): Promis
   const content = await exportFullDB();
   dumpBundle("导出本地数据", content);
 
+  // 先获取远端当前 SHA，防止 localStorage remoteSha 丢失导致 422
+  let remoteSha: string | null = null;
+  try {
+    const remote = await fetchRemote(config.token, config.owner, config.repo, config.path);
+    remoteSha = remote?.sha ?? null;
+    if (remoteSha) {
+      addLog(`[Sync] 远端文件存在 (sha: ${remoteSha.slice(0, 7)}) — 执行更新`);
+    } else {
+      addLog("[Sync] 远端文件不存在 — 执行创建");
+    }
+  } catch (e) {
+    addLog(`[Sync] 获取远端 SHA 失败: ${(e as Error).message}`);
+    throw e;
+  }
+
   const commitMsg = message || `sync: ${new Date().toISOString()}`;
-  const newSha = await putRemote(config.token, config.owner, config.repo, config.path, content, config.remoteSha, commitMsg);
+  const newSha = await putRemote(config.token, config.owner, config.repo, config.path, content, remoteSha, commitMsg);
 
   addLog(`[Sync] Push ✓ 完成 — ${config.owner}/${config.repo}/${config.path}  (sha: ${newSha.slice(0, 7)})`);
   addLog("");
