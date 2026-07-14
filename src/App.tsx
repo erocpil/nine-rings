@@ -32,7 +32,7 @@ import { addLog } from "./lib/debugLog";
 
 function openNewWindow() {
   // @ts-ignore
-  if (typeof window === "undefined" || !window.__TAURI__) return;
+  if (typeof window === "undefined" || !(window as any).isTauri) return;
   import("@tauri-apps/api/window").then(({ WebviewWindow }: any) => {
     const label = `window-${Date.now()}`;
     new WebviewWindow(label, {
@@ -177,7 +177,7 @@ function App() {
   // ── Tauri 托盘事件："新建随笔" ──
   useEffect(() => {
     // @ts-ignore
-    if (typeof window === "undefined" || !window.__TAURI__) return;
+    if (typeof window === "undefined" || !(window as any).isTauri) return;
     let unlisten: (() => void) | undefined;
     import("@tauri-apps/api/event").then(({ listen }) => {
       listen("tray-new-note", () => {
@@ -193,7 +193,7 @@ function App() {
 
     // Tauri 桌面端：监听 Rust 端 emit_to_main 事件
     // @ts-ignore
-    if (typeof window !== "undefined" && window.__TAURI__) {
+    if (typeof window !== "undefined" && (window as any).isTauri) {
       let unlisten: (() => void) | undefined;
       import("@tauri-apps/api/event").then(({ listen }) => {
         listen("quick-capture-created", () => {
@@ -432,7 +432,7 @@ function App() {
       if (e.key === "F11" && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
         e.preventDefault();
         // @ts-ignore
-        if (typeof window !== "undefined" && window.__TAURI__) {
+        if (typeof window !== "undefined" && (window as any).isTauri) {
           import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
             getCurrentWindow().isFullscreen().then((fs) => {
               getCurrentWindow().setFullscreen(!fs);
@@ -638,7 +638,7 @@ function App() {
     <div className={`app ${focusMode ? "app-focus-mode" : ""}`}>
       {/* 桌面版（Tauri）才需要自定义标题栏；web 版无窗口概念 */}
       {/* @ts-ignore */}
-      {typeof window !== "undefined" && window.__TAURI__ && <TitleBar />}
+      {typeof window !== "undefined" && (window as any).isTauri && <TitleBar />}
       <header className="app-header">
         {error && (
           <div className="error-bar" onClick={clearError}>

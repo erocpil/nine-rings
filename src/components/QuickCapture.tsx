@@ -118,7 +118,7 @@ export default function QuickCapture() {
 
       // Tauri 桌面：跨窗口通知主窗口刷新
       // @ts-ignore
-      if (typeof window !== "undefined" && window.__TAURI__) {
+      if (typeof window !== "undefined" && (window as any).isTauri) {
         try {
           await invoke("emit_to_main", { event: "quick-capture-created" });
           console.log("[QC] ├─ emit_to_main ✓ 已通知主窗口");

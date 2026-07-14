@@ -5,9 +5,10 @@
  * Web 端不引入此模块，避免 `@tauri-apps/*` 打包报错。
  */
 
-/** 检测是否运行在 Tauri 桌面环境中 */
+/** 检测是否运行在 Tauri 桌面环境中（兼容 v1 __TAURI__ 和 v2 isTauri） */
 export function isTauri(): boolean {
-  return typeof window !== "undefined" && (window as any).__TAURI__ !== undefined;
+  const w = typeof window !== "undefined" ? (window as any) : null;
+  return w !== null && (w.isTauri === true || w.__TAURI__ !== undefined);
 }
 
 /**

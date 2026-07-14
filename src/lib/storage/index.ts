@@ -8,8 +8,8 @@
 import type { StorageAdapter } from "./types";
 
 function isTauri(): boolean {
-  // @ts-ignore
-  return typeof window !== "undefined" && window.__TAURI__ !== undefined;
+  // @ts-ignore — Tauri v2 注入 window.isTauri，v1 注入 window.__TAURI__
+  return typeof window !== "undefined" && (window.isTauri === true || window.__TAURI__ !== undefined);
 }
 
 let _adapter: StorageAdapter | null = null;
