@@ -135,12 +135,13 @@ export default function SettingsSync({ onBusyChange }: Props) {
             type="text"
             className="settings-input"
             placeholder="你的 GitHub 用户名"
+            style={{ maxWidth: 140 }}
             value={cfg.owner}
             onChange={(e) => update({ owner: e.target.value })}
           />
         </label>
         <span className="settings-sep">/</span>
-        <label className="settings-label" style={{ flex: 1 }}>
+        <label className="settings-label" style={{ flex: 2 }}>
           Repo
           <input
             type="text"
