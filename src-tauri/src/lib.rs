@@ -96,24 +96,33 @@ pub struct AppState {
 /// 应用数据目录 — 在 setup() 中计算一次，避免 IPC 命令中重复调用 app_data_dir()
 pub struct DataDir(pub std::path::PathBuf);
 
-/// 尝试删除 WebView2 profile 目录。
+/// 清理 WebView2 缓存目录（不影响 localStorage / IndexedDB / Service Worker）
+///
+/// 只删除已知的缓存子目录，保留用户数据（Local Storage, IndexedDB, etc.）。
 /// Job Object（JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE）已保证主进程退出时
 /// 内核自动清理所有子进程，因此不再需要 kill_orphaned_webview2。
-/// 如果目录仍无法删除（os error 32），说明锁来自系统上其他应用或
-/// 当前正在运行的自身 WebView2 进程——忽略删除失败，不强制干预。
 fn try_clean_webview2_profile(dir: &std::path::Path) {
-    match std::fs::remove_dir_all(dir) {
-        Ok(()) => {
-            startup_log!("try_clean_webview2_profile: removed {:?}", dir);
-        }
-        Err(e) => {
-            // os error 2（文件不存在）是正常情况（首次启动或上次已清理）。
-            // os error 32（文件被占用）说明有其他进程持有锁——可能是系统组件，
-            // 也可能是当前 Tauri 刚初始化的 WebView2。无论哪种都不应强杀。
-            let code = e.raw_os_error().unwrap_or(-1);
-            match code {
-                2 | 3 => {} // 目录或父路径不存在——首次启动的正常情况，无需日志
-                _ => startup_log!("try_clean_webview2_profile: cannot remove {:?}: {} (os error {})", dir, e, code),
+    // 只清理缓存子目录，不碰用户数据
+    let cache_dirs = &[
+        "Default/Cache",
+        "Default/Code Cache",
+        "Default/GPUCache",
+        "Default/DawnCache",
+        "GrShaderCache",
+        "ShaderCache",
+    ];
+    for sub in cache_dirs {
+        let p = dir.join(sub);
+        if p.exists() {
+            match std::fs::remove_dir_all(&p) {
+                Ok(()) => startup_log!("try_clean_webview2_profile: removed {:?}", p),
+                Err(e) => {
+                    let code = e.raw_os_error().unwrap_or(-1);
+                    match code {
+                        2 | 3 => {}
+                        _ => startup_log!("try_clean_webview2_profile: cannot remove {:?}: {} (os error {})", p, e, code),
+                    }
+                }
             }
         }
     }
@@ -204,16 +213,12 @@ pub fn run() {
         }
     }
 
-    // ── 旧 profile 清理（必须在 WebView2 启动之前，不带 kill）──
-    // Job Object 已保证上次退出的子进程全清，正常情况下 EBWebView 目录无锁、
-    // 可直接删除。如果删除失败（os error 32），说明锁来自系统其他组件
-    // 或上次 Job Object 未生效的极端残留——不强制干预，让 WebView2 自行处理。
+    // ── 清理 WebView2 缓存目录（不删用户数据如 localStorage/IndexedDB）──
     #[cfg(target_os = "windows")]
     if let Some(local_dir) = app_local_data_dir() {
         let ebwebview = local_dir.join("EBWebView");
-        // 仅在目录存在时尝试删除并记日志；不存在是正常情况，静默跳过
         if ebwebview.exists() {
-            startup_log!("pre-tauri: attempting to clean {:?}", ebwebview);
+            startup_log!("pre-tauri: cleaning WebView2 caches in {:?}", ebwebview);
         }
         try_clean_webview2_profile(&ebwebview);
     }

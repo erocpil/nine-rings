@@ -58,10 +58,23 @@ fn write_config(app_data_dir: &PathBuf, config: &AppConfig) -> Result<(), String
 
 // ── IPC 命令 ──
 
+/// 写一行到启动日志文件（跨模块复用）
+fn append_startup_log(msg: &str) {
+    if let Ok(dir) = std::env::var("TEMP").or_else(|_| std::env::var("TMPDIR")).or_else(|_| std::env::var("TMP")) {
+        let log_path = std::path::PathBuf::from(dir).join("nine-rings-startup.log");
+        let line = format!("[{}] {}\n", chrono::Local::now().format("%H:%M:%S%.3f"), msg);
+        let _ = std::fs::OpenOptions::new().create(true).append(true).open(&log_path)
+            .map(|mut f| { let _ = std::io::Write::write_all(&mut f, line.as_bytes()); });
+    }
+}
+
 #[command]
 pub fn get_config(state: State<'_, Mutex<AppConfig>>) -> Result<AppConfig, String> {
     let config = state.lock().map_err(|e| e.to_string())?;
-    Ok(config.clone())
+    let c = config.clone();
+    // 诊断：如果看到这条日志，说明前端走的是 Tauri IPC（正确路径）
+    append_startup_log(&format!("get_config: theme={}", c.theme));
+    Ok(c)
 }
 
 #[command]
@@ -88,22 +101,14 @@ pub fn set_config(
         // 持久化 — 用 setup() 阶段缓存的 DataDir，不依赖 IPC 上下文的 app_data_dir()
         write_config(&data_dir.0, &merged)?;
 
-        // 验证写入结果（写入启动日志，Windows 上 stderr 不可见）
+        // 验证写入结果
         let config_path = data_dir.0.join("config.json");
         let verify_ok = config_path.exists();
         let verify_size = std::fs::metadata(&config_path).map(|m| m.len()).unwrap_or(0);
-        let msg = format!(
+        append_startup_log(&format!(
             "set_config: wrote {:?} (exists={}, size={})",
             config_path, verify_ok, verify_size
-        );
-        log::info!("{}", msg);
-        // 同时写入启动日志文件，确保 Windows 用户可见
-        if let Ok(dir) = std::env::var("TEMP").or_else(|_| std::env::var("TMPDIR")).or_else(|_| std::env::var("TMP")) {
-            let log_path = std::path::PathBuf::from(dir).join("nine-rings-startup.log");
-            let line = format!("[{}] {}\n", chrono::Local::now().format("%H:%M:%S%.3f"), msg);
-            let _ = std::fs::OpenOptions::new().create(true).append(true).open(&log_path)
-                .map(|mut f| { let _ = std::io::Write::write_all(&mut f, line.as_bytes()); });
-        }
+        ));
 
         *current = merged.clone();
         Ok(merged)
