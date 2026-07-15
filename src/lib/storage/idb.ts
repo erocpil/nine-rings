@@ -6,6 +6,7 @@
 import type { Note, DailyPage, Todo, NoteVersion, CreateNoteInput, UpdateNoteInput, UpdateTodosInput, PathNode } from "../../types/models";
 import type { StorageAdapter, AppConfig, DocSearchQuery } from "./types";
 import { DEFAULT_CONFIG } from "./types";
+import { buildDocTree, type FlatDocRecord, type FlatDailyRecord } from "./core";
 
 const DB_NAME = "nine_rings";
 const DB_VERSION = 3;
@@ -998,93 +999,37 @@ export const idbAdapter: StorageAdapter = {
 
   // ══════ Doc Tree（v2 文档分类系统）══════
 
-  /** 构建文档树: 遍历所有有 storagePath 的 Note，按路径前缀聚合。
-   *  同时将每日随笔（无 storagePath）注入为 daily/YYYY-MM-DD/ 虚拟路径。 */
+  /** 构建文档树: 查询 IDB → 映射为 FlatRecord → 委托 core.ts buildDocTree */
   async getPathTree(): Promise<PathNode[]> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
       const all = await getAll<any>(store);
       const notes = all.filter((n) => !n.deleted_at).map(noteFromDB);
 
-      // ── 1. 文档类笔记（有 storagePath）──
-      const docNotes = notes.filter((n) => n.storagePath);
-      // 收集所有唯一路径前缀
-      const folders = new Set<string>();
-      const tree: PathNode[] = [];
-
-      for (const d of docNotes) {
-        const path = d.storagePath!;
-        const parts = path.split("/");
-        for (let i = 1; i <= parts.length; i++) {
-          folders.add(parts.slice(0, i).join("/"));
-        }
-        tree.push({
-          path: `${path}/${d.id}`,
-          name: d.title || "无标题",
-          type: 'document',
-          noteId: d.id,
-          docType: d.docType,
-          updatedAt: d.updated_at,
-          readonly: d.readonly ?? false,
-        });
-      }
-
-      // 文件夹节点（按 count 汇总）
-      const folderCounts = new Map<string, number>();
-      for (const d of docNotes) {
-        const p = d.storagePath!;
-        const parts = p.split("/");
-        for (let i = 1; i <= parts.length; i++) {
-          const prefix = parts.slice(0, i).join("/");
-          folderCounts.set(prefix, (folderCounts.get(prefix) ?? 0) + 1);
+      // 映射为 core.ts 的输入类型（snake_case）
+      const docs: FlatDocRecord[] = [];
+      const dailies: FlatDailyRecord[] = [];
+      for (const n of notes) {
+        if (n.storagePath) {
+          docs.push({
+            id: n.id,
+            title: n.title,
+            storage_path: n.storagePath,
+            doc_type: n.docType,
+            updated_at: n.updated_at,
+            readonly: n.readonly ?? false,
+          });
+        } else {
+          dailies.push({
+            id: n.id,
+            date: n.date,
+            title: n.title,
+            updated_at: n.updated_at,
+          });
         }
       }
 
-      // ── 2. 每日随笔 → 注入虚拟 daily/YYYY-MM-DD/ 路径 ──
-      const dailyNotes = notes.filter((n) => !n.storagePath);
-      if (dailyNotes.length > 0) {
-        // 收集唯日期
-        const dateSet = new Set<string>();
-        for (const d of dailyNotes) {
-          dateSet.add(d.date);
-        }
-
-        // daily/ 根文件夹
-        folders.add("daily");
-        folderCounts.set("daily", dateSet.size);
-
-        for (const date of [...dateSet].sort().reverse()) {
-          const datePath = `daily/${date}`;
-          folders.add(datePath);
-
-          // 该日期下的每日笔记
-          const dateDocs = dailyNotes.filter((n) => n.date === date);
-          folderCounts.set(datePath, dateDocs.length);
-
-          for (const d of dateDocs) {
-            tree.push({
-              path: `${datePath}/${d.id}`,
-              name: d.title || "无标题",
-              type: 'document',
-              noteId: d.id,
-              docType: d.docType,
-              updatedAt: d.updated_at,
-              readonly: false,
-            });
-          }
-        }
-      }
-
-      for (const f of folders) {
-        tree.push({
-          path: f,
-          name: f.split("/").pop()!,
-          type: 'folder',
-          count: folderCounts.get(f) ?? 0,
-        });
-      }
-
-      return tree;
+      return buildDocTree(docs, dailies);
     });
   },
 
