@@ -108,31 +108,6 @@ pub struct SyncChange {
 
 // ──── DAO ────
 
-pub fn insert_note(conn: &Connection, note: &Note) -> rusqlite::Result<()> {
-    conn.execute(
-        "INSERT INTO notes (id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
-        rusqlite::params![
-            note.id,
-            note.date,
-            note.title,
-            note.content.to_string(),
-            note.search_text,
-            serde_json::to_string(&note.tags).unwrap_or_default(),
-            note.pinned,
-            note.sort_order,
-            note.created_at,
-            note.updated_at,
-            note.storage_path,
-            note.doc_type,
-            serde_json::to_string(&note.concepts).unwrap_or_default(),
-            serde_json::to_string(&note.linked_doc_ids).unwrap_or_default(),
-            note.readonly,
-        ],
-    )?;
-    Ok(())
-}
-
 pub fn update_note(
     conn: &Connection,
     id: &str,
@@ -159,25 +134,6 @@ pub fn update_note(
         ],
     )?;
     Ok(())
-}
-
-pub fn soft_delete_note(conn: &Connection, id: &str, updated_at: &str) -> rusqlite::Result<()> {
-    conn.execute(
-        "UPDATE notes SET deleted_at = ?1, updated_at = ?1 WHERE id = ?2",
-        rusqlite::params![updated_at, id],
-    )?;
-    Ok(())
-}
-
-pub fn select_notes_by_date(conn: &Connection, date: &str) -> rusqlite::Result<Vec<Note>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly
-         FROM notes
-         WHERE date = ?1 AND deleted_at IS NULL
-         ORDER BY pinned DESC, sort_order ASC, created_at ASC"
-    )?;
-    let rows = stmt.query_map(rusqlite::params![date], |row| note_from_row(row))?;
-    rows.collect()
 }
 
 pub fn select_note_by_id(conn: &Connection, id: &str) -> rusqlite::Result<Option<Note>> {

@@ -2,6 +2,8 @@ import { useRef, useState } from "react";
 import type { Note } from "../types/models";
 import { TagFilter } from "./TagFilter";
 import { api } from "../lib/api";
+import { TemplatePicker } from "./TemplatePicker";
+import type { Template } from "../lib/storage/template-store";
 
 type SortMode = "manual" | "created" | "updated" | "title";
 const SORT_MODE_KEY = "nr:sortMode";
@@ -55,6 +57,7 @@ interface SidebarProps {
   onHide: () => void;
   onSelect: (note: Note) => void;
   onCreate: () => void;
+  onCreateWithTemplate: (template: Template) => void;
   onDelete: (id: string) => void;
   onRecycleOpen: () => void;
   onReorder: (id: string, sortOrder: number) => void;
@@ -70,9 +73,9 @@ let _dragId: string | null = null;
 let _dragIndex: number = -1;
 
 export function Sidebar({
-  notes, selectedId, activeTag, onHide, onSelect, onCreate, onDelete, onRecycleOpen,
-  onReorder, onMoveToDate, onTagSelect, onTogglePin, onRename, onToggleReadonly,
-  disabled,
+  notes, selectedId, activeTag, onHide, onSelect, onCreate, onCreateWithTemplate,
+  onDelete, onRecycleOpen, onReorder, onMoveToDate,
+  onTagSelect, onTogglePin, onRename, onToggleReadonly, disabled,
 }: SidebarProps) {
   const [moveNoteId, setMoveNoteId] = useState<string | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -80,6 +83,10 @@ export function Sidebar({
   const [editValue, setEditValue] = useState("");
   const moveInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // ── 模板选择器 ──
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const newBtnRef = useRef<HTMLButtonElement>(null);
 
   // ── 多选状态 ──
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -293,7 +300,13 @@ export function Sidebar({
               </div>
             )}
           </div>
-          <button className="btn-new" onClick={disabled ? undefined : onCreate} disabled={disabled} title="新建随笔">
+          <button
+            className="btn-new"
+            ref={newBtnRef}
+            onClick={disabled ? undefined : () => setTemplateOpen(!templateOpen)}
+            disabled={disabled}
+            title="从模板新建"
+          >
             +
           </button>
         </div>
@@ -467,6 +480,22 @@ export function Sidebar({
             </button>
           </div>
         </div>
+      )}
+
+      {/* 模板选择器 */}
+      {templateOpen && (
+        <TemplatePicker
+          onSelect={(t) => {
+            onCreateWithTemplate(t);
+            setTemplateOpen(false);
+          }}
+          onBlank={() => {
+            onCreate();
+            setTemplateOpen(false);
+          }}
+          onClose={() => setTemplateOpen(false)}
+          anchorRect={newBtnRef.current?.getBoundingClientRect() ?? null}
+        />
       )}
     </div>
   );

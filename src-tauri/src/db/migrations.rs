@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const _SCHEMA_VERSION: i32 = 4;
+const _SCHEMA_VERSION: i32 = 5;
 
 pub fn run(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch("CREATE TABLE IF NOT EXISTS _schema_version (version INTEGER PRIMARY KEY);")?;
@@ -13,6 +13,7 @@ pub fn run(conn: &Connection) -> rusqlite::Result<()> {
     if current < 2 { migrate_v2(conn)?; }
     if current < 3 { migrate_v3(conn)?; }
     if current < 4 { migrate_v4(conn)?; }
+    if current < 5 { migrate_v5(conn)?; }
     Ok(())
 }
 
@@ -106,5 +107,27 @@ fn migrate_v4(conn: &Connection) -> rusqlite::Result<()> {
         }
     }
     conn.execute_batch("INSERT INTO _schema_version (version) VALUES (4);")?;
+    Ok(())
+}
+
+fn migrate_v5(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS templates (
+            id            TEXT PRIMARY KEY,
+            name          TEXT NOT NULL,
+            description   TEXT DEFAULT '',
+            is_builtin    INTEGER NOT NULL DEFAULT 0,
+            title_template TEXT,
+            tags          TEXT NOT NULL DEFAULT '[]',
+            storage_path  TEXT,
+            doc_type      TEXT,
+            concepts      TEXT DEFAULT '[]',
+            pinned        INTEGER NOT NULL DEFAULT 0,
+            sort_order    INTEGER NOT NULL DEFAULT 0,
+            created_at    TEXT NOT NULL,
+            updated_at    TEXT NOT NULL
+        );
+        INSERT INTO _schema_version (version) VALUES (5);"
+    )?;
     Ok(())
 }

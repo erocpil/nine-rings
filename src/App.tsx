@@ -29,6 +29,8 @@ import type { DeltaOps, Note, DocType } from "./types/models";
 import { DEFAULT_HOTKEYS } from "./types/models";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
 import { addLog } from "./lib/debugLog";
+import type { Template } from "./lib/storage/template-store";
+import { templateStore } from "./lib/storage/template-store";
 
 function openNewWindow() {
   // @ts-ignore
@@ -761,6 +763,22 @@ function App() {
                 selectNote(note);
               }}
               onCreate={createNote}
+              onCreateWithTemplate={async (template: Template) => {
+                const meta = await templateStore.applyTemplate(template);
+                const today = new Date().toISOString().slice(0, 10);
+                const note = await api.notes.create({
+                  date: today,
+                  title: meta.title ?? "新随笔",
+                  content: { ops: [] },
+                  tags: meta.tags,
+                  storagePath: meta.storagePath ?? undefined,
+                  docType: meta.docType ?? undefined,
+                  concepts: meta.concepts?.length ? meta.concepts : undefined,
+                  pinned: meta.pinned,
+                } as any);
+                setDate(today);
+                selectNote(note);
+              }}
               onDelete={(id) => {
                 // Find note for undo context
                 const note = notes.find((n) => n.id === id) ?? selectedNote;

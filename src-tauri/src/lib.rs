@@ -423,19 +423,13 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            commands::note::get_notes_by_date,
             commands::note::get_note,
-            commands::note::create_note,
-            commands::note::update_note,
             commands::note::update_note_order,
-            commands::note::delete_note,
             commands::note::search_notes,
             commands::note::get_notes_by_tag,
             commands::note::get_all_tags,
             commands::note::get_daily_page,
             commands::note::update_todos,
-            commands::note::get_note_versions,
-            commands::note::restore_note_version,
             commands::config::get_config,
             commands::config::set_config,
             commands::export::export_data,
@@ -452,9 +446,12 @@ pub fn run() {
             commands::doc_tree::search_docs,
             commands::doc_tree::get_notes_by_path,
             commands::doc_tree::get_all_concepts,
-            commands::doc_tree::get_path_tree,
             commands::quick_capture::toggle_quick_capture,
             commands::quick_capture::emit_to_main,
+            commands::template::delete_template,
+            commands::query::db_query,
+            commands::query::db_exec,
+            commands::query::db_transaction,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

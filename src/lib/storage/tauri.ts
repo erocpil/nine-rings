@@ -1,17 +1,34 @@
+/**
+ * TauriAdapter — 通过 IPC 调 Rust 后端。
+ *
+ * Phase 3 PR B：5 个已验证操作（getNotesByDate, createNote, updateNote,
+ * deleteNote, getPathTree）已切换到 tauriDriver（通用 db_query/db_exec 命令）。
+ *
+ * 其余操作保持旧 invoke 路径。旧 Rust 命令仍注册在 lib.rs 中（死代码但未删除），
+ * PR B 验证通过后再批量移除。
+ *
+ * FTS5 搜索（searchNotes）不纳入 Op 抽象，保持为独立命令。
+ */
+
 import { invoke } from "@tauri-apps/api/core";
 import type { Note, DailyPage, NoteVersion } from "../../types/models";
 import type { StorageAdapter, AppConfig } from "./types";
+import { tauriDriver } from "./tauri-driver";
 
 /** TauriAdapter — 通过 IPC invoke 调 Rust 后端 */
 export const tauriAdapter: StorageAdapter = {
-  // ── Notes ──
-  getNotesByDate: (date) => invoke<Note[]>("get_notes_by_date", { date }),
+  // ══════ Notes（5 个已迁移到 tauriDriver）══════
+
+  getNotesByDate: (date) => tauriDriver.getNotesByDate(date),
+  createNote: (data) => tauriDriver.createNote(data),
+  updateNote: (id, data) => tauriDriver.updateNote(id, data),
+  deleteNote: (id) => tauriDriver.deleteNote(id),
+
+  // ── 未迁移，保留旧 IPC ──
   getNote: (id) => invoke<Note | null>("get_note", { id }),
-  createNote: (data) => invoke<Note>("create_note", { data }),
   upsertNote: (data) => invoke<Note>("upsert_note", { data }),
-  updateNote: (id, data) => invoke<Note>("update_note", { id, data }),
   updateNoteOrder: (id, sort_order) => invoke<Note>("update_note_order", { id, sort_order }),
-  deleteNote: (id) => invoke<void>("delete_note", { id }),
+  // FTS5 全文搜索 — 有意不纳入 Op 抽象，保留独立命令
   searchNotes: (query) => invoke<Note[]>("search_notes", { query }),
   getNotesByTag: (tag) => invoke<Note[]>("get_notes_by_tag", { tag }),
   getRecentDates: () => invoke<string[]>("get_recent_dates"),
@@ -51,8 +68,9 @@ export const tauriAdapter: StorageAdapter = {
   getConfig: () => invoke<AppConfig>("get_config"),
   setConfig: (partial) => invoke<AppConfig>("set_config", { config: partial }),
 
-  // ── Doc Tree ──
-  getPathTree: () => invoke("get_path_tree"),
+  // ══════ Doc Tree（getPathTree 已迁移，其余保留）══════
+
+  getPathTree: () => tauriDriver.getPathTree(),
   getNotesByPath: (pathPrefix) => invoke<Note[]>("get_notes_by_path", { pathPrefix }),
   searchDocs: (query) => invoke<Note[]>("search_docs", { query }),
   getAllConcepts: () => invoke<string[]>("get_all_concepts"),

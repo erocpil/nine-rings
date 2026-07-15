@@ -4861,3 +4861,136 @@ body {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+ * 模板选择器 (TemplatePicker)
+ * ═══════════════════════════════════════════════════════════════════ */
+
+.template-popover {
+  position: fixed;
+  z-index: 1000;
+  width: 260px;
+  max-height: 360px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.template-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.template-popover-close {
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.template-popover-close:hover {
+  background: var(--hover-bg);
+  color: var(--text);
+}
+
+.template-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px;
+}
+
+.template-loading,
+.template-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.template-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text);
+  transition: background var(--transition);
+}
+
+.template-item:hover {
+  background: var(--hover-bg);
+}
+
+.template-item-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.template-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.template-item-name {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.template-item-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.template-item-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.template-item-tag {
+  padding: 0 5px;
+  font-size: 10px;
+  background: var(--code-bg);
+  border-radius: 3px;
+  color: var(--text-secondary);
+}
+
+.template-item-blank {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  padding-bottom: 10px;
+}
+
+.template-popover-footer {
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.template-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
