@@ -111,7 +111,7 @@ function App() {
   });
   const TAB_KEY = "nr:sidebarTab";
   const [sidebarTab, setSidebarTab] = useState<'daily' | 'tree'>(() => {
-    return (localStorage.getItem(TAB_KEY) as 'daily' | 'tree') || 'daily';
+    return (localStorage.getItem(TAB_KEY) as 'daily' | 'tree') || 'tree';
   });
   const handleSetSidebarTab = (tab: 'daily' | 'tree') => {
     setSidebarTab(tab);
