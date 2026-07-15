@@ -20,7 +20,9 @@ interface ImportFile {
 
 export function useDevImport(refresh: () => void) {
   useEffect(() => {
-    // 只在开发模式、非 Tauri 环境下启用
+    // 只在 Vite dev server 模式 + 非 Tauri 环境下启用
+    // import.meta.env.DEV 由 Vite 在构建时静态替换，生产构建中整个分支被 tree-shake
+    if (!import.meta.env.DEV) return;
     const isTauri = typeof window !== "undefined" && (window as any).__TAURI__;
     if (isTauri) return;
 
