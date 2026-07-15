@@ -19,9 +19,12 @@ export function TemplatePicker({ onSelect, onBlank, onClose, anchorRect }: Templ
 
   useEffect(() => {
     // 播种 + 加载
+    console.log("[TemplatePicker] 开始加载模板...");
     templateStore.seedBuiltinTemplates().then(() => {
+      console.log("[TemplatePicker] seed 完成，开始 list");
       return templateStore.listTemplates();
     }).then((list) => {
+      console.log(`[TemplatePicker] 获取到 ${list.length} 个模板`, list.map(t => t.name));
       setTemplates(list);
     }).catch((err) => {
       console.error("Failed to load templates:", err);

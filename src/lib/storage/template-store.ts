@@ -63,8 +63,10 @@ function detectRuntime(): "tauri" | "web" {
   if (_runtime !== null) return _runtime;
   if (typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__) {
     _runtime = "tauri";
+    console.log("[template-store] runtime = tauri");
   } else {
     _runtime = "web";
+    console.log("[template-store] runtime = web (no __TAURI_INTERNALS__)");
   }
   return _runtime;
 }
@@ -428,6 +430,7 @@ export const templateStore = {
     const rt = detectRuntime();
     if (rt === "web") {
       const existing = lsRead();
+      console.log(`[template-store] seed: localStorage 现有 ${existing.length} 个模板`);
       if (existing.length > 0) return; // 已有数据，跳过（幂等）
       const ts = now();
       const builtins: Template[] = BUILTIN_TEMPLATES.map((t) => ({
