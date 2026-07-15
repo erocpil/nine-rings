@@ -21,10 +21,17 @@ interface ImportFile {
 export function useDevImport(refresh: () => void) {
   useEffect(() => {
     // 只在 Vite dev server 模式 + 非 Tauri 环境下启用
-    // import.meta.env.DEV 由 Vite 在构建时静态替换，生产构建中整个分支被 tree-shake
-    if (!import.meta.env.DEV) return;
+    if (!import.meta.env.DEV) {
+      console.log("[dev-import] 非 DEV 模式，跳过");
+      return;
+    }
     const isTauri = typeof window !== "undefined" && (window as any).__TAURI__;
-    if (isTauri) return;
+    if (isTauri) {
+      console.log("[dev-import] Tauri 环境，跳过");
+      return;
+    }
+
+    console.log("[dev-import] 已启动，每 3 秒轮询 /__import");
 
     const poll = async () => {
       try {

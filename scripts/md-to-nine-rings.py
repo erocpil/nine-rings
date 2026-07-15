@@ -23,7 +23,7 @@ md-to-nine-rings.py — 批量将 .md 文件导入为 Nine Rings 笔记
 
 输出:
   默认模式：在当前目录生成 import-<日期>.json
-  --serve 模式：直接 POST 给 http://localhost:1420/__import
+  --serve 模式：直接 POST 给 http://localhost:8000/__import
     浏览器自动接收并创建笔记，刷新即可看到结果
 
 支持的 Markdown 语法:
@@ -294,7 +294,7 @@ def main():
     serve_mode = '--serve' in sys.argv[1:]
 
     # ── 端口 ──
-    serve_port = 1420
+    serve_port = 8000
     for i, a in enumerate(sys.argv[1:], 1):
         if a == '--port' and i + 1 < len(sys.argv):
             try:

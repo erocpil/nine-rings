@@ -22,7 +22,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   auto_clean_days: 30,
   note_font_size: 16,
   enable_sync: false,
-  dev_port: 1420,
+  dev_port: 8000,
   highlight_active_line: true,
   editor_show_line_numbers: false,
   hotkeys: {
