@@ -18,7 +18,10 @@ export default function TitleBar() {
 
   return (
     <div className="titlebar">
-      <span className="titlebar-title">Nine Rings</span>
+      <span className="titlebar-title">
+        <img src="/app-icon.png" width="16" height="16" alt="" className="titlebar-logo" />
+        Nine Rings
+      </span>
       <div className="titlebar-controls">
         <button
           className="titlebar-btn titlebar-btn-minimize"

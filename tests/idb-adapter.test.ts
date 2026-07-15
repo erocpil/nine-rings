@@ -155,10 +155,14 @@ async function runTests() {
   // ═══════════════════════════════════════════════════════════════
   {
     console.log("\n── upsertNote ──");
+    // 同 storagePath + 同 title → 更新
     const n1 = await idbAdapter.upsertNote({ date: "2026-07-20", title: "Upsert Test", storagePath: "projects/upsert" });
-    const n2 = await idbAdapter.upsertNote({ date: "2026-07-20", title: "Upsert Updated", storagePath: "projects/upsert" });
-    assert(n2.id === n1.id, "same storagePath → update");
-    assert(n2.title === "Upsert Updated", "title updated");
+    const n2 = await idbAdapter.upsertNote({ date: "2026-07-20", title: "Upsert Test", storagePath: "projects/upsert" });
+    assert(n2.id === n1.id, "same (storagePath, title) → update");
+    // 同 storagePath + 不同 title → 新建
+    const n3 = await idbAdapter.upsertNote({ date: "2026-07-20", title: "Upsert Different", storagePath: "projects/upsert" });
+    assert(n3.id !== n1.id, "same storagePath, different title → create new");
+    assert(n3.title === "Upsert Different", "new doc title correct");
   }
 
   // ═══════════════════════════════════════════════════════════════

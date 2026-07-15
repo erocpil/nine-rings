@@ -1,5 +1,6 @@
 import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
+import { copyToClipboard } from "../lib/clipboard";
 
 /**
  * CodeBlock 的 NodeView 组件（参照 TipTap 官方 CodeBlockLanguage 示例）。
@@ -55,11 +56,9 @@ function CodeBlockView() {
   const handleCopy = async () => {
     const codeEl = wrapperRef.current?.querySelector("code");
     if (!codeEl) return;
-    try {
-      await navigator.clipboard.writeText(codeEl.textContent || "");
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch { /* 忽略权限拒绝 */ }
+    await copyToClipboard(codeEl.textContent || "");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   };
 
   return (

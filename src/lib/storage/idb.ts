@@ -387,17 +387,20 @@ export const idbAdapter: StorageAdapter = {
       // ── 查找已存在的匹配笔记 ──
       let existingId: string | null = null;
 
-      // 1. storagePath 匹配（文档笔记，最可靠）
-      if (data.storagePath) {
+      // 1. (storagePath, title) 联合匹配（文档笔记）
+      if (data.storagePath && data.title) {
         const sp = data.storagePath;
+        const tl = data.title;
         const existing = await new Promise<any | null>((resolve, reject) => {
           const tx = db.transaction("notes", "readonly");
           const store = tx.objectStore("notes");
           const index = store.index("storagePath");
-          const req = index.get(sp);
+          const req = index.getAll(sp);
           req.onsuccess = () => {
-            const n = req.result;
-            resolve(n && !n.deleted_at ? n : null);
+            const match = req.result.find(
+              (n: any) => !n.deleted_at && n.title === tl,
+            );
+            resolve(match ?? null);
           };
           req.onerror = () => reject(req.error);
         });

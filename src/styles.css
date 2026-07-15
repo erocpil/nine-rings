@@ -4430,6 +4430,12 @@ body {
   letter-spacing: 0.5px;
 }
 
+.titlebar-logo {
+  vertical-align: middle;
+  margin-right: 5px;
+  margin-top: -1px;
+}
+
 .titlebar-controls {
   display: flex;
   margin-left: auto;

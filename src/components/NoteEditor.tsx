@@ -22,6 +22,7 @@ import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { addLog, toggleDebug } from "../lib/debugLog";
+import { copyToClipboard } from "../lib/clipboard";
 import { CodeBlockLineNumbers } from "../extensions/CodeBlockLineNumbers";
 import { createGutterClickHandler } from "../extensions/LineNumberInsert";
 import { storeImage } from "../lib/storage/idb";
@@ -520,16 +521,14 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     const { from, to } = editor.state.selection;
     if (from === to) return;
     const text = editor.state.doc.textBetween(from, to, ' ');
-    try { await navigator.clipboard.writeText(text); } catch { /* 权限拒绝静默忽略 */ }
+    await copyToClipboard(text);
   };
   const handleCut = async () => {
     const { from, to } = editor.state.selection;
     if (from === to) return;
     const text = editor.state.doc.textBetween(from, to, ' ');
-    try {
-      await navigator.clipboard.writeText(text);
-      editor.chain().focus().deleteSelection().run();
-    } catch { /* 权限拒绝静默忽略 */ }
+    await copyToClipboard(text);
+    editor.chain().focus().deleteSelection().run();
   };
   const handleClipboardPaste = async () => {
     try {

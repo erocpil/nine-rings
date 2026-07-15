@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Todo } from "../types/models";
 import { uuid } from "../lib/uuid";
+import { copyToClipboard } from "../lib/clipboard";
 import { api } from "../lib/api";
 import {
   DndContext,
@@ -743,7 +744,7 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
     if (clickTimerRef.current) {
       clearTimeout(clickTimerRef.current);
       clickTimerRef.current = null;
-      navigator.clipboard.writeText(generateExport()).catch(() => {});
+      copyToClipboard(generateExport());
       return;
     }
     clickTimerRef.current = setTimeout(() => {
