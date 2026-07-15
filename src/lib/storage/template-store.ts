@@ -1,8 +1,8 @@
 /**
  * template-store.ts — 元数据模板 CRUD。
  *
- * 模板存储在 SQLite `templates` 表，通过通用命令 db_query / db_exec 操作。
- * 与 tauri-driver.ts 共用相同的 IPC 封装层。
+ * Tauri 模式：通过通用命令 db_query / db_exec 操作 SQLite `templates` 表。
+ * Web 模式：通过 localStorage 存储 JSON 数组，全量读写。
  *
  * 内置模板在首次启动时自动播种（seedBuiltinTemplates），
  * 用户可修改内置模板的字段值（名称、标签等），但不可删除。
@@ -10,6 +10,8 @@
  * 安全模型：所有 SQL 由 Rust compiler 生成，表名/列名经 is_safe_sql_identifier 校验，
  * 参数值 100% 走 ? 绑定。模板表无 deleted_at 列（硬删除），
  * compile_select 通过 table_has_soft_delete("templates") → false 跳过自动过滤。
+ *
+ * Web 安全模型：localStorage 全量读写，JSON.parse 失败兜底。
  */
 
 import type { SelectOp, InsertOp, UpdateOp } from "./ops";
@@ -47,7 +49,30 @@ export interface TemplateInput {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// IPC 封装（与 tauri-driver.ts 共用相同的延迟加载）
+// 运行时检测：Tauri（SQLite via IPC）vs Web（localStorage）
+// ═══════════════════════════════════════════════════════════════════
+
+let _runtime: "tauri" | "web" | null = null;
+
+async function detectRuntime(): Promise<"tauri" | "web"> {
+  if (_runtime !== null) return _runtime;
+  // Node.js 环境无 window 对象（如 tsx 测试），直接判定 web
+  // Tauri webview 有 window.__TAURI__，import 会成功
+  if (typeof window === "undefined") {
+    _runtime = "web";
+    return "web";
+  }
+  try {
+    await import("@tauri-apps/api/core");
+    _runtime = "tauri";
+  } catch {
+    _runtime = "web";
+  }
+  return _runtime;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Tauri IPC（与 tauri-driver.ts 共用相同的延迟加载）
 // ═══════════════════════════════════════════════════════════════════
 
 let _invokeModule: { invoke: (cmd: string, args: Record<string, unknown>) => Promise<any> } | null = null;
@@ -67,6 +92,30 @@ async function dbQuery(op: SelectOp): Promise<Record<string, any>[]> {
 async function dbExec(op: InsertOp | UpdateOp): Promise<void> {
   const invoke = await getInvoke();
   await invoke("db_exec", { opJson: JSON.stringify(op) });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Web localStorage adapter
+// ═══════════════════════════════════════════════════════════════════
+
+const LS_KEY = "nine-rings:templates";
+
+function lsRead(): Template[] {
+  const raw = localStorage.getItem(LS_KEY);
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr;
+  } catch {
+    // 脏数据兜底：解析失败当空处理，下次种子逻辑会重新初始化
+    console.warn("[template-store] localStorage 数据解析失败，按空处理");
+    return [];
+  }
+}
+
+function lsWrite(templates: Template[]): void {
+  localStorage.setItem(LS_KEY, JSON.stringify(templates));
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -111,12 +160,129 @@ function uuid(): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Template Store
+// 内置模板定义（Tauri / Web 共享，不依赖运行时）
+// ═══════════════════════════════════════════════════════════════════
+
+const BUILTIN_TEMPLATES: Omit<Template, "created_at" | "updated_at">[] = [
+  {
+    id: "builtin-blank",
+    name: "空白笔记",
+    description: "无预设元数据的空白笔记",
+    is_builtin: true,
+    title_template: null,
+    tags: [],
+    storage_path: null,
+    doc_type: null,
+    concepts: [],
+    pinned: false,
+    sort_order: 0,
+  },
+  {
+    id: "builtin-meeting",
+    name: "会议纪要",
+    description: "会议记录模板，预设会议标签和路径",
+    is_builtin: true,
+    title_template: null,
+    tags: ["会议"],
+    storage_path: "/工作/会议",
+    doc_type: "meeting",
+    concepts: ["会议纪要"],
+    pinned: false,
+    sort_order: 1,
+  },
+  {
+    id: "builtin-reading",
+    name: "读书笔记",
+    description: "阅读笔记，预设阅读标签和知识概念",
+    is_builtin: true,
+    title_template: null,
+    tags: ["阅读"],
+    storage_path: "/学习/阅读",
+    doc_type: "note",
+    concepts: ["读书笔记"],
+    pinned: false,
+    sort_order: 2,
+  },
+  {
+    id: "builtin-project",
+    name: "项目日志",
+    description: "项目开发日志，预设项目标签",
+    is_builtin: true,
+    title_template: null,
+    tags: ["项目"],
+    storage_path: "/工作/项目",
+    doc_type: "log",
+    concepts: ["项目日志"],
+    pinned: false,
+    sort_order: 3,
+  },
+  {
+    id: "builtin-idea",
+    name: "灵感记录",
+    description: "随手记录灵感，默认置顶",
+    is_builtin: true,
+    title_template: null,
+    tags: ["灵感"],
+    storage_path: null,
+    doc_type: "note",
+    concepts: [],
+    pinned: true,
+    sort_order: 4,
+  },
+  {
+    id: "builtin-todo",
+    name: "待办清单",
+    description: "待办事项模板",
+    is_builtin: true,
+    title_template: null,
+    tags: ["待办"],
+    storage_path: null,
+    doc_type: "note",
+    concepts: [],
+    pinned: false,
+    sort_order: 5,
+  },
+  {
+    id: "builtin-knowledge",
+    name: "知识卡片",
+    description: "独立知识条目，预设知识标签和概念",
+    is_builtin: true,
+    title_template: null,
+    tags: ["知识"],
+    storage_path: "/知识库",
+    doc_type: "card",
+    concepts: ["知识卡片"],
+    pinned: false,
+    sort_order: 6,
+  },
+  {
+    id: "builtin-weekly",
+    name: "周报",
+    description: "每周工作总结",
+    is_builtin: true,
+    title_template: null,
+    tags: ["周报"],
+    storage_path: "/工作/周报",
+    doc_type: "report",
+    concepts: ["周报"],
+    pinned: false,
+    sort_order: 7,
+  },
+];
+
+// ═══════════════════════════════════════════════════════════════════
+// Template Store（Tauri / Web 双路径）
 // ═══════════════════════════════════════════════════════════════════
 
 export const templateStore = {
-  /** 获取所有模板（按 sort_order 排序） */
+  // ── listTemplates ──
+
   async listTemplates(): Promise<Template[]> {
+    const rt = await detectRuntime();
+    if (rt === "web") {
+      return lsRead();
+    }
+    // Tauri path
     const op: SelectOp = {
       type: "select",
       table: "templates",
@@ -132,8 +298,33 @@ export const templateStore = {
     return rows.map(templateFromRow);
   },
 
-  /** 创建用户自定义模板 */
+  // ── createTemplate ──
+
   async createTemplate(input: TemplateInput): Promise<Template> {
+    const rt = await detectRuntime();
+    if (rt === "web") {
+      const all = lsRead();
+      const ts = now();
+      const t: Template = {
+        id: uuid(),
+        name: input.name,
+        description: input.description ?? "",
+        is_builtin: false,
+        title_template: input.title_template ?? null,
+        tags: input.tags ?? [],
+        storage_path: input.storage_path ?? null,
+        doc_type: input.doc_type ?? null,
+        concepts: input.concepts ?? [],
+        pinned: input.pinned ?? false,
+        sort_order: 0,
+        created_at: ts,
+        updated_at: ts,
+      };
+      all.push(t);
+      lsWrite(all);
+      return t;
+    }
+    // Tauri path
     const id = uuid();
     const ts = now();
     const op: InsertOp = {
@@ -159,8 +350,28 @@ export const templateStore = {
     return templateFromRow(op.values);
   },
 
-  /** 更新模板（内置和自定义均可更新字段） */
+  // ── updateTemplate ──
+
   async updateTemplate(id: string, input: Partial<TemplateInput>): Promise<void> {
+    const rt = await detectRuntime();
+    if (rt === "web") {
+      const all = lsRead();
+      const idx = all.findIndex((t) => t.id === id);
+      if (idx === -1) throw new Error(`Template ${id} not found`);
+      const t = all[idx];
+      if (input.name !== undefined) t.name = input.name;
+      if (input.description !== undefined) t.description = input.description;
+      if (input.title_template !== undefined) t.title_template = input.title_template;
+      if (input.tags !== undefined) t.tags = input.tags;
+      if (input.storage_path !== undefined) t.storage_path = input.storage_path;
+      if (input.doc_type !== undefined) t.doc_type = input.doc_type;
+      if (input.concepts !== undefined) t.concepts = input.concepts;
+      if (input.pinned !== undefined) t.pinned = input.pinned;
+      t.updated_at = now();
+      lsWrite(all);
+      return;
+    }
+    // Tauri path
     const set: Record<string, any> = {};
     if (input.name !== undefined) set.name = input.name;
     if (input.description !== undefined) set.description = input.description;
@@ -181,9 +392,22 @@ export const templateStore = {
     await dbExec(op);
   },
 
-  /** 删除模板（拒绝删除内置模板） */
+  // ── deleteTemplate ──
+
   async deleteTemplate(id: string): Promise<void> {
-    // 先检查是否是内置模板
+    const rt = await detectRuntime();
+    if (rt === "web") {
+      const all = lsRead();
+      const idx = all.findIndex((t) => t.id === id);
+      if (idx === -1) throw new Error(`Template ${id} not found`);
+      if (all[idx].is_builtin) {
+        throw new Error("Cannot delete built-in template");
+      }
+      all.splice(idx, 1);
+      lsWrite(all);
+      return;
+    }
+    // Tauri path: 先检查是否是内置模板
     const rows = await dbQuery({
       type: "select",
       table: "templates",
@@ -200,9 +424,23 @@ export const templateStore = {
     await invoke("delete_template", { id });
   },
 
-  /** 播种内置模板（幂等 — 如果已有内置模板则跳过） */
+  // ── seedBuiltinTemplates（幂等：两端都仅当不存在时写入）──
+
   async seedBuiltinTemplates(): Promise<void> {
-    // 检查是否已有内置模板（幂等）
+    const rt = await detectRuntime();
+    if (rt === "web") {
+      const existing = lsRead();
+      if (existing.length > 0) return; // 已有数据，跳过（幂等）
+      const ts = now();
+      const builtins: Template[] = BUILTIN_TEMPLATES.map((t) => ({
+        ...t,
+        created_at: ts,
+        updated_at: ts,
+      }));
+      lsWrite(builtins);
+      return;
+    }
+    // Tauri path: 检查是否已有内置模板（幂等）
     const existing = await dbQuery({
       type: "select",
       table: "templates",
@@ -213,115 +451,8 @@ export const templateStore = {
     if (existing.length > 0) return;
 
     const ts = now();
-    const builtins: Omit<Template, "created_at" | "updated_at">[] = [
-      {
-        id: "builtin-blank",
-        name: "空白笔记",
-        description: "无预设元数据的空白笔记",
-        is_builtin: true,
-        title_template: null,
-        tags: [],
-        storage_path: null,
-        doc_type: null,
-        concepts: [],
-        pinned: false,
-        sort_order: 0,
-      },
-      {
-        id: "builtin-meeting",
-        name: "会议纪要",
-        description: "会议记录模板，预设会议标签和路径",
-        is_builtin: true,
-        title_template: null,
-        tags: ["会议"],
-        storage_path: "/工作/会议",
-        doc_type: "meeting",
-        concepts: ["会议纪要"],
-        pinned: false,
-        sort_order: 1,
-      },
-      {
-        id: "builtin-reading",
-        name: "读书笔记",
-        description: "阅读笔记，预设阅读标签和知识概念",
-        is_builtin: true,
-        title_template: null,
-        tags: ["阅读"],
-        storage_path: "/学习/阅读",
-        doc_type: "note",
-        concepts: ["读书笔记"],
-        pinned: false,
-        sort_order: 2,
-      },
-      {
-        id: "builtin-project",
-        name: "项目日志",
-        description: "项目开发日志，预设项目标签",
-        is_builtin: true,
-        title_template: null,
-        tags: ["项目"],
-        storage_path: "/工作/项目",
-        doc_type: "log",
-        concepts: ["项目日志"],
-        pinned: false,
-        sort_order: 3,
-      },
-      {
-        id: "builtin-idea",
-        name: "灵感记录",
-        description: "随手记录灵感，默认置顶",
-        is_builtin: true,
-        title_template: null,
-        tags: ["灵感"],
-        storage_path: null,
-        doc_type: "note",
-        concepts: [],
-        pinned: true,
-        sort_order: 4,
-      },
-      {
-        id: "builtin-todo",
-        name: "待办清单",
-        description: "待办事项模板",
-        is_builtin: true,
-        title_template: null,
-        tags: ["待办"],
-        storage_path: null,
-        doc_type: "note",
-        concepts: [],
-        pinned: false,
-        sort_order: 5,
-      },
-      {
-        id: "builtin-knowledge",
-        name: "知识卡片",
-        description: "独立知识条目，预设知识标签和概念",
-        is_builtin: true,
-        title_template: null,
-        tags: ["知识"],
-        storage_path: "/知识库",
-        doc_type: "card",
-        concepts: ["知识卡片"],
-        pinned: false,
-        sort_order: 6,
-      },
-      {
-        id: "builtin-weekly",
-        name: "周报",
-        description: "每周工作总结",
-        is_builtin: true,
-        title_template: null,
-        tags: ["周报"],
-        storage_path: "/工作/周报",
-        doc_type: "report",
-        concepts: ["周报"],
-        pinned: false,
-        sort_order: 7,
-      },
-    ];
-
     // 批量插入内置模板
-    for (const t of builtins) {
+    for (const t of BUILTIN_TEMPLATES) {
       const op: InsertOp = {
         type: "insert",
         table: "templates",
