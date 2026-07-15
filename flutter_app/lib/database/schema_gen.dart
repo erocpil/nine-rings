@@ -64,4 +64,20 @@ CREATE TABLE IF NOT EXISTS sync_changes (
 CREATE INDEX IF NOT EXISTS idx_sync_changes_entity_type_entity_id ON sync_changes(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_sync_changes_timestamp ON sync_changes(timestamp);
 
+CREATE TABLE IF NOT EXISTS templates (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  is_builtin INTEGER NOT NULL DEFAULT 0,
+  title_template TEXT,
+  tags TEXT NOT NULL DEFAULT '[]',
+  storage_path TEXT,
+  doc_type TEXT,
+  concepts TEXT NOT NULL DEFAULT '[]',
+  pinned INTEGER NOT NULL DEFAULT 0,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 ''';

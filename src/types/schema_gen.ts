@@ -78,6 +78,24 @@ export interface SchemaSyncChange {
   synced_at: string | null;
 }
 
+/** 元数据模板（新建笔记时预填标签/路径/类型/概念） */
+export interface SchemaTemplate {
+  id: string;
+  name: string;
+  description: string;
+  is_builtin: boolean;
+  /** 新建笔记的默认标题 */
+  title_template: string | null;
+  tags: string[];
+  storage_path: string | null;
+  doc_type: DocType | null;
+  concepts: string[];
+  pinned: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // ── IndexedDB store 定义（供 schema 校验参考）──
 
 export const IDB_STORES: Record<string, { keyPath: string; indexes: string[][] }> = {
@@ -109,6 +127,12 @@ export const IDB_STORES: Record<string, { keyPath: string; indexes: string[][] }
     indexes: [
     ['entity_type', 'entity_id'],
     ['timestamp']
+    ],
+  },
+  templates: {
+    keyPath: 'id',
+    indexes: [
+
     ],
   },
 };
