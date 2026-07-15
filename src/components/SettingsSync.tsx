@@ -77,7 +77,16 @@ export default function SettingsSync({ onBusyChange }: Props) {
   // ── Owner/Repo 合并编辑 ──
 
   const startEditOwnerRepo = useCallback(() => {
-    setOwnerRepoValue(`${cfg.owner}/${cfg.repo}`);
+    // 仅在双方都有值时显示 owner/repo，避免空字段出现孤立的 /
+    if (cfg.owner && cfg.repo) {
+      setOwnerRepoValue(`${cfg.owner}/${cfg.repo}`);
+    } else if (cfg.owner) {
+      setOwnerRepoValue(cfg.owner);
+    } else if (cfg.repo) {
+      setOwnerRepoValue(cfg.repo);
+    } else {
+      setOwnerRepoValue("");
+    }
     setOwnerRepoError("");
     setEditOwnerRepo(true);
   }, [cfg.owner, cfg.repo]);
