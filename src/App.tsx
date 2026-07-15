@@ -391,7 +391,7 @@ function App() {
   useEffect(() => {
     api.config.get().then((c) => {
       applyTheme(c.theme);
-      addLog(`[启动] 主题: ${c.theme}`);
+      addLog(`[启动] 九环 v${__APP_VERSION__} | 主题: ${c.theme}`);
       setConfig(c);
     });
   }, []);

@@ -31,7 +31,7 @@ export function useDevImport(refresh: () => void) {
       return;
     }
 
-    console.log("[dev-import] 已启动，每 3 秒轮询 /__import");
+    console.log(`[dev-import] 已启动 (九环 v${__APP_VERSION__})，每 3 秒轮询 /__import`);
 
     const poll = async () => {
       try {
