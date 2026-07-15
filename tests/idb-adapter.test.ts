@@ -305,6 +305,71 @@ async function runTests() {
     assert(dates.length >= 1, "has dates");
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // 19. snake_case import (Rust serde 兼容性)
+  // ═══════════════════════════════════════════════════════════════
+  {
+    console.log("\n── Snake_case import ──");
+
+    // 模拟 Rust serde 导出的 JSON（字段名 snake_case）
+    const rustExport = {
+      version: 1,
+      exported_at: "2026-07-15T00:00:00Z",
+      notes: [
+        {
+          id: "rust-doc-1",
+          date: "2026-07-15",
+          title: "Rust Doc",
+          content: { ops: [{ insert: "hello" }] },
+          search_text: "hello",
+          tags: ["rust"],
+          pinned: false,
+          sort_order: 0,
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-07-15T00:00:00Z",
+          storage_path: "projects/rust-lib",    // snake_case
+          doc_type: "explanation",               // snake_case
+          concepts: ["systems", "networking"],
+          linked_doc_ids: ["other-doc"],         // snake_case
+          readonly: false,
+        },
+        {
+          id: "rust-essay-1",
+          date: "2026-07-15",
+          title: "Rust Essay",
+          content: { ops: [{ insert: "note" }] },
+          search_text: "note",
+          tags: [],
+          pinned: false,
+          sort_order: 1,
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-07-15T00:00:00Z",
+          // 无 storage_path → 随笔
+        },
+      ],
+      daily_pages: [],
+    };
+
+    const result = await idbAdapter.importData(JSON.stringify(rustExport));
+    assert(result.notes_imported === 2, "2 notes imported");
+
+    // 验证文档笔记：应该能读到 storagePath 等字段
+    const doc = await idbAdapter.getNote("rust-doc-1");
+    assert(doc!.storagePath === "projects/rust-lib", "snake_case storage_path → storagePath");
+    assert(doc!.docType === "explanation", "snake_case doc_type → docType");
+    assert(doc!.concepts!.length === 2, "concepts preserved");
+    assert(doc!.linkedDocIds!.includes("other-doc"), "snake_case linked_doc_ids → linkedDocIds");
+
+    // 验证随笔：无 storagePath
+    const essay = await idbAdapter.getNote("rust-essay-1");
+    assert(!essay!.storagePath, "essay has no storagePath");
+
+    // 路径树应该包含新导入的文档
+    const tree = await idbAdapter.getPathTree();
+    const rustFolder = tree.find((n: PathNode) => n.path === "projects/rust-lib" && n.type === "folder");
+    assert(!!rustFolder, "rust-lib/ folder in tree after snake_case import");
+  }
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }

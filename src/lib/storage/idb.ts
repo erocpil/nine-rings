@@ -728,12 +728,16 @@ export const idbAdapter: StorageAdapter = {
   async importData(json: string): Promise<{ notes_imported: number; pages_imported: number }> {
     return withDB(async (db) => {
       const data = JSON.parse(json);
-      const importedNotes: any[] = data.notes ?? [];
+      const importedNotes: any[] = (data.notes ?? []).map(normalizeImportNote);
       const pages = data.daily_pages ?? [];
 
       const importDocs = importedNotes.filter((n: any) => n.storagePath);
       const importEssays = importedNotes.filter((n: any) => !n.storagePath);
       console.log(`[importData] 解析: ${importedNotes.length} 笔记 (文档 ${importDocs.length} + 随笔 ${importEssays.length}), ${pages.length} 每日页面`);
+
+      // ── Step 0: 字段名归一化（snake_case → camelCase），
+      //    兼容 Rust serde 导出格式和 Web 导出格式 ──
+      // （inline 在顶部，函数定义见文件末尾）
 
       // ── Step 1: 读取现有笔记，构建去重索引 ──
       const existingNotes: any[] = await new Promise((resolve, reject) => {
@@ -1159,4 +1163,30 @@ function sortNotes(a: any, b: any): number {
   const sb = b.sort_order ?? 0;
   if (sa !== sb) return sa - sb;
   return (a.created_at ?? "").localeCompare(b.created_at ?? "");
+}
+
+// ── 导入字段名归一化 ──
+
+/** 将 snake_case / Rust serde 格式的导入 JSON 归一化为 camelCase
+ *  兼容两端导出：
+ *  - Rust  serde: storage_path, doc_type, linked_doc_ids
+ *  - Web   IDB:    storagePath, docType, linkedDocIds
+ */
+function normalizeImportNote(raw: any): any {
+  const n = { ...raw };
+  // snake_case → camelCase（仅当 camelCase 不存在时）
+  if (n.storage_path !== undefined && n.storagePath === undefined) {
+    n.storagePath = n.storage_path;
+    delete n.storage_path;
+  }
+  if (n.doc_type !== undefined && n.docType === undefined) {
+    n.docType = n.doc_type;
+    delete n.doc_type;
+  }
+  if (n.linked_doc_ids !== undefined && n.linkedDocIds === undefined) {
+    n.linkedDocIds = n.linked_doc_ids;
+    delete n.linked_doc_ids;
+  }
+  // concepts 两边同名，无需转换
+  return n;
 }
