@@ -7,7 +7,13 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "npx tsx tests/core.test.ts && npx tsx tests/delta-converter.test.ts && npx tsx tests/md-parser.test.ts && npx tsx tests/idb-adapter.test.ts && npx tsx src/lib/storage/idb-driver.test.ts",
+    "test:core": "npx tsx tests/core.test.ts",
+    "test:delta": "npx tsx tests/delta-converter.test.ts",
+    "test:md": "npx tsx tests/md-parser.test.ts",
+    "test:idb": "npx tsx tests/idb-adapter.test.ts",
+    "test:ops": "npx tsx src/lib/storage/idb-driver.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
