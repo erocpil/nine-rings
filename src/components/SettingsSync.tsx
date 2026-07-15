@@ -179,54 +179,33 @@ export default function SettingsSync({ onBusyChange }: Props) {
         />
       </label>
 
-      {/* Owner / Repo — 双击合并编辑 */}
+      {/* Owner / Repo — 双击编辑 */}
       {editOwnerRepo ? (
         <label className="settings-label">
           Owner / Repo
-          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-            <input
-              type="text"
-              className={`settings-input ${ownerRepoError ? "settings-input-err" : ""}`}
-              placeholder="erocpil/nine-rings-backup"
-              value={ownerRepoValue}
-              onChange={(e) => { setOwnerRepoValue(e.target.value); setOwnerRepoError(""); }}
-              onKeyDown={handleOwnerRepoKeyDown}
-              onBlur={commitOwnerRepo}
-              autoFocus
-              style={{ flex: 1 }}
-            />
-          </div>
+          <input
+            type="text"
+            className={`settings-input ${ownerRepoError ? "settings-input-err" : ""}`}
+            placeholder="erocpil/nine-rings-backup"
+            value={ownerRepoValue}
+            onChange={(e) => { setOwnerRepoValue(e.target.value); setOwnerRepoError(""); }}
+            onKeyDown={handleOwnerRepoKeyDown}
+            onBlur={commitOwnerRepo}
+            autoFocus
+          />
           {ownerRepoError && <span className="settings-err">{ownerRepoError}</span>}
         </label>
       ) : (
-        <div className="settings-row"
-          onDoubleClick={startEditOwnerRepo}
-          title="双击编辑 owner/repo"
-          style={{ cursor: "pointer" }}
-        >
-          <label className="settings-label" style={{ flex: 1 }}>
-            Owner
-            <input
-              type="text"
-              className="settings-input"
-              placeholder="你的 GitHub 用户名"
-              style={{ maxWidth: 140 }}
-              value={cfg.owner}
-              readOnly
-            />
-          </label>
-          <span className="settings-sep">/</span>
-          <label className="settings-label" style={{ flex: 2 }}>
-            Repo
-            <input
-              type="text"
-              className="settings-input"
-              placeholder="仓库名"
-              value={cfg.repo}
-              readOnly
-            />
-          </label>
-        </div>
+        <label className="settings-label">
+          Owner / Repo
+          <div
+            className="settings-input settings-input-ro"
+            onDoubleClick={startEditOwnerRepo}
+            title="双击编辑"
+          >
+            {cfg.owner && cfg.repo ? `${cfg.owner}/${cfg.repo}` : <span className="settings-placeholder">双击设置 owner/repo</span>}
+          </div>
+        </label>
       )}
 
       {/* Path */}

@@ -3279,6 +3279,18 @@ body {
   border-color: #e74c3c !important;
 }
 
+.settings-input-ro {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  min-height: 32px;
+}
+
+.settings-placeholder {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
 .settings-err {
   color: #e74c3c;
   font-size: 11px;
