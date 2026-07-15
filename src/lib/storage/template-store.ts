@@ -49,23 +49,21 @@ export interface TemplateInput {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 运行时检测：Tauri（SQLite via IPC）vs Web（localStorage）
+// 运行时检测：Tauri vs Web
+//
+// 核心判断依据：window.__TAURI_INTERNALS__ 仅存在于 Tauri webview，
+// 普通浏览器/Vercel/Node 均无此对象。不使用动态 import 检测，因为
+// Vite 打包后 @tauri-apps/api 的代码会被内联，import 在普通浏览器
+// 也能成功（模块层无 window 引用），导致误判。
 // ═══════════════════════════════════════════════════════════════════
 
 let _runtime: "tauri" | "web" | null = null;
 
-async function detectRuntime(): Promise<"tauri" | "web"> {
+function detectRuntime(): "tauri" | "web" {
   if (_runtime !== null) return _runtime;
-  // Node.js 环境无 window 对象（如 tsx 测试），直接判定 web
-  // Tauri webview 有 window.__TAURI__，import 会成功
-  if (typeof window === "undefined") {
-    _runtime = "web";
-    return "web";
-  }
-  try {
-    await import("@tauri-apps/api/core");
+  if (typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__) {
     _runtime = "tauri";
-  } catch {
+  } else {
     _runtime = "web";
   }
   return _runtime;
@@ -278,7 +276,7 @@ export const templateStore = {
   // ── listTemplates ──
 
   async listTemplates(): Promise<Template[]> {
-    const rt = await detectRuntime();
+    const rt = detectRuntime();
     if (rt === "web") {
       return lsRead();
     }
@@ -301,7 +299,7 @@ export const templateStore = {
   // ── createTemplate ──
 
   async createTemplate(input: TemplateInput): Promise<Template> {
-    const rt = await detectRuntime();
+    const rt = detectRuntime();
     if (rt === "web") {
       const all = lsRead();
       const ts = now();
@@ -353,7 +351,7 @@ export const templateStore = {
   // ── updateTemplate ──
 
   async updateTemplate(id: string, input: Partial<TemplateInput>): Promise<void> {
-    const rt = await detectRuntime();
+    const rt = detectRuntime();
     if (rt === "web") {
       const all = lsRead();
       const idx = all.findIndex((t) => t.id === id);
@@ -395,7 +393,7 @@ export const templateStore = {
   // ── deleteTemplate ──
 
   async deleteTemplate(id: string): Promise<void> {
-    const rt = await detectRuntime();
+    const rt = detectRuntime();
     if (rt === "web") {
       const all = lsRead();
       const idx = all.findIndex((t) => t.id === id);
@@ -427,7 +425,7 @@ export const templateStore = {
   // ── seedBuiltinTemplates（幂等：两端都仅当不存在时写入）──
 
   async seedBuiltinTemplates(): Promise<void> {
-    const rt = await detectRuntime();
+    const rt = detectRuntime();
     if (rt === "web") {
       const existing = lsRead();
       if (existing.length > 0) return; // 已有数据，跳过（幂等）
