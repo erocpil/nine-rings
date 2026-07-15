@@ -14,12 +14,33 @@ interface Props {
   onBusyChange?: (busy: boolean) => void;
 }
 
+/** owner/repo 合并格式校验 */
+const OWNER_REPO_RE = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\/[a-zA-Z0-9._-]+$/;
+
+/** 格式化时间戳 "20260715T123000" → "2026-07-15 12:30:00" */
+function fmtVersion(version: string | null): string {
+  if (!version) return "";
+  if (version.length !== 15) return version;
+  const y = version.slice(0, 4);
+  const M = version.slice(4, 6);
+  const d = version.slice(6, 8);
+  const h = version.slice(9, 11);
+  const m = version.slice(11, 13);
+  const s = version.slice(13, 15);
+  return `${y}-${M}-${d} ${h}:${m}:${s}`;
+}
+
 export default function SettingsSync({ onBusyChange }: Props) {
   const [cfg, setCfg] = useState<SyncConfig>(loadSyncConfig);
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"" | "success" | "error">("");
+
+  // Owner/Repo 合并编辑
+  const [editOwnerRepo, setEditOwnerRepo] = useState(false);
+  const [ownerRepoValue, setOwnerRepoValue] = useState("");
+  const [ownerRepoError, setOwnerRepoError] = useState("");
 
   // 防止 Strict Mode 重复触发
   const checkRef = useRef("");
@@ -31,7 +52,7 @@ export default function SettingsSync({ onBusyChange }: Props) {
       return;
     }
     const key = `${cfg.owner}/${cfg.repo}/${cfg.path}`;
-    if (key === checkRef.current) return; // 已在当前会话检查过
+    if (key === checkRef.current) return;
     checkRef.current = key;
     checkStatus(cfg).then(setStatus);
   }, [cfg.token, cfg.owner, cfg.repo, cfg.path]);
@@ -48,6 +69,38 @@ export default function SettingsSync({ onBusyChange }: Props) {
       return next;
     });
   }, []);
+
+  // ── Owner/Repo 合并编辑 ──
+
+  const startEditOwnerRepo = useCallback(() => {
+    setOwnerRepoValue(`${cfg.owner}/${cfg.repo}`);
+    setOwnerRepoError("");
+    setEditOwnerRepo(true);
+  }, [cfg.owner, cfg.repo]);
+
+  const commitOwnerRepo = useCallback(() => {
+    const trimmed = ownerRepoValue.trim();
+    if (!OWNER_REPO_RE.test(trimmed)) {
+      setOwnerRepoError("格式: owner/repo（owner 字母数字 -，repo 字母数字 ._-）");
+      return;
+    }
+    const [owner, repo] = trimmed.split("/");
+    update({ owner, repo });
+    setEditOwnerRepo(false);
+    setOwnerRepoError("");
+  }, [ownerRepoValue, update]);
+
+  const cancelEditOwnerRepo = useCallback(() => {
+    setEditOwnerRepo(false);
+    setOwnerRepoError("");
+  }, []);
+
+  const handleOwnerRepoKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") { e.preventDefault(); commitOwnerRepo(); }
+    if (e.key === "Escape") { e.preventDefault(); cancelEditOwnerRepo(); }
+  };
+
+  // ── 同步操作 ──
 
   const handleCheck = useCallback(async () => {
     setBusy(true);
@@ -85,7 +138,6 @@ export default function SettingsSync({ onBusyChange }: Props) {
       const updated = await pullFromGitHub(cfg);
       setCfg(updated);
       showMessage(`已拉取 (${new Date().toLocaleTimeString()})，即将刷新页面…`, "success");
-      // 刷新页面使数据生效
       setTimeout(() => window.location.reload(), 2000);
     } catch (e) {
       showMessage(`拉取失败: ${(e as Error).message}`, "error");
@@ -127,31 +179,55 @@ export default function SettingsSync({ onBusyChange }: Props) {
         />
       </label>
 
-      {/* Owner / Repo */}
-      <div className="settings-row">
-        <label className="settings-label" style={{ flex: 1 }}>
-          Owner
-          <input
-            type="text"
-            className="settings-input"
-            placeholder="你的 GitHub 用户名"
-            style={{ maxWidth: 140 }}
-            value={cfg.owner}
-            onChange={(e) => update({ owner: e.target.value })}
-          />
+      {/* Owner / Repo — 双击合并编辑 */}
+      {editOwnerRepo ? (
+        <label className="settings-label">
+          Owner / Repo
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <input
+              type="text"
+              className={`settings-input ${ownerRepoError ? "settings-input-err" : ""}`}
+              placeholder="erocpil/nine-rings-backup"
+              value={ownerRepoValue}
+              onChange={(e) => { setOwnerRepoValue(e.target.value); setOwnerRepoError(""); }}
+              onKeyDown={handleOwnerRepoKeyDown}
+              onBlur={commitOwnerRepo}
+              autoFocus
+              style={{ flex: 1 }}
+            />
+          </div>
+          {ownerRepoError && <span className="settings-err">{ownerRepoError}</span>}
         </label>
-        <span className="settings-sep">/</span>
-        <label className="settings-label" style={{ flex: 2 }}>
-          Repo
-          <input
-            type="text"
-            className="settings-input"
-            placeholder="仓库名"
-            value={cfg.repo}
-            onChange={(e) => update({ repo: e.target.value })}
-          />
-        </label>
-      </div>
+      ) : (
+        <div className="settings-row"
+          onDoubleClick={startEditOwnerRepo}
+          title="双击编辑 owner/repo"
+          style={{ cursor: "pointer" }}
+        >
+          <label className="settings-label" style={{ flex: 1 }}>
+            Owner
+            <input
+              type="text"
+              className="settings-input"
+              placeholder="你的 GitHub 用户名"
+              style={{ maxWidth: 140 }}
+              value={cfg.owner}
+              readOnly
+            />
+          </label>
+          <span className="settings-sep">/</span>
+          <label className="settings-label" style={{ flex: 2 }}>
+            Repo
+            <input
+              type="text"
+              className="settings-input"
+              placeholder="仓库名"
+              value={cfg.repo}
+              readOnly
+            />
+          </label>
+        </div>
+      )}
 
       {/* Path */}
       <label className="settings-label">
@@ -169,11 +245,25 @@ export default function SettingsSync({ onBusyChange }: Props) {
       {status && (
         <div className={`sync-status ${status.ok ? "sync-ok" : "sync-err"}`}>
           {status.ok ? "✅" : "❌"} {status.message}
-          {cfg.lastSyncAt && (
-            <span className="sync-time">
-              上次同步: {new Date(cfg.lastSyncAt).toLocaleString()}
-            </span>
+        </div>
+      )}
+
+      {/* 版本信息 */}
+      {(cfg.lastPushVersion || cfg.lastPullVersion) && (
+        <div className="sync-versions">
+          {cfg.lastPushVersion && (
+            <span>上次 Push: {fmtVersion(cfg.lastPushVersion)}</span>
           )}
+          {cfg.lastPushVersion && cfg.lastPullVersion && <span className="sync-versions-sep" />}
+          {cfg.lastPullVersion && (
+            <span>上次 Pull: {fmtVersion(cfg.lastPullVersion)}</span>
+          )}
+        </div>
+      )}
+
+      {cfg.lastSyncAt && (
+        <div className="sync-time">
+          上次同步: {new Date(cfg.lastSyncAt).toLocaleString()}
         </div>
       )}
 

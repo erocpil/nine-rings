@@ -3173,6 +3173,19 @@ body {
   opacity: 0.7;
 }
 
+.sync-versions {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sync-versions-sep {
+  opacity: 0.3;
+}
+
 .sync-toast {
   margin-top: 8px;
   padding: 8px 12px;
@@ -3260,6 +3273,16 @@ body {
 
 .settings-input:focus {
   border-color: var(--accent);
+}
+
+.settings-input-err {
+  border-color: #e74c3c !important;
+}
+
+.settings-err {
+  color: #e74c3c;
+  font-size: 11px;
+  margin-top: 3px;
 }
 
 .settings-btn {

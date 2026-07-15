@@ -26,6 +26,10 @@ export interface SyncConfig {
   lastSyncAt: string | null;
   /** 远端文件 SHA（PUT 时需要，防止覆盖冲突） */
   remoteSha: string | null;
+  /** 最近一次 Push 的数据版本（ISO 时间戳 "20260715T123000"） */
+  lastPushVersion: string | null;
+  /** 最近一次 Pull 的数据版本 */
+  lastPullVersion: string | null;
 }
 
 export interface SyncStatus {
@@ -46,7 +50,7 @@ export function loadSyncConfig(): SyncConfig {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
   } catch { /* ignore */ }
-  return { token: "", owner: "", repo: "", path: "nine-rings-backup.json", lastSyncAt: null, remoteSha: null };
+  return { token: "", owner: "", repo: "", path: "nine-rings-backup.json", lastSyncAt: null, remoteSha: null, lastPushVersion: null, lastPullVersion: null };
 }
 
 export function saveSyncConfig(config: SyncConfig): void {
@@ -158,7 +162,21 @@ async function putRemote(token: string, owner: string, repo: string, path: strin
   return data.content.sha;
 }
 
-// ── 同步逻辑 ──
+// ── 版本化路径工具 ──
+
+/** 从基础路径推导时间戳数据文件路径 "base-20260715T123000.json" */
+function versionedPath(basePath: string, version: string): string {
+  const dot = basePath.lastIndexOf(".");
+  if (dot === -1) return `${basePath}-${version}`;
+  return `${basePath.slice(0, dot)}-${version}${basePath.slice(dot)}`;
+}
+
+/** 从基础路径推导 latest 指针文件路径 "base-latest"（纯文本，无后缀） */
+function latestPath(basePath: string): string {
+  const dot = basePath.lastIndexOf(".");
+  if (dot === -1) return `${basePath}-latest`;
+  return `${basePath.slice(0, dot)}-latest`;
+}
 
 /** 导出全量数据为 JSON 字符串（复用现有导出逻辑） */
 async function exportFullDB(): Promise<string> {
@@ -282,11 +300,11 @@ function dumpDocTree(docNotes: any[]): void {
 }
 
 /**
- * Push: 本地 → GitHub
+ * Push: 本地 → GitHub（版本化）
  *
- * 策略：先 fetchRemote 获取远端当前 SHA（即使本地 remoteSha 丢失也能正确更新），
- * 再 PUT 带上 SHA。文件不存在（404）时，sha=null 即创建新文件。
- * 返回新的 remoteSha
+ * 写两个文件：
+ *   1. {path}-{version}.json  — 全量数据快照（不可变，sha=null 即 create）
+ *   2. {path}-latest           — 文本指针，内容为版本号（覆盖更新）
  */
 export async function pushToGitHub(config: SyncConfig, message?: string): Promise<SyncConfig> {
   if (!config.token || !config.owner || !config.repo) {
@@ -297,39 +315,54 @@ export async function pushToGitHub(config: SyncConfig, message?: string): Promis
   const content = await exportFullDB();
   dumpBundle("导出本地数据", content);
 
-  // 先获取远端当前 SHA，防止 localStorage remoteSha 丢失导致 422
-  let remoteSha: string | null = null;
+  const version = new Date().toISOString().replace(/[:-]/g, "").replace(/\..+/, ""); // "20260715T123000"
+  const dataPath = versionedPath(config.path, version);
+  const ptrPath = latestPath(config.path);
+
+  // ── 1. 写数据文件（创建，sha=null）──
+  addLog(`[Sync] 写入数据文件: ${dataPath}`);
   try {
-    const remote = await fetchRemote(config.token, config.owner, config.repo, config.path);
-    remoteSha = remote?.sha ?? null;
-    if (remoteSha) {
-      addLog(`[Sync] 远端文件存在 (sha: ${remoteSha.slice(0, 7)}) — 执行更新`);
-    } else {
-      addLog("[Sync] 远端文件不存在 — 执行创建");
-    }
+    await putRemote(config.token, config.owner, config.repo, dataPath, content, null,
+      message || `backup: ${version}`);
   } catch (e) {
-    addLog(`[Sync] 获取远端 SHA 失败: ${(e as Error).message}`);
+    addLog(`[Sync] 数据文件写入失败: ${(e as Error).message}`);
     throw e;
   }
 
-  const commitMsg = message || `sync: ${new Date().toISOString()}`;
-  const newSha = await putRemote(config.token, config.owner, config.repo, config.path, content, remoteSha, commitMsg);
+  // ── 2. 写 latest 指针 ──
+  addLog(`[Sync] 写入 latest 指针: ${ptrPath} → ${version}`);
+  try {
+    // 先获取 latest 的 SHA（可能不存在）
+    let ptrSha: string | null = null;
+    try {
+      const ptr = await fetchRemote(config.token, config.owner, config.repo, ptrPath);
+      ptrSha = ptr?.sha ?? null;
+    } catch {
+      // 文件不存在，null 即 create
+    }
+    await putRemote(config.token, config.owner, config.repo, ptrPath, version, ptrSha,
+      `latest: ${version}`);
+  } catch (e) {
+    addLog(`[Sync] latest 指针写入失败: ${(e as Error).message}`);
+    throw e;
+  }
 
-  addLog(`[Sync] Push ✓ 完成 — ${config.owner}/${config.repo}/${config.path}  (sha: ${newSha.slice(0, 7)})`);
+  addLog(`[Sync] Push ✓ 完成 — ${config.owner}/${config.repo}/ 版本 ${version}`);
   addLog("");
 
   const updated = {
     ...config,
     lastSyncAt: new Date().toISOString(),
-    remoteSha: newSha,
+    lastPushVersion: version,
   };
   saveSyncConfig(updated);
   return updated;
 }
 
 /**
- * Pull: GitHub → 本地
- * 返回更新后的配置
+ * Pull: GitHub → 本地（版本化）
+ *
+ * 先读 {path}-latest 指针文件获取版本号 → 再拉对应版本的数据文件。
  */
 export async function pullFromGitHub(config: SyncConfig): Promise<SyncConfig> {
   if (!config.token || !config.owner || !config.repo) {
@@ -337,21 +370,38 @@ export async function pullFromGitHub(config: SyncConfig): Promise<SyncConfig> {
   }
 
   addLog("[Sync] ═══ Pull ← GitHub ═══");
-  const remote = await fetchRemote(config.token, config.owner, config.repo, config.path);
+
+  const ptrPath = latestPath(config.path);
+
+  // ── 1. 读 latest 指针 ──
+  addLog(`[Sync] 读取 latest 指针: ${ptrPath}`);
+  const ptr = await fetchRemote(config.token, config.owner, config.repo, ptrPath);
+  if (!ptr) {
+    throw new Error(`远端仓库中未找到指针文件 ${ptrPath}`);
+  }
+  const version = ptr.content.trim();
+  if (!version) {
+    throw new Error("latest 指针文件为空");
+  }
+  addLog(`[Sync] latest → 版本 ${version}`);
+
+  // ── 2. 拉对应版本的数据 ──
+  const dataPath = versionedPath(config.path, version);
+  addLog(`[Sync] 拉取数据: ${dataPath}`);
+  const remote = await fetchRemote(config.token, config.owner, config.repo, dataPath);
   if (!remote) {
-    throw new Error("远端仓库中未找到备份文件");
+    throw new Error(`远端仓库中未找到数据文件 ${dataPath}`);
   }
 
   addLog(`[Sync] 远端 SHA: ${remote.sha.slice(0, 7)}  |  大小: ${(new TextEncoder().encode(remote.content).length / 1024).toFixed(1)} KB`);
 
   // 防御：验证拉取到的内容是有效 JSON
-  // 空备份文件（0 字节）是合法状态 — 表示远端尚无数据
   if (!remote.content || !remote.content.trim()) {
     addLog("[Sync] 远端文件为空 — 跳过导入");
     const updated = {
       ...config,
       lastSyncAt: new Date().toISOString(),
-      remoteSha: remote.sha,
+      lastPullVersion: version,
     };
     saveSyncConfig(updated);
     return updated;
@@ -366,7 +416,6 @@ export async function pullFromGitHub(config: SyncConfig): Promise<SyncConfig> {
 
   await importFullDB(remote.content);
 
-  // 解析导入结果
   const bundle = JSON.parse(remote.content);
   addLog(`[Sync] Pull ✓ 完成 — 导入 ${bundle.notes?.length ?? 0} 笔记 + ${bundle.daily_pages?.length ?? 0} 页面`);
   addLog("[Sync] 刷新页面后生效");
@@ -375,7 +424,7 @@ export async function pullFromGitHub(config: SyncConfig): Promise<SyncConfig> {
   const updated = {
     ...config,
     lastSyncAt: new Date().toISOString(),
-    remoteSha: remote.sha,
+    lastPullVersion: version,
   };
   saveSyncConfig(updated);
   return updated;
@@ -391,12 +440,14 @@ export async function checkStatus(config: SyncConfig): Promise<SyncStatus> {
   }
 
   try {
-    const url = `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${encodeURIComponent(config.path)}`;
+    // 检查 latest 指针文件是否存在
+    const ptrPath = latestPath(config.path);
+    const url = `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${encodeURIComponent(ptrPath)}`;
     const res = await fetch(url, { headers: authHeader(config.token) });
     if (res.status === 404) {
       return {
         ok: true,
-        message: "仓库连接正常，远端暂无备份文件",
+        message: "仓库连接正常，远端暂无备份",
         localAt: config.lastSyncAt,
       };
     }
