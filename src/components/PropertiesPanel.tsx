@@ -159,16 +159,22 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPa
         {/* 类型 */}
         <div className="prop-section">
           <div className="prop-label">类型</div>
-          <div className="prop-type-options">
+          <div className="prop-type-options" role="radiogroup" aria-label="文档类型">
             {DOC_TYPE_OPTIONS.map((o) => (
-              <button
+              <label
                 key={o.value}
                 className={`prop-type-btn ${note.docType === o.value ? "active" : ""}`}
-                onClick={() => handleTypeChange(o.value)}
-                title={o.label}
               >
+                <input
+                  type="radio"
+                  name={`prop-type-${note.id}`}
+                  className="prop-type-radio"
+                  value={o.value}
+                  checked={note.docType === o.value}
+                  onChange={() => handleTypeChange(o.value)}
+                />
                 {o.label}
-              </button>
+              </label>
             ))}
           </div>
         </div>

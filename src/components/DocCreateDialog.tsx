@@ -162,17 +162,23 @@ function DocCreateDialog({ onClose, onCreated }: DocCreateDialogProps) {
           {/* 类型（Diátaxis） */}
           <label className="dialog-field">
             <span className="dialog-label">类型</span>
-            <div className="dialog-type-grid">
+            <div className="dialog-type-grid" role="radiogroup" aria-label="文档类型">
               {DOC_TYPE_OPTIONS.map((o) => (
-                <button
+                <label
                   key={o.value}
                   className={`dialog-type-btn ${docType === o.value ? "active" : ""}`}
-                  onClick={() => setDocType(o.value)}
-                  type="button"
                 >
+                  <input
+                    type="radio"
+                    name="doc-create-type"
+                    className="dialog-type-radio"
+                    value={o.value}
+                    checked={docType === o.value}
+                    onChange={() => setDocType(o.value)}
+                  />
                   <span className="dialog-type-label">{o.label}</span>
                   <span className="dialog-type-desc">{o.desc}</span>
-                </button>
+                </label>
               ))}
             </div>
           </label>
