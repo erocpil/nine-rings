@@ -17,7 +17,7 @@ interface Props {
 /** owner/repo 合并格式校验 */
 const OWNER_REPO_RE = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\/[a-zA-Z0-9._-]+$/;
 
-/** 格式化时间戳 "20260715T123000" → "2026-07-15 12:30:00" */
+/** 格式化 UTC 时间戳 "20260715T143911" → 本地时间 "2026-07-15 22:39:11" */
 function fmtVersion(version: string | null): string {
   if (!version) return "";
   if (version.length !== 15) return version;
@@ -27,7 +27,11 @@ function fmtVersion(version: string | null): string {
   const h = version.slice(9, 11);
   const m = version.slice(11, 13);
   const s = version.slice(13, 15);
-  return `${y}-${M}-${d} ${h}:${m}:${s}`;
+  // 版本时间戳为 UTC，转为本地时区显示
+  const utcMs = Date.UTC(+y, +M - 1, +d, +h, +m, +s);
+  const local = new Date(utcMs);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())} ${pad(local.getHours())}:${pad(local.getMinutes())}:${pad(local.getSeconds())}`;
 }
 
 export default function SettingsSync({ onBusyChange }: Props) {
@@ -237,12 +241,6 @@ export default function SettingsSync({ onBusyChange }: Props) {
           {cfg.lastPullVersion && (
             <span>上次 Pull: {fmtVersion(cfg.lastPullVersion)}</span>
           )}
-        </div>
-      )}
-
-      {cfg.lastSyncAt && (
-        <div className="sync-time">
-          上次同步: {new Date(cfg.lastSyncAt).toLocaleString()}
         </div>
       )}
 
