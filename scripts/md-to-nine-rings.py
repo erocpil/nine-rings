@@ -259,7 +259,9 @@ def build_import_json(md_files, today, now, storage_path=None, doc_type=None, co
         }
         # ── 文档分类字段 ──
         if storage_path:
-            note['storagePath'] = storage_path
+            # 生成唯一路径 = 目录 + 文件标题（slug 化），使同目录多文件不互相覆盖
+            slug = re.sub(r'[^a-zA-Z0-9\u4e00-\u9fff\-_]', '-', title)[:40].strip('-')
+            note['storagePath'] = f"{storage_path}/{slug}"
         if doc_type:
             note['docType'] = doc_type
         if concepts:
