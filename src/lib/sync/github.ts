@@ -174,7 +174,7 @@ async function importFullDB(json: string): Promise<void> {
   console.log("[importFullDB] 导入完成:", result);
 }
 
-/** 树形 dump 导出数据摘要 */
+/** 树形 dump 导出数据摘要 + P.A.R.A. 文档树 */
 function dumpBundle(label: string, json: string): void {
   let data: any;
   try { data = JSON.parse(json); } catch { addLog(`[Sync] ${label}: <非 JSON> ${json.slice(0, 80)}`); return; }
@@ -183,18 +183,42 @@ function dumpBundle(label: string, json: string): void {
   const pages: any[] = data.daily_pages ?? [];
   const sizeKB = (new TextEncoder().encode(json).length / 1024).toFixed(1);
 
+  // 分类统计
+  const docNotes  = notes.filter((n: any) => n.storagePath);
+  const essays    = notes.filter((n: any) => !n.storagePath);
+  const typeCount: Record<string, number> = {};
+  for (const n of docNotes) {
+    const dt = n.docType ?? "未设置";
+    typeCount[dt] = (typeCount[dt] ?? 0) + 1;
+  }
+
   addLog(`[Sync] ${label}`);
   addLog(`[Sync] ├─ 大小: ${sizeKB} KB  |  版本: ${data.version ?? "?"}  |  导出: ${(data.exported_at ?? "").slice(0, 19)}`);
-  addLog(`[Sync] ├─ 笔记: ${notes.length} 篇`);
-  const showNotes = notes.slice(0, 30);
-  showNotes.forEach((n, i) => {
-    const isLast = i === showNotes.length - 1 && pages.length === 0;
-    const prefix = isLast ? "└" : "├";
-    const date = (n.date ?? "").slice(0, 10);
-    const path = n.storagePath ? `  ${n.storagePath}` : "";
-    addLog(`[Sync] │  ${prefix}─ ${(n.id ?? "?").slice(0, 8)}  "${(n.title ?? "无标题").slice(0, 24)}"  ${date}${path}`);
-  });
-  if (notes.length > 30) addLog(`[Sync] │  └─ ... 还有 ${notes.length - 30} 篇`);
+  addLog(`[Sync] ├─ 笔记: ${notes.length} 篇  (文档 ${docNotes.length} + 随笔 ${essays.length})`);
+  if (docNotes.length > 0) {
+    const typeStr = Object.entries(typeCount).map(([k, v]) => `${k}:${v}`).join("  ");
+    addLog(`[Sync] │  文档类型分布: ${typeStr}`);
+  }
+
+  // ── P.A.R.A. 文档树 ──
+  if (docNotes.length > 0) {
+    addLog(`[Sync] ├─ 📁 文档结构 (P.A.R.A.):`);
+    dumpDocTree(docNotes);
+  }
+
+  // ── 随笔列表 ──
+  if (essays.length > 0) {
+    addLog(`[Sync] ├─ 📄 随笔 (${essays.length} 篇):`);
+    const showEssays = essays.slice(0, 15);
+    showEssays.forEach((n: any, i: number) => {
+      const isLast = i === showEssays.length - 1;
+      const prefix = isLast ? "└" : "├";
+      const date = (n.date ?? "").slice(0, 10);
+      const tags = n.tags?.length ? `  [${n.tags.join(", ")}]` : "";
+      addLog(`[Sync] │  ${prefix}─ ${(n.id ?? "?").slice(0, 8)}  "${(n.title ?? "无标题").slice(0, 24)}"  ${date}${tags}`);
+    });
+    if (essays.length > 15) addLog(`[Sync] │  └─ ... 还有 ${essays.length - 15} 篇`);
+  }
 
   addLog(`[Sync] ├─ 每日页面: ${pages.length} 页`);
   const showPages = pages.slice(0, 15);
@@ -206,6 +230,55 @@ function dumpBundle(label: string, json: string): void {
   });
   if (pages.length > 15) addLog(`[Sync] │  └─ ... 还有 ${pages.length - 15} 页`);
   addLog("");
+}
+
+/** 按 storagePath 分组 dump P.A.R.A. 文档树 */
+function dumpDocTree(docNotes: any[]): void {
+  // 构建前缀树
+  const tree = new Map<string, { folders: Set<string>; docs: any[] }>();
+  for (const n of docNotes) {
+    const root = n.storagePath.split("/")[0] || "(root)";
+    if (!tree.has(root)) tree.set(root, { folders: new Set(), docs: [] });
+    const entry = tree.get(root)!;
+    entry.docs.push(n);
+    // 收集子文件夹
+    const parts = n.storagePath.split("/");
+    for (let i = 1; i < parts.length; i++) {
+      entry.folders.add(parts.slice(0, i + 1).join("/"));
+    }
+  }
+
+  const roots = [...tree.keys()].sort();
+  roots.forEach((root, ri) => {
+    const isLastRoot = ri === roots.length - 1;
+    const rpfx = isLastRoot ? "└" : "├";
+    const entry = tree.get(root)!;
+    addLog(`[Sync] │  ${rpfx}─ 📁 ${root}/  (${entry.docs.length} 文档, ${entry.folders.size} 子目录)`);
+
+    // 子目录
+    const sortedFolders = [...entry.folders].sort();
+    sortedFolders.forEach((folder, fi) => {
+      const isLastF = fi === sortedFolders.length - 1;
+      const fpfx = isLastRoot ? (isLastF ? " " : "│") : "│";
+      const fpfx2 = isLastF ? "└" : "├";
+      const subDocs = entry.docs.filter((n: any) =>
+        n.storagePath === folder || n.storagePath.startsWith(folder + "/")
+      ).length;
+      const folderName = folder.split("/").pop()!;
+      addLog(`[Sync] │  ${fpfx}   ${fpfx2}─ 📂 ${folderName}/  (${subDocs} 文档)`);
+    });
+
+    // 根级文档（storagePath 恰好等于 root）
+    const rootDocs = entry.docs.filter((n: any) => n.storagePath === root);
+    rootDocs.forEach((n: any, di: number) => {
+      const isLastD = di === rootDocs.length - 1 && sortedFolders.length === 0;
+      const dpfx = isLastRoot ? (isLastD ? " " : "│") : "│";
+      const dpfx2 = isLastD ? "└" : "├";
+      const dt = n.docType ? ` [${n.docType}]` : "";
+      const concepts = n.concepts?.length ? `  🏷 ${n.concepts.join(", ")}` : "";
+      addLog(`[Sync] │  ${dpfx}   ${dpfx2}─ 📄 ${(n.title ?? "无标题").slice(0, 28)}${dt}  ${(n.id ?? "?").slice(0, 6)}${concepts}`);
+    });
+  });
 }
 
 /**

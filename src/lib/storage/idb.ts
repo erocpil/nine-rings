@@ -663,6 +663,10 @@ export const idbAdapter: StorageAdapter = {
 
       // 收集所有 nr-image:// 引用并按需导出图片 blob 为 base64
       const noteRecords = notes.filter((n) => !n.deleted_at).map(noteFromDB);
+      const docCount = noteRecords.filter((n: any) => n.storagePath).length;
+      const essayCount = noteRecords.filter((n: any) => !n.storagePath).length;
+      console.log(`[exportData] 导出 ${noteRecords.length} 篇笔记 (文档 ${docCount} + 随笔 ${essayCount}), ${dailyPages.length} 每日页面`);
+
       for (const note of noteRecords) {
         const ops = note.content?.ops ?? [];
         for (const op of ops) {
@@ -695,7 +699,7 @@ export const idbAdapter: StorageAdapter = {
         note.content = { ...note.content, ops };
       }
 
-      return JSON.stringify({
+      const json = JSON.stringify({
         version: 1,
         exported_at: now(),
         notes: noteRecords,
@@ -705,6 +709,19 @@ export const idbAdapter: StorageAdapter = {
           todo_carryover: p.todo_carryover === 1 || p.todo_carryover === true,
         })),
       }, null, 2);
+
+      // 日志延后到 JSON 序列化后打印
+      console.log(`[exportData] 完成 — 大小 ${(json.length / 1024).toFixed(1)} KB`);
+      if (docCount > 0) {
+        console.log(`[exportData] 文档列表 (P.A.R.A.):`);
+        for (const n of noteRecords) {
+          if (!n.storagePath) continue;
+          const dt = n.docType ? ` [${n.docType}]` : "";
+          const concepts = n.concepts?.length ? `  🏷 ${n.concepts.join(", ")}` : "";
+          console.log(`  ${n.storagePath}/${n.id.slice(0, 6)}  "${(n.title ?? "无标题").slice(0, 30)}"${dt}${concepts}`);
+        }
+      }
+      return json;
     });
   },
 
@@ -713,6 +730,10 @@ export const idbAdapter: StorageAdapter = {
       const data = JSON.parse(json);
       const importedNotes: any[] = data.notes ?? [];
       const pages = data.daily_pages ?? [];
+
+      const importDocs = importedNotes.filter((n: any) => n.storagePath);
+      const importEssays = importedNotes.filter((n: any) => !n.storagePath);
+      console.log(`[importData] 解析: ${importedNotes.length} 笔记 (文档 ${importDocs.length} + 随笔 ${importEssays.length}), ${pages.length} 每日页面`);
 
       // ── Step 1: 读取现有笔记，构建去重索引 ──
       const existingNotes: any[] = await new Promise((resolve, reject) => {
@@ -753,6 +774,7 @@ export const idbAdapter: StorageAdapter = {
         for (const imported of importedNotes) {
           try {
             let target = imported;
+            let dedupKind = "";
 
             // 去重策略: storagePath（文档笔记）> title+date（日记/随笔）
             if (imported.storagePath) {
@@ -760,6 +782,7 @@ export const idbAdapter: StorageAdapter = {
               if (existing) {
                 target = { ...imported, id: existing.id };
                 merged++;
+                dedupKind = ` [merge: storagePath=${imported.storagePath}]`;
               }
             } else if (imported.title) {
               const key = `${imported.title}\x00${imported.date}`;
@@ -767,10 +790,18 @@ export const idbAdapter: StorageAdapter = {
               if (existing) {
                 target = { ...imported, id: existing.id };
                 merged++;
+                dedupKind = ` [merge: title+date]`;
               }
             }
 
             noteStore.put(noteToDB(target));
+
+            // 逐条日志（仅文档笔记）: 显示 storagePath + docType + concepts
+            if (imported.storagePath) {
+              const dt = imported.docType ? ` [${imported.docType}]` : "";
+              const cpts = imported.concepts?.length ? ` 🏷 ${imported.concepts.join(", ")}` : "";
+              console.log(`[importData]   ${imported.storagePath}/${(imported.id ?? "?").slice(0, 6)}  "${(imported.title ?? "无标题").slice(0, 30)}"${dt}${cpts}${dedupKind}`);
+            }
           } catch (e) {
             console.error(`[importData] noteToDB 失败:`, e);
             reject(e as Error);
