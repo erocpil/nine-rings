@@ -972,9 +972,14 @@ export const idbAdapter: StorageAdapter = {
 
   async getConfig(): Promise<AppConfig> {
     const raw = localStorage.getItem(CONFIG_KEY);
-    if (!raw) return { ...DEFAULT_CONFIG };
+    if (!raw) {
+      console.log("[getConfig] localStorage empty → using defaults");
+      return { ...DEFAULT_CONFIG };
+    }
     try {
-      return { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
+      const parsed = { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
+      console.log("[getConfig]", "highlight_active_line:", parsed.highlight_active_line, "editor_show_line_numbers:", parsed.editor_show_line_numbers);
+      return parsed;
     } catch {
       return { ...DEFAULT_CONFIG };
     }
@@ -983,6 +988,7 @@ export const idbAdapter: StorageAdapter = {
   async setConfig(partial: Partial<AppConfig>): Promise<AppConfig> {
     const current = await this.getConfig();
     const merged = { ...current, ...partial };
+    console.log("[setConfig]", JSON.stringify(partial), "→", JSON.stringify({ highlight_active_line: merged.highlight_active_line, editor_show_line_numbers: merged.editor_show_line_numbers }));
     localStorage.setItem(CONFIG_KEY, JSON.stringify(merged));
     return merged;
   },

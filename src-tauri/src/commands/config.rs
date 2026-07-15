@@ -15,6 +15,25 @@ pub struct AppConfig {
     pub note_font_size: i32,
     pub enable_sync: bool,
     pub dev_port: i32,
+    #[serde(default = "default_true")]
+    pub highlight_active_line: bool,
+    #[serde(default)]
+    pub editor_show_line_numbers: bool,
+    #[serde(default = "default_hotkeys")]
+    pub hotkeys: std::collections::HashMap<String, String>,
+}
+
+fn default_true() -> bool { true }
+
+fn default_hotkeys() -> std::collections::HashMap<String, String> {
+    std::collections::HashMap::from([
+        ("new_note".into(), "CommandOrControl+N".into()),
+        ("quick_capture".into(), "CommandOrControl+Alt+N".into()),
+        ("focus_search".into(), "CommandOrControl+E".into()),
+        ("open_settings".into(), "Alt+,".into()),
+        ("go_to_daily".into(), "CommandOrControl+Shift+D".into()),
+        ("show_window".into(), "Alt+Y".into()),
+    ])
 }
 
 impl Default for AppConfig {
@@ -27,6 +46,9 @@ impl Default for AppConfig {
             note_font_size: 16,
             enable_sync: false,
             dev_port: 1420,
+            highlight_active_line: true,
+            editor_show_line_numbers: false,
+            hotkeys: default_hotkeys(),
         }
     }
 }
