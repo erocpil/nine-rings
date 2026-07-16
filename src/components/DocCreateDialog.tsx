@@ -54,7 +54,12 @@ function DocCreateDialog({ onClose, onCreated }: DocCreateDialogProps) {
     // 加载模板
     templateStore.seedBuiltinTemplates().then(() =>
       templateStore.listTemplates()
-    ).then(setTemplates).catch(() => {});
+    ).then((list) => {
+      setTemplates(list);
+      // "空白笔记" 作为默认选中
+      const blank = list.find((t) => t.id === "builtin-blank");
+      if (blank) setActiveTemplateId(blank.id);
+    }).catch(() => {});
   }, []);
 
   /** 选择模板 — 预填表单，用户仍可修改 */
@@ -158,14 +163,6 @@ function DocCreateDialog({ onClose, onCreated }: DocCreateDialogProps) {
             <div className="dialog-field">
               <span className="dialog-label">模板</span>
               <div className="dialog-template-row">
-                <button
-                  className={`dialog-template-chip ${activeTemplateId === null ? "active" : ""}`}
-                  onClick={() => handleTemplateSelect(null)}
-                  type="button"
-                >
-                  <span className="dialog-template-icon">📝</span>
-                  <span className="dialog-template-name">空白</span>
-                </button>
                 {templates.map((t) => (
                   <button
                     key={t.id}
