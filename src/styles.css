@@ -4092,6 +4092,78 @@ body {
   white-space: nowrap;
 }
 
+.prop-path {
+  cursor: pointer;
+}
+
+.prop-path:hover {
+  background: var(--border);
+}
+
+.prop-path-edit-icon {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.prop-path:hover .prop-path-edit-icon {
+  opacity: 1;
+}
+
+.prop-path-edit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.prop-path-select {
+  padding: 2px 4px;
+  font-size: 11px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.prop-path-sep {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.prop-path-input {
+  flex: 1;
+  padding: 2px 6px;
+  font-size: 11px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font-family: monospace;
+  min-width: 0;
+}
+
+.prop-path-save,
+.prop-path-cancel {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  color: var(--text-secondary);
+}
+
+.prop-path-save { color: var(--accent); }
+.prop-path-save:hover { background: var(--active-bg); }
+.prop-path-cancel:hover { background: var(--hover); }
+
 .prop-type-options {
   display: flex;
   flex-direction: column;

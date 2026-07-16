@@ -16,13 +16,13 @@ const DOC_TYPE_OPTIONS: { value: DocType; label: string }[] = [
   { value: "tutorial", label: "🎓 教程" },
 ];
 
-const PATH_ROOT_LABELS: Record<string, string> = {
-  projects: "📁 Projects",
-  areas: "🧩 Areas",
-  references: "📚 References",
-  ideas: "💡 Ideas",
-  archives: "📦 Archives",
-};
+const PATH_ROOT_OPTIONS = [
+  { value: "projects", label: "📁 Projects" },
+  { value: "areas", label: "🧩 Areas" },
+  { value: "references", label: "📚 References" },
+  { value: "ideas", label: "💡 Ideas" },
+  { value: "archives", label: "📦 Archives" },
+];
 
 function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPanelProps) {
   const [conceptInput, setConceptInput] = useState("");
@@ -31,14 +31,17 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPa
   const [linkSearch, setLinkSearch] = useState("");
   const [linkResults, setLinkResults] = useState<Note[]>([]);
   const [backlinks, setBacklinks] = useState<Note[]>([]);
+  const [editingPath, setEditingPath] = useState(false);
+  const [editRoot, setEditRoot] = useState("");
+  const [editSub, setEditSub] = useState("");
 
   const concepts = note.concepts ?? [];
   const linkedIds = note.linkedDocIds ?? [];
   const pathRoot = note.storagePath?.split("/")[0] ?? "";
+  const pathRest = note.storagePath?.split("/").slice(1).join("/") ?? "";
 
   useEffect(() => {
     api.docs.allConcepts().then(setExistingConcepts);
-    // 加载反向链接
     loadBacklinks();
   }, [note.id]);
 
@@ -54,7 +57,6 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPa
           }
         }
       }
-      // 也检查文档
       const docs = await api.docs.listByPath("");
       for (const n of docs) {
         if ((n.linkedDocIds ?? []).includes(note.id) && !results.find(r => r.id === n.id)) {
@@ -67,7 +69,32 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPa
     }
   };
 
+  // ── 路径变更 ──
+
+  const handlePathChange = useCallback(async () => {
+    if (readonly) return;
+    const parts = [editRoot];
+    if (editSub.trim()) {
+      parts.push(editSub.trim().replace(/[^a-z0-9-\u4e00-\u9fff]/g, "-").replace(/-+/g, "-"));
+    }
+    const newPath = parts.join("/");
+    if (newPath === note.storagePath) {
+      setEditingPath(false);
+      return;
+    }
+    await api.notes.update(note.id, { storagePath: newPath } as any);
+    onNoteUpdate({ ...note, storagePath: newPath });
+    setEditingPath(false);
+  }, [note, editRoot, editSub, onNoteUpdate, readonly]);
+
+  const startEditPath = () => {
+    setEditRoot(pathRoot || "projects");
+    setEditSub(pathRest);
+    setEditingPath(true);
+  };
+
   // ── 类型变更 ──
+
   const handleTypeChange = useCallback(async (docType: DocType) => {
     if (readonly) return;
     await api.notes.update(note.id, { docType } as any);
@@ -75,6 +102,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPa
   }, [note, onNoteUpdate, readonly]);
 
   // ── 概念 ──
+
   const handleConceptInput = (value: string) => {
     setConceptInput(value);
     if (value.trim()) {
@@ -107,6 +135,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPa
   };
 
   // ── 链接 ──
+
   const handleLinkSearch = async (value: string) => {
     setLinkSearch(value);
     if (value.trim().length >= 1) {
@@ -145,15 +174,42 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPa
       </div>
 
       <div className="properties-body">
-        {/* 生命周期位置 */}
+        {/* 位置 */}
         <div className="prop-section">
           <div className="prop-label">位置</div>
-          <div className="prop-path">
-            <span className="prop-path-icon">{PATH_ROOT_LABELS[pathRoot] ?? "📂"}</span>
-            {note.storagePath !== pathRoot && (
-              <span className="prop-path-text">/ {note.storagePath.slice(pathRoot.length + 1)}</span>
-            )}
-          </div>
+          {editingPath ? (
+            <div className="prop-path-edit">
+              <select
+                className="prop-path-select"
+                value={editRoot}
+                onChange={(e) => setEditRoot(e.target.value)}
+              >
+                {PATH_ROOT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <span className="prop-path-sep">/</span>
+              <input
+                className="prop-path-input"
+                placeholder="子路径..."
+                value={editSub}
+                onChange={(e) => setEditSub(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handlePathChange();
+                  if (e.key === "Escape") setEditingPath(false);
+                }}
+                autoFocus
+              />
+              <button className="prop-path-save" onClick={handlePathChange} title="确认">✓</button>
+              <button className="prop-path-cancel" onClick={() => setEditingPath(false)} title="取消">✕</button>
+            </div>
+          ) : (
+            <div className="prop-path" onClick={readonly ? undefined : startEditPath} title={readonly ? undefined : "点击修改路径"}>
+              <span className="prop-path-icon">{PATH_ROOT_OPTIONS.find(o => o.value === pathRoot)?.label ?? "📂"}</span>
+              {pathRest && <span className="prop-path-text">/ {pathRest}</span>}
+              {!readonly && <span className="prop-path-edit-icon">✎</span>}
+            </div>
+          )}
         </div>
 
         {/* 类型 */}
