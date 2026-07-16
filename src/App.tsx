@@ -953,7 +953,7 @@ function App() {
           <PropertiesPanel
             readonly={syncBusy}
             note={selectedNote}
-            onNoteUpdate={(updated) => selectNote(updated)}
+            onNoteUpdate={(updated) => { selectNote(updated); setDocTreeKey(k => k + 1); }}
             onClose={() => setPropertiesOpen(false)}
           />
         )}

@@ -93,12 +93,13 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPa
     setEditingPath(true);
   };
 
-  // ── 类型变更 ──
+  // ── 类型变更（toggle：点击已选中 → 取消）──
 
   const handleTypeChange = useCallback(async (docType: DocType) => {
     if (readonly) return;
-    await api.notes.update(note.id, { docType } as any);
-    onNoteUpdate({ ...note, docType });
+    const newType = note.docType === docType ? undefined : docType;
+    await api.notes.update(note.id, { docType: newType } as any);
+    onNoteUpdate({ ...note, docType: newType });
   }, [note, onNoteUpdate, readonly]);
 
   // ── 概念 ──
