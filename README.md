@@ -73,7 +73,13 @@
 
 ```bash
 npm install
-npm run dev          # → http://localhost:1420
+
+# 本机 + 局域网访问（适合手机端调试）
+npx vite --host 0.0.0.0 --port 8000
+
+# 仅本机访问
+npx vite --port 8000
+# → http://localhost:8000
 ```
 
 ### Web 构建
@@ -121,14 +127,19 @@ npm run tauri build
 ### Markdown 导入
 
 ```bash
-# 导入 docs/ 下所有 .md 文件到 areas/nine-rings 目录
-python3 scripts/md-to-nine-rings.py --serve --path areas/nine-rings ./docs
+# 1. 启动 Vite dev server
+cd ~/src/nine-rings
+npx vite --host 0.0.0.0 --port 8000
 
-# 指定端口
-python3 scripts/md-to-nine-rings.py --serve --port 1420 --path areas/nine-rings ./docs
+# 2. 浏览器确认 F12 看到 [dev-import] 已启动
+
+# 3. 导入（另一个终端）
+python3 scripts/md-to-nine-rings.py --serve --port 8000 --path areas/nine-rings ./docs
 ```
 
-要求：应用已在对应端口运行（`npm run dev` 或 `python3 serve.py`）。
+**注意**：`--serve` 依赖 Vite dev server 的 `/__import` 端点，生产构建（`npm run build` + `serve.py`）不支持。不可同时启动两者（端口冲突导致导入失效）。
+
+详情：[`docs/md-import.md`](./docs/md-import.md)
 
 ### Flutter 移动端
 

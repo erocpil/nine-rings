@@ -32,37 +32,42 @@ python3 scripts/md-to-nine-rings.py --path areas/nine-rings ./docs/github-sync.m
 
 ### 模式 B：`--serve` 直推（仅 dev server）
 
-适用场景：本地开发调试，`npm run dev` 运行中。
+适用场景：本地开发调试，Vite dev server 运行中。
 
 ```bash
-# 终端 1：启动 Vite dev server（默认端口 1420）
-npm run dev
+# 终端 1：启动 Vite dev server
+cd ~/src/nine-rings
+npx vite --host 0.0.0.0 --port 8000
 
 # 终端 2：推送文件
-python3 scripts/md-to-nine-rings.py --serve --path areas/nine-rings ./docs/github-sync.md
+python3 scripts/md-to-nine-rings.py --serve --port 8000 --path areas/nine-rings ./docs/github-sync.md
 ```
 
-**注意**：`--serve` 连接 `http://localhost:1420/__import`，这是一个仅存在于 Vite dev server 的 API 端点。生产构建的 `serve.py` 不提供此端点。
+**`--host 0.0.0.0`**：监听所有网卡，手机可通过局域网 IP 访问（如 `http://192.168.0.8:8000/`）。仅本机访问可省略。
 
-如果 dev server 用了自定义端口：
+**验证**：浏览器 F12 控制台应看到 `[dev-import] 已启动`，说明 `/__import` 端点已就绪。
 
-```bash
-python3 scripts/md-to-nine-rings.py --serve --port 5173 --path areas/nine-rings ./docs/github-sync.md
-```
+**注意**：`/__import` 是 Vite dev server 专属端点，生产构建（`npm run build` + `serve.py`）不提供此端点。**不可同时运行 `serve.py` 和 Vite**——两者抢占同一个端口，`serve.py` 抢占后 Vite 静默失败，页面表面正常但导入功能不可用。
 
 ---
 
 ## 二、启动本地服务
 
-### 开发模式（含热更新 + `--serve` 支持）
+### 开发模式（含热更新 + `--serve` 导入支持）
 
 ```bash
 cd ~/src/nine-rings
-npm run dev
-# Vite dev server → http://localhost:1420
+
+# 默认端口 8000，本机 + 局域网可访问
+npx vite --host 0.0.0.0 --port 8000
+
+# 仅本机访问
+npx vite --port 8000
 ```
 
-### 生产预览模式（仅静态文件）
+浏览器访问 `http://localhost:8000/`（或 `http://<局域网IP>:8000/`）。F12 控制台应看到 `[dev-import] 已启动`。
+
+### 生产预览模式（仅静态文件，无导入功能）
 
 ```bash
 cd ~/src/nine-rings
@@ -71,12 +76,14 @@ python3 serve.py --port 8000 &
 # 静态文件服务 → http://localhost:8000
 ```
 
-| | `npm run dev` | `serve.py` |
-|------|:--:|:--:|
+| | `npx vite --host 0.0.0.0 --port 8000` | `serve.py` |
+|---|:--:|:--:|
 | 热更新 | ✅ | ❌ |
 | `--serve` 导入 | ✅ | ❌ |
+| 手机局域网访问 | ✅ | ✅ |
 | 模拟生产环境 | ❌ | ✅ |
-| 对外分享（Cloudflare Tunnel） | ❌ | ✅ |
+
+> ⚠️ **不可同时启动 Vite 和 `serve.py`**。端口冲突时 `serve.py` 会抢占，Vite 静默失败，页面能打开但导入功能不可用。验证方法：F12 看 Console 是否有 `[dev-import] 已启动`。
 
 ---
 
