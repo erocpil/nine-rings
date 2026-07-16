@@ -1087,6 +1087,17 @@ export const idbAdapter: StorageAdapter = {
     });
   },
 
+  async getAllNotes(): Promise<Note[]> {
+    return withDB(async (db) => {
+      const store = db.transaction("notes", "readonly").objectStore("notes");
+      const all = await getAll<any>(store);
+      return all
+        .filter((n) => !n.deleted_at)
+        .sort((a: any, b: any) => (b.date ?? "").localeCompare(a.date ?? "") || (b.updated_at ?? "").localeCompare(a.updated_at ?? ""))
+        .map(noteFromDB);
+    });
+  },
+
   async getAllConcepts(): Promise<string[]> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");

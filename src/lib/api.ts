@@ -24,6 +24,10 @@ export const api = {
     get: (id: string) =>
       adapter().then((a) => a.getNote(id)),
 
+    /** 获取所有日期的随笔（不含已删除），按日期倒序 */
+    all: () =>
+      adapter().then((a) => a.getAllNotes()),
+
     create: (data: CreateNoteInput) =>
       adapter().then((a) => a.createNote(data)),
 

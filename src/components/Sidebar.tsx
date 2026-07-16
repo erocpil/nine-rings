@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import type { Note } from "../types/models";
 import { TagFilter } from "./TagFilter";
 import { api } from "../lib/api";
@@ -112,7 +112,18 @@ export function Sidebar({
     document.addEventListener("click", handler, { once: true });
   });
 
-  const sortedNotes = applySort(notes, sortMode);
+  // ── 全部随笔模式 ──
+  const [showAll, setShowAll] = useState(false);
+  const [allNotes, setAllNotes] = useState<Note[]>([]);
+
+  useEffect(() => {
+    if (showAll) {
+      api.notes.all().then(setAllNotes).catch(() => setAllNotes([]));
+    }
+  }, [showAll]);
+
+  const displayNotes = showAll ? allNotes : notes;
+  const sortedNotes = applySort(displayNotes, sortMode);
 
   // ── 点击处理：Shift 多选 ──
   const handleItemClick = (e: React.MouseEvent, note: Note, index: number) => {
@@ -274,6 +285,14 @@ export function Sidebar({
     <div className="sidebar">
       <div className="sidebar-header">
         <h2>随笔</h2>
+        <button
+          className={`sidebar-all-btn ${showAll ? "active" : ""}`}
+          onClick={disabled ? undefined : () => setShowAll(!showAll)}
+          disabled={disabled}
+          title={showAll ? "返回当日随笔" : "查看全部随笔"}
+        >
+          {showAll ? "今日" : "全部"}
+        </button>
         <button className="sidebar-hide-btn" onClick={onHide} title="隐藏侧栏"><span className="arrow arrow-left" /></button>
         <div className="sidebar-header-actions">
           <div className="sort-dropdown" ref={sortRef}>

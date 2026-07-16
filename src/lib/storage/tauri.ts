@@ -26,6 +26,7 @@ export const tauriAdapter: StorageAdapter = {
 
   // ── 未迁移，保留旧 IPC ──
   getNote: (id) => invoke<Note | null>("get_note", { id }),
+  getAllNotes: () => invoke<Note[]>("get_all_notes"),
   upsertNote: (data) => invoke<Note>("upsert_note", { data }),
   updateNoteOrder: (id, sort_order) => invoke<Note>("update_note_order", { id, sort_order }),
   // FTS5 全文搜索 — 有意不纳入 Op 抽象，保留独立命令
