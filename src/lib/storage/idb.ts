@@ -1087,12 +1087,13 @@ export const idbAdapter: StorageAdapter = {
     });
   },
 
+  /** 获取所有日期的随笔（storagePath 为空的笔记，不含文档视图中的文档） */
   async getAllNotes(): Promise<Note[]> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
       const all = await getAll<any>(store);
       return all
-        .filter((n) => !n.deleted_at)
+        .filter((n) => !n.deleted_at && !n.storagePath)
         .sort((a: any, b: any) => (b.date ?? "").localeCompare(a.date ?? "") || (b.updated_at ?? "").localeCompare(a.updated_at ?? ""))
         .map(noteFromDB);
     });

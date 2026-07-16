@@ -294,4 +294,27 @@ export const tauriDriver = {
 
     return buildDocTree(docs, dailies);
   },
+
+  // ── getAllDailyNotes（全部随笔，不含文档视图中的文档）──
+  async getAllDailyNotes(): Promise<Note[]> {
+    const op: SelectOp = {
+      type: "select",
+      table: "notes",
+      columns: [
+        "id", "date", "title", "content", "search_text", "tags",
+        "pinned", "sort_order", "created_at", "updated_at",
+        "storage_path", "doc_type", "concepts", "linked_doc_ids", "readonly",
+      ],
+      where: [
+        { col: "storage_path", op: "IS", val: null },
+        { col: "deleted_at", op: "IS", val: null },
+      ],
+      orderBy: [
+        { col: "date", desc: true },
+        { col: "updated_at", desc: true },
+      ],
+    };
+    const rows = await dbQuery(op);
+    return rows.map(noteFromRow);
+  },
 };
