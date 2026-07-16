@@ -25,12 +25,20 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   tutorial: "教程",
 };
 
+const DOC_TYPE_ICONS: Record<string, string> = {
+  explanation: "📖",
+  "how-to": "🔧",
+  reference: "📋",
+  tutorial: "🎓",
+};
+
 const STATE_ICONS: Record<string, string> = {
   projects: "📁",
-  areas: "🎯",
+  areas: "🌐",
   references: "📚",
   ideas: "💡",
   archives: "📦",
+  daily: "📅",
 };
 
 interface ContextMenuState {
@@ -357,7 +365,7 @@ function DocTree({
           />
         )}
         <span className="doc-tree-toggle" />
-        <span className="doc-tree-icon">{node.readonly ? "🔒" : "🧩"}</span>
+        <span className="doc-tree-icon">{node.readonly ? "🔒" : (node.docType && DOC_TYPE_ICONS[node.docType]) || "🧩"}</span>
         {isRenaming && node.noteId ? (
           <InlineRename
             initialValue={node.name}
