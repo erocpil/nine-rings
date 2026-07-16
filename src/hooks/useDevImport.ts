@@ -6,7 +6,7 @@
  * 然后刷新当前日期视图。
  */
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { api } from "../lib/api";
 
 interface ImportFile {
@@ -19,6 +19,9 @@ interface ImportFile {
 }
 
 export function useDevImport(refresh: () => void) {
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh; // 始终持有最新回调，不触发 effect 重建
+
   useEffect(() => {
     // 只在 Vite dev server 模式 + 非 Tauri 环境下启用
     if (!import.meta.env.DEV) {
@@ -42,35 +45,6 @@ export function useDevImport(refresh: () => void) {
         if (!files || files.length === 0) return;
 
         console.log(`[dev-import] 收到 ${files.length} 篇待导入笔记`);
-        // ── dump 完整结构 ──
-        for (let i = 0; i < files.length; i++) {
-          const f = files[i];
-          console.log(`[dev-import] file[${i}] keys=${Object.keys(f)} content_type=${typeof f.content} content_keys=${f.content ? Object.keys(f.content) : 'null'}`);
-          const ops = f.content?.ops ?? [];
-          console.log(`[dev-import] file[${i}] title=${JSON.stringify(f.title)} ops=${ops.length}`);
-          if (ops.length > 0) {
-            console.log(`[dev-import]   first_op=${JSON.stringify(ops[0]?.insert ?? '—').slice(0, 80)}`);
-          } else {
-            console.warn(`[dev-import]   ⚠️ ops 为空! content=${JSON.stringify(f.content).slice(0, 200)}`);
-          }
-        }
-        // ── /dump ──
-
-        // ── dump: 打印每篇笔记的 content 结构 ──
-        for (let i = 0; i < files.length; i++) {
-          const f = files[i];
-          const ops = f.content?.ops ?? [];
-          const attrTypes = new Set<string>();
-          for (const op of ops) {
-            if (op.attributes) Object.keys(op.attributes).forEach((k) => attrTypes.add(k));
-          }
-          console.log(
-            `  [dump] file[${i}] title=${JSON.stringify(f.title)} ` +
-              `ops=${ops.length} attrs=${JSON.stringify([...attrTypes])} ` +
-              `first_op=${(JSON.stringify(ops[0]?.insert) ?? '—').slice(0, 80)}`,
-          );
-        }
-        // ── /dump ──
 
         const today = new Date().toISOString().slice(0, 10);
         let count = 0;
@@ -95,7 +69,7 @@ export function useDevImport(refresh: () => void) {
         }
 
         console.log(`[dev-import] 已导入 ${count}/${files.length} 篇`);
-        refresh();
+        refreshRef.current();
       } catch {
         // 静默忽略（dev server 未启动时）
       }
@@ -107,5 +81,5 @@ export function useDevImport(refresh: () => void) {
     poll();
 
     return () => clearInterval(id);
-  }, [refresh]);
+  }, []); // 不依赖 refresh，避免 currentDate 变化导致定时器频繁重建
 }
