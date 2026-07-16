@@ -6,6 +6,22 @@
   box-sizing: border-box;
 }
 
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Tauri frameless: 圆角窗口 */
+html {
+  border-radius: 8px;
+  /* Windows 字体栈：Segoe UI 优先，Microsoft YaHei 中文兜底 */
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--bg);
+}
+
 :root {
   --bg: #ffffff;
   --surface: #f6f8fa;
@@ -4623,20 +4639,19 @@ body {
 .titlebar {
   display: flex;
   align-items: center;
-  height: 32px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
+  height: 38px;
+  background: var(--bg);
   flex-shrink: 0;
   user-select: none;
   -webkit-app-region: drag;
 }
 
 .titlebar-title {
-  padding-left: 12px;
-  font-size: 12px;
+  padding-left: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: var(--text-muted);
-  letter-spacing: 0.5px;
+  color: var(--text);
+  letter-spacing: 0.3px;
 }
 
 .titlebar-logo {
@@ -4655,14 +4670,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
+  width: 46px;
   height: 100%;
   border: none;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
   -webkit-app-region: no-drag;
-  transition: background 0.1s, color 0.1s;
+  transition: background 0.15s, color 0.15s;
 }
 
 .titlebar-btn:hover {
