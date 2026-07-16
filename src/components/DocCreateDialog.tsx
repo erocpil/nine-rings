@@ -25,10 +25,13 @@ const DOC_TYPE_OPTIONS: { value: DocType; label: string; desc: string }[] = [
 
 /** 从模板提取预填字段 */
 function applyTemplateMeta(template: Template) {
+  // 去掉前导 /（兼容旧版内置模板路径格式 "/工作/会议"）
+  const rawPath = template.storage_path?.replace(/^\/+/, "") ?? "";
+  const parts = rawPath ? rawPath.split("/") : [];
   return {
     title: template.title_template ?? "",
-    rootPath: template.storage_path?.split("/")[0] as string | undefined,
-    subPath: template.storage_path?.split("/").slice(1).join("/") ?? "",
+    rootPath: parts[0] as string | undefined,
+    subPath: parts.slice(1).join("/"),
     docType: (template.doc_type as DocType) ?? "explanation",
     concepts: template.concepts ?? [],
   };
@@ -67,10 +70,13 @@ function DocCreateDialog({ onClose, onCreated }: DocCreateDialogProps) {
     if (template) {
       const meta = applyTemplateMeta(template);
       setTitle(meta.title);
+      // 路径：模板有匹配的 rootPath 则用，否则重置为默认
       if (meta.rootPath && PATH_OPTIONS.some((o) => o.value === meta.rootPath)) {
         setRootPath(meta.rootPath);
+      } else {
+        setRootPath("projects");
       }
-      if (meta.subPath) setSubPath(meta.subPath);
+      setSubPath(meta.subPath);
       if (meta.docType) setDocType(meta.docType);
       if (meta.concepts.length > 0) setConcepts(meta.concepts);
       setActiveTemplateId(template.id);

@@ -10,9 +10,11 @@ interface TemplatePickerProps {
   onClose: () => void;
   /** 定位锚点（相对视口的 rect），popover 展示在此位置附近 */
   anchorRect?: DOMRect | null;
+  /** 仅展示无 storage_path 的模板（随笔页用） */
+  filterNoPath?: boolean;
 }
 
-export function TemplatePicker({ onSelect, onBlank, onClose, anchorRect }: TemplatePickerProps) {
+export function TemplatePicker({ onSelect, onBlank, onClose, anchorRect, filterNoPath }: TemplatePickerProps) {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -25,7 +27,10 @@ export function TemplatePicker({ onSelect, onBlank, onClose, anchorRect }: Templ
       return templateStore.listTemplates();
     }).then((list) => {
       console.log(`[TemplatePicker] 获取到 ${list.length} 个模板`, list.map(t => t.name));
-      setTemplates(list);
+      // 随笔页：过滤掉带 storage_path 的模板（这些模板用于文档页）
+      const filtered = filterNoPath ? list.filter(t => !t.storage_path) : list;
+      console.log(`[TemplatePicker] 过滤后 ${filtered.length} 个模板 (filterNoPath=${filterNoPath})`);
+      setTemplates(filtered);
     }).catch((err) => {
       console.error("Failed to load templates:", err);
     }).finally(() => {

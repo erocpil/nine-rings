@@ -485,6 +485,7 @@ export function Sidebar({
       {/* 模板选择器 */}
       {templateOpen && (
         <TemplatePicker
+          filterNoPath
           onSelect={(t) => {
             onCreateWithTemplate(t);
             setTemplateOpen(false);

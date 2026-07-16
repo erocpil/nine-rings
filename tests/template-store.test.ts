@@ -235,7 +235,7 @@ async function run() {
     )!;
     const meta = await templateStore.applyTemplate(meeting);
     if (meta.tags[0] !== "会议") throw new Error(`tags: ${JSON.stringify(meta.tags)}`);
-    if (meta.storagePath !== "/工作/会议") throw new Error(`storagePath: ${meta.storagePath}`);
+    if (meta.storagePath !== "projects/meetings") throw new Error(`storagePath: ${meta.storagePath}`);
     if (meta.docType !== "meeting") throw new Error(`docType: ${meta.docType}`);
     if (meta.concepts[0] !== "会议纪要") throw new Error(`concepts: ${JSON.stringify(meta.concepts)}`);
   })();
