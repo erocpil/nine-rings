@@ -27,7 +27,7 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 
 const STATE_ICONS: Record<string, string> = {
   projects: "📁",
-  areas: "🧩",
+  areas: "🎯",
   references: "📚",
   ideas: "💡",
   archives: "📦",
@@ -357,7 +357,7 @@ function DocTree({
           />
         )}
         <span className="doc-tree-toggle" />
-        <span className="doc-tree-icon">{node.readonly ? "🔒" : "📄"}</span>
+        <span className="doc-tree-icon">{node.readonly ? "🔒" : "🧩"}</span>
         {isRenaming && node.noteId ? (
           <InlineRename
             initialValue={node.name}

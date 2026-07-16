@@ -164,6 +164,7 @@ function uuid(): string {
 // ═══════════════════════════════════════════════════════════════════
 
 const BUILTIN_TEMPLATES: Omit<Template, "created_at" | "updated_at">[] = [
+  // ── 第一行：无路径模板（随笔页 + 文档页通用）──
   {
     id: "builtin-blank",
     name: "空白笔记",
@@ -178,6 +179,33 @@ const BUILTIN_TEMPLATES: Omit<Template, "created_at" | "updated_at">[] = [
     sort_order: 0,
   },
   {
+    id: "builtin-idea",
+    name: "灵感记录",
+    description: "随手记录灵感，默认置顶",
+    is_builtin: true,
+    title_template: null,
+    tags: ["灵感"],
+    storage_path: null,
+    doc_type: "note",
+    concepts: [],
+    pinned: true,
+    sort_order: 1,
+  },
+  {
+    id: "builtin-todo",
+    name: "待办清单",
+    description: "待办事项模板",
+    is_builtin: true,
+    title_template: null,
+    tags: ["待办"],
+    storage_path: null,
+    doc_type: "note",
+    concepts: [],
+    pinned: false,
+    sort_order: 2,
+  },
+  // ── 第二行：带路径模板（仅文档页使用）──
+  {
     id: "builtin-meeting",
     name: "会议纪要",
     description: "会议记录模板，预设会议标签和路径",
@@ -188,7 +216,7 @@ const BUILTIN_TEMPLATES: Omit<Template, "created_at" | "updated_at">[] = [
     doc_type: "meeting",
     concepts: ["会议纪要"],
     pinned: false,
-    sort_order: 1,
+    sort_order: 3,
   },
   {
     id: "builtin-reading",
@@ -201,7 +229,7 @@ const BUILTIN_TEMPLATES: Omit<Template, "created_at" | "updated_at">[] = [
     doc_type: "note",
     concepts: ["读书笔记"],
     pinned: false,
-    sort_order: 2,
+    sort_order: 4,
   },
   {
     id: "builtin-project",
@@ -213,32 +241,6 @@ const BUILTIN_TEMPLATES: Omit<Template, "created_at" | "updated_at">[] = [
     storage_path: "projects/logs",
     doc_type: "log",
     concepts: ["项目日志"],
-    pinned: false,
-    sort_order: 3,
-  },
-  {
-    id: "builtin-idea",
-    name: "灵感记录",
-    description: "随手记录灵感，默认置顶",
-    is_builtin: true,
-    title_template: null,
-    tags: ["灵感"],
-    storage_path: null,
-    doc_type: "note",
-    concepts: [],
-    pinned: true,
-    sort_order: 4,
-  },
-  {
-    id: "builtin-todo",
-    name: "待办清单",
-    description: "待办事项模板",
-    is_builtin: true,
-    title_template: null,
-    tags: ["待办"],
-    storage_path: null,
-    doc_type: "note",
-    concepts: [],
     pinned: false,
     sort_order: 5,
   },
@@ -257,8 +259,8 @@ const BUILTIN_TEMPLATES: Omit<Template, "created_at" | "updated_at">[] = [
   },
   {
     id: "builtin-weekly",
-    name: "周报",
-    description: "每周工作总结",
+    name: "项目周报",
+    description: "每周项目工作总结",
     is_builtin: true,
     title_template: null,
     tags: ["周报"],
