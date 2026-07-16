@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { api } from "../lib/api";
 import type { DocType, Note } from "../types/models";
+import { templateStore, type Template } from "../lib/storage/template-store";
 
 interface DocCreateDialogProps {
   onClose: () => void;
@@ -22,6 +23,17 @@ const DOC_TYPE_OPTIONS: { value: DocType; label: string; desc: string }[] = [
   { value: "tutorial", label: "🎓 教程", desc: "引导式从头到尾学完" },
 ];
 
+/** 从模板提取预填字段 */
+function applyTemplateMeta(template: Template) {
+  return {
+    title: template.title_template ?? "",
+    rootPath: template.storage_path?.split("/")[0] as string | undefined,
+    subPath: template.storage_path?.split("/").slice(1).join("/") ?? "",
+    docType: (template.doc_type as DocType) ?? "explanation",
+    concepts: template.concepts ?? [],
+  };
+}
+
 function DocCreateDialog({ onClose, onCreated }: DocCreateDialogProps) {
   const [title, setTitle] = useState("");
   const [rootPath, setRootPath] = useState("projects");
@@ -32,12 +44,36 @@ function DocCreateDialog({ onClose, onCreated }: DocCreateDialogProps) {
   const [existingConcepts, setExistingConcepts] = useState<string[]>([]);
   const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     titleRef.current?.focus();
     api.docs.allConcepts().then(setExistingConcepts);
+    // 加载模板
+    templateStore.seedBuiltinTemplates().then(() =>
+      templateStore.listTemplates()
+    ).then(setTemplates).catch(() => {});
   }, []);
+
+  /** 选择模板 — 预填表单，用户仍可修改 */
+  const handleTemplateSelect = (template: Template | null) => {
+    if (template) {
+      const meta = applyTemplateMeta(template);
+      setTitle(meta.title);
+      if (meta.rootPath && PATH_OPTIONS.some((o) => o.value === meta.rootPath)) {
+        setRootPath(meta.rootPath);
+      }
+      if (meta.subPath) setSubPath(meta.subPath);
+      if (meta.docType) setDocType(meta.docType);
+      if (meta.concepts.length > 0) setConcepts(meta.concepts);
+      setActiveTemplateId(template.id);
+    } else {
+      // 空白
+      setActiveTemplateId(null);
+    }
+  };
 
   const handleConceptChange = (value: string) => {
     setConceptInput(value);
@@ -117,6 +153,43 @@ function DocCreateDialog({ onClose, onCreated }: DocCreateDialogProps) {
         </div>
 
         <div className="dialog-body">
+          {/* 模板选择 */}
+          {templates.length > 0 && (
+            <div className="dialog-field">
+              <span className="dialog-label">模板</span>
+              <div className="dialog-template-row">
+                <button
+                  className={`dialog-template-chip ${activeTemplateId === null ? "active" : ""}`}
+                  onClick={() => handleTemplateSelect(null)}
+                  type="button"
+                >
+                  <span className="dialog-template-icon">📝</span>
+                  <span className="dialog-template-name">空白</span>
+                </button>
+                {templates.map((t) => (
+                  <button
+                    key={t.id}
+                    className={`dialog-template-chip ${activeTemplateId === t.id ? "active" : ""}`}
+                    onClick={() => handleTemplateSelect(t)}
+                    type="button"
+                  >
+                    <span className="dialog-template-icon">
+                      {t.id === "builtin-meeting" ? "📋" :
+                       t.id === "builtin-reading" ? "📖" :
+                       t.id === "builtin-project" ? "🚀" :
+                       t.id === "builtin-idea" ? "💡" :
+                       t.id === "builtin-todo" ? "✅" :
+                       t.id === "builtin-knowledge" ? "🧠" :
+                       t.id === "builtin-weekly" ? "📊" :
+                       "📄"}
+                    </span>
+                    <span className="dialog-template-name">{t.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* 标题 */}
           <label className="dialog-field">
             <span className="dialog-label">标题</span>
@@ -234,7 +307,7 @@ function DocCreateDialog({ onClose, onCreated }: DocCreateDialogProps) {
             onClick={handleSubmit}
             disabled={!title.trim() || saving}
           >
-            {saving ? "创建中..." : "创建文档"}
+            {saving ? "创建中..." : "创建"}
           </button>
         </div>
       </div>

@@ -3922,7 +3922,91 @@ body {
   border-top: 1px solid var(--border);
 }
 
-/* ──── PropertiesPanel ──── */
+/* ──── Dialog buttons ──── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.btn-secondary:hover {
+  background: var(--hover);
+}
+
+/* ──── Template chips in dialog ──── */
+
+.dialog-template-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dialog-template-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.dialog-template-chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.dialog-template-chip.active {
+  border-color: var(--accent);
+  background: var(--active-bg);
+  color: var(--accent);
+}
+
+.dialog-template-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.dialog-template-name {
+  white-space: nowrap;
+}
+
+ /* ──── PropertiesPanel ──── */
 
 .properties-panel {
   width: 220px;
