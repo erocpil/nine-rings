@@ -120,6 +120,7 @@ function App() {
   };
   const [docCreateOpen, setDocCreateOpen] = useState(false);
   const [docTreeKey, setDocTreeKey] = useState(0);
+  const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0);
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const PROP_AUTO_KEY = "nr:propertiesAutoShow";
@@ -591,6 +592,7 @@ function App() {
   const refreshView = useCallback(() => {
     setDate(currentDate);
     setDocTreeKey(k => k + 1);
+    setSidebarRefreshKey(k => k + 1);
   }, [currentDate, setDate]);
   useDevImport(refreshView);
 
@@ -810,6 +812,7 @@ function App() {
               onToggleReadonly={(id, readonly) => {
                 updateNote(id, { readonly } as any);
               }}
+              sidebarRefreshKey={sidebarRefreshKey}
             />
           ) : (
             <DocTree
@@ -832,6 +835,7 @@ function App() {
               onToggleReadonly={(id, readonly) => updateNote(id, { readonly } as any)}
               onBatchDelete={(ids) => { ids.forEach(id => deleteNote(id)); setDocTreeKey(k => k + 1); }}
               onBatchSetReadonly={(ids, readonly) => { ids.forEach(id => updateNote(id, { readonly } as any)); }}
+              onRecycleOpen={() => setRecycleOpen(true)}
               propertiesAutoShow={propertiesAutoShow}
               onTogglePropertiesAuto={() => {
                 const next = !propertiesAutoShow;
@@ -996,6 +1000,7 @@ function App() {
                 onToggleReadonly={(id, readonly) => updateNote(id, { readonly } as any)}
                 onBatchDelete={(ids) => { ids.forEach(id => deleteNote(id)); setDocTreeKey(k => k + 1); }}
                 onBatchSetReadonly={(ids, readonly) => { ids.forEach(id => updateNote(id, { readonly } as any)); }}
+                onRecycleOpen={() => setRecycleOpen(true)}
                 propertiesAutoShow={propertiesAutoShow}
                 onTogglePropertiesAuto={() => {
                   const next = !propertiesAutoShow;

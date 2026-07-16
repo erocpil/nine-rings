@@ -66,6 +66,7 @@ interface SidebarProps {
   onTogglePin: (id: string, pinned: boolean) => void;
   onRename: (id: string, title: string) => void;
   onToggleReadonly: (id: string, readonly: boolean) => void;
+  sidebarRefreshKey?: number;
   disabled?: boolean;
 }
 
@@ -75,7 +76,7 @@ let _dragIndex: number = -1;
 export function Sidebar({
   notes, selectedId, activeTag, onHide, onSelect, onCreate, onCreateWithTemplate,
   onDelete, onRecycleOpen, onReorder, onMoveToDate,
-  onTagSelect, onTogglePin, onRename, onToggleReadonly, disabled,
+  onTagSelect, onTogglePin, onRename, onToggleReadonly, sidebarRefreshKey, disabled,
 }: SidebarProps) {
   const [moveNoteId, setMoveNoteId] = useState<string | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -120,7 +121,7 @@ export function Sidebar({
     if (showAll) {
       api.notes.all().then(setAllNotes).catch(() => setAllNotes([]));
     }
-  }, [showAll]);
+  }, [showAll, sidebarRefreshKey]);
 
   const displayNotes = showAll ? allNotes : notes;
   const sortedNotes = applySort(displayNotes, sortMode);

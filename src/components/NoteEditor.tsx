@@ -142,6 +142,15 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [tagInput, setTagInput] = useState("");
   const [scrollPos, setScrollPos] = useState(0);
   const [headingOpen, setHeadingOpen] = useState(false);
+  // 受控标题：本地状态 + 从 prop 同步（支持外部重命名如 DocTree 右键改名）
+  const [localTitle, setLocalTitle] = useState(title ?? "");
+  const prevTitleRef = useRef(title);
+  useEffect(() => {
+    if (title !== prevTitleRef.current) {
+      prevTitleRef.current = title;
+      setLocalTitle(title ?? "");
+    }
+  }, [title]);
   const [headingPage, setHeadingPage] = useState(0); // 0=H3-5（默认）, 1=H1-2/6
   const [blockOpen, setBlockOpen] = useState(false);
   const [styleOpen, setStyleOpen] = useState(false);
@@ -613,9 +622,8 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             type="text"
             className="note-title"
             placeholder="随心记 — 标题"
-            key={noteId}
-            defaultValue={title ?? ""}
-            onChange={(e) => onTitleChange(e.target.value)}
+            value={localTitle}
+            onChange={(e) => { setLocalTitle(e.target.value); onTitleChange(e.target.value); }}
             readOnly={readonly}
           />
           <button
