@@ -3056,18 +3056,25 @@ body {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
-.recycle-panel h3 {
-  font-size: 15px;
+.recycle-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 12px;
 }
 
+.recycle-header h3 {
+  font-size: 15px;
+  margin: 0;
+}
+
 .recycle-close {
-  float: right;
   background: none;
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 18px;
+  padding: 2px 4px;
 }
 
 .recycle-item {
@@ -3084,17 +3091,30 @@ body {
   background: var(--bg);
 }
 
-.recycle-title {
-  font-size: 13px;
+.recycle-item-info {
   flex: 1;
+  min-width: 0;
 }
 
-.recycle-date {
+.recycle-item-title {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recycle-item-date {
   font-size: 11px;
   color: var(--text-secondary);
 }
 
-.recycle-restore-btn {
+.recycle-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.recycle-btn-restore {
   background: none;
   border: 1px solid var(--border);
   color: var(--success);
@@ -3104,7 +3124,7 @@ body {
   font-size: 12px;
 }
 
-.recycle-del-btn {
+.recycle-btn-delete {
   background: none;
   border: 1px solid var(--border);
   color: var(--danger);
@@ -3112,6 +3132,22 @@ body {
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
+}
+
+.recycle-btn-clean {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.recycle-footer {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
 }
 
 .recycle-empty {
