@@ -433,49 +433,75 @@ export const templateStore = {
     if (rt === "web") {
       const existing = lsRead();
       console.log(`[template-store] seed: localStorage 现有 ${existing.length} 个模板`);
-      if (existing.length > 0) return; // 已有数据，跳过（幂等）
       const ts = now();
-      const builtins: Template[] = BUILTIN_TEMPLATES.map((t) => ({
-        ...t,
-        created_at: ts,
-        updated_at: ts,
-      }));
-      lsWrite(builtins);
+      let changed = false;
+      for (const bt of BUILTIN_TEMPLATES) {
+        const idx = existing.findIndex((t) => t.id === bt.id);
+        if (idx === -1) {
+          // 新内置模板：追加
+          existing.push({ ...bt, created_at: ts, updated_at: ts });
+          changed = true;
+        } else {
+          // 已存在：更新 sort_order 等可能变化的字段
+          const t = existing[idx];
+          if (t.sort_order !== bt.sort_order) {
+            t.sort_order = bt.sort_order;
+            t.updated_at = ts;
+            changed = true;
+          }
+        }
+      }
+      if (changed) {
+        // 按 sort_order 重排
+        existing.sort((a, b) => a.sort_order - b.sort_order);
+        lsWrite(existing);
+        console.log(`[template-store] seed: 更新了内置模板排序`);
+      }
       return;
     }
-    // Tauri path: 检查是否已有内置模板（幂等）
-    const existing = await dbQuery({
-      type: "select",
-      table: "templates",
-      columns: ["id"],
-      where: [{ col: "is_builtin", op: "=", val: 1 }],
-      limit: 1,
-    });
-    if (existing.length > 0) return;
-
+    // Tauri path: 逐条检查，存在则更新 sort_order，不存在则插入
     const ts = now();
-    // 批量插入内置模板
     for (const t of BUILTIN_TEMPLATES) {
-      const op: InsertOp = {
-        type: "insert",
+      const rows = await dbQuery({
+        type: "select",
         table: "templates",
-        values: {
-          id: t.id,
-          name: t.name,
-          description: t.description,
-          is_builtin: 1,
-          title_template: t.title_template,
-          tags: JSON.stringify(t.tags),
-          storage_path: t.storage_path,
-          doc_type: t.doc_type,
-          concepts: JSON.stringify(t.concepts),
-          pinned: t.pinned ? 1 : 0,
-          sort_order: t.sort_order,
-          created_at: ts,
-          updated_at: ts,
-        },
-      };
-      await dbExec(op);
+        columns: ["id", "sort_order"],
+        where: [{ col: "id", op: "=", val: t.id }],
+        limit: 1,
+      });
+      if (rows.length > 0) {
+        // 已存在：更新 sort_order
+        if (rows[0].sort_order !== t.sort_order) {
+          await dbExec({
+            type: "update",
+            table: "templates",
+            set: { sort_order: t.sort_order, updated_at: ts },
+            where: [{ col: "id", op: "=", val: t.id }],
+          });
+        }
+      } else {
+        // 不存在：插入
+        const op: InsertOp = {
+          type: "insert",
+          table: "templates",
+          values: {
+            id: t.id,
+            name: t.name,
+            description: t.description,
+            is_builtin: 1,
+            title_template: t.title_template,
+            tags: JSON.stringify(t.tags),
+            storage_path: t.storage_path,
+            doc_type: t.doc_type,
+            concepts: JSON.stringify(t.concepts),
+            pinned: t.pinned ? 1 : 0,
+            sort_order: t.sort_order,
+            created_at: ts,
+            updated_at: ts,
+          },
+        };
+        await dbExec(op);
+      }
     }
   },
 
