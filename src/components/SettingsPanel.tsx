@@ -13,9 +13,11 @@ interface Props {
   onImport?: () => void;
   /** 同步进行中回调 — 用来 freeze 编辑区 */
   onSyncBusy?: (busy: boolean) => void;
+  /** Pull 完成后回调 — 刷新侧栏和文档树 */
+  onPullDone?: () => void;
 }
 
-export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncBusy }: Props) {
+export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncBusy, onPullDone }: Props) {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -478,7 +480,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
             {/* ═══════════════════════ */}
             {/* GitHub 同步 */}
             {/* ═══════════════════════ */}
-            <SettingsSync onBusyChange={onSyncBusy} />
+            <SettingsSync onBusyChange={onSyncBusy} onPullDone={onPullDone} />
 
             {/* ── 保存反馈 ── */}
             {message && <div className="settings-toast">{message}</div>}

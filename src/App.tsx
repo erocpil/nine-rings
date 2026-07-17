@@ -975,6 +975,11 @@ function App() {
           setDate(currentDate);
           setDocTreeKey(k => k + 1);
         }}
+        onPullDone={() => {
+          setDate(currentDate);
+          setDocTreeKey(k => k + 1);
+          setSidebarRefreshKey(k => k + 1);
+        }}
       />
       {docTreePopupOpen && (
         <div className="doc-tree-popup-overlay" onClick={() => setDocTreePopupOpen(false)}>

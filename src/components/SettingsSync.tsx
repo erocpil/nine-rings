@@ -12,6 +12,8 @@ import {
 interface Props {
   /** 同步进行中回调 — 父组件用来 freeze 编辑区 */
   onBusyChange?: (busy: boolean) => void;
+  /** Pull 完成后回调 — 通知父组件刷新 UI（替代 window.location.reload） */
+  onPullDone?: () => void;
 }
 
 /** owner/repo 合并格式校验 */
@@ -34,7 +36,7 @@ function fmtVersion(version: string | null): string {
   return `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())} ${pad(local.getHours())}:${pad(local.getMinutes())}:${pad(local.getSeconds())}`;
 }
 
-export default function SettingsSync({ onBusyChange }: Props) {
+export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
   const [cfg, setCfg] = useState<SyncConfig>(loadSyncConfig);
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -150,8 +152,8 @@ export default function SettingsSync({ onBusyChange }: Props) {
     try {
       const updated = await pullFromGitHub(cfg);
       setCfg(updated);
-      showMessage(`已拉取 (${new Date().toLocaleTimeString()})，即将刷新页面…`, "success");
-      setTimeout(() => window.location.reload(), 2000);
+      showMessage(`已拉取 (${new Date().toLocaleTimeString()})`, "success");
+      onPullDone?.();
     } catch (e) {
       showMessage(`拉取失败: ${(e as Error).message}`, "error");
     } finally {
