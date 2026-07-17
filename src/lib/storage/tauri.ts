@@ -73,6 +73,28 @@ export const tauriAdapter: StorageAdapter = {
 
   getPathTree: () => tauriDriver.getPathTree(),
   getNotesByPath: (pathPrefix) => invoke<Note[]>("get_notes_by_path", { pathPrefix }),
+
+  async renameFolder(oldPath: string, newPath: string): Promise<number> {
+    if (!oldPath || !newPath || oldPath === newPath) return 0;
+    const docs = await invoke<Note[]>("get_notes_by_path", { pathPrefix: oldPath });
+    let count = 0;
+    for (const doc of docs) {
+      const sp = doc.storagePath;
+      if (!sp) continue;
+      let newSp: string;
+      if (sp === oldPath) {
+        newSp = newPath;
+      } else if (sp.startsWith(oldPath + "/")) {
+        newSp = newPath + sp.slice(oldPath.length);
+      } else {
+        continue;
+      }
+      await tauriDriver.updateNote(doc.id, { storagePath: newSp });
+      count++;
+    }
+    return count;
+  },
+
   searchDocs: (query) => invoke<Note[]>("search_docs", { query }),
   getAllConcepts: () => invoke<string[]>("get_all_concepts"),
 };

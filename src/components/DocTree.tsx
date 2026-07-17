@@ -106,6 +106,7 @@ function DocTree({
   });
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renamingFolder, setRenamingFolder] = useState<string | null>(null);  // 正在重命名的 folder path
 
   // ── 批量选择 ──
   const [selectMode, setSelectMode] = useState(false);
@@ -221,6 +222,33 @@ function DocTree({
     setRenamingId(null);
   };
 
+  // ── 文件夹重命名 ──
+  const handleFolderRenameStart = (folderPath: string) => {
+    setContextMenu(null);
+    setRenamingFolder(folderPath);
+  };
+
+  const submitFolderRename = async (folderPath: string, newName: string) => {
+    if (disabled) return;
+    if (!newName || newName === folderPath.split("/").pop()) {
+      setRenamingFolder(null);
+      return;
+    }
+    // 构造新路径：父路径 + "/" + 新名称
+    const parts = folderPath.split("/");
+    const newPath = parts.length === 1
+      ? newName
+      : parts.slice(0, -1).join("/") + "/" + newName;
+    try {
+      await api.docs.renameFolder(folderPath, newPath);
+    } catch (e) {
+      console.error("renameFolder failed:", e);
+    }
+    setRenamingFolder(null);
+    // 重新加载树
+    api.docs.tree().then(setTree);
+  };
+
   const handleDelete = (noteId: string, title: string) => {
     setContextMenu(null);
     if (disabled) return;
@@ -325,13 +353,23 @@ function DocTree({
             <span className="doc-tree-icon">
               {STATE_ICONS[node.path.split("/")[0]] ?? "📂"}
             </span>
-            <span
-              className="doc-tree-name"
-              onClick={() => onFolderSelect?.(node.path)}
-            >
-              {node.name}
-            </span>
-            <span className="doc-tree-count">{node.count ?? 0}</span>
+            {renamingFolder === node.path ? (
+              <InlineRename
+                initialValue={node.name}
+                onSubmit={(value) => submitFolderRename(node.path, value)}
+                onCancel={() => setRenamingFolder(null)}
+              />
+            ) : (
+              <>
+                <span
+                  className="doc-tree-name"
+                  onClick={() => onFolderSelect?.(node.path)}
+                >
+                  {node.name}
+                </span>
+                <span className="doc-tree-count">{node.count ?? 0}</span>
+              </>
+            )}
           </div>
           {!isCollapsed && hasChildren && (
             <div>
@@ -480,6 +518,9 @@ function DocTree({
         >
           {contextMenu.type === 'folder' ? (
             <>
+              <button className="doc-context-item" onClick={() => handleFolderRenameStart(contextMenu.path)}>
+                重命名
+              </button>
               <button className="doc-context-item" onClick={() => handleFolderDelete(contextMenu.path)}>
                 删除目录及其下文档
               </button>

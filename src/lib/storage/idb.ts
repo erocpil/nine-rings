@@ -1058,6 +1058,34 @@ export const idbAdapter: StorageAdapter = {
     });
   },
 
+  async renameFolder(oldPath: string, newPath: string): Promise<number> {
+    if (!oldPath || !newPath || oldPath === newPath) return 0;
+    return withDB(async (db) => {
+      const store = db.transaction("notes", "readwrite").objectStore("notes");
+      const all = await getAll<any>(store);
+      let count = 0;
+      const nowStr = now();
+      for (const n of all) {
+        if (n.deleted_at) continue;
+        const sp: string | undefined = n.storagePath ?? n.storage_path;
+        if (!sp) continue;
+        let newSp: string;
+        if (sp === oldPath) {
+          newSp = newPath;
+        } else if (sp.startsWith(oldPath + "/")) {
+          newSp = newPath + sp.slice(oldPath.length);
+        } else {
+          continue;
+        }
+        n.storagePath = newSp;
+        n.updated_at = nowStr;
+        await putRecord(store, n);
+        count++;
+      }
+      return count;
+    });
+  },
+
   async searchDocs(query: DocSearchQuery): Promise<Note[]> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");

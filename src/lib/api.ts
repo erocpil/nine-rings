@@ -189,6 +189,9 @@ export const api = {
     listByPath: (pathPrefix: string) =>
       adapter().then((a) => a.getNotesByPath(pathPrefix)),
 
+    renameFolder: (oldPath: string, newPath: string) =>
+      adapter().then((a) => a.renameFolder(oldPath, newPath)),
+
     search: (query: DocSearchQuery) =>
       adapter().then((a) => a.searchDocs(query)),
 
