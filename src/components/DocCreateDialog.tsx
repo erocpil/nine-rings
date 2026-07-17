@@ -115,7 +115,7 @@ function DocCreateDialog({ onClose, onCreated }: DocCreateDialogProps) {
   const buildStoragePath = (): string => {
     const parts = [rootPath];
     if (subPath.trim()) {
-      parts.push(subPath.trim().replace(/[^a-z0-9-\u4e00-\u9fff]/g, "-").replace(/-+/g, "-"));
+      parts.push(subPath.trim().replace(/[^a-zA-Z0-9-\u4e00-\u9fff]/g, "-").replace(/-+/g, "-"));
     }
     return parts.join("/");
   };

@@ -75,7 +75,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPa
     if (readonly) return;
     const parts = [editRoot];
     if (editSub.trim()) {
-      parts.push(editSub.trim().replace(/[^a-z0-9-\u4e00-\u9fff]/g, "-").replace(/-+/g, "-"));
+      parts.push(editSub.trim().replace(/[^a-zA-Z0-9-\u4e00-\u9fff]/g, "-").replace(/-+/g, "-"));
     }
     const newPath = parts.join("/");
     if (newPath === note.storagePath) {
