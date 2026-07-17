@@ -59,7 +59,6 @@ interface SidebarProps {
   onCreate: () => void;
   onCreateWithTemplate: (template: Template) => void;
   onDelete: (id: string) => void;
-  onRecycleOpen: () => void;
   onReorder: (id: string, sortOrder: number) => void;
   onMoveToDate: (id: string, date: string) => void;
   onTagSelect: (tag: string | null) => void;
@@ -75,7 +74,7 @@ let _dragIndex: number = -1;
 
 export function Sidebar({
   notes, selectedId, activeTag, onHide, onSelect, onCreate, onCreateWithTemplate,
-  onDelete, onRecycleOpen, onReorder, onMoveToDate,
+  onDelete, onReorder, onMoveToDate,
   onTagSelect, onTogglePin, onRename, onToggleReadonly, sidebarRefreshKey, disabled,
 }: SidebarProps) {
   const [moveNoteId, setMoveNoteId] = useState<string | null>(null);
@@ -476,12 +475,6 @@ export function Sidebar({
         </div>
       )}
 
-      {/* 回收站入口 */}
-      <div className="sidebar-footer">
-        <span className="sidebar-recycle-btn" onClick={disabled ? undefined : onRecycleOpen}>
-          🗑 回收站
-        </span>
-      </div>
 
       {/* 跨日移动日期选择器 */}
       {moveNoteId && (

@@ -798,7 +798,6 @@ function App() {
                   },
                 });
               }}
-              onRecycleOpen={() => setRecycleOpen(true)}
               onReorder={async (id, sortOrder) => {
                 await api.notes.updateOrder(id, sortOrder);
                 // Refresh current date to reflect new order
@@ -835,7 +834,6 @@ function App() {
               onToggleReadonly={(id, readonly) => updateNote(id, { readonly } as any)}
               onBatchDelete={(ids) => { ids.forEach(id => deleteNote(id)); setDocTreeKey(k => k + 1); }}
               onBatchSetReadonly={(ids, readonly) => { ids.forEach(id => updateNote(id, { readonly } as any)); }}
-              onRecycleOpen={() => setRecycleOpen(true)}
               propertiesAutoShow={propertiesAutoShow}
               onTogglePropertiesAuto={() => {
                 const next = !propertiesAutoShow;
@@ -846,6 +844,11 @@ function App() {
               }}
             />
           )}
+          <div className="sidebar-footer">
+            <span className="sidebar-recycle-btn" onClick={() => setRecycleOpen(true)}>
+              🗑 回收站
+            </span>
+          </div>
         </aside>
 
         {!sidebarHidden && <div className="sidebar-divider" onMouseDown={handleSideMouseDown} onTouchStart={handleSideTouchStart} />}
@@ -1000,7 +1003,6 @@ function App() {
                 onToggleReadonly={(id, readonly) => updateNote(id, { readonly } as any)}
                 onBatchDelete={(ids) => { ids.forEach(id => deleteNote(id)); setDocTreeKey(k => k + 1); }}
                 onBatchSetReadonly={(ids, readonly) => { ids.forEach(id => updateNote(id, { readonly } as any)); }}
-                onRecycleOpen={() => setRecycleOpen(true)}
                 propertiesAutoShow={propertiesAutoShow}
                 onTogglePropertiesAuto={() => {
                   const next = !propertiesAutoShow;

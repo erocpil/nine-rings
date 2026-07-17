@@ -13,7 +13,6 @@ interface DocTreeProps {
   onToggleReadonly?: (id: string, readonly: boolean) => void;
   onBatchDelete?: (ids: string[]) => void;
   onBatchSetReadonly?: (ids: string[], readonly: boolean) => void;
-  onRecycleOpen?: () => void;
   propertiesAutoShow?: boolean;
   onTogglePropertiesAuto?: () => void;
   disabled?: boolean;
@@ -92,7 +91,6 @@ function DocTree({
   onSelect, onFolderSelect, selectedId, onCreate, refreshKey,
   onRename, onDelete, onToggleReadonly,
   onBatchDelete, onBatchSetReadonly,
-  onRecycleOpen,
   propertiesAutoShow, onTogglePropertiesAuto,
   disabled,
 }: DocTreeProps) {
@@ -499,14 +497,6 @@ function DocTree({
         </div>
       )}
 
-      {/* 回收站入口 */}
-      {onRecycleOpen && (
-        <div className="sidebar-footer">
-          <span className="sidebar-recycle-btn" onClick={disabled ? undefined : onRecycleOpen}>
-            🗑 回收站
-          </span>
-        </div>
-      )}
     </div>
   );
 }
