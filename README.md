@@ -1,7 +1,6 @@
 # Nine Rings · 九环
 
 [![CI](https://github.com/erocpil/nine-rings/actions/workflows/ci.yml/badge.svg)](https://github.com/erocpil/nine-rings/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Tauri v2](https://img.shields.io/badge/Tauri-2.0-ffc131?logo=tauri)](https://tauri.app)
 [![React 18](https://img.shields.io/badge/React-18-61dafb?logo=react)](https://react.dev)
 [![Flutter](https://img.shields.io/badge/Flutter-3.41-02569B?logo=flutter)](https://flutter.dev)
