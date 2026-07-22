@@ -1,0 +1,49 @@
+name: Flutter Windows Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'flutter_app/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'flutter_app/**'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: flutter_app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.9.2'
+          channel: 'stable'
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Static analysis
+        run: flutter analyze
+
+      - name: Build Windows (release)
+        run: flutter build windows --release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nine-rings-windows-x64
+          path: flutter_app/build/windows/x64/runner/Release/
+          if-no-files-found: error
