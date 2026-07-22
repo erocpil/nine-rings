@@ -220,26 +220,40 @@ def extract_title(md_text, filename):
 
 
 def md_files_from_args(args):
-    """解析命令行参数，返回 (文件列表, 来源描述)"""
-    files = []
-    dir_root = None  # 记录第一个目录，用于路径推断
+    """解析命令行参数，返回 (文件→相对父目录 映射, 来源根目录)
+
+    每个 .md 文件映射到其相对于 dir_root 的父目录。
+    根级文件映射到 None（表示无子目录）。
+    """
+    file_subdirs = {}  # {filepath: subdir_or_None}
+    dir_root = None
     for arg in args:
         if os.path.isdir(arg):
             if dir_root is None:
-                dir_root = arg
+                dir_root = os.path.abspath(arg)
             for root, _, filenames in os.walk(arg):
                 for fn in filenames:
                     if fn.endswith('.md'):
-                        files.append(os.path.join(root, fn))
+                        fp = os.path.join(root, fn)
+                        rel = os.path.relpath(root, dir_root)
+                        if rel == '.':
+                            file_subdirs[fp] = None
+                        else:
+                            file_subdirs[fp] = rel
         elif os.path.isfile(arg) and arg.endswith('.md'):
-            files.append(arg)
-    return sorted(set(files)), dir_root
+            file_subdirs[arg] = None
+    # 按路径排序，保持确定性顺序
+    return dict(sorted(file_subdirs.items())), dir_root
 
 
-def build_import_json(md_files, today, now, storage_path=None, doc_type=None, concepts=None):
-    """构建 Nine Rings 导入 JSON"""
+def build_import_json(md_files, today, now, storage_path=None, doc_type=None, concepts=None, dir_root=None):
+    """构建 Nine Rings 导入 JSON
+
+    md_files: dict {文件路径: 子目录 或 None}
+    dir_root: 扫描根目录，用于子路径归一化
+    """
     notes = []
-    for fp in md_files:
+    for fp, subdir in md_files.items():
         with open(fp, 'r', encoding='utf-8') as f:
             md_text = f.read()
 
@@ -257,9 +271,25 @@ def build_import_json(md_files, today, now, storage_path=None, doc_type=None, co
             'created_at': now,
             'updated_at': now,
         }
+
         # ── 文档分类字段 ──
-        if storage_path:
-            note['storagePath'] = storage_path
+        # storagePath: 基础路径 + 子目录（按目录层级分组）
+        note_sp = storage_path
+        if storage_path and subdir:
+            # 子目录名归一化（与前端 DocCreateDialog 对齐）
+            parts = []
+            for segment in subdir.replace('\\', '/').split('/'):
+                seg = segment.strip()
+                if seg:
+                    normalized = re.sub(r'[^a-zA-Z0-9-\u4e00-\u9fff]', '-', seg)
+                    normalized = re.sub(r'-+', '-', normalized).strip('-')
+                    if normalized:
+                        parts.append(normalized)
+            if parts:
+                note_sp = storage_path + '/' + '/'.join(parts)
+
+        if note_sp:
+            note['storagePath'] = note_sp
         if doc_type:
             note['docType'] = doc_type
         if concepts:
@@ -347,7 +377,8 @@ def main():
     import_data = build_import_json(md_files, today, now,
                                      storage_path=storage_path,
                                      doc_type=doc_type,
-                                     concepts=concepts if concepts else None)
+                                     concepts=concepts if concepts else None,
+                                     dir_root=dir_root)
 
     # ── --serve 模式：直接 POST 给 dev server ──
     if serve_mode:
