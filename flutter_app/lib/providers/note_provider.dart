@@ -70,6 +70,11 @@ class NoteProvider extends ChangeNotifier {
     String? title,
     String? content,
     List<String>? tags,
+    String? storagePath,
+    String? docType,
+    List<String>? concepts,
+    List<String>? linkedDocIds,
+    bool? readonly,
   }) async {
     _setLoading(true);
     try {
@@ -78,6 +83,11 @@ class NoteProvider extends ChangeNotifier {
         title: title,
         content: content,
         tags: tags,
+        storagePath: storagePath,
+        docType: docType,
+        concepts: concepts,
+        linkedDocIds: linkedDocIds,
+        readonly: readonly,
       );
       await loadNotesByDate(date);
       await loadRecentDates();
@@ -96,7 +106,12 @@ class NoteProvider extends ChangeNotifier {
     String? content,
     List<String>? tags,
     bool? pinned,
-    int? order,
+    int? sortOrder,
+    String? storagePath,
+    String? docType,
+    List<String>? concepts,
+    List<String>? linkedDocIds,
+    bool? readonly,
   }) async {
     _setLoading(true);
     try {
@@ -106,7 +121,12 @@ class NoteProvider extends ChangeNotifier {
         content: content,
         tags: tags,
         pinned: pinned,
-        order: order,
+        sortOrder: sortOrder,
+        storagePath: storagePath,
+        docType: docType,
+        concepts: concepts,
+        linkedDocIds: linkedDocIds,
+        readonly: readonly,
       );
       await loadNotesByDate(note.date);
       _setError(null);

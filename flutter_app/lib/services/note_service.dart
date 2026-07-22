@@ -173,6 +173,111 @@ class NoteService {
     return rows.map((r) => Note.fromJson(r)).toList();
   }
 
+  // ── FTS5 Full-Text Search ──
+
+  Future<List<Note>> ftsSearch(String query) async {
+    if (query.trim().isEmpty) return [];
+    try {
+      final rows = await _db.database.rawQuery('''
+        SELECT n.* FROM notes n
+        JOIN notes_fts fts ON n.rowid = fts.rowid
+        WHERE notes_fts MATCH ? AND n.deleted_at IS NULL
+        ORDER BY rank
+      ''', [query.trim()]);
+      return rows.map((r) => Note.fromJson(r)).toList();
+    } catch (_) {
+      // FTS5 fallback: 使用 LIKE 搜索
+      return search(query);
+    }
+  }
+
+  // ── Document queries ──
+
+  Future<List<Note>> getNotesByPath(String pathPrefix) async {
+    final rows = await _db.database.query(
+      'notes',
+      where: 'storage_path LIKE ? AND deleted_at IS NULL',
+      whereArgs: ['$pathPrefix%'],
+      orderBy: 'storage_path ASC, sort_order ASC',
+    );
+    return rows.map((r) => Note.fromJson(r)).toList();
+  }
+
+  Future<List<Note>> searchDocs({
+    String? text,
+    String? storagePath,
+    String? docType,
+    String? concept,
+  }) async {
+    final conditions = <String>['storage_path IS NOT NULL', 'deleted_at IS NULL'];
+    final args = <dynamic>[];
+
+    if (text != null && text.isNotEmpty) {
+      conditions.add('search_text LIKE ?');
+      args.add('%$text%');
+    }
+    if (storagePath != null && storagePath.isNotEmpty) {
+      conditions.add('storage_path LIKE ?');
+      args.add('$storagePath%');
+    }
+    if (docType != null && docType.isNotEmpty) {
+      conditions.add('doc_type = ?');
+      args.add(docType);
+    }
+    if (concept != null && concept.isNotEmpty) {
+      conditions.add('concepts LIKE ?');
+      args.add('%\"$concept\"%');
+    }
+
+    final where = conditions.join(' AND ');
+    final rows = await _db.database.query(
+      'notes',
+      where: where,
+      whereArgs: args,
+      orderBy: 'updated_at DESC',
+    );
+    return rows.map((r) => Note.fromJson(r)).toList();
+  }
+
+  Future<List<String>> getAllConcepts() async {
+    final rows = await _db.database.rawQuery('''
+      SELECT DISTINCT concepts FROM notes
+      WHERE deleted_at IS NULL AND concepts IS NOT NULL AND concepts != '[]'
+    ''');
+    final conceptSet = <String>{};
+    for (final row in rows) {
+      try {
+        final list = jsonDecode(row['concepts'] as String) as List;
+        for (final c in list) {
+          conceptSet.add(c.toString());
+        }
+      } catch (_) {}
+    }
+    return conceptSet.toList()..sort();
+  }
+
+  Future<Map<String, List<Note>>> getPathTree() async {
+    final rows = await _db.database.query(
+      'notes',
+      where: 'storage_path IS NOT NULL AND deleted_at IS NULL',
+      orderBy: 'storage_path ASC, sort_order ASC',
+    );
+    final notes = rows.map((r) => Note.fromJson(r)).toList();
+    final tree = <String, List<Note>>{};
+    for (final note in notes) {
+      if (note.storagePath == null) continue;
+      final parts = note.storagePath!.split('/');
+      // Group by parent path
+      if (parts.length > 1) {
+        final parent = parts.sublist(0, parts.length - 1).join('/');
+        tree.putIfAbsent(parent, () => []).add(note);
+      } else {
+        tree.putIfAbsent(note.storagePath!, () => []).add(note);
+      }
+    }
+    return tree;
+  }
+
   // ── Tags ──
 
   Future<List<String>> getAllTags() async {
