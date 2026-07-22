@@ -467,7 +467,14 @@ function App() {
       if (e.shiftKey && e.key.toLowerCase() === "d") {
         e.preventDefault();
         const today = new Date().toISOString().slice(0, 10);
-        setDate(today);
+        setDate(today).then(() => {
+          const sel = useNotesStore.getState().selectedNote;
+          if (sel?.storagePath) {
+            // 若 setDate 守卫保留了文档选中，显式切到当日第一篇随笔
+            const daily = useNotesStore.getState().notes.find(n => !n.storagePath);
+            selectNote(daily ?? null);
+          }
+        });
         setSidebarHidden(false);
         handleSetSidebarTab('daily');
         return;
@@ -534,7 +541,13 @@ function App() {
       openSettings: () => setSettingsOpen(true),
       toggleDaily: () => {
         const today = new Date().toISOString().slice(0, 10);
-        setDate(today);
+        setDate(today).then(() => {
+          const sel = useNotesStore.getState().selectedNote;
+          if (sel?.storagePath) {
+            const daily = useNotesStore.getState().notes.find(n => !n.storagePath);
+            selectNote(daily ?? null);
+          }
+        });
         setSidebarHidden(false);
         handleSetSidebarTab('daily');
       },
