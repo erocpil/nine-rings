@@ -1,7 +1,7 @@
 // 数据库迁移版本定义
-// 与 Tauri 后端同步：schema_version = 3
+// 与 Tauri 后端同步：schema_version = 5
 
-const int schemaVersion = 3;
+const int schemaVersion = 5;
 
 String migrationV1 = '''
 CREATE TABLE IF NOT EXISTS notes (
@@ -66,4 +66,56 @@ String migrationV2 = '''
 String migrationV3 = '''
 -- note_versions table was added in v3,
 -- already created in v1 schema above. No-op.
+''';
+
+String migrationV4 = '''
+-- 文档管理系统（v2）字段
+ALTER TABLE notes ADD COLUMN storage_path TEXT;
+ALTER TABLE notes ADD COLUMN doc_type TEXT;
+ALTER TABLE notes ADD COLUMN concepts TEXT;
+ALTER TABLE notes ADD COLUMN linked_doc_ids TEXT;
+ALTER TABLE notes ADD COLUMN readonly INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS idx_notes_storage_path ON notes(storage_path);
+''';
+
+String migrationV5 = '''
+-- FTS5 全文搜索虚拟表
+CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+  title, content, content=notes, content_rowid=rowid
+);
+
+-- 触发器：INSERT / DELETE / UPDATE 时同步 FTS 索引
+CREATE TRIGGER IF NOT EXISTS notes_ai AFTER INSERT ON notes BEGIN
+  INSERT INTO notes_fts(rowid, title, content)
+  VALUES (new.rowid, new.title, new.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS notes_ad AFTER DELETE ON notes BEGIN
+  INSERT INTO notes_fts(notes_fts, rowid, title, content)
+  VALUES ('delete', old.rowid, old.title, old.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS notes_au AFTER UPDATE ON notes BEGIN
+  INSERT INTO notes_fts(notes_fts, rowid, title, content)
+  VALUES ('delete', old.rowid, old.title, old.content);
+  INSERT INTO notes_fts(rowid, title, content)
+  VALUES (new.rowid, new.title, new.content);
+END;
+
+-- 模板表
+CREATE TABLE IF NOT EXISTS templates (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  is_builtin INTEGER NOT NULL DEFAULT 0,
+  title_template TEXT,
+  tags TEXT NOT NULL DEFAULT '[]',
+  storage_path TEXT,
+  doc_type TEXT,
+  concepts TEXT NOT NULL DEFAULT '[]',
+  pinned INTEGER NOT NULL DEFAULT 0,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 ''';

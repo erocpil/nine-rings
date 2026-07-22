@@ -38,18 +38,27 @@ class NoteService {
     String? title,
     String? content,
     List<String>? tags,
+    String? storagePath,
+    String? docType,
+    List<String>? concepts,
+    List<String>? linkedDocIds,
+    bool? readonly,
   }) async {
     final note = Note(
       date: date,
       title: title,
       content: content,
       tags: tags,
+      storagePath: storagePath,
+      docType: docType,
+      concepts: concepts,
+      linkedDocIds: linkedDocIds,
+      readonly: readonly,
     );
     await _saveSnapshot(note, 'create');
     await _db.database.insert('notes', {
       ...note.toJson(),
       'search_text': note.plainText,
-      'sort_order': note.order,
       'tags': jsonEncode(note.tags),
     });
     return note;
@@ -60,14 +69,24 @@ class NoteService {
     String? content,
     List<String>? tags,
     bool? pinned,
-    int? order,
+    int? sortOrder,
+    String? storagePath,
+    String? docType,
+    List<String>? concepts,
+    List<String>? linkedDocIds,
+    bool? readonly,
   }) async {
     final updated = note.copyWith(
       title: title,
       content: content,
       tags: tags,
       pinned: pinned,
-      order: order,
+      sortOrder: sortOrder,
+      storagePath: storagePath,
+      docType: docType,
+      concepts: concepts,
+      linkedDocIds: linkedDocIds,
+      readonly: readonly,
     );
     await _saveSnapshot(updated, 'update');
     await _db.database.update(
@@ -77,9 +96,14 @@ class NoteService {
         'content': updated.content,
         'tags': jsonEncode(updated.tags),
         'pinned': updated.pinned ? 1 : 0,
-        'sort_order': updated.order,
+        'sort_order': updated.sortOrder,
         'search_text': updated.plainText,
         'updated_at': updated.updatedAt,
+        'storage_path': updated.storagePath,
+        'doc_type': updated.docType,
+        'concepts': updated.concepts != null ? jsonEncode(updated.concepts) : null,
+        'linked_doc_ids': updated.linkedDocIds != null ? jsonEncode(updated.linkedDocIds) : null,
+        'readonly': updated.readonly ? 1 : 0,
       },
       where: 'id = ?',
       whereArgs: [note.id],
@@ -210,7 +234,7 @@ class NoteService {
       batch.insert('notes', {
         ...note.toJson(),
         'search_text': note.plainText,
-        'sort_order': note.order,
+        'sort_order': note.sortOrder,
         'tags': jsonEncode(note.tags),
       }, conflictAlgorithm: ConflictAlgorithm.replace);
       count++;
@@ -229,7 +253,7 @@ class NoteService {
       title: note.title ?? '',
       content: note.content,
       tags: List.from(note.tags),
-      order: note.order,
+      order: note.sortOrder,
       createdAt: DateTime.now().toUtc().toIso8601String(),
     );
     // Limit: keep last 30 versions per note
@@ -280,7 +304,7 @@ class NoteService {
       title: version.title.isEmpty ? null : version.title,
       content: version.content,
       tags: version.tags,
-      order: version.order,
+      sortOrder: version.order,
     );
     await _db.database.update(
       'notes',
@@ -288,7 +312,7 @@ class NoteService {
         'title': restored.title,
         'content': restored.content,
         'tags': jsonEncode(restored.tags),
-        'sort_order': restored.order,
+        'sort_order': restored.sortOrder,
         'search_text': restored.plainText,
         'updated_at': restored.updatedAt,
       },
