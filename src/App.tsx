@@ -477,10 +477,6 @@ function App() {
       if (e.shiftKey) return;
 
       switch (e.key.toLowerCase()) {
-        case "n":
-          e.preventDefault();
-          createNote();
-          break;
         case "e":
           e.preventDefault();
           document.querySelector<HTMLInputElement>(".search-input")?.focus();

@@ -270,7 +270,7 @@ pub fn run() {
             startup_log!("setting up tray...");
             match (|| -> Result<_, Box<dyn std::error::Error>> {
                 let show = MenuItemBuilder::with_id("show", "显示九环").build(app)?;
-                let new_note = MenuItemBuilder::with_id("new_note", "新建随笔    Ctrl+N").build(app)?;
+                let new_note = MenuItemBuilder::with_id("new_note", "新建随笔").build(app)?;
                 let quick_cap = MenuItemBuilder::with_id("quick_capture", "快捷记录    Ctrl+Alt+N").build(app)?;
                 let quit = MenuItemBuilder::with_id("quit", "退出").build(app)?;
                 let menu = MenuBuilder::new(app)

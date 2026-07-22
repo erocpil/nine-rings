@@ -137,7 +137,7 @@ export interface AppConfig {
 }
 
 export const DEFAULT_HOTKEYS: Record<string, string> = {
-  new_note:       "CommandOrControl+N",
+  new_note:       "",
   quick_capture:  "CommandOrControl+Alt+N",
   focus_search:   "CommandOrControl+E",
   open_settings:  "Alt+,",
