@@ -56,7 +56,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
         api.daily.get(date),
       ]);
       // 若当前选中的是文档（有 storagePath），保持在文档视图不切换
-      if (prevSelected?.storagePath && prevSelected.date !== date) {
+      if (prevSelected?.storagePath) {
         set({ notes, dailyPage, loading: false });
         return;
       }
