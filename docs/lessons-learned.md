@@ -571,3 +571,100 @@ OpenOptions::new().create(true).append(true).open(&log_path)
 - 启动时：DB 文件大小、`config.json` 是否存在
 - 运行时：`get_config` 是否被调（确认前端走 Tauri IPC）
 - 写入后：`set_config` 验证 `exists=true/false`
+
+---
+
+## setDate 守卫设计：文档选中无条件保护
+
+### 问题演进
+
+**第一版**（`86d5031`）：Alt+Y 托盘唤回后显示新随笔。根因是 `setDate` 无条件覆盖 `selectedNote`。修复加了守卫：
+
+```typescript
+if (prevSelected?.storagePath && prevSelected.date !== date) {
+    set({ notes, dailyPage, loading: false });
+    return;
+}
+```
+
+**第二版**（`7f82449`）：守卫条件 `prevSelected.date !== date` 有漏洞——文档日期与目标日期相同时守卫不触发，`selectedNote` 被覆盖。去掉 `date !==` 条件，`storagePath` 存在即保护。
+
+### 设计原则
+
+- **`setDate` 永远不覆盖文档选中**：只要 `selectedNote` 有 `storagePath`（当前在看文档），任何 `setDate` 调用都只更新 `notes`/`dailyPage`，不动 `selectedNote`
+- **Ctrl+Shift+D / toggleDaily 需要补救**：这两个入口的意图是"切回当日随笔"。`setDate` 守卫阻止了自动切换，需要在 `.then()` 回调中显式 `selectNote(daily ?? null)`
+- **侧栏随笔点击不受影响**：Sidebar 的 `onSelect` 直接调用 `selectNote(note)`，不经过 `setDate`
+
+### 守卫后的补救模式
+
+```typescript
+setDate(today).then(() => {
+    const sel = useNotesStore.getState().selectedNote;
+    if (sel?.storagePath) {
+        // setDate 守卫保留了文档选中 → 显式切到当日随笔
+        const daily = useNotesStore.getState().notes.find(n => !n.storagePath);
+        selectNote(daily ?? null);
+    }
+});
+```
+
+---
+
+## Tauri 全局热键在窗口最小化时仍然生效
+
+### 场景
+
+用户在九环中打开文档 → 最小化窗口 → 在其他应用中按 Ctrl+N（意图是那个应用的新建） → 九环的 Tauri 全局热键捕获 → `createNote()` → 九环中创建了"新随笔" → 文档选中被覆盖。
+
+### 根因
+
+`tauri_plugin_global_shortcut::register("CommandOrControl+N", ...)` 注册的是 **OS 层面的快捷键**，不与窗口可见性绑定。窗口最小化时照常触发。
+
+### 后果
+
+1. `createNote()` 创建 title="新随笔" 的日常笔记
+2. `set({ selectedNote: note })` 覆盖当前选中的文档
+3. `useEffect` 写入 `localStorage.setItem("nr:lastNote", note.id)` — 文档 ID 丢失
+
+用户恢复窗口后，看到的是"新随笔"而非之前的文档。
+
+### 修复
+
+由于 `createNote` 通过 `tray-new-note` 托盘菜单事件仍有可用入口，决定将 `new_note` 全局热键置于空字符串，`registerShortcuts` 遇空自动跳过注册。清除范围：
+
+| 位置 | 操作 |
+|------|------|
+| `App.tsx` | 删除 `case "n": createNote()` 键盘事件 |
+| `models.ts` | `DEFAULT_HOTKEYS.new_note` → `""` |
+| `storage/types.ts` | 默认配置 `hotkeys.new_note` → `""` |
+| `commands/config.rs` | Rust 端 `default_hotkeys()` 同上 |
+| `lib.rs` | 托盘菜单文字去掉 `Ctrl+N` 后缀 |
+| `demo-content.ts` | Demo 文本 `"Ctrl+N"` → `"+"` |
+
+---
+
+## 代码块双回车退出：条件太严导致积累尾随换行
+
+### 问题
+
+用户在代码块末尾按 Enter 试图退出。若代码块后跟普通段落，`CodeBlockLineNumbers` 的 Enter 处理器因后续节点类型检查返回 `false`，回退到 ProseMirror 默认行为（插入 `\n`）。反复按键积累大量尾随换行，复制粘贴时渲染为"特别长的空行"。
+
+### 根因
+
+```typescript
+// L138-144 — 仅当后续是另一个代码块或文档末节点时才允许退出
+const nextNode = resolved.nodeAfter;
+const isAdjacentCodeBlock = nextNode && nextNode.type.name === 'codeBlock';
+const isLastBlock = !nextNode;
+if (!isAdjacentCodeBlock && !isLastBlock) return false;
+```
+
+### 修复
+
+移除此条件。双回车退出在所有场景生效。**光标位置检查仍在**（`$from.parentOffset < parent.content.size`），代码块中间位置的双回车仍产生空行——退出只在最末尾触发。
+
+### 取舍
+
+- ✅ 任何场景下双回车都能退出代码块
+- ✅ 代码块中间位置双回车仍可产生空行分隔
+- ✗ 代码块最末尾不能保留尾随空行（这正是修复目标——尾随空行是污染源）
