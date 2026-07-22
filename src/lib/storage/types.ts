@@ -26,7 +26,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   highlight_active_line: true,
   editor_show_line_numbers: false,
   hotkeys: {
-    new_note:      "CommandOrControl+N",
+    new_note:      "",
     quick_capture: "CommandOrControl+Alt+N",
     focus_search:  "CommandOrControl+E",
     open_settings: "Alt+,",

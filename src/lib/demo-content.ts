@@ -168,8 +168,8 @@ export const DEMO_CONTENT = {
     {
       type: "paragraph",
       content: [
-        { type: "text", text: "试试双击修改此笔记标题，或用 " },
-        { type: "text", text: "Ctrl+N", marks: [{ type: "bold" }] },
+        { type: "text", text: "试试双击修改此笔记标题，或点击侧栏 " },
+        { type: "text", text: "+", marks: [{ type: "bold" }] },
         { type: "text", text: " 新建一篇。" },
       ],
     },
