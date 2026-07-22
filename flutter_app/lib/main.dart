@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'database/database_helper.dart';
 import 'providers/note_provider.dart';
 import 'screens/home_screen.dart';
@@ -9,6 +10,10 @@ import 'themes/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Windows/Linux desktop: sqflite needs FFI initialization
+  sqfliteFfiInit();
+
   await initializeDateFormatting();
   await DatabaseHelper.instance.initialize();
 
