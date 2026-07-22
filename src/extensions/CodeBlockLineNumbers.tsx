@@ -135,14 +135,6 @@ export const CodeBlockLineNumbers = Node.create({
         const parent = $from.parent;
         if (parent.type.name !== 'codeBlock') return false;
 
-        // 检查：下一个节点是代码块（相邻），或代码块是文档最后一个节点
-        const posAfter = $from.after($from.depth);
-        const resolved = editor.state.doc.resolve(posAfter);
-        const nextNode = resolved.nodeAfter;
-        const isAdjacentCodeBlock = nextNode && nextNode.type.name === 'codeBlock';
-        const isLastBlock = !nextNode;
-        if (!isAdjacentCodeBlock && !isLastBlock) return false;
-
         // 只处理 cursor 在代码块末尾的场景
         if ($from.parentOffset < parent.content.size) return false;
 
