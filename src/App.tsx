@@ -559,10 +559,8 @@ function App() {
   }, [config?.hotkeys ? JSON.stringify(config.hotkeys) : ""]);
 
   // ── 时钟更新 + 跨日检测 ──
+  const lastTodayRef = useRef(new Date().toISOString().slice(0, 10));
   useEffect(() => {
-    // 跟踪"上一次检查时的日期"，只在真正跨日时切换
-    const lastToday = new Date().toISOString().slice(0, 10);
-
     const tick = () => {
       const d = new Date();
       setClock(d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }));
@@ -570,11 +568,11 @@ function App() {
     // 时钟每秒更新一次
     const clockId = setInterval(tick, 1_000);
 
-    // 跨日检测：只在新的一天真正到来时才切换
+    // 跨日检测：使用 ref 跟踪上次日期，跨日后只触发一次
     const dateId = setInterval(() => {
       const todayStr = new Date().toISOString().slice(0, 10);
-      if (todayStr !== lastToday) {
-        // 真正跨日了
+      if (todayStr !== lastTodayRef.current) {
+        lastTodayRef.current = todayStr;
         const sel = useNotesStore.getState().selectedNote;
         if (!sel?.storagePath) {
           setDate(todayStr);
