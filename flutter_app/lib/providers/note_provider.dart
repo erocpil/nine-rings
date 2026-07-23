@@ -390,4 +390,8 @@ class NoteProvider extends ChangeNotifier {
   // ── Markdown ──
 
   String deltaToMarkdown(String deltaJson) => _service.deltaToMarkdown(deltaJson);
+
+  String mdToDelta(String mdText) => _service.mdToDelta(mdText);
+
+  String extractTitle(String mdText, String fallback) => _service.extractTitle(mdText, fallback);
 }

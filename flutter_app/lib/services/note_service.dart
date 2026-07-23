@@ -613,4 +613,221 @@ class NoteService {
       return deltaJson; // fallback: return raw
     }
   }
+
+  // ── Markdown import (Markdown → Delta JSON) ──
+
+  /// 将 Markdown 文本转为 Quill Delta JSON 字符串。
+  /// 与 Web 端 md-parser.ts 实现对齐。
+  String mdToDelta(String mdText) {
+    final ops = _mdToDeltaOps(mdText);
+    return jsonEncode({'ops': ops});
+  }
+
+  /// 从 Markdown 提取第一个 # 标题，fallback 到文件名。
+  String extractTitle(String mdText, String fallback) {
+    final m = RegExp(r'^#\s+(.+)$', multiLine: true).firstMatch(mdText);
+    return m != null ? m.group(1)!.trim() : fallback;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Markdown → Delta 内部实现（与 Web 端 md-parser.ts 对齐）
+// ═══════════════════════════════════════════════════════════════════
+
+/// 行内解析：**粗体** *斜体* `行内代码` [链接](url)
+List<Map<String, dynamic>> _parseInline(String text) {
+  final result = <Map<String, dynamic>>[];
+  int i = 0;
+
+  while (i < text.length) {
+    // [链接](url)
+    final linkMatch = RegExp(r'^\[([^\]]+)\]\(([^)]+)\)').matchAsPrefix(text, i);
+    if (linkMatch != null) {
+      result.add({'text': linkMatch.group(1)!, 'attrs': {'link': linkMatch.group(2)!}});
+      i = linkMatch.end;
+      continue;
+    }
+
+    // **粗体**
+    if (i + 1 < text.length && text[i] == '*' && text[i + 1] == '*') {
+      final j = text.indexOf('**', i + 2);
+      if (j != -1) {
+        result.add({'text': text.substring(i + 2, j), 'attrs': {'bold': true}});
+        i = j + 2;
+        continue;
+      }
+    }
+
+    // *斜体*（单星号）
+    if (text[i] == '*' && (i + 1 >= text.length || text[i + 1] != '*')) {
+      final j = text.indexOf('*', i + 1);
+      if (j != -1) {
+        final inner = text.substring(i + 1, j);
+        if (inner.isNotEmpty) {
+          result.add({'text': inner, 'attrs': {'italic': true}});
+          i = j + 1;
+          continue;
+        }
+      }
+    }
+
+    // `行内代码`
+    if (text[i] == '`') {
+      final j = text.indexOf('`', i + 1);
+      if (j != -1) {
+        result.add({'text': text.substring(i + 1, j), 'attrs': {'code': true}});
+        i = j + 1;
+        continue;
+      }
+    }
+
+    // 普通字符
+    result.add({'text': text[i], 'attrs': <String, dynamic>{}});
+    i++;
+  }
+
+  return result;
+}
+
+List<Map<String, dynamic>> _inlineToDelta(
+  String text, {
+  Map<String, dynamic>? baseAttrs,
+}) {
+  if (text.isEmpty) return [];
+
+  final segments = _parseInline(text);
+  final merged = <Map<String, dynamic>>[];
+
+  for (final seg in segments) {
+    final combined = <String, dynamic>{...(baseAttrs ?? {})};
+    for (final entry in (seg['attrs'] as Map).entries) {
+      if (entry.value != null && entry.value != false && entry.value != '') {
+        combined[entry.key as String] = entry.value;
+      }
+    }
+
+    final last = merged.isNotEmpty ? merged.last : null;
+    if (last != null && _mapsEqual(last['attrs'] as Map, combined)) {
+      last['text'] = last['text'].toString() + (seg['text'] as String);
+    } else {
+      merged.add({'text': seg['text'], 'attrs': combined});
+    }
+  }
+
+  return merged.map((m) {
+    final op = <String, dynamic>{'insert': m['text']};
+    if ((m['attrs'] as Map).isNotEmpty) op['attributes'] = m['attrs'];
+    return op;
+  }).toList();
+}
+
+bool _mapsEqual(Map a, Map b) {
+  if (a.length != b.length) return false;
+  for (final key in a.keys) {
+    if (b[key] != a[key]) return false;
+  }
+  return true;
+}
+
+List<Map<String, dynamic>> _mdToDeltaOps(String mdText) {
+  final lines = mdText.split('\n');
+  final ops = <Map<String, dynamic>>[];
+  int i = 0;
+  bool inCode = false;
+  final codeBuf = <String>[];
+
+  while (i < lines.length) {
+    final line = lines[i];
+    final stripped = line.trim();
+
+    // ── 代码块 ──
+    if (RegExp(r'^```').hasMatch(stripped)) {
+      if (inCode) {
+        if (codeBuf.isNotEmpty) {
+          ops.add({'insert': codeBuf.join('\n')});
+          ops.add({'insert': '\n', 'attributes': {'code-block': true}});
+        }
+        codeBuf.clear();
+        inCode = false;
+      } else {
+        inCode = true;
+      }
+      i++;
+      continue;
+    }
+
+    if (inCode) {
+      codeBuf.add(line);
+      i++;
+      continue;
+    }
+
+    // ── 空行 ──
+    if (stripped.isEmpty) {
+      if (ops.isNotEmpty && !(ops.last['insert'] as String).endsWith('\n')) {
+        ops.add({'insert': '\n'});
+      }
+      i++;
+      continue;
+    }
+
+    // ── 分割线 ──
+    if (RegExp(r'^[-*_]{3,}\s*$').hasMatch(stripped)) {
+      ops.add({'insert': '─' * 8, 'attributes': {'strike': true}});
+      ops.add({'insert': '\n'});
+      i++;
+      continue;
+    }
+
+    // ── 标题 ──
+    final hMatch = RegExp(r'^(#{1,6})\s+(.+)$').firstMatch(stripped);
+    if (hMatch != null) {
+      final level = hMatch.group(1)!.length;
+      final text = hMatch.group(2)!;
+      ops.addAll(_inlineToDelta(text));
+      ops.add({'insert': '\n', 'attributes': {'header': level}});
+      i++;
+      continue;
+    }
+
+    // ── 引用 ──
+    final bqMatch = RegExp(r'^>\s?(.*)$').firstMatch(stripped);
+    if (bqMatch != null) {
+      ops.addAll(_inlineToDelta(bqMatch.group(1)!));
+      ops.add({'insert': '\n', 'attributes': {'blockquote': true}});
+      i++;
+      continue;
+    }
+
+    // ── 无序列表 ──
+    final blMatch = RegExp(r'^[-*+]\s+(.+)$').firstMatch(stripped);
+    if (blMatch != null) {
+      ops.addAll(_inlineToDelta(blMatch.group(1)!));
+      ops.add({'insert': '\n', 'attributes': {'list': 'bullet'}});
+      i++;
+      continue;
+    }
+
+    // ── 有序列表 ──
+    final olMatch = RegExp(r'^\d+\.\s+(.+)$').firstMatch(stripped);
+    if (olMatch != null) {
+      ops.addAll(_inlineToDelta(olMatch.group(1)!));
+      ops.add({'insert': '\n', 'attributes': {'list': 'ordered'}});
+      i++;
+      continue;
+    }
+
+    // ── 普通段落 ──
+    ops.addAll(_inlineToDelta(line));
+    ops.add({'insert': '\n'});
+    i++;
+  }
+
+  // 关闭未闭合的代码块
+  if (inCode && codeBuf.isNotEmpty) {
+    ops.add({'insert': codeBuf.join('\n')});
+    ops.add({'insert': '\n', 'attributes': {'code-block': true}});
+  }
+
+  return ops;
 }

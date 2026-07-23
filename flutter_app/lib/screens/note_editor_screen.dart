@@ -1,8 +1,11 @@
 import 'dart:convert';
+import 'dart:io' show File;
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../providers/note_provider.dart';
 import '../models/note.dart';
 import '../widgets/tag_editor.dart';
@@ -228,13 +231,28 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   Future<void> _exportMarkdown() async {
     final provider = context.read<NoteProvider>();
-    final md = provider.deltaToMarkdown(
-      jsonEncode(_quillController.document.toDelta().toJson()),
-    );
+    final note = widget.note;
+
+    // 如果没有已保存的 note，使用当前编辑内容
+    final deltaJson = jsonEncode(_quillController.document.toDelta().toJson());
+    final md = provider.deltaToMarkdown(deltaJson);
+
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Markdown 已生成 (${md.length} 字符)')),
+
+    final title = note?.title ?? '未命名';
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: '导出 Markdown',
+      fileName: '$title.md',
+      type: FileType.custom,
+      allowedExtensions: ['md'],
     );
+    if (path != null) {
+      await File(path).writeAsString(md);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已保存到 $path')),
+      );
+    }
   }
 
   @override
