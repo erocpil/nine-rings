@@ -505,6 +505,78 @@ class NoteService {
     );
   }
 
+  // ── Single note fetch ──
+
+  Future<Note?> getNoteById(String id) async {
+    final rows = await _db.database.query(
+      'notes',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (rows.isEmpty) return null;
+    return Note.fromJson(rows.first);
+  }
+
+  // ── Backlinks ──
+
+  Future<List<Note>> getBacklinks(String noteId) async {
+    final like = '%\"$noteId\"%';
+    final rows = await _db.database.query(
+      'notes',
+      where: 'linked_doc_ids LIKE ? AND deleted_at IS NULL',
+      whereArgs: [like],
+      orderBy: 'updated_at DESC',
+    );
+    return rows.map((r) => Note.fromJson(r)).toList();
+  }
+
+  // ── Folder operations ──
+
+  Future<int> renameFolder(String oldPath, String newPath) async {
+    final db = _db.database;
+    // Find all notes under oldPath
+    final rows = await db.query(
+      'notes',
+      columns: ['id', 'storage_path'],
+      where: 'storage_path LIKE ? AND deleted_at IS NULL',
+      whereArgs: ['$oldPath%'],
+    );
+    int count = 0;
+    final now = DateTime.now().toUtc().toIso8601String();
+    for (final row in rows) {
+      final currentPath = row['storage_path'] as String?;
+      if (currentPath == null) continue;
+      // Replace oldPath prefix with newPath
+      final updatedPath = currentPath.replaceFirst(oldPath, newPath);
+      await db.update(
+        'notes',
+        {'storage_path': updatedPath, 'updated_at': now},
+        where: 'id = ?',
+        whereArgs: [row['id']],
+      );
+      count++;
+    }
+    // Also handle sub-folders: notes that have storage_path exactly matching oldPath
+    // (already covered by LIKE above, but ensure exact match too)
+    final exactRows = await db.query(
+      'notes',
+      columns: ['id'],
+      where: 'storage_path = ? AND deleted_at IS NULL',
+      whereArgs: [oldPath],
+    );
+    for (final row in exactRows) {
+      final id = row['id'] as String;
+      await db.update(
+        'notes',
+        {'storage_path': newPath, 'updated_at': now},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      count++;
+    }
+    return count;
+  }
+
   // ── Markdown export (Delta → Markdown) ──
 
   String deltaToMarkdown(String deltaJson) {

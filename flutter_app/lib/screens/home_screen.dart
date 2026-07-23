@@ -6,6 +6,9 @@ import '../models/note.dart';
 import 'note_editor_screen.dart';
 import 'search_screen.dart';
 import 'trash_screen.dart';
+import 'doc_tree_screen.dart';
+import 'concept_aggregation.dart';
+import '../widgets/doc_create_dialog.dart';
 import '../widgets/note_card.dart';
 import '../widgets/todo_list_widget.dart';
 import '../widgets/tag_filter_bar.dart';
@@ -20,6 +23,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final String _selectedDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
   final _scaffoldKey = GlobalKey<ScaffoldState>();
+  int _tabIndex = 0; // 0=随笔, 1=文档, 2=概念
 
   @override
   void initState() {
@@ -45,17 +49,13 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
-    if (result == true) {
-      if (!mounted) return;
+    if (result == true && mounted) {
       await context.read<NoteProvider>().loadNotesByDate(_selectedDate);
     }
   }
 
   Future<void> _togglePin(Note note) async {
-    await context.read<NoteProvider>().updateNote(
-      note,
-      pinned: !note.pinned,
-    );
+    await context.read<NoteProvider>().updateNote(note, pinned: !note.pinned);
   }
 
   Future<void> _deleteNote(Note note) async {
@@ -65,7 +65,9 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('删除笔记'),
         content: Text('确定删除「${note.title ?? '无标题'}」？'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('删除', style: TextStyle(color: Colors.red)),
@@ -73,10 +75,22 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
-    if (confirm == true) {
-      if (!mounted) return;
+    if (confirm == true && mounted) {
       await context.read<NoteProvider>().deleteNote(note.id, _selectedDate);
     }
+  }
+
+  void _showCreateDocDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => DocCreateDialog(
+        onClose: () => Navigator.pop(context),
+        onCreated: (_) {
+          Navigator.pop(context);
+          if (mounted) setState(() => _tabIndex = 1);
+        },
+      ),
+    );
   }
 
   @override
@@ -116,83 +130,108 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: Consumer<NoteProvider>(
-        builder: (context, provider, _) {
-          if (provider.loading) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: IndexedStack(
+        index: _tabIndex,
+        children: [
+          _buildDailyTab(theme),
+          const DocTreeScreen(),
+          const ConceptAggregation(),
+        ],
+      ),
+      floatingActionButton: _tabIndex == 0
+          ? FloatingActionButton(
+              onPressed: () => _navigateToEditor(),
+              child: const Icon(Icons.add),
+            )
+          : _tabIndex == 1
+              ? FloatingActionButton(
+                  onPressed: _showCreateDocDialog,
+                  child: const Icon(Icons.note_add),
+                )
+              : null,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tabIndex,
+        onDestinationSelected: (i) => setState(() => _tabIndex = i),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.edit_note), label: '随笔'),
+          NavigationDestination(icon: Icon(Icons.folder_outlined), label: '文档'),
+          NavigationDestination(icon: Icon(Icons.label_outline), label: '概念'),
+        ],
+      ),
+    );
+  }
 
-          final notes = provider.notesByDate[_selectedDate] ?? [];
-          final dailyPage = provider.currentDailyPage;
+  Widget _buildDailyTab(ThemeData theme) {
+    return Consumer<NoteProvider>(
+      builder: (context, provider, _) {
+        if (provider.loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-          return RefreshIndicator(
-            onRefresh: _loadData,
-            child: CustomScrollView(
-              slivers: [
-                // ── Daily page: todos ──
-                if (dailyPage != null)
-                  SliverToBoxAdapter(
-                    child: TodoListWidget(
-                      dailyPage: dailyPage,
-                      onUpdate: (todos) => provider.updateTodos(_selectedDate, todos),
-                      onToggleCarryover: (v) => provider.setTodoCarryover(_selectedDate, v),
-                    ),
+        final notes = provider.notesByDate[_selectedDate] ?? [];
+        final dailyPage = provider.currentDailyPage;
+
+        return RefreshIndicator(
+          onRefresh: _loadData,
+          child: CustomScrollView(
+            slivers: [
+              if (dailyPage != null)
+                SliverToBoxAdapter(
+                  child: TodoListWidget(
+                    dailyPage: dailyPage,
+                    onUpdate: (todos) =>
+                        provider.updateTodos(_selectedDate, todos),
+                    onToggleCarryover: (v) =>
+                        provider.setTodoCarryover(_selectedDate, v),
                   ),
-
-                // ── Tags filter ──
-                if (provider.allTags.isNotEmpty)
-                  SliverToBoxAdapter(
-                    child: TagFilterBar(
-                      allTags: provider.allTags,
-                      onSelectTag: (tag) => provider.filterByTag(tag),
-                      onClear: () => provider.clearTagFilter(),
-                    ),
+                ),
+              if (provider.allTags.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: TagFilterBar(
+                    allTags: provider.allTags,
+                    onSelectTag: (tag) => provider.filterByTag(tag),
+                    onClear: () => provider.clearTagFilter(),
                   ),
-
-                // ── Notes ──
-                SliverPadding(
-                  padding: const EdgeInsets.all(8),
-                  sliver: notes.isEmpty
-                      ? SliverFillRemaining(
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.edit_note, size: 64, color: theme.disabledColor),
-                                const SizedBox(height: 16),
-                                Text(
-                                  '今天还没有笔记\n点击右下角 + 开始记录',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(color: theme.disabledColor),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      : SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final note = notes[index];
-                              return NoteCard(
-                                note: note,
-                                onTap: () => _navigateToEditor(note: note),
-                                onPin: () => _togglePin(note),
-                                onDelete: () => _deleteNote(note),
-                              );
-                            },
-                            childCount: notes.length,
+                ),
+              SliverPadding(
+                padding: const EdgeInsets.all(8),
+                sliver: notes.isEmpty
+                    ? SliverFillRemaining(
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.edit_note,
+                                  size: 64, color: theme.disabledColor),
+                              const SizedBox(height: 16),
+                              Text(
+                                '今天还没有笔记\n点击右下角 + 开始记录',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: theme.disabledColor),
+                              ),
+                            ],
                           ),
                         ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _navigateToEditor(),
-        child: const Icon(Icons.add),
-      ),
+                      )
+                    : SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final note = notes[index];
+                            return NoteCard(
+                              note: note,
+                              onTap: () => _navigateToEditor(note: note),
+                              onPin: () => _togglePin(note),
+                              onDelete: () => _deleteNote(note),
+                            );
+                          },
+                          childCount: notes.length,
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

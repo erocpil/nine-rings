@@ -96,6 +96,66 @@ Web 端 CSS variables → Flutter `ThemeData`：
 浅色主题（如 `fu`、`grace`）在 Flutter 中仍需用 `Brightness.light` 构造，
 否则文字色反转为白色导致不可读。
 
+### Flutter Windows 桌面 CI 构建踩坑全记录
+
+从零到成功构建 Flutter Windows 桌面版，共遇到 5 个阻塞问题：
+
+**① `flutter-version` 填写的是 Dart SDK 版本号**
+
+`pubspec.yaml` 中 `sdk: ^3.9.2` 是 Dart SDK 约束，不是 Flutter 版本号。
+`subosito/flutter-action` 的 `flutter-version: '3.9.2'` 会尝试下载不存在的 Flutter 3.9.2。
+
+**修复**：去掉 `flutter-version`，用 `channel: 'stable'` 自动拉最新版。
+
+**② `flutter analyze` — lint 问题阻塞构建**
+
+`flutter analyze` 默认将所有级别视为 fatal。首次运行报 2 error：
+
+- `sqflite_common_ffi` 包的导入路径不存在（`pub get` 未下载）
+- `template_service.dart` 未使用的 import
+
+**修复**：加 `--no-fatal-infos --no-fatal-warnings` + `continue-on-error: true` 双重保底。
+
+**③ JDK 缺失导致 `jni` FFI 插件编译失败**
+
+`jni`（Dart SDK 包）声明了 `windows: ffiPlugin: true`，CMake 编译其 C 源码 `dartjni.c` 时需要 `<jni.h>`（JDK 头文件）。`windows-latest` 镜像不带 JDK。
+
+**修复**：`actions/setup-java@v4`（Temurin JDK 17），自动设 `JAVA_HOME`。
+
+**④ `pubspec.lock` 锁死 `flutter_quill` 旧版**
+
+`pubspec.lock` 提交在仓库中，锁死 `flutter_quill` 11.5.0。该版本不兼容 Flutter 3.44（缺 `QuillRawEditorState` 抽象方法实现）。CI 用 Flutter 3.44.7 + Dart 3.12.2，但 `pub get` 尊重 lock 文件，仍解析 11.5.0。
+
+**修复**：`git rm --cached flutter_app/pubspec.lock`，CI 重新解析获取 11.5.1（兼容 Flutter 3.44）。
+
+**⑤ `databaseFactory` 未初始化**
+
+`sfliteFfiInit()` 只加载 `sqlite3.dll` FFI 绑定，不设置全局 `databaseFactory`。后续 `getDatabasesPath()` 调用时找不到 factory，抛 `Bad state: databaseFactory not initialized`。
+
+**修复**：`databaseFactory = databaseFactoryFfi;`（`sqflite_common_ffi` 包已 re-export）。
+
+**⑥ `onCreate` 只跑 `migrationV1`**
+
+`openDatabase(version: 5, onCreate: ..., onUpgrade: ...)` 中，全新数据库创建时
+只调 `onCreate`（不调 `onUpgrade`）。`onCreate` 中只 `await db.execute(migrationV1)`，
+V2-V5 全被跳过，导致 `templates` 表和 FTS5 虚拟表缺失。
+
+**修复**：抽取 `_runMigrations(db, fromVersion, toVersion)` 统一处理 `onCreate`（from=0）和 `onUpgrade`。
+
+**诊断方法**：Flutter Windows release 模式无控制台窗口，异常静默退出。
+在 `main()` 中加文件日志（`%TEMP%/nine-rings-startup.log`），
+每个初始化步骤后写一行，异常时写完整 stack trace。
+
+```dart
+void _log(String msg) {
+  final logFile = File('${Directory.systemTemp.path}/nine-rings-startup.log');
+  logFile.writeAsStringSync(
+    '${DateTime.now().toIso8601String()} $msg\n',
+    mode: FileMode.append,
+  );
+}
+```
+
 ---
 
 ## CI/CD

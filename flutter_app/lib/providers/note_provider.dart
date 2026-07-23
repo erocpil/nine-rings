@@ -18,6 +18,12 @@ class NoteProvider extends ChangeNotifier {
   bool _loading = false;
   String? _error;
 
+  // ── Phase 3: 文档树、属性面板、概念聚合 ──
+  Map<String, List<Note>> _pathTree = {};
+  List<Note> _docsByPath = [];
+  List<String> _allConcepts = [];
+  List<Note> _backlinks = [];
+
   // Getters
   Map<String, List<Note>> get notesByDate => _notesByDate;
   List<String> get recentDates => _recentDates;
@@ -29,6 +35,12 @@ class NoteProvider extends ChangeNotifier {
   Map<String, dynamic>? get currentDailyPage => _currentDailyPage;
   bool get loading => _loading;
   String? get error => _error;
+
+  // Phase 3 getters
+  Map<String, List<Note>> get pathTree => _pathTree;
+  List<Note> get docsByPath => _docsByPath;
+  List<String> get allConcepts => _allConcepts;
+  List<Note> get backlinks => _backlinks;
 
   void _setLoading(bool v) {
     _loading = v;
@@ -292,6 +304,86 @@ class NoteProvider extends ChangeNotifier {
       await loadDailyPage(date);
     } catch (e) {
       _setError('更新待办继承失败: $e');
+    }
+  }
+
+  // ── Phase 3: 文档树、属性面板、概念聚合 ──
+
+  Future<void> loadPathTree() async {
+    try {
+      _pathTree = await _service.getPathTree();
+      notifyListeners();
+    } catch (e) {
+      _setError('加载路径树失败: $e');
+    }
+  }
+
+  Future<void> loadDocsByPath(String pathPrefix) async {
+    _setLoading(true);
+    try {
+      _docsByPath = await _service.getNotesByPath(pathPrefix);
+      _setError(null);
+    } catch (e) {
+      _setError('加载路径笔记失败: $e');
+    }
+    _setLoading(false);
+  }
+
+  Future<void> loadAllConcepts() async {
+    try {
+      _allConcepts = await _service.getAllConcepts();
+      notifyListeners();
+    } catch (e) {
+      _setError('加载概念列表失败: $e');
+    }
+  }
+
+  Future<List<Note>> searchDocs({
+    String? text,
+    String? storagePath,
+    String? docType,
+    String? concept,
+  }) async {
+    try {
+      final results = await _service.searchDocs(
+        text: text,
+        storagePath: storagePath,
+        docType: docType,
+        concept: concept,
+      );
+      return results;
+    } catch (e) {
+      _setError('文档搜索失败: $e');
+      return [];
+    }
+  }
+
+  Future<Note?> loadNote(String id) async {
+    try {
+      return await _service.getNoteById(id);
+    } catch (e) {
+      _setError('加载笔记失败: $e');
+      return null;
+    }
+  }
+
+  Future<void> loadBacklinks(String noteId) async {
+    try {
+      _backlinks = await _service.getBacklinks(noteId);
+      notifyListeners();
+    } catch (e) {
+      _setError('加载反向链接失败: $e');
+    }
+  }
+
+  Future<int> renameFolder(String oldPath, String newPath) async {
+    try {
+      final count = await _service.renameFolder(oldPath, newPath);
+      await loadPathTree();
+      return count;
+    } catch (e) {
+      _setError('重命名文件夹失败: $e');
+      return 0;
     }
   }
 
