@@ -6,15 +6,22 @@ import 'package:provider/provider.dart';
 import '../providers/note_provider.dart';
 import '../models/note.dart';
 import '../widgets/tag_editor.dart';
+import '../widgets/doc_type_badge.dart';
+import 'properties_panel.dart';
 
 /// 字体大小 named → px 映射（用于统计栏显示，与 Web 端 delta-converter.ts 一致）
 int namedToPx(String name) {
   switch (name) {
-    case 'small':  return 14;
-    case 'normal': return 16;
-    case 'large':  return 18;
-    case 'huge':   return 24;
-    default:       return 16;
+    case 'small':
+      return 14;
+    case 'normal':
+      return 16;
+    case 'large':
+      return 18;
+    case 'huge':
+      return 24;
+    default:
+      return 16;
   }
 }
 
@@ -39,6 +46,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   bool _saving = false;
 
   bool get _isEditing => widget.note != null;
+  bool get _isDocument => widget.note?.storagePath != null;
 
   @override
   void initState() {
@@ -197,6 +205,27 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     );
   }
 
+  /// 打开属性面板（仅文档模式）
+  void _showProperties() {
+    if (!_isEditing || widget.note == null || !_isDocument) return;
+    final note = widget.note!;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (_, scrollController) => PropertiesPanel(
+          note: note,
+          onClose: () => Navigator.pop(context),
+        ),
+      ),
+    );
+  }
+
   Future<void> _exportMarkdown() async {
     final provider = context.read<NoteProvider>();
     final md = provider.deltaToMarkdown(
@@ -210,10 +239,21 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final note = widget.note;
+    final isDoc = _isDocument;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEditing ? '编辑笔记' : '新建笔记'),
         actions: [
+          // ── 属性面板入口（仅文档）──
+          if (_isEditing && isDoc)
+            IconButton(
+              icon: const Icon(Icons.info_outline),
+              tooltip: '属性',
+              onPressed: _showProperties,
+            ),
           if (_isEditing)
             IconButton(
               icon: const Icon(Icons.history),
@@ -228,7 +268,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           IconButton(
             icon: _saving
                 ? const SizedBox(
-                    width: 20, height: 20,
+                    width: 20,
+                    height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.check),
@@ -238,6 +279,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       ),
       body: Column(
         children: [
+          // ── 文档元数据栏（仅文档模式）──
+          if (_isEditing && isDoc && note != null)
+            _buildDocMetaBar(theme, note),
+
           // Title
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -275,7 +320,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                 icon: const Icon(Icons.image, size: 20),
                 tooltip: '插入图片',
                 onPressed: _showImagePickerDialog,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                constraints:
+                    const BoxConstraints(minWidth: 32, minHeight: 32),
                 padding: EdgeInsets.zero,
               ),
             ),
@@ -295,7 +341,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+              border: Border(
+                  top: BorderSide(color: Theme.of(context).dividerColor)),
             ),
             child: Row(
               children: [
@@ -311,7 +358,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                   '图片/字号/颜色均支持',
                   style: TextStyle(
                     fontSize: 11,
-                    color: Theme.of(context).disabledColor.withValues(alpha: 0.6),
+                    color: Theme.of(context)
+                        .disabledColor
+                        .withValues(alpha: 0.6),
                   ),
                 ),
               ],
@@ -321,7 +370,75 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       ),
     );
   }
-} // ← close _NoteEditorScreenState
+
+  /// 文档元数据栏：只读标记 + 类型徽章 + 概念标签 + 路径
+  Widget _buildDocMetaBar(ThemeData theme, Note note) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 只读 + 类型
+          Row(
+            children: [
+              if (note.readonly)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Icon(Icons.lock,
+                      size: 14, color: theme.colorScheme.error),
+                ),
+              DocTypeBadge(
+                docType: note.docType,
+                readonly: note.readonly,
+              ),
+              if (note.storagePath != null) ...[
+                const SizedBox(width: 8),
+                Icon(Icons.folder_outlined,
+                    size: 14, color: theme.disabledColor),
+                const SizedBox(width: 2),
+                Expanded(
+                  child: Text(
+                    note.storagePath!,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.disabledColor,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          // 概念标签
+          if (note.concepts != null && note.concepts!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 4,
+              runSpacing: 2,
+              children: note.concepts!
+                  .map((c) => Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.secondaryContainer,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          c,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: theme.colorScheme.onSecondaryContainer,
+                          ),
+                        ),
+                      ))
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
 
 // ── Version History Bottom Sheet ──
 
@@ -357,14 +474,16 @@ class _VersionHistorySheet extends StatelessWidget {
                         final v = versions[i];
                         final dt = DateTime.parse(v.createdAt);
                         return ListTile(
-                          title: Text(v.title.isNotEmpty ? v.title : '(无标题)'),
+                          title: Text(
+                              v.title.isNotEmpty ? v.title : '(无标题)'),
                           subtitle: Text(
                             '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} '
                             '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}',
                           ),
                           trailing: TextButton(
                             onPressed: () async {
-                              await provider.restoreVersion(noteId, v.id, date);
+                              await provider.restoreVersion(
+                                  noteId, v.id, date);
                               if (ctx.mounted) Navigator.pop(ctx);
                             },
                             child: const Text('恢复'),
