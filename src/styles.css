@@ -4751,12 +4751,6 @@ body {
   color: #fff;
 }
 
-.titlebar-btn-min:hover,
-.titlebar-btn-max:hover {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-
 /* ═══════════════════════════════════════════
    Quick Capture 迷你窗口
    Frameless：窗口无标题栏，CSS 提供拖拽手柄
