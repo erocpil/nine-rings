@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:uuid/uuid.dart';
-import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
 
 const _uuid = Uuid();

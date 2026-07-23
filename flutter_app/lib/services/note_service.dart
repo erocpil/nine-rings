@@ -226,7 +226,7 @@ class NoteService {
     }
     if (concept != null && concept.isNotEmpty) {
       conditions.add('concepts LIKE ?');
-      args.add('%\"$concept\"%');
+      args.add('%"$concept"%');
     }
 
     final where = conditions.join(' AND ');
