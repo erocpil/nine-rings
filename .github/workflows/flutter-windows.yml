@@ -11,9 +11,6 @@ jobs:
   # ── Flutter 桌面版 ──────────────────────────────────────────
   flutter-windows:
     runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: flutter_app
 
     steps:
       - name: Checkout
@@ -30,27 +27,30 @@ jobs:
         run: flutter config --enable-windows-desktop
 
       - name: Install dependencies
+        working-directory: flutter_app
         run: flutter pub get
 
       - name: Static analysis
+        working-directory: flutter_app
         run: flutter analyze
 
       - name: Build Windows (release)
-        run: flutter build windows --release
+        working-directory: flutter_app
+        run: flutter build windows
 
-      - name: Package as ZIP
-        shell: pwsh
-        working-directory: ${{ github.workspace }}
+      - name: List build output (debug)
+        working-directory: flutter_app
         run: |
-          Compress-Archive `
-            -Path flutter_app/build/windows/x64/runner/Release/* `
-            -DestinationPath nine-rings-flutter-windows-x64.zip
+          echo "=== Release dir ==="
+          dir /s /b build\windows\x64\runner\Release
+        shell: cmd
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: nine-rings-flutter-windows-x64
-          path: nine-rings-flutter-windows-x64.zip
+          path: |
+            flutter_app/build/windows/x64/runner/Release/**
           if-no-files-found: error
 
   # ── Tauri 桌面版 ────────────────────────────────────────────
