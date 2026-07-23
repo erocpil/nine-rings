@@ -3,6 +3,7 @@
 /// 包含 GitHub 同步配置（Token、Owner/Repo、Path）和 Push/Pull 操作。
 /// 与 Web 端 SettingsSync.tsx 对齐。
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/note_provider.dart';
@@ -25,26 +26,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _ownerRepoCtrl = TextEditingController();
   String? _ownerRepoError;
 
+  // 持久化控制器，避免 build() 时重建
+  final _tokenCtrl = TextEditingController();
+  final _pathCtrl = TextEditingController();
+
+  // 防抖：避免每次按键触发 HTTP 请求
+  Timer? _autoCheckTimer;
+
   @override
   void initState() {
     super.initState();
     _cfg = loadSyncConfig();
-    _autoCheck();
+    _tokenCtrl.text = _cfg.token;
+    _pathCtrl.text = _cfg.path;
+    // 首次打开时检查连接
+    _scheduleAutoCheck();
   }
 
   @override
   void dispose() {
+    _autoCheckTimer?.cancel();
+    _tokenCtrl.dispose();
+    _pathCtrl.dispose();
     _ownerRepoCtrl.dispose();
     super.dispose();
   }
 
-  void _autoCheck() async {
+  /// 防抖 auto-check：用户停止输入 800ms 后才发起请求
+  void _scheduleAutoCheck() {
+    _autoCheckTimer?.cancel();
+    _autoCheckTimer = Timer(const Duration(milliseconds: 800), () {
+      _performAutoCheck();
+    });
+  }
+
+  Future<void> _performAutoCheck() async {
     if (!_cfg.isConfigured) {
-      setState(() => _status = null);
+      if (mounted) setState(() => _status = null);
       return;
     }
-    final s = await checkStatus(_cfg);
-    if (mounted) setState(() => _status = s);
+    try {
+      final s = await checkStatus(_cfg);
+      if (mounted) setState(() => _status = s);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _status = SyncStatus(ok: false, message: '连接失败: $e'));
+      }
+    }
   }
 
   void _update(SyncConfig Function(SyncConfig) fn) {
@@ -52,7 +80,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _cfg = fn(_cfg);
       saveSyncConfig(_cfg);
     });
-    _autoCheck();
+    _scheduleAutoCheck();
   }
 
   void _showMessage(String msg, {bool error = false}) {
@@ -143,11 +171,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
         exportData: () => provider.exportAll(),
       );
       if (mounted) {
-        setState(() => _cfg = updated);
+        setState(() {
+          _cfg = updated;
+          _status = const SyncStatus(ok: true, message: '推送成功');
+        });
         _showMessage('推送成功');
       }
     } catch (e) {
-      _showMessage('推送失败: $e', error: true);
+      final msg = e.toString();
+      if (mounted) {
+        setState(() => _status = SyncStatus(ok: false, message: msg));
+        _showMessage('推送失败: $msg', error: true);
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -187,12 +222,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
         },
       );
       if (mounted) {
-        setState(() => _cfg = updated);
+        setState(() {
+          _cfg = updated;
+          _status = const SyncStatus(ok: true, message: '拉取成功');
+        });
         _showMessage('拉取成功');
         await provider.loadRecentDates();
       }
     } catch (e) {
-      _showMessage('拉取失败: $e', error: true);
+      final msg = e.toString();
+      if (mounted) {
+        setState(() => _status = SyncStatus(ok: false, message: msg));
+        _showMessage('拉取失败: $msg', error: true);
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -207,7 +249,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final h = version.substring(9, 11);
     final m = version.substring(11, 13);
     final s = version.substring(13, 15);
-    // 版本时间戳为 UTC，显示时不做本地转换（与 Web 端一致）
     return '$y-$M-$d $h:$m:$s';
   }
 
@@ -264,17 +305,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               border: OutlineInputBorder(),
               isDense: true,
             ),
-            controller: TextEditingController(text: _cfg.token),
-            onChanged: (v) =>
-                _update((c) => SyncConfig(
-                      token: v,
-                      owner: c.owner,
-                      repo: c.repo,
-                      path: c.path,
-                      lastSyncAt: c.lastSyncAt,
-                      lastPushVersion: c.lastPushVersion,
-                      lastPullVersion: c.lastPullVersion,
-                    )),
+            controller: _tokenCtrl,
+            onChanged: (v) => _update((c) => SyncConfig(
+                  token: v,
+                  owner: c.owner,
+                  repo: c.repo,
+                  path: c.path,
+                  lastSyncAt: c.lastSyncAt,
+                  lastPushVersion: c.lastPushVersion,
+                  lastPullVersion: c.lastPullVersion,
+                )),
           ),
           const SizedBox(height: 12),
 
@@ -289,13 +329,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 errorText: _ownerRepoError,
               ),
               controller: _ownerRepoCtrl,
-              onChanged: (_) => _ownerRepoError = null,
+              onChanged: (_) {
+                if (_ownerRepoError != null) {
+                  setState(() => _ownerRepoError = null);
+                }
+              },
               onSubmitted: (_) => _commitOwnerRepo(),
-              onEditingComplete: _commitOwnerRepo,
               autofocus: true,
             ),
             const SizedBox(height: 4),
-            TextButton(onPressed: _cancelEditOwnerRepo, child: const Text('取消')),
+            Row(
+              children: [
+                TextButton(
+                    onPressed: _commitOwnerRepo, child: const Text('确定')),
+                TextButton(
+                    onPressed: _cancelEditOwnerRepo, child: const Text('取消')),
+              ],
+            ),
           ] else
             GestureDetector(
               onDoubleTap: _startEditOwnerRepo,
@@ -325,36 +375,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
               border: OutlineInputBorder(),
               isDense: true,
             ),
-            controller: TextEditingController(text: _cfg.path),
-            onChanged: (v) =>
-                _update((c) => SyncConfig(
-                      token: c.token,
-                      owner: c.owner,
-                      repo: c.repo,
-                      path: v,
-                      lastSyncAt: c.lastSyncAt,
-                      lastPushVersion: c.lastPushVersion,
-                      lastPullVersion: c.lastPullVersion,
-                    )),
+            controller: _pathCtrl,
+            onChanged: (v) => _update((c) => SyncConfig(
+                  token: c.token,
+                  owner: c.owner,
+                  repo: c.repo,
+                  path: v,
+                  lastSyncAt: c.lastSyncAt,
+                  lastPushVersion: c.lastPushVersion,
+                  lastPullVersion: c.lastPullVersion,
+                )),
           ),
           const SizedBox(height: 12),
 
-          // ── 状态 ──
-          if (_status != null)
+          // ── 状态（始终显示，不再仅 isConfigured 时才出现）──
+          if (_status != null || !_cfg.isConfigured)
             Container(
               padding: const EdgeInsets.all(10),
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
-                color: _status!.ok
+                color: _status != null && _status!.ok
                     ? Colors.green.withAlpha(30)
                     : Colors.red.withAlpha(30),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 children: [
-                  Text(_status!.ok ? '✅' : '❌'),
+                  Text(
+                    _status != null
+                        ? (_status!.ok ? '✅' : '❌')
+                        : '⚠️',
+                  ),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(_status!.message)),
+                  Expanded(
+                    child: Text(
+                      _status?.message ?? '未配置 — 请填写 Token 和 Owner/Repo',
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -390,8 +447,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Text(
                 '${_messageIsError ? '✗ ' : '✓ '}$_message',
                 style: TextStyle(
-                  color:
-                      _messageIsError ? Colors.red.shade700 : Colors.green.shade700,
+                  color: _messageIsError
+                      ? Colors.red.shade700
+                      : Colors.green.shade700,
                 ),
               ),
             ),
@@ -408,14 +466,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: FilledButton(
-                  onPressed: _busy ? null : _handlePush,
+                  onPressed:
+                      _busy || !_cfg.isConfigured ? null : _handlePush,
                   child: const Text('Push ↑'),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: FilledButton.tonal(
-                  onPressed: _busy ? null : _handlePull,
+                  onPressed:
+                      _busy || !_cfg.isConfigured ? null : _handlePull,
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.red.withAlpha(30),
                     foregroundColor: Colors.red.shade700,
