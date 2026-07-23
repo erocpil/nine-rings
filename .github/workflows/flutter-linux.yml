@@ -29,7 +29,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             clang cmake ninja-build pkg-config \
-            libgtk-3-dev liblzma-dev
+            libgtk-3-dev liblzma-dev libx11-dev
 
       - name: Install Flutter dependencies
         working-directory: flutter_app
@@ -44,15 +44,22 @@ jobs:
         working-directory: flutter_app
         run: flutter build linux
 
-      - name: List build output (debug)
+      - name: Verify and package
         working-directory: flutter_app
         run: |
-          echo "=== Release dir ==="
-          find build/linux/x64/release/bundle -type f | head -20
+          BUNDLE=build/linux/x64/release/bundle
+          echo "=== Bundle contents ==="
+          ls -la "$BUNDLE"
+          echo "=== Binary info ==="
+          file "$BUNDLE/nine_rings"
+          du -sh "$BUNDLE"
+          echo "=== Packaging tar.gz ==="
+          tar czf nine-rings-linux-x64.tar.gz -C build/linux/x64/release bundle
+          ls -lh nine-rings-linux-x64.tar.gz
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: nine-rings-flutter-linux-x64
-          path: flutter_app/build/linux/x64/release/bundle/**
+          path: flutter_app/nine-rings-linux-x64.tar.gz
           if-no-files-found: error
