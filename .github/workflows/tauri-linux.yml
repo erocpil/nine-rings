@@ -58,15 +58,36 @@ jobs:
           find "$BUNDLE" -type f -ls 2>/dev/null || echo "Bundle dir not found"
           echo "=== Binary check ==="
           file src-tauri/target/x86_64-unknown-linux-gnu/release/nine-rings 2>/dev/null || echo "Binary not found"
-          echo "=== Copying artifacts ==="
+          echo "=== Copying deb artifact ==="
           mkdir -p artifacts
           if ls "$BUNDLE/deb/"*.deb 2>/dev/null; then
             cp "$BUNDLE/deb/"*.deb artifacts/
           fi
+          echo "=== Rebundle AppImage with EGL ==="
           if ls "$BUNDLE/appimage/"*.AppImage 2>/dev/null; then
-            cp "$BUNDLE/appimage/"*.AppImage artifacts/
+            APPIMAGE=$(ls "$BUNDLE/appimage/"*.AppImage | head -1)
+            chmod +x "$APPIMAGE"
+            # Extract
+            "$APPIMAGE" --appimage-extract
+            # Inject Mesa EGL + GL libraries into the payload
+            mkdir -p squashfs-root/usr/lib
+            cp -v /usr/lib/x86_64-linux-gnu/libEGL.so.1 squashfs-root/usr/lib/
+            cp -v /usr/lib/x86_64-linux-gnu/libGL.so.1 squashfs-root/usr/lib/
+            cp -v /usr/lib/x86_64-linux-gnu/libGLX.so.0 squashfs-root/usr/lib/ 2>/dev/null || true
+            cp -v /usr/lib/x86_64-linux-gnu/libGLdispatch.so.0 squashfs-root/usr/lib/ 2>/dev/null || true
+            # Repack
+            sudo apt-get install -y appimagetool 2>/dev/null || true
+            # Use the bundled appimagetool from extract if apt doesn't have it
+            ARCH=x86_64 squashfs-root/AppRun --no-appstream --comp gzip \
+              squashfs-root "$BUNDLE/appimage/Nine_Rings-egl.AppImage" 2>/dev/null || \
+            appimagetool --no-appstream --comp gzip \
+              squashfs-root "$BUNDLE/appimage/Nine_Rings-egl.AppImage"
+            cp -v "$BUNDLE/appimage/Nine_Rings-egl.AppImage" artifacts/
+            ls -lh artifacts/
+          else
+            echo "No AppImage found, checking for binary only..."
+            ls -lh src-tauri/target/x86_64-unknown-linux-gnu/release/nine-rings 2>/dev/null || true
           fi
-          ls -lh artifacts/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
