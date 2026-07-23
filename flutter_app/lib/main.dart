@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -8,19 +9,42 @@ import 'screens/home_screen.dart';
 import 'services/template_service.dart';
 import 'themes/app_theme.dart';
 
+void _log(String msg) {
+  try {
+    final logFile = File('${Directory.systemTemp.path}/nine-rings-startup.log');
+    logFile.writeAsStringSync(
+      '${DateTime.now().toIso8601String()} $msg\n',
+      mode: FileMode.append,
+    );
+  } catch (_) {
+    // ignore logging failures
+  }
+}
+
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  _log('main() started');
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
+    _log('ensureInitialized done');
 
-  // Windows/Linux desktop: sqflite needs FFI initialization
-  sqfliteFfiInit();
+    sqfliteFfiInit();
+    _log('sqfliteFfiInit done');
 
-  await initializeDateFormatting();
-  await DatabaseHelper.instance.initialize();
+    await initializeDateFormatting();
+    _log('initializeDateFormatting done');
 
-  // Seed built-in templates (idempotent)
-  await TemplateService().seedBuiltinTemplates();
+    await DatabaseHelper.instance.initialize();
+    _log('DatabaseHelper.initialize done');
 
-  runApp(const NineRingsApp());
+    await TemplateService().seedBuiltinTemplates();
+    _log('seedBuiltinTemplates done');
+
+    runApp(const NineRingsApp());
+    _log('runApp called');
+  } catch (e, st) {
+    _log('FATAL: $e\n$st');
+    rethrow;
+  }
 }
 
 class NineRingsApp extends StatelessWidget {
@@ -37,7 +61,7 @@ class NineRingsApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: theme.data,
         darkTheme: theme.data,
-        themeMode: ThemeMode.light, // 显式指定，后续接入设置面板后改用用户选择
+        themeMode: ThemeMode.light,
         home: const HomeScreen(),
       ),
     );
