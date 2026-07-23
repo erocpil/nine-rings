@@ -10,6 +10,7 @@ import 'search_screen.dart';
 import 'trash_screen.dart';
 import 'doc_tree_screen.dart';
 import 'concept_aggregation.dart';
+import 'settings_screen.dart';
 import '../widgets/doc_create_dialog.dart';
 import '../widgets/note_card.dart';
 import '../widgets/todo_list_widget.dart';
@@ -106,6 +107,14 @@ class _HomeScreenState extends State<HomeScreen> {
           style: const TextStyle(fontSize: 18),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: '设置',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () => Navigator.push(
@@ -297,7 +306,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('导入完成：$count 篇笔记')),
+        SnackBar(
+            content: Text(
+                '导入完成：${count.notesImported} 篇笔记，${count.pagesImported} 个每日页面')),
       );
       await provider.loadRecentDates();
       if (mounted) provider.notifyListeners();

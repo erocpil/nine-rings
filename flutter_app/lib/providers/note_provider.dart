@@ -247,11 +247,11 @@ class NoteProvider extends ChangeNotifier {
 
   Future<String> exportAll() => _service.exportAll();
 
-  Future<int> importBundle(String jsonStr) async {
-    final count = await _service.importBundle(jsonStr);
+  Future<({int notesImported, int pagesImported})> importBundle(String jsonStr) async {
+    final result = await _service.importBundle(jsonStr);
     await loadRecentDates();
     notifyListeners();
-    return count;
+    return result;
   }
 
   // ── Version History ──

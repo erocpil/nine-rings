@@ -329,11 +329,19 @@ class NoteService {
     return const JsonEncoder.withIndent('  ').convert(data);
   }
 
-  Future<int> importBundle(String jsonStr) async {
+  /// 从 JSON 字符串导入全量数据。返回 (notesImported, pagesImported)。
+  /// 与 Web 端 importData 语义对齐。
+  Future<({int notesImported, int pagesImported})> importBundle(String jsonStr) async {
     final data = jsonDecode(jsonStr) as Map;
     final notes = data['notes'] as List? ?? [];
-    int count = 0;
+    final dailyPages = data['daily_pages'] as List? ?? [];
+
+    int notesCount = 0;
+    int pagesCount = 0;
+
     final batch = _db.database.batch();
+
+    // ── 导入笔记 ──
     for (final n in notes) {
       final note = Note.fromJson(n as Map<String, dynamic>);
       batch.insert('notes', {
@@ -342,10 +350,28 @@ class NoteService {
         'sort_order': note.sortOrder,
         'tags': jsonEncode(note.tags),
       }, conflictAlgorithm: ConflictAlgorithm.replace);
-      count++;
+      notesCount++;
     }
+
+    // ── 导入每日页面 ──
+    for (final p in dailyPages) {
+      final page = p as Map<String, dynamic>;
+      final date = page['date'] as String?;
+      if (date == null) continue;
+      // 使用 replace 策略：先删后插
+      batch.delete('daily_pages', where: 'date = ?', whereArgs: [date]);
+      batch.insert('daily_pages', {
+        'date': date,
+        'todos': page['todos'] is String
+            ? page['todos']
+            : jsonEncode(page['todos'] ?? []),
+        'todo_carryover': page['todo_carryover'] ?? false,
+      });
+      pagesCount++;
+    }
+
     await batch.commit(noResult: true);
-    return count;
+    return (notesImported: notesCount, pagesImported: pagesCount);
   }
 
   // ── Version History ──
