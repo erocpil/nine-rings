@@ -396,6 +396,18 @@ pub fn run() {
                             if let Some(window) = app_h.get_webview_window("main") {
                                 let is_fs = window.is_fullscreen().unwrap_or(false);
                                 let _ = window.set_fullscreen(!is_fs);
+                                // ── 强制 WebView 重排（Linux frameless 窗口退出全屏后
+                                //    WebKitGTK 不会自动 reflow，导致内容区域错位）──
+                                std::thread::sleep(std::time::Duration::from_millis(50));
+                                if let Ok(size) = window.inner_size() {
+                                    let _ = window.set_size(tauri::Size::Physical(
+                                        tauri::PhysicalSize::new(size.width + 1, size.height),
+                                    ));
+                                    std::thread::sleep(std::time::Duration::from_millis(16));
+                                    let _ = window.set_size(tauri::Size::Physical(
+                                        tauri::PhysicalSize::new(size.width, size.height),
+                                    ));
+                                }
                             }
                         }
                     },
