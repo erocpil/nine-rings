@@ -37,48 +37,39 @@ jobs:
             libjavascriptcoregtk-4.1-dev \
             patchelf
 
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build frontend
-        run: npm run build
-
       - name: Build Tauri (release)
-        uses: tauri-apps/tauri-action@v0
+        run: cargo tauri build --target x86_64-unknown-linux-gnu --bundles deb,appimage
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          args: --target x86_64-unknown-linux-gnu
+          # Skip the default artifact upload built into tauri-action
+          TAURI_SIGNING_PRIVATE_KEY: ""
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
 
-      - name: Package AppImage
+      - name: List and package artifacts
         run: |
           BUNDLE=src-tauri/target/x86_64-unknown-linux-gnu/release/bundle
-          echo "=== Bundle contents ==="
-          find "$BUNDLE" -type f -ls 2>/dev/null || true
-          # Find the .deb or AppImage
-          if [ -d "$BUNDLE/deb" ]; then
-            echo "=== .deb package ==="
-            ls -lh "$BUNDLE/deb/"
+          echo "=== Bundle tree ==="
+          find "$BUNDLE" -type f -ls 2>/dev/null || echo "Bundle dir not found"
+          echo "=== Binary check ==="
+          file src-tauri/target/x86_64-unknown-linux-gnu/release/nine-rings 2>/dev/null || echo "Binary not found"
+          echo "=== Copying artifacts ==="
+          mkdir -p artifacts
+          if ls "$BUNDLE/deb/"*.deb 2>/dev/null; then
+            cp "$BUNDLE/deb/"*.deb artifacts/
           fi
-          if [ -d "$BUNDLE/appimage" ]; then
-            echo "=== AppImage ==="
-            ls -lh "$BUNDLE/appimage/"
+          if ls "$BUNDLE/appimage/"*.AppImage 2>/dev/null; then
+            cp "$BUNDLE/appimage/"*.AppImage artifacts/
           fi
-          echo "=== Binary ==="
-          if [ -f "$BUNDLE/appimage/nine-rings"*".AppImage" ]; then
-            cp "$BUNDLE/appimage/nine-rings"*".AppImage" nine-rings-tauri-linux-x86_64.AppImage
-          elif [ -f "$BUNDLE/deb/nine-rings"*".deb" ]; then
-            cp "$BUNDLE/deb/nine-rings"*".deb" nine-rings-tauri-linux-x86_64.deb
-          else
-            echo "No AppImage or deb found, listing bundle dir..."
-            find "$BUNDLE" -maxdepth 3 -type f
-          fi
+          ls -lh artifacts/
 
-      - name: Upload AppImage artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: nine-rings-tauri-linux-x86_64
-          path: |
-            nine-rings-tauri-linux-x86_64.AppImage
-            nine-rings-tauri-linux-x86_64.deb
-          if-no-files-found: warn
+          path: artifacts/*
+          if-no-files-found: error
