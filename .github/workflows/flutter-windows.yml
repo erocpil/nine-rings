@@ -34,6 +34,12 @@ jobs:
         continue-on-error: true
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
+      - name: Setup Java (required by jni FFI plugin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
       - name: Build Windows (release)
         working-directory: flutter_app
         run: flutter build windows
