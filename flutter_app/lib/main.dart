@@ -28,6 +28,7 @@ void main() async {
     _log('ensureInitialized done');
 
     sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
     _log('sqfliteFfiInit done');
 
     await initializeDateFormatting();
