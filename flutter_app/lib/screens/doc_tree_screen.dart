@@ -69,14 +69,23 @@ class _DocTreeScreenState extends State<DocTreeScreen> {
       ..sort();
   }
 
-  // ── 排序：文件夹在前，字母序 ──
+  // ── 排序：文件夹在前 → 文档按类型分组 → 再按字母序 ──
   void _sortMixed(List<String> folders, List<Note> docs) {
-    // folders already sorted; docs are sorted by title/sortOrder
     docs.sort((a, b) {
+      // 1. docType grouping (explanation → how-to → reference → tutorial → others)
+      const order = ['explanation', 'how-to', 'reference', 'tutorial'];
+      final ai = order.indexOf(a.docType ?? '');
+      final bi = order.indexOf(b.docType ?? '');
+      final typeCmp = (ai == -1 ? 999 : ai).compareTo(bi == -1 ? 999 : bi);
+      if (typeCmp != 0) return typeCmp;
+
+      // 2. Alphabetical by title
       final na = a.title ?? '';
       final nb = b.title ?? '';
       final cmp = na.compareTo(nb);
       if (cmp != 0) return cmp;
+
+      // 3. sortOrder fallback
       return a.sortOrder.compareTo(b.sortOrder);
     });
   }
@@ -383,7 +392,13 @@ class _DocTreeScreenState extends State<DocTreeScreen> {
             _showDocContextMenu(context, note, details.globalPosition);
           },
           child: Container(
-            color: isSelected ? theme.colorScheme.primary.withOpacity(0.1) : null,
+            margin: EdgeInsets.only(left: 6.0 + depth * 8.0),
+            decoration: BoxDecoration(
+              color: isSelected ? theme.colorScheme.primary.withOpacity(0.1) : null,
+              border: depth > 0
+                  ? Border(left: BorderSide(color: theme.dividerColor.withOpacity(0.4), width: 1))
+                  : null,
+            ),
             child: isRenaming
                 ? _DocRenameTile(
                     initialName: note.title ?? '',
@@ -393,10 +408,7 @@ class _DocTreeScreenState extends State<DocTreeScreen> {
                     onCancel: () => setState(() => _renamingId = null),
                   )
                 : ListTile(
-                    contentPadding: EdgeInsets.only(
-                      left: 6.0 + (depth + 1) * 8.0,
-                      right: 4,
-                    ),
+                    contentPadding: const EdgeInsets.only(right: 4),
                     dense: true,
                     visualDensity: VisualDensity.compact,
                     leading: Text(
@@ -640,7 +652,7 @@ class _DocRenameTileState extends State<_DocRenameTile> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: EdgeInsets.only(left: 6.0 + (widget.depth + 1) * 8.0, right: 4),
+      padding: const EdgeInsets.only(right: 4),
       child: TextField(
         controller: _controller,
         focusNode: _focusNode,
