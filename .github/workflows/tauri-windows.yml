@@ -1,0 +1,56 @@
+name: Tauri Windows Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  tauri-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build Tauri (release)
+        run: cargo tauri build --bundles msi,nsis
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          BUNDLE=src-tauri/target/release/bundle
+          echo "=== Bundle tree ==="
+          find "$BUNDLE" -type f -ls 2>/dev/null || echo "Bundle dir not found"
+          mkdir -p artifacts
+          if ls "$BUNDLE/msi/"*.msi 2>/dev/null; then
+            cp -v "$BUNDLE/msi/"*.msi artifacts/
+          fi
+          if ls "$BUNDLE/nsis/"*.exe 2>/dev/null; then
+            cp -v "$BUNDLE/nsis/"*.exe artifacts/
+          fi
+          ls -lh artifacts/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nine-rings-tauri-windows-x64
+          path: artifacts/*
+          if-no-files-found: error
