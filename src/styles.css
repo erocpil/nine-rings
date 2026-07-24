@@ -4688,6 +4688,8 @@ body {
   margin: 0;
   background: none;
   border: none;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", monospace;
+  font-size: 13px;
 }
 
 /* 无 main 行号时，code 元素显示深色背景 */
@@ -4698,6 +4700,16 @@ body {
   border-radius: var(--radius);
   padding: 4px;
   white-space: pre-wrap;
+  font-family: inherit;
+}
+
+/* 行内代码 */
+.ProseMirror code:not(.code-block-inner code) {
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", monospace;
+  font-size: 0.9em;
+  background: var(--code-bg);
+  border-radius: 3px;
+  padding: 1px 4px;
 }
 
 /* ═══════════════════════════════════════════
