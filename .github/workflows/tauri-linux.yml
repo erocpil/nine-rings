@@ -75,12 +75,10 @@ jobs:
             cp -v /usr/lib/x86_64-linux-gnu/libGL.so.1 squashfs-root/usr/lib/
             cp -v /usr/lib/x86_64-linux-gnu/libGLX.so.0 squashfs-root/usr/lib/ 2>/dev/null || true
             cp -v /usr/lib/x86_64-linux-gnu/libGLdispatch.so.0 squashfs-root/usr/lib/ 2>/dev/null || true
-            # Repack
-            sudo apt-get install -y appimagetool 2>/dev/null || true
-            # Use the bundled appimagetool from extract if apt doesn't have it
-            ARCH=x86_64 squashfs-root/AppRun --no-appstream --comp gzip \
-              squashfs-root "$BUNDLE/appimage/Nine_Rings-egl.AppImage" 2>/dev/null || \
-            appimagetool --no-appstream --comp gzip \
+            # Download appimagetool (not in apt)
+            wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+            chmod +x appimagetool-x86_64.AppImage
+            ./appimagetool-x86_64.AppImage --no-appstream --comp gzip \
               squashfs-root "$BUNDLE/appimage/Nine_Rings-egl.AppImage"
             cp -v "$BUNDLE/appimage/Nine_Rings-egl.AppImage" artifacts/
             ls -lh artifacts/
