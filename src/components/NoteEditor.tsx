@@ -161,6 +161,13 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     return localStorage.getItem(CODE_LN_KEY) === "true";
   });
 
+  // ── 编辑器整体字号（CSS 变量驱动）──
+  const FONT_SIZE_KEY = "nr:editorFontSize";
+  const [editorFontSize, setEditorFontSize] = useState(() => {
+    const saved = localStorage.getItem(FONT_SIZE_KEY);
+    return saved ? Number(saved) : 15;
+  });
+
   // ── [[ 双向链接自动补全 ──
   const [wikiOpen, setWikiOpen] = useState(false);
   const [wikiSuggestions, setWikiSuggestions] = useState<{ title: string; id: string }[]>([]);
@@ -173,6 +180,15 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
+
+  // 编辑器整体字号：设 CSS 变量 + 持久化
+  useEffect(() => {
+    const el = document.querySelector('.note-editor') as HTMLElement | null;
+    if (el) {
+      el.style.setProperty('--editor-font-size', `${editorFontSize}px`);
+    }
+    localStorage.setItem(FONT_SIZE_KEY, String(editorFontSize));
+  }, [editorFontSize]);
 
   // 点击外部关闭下拉框
   useEffect(() => {
@@ -930,6 +946,10 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           >
             🖼
           </button>
+          <span className="menu-sep" />
+          {btn("A⁻", () => setEditorFontSize(s => Math.max(12, s - 1)), false, "缩小字号", editorFontSize <= 12)}
+          <span className="menu-font-size-label">{editorFontSize}</span>
+          {btn("A⁺", () => setEditorFontSize(s => Math.min(24, s + 1)), false, "放大字号", editorFontSize >= 24)}
         </div>
         )}
         </div>

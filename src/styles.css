@@ -1267,6 +1267,15 @@ body {
   align-self: center;
 }
 
+.menu-font-size-label {
+  display: inline-block;
+  min-width: 20px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
 /* ── 工具栏扩展行 ── */
 
 .editor-menu-ext {
@@ -2608,6 +2617,7 @@ body {
   padding-bottom: 35vh;
   padding-left: 14px;          /* gutter — 所有 block 的内容向右偏移 */
   touch-action: auto;
+  font-size: var(--editor-font-size);
 }
 
 /* ══════════════════════════════════════════
@@ -2647,7 +2657,7 @@ body {
   bottom: -4px;
   width: 14px;
   text-align: center;
-  font-size: 12px;
+  font-size: 0.8em;
   font-weight: 700;
   color: var(--text-secondary);
   opacity: 0.12;
@@ -2674,7 +2684,7 @@ body {
   bottom: -4px;
   width: 14px;
   text-align: center;
-  font-size: 12px;
+  font-size: 0.8em;
   font-weight: 700;
   color: var(--text-secondary);
   opacity: 0.12;
@@ -2883,7 +2893,7 @@ body {
   background: none;
   border: none;
   padding: 0;
-  font-size: 13px;
+  font-size: 0.867em;
   line-height: 1.5;
 }
 
@@ -3552,6 +3562,7 @@ body {
 /* ── NoteEditor outer ── */
 
 .note-editor {
+  --editor-font-size: 15px;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -4672,7 +4683,7 @@ body {
 
 .code-block-gutter span {
   display: block;
-  font-size: 12px;
+  font-size: 0.8em;
   font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
   color: var(--text-secondary);
   line-height: 1.6;
@@ -4689,7 +4700,7 @@ body {
   background: none;
   border: none;
   font-family: "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", monospace;
-  font-size: 13px;
+  font-size: 0.867em;
 }
 
 /* 无 main 行号时，code 元素显示深色背景 */
