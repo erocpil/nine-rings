@@ -37,7 +37,7 @@ html {
   --radius: 6px;
   --transition: 0.2s ease;
   --code-bg: #f0f2f5;
-  --activeline-bg: rgba(9, 105, 218, 0.05);
+  --activeline-bg: rgba(9, 105, 218, 0.10);
 }
 
 /* ── 深色主题 ── */
@@ -54,7 +54,7 @@ html {
   --success: #3fb950;
   --hover-bg: rgba(255, 255, 255, 0.05);
   --code-bg: #11161c;
-  --activeline-bg: rgba(88, 166, 255, 0.06);
+  --activeline-bg: rgba(88, 166, 255, 0.12);
 }
 
 /* ── 浅色主题（覆盖默认值，与 :root 一致，保留兼容） ── */
@@ -70,7 +70,7 @@ html {
   --danger: #cf222e;
   --success: #1a7f37;
   --code-bg: #f0f2f5;
-  --activeline-bg: rgba(9, 105, 218, 0.05);
+  --activeline-bg: rgba(9, 105, 218, 0.10);
 }
 
 body {
@@ -2048,7 +2048,7 @@ body {
   --danger: #d44a5a;
   --success: #3d8b5c;
   --code-bg: #ecf4f2;
-  --activeline-bg: rgba(10, 186, 181, 0.06);
+  --activeline-bg: rgba(10, 186, 181, 0.10);
 }
 
 /* ── 雅 · 淡紫主题 ── */
@@ -2064,7 +2064,7 @@ body {
   --danger: #d43b5a;
   --success: #3d8b70;
   --code-bg: #f0eaf5;
-  --activeline-bg: rgba(139, 111, 192, 0.06);
+  --activeline-bg: rgba(139, 111, 192, 0.10);
 }
 
 /* ── 粋 · 新绿主题 ── */
@@ -2080,7 +2080,7 @@ body {
   --danger: #c44a3a;
   --success: #3d8b70;
   --code-bg: #ecf3e8;
-  --activeline-bg: rgba(74, 138, 58, 0.06);
+  --activeline-bg: rgba(74, 138, 58, 0.10);
 }
 
 /* ── 幟 · 金暖主题 ── */
@@ -2096,7 +2096,7 @@ body {
   --danger: #c44a3a;
   --success: #5a8a4a;
   --code-bg: #f3ecdd;
-  --activeline-bg: rgba(196, 154, 60, 0.06);
+  --activeline-bg: rgba(196, 154, 60, 0.10);
 }
 
 /* ── 蔚 · 钴蓝主题 ── */
@@ -2112,7 +2112,7 @@ body {
   --danger: #d43b4a;
   --success: #3d8b5c;
   --code-bg: #eef3f9;
-  --activeline-bg: rgba(59, 109, 204, 0.06);
+  --activeline-bg: rgba(59, 109, 204, 0.10);
 }
 
 /* ── 蔚 · 暗色变体 ── */
@@ -2128,7 +2128,7 @@ body {
   --danger: #f25a6a;
   --success: #4ca868;
   --code-bg: #0b1524;
-  --activeline-bg: rgba(59, 109, 204, 0.1);
+  --activeline-bg: rgba(59, 109, 204, 0.15);
 }
 
 /* ──── Header Clock ──── */
@@ -2590,6 +2590,13 @@ body {
   background: var(--activeline-bg);
   border-radius: 3px;
   margin: 2px 0;
+}
+
+/* active line 同时高亮行号 */
+.show-line-numbers .ProseMirror > .ProseMirror-activeline::before,
+.show-line-numbers .ProseMirror .code-block-wrap.ProseMirror-activeline::before {
+  opacity: 0.70;
+  color: var(--accent);
 }
 
 .no-active-line .ProseMirror-activeline {
