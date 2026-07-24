@@ -1,0 +1,62 @@
+name: Flutter macOS Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  flutter-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Enable macOS desktop
+        run: flutter config --enable-macos-desktop
+
+      - name: Setup Java (required by jni FFI plugin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        working-directory: flutter_app
+        run: flutter pub get
+
+      - name: Static analysis
+        working-directory: flutter_app
+        continue-on-error: true
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Build macOS (release)
+        working-directory: flutter_app
+        run: flutter build macos
+
+      - name: Package artifact
+        working-directory: flutter_app
+        run: |
+          echo "=== Build output ==="
+          find build/macos/Build/Products/Release -maxdepth 2 -type d
+          # Create zip of the .app bundle
+          cd build/macos/Build/Products/Release
+          zip -r nine-rings-flutter-macos-arm64.zip "Nine Rings.app"
+          mv nine-rings-flutter-macos-arm64.zip "$GITHUB_WORKSPACE/flutter_app/"
+          ls -lh "$GITHUB_WORKSPACE/flutter_app/nine-rings-flutter-macos-arm64.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nine-rings-flutter-macos-arm64
+          path: flutter_app/nine-rings-flutter-macos-arm64.zip
+          if-no-files-found: error
