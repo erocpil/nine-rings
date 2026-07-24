@@ -1,0 +1,52 @@
+name: Tauri macOS Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  tauri-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build Tauri (release)
+        run: cargo tauri build --bundles dmg
+
+      - name: Collect artifacts
+        run: |
+          BUNDLE=src-tauri/target/release/bundle
+          echo "=== Bundle tree ==="
+          find "$BUNDLE" -type f -ls 2>/dev/null || echo "Bundle dir not found"
+          mkdir -p artifacts
+          if ls "$BUNDLE/dmg/"*.dmg 2>/dev/null; then
+            cp -v "$BUNDLE/dmg/"*.dmg artifacts/
+          fi
+          ls -lh artifacts/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nine-rings-tauri-macos-arm64
+          path: artifacts/*
+          if-no-files-found: error

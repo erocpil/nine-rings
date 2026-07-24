@@ -7,8 +7,11 @@
 [![Rust](https://img.shields.io/badge/Rust-🦀-dea584?logo=rust)](https://rust-lang.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6?logo=typescript)](https://typescriptlang.org)
 <br/>
-[![Linux (Tauri)](https://img.shields.io/badge/Linux-🐧_Tauri-FCC624?logo=linux&logoColor=black)](https://nightly.link/erocpil/nine-rings/workflows/ci/main/tauri-linux.zip)
-[![Win (Tauri)](https://img.shields.io/badge/Win-🦀_Tauri-0078D6?logo=windows&logoColor=white)](https://nightly.link/erocpil/nine-rings/workflows/ci/main/tauri-windows.zip)
+[![Linux (Tauri)](https://img.shields.io/badge/Linux-🐧_Tauri-FCC624?logo=linux&logoColor=black)](https://nightly.link/erocpil/nine-rings/workflows/tauri-linux/main/nine-rings-tauri-linux-x86_64.zip)
+[![Linux (Flutter)](https://img.shields.io/badge/Linux-🦋_Flutter-02569B?logo=flutter)](https://nightly.link/erocpil/nine-rings/workflows/flutter-linux/main/nine-rings-flutter-linux-x64.zip)
+[![macOS (Tauri)](https://img.shields.io/badge/macOS-🍎_Tauri-000?logo=apple)](https://nightly.link/erocpil/nine-rings/workflows/tauri-macos/main/nine-rings-tauri-macos-arm64.zip)
+<br/>
+[![Win (Tauri)](https://img.shields.io/badge/Win-🦀_Tauri-0078D6?logo=windows&logoColor=white)](https://nightly.link/erocpil/nine-rings/workflows/tauri-windows/main/nine-rings-tauri-windows-x64.zip)
 [![Win (Flutter)](https://img.shields.io/badge/Win-🪽_Flutter-02569B?logo=flutter&logoColor=white)](https://nightly.link/erocpil/nine-rings/workflows/flutter-windows/main/nine-rings-flutter-windows-x64.zip)
 [![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)](https://nightly.link/erocpil/nine-rings/workflows/ci/main/flutter-apk.zip)
 [![Web PWA](https://img.shields.io/badge/Web-PWA-FF7139?logo=pwa)](https://dist-navy-five-94.vercel.app)
