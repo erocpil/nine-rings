@@ -78,7 +78,7 @@ jobs:
             # Download appimagetool (not in apt)
             wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
             chmod +x appimagetool-x86_64.AppImage
-            ./appimagetool-x86_64.AppImage --no-appstream --comp gzip \
+            ./appimagetool-x86_64.AppImage --no-appstream --comp zstd \
               squashfs-root "$BUNDLE/appimage/Nine_Rings-egl.AppImage"
             cp -v "$BUNDLE/appimage/Nine_Rings-egl.AppImage" artifacts/
             ls -lh artifacts/
