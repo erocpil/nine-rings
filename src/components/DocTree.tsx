@@ -11,7 +11,7 @@ interface DocTreeProps {
   onRename?: (id: string, title: string) => void;
   onDelete?: (id: string) => void;
   onToggleReadonly?: (id: string, readonly: boolean) => void;
-  onBatchDelete?: (ids: string[]) => void;
+  onBatchDelete?: (ids: string[], folderPath: string) => void;
   onBatchSetReadonly?: (ids: string[], readonly: boolean) => void;
   propertiesAutoShow?: boolean;
   onTogglePropertiesAuto?: () => void;
@@ -287,7 +287,7 @@ function DocTree({
     const ids = getDocIdsUnderPath(folderPath);
     if (ids.length === 0) return;
     if (confirm(`删除目录「${folderPath.split("/").pop()}」及其下 ${ids.length} 篇文档？\\n删除后可从回收站恢复。`)) {
-      onBatchDelete?.(ids);
+      onBatchDelete?.(ids, folderPath);
     }
   };
 
@@ -459,7 +459,7 @@ function DocTree({
                 if (disabled) return;
                 const ids = Array.from(selectedIds);
                 if (ids.length > 0 && confirm(`删除选中的 ${ids.length} 篇文档？`)) {
-                  onBatchDelete?.(ids);
+                  onBatchDelete?.(ids, "");
                   clearSelection();
                 }
               }}

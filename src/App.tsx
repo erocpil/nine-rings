@@ -837,9 +837,42 @@ function App() {
               onCreate={() => setDocCreateOpen(true)}
               refreshKey={docTreeKey}
               onRename={(id, title) => updateNote(id, { title } as any)}
-              onDelete={(id) => { deleteNote(id); setDocTreeKey(k => k + 1); }}
+              onDelete={(id) => {
+                const note = notes.find((n) => n.id === id);
+                const title = note?.title || "无标题";
+                deleteNote(id);
+                const timer = setTimeout(() => setUndo(null), 5000);
+                setUndo({
+                  key: `delete-${id}`,
+                  message: `已删除「${title}」`,
+                  onUndo: async () => {
+                    clearTimeout(timer);
+                    await api.recycle.restore(id);
+                    setDocTreeKey(k => k + 1);
+                  },
+                });
+                setDocTreeKey(k => k + 1);
+              }}
               onToggleReadonly={(id, readonly) => updateNote(id, { readonly } as any)}
-              onBatchDelete={(ids) => { ids.forEach(id => deleteNote(id)); setDocTreeKey(k => k + 1); }}
+              onBatchDelete={(ids, folderPath) => {
+                ids.forEach(id => deleteNote(id));
+                const folderName = folderPath ? folderPath.split("/").pop() || "选中" : "选中";
+                const timer = setTimeout(() => setUndo(null), 5000);
+                setUndo({
+                  key: `batch-delete-${Date.now()}`,
+                  message: ids.length > 1
+                    ? `已删除「${folderName}」及其下 ${ids.length} 篇文档`
+                    : `已删除「${folderName}」`,
+                  onUndo: async () => {
+                    clearTimeout(timer);
+                    for (const id of ids) {
+                      await api.recycle.restore(id);
+                    }
+                    setDocTreeKey(k => k + 1);
+                  },
+                });
+                setDocTreeKey(k => k + 1);
+              }}
               onBatchSetReadonly={(ids, readonly) => { ids.forEach(id => updateNote(id, { readonly } as any)); }}
               propertiesAutoShow={propertiesAutoShow}
               onTogglePropertiesAuto={() => {
@@ -1011,9 +1044,42 @@ function App() {
                 onCreate={() => setDocCreateOpen(true)}
                 refreshKey={docTreeKey}
                 onRename={(id, title) => updateNote(id, { title } as any)}
-                onDelete={(id) => { deleteNote(id); setDocTreeKey(k => k + 1); }}
+                onDelete={(id) => {
+                const note = notes.find((n) => n.id === id);
+                const title = note?.title || "无标题";
+                deleteNote(id);
+                const timer = setTimeout(() => setUndo(null), 5000);
+                setUndo({
+                  key: `delete-${id}`,
+                  message: `已删除「${title}」`,
+                  onUndo: async () => {
+                    clearTimeout(timer);
+                    await api.recycle.restore(id);
+                    setDocTreeKey(k => k + 1);
+                  },
+                });
+                setDocTreeKey(k => k + 1);
+              }}
                 onToggleReadonly={(id, readonly) => updateNote(id, { readonly } as any)}
-                onBatchDelete={(ids) => { ids.forEach(id => deleteNote(id)); setDocTreeKey(k => k + 1); }}
+                onBatchDelete={(ids, folderPath) => {
+                ids.forEach(id => deleteNote(id));
+                const folderName = folderPath ? folderPath.split("/").pop() || "选中" : "选中";
+                const timer = setTimeout(() => setUndo(null), 5000);
+                setUndo({
+                  key: `batch-delete-${Date.now()}`,
+                  message: ids.length > 1
+                    ? `已删除「${folderName}」及其下 ${ids.length} 篇文档`
+                    : `已删除「${folderName}」`,
+                  onUndo: async () => {
+                    clearTimeout(timer);
+                    for (const id of ids) {
+                      await api.recycle.restore(id);
+                    }
+                    setDocTreeKey(k => k + 1);
+                  },
+                });
+                setDocTreeKey(k => k + 1);
+              }}
                 onBatchSetReadonly={(ids, readonly) => { ids.forEach(id => updateNote(id, { readonly } as any)); }}
                 propertiesAutoShow={propertiesAutoShow}
                 onTogglePropertiesAuto={() => {
