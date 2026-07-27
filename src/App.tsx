@@ -122,11 +122,18 @@ function App() {
   const [docTreeKey, setDocTreeKey] = useState(0);
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0);
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
-  const [propertiesOpen, setPropertiesOpen] = useState(false);
+  const [propertiesOpen, setPropertiesOpen] = useState(() => {
+    return localStorage.getItem("nr:propertiesOpen") !== "false";
+  });
   const PROP_AUTO_KEY = "nr:propertiesAutoShow";
   const [propertiesAutoShow, setPropertiesAutoShow] = useState(() => {
     return localStorage.getItem(PROP_AUTO_KEY) !== "false"; // 默认开
   });
+
+  // 属性面板开/关持久化
+  useEffect(() => {
+    localStorage.setItem("nr:propertiesOpen", String(propertiesOpen));
+  }, [propertiesOpen]);
   const error = useNotesStore((s) => s.error);
   const clearError = useNotesStore((s) => s.clearError);
 
