@@ -44,10 +44,10 @@ Note:
     updated_at:    { type: datetime, required: true }
     deleted_at:    { type: datetime, nullable: true }
     # ── 文档管理系统（v2）──
-    storagePath:   { type: string, nullable: true, description: "P.A.R.A. 目录路径, e.g. projects/nine-rings" }
-    docType:       { type: doc_type, nullable: true, description: "Diátaxis 类型: explanation|how-to|reference|tutorial" }
+    storagePath:   { type: string, nullable: true, sql_name: storage_path, description: "P.A.R.A. 目录路径, e.g. projects/nine-rings" }
+    docType:       { type: doc_type, nullable: true, sql_name: doc_type, description: "Diátaxis 类型: explanation|how-to|reference|tutorial" }
+    linkedDocIds:  { type: json_array, nullable: true, sql_name: linked_doc_ids, description: "关联文档 ID 列表" }
     concepts:      { type: json_array, nullable: true, description: "Zettelkasten 概念标签" }
-    linkedDocIds:  { type: json_array, nullable: true, description: "关联文档 ID 列表" }
     readonly:      { type: boolean, default: false }
     search_text:   { type: string, system: true, default: "", description: "纯文本提取，用于全文搜索" }
 

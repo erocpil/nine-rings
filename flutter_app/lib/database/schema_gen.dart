@@ -17,10 +17,10 @@ CREATE TABLE IF NOT EXISTS notes (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   deleted_at TEXT,
-  storagePath TEXT,
-  docType TEXT,
+  storage_path TEXT,
+  doc_type TEXT,
+  linked_doc_ids TEXT DEFAULT '[]',
   concepts TEXT DEFAULT '[]',
-  linkedDocIds TEXT DEFAULT '[]',
   readonly INTEGER NOT NULL DEFAULT 0
 );
 
@@ -29,7 +29,7 @@ CREATE INDEX IF NOT EXISTS idx_notes_updated_at ON notes(updated_at);
 CREATE INDEX IF NOT EXISTS idx_notes_deleted_at ON notes(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_notes_tags ON notes(tags);
 CREATE INDEX IF NOT EXISTS idx_notes_pinned_sort_order ON notes(pinned, sort_order);
-CREATE INDEX IF NOT EXISTS idx_notes_storagePath ON notes(storagePath);
+CREATE INDEX IF NOT EXISTS idx_notes_storage_path ON notes(storage_path);
 
 CREATE TABLE IF NOT EXISTS daily_pages (
   date TEXT PRIMARY KEY,

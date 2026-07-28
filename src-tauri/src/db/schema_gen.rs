@@ -3,13 +3,13 @@
 
 /// 所有 CREATE TABLE 语句（初始 schema，不含迁移）
 pub const SCHEMA_DDL: &[&str] = &[
-    "CREATE TABLE IF NOT EXISTS notes (\n    id TEXT PRIMARY KEY,\n    date TEXT NOT NULL,\n    title TEXT,\n    content TEXT NOT NULL DEFAULT '{}',\n    tags TEXT NOT NULL DEFAULT '[]',\n    pinned INTEGER NOT NULL DEFAULT 0,\n    sort_order INTEGER NOT NULL DEFAULT 0,\n    created_at TEXT NOT NULL,\n    updated_at TEXT NOT NULL,\n    deleted_at TEXT,\n    storagePath TEXT,\n    docType TEXT,\n    concepts TEXT DEFAULT '[]',\n    linkedDocIds TEXT DEFAULT '[]',\n    readonly INTEGER NOT NULL DEFAULT 0\n);",
+    "CREATE TABLE IF NOT EXISTS notes (\n    id TEXT PRIMARY KEY,\n    date TEXT NOT NULL,\n    title TEXT,\n    content TEXT NOT NULL DEFAULT '{}',\n    tags TEXT NOT NULL DEFAULT '[]',\n    pinned INTEGER NOT NULL DEFAULT 0,\n    sort_order INTEGER NOT NULL DEFAULT 0,\n    created_at TEXT NOT NULL,\n    updated_at TEXT NOT NULL,\n    deleted_at TEXT,\n    storage_path TEXT,\n    doc_type TEXT,\n    linked_doc_ids TEXT DEFAULT '[]',\n    concepts TEXT DEFAULT '[]',\n    readonly INTEGER NOT NULL DEFAULT 0\n);",
     "CREATE INDEX IF NOT EXISTS idx_notes_date_created_at ON notes(date, created_at);",
     "CREATE INDEX IF NOT EXISTS idx_notes_updated_at ON notes(updated_at);",
     "CREATE INDEX IF NOT EXISTS idx_notes_deleted_at ON notes(deleted_at);",
     "CREATE INDEX IF NOT EXISTS idx_notes_tags ON notes(tags);",
     "CREATE INDEX IF NOT EXISTS idx_notes_pinned_sort_order ON notes(pinned, sort_order);",
-    "CREATE INDEX IF NOT EXISTS idx_notes_storagePath ON notes(storagePath);",
+    "CREATE INDEX IF NOT EXISTS idx_notes_storage_path ON notes(storage_path);",
     "CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(search_text, content='notes', content_rowid='rowid');",
     "CREATE TABLE IF NOT EXISTS daily_pages (\n    date TEXT PRIMARY KEY,\n    todos TEXT NOT NULL DEFAULT '[]',\n    todo_carryover INTEGER NOT NULL DEFAULT 0,\n    updated_at TEXT NOT NULL\n);",
     "CREATE TABLE IF NOT EXISTS note_versions (\n    id TEXT PRIMARY KEY,\n    note_id TEXT NOT NULL,\n    title TEXT,\n    content TEXT NOT NULL DEFAULT '{}',\n    tags TEXT NOT NULL DEFAULT '[]',\n    pinned INTEGER NOT NULL DEFAULT 0,\n    sort_order INTEGER NOT NULL DEFAULT 0,\n    saved_at TEXT NOT NULL\n);",

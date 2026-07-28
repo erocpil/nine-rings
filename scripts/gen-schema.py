@@ -145,8 +145,9 @@ def generate_rust(schema):
         for col_name, col_def in fields.items():
             if col_def.get("system"):
                 continue  # system fields are added separately
+            sql_name = col_def.get("sql_name", col_name)  # SQL 列名可覆盖
             sql = sql_type(col_def, col_name)
-            cols.append(f"    {col_name} {sql}")
+            cols.append(f"    {sql_name} {sql}")
 
         ddl = f"CREATE TABLE IF NOT EXISTS {table} (\n" + ",\n".join(cols) + "\n);"
         rust_str = '    "' + ddl.replace('"', '\\"').replace("\n", "\\n") + '",'
@@ -154,8 +155,14 @@ def generate_rust(schema):
 
         # Indexes
         for idx_def in entity.get("indexes", []):
-            idx_cols = ", ".join(idx_def["columns"])
-            idx_name = f"idx_{table}_" + "_".join(idx_def["columns"])
+            # Index columns may also need sql_name mapping
+            idx_cols_raw = idx_def["columns"]
+            idx_cols_mapped = []
+            for ic in idx_cols_raw:
+                mapped = fields.get(ic, {}).get("sql_name", ic) if ic in fields else ic
+                idx_cols_mapped.append(mapped)
+            idx_cols = ", ".join(idx_cols_mapped)
+            idx_name = f"idx_{table}_" + "_".join(idx_cols_mapped)
             idx_sql = f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({idx_cols});"
             rust_str = '    "' + idx_sql.replace('"', '\\"') + '",'
             lines.append(rust_str)
@@ -196,8 +203,9 @@ def generate_dart(schema):
         for col_name, col_def in fields.items():
             if col_def.get("system"):
                 continue
+            sql_name = col_def.get("sql_name", col_name)
             sql = sql_type(col_def, col_name)
-            cols.append(f"  {col_name} {sql}")
+            cols.append(f"  {sql_name} {sql}")
 
         ddl = f"CREATE TABLE IF NOT EXISTS {table} (\n" + ",\n".join(cols) + "\n);"
         lines.append(ddl)
@@ -205,8 +213,14 @@ def generate_dart(schema):
 
         # Indexes
         for idx_def in entity.get("indexes", []):
-            idx_cols = ", ".join(idx_def["columns"])
-            idx_name = f"idx_{table}_" + "_".join(idx_def["columns"])
+            # Index columns may also need sql_name mapping
+            idx_cols_raw = idx_def["columns"]
+            idx_cols_mapped = []
+            for ic in idx_cols_raw:
+                mapped = fields.get(ic, {}).get("sql_name", ic) if ic in fields else ic
+                idx_cols_mapped.append(mapped)
+            idx_cols = ", ".join(idx_cols_mapped)
+            idx_name = f"idx_{table}_" + "_".join(idx_cols_mapped)
             idx_sql = f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({idx_cols});"
             lines.append(idx_sql)
         if entity.get("indexes"):

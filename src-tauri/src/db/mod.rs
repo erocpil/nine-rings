@@ -1,6 +1,7 @@
 pub mod migrations;
 pub mod models;
 pub mod query;
+pub mod schema_gen;
 
 use rusqlite::Connection;
 

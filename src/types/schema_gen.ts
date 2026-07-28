@@ -22,10 +22,10 @@ export interface SchemaNote {
   storagePath: string | null;
   /** Diátaxis 类型: explanation|how-to|reference|tutorial */
   docType: DocType | null;
-  /** Zettelkasten 概念标签 */
-  concepts: string[] | null;
   /** 关联文档 ID 列表 */
   linkedDocIds: string[] | null;
+  /** Zettelkasten 概念标签 */
+  concepts: string[] | null;
   readonly: boolean;
 }
 
