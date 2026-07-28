@@ -1,15 +1,15 @@
+use crate::DataDir;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tauri::{command, State};
 use std::sync::Mutex;
-use crate::DataDir;
+use tauri::{command, State};
 
 /// 应用配置（与 schema/config.yaml 对齐）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct AppConfig {
-    pub theme: String,           // "system" | "light" | "dark" | "fu" | ...
-    pub default_view: String,    // "daily" | "list"
+    pub theme: String,        // "system" | "light" | "dark" | "fu" | ...
+    pub default_view: String, // "daily" | "list"
     pub todo_carryover_default: bool,
     pub auto_clean_days: i32,
     pub note_font_size: i32,
@@ -23,7 +23,9 @@ pub struct AppConfig {
     pub hotkeys: std::collections::HashMap<String, String>,
 }
 
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}
 
 fn default_hotkeys() -> std::collections::HashMap<String, String> {
     std::collections::HashMap::from([
@@ -54,12 +56,12 @@ impl Default for AppConfig {
 }
 
 /// 获取配置文件的路径
-fn config_path(app_data_dir: &PathBuf) -> PathBuf {
+fn config_path(app_data_dir: &std::path::Path) -> PathBuf {
     app_data_dir.join("config.json")
 }
 
 /// 读配置文件，不存在则返回默认值
-pub fn read_config(app_data_dir: &PathBuf) -> AppConfig {
+pub fn read_config(app_data_dir: &std::path::Path) -> AppConfig {
     let path = config_path(app_data_dir);
     if !path.exists() {
         return AppConfig::default();
@@ -71,7 +73,7 @@ pub fn read_config(app_data_dir: &PathBuf) -> AppConfig {
 }
 
 /// 写配置文件
-fn write_config(app_data_dir: &PathBuf, config: &AppConfig) -> Result<(), String> {
+fn write_config(app_data_dir: &std::path::Path, config: &AppConfig) -> Result<(), String> {
     let path = config_path(app_data_dir);
     let json = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
     std::fs::write(&path, json).map_err(|e| e.to_string())?;
@@ -82,11 +84,23 @@ fn write_config(app_data_dir: &PathBuf, config: &AppConfig) -> Result<(), String
 
 /// 写一行到启动日志文件（跨模块复用）
 fn append_startup_log(msg: &str) {
-    if let Ok(dir) = std::env::var("TEMP").or_else(|_| std::env::var("TMPDIR")).or_else(|_| std::env::var("TMP")) {
+    if let Ok(dir) = std::env::var("TEMP")
+        .or_else(|_| std::env::var("TMPDIR"))
+        .or_else(|_| std::env::var("TMP"))
+    {
         let log_path = std::path::PathBuf::from(dir).join("nine-rings-startup.log");
-        let line = format!("[{}] {}\n", chrono::Local::now().format("%H:%M:%S%.3f"), msg);
-        let _ = std::fs::OpenOptions::new().create(true).append(true).open(&log_path)
-            .map(|mut f| { let _ = std::io::Write::write_all(&mut f, line.as_bytes()); });
+        let line = format!(
+            "[{}] {}\n",
+            chrono::Local::now().format("%H:%M:%S%.3f"),
+            msg
+        );
+        let _ = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)
+            .map(|mut f| {
+                let _ = std::io::Write::write_all(&mut f, line.as_bytes());
+            });
     }
 }
 
@@ -116,9 +130,8 @@ pub fn set_config(
                 }
             }
         }
-        let merged: AppConfig =
-            serde_json::from_value(serde_json::Value::Object(current_map))
-                .map_err(|e| e.to_string())?;
+        let merged: AppConfig = serde_json::from_value(serde_json::Value::Object(current_map))
+            .map_err(|e| e.to_string())?;
 
         // 持久化 — 用 setup() 阶段缓存的 DataDir，不依赖 IPC 上下文的 app_data_dir()
         write_config(&data_dir.0, &merged)?;
@@ -126,7 +139,9 @@ pub fn set_config(
         // 验证写入结果
         let config_path = data_dir.0.join("config.json");
         let verify_ok = config_path.exists();
-        let verify_size = std::fs::metadata(&config_path).map(|m| m.len()).unwrap_or(0);
+        let verify_size = std::fs::metadata(&config_path)
+            .map(|m| m.len())
+            .unwrap_or(0);
         append_startup_log(&format!(
             "set_config: wrote {:?} (exists={}, size={})",
             config_path, verify_ok, verify_size

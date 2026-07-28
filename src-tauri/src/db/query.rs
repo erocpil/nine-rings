@@ -8,7 +8,6 @@
 /// - 软删除自动过滤：SelectOp.include_deleted=false（默认）→ 自动追加 deleted_at IS NULL。
 /// - undefined → 列不出现；null → SQL NULL —— 此逻辑在调用侧控制（不传该键即跳过）。
 /// - 时间范围统一用闭开区间 [start, end)。
-
 use rusqlite::types::Value as SqlValue;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
@@ -18,11 +17,17 @@ use serde_json::Value as JsonValue;
 /// 这是纵深防御：即使 Op JSON 被篡改，Rust compiler 层拒绝非标识符拼入 SQL。
 const fn is_safe_sql_identifier(s: &str) -> bool {
     let bytes = s.as_bytes();
-    if bytes.is_empty() { return false; }
-    if !matches!(bytes[0], b'a'..=b'z' | b'A'..=b'Z' | b'_') { return false; }
+    if bytes.is_empty() {
+        return false;
+    }
+    if !matches!(bytes[0], b'a'..=b'z' | b'A'..=b'Z' | b'_') {
+        return false;
+    }
     let mut i = 1;
     while i < bytes.len() {
-        if !matches!(bytes[i], b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_') { return false; }
+        if !matches!(bytes[i], b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_') {
+            return false;
+        }
         i += 1;
     }
     true
@@ -310,18 +315,30 @@ pub fn compile_op(op: &Op) -> Result<(String, Vec<SqlValue>), String> {
     match op {
         Op::Select(o) => {
             validate_ident(&o.table, "table")?;
-            for col in &o.columns { validate_ident(col, "column")?; }
-            for w in &o.r#where { validate_ident(&w.col, "WHERE column")?; }
-            for o in &o.order_by { validate_ident(&o.col, "ORDER BY column")?; }
+            for col in &o.columns {
+                validate_ident(col, "column")?;
+            }
+            for w in &o.r#where {
+                validate_ident(&w.col, "WHERE column")?;
+            }
+            for o in &o.order_by {
+                validate_ident(&o.col, "ORDER BY column")?;
+            }
         }
         Op::Insert(o) => {
             validate_ident(&o.table, "table")?;
-            for col in o.values.keys() { validate_ident(col, "column")?; }
+            for col in o.values.keys() {
+                validate_ident(col, "column")?;
+            }
         }
         Op::Update(o) => {
             validate_ident(&o.table, "table")?;
-            for col in o.set.keys() { validate_ident(col, "SET column")?; }
-            for w in &o.r#where { validate_ident(&w.col, "WHERE column")?; }
+            for col in o.set.keys() {
+                validate_ident(col, "SET column")?;
+            }
+            for w in &o.r#where {
+                validate_ident(&w.col, "WHERE column")?;
+            }
         }
     }
 
@@ -391,9 +408,9 @@ mod tests {
 
     #[test]
     fn param_float() {
-        let v = serde_json::json!(3.14);
+        let v = serde_json::json!(1.5);
         let result = json_to_sql_param(&v).unwrap();
-        assert_eq!(result, SqlValue::Real(3.14));
+        assert_eq!(result, SqlValue::Real(1.5));
     }
 
     #[test]
@@ -401,7 +418,11 @@ mod tests {
         // f64::MAX is way larger than i64::MAX — guaranteed overflow
         let v = serde_json::json!(f64::MAX);
         let result = json_to_sql_param(&v);
-        assert!(result.is_err(), "Expected overflow error for f64::MAX, got {:?}", result);
+        assert!(
+            result.is_err(),
+            "Expected overflow error for f64::MAX, got {:?}",
+            result
+        );
         let err = result.unwrap_err();
         assert!(
             err.contains("overflow"),
@@ -455,8 +476,14 @@ mod tests {
                 not: false,
             }],
             order_by: vec![
-                OrderBy { col: "pinned".into(), desc: true },
-                OrderBy { col: "sort_order".into(), desc: false },
+                OrderBy {
+                    col: "pinned".into(),
+                    desc: true,
+                },
+                OrderBy {
+                    col: "sort_order".into(),
+                    desc: false,
+                },
             ],
             limit: None,
             offset: None,
@@ -521,7 +548,10 @@ mod tests {
         let mut values = serde_json::Map::new();
         values.insert("id".into(), JsonValue::String("abc".into()));
         values.insert("title".into(), JsonValue::String("Test".into()));
-        values.insert("pinned".into(), JsonValue::Number(serde_json::Number::from(0)));
+        values.insert(
+            "pinned".into(),
+            JsonValue::Number(serde_json::Number::from(0)),
+        );
 
         let op = InsertOp {
             table: "notes".into(),
@@ -538,9 +568,13 @@ mod tests {
         assert!(sql.contains("pinned"));
         assert_eq!(params.len(), 3);
         // 参数顺序与列顺序一致，只验证值存在即可
-        let has_abc = params.iter().any(|p| *p == SqlValue::Text("abc".to_string()));
-        let has_test = params.iter().any(|p| *p == SqlValue::Text("Test".to_string()));
-        let has_zero = params.iter().any(|p| *p == SqlValue::Integer(0));
+        let has_abc = params
+            .iter()
+            .any(|p| *p == SqlValue::Text("abc".to_string()));
+        let has_test = params
+            .iter()
+            .any(|p| *p == SqlValue::Text("Test".to_string()));
+        let has_zero = params.contains(&SqlValue::Integer(0));
         assert!(has_abc);
         assert!(has_test);
         assert!(has_zero);
@@ -552,7 +586,10 @@ mod tests {
     fn compile_update_basic() {
         let mut set = serde_json::Map::new();
         set.insert("title".into(), JsonValue::String("Updated".into()));
-        set.insert("updated_at".into(), JsonValue::String("2026-07-15T00:00:00Z".into()));
+        set.insert(
+            "updated_at".into(),
+            JsonValue::String("2026-07-15T00:00:00Z".into()),
+        );
 
         let op = UpdateOp {
             table: "notes".into(),

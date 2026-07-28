@@ -108,6 +108,7 @@ pub struct SyncChange {
 
 // ──── DAO ────
 
+#[allow(clippy::too_many_arguments)]
 pub fn update_note(
     conn: &Connection,
     id: &str,
@@ -141,7 +142,7 @@ pub fn select_note_by_id(conn: &Connection, id: &str) -> rusqlite::Result<Option
         "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly
          FROM notes WHERE id = ?1 AND deleted_at IS NULL"
     )?;
-    let mut rows = stmt.query_map(rusqlite::params![id], |row| note_from_row(row))?;
+    let mut rows = stmt.query_map(rusqlite::params![id], note_from_row)?;
     rows.next().transpose()
 }
 
@@ -155,26 +156,23 @@ pub fn select_notes_by_tag(conn: &Connection, tag: &str) -> rusqlite::Result<Vec
          ORDER BY updated_at DESC
          LIMIT 100"
     )?;
-    let rows = stmt.query_map(rusqlite::params![pattern], |row| note_from_row(row))?;
+    let rows = stmt.query_map(rusqlite::params![pattern], note_from_row)?;
     rows.collect()
 }
 
 /// 获取所有已使用的标签（去重）
 pub fn select_all_tags(conn: &Connection) -> rusqlite::Result<Vec<String>> {
-    let mut stmt = conn.prepare(
-        "SELECT DISTINCT tags FROM notes WHERE deleted_at IS NULL AND tags != '[]'"
-    )?;
+    let mut stmt =
+        conn.prepare("SELECT DISTINCT tags FROM notes WHERE deleted_at IS NULL AND tags != '[]'")?;
     let rows = stmt.query_map([], |row| {
         let json: String = row.get(0)?;
         Ok(json)
     })?;
     let mut tag_set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    for row in rows {
-        if let Ok(json) = row {
-            if let Ok(tags) = serde_json::from_str::<Vec<String>>(&json) {
-                for t in tags {
-                    tag_set.insert(t);
-                }
+    for json in rows.flatten() {
+        if let Ok(tags) = serde_json::from_str::<Vec<String>>(&json) {
+            for t in tags {
+                tag_set.insert(t);
             }
         }
     }
@@ -191,7 +189,7 @@ pub fn search_notes_like(conn: &Connection, query: &str) -> rusqlite::Result<Vec
          ORDER BY updated_at DESC
          LIMIT 50"
     )?;
-    let rows = stmt.query_map(rusqlite::params![pattern], |row| note_from_row(row))?;
+    let rows = stmt.query_map(rusqlite::params![pattern], note_from_row)?;
     rows.collect()
 }
 
@@ -219,11 +217,15 @@ pub fn search_notes(conn: &Connection, query: &str) -> rusqlite::Result<Vec<Note
     let fts_query = query
         .split_whitespace()
         .map(|t| {
-            let cleaned: String = t.chars()
+            let cleaned: String = t
+                .chars()
                 .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_')
                 .collect();
-            if cleaned.is_empty() { String::new() }
-            else { format!("\"{}\"*", cleaned.replace('"', "")) }
+            if cleaned.is_empty() {
+                String::new()
+            } else {
+                format!("\"{}\"*", cleaned.replace('"', ""))
+            }
         })
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
@@ -243,7 +245,7 @@ pub fn search_notes(conn: &Connection, query: &str) -> rusqlite::Result<Vec<Note
                LIMIT 50";
 
     match conn.prepare(sql).and_then(|mut stmt| {
-        stmt.query_map(rusqlite::params![fts_query], |row| note_from_row(row))?
+        stmt.query_map(rusqlite::params![fts_query], note_from_row)?
             .collect()
     }) {
         Ok(results) => Ok(results),
@@ -274,7 +276,7 @@ pub fn upsert_daily_page(conn: &Connection, page: &DailyPage) -> rusqlite::Resul
 pub fn select_daily_page(conn: &Connection, date: &str) -> rusqlite::Result<Option<DailyPage>> {
     let mut stmt = conn.prepare(
         "SELECT date, todos, todo_carryover, updated_at
-         FROM daily_pages WHERE date = ?1"
+         FROM daily_pages WHERE date = ?1",
     )?;
     let mut rows = stmt.query_map(rusqlite::params![date], |row| {
         let todos_str: String = row.get(1)?;
@@ -288,13 +290,16 @@ pub fn select_daily_page(conn: &Connection, date: &str) -> rusqlite::Result<Opti
     rows.next().transpose()
 }
 
-pub fn select_prev_carryover_page(conn: &Connection, before_date: &str) -> rusqlite::Result<Option<DailyPage>> {
+pub fn select_prev_carryover_page(
+    conn: &Connection,
+    before_date: &str,
+) -> rusqlite::Result<Option<DailyPage>> {
     let mut stmt = conn.prepare(
         "SELECT date, todos, todo_carryover, updated_at
          FROM daily_pages
          WHERE date < ?1
          ORDER BY date DESC
-         LIMIT 1"
+         LIMIT 1",
     )?;
     let mut rows = stmt.query_map(rusqlite::params![before_date], |row| {
         let todos_str: String = row.get(1)?;
@@ -315,14 +320,14 @@ pub fn select_all_active_notes(conn: &Connection) -> rusqlite::Result<Vec<Note>>
          FROM notes WHERE deleted_at IS NULL
          ORDER BY updated_at DESC"
     )?;
-    let rows = stmt.query_map([], |row| note_from_row(row))?;
+    let rows = stmt.query_map([], note_from_row)?;
     rows.collect()
 }
 
 /// 获取所有每日页（用于导出）
 pub fn select_all_daily_pages(conn: &Connection) -> rusqlite::Result<Vec<DailyPage>> {
     let mut stmt = conn.prepare(
-        "SELECT date, todos, todo_carryover, updated_at FROM daily_pages ORDER BY date DESC"
+        "SELECT date, todos, todo_carryover, updated_at FROM daily_pages ORDER BY date DESC",
     )?;
     let rows = stmt.query_map([], |row| {
         let todos_str: String = row.get(1)?;

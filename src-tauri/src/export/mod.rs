@@ -15,7 +15,10 @@ pub fn delta_to_markdown(content: &Value) -> String {
 
             // 代码块
             if let Some(a) = attrs {
-                if a.get("code-block").and_then(|v| v.as_bool()).unwrap_or(false) {
+                if a.get("code-block")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false)
+                {
                     if !in_code_block {
                         md.push_str("```\n");
                         in_code_block = true;
@@ -36,14 +39,26 @@ pub fn delta_to_markdown(content: &Value) -> String {
             }
 
             // 内联格式
-            let bold = attrs.and_then(|a| a.get("bold").and_then(|v| v.as_bool())).unwrap_or(false);
-            let italic = attrs.and_then(|a| a.get("italic").and_then(|v| v.as_bool())).unwrap_or(false);
-            let code = attrs.and_then(|a| a.get("code").and_then(|v| v.as_bool())).unwrap_or(false);
+            let bold = attrs
+                .and_then(|a| a.get("bold").and_then(|v| v.as_bool()))
+                .unwrap_or(false);
+            let italic = attrs
+                .and_then(|a| a.get("italic").and_then(|v| v.as_bool()))
+                .unwrap_or(false);
+            let code = attrs
+                .and_then(|a| a.get("code").and_then(|v| v.as_bool()))
+                .unwrap_or(false);
 
             let mut wrapped = text.to_string();
-            if bold { wrapped = format!("**{}**", wrapped); }
-            if italic { wrapped = format!("*{}*", wrapped); }
-            if code { wrapped = format!("`{}`", wrapped); }
+            if bold {
+                wrapped = format!("**{}**", wrapped);
+            }
+            if italic {
+                wrapped = format!("*{}*", wrapped);
+            }
+            if code {
+                wrapped = format!("`{}`", wrapped);
+            }
             md.push_str(&wrapped);
         }
     }
@@ -56,8 +71,15 @@ pub fn delta_to_markdown(content: &Value) -> String {
 /// 将 Note 导出为 .md 字符串
 pub fn note_to_markdown(note: &Note) -> String {
     let mut md = String::new();
-    md.push_str(&format!("# {}\n\n", note.title.as_deref().unwrap_or("无标题")));
-    md.push_str(&format!("> 日期: {} | 标签: {}\n\n", note.date, note.tags.join(", ")));
+    md.push_str(&format!(
+        "# {}\n\n",
+        note.title.as_deref().unwrap_or("无标题")
+    ));
+    md.push_str(&format!(
+        "> 日期: {} | 标签: {}\n\n",
+        note.date,
+        note.tags.join(", ")
+    ));
     md.push_str(&delta_to_markdown(&note.content));
     md
 }
@@ -78,22 +100,25 @@ pub fn export_all(conn: &Connection) -> rusqlite::Result<ExportBundle> {
          FROM notes WHERE deleted_at IS NULL
          ORDER BY date, sort_order"
     )?;
-    let notes: Vec<Note> = stmt.query_map([], |row| {
-        crate::db::models::note_from_row(row)
-    })?.filter_map(|r| r.ok()).collect();
+    let notes: Vec<Note> = stmt
+        .query_map([], crate::db::models::note_from_row)?
+        .filter_map(|r| r.ok())
+        .collect();
 
-    let mut stmt = conn.prepare(
-        "SELECT date, todos, todo_carryover, updated_at FROM daily_pages ORDER BY date"
-    )?;
-    let daily_pages = stmt.query_map([], |row| {
-        let todos_str: String = row.get(1)?;
-        Ok(crate::db::models::DailyPage {
-            date: row.get(0)?,
-            todos: serde_json::from_str(&todos_str).unwrap_or_default(),
-            todo_carryover: row.get::<_, i32>(2)? != 0,
-            updated_at: row.get(3)?,
-        })
-    })?.filter_map(|r| r.ok()).collect();
+    let mut stmt = conn
+        .prepare("SELECT date, todos, todo_carryover, updated_at FROM daily_pages ORDER BY date")?;
+    let daily_pages = stmt
+        .query_map([], |row| {
+            let todos_str: String = row.get(1)?;
+            Ok(crate::db::models::DailyPage {
+                date: row.get(0)?,
+                todos: serde_json::from_str(&todos_str).unwrap_or_default(),
+                todo_carryover: row.get::<_, i32>(2)? != 0,
+                updated_at: row.get(3)?,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
 
     Ok(ExportBundle {
         version: 1,
@@ -113,26 +138,16 @@ pub fn import_bundle(conn: &Connection, bundle: &ExportBundle) -> rusqlite::Resu
     // 构建现有笔记的 id 集合（按 UUID 去重）
     let mut existing_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
     {
-        let mut stmt = conn.prepare(
-            "SELECT id FROM notes WHERE deleted_at IS NULL"
-        )?;
-        let rows = stmt.query_map([], |row| {
-            row.get::<_, String>(0)
-        })?;
-        for row in rows {
-            if let Ok(id) = row {
-                existing_ids.insert(id);
-            }
+        let mut stmt = conn.prepare("SELECT id FROM notes WHERE deleted_at IS NULL")?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        for id in rows.flatten() {
+            existing_ids.insert(id);
         }
     }
 
     for note in &bundle.notes {
         // 按 id 去重（UUID 跨设备一致）
-        let id = if existing_ids.contains(&note.id) {
-            note.id.clone()
-        } else {
-            note.id.clone()
-        };
+        let id = note.id.clone();
 
         conn.execute(
             "INSERT OR REPLACE INTO notes (id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly)

@@ -29,7 +29,10 @@ pub struct PathNode {
 }
 
 #[tauri::command]
-pub fn search_docs(state: State<AppState>, query: DocSearchQuery) -> Result<Vec<crate::db::models::Note>, String> {
+pub fn search_docs(
+    state: State<AppState>,
+    query: DocSearchQuery,
+) -> Result<Vec<crate::db::models::Note>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let mut sql = String::from(
         "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly FROM notes WHERE deleted_at IS NULL AND storage_path IS NOT NULL"
@@ -67,13 +70,20 @@ pub fn search_docs(state: State<AppState>, query: DocSearchQuery) -> Result<Vec<
 
     let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
-    let rows = stmt.query_map(param_refs.as_slice(), |row| crate::db::models::note_from_row(row))
+    let rows = stmt
+        .query_map(param_refs.as_slice(), |row| {
+            crate::db::models::note_from_row(row)
+        })
         .map_err(|e| e.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn get_notes_by_path(state: State<AppState>, path_prefix: String) -> Result<Vec<crate::db::models::Note>, String> {
+pub fn get_notes_by_path(
+    state: State<AppState>,
+    path_prefix: String,
+) -> Result<Vec<crate::db::models::Note>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
     // daily/ 前缀 → 返回对应日期的每日随笔（无 storagePath）
@@ -85,9 +95,14 @@ pub fn get_notes_by_path(state: State<AppState>, path_prefix: String) -> Result<
                     "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly FROM notes WHERE deleted_at IS NULL AND date = ?1 ORDER BY updated_at DESC"
                 )
                 .map_err(|e| e.to_string())?;
-            let rows = stmt.query_map(rusqlite::params![date], |row| crate::db::models::note_from_row(row))
+            let rows = stmt
+                .query_map(rusqlite::params![date], |row| {
+                    crate::db::models::note_from_row(row)
+                })
                 .map_err(|e| e.to_string())?;
-            return rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string());
+            return rows
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string());
         }
         // 纯 "daily/" → 返回所有每日随笔
         let mut stmt = conn
@@ -95,9 +110,12 @@ pub fn get_notes_by_path(state: State<AppState>, path_prefix: String) -> Result<
                 "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly FROM notes WHERE deleted_at IS NULL AND storage_path IS NULL ORDER BY date DESC, updated_at DESC"
             )
             .map_err(|e| e.to_string())?;
-        let rows = stmt.query_map([], |row| crate::db::models::note_from_row(row))
+        let rows = stmt
+            .query_map([], crate::db::models::note_from_row)
             .map_err(|e| e.to_string())?;
-        return rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string());
+        return rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string());
     }
 
     // 普通文档路径
@@ -106,10 +124,14 @@ pub fn get_notes_by_path(state: State<AppState>, path_prefix: String) -> Result<
             "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly FROM notes WHERE deleted_at IS NULL AND (storage_path = ?1 OR storage_path LIKE ?2) ORDER BY updated_at DESC"
         )
         .map_err(|e| e.to_string())?;
-    let like_pattern = format!("{}%", format!("{}/", path_prefix));
-    let rows = stmt.query_map(rusqlite::params![path_prefix, like_pattern], |row| crate::db::models::note_from_row(row))
+    let like_pattern = format!("{}/%", path_prefix);
+    let rows = stmt
+        .query_map(rusqlite::params![path_prefix, like_pattern], |row| {
+            crate::db::models::note_from_row(row)
+        })
         .map_err(|e| e.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -117,20 +139,20 @@ pub fn get_all_concepts(state: State<AppState>) -> Result<Vec<String>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare(
-            "SELECT DISTINCT concepts FROM notes WHERE deleted_at IS NULL AND concepts != '[]'"
+            "SELECT DISTINCT concepts FROM notes WHERE deleted_at IS NULL AND concepts != '[]'",
         )
         .map_err(|e| e.to_string())?;
-    let rows = stmt.query_map([], |row| {
-        let json: String = row.get(0)?;
-        Ok(json)
-    }).map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            let json: String = row.get(0)?;
+            Ok(json)
+        })
+        .map_err(|e| e.to_string())?;
     let mut tag_set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-    for row in rows {
-        if let Ok(json) = row {
-            if let Ok(concepts) = serde_json::from_str::<Vec<String>>(&json) {
-                for c in concepts {
-                    tag_set.insert(c);
-                }
+    for json in rows.flatten() {
+        if let Ok(concepts) = serde_json::from_str::<Vec<String>>(&json) {
+            for c in concepts {
+                tag_set.insert(c);
             }
         }
     }

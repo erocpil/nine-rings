@@ -6,9 +6,8 @@ pub mod service;
 use std::sync::Mutex;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
-    tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
-    Emitter,
-    Manager,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Emitter, Manager,
 };
 
 /// ── Windows Job Object: 主进程退出时内核自动杀死所有子进程 ──
@@ -17,15 +16,15 @@ use tauri::{
 /// 调用处会额外用 `startup_log!` 写入文件日志。
 #[cfg(target_os = "windows")]
 fn setup_job_object_kill_on_close() -> Result<(), String> {
+    use std::mem::size_of;
     use std::sync::OnceLock;
+    use windows::Win32::Foundation::HANDLE;
     use windows::Win32::System::JobObjects::{
-        CreateJobObjectW, SetInformationJobObject, AssignProcessToJobObject,
-        JobObjectExtendedLimitInformation, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
         JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     };
     use windows::Win32::System::Threading::GetCurrentProcess;
-    use windows::Win32::Foundation::HANDLE;
-    use std::mem::size_of;
 
     /// 包装 `HANDLE` 使其可安全存于 `static OnceLock`。
     /// `HANDLE` 本质是 `*mut c_void`，不实现 `Send`/`Sync`。
@@ -59,7 +58,10 @@ fn setup_job_object_kill_on_close() -> Result<(), String> {
             Ok(())
         }
         Err(e) => {
-            log::warn!("[JobObject] AssignProcessToJobObject: {:?} — child processes NOT auto-killed", e);
+            log::warn!(
+                "[JobObject] AssignProcessToJobObject: {:?} — child processes NOT auto-killed",
+                e
+            );
             Err(format!("{:?}", e))
         }
     }
@@ -95,6 +97,7 @@ pub struct DataDir(pub std::path::PathBuf);
 /// 用户数据（笔记、配置）已通过 Tauri IPC 持久化到
 /// AppData\\Roaming\\com.ninerings.app\\ (SQLite + config.json)，
 /// 不在此目录中，可以安全删除。
+#[allow(dead_code)]
 fn try_clean_webview2_profile(dir: &std::path::Path) {
     match std::fs::remove_dir_all(dir) {
         Ok(()) => {
@@ -104,7 +107,12 @@ fn try_clean_webview2_profile(dir: &std::path::Path) {
             let code = e.raw_os_error().unwrap_or(-1);
             match code {
                 2 | 3 => {} // 目录不存在 — 首次启动正常情况
-                _ => startup_log!("try_clean_webview2_profile: cannot remove {:?}: {} (os error {})", dir, e, code),
+                _ => startup_log!(
+                    "try_clean_webview2_profile: cannot remove {:?}: {} (os error {})",
+                    dir,
+                    e,
+                    code
+                ),
             }
         }
     }
@@ -118,7 +126,10 @@ fn toggle_main_window(app: &tauri::AppHandle) {
             startup_log!("toggle_main_window: hiding");
             let _ = window.hide();
         } else {
-            startup_log!("toggle_main_window: showing (visible={})", window.is_visible().unwrap_or(false));
+            startup_log!(
+                "toggle_main_window: showing (visible={})",
+                window.is_visible().unwrap_or(false)
+            );
             let _ = window.show();
             let _ = window.unminimize();
             let _ = window.set_focus();
@@ -132,7 +143,10 @@ fn toggle_main_window(app: &tauri::AppHandle) {
 fn show_main_window(app: &tauri::AppHandle) {
     startup_log!("show_main_window called");
     if let Some(window) = app.get_webview_window("main") {
-        startup_log!("show_main_window: window found, calling show (visible={})", window.is_visible().unwrap_or(false));
+        startup_log!(
+            "show_main_window: window found, calling show (visible={})",
+            window.is_visible().unwrap_or(false)
+        );
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
@@ -159,16 +173,16 @@ fn bump_webview2(window: &tauri::WebviewWindow) {
     } else if let Ok(size) = window.inner_size() {
         let w = size.width;
         let h = size.height;
-        startup_log!("bump_webview2: current size {}x{}, resizing to {}x{}", w, h, w + 1, h);
-        let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(
-            w + 1,
-            h,
-        )));
-        std::thread::sleep(std::time::Duration::from_millis(16));
-        let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(
+        startup_log!(
+            "bump_webview2: current size {}x{}, resizing to {}x{}",
             w,
             h,
-        )));
+            w + 1,
+            h
+        );
+        let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(w + 1, h)));
+        std::thread::sleep(std::time::Duration::from_millis(16));
+        let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(w, h)));
         startup_log!("bump_webview2 done");
     } else {
         startup_log!("bump_webview2: inner_size() failed");
@@ -180,7 +194,9 @@ fn bump_webview2(window: &tauri::WebviewWindow) {
 /// 在 Tauri 初始化前即可调用，用于在 WebView2 启动前尝试清理旧 profile。
 #[cfg(target_os = "windows")]
 fn app_local_data_dir() -> Option<std::path::PathBuf> {
-    std::env::var("LOCALAPPDATA").ok().map(|p| std::path::PathBuf::from(p).join("com.ninerings.app"))
+    std::env::var("LOCALAPPDATA")
+        .ok()
+        .map(|p| std::path::PathBuf::from(p).join("com.ninerings.app"))
 }
 
 pub fn run() {
@@ -217,7 +233,11 @@ pub fn run() {
         startup_log!("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS set");
     }
 
-    startup_log!("=== nine-rings v{} ({}) startup begin ===", env!("CARGO_PKG_VERSION"), env!("GIT_HASH"));
+    startup_log!(
+        "=== nine-rings v{} ({}) startup begin ===",
+        env!("CARGO_PKG_VERSION"),
+        env!("GIT_HASH")
+    );
     env_logger::init();
     startup_log!("env_logger initialized");
 
@@ -232,7 +252,10 @@ pub fn run() {
         }))
         .setup(|app| {
             startup_log!("setup() begin");
-            let app_dir = app.path().app_data_dir().expect("failed to get app data dir");
+            let app_dir = app
+                .path()
+                .app_data_dir()
+                .expect("failed to get app data dir");
             startup_log!("app_data_dir={:?}", app_dir);
             std::fs::create_dir_all(&app_dir).ok();
             let db_path = app_dir.join("nine-rings.db");
@@ -241,8 +264,7 @@ pub fn run() {
             startup_log!("opening database...");
             let db_size_before = std::fs::metadata(&db_path).map(|m| m.len()).unwrap_or(0);
             startup_log!("db file: {:?} ({} bytes)", db_path, db_size_before);
-            let conn = rusqlite::Connection::open(&db_path)
-                .expect("failed to open database");
+            let conn = rusqlite::Connection::open(&db_path).expect("failed to open database");
             // WAL 模式：写入先到 WAL 文件，定期合并回主 DB。
             // 即使进程被暴力终止，WAL 中的完整事务也不会丢
             // （SQLite 下次打开时自动恢复）。
@@ -254,7 +276,11 @@ pub fn run() {
             // 加载配置
             startup_log!("loading config...");
             let config_path = app_dir.join("config.json");
-            startup_log!("config file exists: {}, path: {:?}", config_path.exists(), config_path);
+            startup_log!(
+                "config file exists: {}, path: {:?}",
+                config_path.exists(),
+                config_path
+            );
             let user_config = commands::config::read_config(&app_dir);
             startup_log!("config loaded (theme: {})", user_config.theme);
             app.manage(Mutex::new(user_config));
@@ -271,7 +297,8 @@ pub fn run() {
             match (|| -> Result<_, Box<dyn std::error::Error>> {
                 let show = MenuItemBuilder::with_id("show", "显示九环").build(app)?;
                 let new_note = MenuItemBuilder::with_id("new_note", "新建随笔").build(app)?;
-                let quick_cap = MenuItemBuilder::with_id("quick_capture", "快捷记录    Ctrl+Alt+N").build(app)?;
+                let quick_cap = MenuItemBuilder::with_id("quick_capture", "快捷记录    Ctrl+Alt+N")
+                    .build(app)?;
                 let quit = MenuItemBuilder::with_id("quit", "退出").build(app)?;
                 let menu = MenuBuilder::new(app)
                     .item(&show)
@@ -287,8 +314,14 @@ pub fn run() {
                     .tooltip("九环 · 左键显隐 · 右键菜单")
                     .show_menu_on_left_click(false)
                     .on_tray_icon_event(|tray, event| {
-                        if let TrayIconEvent::Click { button, button_state, .. } = event {
-                            if button != MouseButton::Left || button_state != MouseButtonState::Down {
+                        if let TrayIconEvent::Click {
+                            button,
+                            button_state,
+                            ..
+                        } = event
+                        {
+                            if button != MouseButton::Left || button_state != MouseButtonState::Down
+                            {
                                 return;
                             }
                             if let Some(window) = tray.app_handle().get_webview_window("main") {
@@ -338,7 +371,8 @@ pub fn run() {
                                 // 必须在此处显式 flush，否则未 checkpoint 的数据会丢失。
                                 if let Some(state) = app.try_state::<AppState>() {
                                     if let Ok(conn) = state.db.lock() {
-                                        let _ = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+                                        let _ =
+                                            conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
                                         startup_log!("quit: WAL checkpointed to main DB");
                                     }
                                 }
@@ -356,8 +390,17 @@ pub fn run() {
 
                 Ok(())
             })() {
-                Ok(()) => { startup_log!("tray icon created"); log::info!("tray icon created"); },
-                Err(e) => { startup_log!("tray FAILED: {}", e); log::error!("failed to create tray icon: {} (app will run without tray)", e); },
+                Ok(()) => {
+                    startup_log!("tray icon created");
+                    log::info!("tray icon created");
+                }
+                Err(e) => {
+                    startup_log!("tray FAILED: {}", e);
+                    log::error!(
+                        "failed to create tray icon: {} (app will run without tray)",
+                        e
+                    );
+                }
             }
 
             // ── Alt+Y 系统级全局热键 ──
@@ -367,14 +410,14 @@ pub fn run() {
                 use tauri_plugin_global_shortcut::ShortcutState;
 
                 let app_h = app.handle().clone();
-                if let Err(e) = app.global_shortcut().on_shortcut(
-                    "Alt+Y",
-                    move |_app, _s, event| {
-                        if event.state == ShortcutState::Pressed {
-                            toggle_main_window(&app_h);
-                        }
-                    },
-                ) {
+                if let Err(e) =
+                    app.global_shortcut()
+                        .on_shortcut("Alt+Y", move |_app, _s, event| {
+                            if event.state == ShortcutState::Pressed {
+                                toggle_main_window(&app_h);
+                            }
+                        })
+                {
                     startup_log!("Alt+Y shortcut FAILED: {}", e);
                     log::warn!("failed to register Alt+Y global shortcut: {}", e);
                 } else {
@@ -389,9 +432,9 @@ pub fn run() {
                 use tauri_plugin_global_shortcut::ShortcutState;
 
                 let app_h = app.handle().clone();
-                if let Err(e) = app.global_shortcut().on_shortcut(
-                    "F11",
-                    move |_app, _s, event| {
+                if let Err(e) = app
+                    .global_shortcut()
+                    .on_shortcut("F11", move |_app, _s, event| {
                         if event.state == ShortcutState::Pressed {
                             if let Some(window) = app_h.get_webview_window("main") {
                                 let is_fs = window.is_fullscreen().unwrap_or(false);
@@ -410,8 +453,8 @@ pub fn run() {
                                 }
                             }
                         }
-                    },
-                ) {
+                    })
+                {
                     startup_log!("F11 shortcut FAILED: {}", e);
                     log::warn!("failed to register F11 global shortcut: {}", e);
                 } else {
@@ -425,6 +468,7 @@ pub fn run() {
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 startup_log!("window_event CloseRequested label={}", window.label());
+                #[allow(clippy::if_same_then_else)]
                 if window.label() == "quick-capture" {
                     let _ = window.hide();
                     api.prevent_close();
