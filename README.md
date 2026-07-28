@@ -235,6 +235,7 @@ nine-rings/
 | [`docs/document-system-design.md`](./docs/document-system-design.md) | 文档管理系统设计（P.A.R.A. × Zettelkasten × Diátaxis） |
 | [`docs/sync-architecture.md`](./docs/sync-architecture.md) | 跨设备同步架构方案 |
 | [`docs/github-sync.md`](./docs/github-sync.md) | GitHub 同步使用指南（Token 生成、配置、多设备工作流） |
+| [`docs/future-evolution.md`](./docs/future-evolution.md) | 长期产品与技术演进方向（知识工作流、同步、隐私、AI、平台与商业化） |
 | [`docs/md-import.md`](./docs/md-import.md) | Markdown 导入工具使用指南（`md-to-nine-rings.py`） |
 | [`docs/markdown-import.md`](./docs/markdown-import.md) | Markdown 导入格式说明 |
 | [`docs/features-roadmap.md`](./docs/features-roadmap.md) | 功能路线图 |
