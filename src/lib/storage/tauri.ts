@@ -79,7 +79,7 @@ export const tauriAdapter: StorageAdapter = {
     const docs = await invoke<Note[]>("get_notes_by_path", { pathPrefix: oldPath });
     let count = 0;
     for (const doc of docs) {
-      const sp = doc.storagePath;
+      const sp = (doc as any).storage_path ?? doc.storagePath;  // 兼容旧 invoke API (snake_case) 和 tauriDriver (camelCase)
       if (!sp) continue;
       let newSp: string;
       if (sp === oldPath) {
