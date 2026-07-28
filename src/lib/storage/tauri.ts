@@ -5,7 +5,7 @@
  * batchSetReadonly / getNoteVersions / restoreNoteVersion / createNoteCheckpoint
  * 已迁移到 tauriDriver（通用 db_query/db_exec/db_transaction 命令）。
  *
- * 未迁移的操作保持旧 invoke 路径（均为已注册且 Rust 侧有实现的命令）。
+ * Phase 4A：旧 invoke 响应过 snakeNoteToCamel 规范化，消除 as any 桥接。
  *
  * 不纳入 Op 抽象的操作：FTS5 搜索、同步、导出/导入、配置、托盘/快捷记录。
  */
@@ -14,6 +14,31 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Note, DailyPage } from "../../types/models";
 import type { StorageAdapter, AppConfig } from "./types";
 import { tauriDriver } from "./tauri-driver";
+import { snakeNoteToCamel, snakeDailyPageToCamel } from "./normalize";
+
+// ── 旧 invoke 响应规范化 ──
+
+/** 包装 invoke，将 Rust snake_case 响应规范化为 TS camelCase */
+async function invokeNote(cmd: string, args: Record<string, unknown> = {}): Promise<Note> {
+  const raw = await invoke<any>(cmd, args);
+  return snakeNoteToCamel(raw);
+}
+
+async function invokeNoteNullable(cmd: string, args: Record<string, unknown> = {}): Promise<Note | null> {
+  const raw = await invoke<any>(cmd, args);
+  if (raw === null || raw === undefined) return null;
+  return snakeNoteToCamel(raw);
+}
+
+async function invokeNotes(cmd: string, args: Record<string, unknown> = {}): Promise<Note[]> {
+  const raw = await invoke<any[]>(cmd, args);
+  return raw.map(snakeNoteToCamel);
+}
+
+async function invokeDailyPage(cmd: string, args: Record<string, unknown> = {}): Promise<DailyPage> {
+  const raw = await invoke<any>(cmd, args);
+  return snakeDailyPageToCamel(raw);
+}
 
 /** TauriAdapter — 通过 IPC invoke 调 Rust 后端 */
 export const tauriAdapter: StorageAdapter = {
@@ -32,19 +57,19 @@ export const tauriAdapter: StorageAdapter = {
   restoreNoteVersion: (versionId) => tauriDriver.restoreNoteVersion(versionId),
   createNoteCheckpoint: (noteId) => tauriDriver.createNoteCheckpoint(noteId),
 
-  // ── 未迁移，保留旧 IPC ──
-  getNote: (id) => invoke<Note | null>("get_note", { id }),
-  updateNoteOrder: (id, sort_order) => invoke<Note>("update_note_order", { id, sort_order }),
+  // ── 旧 IPC（过规范化包装，消除 snake_case → camelCase 桥接）──
+  getNote: (id) => invokeNoteNullable("get_note", { id }),
+  updateNoteOrder: (id, sort_order) => invokeNote("update_note_order", { id, sort_order }),
   // FTS5 全文搜索 — 有意不纳入 Op 抽象，保留独立命令
-  searchNotes: (query) => invoke<Note[]>("search_notes", { query }),
-  getNotesByTag: (tag) => invoke<Note[]>("get_notes_by_tag", { tag }),
+  searchNotes: (query) => invokeNotes("search_notes", { query }),
+  getNotesByTag: (tag) => invokeNotes("get_notes_by_tag", { tag }),
 
   // ── Tags ──
   getAllTags: () => invoke<string[]>("get_all_tags"),
 
   // ── Daily ──
-  getDailyPage: (date) => invoke<DailyPage>("get_daily_page", { date }),
-  updateTodos: (data) => invoke<DailyPage>("update_todos", { data }),
+  getDailyPage: (date) => invokeDailyPage("get_daily_page", { date }),
+  updateTodos: (data) => invokeDailyPage("update_todos", { data }),
   getAllDailyPages: () => tauriDriver.getAllDailyPages(),
 
   // ── Sync ──
@@ -57,7 +82,7 @@ export const tauriAdapter: StorageAdapter = {
   exportNoteMarkdown: (noteId) => invoke<string>("export_note_markdown", { noteId }),
 
   // ── Trash ──
-  getDeletedNotes: () => invoke<Note[]>("get_deleted_notes"),
+  getDeletedNotes: () => invokeNotes("get_deleted_notes"),
   restoreNote: (id) => invoke<void>("restore_note", { id }),
   permanentlyDeleteNote: (id) => invoke<void>("permanently_delete_note", { id }),
   cleanOldDeleted: (days) => invoke<number>("clean_old_deleted", { olderThanDays: days }),
@@ -69,20 +94,20 @@ export const tauriAdapter: StorageAdapter = {
   // ══════ Doc Tree（getPathTree 已迁移，其余保留）══════
 
   getPathTree: () => tauriDriver.getPathTree(),
-  getNotesByPath: (pathPrefix) => invoke<Note[]>("get_notes_by_path", { pathPrefix }),
+  getNotesByPath: (pathPrefix) => invokeNotes("get_notes_by_path", { pathPrefix }),
 
   async renameFolder(oldPath: string, newPath: string): Promise<number> {
     if (!oldPath || !newPath || oldPath === newPath) return 0;
-    const docs = await invoke<Note[]>("get_notes_by_path", { pathPrefix: oldPath });
+    // getNotesByPath 现在通过 invokeNotes 返回规范化后的 camelCase Note
+    const docs = await invokeNotes("get_notes_by_path", { pathPrefix: oldPath });
     let count = 0;
     for (const doc of docs) {
-      const sp = (doc as any).storage_path ?? doc.storagePath;
-      if (!sp) continue;
+      if (!doc.storagePath) continue;
       let newSp: string;
-      if (sp === oldPath) {
+      if (doc.storagePath === oldPath) {
         newSp = newPath;
-      } else if (sp.startsWith(oldPath + "/")) {
-        newSp = newPath + sp.slice(oldPath.length);
+      } else if (doc.storagePath.startsWith(oldPath + "/")) {
+        newSp = newPath + doc.storagePath.slice(oldPath.length);
       } else {
         continue;
       }
@@ -92,6 +117,6 @@ export const tauriAdapter: StorageAdapter = {
     return count;
   },
 
-  searchDocs: (query) => invoke<Note[]>("search_docs", { query }),
+  searchDocs: (query) => invokeNotes("search_docs", { query }),
   getAllConcepts: () => invoke<string[]>("get_all_concepts"),
 };

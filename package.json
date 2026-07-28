@@ -8,7 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "tsx tests/core.test.ts && tsx tests/delta-converter.test.ts && tsx tests/md-parser.test.ts && tsx tests/idb-adapter.test.ts && tsx src/lib/storage/idb-driver.test.ts && tsx tests/template-store.test.ts && tsx tests/local-date.test.ts && tsx tests/fixtures/export-v1.test.ts",
+    "test": "tsx tests/core.test.ts && tsx tests/delta-converter.test.ts && tsx tests/md-parser.test.ts && tsx tests/idb-adapter.test.ts && tsx src/lib/storage/idb-driver.test.ts && tsx tests/template-store.test.ts && tsx tests/local-date.test.ts && tsx tests/fixtures/export-v1.test.ts && tsx tests/fixtures/snake-cross-end.test.ts",
     "test:core": "tsx tests/core.test.ts",
     "test:delta": "tsx tests/delta-converter.test.ts",
     "test:md": "tsx tests/md-parser.test.ts",

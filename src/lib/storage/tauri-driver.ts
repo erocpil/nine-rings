@@ -15,6 +15,7 @@
 import type { Note, CreateNoteInput, PathNode, DocType, NoteVersion, DailyPage } from "../../types/models";
 import type { SelectOp, InsertOp, UpdateOp } from "./ops";
 import { buildDocTree, type FlatDocRecord, type FlatDailyRecord } from "./core";
+import { snakeNoteToCamel, snakeVersionToCamel, snakeDailyPageToCamel } from "./normalize";
 
 // ═══════════════════════════════════════════════════════════════════
 // Tauri IPC
@@ -67,32 +68,7 @@ function extractPlainText(content: any): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// SQL 行 → Note 映射
-// db_query 返回的 JSON 对象使用 SQL 列名（snake_case），
-// 需要转换为 Note 的字段名和类型。
-// ═══════════════════════════════════════════════════════════════════
-
-function noteFromRow(row: Record<string, any>): Note {
-  return {
-    id: row.id,
-    date: row.date,
-    title: row.title ?? null,
-    content: typeof row.content === "string" ? JSON.parse(row.content) : row.content,
-    tags: typeof row.tags === "string" ? JSON.parse(row.tags) : (row.tags ?? []),
-    pinned: row.pinned === 1 || row.pinned === true || row.pinned === "1",
-    readonly: row.readonly === 1 || row.readonly === true || row.readonly === "1",
-    sort_order: row.sort_order ?? 0,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    storagePath: row.storage_path ?? undefined,
-    docType: row.doc_type ?? undefined,
-    concepts: typeof row.concepts === "string" ? JSON.parse(row.concepts) : (row.concepts ?? undefined),
-    linkedDocIds: typeof row.linked_doc_ids === "string" ? JSON.parse(row.linked_doc_ids) : (row.linked_doc_ids ?? undefined),
-  };
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// IPC 封装
+// 工具函数
 // ═══════════════════════════════════════════════════════════════════
 
 async function dbQuery(op: SelectOp): Promise<Record<string, any>[]> {
@@ -133,7 +109,7 @@ export const tauriDriver = {
       ],
     };
     const rows = await dbQuery(op);
-    return rows.map(noteFromRow);
+    return rows.map(snakeNoteToCamel);
   },
 
   // ── createNote ──
@@ -235,7 +211,7 @@ export const tauriDriver = {
     };
     const rows = await dbQuery(selectOp);
     if (rows.length === 0) throw new Error(`Note ${id} not found after update`);
-    return noteFromRow(rows[0]);
+    return snakeNoteToCamel(rows[0]);
   },
 
   // ── deleteNote（软删除）──
@@ -320,7 +296,7 @@ export const tauriDriver = {
       ],
     };
     const rows = await dbQuery(op);
-    return rows.map(noteFromRow);
+    return rows.map(snakeNoteToCamel);
   },
 
   // ── upsertNote：INSERT OR REPLACE ──
@@ -401,12 +377,7 @@ export const tauriDriver = {
       orderBy: [{ col: "date", desc: true }],
     };
     const rows = await dbQuery(op);
-    return rows.map((r) => ({
-      date: r.date as string,
-      todos: typeof r.todos === "string" ? JSON.parse(r.todos) : (r.todos ?? []),
-      todo_carryover: r.todo_carryover === 1 || r.todo_carryover === true || r.todo_carryover === "1",
-      updated_at: r.updated_at as string,
-    }));
+    return rows.map(snakeDailyPageToCamel);
   },
 
   // ── batchDelete：事务内批量软删除 ──
@@ -442,16 +413,7 @@ export const tauriDriver = {
       orderBy: [{ col: "saved_at", desc: true }],
     };
     const rows = await dbQuery(op);
-    return rows.map((r) => ({
-      id: r.id as string,
-      note_id: r.note_id as string,
-      title: (r.title as string) ?? null,
-      content: typeof r.content === "string" ? JSON.parse(r.content) : r.content,
-      tags: typeof r.tags === "string" ? JSON.parse(r.tags) : (r.tags ?? []),
-      pinned: r.pinned === 1 || r.pinned === true || r.pinned === "1",
-      sort_order: (r.sort_order as number) ?? 0,
-      saved_at: r.saved_at as string,
-    }));
+    return rows.map(snakeVersionToCamel);
   },
 
   // ── restoreNoteVersion：从版本恢复笔记内容 ──

@@ -7,6 +7,7 @@ import type { Note, DailyPage, Todo, NoteVersion, CreateNoteInput, UpdateNoteInp
 import type { StorageAdapter, AppConfig, DocSearchQuery } from "./types";
 import { DEFAULT_CONFIG } from "./types";
 import { buildDocTree, type FlatDocRecord, type FlatDailyRecord } from "./core";
+import { snakeImportToCamel } from "./normalize";
 
 const DB_NAME = "nine_rings";
 const DB_VERSION = 3;
@@ -315,7 +316,7 @@ async function saveVersionSnapshot(store: IDBObjectStore, note: Note): Promise<v
     content: note.content,
     tags: note.tags,
     pinned: note.pinned,
-    sort_order: (note as any).sort_order ?? 0,
+    sort_order: note.sort_order ?? 0,
     saved_at: now(),
   };
   await putRecord(store, ver);
@@ -759,7 +760,7 @@ export const idbAdapter: StorageAdapter = {
   async importData(json: string): Promise<{ notes_imported: number; pages_imported: number }> {
     return withDB(async (db) => {
       const data = JSON.parse(json);
-      const importedNotes: any[] = (data.notes ?? []).map(normalizeImportNote);
+      const importedNotes: any[] = (data.notes ?? []).map(snakeImportToCamel);
       const pages = data.daily_pages ?? [];
 
       const importDocs = importedNotes.filter((n: any) => n.storagePath);
@@ -1166,30 +1167,4 @@ function sortNotes(a: any, b: any): number {
   const sb = b.sort_order ?? 0;
   if (sa !== sb) return sa - sb;
   return (a.created_at ?? "").localeCompare(b.created_at ?? "");
-}
-
-// ── 导入字段名归一化 ──
-
-/** 将 snake_case / Rust serde 格式的导入 JSON 归一化为 camelCase
- *  兼容两端导出：
- *  - Rust  serde: storage_path, doc_type, linked_doc_ids
- *  - Web   IDB:    storagePath, docType, linkedDocIds
- */
-function normalizeImportNote(raw: any): any {
-  const n = { ...raw };
-  // snake_case → camelCase（仅当 camelCase 不存在时）
-  if (n.storage_path !== undefined && n.storagePath === undefined) {
-    n.storagePath = n.storage_path;
-    delete n.storage_path;
-  }
-  if (n.doc_type !== undefined && n.docType === undefined) {
-    n.docType = n.doc_type;
-    delete n.doc_type;
-  }
-  if (n.linked_doc_ids !== undefined && n.linkedDocIds === undefined) {
-    n.linkedDocIds = n.linked_doc_ids;
-    delete n.linked_doc_ids;
-  }
-  // concepts 两边同名，无需转换
-  return n;
 }
