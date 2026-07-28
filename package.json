@@ -8,12 +8,12 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "npx tsx tests/core.test.ts && npx tsx tests/delta-converter.test.ts && npx tsx tests/md-parser.test.ts && npx tsx tests/idb-adapter.test.ts && npx tsx src/lib/storage/idb-driver.test.ts && npx tsx tests/template-store.test.ts",
-    "test:core": "npx tsx tests/core.test.ts",
-    "test:delta": "npx tsx tests/delta-converter.test.ts",
-    "test:md": "npx tsx tests/md-parser.test.ts",
-    "test:idb": "npx tsx tests/idb-adapter.test.ts",
-    "test:ops": "npx tsx src/lib/storage/idb-driver.test.ts"
+    "test": "tsx tests/core.test.ts && tsx tests/delta-converter.test.ts && tsx tests/md-parser.test.ts && tsx tests/idb-adapter.test.ts && tsx src/lib/storage/idb-driver.test.ts && tsx tests/template-store.test.ts",
+    "test:core": "tsx tests/core.test.ts",
+    "test:delta": "tsx tests/delta-converter.test.ts",
+    "test:md": "tsx tests/md-parser.test.ts",
+    "test:idb": "tsx tests/idb-adapter.test.ts",
+    "test:ops": "tsx src/lib/storage/idb-driver.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -43,6 +43,7 @@
     "@types/react-dom": "^18",
     "@vitejs/plugin-react": "^4",
     "fake-indexeddb": "^6.2.5",
+    "tsx": "^4.23.1",
     "typescript": "^5",
     "vite": "^5"
   }

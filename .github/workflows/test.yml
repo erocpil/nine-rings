@@ -2,8 +2,8 @@ name: Test
 on: [push, pull_request]
 
 jobs:
-  pure-logic:
-    name: Pure Logic Tests
+  frontend:
+    name: Frontend Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -12,22 +12,7 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - run: npm run test:core
-      - run: npm run test:delta
-      - run: npm run test:md
-
-  idb-adapter:
-    name: IndexedDB Adapter Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run test:idb
-      - run: npm run test:ops
+      - run: npm test
 
   rust:
     name: Rust Tests
