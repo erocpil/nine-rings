@@ -1269,9 +1269,9 @@ body {
 
 .menu-font-size-label {
   display: inline-block;
-  min-width: 20px;
+  min-width: 14px;
   text-align: center;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
   user-select: none;
 }
