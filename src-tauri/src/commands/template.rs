@@ -10,7 +10,10 @@ use tauri::State;
 #[tauri::command]
 pub fn delete_template(state: State<AppState>, id: String) -> Result<(), String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM templates WHERE id = ?1 AND is_builtin = 0", rusqlite::params![id])
-        .map_err(|e| format!("delete_template: {e}"))?;
+    conn.execute(
+        "DELETE FROM templates WHERE id = ?1 AND is_builtin = 0",
+        rusqlite::params![id],
+    )
+    .map_err(|e| format!("delete_template: {e}"))?;
     Ok(())
 }

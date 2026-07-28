@@ -32,7 +32,7 @@ pub fn setup_fts(conn: &Connection) -> rusqlite::Result<()> {
             VALUES ('delete', old.rowid, old.title, old.content);
             INSERT INTO notes_fts(rowid, title, content)
             VALUES (new.rowid, new.title, new.content);
-        END;"
+        END;",
     )?;
     Ok(())
 }

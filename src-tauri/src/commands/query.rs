@@ -11,14 +11,13 @@
 /// - INSERT 和 UPDATE 限制 notes / daily_pages / note_versions 三张表。
 /// - SELECT 允许所有表。
 /// - 所有 SQL 由 compiler 生成，不接受 RawOp。
-
 use crate::db::query::{compile_op, Op};
 use crate::AppState;
 use rusqlite::params_from_iter;
 use tauri::State;
 
 /// RAII guard：进入时设置 PRAGMA query_only = ON，离开作用域时恢复。
-/// 
+///
 /// 确保即使 db_query 中发生 panic 或提前返回，SQLite 连接也会恢复写入权限。
 struct QueryOnlyGuard<'a> {
     conn: &'a rusqlite::Connection,
@@ -39,15 +38,17 @@ impl<'a> Drop for QueryOnlyGuard<'a> {
 }
 
 #[tauri::command]
-pub fn db_query(
-    state: State<AppState>,
-    op_json: String,
-) -> Result<Vec<serde_json::Value>, String> {
-    let op: Op = serde_json::from_str(&op_json).map_err(|e| format!("db_query: invalid Op JSON: {}", e))?;
+pub fn db_query(state: State<AppState>, op_json: String) -> Result<Vec<serde_json::Value>, String> {
+    let op: Op =
+        serde_json::from_str(&op_json).map_err(|e| format!("db_query: invalid Op JSON: {}", e))?;
 
     match &op {
         Op::Select(_) => {} // SELECT 允许所有表
-        _ => return Err("db_query: only SELECT ops are allowed. Use db_exec for INSERT/UPDATE.".into()),
+        _ => {
+            return Err(
+                "db_query: only SELECT ops are allowed. Use db_exec for INSERT/UPDATE.".into(),
+            )
+        }
     }
 
     let (sql, params) = compile_op(&op).map_err(|e| format!("db_query: compile error: {}", e))?;
@@ -58,7 +59,9 @@ pub fn db_query(
     // QueryOnlyGuard 确保连接在函数退出时（包括 panic）恢复写入权限。
     let _guard = QueryOnlyGuard::new(&conn)?;
 
-    let mut stmt = conn.prepare(&sql).map_err(|e| format!("db_query: prepare error: {}", e))?;
+    let mut stmt = conn
+        .prepare(&sql)
+        .map_err(|e| format!("db_query: prepare error: {}", e))?;
 
     let param_refs: Vec<&dyn rusqlite::types::ToSql> = params
         .iter()
@@ -93,24 +96,28 @@ pub fn db_query(
 }
 
 #[tauri::command]
-pub fn db_exec(
-    state: State<AppState>,
-    op_json: String,
-) -> Result<(), String> {
-    let op: Op = serde_json::from_str(&op_json).map_err(|e| format!("db_exec: invalid Op JSON: {}", e))?;
+pub fn db_exec(state: State<AppState>, op_json: String) -> Result<(), String> {
+    let op: Op =
+        serde_json::from_str(&op_json).map_err(|e| format!("db_exec: invalid Op JSON: {}", e))?;
 
     // 安全检查：仅允许 INSERT 和 UPDATE
     match &op {
         Op::Insert(ins) => {
             let allowed = ["notes", "daily_pages", "note_versions", "templates"];
             if !allowed.contains(&ins.table.as_str()) {
-                return Err(format!("db_exec: table '{}' not allowed for INSERT", ins.table));
+                return Err(format!(
+                    "db_exec: table '{}' not allowed for INSERT",
+                    ins.table
+                ));
             }
         }
         Op::Update(upd) => {
             let allowed = ["notes", "daily_pages", "note_versions", "templates"];
             if !allowed.contains(&upd.table.as_str()) {
-                return Err(format!("db_exec: table '{}' not allowed for UPDATE", upd.table));
+                return Err(format!(
+                    "db_exec: table '{}' not allowed for UPDATE",
+                    upd.table
+                ));
             }
         }
         Op::Select(_) => return Err("db_exec: SELECT not allowed. Use db_query.".into()),
@@ -126,12 +133,9 @@ pub fn db_exec(
 }
 
 #[tauri::command]
-pub fn db_transaction(
-    state: State<AppState>,
-    ops_json: String,
-) -> Result<(), String> {
-    let ops: Vec<Op> =
-        serde_json::from_str(&ops_json).map_err(|e| format!("db_transaction: invalid JSON: {}", e))?;
+pub fn db_transaction(state: State<AppState>, ops_json: String) -> Result<(), String> {
+    let ops: Vec<Op> = serde_json::from_str(&ops_json)
+        .map_err(|e| format!("db_transaction: invalid JSON: {}", e))?;
 
     // 第一遍：验证所有 Op（不持有事务）
     for op in &ops {
@@ -157,8 +161,8 @@ pub fn db_transaction(
     // 编译所有 Op（不持有事务，仅做类型转换）
     let mut compiled: Vec<(String, Vec<rusqlite::types::Value>)> = Vec::new();
     for op in &ops {
-        let (sql, params) = compile_op(op)
-            .map_err(|e| format!("db_transaction: compile error: {}", e))?;
+        let (sql, params) =
+            compile_op(op).map_err(|e| format!("db_transaction: compile error: {}", e))?;
         compiled.push((sql, params));
     }
 

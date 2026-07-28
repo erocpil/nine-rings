@@ -11,7 +11,10 @@ pub struct UpdateTodosInput {
 }
 
 #[tauri::command]
-pub fn get_note(state: State<AppState>, id: String) -> Result<Option<crate::db::models::Note>, String> {
+pub fn get_note(
+    state: State<AppState>,
+    id: String,
+) -> Result<Option<crate::db::models::Note>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     crate::db::models::select_note_by_id(&conn, &id).map_err(|e| e.to_string())
 }
@@ -29,13 +32,19 @@ pub fn update_note_order(
 }
 
 #[tauri::command]
-pub fn search_notes(state: State<AppState>, query: String) -> Result<Vec<crate::db::models::Note>, String> {
+pub fn search_notes(
+    state: State<AppState>,
+    query: String,
+) -> Result<Vec<crate::db::models::Note>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     service::note_service::search_notes(&conn, &query).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn get_notes_by_tag(state: State<AppState>, tag: String) -> Result<Vec<crate::db::models::Note>, String> {
+pub fn get_notes_by_tag(
+    state: State<AppState>,
+    tag: String,
+) -> Result<Vec<crate::db::models::Note>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     service::note_service::get_notes_by_tag(&conn, &tag).map_err(|e| e.to_string())
 }
@@ -47,7 +56,10 @@ pub fn get_all_tags(state: State<AppState>) -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-pub fn get_daily_page(state: State<AppState>, date: String) -> Result<crate::db::models::DailyPage, String> {
+pub fn get_daily_page(
+    state: State<AppState>,
+    date: String,
+) -> Result<crate::db::models::DailyPage, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     service::note_service::get_or_create_daily_page(&conn, &date).map_err(|e| e.to_string())
 }

@@ -18,8 +18,10 @@ pub fn get_all_tags(conn: &Connection) -> rusqlite::Result<Vec<String>> {
 
 pub fn reorder_note(conn: &Connection, id: &str, new_order: i32) -> rusqlite::Result<Option<Note>> {
     let now = chrono::Utc::now().to_rfc3339();
-    conn.execute("UPDATE notes SET sort_order = ?1, updated_at = ?2 WHERE id = ?3",
-        rusqlite::params![new_order, now, id])?;
+    conn.execute(
+        "UPDATE notes SET sort_order = ?1, updated_at = ?2 WHERE id = ?3",
+        rusqlite::params![new_order, now, id],
+    )?;
     db::models::select_note_by_id(conn, id)
 }
 
@@ -34,12 +36,22 @@ pub fn get_or_create_daily_page(conn: &Connection, date: &str) -> rusqlite::Resu
     if let Some(prev) = prev {
         if prev.todo_carryover {
             let incompleted: Vec<Todo> = prev.todos.into_iter().filter(|t| !t.done).collect();
-            let page = DailyPage { date: date.to_string(), todos: incompleted, todo_carryover: true, updated_at: now };
+            let page = DailyPage {
+                date: date.to_string(),
+                todos: incompleted,
+                todo_carryover: true,
+                updated_at: now,
+            };
             db::models::upsert_daily_page(conn, &page)?;
             return Ok(page);
         }
     }
-    let page = DailyPage { date: date.to_string(), todos: vec![], todo_carryover: false, updated_at: now };
+    let page = DailyPage {
+        date: date.to_string(),
+        todos: vec![],
+        todo_carryover: false,
+        updated_at: now,
+    };
     db::models::upsert_daily_page(conn, &page)?;
     Ok(page)
 }
@@ -48,9 +60,19 @@ pub fn get_daily_page(conn: &Connection, date: &str) -> rusqlite::Result<Option<
     db::models::select_daily_page(conn, date)
 }
 
-pub fn update_todos(conn: &Connection, date: &str, todos: &[Todo], todo_carryover: bool) -> rusqlite::Result<DailyPage> {
+pub fn update_todos(
+    conn: &Connection,
+    date: &str,
+    todos: &[Todo],
+    todo_carryover: bool,
+) -> rusqlite::Result<DailyPage> {
     let now = chrono::Utc::now().to_rfc3339();
-    let page = DailyPage { date: date.to_string(), todos: todos.to_vec(), todo_carryover, updated_at: now };
+    let page = DailyPage {
+        date: date.to_string(),
+        todos: todos.to_vec(),
+        todo_carryover,
+        updated_at: now,
+    };
     db::models::upsert_daily_page(conn, &page)?;
     Ok(page)
 }

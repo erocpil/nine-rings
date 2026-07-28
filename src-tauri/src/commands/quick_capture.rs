@@ -20,22 +20,19 @@ pub fn toggle_quick_capture(app: AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    let window = WebviewWindowBuilder::new(
-        &app,
-        label,
-        WebviewUrl::App("index.html?win=qc".into()),
-    )
-    .title("Quick Capture")
-    .inner_size(400.0, 280.0)
-    .min_inner_size(300.0, 200.0)
-    .always_on_top(true)
-    .decorations(false)
-    .shadow(false) // Windows: 防止 WebView2 frameless 窗口黑屏/不渲染
-    .skip_taskbar(true)
-    .center()
-    .visible(true)
-    .build()
-    .map_err(|e| e.to_string())?;
+    let window =
+        WebviewWindowBuilder::new(&app, label, WebviewUrl::App("index.html?win=qc".into()))
+            .title("Quick Capture")
+            .inner_size(400.0, 280.0)
+            .min_inner_size(300.0, 200.0)
+            .always_on_top(true)
+            .decorations(false)
+            .shadow(false) // Windows: 防止 WebView2 frameless 窗口黑屏/不渲染
+            .skip_taskbar(true)
+            .center()
+            .visible(true)
+            .build()
+            .map_err(|e| e.to_string())?;
 
     let _ = window.set_focus();
     Ok(())

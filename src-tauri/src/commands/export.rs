@@ -54,9 +54,10 @@ pub fn get_deleted_notes(state: State<AppState>) -> Result<Vec<crate::db::models
         )
         .map_err(|e| e.to_string())?;
     let rows = stmt
-        .query_map([], |row| crate::db::models::note_from_row(row))
+        .query_map([], crate::db::models::note_from_row)
         .map_err(|e| e.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -100,10 +101,7 @@ pub fn export_to_file(path: String, content: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn import_from_file(
-    state: State<AppState>,
-    path: String,
-) -> Result<ImportResult, String> {
+pub fn import_from_file(state: State<AppState>, path: String) -> Result<ImportResult, String> {
     let content = std::fs::read_to_string(&path).map_err(|e| format!("读取失败: {}", e))?;
     import_data(state, content)
 }
