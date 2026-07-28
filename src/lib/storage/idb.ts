@@ -1053,7 +1053,7 @@ export const idbAdapter: StorageAdapter = {
       }
 
       return notes
-        .filter((n) => n.storagePath && n.storagePath.startsWith(pathPrefix))
+        .filter((n) => n.storagePath && (n.storagePath === pathPrefix || n.storagePath.startsWith(pathPrefix + "/")))
         .sort((a, b) => (a.storagePath ?? "").localeCompare(b.storagePath ?? ""));
     });
   },

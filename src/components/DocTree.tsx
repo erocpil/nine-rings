@@ -63,6 +63,7 @@ function InlineRename({
 }) {
   const [value, setValue] = useState(initialValue);
   const ref = useRef<HTMLInputElement>(null);
+  const submittedRef = useRef(false);
 
   useEffect(() => {
     ref.current?.focus();
@@ -70,7 +71,11 @@ function InlineRename({
   }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") { e.preventDefault(); onSubmit(value.trim()); }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      submittedRef.current = true;
+      onSubmit(value.trim());
+    }
     if (e.key === "Escape") { e.preventDefault(); onCancel(); }
   };
 
@@ -81,7 +86,7 @@ function InlineRename({
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onKeyDown={handleKeyDown}
-      onBlur={() => onSubmit(value.trim())}
+      onBlur={() => { if (!submittedRef.current) onSubmit(value.trim()); }}
       onClick={(e) => e.stopPropagation()}
     />
   );
@@ -243,6 +248,7 @@ function DocTree({
       await api.docs.renameFolder(folderPath, newPath);
     } catch (e) {
       console.error("renameFolder failed:", e);
+      alert(`重命名失败: ${e instanceof Error ? e.message : String(e)}`);
     }
     setRenamingFolder(null);
     // 重新加载树

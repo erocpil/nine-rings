@@ -103,11 +103,11 @@ pub fn get_notes_by_path(state: State<AppState>, path_prefix: String) -> Result<
     // 普通文档路径
     let mut stmt = conn
         .prepare(
-            "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly FROM notes WHERE deleted_at IS NULL AND storage_path LIKE ?1 OR storage_path = ?2 ORDER BY updated_at DESC"
+            "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly FROM notes WHERE deleted_at IS NULL AND (storage_path = ?1 OR storage_path LIKE ?2) ORDER BY updated_at DESC"
         )
         .map_err(|e| e.to_string())?;
-    let pattern = format!("{}%", path_prefix);
-    let rows = stmt.query_map(rusqlite::params![pattern, path_prefix], |row| crate::db::models::note_from_row(row))
+    let like_pattern = format!("{}%", format!("{}/", path_prefix));
+    let rows = stmt.query_map(rusqlite::params![path_prefix, like_pattern], |row| crate::db::models::note_from_row(row))
         .map_err(|e| e.to_string())?;
     rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
 }
