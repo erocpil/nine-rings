@@ -743,7 +743,7 @@ export const idbAdapter: StorageAdapter = {
       //    兼容 Rust serde 导出格式和 Web 导出格式 ──
       // （inline 在顶部，函数定义见文件末尾）
 
-      // ── Step 1: 读取现有笔记，构建去重索引 ──
+      // ── Step 1: 读取现有笔记，构建去重索引（按 id）──
       const existingNotes: any[] = await new Promise((resolve, reject) => {
         const tx = db.transaction("notes", "readonly");
         const store = tx.objectStore("notes");
@@ -752,17 +752,10 @@ export const idbAdapter: StorageAdapter = {
         req.onerror = () => reject(req.error);
       });
 
-      const byStoragePath = new Map<string, any>();
-      const byTitleDate = new Map<string, any>();
+      const existingIds = new Set<string>();
       for (const n of existingNotes) {
         if (n.deleted_at) continue;
-        if (n.storagePath) byStoragePath.set(n.storagePath, n);
-        if (n.title) {
-          const key = `${n.title}\x00${n.date}`;
-          // title+date 去重仅用于非文档笔记（无 storagePath），
-          // 避免误匹配同标题的文档笔记
-          if (!n.storagePath) byTitleDate.set(key, n);
-        }
+        existingIds.add(n.id);
       }
 
       // ── Step 2: 去重导入 ──
@@ -784,22 +777,11 @@ export const idbAdapter: StorageAdapter = {
             let target = imported;
             let dedupKind = "";
 
-            // 去重策略: storagePath（文档笔记）> title+date（日记/随笔）
-            if (imported.storagePath) {
-              const existing = byStoragePath.get(imported.storagePath);
-              if (existing) {
-                target = { ...imported, id: existing.id };
-                merged++;
-                dedupKind = ` [merge: storagePath=${imported.storagePath}]`;
-              }
-            } else if (imported.title) {
-              const key = `${imported.title}\x00${imported.date}`;
-              const existing = byTitleDate.get(key);
-              if (existing) {
-                target = { ...imported, id: existing.id };
-                merged++;
-                dedupKind = ` [merge: title+date]`;
-              }
+            // 去重策略: 按 id 匹配（UUID 跨设备一致）
+            if (existingIds.has(imported.id)) {
+              target = { ...imported, id: imported.id };  // 保留原 id，content 覆盖
+              merged++;
+              dedupKind = ` [merge: id=${imported.id.slice(0, 8)}]`;
             }
 
             noteStore.put(noteToDB(target));

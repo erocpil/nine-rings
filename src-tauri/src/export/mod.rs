@@ -103,33 +103,33 @@ pub fn export_all(conn: &Connection) -> rusqlite::Result<ExportBundle> {
     })
 }
 
-/// 导入数据：单事务，按 storagePath 去重文档笔记
+/// 导入数据：单事务，按 id（UUID）去重
 pub fn import_bundle(conn: &Connection, bundle: &ExportBundle) -> rusqlite::Result<(usize, usize)> {
     let mut notes_imported = 0usize;
     let mut pages_imported = 0usize;
 
     conn.execute_batch("BEGIN;")?;
 
-    // 构建现有文档的 storagePath → id 索引
-    let mut path_to_id: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    // 构建现有笔记的 id 集合（按 UUID 去重）
+    let mut existing_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
     {
         let mut stmt = conn.prepare(
-            "SELECT id, storage_path FROM notes WHERE storage_path IS NOT NULL AND deleted_at IS NULL"
+            "SELECT id FROM notes WHERE deleted_at IS NULL"
         )?;
         let rows = stmt.query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            row.get::<_, String>(0)
         })?;
         for row in rows {
-            if let Ok((id, sp)) = row {
-                path_to_id.insert(sp, id);
+            if let Ok(id) = row {
+                existing_ids.insert(id);
             }
         }
     }
 
     for note in &bundle.notes {
-        // 文档笔记：按 storagePath 去重，保留本地 id
-        let id = if let Some(sp) = &note.storage_path {
-            path_to_id.get(sp).cloned().unwrap_or_else(|| note.id.clone())
+        // 按 id 去重（UUID 跨设备一致）
+        let id = if existing_ids.contains(&note.id) {
+            note.id.clone()
         } else {
             note.id.clone()
         };
