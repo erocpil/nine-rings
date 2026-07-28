@@ -14,9 +14,7 @@ pub fn run(conn: &Connection) -> rusqlite::Result<()> {
     // 更新但 _schema_version 尚未（或反之）的半迁移状态。
     let tx = conn.unchecked_transaction()?;
 
-    tx.execute_batch(
-        "CREATE TABLE IF NOT EXISTS _schema_version (version INTEGER PRIMARY KEY);",
-    )?;
+    tx.execute_batch("CREATE TABLE IF NOT EXISTS _schema_version (version INTEGER PRIMARY KEY);")?;
 
     // 先确保所有表存在（幂等，IF NOT EXISTS）——即使在已标记 v1 的旧库上，
     // 也可能缺少后续版本引入的表（daily_pages, sync_changes 等）。
@@ -89,10 +87,7 @@ fn migrate_v1(conn: &Connection) -> rusqlite::Result<()> {
     rebuild_fts(conn)?;
 
     // 版本号必须是本迁移的最后一步；run() 外层事务保证失败时整体回滚。
-    conn.execute(
-        "INSERT INTO _schema_version (version) VALUES (1)",
-        [],
-    )?;
+    conn.execute("INSERT INTO _schema_version (version) VALUES (1)", [])?;
     Ok(())
 }
 
@@ -149,10 +144,7 @@ fn rebuild_fts(conn: &Connection) -> rusqlite::Result<()> {
 fn migrate_v6(conn: &Connection) -> rusqlite::Result<()> {
     install_fts_triggers(conn)?;
     rebuild_fts(conn)?;
-    conn.execute(
-        "INSERT INTO _schema_version (version) VALUES (6)",
-        [],
-    )?;
+    conn.execute("INSERT INTO _schema_version (version) VALUES (6)", [])?;
     Ok(())
 }
 

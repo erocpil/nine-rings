@@ -333,3 +333,246 @@ fn old_database_crud_after_migration() {
         .unwrap();
     assert_eq!(active_count, 1);
 }
+
+// ── 场景 7：停在 v2 的旧库（已加 tags/pinned/sort_order）──────────
+#[test]
+fn migrate_from_v2_to_v6() {
+    let conn = Connection::open_in_memory().unwrap();
+
+    conn.execute_batch(
+        "CREATE TABLE _schema_version (version INTEGER PRIMARY KEY);
+         INSERT INTO _schema_version VALUES (1);
+         INSERT INTO _schema_version VALUES (2);
+         CREATE TABLE notes (
+            id TEXT PRIMARY KEY,
+            date TEXT NOT NULL,
+            title TEXT,
+            content TEXT NOT NULL DEFAULT '{}',
+            search_text TEXT NOT NULL DEFAULT '',
+            tags TEXT NOT NULL DEFAULT '[]',
+            pinned INTEGER NOT NULL DEFAULT 0,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            deleted_at TEXT
+         );
+         INSERT INTO notes(id, date, title, content, search_text, tags, sort_order, created_at, updated_at)
+         VALUES ('v2-note', '2026-05-01', 'v2 笔记', '{}', '', '[\"tag1\"]', 5, '2026-05-01T00:00:00Z', '2026-05-01T00:00:00Z');",
+    )
+    .unwrap();
+
+    nine_rings_lib::db::migrations::run(&conn).unwrap();
+
+    // 原有数据不丢
+    let tags: String = conn
+        .query_row("SELECT tags FROM notes WHERE id='v2-note'", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(tags, "[\"tag1\"]");
+
+    // v3: note_versions 表已创建
+    let nv_count: i32 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='note_versions'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(nv_count, 1);
+
+    // v4: 新增列有默认值
+    let concepts: String = conn
+        .query_row("SELECT concepts FROM notes WHERE id='v2-note'", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(concepts, "[]");
+
+    // v5: templates 表存在
+    let tpl_count: i32 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='templates'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(tpl_count, 1);
+
+    let version: i32 = conn
+        .query_row("SELECT MAX(version) FROM _schema_version", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(version, 6);
+}
+
+// ── 场景 8：停在 v3 的旧库（已含 note_versions 表）──────────
+#[test]
+fn migrate_from_v3_to_v6() {
+    let conn = Connection::open_in_memory().unwrap();
+
+    conn.execute_batch(
+        "CREATE TABLE _schema_version (version INTEGER PRIMARY KEY);
+         INSERT INTO _schema_version VALUES (1);
+         INSERT INTO _schema_version VALUES (2);
+         INSERT INTO _schema_version VALUES (3);
+         CREATE TABLE notes (
+            id TEXT PRIMARY KEY,
+            date TEXT NOT NULL,
+            title TEXT,
+            content TEXT NOT NULL DEFAULT '{}',
+            search_text TEXT NOT NULL DEFAULT '',
+            tags TEXT NOT NULL DEFAULT '[]',
+            pinned INTEGER NOT NULL DEFAULT 0,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            deleted_at TEXT
+         );
+         CREATE TABLE note_versions (
+            id            TEXT PRIMARY KEY,
+            note_id       TEXT NOT NULL,
+            title         TEXT,
+            content       TEXT NOT NULL DEFAULT '{}',
+            search_text   TEXT NOT NULL DEFAULT '',
+            tags          TEXT NOT NULL DEFAULT '[]',
+            pinned        INTEGER NOT NULL DEFAULT 0,
+            sort_order    INTEGER NOT NULL DEFAULT 0,
+            saved_at      TEXT NOT NULL
+         );
+         CREATE INDEX idx_note_versions_note_id ON note_versions(note_id, saved_at);
+         INSERT INTO notes(id, date, title, content, created_at, updated_at)
+         VALUES ('v3-note', '2026-06-15', 'v3 笔记', '{}', '2026-06-15T00:00:00Z', '2026-06-15T00:00:00Z');
+         INSERT INTO note_versions(id, note_id, title, content, saved_at)
+         VALUES ('ver-1', 'v3-note', 'v3 v1', '{}', '2026-06-15T00:00:00Z');",
+    )
+    .unwrap();
+
+    nine_rings_lib::db::migrations::run(&conn).unwrap();
+
+    // 原有 note_versions 数据不丢
+    let ver_title: String = conn
+        .query_row(
+            "SELECT title FROM note_versions WHERE id='ver-1'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(ver_title, "v3 v1");
+
+    // v4 列
+    let has_storage_path: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('notes') WHERE name='storage_path'",
+            [],
+            |r| r.get::<_, i32>(0),
+        )
+        .unwrap()
+        > 0;
+    assert!(
+        has_storage_path,
+        "storage_path column should be added by v4"
+    );
+
+    // v6
+    let version: i32 = conn
+        .query_row("SELECT MAX(version) FROM _schema_version", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(version, 6);
+}
+
+// ── 场景 9：停在 v4 的旧库（刚完成 Doc Tree 字段迁移）──────────
+#[test]
+fn migrate_from_v4_to_v6() {
+    let conn = Connection::open_in_memory().unwrap();
+
+    conn.execute_batch(
+        "CREATE TABLE _schema_version (version INTEGER PRIMARY KEY);
+         INSERT INTO _schema_version VALUES (1);
+         INSERT INTO _schema_version VALUES (2);
+         INSERT INTO _schema_version VALUES (3);
+         INSERT INTO _schema_version VALUES (4);
+         CREATE TABLE notes (
+            id TEXT PRIMARY KEY,
+            date TEXT NOT NULL,
+            title TEXT,
+            content TEXT NOT NULL DEFAULT '{}',
+            search_text TEXT NOT NULL DEFAULT '',
+            tags TEXT NOT NULL DEFAULT '[]',
+            pinned INTEGER NOT NULL DEFAULT 0,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            storage_path TEXT,
+            doc_type TEXT,
+            concepts TEXT NOT NULL DEFAULT '[]',
+            linked_doc_ids TEXT NOT NULL DEFAULT '[]',
+            readonly INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            deleted_at TEXT
+         );
+         CREATE TABLE note_versions (
+            id            TEXT PRIMARY KEY,
+            note_id       TEXT NOT NULL,
+            title         TEXT,
+            content       TEXT NOT NULL DEFAULT '{}',
+            search_text   TEXT NOT NULL DEFAULT '',
+            tags          TEXT NOT NULL DEFAULT '[]',
+            pinned        INTEGER NOT NULL DEFAULT 0,
+            sort_order    INTEGER NOT NULL DEFAULT 0,
+            saved_at      TEXT NOT NULL
+         );
+         INSERT INTO notes(id, date, title, content, storage_path, doc_type, concepts, linked_doc_ids, created_at, updated_at)
+         VALUES ('v4-doc', '2026-07-01', 'v4 文档', '{\"ops\":[{\"insert\":\"doc content\"}]}',
+                 '/docs/arch', 'essay', '[\"rust\",\"db\"]', '[\"v4-note-2\"]',
+                 '2026-07-01T00:00:00Z', '2026-07-01T00:00:00Z');",
+    )
+    .unwrap();
+
+    nine_rings_lib::db::migrations::run(&conn).unwrap();
+
+    // Doc Tree 字段完整保留
+    let concepts: String = conn
+        .query_row("SELECT concepts FROM notes WHERE id='v4-doc'", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(concepts, "[\"rust\",\"db\"]");
+
+    let linked: String = conn
+        .query_row(
+            "SELECT linked_doc_ids FROM notes WHERE id='v4-doc'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(linked, "[\"v4-note-2\"]");
+
+    // v5: templates 表
+    let tpl_count: i32 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='templates'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(tpl_count, 1);
+
+    // v6: FTS 完整性 — 写入正文后 MATCH 命中
+    conn.execute(
+        "UPDATE notes SET search_text='doc content' WHERE id='v4-doc'",
+        [],
+    )
+    .unwrap();
+    let hits: i32 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM notes_fts WHERE notes_fts MATCH 'doc'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(hits, 1);
+
+    let version: i32 = conn
+        .query_row("SELECT MAX(version) FROM _schema_version", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(version, 6);
+}
