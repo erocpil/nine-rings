@@ -310,9 +310,41 @@ export const tauriDriver = {
     return rows.map(snakeNoteToCamel);
   },
 
-  // ── upsertNote：INSERT OR REPLACE ──
+  // ── upsertNote：按 storagePath 或 title+date 去重 ──
   async upsertNote(data: CreateNoteInput): Promise<Note> {
     const d = data as any; // upsertNote 可能携带 id/created_at/updated_at（从导入路径传入）
+
+    // 去重策略：文档按 storagePath，随笔按 title+date
+    if (d.id) {
+      // 导入路径已带 id，直接用
+    } else if (data.storagePath) {
+      // 文档笔记：按 storagePath 查找已有记录
+      const existingOp: SelectOp = {
+        type: "select",
+        table: "notes",
+        columns: ["id"],
+        where: [{ col: "storage_path", op: "=", val: data.storagePath }],
+        limit: 1,
+      };
+      const existing = await dbQuery(existingOp);
+      if (existing.length > 0) d.id = existing[0].id;
+    } else {
+      // 随笔：按 title+date 查找已有记录
+      const existingOp: SelectOp = {
+        type: "select",
+        table: "notes",
+        columns: ["id"],
+        where: [
+          { col: "title", op: "=", val: data.title ?? "" },
+          { col: "date", op: "=", val: data.date ?? today() },
+          { col: "deleted_at", op: "IS", val: null },
+        ],
+        limit: 1,
+      };
+      const existing = await dbQuery(existingOp);
+      if (existing.length > 0) d.id = existing[0].id;
+    }
+
     const note: Note = {
       id: d.id ?? uuid(),
       date: data.date ?? today(),
@@ -427,7 +459,7 @@ export const tauriDriver = {
     return rows.map(snakeVersionToCamel);
   },
 
-  // ── restoreNoteVersion：从版本恢复笔记内容 ──
+  // ── restoreNoteVersion：保存当前状态后从版本恢复 ──
   async restoreNoteVersion(versionId: string): Promise<Note> {
     // 1. 读取版本记录
     const verOp: SelectOp = {
@@ -442,6 +474,9 @@ export const tauriDriver = {
     const ver = verRows[0];
     const content = typeof ver.content === "string" ? JSON.parse(ver.content) : ver.content;
     const tags = typeof ver.tags === "string" ? JSON.parse(ver.tags) : (ver.tags ?? []);
+
+    // 1.5 恢复前先保存当前状态为 checkpoint，使恢复可撤销
+    await tauriDriver.createNoteCheckpoint(ver.note_id as string);
 
     // 2. 恢复笔记内容
     const upOp: UpdateOp = {
@@ -539,5 +574,6 @@ export const tauriDriver = {
       },
     };
     await dbExec(insOp);
+    // TODO: 保持最多 30 个版本 — 需要DeleteOp 或 raw SQL（当前 dbExec 仅支持 InsertOp/UpdateOp）
   },
 };

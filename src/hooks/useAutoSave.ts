@@ -9,7 +9,7 @@
  *
  * 与版本策略的边界：
  * - 本 hook 只做自动保存，不创建版本快照。
- * - 版本 checkpoint 由调用方在切换笔记 / 显式保存 / 关闭应用时单独触发。
+ * - 版本 checkpoint 由调用方在切换笔记 / 显式保存时单独触发。
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -143,12 +143,13 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
         flushNote(noteIdRef.current);
       }
     };
-    document.addEventListener("visibilitychange", () => {
+    const onVisibility = () => {
       if (document.visibilityState === "hidden") onHide();
-    });
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("beforeunload", onHide);
     return () => {
-      document.removeEventListener("visibilitychange", onHide);
+      document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("beforeunload", onHide);
     };
   }, [flushNote]);

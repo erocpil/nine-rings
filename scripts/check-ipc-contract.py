@@ -39,21 +39,17 @@ def extract_invoke_commands(filepath: str) -> list[tuple[str, int, str]]:
 # ── 2. 提取 lib.rs generate_handler! 中注册的命令 ──
 
 def extract_registered_commands(filepath: str) -> set[str]:
-    """从 lib.rs 提取所有注册的 Tauri command 名称"""
+    """从 lib.rs 的 generate_handler! 宏中提取所有注册的 Tauri command 名称"""
     registered = set()
     with open(filepath) as f:
         content = f.read()
 
-    # 匹配 commands::module::function 模式
-    # 例如: commands::note::get_note
-    for m in re.finditer(r'commands::(\w+)::(\w+)', content):
-        module, func = m.group(1), m.group(2)
-        # command 名称就是函数名（Tauri 默认用 snake_case 函数名作为 IPC 名称）
-        registered.add(func)
-
-    # 也匹配 commands::module::function(app.clone(), ...) 这种
-    for m in re.finditer(r'commands::(\w+)::(\w+)\(', content):
-        registered.add(m.group(2))
+    # 只匹配 generate_handler![ ... ] 内的 commands::module::function
+    handler_match = re.search(r'generate_handler!\[(.*?)\]', content, re.DOTALL)
+    if handler_match:
+        handler_body = handler_match.group(1)
+        for m in re.finditer(r'commands::(\w+)::(\w+)', handler_body):
+            registered.add(m.group(2))
 
     return registered
 
@@ -143,8 +139,10 @@ def main():
         print("请注册缺失命令或迁移到通用 Op 路径。")
         sys.exit(1)
     elif warnings > 0:
-        print(f"结果: ⚠️  0 个未注册命令, {warnings} 个警告")
-        sys.exit(0)
+        print(f"结果: ⚠️  0 个未注册命令, {warnings} 个警告（注册但无 Rust 实现）")
+        print("警告被视为错误以阻止未实现命令进入 CI。")
+        print("请实现缺失的 Rust 函数或从 lib.rs 移除注册。")
+        sys.exit(1)
     else:
         print("结果: ✅ 全部通过")
         sys.exit(0)
