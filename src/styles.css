@@ -1276,6 +1276,22 @@ body {
   user-select: none;
 }
 
+.save-status {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 11px;
+  vertical-align: middle;
+}
+.save-status-dirty { color: var(--text-secondary); }
+.save-status-saving { color: #f59e0b; animation: pulse 1s infinite; }
+.save-status-saved { color: #10b981; }
+.save-status-error { color: #ef4444; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 /* ── 工具栏扩展行 ── */
 
 .editor-menu-ext {

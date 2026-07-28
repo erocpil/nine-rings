@@ -64,6 +64,7 @@ export const tauriAdapter: StorageAdapter = {
   // ── Versions ──
   getNoteVersions: (noteId) => invoke<NoteVersion[]>("get_note_versions", { noteId }),
   restoreNoteVersion: (versionId) => invoke<Note>("restore_note_version", { versionId }),
+  createNoteCheckpoint: (_noteId) => Promise.resolve(), // stub: 第 3B 轮实现
 
   // ── Config ──
   getConfig: () => invoke<AppConfig>("get_config"),

@@ -127,12 +127,13 @@ interface NoteEditorProps {
   onVersionOpen?: () => void;
   onFocusModeChange?: (focus: boolean) => void;
   onStickyTitleChange?: (title: string | null) => void;
+  saveStatus?: "clean" | "dirty" | "saving" | "saved" | "error";
 }
 
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, highlightActiveLine, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange }: NoteEditorProps) {
+export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, highlightActiveLine, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, saveStatus }: NoteEditorProps) {
   const titleRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [colorOpen, setColorOpen] = useState(false);
@@ -1066,6 +1067,18 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           {btn("A⁻", () => setEditorFontSize(s => Math.max(12, s - 1)), false, "缩小字号", editorFontSize <= 12)}
           <span className="menu-font-size-label">{editorFontSize}</span>
           {btn("A⁺", () => setEditorFontSize(s => Math.min(24, s + 1)), false, "放大字号", editorFontSize >= 24)}
+          {saveStatus && saveStatus !== "clean" && (
+            <span className={`save-status save-status-${saveStatus}`} title={
+              saveStatus === "dirty" ? "未保存" :
+              saveStatus === "saving" ? "保存中..." :
+              saveStatus === "saved" ? "已保存" :
+              saveStatus === "error" ? "保存失败" : ""
+            }>
+              {saveStatus === "saving" ? "⏳" :
+               saveStatus === "saved" ? "✓" :
+               saveStatus === "error" ? "⚠" : "●"}
+            </span>
+          )}
         </div>
         )}
         </div>

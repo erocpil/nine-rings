@@ -173,6 +173,9 @@ export const api = {
 
     restore: (versionId: string) =>
       adapter().then((a) => a.restoreNoteVersion(versionId)),
+
+    checkpoint: (noteId: string) =>
+      adapter().then((a) => a.createNoteCheckpoint(noteId)),
   },
 
   // ── Config ──

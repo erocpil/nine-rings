@@ -468,7 +468,7 @@ export const idbAdapter: StorageAdapter = {
 
   async updateNote(id: string, data: UpdateNoteInput): Promise<Note> {
     return withDB(async (db) => {
-      const tx = db.transaction(["notes", "note_versions"], "readwrite");
+      const tx = db.transaction(["notes"], "readwrite");
       const noteStore = tx.objectStore("notes");
 
       const existing = await getOne<any>(noteStore, id);
@@ -484,9 +484,36 @@ export const idbAdapter: StorageAdapter = {
         search_text: data.content ? extractPlainText(data.content) : existing.search_text,
       };
 
-      await saveVersionSnapshot(tx.objectStore("note_versions"), noteFromDB(existing));
       await putRecord(noteStore, updated);
       return noteFromDB(updated);
+    });
+  },
+
+  /** 为指定笔记创建版本 checkpoint — 保存当前内容为历史版本 */
+  async createNoteCheckpoint(noteId: string): Promise<void> {
+    return withDB(async (db) => {
+      const tx = db.transaction(["notes", "note_versions"], "readwrite");
+      const noteStore = tx.objectStore("notes");
+      const verStore = tx.objectStore("note_versions");
+
+      const existing = await getOne<any>(noteStore, noteId);
+      if (!existing) throw new Error(`Note ${noteId} not found`);
+
+      // 去重：如果内容与最新版本相同，不创建 checkpoint
+      const allVersions = await getAll<any>(verStore);
+      const noteVersions = allVersions
+        .filter((v: any) => v.note_id === noteId)
+        .sort((a: any, b: any) => (b.saved_at ?? "").localeCompare(a.saved_at ?? ""));
+      if (noteVersions.length > 0) {
+        const latest = noteVersions[0];
+        const latestContent = typeof latest.content === "string"
+          ? latest.content
+          : JSON.stringify(latest.content);
+        const currentContent = JSON.stringify(noteFromDB(existing).content);
+        if (latestContent === currentContent) return; // 相同内容，跳过
+      }
+
+      await saveVersionSnapshot(verStore, noteFromDB(existing));
     });
   },
 

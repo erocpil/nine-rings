@@ -20,6 +20,7 @@ import { useDevImport } from "./hooks/useDevImport";
 import { useNotesStore } from "./stores/useNotesStore";
 import { api } from "./lib/api";
 import { localDateKey } from "./lib/local-date";
+import { useAutoSave } from "./hooks/useAutoSave";
 import { extractSnippet } from "./lib/storage/idb";
 import DocTree from "./components/DocTree";
 import DocCreateDialog from "./components/DocCreateDialog";
@@ -67,6 +68,24 @@ function App() {
   const { search, results, query, setQuery } = useSearch();
   const [docResults, setDocResults] = useState<Note[] | null>(null);
   const [docSearchText, setDocSearchText] = useState("");
+
+  // ── 自动保存 Hook ──
+  const autoSave = useAutoSave({
+    onSave: async (noteId, data) => {
+      await updateNote(noteId, data);
+    },
+  });
+
+  // ── 笔记切换时创建 checkpoint ──
+  const handleSelectNote = useCallback(async (note: Note | null) => {
+    if (selectedNote && selectedNote.id !== note?.id) {
+      await api.versions.checkpoint(selectedNote.id);
+    }
+    if (note) {
+      autoSave.setNoteId(note.id);
+    }
+    selectNote(note);
+  }, [selectedNote, selectNote, autoSave]);
 
   const handleDocSearch = useCallback(async (q: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => {
     if (!q.text && !q.storagePath && !q.docType && !q.concept) {
@@ -239,14 +258,14 @@ function App() {
     // 先看当前日期列表里有没有
     const found = notes.find((n) => n.id === lastId);
     if (found) {
-      selectNote(found);
+      handleSelectNote(found);
       return;
     }
     // 不在当前日期 → 全局查找
     api.notes.get(lastId).then((note) => {
       if (note) {
         setDate(note.date);
-        selectNote(note);
+        handleSelectNote(note);
       }
     }).catch(() => {});
   }, [loading]);
@@ -480,7 +499,7 @@ function App() {
           if (sel?.storagePath) {
             // 若 setDate 守卫保留了文档选中，显式切到当日第一篇随笔
             const daily = useNotesStore.getState().notes.find(n => !n.storagePath);
-            selectNote(daily ?? null);
+            handleSelectNote(daily ?? null);
           }
         });
         setSidebarHidden(false);
@@ -553,7 +572,7 @@ function App() {
           const sel = useNotesStore.getState().selectedNote;
           if (sel?.storagePath) {
             const daily = useNotesStore.getState().notes.find(n => !n.storagePath);
-            selectNote(daily ?? null);
+            handleSelectNote(daily ?? null);
           }
         });
         setSidebarHidden(false);
@@ -621,25 +640,19 @@ function App() {
   };
 
   const handleTitleChange = (title: string) => {
-    if (selectedNote) {
-      updateNote(selectedNote.id, { title });
-      // 文档笔记：实时刷新 DocTree 以同步名称
-      if (selectedNote.storagePath) {
-        setDocTreeKey(k => k + 1);
-      }
+    autoSave.markTitleDirty(title);
+    // 文档笔记：实时刷新 DocTree 以同步名称
+    if (selectedNote?.storagePath) {
+      setDocTreeKey(k => k + 1);
     }
   };
 
   const handleContentChange = (content: any) => {
-    if (selectedNote) {
-      updateNote(selectedNote.id, { content });
-    }
+    autoSave.markDirty(content);
   };
 
   const handleTagsChange = (tags: string[]) => {
-    if (selectedNote) {
-      updateNote(selectedNote.id, { tags });
-    }
+    autoSave.markTagsDirty(tags);
   };
 
   // ── 清除搜索状态（搜索结果点击 / 侧栏选择时调用）──
@@ -649,7 +662,7 @@ function App() {
       setDocResults(null);    // 清除文档搜索
       setDocSearchText("");
     }
-    selectNote(note);
+    handleSelectNote(note);
     setDate(note.date);
   }, [setQuery, selectNote, setDate]);
 
@@ -777,7 +790,7 @@ function App() {
               onSelect={(note) => {
                 setQuery("");
                 setDocResults(null);
-                selectNote(note);
+                handleSelectNote(note);
               }}
               onCreate={createNote}
               onCreateWithTemplate={async (template: Template) => {
@@ -794,7 +807,7 @@ function App() {
                   pinned: meta.pinned,
                 } as any);
                 setDate(today);
-                selectNote(note);
+                handleSelectNote(note);
               }}
               onDelete={(id) => {
                 // Find note for undo context
@@ -834,12 +847,12 @@ function App() {
               onSelect={(note) => {
                 setQuery("");
                 setDocResults(null);
-                selectNote(note);
+                handleSelectNote(note);
                 setDate(note.date);
               }}
               onFolderSelect={(path) => {
                 setSelectedFolderPath(path);
-                selectNote(null);
+                handleSelectNote(null);
               }}
               selectedId={selectedNote?.id ?? null}
               onCreate={() => setDocCreateOpen(true)}
@@ -946,7 +959,7 @@ function App() {
               onSelect={(note) => {
                 setQuery("");
                 setDocResults(null);
-                selectNote(note);
+                handleSelectNote(note);
                 setDate(note.date);
                 setSelectedFolderPath(null);
               }}
@@ -992,6 +1005,7 @@ function App() {
                     onVersionOpen={() => setVersionOpen(true)}
                     onFocusModeChange={setFocusMode}
                     onStickyTitleChange={setStickyTitle}
+                    saveStatus={autoSave.status}
                   />
                 ) : (
                   <div className="empty-state">
@@ -1008,7 +1022,7 @@ function App() {
           <PropertiesPanel
             readonly={syncBusy}
             note={selectedNote}
-            onNoteUpdate={(updated) => { selectNote(updated); setDocTreeKey(k => k + 1); }}
+            onNoteUpdate={(updated) => { handleSelectNote(updated); setDocTreeKey(k => k + 1); }}
             onClose={() => setPropertiesOpen(false)}
           />
         )}
@@ -1041,12 +1055,12 @@ function App() {
                 onSelect={(note) => {
                   setQuery("");
                   setDocResults(null);
-                  selectNote(note);
+                  handleSelectNote(note);
                   setDate(note.date);
                 }}
                 onFolderSelect={(path) => {
                   setSelectedFolderPath(path);
-                  selectNote(null);
+                  handleSelectNote(null);
                 }}
                 selectedId={selectedNote?.id ?? null}
                 onCreate={() => setDocCreateOpen(true)}
@@ -1119,7 +1133,7 @@ function App() {
           onCreated={(note) => {
             setDocCreateOpen(false);
             setDocTreeKey((k) => k + 1);  // 刷新文档树
-            selectNote(note);
+            handleSelectNote(note);
             setDate(note.date);
           }}
         />

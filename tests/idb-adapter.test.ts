@@ -277,6 +277,7 @@ async function runTests() {
   {
     console.log("\n── Version history ──");
     const note = await idbAdapter.createNote({ date: "2026-07-15", title: "Version Test", content: { ops: [{ insert: "v1" }] } });
+    await idbAdapter.createNoteCheckpoint(note.id);  // explicit checkpoint
     await idbAdapter.updateNote(note.id, { title: "Version Test v2", content: { ops: [{ insert: "v2" }] } });
     const versions = await idbAdapter.getNoteVersions(note.id);
     assert(versions.length >= 1, "version snapshot exists");

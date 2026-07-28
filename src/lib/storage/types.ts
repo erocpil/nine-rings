@@ -80,6 +80,8 @@ export interface StorageAdapter {
   // ── Version History ──
   getNoteVersions(noteId: string): Promise<NoteVersion[]>;
   restoreNoteVersion(versionId: string): Promise<Note>;
+  /** 为指定笔记创建版本 checkpoint（保存当前内容为历史版本） */
+  createNoteCheckpoint(noteId: string): Promise<void>;
 
   // ── Config ──
   getConfig(): Promise<AppConfig>;
