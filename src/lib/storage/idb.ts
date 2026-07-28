@@ -8,6 +8,7 @@ import type { StorageAdapter, AppConfig, DocSearchQuery } from "./types";
 import { DEFAULT_CONFIG } from "./types";
 import { buildDocTree, type FlatDocRecord, type FlatDailyRecord } from "./core";
 import { snakeImportToCamel } from "./normalize";
+import { localDateKey } from "../local-date";
 export { extractSnippet } from "./idb-snippet";
 
 const DB_NAME = "nine_rings";
@@ -588,9 +589,10 @@ export const idbAdapter: StorageAdapter = {
       const store = db.transaction("daily_pages", "readwrite").objectStore("daily_pages");
       let page = await getOne<any>(store, date);
       if (!page) {
-        // Try carryover from yesterday
-        const yesterday = new Date(new Date(date + "T00:00:00").getTime() - 86400000)
-          .toISOString().slice(0, 10);
+        // Try carryover from yesterday (local date arithmetic, not UTC)
+        const d = new Date(date + "T00:00:00");
+        d.setDate(d.getDate() - 1);
+        const yesterday = localDateKey(d);
         const yPage = await getOne<any>(store, yesterday);
         let carryoverTodos: Todo[] = [];
         if (yPage && yPage.todo_carryover) {

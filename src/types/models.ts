@@ -93,6 +93,7 @@ export interface UpdateNoteInput {
   id: string;
   title?: string | null;
   content?: DeltaOps;
+  date?: string;
   tags?: string[];
   pinned?: boolean;
   readonly?: boolean;

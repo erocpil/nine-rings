@@ -101,7 +101,10 @@ export const tauriDriver = {
         "pinned", "sort_order", "created_at", "updated_at",
         "storage_path", "doc_type", "concepts", "linked_doc_ids", "readonly",
       ],
-      where: [{ col: "date", op: "=", val: date }],
+      where: [
+        { col: "date", op: "=", val: date },
+        { col: "deleted_at", op: "IS", val: null },
+      ],
       orderBy: [
         { col: "pinned", desc: true },
         { col: "sort_order" },
@@ -161,6 +164,7 @@ export const tauriDriver = {
   async updateNote(id: string, data: {
     title?: string | null;
     content?: any;
+    date?: string;
     tags?: string[];
     pinned?: boolean;
     readonly?: boolean;
@@ -172,6 +176,7 @@ export const tauriDriver = {
   }): Promise<Note> {
     const set: Record<string, any> = {};
     if (data.title !== undefined) set.title = data.title;
+    if (data.date !== undefined) set.date = data.date;
     if (data.content !== undefined) {
       set.content = JSON.stringify(data.content);
       set.search_text = extractPlainText(data.content);
@@ -235,7 +240,10 @@ export const tauriDriver = {
       type: "select",
       table: "notes",
       columns: ["id", "title", "storage_path", "doc_type", "updated_at", "readonly"],
-      where: [{ col: "storage_path", op: "IS", val: null, not: true }],
+      where: [
+        { col: "storage_path", op: "IS", val: null, not: true },
+        { col: "deleted_at", op: "IS", val: null },
+      ],
       orderBy: [
         { col: "storage_path" },
         { col: "updated_at", desc: true },
@@ -248,7 +256,10 @@ export const tauriDriver = {
       type: "select",
       table: "notes",
       columns: ["id", "date", "title", "updated_at"],
-      where: [{ col: "storage_path", op: "IS", val: null }],
+      where: [
+        { col: "storage_path", op: "IS", val: null },
+        { col: "deleted_at", op: "IS", val: null },
+      ],
       orderBy: [
         { col: "date", desc: true },
         { col: "updated_at", desc: true },

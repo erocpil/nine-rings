@@ -76,16 +76,26 @@ function App() {
     },
   });
 
-  // ── 笔记切换时创建 checkpoint ──
+  // ── 笔记切换时：先 flush 旧笔记 → 再 checkpoint → 再切新笔记 ──
   const handleSelectNote = useCallback(async (note: Note | null) => {
-    if (selectedNote && selectedNote.id !== note?.id) {
-      await api.versions.checkpoint(selectedNote.id);
+    const oldId = selectedNote?.id;
+    if (oldId && oldId !== note?.id) {
+      // 1. 先等自动保存完成（确保最新内容已写入数据库）
+      await autoSave.flush();
+      // 2. 再做版本快照（此时 checkpoint 记录的是已保存的最新内容）
+      await api.versions.checkpoint(oldId);
     }
+    // 3. 设置新 noteId（内部触发旧笔记 flush，此时已无脏数据，flush 是空操作）
     if (note) {
       autoSave.setNoteId(note.id);
     }
     selectNote(note);
   }, [selectedNote, selectNote, autoSave]);
+
+  // ── selectedNote 变化时同步 autoSave（覆盖 setDate / createNote 等不经过 handleSelectNote 的路径）──
+  useEffect(() => {
+    autoSave.setNoteId(selectedNote?.id ?? null);
+  }, [selectedNote?.id, autoSave]);
 
   const handleDocSearch = useCallback(async (q: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => {
     if (!q.text && !q.storagePath && !q.docType && !q.concept) {

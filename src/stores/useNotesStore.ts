@@ -112,6 +112,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e ?? "unknown error");
       set({ error: `更新失败: ${msg}` });
+      throw e; // 重新抛出，使上层（useAutoSave）能感知失败
     }
   },
 

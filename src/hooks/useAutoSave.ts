@@ -116,9 +116,9 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
           setStatus("saved");
         }
       } catch (e) {
-        // 保存失败：恢复脏数据
+        // 保存失败：恢复脏数据（用户新输入优先于本次失败批次）
         const existing = dirtyRef.current.get(id) ?? {};
-        dirtyRef.current.set(id, { ...existing, ...dirty });
+        dirtyRef.current.set(id, { ...dirty, ...existing });
         if (noteIdRef.current === id) {
           setStatus("error");
         }
