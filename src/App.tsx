@@ -21,12 +21,12 @@ import { useNotesStore } from "./stores/useNotesStore";
 import { api } from "./lib/api";
 import { localDateKey } from "./lib/local-date";
 import { useAutoSave } from "./hooks/useAutoSave";
+import { useSettings } from "./hooks/useSettings";
 import { extractSnippet } from "./lib/storage/idb";
 import DocTree from "./components/DocTree";
 import DocCreateDialog from "./components/DocCreateDialog";
 import PropertiesPanel from "./components/PropertiesPanel";
 import { DocMOC } from "./components/DocMOC";
-import type { AppConfig } from "./lib/storage/types";
 import type { DeltaOps, Note, DocType } from "./types/models";
 import { DEFAULT_HOTKEYS } from "./types/models";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
@@ -103,7 +103,6 @@ function App() {
     setDocResults(notes);
   }, []);
 
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [recycleOpen, setRecycleOpen] = useState(false);
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
   const [clock, setClock] = useState(() => {
@@ -115,12 +114,12 @@ function App() {
   const [undo, setUndo] = useState<UndoState | null>(null);
   const [versionOpen, setVersionOpen] = useState(false);
   const [syncBusy, setSyncBusy] = useState(false);
+  const { config, settingsOpen, setSettingsOpen, handleConfigChange } = useSettings();
   const FOCUS_KEY = "nr:focusMode";
   const [focusMode, setFocusMode] = useState(() => {
     return localStorage.getItem(FOCUS_KEY) === "true";
   });
   const [stickyTitle, setStickyTitle] = useState<string | null>(null);
-  const [config, setConfig] = useState<AppConfig | null>(null);
   const HIDDEN_KEY = "nr:sidebarHidden";
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [isTouchDevice] = useState(() => {
@@ -415,15 +414,6 @@ function App() {
     document.addEventListener("touchend", handleTouchEnd);
   };
 
-  // 启动时加载配置并设置主题
-  useEffect(() => {
-    api.config.get().then((c) => {
-      applyTheme(c.theme);
-      addLog(`[启动] 九环 v${__APP_VERSION__} | 主题: ${c.theme}`);
-      setConfig(c);
-    });
-  }, []);
-
   // 首次访问创建示例笔记
   useEffect(() => {
     const SEED_KEY = "nr:seeded";
@@ -629,11 +619,6 @@ function App() {
     setSidebarRefreshKey(k => k + 1);
   }, [currentDate, setDate]);
   useDevImport(refreshView);
-
-  const handleConfigChange = useCallback((c: AppConfig) => {
-    applyTheme(c.theme);
-    setConfig(c);
-  }, []);
 
   const handleDateChange = (date: string) => {
     setDate(date);
@@ -1158,41 +1143,6 @@ function App() {
       )}
     </div>
   );
-}
-
-function applyTheme(theme: string) {
-  const root = document.documentElement;
-  root.classList.remove("theme-light", "theme-dark", "theme-fu", "theme-grace", "theme-sui", "theme-zhi", "theme-azure", "theme-azure-dark");
-
-  if (theme === "system") {
-    // 跟随系统：用 prefers-color-scheme 媒体查询，只区分 light/dark
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const applySystem = () => {
-      root.classList.remove("theme-light", "theme-dark");
-      root.classList.add(mq.matches ? "theme-dark" : "theme-light");
-    };
-    applySystem();
-    mq.addEventListener("change", applySystem);
-    return;
-  }
-
-  if (theme === "light") {
-    root.classList.add("theme-light");
-  } else if (theme === "dark") {
-    root.classList.add("theme-dark");
-  } else if (theme === "fu") {
-    root.classList.add("theme-fu");
-  } else if (theme === "grace") {
-    root.classList.add("theme-grace");
-  } else if (theme === "sui") {
-    root.classList.add("theme-sui");
-  } else if (theme === "zhi") {
-    root.classList.add("theme-zhi");
-  } else if (theme === "azure") {
-    root.classList.add("theme-azure");
-  } else if (theme === "azure-dark") {
-    root.classList.add("theme-azure-dark");
-  }
 }
 
 export default App;

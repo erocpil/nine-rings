@@ -8,6 +8,7 @@ import type { StorageAdapter, AppConfig, DocSearchQuery } from "./types";
 import { DEFAULT_CONFIG } from "./types";
 import { buildDocTree, type FlatDocRecord, type FlatDailyRecord } from "./core";
 import { snakeImportToCamel } from "./normalize";
+export { extractSnippet } from "./idb-snippet";
 
 const DB_NAME = "nine_rings";
 const DB_VERSION = 3;
@@ -115,30 +116,6 @@ function extractPlainText(content: any): string {
   } catch {
     return "";
   }
-}
-
-/** 从纯文本中提取匹配片段（带 <mark> 高亮），上下文各约 40 字符 */
-export function extractSnippet(text: string, query: string): string {
-  if (!text || !query) return "";
-  const lower = text.toLowerCase();
-  const qLower = query.toLowerCase();
-  const idx = lower.indexOf(qLower);
-  if (idx === -1) return text.slice(0, 120);
-
-  const contextBefore = 40;
-  const contextAfter = 60;
-  const start = Math.max(0, idx - contextBefore);
-  const end = Math.min(text.length, idx + query.length + contextAfter);
-
-  let snippet = text.slice(start, end);
-  // 分界符
-  if (start > 0) snippet = "\u2026" + snippet;
-  if (end < text.length) snippet = snippet + "\u2026";
-
-  // 高亮所有匹配（不区分大小写）
-  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp(`(${escaped})`, 'gi');
-  return snippet.replace(re, '<mark>$1</mark>');
 }
 
 /** Delta → Markdown（与 Rust 侧 delta_to_markdown 逻辑一致） */
