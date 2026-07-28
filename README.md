@@ -48,7 +48,7 @@
 ┌─ 前端 ─────────────────────────────────────┐
 │  React 18  +  TypeScript  +  TipTap        │
 │  Zustand (状态)  +  Vite 5 (构建)          │
-│  PWA: Workbox SW  +  IndexedDB             │
+│  PWA: Custom Service Worker  +  IndexedDB             │
 ├─ 桌面端 (Tauri) ───────────────────────────┤
 │  Rust + SQLite + Tauri v2 IPC              │
 │  macOS / Linux / Windows                   │
@@ -233,13 +233,12 @@ nine-rings/
 | [`docs/FLUTTER_BUILD.md`](./docs/FLUTTER_BUILD.md) | Flutter 移动端 + macOS 桌面构建指南（macOS / iOS） |
 | [`docs/TAURI_DESIGN.md`](./docs/TAURI_DESIGN.md) | Tauri 架构设计文档 |
 | [`docs/document-system-design.md`](./docs/document-system-design.md) | 文档管理系统设计（P.A.R.A. × Zettelkasten × Diátaxis） |
-| [`docs/sync-architecture.md`](./docs/sync-architecture.md) | 跨设备同步架构方案 |
-| [`docs/github-sync.md`](./docs/github-sync.md) | GitHub 同步使用指南（Token 生成、配置、多设备工作流） |
+| [`docs/backup-architecture.md`](./docs/backup-architecture.md) | GitHub 版本化备份架构方案 |
+| [`docs/github-backup.md`](./docs/github-backup.md) | GitHub 备份使用指南（Token 生成、配置、多设备工作流） |
 | [`docs/future-evolution.md`](./docs/future-evolution.md) | 长期产品与技术演进方向（知识工作流、同步、隐私、AI、平台与商业化） |
 | [`docs/engineering-improvement-plan.md`](./docs/engineering-improvement-plan.md) | 按优先级跟踪的工程整改计划、阶段任务与验收标准 |
 | [`docs/md-import.md`](./docs/md-import.md) | Markdown 导入工具使用指南（`md-to-nine-rings.py`） |
 | [`docs/markdown-import.md`](./docs/markdown-import.md) | Markdown 导入格式说明 |
-| [`docs/features-roadmap.md`](./docs/features-roadmap.md) | 功能路线图 |
 | [`docs/macos-platform-analysis.md`](./docs/macos-platform-analysis.md) | macOS 客户端方案分析（Tauri vs Flutter vs 原生） |
 | [`docs/lessons-learned.md`](./docs/lessons-learned.md) | 开发经验记录（踩坑、模式、判断） |
 | [`schema/note.yaml`](./schema/note.yaml) | 数据格式定义（Note / Todo / DailyPage） |

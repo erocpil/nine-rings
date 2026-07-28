@@ -18,7 +18,7 @@
 | 5 | 全文搜索 | `api.notes.search()` | FTS5 (Tauri) / JS 匹配 (Web) |
 | 6 | 文档系统 (P.A.R.A.) | `api.docs.*` | `StorageAdapter` + `core.ts` |
 | 7 | 导出 / 导入 | `api.export.*` | `StorageAdapter` |
-| 8 | GitHub 同步 | `SettingsSync` → `github.ts` | 前端独立 |
+| 8 | GitHub 备份 | `SettingsSync` → `github.ts` | 前端独立 |
 | 9 | 模板系统 | `template-store.ts` | Tauri-only (`db_query`/`db_exec`) |
 
 ---
@@ -330,7 +330,7 @@ daily/         ← 虚拟：所有随笔（storagePath = NULL）
 
 ---
 
-## 8. GitHub 同步
+## 8. GitHub 备份
 
 ### 数据流
 

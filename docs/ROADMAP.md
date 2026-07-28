@@ -36,10 +36,14 @@
 | 项目 | 说明 | 状态 |
 |------|------|------|
 | **PWA 离线缓存** | SW (Cache First静态 + Network First HTML) + manifest.json + 注册脚本 | ✅ 已实现 |
-| **云端同步** | 多设备 IndexedDB ↔ 远端（GitHub / WebDAV / S3） | ✅ GitHub V1 已实现（[使用说明](github-sync.md)） |
+| **GitHub 备份** | 多设备 IndexedDB ↔ GitHub（全量 JSON 快照，Push/Pull） | ✅ GitHub V1 已实现（[使用说明](github-backup.md)） |
 | **Flutter 移动端** | Android APK 已构建（145MB debug），启动崩溃已修复（`initializeDateFormatting`）；P.A.R.A./Zettelkasten/Markdown 导入待实现 | ⚠️ APK 已构建，功能待对齐 |
 | **Tauri 桌面端** | 系统托盘（左键显示/隐藏，右键菜单）、全局热键（Rust 系统级注册）、frameless 窗口、Quick Capture 独立窗口、logo 替换 | ✅ 已实现 |
 | **协作编辑** | CRDT / Yjs 多人实时协作 | ⬜ 待做 |
+| **日历月视图** | 日期选择器显示笔记密度（热力图） | ⬜ 待做 |
+| **笔记间快速切换** | Ctrl+Tab / Ctrl+Shift+Tab 切换相邻笔记 | ⬜ 待做 |
+| **批量操作** | 多选笔记批量加标签、归档、删除 | ⬜ 待做 |
+| **笔记锁定/加密** | 单篇或全应用加密 | ⬜ 待做 |
 
 ---
 

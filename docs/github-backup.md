@@ -1,6 +1,6 @@
-# GitHub 同步
+# GitHub 备份
 
-九环通过 GitHub 仓库实现多设备数据同步。采用**全量 JSON 快照**方案，支持 Push（上传）/ Pull（下载）。
+九环通过 GitHub 仓库实现数据版本化备份。采用**全量 JSON 快照**方案，支持 Push（上传）/ Pull（下载）。
 
 ---
 
@@ -12,7 +12,7 @@
 
 2. 创建仓库    →  New repository，设为 Private，不勾选 README
 
-3. 配置九环    →  ⚙ 设置 → GitHub 同步 → 填入 Token / Owner / Repo → 测试连接
+3. 配置九环    →  ⚙ 设置 → GitHub 备份 → 填入 Token / Owner / Repo → 测试连接
 ```
 
 ---
@@ -23,7 +23,7 @@
 2. 左侧菜单 → **Developer settings** → **Personal access tokens** → **Tokens (classic)**
 3. 点击 **Generate new token (classic)**
 4. 填写：
-   - **Note**：`Nine Rings Sync`
+   - **Note**：`Nine Rings Backup`
    - **Expiration**：建议 `No expiration` 或自定义
    - **Scopes**：勾选 `repo`（核心权限：Contents 读写）
 
@@ -50,7 +50,7 @@
 
 ---
 
-## 三、同步操作
+## 三、备份操作
 
 ### Push（上传）
 
@@ -59,7 +59,7 @@
 **流程**：
 1. 导出本地全部笔记、待办、标签为 JSON
 2. 调用 GitHub Contents API（小文件）或 Blobs API（>1MB 大文件）上传
-3. 更新远端 SHA 用于下次同步
+3. 更新远端 SHA 用于下次备份
 
 **使用场景**：
 - 完成重要编辑后手动备份
@@ -68,7 +68,7 @@
 
 ### Pull（下载）
 
-点击 **Pull ↓** 从 GitHub 下载数据覆盖本地。
+点击 **Pull ↓** 从 GitHub 下载数据恢复到本地。
 
 **流程**：
 1. 从 GitHub 拉取 `nine-rings-backup.json`
@@ -76,10 +76,10 @@
 3. **去重检查**：导入前匹配现有笔记
 
 **使用场景**：
-- 新设备首次使用九环时拉取数据
-- 另一设备 push 后同步到当前设备
+- 新设备首次使用九环时恢复数据
+- 另一设备备份后恢复到当前设备
 
-### 同步期间界面冻结
+### 备份期间界面冻结
 
 Push/Pull 执行期间：
 - 编辑器顶部显示**金色横幅**提醒
@@ -87,7 +87,7 @@ Push/Pull 执行期间：
 - 侧栏、文档树、待办、属性面板**禁用**
 - 操作完成后横幅自动消失，恢复可编辑状态
 
-**原因**：同步是全量覆盖，期间本地修改会被覆盖。冻结防止数据丢失。
+**原因**：备份是全量覆盖，期间本地修改会被覆盖。冻结防止数据丢失。
 
 ---
 
@@ -127,7 +127,7 @@ Push/Pull 执行期间：
 步骤：
   1. 生成 Token（权限：repo）
   2. 创建 Private 仓库 nine-rings-backup
-  3. 九环设置 → GitHub 同步 → 填入：
+  3. 九环设置 → GitHub 备份 → 填入：
      Token:  ghp_abc123...
      Owner:  myname
      Repo:   nine-rings-backup
@@ -146,11 +146,11 @@ Push/Pull 执行期间：
 目标：公司电脑和家里电脑都用九环，数据保持一致
 
 设备 A（公司电脑）：
-  1. 配置 GitHub 同步（同示例 1）
+  1. 配置 GitHub 备份（同示例 1）
   2. 下班前：Push ↑
 
 设备 B（家里电脑）：
-  1. 打开九环 → 设置 → GitHub 同步
+  1. 打开九环 → 设置 → GitHub 备份
   2. 填入相同的 Token / Owner / Repo
   3. 测试连接
   4. Pull ↓（拉取公司电脑的最新数据）
@@ -161,10 +161,10 @@ Push/Pull 执行期间：
   2. 继续编辑
 ```
 
-### 示例 3：.md 文件批量导入 + 同步
+### 示例 3：.md 文件批量导入 + 备份
 
 ```
-目标：将本地 Markdown 文档导入九环，并同步到另一设备
+目标：将本地 Markdown 文档导入九环，并恢复到另一设备
 
 步骤：
   1. 在设备 A 上：
@@ -191,7 +191,7 @@ Push/Pull 执行期间：
 
 方法 B — 外部脚本 + 浏览器自动化：
   #!/bin/bash
-  # 依赖：九环已打开并配置好 GitHub 同步
+  # 依赖：九环已打开并配置好 GitHub 备份
   # 通过 API 触发 push（如果后续支持）
   curl -X POST http://localhost:1420/api/sync/push
 ```
@@ -202,7 +202,7 @@ Push/Pull 执行期间：
 
 ### 导入时去重（importData + upsertNote）
 
-同步 Pull 和 .md 导入共用同一套去重策略：
+备份 Pull 和 .md 导入共用同一套去重策略：
 
 | 优先级 | 匹配键 | 适用场景 | 命中后操作 |
 |--------|--------|---------|-----------|
@@ -248,14 +248,14 @@ GitHub Contents API 对超过 1MB 的文件不返回 `content` 字段。九环�
 
 对用户透明，无额外配置。
 
-### 同步配置存储
+### 备份配置存储
 
 - Token / Owner / Repo / Path 存储在浏览器 `localStorage`（Web）或 Tauri 本地存储
-- Key：`nr:github-sync`
+- Key：`nr:github-sync`（历史遗留键名，未改变）
 - Token 不会上传到任何第三方服务器
 - 建议使用 Private 仓库保护数据
 
-### 同步流程（完整时序）
+### 备份流程（完整时序）
 
 ```
 用户点击 Push ↑

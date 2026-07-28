@@ -1,14 +1,16 @@
-# Nine Rings — 云端同步架构思路
+# Nine Rings — 跨设备备份架构思路
 
 > 文件状态：设计草案 v1 · 2026-07-09
+>
+> **定位**：本文档描述未来 V2 增量备份方案的设计思路。当前已实现的 V1 方案为 GitHub 全量 JSON 快照备份（见 [github-backup.md](./github-backup.md)），非增量同步。
 
 ---
 
 ## 核心原则
 
-1. **本地优先（Local-First）**：所有数据先在本地写入，同步在后台进行。无网络也能正常使用。
+1. **本地优先（Local-First）**：所有数据先在本地写入，备份在后台进行。无网络也能正常使用。
 2. **用户自选后端**：对接用户自己的服务端（自建或第三方），不锁平台。
-3. **增量同步**：只传有变动的数据，不每次全量。
+3. **增量备份**：只传有变动的数据，不每次全量。
 4. **冲突可调停**：不同设备同时编辑时，有确定性的合并策略。
 
 ---
@@ -17,7 +19,7 @@
 
 ```
     ┌──────────────┐        ┌──────────────┐        ┌──────────────┐
-    │  设备 A      │        │  同步服务端   │        │  设备 B      │
+    │  设备 A      │        │  备份服务端    │        │  设备 B      │
     │  IndexedDB   │◄──────►│  (API Server) │◄──────►│  IndexedDB   │
     │  / SQLite    │        │   PostgreSQL  │        │  / SQLite    │
     └──────────────┘        └──────────────┘        └──────────────┘
@@ -47,10 +49,10 @@
 ```
 
 ### StorageAdapter 层（已存在）
-当前 `api.ts` 已封装了适配器模式。同步时扩展：`StorageAdapter` 加 `syncPush()` / `syncPull()` 方法。
+当前 `api.ts` 已封装了适配器模式。备份时扩展：`StorageAdapter` 加 `syncPush()` / `syncPull()` 方法。
 
 ### SyncEngine（新增）
-核心同步逻辑，独立于具体传输方式：
+核心备份逻辑，独立于具体传输方式：
 
 | 组件 | 职责 |
 |------|------|
@@ -64,8 +66,8 @@
 | 实现 | 适用场景 |
 |------|----------|
 | REST API | 自建后端、简单的 push/pull |
-| WebSocket | 实时同步、多设备即时协同 |
-| 文件导出 | 手动"同步"——导出 JSON 到另一台设备导入 |
+| WebSocket | 实时备份、多设备即时协同 |
+| 文件导出 | 手动备份——导出 JSON 到另一台设备导入 |
 
 ---
 
@@ -85,7 +87,7 @@ CREATE TABLE sync_changelog (
 );
 ```
 
-### 增量同步流程
+### 增量备份流程
 
 **Push（本地 → 服务端）：**
 ```
@@ -111,7 +113,7 @@ CREATE TABLE sync_changelog (
 
 **默认策略：最后写入者胜出**
 - 每条数据带 `updated_at` 时间戳
-- 同步时比较 `updated_at`，保留最新的版本
+- 备份恢复时比较 `updated_at`，保留最新的版本
 - 旧版本存入本地"冲突历史"供用户查阅
 
 **冲突标记：**
@@ -155,19 +157,19 @@ CREATE TABLE sync_changelog (
 
 ## 当前进度
 
-**已实现（V1 — GitHub 全量快照）**：
+**已实现（V1 — GitHub 全量快照备份）**：
 - ✅ `api.ts` StorageAdapter `syncPush()` / `syncPull()` → GitHub Contents/Blobs API
 - ✅ Push/Pull UI（设置页，含测试连接）
-- ✅ 同步期间界面冻结（金色横幅 + 全部只读）
+- ✅ 备份期间界面冻结（金色横幅 + 全部只读）
 - ✅ 大文件自动切换 Git Blobs API（>1MB）
 - ✅ 导入去重（storagePath > title+date）
 - ✅ `.md` 文件导入去重（upsertNote）
 - ✅ 调试面板树形 dump
 
-**设计阶段（V2 — 增量同步）**：
+**设计阶段（V2 — 增量备份）**：
 - 🔲 本地 SyncEngine + ChangeLog 表
 - 🔲 增量 Push/Pull（REST API / WebSocket）
 - 🔲 冲突检测 + 冲突 UI 面板
 - 🔲 端到端加密 + 用户鉴权
 
-详见 [github-sync.md](./github-sync.md)（V1 使用指南）。
+详见 [github-backup.md](./github-backup.md)（V1 使用指南）。
