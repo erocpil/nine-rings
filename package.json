@@ -15,7 +15,9 @@
     "test:md": "tsx tests/md-parser.test.ts",
     "test:idb": "tsx tests/idb-adapter.test.ts",
     "test:ops": "tsx src/lib/storage/idb-driver.test.ts",
-    "check:ipc": "python3 scripts/check-ipc-contract.py"
+    "check:ipc": "python3 scripts/check-ipc-contract.py",
+    "test:e2e": "npx playwright test",
+    "test:e2e:ui": "npx playwright test --ui"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -39,6 +41,7 @@
     "zustand": "^4"
   },
   "devDependencies": {
+    "@playwright/test": "1.48",
     "@tauri-apps/cli": "^2",
     "@types/node": "^26.1.1",
     "@types/react": "^18",

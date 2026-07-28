@@ -43,3 +43,16 @@ jobs:
       - run: cd src-tauri && cargo test
       - run: cd src-tauri && cargo fmt --check
       - run: cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx playwright install chromium --with-deps
+      - run: npm run test:e2e
