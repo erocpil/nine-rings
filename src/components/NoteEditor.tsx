@@ -155,6 +155,8 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [blockOpen, setBlockOpen] = useState(false);
   const [styleOpen, setStyleOpen] = useState(false);
   const [clipOpen, setClipOpen] = useState(false);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 480);
   const CODE_LN_KEY = "nr:codeLineNumbers";
   const [showCodeLineNumbers, setShowCodeLineNumbers] = useState(() => {
@@ -192,7 +194,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
   // 点击外部关闭下拉框
   useEffect(() => {
-    if (!sizeOpen && !colorOpen && !headingOpen && !blockOpen && !styleOpen && !clipOpen) return;
+    if (!sizeOpen && !colorOpen && !headingOpen && !blockOpen && !styleOpen && !clipOpen && !linkOpen) return;
     const handler = () => {
       setSizeOpen(false);
       setColorOpen(false);
@@ -200,10 +202,11 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       setBlockOpen(false);
       setStyleOpen(false);
       setClipOpen(false);
+      setLinkOpen(false);
     };
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
-  }, [sizeOpen, colorOpen, headingOpen, blockOpen, styleOpen, clipOpen]);
+  }, [sizeOpen, colorOpen, headingOpen, blockOpen, styleOpen, clipOpen, linkOpen]);
 
   // 观察标题是否可见，用于 sticky title（仅在专注模式）
   useEffect(() => {
@@ -857,6 +860,119 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           {btn("📝", handleClipboardPaste, false, "粘贴 (Ctrl+V)", readonly)}
           </>)}
           <span className="menu-sep" />
+
+          {/* 超链接 */}
+          {isNarrow ? (
+            <div className="menu-dropdown">
+              <button
+                className={`menu-btn ${editor.isActive("link") ? "active" : ""}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (readonly) return;
+                  const attrs = editor.getAttributes("link");
+                  setLinkUrl(attrs.href || "");
+                  setLinkOpen(!linkOpen);
+                }}
+                type="button"
+                title="超链接"
+                disabled={readonly}
+              >🔗</button>
+              {linkOpen && (
+                <div className="menu-dropdown-list">
+                  <div style={{ padding: "6px 8px", display: "flex", gap: 4, alignItems: "center" }}>
+                    <input
+                      className="doc-tree-rename-input"
+                      style={{ flex: 1, fontSize: 12 }}
+                      placeholder="https://..."
+                      value={linkUrl}
+                      onChange={(e) => setLinkUrl(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (linkUrl.trim()) editor.chain().focus().setLink({ href: linkUrl.trim() }).run();
+                          else editor.chain().focus().unsetLink().run();
+                          setLinkOpen(false);
+                        }
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                    />
+                    <button
+                      className="menu-btn menu-btn-sm"
+                      onClick={() => {
+                        if (linkUrl.trim()) editor.chain().focus().setLink({ href: linkUrl.trim() }).run();
+                        else editor.chain().focus().unsetLink().run();
+                        setLinkOpen(false);
+                      }}
+                      type="button"
+                    >✓</button>
+                  </div>
+                  {editor.isActive("link") && (
+                    <button
+                      className="menu-dropdown-item"
+                      onClick={() => { editor.chain().focus().unsetLink().run(); setLinkOpen(false); }}
+                      type="button"
+                    >移除链接</button>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="menu-dropdown" style={{ position: "relative" }}>
+              <button
+                className={`menu-btn ${editor.isActive("link") ? "active" : ""}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (readonly) return;
+                  const attrs = editor.getAttributes("link");
+                  setLinkUrl(attrs.href || "");
+                  setLinkOpen(!linkOpen);
+                }}
+                type="button"
+                title={editor.isActive("link") ? "编辑/移除链接" : "添加超链接 (Ctrl+K)"}
+                disabled={readonly}
+              >🔗</button>
+              {linkOpen && (
+                <div className="menu-dropdown-list" style={{ minWidth: 260 }}>
+                  <div style={{ padding: "6px 8px", display: "flex", gap: 4, alignItems: "center" }}>
+                    <input
+                      className="doc-tree-rename-input"
+                      style={{ flex: 1, fontSize: 12 }}
+                      placeholder="https://..."
+                      value={linkUrl}
+                      onChange={(e) => setLinkUrl(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (linkUrl.trim()) editor.chain().focus().setLink({ href: linkUrl.trim() }).run();
+                          else editor.chain().focus().unsetLink().run();
+                          setLinkOpen(false);
+                        }
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                    />
+                    <button
+                      className="menu-btn menu-btn-sm"
+                      onClick={() => {
+                        if (linkUrl.trim()) editor.chain().focus().setLink({ href: linkUrl.trim() }).run();
+                        else editor.chain().focus().unsetLink().run();
+                        setLinkOpen(false);
+                      }}
+                      type="button"
+                    >✓</button>
+                  </div>
+                  {editor.isActive("link") && (
+                    <button
+                      className="menu-dropdown-item"
+                      onClick={() => { editor.chain().focus().unsetLink().run(); setLinkOpen(false); }}
+                      type="button"
+                    >移除链接</button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 分隔后右区：字号 / 颜色 / 图片 */}
           <div className="menu-dropdown">
