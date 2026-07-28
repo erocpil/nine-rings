@@ -19,6 +19,7 @@ import { useSearch } from "./hooks/useSearch";
 import { useDevImport } from "./hooks/useDevImport";
 import { useNotesStore } from "./stores/useNotesStore";
 import { api } from "./lib/api";
+import { localDateKey } from "./lib/local-date";
 import { extractSnippet } from "./lib/storage/idb";
 import DocTree from "./components/DocTree";
 import DocCreateDialog from "./components/DocCreateDialog";
@@ -199,7 +200,7 @@ function App() {
 
   // ── Quick Capture 提交后刷新列表 ──
   useEffect(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateKey();
 
     // Tauri 桌面端：监听 Rust 端 emit_to_main 事件
     // @ts-ignore
@@ -208,7 +209,7 @@ function App() {
       import("@tauri-apps/api/event").then(({ listen }) => {
         listen("quick-capture-created", () => {
           addLog(`[QC→主窗口] 收到 quick-capture-created, 切到日期 ${today}`);
-          setDate(new Date().toISOString().slice(0, 10));
+          setDate(localDateKey());
         }).then((fn) => { unlisten = fn; });
       }).catch((e) => {
         console.warn("[QC→主窗口] 事件监听注册失败:", e);
@@ -222,7 +223,7 @@ function App() {
       bc = new BroadcastChannel("nine-rings-qc");
       bc.onmessage = () => {
         addLog(`[QC→主窗口] 收到 BroadcastChannel 通知, 切到日期 ${today}`);
-        setDate(new Date().toISOString().slice(0, 10));
+        setDate(localDateKey());
       };
     } catch (e) {
       console.warn("[QC→主窗口] BroadcastChannel 不可用:", e);
@@ -473,7 +474,7 @@ function App() {
       // Ctrl+Shift+D: 打开每日列表
       if (e.shiftKey && e.key.toLowerCase() === "d") {
         e.preventDefault();
-        const today = new Date().toISOString().slice(0, 10);
+        const today = localDateKey();
         setDate(today).then(() => {
           const sel = useNotesStore.getState().selectedNote;
           if (sel?.storagePath) {
@@ -547,7 +548,7 @@ function App() {
       },
       openSettings: () => setSettingsOpen(true),
       toggleDaily: () => {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = localDateKey();
         setDate(today).then(() => {
           const sel = useNotesStore.getState().selectedNote;
           if (sel?.storagePath) {
@@ -575,7 +576,7 @@ function App() {
   }, [config?.hotkeys ? JSON.stringify(config.hotkeys) : ""]);
 
   // ── 时钟更新 + 跨日检测 ──
-  const lastTodayRef = useRef(new Date().toISOString().slice(0, 10));
+  const lastTodayRef = useRef(localDateKey());
   useEffect(() => {
     const tick = () => {
       const d = new Date();
@@ -586,7 +587,7 @@ function App() {
 
     // 跨日检测：使用 ref 跟踪上次日期，跨日后只触发一次
     const dateId = setInterval(() => {
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = localDateKey();
       if (todayStr !== lastTodayRef.current) {
         lastTodayRef.current = todayStr;
         const sel = useNotesStore.getState().selectedNote;
@@ -781,7 +782,7 @@ function App() {
               onCreate={createNote}
               onCreateWithTemplate={async (template: Template) => {
                 const meta = await templateStore.applyTemplate(template);
-                const today = new Date().toISOString().slice(0, 10);
+                const today = localDateKey();
                 const note = await api.notes.create({
                   date: today,
                   title: meta.title ?? "新随笔",

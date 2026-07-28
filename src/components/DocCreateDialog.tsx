@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { api } from "../lib/api";
+import { localDateKey } from "../lib/local-date";
 import type { DocType, Note } from "../types/models";
 import { templateStore, type Template } from "../lib/storage/template-store";
 
@@ -125,7 +126,7 @@ function DocCreateDialog({ onClose, onCreated }: DocCreateDialogProps) {
     setSaving(true);
     try {
       const storagePath = buildStoragePath();
-      const today = new Date().toISOString().slice(0, 10);
+      const today = localDateKey();
 
       const note = await api.notes.create({
         date: today,

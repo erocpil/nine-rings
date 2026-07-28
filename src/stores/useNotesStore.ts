@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Note, DailyPage } from "../types/models";
 import { api } from "../lib/api";
+import { localDateKey } from "../lib/local-date";
 
 /** 排序：置顶优先 → sort_order 升序 → created_at 升序 */
 function sortNotes(a: Note, b: Note): number {
@@ -36,7 +37,7 @@ interface NotesStore {
 }
 
 export const useNotesStore = create<NotesStore>((set, get) => ({
-  currentDate: new Date().toISOString().slice(0, 10),
+  currentDate: localDateKey(),
   notes: [],
   dailyPage: null,
   selectedNote: null,

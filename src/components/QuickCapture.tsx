@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api } from "../lib/api";
+import { localDateKey } from "../lib/local-date";
 
 /** 将主题名映射为 CSS class 并应用到 <html> */
 function applyQCTheme(theme: string) {
@@ -100,7 +101,7 @@ export default function QuickCapture() {
     const lines = content.split("\n");
     const title = lines[0].slice(0, 80);
     const body = lines.length > 1 ? lines.slice(1).join("\n") : "";
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateKey();
 
     console.log(`[QC] ├─ 提交: date=${today} title="${title}" bodyLen=${body.length}`);
     setSubmitting(true);

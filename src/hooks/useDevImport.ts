@@ -8,6 +8,7 @@
 
 import { useEffect, useRef } from "react";
 import { api } from "../lib/api";
+import { localDateKey } from "../lib/local-date";
 
 interface ImportFile {
   title: string;
@@ -46,7 +47,7 @@ export function useDevImport(refresh: () => void) {
 
         console.log(`[dev-import] 收到 ${files.length} 篇待导入笔记`);
 
-        const today = new Date().toISOString().slice(0, 10);
+        const today = localDateKey();
         let count = 0;
 
         for (const file of files) {

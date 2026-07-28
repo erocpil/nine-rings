@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { api } from "../lib/api";
+import { localDateKey } from "../lib/local-date";
 import type { AppConfig } from "../types/models";
 import { DEFAULT_HOTKEYS, HOTKEY_LABELS } from "../types/models";
 import { mdToDelta, extractTitle } from "../lib/md-parser";
@@ -107,7 +108,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `nine-rings-${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `nine-rings-${localDateKey()}.json`;
         a.click();
         URL.revokeObjectURL(url);
         setMessage("导出成功");
@@ -165,7 +166,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
     if (!files || files.length === 0) return;
     setMdImporting(true);
     setMdImportCount(0);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateKey();
     let count = 0;
     try {
       for (let fi = 0; fi < files.length; fi++) {

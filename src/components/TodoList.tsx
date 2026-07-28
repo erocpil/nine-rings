@@ -3,6 +3,7 @@ import type { Todo } from "../types/models";
 import { uuid } from "../lib/uuid";
 import { copyToClipboard } from "../lib/clipboard";
 import { api } from "../lib/api";
+import { localDateKey } from "../lib/local-date";
 import {
   DndContext,
   closestCenter,
@@ -507,7 +508,7 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
 
   // 过期待办
   useEffect(() => {
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = localDateKey();
     api.daily.getAll().then((pages) => {
       const items: OverdueItem[] = [];
       for (const p of pages) {
