@@ -51,3 +51,5 @@ nohup.out
 import-*.json
 __pycache__/
 flutter_app/pubspec.lock
+test-results/
+playwright-report/

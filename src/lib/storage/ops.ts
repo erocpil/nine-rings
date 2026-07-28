@@ -44,7 +44,7 @@ export interface OrderBy {
 }
 
 // ── Op 类型 ──
-// 软删除是 UpdateOp 的特例（SET deleted_at = now()），不设独立 DeleteOp 类型。
+// 业务笔记删除仍使用软删除 UpdateOp；DeleteOp 仅用于版本裁剪等物理清理。
 
 export interface SelectOp {
   type: "select";
@@ -76,6 +76,12 @@ export interface UpdateOp {
   where: WhereClause[];
 }
 
+export interface DeleteOp {
+  type: "delete";
+  table: string;
+  where: WhereClause[];
+}
+
 export interface RawOp {
   type: "raw";
   /** 直接 SQL 语句，只给 sql-compiler 用。
@@ -84,7 +90,7 @@ export interface RawOp {
   sql: string;
 }
 
-export type Op = SelectOp | InsertOp | UpdateOp | RawOp;
+export type Op = SelectOp | InsertOp | UpdateOp | DeleteOp | RawOp;
 
 // ── 事务 ──
 

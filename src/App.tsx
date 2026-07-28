@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { registerShortcuts } from "./lib/global-shortcuts";
 import { useNotes } from "./hooks/useNotes";
 import { DatePicker } from "./components/DatePicker";
@@ -76,26 +76,28 @@ function App() {
     },
   });
 
-  // ── 笔记切换时：先 flush 旧笔记 → 再 checkpoint → 再切新笔记 ──
-  const handleSelectNote = useCallback(async (note: Note | null) => {
-    const oldId = selectedNote?.id;
-    if (oldId && oldId !== note?.id) {
-      // 1. 先等自动保存完成（确保最新内容已写入数据库）
-      await autoSave.flush();
-      // 2. 再做版本快照（此时 checkpoint 记录的是已保存的最新内容）
-      await api.versions.checkpoint(oldId);
-    }
-    // 3. 设置新 noteId（内部触发旧笔记 flush，此时已无脏数据，flush 是空操作）
-    if (note) {
-      autoSave.setNoteId(note.id);
-    }
+  const handleSelectNote = useCallback((note: Note | null) => {
     selectNote(note);
-  }, [selectedNote, selectNote, autoSave]);
+  }, [selectNote]);
 
-  // ── selectedNote 变化时同步 autoSave（覆盖 setDate / createNote 等不经过 handleSelectNote 的路径）──
-  useEffect(() => {
-    autoSave.setNoteId(selectedNote?.id ?? null);
-  }, [selectedNote?.id, autoSave]);
+  // 所有选中路径统一在这里完成：立即切换 autosave 目标，同时串行保存旧笔记；
+  // 只有旧笔记保存成功后才创建 checkpoint。
+  const previousNoteIdRef = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    const nextId = selectedNote?.id ?? null;
+    const oldId = previousNoteIdRef.current;
+    if (oldId === nextId) return;
+    previousNoteIdRef.current = nextId;
+
+    void autoSave.setNoteId(nextId)
+      .then(async () => {
+        if (oldId) await api.versions.checkpoint(oldId);
+      })
+      .catch((error) => {
+        // updateNote 已同步写入全局错误栏；这里阻止失败保存继续生成旧 checkpoint。
+        console.error("[App] 切换笔记前保存失败，已跳过 checkpoint:", error);
+      });
+  }, [selectedNote?.id, autoSave.setNoteId]);
 
   const handleDocSearch = useCallback(async (q: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => {
     if (!q.text && !q.storagePath && !q.docType && !q.concept) {

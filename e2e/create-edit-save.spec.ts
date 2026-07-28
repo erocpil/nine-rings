@@ -10,11 +10,14 @@ test.describe('创建-编辑-保存-刷新', () => {
     // 1. 打开应用
     await page.goto('/');
 
-    // 2. 按 Ctrl+N 新建笔记
-    await page.keyboard.press('Control+n');
-    // 等待编辑器出现（placeholder 为"随心记 — 标题"的输入框可见）
+    // 2. 通过真实 UI 新建空白笔记（避免误编辑首次启动的示例笔记）
+    await page.getByTitle('随笔').click();
+    await page.getByTitle('从模板新建').click();
+    await page.getByRole('button', { name: /^📝 空白笔记/ }).click();
+
     const titleInput = page.locator('[placeholder="随心记 — 标题"]');
     await expect(titleInput).toBeVisible({ timeout: 5000 });
+    await expect(titleInput).toHaveValue('新随笔');
 
     // 3. 填入标题
     await titleInput.fill('E2E 测试笔记');
@@ -24,10 +27,8 @@ test.describe('创建-编辑-保存-刷新', () => {
     await editor.click();
     await editor.fill('这是 E2E 测试的正文内容。包含中文和标点。');
 
-    // 5. 等待自动保存完成（600ms debounce + 写入）
-    // 保存状态指示器应显示 ✓
-    // 注意：SaveStatus 指示器的文本可能是 '✓' 或 'saved'
-    await page.waitForTimeout(1500); // 确保 debounce 已触发并保存完成
+    // 5. 等待可观察的保存完成状态，而不是固定 sleep
+    await expect(page.locator('.save-status-saved')).toBeVisible({ timeout: 5000 });
 
     // 6. 刷新页面
     await page.reload();

@@ -16,8 +16,9 @@
  */
 
 import type { Note, CreateNoteInput, PathNode, DocType } from "../../types/models";
-import type { Op, SelectOp, InsertOp, UpdateOp } from "./ops";
+import type { Op, SelectOp, InsertOp, UpdateOp, DeleteOp } from "./ops";
 import { buildDocTree, type FlatDocRecord, type FlatDailyRecord } from "./core";
+import { localDateKey } from "../local-date";
 
 // ═══════════════════════════════════════════════════════════════════
 // Op column name → IndexedDB field name 映射
@@ -43,7 +44,7 @@ function now(): string {
 }
 
 function today(): string {
-  return now().slice(0, 10);
+  return localDateKey();
 }
 
 function uuid(): string {
@@ -302,12 +303,35 @@ async function compileUpdate(db: IDBDatabase, op: UpdateOp): Promise<void> {
   });
 }
 
+async function compileDelete(db: IDBDatabase, op: DeleteOp): Promise<void> {
+  const idWhere = op.where.find((w) => w.col === "id" && w.op === "=");
+  if (!idWhere) {
+    throw new Error("DeleteOp must have WHERE id = ? for IDB compiler");
+  }
+
+  const tx = db.transaction(op.table, "readwrite");
+  const store = tx.objectStore(op.table);
+  const existing = await new Promise<Record<string, any> | undefined>((resolve, reject) => {
+    const req = store.get(idWhere.val as IDBValidKey);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  if (!existing || !checkAllWhere(existing, op.where)) return;
+
+  await new Promise<void>((resolve, reject) => {
+    const req = store.delete(idWhere.val as IDBValidKey);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
 /** Op 顶层分发（Phase 2/3 统一入口） */
 export async function executeOp(db: IDBDatabase, op: Op): Promise<any> {
   switch (op.type) {
     case "select": return compileSelect(db, op);
     case "insert": return compileInsert(db, op);
     case "update": return compileUpdate(db, op);
+    case "delete": return compileDelete(db, op);
     case "raw":
       throw new Error("RawOp not supported in IDB compiler");
   }

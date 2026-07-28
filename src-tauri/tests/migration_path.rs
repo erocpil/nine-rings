@@ -1,8 +1,8 @@
-/// 数据库迁移路径测试 — 验证新旧数据库均能正确升级到当前 schema (v5)。
+/// 数据库迁移路径测试 — 验证新旧数据库均能正确升级到当前 schema (v6)。
 /// 覆盖三种场景：全新建库、从 v0 迁移、从各中间版本推进。
 use rusqlite::Connection;
 
-// ── 场景 1：全新数据库（SCHEMA_DDL 驱动，migrations 标记 v5）──────────
+// ── 场景 1：全新数据库（SCHEMA_DDL 驱动，migrations 标记 v6）──────────
 #[test]
 fn fresh_database_creates_full_schema() {
     let conn = Connection::open_in_memory().unwrap();
@@ -12,7 +12,7 @@ fn fresh_database_creates_full_schema() {
     let version: i32 = conn
         .query_row("SELECT MAX(version) FROM _schema_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 5, "fresh database should be at version 5");
+    assert_eq!(version, 6, "fresh database should be at version 6");
 
     // 验证所有表存在
     for table in &[
@@ -95,16 +95,16 @@ fn migrate_from_v0_minimal_notes() {
         .unwrap();
     assert_eq!(readonly, 0);
 
-    // 验证版本号到 v5
+    // 验证版本号到 v6
     let version: i32 = conn
         .query_row("SELECT MAX(version) FROM _schema_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 5);
+    assert_eq!(version, 6);
 }
 
 // ── 场景 3：含 _schema_version 但停在 v1 的旧库──────────
 #[test]
-fn migrate_from_v1_to_v5() {
+fn migrate_from_v1_to_v6() {
     let conn = Connection::open_in_memory().unwrap();
 
     // v1 建表（假设已有 _schema_version = 1）
@@ -157,10 +157,10 @@ fn migrate_from_v1_to_v5() {
     let version: i32 = conn
         .query_row("SELECT MAX(version) FROM _schema_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 5);
+    assert_eq!(version, 6);
 }
 
-// ── 场景 4：重复迁移幂等性（已到 v5 再跑不报错）──────────
+// ── 场景 4：重复迁移幂等性（已到 v6 再跑不报错）──────────
 #[test]
 fn migration_is_idempotent() {
     let conn = Connection::open_in_memory().unwrap();
@@ -187,15 +187,82 @@ fn migration_is_idempotent() {
     // _schema_version 不应重复插入
     let count: i32 = conn
         .query_row(
-            "SELECT COUNT(*) FROM _schema_version WHERE version=5",
+            "SELECT COUNT(*) FROM _schema_version WHERE version=6",
             [],
             |r| r.get(0),
         )
         .unwrap();
-    assert_eq!(count, 1, "version 5 should not be duplicated");
+    assert_eq!(count, 1, "version 6 should not be duplicated");
 }
 
-// ── 场景 5：含数据的完整旧库迁移后 CRUD 操作正常──────────
+// ── 场景 5：v5 旧库升级后，空笔记首次写入正文不会损坏 FTS──────────
+#[test]
+fn migrate_v5_repairs_empty_note_fts_transition() {
+    let conn = Connection::open_in_memory().unwrap();
+    nine_rings_lib::db::migrations::run(&conn).unwrap();
+
+    // 模拟已经发布的 v5：旧触发器跳过空 INSERT，却无条件删除旧索引。
+    conn.execute("DELETE FROM _schema_version WHERE version = 6", [])
+        .unwrap();
+    conn.execute_batch(
+        "DROP TRIGGER notes_ai;
+         DROP TRIGGER notes_ad;
+         DROP TRIGGER notes_au;
+         CREATE TRIGGER notes_ai AFTER INSERT ON notes
+         WHEN new.search_text != '' BEGIN
+            INSERT INTO notes_fts(rowid, search_text) VALUES (new.rowid, new.search_text);
+         END;
+         CREATE TRIGGER notes_ad AFTER DELETE ON notes BEGIN
+            INSERT INTO notes_fts(notes_fts, rowid, search_text)
+            VALUES ('delete', old.rowid, old.search_text);
+         END;
+         CREATE TRIGGER notes_au AFTER UPDATE ON notes BEGIN
+            INSERT INTO notes_fts(notes_fts, rowid, search_text)
+            VALUES ('delete', old.rowid, old.search_text);
+            INSERT INTO notes_fts(rowid, search_text)
+            SELECT new.rowid, new.search_text WHERE new.search_text != '';
+         END;",
+    )
+    .unwrap();
+
+    conn.execute(
+        "INSERT INTO notes(id, date, title, content, search_text, created_at, updated_at)
+         VALUES ('blank-1', '2026-07-29', '空白笔记', '{}', '', '2026-07-29T00:00:00Z', '2026-07-29T00:00:00Z')",
+        [],
+    )
+    .unwrap();
+
+    nine_rings_lib::db::migrations::run(&conn).unwrap();
+
+    conn.execute(
+        "UPDATE notes SET content='{\"ops\":[{\"insert\":\"hello\"}]}', search_text='hello'
+         WHERE id='blank-1'",
+        [],
+    )
+    .unwrap();
+
+    let hits: i32 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM notes_fts WHERE notes_fts MATCH 'hello'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(hits, 1);
+
+    conn.execute("DELETE FROM notes WHERE id='blank-1'", [])
+        .unwrap();
+    let integrity = conn.execute(
+        "INSERT INTO notes_fts(notes_fts) VALUES('integrity-check')",
+        [],
+    );
+    assert!(
+        integrity.is_ok(),
+        "FTS integrity-check failed: {integrity:?}"
+    );
+}
+
+// ── 场景 6：含数据的完整旧库迁移后 CRUD 操作正常──────────
 #[test]
 fn old_database_crud_after_migration() {
     let conn = Connection::open_in_memory().unwrap();

@@ -100,7 +100,7 @@ pub fn db_exec(state: State<AppState>, op_json: String) -> Result<(), String> {
     let op: Op =
         serde_json::from_str(&op_json).map_err(|e| format!("db_exec: invalid Op JSON: {}", e))?;
 
-    // 安全检查：仅允许 INSERT 和 UPDATE
+    // 安全检查：DELETE 仅开放给版本裁剪，业务笔记删除仍必须走软删除 UPDATE。
     match &op {
         Op::Insert(ins) => {
             let allowed = ["notes", "daily_pages", "note_versions", "templates"];
@@ -117,6 +117,14 @@ pub fn db_exec(state: State<AppState>, op_json: String) -> Result<(), String> {
                 return Err(format!(
                     "db_exec: table '{}' not allowed for UPDATE",
                     upd.table
+                ));
+            }
+        }
+        Op::Delete(del) => {
+            if del.table != "note_versions" {
+                return Err(format!(
+                    "db_exec: table '{}' not allowed for DELETE",
+                    del.table
                 ));
             }
         }
@@ -153,6 +161,14 @@ pub fn db_transaction(state: State<AppState>, ops_json: String) -> Result<(), St
                 let allowed = ["notes", "daily_pages", "note_versions", "templates"];
                 if !allowed.contains(&upd.table.as_str()) {
                     return Err(format!("db_transaction: table '{}' not allowed", upd.table));
+                }
+            }
+            Op::Delete(del) => {
+                if del.table != "note_versions" {
+                    return Err(format!(
+                        "db_transaction: table '{}' not allowed for DELETE",
+                        del.table
+                    ));
                 }
             }
         }

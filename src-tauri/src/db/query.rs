@@ -148,6 +148,12 @@ pub struct UpdateOp {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct DeleteOp {
+    pub table: String,
+    pub r#where: Vec<WhereClause>,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
 pub enum Op {
     #[serde(rename = "select")]
@@ -156,6 +162,8 @@ pub enum Op {
     Insert(InsertOp),
     #[serde(rename = "update")]
     Update(UpdateOp),
+    #[serde(rename = "delete")]
+    Delete(DeleteOp),
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -300,6 +308,27 @@ pub fn compile_update(op: &UpdateOp) -> Result<(String, Vec<SqlValue>), String> 
     Ok((sql, params))
 }
 
+pub fn compile_delete(op: &DeleteOp) -> Result<(String, Vec<SqlValue>), String> {
+    // 与 IndexedDB 编译器保持同一安全边界：硬删除只能按主键定位单条记录。
+    if !op
+        .r#where
+        .iter()
+        .any(|clause| clause.col == "id" && clause.op == "=" && !clause.not)
+    {
+        return Err("DELETE requires a WHERE id = ? clause".into());
+    }
+    let mut params = Vec::new();
+    let where_parts = where_to_sql(&op.r#where, &mut params)?;
+    Ok((
+        format!(
+            "DELETE FROM {} WHERE {}",
+            op.table,
+            where_parts.join(" AND ")
+        ),
+        params,
+    ))
+}
+
 /// 编译 Op → (SQL, 参数列表)。
 ///
 /// # 安全断言
@@ -340,12 +369,19 @@ pub fn compile_op(op: &Op) -> Result<(String, Vec<SqlValue>), String> {
                 validate_ident(&w.col, "WHERE column")?;
             }
         }
+        Op::Delete(o) => {
+            validate_ident(&o.table, "table")?;
+            for w in &o.r#where {
+                validate_ident(&w.col, "WHERE column")?;
+            }
+        }
     }
 
     let (sql, params) = match op {
         Op::Select(o) => compile_select(o),
         Op::Insert(o) => compile_insert(o),
         Op::Update(o) => compile_update(o),
+        Op::Delete(o) => compile_delete(o),
     }?;
 
     // 多语句注入的最后防线：编译器生成的 SQL 不应含分号
@@ -633,6 +669,33 @@ mod tests {
             "UPDATE notes SET deleted_at = ?, updated_at = ? WHERE id = ?"
         );
         assert_eq!(params.len(), 3);
+    }
+
+    #[test]
+    fn compile_delete_requires_primary_key() {
+        let unsafe_op = DeleteOp {
+            table: "note_versions".into(),
+            r#where: vec![WhereClause {
+                col: "note_id".into(),
+                op: "=".into(),
+                val: JsonValue::String("note-1".into()),
+                not: false,
+            }],
+        };
+        assert!(compile_delete(&unsafe_op).is_err());
+
+        let safe_op = DeleteOp {
+            table: "note_versions".into(),
+            r#where: vec![WhereClause {
+                col: "id".into(),
+                op: "=".into(),
+                val: JsonValue::String("version-1".into()),
+                not: false,
+            }],
+        };
+        let (sql, params) = compile_delete(&safe_op).unwrap();
+        assert_eq!(sql, "DELETE FROM note_versions WHERE id = ?");
+        assert_eq!(params, vec![SqlValue::Text("version-1".into())]);
     }
 
     #[test]

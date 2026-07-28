@@ -14,7 +14,7 @@
 import "fake-indexeddb/auto";
 import type { Note, CreateNoteInput, PathNode } from "../../types/models";
 import { idbAdapter } from "./idb";
-import { idbDriver, type DriverContext } from "./idb-driver";
+import { executeOp, idbDriver, type DriverContext } from "./idb-driver";
 import { buildDocTree, type FlatDocRecord, type FlatDailyRecord } from "./core";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -253,6 +253,35 @@ async function runTests() {
     const newNotes = await idbDriver.getNotesByDate(ctx, "2026-07-16");
     const newFound = newNotes.find((n) => n.id === note.id);
     assert(!newFound, "deleteNote: new driver getNotesByDate excludes soft-deleted");
+    passed++;
+  }
+
+  // DeleteOp 只允许按主键物理删除，供 note_versions 裁剪使用。
+  {
+    console.log("── Test: DeleteOp ──");
+    const tx = ctx.db.transaction("note_versions", "readwrite");
+    await new Promise<void>((resolve, reject) => {
+      const req = tx.objectStore("note_versions").put({
+        id: "version-to-prune",
+        note_id: "note-1",
+        saved_at: "2026-07-29T00:00:00Z",
+      });
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+
+    await executeOp(ctx.db, {
+      type: "delete",
+      table: "note_versions",
+      where: [{ col: "id", op: "=", val: "version-to-prune" }],
+    });
+    const verifyTx = ctx.db.transaction("note_versions", "readonly");
+    const remaining = await new Promise((resolve, reject) => {
+      const req = verifyTx.objectStore("note_versions").get("version-to-prune");
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    assert(remaining === undefined, "DeleteOp: removes exactly the requested version");
     passed++;
   }
 

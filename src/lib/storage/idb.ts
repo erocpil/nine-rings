@@ -34,7 +34,7 @@ function now(): string {
 }
 
 function today(): string {
-  return now().slice(0, 10);
+  return localDateKey();
 }
 
 // ── 图片 Blob 存储 ──

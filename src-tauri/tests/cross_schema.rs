@@ -89,11 +89,13 @@ fn fresh_db() -> Connection {
          WHEN new.search_text != '' BEGIN
             INSERT INTO notes_fts(rowid, search_text) VALUES (new.rowid, new.search_text);
          END;
-         CREATE TRIGGER notes_ad AFTER DELETE ON notes BEGIN
+         CREATE TRIGGER notes_ad AFTER DELETE ON notes
+         WHEN old.search_text != '' BEGIN
             INSERT INTO notes_fts(notes_fts, rowid, search_text) VALUES ('delete', old.rowid, old.search_text);
          END;
          CREATE TRIGGER notes_au AFTER UPDATE ON notes BEGIN
-            INSERT INTO notes_fts(notes_fts, rowid, search_text) VALUES ('delete', old.rowid, old.search_text);
+            INSERT INTO notes_fts(notes_fts, rowid, search_text)
+                SELECT 'delete', old.rowid, old.search_text WHERE old.search_text != '';
             INSERT INTO notes_fts(rowid, search_text)
                 SELECT new.rowid, new.search_text WHERE new.search_text != '';
          END;"

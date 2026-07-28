@@ -28,7 +28,7 @@ export interface AutoSaveHandle {
   /** 立即 flush 当前脏数据（不等待 debounce） */
   flush: () => Promise<void>;
   /** 设置 noteId（切换笔记时调用，自动 flush 旧笔记） */
-  setNoteId: (id: string | null) => void;
+  setNoteId: (id: string | null) => Promise<void>;
 }
 
 interface Props {
@@ -54,15 +54,19 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
   // noteId 引用（setState 异步，ref 同步）
   const noteIdRef = useRef<string | null>(null);
 
-  const setNoteId = useCallback((id: string | null) => {
-    // 切换前先 flush 旧笔记
+  const setNoteId = useCallback((id: string | null): Promise<void> => {
     const oldId = noteIdRef.current;
-    if (oldId && oldId !== id && dirtyRef.current.has(oldId)) {
-      flushNote(oldId);
+    if (oldId === id) {
+      return Promise.resolve();
     }
+
+    // 旧笔记按 id 入队后立即同步切换 ref，确保后续新编辑不会记到旧笔记。
+    const pending =
+      oldId && dirtyRef.current.has(oldId) ? flushNote(oldId) : queueRef.current;
     noteIdRef.current = id;
     setNoteIdState(id);
     setStatus("clean");
+    return pending;
   }, []);
 
   // 标记脏数据 + 触发 debounce
@@ -77,7 +81,9 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
 
     // 设置新 debounce
     timerRef.current = setTimeout(() => {
-      flushNote(noteId);
+      void flushNote(noteId).catch(() => {
+        // flushNote 已恢复脏数据并更新状态；定时器回调不能产生未处理 rejection。
+      });
     }, debounceMs);
   }, [debounceMs]);
 
@@ -94,9 +100,9 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
   }, [markDirtyRaw]);
 
   // 串行 flush 一个笔记的所有脏数据
-  const flushNote = useCallback((id: string) => {
+  const flushNote = useCallback((id: string): Promise<void> => {
     const dirty = dirtyRef.current.get(id);
-    if (!dirty) return;
+    if (!dirty) return queueRef.current;
 
     // 清除该笔记的脏数据
     dirtyRef.current.delete(id);
@@ -123,15 +129,19 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
           setStatus("error");
         }
         console.error("[useAutoSave] 保存失败:", e);
+        throw e;
       }
     });
 
-    queueRef.current = savePromise.catch(() => {}); // 吞掉 rejection，队列继续
+    // 队列本身吞掉 rejection 以便后续任务继续；调用方仍拿到 savePromise 的失败。
+    queueRef.current = savePromise.catch(() => {});
+    return savePromise;
   }, []);
 
   const flush = useCallback(async () => {
     if (noteIdRef.current) {
-      flushNote(noteIdRef.current);
+      await flushNote(noteIdRef.current);
+      return;
     }
     await queueRef.current;
   }, [flushNote]);
@@ -140,7 +150,9 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
   useEffect(() => {
     const onHide = () => {
       if (noteIdRef.current && dirtyRef.current.has(noteIdRef.current)) {
-        flushNote(noteIdRef.current);
+        void flushNote(noteIdRef.current).catch(() => {
+          // beforeunload/visibilitychange 无法阻塞等待；错误状态已由 flushNote 记录。
+        });
       }
     };
     const onVisibility = () => {

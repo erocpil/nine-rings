@@ -5,7 +5,7 @@
  * 每条验证打印 Op → 预期 SQL → 实际 SQL → 是否匹配。
  */
 
-import type { Op, SelectOp, InsertOp, UpdateOp } from "./ops";
+import type { Op, SelectOp, InsertOp, UpdateOp, DeleteOp } from "./ops";
 
 // ═══════════════════════════════════════════════════════════════════
 // 1. get_notes_by_date
@@ -205,11 +205,20 @@ function compileUpdate(op: UpdateOp): string {
   return `UPDATE ${op.table} SET ${sets.join(", ")} WHERE ${wheres.join(" AND ")}`;
 }
 
+function compileDelete(op: DeleteOp): string {
+  const wheres = op.where.map((w) => {
+    if (w.op === "IS" && w.val === null) return `${w.col} IS NULL`;
+    return `${w.col} ${w.op} ?`;
+  });
+  return `DELETE FROM ${op.table} WHERE ${wheres.join(" AND ")}`;
+}
+
 function compileSQL(op: Op): string {
   switch (op.type) {
     case "select": return compileSelect(op);
     case "insert": return compileInsert(op);
     case "update": return compileUpdate(op);
+    case "delete": return compileDelete(op);
     case "raw": return op.sql;
   }
 }

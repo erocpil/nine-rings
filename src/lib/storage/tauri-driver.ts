@@ -13,9 +13,10 @@
  */
 
 import type { Note, CreateNoteInput, PathNode, DocType, NoteVersion, DailyPage } from "../../types/models";
-import type { SelectOp, InsertOp, UpdateOp } from "./ops";
+import type { SelectOp, InsertOp, UpdateOp, DeleteOp } from "./ops";
 import { buildDocTree, type FlatDocRecord, type FlatDailyRecord } from "./core";
 import { snakeNoteToCamel, snakeVersionToCamel, snakeDailyPageToCamel } from "./normalize";
+import { localDateKey } from "../local-date";
 
 // ═══════════════════════════════════════════════════════════════════
 // Tauri IPC
@@ -40,7 +41,7 @@ function now(): string {
 }
 
 function today(): string {
-  return now().slice(0, 10);
+  return localDateKey();
 }
 
 function uuid(): string {
@@ -76,12 +77,12 @@ async function dbQuery(op: SelectOp): Promise<Record<string, any>[]> {
   return invoke("db_query", { opJson: JSON.stringify(op) });
 }
 
-async function dbExec(op: InsertOp | UpdateOp): Promise<void> {
+async function dbExec(op: InsertOp | UpdateOp | DeleteOp): Promise<void> {
   const invoke = await getInvoke();
   await invoke("db_exec", { opJson: JSON.stringify(op) });
 }
 
-async function dbTransaction(ops: (InsertOp | UpdateOp)[]): Promise<void> {
+async function dbTransaction(ops: (InsertOp | UpdateOp | DeleteOp)[]): Promise<void> {
   const invoke = await getInvoke();
   await invoke("db_transaction", { opsJson: JSON.stringify(ops) });
 }
@@ -310,39 +311,47 @@ export const tauriDriver = {
     return rows.map(snakeNoteToCamel);
   },
 
-  // ── upsertNote：按 storagePath 或 title+date 去重 ──
+  // ── upsertNote：文档按 storagePath+title，随笔按 title+date 去重 ──
   async upsertNote(data: CreateNoteInput): Promise<Note> {
     const d = data as any; // upsertNote 可能携带 id/created_at/updated_at（从导入路径传入）
+    let existingRow: Record<string, any> | undefined;
 
-    // 去重策略：文档按 storagePath，随笔按 title+date
+    // storagePath 是文件夹而不是唯一文档路径，同一文件夹允许多篇不同标题文档。
     if (d.id) {
       // 导入路径已带 id，直接用
-    } else if (data.storagePath) {
-      // 文档笔记：按 storagePath 查找已有记录
+    } else if (data.storagePath && data.title) {
       const existingOp: SelectOp = {
         type: "select",
         table: "notes",
-        columns: ["id"],
-        where: [{ col: "storage_path", op: "=", val: data.storagePath }],
-        limit: 1,
-      };
-      const existing = await dbQuery(existingOp);
-      if (existing.length > 0) d.id = existing[0].id;
-    } else {
-      // 随笔：按 title+date 查找已有记录
-      const existingOp: SelectOp = {
-        type: "select",
-        table: "notes",
-        columns: ["id"],
+        columns: ["id", "created_at", "readonly", "sort_order"],
         where: [
-          { col: "title", op: "=", val: data.title ?? "" },
-          { col: "date", op: "=", val: data.date ?? today() },
-          { col: "deleted_at", op: "IS", val: null },
+          { col: "storage_path", op: "=", val: data.storagePath },
+          { col: "title", op: "=", val: data.title },
         ],
         limit: 1,
       };
       const existing = await dbQuery(existingOp);
-      if (existing.length > 0) d.id = existing[0].id;
+      if (existing.length > 0) {
+        existingRow = existing[0];
+        d.id = existingRow.id;
+      }
+    } else if (!data.storagePath && data.title) {
+      // 随笔：按 title+date 查找已有记录
+      const existingOp: SelectOp = {
+        type: "select",
+        table: "notes",
+        columns: ["id", "created_at", "readonly", "sort_order"],
+        where: [
+          { col: "title", op: "=", val: data.title },
+          { col: "date", op: "=", val: data.date ?? today() },
+        ],
+        limit: 1,
+      };
+      const existing = await dbQuery(existingOp);
+      if (existing.length > 0) {
+        existingRow = existing[0];
+        d.id = existingRow.id;
+      }
     }
 
     const note: Note = {
@@ -352,9 +361,11 @@ export const tauriDriver = {
       content: data.content ?? { ops: [] },
       tags: data.tags ?? [],
       pinned: data.pinned ?? false,
-      readonly: false,
-      sort_order: 0,
-      created_at: d.created_at ?? now(),
+      readonly: d.readonly ?? (
+        existingRow?.readonly === 1 || existingRow?.readonly === true
+      ),
+      sort_order: d.sort_order ?? existingRow?.sort_order ?? 0,
+      created_at: d.created_at ?? existingRow?.created_at ?? now(),
       updated_at: d.updated_at ?? now(),
       storagePath: data.storagePath,
       docType: data.docType,
@@ -573,7 +584,36 @@ export const tauriDriver = {
         saved_at: now(),
       },
     };
-    await dbExec(insOp);
-    // TODO: 保持最多 30 个版本 — 需要DeleteOp 或 raw SQL（当前 dbExec 仅支持 InsertOp/UpdateOp）
+    // 新 checkpoint 与裁剪放在同一事务：保留现有最新 29 条，再加入当前快照。
+    const excessOp: SelectOp = {
+      type: "select",
+      table: "note_versions",
+      columns: ["id"],
+      where: [{ col: "note_id", op: "=", val: noteId }],
+      orderBy: [{ col: "saved_at", desc: true }],
+      limit: 10_000,
+      offset: 29,
+    };
+    const excess = await dbQuery(excessOp);
+    const pruneOps: DeleteOp[] = excess.map((row) => ({
+      type: "delete",
+      table: "note_versions",
+      where: [{ col: "id", op: "=", val: row.id as string }],
+    }));
+    await dbTransaction([insOp, ...pruneOps]);
+
+    // 并发 checkpoint 可能在“查询旧版本”和事务提交之间交错；提交后再收敛一次，
+    // 保证最后完成的调用仍会把数量压回 30。
+    const remainingExcess = await dbQuery({
+      ...excessOp,
+      offset: 30,
+    });
+    if (remainingExcess.length > 0) {
+      await dbTransaction(remainingExcess.map((row): DeleteOp => ({
+        type: "delete",
+        table: "note_versions",
+        where: [{ col: "id", op: "=", val: row.id as string }],
+      })));
+    }
   },
 };

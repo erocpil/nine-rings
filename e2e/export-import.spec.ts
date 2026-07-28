@@ -10,15 +10,17 @@ test.describe('导出-导入往返', () => {
     // 1. 打开应用，确保有至少一条笔记
     await page.goto('/');
 
-    // 2. 创建一条测试笔记
-    await page.keyboard.press('Control+n');
+    // 2. 通过真实 UI 创建一条测试笔记
+    await page.getByTitle('随笔').click();
+    await page.getByTitle('从模板新建').click();
+    await page.getByRole('button', { name: /^📝 空白笔记/ }).click();
     const titleInput = page.locator('[placeholder="随心记 — 标题"]');
     await expect(titleInput).toBeVisible({ timeout: 5000 });
     await titleInput.fill('导出测试笔记');
     const editor = page.locator('.ProseMirror');
     await editor.click();
     await editor.fill('导出测试内容 ABC');
-    await page.waitForTimeout(1500); // 等待自动保存
+    await expect(page.locator('.save-status-saved')).toBeVisible({ timeout: 5000 });
 
     // 3. 打开设置面板 (Alt+, 快捷键)
     await page.keyboard.press('Alt+,');
@@ -52,17 +54,34 @@ test.describe('导出-导入往返', () => {
     const testNote = parsed.notes.find((n: any) => n.title === '导出测试笔记');
     expect(testNote).toBeDefined();
 
-    // 6. 关闭设置面板
-    await page.keyboard.press('Escape');
+    // 6. 真正清空 IndexedDB；保持当前页面不刷新，避免首次启动示例数据重新播种
+    const remaining = await page.evaluate(async () => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const req = indexedDB.open('nine_rings');
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      const stores = ['notes', 'daily_pages', 'note_versions']
+        .filter((name) => db.objectStoreNames.contains(name));
+      const tx = db.transaction(stores, 'readwrite');
+      for (const name of stores) tx.objectStore(name).clear();
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+      const countTx = db.transaction('notes', 'readonly');
+      const count = await new Promise<number>((resolve, reject) => {
+        const req = countTx.objectStore('notes').count();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      db.close();
+      return count;
+    });
+    expect(remaining).toBe(0);
 
-    // 7. 刷新页面后导入
-    await page.reload();
-    await page.waitForLoadState('networkidle');
-
-    // 8. 重新打开设置 → 数据导出/导入区域
-    await page.keyboard.press('Alt+,');
-
-    // 9. 点击"导入数据" → 会触发隐藏的 file input
+    // 7. 点击"导入数据" → 会触发隐藏的 file input
     const importBtn = page.getByRole('button', { name: '导入数据' });
     await expect(importBtn).toBeVisible({ timeout: 5000 });
 
@@ -75,13 +94,14 @@ test.describe('导出-导入往返', () => {
       buffer: Buffer.from(exportData),
     });
 
-    // 等待导入 toast 出现并消失
-    await page.waitForTimeout(3000);
+    await expect(page.getByText(/导入完成：/)).toBeVisible({ timeout: 5000 });
 
-    // 10. 关闭设置面板，验证数据
+    // 8. 关闭设置面板并刷新，确保验证的是重新写入数据库的数据
     await page.keyboard.press('Escape');
+    await page.reload();
+    await page.waitForLoadState('networkidle');
 
-    // 侧栏应显示导入的笔记
+    // 9. 侧栏应显示导入的笔记
     const noteInSidebar = page.getByText('导出测试笔记');
     await expect(noteInSidebar.first()).toBeVisible({ timeout: 5000 });
   });

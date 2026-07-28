@@ -7,50 +7,35 @@ import { test, expect } from '@playwright/test';
  * 验证 localDateKey() 在各种时区下的表现。
  */
 test.describe('时区与日期行为', () => {
-  test('UTC 日期与本地日期在日界线两侧表现一致', async ({ browser }) => {
-    // 使用 UTC 时区上下文
-    const utcContext = await browser.newContext({ timezoneId: 'UTC' });
-    const utcPage = await utcContext.newPage();
-    
-    await utcPage.goto('/');
-    await utcPage.waitForLoadState('networkidle');
+  test('同一 UTC 时刻在上海跨日、在洛杉矶仍为前一天', async ({ browser }) => {
+    const instant = new Date('2026-07-27T16:30:00.000Z');
 
-    // 获取 Header 中显示的日期
-    // DailyOverview 组件显示类似 "周三 7/9 · 3 篇笔记 · 2/5 待办"
-    const dateDisplay = utcPage.locator('text=/周[一二三四五六日]/');
-    const utcDateText = await dateDisplay.first().textContent();
-    
-    // 使用 Asia/Shanghai 时区上下文
     const shContext = await browser.newContext({ timezoneId: 'Asia/Shanghai' });
     const shPage = await shContext.newPage();
-    
+    await shPage.clock.install({ time: instant });
     await shPage.goto('/');
-    await shPage.waitForLoadState('networkidle');
+    await expect(shPage.locator('.daily-date')).toHaveText('7月28日');
 
-    const shDateDisplay = shPage.locator('text=/周[一二三四五六日]/');
-    const shDateText = await shDateDisplay.first().textContent();
+    const laContext = await browser.newContext({ timezoneId: 'America/Los_Angeles' });
+    const laPage = await laContext.newPage();
+    await laPage.clock.install({ time: instant });
+    await laPage.goto('/');
+    await expect(laPage.locator('.daily-date')).toHaveText('7月27日');
 
-    // 如果两个时区在同一天（UTC 早 8 点后），日期应一致
-    // 如果 UTC 在 00:00-07:59 而 Shanghai 已跨日，则日期不同
-    // 这是预期行为 — 测试不强制要求一致，只验证页面正常渲染
-    expect(utcDateText).toBeTruthy();
-    expect(shDateText).toBeTruthy();
-
-    await utcContext.close();
     await shContext.close();
+    await laContext.close();
   });
 
-  test('新建笔记绑定到正确的本地日期', async ({ page }) => {
+  test('上海午夜后新建笔记绑定到本地日期', async ({ browser }) => {
+    const context = await browser.newContext({ timezoneId: 'Asia/Shanghai' });
+    const page = await context.newPage();
+    await page.clock.install({ time: new Date('2026-07-27T16:30:00.000Z') });
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await expect(page.locator('.daily-date')).toHaveText('7月28日');
 
-    // 获取当日日期文本（格式：周几 月/日）
-    const dateDisplay = page.locator('text=/周[一二三四五六日]/');
-    const todayText = await dateDisplay.first().textContent();
-    expect(todayText).toBeTruthy();
-
-    // 创建笔记
-    await page.keyboard.press('Control+n');
+    await page.getByTitle('随笔').click();
+    await page.getByTitle('从模板新建').click();
+    await page.getByRole('button', { name: /^📝 空白笔记/ }).click();
     const titleInput = page.locator('[placeholder="随心记 — 标题"]');
     await expect(titleInput).toBeVisible({ timeout: 5000 });
     await titleInput.fill('日期测试笔记');
@@ -58,18 +43,11 @@ test.describe('时区与日期行为', () => {
     const editor = page.locator('.ProseMirror');
     await editor.click();
     await editor.fill('验证日期正确性');
-    await page.waitForTimeout(1500);
+    await expect(page.locator('.save-status-saved')).toBeVisible({ timeout: 5000 });
 
-    // 刷新后笔记应仍在同日视图下
     await page.reload();
-    await page.waitForLoadState('networkidle');
-
-    const noteInSidebar = page.getByText('日期测试笔记');
-    await expect(noteInSidebar.first()).toBeVisible({ timeout: 5000 });
-    
-    // Header 日期不应变化
-    const dateAfter = page.locator('text=/周[一二三四五六日]/');
-    const dateAfterText = await dateAfter.first().textContent();
-    expect(dateAfterText).toBe(todayText);
+    await expect(page.locator('.daily-date')).toHaveText('7月28日');
+    await expect(page.getByText('日期测试笔记').first()).toBeVisible({ timeout: 5000 });
+    await context.close();
   });
 });
