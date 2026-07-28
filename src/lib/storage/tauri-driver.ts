@@ -12,7 +12,7 @@
  * - 两边产出的 Op JSON 结构完全相同
  */
 
-import type { Note, CreateNoteInput, PathNode, DocType } from "../../types/models";
+import type { Note, CreateNoteInput, PathNode, DocType, NoteVersion, DailyPage } from "../../types/models";
 import type { SelectOp, InsertOp, UpdateOp } from "./ops";
 import { buildDocTree, type FlatDocRecord, type FlatDailyRecord } from "./core";
 
@@ -105,8 +105,13 @@ async function dbExec(op: InsertOp | UpdateOp): Promise<void> {
   await invoke("db_exec", { opJson: JSON.stringify(op) });
 }
 
+async function dbTransaction(ops: (InsertOp | UpdateOp)[]): Promise<void> {
+  const invoke = await getInvoke();
+  await invoke("db_transaction", { opsJson: JSON.stringify(ops) });
+}
+
 // ═══════════════════════════════════════════════════════════════════
-// 5 个已验证操作
+// 已验证操作（Phase 3 补齐至 16 个）
 // ═══════════════════════════════════════════════════════════════════
 
 export const tauriDriver = {
@@ -316,5 +321,250 @@ export const tauriDriver = {
     };
     const rows = await dbQuery(op);
     return rows.map(noteFromRow);
+  },
+
+  // ── upsertNote：INSERT OR REPLACE ──
+  async upsertNote(data: CreateNoteInput): Promise<Note> {
+    const d = data as any; // upsertNote 可能携带 id/created_at/updated_at（从导入路径传入）
+    const note: Note = {
+      id: d.id ?? uuid(),
+      date: data.date ?? today(),
+      title: data.title ?? null,
+      content: data.content ?? { ops: [] },
+      tags: data.tags ?? [],
+      pinned: data.pinned ?? false,
+      readonly: false,
+      sort_order: 0,
+      created_at: d.created_at ?? now(),
+      updated_at: d.updated_at ?? now(),
+      storagePath: data.storagePath,
+      docType: data.docType,
+      concepts: data.concepts,
+      linkedDocIds: data.linkedDocIds,
+    } as any;
+
+    const op: InsertOp = {
+      type: "insert",
+      table: "notes",
+      onConflict: "replace",
+      values: {
+        id: note.id,
+        date: note.date,
+        title: note.title,
+        content: JSON.stringify(note.content),
+        search_text: extractPlainText(note.content),
+        tags: JSON.stringify(note.tags),
+        pinned: note.pinned ? 1 : 0,
+        sort_order: note.sort_order,
+        created_at: note.created_at,
+        updated_at: note.updated_at,
+        storage_path: note.storagePath ?? null,
+        doc_type: note.docType ?? null,
+        concepts: note.concepts ? JSON.stringify(note.concepts) : "[]",
+        linked_doc_ids: note.linkedDocIds ? JSON.stringify(note.linkedDocIds) : "[]",
+        readonly: note.readonly ? 1 : 0,
+      },
+    };
+    await dbExec(op);
+    return note;
+  },
+
+  // ── getRecentDates：最近 N 个有笔记的日期 ──
+  async getRecentDates(limit: number = 50): Promise<string[]> {
+    const op: SelectOp = {
+      type: "select",
+      table: "notes",
+      columns: ["date"],
+      where: [{ col: "deleted_at", op: "IS", val: null }],
+      orderBy: [{ col: "date", desc: true }],
+    };
+    const rows = await dbQuery(op);
+    // 日期去重（同一日期可能有多条笔记）
+    const seen = new Set<string>();
+    const dates: string[] = [];
+    for (const r of rows) {
+      const d = r.date as string;
+      if (seen.has(d)) continue;
+      seen.add(d);
+      dates.push(d);
+      if (dates.length >= limit) break;
+    }
+    return dates;
+  },
+
+  // ── getAllDailyPages ──
+  async getAllDailyPages(): Promise<DailyPage[]> {
+    const op: SelectOp = {
+      type: "select",
+      table: "daily_pages",
+      columns: ["date", "todos", "todo_carryover", "updated_at"],
+      orderBy: [{ col: "date", desc: true }],
+    };
+    const rows = await dbQuery(op);
+    return rows.map((r) => ({
+      date: r.date as string,
+      todos: typeof r.todos === "string" ? JSON.parse(r.todos) : (r.todos ?? []),
+      todo_carryover: r.todo_carryover === 1 || r.todo_carryover === true || r.todo_carryover === "1",
+      updated_at: r.updated_at as string,
+    }));
+  },
+
+  // ── batchDelete：事务内批量软删除 ──
+  async batchDelete(ids: string[]): Promise<void> {
+    const ts = now();
+    const ops: UpdateOp[] = ids.map((id) => ({
+      type: "update" as const,
+      table: "notes",
+      set: { deleted_at: ts, updated_at: ts },
+      where: [{ col: "id", op: "=" as const, val: id }],
+    }));
+    if (ops.length > 0) await dbTransaction(ops);
+  },
+
+  // ── batchSetReadonly：事务内批量设置只读 ──
+  async batchSetReadonly(ids: string[], readonly: boolean): Promise<void> {
+    const ops: UpdateOp[] = ids.map((id) => ({
+      type: "update" as const,
+      table: "notes",
+      set: { readonly: readonly ? 1 : 0 },
+      where: [{ col: "id", op: "=" as const, val: id }],
+    }));
+    if (ops.length > 0) await dbTransaction(ops);
+  },
+
+  // ── getNoteVersions ──
+  async getNoteVersions(noteId: string): Promise<NoteVersion[]> {
+    const op: SelectOp = {
+      type: "select",
+      table: "note_versions",
+      columns: ["id", "note_id", "title", "content", "tags", "pinned", "sort_order", "saved_at"],
+      where: [{ col: "note_id", op: "=", val: noteId }],
+      orderBy: [{ col: "saved_at", desc: true }],
+    };
+    const rows = await dbQuery(op);
+    return rows.map((r) => ({
+      id: r.id as string,
+      note_id: r.note_id as string,
+      title: (r.title as string) ?? null,
+      content: typeof r.content === "string" ? JSON.parse(r.content) : r.content,
+      tags: typeof r.tags === "string" ? JSON.parse(r.tags) : (r.tags ?? []),
+      pinned: r.pinned === 1 || r.pinned === true || r.pinned === "1",
+      sort_order: (r.sort_order as number) ?? 0,
+      saved_at: r.saved_at as string,
+    }));
+  },
+
+  // ── restoreNoteVersion：从版本恢复笔记内容 ──
+  async restoreNoteVersion(versionId: string): Promise<Note> {
+    // 1. 读取版本记录
+    const verOp: SelectOp = {
+      type: "select",
+      table: "note_versions",
+      columns: ["id", "note_id", "title", "content", "tags", "pinned", "sort_order", "saved_at"],
+      where: [{ col: "id", op: "=", val: versionId }],
+      limit: 1,
+    };
+    const verRows = await dbQuery(verOp);
+    if (verRows.length === 0) throw new Error(`Version ${versionId} not found`);
+    const ver = verRows[0];
+    const content = typeof ver.content === "string" ? JSON.parse(ver.content) : ver.content;
+    const tags = typeof ver.tags === "string" ? JSON.parse(ver.tags) : (ver.tags ?? []);
+
+    // 2. 恢复笔记内容
+    const upOp: UpdateOp = {
+      type: "update",
+      table: "notes",
+      set: {
+        title: ver.title,
+        content: typeof ver.content === "string" ? ver.content : JSON.stringify(ver.content),
+        search_text: extractPlainText(content),
+        tags: JSON.stringify(tags),
+        pinned: ver.pinned,
+        sort_order: ver.sort_order,
+        updated_at: now(),
+      },
+      where: [{ col: "id", op: "=", val: ver.note_id }],
+    };
+    await dbExec(upOp);
+
+    // 3. 读回更新后的笔记
+    return tauriDriver.getNotesByDate(await (async () => {
+      const nop: SelectOp = {
+        type: "select",
+        table: "notes",
+        columns: ["date"],
+        where: [{ col: "id", op: "=", val: ver.note_id }],
+        limit: 1,
+      };
+      const nr = await dbQuery(nop);
+      return (nr[0]?.date as string) ?? today();
+    })()).then((notes) => {
+      const note = notes.find((n) => n.id === ver.note_id as string);
+      if (!note) throw new Error(`Note ${ver.note_id} not found after restore`);
+      return note;
+    });
+  },
+
+  // ── createNoteCheckpoint：创建笔记版本快照 ──
+  async createNoteCheckpoint(noteId: string): Promise<void> {
+    const op: SelectOp = {
+      type: "select",
+      table: "notes",
+      columns: ["id", "title", "content", "tags", "pinned", "sort_order"],
+      where: [{ col: "id", op: "=", val: noteId }],
+      limit: 1,
+    };
+    const rows = await dbQuery(op);
+    if (rows.length === 0) return; // 笔记不存在，静默跳过
+    const note = rows[0];
+
+    // 去重：与最近一条版本内容相同则跳过
+    const lastVerOp: SelectOp = {
+      type: "select",
+      table: "note_versions",
+      columns: ["content", "title", "tags", "pinned", "sort_order"],
+      where: [{ col: "note_id", op: "=", val: noteId }],
+      orderBy: [{ col: "saved_at", desc: true }],
+      limit: 1,
+    };
+    const lastRows = await dbQuery(lastVerOp);
+    const curContent = typeof note.content === "string" ? note.content : JSON.stringify(note.content);
+    const curTags = typeof note.tags === "string" ? note.tags : JSON.stringify(note.tags ?? []);
+    if (lastRows.length > 0) {
+      const last = lastRows[0];
+      const lastContent = typeof last.content === "string" ? last.content : "";
+      const lastTitle = last.title ?? null;
+      const lastTags = typeof last.tags === "string" ? last.tags : "[]";
+      const lastPinned = last.pinned === 1 || last.pinned === true || last.pinned === "1";
+      const lastSort = last.sort_order ?? 0;
+      const curTitle = note.title ?? null;
+      const curPinned = note.pinned === 1 || note.pinned === true || note.pinned === "1";
+      const curSort = note.sort_order ?? 0;
+      if (
+        lastContent === curContent &&
+        lastTitle === curTitle &&
+        lastTags === curTags &&
+        lastPinned === curPinned &&
+        lastSort === curSort
+      ) {
+        return; // 内容相同，跳过
+      }
+    }
+
+    const insOp: InsertOp = {
+      type: "insert",
+      table: "note_versions",
+      values: {
+        id: uuid(),
+        note_id: noteId,
+        title: note.title,
+        content: curContent,
+        tags: curTags,
+        pinned: note.pinned ?? 0,
+        sort_order: note.sort_order ?? 0,
+        saved_at: now(),
+      },
+    };
+    await dbExec(insOp);
   },
 };

@@ -17,6 +17,27 @@ use crate::AppState;
 use rusqlite::params_from_iter;
 use tauri::State;
 
+/// RAII guard：进入时设置 PRAGMA query_only = ON，离开作用域时恢复。
+/// 
+/// 确保即使 db_query 中发生 panic 或提前返回，SQLite 连接也会恢复写入权限。
+struct QueryOnlyGuard<'a> {
+    conn: &'a rusqlite::Connection,
+}
+
+impl<'a> QueryOnlyGuard<'a> {
+    fn new(conn: &'a rusqlite::Connection) -> Result<Self, String> {
+        conn.execute("PRAGMA query_only = ON", [])
+            .map_err(|e| format!("db_query: failed to set query_only: {}", e))?;
+        Ok(QueryOnlyGuard { conn })
+    }
+}
+
+impl<'a> Drop for QueryOnlyGuard<'a> {
+    fn drop(&mut self) {
+        let _ = self.conn.execute("PRAGMA query_only = OFF", []);
+    }
+}
+
 #[tauri::command]
 pub fn db_query(
     state: State<AppState>,
@@ -33,9 +54,9 @@ pub fn db_query(
 
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
-    // 纵深防御：即使 Op 类型校验被绕过，SQLite 层面也拒绝写操作
-    conn.execute("PRAGMA query_only = ON", [])
-        .map_err(|e| format!("db_query: failed to set query_only: {}", e))?;
+    // 纵深防御：即使 Op 类型校验被绕过，SQLite 层面也拒绝写操作。
+    // QueryOnlyGuard 确保连接在函数退出时（包括 panic）恢复写入权限。
+    let _guard = QueryOnlyGuard::new(&conn)?;
 
     let mut stmt = conn.prepare(&sql).map_err(|e| format!("db_query: prepare error: {}", e))?;
 
@@ -67,9 +88,7 @@ pub fn db_query(
         results.push(row.map_err(|e| format!("db_query: row error: {}", e))?);
     }
 
-    // 恢复写入权限（共享连接池，其他命令需要写入）
-    let _ = conn.execute("PRAGMA query_only = OFF", []);
-
+    // _guard Drop 在此处自动恢复 PRAGMA query_only = OFF
     Ok(results)
 }
 
@@ -114,46 +133,47 @@ pub fn db_transaction(
     let ops: Vec<Op> =
         serde_json::from_str(&ops_json).map_err(|e| format!("db_transaction: invalid JSON: {}", e))?;
 
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    conn.execute("BEGIN IMMEDIATE", [])
-        .map_err(|e| format!("db_transaction: BEGIN error: {}", e))?;
-
+    // 第一遍：验证所有 Op（不持有事务）
     for op in &ops {
         match op {
             Op::Select(_) => {
-                let _ = conn.execute("ROLLBACK", []);
                 return Err("db_transaction: SELECT not allowed in transaction".into());
             }
             Op::Insert(ins) => {
                 let allowed = ["notes", "daily_pages", "note_versions", "templates"];
                 if !allowed.contains(&ins.table.as_str()) {
-                    let _ = conn.execute("ROLLBACK", []);
                     return Err(format!("db_transaction: table '{}' not allowed", ins.table));
                 }
             }
             Op::Update(upd) => {
                 let allowed = ["notes", "daily_pages", "note_versions", "templates"];
                 if !allowed.contains(&upd.table.as_str()) {
-                    let _ = conn.execute("ROLLBACK", []);
                     return Err(format!("db_transaction: table '{}' not allowed", upd.table));
                 }
             }
         }
-
-        let (sql, params) = compile_op(op)
-            .map_err(|e| {
-                let _ = conn.execute("ROLLBACK", []);
-                format!("db_transaction: compile error: {}", e)
-            })?;
-
-        conn.execute(&sql, params_from_iter(params.iter()))
-            .map_err(|e| {
-                let _ = conn.execute("ROLLBACK", []);
-                format!("db_transaction: execute error: {}", e)
-            })?;
     }
 
-    conn.execute("COMMIT", [])
+    // 编译所有 Op（不持有事务，仅做类型转换）
+    let mut compiled: Vec<(String, Vec<rusqlite::types::Value>)> = Vec::new();
+    for op in &ops {
+        let (sql, params) = compile_op(op)
+            .map_err(|e| format!("db_transaction: compile error: {}", e))?;
+        compiled.push((sql, params));
+    }
+
+    // 在事务中执行所有编译好的 Op
+    let mut conn = state.db.lock().map_err(|e| e.to_string())?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|e| format!("db_transaction: BEGIN IMMEDIATE error: {}", e))?;
+
+    for (sql, params) in &compiled {
+        tx.execute(sql.as_str(), params_from_iter(params.iter()))
+            .map_err(|e| format!("db_transaction: execute error: {}", e))?;
+    }
+
+    tx.commit()
         .map_err(|e| format!("db_transaction: COMMIT error: {}", e))?;
 
     Ok(())

@@ -1,38 +1,43 @@
 /**
  * TauriAdapter — 通过 IPC 调 Rust 后端。
  *
- * Phase 3 PR B：5 个已验证操作（getNotesByDate, createNote, updateNote,
- * deleteNote, getPathTree）已切换到 tauriDriver（通用 db_query/db_exec 命令）。
+ * Phase 3A 完成：upsertNote / getRecentDates / getAllDailyPages / batchDelete /
+ * batchSetReadonly / getNoteVersions / restoreNoteVersion / createNoteCheckpoint
+ * 已迁移到 tauriDriver（通用 db_query/db_exec/db_transaction 命令）。
  *
- * 其余操作保持旧 invoke 路径。旧 Rust 命令仍注册在 lib.rs 中（死代码但未删除），
- * PR B 验证通过后再批量移除。
+ * 未迁移的操作保持旧 invoke 路径（均为已注册且 Rust 侧有实现的命令）。
  *
- * FTS5 搜索（searchNotes）不纳入 Op 抽象，保持为独立命令。
+ * 不纳入 Op 抽象的操作：FTS5 搜索、同步、导出/导入、配置、托盘/快捷记录。
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import type { Note, DailyPage, NoteVersion } from "../../types/models";
+import type { Note, DailyPage } from "../../types/models";
 import type { StorageAdapter, AppConfig } from "./types";
 import { tauriDriver } from "./tauri-driver";
 
 /** TauriAdapter — 通过 IPC invoke 调 Rust 后端 */
 export const tauriAdapter: StorageAdapter = {
-  // ══════ Notes（5 个已迁移到 tauriDriver）══════
+  // ══════ Notes（已迁移到 tauriDriver）══════
 
   getNotesByDate: (date) => tauriDriver.getNotesByDate(date),
   createNote: (data) => tauriDriver.createNote(data),
   updateNote: (id, data) => tauriDriver.updateNote(id, data),
   deleteNote: (id) => tauriDriver.deleteNote(id),
+  upsertNote: (data) => tauriDriver.upsertNote(data),
+  getRecentDates: () => tauriDriver.getRecentDates(),
+  getAllNotes: () => tauriDriver.getAllDailyNotes(),
+  batchDelete: (ids) => tauriDriver.batchDelete(ids),
+  batchSetReadonly: (ids, readonly) => tauriDriver.batchSetReadonly(ids, readonly),
+  getNoteVersions: (noteId) => tauriDriver.getNoteVersions(noteId),
+  restoreNoteVersion: (versionId) => tauriDriver.restoreNoteVersion(versionId),
+  createNoteCheckpoint: (noteId) => tauriDriver.createNoteCheckpoint(noteId),
 
   // ── 未迁移，保留旧 IPC ──
   getNote: (id) => invoke<Note | null>("get_note", { id }),
-  getAllNotes: () => tauriDriver.getAllDailyNotes(),
-  upsertNote: (data) => invoke<Note>("upsert_note", { data }),
   updateNoteOrder: (id, sort_order) => invoke<Note>("update_note_order", { id, sort_order }),
   // FTS5 全文搜索 — 有意不纳入 Op 抽象，保留独立命令
   searchNotes: (query) => invoke<Note[]>("search_notes", { query }),
   getNotesByTag: (tag) => invoke<Note[]>("get_notes_by_tag", { tag }),
-  getRecentDates: () => invoke<string[]>("get_recent_dates"),
 
   // ── Tags ──
   getAllTags: () => invoke<string[]>("get_all_tags"),
@@ -40,7 +45,7 @@ export const tauriAdapter: StorageAdapter = {
   // ── Daily ──
   getDailyPage: (date) => invoke<DailyPage>("get_daily_page", { date }),
   updateTodos: (data) => invoke<DailyPage>("update_todos", { data }),
-  getAllDailyPages: () => invoke<DailyPage[]>("get_all_daily_pages"),
+  getAllDailyPages: () => tauriDriver.getAllDailyPages(),
 
   // ── Sync ──
   syncPush: () => invoke<{ pushed: number }>("sync_push"),
@@ -57,15 +62,6 @@ export const tauriAdapter: StorageAdapter = {
   permanentlyDeleteNote: (id) => invoke<void>("permanently_delete_note", { id }),
   cleanOldDeleted: (days) => invoke<number>("clean_old_deleted", { olderThanDays: days }),
 
-  // ── Batch ──
-  batchDelete: (ids) => invoke<void>("batch_delete", { ids }),
-  batchSetReadonly: (ids, readonly) => invoke<void>("batch_set_readonly", { ids, readonly }),
-
-  // ── Versions ──
-  getNoteVersions: (noteId) => invoke<NoteVersion[]>("get_note_versions", { noteId }),
-  restoreNoteVersion: (versionId) => invoke<Note>("restore_note_version", { versionId }),
-  createNoteCheckpoint: (_noteId) => Promise.resolve(), // stub: 第 3B 轮实现
-
   // ── Config ──
   getConfig: () => invoke<AppConfig>("get_config"),
   setConfig: (partial) => invoke<AppConfig>("set_config", { config: partial }),
@@ -80,7 +76,7 @@ export const tauriAdapter: StorageAdapter = {
     const docs = await invoke<Note[]>("get_notes_by_path", { pathPrefix: oldPath });
     let count = 0;
     for (const doc of docs) {
-      const sp = (doc as any).storage_path ?? doc.storagePath;  // 兼容旧 invoke API (snake_case) 和 tauriDriver (camelCase)
+      const sp = (doc as any).storage_path ?? doc.storagePath;
       if (!sp) continue;
       let newSp: string;
       if (sp === oldPath) {
