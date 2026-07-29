@@ -1,11 +1,11 @@
 use rusqlite::Connection;
 
-const SCHEMA_VERSION: i32 = 6;
+const SCHEMA_VERSION: i32 = 7;
 
 /// 执行所有迁移。
 ///
 /// 新数据库：ensure_tables 一次性创建所有表（IF NOT EXISTS），
-/// 迁移标记 v1..v6 后 ensure_indexes 创建索引。
+/// 迁移标记 v1..v7 后 ensure_indexes 创建索引。
 ///
 /// 已有数据库：ensure_tables 补建缺失的表，增量迁移推进列变更，
 /// ensure_indexes 补建缺失的索引。
@@ -45,6 +45,9 @@ pub fn run(conn: &Connection) -> rusqlite::Result<()> {
     }
     if current < 6 {
         migrate_v6(&tx)?;
+    }
+    if current < 7 {
+        migrate_v7(&tx)?;
     }
 
     // 索引在列迁移完成后创建——若提前创建则因旧库缺少列而失败
@@ -148,6 +151,32 @@ fn migrate_v6(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
+/// v7：移除历史版本遗留的重复索引，并让同名索引使用当前目标定义。
+///
+/// v1-v5 使用 idx_notes_date / idx_notes_updated；v3 的版本索引包含
+/// (note_id, saved_at)，而当前 Schema 将其定义为仅 note_id。
+/// ensure_indexes() 会在本迁移之后按生成 Schema 重建目标索引。
+fn migrate_v7(conn: &Connection) -> rusqlite::Result<()> {
+    let has_version_search_text: bool = conn
+        .prepare(
+            "SELECT COUNT(*) FROM pragma_table_info('note_versions')
+             WHERE name='search_text'",
+        )?
+        .query_row([], |row| row.get::<_, i32>(0))?
+        > 0;
+    if has_version_search_text {
+        conn.execute_batch("ALTER TABLE note_versions DROP COLUMN search_text;")?;
+    }
+
+    conn.execute_batch(
+        "DROP INDEX IF EXISTS idx_notes_date;
+         DROP INDEX IF EXISTS idx_notes_updated;
+         DROP INDEX IF EXISTS idx_note_versions_note_id;
+         INSERT INTO _schema_version (version) VALUES (7);",
+    )?;
+    Ok(())
+}
+
 fn migrate_v2(conn: &Connection) -> rusqlite::Result<()> {
     // tags, pinned, sort_order — 新数据库 (SCHEMA_DDL) 自动跳过
     for &(col, def) in &[
@@ -241,7 +270,7 @@ fn migrate_v5(conn: &Connection) -> rusqlite::Result<()> {
 
 /// 在所有列迁移完成后创建索引。
 ///
-/// 必须在 migrate_v1..v6 全部完成之后调用——旧库在 v1 阶段缺少 tags/storage_path 等列，
+/// 必须在 migrate_v1..v7 全部完成之后调用——旧库在 v1 阶段缺少 tags/storage_path 等列，
 /// 提前创建索引会导致 "no such column" 错误。全新建库不受影响，
 /// IF NOT EXISTS 使其幂等。
 fn ensure_indexes(conn: &Connection) -> rusqlite::Result<()> {
