@@ -46,8 +46,6 @@ function isEmptyParagraphElement(element: Element): boolean {
  * 会原样保留。多段内容和其他 block 类型继续使用 ProseMirror 默认行为。
  */
 export function normalizeSingleParagraphPaste(slice: Slice): Slice {
-  if (slice.openStart !== 0 || slice.openEnd !== 0) return slice;
-
   const children = slice.content.content;
   let start = 0;
   let end = children.length;

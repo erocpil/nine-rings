@@ -37,10 +37,11 @@ console.log("\n── NormalizeSingleParagraphPaste ──");
   const leading = schema.node("paragraph");
   const trailing = schema.node("paragraph", null, [schema.node("hardBreak")]);
   const content = schema.node("paragraph", null, [schema.text("正文")]);
-  const input = new Slice(Fragment.fromArray([leading, content, trailing]), 0, 0);
+  const input = new Slice(Fragment.fromArray([leading, content, trailing]), 1, 1);
   const output = normalizeSingleParagraphPaste(input);
   assert(output.content.childCount === 1, "leading and trailing empty paragraphs are removed");
   assert(output.content.firstChild?.textContent === "正文", "content remains after edge cleanup");
+  assert(output.openStart === 0 && output.openEnd === 0, "cleaned paste is closed for stable insertion");
 }
 
 {
