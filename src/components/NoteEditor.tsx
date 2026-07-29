@@ -8,6 +8,7 @@ import Color from "@tiptap/extension-color";
 import { ResizableImage } from "../extensions/ResizableImage";
 import LinkExt from "@tiptap/extension-link";
 import { MarkdownLinkInput } from "../extensions/MarkdownLinkInput";
+import { normalizeSingleParagraphPaste } from "../extensions/NormalizeSingleParagraphPaste";
 import CharacterCount from "@tiptap/extension-character-count";
 import type { DeltaOps } from "../types/models";
 import {
@@ -256,7 +257,9 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     ],
     content: tipTapContent,
     editable: !readonly,
-    editorProps: {},
+    editorProps: {
+      transformPasted: normalizeSingleParagraphPaste,
+    },
     onUpdate: ({ editor: ed }) => {
       // 保存时转为 Quill Delta（含字体大小 px→named 映射）
       const pmJson = ed.getJSON();

@@ -1,0 +1,87 @@
+import { Fragment, Schema, Slice } from "@tiptap/pm/model";
+import { normalizeSingleParagraphPaste } from "../src/extensions/NormalizeSingleParagraphPaste";
+
+let passed = 0;
+let failed = 0;
+
+function assert(condition: boolean, message: string): void {
+  if (condition) {
+    passed++;
+    return;
+  }
+  console.error(`  FAIL: ${message}`);
+  failed++;
+}
+
+const schema = new Schema({
+  nodes: {
+    doc: { content: "block+" },
+    paragraph: { content: "inline*", group: "block" },
+    heading: {
+      attrs: { level: { default: 1 } },
+      content: "inline*",
+      group: "block",
+    },
+    hardBreak: { inline: true, group: "inline", selectable: false },
+    text: { group: "inline" },
+  },
+  marks: {
+    strong: {},
+    link: { attrs: { href: {} }, inclusive: false },
+  },
+});
+
+console.log("\n── NormalizeSingleParagraphPaste ──");
+
+{
+  const strong = schema.marks.strong.create();
+  const link = schema.marks.link.create({ href: "https://example.com" });
+  const paragraph = schema.node("paragraph", null, [
+    schema.text("复制的", [strong]),
+    schema.text("文本", [link]),
+  ]);
+  const input = new Slice(Fragment.from(paragraph), 0, 0);
+  const output = normalizeSingleParagraphPaste(input);
+
+  assert(output.content.childCount === 2, "single paragraph is flattened to inline nodes");
+  assert(output.content.firstChild?.isText === true, "flattened content starts with text");
+  assert(output.content.firstChild?.marks[0]?.type.name === "strong", "bold mark is preserved");
+  assert(output.content.lastChild?.marks[0]?.attrs.href === "https://example.com", "link mark is preserved");
+  assert(output.openStart === 0 && output.openEnd === 0, "inline slice is closed");
+}
+
+{
+  const first = schema.node("paragraph", null, [schema.text("第一段")]);
+  const second = schema.node("paragraph", null, [schema.text("第二段")]);
+  const input = new Slice(Fragment.fromArray([first, second]), 0, 0);
+  const output = normalizeSingleParagraphPaste(input);
+  assert(output === input, "multiple paragraphs keep their block structure");
+}
+
+{
+  const heading = schema.node("heading", { level: 1 }, [schema.text("标题")]);
+  const input = new Slice(Fragment.from(heading), 0, 0);
+  const output = normalizeSingleParagraphPaste(input);
+  assert(output === input, "non-paragraph text blocks keep their structure");
+}
+
+{
+  const paragraph = schema.node("paragraph", null, [
+    schema.text("第一行"),
+    schema.node("hardBreak"),
+    schema.text("第二行"),
+  ]);
+  const input = new Slice(Fragment.from(paragraph), 0, 0);
+  const output = normalizeSingleParagraphPaste(input);
+  assert(output === input, "paragraphs containing explicit line breaks are not flattened");
+}
+
+{
+  const paragraph = schema.node("paragraph");
+  const input = new Slice(Fragment.from(paragraph), 0, 0);
+  const output = normalizeSingleParagraphPaste(input);
+  assert(output === input, "empty paragraphs are not flattened");
+}
+
+console.log(`\n${passed} passed, ${failed} failed`);
+if (failed > 0) process.exit(1);

@@ -233,6 +233,7 @@ nine-rings/
 | [`docs/FLUTTER_BUILD.md`](./docs/FLUTTER_BUILD.md) | Flutter 移动端 + macOS 桌面构建指南（macOS / iOS） |
 | [`docs/TAURI_DESIGN.md`](./docs/TAURI_DESIGN.md) | Tauri 架构设计文档 |
 | [`docs/document-system-design.md`](./docs/document-system-design.md) | 文档管理系统设计（P.A.R.A. × Zettelkasten × Diátaxis） |
+| [`docs/document-tree-move-design.md`](./docs/document-tree-move-design.md) | 文档树移动设计（路径规则、原子事务、交互、跨端契约与测试） |
 | [`docs/backup-architecture.md`](./docs/backup-architecture.md) | GitHub 版本化备份架构方案 |
 | [`docs/github-backup.md`](./docs/github-backup.md) | GitHub 备份使用指南（Token 生成、配置、多设备工作流） |
 | [`docs/future-evolution.md`](./docs/future-evolution.md) | 长期产品与技术演进方向（知识工作流、同步、隐私、AI、平台与商业化） |
