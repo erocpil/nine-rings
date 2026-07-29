@@ -34,6 +34,16 @@ const schema = new Schema({
 console.log("\n── NormalizeSingleParagraphPaste ──");
 
 {
+  const leading = schema.node("paragraph");
+  const trailing = schema.node("paragraph", null, [schema.node("hardBreak")]);
+  const content = schema.node("paragraph", null, [schema.text("正文")]);
+  const input = new Slice(Fragment.fromArray([leading, content, trailing]), 0, 0);
+  const output = normalizeSingleParagraphPaste(input);
+  assert(output.content.childCount === 1, "leading and trailing empty paragraphs are removed");
+  assert(output.content.firstChild?.textContent === "正文", "content remains after edge cleanup");
+}
+
+{
   const strong = schema.marks.strong.create();
   const link = schema.marks.link.create({ href: "https://example.com" });
   const paragraph = schema.node("paragraph", null, [
@@ -80,7 +90,7 @@ console.log("\n── NormalizeSingleParagraphPaste ──");
   const paragraph = schema.node("paragraph");
   const input = new Slice(Fragment.from(paragraph), 0, 0);
   const output = normalizeSingleParagraphPaste(input);
-  assert(output === input, "empty paragraphs are not flattened");
+  assert(output.content.size === 0, "all-empty pasted paragraphs produce no content");
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
