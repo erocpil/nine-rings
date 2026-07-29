@@ -8,7 +8,10 @@ import Color from "@tiptap/extension-color";
 import { ResizableImage } from "../extensions/ResizableImage";
 import LinkExt from "@tiptap/extension-link";
 import { MarkdownLinkInput } from "../extensions/MarkdownLinkInput";
-import { normalizeSingleParagraphPaste } from "../extensions/NormalizeSingleParagraphPaste";
+import {
+  normalizeSingleParagraphHTML,
+  normalizeSingleParagraphPaste,
+} from "../extensions/NormalizeSingleParagraphPaste";
 import CharacterCount from "@tiptap/extension-character-count";
 import type { DeltaOps } from "../types/models";
 import {
@@ -572,7 +575,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         if (item.types.includes("text/html")) {
           const blob = await item.getType("text/html");
           const html = await blob.text();
-          editor.chain().focus().insertContent(html).run();
+          editor.chain().focus().insertContent(normalizeSingleParagraphHTML(html)).run();
           return;
         }
       }

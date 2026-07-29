@@ -1,6 +1,24 @@
 import { Slice } from "@tiptap/pm/model";
 
 /**
+ * 与 transformPasted 保持一致，处理通过编辑器自定义“粘贴”按钮插入的 HTML。
+ * insertContent(html) 不会经过 ProseMirror 的 transformPasted 钩子。
+ */
+export function normalizeSingleParagraphHTML(html: string): string {
+  if (typeof DOMParser === "undefined") return html;
+
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const elements = Array.from(doc.body.children);
+  if (elements.length !== 1 || elements[0].tagName.toLowerCase() !== "p") {
+    return html;
+  }
+
+  const paragraph = elements[0];
+  if (!paragraph.textContent || paragraph.querySelector("br")) return html;
+  return paragraph.innerHTML;
+}
+
+/**
  * 浏览器在复制一个普通段落的全部文字时，可能把剪贴板内容序列化为
  * 一个闭合的 <p> block。直接粘贴会在光标前后切开当前段落，看起来像
  * 文本两侧被加入了额外空行。
