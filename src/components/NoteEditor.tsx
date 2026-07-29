@@ -7,6 +7,7 @@ import TextStyle from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import { ResizableImage } from "../extensions/ResizableImage";
 import LinkExt from "@tiptap/extension-link";
+import { MarkdownLinkInput } from "../extensions/MarkdownLinkInput";
 import CharacterCount from "@tiptap/extension-character-count";
 import type { DeltaOps } from "../types/models";
 import {
@@ -251,6 +252,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       CharacterCount.configure({ limit: 50000 }),
       ActiveLinePlugin,
       CodeBlockLineNumbers,
+      MarkdownLinkInput,
     ],
     content: tipTapContent,
     editable: !readonly,
