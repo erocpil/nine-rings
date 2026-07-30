@@ -99,3 +99,30 @@ test.describe("编辑器复制粘贴", () => {
     await expect(editor.locator("p")).toHaveText("前缀 后缀中间文本");
   });
 });
+
+test.describe("文档树移动", () => {
+  test("移动文档后树和当前编辑器刷新，页面重载后仍在目标目录", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("文档树").click();
+    await page.getByTitle("新建文档").click();
+
+    await page.getByPlaceholder("文档标题...").fill("移动回归文档");
+    await page.getByPlaceholder("子路径 (如 nine-rings)").fill("move-e2e");
+    await page.getByRole("button", { name: "创建" }).click();
+
+    const sourceFolder = page.locator(".doc-tree-folder").filter({ hasText: "move-e2e" });
+    await expect(sourceFolder).toHaveCount(1);
+    await sourceFolder.click({ button: "right" });
+    page.once("dialog", (dialog) => dialog.accept("archives/move-e2e"));
+    await page.getByRole("button", { name: "移动到…" }).click();
+
+    await expect(page.locator(".doc-tree-folder").filter({ hasText: "archives" })).toHaveCount(1);
+    await expect(page.locator(".doc-tree-folder").filter({ hasText: "move-e2e" })).toHaveCount(1);
+    await expect(page.locator(".note-title")).toHaveValue("移动回归文档");
+
+    await page.reload();
+    await page.getByTitle("文档树").click();
+    await expect(page.locator(".doc-tree-folder").filter({ hasText: "archives" })).toHaveCount(1);
+    await expect(page.locator(".doc-tree-doc").filter({ hasText: "移动回归文档" })).toHaveCount(1);
+  });
+});

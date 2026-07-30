@@ -343,6 +343,38 @@ async function runTests() {
     let rejected = false;
     try { await idbAdapter.relocateFolder("archives", "archives/child"); } catch { rejected = true; }
     assert(rejected, "folder move rejects cycles");
+
+    rejected = false;
+    try { await idbAdapter.relocateFolder("archives", "daily/archive"); } catch { rejected = true; }
+    assert(rejected, "folder move rejects daily namespace");
+
+    const rollbackA = await idbAdapter.createNote({
+      date: "2026-07-22",
+      title: "Rollback A",
+      storagePath: "projects/rollback",
+    });
+    const rollbackB = await idbAdapter.createNote({
+      date: "2026-07-22",
+      title: "Rollback B",
+      storagePath: "projects/rollback",
+    });
+    const originalPut = IDBObjectStore.prototype.put;
+    let putCount = 0;
+    (IDBObjectStore.prototype as any).put = function (...args: any[]) {
+      putCount++;
+      if (putCount === 2) throw new Error("injected move failure");
+      return originalPut.apply(this, args);
+    };
+    try {
+      await idbAdapter.relocateFolder("projects/rollback", "archives/rollback");
+    } catch {
+      rejected = true;
+    } finally {
+      IDBObjectStore.prototype.put = originalPut;
+    }
+    assert(rejected, "folder move reports write failure");
+    assert((await idbAdapter.getNote(rollbackA.id))!.storagePath === "projects/rollback", "failed move rolls back first document");
+    assert((await idbAdapter.getNote(rollbackB.id))!.storagePath === "projects/rollback", "failed move rolls back second document");
   }
 
   // ═══════════════════════════════════════════════════════════════

@@ -256,6 +256,18 @@ function putRecord(store: IDBObjectStore, value: any): Promise<void> {
   });
 }
 
+function abortTransaction(tx: IDBTransaction): Promise<void> {
+  return new Promise((resolve) => {
+    tx.onabort = () => resolve();
+    tx.oncomplete = () => resolve();
+    try {
+      tx.abort();
+    } catch {
+      resolve();
+    }
+  });
+}
+
 function delRecord(store: IDBObjectStore, key: IDBValidKey): Promise<void> {
   return new Promise((resolve, reject) => {
     const req = store.delete(key);
@@ -1061,35 +1073,47 @@ export const idbAdapter: StorageAdapter = {
   async moveDocument(noteId: string, targetFolderPath: string): Promise<number> {
     const target = normalizeStoragePath(targetFolderPath);
     return withDB(async (db) => {
-      const store = db.transaction("notes", "readwrite").objectStore("notes");
-      const note = await getOne<any>(store, noteId);
-      if (!note || note.deleted_at || !(note.storagePath ?? note.storage_path)) {
-        throw new Error("只能移动未删除的普通文档");
+      const tx = db.transaction("notes", "readwrite");
+      try {
+        const store = tx.objectStore("notes");
+        const note = await getOne<any>(store, noteId);
+        if (!note || note.deleted_at || !(note.storagePath ?? note.storage_path)) {
+          throw new Error("只能移动未删除的普通文档");
+        }
+        note.storagePath = target;
+        delete note.storage_path;
+        await putRecord(store, note);
+        return 1;
+      } catch (error) {
+        await abortTransaction(tx);
+        throw error;
       }
-      note.storagePath = target;
-      delete note.storage_path;
-      await putRecord(store, note);
-      return 1;
     });
   },
 
   async relocateFolder(sourcePath: string, targetPath: string): Promise<number> {
     const { source, target } = assertFolderRelocation(sourcePath, targetPath);
     return withDB(async (db) => {
-      const store = db.transaction("notes", "readwrite").objectStore("notes");
-      const all = await getAll<any>(store);
-      const docs = all.filter((n) => {
-        const path = n.storagePath ?? n.storage_path;
-        return !n.deleted_at && path && isPathUnder(path, source);
-      });
-      if (docs.length === 0) throw new Error("源目录不存在或没有可移动文档");
-      for (const note of docs) {
-        const path = note.storagePath ?? note.storage_path;
-        note.storagePath = path === source ? target : target + path.slice(source.length);
-        delete note.storage_path;
-        await putRecord(store, note);
+      const tx = db.transaction("notes", "readwrite");
+      try {
+        const store = tx.objectStore("notes");
+        const all = await getAll<any>(store);
+        const docs = all.filter((n) => {
+          const path = n.storagePath ?? n.storage_path;
+          return !n.deleted_at && path && isPathUnder(path, source);
+        });
+        if (docs.length === 0) throw new Error("源目录不存在或没有可移动文档");
+        for (const note of docs) {
+          const path = note.storagePath ?? note.storage_path;
+          note.storagePath = path === source ? target : target + path.slice(source.length);
+          delete note.storage_path;
+          await putRecord(store, note);
+        }
+        return docs.length;
+      } catch (error) {
+        await abortTransaction(tx);
+        throw error;
       }
-      return docs.length;
     });
   },
 
