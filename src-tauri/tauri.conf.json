@@ -30,6 +30,9 @@
   },
   "bundle": {
     "active": true,
+    "macOS": {
+      "minimumSystemVersion": "10.13"
+    },
     "targets": "all",
     "icon": [
       "icons/16x16.png",

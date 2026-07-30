@@ -9,7 +9,8 @@
 <br/>
 [![Linux (Tauri)](https://img.shields.io/badge/Linux-🐧_Tauri-FCC624?logo=linux&logoColor=black)](https://nightly.link/erocpil/nine-rings/workflows/tauri-linux/main/nine-rings-tauri-linux-x86_64.zip)
 [![Linux (Flutter)](https://img.shields.io/badge/Linux-🦋_Flutter-02569B?logo=flutter)](https://nightly.link/erocpil/nine-rings/workflows/flutter-linux/main/nine-rings-flutter-linux-x64.zip)
-[![macOS (Tauri)](https://img.shields.io/badge/macOS-🍎_Tauri-000?logo=apple)](https://nightly.link/erocpil/nine-rings/workflows/tauri-macos/main/nine-rings-tauri-macos-arm64.zip)
+[![macOS ARM64 (Tauri)](https://img.shields.io/badge/macOS_ARM64-🍎_Tauri-000?logo=apple)](https://nightly.link/erocpil/nine-rings/workflows/tauri-macos/main/nine-rings-tauri-macos-arm64.zip)
+[![macOS Intel (Tauri)](https://img.shields.io/badge/macOS_Intel-🍎_Tauri-000?logo=apple)](https://nightly.link/erocpil/nine-rings/workflows/tauri-macos/main/nine-rings-tauri-macos-x64.zip)
 [![macOS (Flutter)](https://img.shields.io/badge/macOS-🦋_Flutter-02569B?logo=flutter)](https://nightly.link/erocpil/nine-rings/workflows/flutter-macos/main/nine-rings-flutter-macos-arm64.zip)
 <br/>
 [![Win (Tauri)](https://img.shields.io/badge/Win-🦀_Tauri-0078D6?logo=windows&logoColor=white)](https://nightly.link/erocpil/nine-rings/workflows/tauri-windows/main/nine-rings-tauri-windows-x64.zip)
@@ -256,6 +257,7 @@ nine-rings/
 | `Web Frontend` | `npm ci` → `tsc && vite build` → schema `--check` | ubuntu-22.04 |
 | `Tauri Desktop (Linux)` | Web 构建 + Rust 编译 → `.deb`、`.AppImage` | ubuntu-22.04 |
 | `Tauri Desktop (Windows)` | Web 构建 + Rust 编译 → `.msi`、`.exe` | windows-2022 |
+| `Tauri Desktop (macOS)` | Web 构建 + Rust 编译 → ARM64 / Intel `.dmg` | macos-14 / macos-15-intel |
 | `Flutter (Android APK)` | `pub get` → `analyze` → `build apk --debug` | ubuntu-22.04 |
 
 自动触发：`push` / `pull_request` to `main`。
@@ -266,6 +268,8 @@ nine-rings/
 |------|------|
 | 🪟 Windows（`.msi` + `.exe`） | [**下载最新**](https://nightly.link/erocpil/nine-rings/workflows/ci/main/tauri-windows.zip) |
 | 🐧 Linux（`.deb` + `.AppImage`） | [**下载最新**](https://nightly.link/erocpil/nine-rings/workflows/ci/main/tauri-linux.zip) |
+| 🍎 macOS Apple Silicon（`.dmg`） | [**下载最新**](https://nightly.link/erocpil/nine-rings/workflows/tauri-macos/main/nine-rings-tauri-macos-arm64.zip) |
+| 🍎 macOS Intel（`.dmg`） | [**下载最新**](https://nightly.link/erocpil/nine-rings/workflows/tauri-macos/main/nine-rings-tauri-macos-x64.zip) |
 | 🤖 Android（`.apk`） | [**下载最新**](https://nightly.link/erocpil/nine-rings/workflows/ci/main/flutter-apk.zip) |
 | 🌐 Web 前端（`dist/`） | [**下载最新**](https://nightly.link/erocpil/nine-rings/workflows/ci/main/web-dist.zip) |
 
@@ -274,7 +278,7 @@ nine-rings/
 >
 > ⚠️ **Linux 和 Android 版本仅通过 CI 构建验证，未经实际运行测试。**
 
-> **macOS / iOS 不在 CI 中**：GitHub Actions macOS runner 费用是 Linux 的 10 倍（[定价](https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions)）。Tauri macOS `.dmg` 和 Flutter macOS/iOS 产物需在本地构建。详见 [`docs/FLUTTER_BUILD.md`](./docs/FLUTTER_BUILD.md)。
+> Tauri macOS 由独立 workflow 构建 ARM64 和 Intel 两种 `.dmg`。产物未配置 Apple Developer 签名，首次打开时可能需要在“系统设置 → 隐私与安全性”中手动允许。Flutter macOS/iOS 仍需本地构建。详见 [`docs/FLUTTER_BUILD.md`](./docs/FLUTTER_BUILD.md)。
 
 ---
 
