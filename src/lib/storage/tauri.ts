@@ -95,6 +95,8 @@ export const tauriAdapter: StorageAdapter = {
 
   getPathTree: () => tauriDriver.getPathTree(),
   getNotesByPath: (pathPrefix) => invokeNotes("get_notes_by_path", { pathPrefix }),
+  moveDocument: (noteId, targetFolderPath) => tauriDriver.moveDocument(noteId, targetFolderPath),
+  relocateFolder: (sourcePath, targetPath) => tauriDriver.relocateFolder(sourcePath, targetPath),
 
   async renameFolder(oldPath: string, newPath: string): Promise<number> {
     if (!oldPath || !newPath || oldPath === newPath) return 0;

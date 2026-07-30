@@ -872,6 +872,14 @@ function App() {
                 setDocTreeKey(k => k + 1);
               }}
               onToggleReadonly={(id, readonly) => updateNote(id, { readonly } as any)}
+              onMoveDocument={async (id, targetPath) => {
+                await api.docs.moveDocument(id, targetPath);
+                setDocTreeKey(k => k + 1);
+              }}
+              onMoveFolder={async (sourcePath, targetPath) => {
+                await api.docs.relocateFolder(sourcePath, targetPath);
+                setDocTreeKey(k => k + 1);
+              }}
               onBatchDelete={(ids, folderPath) => {
                 ids.forEach(id => deleteNote(id));
                 const folderName = folderPath ? folderPath.split("/").pop() || "选中" : "选中";
@@ -1080,6 +1088,14 @@ function App() {
                 setDocTreeKey(k => k + 1);
               }}
                 onToggleReadonly={(id, readonly) => updateNote(id, { readonly } as any)}
+                onMoveDocument={async (id, targetPath) => {
+                  await api.docs.moveDocument(id, targetPath);
+                  setDocTreeKey(k => k + 1);
+                }}
+                onMoveFolder={async (sourcePath, targetPath) => {
+                  await api.docs.relocateFolder(sourcePath, targetPath);
+                  setDocTreeKey(k => k + 1);
+                }}
                 onBatchDelete={(ids, folderPath) => {
                 ids.forEach(id => deleteNote(id));
                 const folderName = folderPath ? folderPath.split("/").pop() || "选中" : "选中";

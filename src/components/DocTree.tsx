@@ -11,6 +11,8 @@ interface DocTreeProps {
   onRename?: (id: string, title: string) => void;
   onDelete?: (id: string) => void;
   onToggleReadonly?: (id: string, readonly: boolean) => void;
+  onMoveDocument?: (id: string, targetPath: string) => Promise<void>;
+  onMoveFolder?: (sourcePath: string, targetPath: string) => Promise<void>;
   onBatchDelete?: (ids: string[], folderPath: string) => void;
   onBatchSetReadonly?: (ids: string[], readonly: boolean) => void;
   propertiesAutoShow?: boolean;
@@ -95,6 +97,7 @@ function InlineRename({
 function DocTree({
   onSelect, onFolderSelect, selectedId, onCreate, refreshKey,
   onRename, onDelete, onToggleReadonly,
+  onMoveDocument, onMoveFolder,
   onBatchDelete, onBatchSetReadonly,
   propertiesAutoShow, onTogglePropertiesAuto,
   disabled,
@@ -231,6 +234,32 @@ function DocTree({
   const handleFolderRenameStart = (folderPath: string) => {
     setContextMenu(null);
     setRenamingFolder(folderPath);
+  };
+
+  const handleMoveDocument = async (noteId: string, title: string, currentPath: string) => {
+    setContextMenu(null);
+    if (disabled || !onMoveDocument || currentPath.startsWith("daily/")) return;
+    const target = window.prompt(`将「${title}」移动到哪个目录？\n请输入完整目录路径，例如 archives/old`, "");
+    if (!target?.trim()) return;
+    try {
+      await onMoveDocument(noteId, target.trim());
+      setTree(await api.docs.tree());
+    } catch (e) {
+      alert(`移动失败: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  const handleMoveFolder = async (sourcePath: string) => {
+    setContextMenu(null);
+    if (disabled || !onMoveFolder || sourcePath === "daily" || sourcePath.startsWith("daily/")) return;
+    const target = window.prompt(`将目录「${sourcePath}」移动到哪个目录？\n请输入移动后的完整目录路径，例如 archives/${sourcePath.split("/").pop()}`, "");
+    if (!target?.trim()) return;
+    try {
+      await onMoveFolder(sourcePath, target.trim());
+      setTree(await api.docs.tree());
+    } catch (e) {
+      alert(`移动失败: ${e instanceof Error ? e.message : String(e)}`);
+    }
   };
 
   const submitFolderRename = async (folderPath: string, newName: string) => {
@@ -524,6 +553,11 @@ function DocTree({
         >
           {contextMenu.type === 'folder' ? (
             <>
+              {contextMenu.path !== "daily" && !contextMenu.path.startsWith("daily/") && (
+                <button className="doc-context-item" onClick={() => handleMoveFolder(contextMenu.path)}>
+                  移动到…
+                </button>
+              )}
               <button className="doc-context-item" onClick={() => handleFolderRenameStart(contextMenu.path)}>
                 重命名
               </button>
@@ -536,6 +570,11 @@ function DocTree({
             </>
           ) : (
             <>
+              {!contextMenu.path.startsWith("daily/") && (
+                <button className="doc-context-item" onClick={() => handleMoveDocument(contextMenu.noteId!, contextMenu.title, contextMenu.path)}>
+                  移动到…
+                </button>
+              )}
               <button className="doc-context-item" onClick={() => handleRename(contextMenu.noteId!)}>重命名</button>
               <button className="doc-context-item" onClick={() => handleToggleReadonly(contextMenu.noteId!)}>切换只读</button>
               <button className="doc-context-item doc-context-danger" onClick={() => handleDelete(contextMenu.noteId!, contextMenu.title)}>删除</button>

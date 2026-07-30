@@ -92,6 +92,10 @@ export interface StorageAdapter {
   getNotesByPath(pathPrefix: string): Promise<Note[]>;
   /** 重命名文件夹：将 oldPath 下所有文档的 storagePath 前缀替换为 newPath */
   renameFolder(oldPath: string, newPath: string): Promise<number>;
+  /** 移动单篇文档到目标目录，不改变更新时间或版本历史 */
+  moveDocument(noteId: string, targetFolderPath: string): Promise<number>;
+  /** 原子移动目录及其全部后代，不改变更新时间或版本历史 */
+  relocateFolder(sourcePath: string, targetPath: string): Promise<number>;
   searchDocs(query: DocSearchQuery): Promise<Note[]>;
   getAllConcepts(): Promise<string[]>;
 }

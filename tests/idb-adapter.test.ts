@@ -311,7 +311,42 @@ async function runTests() {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 19. snake_case import (Rust serde 兼容性)
+  // 19. 文档树移动（边界与原子路径更新）
+  // ═══════════════════════════════════════════════════════════════
+  {
+    console.log("\n── Document tree move ──");
+    const source = await idbAdapter.createNote({
+      date: "2026-07-22",
+      title: "Move source",
+      storagePath: "projects/move-source",
+    });
+    const child = await idbAdapter.createNote({
+      date: "2026-07-22",
+      title: "Move child",
+      storagePath: "projects/move-source/nested",
+    });
+    const similarlyNamed = await idbAdapter.createNote({
+      date: "2026-07-22",
+      title: "Do not move",
+      storagePath: "projects/move-source-other",
+    });
+    const originalUpdatedAt = source.updated_at;
+
+    assert(await idbAdapter.moveDocument(source.id, "archives") === 1, "single document move succeeds");
+    assert((await idbAdapter.getNote(source.id))!.storagePath === "archives", "single document target path is exact");
+    assert((await idbAdapter.getNote(source.id))!.updated_at === originalUpdatedAt, "single move preserves updated_at");
+
+    assert(await idbAdapter.relocateFolder("projects/move-source", "archives/move-source") === 1, "folder move moves descendants");
+    assert((await idbAdapter.getNote(child.id))!.storagePath === "archives/move-source/nested", "folder move preserves descendant suffix");
+    assert((await idbAdapter.getNote(similarlyNamed.id))!.storagePath === "projects/move-source-other", "folder move respects path boundary");
+
+    let rejected = false;
+    try { await idbAdapter.relocateFolder("archives", "archives/child"); } catch { rejected = true; }
+    assert(rejected, "folder move rejects cycles");
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // 20. snake_case import (Rust serde 兼容性)
   // ═══════════════════════════════════════════════════════════════
   {
     console.log("\n── Snake_case import ──");

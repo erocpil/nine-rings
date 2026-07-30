@@ -14,7 +14,14 @@
 
 import type { Note, CreateNoteInput, PathNode, DocType, NoteVersion, DailyPage } from "../../types/models";
 import type { SelectOp, InsertOp, UpdateOp, DeleteOp } from "./ops";
-import { buildDocTree, type FlatDocRecord, type FlatDailyRecord } from "./core";
+import {
+  assertFolderRelocation,
+  buildDocTree,
+  isPathUnder,
+  normalizeStoragePath,
+  type FlatDocRecord,
+  type FlatDailyRecord,
+} from "./core";
 import { snakeNoteToCamel, snakeVersionToCamel, snakeDailyPageToCamel } from "./normalize";
 import { localDateKey } from "../local-date";
 
@@ -286,6 +293,44 @@ export const tauriDriver = {
     }));
 
     return buildDocTree(docs, dailies);
+  },
+
+  async moveDocument(noteId: string, targetFolderPath: string): Promise<number> {
+    const target = normalizeStoragePath(targetFolderPath);
+    const rows = await dbQuery({
+      type: "select",
+      table: "notes",
+      columns: ["id", "storage_path"],
+      where: [{ col: "id", op: "=", val: noteId }, { col: "storage_path", op: "IS", val: null, not: true }],
+      limit: 1,
+    });
+    if (rows.length === 0) throw new Error("只能移动未删除的普通文档");
+    await dbTransaction([{
+      type: "update",
+      table: "notes",
+      set: { storage_path: target },
+      where: [{ col: "id", op: "=", val: noteId }, { col: "deleted_at", op: "IS", val: null }],
+    }]);
+    return 1;
+  },
+
+  async relocateFolder(sourcePath: string, targetPath: string): Promise<number> {
+    const { source, target } = assertFolderRelocation(sourcePath, targetPath);
+    const rows = await dbQuery({
+      type: "select",
+      table: "notes",
+      columns: ["id", "storage_path"],
+      where: [{ col: "storage_path", op: "IS", val: null, not: true }],
+    });
+    const docs = rows.filter((row) => typeof row.storage_path === "string" && isPathUnder(row.storage_path, source));
+    if (docs.length === 0) throw new Error("源目录不存在或没有可移动文档");
+    await dbTransaction(docs.map((row) => ({
+      type: "update" as const,
+      table: "notes" as const,
+      set: { storage_path: row.storage_path === source ? target : target + row.storage_path.slice(source.length) },
+      where: [{ col: "id" as const, op: "=" as const, val: row.id }, { col: "deleted_at" as const, op: "IS" as const, val: null }],
+    })));
+    return docs.length;
   },
 
   // ── getAllDailyNotes（全部随笔，不含文档视图中的文档）──

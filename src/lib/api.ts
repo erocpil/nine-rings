@@ -195,6 +195,12 @@ export const api = {
     renameFolder: (oldPath: string, newPath: string) =>
       adapter().then((a) => a.renameFolder(oldPath, newPath)),
 
+    moveDocument: (noteId: string, targetFolderPath: string) =>
+      adapter().then((a) => a.moveDocument(noteId, targetFolderPath)),
+
+    relocateFolder: (sourcePath: string, targetPath: string) =>
+      adapter().then((a) => a.relocateFolder(sourcePath, targetPath)),
+
     search: (query: DocSearchQuery) =>
       adapter().then((a) => a.searchDocs(query)),
 

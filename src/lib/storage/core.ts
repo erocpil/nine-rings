@@ -10,6 +10,43 @@
 
 import type { PathNode, DocType } from "../../types/models";
 
+export const MAX_STORAGE_PATH_DEPTH = 32;
+export const MAX_STORAGE_PATH_SEGMENT_LENGTH = 128;
+export const MAX_STORAGE_PATH_LENGTH = 1024;
+
+/** 规范化并验证普通文档目录路径；daily 命名空间由调用方单独禁止。 */
+export function normalizeStoragePath(input: string): string {
+  const raw = input.trim().replace(/\\/g, "/");
+  const parts = raw.split("/").map((part) => part.trim()).filter(Boolean);
+  if (!parts.length || parts.length > MAX_STORAGE_PATH_DEPTH) {
+    throw new Error("目录路径无效：层级必须为 1～32 层");
+  }
+  if (parts.some((part) => part === "." || part === ".." || /[\u0000-\u001f\u007f]/.test(part))) {
+    throw new Error("目录路径包含非法片段");
+  }
+  if (parts.some((part) => part.length > MAX_STORAGE_PATH_SEGMENT_LENGTH)) {
+    throw new Error("目录名不能超过 128 个字符");
+  }
+  const path = parts.join("/");
+  if (path.length > MAX_STORAGE_PATH_LENGTH || path === "daily" || path.startsWith("daily/")) {
+    throw new Error("不能使用 daily 目录命名空间");
+  }
+  return path;
+}
+
+export function isPathUnder(path: string, parent: string): boolean {
+  return path === parent || path.startsWith(`${parent}/`);
+}
+
+export function assertFolderRelocation(sourceInput: string, targetInput: string): { source: string; target: string } {
+  const source = normalizeStoragePath(sourceInput);
+  const target = normalizeStoragePath(targetInput);
+  if (source === target || isPathUnder(target, source)) {
+    throw new Error("不能将目录移动到自身或其子目录");
+  }
+  return { source, target };
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // 树构建的输入类型（与 Op 层字段名对齐，snake_case）
 // ═══════════════════════════════════════════════════════════════════
