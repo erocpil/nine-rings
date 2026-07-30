@@ -49,11 +49,16 @@ jobs:
       - name: Verify bundle architecture and minimum macOS version
         run: |
           APP="src-tauri/target/${{ matrix.target }}/release/bundle/macos/Nine Rings.app"
-          BIN="$APP/Contents/MacOS/nine-rings"
-          test -f "$BIN"
+          test -d "$APP"
+          BIN="$(find "$APP/Contents/MacOS" -type f -print -quit)"
+          test -n "$BIN"
           file "$BIN"
-          file "$BIN" | grep -E "${{ matrix.arch == 'arm64' && 'arm64' || 'x86_64' }}"
-          /usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$APP/Contents/Info.plist"
+          ARCHES="$(lipo -archs "$BIN")"
+          echo "Architectures: $ARCHES"
+          echo "$ARCHES" | grep -qw "${{ matrix.target == 'aarch64-apple-darwin' && 'arm64' || 'x86_64' }}"
+          MIN_OS="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$APP/Contents/Info.plist")"
+          echo "Minimum macOS version: $MIN_OS"
+          test "$MIN_OS" = "10.13"
 
       - name: Collect artifacts
         run: |
