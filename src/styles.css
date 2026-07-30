@@ -4753,6 +4753,12 @@ body {
   -webkit-app-region: drag;
 }
 
+/* Frameless 窗口的拖拽区域不能覆盖交互控件。 */
+.titlebar-controls,
+.titlebar-btn {
+  -webkit-app-region: no-drag;
+}
+
 .titlebar-title {
   padding-left: 14px;
   font-size: 13px;
@@ -4795,6 +4801,25 @@ body {
 .titlebar-btn-close:hover {
   background: #e81123;
   color: #fff;
+}
+
+.settings-retry {
+  margin-top: 10px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-hover);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.doc-tree-error-detail {
+  max-width: 220px;
+  margin-top: 5px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  text-align: center;
+  word-break: break-word;
 }
 
 /* ═══════════════════════════════════════════
@@ -5330,4 +5355,3 @@ body {
   font-size: 11px;
   color: var(--text-secondary);
 }
-

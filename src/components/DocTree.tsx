@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PathNode, Note } from "../types/models";
 import { api } from "../lib/api";
+import { withTimeout } from "../lib/async";
 
 interface DocTreeProps {
   onSelect: (note: Note) => void;
@@ -104,6 +105,7 @@ function DocTree({
 }: DocTreeProps) {
   const [tree, setTree] = useState<PathNode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try {
       const raw = localStorage.getItem("nr:docTreeCollapsed");
@@ -133,13 +135,20 @@ function DocTree({
     setSelectMode(false);
   }, []);
 
-  useEffect(() => {
+  const loadTree = useCallback(() => {
     setLoading(true);
-    api.docs.tree().then((nodes) => {
+    setLoadError(null);
+    withTimeout(api.docs.tree(), 15000, "加载文档树").then((nodes) => {
       setTree(nodes);
-      setLoading(false);
-    });
-  }, [refreshKey]);
+    }).catch((error) => {
+      console.error("[DocTree] 加载失败:", error);
+      setLoadError(error instanceof Error ? error.message : String(error));
+    }).finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadTree();
+  }, [refreshKey, loadTree]);
 
   // 持久化折叠状态
   useEffect(() => {
@@ -457,6 +466,16 @@ function DocTree({
 
   if (loading) {
     return <div className="doc-tree-loading">加载中...</div>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="doc-tree-loading">
+        <div>文档加载失败</div>
+        <div className="doc-tree-error-detail">{loadError}</div>
+        <button className="settings-retry" onClick={loadTree}>重试</button>
+      </div>
+    );
   }
 
   return (

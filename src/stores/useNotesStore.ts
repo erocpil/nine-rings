@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { Note, DailyPage } from "../types/models";
 import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
+import { withTimeout } from "../lib/async";
 
 /** 排序：置顶优先 → sort_order 升序 → created_at 升序 */
 function sortNotes(a: Note, b: Note): number {
@@ -52,10 +53,14 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
     const prevSelected = get().selectedNote;
     set({ loading: true, currentDate: date, error: null });
     try {
-      const [notes, dailyPage] = await Promise.all([
-        api.notes.listByDate(date),
-        api.daily.get(date),
-      ]);
+      const [notes, dailyPage] = await withTimeout(
+        Promise.all([
+          api.notes.listByDate(date),
+          api.daily.get(date),
+        ]),
+        15000,
+        "加载笔记",
+      );
       // 若当前选中的是文档（有 storagePath），保持在文档视图不切换
       if (prevSelected?.storagePath) {
         set({ notes, dailyPage, loading: false });

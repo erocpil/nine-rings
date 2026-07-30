@@ -8,7 +8,12 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
  */
 export default function TitleBar() {
   const handleClose = async () => {
-    await getCurrentWindow().hide();
+    try {
+      await getCurrentWindow().hide();
+    } catch (error) {
+      // WebView2 恢复/切换桌面后偶发 hide IPC 失败，避免未处理 rejection 让按钮看起来失效。
+      console.error("[TitleBar] 关闭窗口失败:", error);
+    }
   };
 
   return (
@@ -20,6 +25,7 @@ export default function TitleBar() {
       <div className="titlebar-controls">
         <button
           className="titlebar-btn titlebar-btn-close"
+          type="button"
           onClick={handleClose}
           aria-label="关闭"
           title="关闭到托盘"

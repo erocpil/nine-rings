@@ -6,6 +6,7 @@ import { DEFAULT_HOTKEYS, HOTKEY_LABELS } from "../types/models";
 import { mdToDelta, extractTitle } from "../lib/md-parser";
 import { isTauri, exportWithDialog, importWithDialog } from "../lib/tauri-desktop";
 import SettingsSync from "./SettingsSync";
+import { withTimeout } from "../lib/async";
 
 interface Props {
   open: boolean;
@@ -23,6 +24,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // ── 标签管理状态 ──
   const [allTags, setAllTags] = useState<string[]>([]);
@@ -38,17 +40,23 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
   const [mdImporting, setMdImporting] = useState(false);
   const [mdImportCount, setMdImportCount] = useState(0);
 
-  useEffect(() => {
-    if (!open) return;
+  const loadSettings = () => {
     setLoading(true);
-    Promise.all([
+    setLoadError(null);
+    withTimeout(Promise.all([
       api.config.get(),
       api.tags.listAll(),
-    ]).then(([c, tags]) => {
+    ]), 15000, "加载设置").then(([c, tags]) => {
       setConfig(c);
       setAllTags(tags);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch((error) => {
+      console.error("[SettingsPanel] 加载失败:", error);
+      setLoadError(error instanceof Error ? error.message : String(error));
+    }).finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    if (open) loadSettings();
   }, [open]);
 
   const refreshTags = () => {
@@ -205,7 +213,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
         {loading ? (
           <div className="settings-loading">加载中...</div>
         ) : !config ? (
-          <div className="settings-loading">加载失败</div>
+          <div className="settings-loading">
+            <div>设置加载失败{loadError ? `：${loadError}` : ""}</div>
+            <button className="settings-retry" onClick={loadSettings}>重试</button>
+          </div>
         ) : (
           <div className="settings-body">
             {/* ── 主题 ── */}
