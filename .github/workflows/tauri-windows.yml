@@ -52,19 +52,8 @@ jobs:
           fi
           ls -lh artifacts/
 
-      - name: Upload artifacts
-        id: upload-artifact
+      - name: Publish Windows prerelease
         if: github.event_name != 'pull_request'
-        continue-on-error: true
-        uses: actions/upload-artifact@v7
-        with:
-          name: nine-rings-tauri-windows-x64
-          path: artifacts/*
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Publish fallback prerelease
-        if: github.event_name != 'pull_request' && steps.upload-artifact.outcome == 'failure'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -74,7 +63,7 @@ jobs:
           SHORT_SHA="${GITHUB_SHA:0:7}"
           TAG="windows-ci-$SHORT_SHA"
           TITLE="Nine Rings Windows $SHORT_SHA"
-          NOTES="Windows Tauri CI build for commit $GITHUB_SHA. Actions Artifact upload was unavailable, so the MSI and NSIS installers were published here."
+          NOTES="Windows Tauri CI build for commit $GITHUB_SHA."
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" artifacts/* --clobber
