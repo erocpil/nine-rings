@@ -11,6 +11,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   tauri-windows:
     runs-on: windows-latest
@@ -28,14 +31,11 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2"
-
       - name: Install frontend dependencies
         run: npm ci
 
       - name: Build Tauri (release)
-        run: cargo tauri build --bundles msi,nsis
+        run: npx tauri build --bundles msi,nsis
 
       - name: Collect artifacts
         shell: bash
@@ -53,10 +53,36 @@ jobs:
           ls -lh artifacts/
 
       - name: Upload artifacts
+        id: upload-artifact
         if: github.event_name != 'pull_request'
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: nine-rings-tauri-windows-x64
           path: artifacts/*
           if-no-files-found: error
           retention-days: 7
+
+      - name: Publish fallback prerelease
+        if: github.event_name != 'pull_request' && steps.upload-artifact.outcome == 'failure'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          TAG="windows-ci-$SHORT_SHA"
+          TITLE="Nine Rings Windows $SHORT_SHA"
+          NOTES="Windows Tauri CI build for commit $GITHUB_SHA. Actions Artifact upload was unavailable, so the MSI and NSIS installers were published here."
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" artifacts/* --clobber
+            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES"
+          else
+            gh release create "$TAG" artifacts/* \
+              --target "$GITHUB_SHA" \
+              --title "$TITLE" \
+              --notes "$NOTES" \
+              --prerelease
+          fi
