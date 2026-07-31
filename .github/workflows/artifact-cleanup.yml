@@ -42,6 +42,27 @@ jobs:
               continue
             fi
 
+            case "$artifact_name" in
+              nine-rings-tauri-windows-x64 | \
+              nine-rings-tauri-linux-x86_64 | \
+              nine-rings-tauri-macos-arm64 | \
+              nine-rings-tauri-macos-x64 | \
+              nine-rings-flutter-windows-x64 | \
+              nine-rings-flutter-linux-x64 | \
+              nine-rings-flutter-macos-arm64)
+                ;;
+              *)
+                if gh api \
+                  --method DELETE \
+                  "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}" \
+                  --silent; then
+                  echo "Deleted legacy $artifact_name ($artifact_id, $created_at)"
+                  ((deleted += 1))
+                fi
+                continue
+                ;;
+            esac
+
             if [[ -z "${kept[$artifact_name]+x}" ]]; then
               kept["$artifact_name"]="$artifact_id"
               echo "Keeping $artifact_name ($artifact_id, $created_at)"
@@ -65,4 +86,4 @@ jobs:
               sort -r
           )
 
-          echo "Kept ${#kept[@]} latest artifacts; deleted $deleted superseded artifacts"
+          echo "Kept ${#kept[@]} latest current artifacts; deleted $deleted legacy or superseded artifacts"
