@@ -1,0 +1,68 @@
+name: Artifact Cleanup
+
+on:
+  workflow_run:
+    workflows:
+      - Tauri Windows Build
+      - Tauri macOS Build
+      - Tauri Linux Build
+      - Flutter Windows Build
+      - Flutter macOS Build
+      - Flutter Linux Build
+    types: [completed]
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: artifact-cleanup
+  cancel-in-progress: true
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  prune:
+    name: Keep latest artifact per name
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete superseded artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          declare -A kept=()
+          deleted=0
+
+          while IFS=$'\t' read -r created_at artifact_id artifact_name; do
+            if [[ -z "$artifact_id" || -z "$artifact_name" ]]; then
+              continue
+            fi
+
+            if [[ -z "${kept[$artifact_name]+x}" ]]; then
+              kept["$artifact_name"]="$artifact_id"
+              echo "Keeping $artifact_name ($artifact_id, $created_at)"
+              continue
+            fi
+
+            if gh api \
+              --method DELETE \
+              "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}" \
+              --silent; then
+              echo "Deleted superseded $artifact_name ($artifact_id, $created_at)"
+              ((deleted += 1))
+            else
+              echo "Artifact $artifact_id was already deleted by another cleanup run"
+            fi
+          done < <(
+            gh api \
+              --paginate \
+              "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
+              --jq '.artifacts[] | [.created_at, .id, .name] | @tsv' |
+              sort -r
+          )
+
+          echo "Kept ${#kept[@]} latest artifacts; deleted $deleted superseded artifacts"

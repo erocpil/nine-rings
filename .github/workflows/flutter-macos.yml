@@ -7,13 +7,17 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   flutter-macos:
     runs-on: macos-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -25,7 +29,7 @@ jobs:
         run: flutter config --enable-macos-desktop
 
       - name: Setup Java (required by jni FFI plugin)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -55,8 +59,10 @@ jobs:
           ls -lh "$GITHUB_WORKSPACE/flutter_app/nine-rings-flutter-macos-arm64.zip"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7
         with:
           name: nine-rings-flutter-macos-arm64
           path: flutter_app/nine-rings-flutter-macos-arm64.zip
           if-no-files-found: error
+          retention-days: 7
