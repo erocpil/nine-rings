@@ -9,6 +9,7 @@ import { ResizableImage } from "../extensions/ResizableImage";
 import LinkExt from "@tiptap/extension-link";
 import { MarkdownLinkInput } from "../extensions/MarkdownLinkInput";
 import {
+  normalizePastedHTML,
   normalizeSingleParagraphHTML,
   normalizeSingleParagraphPaste,
 } from "../extensions/NormalizeSingleParagraphPaste";
@@ -261,6 +262,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     content: tipTapContent,
     editable: !readonly,
     editorProps: {
+      transformPastedHTML: normalizePastedHTML,
       transformPasted: normalizeSingleParagraphPaste,
     },
     onUpdate: ({ editor: ed }) => {

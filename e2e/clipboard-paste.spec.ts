@@ -98,6 +98,34 @@ test.describe("编辑器复制粘贴", () => {
     await expect(editor.locator("p")).toHaveCount(1);
     await expect(editor.locator("p")).toHaveText("前缀 后缀中间文本");
   });
+
+  test("Windows 风格段内边界换行不会变成粘贴前后空行", async ({ page }) => {
+    await page.goto("/");
+
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("已有内容");
+    await editor.press("End");
+    await editor.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData(
+        "text/html",
+        '<p data-pm-slice="1 1 []"><br><br>粘贴正文<br><br></p>',
+      );
+      clipboardData.setData("text/plain", "\r\n\r\n粘贴正文\r\n\r\n");
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    });
+
+    await expect(editor.locator("p")).toHaveCount(1);
+    await expect(editor.locator("p")).toHaveText("已有内容粘贴正文");
+  });
 });
 
 test.describe("文档树移动", () => {

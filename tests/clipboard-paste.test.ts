@@ -88,6 +88,54 @@ console.log("\n── NormalizeSingleParagraphPaste ──");
 }
 
 {
+  const paragraph = schema.node("paragraph", null, [
+    schema.node("hardBreak"),
+    schema.node("hardBreak"),
+    schema.text("正文"),
+    schema.node("hardBreak"),
+    schema.node("hardBreak"),
+  ]);
+  const input = new Slice(Fragment.from(paragraph), 1, 1);
+  const output = normalizeSingleParagraphPaste(input);
+  assert(output.content.childCount === 1, "edge hard breaks are removed from one paragraph");
+  assert(output.content.firstChild?.isText === true, "cleaned one-line paragraph is flattened");
+  assert(output.content.textBetween(0, output.content.size) === "正文", "edge hard breaks do not survive");
+}
+
+{
+  const paragraph = schema.node("paragraph", null, [
+    schema.node("hardBreak"),
+    schema.text("第一行"),
+    schema.node("hardBreak"),
+    schema.text("第二行"),
+    schema.node("hardBreak"),
+  ]);
+  const input = new Slice(Fragment.from(paragraph), 1, 1);
+  const output = normalizeSingleParagraphPaste(input);
+  const cleaned = output.content.firstChild;
+  assert(cleaned?.type.name === "paragraph", "internal hard breaks keep paragraph block structure");
+  assert(cleaned?.childCount === 3, "only leading and trailing hard breaks are removed");
+  assert(cleaned?.child(1).type.name === "hardBreak", "internal hard break is preserved");
+}
+
+{
+  const first = schema.node("paragraph", null, [
+    schema.node("hardBreak"),
+    schema.text("第一段"),
+  ]);
+  const second = schema.node("paragraph", null, [
+    schema.text("第二段"),
+    schema.node("hardBreak"),
+  ]);
+  const input = new Slice(Fragment.fromArray([first, second]), 1, 1);
+  const output = normalizeSingleParagraphPaste(input);
+  assert(output.content.childCount === 2, "multiple content paragraphs remain separate");
+  assert(output.content.firstChild?.childCount === 1, "leading boundary break is removed");
+  assert(output.content.lastChild?.childCount === 1, "trailing boundary break is removed");
+  assert(output.openStart === 1 && output.openEnd === 1, "open slice depth remains valid");
+}
+
+{
   const paragraph = schema.node("paragraph");
   const input = new Slice(Fragment.from(paragraph), 0, 0);
   const output = normalizeSingleParagraphPaste(input);
