@@ -9,6 +9,7 @@ import { DEFAULT_CONFIG } from "./types";
 import {
   assertFolderRelocation,
   buildDocTree,
+  extractPlainText,
   isPathUnder,
   normalizeStoragePath,
   type FlatDocRecord,
@@ -110,20 +111,6 @@ function blobToBase64(blob: Blob): Promise<string> {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(blob);
   });
-}
-
-/** 从 Delta JSON 提取纯文本用于搜索 */
-function extractPlainText(content: any): string {
-  try {
-    const ops = content?.ops ?? (Array.isArray(content) ? content : []);
-    return ops
-      .filter((op: any) => typeof op.insert === "string")
-      .map((op: any) => op.insert)
-      .join("")
-      .trim();
-  } catch {
-    return "";
-  }
 }
 
 /** Delta → Markdown（与 Rust 侧 delta_to_markdown 逻辑一致） */

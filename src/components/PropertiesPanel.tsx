@@ -82,7 +82,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPa
       setEditingPath(false);
       return;
     }
-    await api.notes.update(note.id, { storagePath: newPath } as any);
+    await api.notes.update(note.id, { storagePath: newPath });
     onNoteUpdate({ ...note, storagePath: newPath });
     setEditingPath(false);
   }, [note, editRoot, editSub, onNoteUpdate, readonly]);
@@ -98,7 +98,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPa
   const handleTypeChange = useCallback(async (docType: DocType) => {
     if (readonly) return;
     const newType = note.docType === docType ? undefined : docType;
-    await api.notes.update(note.id, { docType: newType } as any);
+    await api.notes.update(note.id, { docType: newType });
     onNoteUpdate({ ...note, docType: newType });
   }, [note, onNoteUpdate, readonly]);
 
@@ -122,7 +122,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPa
     const t = tag.trim();
     if (!t || concepts.includes(t)) return;
     const updated = [...concepts, t];
-    await api.notes.update(note.id, { concepts: updated } as any);
+    await api.notes.update(note.id, { concepts: updated });
     onNoteUpdate({ ...note, concepts: updated });
     setConceptInput("");
     setSuggestions([]);
@@ -131,7 +131,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPa
   const removeConcept = async (tag: string) => {
     if (readonly) return;
     const updated = concepts.filter((c) => c !== tag);
-    await api.notes.update(note.id, { concepts: updated } as any);
+    await api.notes.update(note.id, { concepts: updated });
     onNoteUpdate({ ...note, concepts: updated });
   };
 
@@ -152,7 +152,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPa
   const addLink = async (linkedNote: Note) => {
     if (readonly) return;
     const updated = [...linkedIds, linkedNote.id];
-    await api.notes.update(note.id, { linkedDocIds: updated } as any);
+    await api.notes.update(note.id, { linkedDocIds: updated });
     onNoteUpdate({ ...note, linkedDocIds: updated });
     setLinkSearch("");
     setLinkResults([]);
@@ -161,7 +161,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPa
   const removeLink = async (id: string) => {
     if (readonly) return;
     const updated = linkedIds.filter((lid) => lid !== id);
-    await api.notes.update(note.id, { linkedDocIds: updated } as any);
+    await api.notes.update(note.id, { linkedDocIds: updated });
     onNoteUpdate({ ...note, linkedDocIds: updated });
   };
 

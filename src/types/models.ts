@@ -90,7 +90,6 @@ export interface CreateNoteInput {
 }
 
 export interface UpdateNoteInput {
-  id: string;
   title?: string | null;
   content?: DeltaOps;
   date?: string;
@@ -103,6 +102,9 @@ export interface UpdateNoteInput {
   concepts?: string[];
   linkedDocIds?: string[];
 }
+
+/** Editable Note fields accepted by every storage backend. */
+export type NotePatch = UpdateNoteInput;
 
 export interface UpdateTodosInput {
   date: string;

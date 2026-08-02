@@ -64,7 +64,7 @@ export const api = {
         const updatedTags = n.tags
           .filter((t) => t !== oldName)
           .concat(newName);
-        await ad.updateNote(n.id, { tags: updatedTags } as any);
+        await ad.updateNote(n.id, { tags: updatedTags });
         affected++;
       }
       return { affected };
@@ -80,7 +80,7 @@ export const api = {
         const updatedTags = n.tags
           .filter((t) => t !== sourceName)
           .concat(targetName);
-        await ad.updateNote(n.id, { tags: updatedTags } as any);
+        await ad.updateNote(n.id, { tags: updatedTags });
         affected++;
       }
       return { affected };
@@ -94,7 +94,7 @@ export const api = {
       let affected = 0;
       for (const n of notes) {
         const updatedTags = n.tags.filter((t) => t !== name);
-        await ad.updateNote(n.id, { tags: updatedTags } as any);
+        await ad.updateNote(n.id, { tags: updatedTags });
         affected++;
       }
       return { affected };

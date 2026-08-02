@@ -945,7 +945,7 @@
 - [ ] 删除或废弃 Rust `sync_push` / `sync_pull` 空命令和服务。
 - [ ] 所有备份入口统一委托给当前 `github.ts` 全量备份实现。
 - [ ] UI 和 API 继续使用“备份”，不重新引入“同步”语义。
-- [ ] 将三处 `extractPlainText()` 收归 `storage/core.ts`。
+- [x] 将三处 `extractPlainText()` 收归 `storage/core.ts`。
 - [ ] 为公共纯函数增加 Unicode、嵌入对象和空 Delta 测试。
 
 验收标准：
@@ -966,11 +966,11 @@
 
 任务：
 
-- [ ] 从 `App.tsx` 提取键盘快捷键、日期切换、窗口事件和 Quick Capture 事件。
+- [ ] 已从 `App.tsx` 提取跨日检测与时钟 Hook；键盘快捷键、窗口事件和 Quick Capture 事件继续按行为测试逐项迁移。
 - [ ] 从 `idb.ts` 依次提取 import/export、version、images 和 config。
 - [ ] 每次只移动一个职责，禁止同时改变业务行为。
-- [ ] 为 Tauri 环境检测声明统一的 `Window` 类型，删除重复 `@ts-ignore`。
-- [ ] 修正 `UpdateNoteInput`、导入模型和搜索结果模型，移除调用点 `as any`。
+- [x] 为 Tauri 环境检测建立统一 runtime 模块和 `Window` 边界，移除相关重复 `@ts-ignore`。
+- [ ] 已修正 `UpdateNoteInput` 和开发导入模型；搜索结果模型与编辑器扩展类型仍待收敛。
 - [ ] 清理 mapper 之外的 snake_case/camelCase 桥接。
 - [ ] 为每次拆分保留行为测试和独立可回滚提交。
 
@@ -986,11 +986,11 @@
 
 - [x] 评估并升级 Vite；在兼容当前 Node 18 开发环境的前提下升级至 6.4.3。
 - [x] 更新前端依赖并处理 `npm audit` 结果（当前 0 vulnerabilities）。
-- [ ] 引入 ESLint；`npm run lint` 不再只是 `tsc --noEmit`。
-- [ ] 引入 Prettier，并将首次全量格式化作为独立提交。
+- [x] 引入 ESLint；`npm run lint` 不再只是 `tsc --noEmit`，类型检查保留为独立命令。
+- [ ] 引入 Prettier 渐进门禁；先覆盖新增基础设施，历史源码全量格式化留作独立提交。
 - [ ] 保留 `tsc`、完整 `npm test`、Playwright E2E 和生产构建。
 - [ ] 保留 Rust `cargo test`、`cargo fmt --check` 和 Clippy。
-- [ ] 增加 Flutter `dart format --check`、`flutter analyze` 和测试。
+- [x] 增加 Flutter `dart format --check`、`flutter analyze` 和测试。
 - [ ] 对依赖升级前后的 bundle 大小和关键 E2E 做对比。
 
 验收标准：

@@ -6,18 +6,14 @@
  */
 
 import type { StorageAdapter } from "./types";
-
-function isTauri(): boolean {
-  // @ts-ignore — Tauri v2 注入 window.isTauri，v1 注入 window.__TAURI__
-  return typeof window !== "undefined" && (window.isTauri === true || window.__TAURI__ !== undefined);
-}
+import { isTauriRuntime } from "../runtime";
 
 let _adapter: StorageAdapter | null = null;
 
 export async function getAdapter(): Promise<StorageAdapter> {
   if (_adapter) return _adapter;
 
-  if (isTauri()) {
+  if (isTauriRuntime()) {
     console.log("[Storage] Tauri 模式 — 使用 Rust/SQLite IPC");
     const { tauriAdapter } = await import("./tauri");
     _adapter = tauriAdapter;

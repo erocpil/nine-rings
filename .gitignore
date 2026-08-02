@@ -53,3 +53,4 @@ __pycache__/
 flutter_app/pubspec.lock
 test-results/
 playwright-report/
+coverage/

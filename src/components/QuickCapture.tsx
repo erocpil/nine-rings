@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
+import { isTauriRuntime } from "../lib/runtime";
 
 /** 将主题名映射为 CSS class 并应用到 <html> */
 function applyQCTheme(theme: string) {
@@ -118,8 +119,7 @@ export default function QuickCapture() {
       console.log("[QC] ├─ api.notes.create ✓ 成功");
 
       // Tauri 桌面：跨窗口通知主窗口刷新
-      // @ts-ignore
-      if (typeof window !== "undefined" && (window as any).isTauri) {
+      if (isTauriRuntime()) {
         try {
           await invoke("emit_to_main", { event: "quick-capture-created" });
           console.log("[QC] ├─ emit_to_main ✓ 已通知主窗口");

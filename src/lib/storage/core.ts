@@ -10,6 +10,21 @@
 
 import type { PathNode, DocType } from "../../types/models";
 
+/** Extract searchable text from a Delta while ignoring embedded objects. */
+export function extractPlainText(content: unknown): string {
+  if (!content || typeof content !== "object") return "";
+  const candidate = content as { ops?: unknown };
+  const ops = Array.isArray(candidate.ops) ? candidate.ops : Array.isArray(content) ? content : [];
+  return ops
+    .flatMap((op) => {
+      if (!op || typeof op !== "object") return [];
+      const insert = (op as { insert?: unknown }).insert;
+      return typeof insert === "string" ? [insert] : [];
+    })
+    .join("")
+    .trim();
+}
+
 export const MAX_STORAGE_PATH_DEPTH = 32;
 export const MAX_STORAGE_PATH_SEGMENT_LENGTH = 128;
 export const MAX_STORAGE_PATH_LENGTH = 1024;

@@ -15,6 +15,7 @@
  */
 
 import type { SelectOp, InsertOp, UpdateOp } from "./ops";
+import { runtimeKind } from "../runtime";
 
 // ═══════════════════════════════════════════════════════════════════
 // 类型定义
@@ -61,13 +62,8 @@ let _runtime: "tauri" | "web" | null = null;
 
 function detectRuntime(): "tauri" | "web" {
   if (_runtime !== null) return _runtime;
-  if (typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__) {
-    _runtime = "tauri";
-    console.log("[template-store] runtime = tauri");
-  } else {
-    _runtime = "web";
-    console.log("[template-store] runtime = web (no __TAURI_INTERNALS__)");
-  }
+  _runtime = runtimeKind();
+  console.log(`[template-store] runtime = ${_runtime}`);
   return _runtime;
 }
 

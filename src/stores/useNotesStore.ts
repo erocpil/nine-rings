@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Note, DailyPage } from "../types/models";
+import type { Note, DailyPage, NotePatch } from "../types/models";
 import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import { withTimeout } from "../lib/async";
@@ -30,7 +30,7 @@ interface NotesStore {
   setDate: (date: string) => Promise<void>;
   selectNote: (note: Note | null) => void;
   createNote: () => Promise<Note | null>;
-  updateNote: (id: string, changes: Partial<Note>) => Promise<void>;
+  updateNote: (id: string, changes: NotePatch) => Promise<void>;
   deleteNote: (id: string) => Promise<void>;
   search: (query: string) => Promise<void>;
   updateTodos: (todos: DailyPage["todos"]) => Promise<void>;
@@ -99,7 +99,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
 
   updateNote: async (id, changes) => {
     try {
-      const updatedNote = await api.notes.update(id, changes as any);
+      const updatedNote = await api.notes.update(id, changes);
       set((s) => {
         // 用 API 返回的完整对象替换本地笔记，并重新排序
         const newNotes = s.notes

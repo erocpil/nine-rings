@@ -6,11 +6,11 @@
  */
 
 import { localDateKey } from "./local-date";
+import { isTauriRuntime } from "./runtime";
 
 /** 检测是否运行在 Tauri 桌面环境中（兼容 v1 __TAURI__ 和 v2 isTauri） */
 export function isTauri(): boolean {
-  const w = typeof window !== "undefined" ? (window as any) : null;
-  return w !== null && (w.isTauri === true || w.__TAURI__ !== undefined);
+  return isTauriRuntime();
 }
 
 /**

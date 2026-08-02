@@ -9,13 +9,15 @@
 import { useEffect, useRef } from "react";
 import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
+import { isTauriRuntime } from "../lib/runtime";
+import type { DeltaOps, DocType } from "../types/models";
 
 interface ImportFile {
   title: string;
-  content: any;
+  content: DeltaOps;
   tags?: string[];
   storagePath?: string;
-  docType?: string;
+  docType?: DocType;
   concepts?: string[];
 }
 
@@ -29,8 +31,7 @@ export function useDevImport(refresh: () => void) {
       console.log("[dev-import] 非 DEV 模式，跳过");
       return;
     }
-    const isTauri = typeof window !== "undefined" && (window as any).__TAURI__;
-    if (isTauri) {
+    if (isTauriRuntime()) {
       console.log("[dev-import] Tauri 环境，跳过");
       return;
     }
@@ -60,7 +61,7 @@ export function useDevImport(refresh: () => void) {
               content,
               tags: file.tags || [],
               storagePath: file.storagePath,
-              docType: file.docType as any,
+              docType: file.docType,
               concepts: file.concepts,
             });
             count++;

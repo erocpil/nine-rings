@@ -17,7 +17,7 @@
 
 import type { Note, CreateNoteInput, PathNode, DocType } from "../../types/models";
 import type { Op, SelectOp, InsertOp, UpdateOp, DeleteOp } from "./ops";
-import { buildDocTree, type FlatDocRecord, type FlatDailyRecord } from "./core";
+import { buildDocTree, extractPlainText, type FlatDocRecord, type FlatDailyRecord } from "./core";
 import { localDateKey } from "../local-date";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -56,19 +56,6 @@ function uuid(): string {
     const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
-}
-
-function extractPlainText(content: any): string {
-  try {
-    const ops = content?.ops ?? (Array.isArray(content) ? content : []);
-    return ops
-      .filter((op: any) => typeof op.insert === "string")
-      .map((op: any) => op.insert)
-      .join("")
-      .trim();
-  } catch {
-    return "";
-  }
 }
 
 /** Note → IDB 存储格式（与 idb.ts noteToDB 一致） */

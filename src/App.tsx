@@ -33,11 +33,12 @@ import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
 import { addLog } from "./lib/debugLog";
 import type { Template } from "./lib/storage/template-store";
 import { templateStore } from "./lib/storage/template-store";
+import { isTauriRuntime } from "./lib/runtime";
+import { useClockAndDateRollover } from "./hooks/useClockAndDateRollover";
 
 function openNewWindow() {
-  // @ts-ignore
-  if (typeof window === "undefined" || !(window as any).isTauri) return;
-  import("@tauri-apps/api/window").then(({ WebviewWindow }: any) => {
+  if (!isTauriRuntime()) return;
+  import("@tauri-apps/api/webviewWindow").then(({ WebviewWindow }) => {
     const label = `window-${Date.now()}`;
     new WebviewWindow(label, {
       url: "/",
@@ -117,10 +118,7 @@ function App() {
 
   const [recycleOpen, setRecycleOpen] = useState(false);
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
-  const [clock, setClock] = useState(() => {
-    const d = new Date();
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
-  });
+  const clock = useClockAndDateRollover(setDate);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [tagFilteredNotes, setTagFilteredNotes] = useState<Note[] | null>(null);
   const [undo, setUndo] = useState<UndoState | null>(null);
@@ -217,8 +215,7 @@ function App() {
 
   // ── Tauri 托盘事件："新建随笔" ──
   useEffect(() => {
-    // @ts-ignore
-    if (typeof window === "undefined" || !(window as any).isTauri) return;
+    if (!isTauriRuntime()) return;
     let unlisten: (() => void) | undefined;
     import("@tauri-apps/api/event").then(({ listen }) => {
       listen("tray-new-note", () => {
@@ -233,8 +230,7 @@ function App() {
     const today = localDateKey();
 
     // Tauri 桌面端：监听 Rust 端 emit_to_main 事件
-    // @ts-ignore
-    if (typeof window !== "undefined" && (window as any).isTauri) {
+    if (isTauriRuntime()) {
       let unlisten: (() => void) | undefined;
       import("@tauri-apps/api/event").then(({ listen }) => {
         listen("quick-capture-created", () => {
@@ -463,8 +459,7 @@ function App() {
       // F11: 全屏切换（Tauri 桌面端；Web 端浏览器原生处理）
       if (e.key === "F11" && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
         e.preventDefault();
-        // @ts-ignore
-        if (typeof window !== "undefined" && (window as any).isTauri) {
+        if (isTauriRuntime()) {
           import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
             getCurrentWindow().isFullscreen().then((fs) => {
               getCurrentWindow().setFullscreen(!fs);
@@ -596,34 +591,6 @@ function App() {
     // registerShortcuts 内部管理注销，返回 void
   }, [config?.hotkeys ? JSON.stringify(config.hotkeys) : ""]);
 
-  // ── 时钟更新 + 跨日检测 ──
-  const lastTodayRef = useRef(localDateKey());
-  useEffect(() => {
-    const tick = () => {
-      const d = new Date();
-      setClock(d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }));
-    };
-    // 时钟每秒更新一次
-    const clockId = setInterval(tick, 1_000);
-
-    // 跨日检测：使用 ref 跟踪上次日期，跨日后只触发一次
-    const dateId = setInterval(() => {
-      const todayStr = localDateKey();
-      if (todayStr !== lastTodayRef.current) {
-        lastTodayRef.current = todayStr;
-        const sel = useNotesStore.getState().selectedNote;
-        if (!sel?.storagePath) {
-          setDate(todayStr);
-        }
-      }
-    }, 30_000);
-
-    return () => {
-      clearInterval(clockId);
-      clearInterval(dateId);
-    };
-  }, [setDate]);
-
   // ── 开发模式后台导入 ──
   const refreshView = useCallback(() => {
     setDate(currentDate);
@@ -666,8 +633,7 @@ function App() {
   return (
     <div className={`app ${focusMode ? "app-focus-mode" : ""}`}>
       {/* 桌面版（Tauri）才需要自定义标题栏；web 版无窗口概念 */}
-      {/* @ts-ignore */}
-      {typeof window !== "undefined" && (window as any).isTauri && <TitleBar />}
+      {isTauriRuntime() && <TitleBar />}
       <header className="app-header">
         {error && (
           <div className="error-bar" onClick={clearError}>
@@ -731,8 +697,7 @@ function App() {
           <button className="btn-icon" onClick={() => setSettingsOpen(true)} title="设置">
             ⚙
           </button>
-          {/* @ts-ignore */}
-          {typeof window !== "undefined" && (window as any).__TAURI__ && (
+          {isTauriRuntime() && (
             <button className="btn-icon" onClick={openNewWindow} title="新窗口">
               ⊞
             </button>
@@ -779,7 +744,7 @@ function App() {
                 }
               }}
               onTogglePin={(id, pinned) => {
-                updateNote(id, { pinned } as any);
+                updateNote(id, { pinned });
               }}
               onRename={(id, title) => {
                 updateNote(id, { title });
@@ -802,7 +767,7 @@ function App() {
                   docType: meta.docType ?? undefined,
                   concepts: meta.concepts?.length ? meta.concepts : undefined,
                   pinned: meta.pinned,
-                } as any);
+                });
                 setDate(today);
                 handleSelectNote(note);
               }}
@@ -829,12 +794,12 @@ function App() {
                 setDate(currentDate);
               }}
               onMoveToDate={async (id, date) => {
-                await api.notes.update(id, { date } as any);
+                await api.notes.update(id, { date });
                 // Refresh current date to reflect removal
                 setDate(currentDate);
               }}
               onToggleReadonly={(id, readonly) => {
-                updateNote(id, { readonly } as any);
+                updateNote(id, { readonly });
               }}
               sidebarRefreshKey={sidebarRefreshKey}
             />
@@ -854,7 +819,7 @@ function App() {
               selectedId={selectedNote?.id ?? null}
               onCreate={() => setDocCreateOpen(true)}
               refreshKey={docTreeKey}
-              onRename={(id, title) => updateNote(id, { title } as any)}
+              onRename={(id, title) => updateNote(id, { title })}
               onDelete={(id) => {
                 const note = notes.find((n) => n.id === id);
                 const title = note?.title || "无标题";
@@ -871,7 +836,7 @@ function App() {
                 });
                 setDocTreeKey(k => k + 1);
               }}
-              onToggleReadonly={(id, readonly) => updateNote(id, { readonly } as any)}
+              onToggleReadonly={(id, readonly) => updateNote(id, { readonly })}
               onMoveDocument={async (id, targetPath) => {
                 await api.docs.moveDocument(id, targetPath);
                 setDocTreeKey(k => k + 1);
@@ -899,7 +864,7 @@ function App() {
                 });
                 setDocTreeKey(k => k + 1);
               }}
-              onBatchSetReadonly={(ids, readonly) => { ids.forEach(id => updateNote(id, { readonly } as any)); }}
+              onBatchSetReadonly={(ids, readonly) => { ids.forEach(id => updateNote(id, { readonly })); }}
               propertiesAutoShow={propertiesAutoShow}
               onTogglePropertiesAuto={() => {
                 const next = !propertiesAutoShow;
@@ -1070,7 +1035,7 @@ function App() {
                 selectedId={selectedNote?.id ?? null}
                 onCreate={() => setDocCreateOpen(true)}
                 refreshKey={docTreeKey}
-                onRename={(id, title) => updateNote(id, { title } as any)}
+                onRename={(id, title) => updateNote(id, { title })}
                 onDelete={(id) => {
                 const note = notes.find((n) => n.id === id);
                 const title = note?.title || "无标题";
@@ -1087,7 +1052,7 @@ function App() {
                 });
                 setDocTreeKey(k => k + 1);
               }}
-                onToggleReadonly={(id, readonly) => updateNote(id, { readonly } as any)}
+                onToggleReadonly={(id, readonly) => updateNote(id, { readonly })}
                 onMoveDocument={async (id, targetPath) => {
                   await api.docs.moveDocument(id, targetPath);
                   setDocTreeKey(k => k + 1);
@@ -1115,7 +1080,7 @@ function App() {
                 });
                 setDocTreeKey(k => k + 1);
               }}
-                onBatchSetReadonly={(ids, readonly) => { ids.forEach(id => updateNote(id, { readonly } as any)); }}
+                onBatchSetReadonly={(ids, readonly) => { ids.forEach(id => updateNote(id, { readonly })); }}
                 propertiesAutoShow={propertiesAutoShow}
                 onTogglePropertiesAuto={() => {
                   const next = !propertiesAutoShow;

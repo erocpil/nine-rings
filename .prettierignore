@@ -1,0 +1,8 @@
+dist
+coverage
+node_modules
+src-tauri/target
+flutter_app/build
+package-lock.json
+*.md
+src/styles.css

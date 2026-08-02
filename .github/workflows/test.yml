@@ -12,8 +12,30 @@ jobs:
           node-version: '22'
           cache: 'npm'
       - run: npm ci
+      - run: npm run typecheck
       - run: npm run lint
+      - run: npm run format:check
       - run: npm test
+      - run: npm run test:coverage
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
+  flutter-quality:
+    name: Flutter Tests and Format
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flutter_app
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: flutter analyze
+      - run: flutter test
 
   ipc-contract:
     name: Tauri IPC Contract Check

@@ -17,6 +17,7 @@ import type { SelectOp, InsertOp, UpdateOp, DeleteOp } from "./ops";
 import {
   assertFolderRelocation,
   buildDocTree,
+  extractPlainText,
   isPathUnder,
   normalizeStoragePath,
   type FlatDocRecord,
@@ -60,19 +61,6 @@ function uuid(): string {
     const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
-}
-
-function extractPlainText(content: any): string {
-  try {
-    const ops = content?.ops ?? (Array.isArray(content) ? content : []);
-    return ops
-      .filter((op: any) => typeof op.insert === "string")
-      .map((op: any) => op.insert)
-      .join("")
-      .trim();
-  } catch {
-    return "";
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
