@@ -36,7 +36,7 @@
 | **文档管理** | P.A.R.A. 目录 × Zettelkasten 概念 × Diátaxis 类型 三维分类，MOC 视图 |
 | **版本历史** | 自动保存版本快照，支持回退 |
 | **回收站** | 软删除，可配置自动清理天数 |
-| **主题** | 8 套配色（浅 / 深 / 暗 / 芙 / 蔚 / 粋 / 雅 / 幟） |
+| **主题** | 8 套配色（浅 / 深 / 暗 / 静 / 蔚 / 粋 / 雅 / 幟） |
 | **文件管理** | 导入 / 导出 JSON 备份；Markdown → Nine Rings 一键导入 |
 | **PWA** | 离线可用，Service Worker 缓存策略，可安装到桌面 |
 | **多框架** | Web（React） + macOS / Linux / Windows（Tauri） + macOS / iOS / Android（Flutter，核心功能已实现） |

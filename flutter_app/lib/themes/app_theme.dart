@@ -17,7 +17,7 @@ class NineRingsTheme {
     required this.data,
   });
 
-  /// 全部 8 套主题，按设置面板顺序：浅 → 深 → 暗 → 芙 → 蔚 → 粋 → 雅 → 幟
+  /// 全部 8 套主题，按设置面板顺序：浅 → 深 → 暗 → 静 → 蔚 → 粋 → 雅 → 幟
   static final Map<String, NineRingsTheme> all = {
     'light': _light,
     'dark': _dark,
@@ -149,12 +149,12 @@ class NineRingsTheme {
   );
 
   // ═══════════════════════════════════════════
-  // 4. 芙 (fu)
+  // 4. 静 (fu)
   // ═══════════════════════════════════════════
 
   static final _fu = NineRingsTheme(
     id: 'fu',
-    label: '芙',
+    label: '静',
     swatch: const Color(0xFF81D8D0),
     data: _theme(Brightness.light,
       const Color(0xFFF5FBFA),

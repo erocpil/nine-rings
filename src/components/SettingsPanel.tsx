@@ -225,7 +225,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
                 {([["light", "浅", "#e2e2e2"],
                 ["dark", "深", "#0d1117"],
                 ["azure-dark", "暗", "#1e3050"],
-                ["fu", "芙", "#81D8D0"],
+                ["fu", "静", "#81D8D0"],
                 ["azure", "蔚", "#3b6dcc"],
                 ["sui", "粋", "#4a8a3a"],
                 ["grace", "雅", "#7654b3"],
