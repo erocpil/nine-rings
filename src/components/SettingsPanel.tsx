@@ -273,23 +273,6 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
               </label>
             </Field>
 
-            {/* ── 回收站自动清理 ── */}
-            <Field label="回收站自动清理" desc="超过此天数的已删除笔记自动清除。0=不自动清理">
-              <div className="settings-stepper">
-                <button
-                  className="settings-step-btn"
-                  onClick={() => update({ auto_clean_days: Math.max(0, config.auto_clean_days - 7) })}
-                >−</button>
-                <span className={`settings-value ${chk("auto_clean_days", 0)}`}>
-                  {config.auto_clean_days === 0 ? "关闭" : `${config.auto_clean_days} 天`}
-                </span>
-                <button
-                  className="settings-step-btn"
-                  onClick={() => update({ auto_clean_days: Math.min(365, config.auto_clean_days + 7) })}
-                >+</button>
-              </div>
-            </Field>
-
             {/* ── 字号 ── */}
             <Field label="正文字号" desc="编辑器内容区域字体大小 (12–32px)">
               <div className="settings-stepper">
@@ -493,6 +476,23 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
             {/* GitHub 同步 */}
             {/* ═══════════════════════ */}
             <SettingsSync onBusyChange={onSyncBusy} onPullDone={onPullDone} />
+
+            {/* ── 回收站自动清理：设置项末尾 ── */}
+            <Field label="回收站自动清理" desc="超过此天数的已删除笔记自动清除。0=不自动清理">
+              <div className="settings-stepper">
+                <button
+                  className="settings-step-btn"
+                  onClick={() => update({ auto_clean_days: Math.max(0, config.auto_clean_days - 7) })}
+                >−</button>
+                <span className={`settings-value ${chk("auto_clean_days", 0)}`}>
+                  {config.auto_clean_days === 0 ? "关闭" : `${config.auto_clean_days} 天`}
+                </span>
+                <button
+                  className="settings-step-btn"
+                  onClick={() => update({ auto_clean_days: Math.min(365, config.auto_clean_days + 7) })}
+                >+</button>
+              </div>
+            </Field>
 
             {/* ── 保存反馈 ── */}
             {message && <div className="settings-toast">{message}</div>}

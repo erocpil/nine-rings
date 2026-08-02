@@ -36,21 +36,6 @@ import { templateStore } from "./lib/storage/template-store";
 import { isTauriRuntime } from "./lib/runtime";
 import { useClockAndDateRollover } from "./hooks/useClockAndDateRollover";
 
-function openNewWindow() {
-  if (!isTauriRuntime()) return;
-  import("@tauri-apps/api/webviewWindow").then(({ WebviewWindow }) => {
-    const label = `window-${Date.now()}`;
-    new WebviewWindow(label, {
-      url: "/",
-      title: "Nine Rings",
-      width: 720,
-      height: 520,
-    });
-  }).catch(() => {
-    // 非 Tauri 环境静默忽略
-  });
-}
-
 function App() {
   const {
     currentDate,
@@ -152,11 +137,11 @@ function App() {
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0);
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
   const [propertiesOpen, setPropertiesOpen] = useState(() => {
-    return localStorage.getItem("nr:propertiesOpen") !== "false";
+    return localStorage.getItem("nr:propertiesOpen") === "true";
   });
   const PROP_AUTO_KEY = "nr:propertiesAutoShow";
   const [propertiesAutoShow, setPropertiesAutoShow] = useState(() => {
-    return localStorage.getItem(PROP_AUTO_KEY) !== "false"; // 默认开
+    return localStorage.getItem(PROP_AUTO_KEY) === "true";
   });
 
   // 属性面板开/关持久化
@@ -168,8 +153,8 @@ function App() {
 
   // ── 属性面板：选中文档时自动打开，选随笔时关闭 ──
   useEffect(() => {
-    setPropertiesOpen(!!selectedNote?.storagePath);
-  }, [selectedNote]);
+    setPropertiesOpen(propertiesAutoShow && !!selectedNote?.storagePath);
+  }, [propertiesAutoShow, selectedNote]);
   const LAST_NOTE_KEY = "nr:lastNote";
   useEffect(() => {
     if (!selectedNote) return;
@@ -697,11 +682,6 @@ function App() {
           <button className="btn-icon" onClick={() => setSettingsOpen(true)} title="设置">
             ⚙
           </button>
-          {isTauriRuntime() && (
-            <button className="btn-icon" onClick={openNewWindow} title="新窗口">
-              ⊞
-            </button>
-          )}
         </div>
       </header>
 

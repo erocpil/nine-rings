@@ -268,7 +268,7 @@ daily/         ← 虚拟：所有随笔（storagePath = NULL）
    - 标题、根路径（projects/areas/references/ideas/archives）、子路径、docType、concept 标签
 3. 点击"创建" → api.notes.create({date: today, title, content: {ops:[]}, tags:[], storagePath, docType, concepts})
 4. 文档树自动刷新（refreshKey++）
-5. 编辑器打开新文档，属性面板自动展开（选中文档时 propertiesOpen=true）
+5. 编辑器打开新文档，属性面板默认保持关闭；用户启用文档树中的属性面板开关后才自动展开
 ```
 
 ### 属性面板（PropertiesPanel）
