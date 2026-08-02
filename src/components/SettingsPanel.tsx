@@ -228,7 +228,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
                 ["fu", "芙", "#81D8D0"],
                 ["azure", "蔚", "#3b6dcc"],
                 ["sui", "粋", "#4a8a3a"],
-                ["grace", "雅", "#7c3aed"],
+                ["grace", "雅", "#7654b3"],
                 ["zhi", "幟", "#c49a3c"]] as const).map(([v, label, color]) => (
                   <button
                     key={v}

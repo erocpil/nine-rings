@@ -33,6 +33,21 @@ html {
   --danger: #cf222e;
   --success: #1a7f37;
   --hover-bg: rgba(0, 0, 0, 0.04);
+  /* Semantic aliases used by components. Keep them defined centrally so a
+     typo/missing token cannot silently invalidate an entire CSS declaration. */
+  --text-primary: var(--text);
+  --text-tertiary: var(--text-secondary);
+  --text-muted: var(--text-secondary);
+  --bg-card: var(--surface);
+  --bg-secondary: var(--surface);
+  --bg-hover: var(--hover-bg);
+  --hover: var(--hover-bg);
+  --primary: var(--accent);
+  --active-bg: color-mix(in srgb, var(--accent) 12%, transparent);
+  --accent-bg: color-mix(in srgb, var(--accent) 12%, transparent);
+  --danger-bg: color-mix(in srgb, var(--danger) 10%, transparent);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   touch-action: pan-y;
   --radius: 6px;
   --transition: 0.2s ease;
@@ -2080,16 +2095,20 @@ body {
 
 :root.theme-grace {
   --bg: #faf6fc;
-  --surface: #f3edf7;
-  --border: #e6def0;
-  --text: #2c2b2e;
-  --text-secondary: #6e6b73;
-  --accent: #8b6fc0;
-  --accent-hover: #7a5da8;
+  --surface: #f1eaf6;
+  --border: #d8cbe5;
+  --text: #29262d;
+  --text-secondary: #625b69;
+  --text-tertiary: #746b7b;
+  --text-muted: #746b7b;
+  --accent: #7654b3;
+  --accent-hover: #65439f;
   --danger: #d43b5a;
   --success: #3d8b70;
   --code-bg: #f0eaf5;
-  --activeline-bg: rgba(139, 111, 192, 0.10);
+  --hover-bg: rgba(118, 84, 179, 0.07);
+  --active-bg: rgba(118, 84, 179, 0.14);
+  --activeline-bg: rgba(118, 84, 179, 0.13);
 }
 
 /* ── 粋 · 新绿主题 ── */
