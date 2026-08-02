@@ -102,7 +102,7 @@
 | 统一当前功能状态文档 | 🔄 | 后续第 2 轮 |
 | 增量引入 CI 质量门禁 | 🔄 | 后续第 5 轮 |
 | 核心 E2E | ✅ | 第 5 轮 |
-| 删除无效 `syncPush` / `syncPull` 空桩 | ⬜ | 后续第 3 轮 |
+| 删除无效 `syncPush` / `syncPull` 空桩 | ✅ | 后续第 3 轮 |
 | 收敛重复的 `extractPlainText` | ⬜ | 后续第 3 轮 |
 | Vite 与前端依赖维护 | ✅ | 后续第 5 轮 |
 101|
@@ -906,8 +906,8 @@
 - [x] 将 v0、v1、v2、v3、v4、v5 全部迁移到当前 v7。
 - [x] 比较 fresh 与 migrated database 的表、列、索引和外键。
 - [ ] 对每条迁移路径插入共享 fixture，并验证 CRUD、FTS、版本历史和软删除。
-- [ ] Flutter 运行时不再以手写 v5 Schema 作为唯一建库来源。
-- [ ] Flutter 接入生成的目标 Schema，并补齐 v5 → v7 升级路径。
+- [x] Flutter 运行时不再以手写 v5 Schema 作为唯一建库来源。
+- [x] Flutter 接入生成的目标 Schema，并补齐 v5 → v7 升级路径。
 - [ ] 将 IndexedDB store/index 定义纳入同一契约检查。
 - [ ] CI 自动执行全部历史迁移与三端 Schema 检查。
 
@@ -940,11 +940,11 @@
 
 **目标**：消除“调用成功但没有效果”的接口，并减少跨端实现漂移。
 
-- [ ] 确认 `StorageAdapter.syncPush()` / `syncPull()` 是否仍有真实调用方。
-- [ ] 删除 IDB 返回 `{ pushed: 0 }` / `{ pulled: 0 }` 的空实现。
-- [ ] 删除或废弃 Rust `sync_push` / `sync_pull` 空命令和服务。
-- [ ] 所有备份入口统一委托给当前 `github.ts` 全量备份实现。
-- [ ] UI 和 API 继续使用“备份”，不重新引入“同步”语义。
+- [x] 确认 `StorageAdapter.syncPush()` / `syncPull()` 是否仍有真实调用方。
+- [x] 删除 IDB 返回 `{ pushed: 0 }` / `{ pulled: 0 }` 的空实现。
+- [x] 删除或废弃 Rust `sync_push` / `sync_pull` 空命令和服务。
+- [x] 所有备份入口统一委托给当前 `github.ts` 全量备份实现。
+- [x] UI 和 API 继续使用“备份”，不重新引入“同步”语义。
 - [x] 将三处 `extractPlainText()` 收归 `storage/core.ts`。
 - [ ] 为公共纯函数增加 Unicode、嵌入对象和空 Delta 测试。
 

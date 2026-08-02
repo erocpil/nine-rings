@@ -19,6 +19,9 @@
 #   system       → 系统自动维护，不在 API 中暴露
 #   default: X   → 默认值
 
+_meta:
+  version: 7
+
 Note:
   description: 一条随笔笔记 / 文档
   sql_table: notes
@@ -49,7 +52,7 @@ Note:
     linkedDocIds:  { type: json_array, nullable: true, sql_name: linked_doc_ids, description: "关联文档 ID 列表" }
     concepts:      { type: json_array, nullable: true, description: "Zettelkasten 概念标签" }
     readonly:      { type: boolean, default: false }
-    search_text:   { type: string, system: true, default: "", description: "纯文本提取，用于全文搜索" }
+    search_text:   { type: string, system: true, required: true, default: "", description: "纯文本提取，用于全文搜索" }
 
 Todo:
   description: 待办项（嵌入在 DailyPage.todos 中，非独立表）

@@ -378,7 +378,7 @@ interface SyncConfig {
 
 ### 注意事项
 
-- **Web 端和 Tauri 端共用同一个 `github.ts` 模块**——不依赖 StorageAdapter 的 `syncPush`/`syncPull`（这两个在 IDB 端是空桩）
+- **Web 端和 Tauri 端共用同一个 `github.ts` 模块**，StorageAdapter 中不再保留无效同步接口。
 - Push 前会做确认对话框
 - Pull 前会做覆盖确认对话框
 - 连接测试：`GET /repos/{owner}/{repo}` 验证 token/仓库可用性
@@ -455,7 +455,6 @@ interface AppConfig {
   todo_carryover_default: boolean;
   auto_clean_days: number;    // 默认 30
   note_font_size: number;     // 默认 16
-  enable_sync: boolean;
   dev_port: number;           // Web only，默认 1420
   highlight_active_line: boolean;  // 默认 true
   editor_show_line_numbers: boolean; // 默认 false
@@ -537,7 +536,7 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 |------|-----------|
 | `document-system-design.md` | 如果有，需对照实际实现的 `buildDocTree` 算法步骤（FlatDocRecord + FlatDailyRecord 输入、flat 数组输出） |
 | `github-sync.md` | 确认是否描述了 >1MB 文件的 Git Blobs API 回退路径和 UTF-8 编码对称性 |
-| `sync-architecture.md` | Rust 端 `sync_push`/`sync_pull` 是空桩（返回 `{pushed:0, pulled:0}`），实际同步走前端 `github.ts`。文档若描述为 Rust 端实现则不一致 |
+| `sync-architecture.md` | 历史增量同步设计尚未实现；当前唯一入口是前端 `github.ts` 的全量备份。 |
 | `features-roadmap.md` | 确认模板系统是否标记为 Tauri-only |
 | `ROADMAP.md` | 确认版本历史功能的废弃状态（Tauri 已删除但 Web 保留） |
 

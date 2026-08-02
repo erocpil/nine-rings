@@ -34,11 +34,6 @@ AppConfig:
       max: 32
       description: 编辑器正文字号
 
-    enable_sync:
-      type: boolean
-      default: false
-      description: 是否启用跨设备同步（需要对接同步后端）
-
     dev_port:
       type: integer
       default: 1420

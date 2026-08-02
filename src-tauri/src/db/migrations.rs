@@ -1,6 +1,6 @@
 use rusqlite::Connection;
 
-const SCHEMA_VERSION: i32 = 7;
+use crate::db::schema_gen::TARGET_SCHEMA_VERSION;
 
 /// 执行所有迁移。
 ///
@@ -59,7 +59,7 @@ pub fn run(conn: &Connection) -> rusqlite::Result<()> {
             [],
             |r| r.get::<_, i32>(0),
         )?,
-        SCHEMA_VERSION
+        TARGET_SCHEMA_VERSION
     );
     tx.commit()
 }
@@ -76,7 +76,7 @@ fn ensure_tables(conn: &Connection) -> rusqlite::Result<()> {
 }
 
 fn migrate_v1(conn: &Connection) -> rusqlite::Result<()> {
-    // search_text 列：不在 SCHEMA_DDL 中，但 FTS 触发器需要它。
+    // 旧数据库可能还没有当前 Schema 已定义的 search_text 列。
     let has_search_text: bool = conn
         .prepare("SELECT COUNT(*) FROM pragma_table_info('notes') WHERE name='search_text'")?
         .query_row([], |r| r.get::<_, i32>(0))

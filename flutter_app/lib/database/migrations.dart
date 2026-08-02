@@ -1,7 +1,7 @@
-// 数据库迁移版本定义
-// 与 Tauri 后端同步：schema_version = 5
+// 数据库历史迁移。目标版本由 schema/note.yaml 的生成产物统一提供。
+import 'schema_gen.dart' show targetSchemaVersion;
 
-const int schemaVersion = 5;
+const int schemaVersion = targetSchemaVersion;
 
 String migrationV1 = '''
 CREATE TABLE IF NOT EXISTS notes (
@@ -118,4 +118,39 @@ CREATE TABLE IF NOT EXISTS templates (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+''';
+
+String migrationV6 = '''
+DROP TRIGGER IF EXISTS notes_ai;
+DROP TRIGGER IF EXISTS notes_ad;
+DROP TRIGGER IF EXISTS notes_au;
+DROP TABLE IF EXISTS notes_fts;
+CREATE VIRTUAL TABLE notes_fts USING fts5(search_text, content=notes, content_rowid=rowid);
+CREATE TRIGGER notes_ai AFTER INSERT ON notes WHEN new.search_text != '' BEGIN
+  INSERT INTO notes_fts(rowid, search_text) VALUES (new.rowid, new.search_text);
+END;
+CREATE TRIGGER notes_ad AFTER DELETE ON notes WHEN old.search_text != '' BEGIN
+  INSERT INTO notes_fts(notes_fts, rowid, search_text) VALUES ('delete', old.rowid, old.search_text);
+END;
+CREATE TRIGGER notes_au AFTER UPDATE ON notes BEGIN
+  INSERT INTO notes_fts(notes_fts, rowid, search_text)
+    SELECT 'delete', old.rowid, old.search_text WHERE old.search_text != '';
+  INSERT INTO notes_fts(rowid, search_text)
+    SELECT new.rowid, new.search_text WHERE new.search_text != '';
+END;
+INSERT INTO notes_fts(rowid, search_text)
+  SELECT rowid, search_text FROM notes WHERE search_text != '';
+''';
+
+String migrationV7 = '''
+DROP INDEX IF EXISTS idx_notes_date;
+DROP INDEX IF EXISTS idx_notes_updated;
+DROP INDEX IF EXISTS idx_note_versions_note_id;
+CREATE INDEX IF NOT EXISTS idx_notes_date_created_at ON notes(date, created_at);
+CREATE INDEX IF NOT EXISTS idx_notes_updated_at ON notes(updated_at);
+CREATE INDEX IF NOT EXISTS idx_notes_deleted_at ON notes(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_notes_tags ON notes(tags);
+CREATE INDEX IF NOT EXISTS idx_notes_pinned_sort_order ON notes(pinned, sort_order);
+CREATE INDEX IF NOT EXISTS idx_notes_storage_path ON notes(storage_path);
+CREATE INDEX IF NOT EXISTS idx_note_versions_note_id ON note_versions(note_id);
 ''';

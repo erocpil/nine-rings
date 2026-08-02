@@ -49,7 +49,7 @@
 ```
 
 ### StorageAdapter 层（已存在）
-当前 `api.ts` 已封装了适配器模式。备份时扩展：`StorageAdapter` 加 `syncPush()` / `syncPull()` 方法。
+当前 `api.ts` 已封装数据存储适配器。GitHub 全量备份直接组合导出/导入 API，避免在 StorageAdapter 中伪装成增量同步能力。
 
 ### SyncEngine（新增）
 核心备份逻辑，独立于具体传输方式：
@@ -158,7 +158,7 @@ CREATE TABLE sync_changelog (
 ## 当前进度
 
 **已实现（V1 — GitHub 全量快照备份）**：
-- ✅ `api.ts` StorageAdapter `syncPush()` / `syncPull()` → GitHub Contents/Blobs API
+- ✅ `github.ts` 组合导出/导入 API → GitHub Contents/Blobs API
 - ✅ Push/Pull UI（设置页，含测试连接）
 - ✅ 备份期间界面冻结（金色横幅 + 全部只读）
 - ✅ 大文件自动切换 Git Blobs API（>1MB）

@@ -8,7 +8,6 @@ export interface AppConfig {
   todo_carryover_default: boolean;
   auto_clean_days: number;
   note_font_size: number;
-  enable_sync: boolean;
   dev_port: number; // 仅 web 模式生效
   highlight_active_line: boolean;
   editor_show_line_numbers: boolean;
@@ -21,7 +20,6 @@ export const DEFAULT_CONFIG: AppConfig = {
   todo_carryover_default: false,
   auto_clean_days: 30,
   note_font_size: 16,
-  enable_sync: false,
   dev_port: 8000,
   highlight_active_line: true,
   editor_show_line_numbers: false,
@@ -57,10 +55,6 @@ export interface StorageAdapter {
   getDailyPage(date: string): Promise<DailyPage>;
   updateTodos(data: UpdateTodosInput): Promise<DailyPage>;
   getAllDailyPages(): Promise<DailyPage[]>;
-
-  // ── Sync (存桩) ──
-  syncPush(): Promise<{ pushed: number }>;
-  syncPull(): Promise<{ pulled: number }>;
 
   // ── Export / Import ──
   exportData(): Promise<string>;

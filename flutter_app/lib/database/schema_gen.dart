@@ -1,8 +1,8 @@
 // 自动生成自 schema/note.yaml — 请勿手工编辑
 // 工具: scripts/gen-schema.py
 
-/// 初始 schema 版本号
-const int schemaVersion = 1;
+/// 当前目标 schema 版本号，与 Rust/Flutter 历史迁移终点一致。
+const int targetSchemaVersion = 7;
 
 /// 完整初始 schema DDL
 const String migrationV1 = '''
@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS notes (
   doc_type TEXT,
   linked_doc_ids TEXT DEFAULT '[]',
   concepts TEXT DEFAULT '[]',
-  readonly INTEGER NOT NULL DEFAULT 0
+  readonly INTEGER NOT NULL DEFAULT 0,
+  search_text TEXT NOT NULL DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_notes_date_created_at ON notes(date, created_at);
@@ -67,7 +68,7 @@ CREATE INDEX IF NOT EXISTS idx_sync_changes_timestamp ON sync_changes(timestamp)
 CREATE TABLE IF NOT EXISTS templates (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  description TEXT,
+  description TEXT DEFAULT '',
   is_builtin INTEGER NOT NULL DEFAULT 0,
   title_template TEXT,
   tags TEXT NOT NULL DEFAULT '[]',

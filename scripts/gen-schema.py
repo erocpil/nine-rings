@@ -89,6 +89,11 @@ def sql_type(field_def, col_name=""):
     if field_def.get("nullable"):
         base = base.replace(" NOT NULL", "")
 
+    # string defaults are not embedded in TYPE_MAP (unlike arrays/bools/ints).
+    if field_def.get("type") == "string" and field_def.get("default") is not None:
+        escaped = str(field_def["default"]).replace("'", "''")
+        base += f" DEFAULT '{escaped}'"
+
     return base
 
 
@@ -131,20 +136,20 @@ def generate_rust(schema):
         "// 自动生成自 schema/note.yaml — 请勿手工编辑",
         "// 工具: scripts/gen-schema.py",
         "",
+        f"pub const TARGET_SCHEMA_VERSION: i32 = {schema['_meta']['version']};",
+        "",
         "/// 所有 CREATE TABLE 语句（初始 schema，不含迁移）",
         "pub const SCHEMA_DDL: &[&str] = &[",
     ]
 
     for entity_name, entity in schema.items():
-        if "sql_table" not in entity:
+        if not isinstance(entity, dict) or "sql_table" not in entity:
             continue
         table = entity["sql_table"]
         fields = entity.get("fields", {})
 
         cols = []
         for col_name, col_def in fields.items():
-            if col_def.get("system"):
-                continue  # system fields are added separately
             sql_name = col_def.get("sql_name", col_name)  # SQL 列名可覆盖
             sql = sql_type(col_def, col_name)
             cols.append(f"    {sql_name} {sql}")
@@ -186,23 +191,21 @@ def generate_dart(schema):
         "// 自动生成自 schema/note.yaml — 请勿手工编辑",
         "// 工具: scripts/gen-schema.py",
         "",
-        "/// 初始 schema 版本号",
-        "const int schemaVersion = 1;",
+        "/// 当前目标 schema 版本号，与 Rust/Flutter 历史迁移终点一致。",
+        f"const int targetSchemaVersion = {schema['_meta']['version']};",
         "",
         "/// 完整初始 schema DDL",
         "const String migrationV1 = '''",
     ]
 
     for entity_name, entity in schema.items():
-        if "sql_table" not in entity:
+        if not isinstance(entity, dict) or "sql_table" not in entity:
             continue
         table = entity["sql_table"]
         fields = entity.get("fields", {})
 
         cols = []
         for col_name, col_def in fields.items():
-            if col_def.get("system"):
-                continue
             sql_name = col_def.get("sql_name", col_name)
             sql = sql_type(col_def, col_name)
             cols.append(f"  {sql_name} {sql}")
@@ -247,7 +250,7 @@ def generate_ts(schema):
     lines.append("")
 
     for entity_name, entity in schema.items():
-        if "ts_interface" not in entity:
+        if not isinstance(entity, dict) or "ts_interface" not in entity:
             continue
 
         interface_name = entity["ts_interface"]
@@ -274,7 +277,7 @@ def generate_ts(schema):
     lines.append("export const IDB_STORES: Record<string, { keyPath: string; indexes: string[][] }> = {")
 
     for entity_name, entity in schema.items():
-        if "sql_table" not in entity:
+        if not isinstance(entity, dict) or "sql_table" not in entity:
             continue
         table = entity["sql_table"]
         fields = entity.get("fields", {})

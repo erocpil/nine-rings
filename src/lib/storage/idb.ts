@@ -656,18 +656,6 @@ export const idbAdapter: StorageAdapter = {
     });
   },
 
-  // ══════ Sync (存桩) ══════
-
-  async syncPush(): Promise<{ pushed: number }> {
-    console.warn("[IDB] syncPush — 未对接后端");
-    return { pushed: 0 };
-  },
-
-  async syncPull(): Promise<{ pulled: number }> {
-    console.warn("[IDB] syncPull — 未对接后端");
-    return { pulled: 0 };
-  },
-
   // ══════ Export / Import ══════
 
   async exportData(): Promise<string> {

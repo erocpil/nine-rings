@@ -132,7 +132,6 @@ export interface AppConfig {
   todo_carryover_default: boolean;
   auto_clean_days: number;
   note_font_size: number;
-  enable_sync: boolean;
   dev_port: number;
   highlight_active_line: boolean;
   editor_show_line_numbers: boolean;

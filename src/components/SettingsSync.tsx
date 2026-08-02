@@ -10,7 +10,7 @@ import {
 } from "../lib/sync/github";
 
 interface Props {
-  /** 同步进行中回调 — 父组件用来 freeze 编辑区 */
+  /** 备份进行中回调 — 父组件用来 freeze 编辑区 */
   onBusyChange?: (busy: boolean) => void;
   /** Pull 完成后回调 — 通知父组件刷新 UI（替代 window.location.reload） */
   onPullDone?: () => void;
@@ -115,7 +115,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     if (e.key === "Escape") { e.preventDefault(); cancelEditOwnerRepo(); }
   };
 
-  // ── 同步操作 ──
+  // ── GitHub 备份操作 ──
 
   const handleCheck = useCallback(async () => {
     setBusy(true);
@@ -169,16 +169,16 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
 
   return (
     <div className="settings-section">
-      <h3>GitHub 同步</h3>
+      <h3>GitHub 备份</h3>
       <p className="settings-hint">
-        全量 JSON 快照同步。需要 GitHub Personal Access Token（repo 权限）。
+        手动推送或恢复全量 JSON 快照。需要 GitHub Personal Access Token（repo 权限）。
       </p>
 
-      {/* 同步中横幅 */}
+      {/* 备份中横幅 */}
       {busy && (
         <div className="sync-banner">
           <div className="sync-banner-spinner" />
-          <span>同步中 — 界面已冻结，完成后自动恢复</span>
+          <span>备份操作中 — 界面已冻结，完成后自动恢复</span>
         </div>
       )}
 

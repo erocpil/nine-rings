@@ -29,7 +29,6 @@
 | **逻辑重复** | `idb.ts` 的 `getPathTree()` 和 `core.ts` 的 `buildDocTree()` 独立实现了路径树构建 | 改一处忘另一处 → 分叉 |
 | **后端能力不对等** | 模板系统只有 SQLite 表，IndexedDB 无对应 store | Web 端功能缺失 |
 | **默认值/边界行为** | 两端对"空 DailyPage"的处理不同（Rust 端自动创建 + carryover，IDB 端返回默认值） | 用户体验不一致 |
-| **API 桩** | `syncPush`/`syncPull` 在 IDB 端是空桩，实际同步走 `github.ts` | 调用链混乱 |
 | **测试覆盖不均衡** | Tauri 端有 Rust 测试，Web 端有 IDB 测试，但无跨端对拍 | 无法自动发现不一致 |
 
 ---
@@ -99,7 +98,7 @@ tests/
 | 2 | 模板系统 Tauri-only | P0 | 为 Web 端添加 localStorage fallback 或 IndexedDB `templates` store |
 | 3 | 版本历史两端不一致 | P1 | 统一：Web 端也删除 或 Tauri 端恢复 |
 | 4 | `extractPlainText` 三处重复 | P2 | 收归 `core.ts` |
-| 5 | `syncPush`/`syncPull` 空桩 | P2 | 删除或统一为 `github.ts` 的调用 |
+| 5 | `syncPush`/`syncPull` 空桩 | P2 | ✅ 已删除；GitHub 全量快照是唯一备份入口 |
 
 ---
 

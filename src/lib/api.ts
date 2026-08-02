@@ -131,11 +131,6 @@ export const api = {
       adapter().then((a) => a.updateTodos(data)),
   },
 
-  sync: {
-    push: () => adapter().then((a) => a.syncPush()),
-    pull: () => adapter().then((a) => a.syncPull()),
-  },
-
   export: {
     data: () => adapter().then((a) => a.exportData()),
 

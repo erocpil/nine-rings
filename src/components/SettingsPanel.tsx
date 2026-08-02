@@ -316,19 +316,6 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
               </label>
             </Field>
 
-            {/* ── 同步 ── */}
-            <Field label="启用同步" desc="跨设备同步（需要对接同步后端）">
-              <label className="settings-toggle">
-                <input
-                  type="checkbox"
-                  checked={config.enable_sync}
-                  onChange={(e) => update({ enable_sync: e.target.checked })}
-                />
-                <span className="toggle-track" />
-                <span className="toggle-label">{config.enable_sync ? "开" : "关"}</span>
-              </label>
-            </Field>
-
             {/* ── 开发端口 ── */}
             <Field label="Dev 端口" desc="Web 开发服务器端口（需重启 dev server 生效）">
               <div className="settings-stepper">
@@ -473,7 +460,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
             </SettingsSection>
 
             {/* ═══════════════════════ */}
-            {/* GitHub 同步 */}
+            {/* GitHub 备份 */}
             {/* ═══════════════════════ */}
             <SettingsSync onBusyChange={onSyncBusy} onPullDone={onPullDone} />
 

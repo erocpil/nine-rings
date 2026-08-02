@@ -77,9 +77,6 @@ fn fresh_db() -> Connection {
     for ddl in SCHEMA_DDL {
         conn.execute_batch(ddl).unwrap();
     }
-    // search_text 列由 migrate_v1 补加，不在 SCHEMA_DDL 中
-    conn.execute_batch("ALTER TABLE notes ADD COLUMN search_text TEXT NOT NULL DEFAULT '';")
-        .unwrap();
     // 补充 FTS 触发器（SCHEMA_DDL 不包含）
     conn.execute_batch(
         "DROP TRIGGER IF EXISTS notes_ai;

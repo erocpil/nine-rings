@@ -13,7 +13,6 @@ pub struct AppConfig {
     pub todo_carryover_default: bool,
     pub auto_clean_days: i32,
     pub note_font_size: i32,
-    pub enable_sync: bool,
     pub dev_port: i32,
     #[serde(default = "default_true")]
     pub highlight_active_line: bool,
@@ -46,7 +45,6 @@ impl Default for AppConfig {
             todo_carryover_default: false,
             auto_clean_days: 30,
             note_font_size: 16,
-            enable_sync: false,
             dev_port: 8000,
             highlight_active_line: true,
             editor_show_line_numbers: false,

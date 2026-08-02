@@ -7,7 +7,7 @@
  *
  * Phase 4A：旧 invoke 响应过 snakeNoteToCamel 规范化，消除 as any 桥接。
  *
- * 不纳入 Op 抽象的操作：FTS5 搜索、同步、导出/导入、配置、托盘/快捷记录。
+ * 不纳入 Op 抽象的操作：FTS5 搜索、导出/导入、配置、托盘/快捷记录。
  */
 
 import { invoke } from "@tauri-apps/api/core";
@@ -71,10 +71,6 @@ export const tauriAdapter: StorageAdapter = {
   getDailyPage: (date) => invokeDailyPage("get_daily_page", { date }),
   updateTodos: (data) => invokeDailyPage("update_todos", { data }),
   getAllDailyPages: () => tauriDriver.getAllDailyPages(),
-
-  // ── Sync ──
-  syncPush: () => invoke<{ pushed: number }>("sync_push"),
-  syncPull: () => invoke<{ pulled: number }>("sync_pull"),
 
   // ── Export / Import ──
   exportData: () => invoke<string>("export_data"),
