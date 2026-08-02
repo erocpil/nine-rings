@@ -12,7 +12,11 @@ class DatabaseHelper {
   bool get isInitialized => _database != null;
 
   /// Run all migrations from [fromVersion] (exclusive) to [toVersion] (inclusive).
-  static Future<void> _runMigrations(Database db, int fromVersion, int toVersion) async {
+  static Future<void> _runMigrations(
+    Database db,
+    int fromVersion,
+    int toVersion,
+  ) async {
     final migrations = [
       (ver: 1, sql: migrationV1),
       (ver: 2, sql: migrationV2),
@@ -24,7 +28,9 @@ class DatabaseHelper {
     ];
 
     for (final m in migrations) {
-      if (m.ver > fromVersion && m.ver <= toVersion && m.sql.trim().isNotEmpty) {
+      if (m.ver > fromVersion &&
+          m.ver <= toVersion &&
+          m.sql.trim().isNotEmpty) {
         await db.execute(m.sql);
         await db.insert('_schema_version', {
           'version': m.ver,
