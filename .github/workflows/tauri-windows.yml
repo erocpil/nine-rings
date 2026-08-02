@@ -43,7 +43,7 @@ jobs:
           $msi = Get-ChildItem src-tauri/target/release/bundle/msi/*.msi
           $nsis = Get-ChildItem src-tauri/target/release/bundle/nsis/*.exe
           if (-not $msi -or -not $nsis) { throw "Missing MSI or NSIS bundle" }
-          $msi + $nsis | ForEach-Object {
+          @($msi) + @($nsis) | ForEach-Object {
             if ($_.Length -lt 1MB) { throw "Bundle is unexpectedly small: $($_.FullName)" }
           }
 

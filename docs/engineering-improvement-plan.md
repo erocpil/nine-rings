@@ -990,7 +990,7 @@
 - [ ] 引入 Prettier 渐进门禁；先覆盖新增基础设施，历史源码全量格式化留作独立提交。
 - [ ] 保留 `tsc`、完整 `npm test`、Playwright E2E 和生产构建。
 - [ ] 保留 Rust `cargo test`、`cargo fmt --check` 和 Clippy。
-- [x] 增加 Flutter `dart format --check`、`flutter analyze` 和测试。
+- [x] 增加 Flutter 变更文件 `dart format --check`、全量 `flutter analyze` 和测试。
 - [ ] 对依赖升级前后的 bundle 大小和关键 E2E 做对比。
 
 验收标准：

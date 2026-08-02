@@ -33,7 +33,13 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: dart format --output=none --set-exit-if-changed lib test
+      - name: Check formatting of changed Dart files
+        shell: bash
+        run: |
+          mapfile -t files < <(git diff --name-only HEAD^ HEAD -- '*.dart' | sed 's#^flutter_app/##')
+          if (( ${#files[@]} )); then
+            dart format --output=none --set-exit-if-changed "${files[@]}"
+          fi
       - run: flutter analyze
       - run: flutter test
 

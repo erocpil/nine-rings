@@ -52,7 +52,7 @@
 | **运行时与更新类型** | ✅ 已建立统一 Tauri runtime 边界，移除 `UpdateNoteInput.id` 冗余并收敛主更新链路 | 继续清理编辑器扩展和数据库 mapper 外的类型逃逸 |
 | **大模块拆分** | ⚠️ 已抽离跨日/时钟 Hook，搜索片段已有独立模块 | 继续按单一职责拆分 `App.tsx` 的快捷键/窗口事件，以及 `idb.ts` 的图片/版本/导入导出 |
 | **前端质量门禁** | ✅ ESLint、类型检查、渐进式 Prettier、Vitest 覆盖率和依赖审计已接入 CI | 逐目录扩大 Prettier 与覆盖率范围 |
-| **跨端质量门禁** | ✅ Rust test/fmt/Clippy 与 Flutter format/analyze/test 已接入 CI | 增加 Windows 安装后启动冒烟测试；目前已校验 MSI/NSIS 产物完整性 |
+| **跨端质量门禁** | ✅ Rust test/fmt/Clippy 与 Flutter 变更格式、全量 analyze/test 已接入 CI | 增加 Windows 安装后启动冒烟测试；目前已校验 MSI/NSIS 产物完整性 |
 
 路线图只记录当前实现状态和已决定的近期工作。探索性方法论、AI、商业化和长期平台取舍不在此处重复维护。
 

@@ -591,7 +591,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   };
 
   // ── 代码块：多段选区合并为单个代码块 ──
-  const handleToggleCodeBlock = useCallback(() => {
+  const handleToggleCodeBlock = () => {
     if (!editor) return;
 
     // 已在代码块中 → 转为普通段落
@@ -626,7 +626,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
     // 关闭下拉菜单（窄屏场景）
     setBlockOpen(false);
-  }, [editor]);
+  };
 
   const btn = (label: ReactNode, action: () => void, active?: boolean, title?: string, disabled?: boolean) => (
     <button
