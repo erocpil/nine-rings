@@ -21,6 +21,24 @@
 
 _meta:
   version: 7
+  idb_version: 3
+  # IndexedDB 只持久化浏览器运行时实际使用的数据；templates 使用
+  # localStorage，sync_changes 属于尚未实现的增量同步设计。
+  idb_stores:
+    notes:
+      key_path: id
+      indexes:
+        - { name: date, key_path: date }
+        - { name: deleted_at, key_path: deleted_at }
+        - { name: tags, key_path: tags }
+        - { name: pinned_sort, key_path: [pinned, sort_order] }
+        - { name: storagePath, key_path: storagePath }
+    daily_pages: { key_path: date, indexes: [] }
+    note_versions:
+      key_path: id
+      indexes:
+        - { name: note_id, key_path: note_id }
+    images: { key_path: id, indexes: [] }
 
 Note:
   description: 一条随笔笔记 / 文档

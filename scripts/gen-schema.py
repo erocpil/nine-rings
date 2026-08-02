@@ -271,36 +271,30 @@ def generate_ts(schema):
         lines.append("}")
         lines.append("")
 
-    # IndexedDB store definitions
-    lines.append("// ── IndexedDB store 定义（供 schema 校验参考）──")
+    # IndexedDB physical schema. Unlike SQLite indexes, this describes the
+    # stores actually opened by the browser runtime.
+    idb_meta = schema["_meta"]
+    lines.append("// ── IndexedDB 运行时契约 ──")
     lines.append("")
-    lines.append("export const IDB_STORES: Record<string, { keyPath: string; indexes: string[][] }> = {")
-
-    for entity_name, entity in schema.items():
-        if not isinstance(entity, dict) or "sql_table" not in entity:
-            continue
-        table = entity["sql_table"]
-        fields = entity.get("fields", {})
-
-        # Find pk
-        pk = "id"
-        for col_name, col_def in fields.items():
-            if col_def.get("pk"):
-                pk = col_name
-                break
-
-        idx_list = []
-        for idx_def in entity.get("indexes", []):
-            idx_list.append(f"    [{', '.join(repr(c) for c in idx_def['columns'])}]")
-
-        lines.append(f"  {table}: {{")
-        lines.append(f"    keyPath: '{pk}',")
-        lines.append(f"    indexes: [")
-        lines.append(",\n".join(idx_list) if idx_list else "")
-        lines.append(f"    ],")
+    lines.append(f"export const IDB_DATABASE_VERSION = {idb_meta['idb_version']};")
+    lines.append("")
+    lines.append("export const IDB_STORES = {")
+    for store_name, store in idb_meta["idb_stores"].items():
+        lines.append(f"  {store_name}: {{")
+        lines.append(f"    keyPath: {repr(store['key_path'])},")
+        lines.append("    indexes: [")
+        for index in store.get("indexes", []):
+            key_path = index["key_path"]
+            if isinstance(key_path, list):
+                rendered_key = "[" + ", ".join(repr(item) for item in key_path) + "]"
+            else:
+                rendered_key = repr(key_path)
+            lines.append(
+                f"      {{ name: {repr(index['name'])}, keyPath: {rendered_key} }},"
+            )
+        lines.append("    ],")
         lines.append(f"  }},")
-
-    lines.append("};")
+    lines.append("} as const;")
     lines.append("")
     return "\n".join(lines)
 

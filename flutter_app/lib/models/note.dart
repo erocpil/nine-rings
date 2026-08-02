@@ -113,8 +113,13 @@ class Note {
   String get plainText {
     try {
       final delta = jsonDecode(content);
-      if (delta is! List) return '';
-      return delta
+      List<dynamic> ops = const [];
+      if (delta is List) {
+        ops = delta;
+      } else if (delta is Map<String, dynamic> && delta['ops'] is List) {
+        ops = delta['ops'] as List;
+      }
+      return ops
           .where((op) => op is Map && op['insert'] is String)
           .map((op) => op['insert'] as String)
           .join()

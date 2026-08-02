@@ -96,43 +96,35 @@ export interface SchemaTemplate {
   updated_at: string;
 }
 
-// ── IndexedDB store 定义（供 schema 校验参考）──
+// ── IndexedDB 运行时契约 ──
 
-export const IDB_STORES: Record<string, { keyPath: string; indexes: string[][] }> = {
+export const IDB_DATABASE_VERSION = 3;
+
+export const IDB_STORES = {
   notes: {
     keyPath: 'id',
     indexes: [
-    ['date', 'created_at'],
-    ['updated_at'],
-    ['deleted_at'],
-    ['tags'],
-    ['pinned', 'sort_order'],
-    ['storagePath']
+      { name: 'date', keyPath: 'date' },
+      { name: 'deleted_at', keyPath: 'deleted_at' },
+      { name: 'tags', keyPath: 'tags' },
+      { name: 'pinned_sort', keyPath: ['pinned', 'sort_order'] },
+      { name: 'storagePath', keyPath: 'storagePath' },
     ],
   },
   daily_pages: {
     keyPath: 'date',
     indexes: [
-
     ],
   },
   note_versions: {
     keyPath: 'id',
     indexes: [
-    ['note_id']
+      { name: 'note_id', keyPath: 'note_id' },
     ],
   },
-  sync_changes: {
+  images: {
     keyPath: 'id',
     indexes: [
-    ['entity_type', 'entity_id'],
-    ['timestamp']
     ],
   },
-  templates: {
-    keyPath: 'id',
-    indexes: [
-
-    ],
-  },
-};
+} as const;

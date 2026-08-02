@@ -1,12 +1,127 @@
 /// 数据库迁移路径测试 — 验证新旧数据库均能正确升级到当前 schema (v7)。
 /// 历史版本使用对应发布提交中冻结的真实 DDL fixture。
-use rusqlite::Connection;
+use rusqlite::{params, Connection};
+use serde_json::Value;
 use std::collections::BTreeSet;
 
 const SCHEMA_V2: &str = include_str!("fixtures/schema_v2.sql");
 const SCHEMA_V3: &str = include_str!("fixtures/schema_v3.sql");
 const SCHEMA_V4: &str = include_str!("fixtures/schema_v4.sql");
 const SCHEMA_V5: &str = include_str!("fixtures/schema_v5.sql");
+const SHARED_BASELINE: &str = include_str!("../../tests/fixtures/export-v1.json");
+
+fn database_at_version(version: i32) -> Connection {
+    let conn = Connection::open_in_memory().unwrap();
+    match version {
+        0 => {}
+        1 => conn
+            .execute_batch(
+                "CREATE TABLE _schema_version (version INTEGER PRIMARY KEY);
+                 INSERT INTO _schema_version VALUES (1);
+                 CREATE TABLE notes (
+                   id TEXT PRIMARY KEY, date TEXT NOT NULL, title TEXT,
+                   content TEXT NOT NULL DEFAULT '{}', search_text TEXT NOT NULL DEFAULT '',
+                   created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT
+                 );",
+            )
+            .unwrap(),
+        2 => conn.execute_batch(SCHEMA_V2).unwrap(),
+        3 => conn.execute_batch(SCHEMA_V3).unwrap(),
+        4 => conn.execute_batch(SCHEMA_V4).unwrap(),
+        5 => conn.execute_batch(SCHEMA_V5).unwrap(),
+        _ => panic!("unsupported historical schema version {version}"),
+    }
+    conn
+}
+
+fn assert_shared_fixture_behaviour(conn: &Connection, version: i32) {
+    let fixture: Value = serde_json::from_str(SHARED_BASELINE).unwrap();
+    let note = &fixture["notes"][1];
+    let page = &fixture["daily_pages"][0];
+    let note_id = format!("{}-v{version}", note["id"].as_str().unwrap());
+    let content = serde_json::to_string(&note["content"]).unwrap();
+    let tags = serde_json::to_string(&note["tags"]).unwrap();
+    let concepts = serde_json::to_string(&note["concepts"]).unwrap();
+    let links = serde_json::to_string(&note["linkedDocIds"]).unwrap();
+    let search_text = "如何配置 GitHub 备份 步骤 Personal Access Token";
+
+    conn.execute(
+        "INSERT INTO notes (
+           id, date, title, content, search_text, tags, pinned, sort_order,
+           created_at, updated_at, storage_path, doc_type, concepts,
+           linked_doc_ids, readonly
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, 1, ?7, ?8, ?9, ?10, ?11, ?12, 0)",
+        params![
+            note_id,
+            note["date"].as_str().unwrap(),
+            note["title"].as_str().unwrap(),
+            content,
+            search_text,
+            tags,
+            note["created_at"].as_str().unwrap(),
+            note["updated_at"].as_str().unwrap(),
+            note["storagePath"].as_str().unwrap(),
+            note["docType"].as_str().unwrap(),
+            concepts,
+            links,
+        ],
+    )
+    .unwrap();
+
+    let todos = serde_json::to_string(&page["todos"]).unwrap();
+    conn.execute(
+        "INSERT OR REPLACE INTO daily_pages(date, todos, todo_carryover, updated_at)
+         VALUES (?1, ?2, 1, ?3)",
+        params![
+            page["date"].as_str().unwrap(),
+            todos,
+            page["updated_at"].as_str().unwrap(),
+        ],
+    )
+    .unwrap();
+
+    assert_fts_hit(conn, "Personal");
+    let storage_path: String = conn
+        .query_row(
+            "SELECT storage_path FROM notes WHERE id=?1",
+            [&note_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(storage_path, "areas/nine-rings");
+
+    let version_id = format!("fixture-version-v{version}");
+    conn.execute(
+        "INSERT INTO note_versions
+         (id, note_id, title, content, tags, pinned, sort_order, saved_at)
+         SELECT ?1, id, title, content, tags, pinned, sort_order, updated_at
+         FROM notes WHERE id=?2",
+        params![version_id, note_id],
+    )
+    .unwrap();
+    let snapshots: i32 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM note_versions WHERE note_id=?1",
+            [&note_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(snapshots, 1);
+
+    conn.execute(
+        "UPDATE notes SET title='迁移后更新', deleted_at='2026-08-02T00:00:00Z' WHERE id=?1",
+        [&note_id],
+    )
+    .unwrap();
+    let active: i32 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM notes WHERE id=?1 AND deleted_at IS NULL",
+            [&note_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(active, 0, "soft-deleted fixture must be hidden");
+}
 
 fn schema_columns(conn: &Connection) -> BTreeSet<(String, String)> {
     let mut stmt = conn
@@ -194,6 +309,17 @@ fn fresh_database_creates_full_schema() {
         columns.contains(&"doc_type".to_string()),
         "doc_type column missing"
     );
+}
+
+#[test]
+fn shared_fixture_behaves_identically_after_every_supported_migration() {
+    for version in 0..=5 {
+        let conn = database_at_version(version);
+        nine_rings_lib::db::migrations::run(&conn).unwrap();
+        assert_current_version(&conn);
+        assert_matches_fresh_schema(&conn);
+        assert_shared_fixture_behaviour(&conn, version);
+    }
 }
 
 // ── 场景 2：最小 v0 数据库（手动建表，无 _schema_version）──────────

@@ -12,7 +12,7 @@ class DatabaseHelper {
   bool get isInitialized => _database != null;
 
   /// Run all migrations from [fromVersion] (exclusive) to [toVersion] (inclusive).
-  static Future<void> _runMigrations(
+  static Future<void> runMigrations(
     Database db,
     int fromVersion,
     int toVersion,
@@ -54,10 +54,10 @@ class DatabaseHelper {
           version INTEGER PRIMARY KEY,
           applied_at TEXT NOT NULL
         )''');
-        await _runMigrations(db, 0, version);
+        await runMigrations(db, 0, version);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
-        await _runMigrations(db, oldVersion, newVersion);
+        await runMigrations(db, oldVersion, newVersion);
       },
     );
   }

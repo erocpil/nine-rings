@@ -89,7 +89,7 @@
 | 建立跨端存储行为测试 | ✅ | 第 5 轮 |
 | Schema 驱动 fresh database DDL | ✅ | 第 4B 轮 |
 87|| 验证所有历史迁移到目标 Schema | ✅ | 后续第 1 轮 |
-| Flutter 运行时接入生成 Schema 并追平 v7 | ⬜ | 后续第 1 轮 |
+| Flutter 运行时接入生成 Schema 并追平 v7 | ✅ | 后续第 1 轮 |
 88|| 将 GitHub"同步"正名为"备份" | ✅ | 第 5 轮或更早 |
 89|
 90|### P2：工程可维护性
@@ -905,17 +905,17 @@
 - [x] 为 v2、v3、v4、v5 分别建立历史 SQLite fixture。
 - [x] 将 v0、v1、v2、v3、v4、v5 全部迁移到当前 v7。
 - [x] 比较 fresh 与 migrated database 的表、列、索引和外键。
-- [ ] 对每条迁移路径插入共享 fixture，并验证 CRUD、FTS、版本历史和软删除。
+- [x] 对每条迁移路径插入共享 fixture，并验证 CRUD、FTS、版本历史和软删除。
 - [x] Flutter 运行时不再以手写 v5 Schema 作为唯一建库来源。
 - [x] Flutter 接入生成的目标 Schema，并补齐 v5 → v7 升级路径。
-- [ ] 将 IndexedDB store/index 定义纳入同一契约检查。
-- [ ] CI 自动执行全部历史迁移与三端 Schema 检查。
+- [x] 将 IndexedDB store/index 定义纳入同一契约检查。
+- [x] CI 自动执行全部历史迁移与三端 Schema 检查。
 
 验收标准：
 
-- [ ] 新安装与任意受支持历史升级得到等价 Schema。
-- [ ] Tauri、Flutter、IndexedDB 能读取同一份 baseline fixture。
-- [ ] FTS、版本裁剪、软删除等行为在历史升级后仍通过回归测试。
+- [x] 新安装与任意受支持历史升级得到等价 Schema。
+- [x] Tauri、Flutter、IndexedDB 能读取同一份 baseline fixture。
+- [x] FTS、版本裁剪、软删除等行为在历史升级后仍通过回归测试。
 - [ ] Rust、Flutter 和 Web 的相关测试及格式检查全部通过。
 
 ### 17.2 后续第 2 轮：文档真实性修复（P1）
