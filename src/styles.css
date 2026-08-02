@@ -2736,7 +2736,7 @@ body {
 /* ── 只读模式：隐藏所有 gutter + ── */
 .ProseMirror[contenteditable="false"] > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::after,
 .ProseMirror[contenteditable="false"] .code-block-wrap::after,
-.ProseMirror[contenteditable="false"]:not(.show-line-numbers) > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):first-child::before {
+.note-editor:not(.show-line-numbers) .ProseMirror[contenteditable="false"] > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):first-child::before {
   display: none;
 }
 
