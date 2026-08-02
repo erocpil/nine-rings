@@ -25,6 +25,8 @@ test.describe("编辑器复制粘贴", () => {
       selection?.addRange(range);
     });
     await page.keyboard.press("Control+C");
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe("中间文本");
 
     await editor.evaluate((element) => {
       const text = element.querySelector("p")?.firstChild;
