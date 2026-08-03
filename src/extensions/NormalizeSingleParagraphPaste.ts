@@ -23,52 +23,57 @@ function normalizeHTML(html: string, flattenSingleParagraph: boolean): string {
   if (typeof DOMParser === "undefined") return html;
 
   const doc = new DOMParser().parseFromString(html, "text/html");
-  const elements = Array.from(doc.body.children);
+  const nodes = Array.from(doc.body.childNodes);
   let start = 0;
-  let end = elements.length;
-  while (start < end && isEmptyBoundaryBlock(elements[start])) start++;
-  while (end > start && isEmptyBoundaryBlock(elements[end - 1])) end--;
+  let end = nodes.length;
+  while (start < end && isBoundaryBreakDOMNode(nodes[start])) start++;
+  while (end > start && isBoundaryBreakDOMNode(nodes[end - 1])) end--;
 
-  const remaining = elements.slice(start, end);
-  if (remaining.length > 0) {
-    trimBoundaryBreakElements(remaining[0], "start");
-    trimBoundaryBreakElements(remaining[remaining.length - 1], "end");
+  const remaining = nodes.slice(start, end);
+  const firstElement = remaining.find((node): node is Element =>
+    node.nodeType === globalThis.Node.ELEMENT_NODE
+  );
+  let lastElement: Element | undefined;
+  for (let index = remaining.length - 1; index >= 0; index--) {
+    const node = remaining[index];
+    if (node.nodeType === globalThis.Node.ELEMENT_NODE) {
+      lastElement = node as Element;
+      break;
+    }
   }
+  if (firstElement) trimBoundaryBreakElements(firstElement, "start");
+  if (lastElement) trimBoundaryBreakElements(lastElement, "end");
 
-  while (remaining.length > 0 && isEmptyBoundaryBlock(remaining[0])) remaining.shift();
-  while (remaining.length > 0 && isEmptyBoundaryBlock(remaining[remaining.length - 1])) remaining.pop();
-
-  if (start !== 0 || end !== elements.length) {
-    doc.body.replaceChildren(...remaining);
-  } else if (
-    remaining.length !== elements.length ||
-    remaining.some((element, index) => element !== elements[index])
+  while (remaining.length > 0 && isBoundaryBreakDOMNode(remaining[0])) {
+    remaining.shift();
+  }
+  while (
+    remaining.length > 0 &&
+    isBoundaryBreakDOMNode(remaining[remaining.length - 1])
   ) {
-    doc.body.replaceChildren(...remaining);
+    remaining.pop();
   }
+  doc.body.replaceChildren(...remaining);
+
+  const elements = Array.from(doc.body.children);
 
   if (
     !flattenSingleParagraph ||
-    remaining.length !== 1 ||
-    remaining[0].tagName.toLowerCase() !== "p"
+    elements.length !== 1
   ) {
     return doc.body.innerHTML;
   }
 
-  const paragraph = remaining[0];
+  const paragraph = findOnlyParagraph(elements[0]);
+  if (!paragraph) return doc.body.innerHTML;
   if (!paragraph.textContent || paragraph.querySelector("br")) return doc.body.innerHTML;
   return paragraph.innerHTML;
 }
 
-const BOUNDARY_BLOCK_TAGS = new Set(["p", "div"]);
+const BOUNDARY_BLOCK_TAGS = new Set(["article", "div", "p", "section"]);
 const INLINE_WRAPPER_TAGS = new Set([
-  "a", "b", "code", "del", "em", "i", "mark", "s", "small", "span", "strong", "sub", "sup", "u",
+  "a", "b", "code", "del", "em", "i", "mark", "o:p", "s", "small", "span", "strong", "sub", "sup", "u",
 ]);
-
-function isEmptyBoundaryBlock(element: Element): boolean {
-  if (!BOUNDARY_BLOCK_TAGS.has(element.tagName.toLowerCase())) return false;
-  return Array.from(element.childNodes).every(isBoundaryBreakDOMNode);
-}
 
 function isBoundaryBreakDOMNode(node: globalThis.Node): boolean {
   if (node.nodeType === globalThis.Node.TEXT_NODE) {
@@ -79,7 +84,7 @@ function isBoundaryBreakDOMNode(node: globalThis.Node): boolean {
   const element = node as Element;
   const tag = element.tagName.toLowerCase();
   if (tag === "br") return true;
-  return INLINE_WRAPPER_TAGS.has(tag) &&
+  return (INLINE_WRAPPER_TAGS.has(tag) || BOUNDARY_BLOCK_TAGS.has(tag)) &&
     Array.from(element.childNodes).every(isBoundaryBreakDOMNode);
 }
 
@@ -91,12 +96,34 @@ function trimBoundaryBreakElements(element: Element, edge: "start" | "end"): voi
     let index = 0;
     while (index < children.length && isBoundaryBreakDOMNode(children[index])) index++;
     for (let i = 0; i < index; i++) children[i].remove();
+    const first = element.firstElementChild;
+    if (first && BOUNDARY_BLOCK_TAGS.has(first.tagName.toLowerCase())) {
+      trimBoundaryBreakElements(first, edge);
+    }
     return;
   }
 
   let index = children.length - 1;
   while (index >= 0 && isBoundaryBreakDOMNode(children[index])) index--;
   for (let i = children.length - 1; i > index; i--) children[i].remove();
+  const last = element.lastElementChild;
+  if (last && BOUNDARY_BLOCK_TAGS.has(last.tagName.toLowerCase())) {
+    trimBoundaryBreakElements(last, edge);
+  }
+}
+
+function findOnlyParagraph(element: Element): Element | null {
+  let current = element;
+  while (current.tagName.toLowerCase() !== "p") {
+    if (!BOUNDARY_BLOCK_TAGS.has(current.tagName.toLowerCase())) return null;
+    if (current.children.length !== 1) return null;
+    const child = current.children[0];
+    if (!Array.from(current.childNodes).every((node) =>
+      node === child || isBoundaryBreakDOMNode(node)
+    )) return null;
+    current = child;
+  }
+  return current;
 }
 
 /**
