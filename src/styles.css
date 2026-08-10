@@ -1060,11 +1060,18 @@ body {
 }
 
 .todo-remind-picker {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 0;
-  width: 100%;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .todo-remind-input {
@@ -1078,7 +1085,8 @@ body {
 }
 
 .todo-remind-set,
-.todo-remind-clear {
+.todo-remind-clear,
+.todo-remind-cancel {
   background: var(--accent);
   color: #fff;
   border: none;
@@ -1090,6 +1098,12 @@ body {
 
 .todo-remind-clear {
   background: var(--danger);
+}
+
+.todo-remind-cancel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
 }
 
 .todo-input {

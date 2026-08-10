@@ -127,6 +127,7 @@ function SortableTodoItem({
   onRemindTimeChange,
   onRemindSet,
   onRemindClear,
+  onRemindCancel,
   onIndent,
   onOutdent,
   canIndent,
@@ -149,6 +150,7 @@ function SortableTodoItem({
   onRemindTimeChange: (time: string) => void;
   onRemindSet: (todoId: string, time: string) => void;
   onRemindClear: (todoId: string) => void;
+  onRemindCancel: () => void;
   onIndent: () => void;
   onOutdent: () => void;
   canIndent: boolean;
@@ -282,6 +284,9 @@ function SortableTodoItem({
               清除
             </button>
           )}
+          <button className="todo-remind-cancel" onClick={onRemindCancel}>
+            取消
+          </button>
         </div>
       )}
     </div>
@@ -309,6 +314,7 @@ function TodoLevel({
   onRemindTimeChange,
   onRemindSet,
   onRemindClear,
+  onRemindCancel,
   onIndent,
   onOutdent,
 }: {
@@ -330,6 +336,7 @@ function TodoLevel({
   onRemindTimeChange: (time: string) => void;
   onRemindSet: (todoId: string, time: string) => void;
   onRemindClear: (todoId: string) => void;
+  onRemindCancel: () => void;
   onIndent: (id: string) => void;
   onOutdent: (id: string) => void;
 }) {
@@ -364,6 +371,7 @@ function TodoLevel({
               onRemindTimeChange={onRemindTimeChange}
               onRemindSet={onRemindSet}
               onRemindClear={onRemindClear}
+              onRemindCancel={onRemindCancel}
               onIndent={() => onIndent(todo.id)}
               onOutdent={() => onOutdent(todo.id)}
               canIndent={canIndent}
@@ -389,6 +397,7 @@ function TodoLevel({
                 onRemindTimeChange={onRemindTimeChange}
                 onRemindSet={onRemindSet}
                 onRemindClear={onRemindClear}
+                onRemindCancel={onRemindCancel}
                 onIndent={onIndent}
                 onOutdent={onOutdent}
               />
@@ -466,6 +475,10 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
   };
 
   const openRemindPicker = (todoId: string) => {
+    if (remindTodoId === todoId) {
+      setRemindTodoId(null);
+      return;
+    }
     if (notifPerm !== "granted") {
       requestNotifPermission().then(() => {
         setRemindTodoId(todoId);
@@ -491,6 +504,8 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
     setReminder(todoId, "");
     setRemindTodoId(null);
   };
+
+  const cancelRemindPicker = () => setRemindTodoId(null);
 
   // ── 导出 ──
   const [exportOpen, setExportOpen] = useState(false);
@@ -796,6 +811,7 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
                 onRemindTimeChange={setRemindTime}
                 onRemindSet={handleRemindSet}
                 onRemindClear={handleRemindClear}
+                onRemindCancel={cancelRemindPicker}
                 onIndent={handleIndent}
                 onOutdent={handleOutdent}
               />
