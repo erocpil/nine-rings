@@ -3,6 +3,7 @@ import { registerShortcuts } from "./lib/global-shortcuts";
 import { useNotes } from "./hooks/useNotes";
 import { DatePicker } from "./components/DatePicker";
 import { TodoList } from "./components/TodoList";
+import { OverdueTodos } from "./components/OverdueTodos";
 import { Sidebar } from "./components/Sidebar";
 import { NoteEditor } from "./components/NoteEditor";
 import { SearchBar } from "./components/SearchBar";
@@ -102,6 +103,7 @@ function App() {
   }, []);
 
   const [recycleOpen, setRecycleOpen] = useState(false);
+  const [overdueOpen, setOverdueOpen] = useState(false);
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
   const clock = useClockAndDateRollover(setDate);
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -856,11 +858,21 @@ function App() {
             />
           )}
           <div className="sidebar-footer">
+            <button className="sidebar-overdue-btn" onClick={() => setOverdueOpen(true)}>
+              ⚠ 过期待办
+            </button>
             <span className="sidebar-recycle-btn" onClick={() => setRecycleOpen(true)}>
               🗑 回收站
             </span>
           </div>
         </aside>
+
+        <OverdueTodos
+          open={overdueOpen}
+          disabled={syncBusy}
+          onClose={() => setOverdueOpen(false)}
+          onOpenDate={(date) => { setQuery(""); setDocResults(null); setDate(date); }}
+        />
 
         {!sidebarHidden && <div className="sidebar-divider" onMouseDown={handleSideMouseDown} onTouchStart={handleSideTouchStart} />}
 

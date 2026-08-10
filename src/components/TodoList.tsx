@@ -2,8 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Todo } from "../types/models";
 import { uuid } from "../lib/uuid";
 import { copyToClipboard } from "../lib/clipboard";
-import { api } from "../lib/api";
-import { localDateKey } from "../lib/local-date";
 import {
   DndContext,
   closestCenter,
@@ -102,11 +100,6 @@ function getDescendantIds(todos: Todo[], id: string): Set<string> {
 }
 
 // ── 类型 ──
-
-interface OverdueItem {
-  todo: Todo;
-  date: string;
-}
 
 interface TodoListProps {
   todos: Todo[];
@@ -416,9 +409,6 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
   } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
-  const [overdueItems, setOverdueItems] = useState<OverdueItem[]>([]);
-  const [overdueOpen, setOverdueOpen] = useState(false);
-  const [refreshOverdue, setRefreshOverdue] = useState(0);
 
   const [remindTodoId, setRemindTodoId] = useState<string | null>(null);
   const [remindTime, setRemindTime] = useState("");
@@ -505,23 +495,6 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
   // ── 导出 ──
   const [exportOpen, setExportOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<"text" | "md">("text");
-
-  // 过期待办
-  useEffect(() => {
-    const todayStr = localDateKey();
-    api.daily.getAll().then((pages) => {
-      const items: OverdueItem[] = [];
-      for (const p of pages) {
-        if (p.date >= todayStr) continue;
-        if (!Array.isArray(p.todos)) continue;
-        for (const t of p.todos) {
-          if (!t.done) items.push({ todo: t, date: p.date });
-        }
-      }
-      items.sort((a, b) => b.date.localeCompare(a.date));
-      setOverdueItems(items);
-    }).catch(() => {});
-  }, [refreshOverdue]);
 
   useEffect(() => {
     if (!undoTodo) return;
@@ -754,20 +727,6 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
     }, 300);
   }, [generateExport]);
 
-  const handleOverdueToggle = (item: OverdueItem) => {
-    api.daily.get(item.date).then((page) => {
-      const updated = page.todos.map((t) =>
-        t.id === item.todo.id ? { ...t, done: !t.done } : t
-      );
-      return api.daily.updateTodos({ date: item.date, todos: updated });
-    }).then(() => setRefreshOverdue((n) => n + 1)).catch(() => {});
-  };
-
-  const formatDate = (dateStr: string) => {
-    const parts = dateStr.split("-");
-    return `${parseInt(parts[1])}/${parseInt(parts[2])}`;
-  };
-
   return (
     <div className="todo-list">
       <h3 className="section-title">
@@ -796,47 +755,7 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
         >
           ⬆
         </button>
-        {overdueItems.length > 0 && (
-          <button
-            className={`overdue-badge ${overdueOpen ? "open" : ""}`}
-            onClick={() => setOverdueOpen((v) => !v)}
-            title="点击展开/收起过期待办"
-          >
-            过期待办 ({overdueItems.length})
-          </button>
-        )}
       </h3>
-
-      {!exportOpen && overdueOpen && overdueItems.length > 0 && (
-        <div className="overdue-section">
-          <div className="overdue-items">
-            {overdueItems.map((item) => (
-              <div key={item.todo.id} className="todo-item overdue-item">
-                <input
-                  type="checkbox"
-                  className="todo-checkbox"
-                  checked={item.todo.done}
-                  onChange={() => handleOverdueToggle(item)}
-                />
-                <span className="todo-text overdue-text">{item.todo.text}</span>
-                <span className="overdue-date">{formatDate(item.date)}</span>
-                <button
-                  className="todo-remove"
-                  onClick={() => {
-                    api.daily.get(item.date).then((page) => {
-                      const updated = page.todos.filter((t) => t.id !== item.todo.id);
-                      return api.daily.updateTodos({ date: item.date, todos: updated });
-                    }).then(() => setRefreshOverdue((n) => n + 1)).catch(() => {});
-                  }}
-                  title="删除"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {exportOpen && (
         <div className="todo-export-panel">
