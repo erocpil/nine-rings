@@ -34,7 +34,7 @@
 
 ## 当前讨论重点
 
-当前优先讨论第一层的[最小可验证方法论 v0.1](future-evolution/methodology/minimum-viable-method.md#2-最小可验证方法论-v01)，相关概念边界与证据分别保存在独立子文档中。
+当前优先讨论第一层的[认知—行动—学习闭环方法论 v0.3](future-evolution/methodology/cognitive-action-learning-system.md)，相关的最小验证、概念边界与证据分别保存在独立子文档中。
 
 现阶段的近端命题是：
 

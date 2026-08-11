@@ -1,6 +1,6 @@
 # 认知与行动方法论
 
-> 状态：最小可验证版本 v0.1，尚未完成行为与结果验证
+> 状态：体系版本 v0.3；最小验证协议仍为 v0.1；尚未完成行为与结果验证
 > 文档职责：方法论导航与当前决策结论
 > 产品实现：[Nine Rings 产品化与未来演进](nine-rings-productization.md) · [总入口](../future-evolution.md)
 
@@ -12,6 +12,8 @@
 
 | 文档 | 职责 |
 |---|---|
+| [认知—行动—学习闭环方法论](methodology/cognitive-action-learning-system.md) | 独立、完整的核心体系：主张、边界、对象模型、操作协议、质量控制与验证框架 |
+| [多主体互动的极速假设协议](methodology/multi-party-fast-hypothesis-protocol.md) | v0.3 子协议：在高压互动中保留事实、执行可逆探针，并将失效互动路由回主闭环 |
 | [最小可验证方法论](methodology/minimum-viable-method.md) | 核心命题、六个最小问题、验证单位、实验方法、否定条件与 Windows 示例 |
 | [语义模型与适用边界](methodology/semantic-model-and-boundaries.md) | 核心对象、Feedback 生命周期、World Model、内容边界和事项模式 |
 | [理论证据与案例](methodology/evidence-and-cases.md) | 理论依据、AAR、Good Judgment、Google SRE、NASA 反例和证据分层 |
@@ -46,3 +48,5 @@
 > 相比自由记录或简单 Decision Journal，最小闭环能否以可接受成本，更准确地保留事前判断、发现认知差异，并让 Revision 在下一次相似事项中实际影响 Decision 或 Action？
 
 如果简单日志、静态模板或一次 Agent 会话以更低成本产生相同效果，就应收缩方法，而不是增加概念维持复杂度。
+
+v0.3 进一步把这一收缩原则变成运行规则：按可用决策时间选择记录强度；对复杂系统限制单次结果能够支持的因果结论；在高风险或重复失败事项中，引入反证与独立质询，而不把它们留作实践者自行提醒。
