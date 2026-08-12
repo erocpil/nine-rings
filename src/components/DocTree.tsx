@@ -2,13 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PathNode, Note } from "../types/models";
 import { api } from "../lib/api";
 import { withTimeout } from "../lib/async";
-import { getOtherFolderPaths } from "../lib/doc-tree-collapse";
+import { getOtherFolderPaths, getVisibleDocumentTreeNodes } from "../lib/doc-tree-collapse";
 
 interface DocTreeProps {
   onSelect: (note: Note) => void;
   onFolderSelect?: (path: string) => void;
   selectedId: string | null;
   selectedFolderPath?: string | null;
+  showDaily?: boolean;
   onCreate: () => void;
   refreshKey?: number;
   onRename?: (id: string, title: string) => void;
@@ -98,7 +99,7 @@ function InlineRename({
 }
 
 function DocTree({
-  onSelect, onFolderSelect, selectedId, selectedFolderPath, onCreate, refreshKey,
+  onSelect, onFolderSelect, selectedId, selectedFolderPath, showDaily = false, onCreate, refreshKey,
   onRename, onDelete, onToggleReadonly,
   onMoveDocument, onMoveFolder,
   onBatchDelete, onBatchSetReadonly,
@@ -141,12 +142,12 @@ function DocTree({
     setLoading(true);
     setLoadError(null);
     withTimeout(api.docs.tree(), 15000, "加载文档树").then((nodes) => {
-      setTree(nodes);
+      setTree(getVisibleDocumentTreeNodes(nodes, showDaily));
     }).catch((error) => {
       console.error("[DocTree] 加载失败:", error);
       setLoadError(error instanceof Error ? error.message : String(error));
     }).finally(() => setLoading(false));
-  }, []);
+  }, [showDaily]);
 
   useEffect(() => {
     loadTree();
@@ -166,6 +167,7 @@ function DocTree({
   }, [contextMenu]);
 
   const toggleCollapse = (path: string) => {
+    setContextMenu(null);
     setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(path)) next.delete(path);
@@ -185,6 +187,7 @@ function DocTree({
   };
 
   const collapseAll = () => {
+    setContextMenu(null);
     const allFolderPaths = tree
       .filter((n) => n.type === "folder")
       .map((n) => n.path);
@@ -192,6 +195,7 @@ function DocTree({
   };
 
   const collapseOthers = () => {
+    setContextMenu(null);
     setCollapsed(new Set(getOtherFolderPaths(tree, selectedId, selectedFolderPath ?? null)));
   };
 
@@ -494,7 +498,7 @@ function DocTree({
           className="btn-icon doc-tree-batch-btn"
           onClick={collapseOthers}
           title="折叠其它目录（保留当前文档所在目录）"
-          disabled={!selectedId}
+          disabled={!selectedId && !selectedFolderPath}
         >
           📂
         </button>

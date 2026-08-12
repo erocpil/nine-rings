@@ -10,7 +10,7 @@
  */
 
 import { buildDocTree, type FlatDocRecord, type FlatDailyRecord } from "../src/lib/storage/core";
-import { getOtherFolderPaths } from "../src/lib/doc-tree-collapse";
+import { getOtherFolderPaths, getVisibleDocumentTreeNodes } from "../src/lib/doc-tree-collapse";
 
 let passed = 0;
 let failed = 0;
@@ -254,6 +254,24 @@ const dailyFolder = tree.find(n => n.path === "daily" && n.type === "folder");
 
   const withoutSelection = getOtherFolderPaths(tree, null, null);
   assert(withoutSelection.length === tree.filter(n => n.type === "folder").length, "no selection collapses all folders");
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 10. document tree visibility — daily 默认隐藏
+// ═══════════════════════════════════════════════════════════════════
+{
+  console.log("\n── document tree visibility: daily hidden by default ──");
+  const docs: FlatDocRecord[] = [
+    { id: "doc", title: "Doc", storage_path: "projects/app", doc_type: undefined, updated_at: "2026-01-01T00:00:00Z", readonly: false },
+  ];
+  const dailies: FlatDailyRecord[] = [
+    { id: "daily-note", date: "2026-01-01", title: "Daily", updated_at: "2026-01-01T00:00:00Z" },
+  ];
+  const tree = buildDocTree(docs, dailies);
+  const defaultVisible = getVisibleDocumentTreeNodes(tree);
+  assert(defaultVisible.every(node => node.path !== "daily" && !node.path.startsWith("daily/")), "daily subtree is hidden by default");
+  assert(defaultVisible.some(node => node.noteId === "doc"), "regular documents remain visible");
+  assert(getVisibleDocumentTreeNodes(tree, true).length === tree.length, "daily subtree can be enabled later");
 }
 
 // ═══════════════════════════════════════════════════════════════════

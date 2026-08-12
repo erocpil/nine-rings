@@ -28,6 +28,13 @@ pub struct PathNode {
     pub readonly: Option<bool>,
 }
 
+fn escape_like(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
 #[tauri::command]
 pub fn search_docs(
     state: State<AppState>,
@@ -49,8 +56,9 @@ pub fn search_docs(
     }
     if let Some(ref path) = query.storage_path {
         if !path.is_empty() {
-            sql.push_str(" AND storage_path LIKE ?");
-            params.push(Box::new(format!("{}%", path)));
+            sql.push_str(" AND (storage_path = ? OR storage_path LIKE ? ESCAPE '\\')");
+            params.push(Box::new(path.clone()));
+            params.push(Box::new(format!("{}/%", escape_like(path))));
         }
     }
     if let Some(ref dt) = query.doc_type {
@@ -92,7 +100,7 @@ pub fn get_notes_by_path(
         if !date.is_empty() {
             let mut stmt = conn
                 .prepare(
-                    "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly FROM notes WHERE deleted_at IS NULL AND date = ?1 ORDER BY updated_at DESC"
+                    "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly FROM notes WHERE deleted_at IS NULL AND date = ?1 AND storage_path IS NULL ORDER BY updated_at DESC"
                 )
                 .map_err(|e| e.to_string())?;
             let rows = stmt
@@ -121,10 +129,10 @@ pub fn get_notes_by_path(
     // 普通文档路径
     let mut stmt = conn
         .prepare(
-            "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly FROM notes WHERE deleted_at IS NULL AND (storage_path = ?1 OR storage_path LIKE ?2) ORDER BY updated_at DESC"
+            "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly FROM notes WHERE deleted_at IS NULL AND (storage_path = ?1 OR storage_path LIKE ?2 ESCAPE '\\') ORDER BY updated_at DESC"
         )
         .map_err(|e| e.to_string())?;
-    let like_pattern = format!("{}/%", path_prefix);
+    let like_pattern = format!("{}/%", escape_like(&path_prefix));
     let rows = stmt
         .query_map(rusqlite::params![path_prefix, like_pattern], |row| {
             crate::db::models::note_from_row(row)
@@ -132,6 +140,19 @@ pub fn get_notes_by_path(
         .map_err(|e| e.to_string())?;
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::escape_like;
+
+    #[test]
+    fn escapes_sql_like_metacharacters_in_folder_paths() {
+        assert_eq!(
+            escape_like(r"projects/100%_done\draft"),
+            r"projects/100\%\_done\\draft"
+        );
+    }
 }
 
 #[tauri::command]

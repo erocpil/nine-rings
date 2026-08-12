@@ -925,6 +925,7 @@ function App() {
           ) : selectedFolderPath && sidebarTab === 'tree' && !selectedNote ? (
             <DocMOC
               storagePath={selectedFolderPath}
+              refreshKey={docTreeKey}
               onSelect={(note) => {
                 setQuery("");
                 setDocResults(null);

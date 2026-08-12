@@ -1,5 +1,14 @@
 import type { PathNode } from "../types/models";
 
+/** daily 是每日随笔的虚拟映射；文档树默认聚焦正式文档。 */
+export function getVisibleDocumentTreeNodes(
+  tree: PathNode[],
+  showDaily = false,
+): PathNode[] {
+  if (showDaily) return tree;
+  return tree.filter((node) => node.path !== "daily" && !node.path.startsWith("daily/"));
+}
+
 /**
  * 返回“折叠其它目录”操作后应折叠的目录路径。
  * 当前文档/目录所在路径及其所有祖先保持展开。

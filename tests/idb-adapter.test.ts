@@ -236,6 +236,12 @@ async function runTests() {
     console.log("\n── Docs API ──");
     const alphaNotes = await idbAdapter.getNotesByPath("projects/alpha");
     assert(alphaNotes.length >= 2, "projects/alpha → >=2 docs");
+    await idbAdapter.createNote({ date: "2026-07-15", title: "Percent child", storagePath: "projects/100%_done/child" });
+    await idbAdapter.createNote({ date: "2026-07-15", title: "Percent sibling", storagePath: "projects/100X_done/child" });
+    const literalPathNotes = await idbAdapter.getNotesByPath("projects/100%_done");
+    assert(literalPathNotes.length === 1 && literalPathNotes[0].title === "Percent child", "path metacharacters are matched literally");
+    const dailyOnly = await idbAdapter.getNotesByPath("daily/2026-07-15");
+    assert(dailyOnly.every((note) => !note.storagePath), "daily path excludes documents with the same date");
     const howtoDocs = await idbAdapter.searchDocs({ docType: "how-to" });
     assert(howtoDocs.length >= 1, "docType filter works");
     const concepts = await idbAdapter.getAllConcepts();

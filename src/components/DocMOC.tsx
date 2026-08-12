@@ -20,24 +20,41 @@ interface DocMOCProps {
   storagePath: string;
   onSelect: (note: Note) => void;
   selectedId: string | null;
+  refreshKey?: number;
 }
 
-export function DocMOC({ storagePath, onSelect, selectedId }: DocMOCProps) {
+export function DocMOC({ storagePath, onSelect, selectedId, refreshKey }: DocMOCProps) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
+    let active = true;
     setLoading(true);
-    api.docs.listByPath(storagePath).then((docs) => {
-      // 按 updated_at 倒序
-      docs.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-      setNotes(docs);
-      setLoading(false);
-    });
-  }, [storagePath]);
+    setLoadError(null);
+    api.docs.listByPath(storagePath)
+      .then((docs) => {
+        if (!active) return;
+        // 按 updated_at 倒序；复制数组，避免修改适配器返回的共享数据。
+        setNotes([...docs].sort((a, b) => b.updated_at.localeCompare(a.updated_at)));
+      })
+      .catch((error) => {
+        if (!active) return;
+        setNotes([]);
+        setLoadError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [storagePath, refreshKey]);
 
   if (loading) {
     return <div className="moc-loading">加载中...</div>;
+  }
+
+  if (loadError) {
+    return <div className="moc-empty">加载目录失败：{loadError}</div>;
   }
 
   if (notes.length === 0) {
