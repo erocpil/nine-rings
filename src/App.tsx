@@ -799,6 +799,7 @@ function App() {
                 handleSelectNote(null);
               }}
               selectedId={selectedNote?.id ?? null}
+              selectedFolderPath={selectedFolderPath}
               onCreate={() => setDocCreateOpen(true)}
               refreshKey={docTreeKey}
               onRename={(id, title) => updateNote(id, { title })}
@@ -1031,6 +1032,7 @@ function App() {
                   handleSelectNote(null);
                 }}
                 selectedId={selectedNote?.id ?? null}
+                selectedFolderPath={selectedFolderPath}
                 onCreate={() => setDocCreateOpen(true)}
                 refreshKey={docTreeKey}
                 onRename={(id, title) => updateNote(id, { title })}

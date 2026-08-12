@@ -10,6 +10,7 @@
  */
 
 import { buildDocTree, type FlatDocRecord, type FlatDailyRecord } from "../src/lib/storage/core";
+import { getOtherFolderPaths } from "../src/lib/doc-tree-collapse";
 
 let passed = 0;
 let failed = 0;
@@ -220,8 +221,39 @@ function deepEqual(a: any, b: any): boolean {
 
   const tree = buildDocTree([], dailies);
   // daily/ folder count = 3 (unique dates)
-  const dailyFolder = tree.find(n => n.path === "daily" && n.type === "folder");
+const dailyFolder = tree.find(n => n.path === "daily" && n.type === "folder");
   assert(dailyFolder?.count === 3, "daily/ count=3");
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 9. collapse others — 文档和目录选择
+// ═══════════════════════════════════════════════════════════════════
+{
+  console.log("\n── collapse others: document and folder selection ──");
+
+  const docs: FlatDocRecord[] = [
+    { id: "active", title: "Active", storage_path: "projects/app/docs", doc_type: undefined, updated_at: "2026-01-01T00:00:00Z", readonly: false },
+    { id: "sibling", title: "Sibling", storage_path: "projects/other", doc_type: undefined, updated_at: "2026-01-01T00:00:00Z", readonly: false },
+    { id: "area", title: "Area", storage_path: "areas/work", doc_type: undefined, updated_at: "2026-01-01T00:00:00Z", readonly: false },
+  ];
+  const tree = buildDocTree(docs, []);
+
+  const forDocument = new Set(getOtherFolderPaths(tree, "active", null));
+  assert(!forDocument.has("projects"), "selected document root remains expanded");
+  assert(!forDocument.has("projects/app"), "selected document ancestor remains expanded");
+  assert(!forDocument.has("projects/app/docs"), "selected document parent remains expanded");
+  assert(forDocument.has("projects/other"), "document sibling is collapsed");
+  assert(forDocument.has("areas"), "other root is collapsed");
+  assert(forDocument.has("areas/work"), "other nested folder is collapsed");
+
+  const forFolder = new Set(getOtherFolderPaths(tree, null, "projects/app"));
+  assert(!forFolder.has("projects"), "selected folder root remains expanded");
+  assert(!forFolder.has("projects/app"), "selected folder remains expanded");
+  assert(forFolder.has("projects/app/docs"), "selected folder descendant is collapsed");
+  assert(forFolder.has("projects/other"), "selected folder sibling is collapsed");
+
+  const withoutSelection = getOtherFolderPaths(tree, null, null);
+  assert(withoutSelection.length === tree.filter(n => n.type === "folder").length, "no selection collapses all folders");
 }
 
 // ═══════════════════════════════════════════════════════════════════

@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PathNode, Note } from "../types/models";
 import { api } from "../lib/api";
 import { withTimeout } from "../lib/async";
+import { getOtherFolderPaths } from "../lib/doc-tree-collapse";
 
 interface DocTreeProps {
   onSelect: (note: Note) => void;
   onFolderSelect?: (path: string) => void;
   selectedId: string | null;
+  selectedFolderPath?: string | null;
   onCreate: () => void;
   refreshKey?: number;
   onRename?: (id: string, title: string) => void;
@@ -96,7 +98,7 @@ function InlineRename({
 }
 
 function DocTree({
-  onSelect, onFolderSelect, selectedId, onCreate, refreshKey,
+  onSelect, onFolderSelect, selectedId, selectedFolderPath, onCreate, refreshKey,
   onRename, onDelete, onToggleReadonly,
   onMoveDocument, onMoveFolder,
   onBatchDelete, onBatchSetReadonly,
@@ -190,23 +192,7 @@ function DocTree({
   };
 
   const collapseOthers = () => {
-    // 找到当前选中文档的父目录
-    const selectedNode = tree.find((n) => n.noteId === selectedId);
-    if (!selectedNode) return;
-    const parts = selectedNode.path.split("/");
-    if (parts.length <= 1) return;
-
-    // 收集所有祖先路径（而非仅直接父目录）
-    // e.g. "projects/nine-rings/docs" → ancestors = {"projects", "projects/nine-rings"}
-    const ancestors = new Set<string>();
-    for (let i = 1; i < parts.length; i++) {
-      ancestors.add(parts.slice(0, i).join("/"));
-    }
-
-    const allFolderPaths = tree
-      .filter((n) => n.type === "folder" && !ancestors.has(n.path))
-      .map((n) => n.path);
-    setCollapsed(new Set(allFolderPaths));
+    setCollapsed(new Set(getOtherFolderPaths(tree, selectedId, selectedFolderPath ?? null)));
   };
 
   const handleContextMenu = (e: React.MouseEvent, node: PathNode) => {
