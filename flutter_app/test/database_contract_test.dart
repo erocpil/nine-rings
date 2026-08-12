@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nine_rings/database/database_helper.dart';
 import 'package:nine_rings/database/migrations.dart';
 import 'package:nine_rings/models/note.dart';
+import 'package:sqflite/sqflite.dart' show Sqflite;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 Future<Database> createDatabaseAt(int targetVersion) async {
