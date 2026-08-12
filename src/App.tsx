@@ -818,7 +818,10 @@ function App() {
                 });
                 setDocTreeKey(k => k + 1);
               }}
-              onToggleReadonly={(id, readonly) => updateNote(id, { readonly })}
+              onToggleReadonly={async (id, readonly) => {
+                await updateNote(id, { readonly });
+                setDocTreeKey(k => k + 1);
+              }}
               onMoveDocument={async (id, targetPath) => {
                 await api.docs.moveDocument(id, targetPath);
                 setDocTreeKey(k => k + 1);
@@ -846,7 +849,10 @@ function App() {
                 });
                 setDocTreeKey(k => k + 1);
               }}
-              onBatchSetReadonly={(ids, readonly) => { ids.forEach(id => updateNote(id, { readonly })); }}
+              onBatchSetReadonly={async (ids, readonly) => {
+                await Promise.all(ids.map(id => updateNote(id, { readonly })));
+                setDocTreeKey(k => k + 1);
+              }}
               propertiesAutoShow={propertiesAutoShow}
               onTogglePropertiesAuto={() => {
                 const next = !propertiesAutoShow;
@@ -982,7 +988,7 @@ function App() {
 
         {selectedNote?.storagePath && propertiesAutoShow && propertiesOpen && (
           <PropertiesPanel
-            readonly={syncBusy}
+            readonly={selectedNote.readonly || syncBusy}
             note={selectedNote}
             onNoteUpdate={(updated) => { handleSelectNote(updated); setDocTreeKey(k => k + 1); }}
             onClose={() => setPropertiesOpen(false)}
@@ -1044,7 +1050,10 @@ function App() {
                 });
                 setDocTreeKey(k => k + 1);
               }}
-                onToggleReadonly={(id, readonly) => updateNote(id, { readonly })}
+                onToggleReadonly={async (id, readonly) => {
+                  await updateNote(id, { readonly });
+                  setDocTreeKey(k => k + 1);
+                }}
                 onMoveDocument={async (id, targetPath) => {
                   await api.docs.moveDocument(id, targetPath);
                   setDocTreeKey(k => k + 1);
@@ -1072,7 +1081,10 @@ function App() {
                 });
                 setDocTreeKey(k => k + 1);
               }}
-                onBatchSetReadonly={(ids, readonly) => { ids.forEach(id => updateNote(id, { readonly })); }}
+                onBatchSetReadonly={async (ids, readonly) => {
+                  await Promise.all(ids.map(id => updateNote(id, { readonly })));
+                  setDocTreeKey(k => k + 1);
+                }}
                 propertiesAutoShow={propertiesAutoShow}
                 onTogglePropertiesAuto={() => {
                   const next = !propertiesAutoShow;

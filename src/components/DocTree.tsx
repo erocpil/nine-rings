@@ -11,11 +11,11 @@ interface DocTreeProps {
   refreshKey?: number;
   onRename?: (id: string, title: string) => void;
   onDelete?: (id: string) => void;
-  onToggleReadonly?: (id: string, readonly: boolean) => void;
+  onToggleReadonly?: (id: string, readonly: boolean) => Promise<void> | void;
   onMoveDocument?: (id: string, targetPath: string) => Promise<void>;
   onMoveFolder?: (sourcePath: string, targetPath: string) => Promise<void>;
   onBatchDelete?: (ids: string[], folderPath: string) => void;
-  onBatchSetReadonly?: (ids: string[], readonly: boolean) => void;
+  onBatchSetReadonly?: (ids: string[], readonly: boolean) => Promise<void> | void;
   propertiesAutoShow?: boolean;
   onTogglePropertiesAuto?: () => void;
   disabled?: boolean;
@@ -304,18 +304,26 @@ function DocTree({
   const handleToggleReadonly = async (noteId: string) => {
     setContextMenu(null);
     if (disabled) return;
+    const node = tree.find((item) => item.noteId === noteId);
+    if (!node || !onToggleReadonly) return;
+    const nextReadonly = !node.readonly;
+
+    // 先更新图标，再持久化；失败时回滚，避免界面显示与数据库不一致。
+    setTree((prev) =>
+      prev.map((item) =>
+        item.noteId === noteId ? { ...item, readonly: nextReadonly } : item
+      )
+    );
     try {
-      const note = await api.notes.get(noteId);
-      if (note && onToggleReadonly) {
-        onToggleReadonly(noteId, !note.readonly);
-        // 本地更新 tree，立即反映图标变化
-        setTree((prev) =>
-          prev.map((n) =>
-            n.noteId === noteId ? { ...n, readonly: !note.readonly } : n
-          )
-        );
-      }
-    } catch {}
+      await onToggleReadonly(noteId, nextReadonly);
+    } catch (error) {
+      setTree((prev) =>
+        prev.map((item) =>
+          item.noteId === noteId ? { ...item, readonly: node.readonly } : item
+        )
+      );
+      console.error("toggle readonly failed:", error);
+    }
   };
 
   // ── 文件夹操作：收集目录下所有文档 ID ──
@@ -335,7 +343,7 @@ function DocTree({
     }
   };
 
-  const handleFolderToggleReadonly = (folderPath: string) => {
+  const handleFolderToggleReadonly = async (folderPath: string) => {
     setContextMenu(null);
     if (disabled) return;
     const ids = getDocIdsUnderPath(folderPath);
@@ -345,7 +353,6 @@ function DocTree({
       .filter((n) => ids.includes(n.noteId ?? '') && n.readonly)
       .length;
     const setTo = readonlyCount < ids.length / 2;
-    onBatchSetReadonly?.(ids, setTo);
     // 本地更新 tree
     const idSet = new Set(ids);
     setTree((prev) =>
@@ -353,6 +360,13 @@ function DocTree({
         n.noteId && idSet.has(n.noteId) ? { ...n, readonly: setTo } : n
       )
     );
+    try {
+      await onBatchSetReadonly?.(ids, setTo);
+    } catch (error) {
+      // 批量更新可能部分成功，重新读取数据库状态比猜测回滚结果更可靠。
+      console.error("batch toggle readonly failed:", error);
+      loadTree();
+    }
   };
 
   // 按路径分组
