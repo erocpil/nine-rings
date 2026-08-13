@@ -344,10 +344,7 @@ export const idbAdapter: StorageAdapter = {
         docType: data.docType,
         concepts: data.concepts,
         linkedDocIds: data.linkedDocIds,
-      } as any;
-
-      // @ts-ignore for sort_order
-      (note as any).sort_order = 0;
+      };
 
       await putRecord(noteStore, noteToDB(note));
       return note;

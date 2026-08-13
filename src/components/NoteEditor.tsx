@@ -167,6 +167,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [linkUrl, setLinkUrl] = useState("");
   // 编辑器右键菜单 + 右键插入链接对话框
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   const [linkDialog, setLinkDialog] = useState(false);
   const [linkDialogUrl, setLinkDialogUrl] = useState("");
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 480);
@@ -235,6 +236,22 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       window.removeEventListener("scroll", close, true);
       window.removeEventListener("blur", close);
     };
+  }, [contextMenu]);
+
+  // 菜单渲染后测量真实尺寸，clamp 到视口内（useLayoutEffect 在绘制前执行，无闪烁）
+  useLayoutEffect(() => {
+    if (!contextMenu) return;
+    const el = contextMenuRef.current;
+    if (!el) return;
+    const margin = 8;
+    const rect = el.getBoundingClientRect();
+    const maxX = Math.max(margin, window.innerWidth - rect.width - margin);
+    const maxY = Math.max(margin, window.innerHeight - rect.height - margin);
+    const clampedX = Math.max(margin, Math.min(contextMenu.x, maxX));
+    const clampedY = Math.max(margin, Math.min(contextMenu.y, maxY));
+    if (clampedX !== contextMenu.x || clampedY !== contextMenu.y) {
+      setContextMenu({ x: clampedX, y: clampedY });
+    }
   }, [contextMenu]);
 
   // 观察标题是否可见，用于 sticky title（仅在专注模式）
@@ -693,7 +710,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   );
 
   return (
-    <div className={`note-editor ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""}`} onPaste={handlePaste} onDrop={handleDrop} onContextMenu={handleEditorContextMenu}>
+    <div className={`note-editor ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""}`} onPaste={handlePaste} onDrop={handleDrop}>
       {/* ── 标题 + 标签 + 工具栏 + 编辑器（滚动区域）── */}
       <div className="note-editor-scroll" ref={scrollRef}>
         <div className="note-editor-sticky">
@@ -1146,7 +1163,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         </div>
 
         {/* ── 编辑器内容 ── */}
-        <EditorContent editor={editor} className="editor-content" />
+        <EditorContent editor={editor} className="editor-content" onContextMenu={handleEditorContextMenu} />
 
         {/* ── [[ 双向链接下拉 ── */}
         {wikiOpen && (
@@ -1204,6 +1221,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       {/* ── 正文右键菜单 ── */}
       {contextMenu && (
         <div
+          ref={contextMenuRef}
           className="editor-context-menu"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onMouseDown={(e) => e.stopPropagation()}

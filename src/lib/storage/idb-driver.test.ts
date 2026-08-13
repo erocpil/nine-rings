@@ -112,7 +112,7 @@ function deepEqual(a: any, b: any): boolean {
 
 async function runTests() {
   let passed = 0;
-  let failed = 0;
+  const failed = 0;
 
   // ── Setup ──
   await deleteDB();

@@ -36,6 +36,7 @@ export function normalizeStoragePath(input: string): string {
   if (!parts.length || parts.length > MAX_STORAGE_PATH_DEPTH) {
     throw new Error("目录路径无效：层级必须为 1～32 层");
   }
+  // eslint-disable-next-line no-control-regex -- 有意匹配控制字符（\x00-\x1f 与 \x7f），用于拒绝路径中的非法字符
   if (parts.some((part) => part === "." || part === ".." || /[\u0000-\u001f\u007f]/.test(part))) {
     throw new Error("目录路径包含非法片段");
   }
