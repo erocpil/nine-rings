@@ -3,10 +3,11 @@ import { test, expect, type Page, type Locator } from "@playwright/test";
 /**
  * 正文右键菜单（自定义上下文菜单）E2E 测试。
  *
- * 覆盖三个缺口：
+ * 覆盖：
  *   1. 作用范围 —— onContextMenu 只绑定在 EditorContent，标题/标签/工具栏不应拦截
  *   2. 视口边界 —— 菜单渲染后经 useLayoutEffect clamp，右下角/底部右键不越界
- *   3. 菜单命令 —— 有/无选区、只读模式下的菜单项差异
+ *   3. 菜单项显示与禁用 —— 有/无选区、只读模式下的菜单项差异
+ *   4. 菜单命令行为 —— 实际点击“全选/剪切/插入链接”并验证编辑器内容变化
  */
 
 // 新建一篇空白随笔，返回正文编辑器 locator
@@ -79,21 +80,22 @@ test.describe("正文右键菜单：视口边界", () => {
     expect(box.y + box.height).toBeLessThanOrEqual(vp.height);
   });
 
-  test("视口底部右键时“插入链接”仍可点击（未溢出）", async ({ page }) => {
+  test("视口底部右键时菜单不越界", async ({ page }) => {
     const editor = await createBlankNote(page);
     const vp = page.viewportSize()!;
+    // 全选使菜单包含“插入链接”，逼近真实最长的菜单形态
     await editor.fill("选区文本");
     await editor.press("Control+A");
     await dispatchContextMenu(editor, vp.width / 2, vp.height - 2);
 
-    const insertLink = item(page, "插入链接");
-    await expect(insertLink).toBeVisible();
-    const linkBox = (await insertLink.boundingBox())!;
-    expect(linkBox.y + linkBox.height).toBeLessThanOrEqual(vp.height);
+    const box = (await menu(page).boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(vp.height);
+    expect(box.x + box.width).toBeLessThanOrEqual(vp.width);
   });
 });
 
-test.describe("正文右键菜单：菜单命令", () => {
+test.describe("正文右键菜单：菜单项显示与禁用", () => {
   test("有选区时显示“插入链接”，无选区时不显示", async ({ page }) => {
     const editor = await createBlankNote(page);
 
@@ -135,5 +137,43 @@ test.describe("正文右键菜单：菜单命令", () => {
     await expect(item(page, "撤销")).toHaveCount(0);
     await expect(item(page, "粘贴")).toHaveCount(0);
     await expect(item(page, "插入链接")).toHaveCount(0);
+  });
+});
+
+test.describe("正文右键菜单：菜单命令行为", () => {
+  test("点击“全选”选中全文", async ({ page }) => {
+    const editor = await createBlankNote(page);
+    await editor.fill("要全选的文本");
+    await dispatchContextMenu(editor, 120, 120);
+    await item(page, "全选").click();
+
+    await expect
+      .poll(() => editor.evaluate(() => window.getSelection()?.toString() ?? ""))
+      .toBe("要全选的文本");
+  });
+
+  test("点击“剪切”清空选区内容", async ({ page }) => {
+    const editor = await createBlankNote(page);
+    await editor.fill("要剪切的文本");
+    await editor.press("Control+A");
+    await dispatchContextMenu(editor, 120, 120);
+    await item(page, "剪切").click();
+
+    await expect.poll(() => editor.textContent()).toBe("");
+  });
+
+  test("点击“插入链接”生成链接", async ({ page }) => {
+    const editor = await createBlankNote(page);
+    await editor.fill("要链接的文字");
+    await editor.press("Control+A");
+    await dispatchContextMenu(editor, 120, 120);
+    await item(page, "插入链接").click();
+
+    await expect(page.locator(".image-dialog-input")).toBeVisible();
+    await page.locator(".image-dialog-input").fill("https://example.com");
+    await page.locator(".image-dialog-actions .menu-btn.active").click();
+
+    await expect(editor.locator("a")).toHaveAttribute("href", "https://example.com");
+    await expect(editor.locator("a")).toHaveText("要链接的文字");
   });
 });
