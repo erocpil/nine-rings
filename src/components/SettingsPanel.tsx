@@ -316,6 +316,19 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
               </label>
             </Field>
 
+            {/* ── 正文右键菜单 ── */}
+            <Field label="正文右键菜单" desc="开启后正文编辑器使用软件自带菜单，关闭则使用系统原生菜单">
+              <label className="settings-toggle">
+                <input
+                  type="checkbox"
+                  checked={config.use_custom_context_menu}
+                  onChange={(e) => update({ use_custom_context_menu: e.target.checked })}
+                />
+                <span className="toggle-track" />
+                <span className="toggle-label">{config.use_custom_context_menu ? "软件菜单" : "原生菜单"}</span>
+              </label>
+            </Field>
+
             {/* ── 开发端口 ── */}
             <Field label="Dev 端口" desc="Web 开发服务器端口（需重启 dev server 生效）">
               <div className="settings-stepper">

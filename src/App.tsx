@@ -969,6 +969,7 @@ function App() {
                     tags={selectedNote.tags}
                     showLineNumbers={config?.editor_show_line_numbers ?? false}
                     highlightActiveLine={config?.highlight_active_line ?? true}
+                    useCustomContextMenu={config?.use_custom_context_menu ?? true}
                     onTitleChange={handleTitleChange}
                     onContentChange={handleContentChange}
                     onTagsChange={handleTagsChange}

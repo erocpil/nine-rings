@@ -11,6 +11,7 @@ export interface AppConfig {
   dev_port: number; // 仅 web 模式生效
   highlight_active_line: boolean;
   editor_show_line_numbers: boolean;
+  use_custom_context_menu: boolean;
   hotkeys: Record<string, string>;
 }
 
@@ -23,6 +24,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   dev_port: 8000,
   highlight_active_line: true,
   editor_show_line_numbers: false,
+  use_custom_context_menu: true,
   hotkeys: {
     new_note:      "",
     quick_capture: "CommandOrControl+Alt+N",

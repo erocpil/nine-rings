@@ -18,6 +18,8 @@ pub struct AppConfig {
     pub highlight_active_line: bool,
     #[serde(default)]
     pub editor_show_line_numbers: bool,
+    #[serde(default = "default_true")]
+    pub use_custom_context_menu: bool,
     #[serde(default = "default_hotkeys")]
     pub hotkeys: std::collections::HashMap<String, String>,
 }
@@ -48,6 +50,7 @@ impl Default for AppConfig {
             dev_port: 8000,
             highlight_active_line: true,
             editor_show_line_numbers: false,
+            use_custom_context_menu: true,
             hotkeys: default_hotkeys(),
         }
     }

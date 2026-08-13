@@ -135,6 +135,7 @@ export interface AppConfig {
   dev_port: number;
   highlight_active_line: boolean;
   editor_show_line_numbers: boolean;
+  use_custom_context_menu: boolean;
   hotkeys: Record<string, string>;
 }
 

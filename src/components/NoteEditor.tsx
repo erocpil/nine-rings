@@ -127,6 +127,7 @@ interface NoteEditorProps {
   focusMode: boolean;
   showLineNumbers: boolean;
   highlightActiveLine: boolean;
+  useCustomContextMenu: boolean;
   onTitleChange: (title: string) => void;
   onContentChange: (content: DeltaOps) => void;
   onTagsChange: (tags: string[]) => void;
@@ -139,7 +140,7 @@ interface NoteEditorProps {
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, highlightActiveLine, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, saveStatus }: NoteEditorProps) {
+export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, highlightActiveLine, useCustomContextMenu, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, saveStatus }: NoteEditorProps) {
   const titleRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [colorOpen, setColorOpen] = useState(false);
@@ -164,6 +165,10 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [clipOpen, setClipOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
+  // 编辑器右键菜单 + 右键插入链接对话框
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [linkDialog, setLinkDialog] = useState(false);
+  const [linkDialogUrl, setLinkDialogUrl] = useState("");
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 480);
   const CODE_LN_KEY = "nr:codeLineNumbers";
   const [showCodeLineNumbers, setShowCodeLineNumbers] = useState(() => {
@@ -214,6 +219,23 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
   }, [sizeOpen, colorOpen, headingOpen, blockOpen, styleOpen, clipOpen, linkOpen]);
+
+  // 关闭编辑器右键菜单（点击外部 / Escape / 滚动 / 失焦）
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("blur", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("blur", close);
+    };
+  }, [contextMenu]);
 
   // 观察标题是否可见，用于 sticky title（仅在专注模式）
   useEffect(() => {
@@ -590,6 +612,36 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     } catch { /* 权限拒绝静默忽略 */ }
   };
 
+  // ── 正文右键菜单 ──
+  const handleEditorContextMenu = (e: React.MouseEvent) => {
+    if (!useCustomContextMenu) return; // 关闭开关 → 系统原生菜单
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
+  const hasSelection = () => {
+    const { from, to } = editor.state.selection;
+    return from !== to;
+  };
+
+  const insertLink = () => {
+    const url = linkDialogUrl.trim();
+    if (!url) return;
+    const { from, to } = editor.state.selection;
+    if (from !== to) {
+      // 有选区：把选中文字变成链接
+      editor.chain().focus().setLink({ href: url }).run();
+    } else {
+      // 无选区：插入 URL 本身作为链接文本
+      editor.chain().focus()
+        .insertContent({ type: "text", text: url, marks: [{ type: "link", attrs: { href: url } }] })
+        .run();
+    }
+    setLinkDialogUrl("");
+    setLinkDialog(false);
+  };
+
   // ── 代码块：多段选区合并为单个代码块 ──
   const handleToggleCodeBlock = () => {
     if (!editor) return;
@@ -641,7 +693,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   );
 
   return (
-    <div className={`note-editor ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""}`} onPaste={handlePaste} onDrop={handleDrop}>
+    <div className={`note-editor ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""}`} onPaste={handlePaste} onDrop={handleDrop} onContextMenu={handleEditorContextMenu}>
       {/* ── 标题 + 标签 + 工具栏 + 编辑器（滚动区域）── */}
       <div className="note-editor-scroll" ref={scrollRef}>
         <div className="note-editor-sticky">
@@ -1148,6 +1200,83 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           </>
         )}
       </div>
+
+      {/* ── 正文右键菜单 ── */}
+      {contextMenu && (
+        <div
+          className="editor-context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {!readonly && (
+            <>
+              <button
+                className="editor-context-item"
+                disabled={!editor.can().undo()}
+                onClick={() => { editor.chain().focus().undo().run(); setContextMenu(null); }}
+              >撤销</button>
+              <button
+                className="editor-context-item"
+                disabled={!editor.can().redo()}
+                onClick={() => { editor.chain().focus().redo().run(); setContextMenu(null); }}
+              >重做</button>
+              <div className="editor-context-sep" />
+              <button
+                className="editor-context-item"
+                disabled={!hasSelection()}
+                onClick={() => { handleCut(); setContextMenu(null); }}
+              >剪切</button>
+              <button
+                className="editor-context-item"
+                onClick={() => { handleClipboardPaste(); setContextMenu(null); }}
+              >粘贴</button>
+            </>
+          )}
+          <button
+            className="editor-context-item"
+            disabled={!hasSelection()}
+            onClick={() => { handleCopy(); setContextMenu(null); }}
+          >复制</button>
+          <button
+            className="editor-context-item"
+            onClick={() => { editor.chain().focus().selectAll().run(); setContextMenu(null); }}
+          >全选</button>
+          {!readonly && hasSelection() && (
+            <>
+              <div className="editor-context-sep" />
+              <button
+                className="editor-context-item"
+                onClick={() => { setContextMenu(null); setLinkDialog(true); }}
+              >插入链接</button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── 插入链接对话框（复用图片对话框样式）── */}
+      {linkDialog && (
+        <div className="image-dialog-overlay" onClick={() => setLinkDialog(false)}>
+          <div className="image-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="image-dialog-header">
+              插入链接
+              <button className="image-dialog-close" onClick={() => setLinkDialog(false)}>✕</button>
+            </div>
+            <input
+              className="image-dialog-input"
+              placeholder="https://..."
+              value={linkDialogUrl}
+              onChange={(e) => setLinkDialogUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && insertLink()}
+              autoFocus
+            />
+            <p className="image-dialog-hint">选中文字将变为链接；未选中时插入 URL 本身</p>
+            <div className="image-dialog-actions">
+              <button className="menu-btn" onClick={() => setLinkDialog(false)}>取消</button>
+              <button className="menu-btn active" onClick={insertLink}>插入</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 图片 URL 对话框 ── */}
       {imageDialog && (

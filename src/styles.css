@@ -4707,6 +4707,48 @@ body {
   background: var(--danger-bg);
 }
 
+/* ── 正文编辑器右键菜单 ── */
+
+.editor-context-menu {
+  position: fixed;
+  z-index: 1001;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 140px;
+  padding: 4px;
+}
+
+.editor-context-item {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  font-size: 13px;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.editor-context-item:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.editor-context-item:disabled {
+  color: var(--text-secondary);
+  opacity: 0.45;
+  cursor: default;
+}
+
+.editor-context-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border);
+}
+
 /* ── 文档树重命名输入 ── */
 
 .doc-tree-rename-input {
