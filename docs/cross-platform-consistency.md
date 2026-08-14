@@ -41,7 +41,7 @@
 
 | ✅ 已执行 | ❌ 待修复 |
 |-----------|----------|
-| `buildDocTree()` → `core.ts`，idb-driver 和 tauri-driver 都 import | IDB 的 `getPathTree()` 仍内联实现了相同逻辑（约 80 行） |
+| `buildDocTree()` → `core.ts`，idb-driver 和 tauri-driver 都 import | （无，已全部收归） |
 
 **验收标准**：
 - `grep -r "function.*Tree" src/lib/storage/idb.ts` → 无匹配
@@ -62,7 +62,7 @@
 ```
 
 **反模式**（当前问题）：
-- 模板系统在 `template-store.ts` 中直接调用 `invoke("db_query")`，跳过了 `StorageAdapter` 接口层，导致 Web 端无法复用
+- 模板系统在 Tauri 端走 `template-store.ts`（`db_query`），Web 端走 localStorage fallback，未经过统一 `StorageAdapter` 接口（两端各自实现，待收敛）
 
 ### 原则 3：对拍测试作为门禁
 
@@ -90,15 +90,17 @@ tests/
 
 ---
 
-## 3. 当前差异清单（v9bac82b）
+## 3. 差异清单（复核至 2026-08-14）
 
-| # | 差异 | 严重程度 | 修复优先级 |
-|---|------|---------|-----------|
-| 1 | 路径树构建两套实现 | P0 | 将 IDB 的 `getPathTree()` 改为调用 `core.ts` 的 `buildDocTree()` |
-| 2 | 模板系统 Tauri-only | P0 | 为 Web 端添加 localStorage fallback 或 IndexedDB `templates` store |
-| 3 | 版本历史两端不一致 | P1 | 统一：Web 端也删除 或 Tauri 端恢复 |
-| 4 | `extractPlainText` 三处重复 | P2 | 收归 `core.ts` |
-| 5 | `syncPush`/`syncPull` 空桩 | P2 | ✅ 已删除；GitHub 全量快照是唯一备份入口 |
+以下历史差异均已解决，当前无未解决的双端不一致：
+
+| # | 差异 | 原严重程度 | 解决方式 |
+|---|------|-----------|---------|
+| 1 | 路径树构建两套实现 | P0 | 已收归 `core.ts/buildDocTree()`，两端统一引用 |
+| 2 | 模板系统 Tauri-only | P0 | Web 端已加 localStorage fallback |
+| 3 | 版本历史两端不一致 | P1 | 已统一：Tauri 恢复 checkpoint，两端语义一致 |
+| 4 | `extractPlainText` 三处重复 | P2 | 已收归 `core.ts`，两端统一引用 |
+| 5 | `syncPush`/`syncPull` 空桩 | P2 | 已删除；GitHub 全量快照是唯一备份入口 |
 
 ---
 
@@ -216,8 +218,8 @@ jobs:
 
 能力矩阵示例：
   v0.6.0: 笔记 CRUD ✓ | 回收站 ✓ | 每日 ✓ | 标签 ✓ | 搜索 ✓ |
-          文档系统 ✓ | 导出 ✓ | GitHub 同步 ✓ | 模板 (Tauri-only) |
-          版本历史 (Web-only)
+          文档系统 ✓ | 导出 ✓ | GitHub 备份 ✓ | 模板 ✓（两端） |
+          版本历史 ✓（两端一致）
 ```
 
 ### JSON 导出版本号

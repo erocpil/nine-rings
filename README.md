@@ -48,7 +48,7 @@
 ```
 ┌─ 前端 ─────────────────────────────────────┐
 │  React 18  +  TypeScript  +  TipTap        │
-│  Zustand (状态)  +  Vite 5 (构建)          │
+│  Zustand (状态)  +  Vite 6 (构建)          │
 │  PWA: Custom Service Worker  +  IndexedDB             │
 ├─ 桌面端 (Tauri) ───────────────────────────┤
 │  Rust + SQLite + Tauri v2 IPC              │
@@ -210,7 +210,6 @@ nine-rings/
 │       ├── commands/     # IPC 命令
 │       ├── db/           # SQLite 数据库层
 │       ├── service/      # 业务逻辑
-│       ├── sync/         # 同步模块
 │       └── export/       # 导出模块
 ├── flutter_app/          # Flutter 移动端
 │   └── lib/

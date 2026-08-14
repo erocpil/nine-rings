@@ -1,7 +1,7 @@
 # Nine Rings（九环）功能规格
 
 > 版本：v0.6.0（基于 v9bac82b）
-> 最后更新：2026-07-15
+> 最后更新：2026-08-14
 >
 > 本文档完整列出九个功能域，每个功能域覆盖：数据模型、输入/输出、接口规格、行为约定、边界条件、与 `docs/` 现有文档的不一致项。
 
@@ -195,7 +195,7 @@ searchNotes(query: string) → Note[]
 取 Delta ops → 过滤出 string 类型的 insert → 拼接 → trim
 ```
 
-此函数在 `core.ts`、`idb-driver.ts`、`tauri-driver.ts` 中独立实现（有重复代码）。
+此函数定义于 `core.ts`，`idb-driver.ts` 与 `tauri-driver.ts` 统一引用（已收敛，无重复）。
 
 ---
 
@@ -440,7 +440,7 @@ seedBuiltinTemplates() → void  // 幂等：已存在则跳过
 
 - `TemplatePicker` 弹出层展示模板列表（名称 + 描述），点击选择后走 `onCreateWithTemplate(template)` → 预填标题/路径/类型/标签
 - 内置模板可修改但不可删除（`delete_template` 拒绝 `is_builtin=1`）
-- 模板存储在 **SQLite 专用表**中，Web 端（IndexedDB）**无对等实现**
+- 模板存储在 SQLite 专用表中（Tauri）；Web 端使用 localStorage fallback 的等价实现
 
 ---
 
@@ -475,12 +475,13 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 
 | Action | 默认快捷键 | 注册方式 |
 |--------|-----------|---------|
-| new_note | Ctrl+N | JS `registerShortcuts` |
+| new_note | （未绑定，可配置） | JS `registerShortcuts` |
 | quick_capture | Ctrl+Alt+N | JS `registerShortcuts` |
 | focus_search | Ctrl+E | JS `registerShortcuts` |
 | open_settings | Alt+, | JS `registerShortcuts` |
+| go_to_daily | Ctrl+Shift+D | JS `registerShortcuts` |
 | show_window | Alt+Y | **Rust 端注册**（系统级，WebView 不可见时也能响应） |
-| toggle_fullscreen | F11 | Rust 端注册 |
+| toggle_fullscreen | F11 | 浏览器 `keydown`（Web 与 Tauri 均生效） |
 
 ### 主题系统
 
