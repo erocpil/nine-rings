@@ -19,7 +19,7 @@
 | 6 | 文档系统 (P.A.R.A.) | `api.docs.*` | `StorageAdapter` + `core.ts` |
 | 7 | 导出 / 导入 | `api.export.*` | `StorageAdapter` |
 | 8 | GitHub 备份 | `SettingsSync` → `github.ts` | 前端独立 |
-| 9 | 模板系统 | `template-store.ts` | Tauri-only (`db_query`/`db_exec`) |
+| 9 | 模板系统 | `template-store.ts` | SQLite (Tauri) / localStorage (Web) |
 
 ---
 
@@ -414,7 +414,7 @@ Table: templates
 ### 接口规格
 
 ```typescript
-// template-store.ts（仅 Tauri 端可用）
+// template-store.ts（Tauri 走 db_query；Web 走 localStorage fallback）
 
 listTemplates() → Template[]
 createTemplate(input: TemplateInput) → Template
