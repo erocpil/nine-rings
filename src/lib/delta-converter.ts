@@ -272,9 +272,10 @@ export function deltaToProseMirror(deltaData: any): any {
     doc.push({ ...currentParagraph });
   }
 
-  const nodeCount = doc.length;
-  if (nodeCount === 0) {
-    console.warn("[dump/converter] ⚠️ 转换后内容为空！输入 Delta ops:", JSON.stringify(deltaData).slice(0, 300));
+  // ProseMirror/TipTap 需要至少一个可编辑的块节点。Chromium 通常会
+  // 容错空 doc，但 Windows WebView2 可能无法为它生成可聚焦的文本区域。
+  if (doc.length === 0) {
+    doc.push({ type: "paragraph", content: [] });
   }
 
   return { type: "doc", content: doc };

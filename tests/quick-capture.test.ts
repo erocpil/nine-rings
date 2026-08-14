@@ -12,6 +12,7 @@ import {
   QUICK_CAPTURE_CHANNEL,
   createTauriQuickCaptureListener,
   createBroadcastQuickCaptureListener,
+  quickCaptureTextToNote,
   type ListenFn,
   type BroadcastChannelLike,
 } from "../src/lib/quick-capture";
@@ -25,6 +26,18 @@ function assert(condition: boolean, label: string) {
 }
 
 async function main() {
+  console.log("\n── Quick Capture note content ──");
+
+  {
+    const single = quickCaptureTextToNote("single line");
+    assert(single.title === "single line", "单行首行作为标题");
+    assert(single.content.ops.map((op) => op.insert).join("") === "single line\n", "单行内容保留在正文");
+
+    const multi = quickCaptureTextToNote("title\nbody");
+    assert(multi.title === "title", "多行首行作为标题");
+    assert(multi.content.ops.map((op) => op.insert).join("") === "title\nbody\n", "多行内容完整保留");
+  }
+
   console.log("\n── createTauriQuickCaptureListener ──");
 
   // 用例 1：正常注册 + 消息回调 + 清理

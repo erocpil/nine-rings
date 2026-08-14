@@ -4,7 +4,7 @@
  * 用法：npx tsx tests/delta-converter.test.ts
  */
 
-import { proseMirrorToDelta, pxToNamed, namedToPx } from "../src/lib/delta-converter";
+import { deltaToProseMirror, proseMirrorToDelta, pxToNamed, namedToPx } from "../src/lib/delta-converter";
 
 let passed = 0;
 let failed = 0;
@@ -164,6 +164,9 @@ function assert(condition: boolean, msg: string): void {
   assert(r2.ops != null, "empty content → valid delta");
   const r3 = proseMirrorToDelta(null);
   assert(r3 != null, "null → returns something");
+  const r4 = deltaToProseMirror({ ops: [] });
+  assert(r4.content?.length === 1, "empty delta → one editable block");
+  assert(r4.content?.[0]?.type === "paragraph", "empty delta → editable paragraph");
 }
 
 // ═══════════════════════════════════════════════════════════════════

@@ -4,6 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import { isTauriRuntime } from "../lib/runtime";
+import { quickCaptureTextToNote } from "../lib/quick-capture";
 
 /** 将主题名映射为 CSS class 并应用到 <html> */
 function applyQCTheme(theme: string) {
@@ -99,20 +100,18 @@ export default function QuickCapture() {
       return;
     }
 
-    const lines = content.split("\n");
-    const title = lines[0].slice(0, 80);
-    const body = lines.length > 1 ? lines.slice(1).join("\n") : "";
+    const capture = quickCaptureTextToNote(content);
     const today = localDateKey();
 
-    console.log(`[QC] ├─ 提交: date=${today} title="${title}" bodyLen=${body.length}`);
+    console.log(`[QC] ├─ 提交: date=${today} title="${capture.title}" textLen=${content.length}`);
     setSubmitting(true);
 
     try {
       // 统一走 api.notes.create()——跨平台（Tauri IPC / IndexedDB）
       await api.notes.create({
         date: today,
-        title,
-        content: { ops: [{ insert: body || "\n" }] },
+        title: capture.title,
+        content: capture.content,
         tags: [],
         pinned: false,
       });

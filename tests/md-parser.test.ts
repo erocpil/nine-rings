@@ -4,7 +4,7 @@
  * 用法：npx tsx tests/md-parser.test.ts
  */
 
-import { mdToDelta, extractTitle } from "../src/lib/md-parser";
+import { mdToDelta, extractTitle, looksLikeMarkdown } from "../src/lib/md-parser";
 
 let passed = 0;
 let failed = 0;
@@ -266,5 +266,15 @@ This is a **bold** and *italic* text with \`code\`.
 // ═══════════════════════════════════════════════════════════════════
 // Results
 // ═══════════════════════════════════════════════════════════════════
+{
+  console.log("\n── Markdown paste detection ──");
+  assert(looksLikeMarkdown("### 先消除\n\n> 能不做的就不做"), "heading + quote is detected");
+  assert(looksLikeMarkdown("- first\n- second"), "multi-line list is detected");
+  assert(looksLikeMarkdown("```ts\nconst x = 1\n```"), "fenced code is detected");
+  assert(!looksLikeMarkdown("1.0.0 is a version"), "version text is not detected");
+  assert(!looksLikeMarkdown("> 100"), "single comparison-like line is not detected");
+  assert(!looksLikeMarkdown("#12345"), "issue number is not detected");
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

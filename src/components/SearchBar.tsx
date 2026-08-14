@@ -125,35 +125,40 @@ export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: Sear
   return (
     <div className="search-bar" ref={filterRef}>
       <div className="search-input-row">
-        <input
-          type="text"
-          placeholder="搜索笔记..."
-          value={value}
-          onChange={(e) => handleChange(e.target.value)}
-          onFocus={() => {
-            // 输入框已有内容时自动重新搜索（避免需要 Enter）
-            if (value) fireSearch(value, pathFilter, typeFilter, conceptFilter);
-          }}
-          onBlur={() => {
-            // 延迟检查：如果焦点移到筛选面板内部则不折叠
-            setTimeout(() => {
-              if (!filterRef.current?.contains(document.activeElement)) {
-                onInputBlur?.();
+        <div className="search-input-wrap">
+          <input
+            type="text"
+            placeholder="搜索笔记..."
+            value={value}
+            onChange={(e) => handleChange(e.target.value)}
+            onFocus={() => {
+              // 输入框已有内容时自动重新搜索（避免需要 Enter）
+              if (value) fireSearch(value, pathFilter, typeFilter, conceptFilter);
+            }}
+            onBlur={() => {
+              // 延迟检查：如果焦点移到筛选面板内部则不折叠
+              setTimeout(() => {
+                if (!filterRef.current?.contains(document.activeElement)) {
+                  onInputBlur?.();
+                }
+              }, 150);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                // 重新触发搜索（用户可能想用保留的关键词再次搜索）
+                fireSearch(value, pathFilter, typeFilter, conceptFilter);
               }
-            }, 150);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              // 重新触发搜索（用户可能想用保留的关键词再次搜索）
-              fireSearch(value, pathFilter, typeFilter, conceptFilter);
-            }
-            if (e.key === "Escape") {
-              onEscape?.();
-              e.preventDefault();
-            }
-          }}
-          className="search-input"
-        />
+              if (e.key === "Escape") {
+                onEscape?.();
+                e.preventDefault();
+              }
+            }}
+            className="search-input"
+          />
+          {value && (
+            <button className="search-clear" onClick={clearAll} aria-label="清除搜索">×</button>
+          )}
+        </div>
         <button
           className={`search-filter-btn ${filterOpen || hasFilters ? "active" : ""}`}
           onClick={() => setFilterOpen(!filterOpen)}
@@ -162,9 +167,6 @@ export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: Sear
           🔍
           {activeFilterCount > 0 && <span className="search-filter-badge">{activeFilterCount}</span>}
         </button>
-        {value && (
-          <button className="search-clear" onClick={clearAll}>×</button>
-        )}
       </div>
 
       {filterOpen && (

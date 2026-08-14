@@ -33,6 +33,7 @@ import { CodeBlockLineNumbers } from "../extensions/CodeBlockLineNumbers";
 import { createGutterClickHandler } from "../extensions/LineNumberInsert";
 import { storeImage } from "../lib/storage/db-images";
 import { api } from "../lib/api";
+import { looksLikeMarkdown, mdToDelta } from "../lib/md-parser";
 
 const FontSize = Extension.create({
   name: "fontSize",
@@ -175,6 +176,20 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [showCodeLineNumbers, setShowCodeLineNumbers] = useState(() => {
     return localStorage.getItem(CODE_LN_KEY) === "true";
   });
+  const [markdownPasteText, setMarkdownPasteText] = useState<string | null>(null);
+  const [markdownSelectionNotice, setMarkdownSelectionNotice] = useState(false);
+
+  useEffect(() => {
+    if (!markdownPasteText) return;
+    const timer = window.setTimeout(() => setMarkdownPasteText(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [markdownPasteText]);
+
+  useEffect(() => {
+    if (!markdownSelectionNotice) return;
+    const timer = window.setTimeout(() => setMarkdownSelectionNotice(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [markdownSelectionNotice]);
 
   // ── 编辑器整体字号（CSS 变量驱动）──
   const FONT_SIZE_KEY = "nr:editorFontSize";
@@ -287,7 +302,9 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         heading: { levels: [1, 2, 3, 4, 5, 6] },
         codeBlock: false,
       }),
-      Placeholder.configure({ placeholder: "开始记录..." }),
+      // 仅使用扩展的 is-editor-empty class 识别空段落；不在 gutter
+      // 内显示文字，避免与行号和行间插入按钮争用伪元素。
+      Placeholder.configure({ placeholder: "" }),
       TextStyle,
       Color.configure({ types: ["textStyle"] }),
       FontSize,
@@ -500,6 +517,17 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         return;
       }
 
+      // 剪贴板同时有 HTML 时保留源应用的富文本；只对高置信
+      // 的纯文本 Markdown 自动格式化。
+      const hasHtml = Array.from(e.clipboardData.types).includes("text/html");
+      if (plainText && !hasHtml && looksLikeMarkdown(plainText)) {
+        e.preventDefault();
+        const parsed = deltaToProseMirror(mdToDelta(plainText));
+        editor.chain().focus().insertContent(parsed.content).run();
+        setMarkdownPasteText(plainText);
+        return;
+      }
+
       for (const item of Array.from(items)) {
         if (item.type.startsWith("image/")) {
           e.preventDefault();
@@ -640,6 +668,29 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const hasSelection = () => {
     const { from, to } = editor.state.selection;
     return from !== to;
+  };
+
+  const convertSelectionFromMarkdown = () => {
+    const { from, to, empty } = editor.state.selection;
+    if (empty || readonly) return;
+
+    let unsupported = false;
+    editor.state.doc.nodesBetween(from, to, (node) => {
+      if (node.isLeaf && !node.isText && node.type.name !== "hardBreak") {
+        unsupported = true;
+        return false;
+      }
+      return true;
+    });
+    if (unsupported) return;
+
+    const markdown = editor.state.doc.textBetween(from, to, "\n", "\n");
+    if (!markdown.trim()) return;
+    const parsed = deltaToProseMirror(mdToDelta(markdown));
+    editor.chain().focus().insertContentAt({ from, to }, parsed.content).run();
+    setMarkdownSelectionNotice(true);
+    setBlockOpen(false);
+    setContextMenu(null);
   };
 
   const insertLink = () => {
@@ -889,6 +940,13 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
                   >⏹ 代码块</button>
                   <div className="menu-dropdown-sep" />
                   <button
+                    className="menu-dropdown-item"
+                    disabled={!hasSelection()}
+                    onClick={convertSelectionFromMarkdown}
+                    type="button"
+                  >M↓ 转换所选 Markdown</button>
+                  <div className="menu-dropdown-sep" />
+                  <button
                     className={`menu-dropdown-item ${showCodeLineNumbers ? "active" : ""}`}
                     onClick={() => {
                       const next = !showCodeLineNumbers;
@@ -906,6 +964,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           {btn("•", () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"), "无序列表 (Ctrl+Shift+8)", readonly)}
           {btn("1.", () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"), "有序列表 (Ctrl+Shift+7)", readonly)}
           {btn("⏹", handleToggleCodeBlock, editor.isActive("codeBlock"), "代码块 (Ctrl+Alt+C)", readonly)}
+          {btn("M↓", convertSelectionFromMarkdown, false, "转换所选 Markdown", readonly || !hasSelection())}
           <button
             className={`menu-btn ${showCodeLineNumbers ? "active" : ""}`}
             onClick={() => {
@@ -1163,6 +1222,27 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         </div>
 
         {/* ── 编辑器内容 ── */}
+        {markdownPasteText && (
+          <div className="markdown-paste-notice" role="status">
+            <span>已按 Markdown 格式化</span>
+            <button type="button" onClick={() => { editor.chain().focus().undo().run(); setMarkdownPasteText(null); }}>撤销</button>
+            <button type="button" onClick={() => {
+              const blocks = markdownPasteText.split(/\r?\n/).map((line) => ({
+                type: "paragraph",
+                ...(line ? { content: [{ type: "text", text: line }] } : {}),
+              }));
+              editor.chain().focus().undo().run();
+              editor.chain().focus().insertContent(blocks).run();
+              setMarkdownPasteText(null);
+            }}>改为纯文本</button>
+          </div>
+        )}
+        {markdownSelectionNotice && (
+          <div className="markdown-paste-notice" role="status">
+            <span>已转换所选 Markdown</span>
+            <button type="button" onClick={() => { editor.chain().focus().undo().run(); setMarkdownSelectionNotice(false); }}>撤销</button>
+          </div>
+        )}
         <EditorContent editor={editor} className="editor-content" onContextMenu={handleEditorContextMenu} />
 
         {/* ── [[ 双向链接下拉 ── */}
@@ -1266,6 +1346,10 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
                 className="editor-context-item"
                 onClick={() => { setContextMenu(null); setLinkDialog(true); }}
               >插入链接</button>
+              <button
+                className="editor-context-item"
+                onClick={convertSelectionFromMarkdown}
+              >转换所选 Markdown</button>
             </>
           )}
         </div>

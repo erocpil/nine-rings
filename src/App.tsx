@@ -131,7 +131,13 @@ function App() {
   const handleSetSidebarTab = (tab: 'daily' | 'tree') => {
     setSidebarTab(tab);
     localStorage.setItem(TAB_KEY, tab);
-    if (tab === 'daily') setSelectedFolderPath(null);
+    if (tab === 'daily') {
+      setSelectedFolderPath(null);
+      // 跨窗口 Quick Capture 事件可能在 Windows WebView2 隐藏窗口时
+      // 丢失或与视图切换竞态；返回随笔视图时始终重读当日数据。
+      void setDate(currentDate);
+      setSidebarRefreshKey((key) => key + 1);
+    }
   };
   const [docCreateOpen, setDocCreateOpen] = useState(false);
   const [docTreeKey, setDocTreeKey] = useState(0);

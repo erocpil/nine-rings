@@ -68,6 +68,12 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     onBusyChange?.(busy);
   }, [busy, onBusyChange]);
 
+  // 设置面板可能在 Push/Pull 完成前关闭。此时组件卸载，
+  // finally 中的本地 setBusy(false) 无法再把父级编辑器解冻。
+  useEffect(() => {
+    return () => onBusyChange?.(false);
+  }, [onBusyChange]);
+
   const update = useCallback((patch: Partial<SyncConfig>) => {
     setCfg((prev) => {
       const next = { ...prev, ...patch };

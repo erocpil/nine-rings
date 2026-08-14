@@ -5,6 +5,24 @@ export const QUICK_CAPTURE_EVENT = "quick-capture-created";
 /** Web 端 BroadcastChannel 通道名 */
 export const QUICK_CAPTURE_CHANNEL = "nine-rings-qc";
 
+/**
+ * Quick Capture 文本转笔记内容。首行同时用作标题，但完整输入
+ * 仍保留在正文中，避免单行捕获生成空编辑器。
+ */
+export function quickCaptureTextToNote(text: string) {
+  const normalized = text.trim();
+  const lines = normalized.split("\n");
+  const ops: Array<{ insert: string }> = [];
+  for (const line of lines) {
+    if (line) ops.push({ insert: line });
+    ops.push({ insert: "\n" });
+  }
+  return {
+    title: lines[0]?.slice(0, 80) ?? "",
+    content: { ops },
+  };
+}
+
 /** Tauri listen 的最小签名（真实实现来自 @tauri-apps/api/event） */
 export interface ListenFn {
   (event: string, handler: (event: unknown) => void): Promise<() => void>;

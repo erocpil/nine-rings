@@ -15,6 +15,26 @@ interface DeltaOps {
   ops: DeltaOp[];
 }
 
+/** 保守判断纯文本是否很可能是 Markdown。 */
+export function looksLikeMarkdown(text: string): boolean {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  const fenced = lines.filter((line) => /^\s*```/.test(line)).length;
+  if (fenced >= 2) return true;
+
+  let blockSignals = 0;
+  for (const line of lines) {
+    if (/^\s*#{1,6}\s+\S/.test(line)) blockSignals++;
+    else if (/^\s*>\s+\S/.test(line)) blockSignals++;
+    else if (/^\s*[-*+]\s+\S/.test(line)) blockSignals++;
+    else if (/^\s*\d+\.\s+\S/.test(line)) blockSignals++;
+    else if (/^\s*([-*_])(?:\s*\1){2,}\s*$/.test(line)) blockSignals++;
+  }
+  if (blockSignals >= 2) return true;
+
+  const inlineSignal = /\*\*[^*\n]+\*\*|`[^`\n]+`|\[[^\]\n]+\]\([^)\n]+\)/.test(text);
+  return blockSignals >= 1 && inlineSignal;
+}
+
 // ── 行内解析 ──
 
 interface InlineSegment {

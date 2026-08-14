@@ -386,6 +386,12 @@ body {
   transition: background var(--transition), border-color var(--transition), color var(--transition);
 }
 
+.search-input-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .search-clear {
   position: absolute;
   right: 4px;
@@ -406,6 +412,7 @@ body {
 }
 
 .search-filter-btn {
+  flex: 0 0 auto;
   background: none;
   border: 1px solid var(--border);
   color: var(--text-secondary);
@@ -1673,12 +1680,28 @@ body {
   outline: none;
 }
 
-/* TipTap placeholder */
-.editor-content p.is-editor-empty:first-child::before {
+.markdown-paste-notice {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 12px 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
   color: var(--text-secondary);
-  content: attr(data-placeholder);
-  pointer-events: none;
-  height: 0;
+  font-size: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.markdown-paste-notice button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
 }
 
 /* ──── Empty State ──── */
@@ -2715,7 +2738,7 @@ body {
 
 /* ── 第一个 block 顶部 +（::before hover，仅非行号模式）──
    行号模式下 ::before 已被行号占用，不放 +。 */
-.ProseMirror:not(.show-line-numbers) > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):first-child:hover::before {
+.ProseMirror:not(.show-line-numbers) > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):first-child:not(.is-editor-empty):hover::before {
   content: '+';
   position: absolute;
   left: -14px;
