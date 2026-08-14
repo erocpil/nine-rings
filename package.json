@@ -8,7 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "tsx tests/theme-contract.test.ts && tsx tests/core.test.ts && tsx tests/delta-converter.test.ts && tsx tests/md-parser.test.ts && tsx tests/markdown-link-input.test.ts && tsx tests/clipboard-paste.test.ts && tsx tests/idb-schema.test.ts && tsx tests/idb-adapter.test.ts && tsx src/lib/storage/idb-driver.test.ts && tsx tests/template-store.test.ts && tsx tests/local-date.test.ts && tsx tests/shortcuts.test.ts && tsx tests/fixtures/export-v1.test.ts && tsx tests/fixtures/snake-cross-end.test.ts",
+    "test": "tsx tests/theme-contract.test.ts && tsx tests/core.test.ts && tsx tests/delta-converter.test.ts && tsx tests/md-parser.test.ts && tsx tests/markdown-link-input.test.ts && tsx tests/clipboard-paste.test.ts && tsx tests/idb-schema.test.ts && tsx tests/idb-adapter.test.ts && tsx src/lib/storage/idb-driver.test.ts && tsx tests/template-store.test.ts && tsx tests/local-date.test.ts && tsx tests/shortcuts.test.ts && tsx tests/quick-capture.test.ts && tsx tests/fixtures/export-v1.test.ts && tsx tests/fixtures/snake-cross-end.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "format:check": "prettier --check src/lib/runtime.ts src/hooks/useClockAndDateRollover.ts tests/unit eslint.config.js vitest.config.ts package.json",

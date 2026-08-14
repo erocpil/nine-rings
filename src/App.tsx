@@ -29,12 +29,12 @@ import PropertiesPanel from "./components/PropertiesPanel";
 import { DocMOC } from "./components/DocMOC";
 import type { DeltaOps, Note, DocType } from "./types/models";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
-import { addLog } from "./lib/debugLog";
 import type { Template } from "./lib/storage/template-store";
 import { templateStore } from "./lib/storage/template-store";
 import { isTauriRuntime } from "./lib/runtime";
 import { useClockAndDateRollover } from "./hooks/useClockAndDateRollover";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
+import { useQuickCaptureListener } from "./hooks/useQuickCaptureListener";
 
 function App() {
   const {
@@ -212,36 +212,7 @@ function App() {
   }, []); // 仅挂载一次，通过 ref 访问最新值
 
   // ── Quick Capture 提交后刷新列表 ──
-  useEffect(() => {
-    const today = localDateKey();
-
-    // Tauri 桌面端：监听 Rust 端 emit_to_main 事件
-    if (isTauriRuntime()) {
-      let unlisten: (() => void) | undefined;
-      import("@tauri-apps/api/event").then(({ listen }) => {
-        listen("quick-capture-created", () => {
-          addLog(`[QC→主窗口] 收到 quick-capture-created, 切到日期 ${today}`);
-          setDate(localDateKey());
-        }).then((fn) => { unlisten = fn; });
-      }).catch((e) => {
-        console.warn("[QC→主窗口] 事件监听注册失败:", e);
-      });
-      return () => { unlisten?.(); };
-    }
-
-    // Web 版：BroadcastChannel 跨标签页通知
-    let bc: BroadcastChannel | undefined;
-    try {
-      bc = new BroadcastChannel("nine-rings-qc");
-      bc.onmessage = () => {
-        addLog(`[QC→主窗口] 收到 BroadcastChannel 通知, 切到日期 ${today}`);
-        setDate(localDateKey());
-      };
-    } catch (e) {
-      console.warn("[QC→主窗口] BroadcastChannel 不可用:", e);
-    }
-    return () => { bc?.close(); };
-  }, []);
+  useQuickCaptureListener({ setDate });
 
   // 启动时恢复最后浏览的笔记（跨日查找）
   useEffect(() => {
