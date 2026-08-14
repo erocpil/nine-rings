@@ -1,7 +1,8 @@
 /**
  * Quick Capture 跨窗口监听器工厂测试
  *
- * 覆盖：Tauri listen 与 BroadcastChannel 的注册、消息回调与清理。
+ * 覆盖：Tauri listen 与 BroadcastChannel 的注册、消息回调与清理，
+ * 以及异步注册与清理的竞态、注册失败的错误回调。
  *
  * 运行：tsx tests/quick-capture.test.ts
  */
@@ -26,6 +27,7 @@ function assert(condition: boolean, label: string) {
 async function main() {
   console.log("\n── createTauriQuickCaptureListener ──");
 
+  // 用例 1：正常注册 + 消息回调 + 清理
   {
     let unlistenCount = 0;
     let capturedEvent = "";
@@ -41,7 +43,6 @@ async function main() {
     let messageCount = 0;
     const stop = listener.start(() => { messageCount++; });
 
-    // listen 是异步的，等待微任务完成注册
     await new Promise((r) => setTimeout(r, 0));
     assert(capturedEvent === QUICK_CAPTURE_EVENT, "listen 注册正确事件名");
 
@@ -50,6 +51,46 @@ async function main() {
 
     stop();
     assert(unlistenCount === 1, "清理时调用 unlisten");
+  }
+
+  // 用例 2：提前清理（listen resolve 前 stop，resolve 后立即注销）
+  {
+    let resolveListen: ((fn: () => void) => void) | null = null;
+    let unlistenCount = 0;
+
+    const listen: ListenFn = () =>
+      new Promise((resolve) => {
+        resolveListen = resolve;
+      });
+
+    const listener = createTauriQuickCaptureListener(listen);
+    const stop = listener.start(() => {});
+
+    // 在 listen resolve 前立即清理（模拟 StrictMode 首次挂载立即卸载）
+    stop();
+
+    const unlisten = () => { unlistenCount++; };
+    (resolveListen as (fn: () => void) => void)(unlisten);
+    await new Promise((r) => setTimeout(r, 0));
+
+    assert(unlistenCount === 1, "提前清理后，注册完成立即注销（无遗留监听器）");
+  }
+
+  // 用例 3：注册失败调用 onError
+  {
+    let errorReceived: unknown = null;
+    const listen: ListenFn = async () => {
+      throw new Error("listen failed");
+    };
+
+    const listener = createTauriQuickCaptureListener(listen, (e) => { errorReceived = e; });
+    listener.start(() => {});
+
+    await new Promise((r) => setTimeout(r, 0));
+    assert(
+      errorReceived instanceof Error && errorReceived.message === "listen failed",
+      "注册失败时调用 onError",
+    );
   }
 
   console.log("\n── createBroadcastQuickCaptureListener ──");

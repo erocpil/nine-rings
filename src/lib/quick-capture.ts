@@ -23,19 +23,29 @@ export interface BroadcastChannelCtor {
 /**
  * 创建 Tauri 事件监听器。
  * start(onMessage) 注册监听并返回清理函数（unlisten）。
+ * onError 在 listen 注册失败（reject）时调用，用于诊断。
  */
-export function createTauriQuickCaptureListener(listen: ListenFn) {
+export function createTauriQuickCaptureListener(
+  listen: ListenFn,
+  onError?: (e: unknown) => void,
+) {
   return {
     start(onMessage: () => void): () => void {
       let unlisten: (() => void) | undefined;
+      let stopped = false;
       listen(QUICK_CAPTURE_EVENT, () => onMessage())
         .then((fn) => {
           unlisten = fn;
+          // 注册完成前已被清理：立即注销，避免遗留监听器（StrictMode 双挂载）
+          if (stopped) fn();
         })
-        .catch(() => {
-          // 注册失败：静默，清理函数无操作
+        .catch((e) => {
+          onError?.(e);
         });
-      return () => unlisten?.();
+      return () => {
+        stopped = true;
+        unlisten?.();
+      };
     },
   };
 }

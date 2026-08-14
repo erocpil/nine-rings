@@ -30,8 +30,10 @@ export function useQuickCaptureListener({ setDate }: QuickCaptureListenerOptions
     };
 
     if (isTauriRuntime()) {
-      const listener = createTauriQuickCaptureListener((event, handler) =>
-        import("@tauri-apps/api/event").then(({ listen }) => listen(event, handler)),
+      const listener = createTauriQuickCaptureListener(
+        (event, handler) =>
+          import("@tauri-apps/api/event").then(({ listen }) => listen(event, handler)),
+        (e) => console.warn("[QC→主窗口] 事件监听注册失败:", e),
       );
       return listener.start(onMessage);
     }
