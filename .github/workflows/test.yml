@@ -2,8 +2,59 @@ name: Test
 on: [push, pull_request]
 
 jobs:
+  changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      flutter: ${{ steps.filter.outputs.flutter }}
+      rust: ${{ steps.filter.outputs.rust }}
+      schema: ${{ steps.filter.outputs.schema }}
+      ipc: ${{ steps.filter.outputs.ipc }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'src/**'
+              - 'e2e/**'
+              - 'tests/**'
+              - 'public/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'eslint.config.js'
+              - 'vitest.config.ts'
+              - 'playwright.config.ts'
+              - 'vite.config.*'
+              - 'tsconfig*.json'
+              - 'index.html'
+              - '.github/workflows/test.yml'
+            flutter:
+              - 'flutter_app/**'
+            rust:
+              - 'src-tauri/**'
+              - 'schema/**'
+              - 'Cargo.lock'
+            schema:
+              - 'schema/**'
+              - 'src-tauri/src/db/schema_gen.rs'
+              - 'src/types/schema_gen.ts'
+              - 'flutter_app/lib/database/schema_gen.dart'
+              - 'scripts/gen-schema.py'
+            ipc:
+              - 'src-tauri/src/**'
+              - 'src/lib/storage/tauri.ts'
+              - 'src/lib/storage/tauri-driver.ts'
+              - 'scripts/check-ipc-contract.py'
+
   frontend:
     name: Frontend Tests
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -24,6 +75,8 @@ jobs:
 
   flutter-quality:
     name: Flutter Tests and Format
+    needs: changes
+    if: ${{ needs.changes.outputs.flutter == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -49,6 +102,8 @@ jobs:
 
   ipc-contract:
     name: Tauri IPC Contract Check
+    needs: changes
+    if: ${{ needs.changes.outputs.ipc == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -56,6 +111,8 @@ jobs:
 
   schema-check:
     name: Schema Consistency Check (YAML → codegen)
+    needs: changes
+    if: ${{ needs.changes.outputs.schema == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -66,6 +123,8 @@ jobs:
 
   rust:
     name: Rust Tests
+    needs: changes
+    if: ${{ needs.changes.outputs.rust == 'true' }}
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
@@ -78,6 +137,8 @@ jobs:
 
   e2e:
     name: E2E (Playwright)
+    needs: changes
+    if: ${{ needs.changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
