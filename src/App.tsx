@@ -133,6 +133,7 @@ function App() {
     localStorage.setItem(TAB_KEY, tab);
     if (tab === 'daily') {
       setSelectedFolderPath(null);
+      setSelectedConcept(null);
       // 跨窗口 Quick Capture 事件可能在 Windows WebView2 隐藏窗口时
       // 丢失或与视图切换竞态；返回随笔视图时始终重读当日数据。
       void setDate(currentDate);
@@ -143,6 +144,7 @@ function App() {
   const [docTreeKey, setDocTreeKey] = useState(0);
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0);
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
+  const [selectedConcept, setSelectedConcept] = useState<string | null>(null);
   const [propertiesOpen, setPropertiesOpen] = useState(() => {
     return localStorage.getItem("nr:propertiesOpen") === "true";
   });
@@ -808,6 +810,20 @@ function App() {
                 </div>
               ))}
             </div>
+          ) : selectedConcept && !selectedNote ? (
+            <DocMOC
+              concept={selectedConcept}
+              refreshKey={docTreeKey}
+              onSelect={(note) => {
+                setQuery("");
+                setDocResults(null);
+                handleSelectNote(note);
+                setDate(note.date);
+                setSelectedConcept(null);
+              }}
+              onOpenConcept={(c) => setSelectedConcept(c)}
+              selectedId={null}
+            />
           ) : selectedFolderPath && sidebarTab === 'tree' && !selectedNote ? (
             <DocMOC
               storagePath={selectedFolderPath}
@@ -817,6 +833,10 @@ function App() {
                 setDocResults(null);
                 handleSelectNote(note);
                 setDate(note.date);
+                setSelectedFolderPath(null);
+              }}
+              onOpenConcept={(c) => {
+                setSelectedConcept(c);
                 setSelectedFolderPath(null);
               }}
               selectedId={null}
@@ -881,6 +901,13 @@ function App() {
             note={selectedNote}
             onNoteUpdate={(updated) => { handleSelectNote(updated); setDocTreeKey(k => k + 1); }}
             onClose={() => setPropertiesOpen(false)}
+            onOpenConcept={(concept) => {
+              setSelectedConcept(concept);
+              setSelectedFolderPath(null);
+              setQuery("");
+              setDocResults(null);
+              setPropertiesOpen(false);
+            }}
           />
         )}
       </div>

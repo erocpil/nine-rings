@@ -17,22 +17,32 @@ const DOC_TYPE_COLORS: Record<string, string> = {
 };
 
 interface DocMOCProps {
-  storagePath: string;
+  /** 目录模式：列出某目录下的所有文档 */
+  storagePath?: string;
+  /** 概念模式：列出关联某概念的所有文档（与 storagePath 互斥） */
+  concept?: string;
   onSelect: (note: Note) => void;
+  /** 点击某个概念 chip 时跳转到该概念的聚合页 */
+  onOpenConcept?: (concept: string) => void;
   selectedId: string | null;
   refreshKey?: number;
 }
 
-export function DocMOC({ storagePath, onSelect, selectedId, refreshKey }: DocMOCProps) {
+export function DocMOC({ storagePath, concept, onSelect, onOpenConcept, selectedId, refreshKey }: DocMOCProps) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const isConcept = concept != null;
 
   useEffect(() => {
     let active = true;
     setLoading(true);
     setLoadError(null);
-    api.docs.listByPath(storagePath)
+    const req = concept != null
+      ? api.docs.search({ concept })
+      : api.docs.listByPath(storagePath ?? "");
+    req
       .then((docs) => {
         if (!active) return;
         // 按 updated_at 倒序；复制数组，避免修改适配器返回的共享数据。
@@ -47,18 +57,18 @@ export function DocMOC({ storagePath, onSelect, selectedId, refreshKey }: DocMOC
         if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, [storagePath, refreshKey]);
+  }, [storagePath, concept, refreshKey]);
 
   if (loading) {
     return <div className="moc-loading">加载中...</div>;
   }
 
   if (loadError) {
-    return <div className="moc-empty">加载目录失败：{loadError}</div>;
+    return <div className="moc-empty">加载失败：{loadError}</div>;
   }
 
   if (notes.length === 0) {
-    return <div className="moc-empty">此目录下暂无文档</div>;
+    return <div className="moc-empty">{isConcept ? `没有文档关联概念 #${concept}` : "此目录下暂无文档"}</div>;
   }
 
   const formatDate = (iso: string) => {
@@ -67,10 +77,21 @@ export function DocMOC({ storagePath, onSelect, selectedId, refreshKey }: DocMOC
     return `周${w} ${d.getMonth() + 1}/${d.getDate()}`;
   };
 
+  const renderConceptChip = (c: string) => (
+    <span
+      key={c}
+      className={`moc-concept-chip ${c === concept ? "moc-concept-chip-active" : ""}`}
+      onClick={onOpenConcept ? (e) => { e.stopPropagation(); onOpenConcept(c); } : undefined}
+      title={onOpenConcept ? `查看 #${c} 的所有文档` : undefined}
+    >
+      {c}
+    </span>
+  );
+
   return (
     <div className="moc">
       <div className="moc-header">
-        <span className="moc-breadcrumb">{storagePath}</span>
+        <span className="moc-breadcrumb">{isConcept ? `#${concept}` : storagePath}</span>
         <span className="moc-count">{notes.length} 篇文档</span>
       </div>
       <div className="moc-table-wrap">
@@ -109,9 +130,7 @@ export function DocMOC({ storagePath, onSelect, selectedId, refreshKey }: DocMOC
                 <td className="moc-col-concepts">
                   {note.concepts && note.concepts.length > 0 ? (
                     <div className="moc-concepts">
-                      {note.concepts.slice(0, 3).map((c) => (
-                        <span key={c} className="moc-concept-chip">{c}</span>
-                      ))}
+                      {note.concepts.slice(0, 3).map(renderConceptChip)}
                       {note.concepts.length > 3 && (
                         <span className="moc-concept-more">+{note.concepts.length - 3}</span>
                       )}

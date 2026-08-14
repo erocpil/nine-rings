@@ -4476,6 +4476,15 @@ body {
   color: var(--text);
 }
 
+.prop-tag-name {
+  cursor: pointer;
+}
+
+.prop-tag-name:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 .prop-tag-remove {
   background: none;
   border: none;
@@ -4659,6 +4668,16 @@ body {
   border-radius: 3px;
   color: var(--text-secondary);
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.moc-concept-chip:hover {
+  color: var(--accent);
+}
+
+.moc-concept-chip-active {
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .moc-concept-more {

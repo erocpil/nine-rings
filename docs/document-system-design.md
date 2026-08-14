@@ -467,8 +467,8 @@ python3 scripts/md-to-nine-rings.py --serve --path projects/nine-rings \
 | **Phase 7** | 批量操作：批量选择、批量删除、批量只读 | ✅ |
 | **Phase 8** | 批量导入脚本（Markdown → Delta 转换 + dev server 推送） | ✅ |
 | **Phase 9** | UX 打磨：缩进、高亮、属性面板开关、tab 过滤 | ✅ |
+| **Phase 10** | 概念聚合页（某概念下所有文档的 MOC，点击概念 chip 打开） | ✅ |
 | **待做** | Zettelkasten 双向链接自动建议 | ⬜ |
-| **待做** | 概念聚合页（某概念下所有文档的 MOC） | ⬜ |
 | **待做** | 文件夹重命名（批量更新子文档 `storagePath`） | ⬜ |
 | **待做** | 随笔→文档移动（将成型的随笔转为文档，追加 `storagePath`） | ⬜ |
 | **待做** | 文档与随笔统一（每日笔记自动镜像为 `daily/` 下的 DocNode） | ⬜ |

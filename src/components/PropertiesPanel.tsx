@@ -7,6 +7,8 @@ interface PropertiesPanelProps {
   onNoteUpdate: (note: Note) => void;
   onClose: () => void;
   readonly?: boolean;
+  /** 点击概念标签时，跳转到该概念的聚合页 */
+  onOpenConcept?: (concept: string) => void;
 }
 
 const DOC_TYPE_OPTIONS: { value: DocType; label: string }[] = [
@@ -24,7 +26,7 @@ const PATH_ROOT_OPTIONS = [
   { value: "archives", label: "📦 Archives" },
 ];
 
-function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPanelProps) {
+function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, onOpenConcept }: PropertiesPanelProps) {
   const [conceptInput, setConceptInput] = useState("");
   const [existingConcepts, setExistingConcepts] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -267,7 +269,13 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly }: PropertiesPa
             <div className="prop-tags">
               {concepts.map((c) => (
                 <span key={c} className="prop-tag">
-                  {c}
+                  <span
+                    className="prop-tag-name"
+                    onClick={onOpenConcept ? () => onOpenConcept(c) : undefined}
+                    title={onOpenConcept ? `查看 #${c} 的所有文档` : undefined}
+                  >
+                    {c}
+                  </span>
                   <button className="prop-tag-remove" onClick={() => removeConcept(c)}>✕</button>
                 </span>
               ))}
