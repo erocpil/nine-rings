@@ -152,13 +152,18 @@ test.describe("正文右键菜单：菜单命令行为", () => {
       .toBe("要全选的文本");
   });
 
-  test("点击“剪切”清空选区内容", async ({ page }) => {
+  test("点击“剪切”复制到剪贴板并清空选区内容", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     const editor = await createBlankNote(page);
     await editor.fill("要剪切的文本");
     await editor.press("Control+A");
     await dispatchContextMenu(editor, 120, 120);
     await item(page, "剪切").click();
 
+    // 剪切 = 写入剪贴板 + 删除选区，两段语义分别验证
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe("要剪切的文本");
     await expect.poll(() => editor.textContent()).toBe("");
   });
 
