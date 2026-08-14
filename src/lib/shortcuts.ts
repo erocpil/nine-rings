@@ -1,0 +1,64 @@
+// ── App 级快捷键：纯函数（无副作用，可独立单测）──
+
+/** 最小键盘事件接口，供纯函数与测试复用（不依赖 DOM） */
+export interface ShortcutKeyEvent {
+  key: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  shiftKey: boolean;
+  altKey: boolean;
+}
+
+export type ShortcutAction =
+  | "fullscreen"
+  | "openSettings"
+  | "focusSearch"
+  | "goToDaily";
+
+/**
+ * 将一次按键解析为 App 级快捷键动作。
+ * 返回 null 表示该按键不属于 App 级快捷键（应放行给编辑器/浏览器）。
+ */
+export function resolveShortcut(e: ShortcutKeyEvent): ShortcutAction | null {
+  // F11：全屏切换（Tauri 桌面端；Web 由浏览器原生处理）
+  if (e.key === "F11" && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+    return "fullscreen";
+  }
+  // Alt+, ：设置（在 Ctrl 守卫之前，不依赖 ctrlKey）
+  if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key === ",") {
+    return "openSettings";
+  }
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (!ctrl) return null;
+  if (e.shiftKey) {
+    const k = e.key.toLowerCase();
+    if (k === "f") return "focusSearch"; // Ctrl+Shift+F 全局搜索
+    if (k === "d") return "goToDaily"; // Ctrl+Shift+D 每日列表
+    return null; // 其余 Ctrl+Shift 组合留给编辑器内置快捷键
+  }
+  if (e.key.toLowerCase() === "e") return "focusSearch"; // Ctrl+E 搜索
+  return null;
+}
+
+/** 判断事件目标是否位于可编辑元素（input / textarea / contenteditable）内 */
+export function isEditableTarget(target: unknown): boolean {
+  if (!target || typeof target !== "object") return false;
+  const t = target as { isContentEditable?: boolean; tagName?: string };
+  if (t.isContentEditable) return true;
+  const tag = (t.tagName ?? "").toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select";
+}
+
+/**
+ * 判断一次按键是否应因焦点落在可编辑元素内而被忽略。
+ *
+ * 语义：带 Ctrl/Meta/Alt 修饰的组合键为全局快捷键，始终生效；
+ * 功能键（F1–F12）不属于输入字符，也不受影响；
+ * 仅无修饰键的单字符键在输入框 / 编辑器聚焦时被忽略，避免与输入冲突。
+ * 当前 App 级快捷键均带修饰键或为 F11，故该守卫不改变现有行为，为将来预留。
+ */
+export function shouldIgnoreShortcut(e: ShortcutKeyEvent, target: unknown): boolean {
+  if (e.ctrlKey || e.metaKey || e.altKey) return false;
+  if (/^F\d+$/.test(e.key)) return false;
+  return isEditableTarget(target);
+}

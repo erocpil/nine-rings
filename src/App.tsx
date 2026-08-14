@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { registerShortcuts } from "./lib/global-shortcuts";
 import { useNotes } from "./hooks/useNotes";
 import { DatePicker } from "./components/DatePicker";
 import { TodoList } from "./components/TodoList";
@@ -29,13 +28,13 @@ import DocCreateDialog from "./components/DocCreateDialog";
 import PropertiesPanel from "./components/PropertiesPanel";
 import { DocMOC } from "./components/DocMOC";
 import type { DeltaOps, Note, DocType } from "./types/models";
-import { DEFAULT_HOTKEYS } from "./types/models";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
 import { addLog } from "./lib/debugLog";
 import type { Template } from "./lib/storage/template-store";
 import { templateStore } from "./lib/storage/template-store";
 import { isTauriRuntime } from "./lib/runtime";
 import { useClockAndDateRollover } from "./hooks/useClockAndDateRollover";
+import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
 
 function App() {
   const {
@@ -440,70 +439,16 @@ function App() {
     return () => clearTimeout(timer);
   }, []);
 
-  // 键盘快捷键
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      // F11: 全屏切换（Tauri 桌面端；Web 端浏览器原生处理）
-      if (e.key === "F11" && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
-        e.preventDefault();
-        if (isTauriRuntime()) {
-          import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
-            getCurrentWindow().isFullscreen().then((fs) => {
-              getCurrentWindow().setFullscreen(!fs);
-            });
-          }).catch(() => {});
-        }
-        return;
-      }
-
-      const ctrl = e.ctrlKey || e.metaKey;
-
-      // Alt+, → 设置（在 Ctrl 守卫之前，不依赖 ctrlKey）
-      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key === ",") {
-        e.preventDefault();
-        setSettingsOpen(true);
-        return;
-      }
-
-      if (!ctrl) return;
-
-      // Ctrl+Shift+F: 全局搜索
-      if (e.shiftKey && e.key.toLowerCase() === "f") {
-        e.preventDefault();
-        document.querySelector<HTMLInputElement>(".search-input")?.focus();
-        return;
-      }
-
-      // Ctrl+Shift+D: 打开每日列表
-      if (e.shiftKey && e.key.toLowerCase() === "d") {
-        e.preventDefault();
-        const today = localDateKey();
-        setDate(today).then(() => {
-          const sel = useNotesStore.getState().selectedNote;
-          if (sel?.storagePath) {
-            // 若 setDate 守卫保留了文档选中，显式切到当日第一篇随笔
-            const daily = useNotesStore.getState().notes.find(n => !n.storagePath);
-            handleSelectNote(daily ?? null);
-          }
-        });
-        setSidebarHidden(false);
-        handleSetSidebarTab('daily');
-        return;
-      }
-
-      // 其余 Ctrl+Shift 组合留给编辑器内置快捷键
-      if (e.shiftKey) return;
-
-      switch (e.key.toLowerCase()) {
-        case "e":
-          e.preventDefault();
-          document.querySelector<HTMLInputElement>(".search-input")?.focus();
-          break;
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [createNote, setDate]);
+  // ── 键盘快捷键（浏览器 keydown + Tauri 全局热键）──
+  useAppKeyboardShortcuts({
+    setSettingsOpen,
+    setDate,
+    setSidebarHidden,
+    setSidebarTab: handleSetSidebarTab,
+    selectNote: handleSelectNote,
+    createNote,
+    hotkeys: config?.hotkeys,
+  });
 
   // ── 移动端滑动手势：左边缘右滑 → 打开侧栏，右滑左 → 关闭侧栏 ──
   useEffect(() => {
@@ -541,42 +486,6 @@ function App() {
       window.removeEventListener("touchend", onTouchEnd);
     };
   }, []);
-
-  // ── Tauri 全局热键（桌面端系统级快捷键）──
-  useEffect(() => {
-    const actionsRef = {
-      createNote,
-      focusSearch: () => {
-        document.querySelector<HTMLInputElement>(".search-input")?.focus();
-      },
-      openSettings: () => setSettingsOpen(true),
-      toggleDaily: () => {
-        const today = localDateKey();
-        setDate(today).then(() => {
-          const sel = useNotesStore.getState().selectedNote;
-          if (sel?.storagePath) {
-            const daily = useNotesStore.getState().notes.find(n => !n.storagePath);
-            handleSelectNote(daily ?? null);
-          }
-        });
-        setSidebarHidden(false);
-        handleSetSidebarTab('daily');
-      },
-      showWindow: () => {
-        import("@tauri-apps/api/window").then(({ getCurrentWindow }) => {
-          getCurrentWindow().show().then(() => {
-            getCurrentWindow().unminimize().then(() => {
-              getCurrentWindow().setFocus();
-            });
-          });
-        }).catch(() => {});
-      },
-    };
-
-    const hotkeys = { ...DEFAULT_HOTKEYS, ...(config?.hotkeys ?? {}) };
-    registerShortcuts(actionsRef, hotkeys);
-    // registerShortcuts 内部管理注销，返回 void
-  }, [config?.hotkeys ? JSON.stringify(config.hotkeys) : ""]);
 
   // ── 开发模式后台导入 ──
   const refreshView = useCallback(() => {
