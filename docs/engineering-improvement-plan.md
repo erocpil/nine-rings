@@ -1012,3 +1012,14 @@ vite --host 0.0.0.0
 - 笔记锁定和加密。
 - Flutter 大规模功能补齐。
 - 真正的增量同步。
+
+### 17.7 后续：upsertNote 去重原子性（P2，方向已定 B）
+
+`upsertNote` 的查重（SELECT）与写入（INSERT）分属两个独立操作，存在 TOCTOU 窗口，并发导入可能产生重复记录。
+
+**决策**：活跃笔记在业务键上不要求唯一（方向 B，保持 `createNote` 允许同名）。实现延期。
+
+**实施要点**（见 [upsert-uniqueness-decision.md](upsert-uniqueness-decision.md)）：
+- Tauri：新增专用命令，单 `BEGIN IMMEDIATE` 事务内 SELECT + INSERT。
+- Web：查重与写入合并到同一 `readwrite` 事务。
+- 多匹配项用确定性规则（`updated_at DESC, id ASC`）。

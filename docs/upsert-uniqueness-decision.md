@@ -1,6 +1,7 @@
 # upsertNote 唯一性语义决策
 
 > 编写：2026-08-14 · 前置：[工程改进计划](engineering-improvement-plan.md) 后续第 3 轮
+> 状态：**方向已定（B），实现延期**
 
 ## 1. 问题：TOCTOU 窗口
 
@@ -18,46 +19,45 @@
 | `createNote` | 否 | 每次生成新 UUID，允许同目录同标题 / 同日同标题（用户主动新建） |
 | `upsertNote` | 是 | 文档按 `storagePath + title`、随笔按 `title + date` 匹配（仅 `deleted_at IS NULL`），存在则更新、否则新建。用于 .md 导入去重 |
 
-## 3. 核心决策点
+## 3. 决策结果：方向 B
 
-**活跃笔记（`deleted_at IS NULL`）在业务键上是否必须唯一？**
+**业务语义**：活跃笔记在 `storagePath + title`（文档）或 `title + date`（随笔）上**不要求唯一**。`upsertNote` 的匹配键仅用于导入幂等，不构成全局业务唯一约束。
 
-- 文档业务键：`storage_path + title`（`storage_path IS NOT NULL`）
-- 随笔业务键：`date + title`（`storage_path IS NULL`）
+理由：
 
-## 4. 两个方向
+- 产品已允许同目录同名文档；文档树使用 `storagePath/id` 正是为支持标题重复。
+- 普通笔记无充分理由禁止同日同名。
+- 方向 A 会把导入去重规则升级成全局约束，可能导致现有合法重复数据迁移失败，并改变创建、恢复、软删除语义。
+- 部分唯一索引还需处理 NULL、软删除、标题修改和历史重复数据，复杂度与产品收益不匹配。
 
-### 方向 A：部分唯一索引 + 原子 UPSERT
+## 4. 实施约束（方向 B）
 
-建部分唯一索引，用 `INSERT ... ON CONFLICT DO UPDATE` 原子去重：
+- 查找匹配记录与写入必须处于同一个写事务。
+- IndexedDB 应在同一 `readwrite` transaction 内完成查找与写入。
+- SQLite 应使用能抢占写锁的事务边界（如 `BEGIN IMMEDIATE`），不能继续由多个独立 IPC 查询/写入拼接。
+- 已存在多个匹配项时采用确定性规则：优先 `updated_at DESC, id ASC`，只更新一个，不自动合并或删除其他笔记。
+- `createNote` 继续允许创建同名笔记；串行化只保证并发 `upsertNote` 不因 TOCTOU 额外制造重复。
+- 带稳定 id 的备份恢复仍应优先按 id 匹配，业务键仅作为无 ID 导入的回退策略。
 
-```sql
-CREATE UNIQUE INDEX ... ON notes(storage_path, title)
-  WHERE deleted_at IS NULL AND storage_path IS NOT NULL AND title IS NOT NULL;
-CREATE UNIQUE INDEX ... ON notes(date, title)
-  WHERE deleted_at IS NULL AND storage_path IS NULL AND title IS NOT NULL;
-```
+## 5. 实现要点（实施时）
 
-**代价**：`createNote` 也走 INSERT，因此会**改变 createNote 行为**——手动新建第二篇同名文档 / 同日第二篇"无标题"随笔会触发唯一约束冲突。这要求产品明确"同名必须唯一"，且需迁移前清理存量重复数据、三端同步 schema。
+### Tauri
 
-### 方向 B：单事务串行化（保持 createNote 允许同名）
+- 新增专用 Rust 命令，在单个 `BEGIN IMMEDIATE` 事务内完成 SELECT + INSERT。
+- 现有 `db_transaction` 禁止 SELECT（`query.rs:152`），不能直接复用。
 
-不引入唯一索引，只消除 upsertNote 自身的 TOCTOU 窗口：
+### Web
 
-- **Tauri**：需新增专用命令，在 Rust 端单个 `BEGIN IMMEDIATE` 事务内完成 SELECT + INSERT。注意现有 `db_transaction` 虽用 `BEGIN IMMEDIATE`，但**禁止 SELECT**（`query.rs:152`），不能直接复用。
-- **Web**：把查重与写入合并到同一个 `readwrite` 事务（当前是两个独立事务）。
+- 把查重与写入合并到同一个 `readwrite` 事务（当前是两个独立事务）。
 
-**代价**：只防 upsertNote 自身并发重复，不防"createNote 手动建同名 + upsertNote 导入"的交叉重复（该场景本就允许同名，不算 bug）。Tauri 端需新增 Rust 命令。
+### 测试
 
-## 5. 建议
+- 并发 `upsertNote` 同业务键 → 只产生一条记录。
+- 多匹配项时确定性规则（`updated_at DESC, id ASC`）。
+- 带 id 恢复优先按 id 匹配。
+- 软删除后重建同名。
+- 跨端对拍。
 
-采用**方向 B**：
+## 6. 状态
 
-1. 产品现状明确允许同名（`createNote` 不查重，"无标题"/默认标题的多篇随笔是正常使用场景）。
-2. 方向 A 把"允许同名"升级为"强制唯一"，改变 `createNote` 行为，超出 `upsertNote` 去重的本意。
-3. 方向 B 只收敛 `upsertNote` 的去重原子性，不改变任何用户可见语义；成本可控（Tauri 新增一个专用命令，Web 合并事务）。
-
-## 6. 待拍板
-
-- [ ] 确认产品允许同名（同目录同标题文档、同日同标题随笔可并存）→ 走方向 B
-- [ ] 确认必须唯一 → 走方向 A（同步改 `createNote`、三端 schema、存量数据迁移）
+方向已定（B），实现延期。待后续第 3 轮或独立任务实施。
