@@ -63,6 +63,22 @@ export function assertFolderRelocation(sourceInput: string, targetInput: string)
   return { source, target };
 }
 
+/** P.A.R.A. 生命周期顶层目录（新建文档的根路径候选） */
+export const PARA_TOP_DIRS = ["projects", "areas", "references", "ideas", "archives"] as const;
+
+/** 将文档目录路径拆解为 rootPath + subPath，用于新建文档时预填位置 */
+export function splitSuggestedDocPath(path?: string): { rootPath: string; subPath: string; hasSuggestion: boolean } {
+  if (!path) return { rootPath: "projects", subPath: "", hasSuggestion: false };
+  const parts = path.split("/").filter(Boolean);
+  if (parts.length === 0) return { rootPath: "projects", subPath: "", hasSuggestion: false };
+  const root = parts[0];
+  if (!(PARA_TOP_DIRS as readonly string[]).includes(root)) {
+    return { rootPath: "projects", subPath: "", hasSuggestion: false };
+  }
+  // 根目录（仅 P.A.R.A. 顶层，如 "projects"）→ subPath 留空
+  return { rootPath: root, subPath: parts.slice(1).join("/"), hasSuggestion: true };
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // 树构建的输入类型（与 Op 层字段名对齐，snake_case）
 // ═══════════════════════════════════════════════════════════════════

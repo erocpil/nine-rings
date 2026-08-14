@@ -3960,6 +3960,11 @@ body {
   cursor: pointer;
 }
 
+.dialog-input.suggested,
+.dialog-select.suggested {
+  color: var(--text-secondary);
+}
+
 .dialog-path-row {
   display: flex;
   align-items: center;

@@ -9,7 +9,7 @@
  * - uuid / now（工具函数）
  */
 
-import { buildDocTree, type FlatDocRecord, type FlatDailyRecord } from "../src/lib/storage/core";
+import { buildDocTree, splitSuggestedDocPath, type FlatDocRecord, type FlatDailyRecord } from "../src/lib/storage/core";
 import { getOtherFolderPaths, getVisibleDocumentTreeNodes } from "../src/lib/doc-tree-collapse";
 
 let passed = 0;
@@ -272,6 +272,20 @@ const dailyFolder = tree.find(n => n.path === "daily" && n.type === "folder");
   assert(defaultVisible.every(node => node.path !== "daily" && !node.path.startsWith("daily/")), "daily subtree is hidden by default");
   assert(defaultVisible.some(node => node.noteId === "doc"), "regular documents remain visible");
   assert(getVisibleDocumentTreeNodes(tree, true).length === tree.length, "daily subtree can be enabled later");
+}
+
+{
+  console.log("\n── splitSuggestedDocPath ──");
+  const dflt = { rootPath: "projects", subPath: "", hasSuggestion: false };
+  assert(deepEqual(splitSuggestedDocPath(undefined), dflt), "undefined → 默认");
+  assert(deepEqual(splitSuggestedDocPath(""), dflt), "空字符串 → 默认");
+  assert(deepEqual(splitSuggestedDocPath("projects"), { rootPath: "projects", subPath: "", hasSuggestion: true }), "根目录 projects → subPath 留空");
+  assert(deepEqual(splitSuggestedDocPath("areas"), { rootPath: "areas", subPath: "", hasSuggestion: true }), "根目录 areas → subPath 留空");
+  assert(deepEqual(splitSuggestedDocPath("projects/web/react"), { rootPath: "projects", subPath: "web/react", hasSuggestion: true }), "多级 → root + subPath");
+  assert(deepEqual(splitSuggestedDocPath("references/dpdk"), { rootPath: "references", subPath: "dpdk", hasSuggestion: true }), "references 子目录");
+  assert(deepEqual(splitSuggestedDocPath("foo/bar"), dflt), "非法 root → 默认");
+  assert(deepEqual(splitSuggestedDocPath("daily/2026-01-01"), dflt), "daily 前缀 → 默认（非 P.A.R.A.）");
+  assert(deepEqual(splitSuggestedDocPath("/projects/web/"), { rootPath: "projects", subPath: "web", hasSuggestion: true }), "前后斜杠被清理");
 }
 
 // ═══════════════════════════════════════════════════════════════════

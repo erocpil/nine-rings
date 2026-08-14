@@ -1001,6 +1001,7 @@ function App() {
       />
       {docCreateOpen && (
         <DocCreateDialog
+          suggestedPath={selectedNote?.storagePath || undefined}
           onClose={() => setDocCreateOpen(false)}
           onCreated={(note) => {
             setDocCreateOpen(false);

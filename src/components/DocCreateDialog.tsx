@@ -3,10 +3,13 @@ import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import type { DocType, Note } from "../types/models";
 import { templateStore, type Template } from "../lib/storage/template-store";
+import { splitSuggestedDocPath } from "../lib/storage/core";
 
 interface DocCreateDialogProps {
   onClose: () => void;
   onCreated: (note: Note) => void;
+  /** 建议的目录路径（当前打开文档的 storagePath），用于预填新建文档位置 */
+  suggestedPath?: string;
 }
 
 const PATH_OPTIONS = [
@@ -38,10 +41,12 @@ function applyTemplateMeta(template: Template) {
   };
 }
 
-function DocCreateDialog({ onClose, onCreated }: DocCreateDialogProps) {
+function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogProps) {
+  const [suggestion] = useState(() => splitSuggestedDocPath(suggestedPath));
   const [title, setTitle] = useState("");
-  const [rootPath, setRootPath] = useState("projects");
-  const [subPath, setSubPath] = useState("");
+  const [rootPath, setRootPath] = useState(suggestion.rootPath);
+  const [subPath, setSubPath] = useState(suggestion.subPath);
+  const [pathTouched, setPathTouched] = useState(false);
   const [docType, setDocType] = useState<DocType>("explanation");
   const [conceptInput, setConceptInput] = useState("");
   const [concepts, setConcepts] = useState<string[]>([]);
@@ -78,6 +83,7 @@ function DocCreateDialog({ onClose, onCreated }: DocCreateDialogProps) {
         setRootPath("projects");
       }
       setSubPath(meta.subPath);
+      setPathTouched(true);
       if (meta.docType) setDocType(meta.docType);
       if (meta.concepts.length > 0) setConcepts(meta.concepts);
       setActiveTemplateId(template.id);
@@ -111,6 +117,18 @@ function DocCreateDialog({ onClose, onCreated }: DocCreateDialogProps) {
 
   const removeConcept = (tag: string) => {
     setConcepts(concepts.filter((c) => c !== tag));
+  };
+
+  const showSuggestion = suggestion.hasSuggestion && !pathTouched;
+
+  const handleRootPathChange = (v: string) => {
+    setRootPath(v);
+    setPathTouched(true);
+  };
+
+  const handleSubPathChange = (v: string) => {
+    setSubPath(v);
+    setPathTouched(true);
   };
 
   const buildStoragePath = (): string => {
@@ -212,9 +230,9 @@ function DocCreateDialog({ onClose, onCreated }: DocCreateDialogProps) {
             <span className="dialog-label">位置 <span className="dialog-hint">（仅决定存放，可更改）</span></span>
             <div className="dialog-path-row">
               <select
-                className="dialog-select"
+                className={`dialog-select ${showSuggestion ? "suggested" : ""}`}
                 value={rootPath}
-                onChange={(e) => setRootPath(e.target.value)}
+                onChange={(e) => handleRootPathChange(e.target.value)}
               >
                 {PATH_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
@@ -225,10 +243,10 @@ function DocCreateDialog({ onClose, onCreated }: DocCreateDialogProps) {
               <span className="dialog-path-sep">/</span>
               <input
                 type="text"
-                className="dialog-input dialog-path-input"
+                className={`dialog-input dialog-path-input ${showSuggestion ? "suggested" : ""}`}
                 placeholder="子路径 (如 nine-rings)"
                 value={subPath}
-                onChange={(e) => setSubPath(e.target.value)}
+                onChange={(e) => handleSubPathChange(e.target.value)}
               />
             </div>
             <div className="dialog-path-preview">
