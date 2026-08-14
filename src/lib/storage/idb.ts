@@ -3,7 +3,7 @@
  * 实现 StorageAdapter 全部接口，与 Tauri (SQLite) 后端语义对齐
  */
 
-import type { Note, DailyPage, Todo, NoteVersion, CreateNoteInput, UpdateNoteInput, UpdateTodosInput, PathNode } from "../../types/models";
+import type { Note, DailyPage, Todo, CreateNoteInput, UpdateNoteInput, UpdateTodosInput, PathNode } from "../../types/models";
 import type { StorageAdapter, AppConfig, DocSearchQuery } from "./types";
 import { DEFAULT_CONFIG } from "./types";
 import {
@@ -15,15 +15,16 @@ import {
   uuid,
   now,
   blobToBase64,
+  noteToDB,
+  noteFromDB,
   type FlatDocRecord,
   type FlatDailyRecord,
 } from "./core";
+import { withDB, getOne, getAll, getAllFromIndex, putRecord, abortTransaction, delRecord } from "./db";
+import { saveVersionSnapshot, createNoteCheckpoint, getNoteVersions, restoreNoteVersion } from "./db-versions";
 import { snakeImportToCamel } from "./normalize";
 import { localDateKey } from "../local-date";
-import { IDB_DATABASE_VERSION, IDB_STORES } from "../../types/schema_gen";
 export { extractSnippet } from "./idb-snippet";
-
-const DB_NAME = "nine_rings";
 
 // ── 工具函数 ──
 
@@ -60,165 +61,6 @@ function deltaToMarkdown(content: any): string {
     return lines.join("\n").trim();
   } catch {
     return JSON.stringify(content);
-  }
-}
-
-// ── 数据库初始化 ──
-
-let _dbOpenPromise: Promise<IDBDatabase> | null = null;
-let _dbOpenError: Error | null = null;
-
-function openDB(): Promise<IDBDatabase> {
-  if (_dbOpenError) return Promise.reject(_dbOpenError);
-  if (_dbOpenPromise) return _dbOpenPromise;
-
-  _dbOpenPromise = new Promise((resolve, reject) => {
-    // 5 秒超时保护：Chrome 移动端 IndexedDB 偶发 hang
-    const timeout = setTimeout(() => {
-      _dbOpenError = new Error("IndexedDB open timeout");
-      reject(_dbOpenError);
-    }, 5000);
-
-    const req = indexedDB.open(DB_NAME, IDB_DATABASE_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      const tx = req.transaction!;
-      for (const [storeName, definition] of Object.entries(IDB_STORES)) {
-        const store = db.objectStoreNames.contains(storeName)
-          ? tx.objectStore(storeName)
-          : db.createObjectStore(storeName, { keyPath: definition.keyPath });
-        for (const index of definition.indexes) {
-          if (!store.indexNames.contains(index.name)) {
-            store.createIndex(index.name, index.keyPath, { unique: false });
-          }
-        }
-      }
-    };
-    req.onsuccess = () => {
-      clearTimeout(timeout);
-      resolve(req.result);
-    };
-    req.onerror = () => {
-      clearTimeout(timeout);
-      _dbOpenError = req.error || new Error("IndexedDB open failed");
-      reject(_dbOpenError);
-    };
-    req.onblocked = () => {
-      console.warn("[IDB] blocked — another connection is open");
-    };
-  });
-
-  return _dbOpenPromise;
-}
-
-export async function withDB<T>(fn: (db: IDBDatabase) => Promise<T>): Promise<T> {
-  const db = await openDB();
-  // SPA: 保持连接打开，不 close()，避免 Safari 报 "connection is closing"
-  return fn(db);
-}
-
-function getOne<T>(store: IDBObjectStore, key: IDBValidKey): Promise<T | null> {
-  return new Promise((resolve, reject) => {
-    const req = store.get(key);
-    req.onsuccess = () => resolve(req.result ?? null);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function getAll<T>(store: IDBObjectStore, query?: IDBValidKey | IDBKeyRange, count?: number): Promise<T[]> {
-  return new Promise((resolve, reject) => {
-    const req = store.getAll(query, count);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function getAllFromIndex<T>(index: IDBIndex, range?: IDBValidKey | IDBKeyRange, count?: number): Promise<T[]> {
-  return new Promise((resolve, reject) => {
-    const req = index.getAll(range, count);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function putRecord(store: IDBObjectStore, value: any): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const req = store.put(value);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function abortTransaction(tx: IDBTransaction): Promise<void> {
-  return new Promise((resolve) => {
-    tx.onabort = () => resolve();
-    tx.oncomplete = () => resolve();
-    try {
-      tx.abort();
-    } catch {
-      resolve();
-    }
-  });
-}
-
-function delRecord(store: IDBObjectStore, key: IDBValidKey): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const req = store.delete(key);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
-}
-
-// ── Delta → Note DB shape ──
-
-function noteToDB(n: Note): any {
-  return {
-    ...n,
-    content: n.content, // stored as DeltaOps (object)
-    tags: JSON.stringify(n.tags),
-    concepts: n.concepts ? JSON.stringify(n.concepts) : undefined,
-    linkedDocIds: n.linkedDocIds ? JSON.stringify(n.linkedDocIds) : undefined,
-    pinned: n.pinned ? 1 : 0,
-    readonly: n.readonly ? 1 : 0,
-    search_text: extractPlainText(n.content),
-  };
-}
-
-function noteFromDB(d: any): Note {
-  return {
-    ...d,
-    tags: typeof d.tags === "string" ? JSON.parse(d.tags) : d.tags,
-    concepts: typeof d.concepts === "string" ? JSON.parse(d.concepts) : d.concepts ?? undefined,
-    linkedDocIds: typeof d.linkedDocIds === "string" ? JSON.parse(d.linkedDocIds) : d.linkedDocIds ?? undefined,
-    pinned: d.pinned === 1 || d.pinned === true,
-    readonly: d.readonly === 1 || d.readonly === true,
-    content: typeof d.content === "string" ? JSON.parse(d.content) : d.content,
-  };
-}
-
-// ── Version snapshot ──
-
-async function saveVersionSnapshot(store: IDBObjectStore, note: Note): Promise<void> {
-  const ver: NoteVersion = {
-    id: uuid(),
-    note_id: note.id,
-    title: note.title ?? "",
-    content: note.content,
-    tags: note.tags,
-    pinned: note.pinned,
-    sort_order: note.sort_order ?? 0,
-    saved_at: now(),
-  };
-  await putRecord(store, ver);
-
-  // Keep max 30 versions per note
-  const allVersions = await getAllFromIndex<any>(store.index("note_id"), note.id);
-  if (allVersions.length > 30) {
-    allVersions.sort((a, b) => a.saved_at.localeCompare(b.saved_at));
-    const excess = allVersions.slice(0, allVersions.length - 30);
-    for (const v of excess) {
-      await delRecord(store, v.id);
-    }
   }
 }
 
@@ -377,33 +219,7 @@ export const idbAdapter: StorageAdapter = {
     });
   },
 
-  /** 为指定笔记创建版本 checkpoint — 保存当前内容为历史版本 */
-  async createNoteCheckpoint(noteId: string): Promise<void> {
-    return withDB(async (db) => {
-      const tx = db.transaction(["notes", "note_versions"], "readwrite");
-      const noteStore = tx.objectStore("notes");
-      const verStore = tx.objectStore("note_versions");
-
-      const existing = await getOne<any>(noteStore, noteId);
-      if (!existing) throw new Error(`Note ${noteId} not found`);
-
-      // 去重：如果内容与最新版本相同，不创建 checkpoint
-      const allVersions = await getAll<any>(verStore);
-      const noteVersions = allVersions
-        .filter((v: any) => v.note_id === noteId)
-        .sort((a: any, b: any) => (b.saved_at ?? "").localeCompare(a.saved_at ?? ""));
-      if (noteVersions.length > 0) {
-        const latest = noteVersions[0];
-        const latestContent = typeof latest.content === "string"
-          ? latest.content
-          : JSON.stringify(latest.content);
-        const currentContent = JSON.stringify(noteFromDB(existing).content);
-        if (latestContent === currentContent) return; // 相同内容，跳过
-      }
-
-      await saveVersionSnapshot(verStore, noteFromDB(existing));
-    });
-  },
+  createNoteCheckpoint,
 
   async updateNoteOrder(id: string, sort_order: number): Promise<Note> {
     return withDB(async (db) => {
@@ -813,50 +629,8 @@ export const idbAdapter: StorageAdapter = {
     });
   },
 
-  // ══════ Version History ══════
-
-  async getNoteVersions(noteId: string): Promise<NoteVersion[]> {
-    return withDB(async (db) => {
-      const index = db.transaction("note_versions", "readonly").objectStore("note_versions").index("note_id");
-      const all = await getAllFromIndex<any>(index, noteId);
-      return all.sort((a, b) => b.saved_at.localeCompare(a.saved_at)).map((v) => ({
-        ...v,
-        content: typeof v.content === "string" ? JSON.parse(v.content) : v.content,
-        tags: typeof v.tags === "string" ? JSON.parse(v.tags) : v.tags,
-      }));
-    });
-  },
-
-  async restoreNoteVersion(versionId: string): Promise<Note> {
-    return withDB(async (db) => {
-      const tx = db.transaction(["notes", "note_versions"], "readwrite");
-      const verStore = tx.objectStore("note_versions");
-      const version = await getOne<any>(verStore, versionId);
-      if (!version) throw new Error(`Version ${versionId} not found`);
-
-      const noteStore = tx.objectStore("notes");
-      const existing = await getOne<any>(noteStore, version.note_id);
-      if (!existing) throw new Error(`Note ${version.note_id} not found`);
-
-      // Save current as version first
-      await saveVersionSnapshot(verStore, noteFromDB(existing));
-
-      // Restore
-      const restored: any = {
-        ...existing,
-        title: version.title ?? existing.title,
-        content: typeof version.content === "string" ? JSON.parse(version.content) : version.content,
-        tags: typeof version.tags === "string" ? JSON.parse(version.tags) : version.tags,
-        sort_order: version.sort_order ?? existing.sort_order,
-        updated_at: now(),
-        search_text: extractPlainText(
-          typeof version.content === "string" ? JSON.parse(version.content) : version.content
-        ),
-      };
-      await putRecord(noteStore, restored);
-      return noteFromDB(restored);
-    });
-  },
+  getNoteVersions,
+  restoreNoteVersion,
 
   // ══════ Config (localStorage) ══════
 

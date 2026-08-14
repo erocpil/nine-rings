@@ -8,7 +8,7 @@
  * 平等 import，不会出现 driver 之间互相依赖的问题。
  */
 
-import type { PathNode, DocType } from "../../types/models";
+import type { PathNode, DocType, Note } from "../../types/models";
 
 /** Extract searchable text from a Delta while ignoring embedded objects. */
 export function extractPlainText(content: unknown): string {
@@ -190,4 +190,33 @@ export function blobToBase64(blob: Blob): Promise<string> {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(blob);
   });
+}
+
+// ── IndexedDB DB shape ↔ Note 领域模型转换（纯函数，无 IndexedDB 依赖）──
+
+/** Note → IDB 存储格式（snake_case + JSON 序列化 + search_text 预计算） */
+export function noteToDB(n: Note): any {
+  return {
+    ...n,
+    content: n.content, // stored as DeltaOps (object)
+    tags: JSON.stringify(n.tags),
+    concepts: n.concepts ? JSON.stringify(n.concepts) : undefined,
+    linkedDocIds: n.linkedDocIds ? JSON.stringify(n.linkedDocIds) : undefined,
+    pinned: n.pinned ? 1 : 0,
+    readonly: n.readonly ? 1 : 0,
+    search_text: extractPlainText(n.content),
+  };
+}
+
+/** IDB 存储格式 → Note（解析 JSON 序列化字段） */
+export function noteFromDB(d: any): Note {
+  return {
+    ...d,
+    tags: typeof d.tags === "string" ? JSON.parse(d.tags) : d.tags,
+    concepts: typeof d.concepts === "string" ? JSON.parse(d.concepts) : d.concepts ?? undefined,
+    linkedDocIds: typeof d.linkedDocIds === "string" ? JSON.parse(d.linkedDocIds) : d.linkedDocIds ?? undefined,
+    pinned: d.pinned === 1 || d.pinned === true,
+    readonly: d.readonly === 1 || d.readonly === true,
+    content: typeof d.content === "string" ? JSON.parse(d.content) : d.content,
+  };
 }

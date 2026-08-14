@@ -1,7 +1,7 @@
 // ── db-images.ts：IndexedDB 图片 Blob 存储 ──
 
 import { uuid, now, blobToBase64 } from "./core";
-import { withDB } from "./idb";
+import { withDB } from "./db";
 
 /** 将图片 Blob 存入 IndexedDB，返回 `nr-image://<id>` 引用 */
 export async function storeImage(blob: Blob): Promise<string> {
