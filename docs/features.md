@@ -1,6 +1,6 @@
 # Nine Rings（九环）功能规格
 
-> 版本：v0.6.0（基于 v9bac82b）
+> 版本：v0.6.0（复核至 fbe611c）
 > 最后更新：2026-08-14
 >
 > 本文档完整列出九个功能域，每个功能域覆盖：数据模型、输入/输出、接口规格、行为约定、边界条件、与 `docs/` 现有文档的不一致项。
@@ -505,41 +505,38 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 
 ---
 
-## Tauri 与 Web 差异对照表（基于 v9bac82b）
+## Tauri 与 Web 差异对照表（复核至 2026-08-14）
 
 | 功能 | Tauri | Web | 差异说明 |
 |------|-------|-----|---------|
 | 笔记 CRUD (5 个核心操作) | `tauriDriver` → Op → SQL | `idb.ts` 直接操作 IndexedDB | ✅ 功能等价 |
-| 路径树构建 | `buildDocTree()` (core.ts) | `idb.ts` 内联实现 | ❌ **两套实现**，逻辑当前一致但未来会分叉 |
-| 模板系统 | SQLite `templates` 表 + `delete_template` 命令 | ❌ **不可用** | `template-store.ts` 全部走 `tauri-driver` → `invoke` |
-| GitHub 同步 | `github.ts` + `api.export.*` | `github.ts` + `api.export.*` | ✅ 功能等价 |
+| 路径树构建 | `buildDocTree()` (core.ts) | `buildDocTree()` (core.ts) | ✅ 已统一，两端共用 |
+| 模板系统 | SQLite `templates` 表 + `delete_template` 命令 | localStorage fallback | ✅ 功能可用；实现方式不同（见下方架构差异） |
+| GitHub 备份 | `github.ts` + `api.export.*` | `github.ts` + `api.export.*` | ✅ 功能等价 |
 | 全文搜索 | SQLite FTS5 | JS `indexOf` | ✅ 功能等价（精度不同） |
-| 版本历史 | ❌ 已删除（命令已移除） | ✅ `idb.ts` 保留完整实现 | ❌ Web 端保存版本，Tauri 端不保存 |
-| 全局热键 | ✅ Rust 端 + JS 端双注册 | ❌ 浏览器快捷键 | ✅ 符合预期 |
+| 版本历史 | ✅ checkpoint 已恢复 | ✅ `idb.ts` 完整实现 | ✅ 两端一致 |
+| 全局热键 | ✅ Rust 端 + JS 端双注册 | ✅ 浏览器快捷键 | ✅ 符合预期 |
 | Quick Capture | ✅ 独立 frameless 窗口 | ✅ BroadcastChannel 跨标签页 | ✅ 功能等价 |
 | 导出到文件 | ✅ 原生保存对话框 | ✅ Blob download | ✅ 功能等价 |
 | 标签重命名/合并 | ✅ api.ts 实现 | ✅ api.ts 实现 | ✅ 功能等价 |
 
-### P0 差异（需要立即修复）
+### 当前无功能缺失差异
 
-1. **模板系统 Web 端不可用**：`template-store.ts` 在 Web 环境下调用 `invoke("db_query")` 会报错
-2. **路径树两套独立实现**：IDB 的 `getPathTree()` 应改为调用 `core.ts` 的 `buildDocTree()`
+历史上的 P0/P1 差异（模板 Web 不可用、路径树两套实现、版本历史不一致）均已解决。
 
-### P1 差异（需要修复但不紧急）
+### 遗留架构差异（非功能缺失，待收敛）
 
-3. **版本历史两端不一致**：要么 Web 端也删除，要么 Tauri 端恢复
+1. **模板系统实现方式不同**：Tauri 走 `template-store.ts`（`db_query`），Web 走 localStorage fallback，均绕过统一 `StorageAdapter` 接口。功能两端可用，但实现未收敛到同一抽象层。
 
 ---
 
-## 与 `docs/` 现有文档的不一致项
+## 与 `docs/` 现有文档的对照
 
-| 文档 | 不一致内容 |
-|------|-----------|
-| `document-system-design.md` | 如果有，需对照实际实现的 `buildDocTree` 算法步骤（FlatDocRecord + FlatDailyRecord 输入、flat 数组输出） |
-| `github-sync.md` | 确认是否描述了 >1MB 文件的 Git Blobs API 回退路径和 UTF-8 编码对称性 |
-| `sync-architecture.md` | 历史增量同步设计尚未实现；当前唯一入口是前端 `github.ts` 的全量备份。 |
-| `features-roadmap.md` | 确认模板系统是否标记为 Tauri-only |
-| `ROADMAP.md` | 确认版本历史功能的废弃状态（Tauri 已删除但 Web 保留） |
+| 文档 | 对照结果 |
+|------|---------|
+| `github-backup.md` | 命名与语义一致（备份、全量快照、Git Blobs API 回退） |
+| `cross-platform-consistency.md` | 差异清单已同步更新 |
+| `ROADMAP.md` | 版本历史、模板、跨端状态已同步 |
 
 ---
 
