@@ -1023,3 +1023,11 @@ vite --host 0.0.0.0
 - Tauri：新增专用命令，单 `BEGIN IMMEDIATE` 事务内 SELECT + INSERT。
 - Web：查重与写入合并到同一 `readwrite` 事务。
 - 多匹配项用确定性规则（`updated_at DESC, id ASC`）。
+
+### 17.8 后续：待确认的产品行为（commit `e83726f` review 发现）
+
+以下两项由 `e83726f`（改进桌面编辑与 Markdown 粘贴体验）引入，行为变化已确认是有意为之，但产品语义待最终拍板，暂不处理：
+
+- **编辑器 placeholder 被移除**：`Placeholder.configure({ placeholder: "" })` 且删除了 `is-editor-empty::before { content: attr(data-placeholder) }` 规则，空编辑器不再显示"开始记录..."引导，`+` 插入按钮也随 `.is-editor-empty` 被排除。动机是避免与行号/插入按钮争用伪元素。待确认：是否接受"空笔记进入后一片空白"。
+
+- **Quick Capture 正文含首行**：`quickCaptureTextToNote` 让正文保留完整输入（含首行），导致标题栏与正文第一段重复显示同一行。动机是避免单行捕获生成空编辑器。待确认：是否接受标题重复，或改为正文仅含 `lines.slice(1)`。
