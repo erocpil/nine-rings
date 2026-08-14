@@ -35,15 +35,14 @@ jobs:
         run: npm ci
 
       - name: Build Tauri (release)
-        run: npx tauri build --bundles msi,nsis
+        run: npx tauri build --bundles nsis
 
-      - name: Verify Windows bundles
+      - name: Verify Windows bundle
         shell: pwsh
         run: |
-          $msi = Get-ChildItem src-tauri/target/release/bundle/msi/*.msi
           $nsis = Get-ChildItem src-tauri/target/release/bundle/nsis/*.exe
-          if (-not $msi -or -not $nsis) { throw "Missing MSI or NSIS bundle" }
-          @($msi) + @($nsis) | ForEach-Object {
+          if (-not $nsis) { throw "Missing NSIS bundle" }
+          @($nsis) | ForEach-Object {
             if ($_.Length -lt 1MB) { throw "Bundle is unexpectedly small: $($_.FullName)" }
           }
 
@@ -54,9 +53,6 @@ jobs:
           echo "=== Bundle tree ==="
           find "$BUNDLE" -type f -ls 2>/dev/null || echo "Bundle dir not found"
           mkdir -p artifacts
-          if ls "$BUNDLE/msi/"*.msi 2>/dev/null; then
-            cp -v "$BUNDLE/msi/"*.msi artifacts/
-          fi
           if ls "$BUNDLE/nsis/"*.exe 2>/dev/null; then
             cp -v "$BUNDLE/nsis/"*.exe artifacts/
           fi
