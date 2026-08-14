@@ -24,6 +24,7 @@ jobs:
               - 'e2e/**'
               - 'tests/**'
               - 'public/**'
+              - 'plugins/**'
               - 'package.json'
               - 'package-lock.json'
               - 'eslint.config.js'
