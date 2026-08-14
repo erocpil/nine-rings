@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Node } from "@tiptap/core";
 import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
-import { getImageUrl } from "../lib/storage/idb";
+import { getImageUrl } from "../lib/storage/db-images";
 
 // ── React NodeView 组件 ──
 

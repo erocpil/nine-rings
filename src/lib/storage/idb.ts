@@ -12,6 +12,9 @@ import {
   extractPlainText,
   isPathUnder,
   normalizeStoragePath,
+  uuid,
+  now,
+  blobToBase64,
   type FlatDocRecord,
   type FlatDailyRecord,
 } from "./core";
@@ -26,91 +29,8 @@ const DB_NAME = "nine_rings";
 
 const CONFIG_KEY = "nine_rings_config";
 
-function uuid(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
-
-function now(): string {
-  return new Date().toISOString();
-}
-
 function today(): string {
   return localDateKey();
-}
-
-// ── 图片 Blob 存储 ──
-
-/** 将图片 Blob 存入 IndexedDB，返回 `nr-image://<id>` 引用 */
-export async function storeImage(blob: Blob): Promise<string> {
-  const id = uuid();
-  return withDB(async (db) => {
-    const tx = db.transaction("images", "readwrite");
-    const store = tx.objectStore("images");
-    await new Promise<void>((resolve, reject) => {
-      const req = store.put({ id, blob, stored_at: now() });
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    });
-    return `nr-image://${id}`;
-  });
-}
-
-/** 从 IndexedDB 读取图片并创建 Object URL（调用方负责在适当时机 revoke） */
-export async function getImageUrl(ref: string): Promise<string | null> {
-  const id = ref.replace(/^nr-image:\/\//, "");
-  return withDB(async (db) => {
-    const tx = db.transaction("images", "readonly");
-    const store = tx.objectStore("images");
-    const record: any = await new Promise((resolve, reject) => {
-      const req = store.get(id);
-      req.onsuccess = () => resolve(req.result ?? null);
-      req.onerror = () => reject(req.error);
-    });
-    if (!record) return null;
-    return URL.createObjectURL(record.blob);
-  });
-}
-
-/** 批量解析 Delta 中的 nr-image:// 引用为 base64（用于导出） */
-export async function resolveImageRefs(delta: any): Promise<any> {
-  if (!delta?.ops) return delta;
-  return withDB(async (db) => {
-    const ops = [...delta.ops];
-    const tx = db.transaction("images", "readonly");
-    const store = tx.objectStore("images");
-    for (const op of ops) {
-      if (typeof op.insert !== "object") continue;
-      const img = (op.insert as any)?.resizableImage || (op.insert as any)?.image;
-      if (!img?.src || typeof img.src !== "string" || !img.src.startsWith("nr-image://")) continue;
-      const id = img.src.replace(/^nr-image:\/\//, "");
-      const record: any = await new Promise((resolve, reject) => {
-        const req = store.get(id);
-        req.onsuccess = () => resolve(req.result ?? null);
-        req.onerror = () => reject(req.error);
-      });
-      if (record) {
-        const base64 = await blobToBase64(record.blob);
-        img.src = base64;
-      }
-    }
-    return { ...delta, ops };
-  });
-}
-
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
 }
 
 /** Delta → Markdown（与 Rust 侧 delta_to_markdown 逻辑一致） */
@@ -191,7 +111,7 @@ function openDB(): Promise<IDBDatabase> {
   return _dbOpenPromise;
 }
 
-async function withDB<T>(fn: (db: IDBDatabase) => Promise<T>): Promise<T> {
+export async function withDB<T>(fn: (db: IDBDatabase) => Promise<T>): Promise<T> {
   const db = await openDB();
   // SPA: 保持连接打开，不 close()，避免 Safari 报 "connection is closing"
   return fn(db);

@@ -162,3 +162,32 @@ export function buildDocTree(
 
   return tree;
 }
+
+// ── 通用工具：ID 生成、时间戳、Blob 编码（两端共享，不依赖 IndexedDB/Tauri）──
+
+/** 生成 UUID v4（优先 crypto.randomUUID，降级手动构造） */
+export function uuid(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/** 当前 UTC ISO 时间戳（存储层统一使用 UTC） */
+export function now(): string {
+  return new Date().toISOString();
+}
+
+/** Blob → base64 data URL（用于导出图片） */
+export function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}

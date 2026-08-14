@@ -31,7 +31,7 @@ import { addLog, toggleDebug } from "../lib/debugLog";
 import { copyToClipboard } from "../lib/clipboard";
 import { CodeBlockLineNumbers } from "../extensions/CodeBlockLineNumbers";
 import { createGutterClickHandler } from "../extensions/LineNumberInsert";
-import { storeImage } from "../lib/storage/idb";
+import { storeImage } from "../lib/storage/db-images";
 import { api } from "../lib/api";
 
 const FontSize = Extension.create({
