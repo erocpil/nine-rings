@@ -15,6 +15,7 @@ import {
   now,
   noteToDB,
   noteFromDB,
+  upsertMatchKey,
   type FlatDocRecord,
   type FlatDailyRecord,
 } from "./core";
@@ -82,80 +83,66 @@ export const idbAdapter: StorageAdapter = {
 
   async upsertNote(data: CreateNoteInput): Promise<Note> {
     return withDB(async (db) => {
-      // ── 查找已存在的匹配笔记 ──
-      let existingId: string | null = null;
-
-      // 1. (storagePath, title) 联合匹配（文档笔记）
-      if (data.storagePath && data.title) {
-        const sp = data.storagePath;
-        const tl = data.title;
-        const existing = await new Promise<any | null>((resolve, reject) => {
-          const tx = db.transaction("notes", "readonly");
-          const store = tx.objectStore("notes");
-          const index = store.index("storagePath");
-          const req = index.getAll(sp);
-          req.onsuccess = () => {
-            const match = req.result.find(
-              (n: any) => !n.deleted_at && n.title === tl,
-            );
-            resolve(match ?? null);
-          };
-          req.onerror = () => reject(req.error);
-        });
-        if (existing) existingId = existing.id;
-      }
-
-      // 2. title + date 匹配（日记/随笔，仅非文档笔记）
-      if (!existingId && data.title) {
-        const existing = await new Promise<any | null>((resolve, reject) => {
-          const tx = db.transaction("notes", "readonly");
-          const store = tx.objectStore("notes");
-          const req = store.getAll();
-          req.onsuccess = () => {
-            const match = req.result.find(
-              (n: any) =>
-                !n.deleted_at &&
-                !n.storagePath &&
-                n.title === data.title &&
-                n.date === data.date,
-            );
-            resolve(match ?? null);
-          };
-          req.onerror = () => reject(req.error);
-        });
-        if (existing) existingId = existing.id;
-      }
-
-      // ── 写事务 ──
+      // ── 查重 + 写入合并到同一个 readwrite 事务，消除 TOCTOU 竞态 ──
+      // IndexedDB 对同一 scope 的 readwrite 事务串行化，事务内的读改写是原子的。
       const tx = db.transaction(["notes", "note_versions"], "readwrite");
       const noteStore = tx.objectStore("notes");
+      const verStore = tx.objectStore("note_versions");
 
-      const id = existingId ?? uuid();
+      // ── 查重：匹配谓词由 core.ts 的 upsertMatchKey 统一 ──
+      const matchKey = upsertMatchKey(data);
+      let existing: Note | null = null;
+
+      if (matchKey?.kind === "document") {
+        // 文档：按 storagePath + title 匹配（同一目录允许多篇不同标题文档）
+        const index = noteStore.index("storagePath");
+        const rows = await getAllFromIndex<any>(index, matchKey.storagePath);
+        const candidates = rows
+          .filter((n: any) => !n.deleted_at && n.title === matchKey.title)
+          .sort((a: any, b: any) =>
+            (b.updated_at ?? "").localeCompare(a.updated_at ?? "") ||
+            (a.id ?? "").localeCompare(b.id ?? ""),
+          );
+        existing = candidates[0] ? noteFromDB(candidates[0]) : null;
+      } else if (matchKey?.kind === "daily") {
+        // 随笔：按 title + date 匹配（仅非文档笔记，storagePath 为空）
+        const all = await getAll<any>(noteStore);
+        const candidates = all
+          .filter(
+            (n: any) =>
+              !n.deleted_at &&
+              !n.storagePath &&
+              n.title === matchKey.title &&
+              n.date === matchKey.date,
+          )
+          .sort((a: any, b: any) =>
+            (b.updated_at ?? "").localeCompare(a.updated_at ?? "") ||
+            (a.id ?? "").localeCompare(b.id ?? ""),
+          );
+        existing = candidates[0] ? noteFromDB(candidates[0]) : null;
+      }
+
+      // ── 写：命中则保留旧元数据（created_at / readonly / sort_order）──
       const note: Note = {
-        id,
+        id: existing?.id ?? uuid(),
         date: data.date ?? today(),
         title: data.title ?? null,
         content: data.content ?? { ops: [] },
         tags: data.tags ?? [],
         pinned: data.pinned ?? false,
-        readonly: false,
-        sort_order: 0,
-        created_at: existingId
-          ? (await getOne<any>(noteStore, id))?.created_at ?? now()
-          : now(),
+        readonly: existing?.readonly ?? false,
+        sort_order: existing?.sort_order ?? 0,
+        created_at: existing?.created_at ?? now(),
         updated_at: now(),
         storagePath: data.storagePath,
         docType: data.docType,
         concepts: data.concepts,
         linkedDocIds: data.linkedDocIds,
-      } as any;
-
-      (note as any).sort_order = 0;
+      };
 
       await putRecord(noteStore, noteToDB(note));
 
-      if (existingId && data.content) {
-        const verStore = tx.objectStore("note_versions");
+      if (existing && data.content) {
         await saveVersionSnapshot(verStore, note);
       }
 

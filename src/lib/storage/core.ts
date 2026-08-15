@@ -8,7 +8,7 @@
  * 平等 import，不会出现 driver 之间互相依赖的问题。
  */
 
-import type { PathNode, DocType, Note } from "../../types/models";
+import type { PathNode, DocType, Note, CreateNoteInput } from "../../types/models";
 
 /** Extract searchable text from a Delta while ignoring embedded objects. */
 export function extractPlainText(content: unknown): string {
@@ -235,4 +235,38 @@ export function noteFromDB(d: any): Note {
     readonly: d.readonly === 1 || d.readonly === true,
     content: typeof d.content === "string" ? JSON.parse(d.content) : d.content,
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// upsert 匹配谓词（两端共享，消除 idb / tauri-driver 双份漂移）
+// ═══════════════════════════════════════════════════════════════════
+
+export type UpsertMatchKind = "document" | "daily";
+
+export interface UpsertMatchKey {
+  kind: UpsertMatchKind;
+  /** document 匹配键：目录路径 + 标题 */
+  storagePath: string;
+  title: string;
+  /** daily 匹配键：日期（随笔无 storagePath） */
+  date: string;
+}
+
+/**
+ * 根据 CreateNoteInput 确定 upsertNote 的匹配键。
+ *
+ * - 文档笔记：storagePath 与 title 均非空 → 按 storagePath + title 匹配。
+ * - 随笔：storagePath 为空且 title 非空 → 按 title + date 匹配。
+ * - 其它（title 缺失等）→ 返回 null，视为无条件新建。
+ *
+ * 该谓词是两端查重语义的单一事实来源。SQLite 端以集成测试对拍保证等价。
+ */
+export function upsertMatchKey(data: CreateNoteInput): UpsertMatchKey | null {
+  if (data.storagePath && data.title) {
+    return { kind: "document", storagePath: data.storagePath, title: data.title, date: data.date };
+  }
+  if (!data.storagePath && data.title) {
+    return { kind: "daily", storagePath: "", title: data.title, date: data.date };
+  }
+  return null;
 }

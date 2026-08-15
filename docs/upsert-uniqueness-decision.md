@@ -1,7 +1,7 @@
 # upsertNote 唯一性语义决策
 
 > 编写：2026-08-14 · 前置：[工程改进计划](engineering-improvement-plan.md) 后续第 3 轮
-> 状态：**方向已定（B），实现延期**
+> 状态：**已实现（方向 B）**
 
 ## 1. 问题：TOCTOU 窗口
 
@@ -60,4 +60,15 @@
 
 ## 6. 状态
 
-方向已定（B），实现延期。待后续第 3 轮或独立任务实施。
+方向 B 已实现。落地要点：
+
+| 端 | 实现 |
+|----|------|
+| 谓词下沉 | `core.ts::upsertMatchKey`（`document` / `daily` 两分支）作为 TS 两端匹配语义的单一事实来源；SQLite 端以集成测试对拍保证等价 |
+| Tauri | 新增专用命令 `upsert_note`，事务逻辑在 `db::models::upsert_note_dedup`（单 `BEGIN IMMEDIATE` 事务内 SELECT 查重 + `INSERT OR REPLACE` + 读回） |
+| Web | `idb.ts::upsertNote` 重写：查重与写入合并到同一个 `readwrite` 事务 |
+| 元数据 | 命中已有笔记时保留旧 `created_at` / `sort_order` / `readonly`；新建则用默认值 |
+| 多匹配 | 命中多条时按 `updated_at DESC, id ASC` 取首条，保证确定性 |
+| 测试 | `tests/upsert_dedup.rs` 6 个集成测试对拍；`tests/core.test.ts` 补 `upsertMatchKey` 单测 |
+
+原先「查重不保留旧元数据」的 Web 端 bug（`readonly` 恒为 `false`、`sort_order` 恒为 `0`）随本次重写一并修复。

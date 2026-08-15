@@ -344,92 +344,29 @@ export const tauriDriver = {
     return rows.map(snakeNoteToCamel);
   },
 
-  // ── upsertNote：文档按 storagePath+title，随笔按 title+date 去重 ──
+  // ── upsertNote：专用 Rust 命令（BEGIN IMMEDIATE 事务内查重+写，消除 TOCTOU）──
   async upsertNote(data: CreateNoteInput): Promise<Note> {
-    const d = data as any; // upsertNote 可能携带 id/created_at/updated_at（从导入路径传入）
-    let existingRow: Record<string, any> | undefined;
-
-    // storagePath 是文件夹而不是唯一文档路径，同一文件夹允许多篇不同标题文档。
-    if (d.id) {
-      // 导入路径已带 id，直接用
-    } else if (data.storagePath && data.title) {
-      const existingOp: SelectOp = {
-        type: "select",
-        table: "notes",
-        columns: ["id", "created_at", "readonly", "sort_order"],
-        where: [
-          { col: "storage_path", op: "=", val: data.storagePath },
-          { col: "title", op: "=", val: data.title },
-        ],
-        limit: 1,
-      };
-      const existing = await dbQuery(existingOp);
-      if (existing.length > 0) {
-        existingRow = existing[0];
-        d.id = existingRow.id;
-      }
-    } else if (!data.storagePath && data.title) {
-      // 随笔：按 title+date 查找已有记录
-      const existingOp: SelectOp = {
-        type: "select",
-        table: "notes",
-        columns: ["id", "created_at", "readonly", "sort_order"],
-        where: [
-          { col: "title", op: "=", val: data.title },
-          { col: "date", op: "=", val: data.date ?? today() },
-        ],
-        limit: 1,
-      };
-      const existing = await dbQuery(existingOp);
-      if (existing.length > 0) {
-        existingRow = existing[0];
-        d.id = existingRow.id;
-      }
-    }
-
-    const note: Note = {
-      id: d.id ?? uuid(),
-      date: data.date ?? today(),
-      title: data.title ?? null,
-      content: data.content ?? { ops: [] },
-      tags: data.tags ?? [],
-      pinned: data.pinned ?? false,
-      readonly: d.readonly ?? (
-        existingRow?.readonly === 1 || existingRow?.readonly === true
-      ),
-      sort_order: d.sort_order ?? existingRow?.sort_order ?? 0,
-      created_at: d.created_at ?? existingRow?.created_at ?? now(),
-      updated_at: d.updated_at ?? now(),
-      storagePath: data.storagePath,
-      docType: data.docType,
-      concepts: data.concepts,
-      linkedDocIds: data.linkedDocIds,
-    } as any;
-
-    const op: InsertOp = {
-      type: "insert",
-      table: "notes",
-      onConflict: "replace",
-      values: {
-        id: note.id,
-        date: note.date,
-        title: note.title,
-        content: JSON.stringify(note.content),
-        search_text: extractPlainText(note.content),
-        tags: JSON.stringify(note.tags),
-        pinned: note.pinned ? 1 : 0,
-        sort_order: note.sort_order,
-        created_at: note.created_at,
-        updated_at: note.updated_at,
-        storage_path: note.storagePath ?? null,
-        doc_type: note.docType ?? null,
-        concepts: note.concepts ? JSON.stringify(note.concepts) : "[]",
-        linked_doc_ids: note.linkedDocIds ? JSON.stringify(note.linkedDocIds) : "[]",
-        readonly: note.readonly ? 1 : 0,
+    // 导入路径可能透传 id / created_at / updated_at（保留跨设备 UUID 与历史时间）
+    const d = data as any;
+    const invoke = await getInvoke();
+    const raw = await invoke("upsert_note", {
+      data: {
+        date: data.date,
+        title: data.title ?? null,
+        content: data.content,
+        tags: data.tags,
+        pinned: data.pinned,
+        storagePath: data.storagePath,
+        docType: data.docType,
+        concepts: data.concepts,
+        linkedDocIds: data.linkedDocIds,
+        searchText: data.content ? extractPlainText(data.content) : "",
+        id: d.id,
+        createdAt: d.created_at,
+        updatedAt: d.updated_at,
       },
-    };
-    await dbExec(op);
-    return note;
+    });
+    return snakeNoteToCamel(raw);
   },
 
   // ── getRecentDates：最近 N 个有笔记的日期 ──

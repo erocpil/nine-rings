@@ -9,7 +9,7 @@
  * - uuid / now（工具函数）
  */
 
-import { buildDocTree, splitSuggestedDocPath, type FlatDocRecord, type FlatDailyRecord } from "../src/lib/storage/core";
+import { buildDocTree, splitSuggestedDocPath, upsertMatchKey, type FlatDocRecord, type FlatDailyRecord } from "../src/lib/storage/core";
 import { getOtherFolderPaths, getVisibleDocumentTreeNodes } from "../src/lib/doc-tree-collapse";
 
 let passed = 0;
@@ -286,6 +286,20 @@ const dailyFolder = tree.find(n => n.path === "daily" && n.type === "folder");
   assert(deepEqual(splitSuggestedDocPath("foo/bar"), dflt), "非法 root → 默认");
   assert(deepEqual(splitSuggestedDocPath("daily/2026-01-01"), dflt), "daily 前缀 → 默认（非 P.A.R.A.）");
   assert(deepEqual(splitSuggestedDocPath("/projects/web/"), { rootPath: "projects", subPath: "web", hasSuggestion: true }), "前后斜杠被清理");
+}
+
+{
+  console.log("\n── upsertMatchKey ──");
+  const doc = upsertMatchKey({ date: "2026-08-01", title: "A", storagePath: "projects/x" });
+  assert(doc?.kind === "document", "storagePath+title → document");
+  assert(doc?.storagePath === "projects/x" && doc?.title === "A", "document 匹配键字段");
+
+  const daily = upsertMatchKey({ date: "2026-08-01", title: "日记" });
+  assert(daily?.kind === "daily", "无 storagePath 有 title → daily");
+  assert(daily?.title === "日记" && daily?.date === "2026-08-01", "daily 匹配键字段");
+
+  assert(upsertMatchKey({ date: "2026-08-01" }) === null, "无 title → null（新建）");
+  assert(upsertMatchKey({ date: "2026-08-01", title: "" }) === null, "空 title → null（新建）");
 }
 
 // ═══════════════════════════════════════════════════════════════════

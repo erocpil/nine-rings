@@ -486,6 +486,7 @@ pub fn run() {
             commands::note::get_all_tags,
             commands::note::get_daily_page,
             commands::note::update_todos,
+            commands::note::upsert_note,
             commands::config::get_config,
             commands::config::set_config,
             commands::export::export_data,

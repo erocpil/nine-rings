@@ -1,3 +1,4 @@
+use crate::db::models::{NotePublic, UpsertNoteInput};
 use crate::service;
 use crate::AppState;
 use serde::Deserialize;
@@ -77,4 +78,19 @@ pub fn update_todos(
         data.todo_carryover.unwrap_or(false),
     )
     .map_err(|e| e.to_string())
+}
+
+/// upsertNote 命令：调用 `db::models::upsert_note`（单个 `BEGIN IMMEDIATE` 事务内查重 + 写入）。
+///
+/// 匹配谓词与 TS `core.ts::upsertMatchKey` 对齐：
+/// - 显式 id（导入透传）→ 直接使用。
+/// - 文档：storage_path + title。
+/// - 随笔：title + date（且 storage_path 为空）。
+///
+/// 多命中时按 `updated_at DESC, id ASC` 取首条，保证确定性。
+#[tauri::command]
+pub fn upsert_note(state: State<AppState>, data: UpsertNoteInput) -> Result<NotePublic, String> {
+    let mut conn = state.db.lock().map_err(|e| e.to_string())?;
+    let note = crate::db::models::upsert_note_dedup(&mut conn, &data).map_err(|e| e.to_string())?;
+    Ok(note.to_public())
 }

@@ -1,5 +1,8 @@
+use rusqlite::params;
 use rusqlite::Connection;
+use rusqlite::TransactionBehavior;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Note {
@@ -390,4 +393,154 @@ pub fn note_from_row(row: &rusqlite::Row) -> rusqlite::Result<Note> {
         linked_doc_ids: serde_json::from_str(&linked_str).unwrap_or_default(),
         readonly: readonly_raw != 0,
     })
+}
+
+// ──── upsert_note：专用命令的事务逻辑 ────
+
+/// upsertNote 的输入。与 TS `CreateNoteInput` + 导入透传字段对齐。
+///
+/// - 业务字段（date/title/content/...）由 TS 端传入。
+/// - `id` / `created_at` / `updated_at` 仅在导入路径显式透传（保留跨设备 UUID 与历史时间）。
+/// - `search_text` 由 TS 端 `extractPlainText` 预计算，避免 Rust 重复实现 Delta 解析。
+#[derive(Debug, Deserialize)]
+pub struct UpsertNoteInput {
+    pub date: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub content: Option<Value>,
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
+    #[serde(default)]
+    pub pinned: Option<bool>,
+    #[serde(alias = "storagePath", default)]
+    pub storage_path: Option<String>,
+    #[serde(alias = "docType", default)]
+    pub doc_type: Option<String>,
+    #[serde(default)]
+    pub concepts: Option<Vec<String>>,
+    #[serde(alias = "linkedDocIds", default)]
+    pub linked_doc_ids: Option<Vec<String>>,
+    #[serde(alias = "searchText", default)]
+    pub search_text: Option<String>,
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(alias = "createdAt", default)]
+    pub created_at: Option<String>,
+    #[serde(alias = "updatedAt", default)]
+    pub updated_at: Option<String>,
+}
+
+/// upsertNote 的事务逻辑：单个 `BEGIN IMMEDIATE` 事务内完成查重 + 写入。
+///
+/// 与通用 `db_query` + `db_exec` 两步拼装不同，本函数将「查重（SELECT）与
+/// 写入（INSERT OR REPLACE）」合并进同一事务，`BEGIN IMMEDIATE` 立即获取写锁，
+/// 从源头消除 TOCTOU 竞态（两个并发 upsert 各自查到「不存在」后双双插入）。
+///
+/// 匹配谓词与 TS `core.ts::upsertMatchKey` 对齐：
+/// - 显式 id（导入透传）→ 直接使用。
+/// - 文档：storage_path + title。
+/// - 随笔：title + date（且 storage_path 为空）。
+///
+/// 多命中时按 `updated_at DESC, id ASC` 取首条，保证确定性。
+///
+/// 命中已有笔记时保留旧元数据（created_at / sort_order / readonly）；新建则用默认值。
+pub fn upsert_note_dedup(conn: &mut Connection, input: &UpsertNoteInput) -> rusqlite::Result<Note> {
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+
+    // ── 查重：决定最终 id，并保留命中行的元数据 ──
+    let mut final_id = input.id.clone();
+    let mut created_at = input.created_at.clone();
+    let mut sort_order = 0i32;
+    let mut readonly = false;
+
+    if final_id.is_none() {
+        if let (Some(sp), Some(t)) = (input.storage_path.as_ref(), input.title.as_ref()) {
+            // 文档：storagePath + title
+            let found = tx.query_row(
+                "SELECT id, created_at, sort_order, readonly FROM notes
+                 WHERE storage_path = ?1 AND title = ?2 AND deleted_at IS NULL
+                 ORDER BY updated_at DESC, id ASC LIMIT 1",
+                params![sp, t],
+                |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, i32>(2)?,
+                        r.get::<_, i32>(3)?,
+                    ))
+                },
+            );
+            if let Ok((id, ca, so, ro)) = found {
+                final_id = Some(id);
+                created_at = Some(ca);
+                sort_order = so;
+                readonly = ro != 0;
+            }
+        } else if let Some(t) = input.title.as_ref() {
+            // 随笔：title + date（仅非文档笔记，storage_path 为空）
+            let found = tx.query_row(
+                "SELECT id, created_at, sort_order, readonly FROM notes
+                 WHERE title = ?1 AND date = ?2 AND storage_path IS NULL AND deleted_at IS NULL
+                 ORDER BY updated_at DESC, id ASC LIMIT 1",
+                params![t, input.date],
+                |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, i32>(2)?,
+                        r.get::<_, i32>(3)?,
+                    ))
+                },
+            );
+            if let Ok((id, ca, so, ro)) = found {
+                final_id = Some(id);
+                created_at = Some(ca);
+                sort_order = so;
+                readonly = ro != 0;
+            }
+        }
+    }
+
+    let id = final_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    let created = created_at.unwrap_or_else(|| now.clone());
+    let updated = input.updated_at.clone().unwrap_or_else(|| now.clone());
+
+    let content = input
+        .content
+        .clone()
+        .unwrap_or_else(|| serde_json::json!({ "ops": [] }));
+    let search_text = input.search_text.clone().unwrap_or_default();
+    let tags = input.tags.clone().unwrap_or_default();
+    let pinned = input.pinned.unwrap_or(false);
+    let concepts = input.concepts.clone().unwrap_or_default();
+    let linked_doc_ids = input.linked_doc_ids.clone().unwrap_or_default();
+
+    tx.execute(
+        "INSERT OR REPLACE INTO notes (id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+        params![
+            id,
+            input.date,
+            input.title,
+            content.to_string(),
+            search_text,
+            serde_json::to_string(&tags).unwrap_or_default(),
+            pinned,
+            sort_order,
+            created,
+            updated,
+            input.storage_path,
+            input.doc_type,
+            serde_json::to_string(&concepts).unwrap_or_default(),
+            serde_json::to_string(&linked_doc_ids).unwrap_or_default(),
+            readonly,
+        ],
+    )?;
+
+    tx.commit()?;
+
+    // 读回完整 Note 返回
+    select_note_by_id(conn, &id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)
 }

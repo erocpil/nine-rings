@@ -1012,16 +1012,15 @@ vite --host 0.0.0.0
 - Flutter 大规模功能补齐。
 - 真正的增量同步。
 
-### 17.7 后续：upsertNote 去重原子性（P2，方向已定 B）
+### 17.7 后续：upsertNote 去重原子性（P2，方向 B，已实现）
 
-`upsertNote` 的查重（SELECT）与写入（INSERT）分属两个独立操作，存在 TOCTOU 窗口，并发导入可能产生重复记录。
+`upsertNote` 的查重（SELECT）与写入（INSERT）原先分属两个独立操作，存在 TOCTOU 窗口，并发导入可能产生重复记录。现已按方向 B 实现（见 [upsert-uniqueness-decision.md](upsert-uniqueness-decision.md)）：
 
-**决策**：活跃笔记在业务键上不要求唯一（方向 B，保持 `createNote` 允许同名）。实现延期。
-
-**实施要点**（见 [upsert-uniqueness-decision.md](upsert-uniqueness-decision.md)）：
-- Tauri：新增专用命令，单 `BEGIN IMMEDIATE` 事务内 SELECT + INSERT。
-- Web：查重与写入合并到同一 `readwrite` 事务。
-- 多匹配项用确定性规则（`updated_at DESC, id ASC`）。
+- 谓词下沉 `core.ts::upsertMatchKey`，作为 TS 两端匹配语义的单一事实来源。
+- Tauri：新增专用命令 `upsert_note`，事务逻辑在 `db::models::upsert_note_dedup`（单 `BEGIN IMMEDIATE` 事务内 SELECT + INSERT）。
+- Web：`idb.ts::upsertNote` 查重与写入合并到同一 `readwrite` 事务。
+- 命中保留旧元数据（`created_at` / `sort_order` / `readonly`），多匹配按 `updated_at DESC, id ASC`。
+- 测试：`tests/upsert_dedup.rs` 6 个集成测试 + `core.test.ts` 补 `upsertMatchKey` 单测。
 
 ### 17.8 后续：待确认的产品行为（commit `e83726f` review 发现）
 
