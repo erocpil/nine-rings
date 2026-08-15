@@ -364,6 +364,8 @@ export const tauriDriver = {
         id: d.id,
         createdAt: d.created_at,
         updatedAt: d.updated_at,
+        readonly: d.readonly,
+        sortOrder: d.sort_order,
       },
     });
     return snakeNoteToCamel(raw);

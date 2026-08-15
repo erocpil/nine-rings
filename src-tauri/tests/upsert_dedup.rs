@@ -32,6 +32,8 @@ fn input(date: &str, title: Option<&str>, storage_path: Option<&str>) -> UpsertN
         id: None,
         created_at: None,
         updated_at: None,
+        readonly: None,
+        sort_order: None,
     }
 }
 
@@ -138,4 +140,22 @@ fn no_match_creates_new() {
     .unwrap();
     assert!(!note.id.is_empty());
     assert_eq!(count_notes(&conn), 1);
+}
+
+#[test]
+fn explicit_id_preserves_import_metadata() {
+    let mut conn = setup_db();
+    let mut d = input("2026-08-01", Some("导入文档"), Some("projects/x"));
+    d.id = Some("import-id".to_string());
+    d.readonly = Some(true);
+    d.sort_order = Some(5);
+    d.created_at = Some("2026-01-01T00:00:00.000Z".to_string());
+    let note = upsert_note_dedup(&mut conn, &d).unwrap();
+    assert_eq!(note.id, "import-id");
+    assert!(note.readonly, "导入透传应保留 readonly");
+    assert_eq!(note.sort_order, 5, "导入透传应保留 sort_order");
+    assert_eq!(
+        note.created_at, "2026-01-01T00:00:00.000Z",
+        "导入透传应保留 created_at"
+    );
 }

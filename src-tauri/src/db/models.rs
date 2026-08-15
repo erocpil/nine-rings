@@ -429,6 +429,10 @@ pub struct UpsertNoteInput {
     pub created_at: Option<String>,
     #[serde(alias = "updatedAt", default)]
     pub updated_at: Option<String>,
+    #[serde(default)]
+    pub readonly: Option<bool>,
+    #[serde(alias = "sortOrder", default)]
+    pub sort_order: Option<i32>,
 }
 
 /// upsertNote 的事务逻辑：单个 `BEGIN IMMEDIATE` 事务内完成查重 + 写入。
@@ -448,11 +452,11 @@ pub struct UpsertNoteInput {
 pub fn upsert_note_dedup(conn: &mut Connection, input: &UpsertNoteInput) -> rusqlite::Result<Note> {
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
 
-    // ── 查重：决定最终 id，并保留命中行的元数据 ──
+    // ── 查重：决定最终 id，并记录命中行的元数据 ──
     let mut final_id = input.id.clone();
-    let mut created_at = input.created_at.clone();
-    let mut sort_order = 0i32;
-    let mut readonly = false;
+    let mut matched_created_at: Option<String> = None;
+    let mut matched_sort_order: Option<i32> = None;
+    let mut matched_readonly: Option<bool> = None;
 
     if final_id.is_none() {
         if let (Some(sp), Some(t)) = (input.storage_path.as_ref(), input.title.as_ref()) {
@@ -473,9 +477,9 @@ pub fn upsert_note_dedup(conn: &mut Connection, input: &UpsertNoteInput) -> rusq
             );
             if let Ok((id, ca, so, ro)) = found {
                 final_id = Some(id);
-                created_at = Some(ca);
-                sort_order = so;
-                readonly = ro != 0;
+                matched_created_at = Some(ca);
+                matched_sort_order = Some(so);
+                matched_readonly = Some(ro != 0);
             }
         } else if let Some(t) = input.title.as_ref() {
             // 随笔：title + date（仅非文档笔记，storage_path 为空）
@@ -495,17 +499,24 @@ pub fn upsert_note_dedup(conn: &mut Connection, input: &UpsertNoteInput) -> rusq
             );
             if let Ok((id, ca, so, ro)) = found {
                 final_id = Some(id);
-                created_at = Some(ca);
-                sort_order = so;
-                readonly = ro != 0;
+                matched_created_at = Some(ca);
+                matched_sort_order = Some(so);
+                matched_readonly = Some(ro != 0);
             }
         }
     }
 
     let id = final_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-    let created = created_at.unwrap_or_else(|| now.clone());
+    // 元数据优先级：input 显式透传 > 命中行 > 默认
+    let created = input
+        .created_at
+        .clone()
+        .or(matched_created_at)
+        .unwrap_or_else(|| now.clone());
     let updated = input.updated_at.clone().unwrap_or_else(|| now.clone());
+    let sort_order = input.sort_order.or(matched_sort_order).unwrap_or(0);
+    let readonly = input.readonly.or(matched_readonly).unwrap_or(false);
 
     let content = input
         .content
