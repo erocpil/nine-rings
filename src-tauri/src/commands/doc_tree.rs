@@ -74,7 +74,7 @@ pub fn search_docs(
         }
     }
 
-    sql.push_str(" ORDER BY updated_at DESC LIMIT 50");
+    sql.push_str(" ORDER BY updated_at DESC");
 
     let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;

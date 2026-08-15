@@ -540,7 +540,8 @@ export const idbAdapter: StorageAdapter = {
       const store = db.transaction("notes", "readonly").objectStore("notes");
       const all = await getAll<any>(store);
       return all
-        .filter((n) => !n.deleted_at)
+        // 文档搜索：仅返回 storagePath 非空的文档（随笔走 getAllNotes / searchNotes）
+        .filter((n) => !n.deleted_at && n.storagePath)
         .filter((n) => {
           if (query.storagePath && !n.storagePath?.startsWith(query.storagePath)) return false;
           if (query.docType && n.docType !== query.docType) return false;

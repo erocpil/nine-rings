@@ -244,6 +244,14 @@ async function runTests() {
     assert(dailyOnly.every((note) => !note.storagePath), "daily path excludes documents with the same date");
     const howtoDocs = await idbAdapter.searchDocs({ docType: "how-to" });
     assert(howtoDocs.length >= 1, "docType filter works");
+    // searchDocs 是文档搜索：只返回 storagePath 非空的文档，排除带同 concept 的随笔
+    const sharedConcept = "共享概念";
+    await idbAdapter.createNote({ date: "2026-07-15", title: "概念文档", storagePath: "projects/concept-doc", concepts: [sharedConcept] });
+    await idbAdapter.createNote({ date: "2026-07-15", title: "概念随笔", concepts: [sharedConcept] });
+    const conceptDocs = await idbAdapter.searchDocs({ concept: sharedConcept });
+    assert(conceptDocs.length >= 1, "concept 查询返回关联文档");
+    assert(conceptDocs.every((n) => n.storagePath), "searchDocs 只返回文档，排除随笔");
+    assert(!conceptDocs.some((n) => n.title === "概念随笔"), "带同 concept 的随笔不出现在文档搜索中");
     const concepts = await idbAdapter.getAllConcepts();
     assert(Array.isArray(concepts), "getAllConcepts returns array");
   }
