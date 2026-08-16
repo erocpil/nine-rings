@@ -17,10 +17,6 @@ jobs:
           - arch: arm64
             runner: macos-14
             target: aarch64-apple-darwin
-          # Keep an Intel build for older Intel Macs.
-          - arch: x64
-            runner: macos-15-intel
-            target: x86_64-apple-darwin
     runs-on: ${{ matrix.runner }}
 
     steps:
