@@ -17,7 +17,7 @@ export default function TitleBar() {
   };
 
   return (
-    <div className="titlebar" data-tauri-drag-region>
+    <div className="titlebar" data-tauri-drag-region="deep">
       <span className="titlebar-title">
         <img src="/app-icon.png" width="16" height="16" alt="" className="titlebar-logo" />
         Nine Rings
