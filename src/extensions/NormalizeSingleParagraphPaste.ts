@@ -23,6 +23,7 @@ function normalizeHTML(html: string, flattenSingleParagraph: boolean): string {
   if (typeof DOMParser === "undefined") return html;
 
   const doc = new DOMParser().parseFromString(html, "text/html");
+  replaceTablesWithMarkdownParagraphs(doc);
   const nodes = Array.from(doc.body.childNodes);
   let start = 0;
   let end = nodes.length;
@@ -68,6 +69,39 @@ function normalizeHTML(html: string, flattenSingleParagraph: boolean): string {
   if (!paragraph) return doc.body.innerHTML;
   if (!paragraph.textContent || paragraph.querySelector("br")) return doc.body.innerHTML;
   return paragraph.innerHTML;
+}
+
+/**
+ * 当前编辑器 schema 没有 table 节点。浏览器剪贴板里的 HTML 表格若直接交给
+ * ProseMirror 解析，会丢失行列结构并把所有单元格文字拼为一段。先降级为
+ * Markdown 表格的逐行段落，以保留可读内容和结构。
+ */
+function replaceTablesWithMarkdownParagraphs(doc: Document): void {
+  for (const table of Array.from(doc.body.querySelectorAll("table"))) {
+    const rows = Array.from(table.querySelectorAll("tr"));
+    const fragment = doc.createDocumentFragment();
+    let insertedHeaderSeparator = false;
+
+    for (const row of rows) {
+      const cells = Array.from(row.children)
+        .filter((cell) => cell.tagName === "TH" || cell.tagName === "TD")
+        .map((cell) => (cell.textContent ?? "").trim().replace(/\s+/g, " "));
+      if (cells.length === 0) continue;
+
+      const paragraph = doc.createElement("p");
+      paragraph.textContent = `| ${cells.join(" | ")} |`;
+      fragment.appendChild(paragraph);
+
+      if (!insertedHeaderSeparator && Array.from(row.children).some((cell) => cell.tagName === "TH")) {
+        const separator = doc.createElement("p");
+        separator.textContent = `| ${cells.map(() => "---").join(" | ")} |`;
+        fragment.appendChild(separator);
+        insertedHeaderSeparator = true;
+      }
+    }
+
+    table.replaceWith(fragment);
+  }
 }
 
 const BOUNDARY_BLOCK_TAGS = new Set(["article", "div", "p", "section"]);

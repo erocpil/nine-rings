@@ -156,6 +156,38 @@ test.describe("编辑器复制粘贴", () => {
     await expect(editor.locator("p")).toHaveCount(1);
     await expect(editor.locator("p")).toHaveText("已有内容粘贴正文");
   });
+
+  test("HTML 表格粘贴保留各行和单元格边界", async ({ page }) => {
+    await page.goto("/");
+
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData(
+        "text/html",
+        "<table><thead><tr><th>能力</th><th>主要证据</th></tr></thead><tbody><tr><td>DPDK</td><td>百度 / Bless / 商汤</td></tr><tr><td>NIC</td><td>CX-5/CX-6 / Bless</td></tr></tbody></table>",
+      );
+      clipboardData.setData(
+        "text/plain",
+        "能力主要证据DPDK百度 / Bless / 商汤NICCX-5/CX-6 / Bless",
+      );
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    });
+
+    await expect(editor.locator("p")).toHaveCount(4);
+    await expect(editor.locator("p").nth(0)).toHaveText("| 能力 | 主要证据 |");
+    await expect(editor.locator("p").nth(1)).toHaveText("| --- | --- |");
+    await expect(editor.locator("p").nth(2)).toHaveText("| DPDK | 百度 / Bless / 商汤 |");
+    await expect(editor.locator("p").nth(3)).toHaveText("| NIC | CX-5/CX-6 / Bless |");
+  });
 });
 
 test.describe("文档树移动", () => {
