@@ -1,6 +1,9 @@
 use crate::AppState;
 use tauri::State;
 
+const EXACT_CONCEPT_FILTER: &str =
+    " AND EXISTS (SELECT 1 FROM json_each(notes.concepts) AS item WHERE item.value = ?)";
+
 #[derive(Debug, serde::Deserialize)]
 pub struct DocSearchQuery {
     pub text: Option<String>,
@@ -69,8 +72,8 @@ pub fn search_docs(
     }
     if let Some(ref concept) = query.concept {
         if !concept.is_empty() {
-            sql.push_str(" AND concepts LIKE ?");
-            params.push(Box::new(format!("%\"{}\"%", concept)));
+            sql.push_str(EXACT_CONCEPT_FILTER);
+            params.push(Box::new(concept.clone()));
         }
     }
 
@@ -144,7 +147,8 @@ pub fn get_notes_by_path(
 
 #[cfg(test)]
 mod tests {
-    use super::escape_like;
+    use super::{escape_like, EXACT_CONCEPT_FILTER};
+    use rusqlite::{params, Connection};
 
     #[test]
     fn escapes_sql_like_metacharacters_in_folder_paths() {
@@ -152,6 +156,36 @@ mod tests {
             escape_like(r"projects/100%_done\draft"),
             r"projects/100\%\_done\\draft"
         );
+    }
+
+    #[test]
+    fn concept_filter_matches_json_array_elements_exactly() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE notes (id TEXT PRIMARY KEY, concepts TEXT NOT NULL);
+             INSERT INTO notes VALUES ('percent', '[\"100%\"]');
+             INSERT INTO notes VALUES ('expanded', '[\"100-percent\"]');
+             INSERT INTO notes VALUES ('underscore', '[\"C_\"]');
+             INSERT INTO notes VALUES ('single-char', '[\"C#\"]');
+             INSERT INTO notes VALUES ('quote', '[\"say \\\"hi\\\"\"]');",
+        )
+        .unwrap();
+
+        let sql = format!("SELECT id FROM notes WHERE 1=1{EXACT_CONCEPT_FILTER}");
+        for (concept, expected_id) in [
+            ("100%", "percent"),
+            ("C_", "underscore"),
+            ("say \"hi\"", "quote"),
+        ] {
+            let ids = conn
+                .prepare(&sql)
+                .unwrap()
+                .query_map(params![concept], |row| row.get::<_, String>(0))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            assert_eq!(ids, vec![expected_id]);
+        }
     }
 }
 
