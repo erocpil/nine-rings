@@ -151,6 +151,17 @@ function assert(condition: boolean, msg: string): void {
   const pm: any = { type: "doc", content: [{ type: "horizontalRule" }] };
   const delta = proseMirrorToDelta(pm);
   assert(delta.ops.length >= 1, "horizontal rule generates ops");
+
+  const restored = deltaToProseMirror({
+    ops: [
+      { insert: { hr: true } },
+      { insert: "\n" },
+      { insert: "下一节" },
+      { insert: "\n", attributes: { header: 1 } },
+    ],
+  });
+  assert(restored.content.length === 2, "horizontal rule terminator does not create an empty paragraph");
+  assert(restored.content[1]?.type === "heading", "content after horizontal rule remains adjacent heading");
 }
 
 // ═══════════════════════════════════════════════════════════════════

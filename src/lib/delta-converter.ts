@@ -167,6 +167,9 @@ export function deltaToProseMirror(deltaData: any): any {
   const doc: any[] = [];
   let currentParagraph: any = { type: "paragraph", content: [] };
   let isImageBlock = false;
+  // Quill 用紧随 embed 的换行标记块结束。它不是编辑器中的空段落，
+  // 否则水平分割线在保存并重新加载后会凭空多出一行。
+  let skipEmptyLineAfterHorizontalRule = false;
   /** 正在累积的列表（未推入 doc，等待闭合） */
   let pendingList: { type: string; content: any[] } | null = null;
 
@@ -191,6 +194,15 @@ export function deltaToProseMirror(deltaData: any): any {
 
     if (typeof insert === "string") {
       if (insert === "\n") {
+        if (
+          skipEmptyLineAfterHorizontalRule &&
+          currentParagraph.content.length === 0 &&
+          Object.keys(attrs).length === 0
+        ) {
+          skipEmptyLineAfterHorizontalRule = false;
+          continue;
+        }
+        skipEmptyLineAfterHorizontalRule = false;
         // ── 列表项 ──
         if (attrs.list === "bullet" || attrs.list === "ordered") {
           const listType = attrs.list === "bullet" ? "bulletList" : "orderedList";
@@ -236,6 +248,7 @@ export function deltaToProseMirror(deltaData: any): any {
           flushParagraph();
         }
       } else if (insert.startsWith("\n")) {
+        skipEmptyLineAfterHorizontalRule = false;
         flushList();
         // Hard break within paragraph
         currentParagraph.content.push({ type: "hardBreak" });
@@ -245,6 +258,7 @@ export function deltaToProseMirror(deltaData: any): any {
           currentParagraph.content.push({ type: "text", text: rest, ...(marks.length > 0 ? { marks } : {}) });
         }
       } else {
+        skipEmptyLineAfterHorizontalRule = false;
         const marks = deltaAttrToMarks(attrs);
         currentParagraph.content.push({
           type: "text",
@@ -266,6 +280,7 @@ export function deltaToProseMirror(deltaData: any): any {
           flushParagraph();
         }
         doc.push({ type: "horizontalRule", content: [] });
+        skipEmptyLineAfterHorizontalRule = true;
       }
     }
   }

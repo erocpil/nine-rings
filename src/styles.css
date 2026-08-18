@@ -2656,6 +2656,14 @@ body {
   position: relative;
 }
 
+/* 分割线本身不生成空段落；仅在其后保留一行高度的阅读间距。 */
+.ProseMirror > hr {
+  height: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 2px 0 1.45em;
+}
+
 /* 列表项：收紧编号与文本间距 */
 .editor-content li {
   padding-left: 0;
