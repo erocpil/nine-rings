@@ -249,6 +249,40 @@ test.describe("编辑器复制粘贴", () => {
     await expect(editor.locator("p").last()).toHaveText("概念");
     await expect(editor).not.toContainText("# 面试复习材料:DPDK / 内核网络 / SR-IOV & VIRTIO");
   });
+
+  test("Markdown 表格粘贴后保留多行", async ({ page }) => {
+    await page.goto("/");
+
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const markdown = [
+      "# Part 0. 内容索引",
+      "",
+      "| 技术领域 | 对应章节 | 核心内容 |",
+      "|---|---|---|",
+      "| DPDK框架 | 1.1～1.6 | EAL初始化 |",
+      "| Flow Director | 1.7 | queue级资源隔离 |",
+      "",
+      "---",
+    ].join("\n");
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    }, markdown);
+
+    await expect(editor.locator("h1")).toHaveText("Part 0. 内容索引");
+    await expect(editor.locator("p")).toHaveCount(4);
+    await expect(editor.locator("p").nth(0)).toHaveText("| 技术领域 | 对应章节 | 核心内容 |");
+    await expect(editor.locator("p").nth(3)).toHaveText("| Flow Director | 1.7 | queue级资源隔离 |");
+  });
 });
 
 test.describe("文档树移动", () => {

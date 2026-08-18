@@ -221,7 +221,27 @@ function assert(condition: boolean, msg: string): void {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 15. 混合语法
+// 15. Markdown 表格
+// ═══════════════════════════════════════════════════════════════════
+{
+  console.log("\n── Markdown table rows ──");
+
+  const md = `# 内容索引
+
+| 技术领域 | 对应章节 | 核心内容 |
+|---|---|---|
+| DPDK框架 | 1.1～1.6 | EAL初始化 |
+| Flow Director | 1.7 | queue级资源隔离 |`;
+  const pm = deltaToProseMirror(mdToDelta(md));
+
+  assert(pm.content.length === 5, "table header, separator, and data rows remain separate paragraphs");
+  assert(pm.content[1]?.content?.[0]?.text === "| 技术领域 | 对应章节 | 核心内容 |", "table header is preserved");
+  assert(pm.content[2]?.content?.[0]?.text === "|---|---|---|", "table separator is preserved");
+  assert(pm.content[4]?.content?.[0]?.text === "| Flow Director | 1.7 | queue级资源隔离 |", "table data row is preserved");
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 16. 混合语法
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Mixed syntax ──");
