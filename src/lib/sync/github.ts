@@ -67,9 +67,23 @@ function authHeader(token: string): Record<string, string> {
   };
 }
 
+/**
+ * GitHub Contents API 将仓库内路径作为 URL path 的一部分。
+ * 必须逐段编码：编码整个路径会把 `/` 变成 `%2F`，在部分 WebView/代理下
+ * 会被当作单个文件名，导致配置了子目录的备份无法读写。
+ */
+export function githubContentsUrl(owner: string, repo: string, path: string): string {
+  const encodedPath = path
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodedPath}`;
+}
+
 /** 获取远端文件内容 + sha */
 async function fetchRemote(token: string, owner: string, repo: string, path: string): Promise<{ content: string; sha: string } | null> {
-  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`;
+  const url = githubContentsUrl(owner, repo, path);
   const res = await fetch(url, { headers: authHeader(token) });
   if (res.status === 404) return null; // 文件不存在
   if (!res.ok) {
@@ -126,7 +140,7 @@ async function fetchRemote(token: string, owner: string, repo: string, path: str
 
 /** 上传/更新远端文件 */
 async function putRemote(token: string, owner: string, repo: string, path: string, content: string, sha: string | null, message: string): Promise<string> {
-  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`;
+  const url = githubContentsUrl(owner, repo, path);
   const body: Record<string, unknown> = {
     message,
     content: btoa(unescape(encodeURIComponent(content))), // 正确处理 UTF-8
@@ -440,9 +454,29 @@ export async function checkStatus(config: SyncConfig): Promise<SyncStatus> {
   }
 
   try {
+    // Contents GET 只能证明 Token 有读取权限；Push 还需要 Contents write。
+    // 先检查仓库权限，避免把只读 Token 误报为“连接正常”。
+    const repoUrl = `https://api.github.com/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}`;
+    const repoRes = await fetch(repoUrl, { headers: authHeader(config.token) });
+    if (repoRes.status === 401) {
+      return { ok: false, message: "Token 无效或无权限" };
+    }
+    if (!repoRes.ok) {
+      const body = await repoRes.text().catch(() => "");
+      return { ok: false, message: `仓库访问失败（API ${repoRes.status}）：${body.slice(0, 100)}` };
+    }
+    const repoData = await repoRes.json() as { permissions?: Record<string, boolean> };
+    const permissions = repoData.permissions;
+    if (permissions && !permissions.push && !permissions.maintain && !permissions.admin) {
+      return {
+        ok: false,
+        message: "Token 仅有读取权限；请授予该仓库 Contents: Read and write（classic Token 需 repo scope）",
+      };
+    }
+
     // 检查 latest 指针文件是否存在
     const ptrPath = latestPath(config.path);
-    const url = `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${encodeURIComponent(ptrPath)}`;
+    const url = githubContentsUrl(config.owner, config.repo, ptrPath);
     const res = await fetch(url, { headers: authHeader(config.token) });
     if (res.status === 404) {
       return {
