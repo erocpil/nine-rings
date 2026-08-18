@@ -283,6 +283,41 @@ test.describe("编辑器复制粘贴", () => {
     await expect(editor.locator("p").nth(0)).toHaveText("| 技术领域 | 对应章节 | 核心内容 |");
     await expect(editor.locator("p").nth(3)).toHaveText("| Flow Director | 1.7 | queue级资源隔离 |");
   });
+
+  test("超过五万字符的 Markdown 可替换已有内容", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("旧内容");
+    await editor.click();
+    await page.keyboard.press("Control+A");
+    const markdown = [
+      "# 长文档粘贴",
+      "",
+      ...Array.from({ length: 420 }, (_, index) => [
+        `## 章节 ${index + 1}`,
+        "",
+        "这是用于验证超过五万字符的 Markdown 粘贴不会被拒绝的正文内容。".repeat(5),
+      ].join("\n")),
+    ].join("\n\n");
+    expect(markdown.length).toBeGreaterThan(50_000);
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    }, markdown);
+
+    await expect(editor.locator("h1").first()).toHaveText("长文档粘贴");
+    await expect(editor.locator("h2").last()).toHaveText("章节 420");
+    await expect(editor).not.toContainText("旧内容");
+  });
 });
 
 test.describe("文档树移动", () => {

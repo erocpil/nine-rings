@@ -310,7 +310,9 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       FontSize,
       ResizableImage.configure({ inline: false, allowBase64: true }),
       LinkExt.configure({ openOnClick: true }),
-      CharacterCount.configure({ limit: 50000 }),
+      // 仅用于统计，不限制文档长度。长 Markdown 粘贴（例如技术手册）
+      // 可能超过 50,000 字符；设置 limit 会让 ProseMirror 拒绝整笔事务。
+      CharacterCount.configure(),
       ActiveLinePlugin,
       CodeBlockLineNumbers,
       MarkdownLinkInput,
