@@ -517,10 +517,10 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         return;
       }
 
-      // 剪贴板同时有 HTML 时保留源应用的富文本；只对高置信
-      // 的纯文本 Markdown 自动格式化。
-      const hasHtml = Array.from(e.clipboardData.types).includes("text/html");
-      if (plainText && !hasHtml && looksLikeMarkdown(plainText)) {
+      // 浏览器和聊天应用复制 Markdown 时通常会同时提供 text/html。
+      // 高置信 Markdown 应优先按源码解析；普通富文本（包括 HTML 表格）
+      // 因 looksLikeMarkdown 为 false，仍交给编辑器保留原格式。
+      if (plainText && looksLikeMarkdown(plainText)) {
         e.preventDefault();
         const parsed = deltaToProseMirror(mdToDelta(plainText));
         editor.chain().focus().insertContent(parsed.content).run();

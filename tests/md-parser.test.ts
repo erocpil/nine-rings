@@ -272,6 +272,14 @@ This is a **bold** and *italic* text with \`code\`.
   assert(looksLikeMarkdown("# Resume Claim Defense"), "single heading is detected");
   assert(looksLikeMarkdown("- first\n- second"), "multi-line list is detected");
   assert(looksLikeMarkdown("```ts\nconst x = 1\n```"), "fenced code is detected");
+  assert(
+    looksLikeMarkdown(
+      "# 面试复习材料:DPDK / 内核网络 / SR-IOV & VIRTIO\n\n" +
+      "> 组织方式:每个知识点按【概念 → 原理 → 使用场景 → 值得关注项】展开。\n\n" +
+      "---\n\n# Part 1. DPDK 相关\n\n## 1.1 DPDK 整体架构 & EAL(环境抽象层)\n\n概念",
+    ),
+    "long interview notes with headings, quote and divider are detected",
+  );
   assert(!looksLikeMarkdown("1.0.0 is a version"), "version text is not detected");
   assert(!looksLikeMarkdown("> 100"), "single comparison-like line is not detected");
   assert(!looksLikeMarkdown("#12345"), "issue number is not detected");

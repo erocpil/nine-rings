@@ -209,6 +209,45 @@ test.describe("编辑器复制粘贴", () => {
 
     await expect(editor.locator("h1")).toHaveText("Resume Claim Defense");
   });
+
+  test("同时携带 HTML 的 Markdown 仍完整格式化", async ({ page }) => {
+    await page.goto("/");
+
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const markdown = [
+      "# 面试复习材料:DPDK / 内核网络 / SR-IOV & VIRTIO",
+      "",
+      "> 组织方式:每个知识点按【概念 → 原理 → 使用场景 → 值得关注项】展开。",
+      "",
+      "---",
+      "",
+      "# Part 1. DPDK 相关",
+      "",
+      "## 1.1 DPDK 整体架构 & EAL(环境抽象层)",
+      "",
+      "概念",
+    ].join("\n");
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      clipboardData.setData("text/html", `<div>${text.replaceAll("\n", "<br>")}</div>`);
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    }, markdown);
+
+    await expect(editor.locator("h1")).toHaveCount(2);
+    await expect(editor.locator("h1").first()).toHaveText("面试复习材料:DPDK / 内核网络 / SR-IOV & VIRTIO");
+    await expect(editor.locator("blockquote")).toContainText("组织方式");
+    await expect(editor.locator("h2")).toHaveText("1.1 DPDK 整体架构 & EAL(环境抽象层)");
+    await expect(editor.locator("p").last()).toHaveText("概念");
+  });
 });
 
 test.describe("文档树移动", () => {
