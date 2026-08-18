@@ -260,7 +260,11 @@ export function deltaToProseMirror(deltaData: any): any {
         isImageBlock = true;
         flushParagraph();
       } else if (insert.hr) {
-        flushParagraph();
+        // 分割线前若刚刚结束一个块，currentParagraph 会是空的；不能因此
+        // 插入一个额外空段落。
+        if (currentParagraph.content.length > 0 || isImageBlock) {
+          flushParagraph();
+        }
         doc.push({ type: "horizontalRule", content: [] });
       }
     }

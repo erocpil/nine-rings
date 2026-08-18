@@ -5,6 +5,7 @@
  */
 
 import { mdToDelta, extractTitle, looksLikeMarkdown } from "../src/lib/md-parser";
+import { deltaToProseMirror } from "../src/lib/delta-converter";
 
 let passed = 0;
 let failed = 0;
@@ -180,11 +181,47 @@ function assert(condition: boolean, msg: string): void {
   console.log("\n── Horizontal rule ──");
 
   const result = mdToDelta("---");
-  assert(result.ops.length >= 1, "hr generates something");
+  assert(result.ops.some((op: any) => op.insert?.hr), "hr generates horizontal-rule embed");
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 14. 混合语法
+// 14. 自动换行的段落与引用续行
+// ═══════════════════════════════════════════════════════════════════
+{
+  console.log("\n── Wrapped paragraphs and lazy blockquote continuation ──");
+
+  // 来自聊天应用的 Markdown 常在视觉换行处直接换行，并以两个空格缩进。
+  // `>` 后未再次出现 `>` 的行仍是同一条引用的续行。
+  const md = `# 面试复习材料:DPDK / 内核网络 / SR-IOV & VIRTIO
+
+  > 组织方式:每个知识点按【概念 → 原理 → 使用场景 → 值得关注项】展开。标注【简历关联】的地方,是可以直接对应到 SenseTime / Baidu /
+  Meituan / Datang 项目经历的点,面试时优先用真实项目回答;没有标注的属于知识补齐项,回答思路是"讲清楚是什么、为什么这样设计、典型怎么
+  用",不需要硬编项目经历。
+
+  ---
+
+  # Part 1. DPDK 相关
+
+  ## 1.1 DPDK 整体架构 & EAL(环境抽象层)
+
+  **概念**
+  DPDK(Data Plane Development Kit)是一套用户态高性能网络数据平面开发框架,核心思路是绕过内核协议栈,让应用直接在用户态收发网卡数据包,
+  消除内核态/用户态拷贝和上下文切换开销。`;
+  const pm = deltaToProseMirror(mdToDelta(md));
+
+  assert(pm.content.length === 6, "wrapped source produces 6 intended top-level blocks");
+  assert(pm.content[1]?.type === "blockquote", "quote remains a blockquote");
+  assert(
+    pm.content[1]?.content?.[0]?.content?.[0]?.text.includes("不需要硬编项目经历。"),
+    "unmarked quote continuation stays in the quote",
+  );
+  assert(pm.content[2]?.type === "horizontalRule", "divider remains a horizontal rule");
+  assert(pm.content[5]?.content?.map((node: any) => node.text).join("").includes("上下文切换开销。"),
+    "wrapped body stays in one paragraph");
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 15. 混合语法
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Mixed syntax ──");

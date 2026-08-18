@@ -7,7 +7,7 @@
  */
 
 interface DeltaOp {
-  insert: string;
+  insert: string | { hr: true };
   attributes?: Record<string, unknown>;
 }
 
@@ -139,6 +139,21 @@ export function mdToDelta(mdText: string): DeltaOps {
   let inCode = false;
   let codeBuf: string[] = [];
 
+  // Markdown 的单个换行是段落内的软换行，而不是新的段落。这里列出会
+  // 终止当前段落的块级语法；其余连续非空行会在下面合并为同一段。
+  const startsBlock = (text: string): boolean =>
+    /^```/.test(text) ||
+    /^[-*_]{3,}\s*$/.test(text) ||
+    /^(#{1,6})\s+.+$/.test(text) ||
+    /^>\s?(.*)$/.test(text) ||
+    /^[-*+]\s+.+$/.test(text) ||
+    /^\d+\.\s+.+$/.test(text);
+
+  const appendParagraph = (paragraphLines: string[]) => {
+    ops.push(...inlineToDelta(paragraphLines.join(" ")));
+    ops.push({ insert: "\n" });
+  };
+
   while (i < lines.length) {
     const line = lines[i];
     const stripped = line.trim();
@@ -167,7 +182,8 @@ export function mdToDelta(mdText: string): DeltaOps {
 
     // ── 空行 ──
     if (!stripped) {
-      if (ops.length > 0 && !ops[ops.length - 1].insert.endsWith("\n")) {
+      const previousInsert = ops[ops.length - 1]?.insert;
+      if (typeof previousInsert === "string" && !previousInsert.endsWith("\n")) {
         ops.push({ insert: "\n" });
       }
       i++;
@@ -176,8 +192,7 @@ export function mdToDelta(mdText: string): DeltaOps {
 
     // ── 分割线 ──
     if (/^[-*_]{3,}\s*$/.test(stripped)) {
-      ops.push({ insert: "─".repeat(8), attributes: { strike: true } });
-      ops.push({ insert: "\n" });
+      ops.push({ insert: { hr: true } });
       i++;
       continue;
     }
@@ -196,9 +211,20 @@ export function mdToDelta(mdText: string): DeltaOps {
     // ── 引用 ──
     const bqMatch = stripped.match(/^>\s?(.*)$/);
     if (bqMatch) {
-      ops.push(...inlineToDelta(bqMatch[1]));
-      ops.push({ insert: "\n", attributes: { blockquote: true } });
+      const paragraphLines = [bqMatch[1].trim()];
       i++;
+
+      // 引用块允许“懒续行”：后续文字即使没有再次写 `>`，仍属于同一个
+      // 引用段落。这是聊天工具复制的 Markdown 常见形式。
+      while (i < lines.length) {
+        const continuation = lines[i].trim();
+        if (!continuation || startsBlock(continuation)) break;
+        paragraphLines.push(continuation);
+        i++;
+      }
+
+      ops.push(...inlineToDelta(paragraphLines.join(" ")));
+      ops.push({ insert: "\n", attributes: { blockquote: true } });
       continue;
     }
 
@@ -221,9 +247,15 @@ export function mdToDelta(mdText: string): DeltaOps {
     }
 
     // ── 普通段落 ──
-    ops.push(...inlineToDelta(line));
-    ops.push({ insert: "\n" });
+    const paragraphLines = [stripped];
     i++;
+    while (i < lines.length) {
+      const continuation = lines[i].trim();
+      if (!continuation || startsBlock(continuation)) break;
+      paragraphLines.push(continuation);
+      i++;
+    }
+    appendParagraph(paragraphLines);
   }
 
   // 关闭未闭合的代码块
