@@ -247,6 +247,7 @@ test.describe("编辑器复制粘贴", () => {
     await expect(editor.locator("blockquote")).toContainText("组织方式");
     await expect(editor.locator("h2")).toHaveText("1.1 DPDK 整体架构 & EAL(环境抽象层)");
     await expect(editor.locator("p").last()).toHaveText("概念");
+    await expect(editor).not.toContainText("# 面试复习材料:DPDK / 内核网络 / SR-IOV & VIRTIO");
   });
 });
 
