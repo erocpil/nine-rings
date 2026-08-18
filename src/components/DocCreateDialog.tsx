@@ -3,7 +3,7 @@ import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import type { DocType, Note } from "../types/models";
 import { templateStore, type Template } from "../lib/storage/template-store";
-import { splitSuggestedDocPath } from "../lib/storage/core";
+import { buildDocumentStoragePath, splitSuggestedDocPath } from "../lib/storage/core";
 
 interface DocCreateDialogProps {
   onClose: () => void;
@@ -19,6 +19,7 @@ const PATH_OPTIONS = [
   { value: "ideas", label: "💡\uFE0F Ideas", desc: "缓冲想法" },
   { value: "archives", label: "📦\uFE0F Archives", desc: "归档" },
 ];
+const CUSTOM_ROOT_VALUE = "__custom_root__";
 
 const DOC_TYPE_OPTIONS: { value: DocType; label: string; desc: string }[] = [
   { value: "explanation", label: "📖 解释", desc: "说明原理、设计思路、为什么" },
@@ -45,6 +46,7 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
   const [suggestion] = useState(() => splitSuggestedDocPath(suggestedPath));
   const [title, setTitle] = useState("");
   const [rootPath, setRootPath] = useState(suggestion.rootPath);
+  const [customRootPath, setCustomRootPath] = useState("");
   const [subPath, setSubPath] = useState(suggestion.subPath);
   const [pathTouched, setPathTouched] = useState(false);
   const [docType, setDocType] = useState<DocType>("explanation");
@@ -55,11 +57,18 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
   const [saving, setSaving] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
+  const [customRootSuggestions, setCustomRootSuggestions] = useState<string[]>([]);
   const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     titleRef.current?.focus();
     api.docs.allConcepts().then(setExistingConcepts);
+    api.docs.tree().then((tree) => {
+      const roots = tree
+        .filter((node) => node.type === "folder" && !node.path.includes("/") && node.path !== "daily")
+        .map((node) => node.name);
+      setCustomRootSuggestions([...new Set(roots)]);
+    }).catch(() => {});
     // 加载模板
     templateStore.seedBuiltinTemplates().then(() =>
       templateStore.listTemplates()
@@ -82,6 +91,7 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
       } else {
         setRootPath("projects");
       }
+      setCustomRootPath("");
       setSubPath(meta.subPath);
       setPathTouched(true);
       if (meta.docType) setDocType(meta.docType);
@@ -123,6 +133,7 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
 
   const handleRootPathChange = (v: string) => {
     setRootPath(v);
+    if (v !== CUSTOM_ROOT_VALUE) setCustomRootPath("");
     setPathTouched(true);
   };
 
@@ -132,11 +143,11 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
   };
 
   const buildStoragePath = (): string => {
-    const parts = [rootPath];
-    if (subPath.trim()) {
-      parts.push(subPath.trim().replace(/[^a-zA-Z0-9-\u4e00-\u9fff]/g, "-").replace(/-+/g, "-"));
-    }
-    return parts.join("/");
+    return buildDocumentStoragePath(
+      rootPath === CUSTOM_ROOT_VALUE ? customRootPath : rootPath,
+      subPath,
+      rootPath === CUSTOM_ROOT_VALUE,
+    );
   };
 
   const handleSubmit = async () => {
@@ -239,8 +250,26 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
                     {o.label} — {o.desc}
                   </option>
                 ))}
+                <option value={CUSTOM_ROOT_VALUE}>➕ 自定义一级目录</option>
               </select>
-              <span className="dialog-path-sep">/</span>
+              {rootPath === CUSTOM_ROOT_VALUE && <>
+                <span className="dialog-path-sep">/</span>
+                <input
+                  type="text"
+                  className="dialog-input dialog-path-input"
+                  placeholder="一级目录 (如 private)"
+                  value={customRootPath}
+                  list="custom-root-paths"
+                  onChange={(e) => {
+                    setCustomRootPath(e.target.value);
+                    setPathTouched(true);
+                  }}
+                />
+                <datalist id="custom-root-paths">
+                  {customRootSuggestions.map((path) => <option key={path} value={path} />)}
+                </datalist>
+              </>}
+              <span className="dialog-path-sep">{rootPath === CUSTOM_ROOT_VALUE ? "+" : "/"}</span>
               <input
                 type="text"
                 className={`dialog-input dialog-path-input ${showSuggestion ? "suggested" : ""}`}
@@ -327,7 +356,7 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
           <button
             className="btn btn-primary"
             onClick={handleSubmit}
-            disabled={!title.trim() || saving}
+            disabled={!title.trim() || !buildStoragePath() || saving}
           >
             {saving ? "创建中..." : "创建"}
           </button>

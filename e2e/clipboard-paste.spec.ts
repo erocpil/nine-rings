@@ -188,9 +188,45 @@ test.describe("编辑器复制粘贴", () => {
     await expect(editor.locator("p").nth(2)).toHaveText("| DPDK | 百度 / Bless / 商汤 |");
     await expect(editor.locator("p").nth(3)).toHaveText("| NIC | CX-5/CX-6 / Bless |");
   });
+
+  test("单行 Markdown 标题粘贴转换为一级标题", async ({ page }) => {
+    await page.goto("/");
+
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", "# Resume Claim Defense");
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    });
+
+    await expect(editor.locator("h1")).toHaveText("Resume Claim Defense");
+  });
 });
 
 test.describe("文档树移动", () => {
+  test("可新建自定义一级目录", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("文档树").click();
+    await page.getByTitle("新建文档").click();
+
+    await page.getByPlaceholder("文档标题...").fill("自定义目录文档");
+    await page.locator("select.dialog-select").selectOption("__custom_root__");
+    await page.getByPlaceholder("一级目录 (如 private)").fill("private");
+    await page.getByPlaceholder("子路径 (如 nine-rings)").fill("ip");
+    await expect(page.locator(".dialog-path-preview code")).toHaveText("private-ip");
+    await page.getByRole("button", { name: "创建" }).click();
+
+    await expect(page.locator(".doc-tree-folder").filter({ hasText: "private-ip" })).toHaveCount(1);
+  });
+
   test("移动文档后树和当前编辑器刷新，页面重载后仍在目标目录", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("文档树").click();

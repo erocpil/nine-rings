@@ -66,6 +66,26 @@ export function assertFolderRelocation(sourceInput: string, targetInput: string)
 /** P.A.R.A. 生命周期顶层目录（新建文档的根路径候选） */
 export const PARA_TOP_DIRS = ["projects", "areas", "references", "ideas", "archives"] as const;
 
+/**
+ * 生成新建文档的目录路径。
+ * 自定义一级目录会将可自动补全的前缀和用户输入的后缀以连字符连接，
+ * 例如 `private` + `ip` → `private-ip`。
+ */
+export function buildDocumentStoragePath(rootPath: string, subPath: string, customRoot = false): string {
+  const normalizeSegment = (value: string) => value
+    .trim()
+    .replace(/^\/+|\/+$/g, "")
+    .replace(/[^a-zA-Z0-9-\u4e00-\u9fff]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  const root = normalizeSegment(rootPath);
+  const suffix = normalizeSegment(subPath);
+  if (!root) return "";
+  if (!suffix) return root;
+  return customRoot ? `${root}-${suffix}` : `${root}/${suffix}`;
+}
+
 /** 将文档目录路径拆解为 rootPath + subPath，用于新建文档时预填位置 */
 export function splitSuggestedDocPath(path?: string): { rootPath: string; subPath: string; hasSuggestion: boolean } {
   if (!path) return { rootPath: "projects", subPath: "", hasSuggestion: false };

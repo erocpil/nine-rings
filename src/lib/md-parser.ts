@@ -21,6 +21,8 @@ export function looksLikeMarkdown(text: string): boolean {
   const fenced = lines.filter((line) => /^\s*```/.test(line)).length;
   if (fenced >= 2) return true;
 
+  if (lines.length === 1 && /^\s*#{1,6}\s+\S/.test(lines[0])) return true;
+
   let blockSignals = 0;
   for (const line of lines) {
     if (/^\s*#{1,6}\s+\S/.test(line)) blockSignals++;

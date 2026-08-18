@@ -269,6 +269,7 @@ This is a **bold** and *italic* text with \`code\`.
 {
   console.log("\n── Markdown paste detection ──");
   assert(looksLikeMarkdown("### 先消除\n\n> 能不做的就不做"), "heading + quote is detected");
+  assert(looksLikeMarkdown("# Resume Claim Defense"), "single heading is detected");
   assert(looksLikeMarkdown("- first\n- second"), "multi-line list is detected");
   assert(looksLikeMarkdown("```ts\nconst x = 1\n```"), "fenced code is detected");
   assert(!looksLikeMarkdown("1.0.0 is a version"), "version text is not detected");

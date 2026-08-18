@@ -9,7 +9,7 @@
  * - uuid / now（工具函数）
  */
 
-import { buildDocTree, splitSuggestedDocPath, upsertMatchKey, type FlatDocRecord, type FlatDailyRecord } from "../src/lib/storage/core";
+import { buildDocTree, buildDocumentStoragePath, splitSuggestedDocPath, upsertMatchKey, type FlatDocRecord, type FlatDailyRecord } from "../src/lib/storage/core";
 import { getOtherFolderPaths, getVisibleDocumentTreeNodes } from "../src/lib/doc-tree-collapse";
 
 let passed = 0;
@@ -23,6 +23,13 @@ function assert(condition: boolean, msg: string): void {
 
 function deepEqual(a: any, b: any): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+{
+  console.log("\n── buildDocumentStoragePath ──");
+  assert(buildDocumentStoragePath("projects", "nine-rings") === "projects/nine-rings", "P.A.R.A. root preserves child directory");
+  assert(buildDocumentStoragePath("/private/", "/ip/", true) === "private-ip", "custom top-level directory joins prefix and suffix");
+  assert(buildDocumentStoragePath("private", "", true) === "private", "custom root may omit suffix");
 }
 
 // ═══════════════════════════════════════════════════════════════════
