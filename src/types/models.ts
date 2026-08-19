@@ -26,6 +26,13 @@ export interface Note {
   linkedDocIds?: string[];
 }
 
+/** One-shot request to reveal a full-text-search occurrence in the editor. */
+export interface SearchNavigationTarget {
+  noteId: string;
+  query: string;
+  requestId: number;
+}
+
 // ── PathNode: 文档树节点 ──
 
 export interface PathNode {

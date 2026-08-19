@@ -14,7 +14,7 @@ import {
   normalizeSingleParagraphPaste,
 } from "../extensions/NormalizeSingleParagraphPaste";
 import CharacterCount from "@tiptap/extension-character-count";
-import type { DeltaOps } from "../types/models";
+import type { DeltaOps, SearchNavigationTarget } from "../types/models";
 import {
   proseMirrorToDelta,
   deltaToProseMirror,
@@ -34,6 +34,7 @@ import { createGutterClickHandler } from "../extensions/LineNumberInsert";
 import { storeImage } from "../lib/storage/db-images";
 import { api } from "../lib/api";
 import { looksLikeMarkdown, mdToDelta } from "../lib/md-parser";
+import { SearchHighlights, findSearchMatches, setSearchHighlights, type SearchMatch } from "../extensions/SearchHighlights";
 
 const FontSize = Extension.create({
   name: "fontSize",
@@ -136,14 +137,20 @@ interface NoteEditorProps {
   onFocusModeChange?: (focus: boolean) => void;
   onStickyTitleChange?: (title: string | null) => void;
   saveStatus?: "clean" | "dirty" | "saving" | "saved" | "error";
+  searchTarget?: SearchNavigationTarget | null;
+  onSearchTargetConsumed?: (requestId: number) => void;
 }
 
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, highlightActiveLine, useCustomContextMenu, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, saveStatus }: NoteEditorProps) {
+export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, highlightActiveLine, useCustomContextMenu, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
   const titleRef = useRef<HTMLDivElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const searchMatchesRef = useRef<SearchMatch[]>([]);
+  const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
+  const [activeSearchMatch, setActiveSearchMatch] = useState(0);
   const [colorOpen, setColorOpen] = useState(false);
   const [sizeOpen, setSizeOpen] = useState(false);
   const [imageDialog, setImageDialog] = useState(false);
@@ -314,6 +321,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       // 可能超过 50,000 字符；设置 limit 会让 ProseMirror 拒绝整笔事务。
       CharacterCount.configure(),
       ActiveLinePlugin,
+      SearchHighlights,
       CodeBlockLineNumbers,
       MarkdownLinkInput,
     ],
@@ -324,6 +332,12 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       transformPasted: normalizeSingleParagraphPaste,
     },
     onUpdate: ({ editor: ed }) => {
+      // 搜索高亮是导航提示，不应在用户开始修改正文后继续指向旧位置。
+      if (searchMatchesRef.current.length > 0) {
+        searchMatchesRef.current = [];
+        setSearchMatches([]);
+        setSearchHighlights(ed, [], 0);
+      }
       // 保存时转为 Quill Delta（含字体大小 px→named 映射）
       const pmJson = ed.getJSON();
       const delta = proseMirrorToDelta(pmJson);
@@ -371,6 +385,138 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   useEffect(() => {
     editor?.setEditable(!readonly);
   }, [readonly, editor]);
+
+  const revealSearchMatch = useCallback((requestedIndex: number, suppliedMatches?: SearchMatch[]) => {
+    if (!editor) return;
+    const matches = suppliedMatches ?? searchMatchesRef.current;
+    if (!matches.length) return;
+    const index = (requestedIndex + matches.length) % matches.length;
+    const match = matches[index];
+    setActiveSearchMatch(index);
+    setSearchHighlights(editor, matches, index);
+
+    // 防止浏览器先把整个编辑器滚到不可预测的位置，再把命中放到
+    // 可视正文区域约 1/3 的高度，保留足够的前后文。
+    editor.view.dom.focus({ preventScroll: true });
+    editor.commands.setTextSelection({ from: match.from, to: match.to });
+    requestAnimationFrame(() => {
+      const root = scrollRef.current;
+      if (!root || editor.isDestroyed) return;
+      const rootRect = root.getBoundingClientRect();
+      const sticky = root.querySelector<HTMLElement>(".note-editor-sticky");
+      const stickyBottom = sticky?.getBoundingClientRect().bottom ?? rootRect.top;
+      const visibleTop = Math.max(rootRect.top, Math.min(stickyBottom, rootRect.bottom));
+      const targetTop = visibleTop + Math.max(24, (rootRect.bottom - visibleTop) * 0.30);
+      const coords = editor.view.coordsAtPos(match.from);
+      root.scrollTop += coords.top - targetTop;
+    });
+  }, [editor]);
+
+  // 接收搜索列表传来的一次性定位请求。优先匹配完整短语；FTS 的
+  // 多词 AND 查询若没有连续短语，则回退到各个词的命中位置。
+  useEffect(() => {
+    if (!editor || !searchTarget || searchTarget.noteId !== noteId) return;
+    let matches = findSearchMatches(editor.state.doc, searchTarget.query);
+    if (matches.length === 0) {
+      const terms = Array.from(new Set(searchTarget.query.trim().split(/\s+/).filter(Boolean)));
+      if (terms.length > 1) {
+        matches = terms
+          .flatMap((term) => findSearchMatches(editor.state.doc, term))
+          .sort((a, b) => a.from - b.from || a.to - b.to)
+          .filter((match, index, all) => index === 0 || match.from !== all[index - 1].from || match.to !== all[index - 1].to);
+      }
+    }
+
+    searchMatchesRef.current = matches;
+    setSearchMatches(matches);
+    setActiveSearchMatch(0);
+
+    if (matches.length > 0) {
+      revealSearchMatch(0, matches);
+    } else {
+      setSearchHighlights(editor, [], 0);
+      const input = titleInputRef.current;
+      const titleText = title ?? "";
+      const loweredTitle = titleText.toLocaleLowerCase();
+      let index = loweredTitle.indexOf(searchTarget.query.toLocaleLowerCase());
+      let length = searchTarget.query.length;
+      if (index < 0) {
+        const term = searchTarget.query.trim().split(/\s+/).find((part) => loweredTitle.includes(part.toLocaleLowerCase()));
+        if (term) {
+          index = loweredTitle.indexOf(term.toLocaleLowerCase());
+          length = term.length;
+        }
+      }
+      if (input && index >= 0) {
+        input.focus({ preventScroll: true });
+        input.setSelectionRange(index, index + length);
+        scrollRef.current?.scrollTo({ top: 0 });
+      }
+    }
+    onSearchTargetConsumed?.(searchTarget.requestId);
+  }, [editor, noteId, onSearchTargetConsumed, revealSearchMatch, searchTarget, title]);
+
+  // 宽度变化会让软换行重排。用当前选区的屏幕 Y 坐标作为锚点，
+  // 在 ResizeObserver 报告新宽度后补偿 scrollTop，使同一文本保持原位。
+  useEffect(() => {
+    if (!editor) return;
+    const root = scrollRef.current;
+    if (!root || typeof ResizeObserver === "undefined") return;
+
+    let frame = 0;
+    let adjusting = false;
+    let anchor: { pos: number; viewportTop: number; width: number; visible: boolean } | null = null;
+
+    const capture = () => {
+      frame = 0;
+      if (adjusting || editor.isDestroyed || !root.isConnected) return;
+      const pos = Math.min(editor.state.selection.head, editor.state.doc.content.size);
+      const coords = editor.view.coordsAtPos(pos);
+      const rect = root.getBoundingClientRect();
+      anchor = {
+        pos,
+        viewportTop: coords.top,
+        width: root.clientWidth,
+        visible: coords.bottom >= rect.top && coords.top <= rect.bottom,
+      };
+    };
+    const scheduleCapture = () => {
+      if (!frame) frame = requestAnimationFrame(capture);
+    };
+
+    const observer = new ResizeObserver(() => {
+      const nextWidth = root.clientWidth;
+      if (!anchor || Math.abs(nextWidth - anchor.width) < 0.5) {
+        scheduleCapture();
+        return;
+      }
+      const previous = anchor;
+      requestAnimationFrame(() => {
+        if (editor.isDestroyed || !root.isConnected) return;
+        adjusting = true;
+        if (previous.visible) {
+          const pos = Math.min(previous.pos, editor.state.doc.content.size);
+          const nextTop = editor.view.coordsAtPos(pos).top;
+          root.scrollTop += nextTop - previous.viewportTop;
+        }
+        adjusting = false;
+        requestAnimationFrame(capture);
+      });
+    });
+
+    editor.on("selectionUpdate", scheduleCapture);
+    editor.on("focus", scheduleCapture);
+    root.addEventListener("scroll", scheduleCapture, { passive: true });
+    observer.observe(root);
+    scheduleCapture();
+    return () => {
+      editor.off("selectionUpdate", scheduleCapture);
+      editor.off("focus", scheduleCapture);
+      root.removeEventListener("scroll", scheduleCapture);
+      observer.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [editor]);
 
   // 行号 gutter 点击：在当前 block 前插入空行（只读模式跳过）
   useEffect(() => {
@@ -771,6 +917,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         <div className="note-title-row" ref={titleRef}>
           {readonly && <span className="note-readonly-badge" title="只读">🔒</span>}
           <input
+            ref={titleInputRef}
             type="text"
             className="note-title"
             placeholder="随心记 — 标题"
@@ -1272,6 +1419,23 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
       {/* ── 底部信息栏（位置 + 字数 + 版本历史）─ */}
       <div className="editor-stats">
+        {searchMatches.length > 0 && (
+          <span className="editor-search-navigation" role="status" aria-live="polite">
+            <span>{activeSearchMatch + 1} / {searchMatches.length}</span>
+            <button type="button" onClick={() => revealSearchMatch(activeSearchMatch - 1)} title="上一处匹配" aria-label="上一处匹配">↑</button>
+            <button type="button" onClick={() => revealSearchMatch(activeSearchMatch + 1)} title="下一处匹配" aria-label="下一处匹配">↓</button>
+            <button
+              type="button"
+              onClick={() => {
+                searchMatchesRef.current = [];
+                setSearchMatches([]);
+                setSearchHighlights(editor, [], 0);
+              }}
+              title="关闭搜索高亮"
+              aria-label="关闭搜索高亮"
+            >×</button>
+          </span>
+        )}
         <span>行 {currentBlock} / {totalBlocks}（{scrollPct}%）</span>
         <span className="stat-sep">|</span>
         <span>{chars} 字符</span>

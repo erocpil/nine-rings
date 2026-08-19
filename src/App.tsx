@@ -27,7 +27,7 @@ import DocTree from "./components/DocTree";
 import DocCreateDialog from "./components/DocCreateDialog";
 import PropertiesPanel from "./components/PropertiesPanel";
 import { DocMOC } from "./components/DocMOC";
-import type { DeltaOps, Note, DocType } from "./types/models";
+import type { DeltaOps, Note, DocType, SearchNavigationTarget } from "./types/models";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
 import type { Template } from "./lib/storage/template-store";
 import { templateStore } from "./lib/storage/template-store";
@@ -54,6 +54,8 @@ function App() {
   const { search, results, query, setQuery } = useSearch();
   const [docResults, setDocResults] = useState<Note[] | null>(null);
   const [docSearchText, setDocSearchText] = useState("");
+  const [editorSearchTarget, setEditorSearchTarget] = useState<SearchNavigationTarget | null>(null);
+  const searchRequestIdRef = useRef(0);
 
   // ── 自动保存 Hook ──
   const autoSave = useAutoSave({
@@ -495,7 +497,15 @@ function App() {
   };
 
   // ── 清除搜索状态（搜索结果点击 / 侧栏选择时调用）──
-  const clearSearchAndSelect = useCallback((note: Note, keepSearch = false) => {
+  const clearSearchAndSelect = useCallback((note: Note, keepSearch = false, searchTerm = "") => {
+    if (searchTerm.trim()) {
+      searchRequestIdRef.current += 1;
+      setEditorSearchTarget({
+        noteId: note.id,
+        query: searchTerm.trim(),
+        requestId: searchRequestIdRef.current,
+      });
+    }
     if (!keepSearch) {
       setQuery("");           // 仅清 query 状态，保留 SearchBar 输入框值
       setDocResults(null);    // 清除文档搜索
@@ -503,7 +513,11 @@ function App() {
     }
     handleSelectNote(note);
     setDate(note.date);
-  }, [setQuery, selectNote, setDate]);
+  }, [setQuery, handleSelectNote, setDate]);
+
+  const handleSearchTargetConsumed = useCallback((requestId: number) => {
+    setEditorSearchTarget((current) => current?.requestId === requestId ? null : current);
+  }, []);
 
   return (
     <div className={`app ${focusMode ? "app-focus-mode" : ""}`}>
@@ -779,7 +793,15 @@ function App() {
                 <div className="search-section-label">笔记</div>
               )}
               {(docResults ? docResults : results.notes).map((r) => (
-                <div key={r.id} className="search-hit" onClick={(e) => clearSearchAndSelect(r, e.ctrlKey || e.metaKey)}>
+                <div
+                  key={r.id}
+                  className="search-hit"
+                  onClick={(e) => clearSearchAndSelect(
+                    r,
+                    e.ctrlKey || e.metaKey,
+                    docResults ? docSearchText : query,
+                  )}
+                >
                   <div className="search-hit-title">{r.title || "无标题"}</div>
                   <div className="search-hit-date">{r.date}</div>
                   {r.storagePath && <div className="search-hit-path">{r.storagePath}</div>}
@@ -876,6 +898,8 @@ function App() {
                     showLineNumbers={config?.editor_show_line_numbers ?? false}
                     highlightActiveLine={config?.highlight_active_line ?? true}
                     useCustomContextMenu={config?.use_custom_context_menu ?? true}
+                    searchTarget={editorSearchTarget?.noteId === selectedNote.id ? editorSearchTarget : null}
+                    onSearchTargetConsumed={handleSearchTargetConsumed}
                     onTitleChange={handleTitleChange}
                     onContentChange={handleContentChange}
                     onTagsChange={handleTagsChange}
