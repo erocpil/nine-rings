@@ -29,15 +29,17 @@
 | 模块 | 说明 |
 |------|------|
 | **每日一页** | 按日期聚合笔记与待办，新建日期页可选跨日继承未完成待办 |
-| **富文本编辑** | TipTap 编辑器，支持标题、列表、引用、代码块（行号）、图片、链接 |
+| **富文本编辑** | TipTap 编辑器，支持标题、列表、引用、代码块（行号）、图片、链接、可编辑 Markdown 表格 |
+| **Markdown 粘贴** | 剪贴板粘贴自动识别 Markdown / HTML 表格并保留结构，长文防重复粘贴 |
 | **待办列表** | 每日独立待办清单，跨日继承，提醒通知 |
 | **标签系统** | 笔记 + 待办双向标签，标签筛选面板 |
-| **搜索** | 全文搜索，搜索结果高亮 + 上下文片段 |
-| **文档管理** | P.A.R.A. 目录 × Zettelkasten 概念 × Diátaxis 类型 三维分类，MOC 视图 |
+| **搜索** | 全文搜索，结果高亮 + 上下文片段，命中定位跳转编辑器 |
+| **文档管理** | P.A.R.A. 目录 × Zettelkasten 概念 × Diátaxis 类型 三维分类，MOC 视图，自定义根路径 |
 | **版本历史** | 自动保存版本快照，支持回退 |
 | **回收站** | 软删除，可配置自动清理天数 |
 | **主题** | 8 套配色（浅 / 深 / 暗 / 静 / 蔚 / 粋 / 雅 / 幟） |
-| **文件管理** | 导入 / 导出 JSON 备份；Markdown → Nine Rings 一键导入 |
+| **编辑体验** | 会话恢复、查找对话框、块级行号 / 插入按钮、响应式工具栏 |
+| **文件管理** | 导入 / 导出 JSON 备份；Markdown → Nine Rings 一键导入（脚本或设置面板） |
 | **PWA** | 离线可用，Service Worker 缓存策略，可安装到桌面 |
 | **多框架** | Web（React） + macOS / Linux / Windows（Tauri） + macOS / iOS / Android（Flutter，核心功能已实现） |
 
@@ -131,6 +133,10 @@ npm run tauri build
 
 ### Markdown 导入
 
+应用内「设置 → Markdown 导入」支持直接选择 `.md` 文件，配置导入类型（文档 / 随笔）、目录、文档类型与标签，无需脚本。
+
+脚本方式（批量导入目录）：
+
 ```bash
 # 1. 启动 Vite dev server
 cd ~/src/nine-rings
@@ -199,12 +205,12 @@ flutter build apk
 ```
 nine-rings/
 ├── src/                  # React 前端源码
-│   ├── components/       # UI 组件
+│   ├── components/       # UI 组件（编辑器块 gutter、文档树、MOC 等）
 │   ├── hooks/            # 自定义 hooks
-│   ├── lib/              # 工具库 (API, Delta 转换, Markdown 解析, 存储)
+│   ├── lib/              # 工具库 (API, Delta 转换, Markdown 解析/导入/序列化, 表格, 存储)
 │   ├── stores/           # Zustand 状态管理
 │   ├── types/            # TypeScript 类型定义
-│   └── extensions/       # TipTap 自定义扩展
+│   └── extensions/       # TipTap 自定义扩展（代码块行号、搜索高亮等）
 ├── src-tauri/            # Tauri 桌面端 (Rust)
 │   └── src/
 │       ├── commands/     # IPC 命令
@@ -220,6 +226,8 @@ nine-rings/
 ├── schema/               # 共享数据契约 (YAML)
 ├── docs/                 # 设计文档
 ├── scripts/              # 工具脚本
+├── tests/                # 单元 / 集成测试（tsx）
+├── e2e/                  # Playwright 端到端测试
 └── public/               # PWA Service Worker + 图标
 ```
 
