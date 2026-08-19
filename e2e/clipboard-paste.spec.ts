@@ -102,6 +102,43 @@ test.describe("编辑器复制粘贴", () => {
     await expect(editor.locator("p")).toHaveText("前缀 后缀中间文本");
   });
 
+  test("粘贴按钮优先将同时携带 HTML 的 Markdown 解析为多级列表", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.goto("/");
+
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const markdown = [
+      "- **VFIO/UIO接入层**",
+      "  - 提供中断事件通道，用于链路状态和错误处理。",
+      "  - VFIO结合IOMMU时，为设备建立独立DMA域。",
+      "- **PMD/ethdev层**",
+      "  - ethdev提供统一的端口和queue接口。",
+    ].join("\n");
+    await page.evaluate(async (text) => {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([text], { type: "text/plain" }),
+          "text/html": new Blob([
+            `<div>${text.replaceAll("\n", "<br>")}</div>`,
+          ], { type: "text/html" }),
+        }),
+      ]);
+    }, markdown);
+
+    await page.getByTitle("粘贴 (Ctrl+V)").click();
+
+    const editor = page.locator(".ProseMirror");
+    const rootItems = editor.locator(":scope > ul > li");
+    await expect(rootItems).toHaveCount(2);
+    await expect(rootItems.first().locator(":scope > p strong")).toHaveText("VFIO/UIO接入层");
+    await expect(rootItems.first().locator(":scope > ul > li")).toHaveCount(2);
+    await expect(rootItems.nth(1).locator(":scope > ul > li")).toHaveCount(1);
+    await expect(editor).not.toContainText("- **VFIO/UIO接入层**");
+  });
+
   test("Windows 风格段内边界换行不会变成粘贴前后空行", async ({ page }) => {
     await page.goto("/");
 

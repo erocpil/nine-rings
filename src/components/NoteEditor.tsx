@@ -819,8 +819,21 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   };
   const handleClipboardPaste = async () => {
     try {
-      // 优先读取 HTML 以保留格式，避免纯文本序列化的多余换行
+      // 与原生 Ctrl+V 保持一致：代码编辑器复制 Markdown 时通常同时提供
+      // text/plain 和 text/html，必须先判断源码，否则列表会被当成普通 HTML 文本。
       const items = await navigator.clipboard.read();
+      for (const item of items) {
+        if (item.types.includes("text/plain")) {
+          const blob = await item.getType("text/plain");
+          const plainText = (await blob.text()).trim();
+          if (plainText && looksLikeMarkdown(plainText)) {
+            const parsed = deltaToProseMirror(mdToDelta(plainText));
+            editor.chain().focus().insertContent(parsed.content).run();
+            setMarkdownPasteText(plainText);
+            return;
+          }
+        }
+      }
       for (const item of items) {
         if (item.types.includes("text/html")) {
           const blob = await item.getType("text/html");
@@ -829,7 +842,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           return;
         }
       }
-      // 回退：纯文本，去除首尾空白以防空段落
+      // 回退：普通纯文本，去除首尾空白以防空段落
       const text = await navigator.clipboard.readText();
       const trimmed = text.replace(/^\s+|\s+$/g, '');
       if (trimmed) {
