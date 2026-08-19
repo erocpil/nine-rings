@@ -1310,6 +1310,60 @@ body {
   min-width: 64px;
 }
 
+.editor-find-bar {
+  display: flex;
+  align-items: center;
+  width: min(360px, calc(100% - 12px));
+  margin: 0 0 6px auto;
+  padding: 4px;
+  gap: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 2px 8px var(--shadow-color, rgba(0, 0, 0, 0.15));
+}
+
+.editor-find-bar input {
+  flex: 1;
+  min-width: 80px;
+  padding: 4px 6px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.editor-find-count {
+  min-width: 34px;
+  color: var(--text-secondary);
+  text-align: center;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-find-bar button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.editor-find-bar button:hover:not(:disabled) {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.editor-find-bar button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .menu-btn {
   background: none;
   border: 1px solid transparent;

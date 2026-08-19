@@ -191,8 +191,14 @@ function App() {
     setPropertiesOpen(propertiesAutoShow && !!selectedNote?.storagePath);
   }, [propertiesAutoShow, selectedNote]);
   const LAST_NOTE_KEY = "nr:lastNote";
+  const startupLastNoteIdRef = useRef(localStorage.getItem(LAST_NOTE_KEY));
+  const startupLoadObservedRef = useRef(false);
+  const startupRestoreStartedRef = useRef(false);
+  const startupRestoreCompleteRef = useRef(false);
   useEffect(() => {
-    if (!selectedNote) return;
+    // 首次 setDate 会暂时选择当天第一篇笔记；在恢复流程完成前不能用它
+    // 覆盖真正的跨日期/文档 lastNote。
+    if (!selectedNote || !startupRestoreCompleteRef.current) return;
     localStorage.setItem(LAST_NOTE_KEY, selectedNote.id);
   }, [selectedNote]);
 
@@ -250,23 +256,30 @@ function App() {
 
   // 启动时恢复最后浏览的笔记（跨日查找）
   useEffect(() => {
-    if (loading) return;
-    const lastId = localStorage.getItem(LAST_NOTE_KEY);
-    if (!lastId) return;
-    // 先看当前日期列表里有没有
-    const found = notes.find((n) => n.id === lastId);
-    if (found) {
-      handleSelectNote(found);
+    if (loading) {
+      startupLoadObservedRef.current = true;
       return;
     }
-    // 不在当前日期 → 全局查找
-    api.notes.get(lastId).then((note) => {
-      if (note) {
-        setDate(note.date);
-        handleSelectNote(note);
+    // useNotes 的首次 setDate 在 effect 中启动；首次 render 的 loading 仍为
+    // false，必须等它完整跑过一次，避免其结果随后覆盖恢复出的文档。
+    if (!startupLoadObservedRef.current || startupRestoreStartedRef.current) return;
+    startupRestoreStartedRef.current = true;
+    const restore = async () => {
+      const lastId = startupLastNoteIdRef.current;
+      let restored = lastId ? notes.find((note) => note.id === lastId) ?? null : null;
+      if (!restored && lastId) {
+        restored = await api.notes.get(lastId).catch(() => null);
       }
-    }).catch(() => {});
-  }, [loading]);
+      if (restored) {
+        if (restored.date !== currentDate) await setDate(restored.date);
+        handleSelectNote(restored);
+      }
+      startupRestoreCompleteRef.current = true;
+      const finalSelection = restored ?? useNotesStore.getState().selectedNote;
+      if (finalSelection) localStorage.setItem(LAST_NOTE_KEY, finalSelection.id);
+    };
+    void restore();
+  }, [currentDate, handleSelectNote, loading, notes, setDate]);
 
   // ── 可拖拽分隔条 ──
   const SPLIT_KEY = "nr:todoSplit";

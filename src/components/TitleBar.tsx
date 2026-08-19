@@ -9,6 +9,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 export default function TitleBar() {
   const handleClose = async () => {
     try {
+      window.dispatchEvent(new Event("nine-rings:main-window-hide"));
       await getCurrentWindow().hide();
     } catch (error) {
       // WebView2 恢复/切换桌面后偶发 hide IPC 失败，避免未处理 rejection 让按钮看起来失效。

@@ -189,8 +189,11 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const scrollRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const searchMatchesRef = useRef<SearchMatch[]>([]);
+  const editorFindInputRef = useRef<HTMLInputElement>(null);
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
   const [activeSearchMatch, setActiveSearchMatch] = useState(0);
+  const [editorFindOpen, setEditorFindOpen] = useState(false);
+  const [editorFindQuery, setEditorFindQuery] = useState("");
   const [colorOpen, setColorOpen] = useState(false);
   const [sizeOpen, setSizeOpen] = useState(false);
   const [imageDialog, setImageDialog] = useState(false);
@@ -386,6 +389,10 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       transformPastedHTML: normalizePastedHTML,
       transformPasted: normalizeSingleParagraphPaste,
     },
+    onSelectionUpdate: ({ editor: ed }) => {
+      const { from, to } = ed.state.selection;
+      localStorage.setItem(`selectionPos:${noteId}`, JSON.stringify({ from, to }));
+    },
     onUpdate: ({ editor: ed }) => {
       // 搜索高亮是导航提示，不应在用户开始修改正文后继续指向旧位置。
       if (searchMatchesRef.current.length > 0) {
@@ -466,6 +473,69 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       root.scrollTop += coords.top - targetTop;
     });
   }, [editor]);
+
+  const closeEditorFind = useCallback(() => {
+    setEditorFindOpen(false);
+    searchMatchesRef.current = [];
+    setSearchMatches([]);
+    setActiveSearchMatch(0);
+    if (editor && !editor.isDestroyed) setSearchHighlights(editor, [], 0);
+  }, [editor]);
+
+  const navigateEditorFind = useCallback((direction: number) => {
+    const matches = searchMatchesRef.current;
+    if (!matches.length) return;
+    revealSearchMatch(activeSearchMatch + direction, matches);
+    requestAnimationFrame(() => editorFindInputRef.current?.focus({ preventScroll: true }));
+  }, [activeSearchMatch, revealSearchMatch]);
+
+  // 拦截 WebView 原生 Ctrl+F。原生查找框由 WebView 管理，主窗口 hide 后
+  // 可能残留；应用内查找框与编辑器共用生命周期和高亮导航。
+  useEffect(() => {
+    if (!editor) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLocaleLowerCase() === "f") {
+        event.preventDefault();
+        event.stopPropagation();
+        const { from, to } = editor.state.selection;
+        const selected = from === to ? "" : editor.state.doc.textBetween(from, to, " ").trim();
+        if (selected && !selected.includes("\n")) setEditorFindQuery(selected);
+        setEditorFindOpen(true);
+        requestAnimationFrame(() => {
+          editorFindInputRef.current?.focus({ preventScroll: true });
+          editorFindInputRef.current?.select();
+        });
+        return;
+      }
+      if (event.key === "Escape" && editorFindOpen) {
+        event.preventDefault();
+        closeEditorFind();
+        editor.commands.focus();
+      }
+    };
+    const onWindowHidden = () => closeEditorFind();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") closeEditorFind();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("nine-rings:main-window-hide", onWindowHidden);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("nine-rings:main-window-hide", onWindowHidden);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [closeEditorFind, editor, editorFindOpen]);
+
+  useEffect(() => {
+    if (!editor || !editorFindOpen) return;
+    const query = editorFindQuery.trim();
+    const matches = query ? findSearchMatches(editor.state.doc, query) : [];
+    searchMatchesRef.current = matches;
+    setSearchMatches(matches);
+    setActiveSearchMatch(0);
+    setSearchHighlights(editor, matches, 0);
+  }, [editor, editorFindOpen, editorFindQuery]);
 
   // 接收搜索列表传来的一次性定位请求。优先匹配完整短语；FTS 的
   // 多词 AND 查询若没有连续短语，则回退到各个词的命中位置。
@@ -589,6 +659,21 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
   // ── 滚动位置记忆（localStorage 持久化，跨刷新保持）──
 
+  useLayoutEffect(() => {
+    if (!editor) return;
+    const saved = localStorage.getItem(`selectionPos:${noteId}`);
+    if (!saved) return;
+    try {
+      const selection = JSON.parse(saved) as { from?: number; to?: number };
+      const maximum = editor.state.doc.content.size;
+      const from = Math.min(maximum, Math.max(1, Number(selection.from) || 1));
+      const to = Math.min(maximum, Math.max(from, Number(selection.to) || from));
+      editor.commands.setTextSelection({ from, to });
+    } catch {
+      localStorage.removeItem(`selectionPos:${noteId}`);
+    }
+  }, [editor, noteId]);
+
   // 挂载时恢复滚动位置
   // 出处：SO #54195164 https://stackoverflow.com/questions/54195164
   // useLayoutEffect 在浏览器绘制前执行，比 useEffect 更早恢复位置
@@ -619,8 +704,13 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     const el = scrollRef.current;
     if (!el) return;
     let _scrollRaf = 0;
+    let lastKnownScrollTop = Number(localStorage.getItem(`scrollPos:${noteId}`)) || 0;
+    const persistPosition = () => {
+      lastKnownScrollTop = el.scrollTop;
+      localStorage.setItem(`scrollPos:${noteId}`, String(lastKnownScrollTop));
+    };
     const handler = () => {
-      localStorage.setItem('scrollPos:' + noteId, String(el.scrollTop));
+      persistPosition();
       if (!_scrollRaf) {
         _scrollRaf = requestAnimationFrame(() => {
           setScrollPos(el.scrollTop);
@@ -628,15 +718,22 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         });
       }
     };
+    const persistWhenHidden = () => {
+      if (document.visibilityState === "hidden") persistPosition();
+    };
     el.addEventListener("scroll", handler, { passive: true });
+    window.addEventListener("pagehide", persistPosition);
+    window.addEventListener("nine-rings:main-window-hide", persistPosition);
+    document.addEventListener("visibilitychange", persistWhenHidden);
     return () => {
       el.removeEventListener("scroll", handler);
+      window.removeEventListener("pagehide", persistPosition);
+      window.removeEventListener("nine-rings:main-window-hide", persistPosition);
+      document.removeEventListener("visibilitychange", persistWhenHidden);
       // 关键修复：cleanup 时 DOM 可能已进入销毁阶段，scrollTop 被误读为 0
       // 此时不覆写——滚动事件已经在用户滚动时写入了正确值
       addLog(`[离开] ${noteId.slice(0,8)} 保存位置=${el.scrollTop}`);
-      if (el.isConnected && el.scrollTop > 0) {
-        localStorage.setItem('scrollPos:' + noteId, String(el.scrollTop));
-      }
+      localStorage.setItem(`scrollPos:${noteId}`, String(lastKnownScrollTop));
       if (_scrollRaf) cancelAnimationFrame(_scrollRaf);
     };
   }, [noteId]);
@@ -1567,6 +1664,33 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           )}
         </div>
         )}
+        {editorFindOpen && (
+          <div className="editor-find-bar" role="search" onClick={(event) => event.stopPropagation()}>
+            <input
+              ref={editorFindInputRef}
+              value={editorFindQuery}
+              onChange={(event) => setEditorFindQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  navigateEditorFind(event.shiftKey ? -1 : 1);
+                } else if (event.key === "Escape") {
+                  event.preventDefault();
+                  closeEditorFind();
+                  editor.commands.focus();
+                }
+              }}
+              placeholder="在当前文档中查找"
+              aria-label="在当前文档中查找"
+            />
+            <span className="editor-find-count" aria-live="polite">
+              {editorFindQuery.trim() ? (searchMatches.length > 0 ? `${activeSearchMatch + 1}/${searchMatches.length}` : "0/0") : ""}
+            </span>
+            <button type="button" onClick={() => navigateEditorFind(-1)} disabled={searchMatches.length === 0} title="上一处匹配" aria-label="上一处匹配">↑</button>
+            <button type="button" onClick={() => navigateEditorFind(1)} disabled={searchMatches.length === 0} title="下一处匹配" aria-label="下一处匹配">↓</button>
+            <button type="button" onClick={() => { closeEditorFind(); editor.commands.focus(); }} title="关闭查找" aria-label="关闭查找">×</button>
+          </div>
+        )}
         </div>
 
         {/* ── 编辑器内容 ── */}
@@ -1621,7 +1745,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
       {/* ── 底部信息栏（位置 + 字数 + 版本历史）─ */}
       <div className="editor-stats">
-        {searchMatches.length > 0 && (
+        {searchMatches.length > 0 && !editorFindOpen && (
           <span className="editor-search-navigation" role="status" aria-live="polite">
             <span>{activeSearchMatch + 1} / {searchMatches.length}</span>
             <button type="button" onClick={() => revealSearchMatch(activeSearchMatch - 1)} title="上一处匹配" aria-label="上一处匹配">↑</button>
