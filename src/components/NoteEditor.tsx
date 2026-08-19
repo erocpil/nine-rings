@@ -187,6 +187,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const searchMatchesRef = useRef<SearchMatch[]>([]);
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
   const [activeSearchMatch, setActiveSearchMatch] = useState(0);
@@ -210,6 +211,8 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [blockOpen, setBlockOpen] = useState(false);
   const [styleOpen, setStyleOpen] = useState(false);
   const [clipOpen, setClipOpen] = useState(false);
+  const [tableOpen, setTableOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   // 编辑器右键菜单 + 右键插入链接对话框
@@ -217,7 +220,9 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const [linkDialog, setLinkDialog] = useState(false);
   const [linkDialogUrl, setLinkDialogUrl] = useState("");
-  const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 480);
+  const [toolbarWidth, setToolbarWidth] = useState(1000);
+  const isNarrow = toolbarWidth < 900;
+  const isMinimalToolbar = toolbarWidth < 620;
   const CODE_LN_KEY = "nr:codeLineNumbers";
   const [showCodeLineNumbers, setShowCodeLineNumbers] = useState(() => {
     return localStorage.getItem(CODE_LN_KEY) === "true";
@@ -250,11 +255,16 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [wikiPos, setWikiPos] = useState({ top: 0, left: 0 });
   const wikiStartRef = useRef<number | null>(null); // [[ 在文档中的起始位置
 
-  // 检测窄屏（手机竖屏）
+  // 工具栏的可用空间取决于侧栏、属性面板和窗口宽度，不能使用 window
+  // 作为断点来源。直接观察工具栏容器，布局变化时立即切换分组模式。
   useEffect(() => {
-    const check = () => setIsNarrow(window.innerWidth < 480);
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
+    const element = toolbarRef.current;
+    if (!element) return;
+    const updateWidth = () => setToolbarWidth(element.clientWidth);
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(element);
+    return () => observer.disconnect();
   }, []);
 
   // 编辑器整体字号：设 CSS 变量 + 持久化
@@ -268,7 +278,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
   // 点击外部关闭下拉框
   useEffect(() => {
-    if (!sizeOpen && !colorOpen && !headingOpen && !blockOpen && !styleOpen && !clipOpen && !linkOpen) return;
+    if (!sizeOpen && !colorOpen && !headingOpen && !blockOpen && !styleOpen && !clipOpen && !linkOpen && !tableOpen && !moreOpen) return;
     const handler = () => {
       setSizeOpen(false);
       setColorOpen(false);
@@ -277,10 +287,12 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       setStyleOpen(false);
       setClipOpen(false);
       setLinkOpen(false);
+      setTableOpen(false);
+      setMoreOpen(false);
     };
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
-  }, [sizeOpen, colorOpen, headingOpen, blockOpen, styleOpen, clipOpen, linkOpen]);
+  }, [sizeOpen, colorOpen, headingOpen, blockOpen, styleOpen, clipOpen, linkOpen, tableOpen, moreOpen]);
 
   // 关闭编辑器右键菜单（点击外部 / Escape / 滚动 / 失焦）
   useEffect(() => {
@@ -1052,7 +1064,10 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         </div>
 
         {/* ── 工具栏 ── */}
-        {!readonly && (<div className="editor-menu">
+        {!readonly && (<div
+          ref={toolbarRef}
+          className={`editor-menu ${isNarrow ? "toolbar-compact" : "toolbar-full"} ${isMinimalToolbar ? "toolbar-minimal" : ""}`}
+        >
           {btn("↩", () => editor.chain().focus().undo().run(), false, "撤销 (Ctrl+Z)", readonly)}
           {btn("↪", () => editor.chain().focus().redo().run(), false, "重做 (Ctrl+Y)", readonly)}
           <span className="menu-sep" />
@@ -1182,21 +1197,14 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
                     type="button"
                   >⏹ 代码块</button>
                   <button
-                    className={`menu-dropdown-item ${editor.isActive("table") ? "active" : ""}`}
+                    className="menu-dropdown-item"
                     onClick={() => {
-                      if (editor.isActive("table")) editor.chain().focus().deleteTable().run();
-                      else editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+                      editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
                       setBlockOpen(false);
                     }}
+                    disabled={editor.isActive("table")}
                     type="button"
-                  >{editor.isActive("table") ? "▦ 删除表格" : "▦ 插入表格"}</button>
-                  {editor.isActive("table") && (<>
-                    <button className="menu-dropdown-item" onClick={() => editor.chain().focus().addRowAfter().run()} type="button">+R 添加行</button>
-                    <button className="menu-dropdown-item" onClick={() => editor.chain().focus().addColumnAfter().run()} type="button">+C 添加列</button>
-                    <button className="menu-dropdown-item" onClick={() => setTableCellAlignment("left")} type="button">当前列左对齐</button>
-                    <button className="menu-dropdown-item" onClick={() => setTableCellAlignment("center")} type="button">当前列居中</button>
-                    <button className="menu-dropdown-item" onClick={() => setTableCellAlignment("right")} type="button">当前列右对齐</button>
-                  </>)}
+                  >▦ 插入表格</button>
                   <div className="menu-dropdown-sep" />
                   <button
                     className="menu-dropdown-item"
@@ -1224,16 +1232,6 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           {btn("1.", () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"), "有序列表 (Ctrl+Shift+7)", readonly)}
           {btn("⏹", handleToggleCodeBlock, editor.isActive("codeBlock"), "代码块 (Ctrl+Alt+C)", readonly)}
           {btn("▦", () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), editor.isActive("table"), "插入 3×3 表格", readonly || editor.isActive("table"))}
-          {editor.isActive("table") && (<>
-            {btn("+R", () => editor.chain().focus().addRowAfter().run(), false, "在下方添加行", readonly)}
-            {btn("+C", () => editor.chain().focus().addColumnAfter().run(), false, "在右侧添加列", readonly)}
-            {btn("−R", () => editor.chain().focus().deleteRow().run(), false, "删除当前行", readonly)}
-            {btn("−C", () => editor.chain().focus().deleteColumn().run(), false, "删除当前列", readonly)}
-            {btn("⇤", () => setTableCellAlignment("left"), false, "当前列左对齐", readonly)}
-            {btn("↔", () => setTableCellAlignment("center"), false, "当前列居中", readonly)}
-            {btn("⇥", () => setTableCellAlignment("right"), false, "当前列右对齐", readonly)}
-            {btn("×▦", () => editor.chain().focus().deleteTable().run(), false, "删除表格", readonly)}
-          </>)}
           {btn("M↓", convertSelectionFromMarkdown, false, "转换所选 Markdown", readonly || !hasSelection())}
           <button
             className={`menu-btn ${showCodeLineNumbers ? "active" : ""}`}
@@ -1246,7 +1244,34 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             type="button"
           >#</button>
           </>)}
+          {editor.isActive("table") && (
+            <div className="menu-dropdown toolbar-table-menu">
+              <button
+                className="menu-btn active"
+                onClick={(e) => { e.stopPropagation(); setTableOpen(!tableOpen); }}
+                type="button"
+                title="表格操作"
+              >▦ 表格 ▾</button>
+              {tableOpen && (
+                <div className="menu-dropdown-list table-context-menu">
+                  <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().addRowBefore().run(); setTableOpen(false); }} type="button">在上方添加行</button>
+                  <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().addRowAfter().run(); setTableOpen(false); }} type="button">在下方添加行</button>
+                  <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().addColumnBefore().run(); setTableOpen(false); }} type="button">在左侧添加列</button>
+                  <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().addColumnAfter().run(); setTableOpen(false); }} type="button">在右侧添加列</button>
+                  <div className="menu-dropdown-sep" />
+                  <button className="menu-dropdown-item" onClick={() => { setTableCellAlignment("left"); setTableOpen(false); }} type="button">当前列左对齐</button>
+                  <button className="menu-dropdown-item" onClick={() => { setTableCellAlignment("center"); setTableOpen(false); }} type="button">当前列居中</button>
+                  <button className="menu-dropdown-item" onClick={() => { setTableCellAlignment("right"); setTableOpen(false); }} type="button">当前列右对齐</button>
+                  <div className="menu-dropdown-sep" />
+                  <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().deleteRow().run(); setTableOpen(false); }} type="button">删除当前行</button>
+                  <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().deleteColumn().run(); setTableOpen(false); }} type="button">删除当前列</button>
+                  <button className="menu-dropdown-item danger" onClick={() => { editor.chain().focus().deleteTable().run(); setTableOpen(false); }} type="button">删除表格</button>
+                </div>
+              )}
+            </div>
+          )}
           <span className="menu-sep" />
+          <div className="toolbar-secondary">
           {isNarrow ? (
             <div className="menu-dropdown">
               <button
@@ -1477,6 +1502,57 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           {btn("A⁻", () => setEditorFontSize(s => Math.max(12, s - 1)), false, "缩小字号", editorFontSize <= 12)}
           <span className="menu-font-size-label">{editorFontSize}</span>
           {btn("A⁺", () => setEditorFontSize(s => Math.min(24, s + 1)), false, "放大字号", editorFontSize >= 24)}
+          </div>
+          {isMinimalToolbar && (
+            <div className="menu-dropdown toolbar-more-menu">
+              <button
+                className="menu-btn"
+                onClick={(e) => { e.stopPropagation(); setMoreOpen(!moreOpen); }}
+                type="button"
+                title="更多编辑操作"
+              >更多 ⋯</button>
+              {moreOpen && (
+                <div className="menu-dropdown-list toolbar-more-list" onClick={(e) => e.stopPropagation()}>
+                  <button className="menu-dropdown-item" onClick={() => { handleCopy(); setMoreOpen(false); }} type="button">📋 复制</button>
+                  <button className="menu-dropdown-item" onClick={() => { handleCut(); setMoreOpen(false); }} type="button">✂ 剪切</button>
+                  <button className="menu-dropdown-item" onClick={() => { void handleClipboardPaste(); setMoreOpen(false); }} type="button">📝 粘贴</button>
+                  <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setMoreOpen(false); }} type="button">M↑ 导出 Markdown</button>
+                  <div className="menu-dropdown-sep" />
+                  <button className="menu-dropdown-item" onClick={() => {
+                    setLinkDialogUrl(editor.getAttributes("link").href || "");
+                    setLinkDialog(true);
+                    setMoreOpen(false);
+                  }} type="button">🔗 添加或编辑链接</button>
+                  <button className="menu-dropdown-item" onClick={() => { setImageDialog(true); setMoreOpen(false); }} type="button">🖼 插入图片</button>
+                  <label className="menu-dropdown-control">
+                    <span>文字字号</span>
+                    <select
+                      value={editor.getAttributes("textStyle").fontSize || ""}
+                      onChange={(e) => {
+                        if (e.target.value) (editor.chain() as any).focus().setFontSize(e.target.value).run();
+                        else (editor.chain() as any).focus().unsetFontSize().run();
+                      }}
+                    >
+                      <option value="">默认</option>
+                      {FONT_SIZES.map((size) => <option key={size} value={size}>{size}px</option>)}
+                    </select>
+                  </label>
+                  <label className="menu-dropdown-control">
+                    <span>文字颜色</span>
+                    <input
+                      type="color"
+                      value={editor.getAttributes("textStyle").color || "#333333"}
+                      onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
+                    />
+                  </label>
+                  <button className="menu-dropdown-item" onClick={() => editor.chain().focus().unsetColor().run()} type="button">清除文字颜色</button>
+                  <div className="menu-dropdown-sep" />
+                  <button className="menu-dropdown-item" disabled={editorFontSize <= 12} onClick={() => setEditorFontSize((size) => Math.max(12, size - 1))} type="button">缩小编辑器字号</button>
+                  <button className="menu-dropdown-item" disabled={editorFontSize >= 24} onClick={() => setEditorFontSize((size) => Math.min(24, size + 1))} type="button">放大编辑器字号</button>
+                </div>
+              )}
+            </div>
+          )}
           {saveStatus && saveStatus !== "clean" && (
             <span className={`save-status save-status-${saveStatus}`} title={
               saveStatus === "dirty" ? "未保存" :

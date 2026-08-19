@@ -116,7 +116,7 @@ test.describe("编辑器复制粘贴", () => {
       "  - VFIO结合IOMMU时，为设备建立独立DMA域。",
       "- **PMD/ethdev层**",
       "  - ethdev提供统一的端口和queue接口。",
-    ].join("\n");
+    ].join("\r\n");
     await page.evaluate(async (text) => {
       await navigator.clipboard.write([
         new ClipboardItem({
@@ -261,7 +261,7 @@ test.describe("编辑器复制粘贴", () => {
       "  1. Child",
       "    - Grandchild",
       "- Sibling",
-    ].join("\n");
+    ].join("\r\n");
     const editor = page.locator(".ProseMirror");
     await editor.evaluate((element, text) => {
       const clipboardData = new DataTransfer();
@@ -382,10 +382,12 @@ test.describe("编辑器复制粘贴", () => {
     const table = editor.locator("table");
     await expect(table).toHaveCount(1);
     await table.locator("td").first().click();
-    await page.getByTitle("当前列居中").click();
+    await page.getByTitle("表格操作").click();
+    await page.getByRole("button", { name: "当前列居中" }).click();
     await expect(table.locator("th").first()).toHaveCSS("text-align", "center");
     await expect(table.locator("td").first()).toHaveCSS("text-align", "center");
-    await page.getByTitle("在下方添加行").click();
+    await page.getByTitle("表格操作").click();
+    await page.getByRole("button", { name: "在下方添加行" }).click();
     await expect(table.locator("tr")).toHaveCount(3);
 
     const downloadPromise = page.waitForEvent("download");

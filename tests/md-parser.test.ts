@@ -359,16 +359,16 @@ This is a **bold** and *italic* text with \`code\`.
 {
   console.log("\n── Nested Markdown lists ──");
   const delta = mdToDelta(
-    "- Parent\n" +
-    "  1. Child\n" +
-    "    - Grandchild\n" +
+    "- Parent\r\n" +
+    "  1. Child\r\n" +
+    "    - Grandchild\r\n" +
     "- Sibling",
   );
   const listLines = delta.ops.filter((op: any) => op.attributes?.list);
   assert(listLines.length === 4, "all Markdown list items are parsed");
   assert(listLines[0].attributes?.indent === undefined, "root Markdown item has no indent");
   assert(listLines[1].attributes?.list === "ordered" && listLines[1].attributes?.indent === 1,
-    "two-space ordered child becomes indent 1");
+    "CRLF two-space ordered child becomes indent 1");
   assert(listLines[2].attributes?.list === "bullet" && listLines[2].attributes?.indent === 2,
     "four-space bullet grandchild becomes indent 2");
 

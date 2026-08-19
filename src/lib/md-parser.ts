@@ -220,7 +220,9 @@ export function markdownTableToEmbed(tableLines: string[]): import("./table-embe
 // ── 全文解析 ──
 
 export function mdToDelta(mdText: string): DeltaOps {
-  const lines = mdText.split("\n");
+  // Windows/WebView2 剪贴板使用 CRLF。若保留行尾的 `\r`，依赖 `$` 的
+  // 块级正则（尤其列表）会匹配失败，缩进列表继而退化成以 `-` 开头的段落。
+  const lines = mdText.replace(/\r\n?/g, "\n").split("\n");
   const ops: DeltaOp[] = [];
   let i = 0;
   let inCode = false;

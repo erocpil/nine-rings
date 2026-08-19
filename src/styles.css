@@ -1255,10 +1255,59 @@ body {
 
 .editor-menu {
   display: flex;
+  width: 100%;
+  min-width: 0;
   gap: 4px;
   padding: 4px 0;
   border-bottom: 1px solid var(--border);
   margin-bottom: 8px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.editor-menu > * {
+  flex-shrink: 0;
+}
+
+.toolbar-secondary {
+  display: contents;
+}
+
+.toolbar-minimal .toolbar-secondary {
+  display: none;
+}
+
+.toolbar-table-menu,
+.toolbar-more-menu {
+  position: relative;
+}
+
+.table-context-menu,
+.toolbar-more-list {
+  min-width: 190px;
+  max-height: min(70vh, 420px);
+  overflow-y: auto;
+}
+
+.toolbar-more-list {
+  right: 0;
+  left: auto;
+}
+
+.menu-dropdown-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 190px;
+  padding: 6px 10px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.menu-dropdown-control select,
+.menu-dropdown-control input {
+  min-width: 64px;
 }
 
 .menu-btn {
@@ -1996,6 +2045,53 @@ body {
 .settings-control {
   display: flex;
   align-items: center;
+}
+
+.markdown-import-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.markdown-import-mode {
+  width: min(360px, 100%);
+}
+
+.markdown-import-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) minmax(120px, 1fr);
+  gap: 10px 12px;
+}
+
+.markdown-import-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.markdown-import-field > span {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.markdown-import-field small {
+  line-height: 1.4;
+}
+
+.markdown-import-path-field {
+  grid-row: span 2;
+}
+
+@media (max-width: 680px) {
+  .markdown-import-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .markdown-import-path-field {
+    grid-row: auto;
+  }
 }
 
 /* ── Radio Group ── */
@@ -3722,6 +3818,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  overflow-x: hidden;
   overflow-anchor: none;
   scroll-padding-bottom: 10vh;
 }

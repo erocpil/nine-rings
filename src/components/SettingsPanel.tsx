@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
 import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
-import type { AppConfig } from "../types/models";
+import type { AppConfig, DocType } from "../types/models";
 import { DEFAULT_HOTKEYS, HOTKEY_LABELS } from "../types/models";
-import { mdToDelta, extractTitle } from "../lib/md-parser";
+import { buildMarkdownImportInput, parseMetadataList } from "../lib/markdown-import";
 import { isTauri, exportWithDialog, importWithDialog } from "../lib/tauri-desktop";
 import SettingsSync from "./SettingsSync";
 import { withTimeout } from "../lib/async";
@@ -39,6 +39,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
   const mdInputRef = useRef<HTMLInputElement>(null);
   const [mdImporting, setMdImporting] = useState(false);
   const [mdImportCount, setMdImportCount] = useState(0);
+  const [mdImportMode, setMdImportMode] = useState<"document" | "note">("document");
+  const [mdImportPath, setMdImportPath] = useState("references/imported");
+  const [mdImportDocType, setMdImportDocType] = useState<DocType>("reference");
+  const [mdImportTags, setMdImportTags] = useState("");
+  const [mdImportConcepts, setMdImportConcepts] = useState("");
 
   const loadSettings = () => {
     setLoading(true);
@@ -176,27 +181,37 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
     setMdImportCount(0);
     const today = localDateKey();
     let count = 0;
+    const failures: string[] = [];
     try {
       for (let fi = 0; fi < files.length; fi++) {
         const file = files[fi];
-        const text = await file.text();
-        const title = extractTitle(text, file.name.replace(/\.md$/, ""));
-        const delta = mdToDelta(text);
-        await api.notes.create({
-          date: today,
-          title,
-          content: delta as any,
-        });
-        count++;
+        try {
+          const text = await file.text();
+          const input = buildMarkdownImportInput(file.name, text, {
+            date: today,
+            mode: mdImportMode,
+            storagePath: mdImportPath,
+            docType: mdImportDocType,
+            tags: parseMetadataList(mdImportTags),
+            concepts: parseMetadataList(mdImportConcepts),
+          });
+          await api.notes.create(input);
+          count++;
+        } catch (error) {
+          failures.push(`${file.name}: ${error instanceof Error ? error.message : String(error)}`);
+        }
       }
       setMdImportCount(count);
-      onImport?.();
-      // Reset input so same files can be re-imported
-      e.target.value = "";
+      if (count > 0) onImport?.();
+      setMessage(failures.length > 0
+        ? `已导入 ${count} 篇，失败 ${failures.length} 篇：${failures[0]}`
+        : `Markdown 导入完成：${count} 篇${mdImportMode === "document" ? `，路径 ${mdImportPath}` : ""}`);
     } catch (err) {
       setMessage(`导入失败: ${err}`);
     } finally {
       setMdImporting(false);
+      // 无论成功失败都允许再次选择同一批文件。
+      e.target.value = "";
     }
   };
 
@@ -447,12 +462,77 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
             {/* ═══════════════════════ */}
             {/* Markdown 导入 */}
             {/* ═══════════════════════ */}
-            <SettingsSection title="Markdown 导入" desc="将 .md 文件导入为笔记（支持批量多选）">
-              <div className="settings-button-row">
+            <SettingsSection title="Markdown 导入" desc="导入一个或多个 .md 文件，并指定文档位置与元数据">
+              <div className="markdown-import-form">
+                <div className="settings-radio-group markdown-import-mode" role="radiogroup" aria-label="Markdown 导入类型">
+                  <button
+                    className={`settings-radio ${mdImportMode === "document" ? "active" : ""}`}
+                    onClick={() => setMdImportMode("document")}
+                    type="button"
+                  >导入为文档</button>
+                  <button
+                    className={`settings-radio ${mdImportMode === "note" ? "active" : ""}`}
+                    onClick={() => setMdImportMode("note")}
+                    type="button"
+                  >导入为随笔</button>
+                </div>
+
+                {mdImportMode === "document" && (
+                  <div className="markdown-import-grid">
+                    <label className="markdown-import-field markdown-import-path-field">
+                      <span>目标路径</span>
+                      <input
+                        className="settings-input"
+                        aria-label="Markdown 导入目标路径"
+                        placeholder="例如 references/networking"
+                        value={mdImportPath}
+                        onChange={(event) => setMdImportPath(event.target.value)}
+                      />
+                      <small>所有选中文件将作为独立文档放入这个目录。</small>
+                    </label>
+                    <label className="markdown-import-field">
+                      <span>文档类型</span>
+                      <select
+                        className="settings-input"
+                        aria-label="Markdown 导入文档类型"
+                        value={mdImportDocType}
+                        onChange={(event) => setMdImportDocType(event.target.value as DocType)}
+                      >
+                        <option value="explanation">解释</option>
+                        <option value="how-to">指南</option>
+                        <option value="reference">参考</option>
+                        <option value="tutorial">教程</option>
+                      </select>
+                    </label>
+                    <label className="markdown-import-field">
+                      <span>概念标签</span>
+                      <input
+                        className="settings-input"
+                        aria-label="Markdown 导入概念标签"
+                        placeholder="逗号分隔，可选"
+                        value={mdImportConcepts}
+                        onChange={(event) => setMdImportConcepts(event.target.value)}
+                      />
+                    </label>
+                  </div>
+                )}
+
+                <label className="markdown-import-field">
+                  <span>普通标签</span>
+                  <input
+                    className="settings-input"
+                    aria-label="Markdown 导入普通标签"
+                    placeholder="逗号分隔，可选"
+                    value={mdImportTags}
+                    onChange={(event) => setMdImportTags(event.target.value)}
+                  />
+                </label>
+
+                <div className="settings-button-row">
                 <button
                   className="settings-btn-secondary"
                   onClick={() => mdInputRef.current?.click()}
-                  disabled={mdImporting}
+                  disabled={mdImporting || (mdImportMode === "document" && !mdImportPath.trim())}
                 >
                   {mdImporting ? "导入中..." : "选择 .md 文件"}
                 </button>
@@ -469,6 +549,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
                   style={{ display: "none" }}
                   onChange={handleMdImport}
                 />
+                </div>
               </div>
             </SettingsSection>
 
