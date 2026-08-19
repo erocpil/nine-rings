@@ -9,8 +9,9 @@
  */
 
 import type { PathNode, DocType, Note, CreateNoteInput } from "../../types/models";
+import { getTableEmbed } from "../table-embed";
 
-/** Extract searchable text from a Delta while ignoring embedded objects. */
+/** Extract searchable text from Delta strings and supported structured embeds. */
 export function extractPlainText(content: unknown): string {
   if (!content || typeof content !== "object") return "";
   const candidate = content as { ops?: unknown };
@@ -19,7 +20,14 @@ export function extractPlainText(content: unknown): string {
     .flatMap((op) => {
       if (!op || typeof op !== "object") return [];
       const insert = (op as { insert?: unknown }).insert;
-      return typeof insert === "string" ? [insert] : [];
+      if (typeof insert === "string") return [insert];
+      const table = getTableEmbed(insert);
+      if (table) {
+        return [table.rows
+          .map((row) => row.cells.map((cell) => extractPlainText(cell.content)).join("\t"))
+          .join("\n")];
+      }
+      return [];
     })
     .join("")
     .trim();

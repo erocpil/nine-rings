@@ -7,7 +7,7 @@
  */
 
 interface DeltaOp {
-  insert: string | { hr: true };
+  insert: string | { hr: true } | { table: import("./table-embed").TableEmbed };
   attributes?: Record<string, unknown>;
 }
 
@@ -20,6 +20,10 @@ export function looksLikeMarkdown(text: string): boolean {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
   const fenced = lines.filter((line) => /^\s*```/.test(line)).length;
   if (fenced >= 2) return true;
+
+  for (let index = 0; index + 1 < lines.length; index++) {
+    if (isMarkdownTableRow(lines[index]) && isMarkdownTableSeparator(lines[index + 1])) return true;
+  }
 
   if (lines.length === 1 && /^\s*#{1,6}\s+\S/.test(lines[0])) return true;
 
@@ -130,6 +134,89 @@ function inlineToDelta(text: string, baseAttrs?: Record<string, unknown>): Delta
   });
 }
 
+export function isMarkdownTableRow(text: string): boolean {
+  return /^\s*\|(?:[^|\n]*\|){2,}\s*$/.test(text);
+}
+
+function isMarkdownTableSeparator(text: string): boolean {
+  return /^\s*\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|\s*$/.test(text);
+}
+
+function splitMarkdownTableRow(source: string): string[] {
+  let row = source.trim();
+  if (row.startsWith("|")) row = row.slice(1);
+  if (row.endsWith("|") && !row.endsWith("\\|")) row = row.slice(0, -1);
+
+  const cells: string[] = [];
+  let current = "";
+  let escaped = false;
+  let codeFenceLength = 0;
+  for (let index = 0; index < row.length; index++) {
+    const char = row[index];
+    if (escaped) {
+      current += char === "|" ? "|" : `\\${char}`;
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (char === "`") {
+      let run = 1;
+      while (row[index + run] === "`") run++;
+      if (codeFenceLength === 0) codeFenceLength = run;
+      else if (codeFenceLength === run) codeFenceLength = 0;
+      current += "`".repeat(run);
+      index += run - 1;
+      continue;
+    }
+    if (char === "|" && codeFenceLength === 0) {
+      cells.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  if (escaped) current += "\\";
+  cells.push(current.trim());
+  return cells;
+}
+
+function separatorAlignment(cell: string): import("./table-embed").TableAlignment {
+  const value = cell.trim();
+  if (!/^:?-{3,}:?$/.test(value)) return null;
+  if (value.startsWith(":") && value.endsWith(":")) return "center";
+  if (value.endsWith(":")) return "right";
+  return "left";
+}
+
+/** Parse a complete GFM table (header, separator, and optional data rows). */
+export function markdownTableToEmbed(tableLines: string[]): import("./table-embed").TableEmbed | null {
+  if (tableLines.length < 2 || !isMarkdownTableRow(tableLines[0]) || !isMarkdownTableSeparator(tableLines[1])) {
+    return null;
+  }
+  const headerCells = splitMarkdownTableRow(tableLines[0]);
+  const separatorCells = splitMarkdownTableRow(tableLines[1]);
+  const columnCount = Math.max(headerCells.length, separatorCells.length);
+  const makeRow = (cells: string[], header: boolean): import("./table-embed").TableRowEmbed => ({
+    cells: Array.from({ length: columnCount }, (_, column) => ({
+      ...(header ? { header: true } : {}),
+      content: { ops: inlineToDelta(cells[column] ?? "") },
+    })),
+  });
+  return {
+    version: 1,
+    columns: Array.from({ length: columnCount }, (_, column) => ({
+      align: separatorAlignment(separatorCells[column] ?? ""),
+    })),
+    rows: [
+      makeRow(headerCells, true),
+      ...tableLines.slice(2).filter(isMarkdownTableRow).map((line) => makeRow(splitMarkdownTableRow(line), false)),
+    ],
+  };
+}
+
 // ── 全文解析 ──
 
 export function mdToDelta(mdText: string): DeltaOps {
@@ -138,6 +225,7 @@ export function mdToDelta(mdText: string): DeltaOps {
   let i = 0;
   let inCode = false;
   let codeBuf: string[] = [];
+  let codeLanguage = "";
   let listIndentStack: number[] = [];
 
   const resetListIndent = () => {
@@ -163,13 +251,8 @@ export function mdToDelta(mdText: string): DeltaOps {
       : listIndentStack.length - 1);
   };
 
-  // 当前编辑器 schema 没有 table 节点。Markdown 表格先保留为逐行的
-  // `| … |` 段落，既避免被折叠成一行，也可在粘贴/导出时保持结构。
-  const isTableRow = (text: string): boolean => /^\s*\|(?:[^|\n]*\|){2,}\s*$/.test(text);
-  const isTableSeparator = (text: string): boolean =>
-    /^\s*\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|\s*$/.test(text);
   const isTableStart = (lineIndex: number): boolean =>
-    isTableRow(lines[lineIndex] ?? "") && isTableSeparator(lines[lineIndex + 1] ?? "");
+    isMarkdownTableRow(lines[lineIndex] ?? "") && isMarkdownTableSeparator(lines[lineIndex + 1] ?? "");
 
   // Markdown 的单个换行是段落内的软换行，而不是新的段落。这里列出会
   // 终止当前段落的块级语法；其余连续非空行会在下面合并为同一段。
@@ -180,7 +263,7 @@ export function mdToDelta(mdText: string): DeltaOps {
     /^>\s?(.*)$/.test(text) ||
     /^[-*+]\s+.+$/.test(text) ||
     /^\d+\.\s+.+$/.test(text) ||
-    isTableRow(text);
+    isMarkdownTableRow(text);
 
   const appendParagraph = (paragraphLines: string[]) => {
     ops.push(...inlineToDelta(paragraphLines.join(" ")));
@@ -197,11 +280,16 @@ export function mdToDelta(mdText: string): DeltaOps {
       if (inCode) {
         if (codeBuf.length > 0) {
           ops.push({ insert: codeBuf.join("\n") });
-          ops.push({ insert: "\n", attributes: { "code-block": true } });
+          ops.push({
+            insert: "\n",
+            attributes: { "code-block": true, ...(codeLanguage ? { language: codeLanguage } : {}) },
+          });
         }
         codeBuf = [];
+        codeLanguage = "";
         inCode = false;
       } else {
+        codeLanguage = stripped.match(/^```([^\s`]*)/)?.[1] ?? "";
         inCode = true;
       }
       i++;
@@ -228,10 +316,12 @@ export function mdToDelta(mdText: string): DeltaOps {
     // 保持表头、分隔行和每个数据行各自独立，避免换行被普通段落折叠。
     if (isTableStart(i)) {
       resetListIndent();
-      while (i < lines.length && isTableRow(lines[i])) {
-        appendParagraph([lines[i].trim()]);
-        i++;
-      }
+      const tableLines = [lines[i], lines[i + 1]];
+      i += 2;
+      while (i < lines.length && isMarkdownTableRow(lines[i])) tableLines.push(lines[i++]);
+      const table = markdownTableToEmbed(tableLines);
+      if (table) ops.push({ insert: { table } });
+      ops.push({ insert: "\n" });
       continue;
     }
 
@@ -306,7 +396,10 @@ export function mdToDelta(mdText: string): DeltaOps {
   // 关闭未闭合的代码块
   if (inCode && codeBuf.length > 0) {
     ops.push({ insert: codeBuf.join("\n") });
-    ops.push({ insert: "\n", attributes: { "code-block": true } });
+    ops.push({
+      insert: "\n",
+      attributes: { "code-block": true, ...(codeLanguage ? { language: codeLanguage } : {}) },
+    });
   }
 
   return { ops };

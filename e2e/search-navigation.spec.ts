@@ -61,6 +61,25 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     await expect(header).toContainText("搜索结果（0）");
   });
 
+  test("表格单元格内容进入全文搜索并可定位", async ({ page }) => {
+    await createDocument(page, "表格搜索测试");
+    const editor = page.locator(".ProseMirror");
+    const markdown = "| 名称 | 说明 |\n| --- | --- |\n| DPDK | unique-table-search-value |";
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    }, markdown);
+    await expect(editor.locator("table")).toHaveCount(1);
+    await page.waitForTimeout(800);
+
+    await page.locator(".search-input").fill("unique-table-search-value");
+    const result = page.locator(".search-hit").filter({ hasText: "表格搜索测试" });
+    await expect(result).toBeVisible();
+    await result.click();
+    await expect(page.locator(".search-match-active")).toHaveCount(1);
+  });
+
   test("侧栏和窗口宽度变化后保持光标内容的屏幕位置", async ({ page }) => {
     await createDocument(page, "布局锚点测试");
     const editor = page.locator(".ProseMirror");

@@ -5,6 +5,8 @@
  */
 
 import { deltaToProseMirror, proseMirrorToDelta, pxToNamed, namedToPx } from "../src/lib/delta-converter";
+import { deltaToMarkdown } from "../src/lib/markdown-serializer";
+import { extractPlainText } from "../src/lib/storage/core";
 
 let passed = 0;
 let failed = 0;
@@ -185,11 +187,35 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Table ──");
-  const pm: any = { type: "doc", content: [{ type: "table", content: [{ type: "tableRow", content: [
-    { type: "tableCell", content: [{ type: "paragraph", content: [{ type: "text", text: "Cell" }] }] },
-  ]}] }] };
-  try { proseMirrorToDelta(pm); assert(true, "table does not throw"); }
-  catch (e) { assert(false, `table threw: ${e}`); }
+  const pm: any = { type: "doc", content: [{ type: "table", content: [
+    { type: "tableRow", content: [
+      { type: "tableHeader", attrs: { textAlign: "left" }, content: [{ type: "paragraph", content: [{ type: "text", text: "Name", marks: [{ type: "bold" }] }] }] },
+      { type: "tableHeader", attrs: { textAlign: "right" }, content: [{ type: "paragraph", content: [{ type: "text", text: "Value" }] }] },
+    ] },
+    { type: "tableRow", content: [
+      { type: "tableCell", attrs: { textAlign: "left" }, content: [{ type: "paragraph", content: [{ type: "text", text: "a | b", marks: [{ type: "code" }] }] }] },
+      { type: "tableCell", attrs: { textAlign: "right" }, content: [{ type: "paragraph", content: [{ type: "text", text: "42" }] }] },
+    ] },
+  ] }] };
+  const delta = proseMirrorToDelta(pm);
+  const table = delta.ops[0]?.insert?.table;
+  const restored = deltaToProseMirror(delta);
+  assert(table?.version === 1 && table?.rows?.length === 2, "table serializes to a versioned embed");
+  assert(restored.content[0]?.type === "table", "table embed restores a table node");
+  assert(restored.content[0]?.content?.[1]?.content?.[0]?.content?.[0]?.content?.[0]?.text === "a | b",
+    "table cell content survives save and reload");
+  const markdown = deltaToMarkdown(delta);
+  assert(markdown.includes("| **Name** | Value |"), "table header exports to Markdown");
+  assert(markdown.includes("| :--- | ---: |"), "table alignment exports to Markdown");
+  assert(markdown.includes("`a \\| b`"), "table pipe is escaped on Markdown export");
+  assert(extractPlainText(delta).includes("Name\tValue\na | b\t42"), "table cells are searchable");
+
+  const legacy = deltaToProseMirror({ ops: [
+    { insert: "| A | B |" }, { insert: "\n" },
+    { insert: "| --- | --- |" }, { insert: "\n" },
+    { insert: "| 1 | 2 |" }, { insert: "\n" },
+  ] });
+  assert(legacy.content[0]?.type === "table", "legacy pipe paragraphs migrate to a table");
 }
 
 // ═══════════════════════════════════════════════════════════════════

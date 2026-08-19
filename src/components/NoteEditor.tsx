@@ -7,6 +7,10 @@ import TextStyle from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import { ResizableImage } from "../extensions/ResizableImage";
 import LinkExt from "@tiptap/extension-link";
+import Table from "@tiptap/extension-table";
+import TableRow from "@tiptap/extension-table-row";
+import TableHeader from "@tiptap/extension-table-header";
+import TableCell from "@tiptap/extension-table-cell";
 import { MarkdownLinkInput } from "../extensions/MarkdownLinkInput";
 import {
   normalizePastedHTML,
@@ -27,6 +31,7 @@ import {
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { TableMap } from "@tiptap/pm/tables";
 import { addLog, toggleDebug } from "../lib/debugLog";
 import { copyToClipboard } from "../lib/clipboard";
 import { CodeBlockLineNumbers } from "../extensions/CodeBlockLineNumbers";
@@ -35,6 +40,8 @@ import { storeImage } from "../lib/storage/db-images";
 import { api } from "../lib/api";
 import { looksLikeMarkdown, mdToDelta } from "../lib/md-parser";
 import { SearchHighlights, findSearchMatches, setSearchHighlights, type SearchMatch } from "../extensions/SearchHighlights";
+import { noteToMarkdown } from "../lib/markdown-serializer";
+import { exportMarkdownWithDialog, isTauri } from "../lib/tauri-desktop";
 
 const FontSize = Extension.create({
   name: "fontSize",
@@ -69,6 +76,38 @@ const FontSize = Extension.create({
         () =>
         ({ chain }: { chain: any }) =>
           chain().setMark("textStyle", { fontSize: null }).removeEmptyTextStyle().run(),
+    };
+  },
+});
+
+const AlignedTableCell = TableCell.extend({
+  content: "paragraph",
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      textAlign: {
+        default: null,
+        parseHTML: (element) => element.style.textAlign || null,
+        renderHTML: (attributes) => attributes.textAlign
+          ? { style: `text-align: ${attributes.textAlign}` }
+          : {},
+      },
+    };
+  },
+});
+
+const AlignedTableHeader = TableHeader.extend({
+  content: "paragraph",
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      textAlign: {
+        default: null,
+        parseHTML: (element) => element.style.textAlign || null,
+        renderHTML: (attributes) => attributes.textAlign
+          ? { style: `text-align: ${attributes.textAlign}` }
+          : {},
+      },
     };
   },
 });
@@ -317,6 +356,10 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       FontSize,
       ResizableImage.configure({ inline: false, allowBase64: true }),
       LinkExt.configure({ openOnClick: true }),
+      Table.configure({ resizable: false, allowTableNodeSelection: true }),
+      TableRow,
+      AlignedTableHeader,
+      AlignedTableCell,
       // 仅用于统计，不限制文档长度。长 Markdown 粘贴（例如技术手册）
       // 可能超过 50,000 字符；设置 limit 会让 ProseMirror 拒绝整笔事务。
       CharacterCount.configure(),
@@ -898,6 +941,54 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     </button>
   );
 
+  const handleExportMarkdown = async () => {
+    const markdown = noteToMarkdown(localTitle, proseMirrorToDelta(editor.getJSON()));
+    const safeTitle = (localTitle.trim() || "无标题")
+      .replace(/[\\/:*?"<>|]/g, "-")
+      .slice(0, 100);
+    const filename = `${safeTitle}.md`;
+    if (isTauri()) {
+      await exportMarkdownWithDialog(markdown, filename);
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([markdown], { type: "text/markdown;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const setTableCellAlignment = (textAlign: "left" | "center" | "right") => {
+    const { state, view } = editor;
+    const { $from } = state.selection;
+    let tableDepth = $from.depth;
+    while (tableDepth > 0 && $from.node(tableDepth).type.name !== "table") tableDepth--;
+    let cellDepth = $from.depth;
+    while (
+      cellDepth > tableDepth &&
+      $from.node(cellDepth).type.name !== "tableCell" &&
+      $from.node(cellDepth).type.name !== "tableHeader"
+    ) cellDepth--;
+    if (tableDepth === 0 || cellDepth <= tableDepth) return;
+
+    const table = $from.node(tableDepth);
+    const tableStart = $from.before(tableDepth);
+    const cellStart = $from.before(cellDepth);
+    const map = TableMap.get(table);
+    const column = map.findCell(cellStart - tableStart - 1).left;
+    let transaction = state.tr;
+    for (let row = 0; row < map.height; row++) {
+      const cellPos = tableStart + 1 + map.positionAt(row, column, table);
+      const cell = transaction.doc.nodeAt(cellPos);
+      if (cell) {
+        transaction = transaction.setNodeMarkup(cellPos, undefined, { ...cell.attrs, textAlign });
+      }
+    }
+    view.dispatch(transaction);
+    editor.commands.focus();
+  };
+
   return (
     <div className={`note-editor ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""}`} onPasteCapture={handlePaste} onDrop={handleDrop}>
       {/* ── 标题 + 标签 + 工具栏 + 编辑器（滚动区域）── */}
@@ -1077,6 +1168,22 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
                     onClick={handleToggleCodeBlock}
                     type="button"
                   >⏹ 代码块</button>
+                  <button
+                    className={`menu-dropdown-item ${editor.isActive("table") ? "active" : ""}`}
+                    onClick={() => {
+                      if (editor.isActive("table")) editor.chain().focus().deleteTable().run();
+                      else editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+                      setBlockOpen(false);
+                    }}
+                    type="button"
+                  >{editor.isActive("table") ? "▦ 删除表格" : "▦ 插入表格"}</button>
+                  {editor.isActive("table") && (<>
+                    <button className="menu-dropdown-item" onClick={() => editor.chain().focus().addRowAfter().run()} type="button">+R 添加行</button>
+                    <button className="menu-dropdown-item" onClick={() => editor.chain().focus().addColumnAfter().run()} type="button">+C 添加列</button>
+                    <button className="menu-dropdown-item" onClick={() => setTableCellAlignment("left")} type="button">当前列左对齐</button>
+                    <button className="menu-dropdown-item" onClick={() => setTableCellAlignment("center")} type="button">当前列居中</button>
+                    <button className="menu-dropdown-item" onClick={() => setTableCellAlignment("right")} type="button">当前列右对齐</button>
+                  </>)}
                   <div className="menu-dropdown-sep" />
                   <button
                     className="menu-dropdown-item"
@@ -1103,6 +1210,17 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           {btn("•", () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"), "无序列表 (Ctrl+Shift+8)", readonly)}
           {btn("1.", () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"), "有序列表 (Ctrl+Shift+7)", readonly)}
           {btn("⏹", handleToggleCodeBlock, editor.isActive("codeBlock"), "代码块 (Ctrl+Alt+C)", readonly)}
+          {btn("▦", () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), editor.isActive("table"), "插入 3×3 表格", readonly || editor.isActive("table"))}
+          {editor.isActive("table") && (<>
+            {btn("+R", () => editor.chain().focus().addRowAfter().run(), false, "在下方添加行", readonly)}
+            {btn("+C", () => editor.chain().focus().addColumnAfter().run(), false, "在右侧添加列", readonly)}
+            {btn("−R", () => editor.chain().focus().deleteRow().run(), false, "删除当前行", readonly)}
+            {btn("−C", () => editor.chain().focus().deleteColumn().run(), false, "删除当前列", readonly)}
+            {btn("⇤", () => setTableCellAlignment("left"), false, "当前列左对齐", readonly)}
+            {btn("↔", () => setTableCellAlignment("center"), false, "当前列居中", readonly)}
+            {btn("⇥", () => setTableCellAlignment("right"), false, "当前列右对齐", readonly)}
+            {btn("×▦", () => editor.chain().focus().deleteTable().run(), false, "删除表格", readonly)}
+          </>)}
           {btn("M↓", convertSelectionFromMarkdown, false, "转换所选 Markdown", readonly || !hasSelection())}
           <button
             className={`menu-btn ${showCodeLineNumbers ? "active" : ""}`}
@@ -1129,6 +1247,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
                   <button className="menu-dropdown-item" onClick={() => { handleCopy(); setClipOpen(false); }} type="button">📋 复制</button>
                   <button className="menu-dropdown-item" onClick={() => { handleCut(); setClipOpen(false); }} type="button">✂ 剪切</button>
                   <button className="menu-dropdown-item" onClick={() => { handleClipboardPaste(); setClipOpen(false); }} type="button">📝 粘贴</button>
+                  <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setClipOpen(false); }} type="button">M↑ 导出 Markdown</button>
                 </div>
               )}
             </div>
@@ -1136,6 +1255,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           {btn("📋", handleCopy, false, "复制 (Ctrl+C)", readonly)}
           {btn("✂", handleCut, false, "剪切 (Ctrl+X)", readonly)}
           {btn("📝", handleClipboardPaste, false, "粘贴 (Ctrl+V)", readonly)}
+          {btn("M↑", () => { void handleExportMarkdown(); }, false, "导出 Markdown", false)}
           </>)}
           <span className="menu-sep" />
 

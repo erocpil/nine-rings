@@ -7,6 +7,9 @@
  * Web 端读写时做转换。
  */
 
+import { getTableEmbed, normalizeTableAlignment, type TableEmbed } from "./table-embed";
+import { markdownTableToEmbed } from "./md-parser";
+
 // ── 字体大小映射 ──
 
 /** px → Quill named */
@@ -101,7 +104,13 @@ export function proseMirrorToDelta(pmJson: any): any {
 
       case "codeBlock":
         extractInlineOps(node, ops);
-        ops.push({ insert: "\n", attributes: { "code-block": true } });
+        ops.push({
+          insert: "\n",
+          attributes: {
+            "code-block": true,
+            ...(node.attrs?.language ? { language: node.attrs.language } : {}),
+          },
+        });
         break;
 
       case "blockquote":
@@ -118,10 +127,42 @@ export function proseMirrorToDelta(pmJson: any): any {
         ops.push({ insert: { hr: true } });
         ops.push({ insert: "\n" });
         break;
+
+      case "table":
+        ops.push({ insert: { table: tableNodeToEmbed(node) } });
+        ops.push({ insert: "\n" });
+        break;
     }
   }
 
   return { ops };
+}
+
+function tableNodeToEmbed(tableNode: any): TableEmbed {
+  const rows = (tableNode.content ?? []).map((row: any) => ({
+    cells: (row.content ?? []).map((cell: any) => {
+      const cellOps: any[] = [];
+      const blocks = cell.content ?? [];
+      blocks.forEach((block: any, index: number) => {
+        if (index > 0) cellOps.push({ insert: "\n" });
+        extractInlineOps(block, cellOps);
+      });
+      return {
+        ...(cell.type === "tableHeader" ? { header: true } : {}),
+        content: { ops: cellOps },
+      };
+    }),
+  }));
+  const columnCount = Math.max(0, ...rows.map((row: any) => row.cells.length));
+  const columns = Array.from({ length: columnCount }, (_, column) => {
+    for (const row of tableNode.content ?? []) {
+      const cell = row.content?.[column];
+      const align = normalizeTableAlignment(cell?.attrs?.textAlign);
+      if (align) return { align };
+    }
+    return { align: null };
+  });
+  return { version: 1, columns, rows };
 }
 
 /**
@@ -199,14 +240,14 @@ function extractInlineOps(
 
 export function deltaToProseMirror(deltaData: any): any {
   // 兼容两种入参：{ops: [...]} 或 {delta: {ops: [...]}}
-  const ops: any[] = deltaData?.ops ?? deltaData?.delta?.ops ?? [];
+  const ops: any[] = migrateLegacyMarkdownTables(deltaData?.ops ?? deltaData?.delta?.ops ?? []);
 
   const doc: any[] = [];
   let currentParagraph: any = { type: "paragraph", content: [] };
   let isImageBlock = false;
   // Quill 用紧随 embed 的换行标记块结束。它不是编辑器中的空段落，
   // 否则水平分割线在保存并重新加载后会凭空多出一行。
-  let skipEmptyLineAfterHorizontalRule = false;
+  let skipEmptyLineAfterBlockEmbed = false;
   /** 正在累积的列表行（未推入 doc，等待按 indent 重建树） */
   let pendingListLines: Array<{
     type: "bulletList" | "orderedList";
@@ -271,14 +312,14 @@ export function deltaToProseMirror(deltaData: any): any {
     if (typeof insert === "string") {
       if (insert === "\n") {
         if (
-          skipEmptyLineAfterHorizontalRule &&
+          skipEmptyLineAfterBlockEmbed &&
           currentParagraph.content.length === 0 &&
           Object.keys(attrs).length === 0
         ) {
-          skipEmptyLineAfterHorizontalRule = false;
+          skipEmptyLineAfterBlockEmbed = false;
           continue;
         }
-        skipEmptyLineAfterHorizontalRule = false;
+        skipEmptyLineAfterBlockEmbed = false;
         // ── 列表项 ──
         if (attrs.list === "bullet" || attrs.list === "ordered") {
           const rawIndent = Number(attrs.indent);
@@ -301,6 +342,9 @@ export function deltaToProseMirror(deltaData: any): any {
           flushParagraph();
         } else if (attrs["code-block"]) {
           currentParagraph.type = "codeBlock";
+          if (typeof attrs.language === "string" && attrs.language) {
+            currentParagraph.attrs = { language: attrs.language };
+          }
           flushParagraph();
         } else if (attrs.blockquote) {
           // ProseMirror 的 blockquote schema 要求 content: "paragraph*"
@@ -315,7 +359,7 @@ export function deltaToProseMirror(deltaData: any): any {
           flushParagraph();
         }
       } else if (insert.startsWith("\n")) {
-        skipEmptyLineAfterHorizontalRule = false;
+        skipEmptyLineAfterBlockEmbed = false;
         flushList();
         // Hard break within paragraph
         currentParagraph.content.push({ type: "hardBreak" });
@@ -325,7 +369,7 @@ export function deltaToProseMirror(deltaData: any): any {
           currentParagraph.content.push({ type: "text", text: rest, ...(marks.length > 0 ? { marks } : {}) });
         }
       } else {
-        skipEmptyLineAfterHorizontalRule = false;
+        skipEmptyLineAfterBlockEmbed = false;
         const marks = deltaAttrToMarks(attrs);
         currentParagraph.content.push({
           type: "text",
@@ -335,6 +379,15 @@ export function deltaToProseMirror(deltaData: any): any {
       }
     } else if (typeof insert === "object" && insert !== null) {
       flushList();
+      const table = getTableEmbed(insert);
+      if (table) {
+        if (currentParagraph.content.length > 0 || isImageBlock) flushParagraph();
+        doc.push(tableEmbedToProseMirror(table));
+        currentParagraph = { type: "paragraph", content: [] };
+        isImageBlock = false;
+        skipEmptyLineAfterBlockEmbed = true;
+        continue;
+      }
       if (insert.image) {
         flushParagraph();
         currentParagraph = { type: "image", attrs: { src: insert.image }, content: [] };
@@ -347,7 +400,7 @@ export function deltaToProseMirror(deltaData: any): any {
           flushParagraph();
         }
         doc.push({ type: "horizontalRule", content: [] });
-        skipEmptyLineAfterHorizontalRule = true;
+        skipEmptyLineAfterBlockEmbed = true;
       }
     }
   }
@@ -365,6 +418,96 @@ export function deltaToProseMirror(deltaData: any): any {
   }
 
   return { type: "doc", content: doc };
+}
+
+/** 将旧版本保存成 `| ... |` 普通段落的表格安全升级为 table embed。 */
+function migrateLegacyMarkdownTables(sourceOps: any[]): any[] {
+  const result: any[] = [];
+  const readLine = (start: number): { text: string; end: number } | null => {
+    let text = "";
+    let index = start;
+    for (; index < sourceOps.length; index++) {
+      const op = sourceOps[index];
+      if (typeof op?.insert !== "string") return null;
+      if (op.insert === "\n") {
+        if (Object.keys(op.attributes ?? {}).length > 0) return null;
+        return { text, end: index + 1 };
+      }
+      const attrs = op.attributes ?? {};
+      let part = op.insert;
+      if (attrs.code) part = `\`${part}\``;
+      if (attrs.bold) part = `**${part}**`;
+      if (attrs.italic) part = `*${part}*`;
+      if (attrs.link) part = `[${part}](${attrs.link})`;
+      text += part;
+    }
+    return null;
+  };
+
+  let index = 0;
+  while (index < sourceOps.length) {
+    const first = readLine(index);
+    if (first?.text.trim().startsWith("|")) {
+      const lines = [first.text];
+      let end = first.end;
+      while (end < sourceOps.length) {
+        const next = readLine(end);
+        if (!next?.text.trim().startsWith("|")) break;
+        lines.push(next.text);
+        end = next.end;
+      }
+      const table = markdownTableToEmbed(lines);
+      if (table) {
+        result.push({ insert: { table } }, { insert: "\n" });
+        index = end;
+        continue;
+      }
+    }
+    result.push(sourceOps[index]);
+    index += 1;
+  }
+  return result;
+}
+
+function tableEmbedToProseMirror(table: TableEmbed): any {
+  const columnCount = Math.max(
+    1,
+    table.columns.length,
+    ...table.rows.map((row) => Array.isArray(row.cells) ? row.cells.length : 0),
+  );
+  const sourceRows = table.rows.length > 0 ? table.rows : [{ cells: [] }];
+  const rows = sourceRows.map((row) => ({
+    type: "tableRow",
+    content: Array.from({ length: columnCount }, (_, column) => {
+      const cell = row.cells?.[column];
+      const ops = Array.isArray(cell?.content?.ops) ? cell.content.ops : [];
+      return {
+        type: cell?.header ? "tableHeader" : "tableCell",
+        attrs: {
+          colspan: 1,
+          rowspan: 1,
+          colwidth: null,
+          textAlign: normalizeTableAlignment(table.columns[column]?.align),
+        },
+        content: [{ type: "paragraph", content: inlineDeltaToProseMirror(ops) }],
+      };
+    }),
+  }));
+  return { type: "table", content: rows };
+}
+
+function inlineDeltaToProseMirror(ops: any[]): any[] {
+  const content: any[] = [];
+  for (const op of ops) {
+    if (typeof op?.insert !== "string") continue;
+    const marks = deltaAttrToMarks(op.attributes);
+    const parts = op.insert.split("\n");
+    parts.forEach((part: string, index: number) => {
+      if (index > 0) content.push({ type: "hardBreak" });
+      if (part) content.push({ type: "text", text: part, ...(marks.length > 0 ? { marks } : {}) });
+    });
+  }
+  return content;
 }
 
 // ── 格式检测 ──

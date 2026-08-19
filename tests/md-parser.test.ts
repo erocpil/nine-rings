@@ -121,6 +121,7 @@ function assert(condition: boolean, msg: string): void {
   const result = mdToDelta("```typescript\nconst x = 1;\n```");
   const codeBlockOps = result.ops.filter((o: any) => o.attributes?.["code-block"]);
   assert(codeBlockOps.length >= 1, "code block with lang exists");
+  assert(codeBlockOps[0].attributes?.language === "typescript", "code fence language is preserved");
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -232,12 +233,25 @@ function assert(condition: boolean, msg: string): void {
 |---|---|---|
 | DPDK框架 | 1.1～1.6 | EAL初始化 |
 | Flow Director | 1.7 | queue级资源隔离 |`;
-  const pm = deltaToProseMirror(mdToDelta(md));
+  const delta = mdToDelta(md);
+  const table = (delta.ops.find((op: any) => typeof op.insert === "object")?.insert as any)?.table;
+  const pm = deltaToProseMirror(delta);
 
-  assert(pm.content.length === 5, "table header, separator, and data rows remain separate paragraphs");
-  assert(pm.content[1]?.content?.[0]?.text === "| 技术领域 | 对应章节 | 核心内容 |", "table header is preserved");
-  assert(pm.content[2]?.content?.[0]?.text === "|---|---|---|", "table separator is preserved");
-  assert(pm.content[4]?.content?.[0]?.text === "| Flow Director | 1.7 | queue级资源隔离 |", "table data row is preserved");
+  assert(table?.version === 1, "table is stored as a versioned embed");
+  assert(table?.rows?.length === 3 && table?.columns?.length === 3, "table dimensions are preserved");
+  assert(table?.rows?.[0]?.cells?.every((cell: any) => cell.header), "first row is a header row");
+  assert(pm.content.length === 2 && pm.content[1]?.type === "table", "table becomes a ProseMirror table node");
+  assert(pm.content[1]?.content?.[2]?.content?.[0]?.content?.[0]?.content?.[0]?.text === "Flow Director",
+    "table data cell text is preserved");
+
+  const escaped = mdToDelta("| Code | Pipe |\n| :--- | ---: |\n| `a | b` | escaped \\| pipe |");
+  const escapedTable = (escaped.ops[0].insert as any).table;
+  assert(escapedTable.columns[0].align === "left" && escapedTable.columns[1].align === "right",
+    "column alignment is parsed");
+  assert(escapedTable.rows[1].cells[0].content.ops[0].attributes?.code === true,
+    "pipe inside inline code stays in one cell");
+  assert(escapedTable.rows[1].cells[1].content.ops[0].insert === "escaped | pipe",
+    "escaped pipe stays in one cell");
 }
 
 // ═══════════════════════════════════════════════════════════════════

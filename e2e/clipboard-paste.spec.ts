@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 test.describe("编辑器复制粘贴", () => {
   test("复制行内文本后粘贴不会引入首尾空白", async ({ page, context }) => {
@@ -157,7 +158,7 @@ test.describe("编辑器复制粘贴", () => {
     await expect(editor.locator("p")).toHaveText("已有内容粘贴正文");
   });
 
-  test("HTML 表格粘贴保留各行和单元格边界", async ({ page }) => {
+  test("HTML 表格粘贴为可编辑表格节点", async ({ page }) => {
     await page.goto("/");
 
     await page.getByTitle("随笔").click();
@@ -182,11 +183,11 @@ test.describe("编辑器复制粘贴", () => {
       }));
     });
 
-    await expect(editor.locator("p")).toHaveCount(4);
-    await expect(editor.locator("p").nth(0)).toHaveText("| 能力 | 主要证据 |");
-    await expect(editor.locator("p").nth(1)).toHaveText("| --- | --- |");
-    await expect(editor.locator("p").nth(2)).toHaveText("| DPDK | 百度 / Bless / 商汤 |");
-    await expect(editor.locator("p").nth(3)).toHaveText("| NIC | CX-5/CX-6 / Bless |");
+    const table = editor.locator(":scope > table, :scope > .tableWrapper table");
+    await expect(table).toHaveCount(1);
+    await expect(table.locator("tr")).toHaveCount(3);
+    await expect(table.locator("th")).toHaveText(["能力", "主要证据"]);
+    await expect(table.locator("td")).toHaveText(["DPDK", "百度 / Bless / 商汤", "NIC", "CX-5/CX-6 / Bless"]);
   });
 
   test("单行 Markdown 标题粘贴转换为一级标题", async ({ page }) => {
@@ -218,7 +219,8 @@ test.describe("编辑器复制粘贴", () => {
     await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
 
     const markdown = [
-      "- Parent",
+      "- **VFIO/UIO接入层**",
+      "  - 将PCI BAR以MMIO方式暴露给进程",
       "  1. Child",
       "    - Grandchild",
       "- Sibling",
@@ -236,12 +238,19 @@ test.describe("编辑器复制粘贴", () => {
 
     const rootList = editor.locator(":scope > ul");
     const rootItems = rootList.locator(":scope > li");
+    const bulletChildList = rootItems.first().locator(":scope > ul");
     const childList = rootItems.first().locator(":scope > ol");
     const grandchildList = childList.locator(":scope > li").first().locator(":scope > ul");
     await expect(rootItems).toHaveCount(2);
+    await expect(rootItems.first().locator(":scope > p strong")).toHaveText("VFIO/UIO接入层");
+    await expect(bulletChildList).toHaveCount(1);
     await expect(childList).toHaveCount(1);
     await expect(grandchildList).toHaveCount(1);
     await expect(grandchildList).toContainText("Grandchild");
+    await expect(rootList).toHaveCSS("list-style-type", "disc");
+    await expect(bulletChildList).toHaveCSS("list-style-type", "circle");
+    await expect(childList).toHaveCSS("list-style-type", "lower-alpha");
+    await expect(grandchildList).toHaveCSS("list-style-type", "square");
   });
 
   test("同时携带 HTML 的 Markdown 仍完整格式化", async ({ page }) => {
@@ -284,7 +293,7 @@ test.describe("编辑器复制粘贴", () => {
     await expect(editor).not.toContainText("# 面试复习材料:DPDK / 内核网络 / SR-IOV & VIRTIO");
   });
 
-  test("Markdown 表格粘贴后保留多行", async ({ page }) => {
+  test("Markdown 表格粘贴后渲染为表格", async ({ page }) => {
     await page.goto("/");
 
     await page.getByTitle("随笔").click();
@@ -313,9 +322,44 @@ test.describe("编辑器复制粘贴", () => {
     }, markdown);
 
     await expect(editor.locator("h1")).toHaveText("Part 0. 内容索引");
-    await expect(editor.locator("p")).toHaveCount(4);
-    await expect(editor.locator("p").nth(0)).toHaveText("| 技术领域 | 对应章节 | 核心内容 |");
-    await expect(editor.locator("p").nth(3)).toHaveText("| Flow Director | 1.7 | queue级资源隔离 |");
+    const table = editor.locator(":scope > table, :scope > .tableWrapper table");
+    await expect(table).toHaveCount(1);
+    await expect(table.locator("tr")).toHaveCount(3);
+    await expect(table.locator("th")).toHaveText(["技术领域", "对应章节", "核心内容"]);
+    await expect(table.locator("td").last()).toHaveText("queue级资源隔离");
+  });
+
+  test("编辑后的表格可规范化导出为 Markdown", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    const markdown = "| 名称 | 数值 |\n| :--- | ---: |\n| `a \\| b` | **42** |";
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    }, markdown);
+    const table = editor.locator("table");
+    await expect(table).toHaveCount(1);
+    await table.locator("td").first().click();
+    await page.getByTitle("当前列居中").click();
+    await expect(table.locator("th").first()).toHaveCSS("text-align", "center");
+    await expect(table.locator("td").first()).toHaveCSS("text-align", "center");
+    await page.getByTitle("在下方添加行").click();
+    await expect(table.locator("tr")).toHaveCount(3);
+
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByTitle("导出 Markdown").click();
+    const download = await downloadPromise;
+    const path = await download.path();
+    expect(path).not.toBeNull();
+    const exported = await readFile(path!, "utf8");
+    expect(exported).toContain("| 名称 | 数值 |");
+    expect(exported).toContain("| :---: | ---: |");
+    expect(exported).toContain("| `a \\| b` | **42** |");
   });
 
   test("超过五万字符的 Markdown 可替换已有内容", async ({ page }) => {

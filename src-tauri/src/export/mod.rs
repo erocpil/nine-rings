@@ -3,85 +3,165 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// 将 Delta JSON 转换为 Markdown 文本
+fn escape_markdown(text: &str, in_table: bool) -> String {
+    let mut escaped = String::new();
+    for ch in text.chars() {
+        if ch == '\\' || matches!(ch, '*' | '_' | '[' | ']') || (in_table && ch == '|') {
+            escaped.push('\\');
+        }
+        escaped.push(ch);
+    }
+    escaped
+}
+
+fn inline_op_to_markdown(op: &Value, in_table: bool) -> String {
+    let text = op.get("insert").and_then(Value::as_str).unwrap_or("");
+    let attrs = op.get("attributes");
+    if attrs.and_then(|a| a.get("code")).and_then(Value::as_bool).unwrap_or(false) {
+        let longest = text.split(|ch| ch != '`').map(str::len).max().unwrap_or(0);
+        let fence = "`".repeat(longest + 1);
+        let value = if in_table { text.replace('|', "\\|") } else { text.to_string() };
+        return format!("{fence}{value}{fence}");
+    }
+
+    let mut value = escape_markdown(text, in_table);
+    if attrs.and_then(|a| a.get("bold")).and_then(Value::as_bool).unwrap_or(false) {
+        value = format!("**{value}**");
+    }
+    if attrs.and_then(|a| a.get("italic")).and_then(Value::as_bool).unwrap_or(false) {
+        value = format!("*{value}*");
+    }
+    if attrs.and_then(|a| a.get("strike")).and_then(Value::as_bool).unwrap_or(false) {
+        value = format!("~~{value}~~");
+    }
+    if let Some(link) = attrs.and_then(|a| a.get("link")).and_then(Value::as_str) {
+        value = format!("[{value}]({link})");
+    }
+    value
+}
+
+fn cell_to_markdown(cell: Option<&Value>) -> String {
+    cell.and_then(|c| c.get("content"))
+        .and_then(|c| c.get("ops"))
+        .and_then(Value::as_array)
+        .map(|ops| ops.iter().map(|op| {
+            if op.get("insert").and_then(Value::as_str) == Some("\n") {
+                "<br>".to_string()
+            } else {
+                inline_op_to_markdown(op, true)
+            }
+        }).collect::<String>())
+        .unwrap_or_default()
+}
+
+fn table_to_markdown(table: &Value) -> String {
+    let columns = table.get("columns").and_then(Value::as_array).cloned().unwrap_or_default();
+    let rows = table.get("rows").and_then(Value::as_array).cloned().unwrap_or_default();
+    let column_count = rows.iter()
+        .filter_map(|row| row.get("cells").and_then(Value::as_array).map(Vec::len))
+        .fold(columns.len().max(1), usize::max);
+    let has_header = rows.first()
+        .and_then(|row| row.get("cells"))
+        .and_then(Value::as_array)
+        .map(|cells| cells.iter().any(|cell| cell.get("header").and_then(Value::as_bool).unwrap_or(false)))
+        .unwrap_or(false);
+
+    let render_row = |row: Option<&Value>| -> String {
+        let cells = row.and_then(|value| value.get("cells")).and_then(Value::as_array);
+        let values = (0..column_count).map(|column| cell_to_markdown(cells.and_then(|items| items.get(column))))
+            .collect::<Vec<_>>();
+        format!("| {} |", values.join(" | "))
+    };
+    let mut lines = vec![render_row(if has_header { rows.first() } else { None })];
+    let separators = (0..column_count).map(|column| {
+        match columns.get(column).and_then(|c| c.get("align")).and_then(Value::as_str) {
+            Some("center") => ":---:",
+            Some("right") => "---:",
+            Some("left") => ":---",
+            _ => "---",
+        }
+    }).collect::<Vec<_>>();
+    lines.push(format!("| {} |", separators.join(" | ")));
+    let body_start = usize::from(has_header);
+    lines.extend(rows.iter().skip(body_start).map(|row| render_row(Some(row))));
+    lines.join("\n")
+}
+
+/// 将 Delta JSON（含 table embed）转换为规范化 Markdown 文本。
 pub fn delta_to_markdown(content: &Value) -> String {
-    let mut md = String::new();
-    let mut in_code_block = false;
+    let Some(ops) = content.get("ops").and_then(Value::as_array) else { return String::new(); };
+    let mut blocks: Vec<(bool, String)> = Vec::new();
+    let mut inline = String::new();
+    let mut raw = String::new();
 
-    if let Some(ops) = content.get("ops").and_then(|v| v.as_array()) {
-        for op in ops {
-            let text = op.get("insert").and_then(|v| v.as_str()).unwrap_or("");
-            let attrs = op.get("attributes");
+    let flush = |attrs: Option<&Value>, blocks: &mut Vec<(bool, String)>, inline: &mut String, raw: &mut String| {
+        let attributes = attrs.unwrap_or(&Value::Null);
+        let value = if attributes.get("code-block").and_then(Value::as_bool).unwrap_or(false) {
+            let language = attributes.get("language").and_then(Value::as_str).unwrap_or("");
+            format!("```{language}\n{}\n```", raw)
+        } else if let Some(level) = attributes.get("header").and_then(Value::as_u64) {
+            format!("{} {}", "#".repeat(level.clamp(1, 6) as usize), inline)
+        } else if let Some(list) = attributes.get("list").and_then(Value::as_str) {
+            let indent = attributes.get("indent").and_then(Value::as_u64).unwrap_or(0) as usize;
+            let marker = if list == "ordered" { "1." } else { "-" };
+            blocks.push((true, format!("{}{marker} {}", "  ".repeat(indent), inline)));
+            inline.clear();
+            raw.clear();
+            return;
+        } else if attributes.get("blockquote").and_then(Value::as_bool).unwrap_or(false) {
+            format!("> {inline}")
+        } else {
+            inline.clone()
+        };
+        blocks.push((false, value));
+        inline.clear();
+        raw.clear();
+    };
 
-            // 代码块
-            if let Some(a) = attrs {
-                if a.get("code-block")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false)
-                {
-                    if !in_code_block {
-                        md.push_str("```\n");
-                        in_code_block = true;
-                    }
-                    md.push_str(text);
-                    continue;
-                }
-            }
-            if in_code_block {
-                md.push_str("```\n");
-                in_code_block = false;
-            }
-
-            // 换行
+    for op in ops {
+        if let Some(text) = op.get("insert").and_then(Value::as_str) {
             if text == "\n" {
-                md.push('\n');
-                continue;
+                flush(op.get("attributes"), &mut blocks, &mut inline, &mut raw);
+            } else {
+                inline.push_str(&inline_op_to_markdown(op, false));
+                raw.push_str(text);
             }
-
-            // 内联格式
-            let bold = attrs
-                .and_then(|a| a.get("bold").and_then(|v| v.as_bool()))
-                .unwrap_or(false);
-            let italic = attrs
-                .and_then(|a| a.get("italic").and_then(|v| v.as_bool()))
-                .unwrap_or(false);
-            let code = attrs
-                .and_then(|a| a.get("code").and_then(|v| v.as_bool()))
-                .unwrap_or(false);
-
-            let mut wrapped = text.to_string();
-            if bold {
-                wrapped = format!("**{}**", wrapped);
-            }
-            if italic {
-                wrapped = format!("*{}*", wrapped);
-            }
-            if code {
-                wrapped = format!("`{}`", wrapped);
-            }
-            md.push_str(&wrapped);
+            continue;
+        }
+        if !inline.is_empty() { flush(None, &mut blocks, &mut inline, &mut raw); }
+        let Some(insert) = op.get("insert") else { continue; };
+        if let Some(table) = insert.get("table").filter(|table| table.get("version").and_then(Value::as_u64) == Some(1)) {
+            blocks.push((false, table_to_markdown(table)));
+        } else if insert.get("hr").and_then(Value::as_bool).unwrap_or(false) {
+            blocks.push((false, "---".to_string()));
+        } else if let Some(image) = insert.get("image").and_then(Value::as_str) {
+            blocks.push((false, format!("![]({image})")));
         }
     }
-    if in_code_block {
-        md.push_str("```\n");
+    if !inline.is_empty() { flush(None, &mut blocks, &mut inline, &mut raw); }
+
+    let mut markdown = String::new();
+    for (index, (is_list, value)) in blocks.iter().enumerate() {
+        if index > 0 {
+            markdown.push_str(if *is_list && blocks[index - 1].0 { "\n" } else { "\n\n" });
+        }
+        markdown.push_str(value);
     }
-    md.trim().to_string()
+    markdown.trim().to_string()
 }
 
 /// 将 Note 导出为 .md 字符串
 pub fn note_to_markdown(note: &Note) -> String {
-    let mut md = String::new();
-    md.push_str(&format!(
-        "# {}\n\n",
-        note.title.as_deref().unwrap_or("无标题")
-    ));
-    md.push_str(&format!(
-        "> 日期: {} | 标签: {}\n\n",
-        note.date,
-        note.tags.join(", ")
-    ));
-    md.push_str(&delta_to_markdown(&note.content));
-    md
+    let title = note.title.as_deref().unwrap_or("无标题").trim();
+    let heading = format!("# {title}");
+    let body = delta_to_markdown(&note.content);
+    if body == heading || body.starts_with(&format!("{heading}\n")) {
+        body
+    } else if body.is_empty() {
+        heading
+    } else {
+        format!("{heading}\n\n{body}")
+    }
 }
 
 /// 导出格式：全量笔记 + daily page
@@ -190,4 +270,35 @@ pub fn import_bundle(conn: &Connection, bundle: &ExportBundle) -> rusqlite::Resu
     conn.execute_batch("COMMIT;")?;
 
     Ok((notes_imported, pages_imported))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::delta_to_markdown;
+    use serde_json::json;
+
+    #[test]
+    fn exports_versioned_table_embed_as_gfm() {
+        let delta = json!({ "ops": [
+            { "insert": { "table": {
+                "version": 1,
+                "columns": [{ "align": "left" }, { "align": "right" }],
+                "rows": [
+                    { "cells": [
+                        { "header": true, "content": { "ops": [{ "insert": "Name", "attributes": { "bold": true } }] } },
+                        { "header": true, "content": { "ops": [{ "insert": "Value" }] } }
+                    ] },
+                    { "cells": [
+                        { "content": { "ops": [{ "insert": "a | b", "attributes": { "code": true } }] } },
+                        { "content": { "ops": [{ "insert": "42" }] } }
+                    ] }
+                ]
+            } } },
+            { "insert": "\n" }
+        ] });
+        let markdown = delta_to_markdown(&delta);
+        assert!(markdown.contains("| **Name** | Value |"));
+        assert!(markdown.contains("| :--- | ---: |"));
+        assert!(markdown.contains("`a \\| b`"));
+    }
 }

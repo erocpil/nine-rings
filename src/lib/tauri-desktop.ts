@@ -34,6 +34,20 @@ export async function exportWithDialog(data: string, defaultName?: string): Prom
   return path;
 }
 
+/** 原生保存对话框 — 导出单篇 Markdown。 */
+export async function exportMarkdownWithDialog(data: string, defaultName: string): Promise<string | null> {
+  if (!isTauri()) return null;
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  const { invoke } = await import("@tauri-apps/api/core");
+  const path = await save({
+    defaultPath: defaultName,
+    filters: [{ name: "Markdown", extensions: ["md"] }],
+  });
+  if (!path) return null;
+  await invoke("export_to_file", { path, content: data });
+  return path;
+}
+
 /**
  * 原生打开对话框 — 从用户选择的文件导入数据
  * 返回导入结果（用户取消则返回 null）

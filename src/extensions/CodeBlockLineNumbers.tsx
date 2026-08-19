@@ -103,6 +103,18 @@ export const CodeBlockLineNumbers = Node.create({
   marks: "",
   code: true,
 
+  addAttributes() {
+    return {
+      language: {
+        default: null,
+        parseHTML: (element) => element.getAttribute("data-language") || null,
+        renderHTML: (attributes) => attributes.language
+          ? { "data-language": attributes.language }
+          : {},
+      },
+    };
+  },
+
   parseHTML() {
     return [{ tag: "pre" }];
   },

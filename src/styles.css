@@ -2848,11 +2848,77 @@ body {
 }
 
 .editor-content ul {
-  list-style: disc;
+  list-style-type: disc;
 }
 
 .editor-content ol {
-  list-style: decimal;
+  list-style-type: decimal;
+}
+
+/* 用不同 marker 明确表达嵌套深度；不能用全局 `ul { list-style: disc }`
+   覆盖浏览器对多级列表的视觉区分。 */
+.editor-content li > ul {
+  list-style-type: circle;
+}
+
+.editor-content li li > ul {
+  list-style-type: square;
+}
+
+.editor-content li > ol {
+  list-style-type: lower-alpha;
+}
+
+.editor-content li li > ol {
+  list-style-type: lower-roman;
+}
+
+/* ── Markdown / TipTap 表格 ── */
+.editor-content .tableWrapper {
+  width: 100%;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+
+.editor-content table {
+  width: 100%;
+  min-width: 480px;
+  border-collapse: collapse;
+  table-layout: auto;
+  background: var(--bg);
+}
+
+.editor-content th,
+.editor-content td {
+  position: relative;
+  min-width: 96px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  vertical-align: top;
+  text-align: left;
+}
+
+.editor-content th {
+  background: var(--surface);
+  font-weight: 600;
+}
+
+.editor-content th > p,
+.editor-content td > p {
+  margin: 0;
+}
+
+.editor-content .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.editor-content.resize-cursor {
+  cursor: col-resize;
 }
 
 .editor-content code {

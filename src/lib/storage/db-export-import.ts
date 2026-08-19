@@ -3,36 +3,7 @@
 import { withDB, getAll, getOne } from "./db";
 import { noteFromDB, noteToDB, blobToBase64, now } from "./core";
 import { snakeImportToCamel } from "./normalize";
-
-/** Delta → Markdown（与 Rust 侧 delta_to_markdown 逻辑一致） */
-function deltaToMarkdown(content: any): string {
-  try {
-    const ops = content?.ops ?? (Array.isArray(content) ? content : []);
-    const lines: string[] = [];
-    for (const op of ops) {
-      if (typeof op.insert !== "string") continue;
-      if (op.insert === "\n") continue;
-      let text = op.insert;
-      const attrs = op.attributes ?? {};
-      if (attrs.bold) text = `**${text}**`;
-      if (attrs.italic) text = `*${text}*`;
-      if (attrs.strike) text = `~~${text}~~`;
-      if (attrs.code) text = `\`${text}\``;
-      if (attrs.link) text = `[${text}](${attrs.link})`;
-      if (attrs.header === 1) text = `# ${text}`;
-      if (attrs.header === 2) text = `## ${text}`;
-      if (attrs.header === 3) text = `### ${text}`;
-      if (attrs.list === "bullet") text = `- ${text}`;
-      if (attrs.list === "ordered") text = `1. ${text}`;
-      if (attrs.blockquote) text = `> ${text}`;
-      if (attrs["code-block"]) text = "```\n" + text + "\n```";
-      lines.push(text);
-    }
-    return lines.join("\n").trim();
-  } catch {
-    return JSON.stringify(content);
-  }
-}
+import { noteToMarkdown } from "../markdown-serializer";
 
 export async function exportData(): Promise<string> {
   return withDB(async (db) => {
@@ -197,7 +168,6 @@ export async function exportNoteMarkdown(noteId: string): Promise<string> {
     const note = await getOne<any>(store, noteId);
     if (!note) throw new Error(`Note ${noteId} not found`);
     const n = noteFromDB(note);
-    const md = deltaToMarkdown(n.content);
-    return `# ${n.title ?? "无标题"}\n\n${md}`;
+    return noteToMarkdown(n.title, n.content);
   });
 }
