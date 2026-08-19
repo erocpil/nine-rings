@@ -1761,6 +1761,31 @@ body {
   margin-bottom: 12px;
 }
 
+.search-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.search-results-header button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 26px;
+}
+
+.search-results-header button:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
 .search-hit {
   padding: 8px 12px;
   cursor: pointer;
@@ -2655,47 +2680,111 @@ body {
   margin: 2px 0;
 }
 
-/* active line 同时高亮行号 */
-.show-line-numbers .ProseMirror > .ProseMirror-activeline::before,
-.show-line-numbers .ProseMirror .code-block-wrap.ProseMirror-activeline::before {
-  opacity: 0.70;
-  color: var(--accent);
-}
-
 .no-active-line .ProseMirror-activeline {
   background: transparent;
+}
+
+.editor-content-shell {
+  --editor-gutter-width: 24px;
+  position: relative;
+  flex: 1;
+  min-height: 200px;
+}
+
+.show-line-numbers .editor-content-shell {
+  --editor-gutter-width: 44px;
+}
+
+.focus-mode.show-line-numbers .editor-content-shell {
+  --editor-gutter-width: 36px;
+}
+
+.editor-content-shell > .editor-content {
+  min-height: 100%;
 }
 
 .ProseMirror {
   outline: none !important;
   padding-bottom: 35vh;
-  padding-left: 14px;          /* gutter — 所有 block 的内容向右偏移 */
+  padding-left: var(--editor-gutter-width);
   touch-action: auto;
   font-size: var(--editor-font-size);
 }
 
 /* ══════════════════════════════════════════
-   Gutter — parent-based（参考 CodeMirror 6）
+   块级 Gutter
 
-   核心思路：gutter 宽度放在 .ProseMirror 的 padding-left 上，
-   伪元素（行号 / + 按钮）用 position:absolute + 负 left 回拉
-   到 padding 区。各 block 不再设各自的 padding-left，
-   消除 block 类型间的偏移冲突。
+   编号和插入按钮由 EditorBlockGutter 按 ProseMirror 顶层节点位置
+   渲染。它们是真实 DOM 控件，不占用文档 schema，也不依赖伪元素
+   或鼠标坐标猜测。
    ══════════════════════════════════════════ */
 
-/* ── 行号模式：更宽的 gutter ── */
-.show-line-numbers .ProseMirror {
-  counter-reset: prose-line;
-  padding-left: 44px;
-}
-.focus-mode.show-line-numbers .ProseMirror {
-  padding-left: 36px;
+.editor-block-gutter {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--editor-gutter-width);
+  z-index: 4;
+  pointer-events: none;
+  color: var(--text-secondary);
 }
 
-/* ── 所有顶层 block：相对定位 + 底部间距（无 padding-left！）── */
-.ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap) {
-  padding-bottom: 4px;
-  position: relative;
+.editor-block-number {
+  position: absolute;
+  left: 0;
+  width: calc(var(--editor-gutter-width) - 8px);
+  padding-right: 4px;
+  text-align: right;
+  color: var(--text-secondary);
+  opacity: 0.4;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: var(--editor-line-height, 1.45);
+  user-select: none;
+}
+
+.editor-block-number.active {
+  color: var(--accent);
+  opacity: 0.75;
+}
+
+.no-active-line .editor-block-number.active {
+  color: var(--text-secondary);
+  opacity: 0.4;
+}
+
+.editor-block-insert {
+  position: absolute;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  transform: translateY(-50%);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  opacity: 0.12;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.show-line-numbers .editor-block-insert {
+  left: 4px;
+  width: 24px;
+}
+
+.editor-block-insert:hover,
+.editor-block-insert:focus-visible {
+  border-color: var(--border);
+  color: var(--accent);
+  opacity: 1;
+  outline: none;
 }
 
 /* 分割线本身不生成空段落；仅在其后保留一行高度的阅读间距。 */
@@ -2704,180 +2793,6 @@ body {
   border: 0;
   border-top: 1px solid var(--border);
   margin: 2px 0 1.45em;
-}
-
-/* 列表项：收紧编号与文本间距 */
-.editor-content li {
-  padding-left: 0;
-}
-
-/* ── 行间 + 按钮（::after）── 回拉到 gutter ── */
-.ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::after {
-  content: '+';
-  position: absolute;
-  left: -14px;
-  bottom: -4px;
-  width: 14px;
-  text-align: center;
-  font-size: 0.8em;
-  font-weight: 700;
-  color: var(--text-secondary);
-  opacity: 0.12;
-  pointer-events: auto;
-  cursor: pointer;
-  line-height: 1;
-  user-select: none;
-  transition: opacity 0.15s;
-}
-.ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):hover::after {
-  opacity: 0.45;
-}
-
-/* 代码块 wrapper 可能是嵌套子元素（非直接子），单独兜底 + 和定位 */
-.ProseMirror .code-block-wrap {
-  padding-bottom: 4px;
-  position: relative;
-}
-.ProseMirror .code-block-wrap::after {
-  content: '+';
-  position: absolute;
-  z-index: 1;
-  left: -14px;
-  bottom: -4px;
-  width: 14px;
-  text-align: center;
-  font-size: 0.8em;
-  font-weight: 700;
-  color: var(--text-secondary);
-  opacity: 0.12;
-  pointer-events: auto;
-  cursor: pointer;
-  line-height: 1;
-  user-select: none;
-  transition: opacity 0.15s;
-}
-.ProseMirror .code-block-wrap:hover::after {
-  opacity: 0.45;
-}
-
-.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::after {
-  left: -44px;
-  width: 36px;
-}
-.focus-mode.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::after {
-  left: -36px;
-  width: 28px;
-}
-
-/* 代码块 wrapper（嵌套子元素）行号模式覆盖 */
-.show-line-numbers .ProseMirror .code-block-wrap::after {
-  left: -44px;
-  width: 36px;
-}
-.focus-mode.show-line-numbers .ProseMirror .code-block-wrap::after {
-  left: -36px;
-  width: 28px;
-}
-
-/* ── 只读模式：隐藏所有 gutter + ── */
-.ProseMirror[contenteditable="false"] > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::after,
-.ProseMirror[contenteditable="false"] .code-block-wrap::after,
-.note-editor:not(.show-line-numbers) .ProseMirror[contenteditable="false"] > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):first-child::before {
-  display: none;
-}
-
-/* ── 第一个 block 顶部 +（::before hover，仅非行号模式）──
-   行号模式下 ::before 已被行号占用，不放 +。 */
-.ProseMirror:not(.show-line-numbers) > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap):first-child:not(.is-editor-empty):hover::before {
-  content: '+';
-  position: absolute;
-  left: -14px;
-  top: 0;
-  width: 14px;
-  text-align: center;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--accent);
-  opacity: 0.60;
-  cursor: pointer;
-  pointer-events: auto;
-  background: rgba(128, 128, 128, 0.04);
-  border-radius: 3px;
-  line-height: 1.5;
-}
-
-/* ── 行号（::before，仅行号模式）── */
-.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap) {
-  counter-increment: prose-line;
-}
-.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::before {
-  content: counter(prose-line);
-  position: absolute;
-  left: -44px;
-  top: 0;
-  width: 36px;
-  text-align: right;
-  padding-right: 8px;
-  color: var(--text-secondary);
-  opacity: 0.40;
-  font-variant-numeric: tabular-nums;
-  pointer-events: none;
-  user-select: none;
-  font-family: inherit;
-  font-size: 13px !important;
-  font-weight: 400 !important;
-  line-height: inherit;
-}
-.focus-mode.show-line-numbers .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, pre, blockquote, ul, ol, .code-block-wrap)::before {
-  left: -36px;
-  width: 28px;
-}
-
-/* ── 代码块 wrapper：继承父级 gutter，用自己的行号 ── */
-.show-line-numbers .ProseMirror .code-block-wrap {
-  counter-increment: prose-line;
-  position: relative;
-}
-.show-line-numbers .ProseMirror .code-block-wrap::before {
-  content: counter(prose-line);
-  position: absolute;
-  left: -44px;
-  top: 0;
-  width: 36px;
-  text-align: right;
-  padding-right: 8px;
-  color: var(--text-secondary);
-  opacity: 0.40;
-  font-variant-numeric: tabular-nums;
-  pointer-events: none;
-  user-select: none;
-  font-family: inherit;
-  font-size: 13px !important;
-  font-weight: 400 !important;
-  line-height: inherit;
-}
-.focus-mode.show-line-numbers .ProseMirror .code-block-wrap::before {
-  left: -36px;
-  width: 28px;
-}
-.show-line-numbers .ProseMirror .code-block-wrap pre {
-  counter-increment: none;
-}
-.show-line-numbers .ProseMirror .code-block-wrap pre::before {
-  display: none;
-}
-
-/* ── 列表：自然缩进，无特殊 gutter 覆盖 ── */
-.show-line-numbers .ProseMirror > ul ul,
-.show-line-numbers .ProseMirror > ol ol,
-.show-line-numbers .ProseMirror > ul ol,
-.show-line-numbers .ProseMirror > ol ul {
-  padding-left: 1.5em;
-}
-.show-line-numbers .editor-content li,
-.focus-mode.show-line-numbers .editor-content li {
-  padding-left: 0;
-  text-indent: 0;
 }
 
 /* ── Pre / code 背景（避免背景覆盖 gutter 区）── */
@@ -2910,20 +2825,26 @@ body {
 .editor-content ol {
   padding-left: 1.5em;
   margin: 4px 0;
-  list-style-position: inside;
+  list-style-position: outside;
 }
 
 .editor-content li {
   margin: 2px 0;
 }
-/* inside 模式下 li 内 block p 会导致标记换行 → inline */
-.editor-content li p {
+/* TipTap 的 listItem 首个 paragraph 保持和列表标记在同一行。 */
+.editor-content li > p {
   display: inline;
 }
-/* 标记与文本间距：hanging indent */
+
 .editor-content li {
-  padding-left: 0.5em;
-  text-indent: -0.5em;
+  padding-left: 0;
+  text-indent: 0;
+}
+
+.editor-content li > ul,
+.editor-content li > ol {
+  display: block;
+  margin-top: 2px;
 }
 
 .editor-content ul {
@@ -4888,7 +4809,7 @@ body {
 }
 
 .code-block-wrap {
-  /* wrapper 不设 flex，让 ::before position:absolute 正常工作 */
+  /* 保持块级布局，并为复制按钮提供定位上下文。 */
   position: relative;
 }
 

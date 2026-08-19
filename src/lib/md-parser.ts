@@ -2,7 +2,7 @@
  * md-parser.ts — Markdown → Quill Delta 转换器
  *
  * 支持的语法： # ## ### 标题  **粗体**  *斜体*  `行内代码`
- *            ``` 代码块    - 无序列表   1. 有序列表
+ *            ``` 代码块    - 无序列表   1. 有序列表（含多级混合列表）
  *            > 引用        [链接](url)  --- 分割线
  */
 
@@ -138,6 +138,30 @@ export function mdToDelta(mdText: string): DeltaOps {
   let i = 0;
   let inCode = false;
   let codeBuf: string[] = [];
+  let listIndentStack: number[] = [];
+
+  const resetListIndent = () => {
+    listIndentStack = [];
+  };
+
+  /** 将 Markdown 的 2/4 空格或 Tab 缩进映射为连续的 Quill indent。 */
+  const resolveListDepth = (whitespace: string): number => {
+    const columns = [...whitespace].reduce((sum, char) => sum + (char === "\t" ? 4 : 1), 0);
+    if (listIndentStack.length === 0) {
+      listIndentStack.push(columns);
+      return 0;
+    }
+
+    while (listIndentStack.length > 1 && columns < listIndentStack[listIndentStack.length - 1]) {
+      listIndentStack.pop();
+    }
+    if (columns > listIndentStack[listIndentStack.length - 1]) {
+      listIndentStack.push(columns);
+    }
+    return Math.max(0, listIndentStack.indexOf(columns) >= 0
+      ? listIndentStack.indexOf(columns)
+      : listIndentStack.length - 1);
+  };
 
   // 当前编辑器 schema 没有 table 节点。Markdown 表格先保留为逐行的
   // `| … |` 段落，既避免被折叠成一行，也可在粘贴/导出时保持结构。
@@ -169,6 +193,7 @@ export function mdToDelta(mdText: string): DeltaOps {
 
     // ── 代码块 ──
     if (/^```/.test(stripped)) {
+      resetListIndent();
       if (inCode) {
         if (codeBuf.length > 0) {
           ops.push({ insert: codeBuf.join("\n") });
@@ -202,6 +227,7 @@ export function mdToDelta(mdText: string): DeltaOps {
     // ── Markdown 表格 ──
     // 保持表头、分隔行和每个数据行各自独立，避免换行被普通段落折叠。
     if (isTableStart(i)) {
+      resetListIndent();
       while (i < lines.length && isTableRow(lines[i])) {
         appendParagraph([lines[i].trim()]);
         i++;
@@ -211,6 +237,7 @@ export function mdToDelta(mdText: string): DeltaOps {
 
     // ── 分割线 ──
     if (/^[-*_]{3,}\s*$/.test(stripped)) {
+      resetListIndent();
       ops.push({ insert: { hr: true } });
       i++;
       continue;
@@ -219,6 +246,7 @@ export function mdToDelta(mdText: string): DeltaOps {
     // ── 标题 ──
     const hMatch = stripped.match(/^(#{1,6})\s+(.+)$/);
     if (hMatch) {
+      resetListIndent();
       const level = hMatch[1].length;
       const text = hMatch[2];
       ops.push(...inlineToDelta(text));
@@ -230,6 +258,7 @@ export function mdToDelta(mdText: string): DeltaOps {
     // ── 引用 ──
     const bqMatch = stripped.match(/^>\s?(.*)$/);
     if (bqMatch) {
+      resetListIndent();
       const paragraphLines = [bqMatch[1].trim()];
       i++;
 
@@ -247,25 +276,22 @@ export function mdToDelta(mdText: string): DeltaOps {
       continue;
     }
 
-    // ── 无序列表 ──
-    const blMatch = stripped.match(/^[-*+]\s+(.+)$/);
-    if (blMatch) {
-      ops.push(...inlineToDelta(blMatch[1]));
-      ops.push({ insert: "\n", attributes: { list: "bullet" } });
-      i++;
-      continue;
-    }
-
-    // ── 有序列表 ──
-    const olMatch = stripped.match(/^\d+\.\s+(.+)$/);
-    if (olMatch) {
-      ops.push(...inlineToDelta(olMatch[1]));
-      ops.push({ insert: "\n", attributes: { list: "ordered" } });
+    // ── 列表（保留前导空白对应的嵌套深度）──
+    const listMatch = line.match(/^([ \t]*)([-*+]|\d+\.)\s+(.+)$/);
+    if (listMatch) {
+      const depth = resolveListDepth(listMatch[1]);
+      const list = /^\d/.test(listMatch[2]) ? "ordered" : "bullet";
+      ops.push(...inlineToDelta(listMatch[3]));
+      ops.push({
+        insert: "\n",
+        attributes: { list, ...(depth > 0 ? { indent: depth } : {}) },
+      });
       i++;
       continue;
     }
 
     // ── 普通段落 ──
+    resetListIndent();
     const paragraphLines = [stripped];
     i++;
     while (i < lines.length) {

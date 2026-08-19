@@ -92,17 +92,11 @@ export function proseMirrorToDelta(pmJson: any): any {
         break;
 
       case "bulletList":
-        for (const item of node.content ?? []) {
-          extractInlineOps(item, ops);
-          ops.push({ insert: "\n", attributes: { list: "bullet" } });
-        }
+        appendListOps(node, ops, 0);
         break;
 
       case "orderedList":
-        for (const item of node.content ?? []) {
-          extractInlineOps(item, ops);
-          ops.push({ insert: "\n", attributes: { list: "ordered" } });
-        }
+        appendListOps(node, ops, 0);
         break;
 
       case "codeBlock":
@@ -128,6 +122,49 @@ export function proseMirrorToDelta(pmJson: any): any {
   }
 
   return { ops };
+}
+
+/**
+ * Quill 用换行属性表示列表项，并用 indent 表示嵌套深度。按文档顺序
+ * 递归输出，避免 TipTap 中可正常显示的子列表在保存时被跳过。
+ */
+function appendListOps(listNode: any, ops: any[], depth: number): void {
+  const list = listNode.type === "orderedList" ? "ordered" : "bullet";
+
+  for (const item of listNode.content ?? []) {
+    let emittedItemLine = false;
+
+    for (const child of item.content ?? []) {
+      if (child.type === "bulletList" || child.type === "orderedList") {
+        // 非法或外部来源的空父项仍要保留一个可挂载子列表的列表项。
+        if (!emittedItemLine) {
+          ops.push({
+            insert: "\n",
+            attributes: { list, ...(depth > 0 ? { indent: depth } : {}) },
+          });
+          emittedItemLine = true;
+        }
+        appendListOps(child, ops, depth + 1);
+        continue;
+      }
+
+      if (child.type === "paragraph") {
+        extractInlineOps(child, ops);
+        ops.push({
+          insert: "\n",
+          attributes: { list, ...(depth > 0 ? { indent: depth } : {}) },
+        });
+        emittedItemLine = true;
+      }
+    }
+
+    if (!emittedItemLine) {
+      ops.push({
+        insert: "\n",
+        attributes: { list, ...(depth > 0 ? { indent: depth } : {}) },
+      });
+    }
+  }
 }
 
 function extractInlineOps(
@@ -170,8 +207,12 @@ export function deltaToProseMirror(deltaData: any): any {
   // Quill 用紧随 embed 的换行标记块结束。它不是编辑器中的空段落，
   // 否则水平分割线在保存并重新加载后会凭空多出一行。
   let skipEmptyLineAfterHorizontalRule = false;
-  /** 正在累积的列表（未推入 doc，等待闭合） */
-  let pendingList: { type: string; content: any[] } | null = null;
+  /** 正在累积的列表行（未推入 doc，等待按 indent 重建树） */
+  let pendingListLines: Array<{
+    type: "bulletList" | "orderedList";
+    indent: number;
+    paragraph: any;
+  }> = [];
 
   function flushParagraph() {
     // 推入当前累积段落（含空段落——用户可能有意保留空行）
@@ -180,12 +221,47 @@ export function deltaToProseMirror(deltaData: any): any {
     isImageBlock = false;
   }
 
-  /** 把 pendingList 推入 doc 并清空 */
+  /** 把连续的 Quill 列表行重建为 ProseMirror 嵌套列表树。 */
   function flushList() {
-    if (pendingList && pendingList.content.length > 0) {
-      doc.push({ ...pendingList });
+    if (pendingListLines.length === 0) return;
+
+    // 外部 Delta 可能从非零 indent 开始或跨级缩进；规范化成相邻层级，
+    // 既生成合法 schema，也不丢弃任何列表项。
+    let previousIndent = 0;
+    const normalized = pendingListLines.map((line, index) => {
+      const indent = index === 0 ? 0 : Math.min(line.indent, previousIndent + 1);
+      previousIndent = indent;
+      return { ...line, indent };
+    });
+
+    let index = 0;
+    const parseList = (depth: number, type: "bulletList" | "orderedList"): any => {
+      const list = { type, content: [] as any[] };
+
+      while (index < normalized.length) {
+        const line = normalized[index];
+        if (line.indent < depth || line.indent === depth && line.type !== type) break;
+        if (line.indent > depth) break;
+
+        const item = { type: "listItem", content: [line.paragraph] };
+        list.content.push(item);
+        index += 1;
+
+        while (index < normalized.length && normalized[index].indent > depth) {
+          const child = normalized[index];
+          item.content.push(parseList(child.indent, child.type));
+        }
+      }
+
+      return list;
+    };
+
+    while (index < normalized.length) {
+      const line = normalized[index];
+      doc.push(parseList(line.indent, line.type));
     }
-    pendingList = null;
+
+    pendingListLines = [];
   }
 
   for (const op of ops) {
@@ -205,20 +281,11 @@ export function deltaToProseMirror(deltaData: any): any {
         skipEmptyLineAfterHorizontalRule = false;
         // ── 列表项 ──
         if (attrs.list === "bullet" || attrs.list === "ordered") {
-          const listType = attrs.list === "bullet" ? "bulletList" : "orderedList";
-          // 如果当前列表类型不同，先刷出旧列表
-          if (pendingList && pendingList.type !== listType) {
-            flushList();
-          }
-          // 没有活跃列表时，新建一个
-          if (!pendingList) {
-            pendingList = { type: listType, content: [] };
-          }
-          // 构建 listItem，content 引用 currentParagraph.content 后重置
-          const itemParaContent = currentParagraph.content;
-          pendingList.content.push({
-            type: "listItem",
-            content: [{ type: "paragraph", content: itemParaContent }],
+          const rawIndent = Number(attrs.indent);
+          pendingListLines.push({
+            type: attrs.list === "bullet" ? "bulletList" : "orderedList",
+            indent: Number.isFinite(rawIndent) ? Math.max(0, Math.floor(rawIndent)) : 0,
+            paragraph: { type: "paragraph", content: currentParagraph.content },
           });
           currentParagraph = { type: "paragraph", content: [] };
           isImageBlock = false;

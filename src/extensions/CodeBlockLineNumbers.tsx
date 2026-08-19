@@ -6,8 +6,7 @@ import { copyToClipboard } from "../lib/clipboard";
  * CodeBlock 的 NodeView 组件（参照 TipTap 官方 CodeBlockLanguage 示例）。
  *
  * DOM 结构：
- *   <NodeViewWrapper>    ← counter-increment, position:relative
- *     ::before            ← position:absolute, content:counter(prose-line)
+ *   <NodeViewWrapper>     ← 作为主编辑器块级 gutter 的测量节点
  *     <div.code-block-inner>  ← display:flex（隔离 flex 布局）
  *       <div.code-block-gutter>  ← 内部行号
  *       <pre><NodeViewContent as="code" /></pre>
@@ -17,14 +16,15 @@ import { copyToClipboard } from "../lib/clipboard";
 function CodeBlockView() {
   const gutterRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(
-    () => document.querySelector(".note-editor")?.classList.contains("show-code-line-numbers") ?? false
-  );
+  const [visible, setVisible] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const el = document.querySelector(".note-editor");
+    // 必须绑定当前 NodeView 所属编辑器；全局 querySelector 在分栏或多个
+    // 编辑器实例并存时会读取到另一个编辑器的显示状态。
+    const el = wrapperRef.current?.closest(".note-editor");
     if (!el) return;
+    setVisible(el.classList.contains("show-code-line-numbers"));
     const observer = new MutationObserver(() => {
       setVisible(el.classList.contains("show-code-line-numbers"));
     });

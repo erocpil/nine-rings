@@ -210,6 +210,40 @@ test.describe("编辑器复制粘贴", () => {
     await expect(editor.locator("h1")).toHaveText("Resume Claim Defense");
   });
 
+  test("Markdown 多级混合列表按层级渲染", async ({ page }) => {
+    await page.goto("/");
+
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const markdown = [
+      "- Parent",
+      "  1. Child",
+      "    - Grandchild",
+      "- Sibling",
+    ].join("\n");
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    }, markdown);
+
+    const rootList = editor.locator(":scope > ul");
+    const rootItems = rootList.locator(":scope > li");
+    const childList = rootItems.first().locator(":scope > ol");
+    const grandchildList = childList.locator(":scope > li").first().locator(":scope > ul");
+    await expect(rootItems).toHaveCount(2);
+    await expect(childList).toHaveCount(1);
+    await expect(grandchildList).toHaveCount(1);
+    await expect(grandchildList).toContainText("Grandchild");
+  });
+
   test("同时携带 HTML 的 Markdown 仍完整格式化", async ({ page }) => {
     await page.goto("/");
 

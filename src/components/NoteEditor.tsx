@@ -30,7 +30,7 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { addLog, toggleDebug } from "../lib/debugLog";
 import { copyToClipboard } from "../lib/clipboard";
 import { CodeBlockLineNumbers } from "../extensions/CodeBlockLineNumbers";
-import { createGutterClickHandler } from "../extensions/LineNumberInsert";
+import { EditorBlockGutter } from "./EditorBlockGutter";
 import { storeImage } from "../lib/storage/db-images";
 import { api } from "../lib/api";
 import { looksLikeMarkdown, mdToDelta } from "../lib/md-parser";
@@ -517,16 +517,6 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       if (frame) cancelAnimationFrame(frame);
     };
   }, [editor]);
-
-  // 行号 gutter 点击：在当前 block 前插入空行（只读模式跳过）
-  useEffect(() => {
-    if (!editor || readonly) return;
-    const el = editor.view.dom.closest(".note-editor") as HTMLElement | null;
-    if (!el) return;
-    const handler = createGutterClickHandler(editor);
-    el.addEventListener("mousedown", handler);
-    return () => el.removeEventListener("mousedown", handler);
-  }, [editor, readonly]);
 
   // 打开标题下拉时自动检测是否存在 H6（切换至页 1）
   useEffect(() => {
@@ -1392,7 +1382,10 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             <button type="button" onClick={() => { editor.chain().focus().undo().run(); setMarkdownSelectionNotice(false); }}>撤销</button>
           </div>
         )}
-        <EditorContent editor={editor} className="editor-content" onContextMenu={handleEditorContextMenu} />
+        <div className="editor-content-shell">
+          <EditorBlockGutter editor={editor} showNumbers={showLineNumbers} readonly={!!readonly} />
+          <EditorContent editor={editor} className="editor-content" onContextMenu={handleEditorContextMenu} />
+        </div>
 
         {/* ── [[ 双向链接下拉 ── */}
         {wikiOpen && (

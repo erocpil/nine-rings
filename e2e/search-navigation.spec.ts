@@ -33,6 +33,34 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     await expect(page.locator(".search-match-active")).toHaveCount(1);
   });
 
+  test("关闭结果保留关键词，再次聚焦时保存编辑并刷新结果", async ({ page }) => {
+    await createDocument(page, "搜索刷新测试");
+    const editor = page.locator(".ProseMirror");
+    const input = page.locator(".search-input");
+    const header = page.locator(".search-results-header");
+    const keyword = "fresh-search-target";
+
+    await editor.fill(`正文包含 ${keyword}`);
+    await page.waitForTimeout(800);
+    await input.fill(keyword);
+    await expect(header).toContainText("搜索结果（1）");
+
+    // Esc 只关闭结果，不删除查询；输入框被主动 blur，下一次点击会触发新搜索。
+    await input.press("Escape");
+    await expect(page.locator(".search-results")).toHaveCount(0);
+    await expect(input).toHaveValue(keyword);
+    await input.click();
+    await expect(header).toContainText("搜索结果（1）");
+
+    // 显式关闭按钮同样保留关键词。修改后不等待 600ms 自动保存，
+    // 再次聚焦必须先 flush，因而旧关键词不应继续命中。
+    await page.getByRole("button", { name: "关闭搜索结果" }).click();
+    await expect(input).toHaveValue(keyword);
+    await editor.fill("正文已经改变，不再包含原来的检索词");
+    await input.click();
+    await expect(header).toContainText("搜索结果（0）");
+  });
+
   test("侧栏和窗口宽度变化后保持光标内容的屏幕位置", async ({ page }) => {
     await createDocument(page, "布局锚点测试");
     const editor = page.locator(".ProseMirror");

@@ -320,9 +320,6 @@ This is a **bold** and *italic* text with \`code\`.
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// Results
-// ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Markdown paste detection ──");
   assert(looksLikeMarkdown("### 先消除\n\n> 能不做的就不做"), "heading + quote is detected");
@@ -341,6 +338,39 @@ This is a **bold** and *italic* text with \`code\`.
   assert(!looksLikeMarkdown("> 100"), "single comparison-like line is not detected");
   assert(!looksLikeMarkdown("#12345"), "issue number is not detected");
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// 多级 Markdown 列表
+// ═══════════════════════════════════════════════════════════════════
+{
+  console.log("\n── Nested Markdown lists ──");
+  const delta = mdToDelta(
+    "- Parent\n" +
+    "  1. Child\n" +
+    "    - Grandchild\n" +
+    "- Sibling",
+  );
+  const listLines = delta.ops.filter((op: any) => op.attributes?.list);
+  assert(listLines.length === 4, "all Markdown list items are parsed");
+  assert(listLines[0].attributes?.indent === undefined, "root Markdown item has no indent");
+  assert(listLines[1].attributes?.list === "ordered" && listLines[1].attributes?.indent === 1,
+    "two-space ordered child becomes indent 1");
+  assert(listLines[2].attributes?.list === "bullet" && listLines[2].attributes?.indent === 2,
+    "four-space bullet grandchild becomes indent 2");
+
+  const pm = deltaToProseMirror(delta);
+  const rootList = pm.content[0];
+  const childList = rootList.content[0].content[1];
+  const grandchildList = childList.content[0].content[1];
+  assert(rootList.type === "bulletList" && rootList.content.length === 2,
+    "root Markdown list is rebuilt with sibling");
+  assert(childList.type === "orderedList", "mixed ordered child list is rebuilt");
+  assert(grandchildList.type === "bulletList", "third-level bullet list is rebuilt");
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Results
+// ═══════════════════════════════════════════════════════════════════
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

@@ -54,6 +54,8 @@ function App() {
   const { search, results, query, setQuery } = useSearch();
   const [docResults, setDocResults] = useState<Note[] | null>(null);
   const [docSearchText, setDocSearchText] = useState("");
+  const [docSearching, setDocSearching] = useState(false);
+  const docSearchRequestIdRef = useRef(0);
   const [editorSearchTarget, setEditorSearchTarget] = useState<SearchNavigationTarget | null>(null);
   const searchRequestIdRef = useRef(0);
 
@@ -63,6 +65,7 @@ function App() {
       await updateNote(noteId, data);
     },
   });
+  const flushAutoSave = autoSave.flush;
 
   const handleSelectNote = useCallback((note: Note | null) => {
     selectNote(note);
@@ -88,20 +91,41 @@ function App() {
   }, [selectedNote?.id, autoSave.setNoteId]);
 
   const handleDocSearch = useCallback(async (q: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => {
+    const requestId = ++docSearchRequestIdRef.current;
     if (!q.text && !q.storagePath && !q.docType && !q.concept) {
       setDocResults(null);
       setDocSearchText("");
+      setDocSearching(false);
       return;
     }
     setDocSearchText(q.text || "");
-    const notes = await api.docs.search({
-      text: q.text || undefined,
-      storagePath: q.storagePath,
-      docType: q.docType,
-      concept: q.concept,
-    });
-    setDocResults(notes);
-  }, []);
+    setDocResults([]);
+    setDocSearching(true);
+    try {
+      // 搜索索引来自持久化内容；先冲刷 600ms 防抖中的编辑，避免
+      // 用户刚修改正文就重新搜索时读到旧的 search_text。
+      await flushAutoSave();
+      if (requestId !== docSearchRequestIdRef.current) return;
+      const notes = await api.docs.search({
+        text: q.text || undefined,
+        storagePath: q.storagePath,
+        docType: q.docType,
+        concept: q.concept,
+      });
+      if (requestId === docSearchRequestIdRef.current) {
+        setDocResults(notes);
+      }
+    } catch (error) {
+      if (requestId === docSearchRequestIdRef.current) {
+        setDocResults([]);
+        console.error("[App] 搜索前保存或文档搜索失败:", error);
+      }
+    } finally {
+      if (requestId === docSearchRequestIdRef.current) {
+        setDocSearching(false);
+      }
+    }
+  }, [flushAutoSave]);
 
   const [recycleOpen, setRecycleOpen] = useState(false);
   const [overdueOpen, setOverdueOpen] = useState(false);
@@ -519,6 +543,26 @@ function App() {
     setEditorSearchTarget((current) => current?.requestId === requestId ? null : current);
   }, []);
 
+  const dismissSearchResults = useCallback(() => {
+    // 让仍在飞行中的请求失效；SearchBar 自己保留关键词和筛选条件。
+    docSearchRequestIdRef.current += 1;
+    setQuery("");
+    setDocResults(null);
+    setDocSearchText("");
+    setDocSearching(false);
+  }, [setQuery]);
+
+  useEffect(() => {
+    if (!query && docResults === null) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      dismissSearchResults();
+      setSearchExpanded(false);
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [dismissSearchResults, docResults, query]);
+
   return (
     <div className={`app ${focusMode ? "app-focus-mode" : ""}`}>
       {/* 桌面版（Tauri）才需要自定义标题栏；web 版无窗口概念 */}
@@ -579,7 +623,10 @@ function App() {
               onSearch={search}
               onDocSearch={handleDocSearch}
               onInputBlur={() => setSearchExpanded(false)}
-              onEscape={() => setSearchExpanded(false)}
+              onEscape={() => {
+                dismissSearchResults();
+                setSearchExpanded(false);
+              }}
             />
           </div>
           <span className="header-btn-gap" />
@@ -788,7 +835,14 @@ function App() {
         <main className="app-main">
           {query || docResults ? (
             <div className="search-results">
-              <h3>搜索结果（{(docResults ? docResults.length : results.notes.length + results.todos.length)}）</h3>
+              <h3 className="search-results-header">
+                <span>
+                  {docSearching
+                    ? "搜索中…"
+                    : `搜索结果（${docResults ? docResults.length : results.notes.length + results.todos.length}）`}
+                </span>
+                <button type="button" onClick={dismissSearchResults} aria-label="关闭搜索结果" title="关闭搜索结果">×</button>
+              </h3>
               {(docResults ? docResults : results.notes).length > 0 && (
                 <div className="search-section-label">笔记</div>
               )}

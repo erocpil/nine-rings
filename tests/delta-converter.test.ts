@@ -222,6 +222,42 @@ function assert(condition: boolean, msg: string): void {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// 15. 多级混合列表双向转换
+// ═══════════════════════════════════════════════════════════════════
+{
+  console.log("\n── Nested mixed lists ──");
+  const pm: any = { type: "doc", content: [{ type: "bulletList", content: [
+    { type: "listItem", content: [
+      { type: "paragraph", content: [{ type: "text", text: "Parent" }] },
+      { type: "orderedList", content: [
+        { type: "listItem", content: [
+          { type: "paragraph", content: [{ type: "text", text: "Child" }] },
+          { type: "bulletList", content: [
+            { type: "listItem", content: [
+              { type: "paragraph", content: [{ type: "text", text: "Grandchild" }] },
+            ] },
+          ] },
+        ] },
+      ] },
+    ] },
+    { type: "listItem", content: [
+      { type: "paragraph", content: [{ type: "text", text: "Sibling" }] },
+    ] },
+  ] }] };
+
+  const delta = proseMirrorToDelta(pm);
+  const listLines = delta.ops.filter((op: any) => op.attributes?.list);
+  assert(listLines.length === 4, "all nested list items are preserved");
+  assert(listLines[0].attributes.indent === undefined, "root item has no indent");
+  assert(listLines[1].attributes.list === "ordered" && listLines[1].attributes.indent === 1,
+    "ordered child has indent 1");
+  assert(listLines[2].attributes.list === "bullet" && listLines[2].attributes.indent === 2,
+    "bullet grandchild has indent 2");
+  assert(JSON.stringify(deltaToProseMirror(delta)) === JSON.stringify(pm),
+    "nested mixed list survives save and reload");
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // Results
 // ═══════════════════════════════════════════════════════════════════
 console.log(`\n${passed} passed, ${failed} failed`);

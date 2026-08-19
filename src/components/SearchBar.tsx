@@ -68,6 +68,9 @@ export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: Sear
         onSearch(text);
       }
     } else {
+      // 全部条件清空时，两条搜索路径都要复位。App 同时提供
+      // onDocSearch 时，仅调用 onSearch 会留下旧的文档结果页。
+      onDocSearch?.({ text: "" });
       onSearch("");
     }
   }, [onSearch, onDocSearch]);
@@ -117,7 +120,7 @@ export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: Sear
     setTypeFilter("");
     setConceptFilter("");
     setConceptInput("");
-    onSearch("");
+    fireSearch("", "", "", "");
   };
 
   const activeFilterCount = [pathFilter, typeFilter, conceptFilter].filter(Boolean).length;
@@ -150,7 +153,9 @@ export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: Sear
               }
               if (e.key === "Escape") {
                 onEscape?.();
+                e.currentTarget.blur();
                 e.preventDefault();
+                e.stopPropagation();
               }
             }}
             className="search-input"

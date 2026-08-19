@@ -303,8 +303,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
               </label>
             </Field>
 
-            {/* ── 显示行号 ── */}
-            <Field label="显示行号" desc="编辑器左侧显示行号（基于段落计数）">
+            {/* ── 显示块编号 ── */}
+            <Field label="显示块编号" desc="按顶层段落、列表、图片等内容块编号">
               <label className="settings-toggle">
                 <input
                   type="checkbox"
