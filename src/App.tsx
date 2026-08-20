@@ -90,6 +90,26 @@ function App() {
   const [editorSearchTarget, setEditorSearchTarget] = useState<SearchNavigationTarget | null>(null);
   const searchRequestIdRef = useRef(0);
 
+  // 恢复 GitHub 大备份时，最后打开的文档可能很大。先提交应用框架和加载提示，
+  // 下一帧再构造 TipTap，避免同步的 Delta → ProseMirror 转换让窗口一直保持白屏。
+  const [editorReadyNoteId, setEditorReadyNoteId] = useState<string | null>(null);
+  const [startupRestoreComplete, setStartupRestoreComplete] = useState(false);
+  const selectedNoteId = selectedNote?.id ?? null;
+  useEffect(() => {
+    setEditorReadyNoteId(null);
+    if (!selectedNoteId || !startupRestoreComplete) return;
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        setEditorReadyNoteId(selectedNoteId);
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+    };
+  }, [selectedNoteId, startupRestoreComplete]);
+
   // ── 自动保存 Hook ──
   const autoSave = useAutoSave({
     onSave: async (noteId, data) => {
@@ -346,6 +366,7 @@ function App() {
         setSelectedConcept(null);
         setSelectedFolderPath(workspaceTarget.path);
         startupRestoreCompleteRef.current = true;
+        setStartupRestoreComplete(true);
         saveWorkspaceTarget(workspaceTarget);
         return;
       }
@@ -354,6 +375,7 @@ function App() {
         setSelectedFolderPath(null);
         setSelectedConcept(workspaceTarget.concept);
         startupRestoreCompleteRef.current = true;
+        setStartupRestoreComplete(true);
         saveWorkspaceTarget(workspaceTarget);
         return;
       }
@@ -370,6 +392,7 @@ function App() {
         handleSelectNote(restored);
       }
       startupRestoreCompleteRef.current = true;
+      setStartupRestoreComplete(true);
       const finalSelection = restored ?? useNotesStore.getState().selectedNote;
       if (finalSelection) {
         localStorage.setItem(LAST_NOTE_KEY, finalSelection.id);
@@ -1048,7 +1071,7 @@ function App() {
                 className="app-main-editor"
                 style={{ flex: todoFlex > 0 ? 10 - todoFlex : 1 }}
               >
-                {selectedNote ? (
+                {selectedNote && editorReadyNoteId === selectedNote.id ? (
                   <NoteEditor
                     key={selectedNote.id}
                     noteId={selectedNote.id}
@@ -1075,7 +1098,7 @@ function App() {
                   />
                 ) : (
                   <div className="empty-state">
-                    {loading ? "加载中..." : "选择或新建一篇笔记"}
+                    {selectedNote ? "正在打开文档..." : loading ? "加载中..." : "选择或新建一篇笔记"}
                   </div>
                 )}
                 <DebugPanel />

@@ -241,15 +241,30 @@ function assert(condition: boolean, msg: string): void {
   消除内核态/用户态拷贝和上下文切换开销。`;
   const pm = deltaToProseMirror(mdToDelta(md));
 
-  assert(pm.content.length === 6, "wrapped source produces 6 intended top-level blocks");
+  assert(pm.content.length === 7, "wrapped source produces 7 intended top-level blocks");
   assert(pm.content[1]?.type === "blockquote", "quote remains a blockquote");
   assert(
     pm.content[1]?.content?.[0]?.content?.[0]?.text.includes("不需要硬编项目经历。"),
     "unmarked quote continuation stays in the quote",
   );
   assert(pm.content[2]?.type === "horizontalRule", "divider remains a horizontal rule");
-  assert(pm.content[5]?.content?.map((node: any) => node.text).join("").includes("上下文切换开销。"),
+  assert(pm.content[5]?.content?.map((node: any) => node.text).join("") === "概念",
+    "standalone bold label remains its own paragraph");
+  assert(pm.content[5]?.content?.[0]?.marks?.some((mark: any) => mark.type === "bold"),
+    "standalone label remains bold");
+  assert(pm.content[6]?.content?.map((node: any) => node.text).join("").includes("上下文切换开销。"),
     "wrapped body stays in one paragraph");
+}
+
+// 整行加粗标签与下一行正文之间即使没有空行，也必须保留块级分隔。
+{
+  console.log("\n── Standalone bold label ──");
+  const pm = deltaToProseMirror(mdToDelta(
+    "**概念**\nDPDK应用通常把每个lcore绑定到一个物理CPU核。",
+  ));
+  assert(pm.content.length === 2, "bold label and body render as two paragraphs");
+  assert(pm.content[0]?.content?.[0]?.text === "概念", "label text is preserved");
+  assert(pm.content[1]?.content?.[0]?.text?.startsWith("DPDK应用"), "body starts in the next paragraph");
 }
 
 // ═══════════════════════════════════════════════════════════════════

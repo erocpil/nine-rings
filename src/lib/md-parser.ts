@@ -256,6 +256,12 @@ export function mdToDelta(mdText: string): DeltaOps {
   const isTableStart = (lineIndex: number): boolean =>
     isMarkdownTableRow(lines[lineIndex] ?? "") && isMarkdownTableSeparator(lines[lineIndex + 1] ?? "");
 
+  // 知识文档常用 `**概念**`、`**原理**` 充当无编号的小标题。CommonMark
+  // 会把它和紧随其后的非空行视为同一段软换行，但在编辑器里这会显示成
+  // “概念DPDK...”。整行只有加粗内容时按独立标签段处理。
+  const isStandaloneBoldLabel = (text: string): boolean =>
+    /^\*\*[^*\n]+\*\*[：:]?\s*$/.test(text);
+
   // Markdown 的单个换行是段落内的软换行，而不是新的段落。这里列出会
   // 终止当前段落的块级语法；其余连续非空行会在下面合并为同一段。
   const startsBlock = (text: string): boolean =>
@@ -265,6 +271,7 @@ export function mdToDelta(mdText: string): DeltaOps {
     /^>\s?(.*)$/.test(text) ||
     /^[-*+]\s+.+$/.test(text) ||
     /^\d+\.\s+.+$/.test(text) ||
+    isStandaloneBoldLabel(text) ||
     isMarkdownTableRow(text);
 
   const appendParagraph = (paragraphLines: string[]) => {
@@ -383,6 +390,15 @@ export function mdToDelta(mdText: string): DeltaOps {
           ...(listStart !== undefined ? { listStart } : {}),
         },
       });
+      i++;
+      continue;
+    }
+
+    // ── 独立加粗标签 ──
+    // 与下一行正文分成两个段落，避免视觉上直接拼接。
+    if (isStandaloneBoldLabel(stripped)) {
+      resetListIndent();
+      appendParagraph([stripped]);
       i++;
       continue;
     }
