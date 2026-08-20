@@ -1,5 +1,6 @@
 import { Fragment, Schema, Slice } from "@tiptap/pm/model";
 import { normalizeSingleParagraphPaste } from "../src/extensions/NormalizeSingleParagraphPaste";
+import { clipboardSliceToPlainText } from "../src/lib/clipboard-plain-text";
 
 let passed = 0;
 let failed = 0;
@@ -22,6 +23,13 @@ const schema = new Schema({
       content: "inline*",
       group: "block",
     },
+    bulletList: { content: "listItem+", group: "block" },
+    orderedList: {
+      attrs: { start: { default: 1 } },
+      content: "listItem+",
+      group: "block",
+    },
+    listItem: { content: "paragraph block*" },
     hardBreak: { inline: true, group: "inline", selectable: false },
     text: { group: "inline" },
   },
@@ -32,6 +40,27 @@ const schema = new Schema({
 });
 
 console.log("\n── NormalizeSingleParagraphPaste ──");
+
+console.log("\n── clipboardSliceToPlainText ──");
+
+{
+  const paragraph = schema.node("paragraph", null, [
+    schema.text("尾延迟和公平性之间要用实"),
+  ]);
+  const item = schema.node("listItem", null, [paragraph]);
+  const list = schema.node("bulletList", null, [item]);
+  const partial = new Slice(Fragment.from(list), 3, 3);
+  const complete = new Slice(Fragment.from(list), 0, 0);
+
+  assert(
+    clipboardSliceToPlainText(partial) === "尾延迟和公平性之间要用实",
+    "partial list text does not synthesize a bullet marker",
+  );
+  assert(
+    clipboardSliceToPlainText(complete) === "- 尾延迟和公平性之间要用实",
+    "complete list copy keeps its bullet marker",
+  );
+}
 
 {
   const leading = schema.node("paragraph");

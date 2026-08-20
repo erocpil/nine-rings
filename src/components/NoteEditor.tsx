@@ -50,6 +50,10 @@ import {
   supportsNativeCjkLatinSpacing,
 } from "../extensions/CjkLatinSpacing";
 import { isDocumentFindKeyEvent } from "../lib/shortcuts";
+import {
+  extractDocumentOutline,
+  type DocumentOutlineItem,
+} from "../lib/document-outline";
 
 const FontSize = Extension.create({
   name: "fontSize",
@@ -205,6 +209,14 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [activeSearchMatch, setActiveSearchMatch] = useState(0);
   const [editorFindOpen, setEditorFindOpen] = useState(false);
   const [editorFindQuery, setEditorFindQuery] = useState("");
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const [documentOutline, setDocumentOutline] = useState<DocumentOutlineItem[]>([]);
+  const outlineBaseLevel = useMemo(
+    () => documentOutline.length > 0
+      ? Math.min(...documentOutline.map((item) => item.level))
+      : 1,
+    [documentOutline],
+  );
   const [colorOpen, setColorOpen] = useState(false);
   const [sizeOpen, setSizeOpen] = useState(false);
   const [imageDialog, setImageDialog] = useState(false);
@@ -278,7 +290,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
   // 点击外部关闭下拉框
   useEffect(() => {
-    if (!sizeOpen && !colorOpen && !headingOpen && !blockOpen && !styleOpen && !clipOpen && !linkOpen && !tableOpen && !moreOpen) return;
+    if (!sizeOpen && !colorOpen && !headingOpen && !blockOpen && !styleOpen && !clipOpen && !linkOpen && !tableOpen && !moreOpen && !outlineOpen) return;
     const handler = () => {
       setSizeOpen(false);
       setColorOpen(false);
@@ -289,10 +301,11 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       setLinkOpen(false);
       setTableOpen(false);
       setMoreOpen(false);
+      setOutlineOpen(false);
     };
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
-  }, [sizeOpen, colorOpen, headingOpen, blockOpen, styleOpen, clipOpen, linkOpen, tableOpen, moreOpen]);
+  }, [sizeOpen, colorOpen, headingOpen, blockOpen, styleOpen, clipOpen, linkOpen, tableOpen, moreOpen, outlineOpen]);
 
   // 关闭编辑器右键菜单（点击外部 / Escape / 滚动 / 失焦）
   useEffect(() => {
@@ -453,6 +466,28 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     setCjkLatinSpacing(editor, cjkLatinSpacing && !nativeCjkLatinSpacing);
   }, [cjkLatinSpacing, editor, nativeCjkLatinSpacing]);
 
+  // Markdown 导入和手动标题最终都会成为 heading 节点，因此目录直接读取
+  // 编辑器结构即可，并在正文变化时同步更新而无需改写文档内容。
+  useEffect(() => {
+    if (!editor) return;
+    const refresh = () => {
+      const next = extractDocumentOutline(editor.state.doc);
+      setDocumentOutline((previous) => {
+        const unchanged = previous.length === next.length
+          && previous.every((item, index) => (
+            item.level === next[index].level
+            && item.text === next[index].text
+            && item.pos === next[index].pos
+          ));
+        return unchanged ? previous : next;
+      });
+      if (next.length === 0) setOutlineOpen(false);
+    };
+    refresh();
+    editor.on("update", refresh);
+    return () => { editor.off("update", refresh); };
+  }, [editor]);
+
   // 当 readonly 变化时同步编辑器状态
   useEffect(() => {
     editor?.setEditable(!readonly);
@@ -498,6 +533,24 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     revealSearchMatch(activeSearchMatch + direction, matches);
     requestAnimationFrame(() => editorFindInputRef.current?.focus({ preventScroll: true }));
   }, [activeSearchMatch, revealSearchMatch]);
+
+  const jumpToOutlineHeading = useCallback((item: DocumentOutlineItem) => {
+    if (!editor || editor.isDestroyed) return;
+    const position = Math.min(item.pos + 1, editor.state.doc.content.size);
+    editor.commands.setTextSelection(position);
+    editor.view.focus();
+    setOutlineOpen(false);
+    requestAnimationFrame(() => {
+      const root = scrollRef.current;
+      if (!root || editor.isDestroyed) return;
+      const rootRect = root.getBoundingClientRect();
+      const stickyBottom = root.querySelector<HTMLElement>(".note-editor-sticky")
+        ?.getBoundingClientRect().bottom ?? rootRect.top;
+      const coords = editor.view.coordsAtPos(position);
+      const nextTop = root.scrollTop + coords.top - Math.max(rootRect.top, stickyBottom) - 12;
+      root.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
+    });
+  }, [editor]);
 
   // 拦截 WebView 原生 Ctrl/Cmd+F，并为 Windows 提供 Alt+F。原生查找框由
   // WebView 管理且主窗口 hide 后可能残留；应用内查找框与编辑器共用生命周期。
@@ -1225,6 +1278,33 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       onDrop={handleDrop}
       onMouseDownCapture={preventReadonlyTableResize}
     >
+      {editorFindOpen && (
+        <div className="editor-find-bar" role="search" onClick={(event) => event.stopPropagation()}>
+          <input
+            ref={editorFindInputRef}
+            value={editorFindQuery}
+            onChange={(event) => setEditorFindQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                navigateEditorFind(event.shiftKey ? -1 : 1);
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                closeEditorFind();
+                editor.commands.focus();
+              }
+            }}
+            placeholder="在当前文档中查找"
+            aria-label="在当前文档中查找"
+          />
+          <span className="editor-find-count" aria-live="polite">
+            {editorFindQuery.trim() ? (searchMatches.length > 0 ? `${activeSearchMatch + 1}/${searchMatches.length}` : "0/0") : ""}
+          </span>
+          <button type="button" onClick={() => navigateEditorFind(-1)} disabled={searchMatches.length === 0} title="上一处匹配" aria-label="上一处匹配">↑</button>
+          <button type="button" onClick={() => navigateEditorFind(1)} disabled={searchMatches.length === 0} title="下一处匹配" aria-label="下一处匹配">↓</button>
+          <button type="button" onClick={() => { closeEditorFind(); editor.commands.focus(); }} title="关闭查找" aria-label="关闭查找">×</button>
+        </div>
+      )}
       {/* ── 标题 + 标签 + 工具栏 + 编辑器（滚动区域）── */}
       <div className="note-editor-scroll" ref={scrollRef}>
         <div className="note-editor-sticky">
@@ -1240,6 +1320,49 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             onChange={(e) => { setLocalTitle(e.target.value); onTitleChange(e.target.value); }}
             readOnly={readonly}
           />
+          {documentOutline.length > 0 && (
+            <div className="document-outline-control">
+              <button
+                className={`focus-btn document-outline-toggle ${outlineOpen ? "active" : ""}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setOutlineOpen((open) => !open);
+                }}
+                title="文档目录"
+                aria-label="文档目录"
+                aria-expanded={outlineOpen}
+                type="button"
+              >目录</button>
+              {outlineOpen && (
+                <nav
+                  className="document-outline-panel"
+                  aria-label="文档目录"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="document-outline-header">
+                    <span>目录</span>
+                    <span>{documentOutline.length} 项</span>
+                  </div>
+                  <div className="document-outline-list">
+                    {documentOutline.map((item, index) => (
+                      <button
+                        key={`${item.pos}-${index}`}
+                        className="document-outline-item"
+                        style={{ paddingInlineStart: `${10 + (item.level - outlineBaseLevel) * 14}px` }}
+                        data-level={item.level}
+                        onClick={() => jumpToOutlineHeading(item)}
+                        title={item.text}
+                        type="button"
+                      >
+                        <span className="document-outline-level">H{item.level}</span>
+                        <span className="document-outline-text">{item.text}</span>
+                      </button>
+                    ))}
+                  </div>
+                </nav>
+              )}
+            </div>
+          )}
           <button
             className={`focus-btn ${focusMode ? "active" : ""}`}
             onClick={() => { onFocusModeChange?.(!focusMode); }}
@@ -1790,33 +1913,6 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             </span>
           )}
         </div>
-        )}
-        {editorFindOpen && (
-          <div className="editor-find-bar" role="search" onClick={(event) => event.stopPropagation()}>
-            <input
-              ref={editorFindInputRef}
-              value={editorFindQuery}
-              onChange={(event) => setEditorFindQuery(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  navigateEditorFind(event.shiftKey ? -1 : 1);
-                } else if (event.key === "Escape") {
-                  event.preventDefault();
-                  closeEditorFind();
-                  editor.commands.focus();
-                }
-              }}
-              placeholder="在当前文档中查找"
-              aria-label="在当前文档中查找"
-            />
-            <span className="editor-find-count" aria-live="polite">
-              {editorFindQuery.trim() ? (searchMatches.length > 0 ? `${activeSearchMatch + 1}/${searchMatches.length}` : "0/0") : ""}
-            </span>
-            <button type="button" onClick={() => navigateEditorFind(-1)} disabled={searchMatches.length === 0} title="上一处匹配" aria-label="上一处匹配">↑</button>
-            <button type="button" onClick={() => navigateEditorFind(1)} disabled={searchMatches.length === 0} title="下一处匹配" aria-label="下一处匹配">↓</button>
-            <button type="button" onClick={() => { closeEditorFind(); editor.commands.focus(); }} title="关闭查找" aria-label="关闭查找">×</button>
-          </div>
         )}
         </div>
 

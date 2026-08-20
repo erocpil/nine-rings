@@ -45,6 +45,35 @@ test.describe("编辑器复制粘贴", () => {
     await expect(editor.locator("p")).toHaveText("前缀 中间文本 后缀中间文本");
   });
 
+  test("复制列表项中的局部文本不会附加项目符号", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const phrase = "尾延迟和公平性之间要用实";
+    const editor = page.locator(".ProseMirror");
+    await editor.fill(`前缀 ${phrase} 后缀`);
+    await editor.press("Control+Shift+8");
+    await expect(editor.locator("ul > li")).toBeVisible();
+
+    await editor.evaluate((element, selectedText) => {
+      const text = element.querySelector("li p")?.firstChild;
+      if (!text) throw new Error("list item text node not found");
+      const value = text.textContent ?? "";
+      const start = value.indexOf(selectedText);
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.setStart(text, start);
+      range.setEnd(text, start + selectedText.length);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }, phrase);
+    await page.keyboard.press("Control+C");
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(phrase);
+  });
+
   test("复制整行文本后粘贴只产生预期内容", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await page.goto("/");

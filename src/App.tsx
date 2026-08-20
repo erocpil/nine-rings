@@ -39,6 +39,7 @@ import { editorAppearanceVariables } from "./lib/editor-appearance";
 
 const WORKSPACE_TARGET_KEY = "nr:workspaceTarget";
 const ACTIVE_TAG_KEY = "nr:activeTag";
+const DOC_TREE_COLLAPSED_KEY = "nr:docTreeCollapsed";
 
 type WorkspaceTarget =
   | { kind: "note"; noteId: string }
@@ -261,6 +262,14 @@ function App() {
   };
   const [docCreateOpen, setDocCreateOpen] = useState(false);
   const [docTreeKey, setDocTreeKey] = useState(0);
+  const [docTreeCollapsed, setDocTreeCollapsed] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(DOC_TREE_COLLAPSED_KEY);
+      return raw ? new Set(JSON.parse(raw)) : new Set<string>();
+    } catch {
+      return new Set<string>();
+    }
+  });
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0);
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(() => {
     const target = startupWorkspaceTargetRef.current;
@@ -282,6 +291,11 @@ function App() {
   useEffect(() => {
     localStorage.setItem("nr:propertiesOpen", String(propertiesOpen));
   }, [propertiesOpen]);
+
+  // 主侧栏和弹出文档树共享同一个折叠集合，并统一持久化。
+  useEffect(() => {
+    localStorage.setItem(DOC_TREE_COLLAPSED_KEY, JSON.stringify([...docTreeCollapsed]));
+  }, [docTreeCollapsed]);
 
   // 恢复并持续保存随笔标签筛选；失效标签只会得到空结果，不阻塞主界面。
   useEffect(() => {
@@ -866,6 +880,8 @@ function App() {
             />
           ) : (
             <DocTree
+              collapsed={docTreeCollapsed}
+              setCollapsed={setDocTreeCollapsed}
               disabled={syncBusy}
               toolbarHost={docTreeToolbarHost}
               onSelect={(note) => {
@@ -1152,6 +1168,8 @@ function App() {
             </div>
             <div className="doc-tree-popup-body">
               <DocTree
+                collapsed={docTreeCollapsed}
+                setCollapsed={setDocTreeCollapsed}
                 toolbarHost={popupDocTreeToolbarHost}
                 onSelect={(note) => {
                   setQuery("");

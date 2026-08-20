@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) => {
+  const longSection = Array.from(
+    { length: 36 },
+    (_, index) => `正文段落 ${index + 1}：用于验证目录跳转后的滚动定位。`,
+  ).join("\n\n");
   await page.goto("/");
   await page.getByTitle("设置").click();
 
@@ -13,7 +17,10 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
   await input.setInputFiles({
     name: "review-import.md",
     mimeType: "text/markdown",
-    buffer: Buffer.from("# Imported Review\r\n\r\n- **VFIO/UIO接入层**\r\n  - 子项", "utf8"),
+    buffer: Buffer.from(
+      `# Imported Review\n\n## VFIO/UIO接入层\n\n${longSection}\n\n### 子项\n\n- **队列初始化**\n  - 完成映射`,
+      "utf8",
+    ),
   });
 
   await expect(page.getByText("已导入 1 篇笔记")).toBeVisible();
@@ -29,5 +36,26 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
 
   await expect(page.locator(".note-title")).toHaveValue("Imported Review");
   await expect(page.locator(".tag-chip", { hasText: "imported" })).toBeVisible();
-  await expect(page.locator(".ProseMirror > ul > li > ul > li")).toHaveText("子项");
+  await expect(page.locator(".ProseMirror > ul > li > ul > li")).toHaveText("完成映射");
+
+  await page.getByTitle("文档目录").click();
+  const outline = page.getByRole("navigation", { name: "文档目录" });
+  await expect(outline).toBeVisible();
+  const outlineItems = outline.locator(".document-outline-item");
+  await expect(outlineItems).toHaveCount(3);
+  await expect(outlineItems.nth(0)).toHaveAttribute("data-level", "1");
+  await expect(outlineItems.nth(1)).toHaveAttribute("data-level", "2");
+  await expect(outlineItems.nth(1)).toContainText("VFIO/UIO接入层");
+  await expect(outlineItems.nth(2)).toHaveAttribute("data-level", "3");
+
+  await outlineItems.nth(2).click();
+  await expect(outline).toHaveCount(0);
+  await expect.poll(() => page.locator(".ProseMirror").evaluate((element) => {
+    const anchor = window.getSelection()?.anchorNode;
+    const heading = anchor instanceof Element ? anchor.closest("h3") : anchor?.parentElement?.closest("h3");
+    return heading?.textContent ?? "";
+  })).toBe("子项");
+  await expect.poll(() => page.locator(".note-editor-scroll").evaluate(
+    (element) => (element as HTMLElement).scrollTop,
+  )).toBeGreaterThan(100);
 });

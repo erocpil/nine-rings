@@ -130,15 +130,40 @@ test.describe("会话位置恢复与编辑器查找", () => {
       .toBeGreaterThan(280);
   });
 
-  test("Ctrl-F 查找框在主窗口关闭时同步关闭", async ({ page }) => {
+  test("侧栏与弹出文档树共享折叠状态", async ({ page }) => {
+    await createDocument(page, "折叠状态同步测试文档");
+
+    const sidebar = page.locator(".app-sidebar");
+    await sidebar.getByTitle("折叠所有目录").click();
+    await expect(sidebar.locator(".doc-tree-folder .doc-tree-toggle").first()).toHaveText("▶");
+
+    await page.getByTitle("隐藏侧栏").click();
+    await page.getByTitle("文档视图").click();
+    const popup = page.locator(".doc-tree-popup");
+    await expect(popup).toBeVisible();
+    await popup.getByTitle("折叠其它目录（保留当前文档所在目录）").click();
+    await expect(popup.locator(".doc-tree-folder .doc-tree-toggle").filter({ hasText: "▼" }).first()).toBeVisible();
+
+    await popup.getByRole("button", { name: "✕" }).click();
+    await page.getByTitle("显示侧栏").click();
+    await expect(sidebar.locator(".doc-tree-folder .doc-tree-toggle").filter({ hasText: "▼" }).first()).toBeVisible();
+  });
+
+  test("专注模式中 Ctrl-F 浮层可见且在主窗口关闭时同步关闭", async ({ page }) => {
     await createDocument(page, "窗口内查找测试");
     const editor = page.locator(".ProseMirror");
     await editor.fill("第一处 current-find-target\n中间正文\n第二处 current-find-target");
+    await page.getByTitle("专注模式").click();
+    await expect(page.locator(".note-editor")).toHaveClass(/focus-mode/);
+    const editorTopBefore = await editor.evaluate((element) => element.getBoundingClientRect().top);
     await editor.click();
     await page.keyboard.press("Control+f");
 
     const findInput = page.getByRole("search").getByLabel("在当前文档中查找");
     await expect(findInput).toBeVisible();
+    await expect(page.locator(".editor-find-bar")).toHaveCSS("position", "absolute");
+    const editorTopAfter = await editor.evaluate((element) => element.getBoundingClientRect().top);
+    expect(Math.abs(editorTopAfter - editorTopBefore)).toBeLessThan(1);
     await findInput.fill("current-find-target");
     await expect(page.locator(".editor-find-count")).toHaveText("1/2");
     await findInput.press("Enter");

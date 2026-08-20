@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import type { PathNode, Note } from "../types/models";
 import { api } from "../lib/api";
@@ -24,6 +25,8 @@ interface DocTreeProps {
   onTogglePropertiesAuto?: () => void;
   disabled?: boolean;
   toolbarHost?: HTMLElement | null;
+  collapsed: Set<string>;
+  setCollapsed: Dispatch<SetStateAction<Set<string>>>;
 }
 
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -108,20 +111,12 @@ function DocTree({
   onMoveDocument, onMoveFolder,
   onBatchDelete, onBatchSetReadonly,
   propertiesAutoShow, onTogglePropertiesAuto,
-  disabled, toolbarHost,
+  disabled, toolbarHost, collapsed, setCollapsed,
 }: DocTreeProps) {
   const [tree, setTree] = useState<PathNode[]>([]);
   const treeScrollRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
-    try {
-      const raw = localStorage.getItem("nr:docTreeCollapsed");
-      return raw ? new Set(JSON.parse(raw)) : new Set<string>();
-    } catch {
-      return new Set<string>();
-    }
-  });
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renamingFolder, setRenamingFolder] = useState<string | null>(null);  // 正在重命名的 folder path
@@ -165,16 +160,11 @@ function DocTree({
       console.error("[DocTree] 加载失败:", error);
       setLoadError(error instanceof Error ? error.message : String(error));
     }).finally(() => setLoading(false));
-  }, [showDaily]);
+  }, [setCollapsed, showDaily]);
 
   useEffect(() => {
     loadTree();
   }, [refreshKey, loadTree]);
-
-  // 持久化折叠状态
-  useEffect(() => {
-    localStorage.setItem("nr:docTreeCollapsed", JSON.stringify([...collapsed]));
-  }, [collapsed]);
 
   useLayoutEffect(() => {
     if (loading || !treeScrollRef.current) return;
