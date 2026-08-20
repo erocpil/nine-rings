@@ -27,6 +27,8 @@ pub struct AppConfig {
     pub editor_blockquote_indent: i32,
     #[serde(default = "default_editor_search_highlight_color")]
     pub editor_search_highlight_color: String,
+    #[serde(default = "default_true")]
+    pub editor_cjk_spacing: bool,
     pub dev_port: i32,
     #[serde(default = "default_true")]
     pub highlight_active_line: bool,
@@ -92,6 +94,7 @@ impl Default for AppConfig {
             editor_list_marker_gap: default_editor_list_marker_gap(),
             editor_blockquote_indent: default_editor_blockquote_indent(),
             editor_search_highlight_color: default_editor_search_highlight_color(),
+            editor_cjk_spacing: true,
             dev_port: 8000,
             highlight_active_line: true,
             editor_show_line_numbers: false,
@@ -225,5 +228,6 @@ mod tests {
         assert_eq!(config.editor_line_height, 1.6);
         assert_eq!(config.editor_list_indent, 1.25);
         assert_eq!(config.editor_search_highlight_color, "#ffd54f");
+        assert!(config.editor_cjk_spacing);
     }
 }

@@ -38,6 +38,43 @@ test("独立排版工作台中的设置即时生效并在重载后保持", async
   await expect(page.locator(".menu-font-size-label")).toHaveText("17");
 });
 
+test("中英文自动间距只改变渲染且开关可以持久化", async ({ page }) => {
+  await page.addInitScript(() => {
+    const originalSupports = CSS.supports.bind(CSS);
+    Object.defineProperty(CSS, "supports", {
+      configurable: true,
+      value: (property: string, value?: string) => property === "text-autospace"
+        ? false
+        : value === undefined
+          ? originalSupports(property)
+          : originalSupports(property, value),
+    });
+  });
+  await page.goto("/");
+  const editor = page.locator(".ProseMirror");
+  await expect(editor).toBeVisible();
+  await editor.fill("中文Codex中文，ABC。第3章");
+
+  const noteEditor = page.locator(".note-editor");
+  await expect(noteEditor).toHaveClass(/editor-auto-cjk-spacing/);
+  await expect(noteEditor).toHaveClass(/editor-cjk-spacing-fallback/);
+  await expect(editor.locator("[data-cjk-auto-space=true]")).toHaveCount(3);
+  await expect(editor.locator(".cjk-auto-space-before")).toHaveCount(2);
+  await expect(editor.locator(".cjk-auto-space-after")).toHaveCount(2);
+  await expect(editor).toHaveText("中文Codex中文，ABC。第3章");
+
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /打开排版工作台/ }).click();
+  const toggle = page.getByLabel("中英文自动间距");
+  await expect(toggle).toBeChecked();
+  await page.locator(".editor-appearance-toggle").click();
+  await expect(toggle).not.toBeChecked();
+  await expect(noteEditor).not.toHaveClass(/editor-auto-cjk-spacing/);
+
+  await page.reload();
+  await expect(page.locator(".note-editor")).not.toHaveClass(/editor-auto-cjk-spacing/);
+});
+
 test("Alt-E 聚焦全局搜索而 Ctrl-E 不再占用", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible();

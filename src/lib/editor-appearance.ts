@@ -9,6 +9,7 @@ export const DEFAULT_EDITOR_APPEARANCE = {
   editor_list_marker_gap: 0.2,
   editor_blockquote_indent: 12,
   editor_search_highlight_color: "#ffd54f",
+  editor_cjk_spacing: true,
 } as const;
 
 const FONT_STACKS: Record<AppConfig["editor_font_family"], string> = {

@@ -146,6 +146,7 @@ export interface AppConfig {
   editor_list_marker_gap: number;
   editor_blockquote_indent: number;
   editor_search_highlight_color: string;
+  editor_cjk_spacing: boolean;
   dev_port: number;
   highlight_active_line: boolean;
   editor_show_line_numbers: boolean;

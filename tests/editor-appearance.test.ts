@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { editorAppearanceVariables } from "../src/lib/editor-appearance";
 import { editorGutterWidth } from "../src/lib/editor-gutter";
+import { needsCjkLatinSpacing } from "../src/extensions/CjkLatinSpacing";
 
 const defaults = editorAppearanceVariables();
 assert.equal(defaults["--editor-font-size"], "16px");
@@ -38,5 +39,14 @@ assert.equal(editorGutterWidth(0, false), 24);
 assert.equal(editorGutterWidth(999, true), 44);
 assert.equal(editorGutterWidth(1_000, true), 52);
 assert.equal(editorGutterWidth(10_000, true), 60);
+
+assert.equal(needsCjkLatinSpacing("中", "A"), true);
+assert.equal(needsCjkLatinSpacing("A", "文"), true);
+assert.equal(needsCjkLatinSpacing("第", "3"), true);
+assert.equal(needsCjkLatinSpacing("3", "章"), true);
+assert.equal(needsCjkLatinSpacing("x", "，"), false);
+assert.equal(needsCjkLatinSpacing("，", "中"), false);
+assert.equal(needsCjkLatinSpacing("A", "B"), false);
+assert.equal(needsCjkLatinSpacing("中", "文"), false);
 
 console.log("Editor appearance variables passed");

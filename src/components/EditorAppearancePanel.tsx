@@ -91,6 +91,18 @@ export function EditorAppearancePanel({ config, onClose, onUpdate }: Props) {
               </label>
             </AppearanceField>
 
+            <AppearanceField label="中英文自动间距" desc="在汉字与英文、数字之间增加视觉间距，不修改文档内容">
+              <label className="settings-toggle editor-appearance-toggle">
+                <input
+                  type="checkbox"
+                  aria-label="中英文自动间距"
+                  checked={config.editor_cjk_spacing}
+                  onChange={(event) => onUpdate({ editor_cjk_spacing: event.target.checked })}
+                />
+                <span>{config.editor_cjk_spacing ? "已开启" : "已关闭"}</span>
+              </label>
+            </AppearanceField>
+
             <button
               className="settings-btn-secondary editor-appearance-reset"
               type="button"
@@ -103,9 +115,9 @@ export function EditorAppearancePanel({ config, onClose, onUpdate }: Props) {
               <span>实时预览</span>
               <small>{config.note_font_size}px · {config.editor_line_height.toFixed(1)} 行距</small>
             </div>
-            <article className="editor-appearance-preview editor-appearance-document" style={variables} aria-label="编辑器排版预览">
+            <article className={`editor-appearance-preview editor-appearance-document ${config.editor_cjk_spacing ? "editor-auto-cjk-spacing" : ""}`} style={variables} aria-label="编辑器排版预览">
               <h1>把想法整理成可读的结构</h1>
-              <p>排版不改变内容本身，却会直接影响阅读节奏。这里的文字会随着左侧设置即时变化。</p>
+              <p>Nine Rings支持Markdown编辑，排版不改变内容本身，却会直接影响阅读节奏。</p>
               <h2>清晰的层级</h2>
               <ul>
                 <li>一级列表用于表达主要观点

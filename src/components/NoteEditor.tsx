@@ -44,6 +44,11 @@ import { noteToMarkdown } from "../lib/markdown-serializer";
 import { exportMarkdownWithDialog, isTauri } from "../lib/tauri-desktop";
 import { editorGutterWidth } from "../lib/editor-gutter";
 import { clipboardSliceToPlainText } from "../lib/clipboard-plain-text";
+import {
+  CjkLatinSpacing,
+  setCjkLatinSpacing,
+  supportsNativeCjkLatinSpacing,
+} from "../extensions/CjkLatinSpacing";
 
 const FontSize = Extension.create({
   name: "fontSize",
@@ -171,6 +176,7 @@ interface NoteEditorProps {
   showLineNumbers: boolean;
   highlightActiveLine: boolean;
   useCustomContextMenu: boolean;
+  cjkLatinSpacing: boolean;
   editorFontSize: number;
   onEditorFontSizeChange: (size: number) => void;
   onTitleChange: (title: string) => void;
@@ -187,7 +193,7 @@ interface NoteEditorProps {
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, highlightActiveLine, useCustomContextMenu, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
+export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -237,6 +243,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [markdownPasteText, setMarkdownPasteText] = useState<string | null>(null);
   const [markdownSelectionNotice, setMarkdownSelectionNotice] = useState(false);
   const [gutterBlockCount, setGutterBlockCount] = useState(0);
+  const nativeCjkLatinSpacing = useMemo(supportsNativeCjkLatinSpacing, []);
 
   useEffect(() => {
     if (!markdownPasteText) return;
@@ -377,6 +384,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       SearchHighlights,
       CodeBlockLineNumbers,
       MarkdownLinkInput,
+      CjkLatinSpacing,
     ],
     content: tipTapContent,
     editable: !readonly,
@@ -438,6 +446,11 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       }
     },
   });
+
+  useEffect(() => {
+    if (!editor) return;
+    setCjkLatinSpacing(editor, cjkLatinSpacing && !nativeCjkLatinSpacing);
+  }, [cjkLatinSpacing, editor, nativeCjkLatinSpacing]);
 
   // 当 readonly 变化时同步编辑器状态
   useEffect(() => {
@@ -1207,7 +1220,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
   return (
     <div
-      className={`note-editor ${readonly ? "note-editor-readonly" : ""} ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""}`}
+      className={`note-editor ${readonly ? "note-editor-readonly" : ""} ${cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${cjkLatinSpacing && !nativeCjkLatinSpacing ? "editor-cjk-spacing-fallback" : ""} ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""}`}
       onPasteCapture={handlePaste}
       onDrop={handleDrop}
       onMouseDownCapture={preventReadonlyTableResize}

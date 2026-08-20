@@ -79,6 +79,11 @@ AppConfig:
       default: "#ffd54f"
       description: 编辑器内搜索关键字高亮色
 
+    editor_cjk_spacing:
+      type: boolean
+      default: true
+      description: 在汉字与英文、数字之间增加仅用于渲染的视觉间距
+
     dev_port:
       type: integer
       default: 1420

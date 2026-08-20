@@ -2,6 +2,7 @@ pub mod commands;
 pub mod db;
 pub mod export;
 pub mod service;
+mod webview_profile;
 
 use std::sync::Mutex;
 use tauri::{
@@ -88,35 +89,6 @@ pub struct AppState {
 
 /// 应用数据目录 — 在 setup() 中计算一次，避免 IPC 命令中重复调用 app_data_dir()
 pub struct DataDir(pub std::path::PathBuf);
-
-/// 清理 WebView2 profile 目录（白屏修复的核心步骤）
-///
-/// 删除整个 EBWebView 目录。之前的清理是白屏修复的关键：
-/// 上次会话残留的 WebView2 GPU/渲染缓存会导致下次启动白屏。
-///
-/// 用户数据（笔记、配置）已通过 Tauri IPC 持久化到
-/// AppData\\Roaming\\com.ninerings.app\\ (SQLite + config.json)，
-/// 不在此目录中，可以安全删除。
-#[allow(dead_code)]
-fn try_clean_webview2_profile(dir: &std::path::Path) {
-    match std::fs::remove_dir_all(dir) {
-        Ok(()) => {
-            startup_log!("try_clean_webview2_profile: removed {:?}", dir);
-        }
-        Err(e) => {
-            let code = e.raw_os_error().unwrap_or(-1);
-            match code {
-                2 | 3 => {} // 目录不存在 — 首次启动正常情况
-                _ => startup_log!(
-                    "try_clean_webview2_profile: cannot remove {:?}: {} (os error {})",
-                    dir,
-                    e,
-                    code
-                ),
-            }
-        }
-    }
-}
 
 /// 切换主窗口显示/隐藏（Alt+Y 等 toggle 型快捷键）
 fn toggle_main_window(app: &tauri::AppHandle) {
@@ -211,14 +183,22 @@ pub fn run() {
         }
     }
 
-    // ── 清理 WebView2 profile（白屏修复 — 必须在 WebView2 启动前）──
+    // ── 清理 WebView2 可再生缓存（白屏修复 — 必须在 WebView2 启动前）──
+    // 不删除整个 profile：Local Storage 中保存着窗口布局、最后文档和阅读位置。
     #[cfg(target_os = "windows")]
     if let Some(local_dir) = app_local_data_dir() {
         let ebwebview = local_dir.join("EBWebView");
-        if ebwebview.exists() {
-            startup_log!("pre-tauri: cleaning EBWebView {:?}", ebwebview);
+        let report = webview_profile::clean_webview2_caches(&ebwebview);
+        for path in report.removed {
+            startup_log!("pre-tauri: removed WebView2 cache {:?}", path);
         }
-        try_clean_webview2_profile(&ebwebview);
+        for (path, error) in report.failed {
+            startup_log!(
+                "pre-tauri: cannot remove WebView2 cache {:?}: {}",
+                path,
+                error
+            );
+        }
     }
 
     // WebView2 诊断与修复环境变量：

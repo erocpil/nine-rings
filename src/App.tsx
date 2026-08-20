@@ -1060,6 +1060,7 @@ function App() {
                     showLineNumbers={config?.editor_show_line_numbers ?? false}
                     highlightActiveLine={config?.highlight_active_line ?? true}
                     useCustomContextMenu={config?.use_custom_context_menu ?? true}
+                    cjkLatinSpacing={config?.editor_cjk_spacing ?? true}
                     editorFontSize={config?.note_font_size ?? 16}
                     onEditorFontSizeChange={handleEditorFontSizeChange}
                     searchTarget={editorSearchTarget?.noteId === selectedNote.id ? editorSearchTarget : null}
