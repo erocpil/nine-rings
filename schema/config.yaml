@@ -34,6 +34,51 @@ AppConfig:
       max: 32
       description: 编辑器正文字号
 
+    editor_font_family:
+      type: enum(system, sans, serif, monospace)
+      default: system
+      description: 编辑器正文字体族
+
+    editor_line_height:
+      type: number
+      default: 1.6
+      min: 1.2
+      max: 2.2
+      description: 编辑器正文行距
+
+    editor_paragraph_indent:
+      type: number
+      default: 0
+      min: 0
+      max: 2
+      description: 顶层正文段落首行缩进（em）
+
+    editor_list_indent:
+      type: number
+      default: 1.25
+      min: 1
+      max: 3
+      description: 每一级列表缩进（em）
+
+    editor_list_marker_gap:
+      type: number
+      default: 0.2
+      min: 0.1
+      max: 0.8
+      description: 无序列表圆点与文字间距（em）
+
+    editor_blockquote_indent:
+      type: integer
+      default: 12
+      min: 4
+      max: 32
+      description: 引用块左侧内缩（px）
+
+    editor_search_highlight_color:
+      type: color
+      default: "#ffd54f"
+      description: 编辑器内搜索关键字高亮色
+
     dev_port:
       type: integer
       default: 1420

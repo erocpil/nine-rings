@@ -13,6 +13,20 @@ pub struct AppConfig {
     pub todo_carryover_default: bool,
     pub auto_clean_days: i32,
     pub note_font_size: i32,
+    #[serde(default = "default_editor_font_family")]
+    pub editor_font_family: String,
+    #[serde(default = "default_editor_line_height")]
+    pub editor_line_height: f64,
+    #[serde(default)]
+    pub editor_paragraph_indent: f64,
+    #[serde(default = "default_editor_list_indent")]
+    pub editor_list_indent: f64,
+    #[serde(default = "default_editor_list_marker_gap")]
+    pub editor_list_marker_gap: f64,
+    #[serde(default = "default_editor_blockquote_indent")]
+    pub editor_blockquote_indent: i32,
+    #[serde(default = "default_editor_search_highlight_color")]
+    pub editor_search_highlight_color: String,
     pub dev_port: i32,
     #[serde(default = "default_true")]
     pub highlight_active_line: bool,
@@ -26,6 +40,30 @@ pub struct AppConfig {
 
 fn default_true() -> bool {
     true
+}
+
+fn default_editor_font_family() -> String {
+    "system".into()
+}
+
+fn default_editor_line_height() -> f64 {
+    1.6
+}
+
+fn default_editor_list_indent() -> f64 {
+    1.25
+}
+
+fn default_editor_list_marker_gap() -> f64 {
+    0.2
+}
+
+fn default_editor_blockquote_indent() -> i32 {
+    12
+}
+
+fn default_editor_search_highlight_color() -> String {
+    "#ffd54f".into()
 }
 
 fn default_hotkeys() -> std::collections::HashMap<String, String> {
@@ -47,6 +85,13 @@ impl Default for AppConfig {
             todo_carryover_default: false,
             auto_clean_days: 30,
             note_font_size: 16,
+            editor_font_family: default_editor_font_family(),
+            editor_line_height: default_editor_line_height(),
+            editor_paragraph_indent: 0.0,
+            editor_list_indent: default_editor_list_indent(),
+            editor_list_marker_gap: default_editor_list_marker_gap(),
+            editor_blockquote_indent: default_editor_blockquote_indent(),
+            editor_search_highlight_color: default_editor_search_highlight_color(),
             dev_port: 8000,
             highlight_active_line: true,
             editor_show_line_numbers: false,
@@ -152,5 +197,33 @@ pub fn set_config(
         Ok(merged)
     } else {
         Err("config serialization error".into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppConfig;
+
+    #[test]
+    fn legacy_config_keeps_existing_values_and_gets_appearance_defaults() {
+        let legacy = r#"{
+            "theme":"grace",
+            "default_view":"daily",
+            "todo_carryover_default":false,
+            "auto_clean_days":30,
+            "note_font_size":19,
+            "dev_port":8000,
+            "highlight_active_line":true,
+            "editor_show_line_numbers":false,
+            "use_custom_context_menu":true,
+            "hotkeys":{}
+        }"#;
+        let config: AppConfig = serde_json::from_str(legacy).expect("legacy config should migrate");
+        assert_eq!(config.theme, "grace");
+        assert_eq!(config.note_font_size, 19);
+        assert_eq!(config.editor_font_family, "system");
+        assert_eq!(config.editor_line_height, 1.6);
+        assert_eq!(config.editor_list_indent, 1.25);
+        assert_eq!(config.editor_search_highlight_color, "#ffd54f");
     }
 }

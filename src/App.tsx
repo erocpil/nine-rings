@@ -35,6 +35,7 @@ import { isTauriRuntime } from "./lib/runtime";
 import { useClockAndDateRollover } from "./hooks/useClockAndDateRollover";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
 import { useQuickCaptureListener } from "./hooks/useQuickCaptureListener";
+import { editorAppearanceVariables } from "./lib/editor-appearance";
 
 function App() {
   const {
@@ -137,6 +138,11 @@ function App() {
   const [versionOpen, setVersionOpen] = useState(false);
   const [syncBusy, setSyncBusy] = useState(false);
   const { config, settingsOpen, setSettingsOpen, handleConfigChange } = useSettings();
+  const handleEditorFontSizeChange = useCallback((size: number) => {
+    void api.config.set({ note_font_size: Math.min(32, Math.max(12, size)) })
+      .then(handleConfigChange)
+      .catch((error) => console.error("[App] 保存编辑器字号失败:", error));
+  }, [handleConfigChange]);
   const FOCUS_KEY = "nr:focusMode";
   const [focusMode, setFocusMode] = useState(() => {
     return localStorage.getItem(FOCUS_KEY) === "true";
@@ -577,7 +583,10 @@ function App() {
   }, [dismissSearchResults, docResults, query]);
 
   return (
-    <div className={`app ${focusMode ? "app-focus-mode" : ""}`}>
+    <div
+      className={`app ${focusMode ? "app-focus-mode" : ""}`}
+      style={editorAppearanceVariables(config ?? undefined)}
+    >
       {/* 桌面版（Tauri）才需要自定义标题栏；web 版无窗口概念 */}
       {isTauriRuntime() && <TitleBar />}
       <header className="app-header">
@@ -965,6 +974,8 @@ function App() {
                     showLineNumbers={config?.editor_show_line_numbers ?? false}
                     highlightActiveLine={config?.highlight_active_line ?? true}
                     useCustomContextMenu={config?.use_custom_context_menu ?? true}
+                    editorFontSize={config?.note_font_size ?? 16}
+                    onEditorFontSizeChange={handleEditorFontSizeChange}
                     searchTarget={editorSearchTarget?.noteId === selectedNote.id ? editorSearchTarget : null}
                     onSearchTargetConsumed={handleSearchTargetConsumed}
                     onTitleChange={handleTitleChange}

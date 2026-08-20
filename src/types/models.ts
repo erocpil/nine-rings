@@ -139,6 +139,13 @@ export interface AppConfig {
   todo_carryover_default: boolean;
   auto_clean_days: number;
   note_font_size: number;
+  editor_font_family: "system" | "sans" | "serif" | "monospace";
+  editor_line_height: number;
+  editor_paragraph_indent: number;
+  editor_list_indent: number;
+  editor_list_marker_gap: number;
+  editor_blockquote_indent: number;
+  editor_search_highlight_color: string;
   dev_port: number;
   highlight_active_line: boolean;
   editor_show_line_numbers: boolean;

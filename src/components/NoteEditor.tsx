@@ -169,6 +169,8 @@ interface NoteEditorProps {
   showLineNumbers: boolean;
   highlightActiveLine: boolean;
   useCustomContextMenu: boolean;
+  editorFontSize: number;
+  onEditorFontSizeChange: (size: number) => void;
   onTitleChange: (title: string) => void;
   onContentChange: (content: DeltaOps) => void;
   onTagsChange: (tags: string[]) => void;
@@ -183,7 +185,7 @@ interface NoteEditorProps {
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, highlightActiveLine, useCustomContextMenu, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
+export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, highlightActiveLine, useCustomContextMenu, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -245,13 +247,6 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     return () => window.clearTimeout(timer);
   }, [markdownSelectionNotice]);
 
-  // ── 编辑器整体字号（CSS 变量驱动）──
-  const FONT_SIZE_KEY = "nr:editorFontSize";
-  const [editorFontSize, setEditorFontSize] = useState(() => {
-    const saved = localStorage.getItem(FONT_SIZE_KEY);
-    return saved ? Number(saved) : 15;
-  });
-
   // ── [[ 双向链接自动补全 ──
   const [wikiOpen, setWikiOpen] = useState(false);
   const [wikiSuggestions, setWikiSuggestions] = useState<{ title: string; id: string }[]>([]);
@@ -269,15 +264,6 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
-
-  // 编辑器整体字号：设 CSS 变量 + 持久化
-  useEffect(() => {
-    const el = document.querySelector('.note-editor') as HTMLElement | null;
-    if (el) {
-      el.style.setProperty('--editor-font-size', `${editorFontSize}px`);
-    }
-    localStorage.setItem(FONT_SIZE_KEY, String(editorFontSize));
-  }, [editorFontSize]);
 
   // 点击外部关闭下拉框
   useEffect(() => {
@@ -1596,9 +1582,9 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             🖼
           </button>
           <span className="menu-sep" />
-          {btn("A⁻", () => setEditorFontSize(s => Math.max(12, s - 1)), false, "缩小字号", editorFontSize <= 12)}
+          {btn("A⁻", () => onEditorFontSizeChange(Math.max(12, editorFontSize - 1)), false, "缩小字号", editorFontSize <= 12)}
           <span className="menu-font-size-label">{editorFontSize}</span>
-          {btn("A⁺", () => setEditorFontSize(s => Math.min(24, s + 1)), false, "放大字号", editorFontSize >= 24)}
+          {btn("A⁺", () => onEditorFontSizeChange(Math.min(32, editorFontSize + 1)), false, "放大字号", editorFontSize >= 32)}
           </div>
           {isMinimalToolbar && (
             <div className="menu-dropdown toolbar-more-menu">
@@ -1644,8 +1630,8 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
                   </label>
                   <button className="menu-dropdown-item" onClick={() => editor.chain().focus().unsetColor().run()} type="button">清除文字颜色</button>
                   <div className="menu-dropdown-sep" />
-                  <button className="menu-dropdown-item" disabled={editorFontSize <= 12} onClick={() => setEditorFontSize((size) => Math.max(12, size - 1))} type="button">缩小编辑器字号</button>
-                  <button className="menu-dropdown-item" disabled={editorFontSize >= 24} onClick={() => setEditorFontSize((size) => Math.min(24, size + 1))} type="button">放大编辑器字号</button>
+                  <button className="menu-dropdown-item" disabled={editorFontSize <= 12} onClick={() => onEditorFontSizeChange(Math.max(12, editorFontSize - 1))} type="button">缩小编辑器字号</button>
+                  <button className="menu-dropdown-item" disabled={editorFontSize >= 32} onClick={() => onEditorFontSizeChange(Math.min(32, editorFontSize + 1))} type="button">放大编辑器字号</button>
                 </div>
               )}
             </div>

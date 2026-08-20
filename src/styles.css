@@ -53,6 +53,14 @@ html {
   --transition: 0.2s ease;
   --code-bg: #f0f2f5;
   --activeline-bg: rgba(9, 105, 218, 0.10);
+  --editor-font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  --editor-font-size: 16px;
+  --editor-line-height: 1.6;
+  --editor-paragraph-indent: 0em;
+  --editor-list-indent: 1.25em;
+  --editor-list-marker-gap: 0.2em;
+  --editor-blockquote-indent: 12px;
+  --editor-search-highlight: #ffd54f;
 }
 
 /* ── 深色主题 ── */
@@ -1589,12 +1597,12 @@ body {
 }
 
 .search-match {
-  background: color-mix(in srgb, #ffd54f 52%, transparent);
+  background: color-mix(in srgb, var(--editor-search-highlight) 52%, transparent);
   border-radius: 2px;
 }
 
 .search-match-active {
-  background: color-mix(in srgb, var(--accent) 28%, #ffd54f);
+  background: color-mix(in srgb, var(--accent) 28%, var(--editor-search-highlight));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 65%, transparent);
 }
 
@@ -2859,6 +2867,8 @@ body {
   padding-left: var(--editor-gutter-width);
   touch-action: auto;
   font-size: var(--editor-font-size);
+  font-family: var(--editor-font-family);
+  line-height: var(--editor-line-height);
 }
 
 /* ══════════════════════════════════════════
@@ -2973,7 +2983,7 @@ body {
 
 .editor-content ul,
 .editor-content ol {
-  padding-left: 1.5em;
+  padding-inline-start: var(--editor-list-indent);
   margin: 4px 0;
   list-style-position: outside;
 }
@@ -2991,14 +3001,27 @@ body {
   text-indent: 0;
 }
 
+/* Chromium 的 outside marker 间距不可独立控制。无序列表使用不进入
+   文档结构的伪元素绘制，从而让层级缩进与圆点文字间距分别可调。 */
+.editor-content ul > li {
+  position: relative;
+}
+
+.editor-content ul > li::marker {
+  content: "";
+}
+
+.editor-content ul > li::before {
+  content: "•";
+  position: absolute;
+  right: calc(100% + var(--editor-list-marker-gap));
+  color: currentColor;
+}
+
 .editor-content li > ul,
 .editor-content li > ol {
   display: block;
   margin-top: 2px;
-}
-
-.editor-content ul {
-  list-style-type: disc;
 }
 
 .editor-content ol {
@@ -3007,12 +3030,24 @@ body {
 
 /* 用不同 marker 明确表达嵌套深度；不能用全局 `ul { list-style: disc }`
    覆盖浏览器对多级列表的视觉区分。 */
+.editor-content ul {
+  list-style-type: disc;
+}
+
 .editor-content li > ul {
   list-style-type: circle;
 }
 
+.editor-content li > ul > li::before {
+  content: "◦";
+}
+
 .editor-content li li > ul {
   list-style-type: square;
+}
+
+.editor-content li li > ul > li::before {
+  content: "▪";
 }
 
 .editor-content li > ol {
@@ -3100,7 +3135,7 @@ body {
    三种模式自动对齐，无需模式特化规则。 */
 .editor-content blockquote {
   border-left: 3px solid var(--accent);
-  padding-left: 12px;
+  padding-left: var(--editor-blockquote-indent);
   margin: 4px 0;
   color: var(--text-secondary);
 }
@@ -3111,6 +3146,10 @@ body {
 
 .editor-content p {
   margin: 2px 0;
+}
+
+.editor-content > p {
+  text-indent: var(--editor-paragraph-indent);
 }
 
 /* ──── [[ Wiki Link 下拉 ──── */
@@ -3543,6 +3582,86 @@ body {
 
 .settings-section-body {
   padding-left: 0;
+}
+
+.editor-appearance-settings .settings-field {
+  margin-bottom: 16px;
+}
+
+.editor-appearance-select {
+  width: 100%;
+}
+
+.settings-step-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.settings-color-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+.settings-color-control input {
+  width: 38px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.editor-appearance-preview {
+  margin: 4px 0 12px;
+  padding: 12px 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--editor-font-family);
+  font-size: var(--editor-font-size);
+  line-height: var(--editor-line-height);
+}
+
+.editor-appearance-preview > p {
+  margin: 0 0 6px;
+  text-indent: var(--editor-paragraph-indent);
+}
+
+.editor-appearance-preview ul {
+  margin: 0;
+  padding-inline-start: var(--editor-list-indent);
+  list-style: none;
+}
+
+.editor-appearance-preview li {
+  position: relative;
+}
+
+.editor-appearance-preview li::before {
+  content: "•";
+  position: absolute;
+  right: calc(100% + var(--editor-list-marker-gap));
+}
+
+.editor-appearance-preview li li::before {
+  content: "◦";
+}
+
+.editor-appearance-preview mark {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--editor-search-highlight) 52%, transparent);
+  color: inherit;
+}
+
+.editor-appearance-reset {
+  width: 100%;
 }
 
 /* ── GitHub 同步 ── */
