@@ -373,10 +373,15 @@ export function mdToDelta(mdText: string): DeltaOps {
     if (listMatch) {
       const depth = resolveListDepth(listMatch[1]);
       const list = /^\d/.test(listMatch[2]) ? "ordered" : "bullet";
+      const listStart = list === "ordered" ? Number.parseInt(listMatch[2], 10) : undefined;
       ops.push(...inlineToDelta(listMatch[3]));
       ops.push({
         insert: "\n",
-        attributes: { list, ...(depth > 0 ? { indent: depth } : {}) },
+        attributes: {
+          list,
+          ...(depth > 0 ? { indent: depth } : {}),
+          ...(listStart !== undefined ? { listStart } : {}),
+        },
       });
       i++;
       continue;

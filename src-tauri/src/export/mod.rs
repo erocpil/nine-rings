@@ -103,7 +103,11 @@ pub fn delta_to_markdown(content: &Value) -> String {
             format!("{} {}", "#".repeat(level.clamp(1, 6) as usize), inline)
         } else if let Some(list) = attributes.get("list").and_then(Value::as_str) {
             let indent = attributes.get("indent").and_then(Value::as_u64).unwrap_or(0) as usize;
-            let marker = if list == "ordered" { "1." } else { "-" };
+            let marker = if list == "ordered" {
+                format!("{}.", attributes.get("listStart").and_then(Value::as_u64).unwrap_or(1))
+            } else {
+                "-".to_string()
+            };
             blocks.push((true, format!("{}{marker} {}", "  ".repeat(indent), inline)));
             inline.clear();
             raw.clear();
@@ -300,5 +304,16 @@ mod tests {
         assert!(markdown.contains("| **Name** | Value |"));
         assert!(markdown.contains("| :--- | ---: |"));
         assert!(markdown.contains("`a \\| b`"));
+    }
+
+    #[test]
+    fn exports_explicit_ordered_list_numbers() {
+        let delta = json!({ "ops": [
+            { "insert": "Second" },
+            { "insert": "\n", "attributes": { "list": "ordered", "listStart": 2 } },
+            { "insert": "Third" },
+            { "insert": "\n", "attributes": { "list": "ordered", "listStart": 3 } }
+        ] });
+        assert_eq!(delta_to_markdown(&delta), "2. Second\n3. Third");
     }
 }

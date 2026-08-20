@@ -171,9 +171,17 @@ function tableNodeToEmbed(tableNode: any): TableEmbed {
  */
 function appendListOps(listNode: any, ops: any[], depth: number): void {
   const list = listNode.type === "orderedList" ? "ordered" : "bullet";
+  const orderedStart = list === "ordered"
+    ? Math.max(1, Math.floor(Number(listNode.attrs?.start) || 1))
+    : undefined;
 
-  for (const item of listNode.content ?? []) {
+  for (const [itemIndex, item] of (listNode.content ?? []).entries()) {
     let emittedItemLine = false;
+    const lineAttributes = {
+      list,
+      ...(depth > 0 ? { indent: depth } : {}),
+      ...(orderedStart !== undefined ? { listStart: orderedStart + itemIndex } : {}),
+    };
 
     for (const child of item.content ?? []) {
       if (child.type === "bulletList" || child.type === "orderedList") {
@@ -181,7 +189,7 @@ function appendListOps(listNode: any, ops: any[], depth: number): void {
         if (!emittedItemLine) {
           ops.push({
             insert: "\n",
-            attributes: { list, ...(depth > 0 ? { indent: depth } : {}) },
+            attributes: lineAttributes,
           });
           emittedItemLine = true;
         }
@@ -193,7 +201,7 @@ function appendListOps(listNode: any, ops: any[], depth: number): void {
         extractInlineOps(child, ops);
         ops.push({
           insert: "\n",
-          attributes: { list, ...(depth > 0 ? { indent: depth } : {}) },
+          attributes: lineAttributes,
         });
         emittedItemLine = true;
       }
@@ -202,7 +210,7 @@ function appendListOps(listNode: any, ops: any[], depth: number): void {
     if (!emittedItemLine) {
       ops.push({
         insert: "\n",
-        attributes: { list, ...(depth > 0 ? { indent: depth } : {}) },
+        attributes: lineAttributes,
       });
     }
   }
@@ -252,6 +260,7 @@ export function deltaToProseMirror(deltaData: any): any {
   let pendingListLines: Array<{
     type: "bulletList" | "orderedList";
     indent: number;
+    start?: number;
     paragraph: any;
   }> = [];
 
@@ -277,7 +286,14 @@ export function deltaToProseMirror(deltaData: any): any {
 
     let index = 0;
     const parseList = (depth: number, type: "bulletList" | "orderedList"): any => {
-      const list = { type, content: [] as any[] };
+      const start = type === "orderedList"
+        ? Math.max(1, Math.floor(Number(normalized[index]?.start) || 1))
+        : undefined;
+      const list = {
+        type,
+        ...(start !== undefined && start !== 1 ? { attrs: { start } } : {}),
+        content: [] as any[],
+      };
 
       while (index < normalized.length) {
         const line = normalized[index];
@@ -326,6 +342,9 @@ export function deltaToProseMirror(deltaData: any): any {
           pendingListLines.push({
             type: attrs.list === "bullet" ? "bulletList" : "orderedList",
             indent: Number.isFinite(rawIndent) ? Math.max(0, Math.floor(rawIndent)) : 0,
+            ...(attrs.list === "ordered" && Number.isFinite(Number(attrs.listStart))
+              ? { start: Math.max(1, Math.floor(Number(attrs.listStart))) }
+              : {}),
             paragraph: { type: "paragraph", content: currentParagraph.content },
           });
           currentParagraph = { type: "paragraph", content: [] };

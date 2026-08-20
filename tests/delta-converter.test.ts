@@ -143,6 +143,23 @@ function assert(condition: boolean, msg: string): void {
   const delta = proseMirrorToDelta(pm);
   const orderedNl = delta.ops.find((o: any) => o.attributes?.list === "ordered");
   assert(!!orderedNl, "ordered list newline op exists");
+  assert(orderedNl.attributes.listStart === 1, "ordered list start is stored in Delta");
+}
+
+{
+  console.log("\n── Ordered list custom start ──");
+  const pm: any = { type: "doc", content: [{ type: "orderedList", attrs: { start: 4 }, content: [
+    { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Fourth" }] }] },
+    { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Fifth" }] }] },
+  ] }] };
+  const delta = proseMirrorToDelta(pm);
+  const starts = delta.ops.filter((op: any) => op.attributes?.list === "ordered")
+    .map((op: any) => op.attributes.listStart);
+  assert(JSON.stringify(starts) === "[4,5]", "ordered item numbers survive PM to Delta");
+  assert(JSON.stringify(deltaToProseMirror(delta)) === JSON.stringify(pm),
+    "custom ordered list start survives save and reload");
+  assert(deltaToMarkdown(delta) === "4. Fourth\n5. Fifth",
+    "Markdown export keeps explicit ordered item numbers");
 }
 
 // ═══════════════════════════════════════════════════════════════════

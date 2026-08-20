@@ -92,7 +92,11 @@ export function deltaToMarkdown(content: unknown): string {
     }
     if (attrs.list === "bullet" || attrs.list === "ordered") {
       const indent = typeof attrs.indent === "number" ? Math.max(0, Math.floor(attrs.indent)) : 0;
-      push("list", `${"  ".repeat(indent)}${attrs.list === "bullet" ? "-" : "1."} ${value}`);
+      const orderedStart = Number(attrs.listStart);
+      const marker = attrs.list === "bullet"
+        ? "-"
+        : `${Number.isFinite(orderedStart) && orderedStart >= 1 ? Math.floor(orderedStart) : 1}.`;
+      push("list", `${"  ".repeat(indent)}${marker} ${value}`);
       return;
     }
     if (attrs.blockquote) {

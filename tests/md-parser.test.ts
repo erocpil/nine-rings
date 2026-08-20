@@ -148,7 +148,38 @@ function assert(condition: boolean, msg: string): void {
   const result = mdToDelta("1. First\n2. Second");
   const listNewlines = result.ops.filter((o: any) => o.attributes?.list === "ordered");
   assert(listNewlines.length === 2, "2 ordered list newline ops");
+  assert(listNewlines[0].attributes?.listStart === 1, "first ordered marker is preserved");
+  assert(listNewlines[1].attributes?.listStart === 2, "second ordered marker is preserved");
   assert(result.ops.some((o: any) => o.insert === "First"), "First text found");
+}
+
+// 有序项之间包含缩进段落/代码块时会成为独立的 ProseMirror 列表节点，
+// 每个节点仍必须从 Markdown 中声明的编号开始，而不是全部重置为 1。
+{
+  console.log("\n── Ordered list starts across loose item blocks ──");
+  const result = mdToDelta([
+    "1. First",
+    "",
+    "   explanation",
+    "",
+    "2. Second",
+    "",
+    "   ```text",
+    "   example",
+    "   ```",
+    "",
+    "3. Third",
+  ].join("\n"));
+  const listLines = result.ops.filter((op: any) => op.attributes?.list === "ordered");
+  assert(JSON.stringify(listLines.map((op: any) => op.attributes.listStart)) === "[1,2,3]",
+    "loose ordered list markers are preserved");
+
+  const pm = deltaToProseMirror(result);
+  const orderedLists = pm.content.filter((node: any) => node.type === "orderedList");
+  assert(orderedLists.length === 3, "loose items rebuild as three ordered list nodes");
+  assert((orderedLists[0].attrs?.start ?? 1) === 1, "first node starts at 1");
+  assert(orderedLists[1].attrs?.start === 2, "second node starts at 2");
+  assert(orderedLists[2].attrs?.start === 3, "third node starts at 3");
 }
 
 // ═══════════════════════════════════════════════════════════════════
