@@ -7,7 +7,7 @@
  * Web 端读写时做转换。
  */
 
-import { getTableEmbed, normalizeTableAlignment, type TableEmbed } from "./table-embed";
+import { getTableEmbed, normalizeTableAlignment, normalizeTableColumnWidth, type TableEmbed } from "./table-embed";
 import { markdownTableToEmbed } from "./md-parser";
 
 // ── 字体大小映射 ──
@@ -155,12 +155,14 @@ function tableNodeToEmbed(tableNode: any): TableEmbed {
   }));
   const columnCount = Math.max(0, ...rows.map((row: any) => row.cells.length));
   const columns = Array.from({ length: columnCount }, (_, column) => {
+    let width: number | null = null;
     for (const row of tableNode.content ?? []) {
       const cell = row.content?.[column];
       const align = normalizeTableAlignment(cell?.attrs?.textAlign);
-      if (align) return { align };
+      width ??= normalizeTableColumnWidth(cell?.attrs?.colwidth?.[0]);
+      if (align) return { align, ...(width ? { width } : {}) };
     }
-    return { align: null };
+    return { align: null, ...(width ? { width } : {}) };
   });
   return { version: 1, columns, rows };
 }
@@ -500,12 +502,13 @@ function tableEmbedToProseMirror(table: TableEmbed): any {
     content: Array.from({ length: columnCount }, (_, column) => {
       const cell = row.cells?.[column];
       const ops = Array.isArray(cell?.content?.ops) ? cell.content.ops : [];
+      const width = normalizeTableColumnWidth(table.columns[column]?.width);
       return {
         type: cell?.header ? "tableHeader" : "tableCell",
         attrs: {
           colspan: 1,
           rowspan: 1,
-          colwidth: null,
+          colwidth: width ? [width] : null,
           textAlign: normalizeTableAlignment(table.columns[column]?.align),
         },
         content: [{ type: "paragraph", content: inlineDeltaToProseMirror(ops) }],

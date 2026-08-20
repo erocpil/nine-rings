@@ -42,7 +42,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   hotkeys: {
     new_note:      "",
     quick_capture: "CommandOrControl+Alt+N",
-    focus_search:  "CommandOrControl+E",
+    focus_search:  "Alt+E",
     open_settings: "Alt+,",
   },
 };

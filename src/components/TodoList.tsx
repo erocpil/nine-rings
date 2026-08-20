@@ -104,6 +104,7 @@ function getDescendantIds(todos: Todo[], id: string): Set<string> {
 interface TodoListProps {
   todos: Todo[];
   onChange: (todos: Todo[]) => void;
+  onOpenOverdue: () => void;
   disabled?: boolean;
 }
 
@@ -411,7 +412,7 @@ function TodoLevel({
 
 // ── 主组件 ──
 
-export function TodoList({ todos, onChange, disabled }: TodoListProps) {
+export function TodoList({ todos, onChange, onOpenOverdue, disabled }: TodoListProps) {
   const [undoTodo, setUndoTodo] = useState<{
     todo: Todo;
     previousTodos: Todo[];
@@ -762,6 +763,17 @@ export function TodoList({ todos, onChange, disabled }: TodoListProps) {
               Markdown
             </button>
           </span>
+        )}
+        {!exportOpen && (
+          <button
+            className="btn-icon todo-overdue-btn"
+            onClick={onOpenOverdue}
+            title="查看过期待办"
+            aria-label="查看过期待办"
+          >
+            <span aria-hidden="true">⚠</span>
+            <span className="todo-overdue-label">过期待办</span>
+          </button>
         )}
         <button
           className={`btn-icon todo-export-btn ${exportOpen ? "active" : ""}`}

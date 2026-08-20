@@ -35,9 +35,9 @@ export default function MobileToolbar({
         <span className="m-toolbar-icon">✏️</span>
         <span>新建</span>
       </button>
-      <button className="m-toolbar-btn" onClick={onToggleTab} title={sidebarTab === 'daily' ? '文档' : '每日'}>
-        <span className="m-toolbar-icon">{sidebarTab === 'daily' ? '📂' : '📅'}</span>
-        <span>{sidebarTab === 'daily' ? '文档' : '每日'}</span>
+      <button className="m-toolbar-btn" onClick={onToggleTab} title={sidebarTab === 'daily' ? '切换到文档' : '切换到随笔'}>
+        <span className="m-toolbar-icon">{sidebarTab === 'daily' ? '📂' : '✏️'}</span>
+        <span>{sidebarTab === 'daily' ? '文档' : '随笔'}</span>
       </button>
       <button className="m-toolbar-btn" onClick={onFocusSearch} title="搜索">
         <span className="m-toolbar-icon">🔍</span>

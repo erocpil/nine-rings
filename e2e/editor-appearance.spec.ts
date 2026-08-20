@@ -1,12 +1,15 @@
 import { expect, test } from "@playwright/test";
 
-test("设置中的编辑器排版即时生效并在重载后保持", async ({ page }) => {
+test("独立排版工作台中的设置即时生效并在重载后保持", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("设置").click();
   await expect(page.getByText("编辑器排版", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /打开排版工作台/ }).click();
+  await expect(page.getByRole("dialog", { name: "排版工作台" })).toBeVisible();
+  await expect(page.getByLabel("编辑器排版预览")).toBeVisible();
 
   await page.getByLabel("正文字体").selectOption("serif");
-  await page.getByRole("button", { name: "增大正文字号" }).click();
+  await page.getByRole("button", { name: "增大正文与标题字号" }).click();
   await page.getByRole("button", { name: "增大行距" }).click();
   await page.getByRole("button", { name: "减小列表层级缩进" }).click();
   await page.getByLabel("搜索关键字颜色").fill("#33aa77");
@@ -33,4 +36,71 @@ test("设置中的编辑器排版即时生效并在重载后保持", async ({ pa
     searchColor: (element as HTMLElement).style.getPropertyValue("--editor-search-highlight"),
   }))).toEqual({ size: "17px", lineHeight: "1.7", searchColor: "#33aa77" });
   await expect(page.locator(".menu-font-size-label")).toHaveText("17");
+});
+
+test("Alt-E 聚焦全局搜索而 Ctrl-E 不再占用", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  const search = page.getByPlaceholder("搜索笔记...");
+
+  await page.keyboard.press("Alt+e");
+  await expect(search).toBeFocused();
+
+  await page.locator(".ProseMirror").click();
+  await page.keyboard.press("Control+e");
+  await expect(search).not.toBeFocused();
+});
+
+test("四至六级标题字号不小于正文", async ({ page }) => {
+  await page.goto("/");
+  const editor = page.locator(".ProseMirror");
+  await expect(editor).toBeVisible();
+
+  const markdown = [
+    "#### 四级标题",
+    "##### 五级标题",
+    "###### 六级标题",
+    "正文文字",
+  ].join("\n\n");
+  await editor.evaluate((element, text) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", text);
+    element.dispatchEvent(new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData,
+    }));
+  }, markdown);
+
+  const readSizes = () => editor.evaluate((element) => {
+    const fontSize = (selector: string) => {
+      const target = element.querySelector(selector);
+      if (!target) throw new Error(`${selector} not found`);
+      return Number.parseFloat(getComputedStyle(target).fontSize);
+    };
+    return {
+      paragraph: fontSize("p"),
+      h4: fontSize("h4"),
+      h5: fontSize("h5"),
+      h6: fontSize("h6"),
+    };
+  });
+  const sizes = await readSizes();
+  const noteTitleBefore = await page.locator(".note-title").evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+
+  expect(sizes.h4).toBeGreaterThanOrEqual(sizes.paragraph);
+  expect(sizes.h5).toBeGreaterThanOrEqual(sizes.paragraph);
+  expect(sizes.h6).toBeGreaterThanOrEqual(sizes.paragraph);
+
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /打开排版工作台/ }).click();
+  await page.getByRole("button", { name: "增大正文与标题字号" }).click();
+
+  const enlarged = await readSizes();
+  const noteTitleAfter = await page.locator(".note-title").evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+  expect(enlarged.paragraph).toBeGreaterThan(sizes.paragraph);
+  expect(enlarged.h4).toBeGreaterThan(sizes.h4);
+  expect(enlarged.h5).toBeGreaterThan(sizes.h5);
+  expect(enlarged.h6).toBeGreaterThan(sizes.h6);
+  expect(noteTitleAfter).toBeGreaterThan(noteTitleBefore);
 });

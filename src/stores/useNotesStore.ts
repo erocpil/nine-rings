@@ -4,6 +4,17 @@ import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import { withTimeout } from "../lib/async";
 
+const CURRENT_DATE_KEY = "nr:currentDate";
+
+function loadCurrentDate(): string {
+  try {
+    const saved = localStorage.getItem(CURRENT_DATE_KEY);
+    return saved && /^\d{4}-\d{2}-\d{2}$/.test(saved) ? saved : localDateKey();
+  } catch {
+    return localDateKey();
+  }
+}
+
 /** 排序：置顶优先 → sort_order 升序 → created_at 升序 */
 function sortNotes(a: Note, b: Note): number {
   const pa = a.pinned ? 1 : 0;
@@ -38,7 +49,7 @@ interface NotesStore {
 }
 
 export const useNotesStore = create<NotesStore>((set, get) => ({
-  currentDate: localDateKey(),
+  currentDate: loadCurrentDate(),
   notes: [],
   dailyPage: null,
   selectedNote: null,
@@ -51,6 +62,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
 
   setDate: async (date: string) => {
     const prevSelected = get().selectedNote;
+    localStorage.setItem(CURRENT_DATE_KEY, date);
     set({ loading: true, currentDate: date, error: null });
     try {
       const [notes, dailyPage] = await withTimeout(

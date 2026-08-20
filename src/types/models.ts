@@ -156,7 +156,7 @@ export interface AppConfig {
 export const DEFAULT_HOTKEYS: Record<string, string> = {
   new_note:       "",
   quick_capture:  "CommandOrControl+Alt+N",
-  focus_search:   "CommandOrControl+E",
+  focus_search:   "Alt+E",
   open_settings:  "Alt+,",
   go_to_daily:    "CommandOrControl+Shift+D",
   show_window:    "Alt+Y",

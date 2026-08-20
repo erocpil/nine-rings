@@ -7,6 +7,7 @@ interface GutterBlock {
   endPos: number;
   top: number;
   bottom: number;
+  marginBottom: number;
   active: boolean;
 }
 
@@ -14,6 +15,7 @@ interface EditorBlockGutterProps {
   editor: Editor;
   showNumbers: boolean;
   readonly: boolean;
+  onBlockCountChange?: (count: number) => void;
 }
 
 /**
@@ -22,7 +24,7 @@ interface EditorBlockGutterProps {
  * 编号和插入按钮都是真实 DOM，不再借用伪元素或根据鼠标坐标猜测
  * 用户意图。ResizeObserver 会在窗口、侧栏或字体导致重排时重新测量。
  */
-export function EditorBlockGutter({ editor, showNumbers, readonly }: EditorBlockGutterProps) {
+export function EditorBlockGutter({ editor, showNumbers, readonly, onBlockCountChange }: EditorBlockGutterProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<number | null>(null);
   const [blocks, setBlocks] = useState<GutterBlock[]>([]);
@@ -45,11 +47,15 @@ export function EditorBlockGutter({ editor, showNumbers, readonly }: EditorBlock
         endPos: pos + node.nodeSize,
         top: rect.top - rootRect.top,
         bottom: rect.bottom - rootRect.top,
+        marginBottom: index === editor.state.doc.childCount - 1
+          ? Math.max(0, Number.parseFloat(getComputedStyle(dom).marginBottom) || 0)
+          : 0,
         active: selectionPos >= pos && selectionPos < pos + node.nodeSize,
       });
     });
     setBlocks(next);
-  }, [editor]);
+    onBlockCountChange?.(next.length);
+  }, [editor, onBlockCountChange]);
 
   const scheduleMeasure = useCallback(() => {
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
@@ -89,12 +95,20 @@ export function EditorBlockGutter({ editor, showNumbers, readonly }: EditorBlock
     ? []
     : [
         { key: "start", pos: blocks[0].pos, top: blocks[0].top, label: "在第一块前插入段落" },
-        ...blocks.map((block) => ({
-          key: `after-${block.pos}`,
-          pos: block.endPos,
-          top: block.bottom,
-          label: `在第 ${block.index} 块后插入段落`,
-        })),
+        ...blocks.map((block, index) => {
+          const nextBlock = blocks[index + 1];
+          const gap = nextBlock
+            ? Math.max(0, nextBlock.top - block.bottom)
+            : block.marginBottom;
+          return {
+            key: `after-${block.pos}`,
+            pos: block.endPos,
+            // DOMRect 不包含 margin。将按钮放在相邻块之间的视觉空隙中央，
+            // 避免 horizontalRule 的“块后插入”按钮贴到分割线上方。
+            top: block.bottom + gap / 2,
+            label: `在第 ${block.index} 块后插入段落`,
+          };
+        }),
       ];
 
   return (

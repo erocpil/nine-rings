@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { editorAppearanceVariables } from "../src/lib/editor-appearance";
+import { editorGutterWidth } from "../src/lib/editor-gutter";
 
 const defaults = editorAppearanceVariables();
 assert.equal(defaults["--editor-font-size"], "16px");
@@ -32,5 +33,10 @@ assert.equal(guarded["--editor-font-size"], "32px");
 assert.equal(guarded["--editor-line-height"], "1.2");
 assert.equal(guarded["--editor-list-indent"], "1em");
 assert.equal(guarded["--editor-search-highlight"], "#ffd54f");
+
+assert.equal(editorGutterWidth(0, false), 24);
+assert.equal(editorGutterWidth(999, true), 44);
+assert.equal(editorGutterWidth(1_000, true), 52);
+assert.equal(editorGutterWidth(10_000, true), 60);
 
 console.log("Editor appearance variables passed");

@@ -22,6 +22,7 @@ test.describe("编辑器块级 gutter", () => {
     await expect(lineNumberToggle).toBeChecked();
     await page.locator(".settings-close").click();
     await expect(page.locator(".note-editor")).toHaveClass(/show-line-numbers/);
+    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "44px");
 
     const readonlyButton = page.locator(".sidebar-item.active").getByTitle("设为只读");
     await readonlyButton.evaluate((button: HTMLButtonElement) => button.click());
@@ -59,5 +60,37 @@ test.describe("编辑器块级 gutter", () => {
     await page.keyboard.type("插入块");
     await expect(editor.locator(":scope > p")).toHaveCount(3);
     await expect(editor.locator(":scope > p").nth(1)).toHaveText("插入块");
+  });
+
+  test("分割线后的插入按钮位于分割线与下一块之间", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("第一块");
+    await editor.press("End");
+    await editor.press("Enter");
+    await editor.type("---");
+    await expect(editor.locator(":scope > hr")).toHaveCount(1);
+    await editor.type("下一块");
+
+    await page.getByTitle("设置").click();
+    const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
+      .locator('input[type="checkbox"]');
+    if (!(await lineNumberToggle.isChecked())) {
+      await lineNumberToggle.evaluate((input: HTMLInputElement) => input.click());
+    }
+    await page.locator(".settings-close").click();
+    await expect(page.locator(".editor-block-number")).toHaveText(["1", "2", "3"]);
+
+    const dividerBox = await editor.locator(":scope > hr").boundingBox();
+    const nextBlockBox = await editor.locator(":scope > p").last().boundingBox();
+    const insertBox = await page.getByRole("button", { name: "在第 2 块后插入段落" }).boundingBox();
+    if (!dividerBox || !nextBlockBox || !insertBox) throw new Error("gutter geometry not found");
+    const insertCenter = insertBox.y + insertBox.height / 2;
+    expect(insertCenter).toBeGreaterThan(dividerBox.y + dividerBox.height + 2);
+    expect(insertCenter).toBeLessThan(nextBlockBox.y);
   });
 });

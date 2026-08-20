@@ -37,6 +37,36 @@ import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
 import { useQuickCaptureListener } from "./hooks/useQuickCaptureListener";
 import { editorAppearanceVariables } from "./lib/editor-appearance";
 
+const WORKSPACE_TARGET_KEY = "nr:workspaceTarget";
+const ACTIVE_TAG_KEY = "nr:activeTag";
+
+type WorkspaceTarget =
+  | { kind: "note"; noteId: string }
+  | { kind: "folder"; path: string }
+  | { kind: "concept"; concept: string };
+
+function readWorkspaceTarget(): WorkspaceTarget | null {
+  try {
+    const raw = localStorage.getItem(WORKSPACE_TARGET_KEY);
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Partial<WorkspaceTarget>;
+    if (value.kind === "note" && typeof value.noteId === "string" && value.noteId) {
+      return { kind: "note", noteId: value.noteId };
+    }
+    if (value.kind === "folder" && typeof value.path === "string" && value.path) {
+      return { kind: "folder", path: value.path };
+    }
+    if (value.kind === "concept" && typeof value.concept === "string" && value.concept) {
+      return { kind: "concept", concept: value.concept };
+    }
+  } catch { /* ignore malformed legacy state */ }
+  return null;
+}
+
+function saveWorkspaceTarget(target: WorkspaceTarget): void {
+  localStorage.setItem(WORKSPACE_TARGET_KEY, JSON.stringify(target));
+}
+
 function App() {
   const {
     currentDate,
@@ -69,6 +99,10 @@ function App() {
   const flushAutoSave = autoSave.flush;
 
   const handleSelectNote = useCallback((note: Note | null) => {
+    if (note) {
+      setSelectedFolderPath(null);
+      setSelectedConcept(null);
+    }
     selectNote(note);
   }, [selectNote]);
 
@@ -131,8 +165,11 @@ function App() {
   const [recycleOpen, setRecycleOpen] = useState(false);
   const [overdueOpen, setOverdueOpen] = useState(false);
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
+  const [docTreeToolbarHost, setDocTreeToolbarHost] = useState<HTMLDivElement | null>(null);
+  const [popupDocTreeToolbarHost, setPopupDocTreeToolbarHost] = useState<HTMLDivElement | null>(null);
   const clock = useClockAndDateRollover(setDate);
-  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const startupWorkspaceTargetRef = useRef<WorkspaceTarget | null>(readWorkspaceTarget());
+  const [activeTag, setActiveTag] = useState<string | null>(() => localStorage.getItem(ACTIVE_TAG_KEY));
   const [tagFilteredNotes, setTagFilteredNotes] = useState<Note[] | null>(null);
   const [undo, setUndo] = useState<UndoState | null>(null);
   const [versionOpen, setVersionOpen] = useState(false);
@@ -175,8 +212,14 @@ function App() {
   const [docCreateOpen, setDocCreateOpen] = useState(false);
   const [docTreeKey, setDocTreeKey] = useState(0);
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0);
-  const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
-  const [selectedConcept, setSelectedConcept] = useState<string | null>(null);
+  const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(() => {
+    const target = startupWorkspaceTargetRef.current;
+    return target?.kind === "folder" ? target.path : null;
+  });
+  const [selectedConcept, setSelectedConcept] = useState<string | null>(() => {
+    const target = startupWorkspaceTargetRef.current;
+    return target?.kind === "concept" ? target.concept : null;
+  });
   const [propertiesOpen, setPropertiesOpen] = useState(() => {
     return localStorage.getItem("nr:propertiesOpen") === "true";
   });
@@ -189,6 +232,21 @@ function App() {
   useEffect(() => {
     localStorage.setItem("nr:propertiesOpen", String(propertiesOpen));
   }, [propertiesOpen]);
+
+  // 恢复并持续保存随笔标签筛选；失效标签只会得到空结果，不阻塞主界面。
+  useEffect(() => {
+    if (!activeTag) {
+      localStorage.removeItem(ACTIVE_TAG_KEY);
+      setTagFilteredNotes(null);
+      return;
+    }
+    localStorage.setItem(ACTIVE_TAG_KEY, activeTag);
+    let active = true;
+    api.notes.listByTag(activeTag)
+      .then((tagged) => { if (active) setTagFilteredNotes(tagged); })
+      .catch(() => { if (active) setTagFilteredNotes([]); });
+    return () => { active = false; };
+  }, [activeTag, sidebarRefreshKey]);
   const error = useNotesStore((s) => s.error);
   const clearError = useNotesStore((s) => s.clearError);
 
@@ -207,6 +265,17 @@ function App() {
     if (!selectedNote || !startupRestoreCompleteRef.current) return;
     localStorage.setItem(LAST_NOTE_KEY, selectedNote.id);
   }, [selectedNote]);
+
+  useEffect(() => {
+    if (!startupRestoreCompleteRef.current) return;
+    if (selectedNote) {
+      saveWorkspaceTarget({ kind: "note", noteId: selectedNote.id });
+    } else if (selectedConcept) {
+      saveWorkspaceTarget({ kind: "concept", concept: selectedConcept });
+    } else if (selectedFolderPath) {
+      saveWorkspaceTarget({ kind: "folder", path: selectedFolderPath });
+    }
+  }, [selectedConcept, selectedFolderPath, selectedNote]);
 
   // ── 持久化侧栏隐藏状态 ──
   useEffect(() => {
@@ -271,7 +340,27 @@ function App() {
     if (!startupLoadObservedRef.current || startupRestoreStartedRef.current) return;
     startupRestoreStartedRef.current = true;
     const restore = async () => {
-      const lastId = startupLastNoteIdRef.current;
+      const workspaceTarget = startupWorkspaceTargetRef.current;
+      if (workspaceTarget?.kind === "folder") {
+        handleSelectNote(null);
+        setSelectedConcept(null);
+        setSelectedFolderPath(workspaceTarget.path);
+        startupRestoreCompleteRef.current = true;
+        saveWorkspaceTarget(workspaceTarget);
+        return;
+      }
+      if (workspaceTarget?.kind === "concept") {
+        handleSelectNote(null);
+        setSelectedFolderPath(null);
+        setSelectedConcept(workspaceTarget.concept);
+        startupRestoreCompleteRef.current = true;
+        saveWorkspaceTarget(workspaceTarget);
+        return;
+      }
+
+      const lastId = workspaceTarget?.kind === "note"
+        ? workspaceTarget.noteId
+        : startupLastNoteIdRef.current;
       let restored = lastId ? notes.find((note) => note.id === lastId) ?? null : null;
       if (!restored && lastId) {
         restored = await api.notes.get(lastId).catch(() => null);
@@ -282,7 +371,10 @@ function App() {
       }
       startupRestoreCompleteRef.current = true;
       const finalSelection = restored ?? useNotesStore.getState().selectedNote;
-      if (finalSelection) localStorage.setItem(LAST_NOTE_KEY, finalSelection.id);
+      if (finalSelection) {
+        localStorage.setItem(LAST_NOTE_KEY, finalSelection.id);
+        saveWorkspaceTarget({ kind: "note", noteId: finalSelection.id });
+      }
     };
     void restore();
   }, [currentDate, handleSelectNote, loading, notes, setDate]);
@@ -662,20 +754,19 @@ function App() {
         <aside className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}>
           <div className="sidebar-tabs">
             <button
-              className={`sidebar-tab ${sidebarTab === 'daily' ? 'active' : ''}`}
-              onClick={() => handleSetSidebarTab('daily')}
-              title="随笔"
+              className="sidebar-tab sidebar-view-switch"
+              onClick={() => handleSetSidebarTab(sidebarTab === 'daily' ? 'tree' : 'daily')}
+              title={sidebarTab === 'daily' ? '切换到文档' : '切换到随笔'}
+              aria-label={sidebarTab === 'daily' ? '切换到文档' : '切换到随笔'}
+              data-target-view={sidebarTab === 'daily' ? 'tree' : 'daily'}
             >
-              ✏️
-            </button>
-            <button
-              className={`sidebar-tab ${sidebarTab === 'tree' ? 'active' : ''}`}
-              onClick={() => handleSetSidebarTab('tree')}
-              title="文档树"
-            >
-              📂
+              <span aria-hidden="true">{sidebarTab === 'daily' ? '📂' : '✏️'}</span>
+              <span className="sidebar-view-switch-label">
+                {sidebarTab === 'daily' ? '文档' : '随笔'}
+              </span>
             </button>
             <span className="sidebar-tab-spacer" />
+            <div className="doc-tree-toolbar-host" ref={setDocTreeToolbarHost} />
             <button className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏">
               ◀
             </button>
@@ -690,11 +781,6 @@ function App() {
               onHide={() => setSidebarHidden(true)}
               onTagSelect={(tag) => {
                 setActiveTag(tag);
-                if (tag) {
-                  api.notes.listByTag(tag).then(setTagFilteredNotes);
-                } else {
-                  setTagFilteredNotes(null);
-                }
               }}
               onTogglePin={(id, pinned) => {
                 updateNote(id, { pinned });
@@ -759,6 +845,7 @@ function App() {
           ) : (
             <DocTree
               disabled={syncBusy}
+              toolbarHost={docTreeToolbarHost}
               onSelect={(note) => {
                 setQuery("");
                 setDocResults(null);
@@ -767,6 +854,7 @@ function App() {
               }}
               onFolderSelect={(path) => {
                 setSelectedFolderPath(path);
+                setSelectedConcept(null);
                 handleSelectNote(null);
               }}
               selectedId={selectedNote?.id ?? null}
@@ -836,9 +924,6 @@ function App() {
             />
           )}
           <div className="sidebar-footer">
-            <button className="sidebar-overdue-btn" onClick={() => setOverdueOpen(true)}>
-              ⚠ 过期待办
-            </button>
             <span className="sidebar-recycle-btn" onClick={() => setRecycleOpen(true)}>
               🗑 回收站
             </span>
@@ -950,6 +1035,7 @@ function App() {
                     disabled={syncBusy}
                     todos={dailyPage?.todos ?? []}
                     onChange={updateTodos}
+                    onOpenOverdue={() => setOverdueOpen(true)}
                   />
                 </div>
               )}
@@ -1006,6 +1092,7 @@ function App() {
             onOpenConcept={(concept) => {
               setSelectedConcept(concept);
               setSelectedFolderPath(null);
+              handleSelectNote(null);
               setQuery("");
               setDocResults(null);
               setPropertiesOpen(false);
@@ -1034,10 +1121,15 @@ function App() {
           <div className="doc-tree-popup" onClick={(e) => e.stopPropagation()}>
             <div className="settings-header">
               <h2>文档视图</h2>
+              <div
+                className="doc-tree-toolbar-host doc-tree-popup-toolbar-host"
+                ref={setPopupDocTreeToolbarHost}
+              />
               <button className="settings-close" onClick={() => setDocTreePopupOpen(false)}>✕</button>
             </div>
             <div className="doc-tree-popup-body">
               <DocTree
+                toolbarHost={popupDocTreeToolbarHost}
                 onSelect={(note) => {
                   setQuery("");
                   setDocResults(null);
@@ -1046,6 +1138,7 @@ function App() {
                 }}
                 onFolderSelect={(path) => {
                   setSelectedFolderPath(path);
+                  setSelectedConcept(null);
                   handleSelectNote(null);
                 }}
                 selectedId={selectedNote?.id ?? null}

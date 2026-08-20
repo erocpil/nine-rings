@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { PathNode, Note } from "../types/models";
 import { api } from "../lib/api";
 import { withTimeout } from "../lib/async";
@@ -22,6 +23,7 @@ interface DocTreeProps {
   propertiesAutoShow?: boolean;
   onTogglePropertiesAuto?: () => void;
   disabled?: boolean;
+  toolbarHost?: HTMLElement | null;
 }
 
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -46,6 +48,8 @@ const STATE_ICONS: Record<string, string> = {
   archives: "📦",
   daily: "📅",
 };
+
+const DOC_TREE_SCROLL_KEY = "nr:docTreeScrollTop";
 
 interface ContextMenuState {
   x: number;
@@ -104,9 +108,10 @@ function DocTree({
   onMoveDocument, onMoveFolder,
   onBatchDelete, onBatchSetReadonly,
   propertiesAutoShow, onTogglePropertiesAuto,
-  disabled,
+  disabled, toolbarHost,
 }: DocTreeProps) {
   const [tree, setTree] = useState<PathNode[]>([]);
+  const treeScrollRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
@@ -157,6 +162,12 @@ function DocTree({
   useEffect(() => {
     localStorage.setItem("nr:docTreeCollapsed", JSON.stringify([...collapsed]));
   }, [collapsed]);
+
+  useLayoutEffect(() => {
+    if (loading || !treeScrollRef.current) return;
+    const saved = Number(localStorage.getItem(DOC_TREE_SCROLL_KEY));
+    if (Number.isFinite(saved) && saved >= 0) treeScrollRef.current.scrollTop = saved;
+  }, [loading]);
 
   useEffect(() => {
     if (contextMenu) {
@@ -482,11 +493,8 @@ function DocTree({
     );
   }
 
-  return (
-    <div className="doc-tree">
-      <div className="doc-tree-header">
-        <span className="doc-tree-title">文档</span>
-        <span className="doc-tree-header-spacer" />
+  const toolbar = (
+    <div className="doc-tree-toolbar">
         <button
           className="btn-icon doc-tree-batch-btn"
           onClick={collapseAll}
@@ -562,7 +570,21 @@ function DocTree({
             </button>
           </>
         )}
-      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {toolbarHost === undefined
+        ? <div className="doc-tree-toolbar-inline">{toolbar}</div>
+        : toolbarHost
+          ? createPortal(toolbar, toolbarHost)
+          : null}
+      <div
+        className="doc-tree"
+        ref={treeScrollRef}
+        onScroll={(event) => localStorage.setItem(DOC_TREE_SCROLL_KEY, String(event.currentTarget.scrollTop))}
+      >
       {roots.length === 0 ? (
         <div className="doc-tree-empty">暂无文档。点击 + 新建。</div>
       ) : (
@@ -606,7 +628,8 @@ function DocTree({
         </div>
       )}
 
-    </div>
+      </div>
+    </>
   );
 }
 

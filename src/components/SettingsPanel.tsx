@@ -7,7 +7,8 @@ import { buildMarkdownImportInput, parseMetadataList } from "../lib/markdown-imp
 import { isTauri, exportWithDialog, importWithDialog } from "../lib/tauri-desktop";
 import SettingsSync from "./SettingsSync";
 import { withTimeout } from "../lib/async";
-import { DEFAULT_EDITOR_APPEARANCE, editorAppearanceVariables } from "../lib/editor-appearance";
+import { EditorAppearancePanel } from "./EditorAppearancePanel";
+import { isDocumentFindShortcut } from "../lib/shortcuts";
 
 interface Props {
   open: boolean;
@@ -29,6 +30,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
   const configRef = useRef<AppConfig | null>(null);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const updateVersionRef = useRef(0);
+  const [editorAppearanceOpen, setEditorAppearanceOpen] = useState(false);
 
   // ── 标签管理状态 ──
   const [allTags, setAllTags] = useState<string[]>([]);
@@ -67,6 +69,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
 
   useEffect(() => {
     if (open) loadSettings();
+    else setEditorAppearanceOpen(false);
   }, [open]);
 
   const refreshTags = () => {
@@ -285,9 +288,19 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
               </div>
             </Field>
 
-            <SettingsSection title="编辑器排版" desc="仅改变阅读和编辑外观，不修改文档内容或 Markdown 导出结果">
-              <EditorAppearanceSettings config={config} onUpdate={update} />
-            </SettingsSection>
+            <Field label="编辑器排版" desc="在独立工作台中调整字体、行距、缩进和搜索高亮">
+              <button
+                className="editor-appearance-entry"
+                type="button"
+                onClick={() => setEditorAppearanceOpen(true)}
+              >
+                <span>
+                  <strong>{config.note_font_size}px</strong>
+                  <small>{config.editor_font_family === "system" ? "系统字体" : config.editor_font_family} · {config.editor_line_height.toFixed(1)} 行距</small>
+                </span>
+                <span className="editor-appearance-entry-action">打开排版工作台 →</span>
+              </button>
+            </Field>
 
             {/* ── 默认视图 ── */}
             <Field label="默认视图" desc="打开应用时的默认布局">
@@ -597,153 +610,13 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-// ── 字段包装 ──
-
-function EditorAppearanceSettings({ config, onUpdate }: {
-  config: AppConfig;
-  onUpdate: (partial: Partial<AppConfig>) => void;
-}) {
-  const variables = editorAppearanceVariables(config) as React.CSSProperties;
-  return (
-    <div className="editor-appearance-settings">
-      <Field label="正文字体" desc="选择编辑器正文的字体组合">
-        <select
-          className="settings-input editor-appearance-select"
-          aria-label="正文字体"
-          value={config.editor_font_family}
-          onChange={(event) => onUpdate({ editor_font_family: event.target.value as AppConfig["editor_font_family"] })}
-        >
-          <option value="system">系统默认</option>
-          <option value="sans">无衬线</option>
-          <option value="serif">衬线 / 宋体</option>
-          <option value="monospace">等宽字体</option>
-        </select>
-      </Field>
-
-      <Field label="正文字号" desc="编辑器内容区域字体大小">
-        <SettingsStepper
-          label="正文字号"
-          value={config.note_font_size}
-          minimum={12}
-          maximum={32}
-          step={1}
-          unit="px"
-          onChange={(value) => onUpdate({ note_font_size: value })}
+      {editorAppearanceOpen && config && (
+        <EditorAppearancePanel
+          config={config}
+          onClose={() => setEditorAppearanceOpen(false)}
+          onUpdate={update}
         />
-      </Field>
-
-      <Field label="行距" desc="正文各行之间的垂直距离">
-        <SettingsStepper
-          label="行距"
-          value={config.editor_line_height}
-          minimum={1.2}
-          maximum={2.2}
-          step={0.1}
-          onChange={(value) => onUpdate({ editor_line_height: value })}
-        />
-      </Field>
-
-      <Field label="段落首行缩进" desc="只应用于顶层正文段落，标题和列表不受影响">
-        <SettingsStepper
-          label="段落首行缩进"
-          value={config.editor_paragraph_indent}
-          minimum={0}
-          maximum={2}
-          step={0.5}
-          unit="em"
-          onChange={(value) => onUpdate({ editor_paragraph_indent: value })}
-        />
-      </Field>
-
-      <Field label="列表层级缩进" desc="控制二级、三级列表圆点相对上一级的位置">
-        <SettingsStepper
-          label="列表层级缩进"
-          value={config.editor_list_indent}
-          minimum={1}
-          maximum={3}
-          step={0.05}
-          unit="em"
-          onChange={(value) => onUpdate({ editor_list_indent: value })}
-        />
-      </Field>
-
-      <Field label="圆点文字间距" desc="控制无序列表圆点与其后文字的距离">
-        <SettingsStepper
-          label="圆点文字间距"
-          value={config.editor_list_marker_gap}
-          minimum={0.1}
-          maximum={0.8}
-          step={0.1}
-          unit="em"
-          onChange={(value) => onUpdate({ editor_list_marker_gap: value })}
-        />
-      </Field>
-
-      <Field label="引用块缩进" desc="控制引用竖线与正文之间的距离">
-        <SettingsStepper
-          label="引用块缩进"
-          value={config.editor_blockquote_indent}
-          minimum={4}
-          maximum={32}
-          step={2}
-          unit="px"
-          onChange={(value) => onUpdate({ editor_blockquote_indent: value })}
-        />
-      </Field>
-
-      <Field label="搜索关键字颜色" desc="Ctrl-F 和笔记搜索定位时的匹配背景色">
-        <label className="settings-color-control">
-          <input
-            type="color"
-            aria-label="搜索关键字颜色"
-            value={config.editor_search_highlight_color}
-            onChange={(event) => onUpdate({ editor_search_highlight_color: event.target.value })}
-          />
-          <span>{config.editor_search_highlight_color.toUpperCase()}</span>
-        </label>
-      </Field>
-
-      <div className="editor-appearance-preview" style={variables} aria-label="编辑器排版预览">
-        <p>排版预览：文字、行距与段落缩进</p>
-        <ul>
-          <li>一级列表
-            <ul><li>二级列表的缩进与圆点间距</li></ul>
-          </li>
-        </ul>
-        <mark>搜索关键字</mark>
-      </div>
-      <button
-        className="settings-btn-secondary editor-appearance-reset"
-        type="button"
-        onClick={() => onUpdate({ ...DEFAULT_EDITOR_APPEARANCE })}
-      >恢复默认排版</button>
-    </div>
-  );
-}
-
-function SettingsStepper({ label, value, minimum, maximum, step, unit = "", onChange }: {
-  label: string;
-  value: number;
-  minimum: number;
-  maximum: number;
-  step: number;
-  unit?: string;
-  onChange: (value: number) => void;
-}) {
-  const decimals = String(step).split(".")[1]?.length ?? 0;
-  const adjust = (direction: number) => {
-    const next = Math.min(maximum, Math.max(minimum, value + direction * step));
-    onChange(Number(next.toFixed(decimals)));
-  };
-  return (
-    <div className="settings-stepper">
-      <button type="button" aria-label={`减小${label}`} className="settings-step-btn" disabled={value <= minimum} onClick={() => adjust(-1)}>−</button>
-      <span className="settings-value">{value.toFixed(decimals)}{unit}</span>
-      <button type="button" aria-label={`增大${label}`} className="settings-step-btn" disabled={value >= maximum} onClick={() => adjust(1)}>+</button>
+      )}
     </div>
   );
 }
@@ -755,8 +628,12 @@ function HotkeyConfig({ config, onUpdate }: {
   onUpdate: (hk: Record<string, string>) => void;
 }) {
   const [recordingId, setRecordingId] = useState<string | null>(null);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
 
-  const startRecord = (id: string) => setRecordingId(id);
+  const startRecord = (id: string) => {
+    setRecordingError(null);
+    setRecordingId(id);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     e.preventDefault();
@@ -775,6 +652,11 @@ function HotkeyConfig({ config, onUpdate }: {
     parts.push(key);
 
     const shortcut = parts.join("+");
+    if (isDocumentFindShortcut(shortcut)) {
+      setRecordingError("Ctrl/Cmd+F 已保留给当前文档查找，请使用其他组合键。");
+      setRecordingId(null);
+      return;
+    }
     const updated = { ...config.hotkeys, [recordingId!]: shortcut };
     onUpdate(updated);
     setRecordingId(null);
@@ -787,6 +669,8 @@ function HotkeyConfig({ config, onUpdate }: {
 
   return (
     <div className="hotkey-list">
+      <div className="hotkey-reserved-note">Ctrl/Cmd+F：当前文档查找（固定保留）</div>
+      {recordingError && <div className="hotkey-recording-error" role="status">{recordingError}</div>}
       {Object.entries(HOTKEY_LABELS).map(([id, label]) => {
         const current = config.hotkeys?.[id] || DEFAULT_HOTKEYS[id];
         const isRecording = recordingId === id;

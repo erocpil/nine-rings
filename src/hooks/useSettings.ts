@@ -17,6 +17,13 @@ export function useSettings() {
     withTimeout(api.config.get(), 15000, "加载配置")
       .then(async (loaded) => {
         let c = loaded;
+        // Ctrl+E 曾是聚焦全局搜索的默认键。升级时只迁移这个旧默认值，
+        // 其他用户自定义组合保持不变。
+        if (c.hotkeys?.focus_search === "CommandOrControl+E") {
+          c = await api.config.set({
+            hotkeys: { ...c.hotkeys, focus_search: "Alt+E" },
+          });
+        }
         // 旧版本的工具栏字号使用独立 localStorage。首次升级时迁入统一配置，
         // 之后设置页和工具栏始终读写同一个值。
         const legacyFontSize = Number(localStorage.getItem("nr:editorFontSize"));

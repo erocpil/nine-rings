@@ -206,8 +206,8 @@ function assert(condition: boolean, msg: string): void {
   console.log("\n── Table ──");
   const pm: any = { type: "doc", content: [{ type: "table", content: [
     { type: "tableRow", content: [
-      { type: "tableHeader", attrs: { textAlign: "left" }, content: [{ type: "paragraph", content: [{ type: "text", text: "Name", marks: [{ type: "bold" }] }] }] },
-      { type: "tableHeader", attrs: { textAlign: "right" }, content: [{ type: "paragraph", content: [{ type: "text", text: "Value" }] }] },
+      { type: "tableHeader", attrs: { textAlign: "left", colwidth: [180] }, content: [{ type: "paragraph", content: [{ type: "text", text: "Name", marks: [{ type: "bold" }] }] }] },
+      { type: "tableHeader", attrs: { textAlign: "right", colwidth: [240] }, content: [{ type: "paragraph", content: [{ type: "text", text: "Value" }] }] },
     ] },
     { type: "tableRow", content: [
       { type: "tableCell", attrs: { textAlign: "left" }, content: [{ type: "paragraph", content: [{ type: "text", text: "a | b", marks: [{ type: "code" }] }] }] },
@@ -218,7 +218,11 @@ function assert(condition: boolean, msg: string): void {
   const table = delta.ops[0]?.insert?.table;
   const restored = deltaToProseMirror(delta);
   assert(table?.version === 1 && table?.rows?.length === 2, "table serializes to a versioned embed");
+  assert(table?.columns?.[0]?.width === 180 && table?.columns?.[1]?.width === 240,
+    "table column widths survive serialization");
   assert(restored.content[0]?.type === "table", "table embed restores a table node");
+  assert(restored.content[0]?.content?.[0]?.content?.[1]?.attrs?.colwidth?.[0] === 240,
+    "table column widths survive restoration");
   assert(restored.content[0]?.content?.[1]?.content?.[0]?.content?.[0]?.content?.[0]?.text === "a | b",
     "table cell content survives save and reload");
   const markdown = deltaToMarkdown(delta);

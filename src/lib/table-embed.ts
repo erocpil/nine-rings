@@ -13,7 +13,7 @@ export interface TableRowEmbed {
 
 export interface TableEmbed {
   version: 1;
-  columns: Array<{ align: TableAlignment }>;
+  columns: Array<{ align: TableAlignment; width?: number }>;
   rows: TableRowEmbed[];
 }
 
@@ -31,10 +31,12 @@ export function isTableEmbed(value: unknown): value is TableEmbed {
     table.columns.length > 100 ||
     table.rows.length > 10_000
   ) return false;
-  return table.columns.every((column) =>
-    !!column && typeof column === "object" &&
-    normalizeTableAlignment((column as { align?: unknown }).align) === (column as { align?: unknown }).align,
-  ) && table.rows.every((row) =>
+  return table.columns.every((column) => {
+    if (!column || typeof column !== "object") return false;
+    const candidate = column as { align?: unknown; width?: unknown };
+    return normalizeTableAlignment(candidate.align) === candidate.align &&
+      (candidate.width === undefined || normalizeTableColumnWidth(candidate.width) === candidate.width);
+  }) && table.rows.every((row) =>
     !!row && typeof row === "object" && Array.isArray((row as TableRowEmbed).cells) &&
     (row as TableRowEmbed).cells.length <= 100 &&
     (row as TableRowEmbed).cells.every((cell) =>
@@ -51,4 +53,10 @@ export function getTableEmbed(insert: unknown): TableEmbed | null {
 
 export function normalizeTableAlignment(value: unknown): TableAlignment {
   return value === "left" || value === "center" || value === "right" ? value : null;
+}
+
+export function normalizeTableColumnWidth(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 25 && value <= 10_000
+    ? value
+    : null;
 }

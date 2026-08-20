@@ -477,7 +477,7 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 |--------|-----------|---------|
 | new_note | （未绑定，可配置） | JS `registerShortcuts` |
 | quick_capture | Ctrl+Alt+N | JS `registerShortcuts` |
-| focus_search | Ctrl+E | JS `registerShortcuts` |
+| focus_search | Alt+E | JS `registerShortcuts` |
 | open_settings | Alt+, | JS `registerShortcuts` |
 | go_to_daily | Ctrl+Shift+D | JS `registerShortcuts` |
 | show_window | Alt+Y | **Rust 端注册**（系统级，WebView 不可见时也能响应） |
@@ -496,6 +496,8 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 | `CodeBlockLineNumbers` | 代码块行号显示 |
 | `ResizableImage` | 可拖拽缩放图片 |
 | `LineNumberInsert` | 行号插入 |
+
+块编号按 TipTap 顶层块计数，gutter 最小为 44px，并随最大编号位数阶梯式增宽。表格支持增删行列、列对齐、鼠标连续选择、触屏菜单选择整行/整列/整表、批量复制/清空/对齐，以及桌面端拖动列宽。列宽保存在内部 table embed 的 `columns[].width` 中；Markdown 导出不携带列宽。
 
 ### Markdown 支持
 

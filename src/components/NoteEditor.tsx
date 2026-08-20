@@ -31,7 +31,7 @@ import {
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
-import { TableMap } from "@tiptap/pm/tables";
+import { CellSelection, deleteCellSelection, TableMap } from "@tiptap/pm/tables";
 import { addLog, toggleDebug } from "../lib/debugLog";
 import { copyToClipboard } from "../lib/clipboard";
 import { CodeBlockLineNumbers } from "../extensions/CodeBlockLineNumbers";
@@ -42,6 +42,8 @@ import { looksLikeMarkdown, mdToDelta } from "../lib/md-parser";
 import { SearchHighlights, findSearchMatches, setSearchHighlights, type SearchMatch } from "../extensions/SearchHighlights";
 import { noteToMarkdown } from "../lib/markdown-serializer";
 import { exportMarkdownWithDialog, isTauri } from "../lib/tauri-desktop";
+import { editorGutterWidth } from "../lib/editor-gutter";
+import { clipboardSliceToPlainText } from "../lib/clipboard-plain-text";
 
 const FontSize = Extension.create({
   name: "fontSize",
@@ -234,6 +236,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   });
   const [markdownPasteText, setMarkdownPasteText] = useState<string | null>(null);
   const [markdownSelectionNotice, setMarkdownSelectionNotice] = useState(false);
+  const [gutterBlockCount, setGutterBlockCount] = useState(0);
 
   useEffect(() => {
     if (!markdownPasteText) return;
@@ -357,7 +360,13 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       FontSize,
       ResizableImage.configure({ inline: false, allowBase64: true }),
       LinkExt.configure({ openOnClick: true }),
-      Table.configure({ resizable: false, allowTableNodeSelection: true }),
+      Table.configure({
+        resizable: true,
+        handleWidth: 8,
+        cellMinWidth: 48,
+        lastColumnResizable: true,
+        allowTableNodeSelection: true,
+      }),
       TableRow,
       AlignedTableHeader,
       AlignedTableCell,
@@ -374,6 +383,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     editorProps: {
       transformPastedHTML: normalizePastedHTML,
       transformPasted: normalizeSingleParagraphPaste,
+      clipboardTextSerializer: clipboardSliceToPlainText,
     },
     onSelectionUpdate: ({ editor: ed }) => {
       const { from, to } = ed.state.selection;
@@ -480,7 +490,8 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   useEffect(() => {
     if (!editor) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLocaleLowerCase() === "f") {
+      const isFindKey = event.code === "KeyF" || event.key.toLocaleLowerCase() === "f";
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && isFindKey) {
         event.preventDefault();
         event.stopPropagation();
         const { from, to } = editor.state.selection;
@@ -902,13 +913,13 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const handleCopy = async () => {
     const { from, to } = editor.state.selection;
     if (from === to) return;
-    const text = editor.state.doc.textBetween(from, to, ' ');
+    const text = clipboardSliceToPlainText(editor.state.selection.content());
     await copyToClipboard(text);
   };
   const handleCut = async () => {
     const { from, to } = editor.state.selection;
     if (from === to) return;
-    const text = editor.state.doc.textBetween(from, to, ' ');
+    const text = clipboardSliceToPlainText(editor.state.selection.content());
     await copyToClipboard(text);
     editor.chain().focus().deleteSelection().run();
   };
@@ -1067,8 +1078,22 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     URL.revokeObjectURL(url);
   };
 
-  const setTableCellAlignment = (textAlign: "left" | "center" | "right") => {
+  const getTableCellContext = () => {
     const { state, view } = editor;
+    if (state.selection instanceof CellSelection) {
+      const $cell = state.selection.$headCell;
+      const table = $cell.node(-1);
+      if (table.type.name !== "table") return null;
+      return {
+        state,
+        view,
+        table,
+        tableContentStart: $cell.start(-1),
+        cellPos: $cell.pos,
+        map: TableMap.get(table),
+      };
+    }
+
     const { $from } = state.selection;
     let tableDepth = $from.depth;
     while (tableDepth > 0 && $from.node(tableDepth).type.name !== "table") tableDepth--;
@@ -1078,27 +1103,115 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       $from.node(cellDepth).type.name !== "tableCell" &&
       $from.node(cellDepth).type.name !== "tableHeader"
     ) cellDepth--;
-    if (tableDepth === 0 || cellDepth <= tableDepth) return;
+    if (tableDepth === 0 || cellDepth <= tableDepth) return null;
 
     const table = $from.node(tableDepth);
-    const tableStart = $from.before(tableDepth);
-    const cellStart = $from.before(cellDepth);
-    const map = TableMap.get(table);
-    const column = map.findCell(cellStart - tableStart - 1).left;
+    return {
+      state,
+      view,
+      table,
+      tableContentStart: $from.start(tableDepth),
+      cellPos: $from.before(cellDepth),
+      map: TableMap.get(table),
+    };
+  };
+
+  const setTableSelection = (kind: "row" | "column" | "table") => {
+    const context = getTableCellContext();
+    if (!context) return;
+    const { state, view, map, tableContentStart, cellPos } = context;
+    const currentCell = state.doc.resolve(cellPos);
+    const nextSelection = kind === "row"
+      ? CellSelection.rowSelection(currentCell)
+      : kind === "column"
+        ? CellSelection.colSelection(currentCell)
+        : CellSelection.create(
+            state.doc,
+            tableContentStart + map.map[0],
+            tableContentStart + map.map[map.map.length - 1],
+          );
+    view.dispatch(state.tr.setSelection(nextSelection));
+    view.focus();
+  };
+
+  const setTableCellAlignment = (textAlign: "left" | "center" | "right") => {
+    const { state, view } = editor;
     let transaction = state.tr;
-    for (let row = 0; row < map.height; row++) {
-      const cellPos = tableStart + 1 + map.positionAt(row, column, table);
-      const cell = transaction.doc.nodeAt(cellPos);
-      if (cell) {
-        transaction = transaction.setNodeMarkup(cellPos, undefined, { ...cell.attrs, textAlign });
+    if (state.selection instanceof CellSelection) {
+      state.selection.forEachCell((cell, pos) => {
+        transaction = transaction.setNodeMarkup(pos, undefined, { ...cell.attrs, textAlign });
+      });
+    } else {
+      const context = getTableCellContext();
+      if (!context) return;
+      const { table, tableContentStart, cellPos, map } = context;
+      const column = map.findCell(cellPos - tableContentStart).left;
+      for (let row = 0; row < map.height; row++) {
+        const targetPos = tableContentStart + map.positionAt(row, column, table);
+        const cell = transaction.doc.nodeAt(targetPos);
+        if (cell) {
+          transaction = transaction.setNodeMarkup(targetPos, undefined, { ...cell.attrs, textAlign });
+        }
       }
     }
     view.dispatch(transaction);
-    editor.commands.focus();
+    view.focus();
+  };
+
+  const copySelectedTableCells = async () => {
+    const selection = editor.state.selection;
+    const context = getTableCellContext();
+    if (!(selection instanceof CellSelection) || !context) return;
+    const { state, map, table, tableContentStart } = context;
+    const rect = map.rectBetween(
+      selection.$anchorCell.pos - tableContentStart,
+      selection.$headCell.pos - tableContentStart,
+    );
+    const rows: string[] = [];
+    for (let row = rect.top; row < rect.bottom; row++) {
+      const cells: string[] = [];
+      for (let column = rect.left; column < rect.right; column++) {
+        const pos = tableContentStart + map.positionAt(row, column, table);
+        cells.push(state.doc.nodeAt(pos)?.textContent ?? "");
+      }
+      rows.push(cells.join("\t"));
+    }
+    await copyToClipboard(rows.join("\n"));
+  };
+
+  const clearSelectedTableCells = () => {
+    const { state, view } = editor;
+    if (deleteCellSelection(state, (transaction) => view.dispatch(transaction))) {
+      view.focus();
+    }
+  };
+
+  const selectedTableCellCount = editor.state.selection instanceof CellSelection
+    ? (() => {
+        let count = 0;
+        editor.state.selection.forEachCell(() => { count++; });
+        return count;
+      })()
+    : 0;
+
+  const preventReadonlyTableResize = (event: React.MouseEvent) => {
+    if (!readonly || !(event.target instanceof Element)) return;
+    const cell = event.target.closest("td, th");
+    if (!cell) return;
+    const rect = cell.getBoundingClientRect();
+    if (Math.abs(rect.right - event.clientX) <= 8) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
   };
 
   return (
-    <div className={`note-editor ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""}`} onPasteCapture={handlePaste} onDrop={handleDrop}>
+    <div
+      className={`note-editor ${readonly ? "note-editor-readonly" : ""} ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""}`}
+      onPasteCapture={handlePaste}
+      onDrop={handleDrop}
+      onMouseDownCapture={preventReadonlyTableResize}
+    >
       {/* ── 标题 + 标签 + 工具栏 + 编辑器（滚动区域）── */}
       <div className="note-editor-scroll" ref={scrollRef}>
         <div className="note-editor-sticky">
@@ -1337,17 +1450,32 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
               >▦ 表格 ▾</button>
               {tableOpen && (
                 <div className="menu-dropdown-list table-context-menu">
+                  <div className="table-selection-hint">
+                    {selectedTableCellCount > 0
+                      ? `已选择 ${selectedTableCellCount} 个单元格`
+                      : "拖动可连续选择；触屏可选择整行或整列"}
+                  </div>
+                  <button className="menu-dropdown-item" onClick={() => { setTableSelection("row"); setTableOpen(false); }} type="button">选择当前行</button>
+                  <button className="menu-dropdown-item" onClick={() => { setTableSelection("column"); setTableOpen(false); }} type="button">选择当前列</button>
+                  <button className="menu-dropdown-item" onClick={() => { setTableSelection("table"); setTableOpen(false); }} type="button">选择整个表格</button>
+                  {selectedTableCellCount > 0 && (
+                    <>
+                      <button className="menu-dropdown-item" onClick={() => { void copySelectedTableCells(); setTableOpen(false); }} type="button">复制所选单元格</button>
+                      <button className="menu-dropdown-item" onClick={() => { clearSelectedTableCells(); setTableOpen(false); }} type="button">清空所选单元格</button>
+                    </>
+                  )}
+                  <div className="menu-dropdown-sep" />
                   <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().addRowBefore().run(); setTableOpen(false); }} type="button">在上方添加行</button>
                   <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().addRowAfter().run(); setTableOpen(false); }} type="button">在下方添加行</button>
                   <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().addColumnBefore().run(); setTableOpen(false); }} type="button">在左侧添加列</button>
                   <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().addColumnAfter().run(); setTableOpen(false); }} type="button">在右侧添加列</button>
                   <div className="menu-dropdown-sep" />
-                  <button className="menu-dropdown-item" onClick={() => { setTableCellAlignment("left"); setTableOpen(false); }} type="button">当前列左对齐</button>
-                  <button className="menu-dropdown-item" onClick={() => { setTableCellAlignment("center"); setTableOpen(false); }} type="button">当前列居中</button>
-                  <button className="menu-dropdown-item" onClick={() => { setTableCellAlignment("right"); setTableOpen(false); }} type="button">当前列右对齐</button>
+                  <button className="menu-dropdown-item" onClick={() => { setTableCellAlignment("left"); setTableOpen(false); }} type="button">{selectedTableCellCount > 0 ? "所选单元格左对齐" : "当前列左对齐"}</button>
+                  <button className="menu-dropdown-item" onClick={() => { setTableCellAlignment("center"); setTableOpen(false); }} type="button">{selectedTableCellCount > 0 ? "所选单元格居中" : "当前列居中"}</button>
+                  <button className="menu-dropdown-item" onClick={() => { setTableCellAlignment("right"); setTableOpen(false); }} type="button">{selectedTableCellCount > 0 ? "所选单元格右对齐" : "当前列右对齐"}</button>
                   <div className="menu-dropdown-sep" />
-                  <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().deleteRow().run(); setTableOpen(false); }} type="button">删除当前行</button>
-                  <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().deleteColumn().run(); setTableOpen(false); }} type="button">删除当前列</button>
+                  <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().deleteRow().run(); setTableOpen(false); }} type="button">{selectedTableCellCount > 0 ? "删除所选行" : "删除当前行"}</button>
+                  <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().deleteColumn().run(); setTableOpen(false); }} type="button">{selectedTableCellCount > 0 ? "删除所选列" : "删除当前列"}</button>
                   <button className="menu-dropdown-item danger" onClick={() => { editor.chain().focus().deleteTable().run(); setTableOpen(false); }} type="button">删除表格</button>
                 </div>
               )}
@@ -1701,8 +1829,16 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             <button type="button" onClick={() => { editor.chain().focus().undo().run(); setMarkdownSelectionNotice(false); }}>撤销</button>
           </div>
         )}
-        <div className="editor-content-shell">
-          <EditorBlockGutter editor={editor} showNumbers={showLineNumbers} readonly={!!readonly} />
+        <div
+          className="editor-content-shell"
+          style={{ "--editor-gutter-width": `${editorGutterWidth(gutterBlockCount, showLineNumbers)}px` } as React.CSSProperties}
+        >
+          <EditorBlockGutter
+            editor={editor}
+            showNumbers={showLineNumbers}
+            readonly={!!readonly}
+            onBlockCountChange={setGutterBlockCount}
+          />
           <EditorContent editor={editor} className="editor-content" onContextMenu={handleEditorContextMenu} />
         </div>
 

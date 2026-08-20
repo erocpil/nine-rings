@@ -9,6 +9,7 @@
 
 import {
   resolveShortcut,
+  isDocumentFindShortcut,
   isEditableTarget,
   shouldIgnoreShortcut,
 } from "../src/lib/shortcuts";
@@ -44,15 +45,20 @@ assert(resolveShortcut(key({ key: "F11" })) === "fullscreen", "F11 → fullscree
 assert(resolveShortcut(key({ key: "F11", ctrlKey: true })) === null, "Ctrl+F11 不映射（非纯 F11）");
 assert(resolveShortcut(key({ key: ",", altKey: true })) === "openSettings", "Alt+, → openSettings");
 assert(resolveShortcut(key({ key: ",", ctrlKey: true })) === null, "Ctrl+, 不映射");
-assert(resolveShortcut(key({ key: "e", ctrlKey: true })) === "focusSearch", "Ctrl+E → focusSearch");
-assert(resolveShortcut(key({ key: "E", ctrlKey: true })) === "focusSearch", "Ctrl+E（大写）→ focusSearch");
-assert(resolveShortcut(key({ key: "e", metaKey: true })) === "focusSearch", "Meta+E（macOS）→ focusSearch");
+assert(resolveShortcut(key({ key: "e", ctrlKey: true })) === null, "Ctrl+E 放行给编辑器");
+assert(resolveShortcut(key({ key: "E", ctrlKey: true })) === null, "Ctrl+E（大写）放行给编辑器");
+assert(resolveShortcut(key({ key: "e", metaKey: true })) === null, "Meta+E（macOS）放行给编辑器");
 assert(resolveShortcut(key({ key: "f", ctrlKey: true, shiftKey: true })) === "focusSearch", "Ctrl+Shift+F → focusSearch");
 assert(resolveShortcut(key({ key: "d", ctrlKey: true, shiftKey: true })) === "goToDaily", "Ctrl+Shift+D → goToDaily");
 assert(resolveShortcut(key({ key: "x", ctrlKey: true, shiftKey: true })) === null, "Ctrl+Shift+X 放行给编辑器");
 assert(resolveShortcut(key({ key: "b", ctrlKey: true })) === null, "Ctrl+B 放行给编辑器（加粗）");
 assert(resolveShortcut(key({ key: "e" })) === null, "无修饰 e 不映射");
-assert(resolveShortcut(key({ key: "e", altKey: true })) === null, "Alt+E 不映射");
+assert(resolveShortcut(key({ key: "e", altKey: true })) === "focusSearch", "Alt+E → focusSearch");
+assert(resolveShortcut(key({ key: "E", altKey: true })) === "focusSearch", "Alt+E（大写）→ focusSearch");
+
+assert(isDocumentFindShortcut("CommandOrControl+F") === true, "Ctrl/Cmd+F 保留给文档查找");
+assert(isDocumentFindShortcut("Ctrl + F") === true, "Ctrl+F 宽松格式仍识别为保留键");
+assert(isDocumentFindShortcut("Alt+F") === false, "Alt+F 可作为其他快捷键");
 
 console.log("\n── isEditableTarget：可编辑目标判断 ──");
 
@@ -73,7 +79,7 @@ console.log("\n── shouldIgnoreShortcut：编辑态忽略守卫 ──");
 const editable = { isContentEditable: true };
 const plain = { tagName: "DIV" };
 
-assert(shouldIgnoreShortcut(key({ key: "e", ctrlKey: true }), editable) === false, "Ctrl+E 在编辑态不忽略");
+assert(shouldIgnoreShortcut(key({ key: "e", altKey: true }), editable) === false, "Alt+E 在编辑态不忽略");
 assert(shouldIgnoreShortcut(key({ key: ",", altKey: true }), editable) === false, "Alt+, 在编辑态不忽略");
 assert(shouldIgnoreShortcut(key({ key: "F11" }), editable) === false, "F11 功能键在编辑态不忽略");
 assert(shouldIgnoreShortcut(key({ key: "e" }), editable) === true, "无修饰 e 在编辑态忽略");

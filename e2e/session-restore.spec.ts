@@ -8,7 +8,37 @@ async function createDocument(page: Page, title: string) {
   await expect(page.locator(".ProseMirror")).toBeVisible();
 }
 
+test.describe("移动端视图切换", () => {
+  test.use({ viewport: { width: 600, height: 760 }, hasTouch: true });
+
+  test("移动端使用单一视图切换按钮并显示目标文字", async ({ page }) => {
+    await page.goto("/");
+
+    const viewSwitch = page.locator(".sidebar-view-switch");
+    await expect(viewSwitch).toHaveCount(1);
+    await expect(viewSwitch).toHaveAttribute("aria-label", "切换到随笔");
+    await expect(viewSwitch.locator(".sidebar-view-switch-label")).toHaveText("随笔");
+    await expect(viewSwitch.locator(".sidebar-view-switch-label")).toBeVisible();
+    await viewSwitch.click();
+    await expect(viewSwitch).toHaveAttribute("aria-label", "切换到文档");
+    await expect(viewSwitch.locator(".sidebar-view-switch-label")).toHaveText("文档");
+    await expect(page.locator(".m-toolbar").getByText("文档", { exact: true })).toBeVisible();
+  });
+});
+
 test.describe("会话位置恢复与编辑器查找", () => {
+  test("过期待办入口位于今日待办标题栏", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("nr:todoSplit", "3"));
+    await page.goto("/");
+
+    const todoList = page.locator(".todo-list");
+    await expect(todoList.getByRole("button", { name: "查看过期待办" })).toBeVisible();
+    await expect(page.locator(".sidebar-footer").getByText("过期待办")).toHaveCount(0);
+    await todoList.getByRole("button", { name: "查看过期待办" }).click();
+    await expect(page.locator(".overdue-panel")).toBeVisible();
+    await expect(page.locator(".overdue-header h3")).toHaveText("过期待办");
+  });
+
   test("重载后恢复最后打开的文档、光标和滚动位置", async ({ page }) => {
     const title = "会话恢复测试文档";
     await createDocument(page, title);
@@ -54,6 +84,50 @@ test.describe("会话位置恢复与编辑器查找", () => {
       const selection = window.getSelection();
       return Boolean(selection?.anchorNode && element.contains(selection.anchorNode));
     })).toBe(true);
+  });
+
+  test("重载后恢复文档树布局、目录视图和专注模式", async ({ page }) => {
+    await createDocument(page, "工作区恢复测试文档");
+
+    const sidebarTabs = page.locator(".sidebar-tabs");
+    await expect(sidebarTabs.locator(".sidebar-view-switch")).toHaveAttribute("aria-label", "切换到随笔");
+    await expect(sidebarTabs.locator(".sidebar-view-switch")).toHaveCount(1);
+    await expect(sidebarTabs.getByTitle("折叠所有目录")).toBeVisible();
+    await expect(page.locator(".doc-tree-header, .doc-tree-title")).toHaveCount(0);
+    await expect(sidebarTabs.locator(".doc-tree-toolbar-host + .sidebar-tab-hide")).toBeVisible();
+
+    const sidebar = page.locator(".app-sidebar");
+    const divider = page.locator(".sidebar-divider");
+    const dividerBox = await divider.boundingBox();
+    if (!dividerBox) throw new Error("sidebar divider not found");
+    await page.mouse.move(dividerBox.x + dividerBox.width / 2, dividerBox.y + 100);
+    await page.mouse.down();
+    await page.mouse.move(dividerBox.x + 74, dividerBox.y + 100, { steps: 5 });
+    await page.mouse.up();
+    const sidebarWidth = await sidebar.evaluate((element) => element.getBoundingClientRect().width);
+    expect(sidebarWidth).toBeGreaterThan(280);
+
+    await page.getByTitle("专注模式").click();
+    await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
+
+    await page.getByTitle("折叠所有目录").click();
+    const firstFolder = page.locator(".doc-tree-folder").first();
+    await expect(firstFolder.locator(".doc-tree-toggle")).toHaveText("▶");
+    const folderName = await firstFolder.locator(".doc-tree-name").innerText();
+    await firstFolder.locator(".doc-tree-name").click();
+    await expect(page.locator(".moc-breadcrumb")).toHaveText(folderName);
+    await expect(page.locator(".ProseMirror")).toHaveCount(0);
+
+    await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:workspaceTarget")))
+      .toContain('"kind":"folder"');
+    await page.reload();
+
+    await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
+    await expect(page.locator(".moc-breadcrumb")).toHaveText(folderName);
+    await expect(page.locator(".ProseMirror")).toHaveCount(0);
+    await expect(page.locator(".doc-tree-folder").first().locator(".doc-tree-toggle")).toHaveText("▶");
+    await expect.poll(() => sidebar.evaluate((element) => element.getBoundingClientRect().width))
+      .toBeGreaterThan(280);
   });
 
   test("Ctrl-F 查找框在主窗口关闭时同步关闭", async ({ page }) => {

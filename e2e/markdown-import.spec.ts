@@ -18,7 +18,8 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
 
   await expect(page.getByText("已导入 1 篇笔记")).toBeVisible();
   await page.locator(".settings-close").click();
-  await page.getByTitle("文档树").click();
+  const viewSwitch = page.locator(".sidebar-view-switch");
+  if (await viewSwitch.getAttribute("data-target-view") === "tree") await viewSwitch.click();
 
   await expect(page.locator(".doc-tree-name", { hasText: "references" })).toBeVisible();
   await expect(page.locator(".doc-tree-name", { hasText: "import-e2e" })).toBeVisible();

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useLayoutEffect } from "react";
 import type { Note } from "../types/models";
 import { TagFilter } from "./TagFilter";
 import { api } from "../lib/api";
@@ -7,6 +7,9 @@ import type { Template } from "../lib/storage/template-store";
 
 type SortMode = "manual" | "created" | "updated" | "title";
 const SORT_MODE_KEY = "nr:sortMode";
+const SHOW_ALL_KEY = "nr:sidebarShowAll";
+const SIDEBAR_SCROLL_TODAY_KEY = "nr:sidebarScrollToday";
+const SIDEBAR_SCROLL_ALL_KEY = "nr:sidebarScrollAll";
 
 function loadSortMode(): SortMode {
   try { return (localStorage.getItem(SORT_MODE_KEY) as SortMode) || "manual"; } catch { return "manual"; }
@@ -83,6 +86,8 @@ export function Sidebar({
   const [editValue, setEditValue] = useState("");
   const moveInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const restoredScrollModeRef = useRef<string | null>(null);
 
   // ── 模板选择器 ──
   const [templateOpen, setTemplateOpen] = useState(false);
@@ -113,7 +118,7 @@ export function Sidebar({
   });
 
   // ── 全部随笔模式 ──
-  const [showAll, setShowAll] = useState(false);
+  const [showAll, setShowAll] = useState(() => localStorage.getItem(SHOW_ALL_KEY) === "true");
   const [allNotes, setAllNotes] = useState<Note[]>([]);
 
   useEffect(() => {
@@ -124,6 +129,21 @@ export function Sidebar({
 
   const displayNotes = showAll ? allNotes : notes;
   const sortedNotes = applySort(displayNotes, sortMode);
+
+  useEffect(() => {
+    localStorage.setItem(SHOW_ALL_KEY, String(showAll));
+  }, [showAll]);
+
+  useLayoutEffect(() => {
+    const mode = showAll ? "all" : "today";
+    if (!listRef.current || restoredScrollModeRef.current === mode) return;
+    // “全部”列表异步加载完成后再恢复，避免空容器把位置夹回 0。
+    if (showAll && sortedNotes.length === 0) return;
+    const key = showAll ? SIDEBAR_SCROLL_ALL_KEY : SIDEBAR_SCROLL_TODAY_KEY;
+    const saved = Number(localStorage.getItem(key));
+    if (Number.isFinite(saved) && saved >= 0) listRef.current.scrollTop = saved;
+    restoredScrollModeRef.current = mode;
+  }, [showAll, sortedNotes.length]);
 
   // ── 点击处理：Shift 多选 ──
   const handleItemClick = (e: React.MouseEvent, note: Note, index: number) => {
@@ -337,7 +357,14 @@ export function Sidebar({
           <button className="sidebar-multi-clear" onClick={clearSelection}>取消</button>
         </div>
       )}
-      <div className="sidebar-list">
+      <div
+        className="sidebar-list"
+        ref={listRef}
+        onScroll={(event) => {
+          const key = showAll ? SIDEBAR_SCROLL_ALL_KEY : SIDEBAR_SCROLL_TODAY_KEY;
+          localStorage.setItem(key, String(event.currentTarget.scrollTop));
+        }}
+      >
         {sortedNotes.map((note, i) => (
           <div
             key={note.id}

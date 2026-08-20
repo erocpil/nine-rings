@@ -10,6 +10,7 @@
  */
 
 import { isTauri } from "./tauri-desktop";
+import { isDocumentFindShortcut } from "./shortcuts";
 
 export interface ShortcutActions {
   createNote: () => void;
@@ -81,6 +82,10 @@ export async function registerShortcuts(
       const handler = makeHandler(id, actions, invoke);
       if (!handler) continue;
       if (!shortcut || shortcut.trim() === "") continue;
+      if (isDocumentFindShortcut(shortcut)) {
+        console.warn(`[GlobalShortcut] ${shortcut} 已保留给当前文档查找，跳过全局注册`);
+        continue;
+      }
 
       try {
         await register(shortcut, handler);

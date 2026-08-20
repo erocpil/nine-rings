@@ -1165,6 +1165,22 @@ body {
   margin-left: 6px;
 }
 
+.todo-overdue-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 1px 5px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.todo-overdue-btn:hover {
+  color: var(--accent);
+  background: var(--hover);
+}
+
 .todo-export-btn.active {
   background: var(--accent);
   color: #fff;
@@ -1251,7 +1267,8 @@ body {
   background: none;
   border: none;
   color: var(--text);
-  font-size: 22px;
+  /* 默认正文 16px 时仍为原来的 22px，并随排版字号同步缩放。 */
+  font-size: calc(var(--editor-font-size) * 1.375);
   font-weight: 700;
   padding: 4px 0;
   margin-bottom: 4px;
@@ -1295,6 +1312,15 @@ body {
   min-width: 190px;
   max-height: min(70vh, 420px);
   overflow-y: auto;
+}
+
+.table-selection-hint {
+  max-width: 240px;
+  padding: 6px 10px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: normal;
 }
 
 .toolbar-more-list {
@@ -2616,7 +2642,8 @@ body {
 }
 
 .focus-mode .note-title-row .note-title {
-  font-size: 17px;
+  /* 默认正文 16px 时仍为原来的 17px。 */
+  font-size: calc(var(--editor-font-size) * 1.0625);
   font-weight: 600;
 }
 
@@ -3061,26 +3088,35 @@ body {
 /* ── Markdown / TipTap 表格 ── */
 .editor-content .tableWrapper {
   width: 100%;
+  max-width: 100%;
   margin: 8px 0;
+  /* 表格通常应随正文宽度重排；这里保留滚动仅作为浏览器无法断行时的兜底。 */
   overflow-x: auto;
 }
 
 .editor-content table {
   width: 100%;
-  min-width: 480px;
+  max-width: 100%;
+  min-width: 0;
   border-collapse: collapse;
   table-layout: auto;
   background: var(--bg);
 }
 
+.editor-content .tableWrapper table {
+  table-layout: fixed;
+}
+
 .editor-content th,
 .editor-content td {
   position: relative;
-  min-width: 96px;
+  min-width: 0;
   padding: 6px 8px;
   border: 1px solid var(--border);
   vertical-align: top;
   text-align: left;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .editor-content th {
@@ -3100,6 +3136,22 @@ body {
   z-index: 2;
   pointer-events: none;
   background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.editor-content .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  z-index: 20;
+  width: 8px;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  opacity: 0.55;
+}
+
+.note-editor-readonly .editor-content .column-resize-handle {
+  display: none;
 }
 
 .editor-content.resize-cursor {
@@ -3143,6 +3195,9 @@ body {
 .editor-content h1 { font-size: 1.6em; margin: 12px 0 6px; }
 .editor-content h2 { font-size: 1.3em; margin: 10px 0 4px; }
 .editor-content h3 { font-size: 1.1em; margin: 8px 0 4px; }
+.editor-content h4 { font-size: 1.05em; margin: 7px 0 3px; }
+.editor-content h5 { font-size: 1em; margin: 6px 0 3px; }
+.editor-content h6 { font-size: 1em; margin: 5px 0 2px; color: var(--text-secondary); }
 
 .editor-content p {
   margin: 2px 0;
@@ -3333,19 +3388,6 @@ body {
 }
 
 /* ──── Overdue Todos ──── */
-
-.sidebar-overdue-btn {
-  border: 0;
-  background: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font: inherit;
-  padding: 0;
-}
-
-.sidebar-overdue-btn:hover {
-  color: var(--accent);
-}
 
 .overdue-overlay {
   position: fixed;
@@ -3664,6 +3706,225 @@ body {
   width: 100%;
 }
 
+.editor-appearance-entry {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.editor-appearance-entry:hover {
+  border-color: var(--accent);
+  background: var(--hover-bg);
+}
+
+.editor-appearance-entry > span:first-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-appearance-entry strong {
+  font-size: 14px;
+}
+
+.editor-appearance-entry small {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.editor-appearance-entry-action {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.editor-appearance-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.58);
+  animation: fadeIn 0.15s ease;
+}
+
+.editor-appearance-panel {
+  width: min(1080px, 100%);
+  height: min(760px, 100%);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+}
+
+.editor-appearance-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.editor-appearance-kicker {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.editor-appearance-header h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.editor-appearance-header p {
+  margin: 3px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.editor-appearance-workspace {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(320px, 390px) minmax(0, 1fr);
+}
+
+.editor-appearance-controls {
+  overflow-y: auto;
+  padding: 20px;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.appearance-field {
+  margin-bottom: 18px;
+}
+
+.editor-appearance-control-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 18px;
+}
+
+.editor-appearance-control-grid .settings-stepper {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.editor-appearance-preview-pane {
+  min-width: 0;
+  overflow-y: auto;
+  padding: 22px clamp(18px, 4vw, 48px) 40px;
+  background: color-mix(in srgb, var(--surface) 75%, var(--bg));
+}
+
+.editor-appearance-preview-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.editor-appearance-preview-label span {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.editor-appearance-document {
+  min-height: 100%;
+  margin: 0;
+  padding: clamp(24px, 5vw, 54px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
+}
+
+.editor-appearance-document h1 {
+  margin: 0 0 0.7em;
+  font-size: 1.65em;
+  line-height: 1.25;
+}
+
+.editor-appearance-document h2 {
+  margin: 1.3em 0 0.45em;
+  font-size: 1.25em;
+}
+
+.editor-appearance-document > p {
+  margin: 0.65em 0;
+}
+
+.editor-appearance-document blockquote {
+  margin: 1em 0;
+  padding-left: var(--editor-blockquote-indent);
+  border-left: 3px solid var(--accent);
+  color: var(--text-secondary);
+}
+
+.editor-appearance-document table {
+  width: 100%;
+  margin-top: 1.2em;
+  border-collapse: collapse;
+  font-size: 0.88em;
+}
+
+.editor-appearance-document th,
+.editor-appearance-document td {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.editor-appearance-document th {
+  background: var(--surface);
+}
+
+@media (max-width: 760px) {
+  .editor-appearance-overlay {
+    padding: 0;
+  }
+
+  .editor-appearance-panel {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .editor-appearance-workspace {
+    display: block;
+    overflow-y: auto;
+  }
+
+  .editor-appearance-controls,
+  .editor-appearance-preview-pane {
+    overflow: visible;
+  }
+
+  .editor-appearance-controls {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
 /* ── GitHub 同步 ── */
 
 .sync-status {
@@ -3978,7 +4239,6 @@ body {
 /* ── NoteEditor outer ── */
 
 .note-editor {
-  --editor-font-size: 15px;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -4049,11 +4309,62 @@ body {
   background: var(--active-bg);
 }
 
+.sidebar-view-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  opacity: 1;
+}
+
+.sidebar-view-switch-label {
+  display: none;
+  font-size: 12px;
+}
+
 .sidebar-tab-spacer {
   flex: 1;
 }
 
+.doc-tree-toolbar-host {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.doc-tree-toolbar-host::-webkit-scrollbar {
+  display: none;
+}
+
+.doc-tree-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.sidebar-tabs .doc-tree-batch-btn,
+.sidebar-tabs .doc-tree-add {
+  width: 22px;
+  min-width: 22px;
+  height: 24px;
+  padding: 0 !important;
+}
+
+.doc-tree-popup-toolbar-host {
+  margin-left: auto;
+}
+
+.doc-tree-toolbar-inline {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
 .sidebar-tab-hide {
+  flex-shrink: 0;
   font-size: 11px !important;
   padding: 2px 4px !important;
   opacity: 0.4;
@@ -4076,25 +4387,6 @@ body {
   padding: 16px 12px;
   color: var(--text-secondary);
   font-size: 13px;
-}
-
-.doc-tree-header {
-  display: flex;
-  align-items: center;
-  padding: 4px 8px;
-  margin-bottom: 4px;
-}
-
-.doc-tree-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.doc-tree-header-spacer {
-  flex: 1;
 }
 
 .doc-tree-batch-btn {
@@ -5422,6 +5714,17 @@ body {
   animation: hotkey-pulse 1s ease-in-out infinite;
 }
 
+.hotkey-reserved-note,
+.hotkey-recording-error {
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.hotkey-recording-error {
+  color: var(--danger);
+}
+
 @keyframes hotkey-pulse {
   0%, 100% { border-color: var(--accent); }
   50% { border-color: transparent; }
@@ -5588,6 +5891,14 @@ body {
     display: none;
   }
 
+  .sidebar-view-switch-label {
+    display: inline;
+  }
+
+  .editor-content .column-resize-handle {
+    display: none;
+  }
+
   /* ── 底部工具栏 ── */
   .m-toolbar {
     display: flex;
@@ -5647,6 +5958,10 @@ body {
 
 /* ── 手机 (≤480px) ── */
 @media (max-width: 480px) {
+  .todo-overdue-label {
+    display: none;
+  }
+
   .app-header {
     padding: 4px 6px;
     gap: 3px;

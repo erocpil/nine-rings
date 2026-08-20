@@ -70,7 +70,7 @@ fn default_hotkeys() -> std::collections::HashMap<String, String> {
     std::collections::HashMap::from([
         ("new_note".into(), "".into()),
         ("quick_capture".into(), "CommandOrControl+Alt+N".into()),
-        ("focus_search".into(), "CommandOrControl+E".into()),
+        ("focus_search".into(), "Alt+E".into()),
         ("open_settings".into(), "Alt+,".into()),
         ("go_to_daily".into(), "CommandOrControl+Shift+D".into()),
         ("show_window".into(), "Alt+Y".into()),

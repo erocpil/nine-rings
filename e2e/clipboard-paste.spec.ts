@@ -76,6 +76,36 @@ test.describe("编辑器复制粘贴", () => {
     await expect(editor.locator("p")).toHaveCount(1);
   });
 
+  test("复制有序列表到纯文本时列表项之间没有多余空行", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const lines = [
+      "办公网可以正常使用codex；",
+      "办公网登录研发主机需要借助跳板机；",
+      "希望能将codex部署到研发网主机的虚拟机，",
+      "通过办公网访问codex服务；有没有好的方法？",
+    ];
+    const editor = page.locator(".ProseMirror");
+    await editor.fill(lines[0]);
+    await editor.press("Control+Shift+7");
+    for (const line of lines.slice(1)) {
+      await editor.press("End");
+      await editor.press("Enter");
+      await editor.type(line);
+    }
+    await expect(editor.locator("ol > li")).toHaveCount(4);
+
+    await editor.press("Control+A");
+    await page.keyboard.press("Control+C");
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
+      lines.map((line, index) => `${index + 1}. ${line}`).join("\n"),
+    );
+  });
+
   test("通过编辑器粘贴按钮粘贴单段 HTML 不产生首尾空段落", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await page.goto("/");
@@ -440,7 +470,8 @@ test.describe("编辑器复制粘贴", () => {
 test.describe("文档树移动", () => {
   test("可新建自定义一级目录", async ({ page }) => {
     await page.goto("/");
-    await page.getByTitle("文档树").click();
+    const viewSwitch = page.locator(".sidebar-view-switch");
+    if (await viewSwitch.getAttribute("data-target-view") === "tree") await viewSwitch.click();
     await page.getByTitle("新建文档").click();
 
     await page.getByPlaceholder("文档标题...").fill("自定义目录文档");
@@ -455,7 +486,8 @@ test.describe("文档树移动", () => {
 
   test("移动文档后树和当前编辑器刷新，页面重载后仍在目标目录", async ({ page }) => {
     await page.goto("/");
-    await page.getByTitle("文档树").click();
+    const viewSwitch = page.locator(".sidebar-view-switch");
+    if (await viewSwitch.getAttribute("data-target-view") === "tree") await viewSwitch.click();
     await page.getByTitle("新建文档").click();
 
     await page.getByPlaceholder("文档标题...").fill("移动回归文档");
@@ -473,7 +505,7 @@ test.describe("文档树移动", () => {
     await expect(page.locator(".note-title")).toHaveValue("移动回归文档");
 
     await page.reload();
-    await page.getByTitle("文档树").click();
+    if (await viewSwitch.getAttribute("data-target-view") === "tree") await viewSwitch.click();
     await expect(page.locator(".doc-tree-folder").filter({ hasText: "archives" })).toHaveCount(1);
     await expect(page.locator(".doc-tree-doc").filter({ hasText: "移动回归文档" })).toHaveCount(1);
   });

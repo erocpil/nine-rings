@@ -15,6 +15,19 @@ export type ShortcutAction =
   | "focusSearch"
   | "goToDaily";
 
+/** Ctrl/Cmd+F 固定留给当前文档查找，不能注册成系统级全局热键。 */
+export function isDocumentFindShortcut(shortcut: string): boolean {
+  const normalized = shortcut.replace(/\s+/g, "").toLowerCase();
+  return [
+    "commandorcontrol+f",
+    "control+f",
+    "ctrl+f",
+    "command+f",
+    "cmd+f",
+    "meta+f",
+  ].includes(normalized);
+}
+
 /**
  * 将一次按键解析为 App 级快捷键动作。
  * 返回 null 表示该按键不属于 App 级快捷键（应放行给编辑器/浏览器）。
@@ -28,6 +41,9 @@ export function resolveShortcut(e: ShortcutKeyEvent): ShortcutAction | null {
   if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key === ",") {
     return "openSettings";
   }
+  if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === "e") {
+    return "focusSearch"; // Alt+E 搜索
+  }
   const ctrl = e.ctrlKey || e.metaKey;
   if (!ctrl) return null;
   if (e.shiftKey) {
@@ -36,7 +52,6 @@ export function resolveShortcut(e: ShortcutKeyEvent): ShortcutAction | null {
     if (k === "d") return "goToDaily"; // Ctrl+Shift+D 每日列表
     return null; // 其余 Ctrl+Shift 组合留给编辑器内置快捷键
   }
-  if (e.key.toLowerCase() === "e") return "focusSearch"; // Ctrl+E 搜索
   return null;
 }
 
