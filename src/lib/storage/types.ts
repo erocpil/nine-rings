@@ -100,7 +100,7 @@ export interface StorageAdapter {
   setConfig(partial: Partial<AppConfig>): Promise<AppConfig>;
 
   // ── Doc Tree（v2 文档分类系统）──
-  getPathTree(): Promise<PathNode[]>;
+  getPathTree(includeDaily?: boolean): Promise<PathNode[]>;
   getNotesByPath(pathPrefix: string): Promise<Note[]>;
   /** 重命名文件夹：将 oldPath 下所有文档的 storagePath 前缀替换为 newPath */
   renameFolder(oldPath: string, newPath: string): Promise<number>;

@@ -35,9 +35,12 @@ interface NotesStore {
   searchQuery: string;
   searchResults: Note[];
   loading: boolean;
+  startupReady: boolean;
+  startupDateLoadPending: boolean;
   error: string | null;
 
   // 操作
+  initialize: (preferredNoteId?: string, selectFallback?: boolean) => Promise<void>;
   setDate: (date: string) => Promise<void>;
   selectNote: (note: Note | null) => void;
   createNote: () => Promise<Note | null>;
@@ -56,14 +59,70 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
   searchQuery: "",
   searchResults: [],
   loading: false,
+  startupReady: false,
+  startupDateLoadPending: false,
   error: null,
 
   clearError: () => set({ error: null }),
 
+  // 启动优先恢复最后文档：单行主键查询完成后立即交给界面渲染，日期列表和
+  // Todo 等编辑器首次呈现后再加载。大备份不再要求先扫描列表才能看到文档。
+  initialize: async (preferredNoteId, selectFallback = true) => {
+    set({ loading: true, startupReady: false, startupDateLoadPending: false, error: null });
+    let restored: Note | null = null;
+    if (preferredNoteId) {
+      restored = await withTimeout(api.notes.get(preferredNoteId), 5000, "恢复最后文档")
+        .catch(() => null);
+    }
+
+    const date = restored?.date ?? get().currentDate;
+    localStorage.setItem(CURRENT_DATE_KEY, date);
+    if (restored) {
+      // 日期列表可能包含大量正文。不要在这里立刻读取；App 会在编辑器首次呈现
+      // 后调用 setDate 补齐列表和 Todo，保证启动主路径只有一次按 ID 查询。
+      set({
+        currentDate: date,
+        selectedNote: restored,
+        loading: false,
+        startupReady: true,
+        startupDateLoadPending: true,
+      });
+      return;
+    }
+
+    try {
+      const [notes, dailyPage] = await withTimeout(
+        Promise.all([api.notes.listByDate(date), api.daily.get(date)]),
+        15000,
+        "加载笔记",
+      );
+      set((state) => {
+        const lastId = localStorage.getItem("nr:lastNote");
+        const preferred = lastId ? notes.find((note) => note.id === lastId) : undefined;
+        return {
+          currentDate: date,
+          notes,
+          dailyPage,
+          selectedNote: selectFallback ? preferred ?? notes[0] ?? null : state.selectedNote,
+          loading: false,
+          startupReady: true,
+          startupDateLoadPending: false,
+        };
+      });
+    } catch (e) {
+      set({
+        loading: false,
+        startupReady: true,
+        startupDateLoadPending: false,
+        error: `加载失败: ${(e as Error).message}`,
+      });
+    }
+  },
+
   setDate: async (date: string) => {
     const prevSelected = get().selectedNote;
     localStorage.setItem(CURRENT_DATE_KEY, date);
-    set({ loading: true, currentDate: date, error: null });
+    set({ loading: true, currentDate: date, startupDateLoadPending: false, error: null });
     try {
       const [notes, dailyPage] = await withTimeout(
         Promise.all([

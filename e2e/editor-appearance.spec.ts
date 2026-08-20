@@ -141,3 +141,30 @@ test("四至六级标题字号不小于正文", async ({ page }) => {
   expect(enlarged.h6).toBeGreaterThan(sizes.h6);
   expect(noteTitleAfter).toBeGreaterThan(noteTitleBefore);
 });
+
+test("当前行高亮保持轻量且代码块字号接近正文", async ({ page }) => {
+  await page.goto("/");
+  const editor = page.locator(".ProseMirror");
+  await expect(editor).toBeVisible();
+
+  await editor.evaluate((element) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "```ts\nconst answer = 42;\n```");
+    element.dispatchEvent(new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData,
+    }));
+  });
+
+  const code = editor.locator("pre code").first();
+  await expect(code).toContainText("const answer = 42;");
+  const sizes = await editor.evaluate((element) => ({
+    body: Number.parseFloat(getComputedStyle(element).fontSize),
+    code: Number.parseFloat(getComputedStyle(element.querySelector("pre code")!).fontSize),
+    activeLine: getComputedStyle(document.documentElement).getPropertyValue("--activeline-bg").trim(),
+  }));
+  expect(sizes.code / sizes.body).toBeGreaterThanOrEqual(0.94);
+  expect(sizes.code / sizes.body).toBeLessThanOrEqual(1);
+  expect(sizes.activeLine).toBe("rgba(9, 105, 218, 0.06)");
+});

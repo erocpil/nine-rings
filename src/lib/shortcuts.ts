@@ -3,6 +3,7 @@
 /** 最小键盘事件接口，供纯函数与测试复用（不依赖 DOM） */
 export interface ShortcutKeyEvent {
   key: string;
+  code?: string;
   ctrlKey: boolean;
   metaKey: boolean;
   shiftKey: boolean;
@@ -15,7 +16,7 @@ export type ShortcutAction =
   | "focusSearch"
   | "goToDaily";
 
-/** Ctrl/Cmd+F 固定留给当前文档查找，不能注册成系统级全局热键。 */
+/** Ctrl/Cmd+F 与 Alt+F 固定留给当前文档查找，不能注册成系统级全局热键。 */
 export function isDocumentFindShortcut(shortcut: string): boolean {
   const normalized = shortcut.replace(/\s+/g, "").toLowerCase();
   return [
@@ -25,7 +26,16 @@ export function isDocumentFindShortcut(shortcut: string): boolean {
     "command+f",
     "cmd+f",
     "meta+f",
+    "alt+f",
   ].includes(normalized);
+}
+
+/** 识别编辑器内查找按键；code 可规避 Windows 键盘布局改变 event.key。 */
+export function isDocumentFindKeyEvent(e: ShortcutKeyEvent): boolean {
+  const isF = e.code === "KeyF" || e.key.toLocaleLowerCase() === "f";
+  if (!isF || e.shiftKey) return false;
+  const command = e.ctrlKey || e.metaKey;
+  return (command && !e.altKey) || (e.altKey && !command);
 }
 
 /**

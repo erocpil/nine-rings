@@ -169,16 +169,21 @@ export function buildDocTree(
 
   // ── 2. 每日随笔 → 注入虚拟 daily/YYYY-MM-DD/ 路径 ──
   if (dailies.length > 0) {
-    const dateSet = new Set(dailies.map((d) => d.date));
+    const dailiesByDate = new Map<string, FlatDailyRecord[]>();
+    for (const daily of dailies) {
+      const group = dailiesByDate.get(daily.date) ?? [];
+      group.push(daily);
+      dailiesByDate.set(daily.date, group);
+    }
 
     folders.add("daily");
-    folderCounts.set("daily", dateSet.size);
+    folderCounts.set("daily", dailiesByDate.size);
 
-    for (const date of [...dateSet].sort().reverse()) {
+    for (const date of [...dailiesByDate.keys()].sort().reverse()) {
       const datePath = `daily/${date}`;
       folders.add(datePath);
 
-      const dateDocs = dailies.filter((d) => d.date === date);
+      const dateDocs = dailiesByDate.get(date)!;
       folderCounts.set(datePath, dateDocs.length);
 
       for (const d of dateDocs) {

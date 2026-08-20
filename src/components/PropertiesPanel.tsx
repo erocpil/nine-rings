@@ -42,34 +42,32 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, onOpenConcept 
   const pathRoot = note.storagePath?.split("/")[0] ?? "";
   const pathRest = note.storagePath?.split("/").slice(1).join("/") ?? "";
 
-  useEffect(() => {
-    api.docs.allConcepts().then(setExistingConcepts);
-    loadBacklinks();
-  }, [note.id]);
-
-  const loadBacklinks = async () => {
+  const loadBacklinks = useCallback(async () => {
     try {
-      const allPages = await api.daily.getAll();
-      const results: Note[] = [];
-      for (const page of allPages) {
-        const notes = await api.notes.listByDate(page.date);
-        for (const n of notes) {
-          if ((n.linkedDocIds ?? []).includes(note.id)) {
-            results.push(n);
+      // 旧实现先读取全部日期，再逐日查询正文；大备份会产生数百甚至数千次
+      // 串行 IPC。随笔和文档各读取一次即可完成同一项反链筛选。
+      const [dailyNotes, docs] = await Promise.all([
+        api.notes.all(),
+        api.docs.listByPath(""),
+      ]);
+      const results = new Map<string, Note>();
+      for (const candidates of [dailyNotes, docs]) {
+        for (const candidate of candidates) {
+          if ((candidate.linkedDocIds ?? []).includes(note.id)) {
+            results.set(candidate.id, candidate);
           }
         }
       }
-      const docs = await api.docs.listByPath("");
-      for (const n of docs) {
-        if ((n.linkedDocIds ?? []).includes(note.id) && !results.find(r => r.id === n.id)) {
-          results.push(n);
-        }
-      }
-      setBacklinks(results);
+      setBacklinks([...results.values()]);
     } catch {
       setBacklinks([]);
     }
-  };
+  }, [note.id]);
+
+  useEffect(() => {
+    api.docs.allConcepts().then(setExistingConcepts);
+    void loadBacklinks();
+  }, [loadBacklinks]);
 
   // ── 路径变更 ──
 

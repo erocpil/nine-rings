@@ -181,8 +181,8 @@ export const api = {
 
   // ── Doc Tree（v2 文档分类系统）──
   docs: {
-    tree: () =>
-      adapter().then((a) => a.getPathTree()),
+    tree: (includeDaily = true) =>
+      adapter().then((a) => a.getPathTree(includeDaily)),
 
     listByPath: (pathPrefix: string) =>
       adapter().then((a) => a.getNotesByPath(pathPrefix)),

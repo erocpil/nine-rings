@@ -232,6 +232,22 @@ const dailyFolder = tree.find(n => n.path === "daily" && n.type === "folder");
   assert(dailyFolder?.count === 3, "daily/ count=3");
 }
 
+// 大备份中的随笔按日期一次分组；验证大量日期和同日多篇的计数结果。
+{
+  console.log("\n── buildDocTree: large daily grouping ──");
+  const dailies: FlatDailyRecord[] = Array.from({ length: 2_000 }, (_, index) => ({
+    id: `daily-${index}`,
+    date: `2026-${String(Math.floor(index / 28) % 12 + 1).padStart(2, "0")}-${String(index % 28 + 1).padStart(2, "0")}`,
+    title: `Daily ${index}`,
+    updated_at: "2026-01-01T00:00:00Z",
+  }));
+  const tree = buildDocTree([], dailies);
+  assert(tree.filter((node) => node.type === "document").length === 2_000,
+    "large daily grouping preserves every note");
+  assert(tree.find((node) => node.path === "daily")?.count === 336,
+    "daily root counts unique dates");
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // 9. collapse others — 文档和目录选择
 // ═══════════════════════════════════════════════════════════════════

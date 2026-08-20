@@ -52,7 +52,7 @@ html {
   --radius: 6px;
   --transition: 0.2s ease;
   --code-bg: #f0f2f5;
-  --activeline-bg: rgba(9, 105, 218, 0.10);
+  --activeline-bg: rgba(9, 105, 218, 0.06);
   --editor-font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
   --editor-font-size: 16px;
   --editor-line-height: 1.6;
@@ -77,7 +77,7 @@ html {
   --success: #3fb950;
   --hover-bg: rgba(255, 255, 255, 0.05);
   --code-bg: #11161c;
-  --activeline-bg: rgba(88, 166, 255, 0.12);
+  --activeline-bg: rgba(88, 166, 255, 0.07);
 }
 
 /* ── 浅色主题（覆盖默认值，与 :root 一致，保留兼容） ── */
@@ -93,7 +93,7 @@ html {
   --danger: #cf222e;
   --success: #1a7f37;
   --code-bg: #f0f2f5;
-  --activeline-bg: rgba(9, 105, 218, 0.10);
+  --activeline-bg: rgba(9, 105, 218, 0.06);
 }
 
 body {
@@ -2372,7 +2372,7 @@ body {
   --danger: #d44a5a;
   --success: #3d8b5c;
   --code-bg: #ecf4f2;
-  --activeline-bg: rgba(10, 186, 181, 0.10);
+  --activeline-bg: rgba(10, 186, 181, 0.06);
 }
 
 /* ── 雅 · 淡紫主题 ── */
@@ -2392,7 +2392,7 @@ body {
   --code-bg: #f0eaf5;
   --hover-bg: rgba(118, 84, 179, 0.07);
   --active-bg: rgba(118, 84, 179, 0.14);
-  --activeline-bg: rgba(118, 84, 179, 0.13);
+  --activeline-bg: rgba(118, 84, 179, 0.07);
 }
 
 /* ── 粋 · 新绿主题 ── */
@@ -2408,7 +2408,7 @@ body {
   --danger: #c44a3a;
   --success: #3d8b70;
   --code-bg: #ecf3e8;
-  --activeline-bg: rgba(74, 138, 58, 0.10);
+  --activeline-bg: rgba(74, 138, 58, 0.06);
 }
 
 /* ── 幟 · 金暖主题 ── */
@@ -2424,7 +2424,7 @@ body {
   --danger: #c44a3a;
   --success: #5a8a4a;
   --code-bg: #f3ecdd;
-  --activeline-bg: rgba(196, 154, 60, 0.10);
+  --activeline-bg: rgba(196, 154, 60, 0.06);
 }
 
 /* ── 蔚 · 钴蓝主题 ── */
@@ -2440,7 +2440,7 @@ body {
   --danger: #d43b4a;
   --success: #3d8b5c;
   --code-bg: #eef3f9;
-  --activeline-bg: rgba(59, 109, 204, 0.10);
+  --activeline-bg: rgba(59, 109, 204, 0.06);
 }
 
 /* ── 蔚 · 暗色变体 ── */
@@ -2456,7 +2456,7 @@ body {
   --danger: #f25a6a;
   --success: #4ca868;
   --code-bg: #0b1524;
-  --activeline-bg: rgba(59, 109, 204, 0.15);
+  --activeline-bg: rgba(59, 109, 204, 0.08);
 }
 
 /* ──── Header Clock ──── */
@@ -3179,7 +3179,7 @@ body {
   background: none;
   border: none;
   padding: 0;
-  font-size: 0.867em;
+  font-size: 0.95em;
   line-height: 1.5;
 }
 
@@ -5501,7 +5501,7 @@ body {
   background: none;
   border: none;
   font-family: "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", monospace;
-  font-size: 0.867em;
+  font-size: 0.95em;
 }
 
 /* 无 main 行号时，code 元素显示深色背景 */
@@ -5513,6 +5513,7 @@ body {
   padding: 4px;
   white-space: pre-wrap;
   font-family: inherit;
+  font-size: 1em;
 }
 
 /* 行内代码 */

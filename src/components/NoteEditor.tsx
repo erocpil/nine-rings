@@ -49,6 +49,7 @@ import {
   setCjkLatinSpacing,
   supportsNativeCjkLatinSpacing,
 } from "../extensions/CjkLatinSpacing";
+import { isDocumentFindKeyEvent } from "../lib/shortcuts";
 
 const FontSize = Extension.create({
   name: "fontSize",
@@ -498,13 +499,12 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     requestAnimationFrame(() => editorFindInputRef.current?.focus({ preventScroll: true }));
   }, [activeSearchMatch, revealSearchMatch]);
 
-  // 拦截 WebView 原生 Ctrl+F。原生查找框由 WebView 管理，主窗口 hide 后
-  // 可能残留；应用内查找框与编辑器共用生命周期和高亮导航。
+  // 拦截 WebView 原生 Ctrl/Cmd+F，并为 Windows 提供 Alt+F。原生查找框由
+  // WebView 管理且主窗口 hide 后可能残留；应用内查找框与编辑器共用生命周期。
   useEffect(() => {
     if (!editor) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      const isFindKey = event.code === "KeyF" || event.key.toLocaleLowerCase() === "f";
-      if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && isFindKey) {
+      if (isDocumentFindKeyEvent(event)) {
         event.preventDefault();
         event.stopPropagation();
         const { from, to } = editor.state.selection;

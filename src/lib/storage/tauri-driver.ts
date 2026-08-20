@@ -230,7 +230,7 @@ export const tauriDriver = {
   },
 
   // ── getPathTree ──
-  async getPathTree(): Promise<PathNode[]> {
+  async getPathTree(includeDaily = true): Promise<PathNode[]> {
     // Part A: 文档类笔记（storage_path IS NOT NULL）
     const docsOp: SelectOp = {
       type: "select",
@@ -248,20 +248,21 @@ export const tauriDriver = {
     const docRows = await dbQuery(docsOp);
 
     // Part B: 随笔/日记（storage_path IS NULL）
-    const dailyOp: SelectOp = {
-      type: "select",
-      table: "notes",
-      columns: ["id", "date", "title", "updated_at"],
-      where: [
-        { col: "storage_path", op: "IS", val: null },
-        { col: "deleted_at", op: "IS", val: null },
-      ],
-      orderBy: [
-        { col: "date", desc: true },
-        { col: "updated_at", desc: true },
-      ],
-    };
-    const dailyRows = await dbQuery(dailyOp);
+    const dailyRows = includeDaily
+      ? await dbQuery({
+          type: "select",
+          table: "notes",
+          columns: ["id", "date", "title", "updated_at"],
+          where: [
+            { col: "storage_path", op: "IS", val: null },
+            { col: "deleted_at", op: "IS", val: null },
+          ],
+          orderBy: [
+            { col: "date", desc: true },
+            { col: "updated_at", desc: true },
+          ],
+        })
+      : [];
 
     // 转换为树构建器的输入类型（snake_case，与 core.ts 对齐）
     const docs: FlatDocRecord[] = docRows.map((r) => ({

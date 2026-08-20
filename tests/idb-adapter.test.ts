@@ -227,6 +227,11 @@ async function runTests() {
     assert(!!docA, "document node exists");
     const dailyFolder = tree.find((n: PathNode) => n.path === "daily" && n.type === "folder");
     assert(!!dailyFolder, "daily/ folder exists");
+    const documentOnlyTree = await idbAdapter.getPathTree(false);
+    assert(!documentOnlyTree.some((n: PathNode) => n.path === "daily"),
+      "document-only tree skips all daily nodes");
+    assert(documentOnlyTree.some((n: PathNode) => n.path === "projects/alpha"),
+      "document-only tree keeps document folders");
   }
 
   // ═══════════════════════════════════════════════════════════════

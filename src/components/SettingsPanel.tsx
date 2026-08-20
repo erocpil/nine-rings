@@ -653,7 +653,7 @@ function HotkeyConfig({ config, onUpdate }: {
 
     const shortcut = parts.join("+");
     if (isDocumentFindShortcut(shortcut)) {
-      setRecordingError("Ctrl/Cmd+F 已保留给当前文档查找，请使用其他组合键。");
+      setRecordingError("Ctrl/Cmd+F 与 Alt+F 已保留给当前文档查找，请使用其他组合键。");
       setRecordingId(null);
       return;
     }
@@ -669,7 +669,7 @@ function HotkeyConfig({ config, onUpdate }: {
 
   return (
     <div className="hotkey-list">
-      <div className="hotkey-reserved-note">Ctrl/Cmd+F：当前文档查找（固定保留）</div>
+      <div className="hotkey-reserved-note">Ctrl/Cmd+F、Alt+F：当前文档查找（固定保留）</div>
       {recordingError && <div className="hotkey-recording-error" role="status">{recordingError}</div>}
       {Object.entries(HOTKEY_LABELS).map(([id, label]) => {
         const current = config.hotkeys?.[id] || DEFAULT_HOTKEYS[id];

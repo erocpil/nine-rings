@@ -144,6 +144,11 @@ test.describe("会话位置恢复与编辑器查找", () => {
     await findInput.press("Enter");
     await expect(page.locator(".editor-find-count")).toHaveText("2/2");
 
+    await findInput.press("Escape");
+    await expect(findInput).toHaveCount(0);
+    await page.keyboard.press("Alt+f");
+    await expect(page.getByRole("search").getByLabel("在当前文档中查找")).toBeVisible();
+
     // Web E2E 没有 Tauri 标题栏；直接验证标题栏在 hide 前广播的同一事件。
     await page.evaluate(() => window.dispatchEvent(new Event("nine-rings:main-window-hide")));
     await expect(findInput).toHaveCount(0);

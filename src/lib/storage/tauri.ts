@@ -89,7 +89,7 @@ export const tauriAdapter: StorageAdapter = {
 
   // ══════ Doc Tree（getPathTree 已迁移，其余保留）══════
 
-  getPathTree: () => tauriDriver.getPathTree(),
+  getPathTree: (includeDaily) => tauriDriver.getPathTree(includeDaily),
   getNotesByPath: (pathPrefix) => invokeNotes("get_notes_by_path", { pathPrefix }),
   moveDocument: (noteId, targetFolderPath) => tauriDriver.moveDocument(noteId, targetFolderPath),
   relocateFolder: (sourcePath, targetPath) => tauriDriver.relocateFolder(sourcePath, targetPath),

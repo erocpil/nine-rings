@@ -68,9 +68,23 @@ function saveWorkspaceTarget(target: WorkspaceTarget): void {
 }
 
 function App() {
+  const startupWorkspaceTargetRef = useRef<WorkspaceTarget | null>(readWorkspaceTarget());
+  const startupLastNoteIdRef = useRef(localStorage.getItem("nr:lastNote"));
+  const startupNoteIdRef = useRef(
+    startupWorkspaceTargetRef.current?.kind === "note"
+      ? startupWorkspaceTargetRef.current.noteId
+      : startupWorkspaceTargetRef.current
+        ? undefined
+        : startupLastNoteIdRef.current ?? undefined,
+  );
+  const restoreWorkspaceInsteadOfNote =
+    startupWorkspaceTargetRef.current?.kind === "folder"
+    || startupWorkspaceTargetRef.current?.kind === "concept";
   const {
     currentDate,
     loading,
+    startupReady,
+    startupDateLoadPending,
     notes,
     selectedNote,
     setDate,
@@ -78,7 +92,7 @@ function App() {
     createNote,
     updateNote,
     deleteNote,
-  } = useNotes();
+  } = useNotes(startupNoteIdRef.current, !restoreWorkspaceInsteadOfNote);
 
   const dailyPage = useNotesStore((s) => s.dailyPage);
   const updateTodos = useNotesStore((s) => s.updateTodos);
@@ -94,6 +108,8 @@ function App() {
   // 下一帧再构造 TipTap，避免同步的 Delta → ProseMirror 转换让窗口一直保持白屏。
   const [editorReadyNoteId, setEditorReadyNoteId] = useState<string | null>(null);
   const [startupRestoreComplete, setStartupRestoreComplete] = useState(false);
+  const [secondaryUiReady, setSecondaryUiReady] = useState(false);
+  const startupDateHydrationStartedRef = useRef(false);
   const selectedNoteId = selectedNote?.id ?? null;
   useEffect(() => {
     setEditorReadyNoteId(null);
@@ -109,6 +125,21 @@ function App() {
       if (secondFrame) window.cancelAnimationFrame(secondFrame);
     };
   }, [selectedNoteId, startupRestoreComplete]);
+
+  // 编辑器完成首次提交后再加载完整侧栏树。即使备份包含大量文档，应用外壳和
+  // 最后文档也已经可见，后台树加载不会继续表现为启动白屏。
+  useEffect(() => {
+    if (!startupRestoreComplete) return;
+    if (selectedNoteId && editorReadyNoteId !== selectedNoteId) return;
+    const timer = window.setTimeout(() => {
+      setSecondaryUiReady(true);
+      if (startupDateLoadPending && !startupDateHydrationStartedRef.current) {
+        startupDateHydrationStartedRef.current = true;
+        void setDate(currentDate);
+      }
+    }, 100);
+    return () => window.clearTimeout(timer);
+  }, [currentDate, editorReadyNoteId, selectedNoteId, setDate, startupDateLoadPending, startupRestoreComplete]);
 
   // ── 自动保存 Hook ──
   const autoSave = useAutoSave({
@@ -188,7 +219,6 @@ function App() {
   const [docTreeToolbarHost, setDocTreeToolbarHost] = useState<HTMLDivElement | null>(null);
   const [popupDocTreeToolbarHost, setPopupDocTreeToolbarHost] = useState<HTMLDivElement | null>(null);
   const clock = useClockAndDateRollover(setDate);
-  const startupWorkspaceTargetRef = useRef<WorkspaceTarget | null>(readWorkspaceTarget());
   const [activeTag, setActiveTag] = useState<string | null>(() => localStorage.getItem(ACTIVE_TAG_KEY));
   const [tagFilteredNotes, setTagFilteredNotes] = useState<Note[] | null>(null);
   const [undo, setUndo] = useState<UndoState | null>(null);
@@ -255,6 +285,7 @@ function App() {
 
   // 恢复并持续保存随笔标签筛选；失效标签只会得到空结果，不阻塞主界面。
   useEffect(() => {
+    if (!secondaryUiReady) return;
     if (!activeTag) {
       localStorage.removeItem(ACTIVE_TAG_KEY);
       setTagFilteredNotes(null);
@@ -266,7 +297,7 @@ function App() {
       .then((tagged) => { if (active) setTagFilteredNotes(tagged); })
       .catch(() => { if (active) setTagFilteredNotes([]); });
     return () => { active = false; };
-  }, [activeTag, sidebarRefreshKey]);
+  }, [activeTag, secondaryUiReady, sidebarRefreshKey]);
   const error = useNotesStore((s) => s.error);
   const clearError = useNotesStore((s) => s.clearError);
 
@@ -275,13 +306,9 @@ function App() {
     setPropertiesOpen(propertiesAutoShow && !!selectedNote?.storagePath);
   }, [propertiesAutoShow, selectedNote]);
   const LAST_NOTE_KEY = "nr:lastNote";
-  const startupLastNoteIdRef = useRef(localStorage.getItem(LAST_NOTE_KEY));
-  const startupLoadObservedRef = useRef(false);
-  const startupRestoreStartedRef = useRef(false);
   const startupRestoreCompleteRef = useRef(false);
   useEffect(() => {
-    // 首次 setDate 会暂时选择当天第一篇笔记；在恢复流程完成前不能用它
-    // 覆盖真正的跨日期/文档 lastNote。
+    // 启动恢复完成前不写回选择，避免回退数据覆盖真正的跨日期/文档 lastNote。
     if (!selectedNote || !startupRestoreCompleteRef.current) return;
     localStorage.setItem(LAST_NOTE_KEY, selectedNote.id);
   }, [selectedNote]);
@@ -349,58 +376,28 @@ function App() {
   // ── Quick Capture 提交后刷新列表 ──
   useQuickCaptureListener({ setDate });
 
-  // 启动时恢复最后浏览的笔记（跨日查找）
+  // 启动主键查询完成后恢复工作区。最后文档已由 useNotes.initialize 优先加载；
+  // 这里仅处理目录/概念视图并开启持久化，避免再次扫描列表或重复查询正文。
   useEffect(() => {
-    if (loading) {
-      startupLoadObservedRef.current = true;
-      return;
+    if (!startupReady || startupRestoreCompleteRef.current) return;
+    const workspaceTarget = startupWorkspaceTargetRef.current;
+    if (workspaceTarget?.kind === "folder") {
+      handleSelectNote(null);
+      setSelectedConcept(null);
+      setSelectedFolderPath(workspaceTarget.path);
+      saveWorkspaceTarget(workspaceTarget);
+    } else if (workspaceTarget?.kind === "concept") {
+      handleSelectNote(null);
+      setSelectedFolderPath(null);
+      setSelectedConcept(workspaceTarget.concept);
+      saveWorkspaceTarget(workspaceTarget);
+    } else if (selectedNote) {
+      localStorage.setItem(LAST_NOTE_KEY, selectedNote.id);
+      saveWorkspaceTarget({ kind: "note", noteId: selectedNote.id });
     }
-    // useNotes 的首次 setDate 在 effect 中启动；首次 render 的 loading 仍为
-    // false，必须等它完整跑过一次，避免其结果随后覆盖恢复出的文档。
-    if (!startupLoadObservedRef.current || startupRestoreStartedRef.current) return;
-    startupRestoreStartedRef.current = true;
-    const restore = async () => {
-      const workspaceTarget = startupWorkspaceTargetRef.current;
-      if (workspaceTarget?.kind === "folder") {
-        handleSelectNote(null);
-        setSelectedConcept(null);
-        setSelectedFolderPath(workspaceTarget.path);
-        startupRestoreCompleteRef.current = true;
-        setStartupRestoreComplete(true);
-        saveWorkspaceTarget(workspaceTarget);
-        return;
-      }
-      if (workspaceTarget?.kind === "concept") {
-        handleSelectNote(null);
-        setSelectedFolderPath(null);
-        setSelectedConcept(workspaceTarget.concept);
-        startupRestoreCompleteRef.current = true;
-        setStartupRestoreComplete(true);
-        saveWorkspaceTarget(workspaceTarget);
-        return;
-      }
-
-      const lastId = workspaceTarget?.kind === "note"
-        ? workspaceTarget.noteId
-        : startupLastNoteIdRef.current;
-      let restored = lastId ? notes.find((note) => note.id === lastId) ?? null : null;
-      if (!restored && lastId) {
-        restored = await api.notes.get(lastId).catch(() => null);
-      }
-      if (restored) {
-        if (restored.date !== currentDate) await setDate(restored.date);
-        handleSelectNote(restored);
-      }
-      startupRestoreCompleteRef.current = true;
-      setStartupRestoreComplete(true);
-      const finalSelection = restored ?? useNotesStore.getState().selectedNote;
-      if (finalSelection) {
-        localStorage.setItem(LAST_NOTE_KEY, finalSelection.id);
-        saveWorkspaceTarget({ kind: "note", noteId: finalSelection.id });
-      }
-    };
-    void restore();
-  }, [currentDate, handleSelectNote, loading, notes, setDate]);
+    startupRestoreCompleteRef.current = true;
+    setStartupRestoreComplete(true);
+  }, [handleSelectNote, selectedNote, startupReady]);
 
   // ── 可拖拽分隔条 ──
   const SPLIT_KEY = "nr:todoSplit";
@@ -795,7 +792,9 @@ function App() {
             </button>
           </div>
 
-          {sidebarTab === 'daily' ? (
+          {!secondaryUiReady ? (
+            <div className="doc-tree-loading">正在加载列表...</div>
+          ) : sidebarTab === 'daily' ? (
             <Sidebar
               disabled={syncBusy}
               notes={(query ? results.notes : (activeTag && tagFilteredNotes ? tagFilteredNotes : notes)).filter(n => !n.storagePath)}
@@ -1107,7 +1106,7 @@ function App() {
           )}
         </main>
 
-        {selectedNote?.storagePath && propertiesAutoShow && propertiesOpen && (
+        {secondaryUiReady && selectedNote?.storagePath && propertiesAutoShow && propertiesOpen && (
           <PropertiesPanel
             readonly={selectedNote.readonly || syncBusy}
             note={selectedNote}

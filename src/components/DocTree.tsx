@@ -146,8 +146,21 @@ function DocTree({
   const loadTree = useCallback(() => {
     setLoading(true);
     setLoadError(null);
-    withTimeout(api.docs.tree(), 15000, "加载文档树").then((nodes) => {
-      setTree(getVisibleDocumentTreeNodes(nodes, showDaily));
+    withTimeout(api.docs.tree(showDaily), 15000, "加载文档树").then((nodes) => {
+      const visibleNodes = getVisibleDocumentTreeNodes(nodes, showDaily);
+      // 大型备份若沿用“全部展开”，React 会在一次提交中创建数千个 DOM 节点。
+      // 首次加载时折叠顶层目录；用户展开某个目录时再渲染其内容。
+      if (visibleNodes.length > 1000) {
+        setCollapsed((previous) => {
+          if (previous.size > 0) return previous;
+          return new Set(
+            visibleNodes
+              .filter((node) => node.type === "folder" && !node.path.includes("/"))
+              .map((node) => node.path),
+          );
+        });
+      }
+      setTree(visibleNodes);
     }).catch((error) => {
       console.error("[DocTree] 加载失败:", error);
       setLoadError(error instanceof Error ? error.message : String(error));
@@ -253,7 +266,7 @@ function DocTree({
     if (!target?.trim()) return;
     try {
       await onMoveDocument(noteId, target.trim());
-      setTree(await api.docs.tree());
+      setTree(await api.docs.tree(showDaily));
     } catch (e) {
       alert(`移动失败: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -266,7 +279,7 @@ function DocTree({
     if (!target?.trim()) return;
     try {
       await onMoveFolder(sourcePath, target.trim());
-      setTree(await api.docs.tree());
+      setTree(await api.docs.tree(showDaily));
     } catch (e) {
       alert(`移动失败: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -291,7 +304,7 @@ function DocTree({
     }
     setRenamingFolder(null);
     // 重新加载树
-    api.docs.tree().then(setTree);
+    api.docs.tree(showDaily).then(setTree);
   };
 
   const handleDelete = (noteId: string, title: string) => {

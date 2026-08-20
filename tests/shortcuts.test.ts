@@ -10,6 +10,7 @@
 import {
   resolveShortcut,
   isDocumentFindShortcut,
+  isDocumentFindKeyEvent,
   isEditableTarget,
   shouldIgnoreShortcut,
 } from "../src/lib/shortcuts";
@@ -58,7 +59,14 @@ assert(resolveShortcut(key({ key: "E", altKey: true })) === "focusSearch", "Alt+
 
 assert(isDocumentFindShortcut("CommandOrControl+F") === true, "Ctrl/Cmd+F 保留给文档查找");
 assert(isDocumentFindShortcut("Ctrl + F") === true, "Ctrl+F 宽松格式仍识别为保留键");
-assert(isDocumentFindShortcut("Alt+F") === false, "Alt+F 可作为其他快捷键");
+assert(isDocumentFindShortcut("Alt+F") === true, "Alt+F 保留给文档查找");
+assert(isDocumentFindKeyEvent(key({ key: "f", ctrlKey: true })) === true, "Ctrl+F 打开文档查找");
+assert(isDocumentFindKeyEvent(key({ key: "F", metaKey: true })) === true, "Cmd+F 打开文档查找");
+assert(isDocumentFindKeyEvent(key({ key: "f", altKey: true })) === true, "Alt+F 打开文档查找");
+assert(isDocumentFindKeyEvent(key({ key: "f", ctrlKey: true, altKey: true })) === false,
+  "Ctrl+Alt+F 不误触文档查找");
+assert(isDocumentFindKeyEvent(key({ key: "f", ctrlKey: true, shiftKey: true })) === false,
+  "Ctrl+Shift+F 仍留给全局搜索");
 
 console.log("\n── isEditableTarget：可编辑目标判断 ──");
 

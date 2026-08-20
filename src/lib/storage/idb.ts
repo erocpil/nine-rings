@@ -426,7 +426,7 @@ export const idbAdapter: StorageAdapter = {
   // ══════ Doc Tree（v2 文档分类系统）══════
 
   /** 构建文档树: 查询 IDB → 映射为 FlatRecord → 委托 core.ts buildDocTree */
-  async getPathTree(): Promise<PathNode[]> {
+  async getPathTree(includeDaily = true): Promise<PathNode[]> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
       const all = await getAll<any>(store);
@@ -445,7 +445,7 @@ export const idbAdapter: StorageAdapter = {
             updated_at: n.updated_at,
             readonly: n.readonly ?? false,
           });
-        } else {
+        } else if (includeDaily) {
           dailies.push({
             id: n.id,
             date: n.date,
