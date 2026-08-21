@@ -61,6 +61,29 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(page.locator(".app-header")).toBeVisible();
   });
 
+  test("更多菜单始终完整限制在手机可视区域内", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("更多编辑操作").click();
+    const menu = page.locator(".toolbar-more-list");
+    await expect(menu).toBeVisible();
+    const geometry = await menu.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+        viewportWidth: window.visualViewport?.width ?? window.innerWidth,
+        viewportHeight: window.visualViewport?.height ?? window.innerHeight,
+      };
+    });
+    expect(geometry.left).toBeGreaterThanOrEqual(0);
+    expect(geometry.top).toBeGreaterThanOrEqual(0);
+    expect(geometry.right).toBeLessThanOrEqual(geometry.viewportWidth);
+    expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewportHeight);
+    await expect(menu.getByRole("button", { name: /导出 Markdown/ })).toBeVisible();
+  });
+
   test("选择文字后工具栏保留选区并能应用格式", async ({ page }) => {
     await page.goto("/");
     const editor = page.locator(".ProseMirror");

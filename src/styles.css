@@ -6769,6 +6769,29 @@ body {
     z-index: 31;
   }
 
+  /* iOS 会把字号小于 16px 的输入控件自动放大，并在控件关闭后保留缩放。 */
+  .editor-menu input,
+  .editor-menu select,
+  .editor-menu textarea {
+    font-size: 16px;
+  }
+
+  /* 手机端改为视口内的底部面板，避免最右侧按钮的菜单被裁掉。 */
+  .toolbar-compact .toolbar-more-list {
+    position: fixed;
+    top: auto;
+    right: 8px;
+    bottom: calc(var(--safe-bottom) + 8px);
+    left: 8px;
+    width: auto;
+    max-height: min(58dvh, 420px);
+    margin: 0;
+    padding: 8px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    border-radius: 10px;
+  }
+
   .editor-menu .menu-btn {
     padding: 3px 5px;
   }
