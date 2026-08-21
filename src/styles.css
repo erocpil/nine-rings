@@ -4442,6 +4442,14 @@ body {
   color: #cf222e;
   border: 1px solid rgba(207, 34, 46, 0.2);
 }
+
+.sync-preview {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  background: rgba(255, 196, 35, 0.06);
+}
 @keyframes toastIn {
   from { opacity: 0; transform: translateY(-4px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -4487,6 +4495,15 @@ body {
 .settings-row {
   display: flex;
   align-items: flex-end;
+}
+
+.settings-row-inline {
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.settings-inline {
+  margin-bottom: 12px;
 }
 
 .settings-label {

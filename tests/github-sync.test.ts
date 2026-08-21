@@ -15,6 +15,7 @@ const config: SyncConfig = {
   remoteSha: null,
   lastPushVersion: null,
   lastPullVersion: null,
+  rememberToken: false,
 };
 
 assert(

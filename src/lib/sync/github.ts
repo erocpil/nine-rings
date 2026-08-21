@@ -10,6 +10,7 @@
  */
 
 import { addLog } from "../debugLog";
+import { isTauriRuntime } from "../runtime";
 
 // ── 类型 ──
 
@@ -30,6 +31,8 @@ export interface SyncConfig {
   lastPushVersion: string | null;
   /** 最近一次 Pull 的数据版本 */
   lastPullVersion: string | null;
+  /** 是否持久保存 Token（false=会话级） */
+  rememberToken: boolean;
 }
 
 export interface SyncStatus {
@@ -44,17 +47,185 @@ export interface SyncStatus {
 // ── 配置持久化 ──
 
 const STORAGE_KEY = "nr:github-sync";
+const TOKEN_VALUE_KEY = "nr:github-sync-token";
+const TOKEN_MODE_KEY = "nr:github-sync-token-mode";
+
+const DEFAULT_SYNC_CONFIG: SyncConfig = {
+  token: "",
+  owner: "",
+  repo: "",
+  path: "nine-rings-backup.json",
+  lastSyncAt: null,
+  remoteSha: null,
+  lastPushVersion: null,
+  lastPullVersion: null,
+  rememberToken: false,
+};
+
+type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+function getWebStorage(): { localStorage: StorageLike | undefined; sessionStorage: StorageLike | undefined } {
+  if (!hasWebStorage()) return { localStorage: undefined, sessionStorage: undefined };
+  try {
+    return { localStorage: window.localStorage, sessionStorage: window.sessionStorage };
+  } catch {
+    return { localStorage: undefined, sessionStorage: undefined };
+  }
+}
+
+function hasWebStorage(): boolean {
+  return (
+    typeof window !== "undefined"
+    && typeof window.localStorage !== "undefined"
+    && typeof window.sessionStorage !== "undefined"
+  );
+}
+
+function safeGet(storage: StorageLike | undefined, key: string): string | null {
+  try {
+    return storage?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function safeSet(storage: StorageLike | undefined, key: string, value: string): void {
+  try {
+    storage?.setItem(key, value);
+  } catch {
+    // ignore
+  }
+}
+
+function safeRemove(storage: StorageLike | undefined, key: string): void {
+  try {
+    storage?.removeItem(key);
+  } catch {
+    // ignore
+  }
+}
+
+function parseSyncConfig(raw: string | null): SyncConfig | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<SyncConfig>;
+    return {
+      ...DEFAULT_SYNC_CONFIG,
+      ...parsed,
+      token: typeof parsed.token === "string" ? parsed.token : "",
+      rememberToken: Boolean(parsed.rememberToken),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readBool(raw: string | null, fallback: boolean): boolean {
+  if (raw === "1") return true;
+  if (raw === "0") return false;
+  return fallback;
+}
+
+function loadTokenFromStorage(config: SyncConfig): string {
+  if (isTauriRuntime() || !hasWebStorage()) {
+    return config.token ?? "";
+  }
+  const { localStorage, sessionStorage } = getWebStorage();
+  const rememberToken = readBool(safeGet(localStorage, TOKEN_MODE_KEY), Boolean(config.rememberToken));
+  if (rememberToken) {
+    return safeGet(localStorage, TOKEN_VALUE_KEY) ?? config.token ?? "";
+  }
+  return safeGet(sessionStorage, TOKEN_VALUE_KEY) ?? config.token ?? "";
+}
+
+function saveTokenStorage(token: string, rememberToken: boolean): void {
+  if (isTauriRuntime() || !hasWebStorage()) return;
+  const { localStorage, sessionStorage } = getWebStorage();
+  const trimmed = token.trim();
+  safeSet(localStorage, TOKEN_MODE_KEY, rememberToken ? "1" : "0");
+  if (trimmed) {
+    if (rememberToken) {
+      safeSet(localStorage, TOKEN_VALUE_KEY, trimmed);
+      safeRemove(sessionStorage, TOKEN_VALUE_KEY);
+    } else {
+      safeSet(sessionStorage, TOKEN_VALUE_KEY, trimmed);
+      safeRemove(localStorage, TOKEN_VALUE_KEY);
+    }
+  } else {
+    safeRemove(localStorage, TOKEN_VALUE_KEY);
+    safeRemove(sessionStorage, TOKEN_VALUE_KEY);
+  }
+}
+
+export interface SyncSnapshotSummary {
+  version: string | null;
+  exportedAt: string | null;
+  noteCount: number;
+  pageCount: number;
+  size: number;
+}
+
+export interface PullPrecheck {
+  local: SyncSnapshotSummary;
+  remote: SyncSnapshotSummary & {
+    version: string;
+    path: string;
+    ptrPath: string;
+    sha: string | null;
+  };
+}
 
 export function loadSyncConfig(): SyncConfig {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch { /* ignore */ }
-  return { token: "", owner: "", repo: "", path: "nine-rings-backup.json", lastSyncAt: null, remoteSha: null, lastPushVersion: null, lastPullVersion: null };
+    const { localStorage } = getWebStorage();
+    const parsed = parseSyncConfig(safeGet(localStorage, STORAGE_KEY));
+    if (parsed) {
+      const rememberToken = readBool(safeGet(localStorage, TOKEN_MODE_KEY), parsed.rememberToken);
+      const token = loadTokenFromStorage(parsed);
+      return { ...parsed, token, rememberToken };
+    }
+  } catch {
+    // ignore
+  }
+  return { ...DEFAULT_SYNC_CONFIG };
 }
 
 export function saveSyncConfig(config: SyncConfig): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  const { localStorage } = getWebStorage();
+  if (!localStorage || isTauriRuntime() || !hasWebStorage()) {
+    localStorage?.setItem(STORAGE_KEY, JSON.stringify({ ...config, token: config.token }));
+    return;
+  }
+  const trimmedToken = config.token.trim();
+  const rememberToken = Boolean(config.rememberToken);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...config, token: "", rememberToken }));
+  saveTokenStorage(trimmedToken, rememberToken);
+}
+
+function summarizeBackup(json: string): SyncSnapshotSummary {
+  try {
+    const data = JSON.parse(json) as {
+      version?: string;
+      exported_at?: string;
+      notes?: unknown[];
+      daily_pages?: unknown[];
+    };
+    return {
+      version: data.version ?? null,
+      exportedAt: data.exported_at ?? null,
+      noteCount: Array.isArray(data.notes) ? data.notes.length : 0,
+      pageCount: Array.isArray(data.daily_pages) ? data.daily_pages.length : 0,
+      size: new TextEncoder().encode(json).length,
+    };
+  } catch {
+    return {
+      version: null,
+      exportedAt: null,
+      noteCount: 0,
+      pageCount: 0,
+      size: new TextEncoder().encode(json).length,
+    };
+  }
 }
 
 // ── API 调用 ──
@@ -384,6 +555,7 @@ export async function pullFromGitHub(config: SyncConfig): Promise<SyncConfig> {
   }
 
   addLog("[Sync] ═══ Pull ← GitHub ═══");
+  const restorePoint = await exportFullDB();
 
   const ptrPath = latestPath(config.path);
 
@@ -428,7 +600,19 @@ export async function pullFromGitHub(config: SyncConfig): Promise<SyncConfig> {
 
   dumpBundle("拉取远端数据", remote.content);
 
-  await importFullDB(remote.content);
+  try {
+    await importFullDB(remote.content);
+  } catch (e) {
+    addLog(`[Sync] 导入失败，尝试恢复拉取前快照: ${(e as Error).message}`);
+    try {
+      await importFullDB(restorePoint);
+      addLog("[Sync] 已恢复拉取前本地快照");
+    } catch (restoreError) {
+      addLog(`[Sync] 恢复快照失败: ${(restoreError as Error).message}`);
+      throw e;
+    }
+    throw e;
+  }
 
   const bundle = JSON.parse(remote.content);
   addLog(`[Sync] Pull ✓ 完成 — 导入 ${bundle.notes?.length ?? 0} 笔记 + ${bundle.daily_pages?.length ?? 0} 页面`);
@@ -442,6 +626,41 @@ export async function pullFromGitHub(config: SyncConfig): Promise<SyncConfig> {
   };
   saveSyncConfig(updated);
   return updated;
+}
+
+export async function previewPullFromGitHub(config: SyncConfig): Promise<PullPrecheck> {
+  if (!config.token || !config.owner || !config.repo) {
+    throw new Error("请先配置 GitHub Token、Owner 和 Repo");
+  }
+  const ptrPath = latestPath(config.path);
+  const [localBackup, ptr] = await Promise.all([
+    exportFullDB(),
+    fetchRemote(config.token, config.owner, config.repo, ptrPath),
+  ]);
+  if (!ptr) {
+    throw new Error(`远端仓库中未找到指针文件 ${ptrPath}`);
+  }
+  const version = ptr.content.trim();
+  if (!version) {
+    throw new Error("latest 指针文件为空");
+  }
+  const dataPath = versionedPath(config.path, version);
+  const remote = await fetchRemote(config.token, config.owner, config.repo, dataPath);
+  if (!remote) {
+    throw new Error(`远端仓库中未找到数据文件 ${dataPath}`);
+  }
+  const local = summarizeBackup(localBackup);
+  const remoteSummary = summarizeBackup(remote.content);
+  return {
+    local,
+    remote: {
+      ...remoteSummary,
+      version,
+      path: dataPath,
+      ptrPath,
+      sha: remote.sha,
+    },
+  };
 }
 
 /**

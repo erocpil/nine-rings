@@ -4,9 +4,11 @@ import {
   saveSyncConfig,
   pushToGitHub,
   pullFromGitHub,
+  previewPullFromGitHub,
   checkStatus,
   type SyncConfig,
   type SyncStatus,
+  type PullPrecheck,
 } from "../lib/sync/github";
 
 interface Props {
@@ -36,12 +38,26 @@ function fmtVersion(version: string | null): string {
   return `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())} ${pad(local.getHours())}:${pad(local.getMinutes())}:${pad(local.getSeconds())}`;
 }
 
+function fmtBytes(size: number | null): string {
+  if (size == null || !Number.isFinite(size)) return "N/A";
+  if (size < 1024) return `${size} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = size / 1024;
+  let unit = units[0];
+  for (let i = 1; i < units.length && value >= 1024; i += 1) {
+    value /= 1024;
+    unit = units[i];
+  }
+  return `${value.toFixed(value >= 10 ? 1 : 2)} ${unit}`;
+}
+
 export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
   const [cfg, setCfg] = useState<SyncConfig>(loadSyncConfig);
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"" | "success" | "error">("");
+  const [pullPrecheck, setPullPrecheck] = useState<PullPrecheck | null>(null);
 
   // Owner/Repo 合并编辑
   const [editOwnerRepo, setEditOwnerRepo] = useState(false);
@@ -151,8 +167,27 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     }
   }, [cfg]);
 
+  const handlePullPreview = useCallback(async () => {
+    setBusy(true);
+    clearMessage();
+    setPullPrecheck(null);
+    try {
+      const pre = await previewPullFromGitHub(cfg);
+      setPullPrecheck(pre);
+      showMessage(`预检完成：远端版本 ${pre.remote.version.slice(0, 15)}`, "success");
+    } catch (e) {
+      showMessage(`预检失败: ${(e as Error).message}`, "error");
+    } finally {
+      setBusy(false);
+    }
+  }, [cfg]);
+
   const handlePull = useCallback(async () => {
-    if (!confirm("从 GitHub 拉取将覆盖本地数据，确认？")) return;
+    if (!pullPrecheck) return;
+    if (!confirm("将用远端数据覆盖本地数据库，建议先确认差异。确认继续？")) {
+      setPullPrecheck(null);
+      return;
+    }
     setBusy(true);
     clearMessage();
     try {
@@ -160,18 +195,23 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
       setCfg(updated);
       showMessage(`已拉取 (${new Date().toLocaleTimeString()})`, "success");
       onPullDone?.();
+      setPullPrecheck(null);
     } catch (e) {
       showMessage(`拉取失败: ${(e as Error).message}`, "error");
     } finally {
       setBusy(false);
     }
-  }, [cfg]);
+  }, [cfg, pullPrecheck]);
 
   const showMessage = (msg: string, type: "success" | "error") => {
     setMessage(msg);
     setMessageType(type);
   };
   const clearMessage = () => { setMessage(""); setMessageType(""); };
+
+  useEffect(() => {
+    setPullPrecheck(null);
+  }, [cfg.token, cfg.owner, cfg.repo, cfg.path]);
 
   return (
     <div className="settings-section">
@@ -198,6 +238,18 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
           value={cfg.token}
           onChange={(e) => update({ token: e.target.value })}
         />
+      </label>
+
+      <label className="settings-label settings-inline">
+        Token 保存策略
+        <label className="settings-row settings-row-inline">
+          <input
+            type="checkbox"
+            checked={cfg.rememberToken}
+            onChange={(e) => update({ rememberToken: e.target.checked })}
+          />
+          <span>记住 Token（退出浏览器后保留）</span>
+        </label>
       </label>
 
       {/* Owner / Repo — 双击编辑 */}
@@ -268,6 +320,37 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
         </div>
       )}
 
+      {pullPrecheck && (
+        <div className="sync-preview">
+          <p style={{ margin: "6px 0", fontWeight: 600 }}>Pull 预检（将覆盖本地数据）</p>
+          <div className="sync-versions" style={{ marginBottom: 8 }}>
+            <span>
+              本地: {fmtVersion(pullPrecheck.local.version || "") || "-"}
+              <span className="sync-versions-sep"> · </span>
+              {pullPrecheck.local.noteCount} 笔记 · {pullPrecheck.local.pageCount} 页面 ·
+              {" "}
+              {fmtBytes(pullPrecheck.local.size)}
+            </span>
+            <span>
+              远端: {fmtVersion(pullPrecheck.remote.version)}
+              <span className="sync-versions-sep"> · </span>
+              {pullPrecheck.remote.noteCount} 笔记 · {pullPrecheck.remote.pageCount} 页面 ·
+              {" "}
+              {fmtBytes(pullPrecheck.remote.size)}
+            </span>
+          </div>
+          <div className="settings-row" style={{ gap: 8 }}>
+            <button className="settings-btn settings-btn-danger" onClick={handlePull} disabled={busy}>
+              确认覆盖并拉取
+            </button>
+            <button className="settings-btn" onClick={() => setPullPrecheck(null)} disabled={busy}>
+              取消
+            </button>
+          </div>
+          <div className="settings-hint">远端文件: {pullPrecheck.remote.path}</div>
+        </div>
+      )}
+
       {/* 按钮 */}
       <div className="settings-row" style={{ gap: 8, marginTop: 8 }}>
         <button className="settings-btn" onClick={handleCheck} disabled={busy}>
@@ -276,7 +359,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
         <button className="settings-btn settings-btn-primary" onClick={handlePush} disabled={busy}>
           Push ↑
         </button>
-        <button className="settings-btn settings-btn-danger" onClick={handlePull} disabled={busy}>
+        <button className="settings-btn settings-btn-danger" onClick={handlePullPreview} disabled={busy || !!pullPrecheck}>
           Pull ↓
         </button>
       </div>
