@@ -53,6 +53,20 @@ AppConfig:
       max: 2
       description: 顶层正文段落首行缩进（em）
 
+    editor_heading_margin_top:
+      type: number
+      default: 0.7
+      min: 0
+      max: 2
+      description: 各级标题与前一块的间距（em）
+
+    editor_heading_margin_bottom:
+      type: number
+      default: 0.35
+      min: 0
+      max: 1.5
+      description: 各级标题与后一块的间距（em）
+
     editor_list_indent:
       type: number
       default: 1.25

@@ -47,6 +47,21 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
     return second.top - first.bottom;
   })).toBeGreaterThanOrEqual(14);
 
+  // 默认标题间距保持分组感，但比原先接近整行高度的留白更紧凑。
+  const headingGaps = await page.locator(".ProseMirror > h3").evaluate((heading) => {
+    const previous = heading.previousElementSibling?.getBoundingClientRect();
+    const next = heading.nextElementSibling?.getBoundingClientRect();
+    const box = heading.getBoundingClientRect();
+    return {
+      before: previous ? box.top - previous.bottom : 0,
+      after: next ? next.top - box.bottom : 0,
+    };
+  });
+  expect(headingGaps.before).toBeGreaterThanOrEqual(8);
+  expect(headingGaps.before).toBeLessThanOrEqual(14);
+  expect(headingGaps.after).toBeGreaterThanOrEqual(4);
+  expect(headingGaps.after).toBeLessThanOrEqual(9);
+
   await page.getByTitle("文档目录").click();
   const outline = page.getByRole("navigation", { name: "文档目录" });
   await expect(outline).toBeVisible();

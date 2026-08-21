@@ -142,6 +142,8 @@ export interface AppConfig {
   editor_font_family: "system" | "sans" | "serif" | "monospace";
   editor_line_height: number;
   editor_paragraph_indent: number;
+  editor_heading_margin_top: number;
+  editor_heading_margin_bottom: number;
   editor_list_indent: number;
   editor_list_marker_gap: number;
   editor_blockquote_indent: number;

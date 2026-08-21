@@ -71,6 +71,23 @@ export function findSearchMatches(doc: ProseMirrorNode, query: string): SearchMa
   return findMatchesInTextSegments(segments, query);
 }
 
+/** Resolve the first navigation target relative to the editor caret. */
+export function searchMatchIndexFromPosition(
+  matches: SearchMatch[],
+  position: number,
+  direction: number,
+): number {
+  if (matches.length === 0) return -1;
+  if (direction < 0) {
+    for (let index = matches.length - 1; index >= 0; index -= 1) {
+      if (matches[index].from < position) return index;
+    }
+    return matches.length - 1;
+  }
+  const index = matches.findIndex((match) => match.to > position);
+  return index >= 0 ? index : 0;
+}
+
 function decorationsFor(doc: ProseMirrorNode, meta: HighlightMeta): DecorationSet {
   const decorations = meta.matches.map((match, index) => Decoration.inline(
     match.from,

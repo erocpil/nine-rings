@@ -12,6 +12,8 @@ test("独立排版工作台中的设置即时生效并在重载后保持", async
   await page.getByRole("button", { name: "增大正文与标题字号" }).click();
   await page.getByRole("button", { name: "增大行距" }).click();
   await page.getByRole("button", { name: "减小列表层级缩进" }).click();
+  await page.getByRole("button", { name: "增大标题上间距" }).click();
+  await page.getByRole("button", { name: "减小标题下间距" }).click();
   await page.getByLabel("搜索关键字颜色").fill("#33aa77");
 
   const app = page.locator(".app");
@@ -21,12 +23,16 @@ test("独立排版工作台中的设置即时生效并在重载后保持", async
     lineHeight: (element as HTMLElement).style.getPropertyValue("--editor-line-height"),
     listIndent: (element as HTMLElement).style.getPropertyValue("--editor-list-indent"),
     searchColor: (element as HTMLElement).style.getPropertyValue("--editor-search-highlight"),
+    headingTop: (element as HTMLElement).style.getPropertyValue("--editor-heading-margin-top"),
+    headingBottom: (element as HTMLElement).style.getPropertyValue("--editor-heading-margin-bottom"),
   }))).toEqual({
     family: '"Noto Serif SC", "Songti SC", SimSun, serif',
     size: "17px",
     lineHeight: "1.7",
     listIndent: "1.2em",
     searchColor: "#33aa77",
+    headingTop: "0.75em",
+    headingBottom: "0.3em",
   });
 
   await page.reload();
@@ -34,7 +40,9 @@ test("独立排版工作台中的设置即时生效并在重载后保持", async
     size: (element as HTMLElement).style.getPropertyValue("--editor-font-size"),
     lineHeight: (element as HTMLElement).style.getPropertyValue("--editor-line-height"),
     searchColor: (element as HTMLElement).style.getPropertyValue("--editor-search-highlight"),
-  }))).toEqual({ size: "17px", lineHeight: "1.7", searchColor: "#33aa77" });
+    headingTop: (element as HTMLElement).style.getPropertyValue("--editor-heading-margin-top"),
+    headingBottom: (element as HTMLElement).style.getPropertyValue("--editor-heading-margin-bottom"),
+  }))).toEqual({ size: "17px", lineHeight: "1.7", searchColor: "#33aa77", headingTop: "0.75em", headingBottom: "0.3em" });
   await expect(page.locator(".menu-font-size-label")).toHaveText("17");
 });
 

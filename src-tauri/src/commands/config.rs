@@ -19,6 +19,10 @@ pub struct AppConfig {
     pub editor_line_height: f64,
     #[serde(default)]
     pub editor_paragraph_indent: f64,
+    #[serde(default = "default_editor_heading_margin_top")]
+    pub editor_heading_margin_top: f64,
+    #[serde(default = "default_editor_heading_margin_bottom")]
+    pub editor_heading_margin_bottom: f64,
     #[serde(default = "default_editor_list_indent")]
     pub editor_list_indent: f64,
     #[serde(default = "default_editor_list_marker_gap")]
@@ -50,6 +54,14 @@ fn default_editor_font_family() -> String {
 
 fn default_editor_line_height() -> f64 {
     1.6
+}
+
+fn default_editor_heading_margin_top() -> f64 {
+    0.7
+}
+
+fn default_editor_heading_margin_bottom() -> f64 {
+    0.35
 }
 
 fn default_editor_list_indent() -> f64 {
@@ -90,6 +102,8 @@ impl Default for AppConfig {
             editor_font_family: default_editor_font_family(),
             editor_line_height: default_editor_line_height(),
             editor_paragraph_indent: 0.0,
+            editor_heading_margin_top: default_editor_heading_margin_top(),
+            editor_heading_margin_bottom: default_editor_heading_margin_bottom(),
             editor_list_indent: default_editor_list_indent(),
             editor_list_marker_gap: default_editor_list_marker_gap(),
             editor_blockquote_indent: default_editor_blockquote_indent(),
@@ -226,6 +240,8 @@ mod tests {
         assert_eq!(config.note_font_size, 19);
         assert_eq!(config.editor_font_family, "system");
         assert_eq!(config.editor_line_height, 1.6);
+        assert_eq!(config.editor_heading_margin_top, 0.7);
+        assert_eq!(config.editor_heading_margin_bottom, 0.35);
         assert_eq!(config.editor_list_indent, 1.25);
         assert_eq!(config.editor_search_highlight_color, "#ffd54f");
         assert!(config.editor_cjk_spacing);

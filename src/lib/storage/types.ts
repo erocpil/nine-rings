@@ -11,6 +11,8 @@ export interface AppConfig {
   editor_font_family: "system" | "sans" | "serif" | "monospace";
   editor_line_height: number;
   editor_paragraph_indent: number;
+  editor_heading_margin_top: number;
+  editor_heading_margin_bottom: number;
   editor_list_indent: number;
   editor_list_marker_gap: number;
   editor_blockquote_indent: number;
@@ -32,6 +34,8 @@ export const DEFAULT_CONFIG: AppConfig = {
   editor_font_family: "system",
   editor_line_height: 1.6,
   editor_paragraph_indent: 0,
+  editor_heading_margin_top: 0.7,
+  editor_heading_margin_bottom: 0.35,
   editor_list_indent: 1.25,
   editor_list_marker_gap: 0.2,
   editor_blockquote_indent: 12,

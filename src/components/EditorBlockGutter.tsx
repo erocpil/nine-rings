@@ -5,10 +5,28 @@ interface GutterBlock {
   index: number;
   pos: number;
   endPos: number;
+  format: string;
   top: number;
   bottom: number;
   marginBottom: number;
   active: boolean;
+}
+
+function blockFormat(typeName: string, attrs: Readonly<Record<string, unknown>>): string {
+  if (typeName === "heading") return `H${attrs.level ?? "?"}`;
+
+  return {
+    paragraph: "Text",
+    blockquote: "Quote",
+    bulletList: "Bullets",
+    orderedList: "Numbered",
+    taskList: "Tasks",
+    codeBlock: "Code",
+    horizontalRule: "Divider",
+    table: "Table",
+    image: "Image",
+    resizableImage: "Image",
+  }[typeName] ?? "Block";
 }
 
 interface EditorBlockGutterProps {
@@ -45,6 +63,7 @@ export function EditorBlockGutter({ editor, showNumbers, readonly, onBlockCountC
         index: index + 1,
         pos,
         endPos: pos + node.nodeSize,
+        format: blockFormat(node.type.name, node.attrs),
         top: rect.top - rootRect.top,
         bottom: rect.bottom - rootRect.top,
         marginBottom: index === editor.state.doc.childCount - 1
@@ -119,6 +138,7 @@ export function EditorBlockGutter({ editor, showNumbers, readonly, onBlockCountC
           className={`editor-block-number ${block.active ? "active" : ""}`}
           style={{ top: block.top }}
           aria-hidden="true"
+          data-block-format={block.format}
         >
           {block.index}
         </span>

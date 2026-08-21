@@ -33,6 +33,32 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     await expect(page.locator(".search-match-active")).toHaveCount(1);
   });
 
+  test("Ctrl-F 首次下一处从当前光标之后开始", async ({ page }) => {
+    await createDocument(page, "文档内查找起点测试");
+    const editor = page.locator(".ProseMirror");
+    await editor.fill([
+      "第一处 needle",
+      "光标位于这里",
+      "第二处 needle",
+      "间隔内容",
+      "第三处 needle",
+    ].join("\n"));
+
+    await editor.locator(":scope > p").nth(1).click();
+    await page.keyboard.press("Control+f");
+    const findInput = page.getByLabel("在当前文档中查找");
+    await findInput.fill("needle");
+    await expect(page.locator(".editor-find-count")).toHaveText("0/3");
+
+    await page.getByRole("button", { name: "下一处匹配" }).click();
+    await expect(page.locator(".editor-find-count")).toHaveText("2/3");
+    await expect(editor.locator(":scope > p").nth(2).locator(".search-match-active")).toHaveText("needle");
+
+    await findInput.press("Shift+Enter");
+    await expect(page.locator(".editor-find-count")).toHaveText("1/3");
+    await expect(editor.locator(":scope > p").nth(0).locator(".search-match-active")).toHaveText("needle");
+  });
+
   test("关闭结果保留关键词，再次聚焦时保存编辑并刷新结果", async ({ page }) => {
     await createDocument(page, "搜索刷新测试");
     const editor = page.locator(".ProseMirror");

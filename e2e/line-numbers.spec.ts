@@ -69,6 +69,50 @@ test.describe("编辑器块级 gutter", () => {
     await expect(page.locator(".editor-block-insert")).toHaveCount(0);
   });
 
+  test("悬停块编号会显示块格式", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("三级标题");
+    await editor.press("Control+Alt+3");
+    await editor.press("End");
+    await editor.press("Enter");
+    await editor.type("正文");
+
+    await page.getByTitle("设置").click();
+    const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
+      .locator('input[type="checkbox"]');
+    if (!(await lineNumberToggle.isChecked())) {
+      await lineNumberToggle.evaluate((input: HTMLInputElement) => input.click());
+    }
+    await page.locator(".settings-close").click();
+
+    const blockNumbers = page.locator(".editor-block-number");
+    await expect(blockNumbers).toHaveText(["1", "2"]);
+    await expect(blockNumbers.nth(0)).toHaveAttribute("data-block-format", "H3");
+    await expect(blockNumbers.nth(1)).toHaveAttribute("data-block-format", "Text");
+
+    const tooltipOpacity = (element: Element) => getComputedStyle(element, "::after").opacity;
+    const hoverNumber = async (index: number) => {
+      const number = blockNumbers.nth(index);
+      const box = await number.boundingBox();
+      if (!box) throw new Error("block number geometry not found");
+      await number.hover({
+        position: { x: Math.max(1, box.width - 2), y: box.height / 2 },
+      });
+    };
+    await expect.poll(() => blockNumbers.nth(0).evaluate(tooltipOpacity)).toBe("0");
+    await hoverNumber(0);
+    await expect.poll(() => blockNumbers.nth(0).evaluate(tooltipOpacity)).toBe("1");
+    await expect.poll(() => blockNumbers.nth(1).evaluate(tooltipOpacity)).toBe("0");
+    await hoverNumber(1);
+    await expect.poll(() => blockNumbers.nth(1).evaluate(tooltipOpacity)).toBe("1");
+    await expect.poll(() => blockNumbers.nth(0).evaluate(tooltipOpacity)).toBe("0");
+  });
+
   test("只有明确的加号按钮会插入段落", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("随笔").click();

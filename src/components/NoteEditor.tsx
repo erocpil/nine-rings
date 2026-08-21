@@ -39,7 +39,13 @@ import { EditorBlockGutter } from "./EditorBlockGutter";
 import { storeImage } from "../lib/storage/db-images";
 import { api } from "../lib/api";
 import { looksLikeMarkdown, mdToDelta } from "../lib/md-parser";
-import { SearchHighlights, findSearchMatches, setSearchHighlights, type SearchMatch } from "../extensions/SearchHighlights";
+import {
+  SearchHighlights,
+  findSearchMatches,
+  searchMatchIndexFromPosition,
+  setSearchHighlights,
+  type SearchMatch,
+} from "../extensions/SearchHighlights";
 import { noteToMarkdown } from "../lib/markdown-serializer";
 import { exportMarkdownWithDialog, isTauri } from "../lib/tauri-desktop";
 import { editorGutterWidth } from "../lib/editor-gutter";
@@ -206,6 +212,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const scrollRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const searchMatchesRef = useRef<SearchMatch[]>([]);
+  const editorFindOriginRef = useRef(0);
   const editorFindInputRef = useRef<HTMLInputElement>(null);
   const lineJumpInputRef = useRef<HTMLInputElement>(null);
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
@@ -617,7 +624,10 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const navigateEditorFind = useCallback((direction: number) => {
     const matches = searchMatchesRef.current;
     if (!matches.length) return;
-    revealSearchMatch(activeSearchMatch + direction, matches);
+    const requestedIndex = activeSearchMatch < 0
+      ? searchMatchIndexFromPosition(matches, editorFindOriginRef.current, direction)
+      : activeSearchMatch + direction;
+    revealSearchMatch(requestedIndex, matches);
     requestAnimationFrame(() => editorFindInputRef.current?.focus({ preventScroll: true }));
   }, [activeSearchMatch, revealSearchMatch]);
 
@@ -697,10 +707,11 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     if (!editor || !editorFindOpen) return;
     const query = editorFindQuery.trim();
     const matches = query ? findSearchMatches(editor.state.doc, query) : [];
+    editorFindOriginRef.current = editor.state.selection.from;
     searchMatchesRef.current = matches;
     setSearchMatches(matches);
-    setActiveSearchMatch(0);
-    setSearchHighlights(editor, matches, 0);
+    setActiveSearchMatch(-1);
+    setSearchHighlights(editor, matches, -1);
   }, [editor, editorFindOpen, editorFindQuery]);
 
   // 接收搜索列表传来的一次性定位请求。优先匹配完整短语；FTS 的

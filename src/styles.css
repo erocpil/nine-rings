@@ -57,6 +57,8 @@ html {
   --editor-font-size: 16px;
   --editor-line-height: 1.6;
   --editor-paragraph-indent: 0em;
+  --editor-heading-margin-top: 0.7em;
+  --editor-heading-margin-bottom: 0.35em;
   --editor-list-indent: 1.25em;
   --editor-list-marker-gap: 0.2em;
   --editor-blockquote-indent: 12px;
@@ -3107,6 +3109,36 @@ body {
   font-variant-numeric: tabular-nums;
   line-height: var(--editor-line-height, 1.45);
   user-select: none;
+  pointer-events: auto;
+}
+
+.editor-block-number::after {
+  content: attr(data-block-format);
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 6px);
+  z-index: 2;
+  padding: 2px 5px;
+  transform: translate(-3px, -50%);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  box-shadow: 0 2px 8px var(--shadow-color, rgba(0, 0, 0, 0.15));
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s, transform 0.12s, visibility 0.12s;
+}
+
+.editor-block-number:hover::after {
+  transform: translate(0, -50%);
+  opacity: 1;
+  visibility: visible;
 }
 
 .editor-block-number.active {
@@ -3372,14 +3404,18 @@ body {
   color: var(--text-secondary);
 }
 
-/* Markdown 空白行是块分隔符，不会生成空段落。用正常的块级外边距表达
-   这个语义，避免导入文档中的段落和标题在视觉上直接粘连。 */
-.editor-content h1 { font-size: 1.6em; margin: 0.9em 0 0.5em; }
-.editor-content h2 { font-size: 1.3em; margin: 1em 0 0.55em; }
-.editor-content h3 { font-size: 1.1em; margin: 1.1em 0 0.6em; }
-.editor-content h4 { font-size: 1.05em; margin: 1.2em 0 0.65em; }
-.editor-content h5 { font-size: 1em; margin: 1.25em 0 0.65em; }
-.editor-content h6 { font-size: 1em; margin: 1.25em 0 0.65em; color: var(--text-secondary); }
+/* Markdown 空白行是块分隔符，不会生成空段落。正文之间保留稳定分隔，
+   标题与相邻块的节奏则由排版工作台独立控制。 */
+.editor-content h1 { font-size: 1.6em; }
+.editor-content h2 { font-size: 1.3em; }
+.editor-content h3 { font-size: 1.1em; }
+.editor-content h4 { font-size: 1.05em; }
+.editor-content h5 { font-size: 1em; }
+.editor-content h6 { font-size: 1em; color: var(--text-secondary); }
+
+.editor-content :is(h1, h2, h3, h4, h5, h6) {
+  margin: var(--editor-heading-margin-top) 0 var(--editor-heading-margin-bottom);
+}
 
 .editor-content p {
   margin: 2px 0;
@@ -3392,6 +3428,15 @@ body {
 /* 只放宽正文顶层段落；列表项、引用和表格单元格仍保持紧凑。 */
 .editor-content .ProseMirror > p {
   margin: 1em 0;
+}
+
+/* 相邻块的折叠 margin 不应盖过用户设置的标题间距。 */
+.editor-content .ProseMirror > p:has(+ :is(h1, h2, h3, h4, h5, h6)) {
+  margin-bottom: 0;
+}
+
+.editor-content .ProseMirror > :is(h1, h2, h3, h4, h5, h6) + p {
+  margin-top: 0;
 }
 
 /* 中文与英文/数字之间只增加视觉间距，不向文档模型插入字符。 */
@@ -4071,18 +4116,36 @@ body {
 }
 
 .editor-appearance-document h1 {
-  margin: 0 0 0.7em;
   font-size: 1.65em;
   line-height: 1.25;
 }
 
 .editor-appearance-document h2 {
-  margin: 1.3em 0 0.45em;
   font-size: 1.25em;
+}
+
+.editor-appearance-document h3 {
+  font-size: 1.1em;
+}
+
+.editor-appearance-document :is(h1, h2, h3) {
+  margin: var(--editor-heading-margin-top) 0 var(--editor-heading-margin-bottom);
+}
+
+.editor-appearance-document > h1:first-child {
+  margin-top: 0;
 }
 
 .editor-appearance-document > p {
   margin: 0.65em 0;
+}
+
+.editor-appearance-document > p:has(+ :is(h1, h2, h3)) {
+  margin-bottom: 0;
+}
+
+.editor-appearance-document > :is(h1, h2, h3) + p {
+  margin-top: 0;
 }
 
 .editor-appearance-document blockquote {
