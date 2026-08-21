@@ -83,6 +83,10 @@ test.describe("PWA 窄屏应用外壳", () => {
       const point = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
       return point === button || button.contains(point);
     })).toBe(true);
+    await touch(page.getByTitle("标题"));
+    await expect(boldButton).toBeHidden();
+    await expect(page.getByRole("button", { name: /H3/ })).toBeVisible();
+    await touch(page.getByTitle("样式"));
     await boldButton.click();
     await expect(editor.locator("strong")).toHaveText("测试文字");
     await expect(editor).toHaveCSS("-webkit-user-select", "text");

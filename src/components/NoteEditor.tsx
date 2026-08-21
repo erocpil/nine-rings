@@ -1255,6 +1255,31 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     else chain.toggleStrike().run();
   };
 
+  const toggleMobileToolbarMenu = (
+    menu: "style" | "heading" | "block" | "table" | "clip" | "link" | "size" | "color" | "more",
+    isOpen: boolean,
+  ) => {
+    setStyleOpen(false);
+    setHeadingOpen(false);
+    setBlockOpen(false);
+    setTableOpen(false);
+    setClipOpen(false);
+    setLinkOpen(false);
+    setSizeOpen(false);
+    setColorOpen(false);
+    setMoreOpen(false);
+    if (isOpen) return;
+    if (menu === "style") setStyleOpen(true);
+    else if (menu === "heading") setHeadingOpen(true);
+    else if (menu === "block") setBlockOpen(true);
+    else if (menu === "table") setTableOpen(true);
+    else if (menu === "clip") setClipOpen(true);
+    else if (menu === "link") setLinkOpen(true);
+    else if (menu === "size") setSizeOpen(true);
+    else if (menu === "color") setColorOpen(true);
+    else setMoreOpen(true);
+  };
+
   // ── 滚动位置计算 ──
   const _el = scrollRef.current;
   const scrollableHeight = _el ? (_el.scrollHeight - _el.clientHeight) : 1;
@@ -1767,7 +1792,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             <div className="menu-dropdown">
               <button
                 className="menu-btn"
-                onClick={(e) => { e.stopPropagation(); setStyleOpen(!styleOpen); }}
+                onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("style", styleOpen); }}
                 type="button"
                 title="样式"
               >
@@ -1805,7 +1830,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             <div className="menu-dropdown">
               <button
                 className="menu-btn"
-                onClick={(e) => { e.stopPropagation(); setHeadingOpen(!headingOpen); }}
+                onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("heading", headingOpen); }}
                 type="button"
                 title="标题"
               >
@@ -1862,7 +1887,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             <div className="menu-dropdown">
               <button
                 className="menu-btn"
-                onClick={(e) => { e.stopPropagation(); setBlockOpen(!blockOpen); }}
+                onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("block", blockOpen); }}
                 type="button"
                 title="块"
               >块 ▾</button>
@@ -1940,7 +1965,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             <div className="menu-dropdown toolbar-table-menu">
               <button
                 className="menu-btn active"
-                onClick={(e) => { e.stopPropagation(); setTableOpen(!tableOpen); }}
+                onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("table", tableOpen); }}
                 type="button"
                 title="表格操作"
               >▦ 表格 ▾</button>
@@ -1983,7 +2008,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             <div className="menu-dropdown">
               <button
                 className="menu-btn"
-                onClick={(e) => { e.stopPropagation(); setClipOpen(!clipOpen); }}
+                onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("clip", clipOpen); }}
                 type="button"
                 title="剪贴"
               >剪贴 ▾</button>
@@ -2014,7 +2039,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
                   if (readonly) return;
                   const attrs = editor.getAttributes("link");
                   setLinkUrl(attrs.href || "");
-                  setLinkOpen(!linkOpen);
+                  toggleMobileToolbarMenu("link", linkOpen);
                 }}
                 type="button"
                 title="超链接"
@@ -2119,7 +2144,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
           {/* 分隔后右区：字号 / 颜色 / 图片 */}
           <div className="menu-dropdown">
-            <button className="menu-btn" onClick={(e) => { e.stopPropagation(); if (!readonly) setSizeOpen(!sizeOpen); }} type="button" title="字号" disabled={readonly}>
+            <button className="menu-btn" onClick={(e) => { e.stopPropagation(); if (!readonly) toggleMobileToolbarMenu("size", sizeOpen); }} type="button" title="字号" disabled={readonly}>
               {editor.getAttributes("textStyle").fontSize || "字号"}
             </button>
             {sizeOpen && (
@@ -2156,7 +2181,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           <div className="menu-dropdown">
             <button
               className="menu-btn"
-              onClick={(e) => { e.stopPropagation(); if (!readonly) setColorOpen(!colorOpen); }}
+              onClick={(e) => { e.stopPropagation(); if (!readonly) toggleMobileToolbarMenu("color", colorOpen); }}
               type="button"
               title="文字颜色"
               disabled={readonly}
@@ -2214,15 +2239,12 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             <div className="menu-dropdown toolbar-more-menu">
               <button
                 className="menu-btn"
-                onClick={(e) => { e.stopPropagation(); setMoreOpen(!moreOpen); }}
+                onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("more", moreOpen); }}
                 type="button"
                 title="更多编辑操作"
               >更多 ⋯</button>
               {moreOpen && (
                 <div className="menu-dropdown-list toolbar-more-list" onClick={(e) => e.stopPropagation()}>
-                  <button className="menu-dropdown-item" onClick={() => { handleCopy(); setMoreOpen(false); }} type="button">📋 复制</button>
-                  <button className="menu-dropdown-item" onClick={() => { handleCut(); setMoreOpen(false); }} type="button">✂ 剪切</button>
-                  <button className="menu-dropdown-item" onClick={() => { void handleClipboardPaste(); setMoreOpen(false); }} type="button">📝 粘贴</button>
                   <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setMoreOpen(false); }} type="button">M↑ 导出 Markdown</button>
                   <div className="menu-dropdown-sep" />
                   <button className="menu-dropdown-item" onClick={() => {
