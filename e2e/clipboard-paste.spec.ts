@@ -513,29 +513,50 @@ test.describe("文档树移动", () => {
     await expect(page.locator(".doc-tree-folder").filter({ hasText: "private-ip" })).toHaveCount(1);
   });
 
-  test("移动文档后树和当前编辑器刷新，页面重载后仍在目标目录", async ({ page }) => {
+  test("目录与属性面板共用移动对话框，重载后路径仍正确", async ({ page }) => {
     await page.goto("/");
     const viewSwitch = page.locator(".sidebar-view-switch");
     if (await viewSwitch.getAttribute("data-target-view") === "tree") await viewSwitch.click();
+    await page.getByTitle("显示属性面板").click();
     await page.getByTitle("新建文档").click();
 
     await page.getByPlaceholder("文档标题...").fill("移动回归文档");
     await page.getByPlaceholder("子路径 (如 nine-rings)").fill("move-e2e");
     await page.getByRole("button", { name: "创建" }).click();
+    await expect(page.locator(".properties-panel")).toBeVisible();
 
     const sourceFolder = page.locator(".doc-tree-folder").filter({ hasText: "move-e2e" });
     await expect(sourceFolder).toHaveCount(1);
     await sourceFolder.click({ button: "right" });
-    page.once("dialog", (dialog) => dialog.accept("archives/move-e2e"));
     await page.getByRole("button", { name: "移动到…" }).click();
+
+    const moveDialog = page.getByRole("dialog", { name: "移动到" });
+    await expect(moveDialog).toBeVisible();
+    await expect(moveDialog.getByText("目标父目录", { exact: false })).toBeVisible();
+    await moveDialog.getByPlaceholder("输入目录名称或路径…").fill("archives");
+    await expect(moveDialog.locator(".move-to-folder-option").filter({ hasText: "projects" })).toHaveCount(0);
+    await expect(moveDialog.locator(".move-to-folder-option")).toHaveCount(1);
+    await moveDialog.locator(".move-to-folder-option").filter({ hasText: "archives" }).click();
+    await expect(moveDialog.locator(".move-to-preview code").last()).toHaveText("archives/move-e2e");
+    await moveDialog.getByRole("button", { name: "移动", exact: true }).click();
 
     await expect(page.locator(".doc-tree-folder").filter({ hasText: "archives" })).toHaveCount(1);
     await expect(page.locator(".doc-tree-folder").filter({ hasText: "move-e2e" })).toHaveCount(1);
     await expect(page.locator(".note-title")).toHaveValue("移动回归文档");
+    await expect(page.locator(".prop-path")).toContainText("move-e2e");
+
+    // 属性面板不再直接改 storagePath，而是复用相同对话框和移动 API。
+    await page.locator(".prop-path").click();
+    await expect(moveDialog).toBeVisible();
+    await expect(moveDialog.getByText("目标目录", { exact: false })).toBeVisible();
+    await moveDialog.locator(".move-to-folder-option").filter({ hasText: "references" }).click();
+    await expect(moveDialog.locator(".move-to-preview code").last()).toHaveText("references");
+    await moveDialog.getByRole("button", { name: "移动", exact: true }).click();
+    await expect(page.locator(".prop-path")).toContainText("References");
 
     await page.reload();
     if (await viewSwitch.getAttribute("data-target-view") === "tree") await viewSwitch.click();
-    await expect(page.locator(".doc-tree-folder").filter({ hasText: "archives" })).toHaveCount(1);
+    await expect(page.locator(".doc-tree-folder").filter({ hasText: "references" })).toHaveCount(1);
     await expect(page.locator(".doc-tree-doc").filter({ hasText: "移动回归文档" })).toHaveCount(1);
   });
 });

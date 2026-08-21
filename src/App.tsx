@@ -36,6 +36,8 @@ import { useClockAndDateRollover } from "./hooks/useClockAndDateRollover";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
 import { useQuickCaptureListener } from "./hooks/useQuickCaptureListener";
 import { editorAppearanceVariables } from "./lib/editor-appearance";
+import { isPathUnder } from "./lib/storage/core";
+import { getPathAncestors } from "./lib/move-to";
 
 const WORKSPACE_TARGET_KEY = "nr:workspaceTarget";
 const ACTIVE_TAG_KEY = "nr:activeTag";
@@ -288,6 +290,55 @@ function App() {
   const [propertiesAutoShow, setPropertiesAutoShow] = useState(() => {
     return localStorage.getItem(PROP_AUTO_KEY) === "true";
   });
+
+  const revealDocTreePath = useCallback((targetPath: string, sourcePath?: string) => {
+    setDocTreeCollapsed((previous) => {
+      const next = new Set(previous);
+      if (sourcePath) {
+        for (const path of next) {
+          if (isPathUnder(path, sourcePath)) next.delete(path);
+        }
+      }
+      for (const path of getPathAncestors(targetPath)) next.delete(path);
+      return next;
+    });
+  }, []);
+
+  const handleMoveDocument = useCallback(async (id: string, targetPath: string) => {
+    const currentSelected = useNotesStore.getState().selectedNote;
+    if (currentSelected?.id === id) await flushAutoSave();
+    await api.docs.moveDocument(id, targetPath);
+
+    // 移动 API 有意不改 updated_at；重新读取完整对象，让属性面板、后续新建
+    // 文档的建议路径和启动恢复状态立即使用新位置。
+    if (currentSelected?.id === id) {
+      const updated = await api.notes.get(id);
+      if (updated) selectNote(updated);
+    }
+    revealDocTreePath(targetPath);
+    setDocTreeKey((key) => key + 1);
+  }, [flushAutoSave, revealDocTreePath, selectNote]);
+
+  const handleMoveFolder = useCallback(async (sourcePath: string, targetPath: string) => {
+    const currentSelected = useNotesStore.getState().selectedNote;
+    if (currentSelected?.storagePath && isPathUnder(currentSelected.storagePath, sourcePath)) {
+      await flushAutoSave();
+    }
+    await api.docs.relocateFolder(sourcePath, targetPath);
+
+    if (currentSelected?.storagePath && isPathUnder(currentSelected.storagePath, sourcePath)) {
+      const updated = await api.notes.get(currentSelected.id);
+      if (updated) selectNote(updated);
+    }
+    setSelectedFolderPath((currentPath) => {
+      if (!currentPath || !isPathUnder(currentPath, sourcePath)) return currentPath;
+      return currentPath === sourcePath
+        ? targetPath
+        : targetPath + currentPath.slice(sourcePath.length);
+    });
+    revealDocTreePath(targetPath, sourcePath);
+    setDocTreeKey((key) => key + 1);
+  }, [flushAutoSave, revealDocTreePath, selectNote]);
 
   // 属性面板开/关持久化
   useEffect(() => {
@@ -935,14 +986,8 @@ function App() {
                 await updateNote(id, { readonly });
                 setDocTreeKey(k => k + 1);
               }}
-              onMoveDocument={async (id, targetPath) => {
-                await api.docs.moveDocument(id, targetPath);
-                setDocTreeKey(k => k + 1);
-              }}
-              onMoveFolder={async (sourcePath, targetPath) => {
-                await api.docs.relocateFolder(sourcePath, targetPath);
-                setDocTreeKey(k => k + 1);
-              }}
+              onMoveDocument={handleMoveDocument}
+              onMoveFolder={handleMoveFolder}
               onBatchDelete={(ids, folderPath) => {
                 ids.forEach(id => deleteNote(id));
                 const folderName = folderPath ? folderPath.split("/").pop() || "选中" : "选中";
@@ -1143,6 +1188,7 @@ function App() {
           <PropertiesPanel
             readonly={selectedNote.readonly || syncBusy}
             note={selectedNote}
+            onMoveDocument={handleMoveDocument}
             onNoteUpdate={(updated) => { handleSelectNote(updated); setDocTreeKey(k => k + 1); }}
             onClose={() => setPropertiesOpen(false)}
             onOpenConcept={(concept) => {
@@ -1224,14 +1270,8 @@ function App() {
                   await updateNote(id, { readonly });
                   setDocTreeKey(k => k + 1);
                 }}
-                onMoveDocument={async (id, targetPath) => {
-                  await api.docs.moveDocument(id, targetPath);
-                  setDocTreeKey(k => k + 1);
-                }}
-                onMoveFolder={async (sourcePath, targetPath) => {
-                  await api.docs.relocateFolder(sourcePath, targetPath);
-                  setDocTreeKey(k => k + 1);
-                }}
+                onMoveDocument={handleMoveDocument}
+                onMoveFolder={handleMoveFolder}
                 onBatchDelete={(ids, folderPath) => {
                 ids.forEach(id => deleteNote(id));
                 const folderName = folderPath ? folderPath.split("/").pop() || "选中" : "选中";

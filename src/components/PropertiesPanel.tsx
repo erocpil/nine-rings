@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Note, DocType } from "../types/models";
 import { api } from "../lib/api";
+import MoveToDialog from "./MoveToDialog";
 
 interface PropertiesPanelProps {
   note: Note;
   onNoteUpdate: (note: Note) => void;
   onClose: () => void;
   readonly?: boolean;
+  onMoveDocument: (id: string, targetPath: string) => Promise<void>;
   /** 点击概念标签时，跳转到该概念的聚合页 */
   onOpenConcept?: (concept: string) => void;
 }
@@ -26,16 +28,14 @@ const PATH_ROOT_OPTIONS = [
   { value: "archives", label: "📦 Archives" },
 ];
 
-function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, onOpenConcept }: PropertiesPanelProps) {
+function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, onMoveDocument, onOpenConcept }: PropertiesPanelProps) {
   const [conceptInput, setConceptInput] = useState("");
   const [existingConcepts, setExistingConcepts] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [linkSearch, setLinkSearch] = useState("");
   const [linkResults, setLinkResults] = useState<Note[]>([]);
   const [backlinks, setBacklinks] = useState<Note[]>([]);
-  const [editingPath, setEditingPath] = useState(false);
-  const [editRoot, setEditRoot] = useState("");
-  const [editSub, setEditSub] = useState("");
+  const [moveOpen, setMoveOpen] = useState(false);
 
   const concepts = note.concepts ?? [];
   const linkedIds = note.linkedDocIds ?? [];
@@ -68,30 +68,6 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, onOpenConcept 
     api.docs.allConcepts().then(setExistingConcepts);
     void loadBacklinks();
   }, [loadBacklinks]);
-
-  // ── 路径变更 ──
-
-  const handlePathChange = useCallback(async () => {
-    if (readonly) return;
-    const parts = [editRoot];
-    if (editSub.trim()) {
-      parts.push(editSub.trim().replace(/[^a-zA-Z0-9-\u4e00-\u9fff]/g, "-").replace(/-+/g, "-"));
-    }
-    const newPath = parts.join("/");
-    if (newPath === note.storagePath) {
-      setEditingPath(false);
-      return;
-    }
-    await api.notes.update(note.id, { storagePath: newPath });
-    onNoteUpdate({ ...note, storagePath: newPath });
-    setEditingPath(false);
-  }, [note, editRoot, editSub, onNoteUpdate, readonly]);
-
-  const startEditPath = () => {
-    setEditRoot(pathRoot || "projects");
-    setEditSub(pathRest);
-    setEditingPath(true);
-  };
 
   // ── 类型变更（toggle：点击已选中 → 取消）──
 
@@ -168,6 +144,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, onOpenConcept 
   if (!note.storagePath) return null;
 
   return (
+    <>
     <div className="properties-panel">
       <div className="properties-header">
         <span className="properties-title">属性</span>
@@ -178,39 +155,11 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, onOpenConcept 
         {/* 位置 */}
         <div className="prop-section">
           <div className="prop-label">位置</div>
-          {editingPath ? (
-            <div className="prop-path-edit">
-              <select
-                className="prop-path-select"
-                value={editRoot}
-                onChange={(e) => setEditRoot(e.target.value)}
-              >
-                {PATH_ROOT_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-              <span className="prop-path-sep">/</span>
-              <input
-                className="prop-path-input"
-                placeholder="子路径..."
-                value={editSub}
-                onChange={(e) => setEditSub(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handlePathChange();
-                  if (e.key === "Escape") setEditingPath(false);
-                }}
-                autoFocus
-              />
-              <button className="prop-path-save" onClick={handlePathChange} title="确认">✓</button>
-              <button className="prop-path-cancel" onClick={() => setEditingPath(false)} title="取消">✕</button>
-            </div>
-          ) : (
-            <div className="prop-path" onClick={readonly ? undefined : startEditPath} title={readonly ? undefined : "点击修改路径"}>
-              <span className="prop-path-icon">{PATH_ROOT_OPTIONS.find(o => o.value === pathRoot)?.label ?? "📂"}</span>
-              {pathRest && <span className="prop-path-text">/ {pathRest}</span>}
-              {!readonly && <span className="prop-path-edit-icon">✎</span>}
-            </div>
-          )}
+          <button type="button" className="prop-path" onClick={() => setMoveOpen(true)} disabled={readonly} title={readonly ? undefined : "移动到其他目录"}>
+            <span className="prop-path-icon">{PATH_ROOT_OPTIONS.find(o => o.value === pathRoot)?.label ?? "📂"}</span>
+            {pathRest && <span className="prop-path-text">/ {pathRest}</span>}
+            {!readonly && <span className="prop-path-edit-icon">↗</span>}
+          </button>
         </div>
 
         {/* 类型 */}
@@ -340,6 +289,19 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, onOpenConcept 
         </div>
       </div>
     </div>
+    {moveOpen && (
+      <MoveToDialog
+        subject={{
+          kind: "document",
+          noteId: note.id,
+          title: note.title || "无标题",
+          currentPath: note.storagePath,
+        }}
+        onClose={() => setMoveOpen(false)}
+        onMove={(targetPath) => onMoveDocument(note.id, targetPath)}
+      />
+    )}
+    </>
   );
 }
 

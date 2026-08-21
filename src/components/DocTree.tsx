@@ -5,6 +5,11 @@ import type { PathNode, Note } from "../types/models";
 import { api } from "../lib/api";
 import { withTimeout } from "../lib/async";
 import { getOtherFolderPaths, getVisibleDocumentTreeNodes } from "../lib/doc-tree-collapse";
+import MoveToDialog from "./MoveToDialog";
+import {
+  getDocumentFolderPath,
+  type MoveToSubject,
+} from "../lib/move-to";
 
 interface DocTreeProps {
   onSelect: (note: Note) => void;
@@ -120,6 +125,7 @@ function DocTree({
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renamingFolder, setRenamingFolder] = useState<string | null>(null);  // 正在重命名的 folder path
+  const [moveSubject, setMoveSubject] = useState<MoveToSubject | null>(null);
 
   // ── 批量选择 ──
   const [selectMode, setSelectMode] = useState(false);
@@ -249,30 +255,26 @@ function DocTree({
     setRenamingFolder(folderPath);
   };
 
-  const handleMoveDocument = async (noteId: string, title: string, currentPath: string) => {
+  const handleMoveDocument = (noteId: string, title: string, nodePath: string) => {
     setContextMenu(null);
-    if (disabled || !onMoveDocument || currentPath.startsWith("daily/")) return;
-    const target = window.prompt(`将「${title}」移动到哪个目录？\n请输入完整目录路径，例如 archives/old`, "");
-    if (!target?.trim()) return;
-    try {
-      await onMoveDocument(noteId, target.trim());
-      setTree(await api.docs.tree(showDaily));
-    } catch (e) {
-      alert(`移动失败: ${e instanceof Error ? e.message : String(e)}`);
-    }
+    if (disabled || !onMoveDocument || nodePath.startsWith("daily/")) return;
+    setMoveSubject({
+      kind: "document",
+      noteId,
+      title,
+      currentPath: getDocumentFolderPath(nodePath, noteId),
+    });
   };
 
-  const handleMoveFolder = async (sourcePath: string) => {
+  const handleMoveFolder = (sourcePath: string) => {
     setContextMenu(null);
     if (disabled || !onMoveFolder || sourcePath === "daily" || sourcePath.startsWith("daily/")) return;
-    const target = window.prompt(`将目录「${sourcePath}」移动到哪个目录？\n请输入移动后的完整目录路径，例如 archives/${sourcePath.split("/").pop()}`, "");
-    if (!target?.trim()) return;
-    try {
-      await onMoveFolder(sourcePath, target.trim());
-      setTree(await api.docs.tree(showDaily));
-    } catch (e) {
-      alert(`移动失败: ${e instanceof Error ? e.message : String(e)}`);
-    }
+    const folder = tree.find((node) => node.type === "folder" && node.path === sourcePath);
+    setMoveSubject({
+      kind: "folder",
+      sourcePath,
+      documentCount: folder?.count,
+    });
   };
 
   const submitFolderRename = async (folderPath: string, newName: string) => {
@@ -629,6 +631,23 @@ function DocTree({
             </>
           )}
         </div>
+      )}
+
+      {moveSubject && (
+        <MoveToDialog
+          subject={moveSubject}
+          folderPaths={tree.filter((node) => node.type === "folder").map((node) => node.path)}
+          onClose={() => setMoveSubject(null)}
+          onMove={async (targetPath) => {
+            if (moveSubject.kind === "document") {
+              if (!onMoveDocument) throw new Error("文档移动功能不可用");
+              await onMoveDocument(moveSubject.noteId, targetPath);
+            } else {
+              if (!onMoveFolder) throw new Error("目录移动功能不可用");
+              await onMoveFolder(moveSubject.sourcePath, targetPath);
+            }
+          }}
+        />
       )}
 
       </div>
