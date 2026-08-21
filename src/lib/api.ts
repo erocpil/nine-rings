@@ -1,6 +1,7 @@
 import type { StorageAdapter, DocSearchQuery } from "./storage/types";
 import { getAdapter } from "./storage";
 import type { AppConfig, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../types/models";
+import { broadcastDataChange } from "./tab-coordination";
 
 /**
  * API 层 — 统一接口，底层自动适配 Tauri IPC / IndexedDB
@@ -28,20 +29,31 @@ export const api = {
     all: () =>
       adapter().then((a) => a.getAllNotes()),
 
-    create: (data: CreateNoteInput) =>
-      adapter().then((a) => a.createNote(data)),
+    create: async (data: CreateNoteInput) => {
+      const note = await adapter().then((a) => a.createNote(data));
+      broadcastDataChange({ type: "note-changed", noteId: note.id });
+      return note;
+    },
 
-    upsert: (data: CreateNoteInput) =>
-      adapter().then((a) => a.upsertNote(data)),
+    upsert: async (data: CreateNoteInput) => {
+      const note = await adapter().then((a) => a.upsertNote(data));
+      broadcastDataChange({ type: "note-changed", noteId: note.id });
+      return note;
+    },
 
-    update: (id: string, data: UpdateNoteInput) =>
-      adapter().then((a) => a.updateNote(id, data)),
+    update: async (id: string, data: UpdateNoteInput) => {
+      const note = await adapter().then((a) => a.updateNote(id, data));
+      broadcastDataChange({ type: "note-changed", noteId: id });
+      return note;
+    },
 
     updateOrder: (id: string, sort_order: number) =>
       adapter().then((a) => a.updateNoteOrder(id, sort_order)),
 
-    delete: (id: string) =>
-      adapter().then((a) => a.deleteNote(id)),
+    delete: async (id: string) => {
+      await adapter().then((a) => a.deleteNote(id));
+      broadcastDataChange({ type: "note-deleted", noteId: id });
+    },
 
     search: (query: string) =>
       adapter().then((a) => a.searchNotes(query)),
@@ -138,8 +150,11 @@ export const api = {
   export: {
     data: () => adapter().then((a) => a.exportData()),
 
-    import: (json: string) =>
-      adapter().then((a) => a.importData(json)),
+    import: async (json: string) => {
+      const result = await adapter().then((a) => a.importData(json));
+      broadcastDataChange({ type: "data-imported" });
+      return result;
+    },
 
     noteMarkdown: (noteId: string) =>
       adapter().then((a) => a.exportNoteMarkdown(noteId)),

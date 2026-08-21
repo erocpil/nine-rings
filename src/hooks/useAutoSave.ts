@@ -31,6 +31,8 @@ export interface AutoSaveHandle {
   setNoteId: (id: string | null) => Promise<void>;
   /** 返回当前笔记尚未持久化的变更，供紧急备份合并。 */
   getPendingData: () => { noteId: string; changes: Record<string, any> } | null;
+  /** 放弃当前笔记尚未持久化的变更（仅用于用户确认载入外部版本）。 */
+  discardPending: () => void;
 }
 
 interface Props {
@@ -155,6 +157,16 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
     return changes ? { noteId, changes: { ...changes } } : null;
   }, []);
 
+  const discardPending = useCallback(() => {
+    const noteId = noteIdRef.current;
+    if (noteId) dirtyRef.current.delete(noteId);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setStatus("clean");
+  }, []);
+
   // 页面隐藏 / 卸载时 flush
   useEffect(() => {
     const onHide = () => {
@@ -183,5 +195,6 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
     flush,
     setNoteId,
     getPendingData,
+    discardPending,
   };
 }

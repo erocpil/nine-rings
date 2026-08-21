@@ -33,6 +33,7 @@ import { isPathUnder } from "./lib/storage/core";
 import { getPathAncestors } from "./lib/move-to";
 import { useWebPlatform } from "./hooks/useWebPlatform";
 import { WebStatusBanner } from "./components/WebStatusBanner";
+import { subscribeToDataChanges } from "./lib/tab-coordination";
 
 const WORKSPACE_TARGET_KEY = "nr:workspaceTarget";
 const ACTIVE_TAG_KEY = "nr:activeTag";
@@ -110,6 +111,8 @@ function App() {
   const [visibleSearchResultCount, setVisibleSearchResultCount] = useState(SEARCH_RESULT_PAGE_SIZE);
   const docSearchRequestIdRef = useRef(0);
   const [editorSearchTarget, setEditorSearchTarget] = useState<SearchNavigationTarget | null>(null);
+  const [externalNoteConflict, setExternalNoteConflict] = useState(false);
+  const [externalReloadKey, setExternalReloadKey] = useState(0);
   const searchRequestIdRef = useRef(0);
 
   // 恢复 GitHub 大备份时，最后打开的文档可能很大。先提交应用框架和加载提示，
@@ -189,6 +192,44 @@ function App() {
     void autoSave.flush()
       .then(() => useNotesStore.getState().clearError())
       .catch((saveError) => console.error("[Recovery] 重试保存失败:", saveError));
+  }, [autoSave.flush]);
+
+  useEffect(() => subscribeToDataChanges((event) => {
+    const current = useNotesStore.getState().selectedNote;
+    if (!event.noteId || event.noteId !== current?.id) return;
+    if (event.type === "note-deleted") {
+      setExternalNoteConflict(true);
+      return;
+    }
+    if (autoSave.status === "dirty" || autoSave.status === "saving" || autoSave.status === "error") {
+      setExternalNoteConflict(true);
+      return;
+    }
+    void api.notes.get(event.noteId).then((note) => {
+      if (!note) return;
+      selectNote(note);
+      setExternalReloadKey((key) => key + 1);
+    });
+  }), [autoSave.status, selectNote]);
+
+  const loadExternalNote = useCallback(async () => {
+    const noteId = useNotesStore.getState().selectedNote?.id;
+    if (!noteId) return;
+    autoSave.discardPending();
+    const note = await api.notes.get(noteId);
+    setExternalNoteConflict(false);
+    if (note) {
+      selectNote(note);
+      setExternalReloadKey((key) => key + 1);
+    } else {
+      selectNote(null);
+      void setDate(currentDate);
+    }
+  }, [autoSave.discardPending, currentDate, selectNote, setDate]);
+
+  const keepLocalNote = useCallback(() => {
+    setExternalNoteConflict(false);
+    void autoSave.flush().catch((saveError) => console.error("[Tabs] 覆盖外部版本失败:", saveError));
   }, [autoSave.flush]);
 
   const handleSelectNote = useCallback((note: Note | null) => {
@@ -924,6 +965,14 @@ function App() {
         />
       )}
 
+      {externalNoteConflict && (
+        <div className="tab-conflict-banner" role="alert">
+          <span>此笔记已在另一个标签页修改。请选择要保留的版本。</span>
+          <button type="button" onClick={() => void loadExternalNote()}>载入其他标签页版本</button>
+          <button type="button" onClick={keepLocalNote}>保留本页并覆盖</button>
+        </div>
+      )}
+
       <div className="app-body">
         <aside className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}>
           <div className="sidebar-tabs">
@@ -1234,7 +1283,7 @@ function App() {
               >
                 {selectedNote && editorReadyNoteId === selectedNote.id ? (
                   <NoteEditor
-                    key={selectedNote.id}
+                    key={`${selectedNote.id}:${externalReloadKey}`}
                     noteId={selectedNote.id}
                     focusMode={focusMode}
                     readonly={selectedNote.readonly || syncBusy}

@@ -217,6 +217,34 @@ body {
   font: inherit;
 }
 
+.tab-conflict-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 7px 12px;
+  background: #fff4ce;
+  color: #5f4200;
+  border-bottom: 1px solid #e0bf59;
+  font-size: 12px;
+  z-index: 490;
+}
+
+.tab-conflict-banner button {
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 3px 7px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .tab-conflict-banner {
+    flex-wrap: wrap;
+  }
+}
+
 .web-storage-summary {
   display: flex;
   flex-wrap: wrap;
