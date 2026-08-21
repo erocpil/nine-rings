@@ -17,7 +17,6 @@ import { api } from "./lib/api";
 import { localDateKey } from "./lib/local-date";
 import { useAutoSave } from "./hooks/useAutoSave";
 import { useSettings } from "./hooks/useSettings";
-import { extractSnippet } from "./lib/storage/idb";
 import DocTree from "./components/DocTree";
 import { DocMOC } from "./components/DocMOC";
 import type { DeltaOps, Note, DocType, SearchNavigationTarget } from "./types/models";
@@ -33,12 +32,12 @@ import { isPathUnder } from "./lib/storage/core";
 import { getPathAncestors } from "./lib/move-to";
 import { useWebPlatform } from "./hooks/useWebPlatform";
 import { WebStatusBanner } from "./components/WebStatusBanner";
+import { SearchResultsPanel } from "./components/SearchResultsPanel";
 import { subscribeToDataChanges } from "./lib/tab-coordination";
 
 const WORKSPACE_TARGET_KEY = "nr:workspaceTarget";
 const ACTIVE_TAG_KEY = "nr:activeTag";
 const DOC_TREE_COLLAPSED_KEY = "nr:docTreeCollapsed";
-const SEARCH_RESULT_PAGE_SIZE = 80;
 
 const RecycleBin = lazy(() => import("./components/RecycleBin").then((module) => ({ default: module.RecycleBin })));
 const VersionHistory = lazy(() => import("./components/VersionHistory").then((module) => ({ default: module.VersionHistory })));
@@ -108,7 +107,6 @@ function App() {
   const [docResults, setDocResults] = useState<Note[] | null>(null);
   const [docSearchText, setDocSearchText] = useState("");
   const [docSearching, setDocSearching] = useState(false);
-  const [visibleSearchResultCount, setVisibleSearchResultCount] = useState(SEARCH_RESULT_PAGE_SIZE);
   const docSearchRequestIdRef = useRef(0);
   const [editorSearchTarget, setEditorSearchTarget] = useState<SearchNavigationTarget | null>(null);
   const [externalNoteConflict, setExternalNoteConflict] = useState(false);
@@ -834,20 +832,6 @@ function App() {
     setDocSearching(false);
   }, [clearSearch]);
 
-  const searchNotes = docResults ?? results.notes;
-  const searchTodos = docResults ? [] : results.todos;
-  const totalSearchResults = searchNotes.length + searchTodos.length;
-  const visibleSearchNotes = searchNotes.slice(0, visibleSearchResultCount);
-  const visibleSearchTodos = searchTodos.slice(
-    0,
-    Math.max(0, visibleSearchResultCount - visibleSearchNotes.length),
-  );
-  const hasMoreSearchResults = visibleSearchResultCount < totalSearchResults;
-
-  useEffect(() => {
-    setVisibleSearchResultCount(SEARCH_RESULT_PAGE_SIZE);
-  }, [query, docResults, results.notes, results.todos]);
-
   useEffect(() => {
     if (!query && docResults === null) return;
     const handleEscape = (event: KeyboardEvent) => {
@@ -1165,67 +1149,15 @@ function App() {
 
         <main className="app-main">
           {query || docResults ? (
-            <div className="search-results">
-              <h3 className="search-results-header">
-                <span>
-                  {docSearching
-                    ? "搜索中…"
-                    : `搜索结果（${totalSearchResults}）`}
-                </span>
-                <button type="button" onClick={dismissSearchResults} aria-label="关闭搜索结果" title="关闭搜索结果">×</button>
-              </h3>
-              {searchNotes.length > 0 && (
-                <div className="search-section-label">笔记</div>
-              )}
-              {visibleSearchNotes.map((r) => (
-                <div
-                  key={r.id}
-                  className="search-hit"
-                  onClick={(e) => clearSearchAndSelect(
-                    r,
-                    e.ctrlKey || e.metaKey,
-                    docResults ? docSearchText : query,
-                  )}
-                >
-                  <div className="search-hit-title">{r.title || "无标题"}</div>
-                  <div className="search-hit-date">{r.date}</div>
-                  {r.storagePath && <div className="search-hit-path">{r.storagePath}</div>}
-                  {(() => {
-                    const targetQuery = docResults ? docSearchText : query;
-                    const snippet = extractSnippet((r as any).search_text ?? "", targetQuery);
-                    if (!snippet) return null;
-                    return <div className="search-hit-snippet" dangerouslySetInnerHTML={{ __html: snippet }} />;
-                  })()}
-                </div>
-              ))}
-              {searchTodos.length > 0 && visibleSearchTodos.length > 0 && (
-                <div className="search-section-label">待办</div>
-              )}
-              {visibleSearchTodos.map((t) => (
-                <div
-                  key={`todo-${t.todo.id}`}
-                  className="search-hit"
-                  onClick={() => { setQuery(""); setDocResults(null); setDate(t.date); }}
-                >
-                  <div className="search-hit-title">
-                    <span className={`todo-dot ${t.todo.done ? "done" : ""}`}>
-                      {t.todo.done ? "☑" : "☐"}
-                    </span>
-                    {t.todo.text}
-                  </div>
-                  <div className="search-hit-date">{t.date}</div>
-                </div>
-              ))}
-              {hasMoreSearchResults && (
-                <button
-                  type="button"
-                  className="search-load-more"
-                  onClick={() => setVisibleSearchResultCount((count) => count + SEARCH_RESULT_PAGE_SIZE)}
-                >
-                  显示更多（剩余 {totalSearchResults - visibleSearchResultCount}）
-                </button>
-              )}
-            </div>
+            <SearchResultsPanel
+              notes={docResults ?? results.notes}
+              todos={docResults ? [] : results.todos}
+              searchTerm={docResults ? docSearchText : query}
+              searching={docSearching}
+              onClose={dismissSearchResults}
+              onSelectNote={clearSearchAndSelect}
+              onSelectTodo={(date) => { setQuery(""); setDocResults(null); void setDate(date); }}
+            />
           ) : selectedConcept && !selectedNote ? (
             <DocMOC
               concept={selectedConcept}

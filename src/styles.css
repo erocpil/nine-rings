@@ -2175,9 +2175,20 @@ body {
 }
 
 .search-hit {
+  display: block;
+  width: 100%;
   padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
   cursor: pointer;
   border-radius: var(--radius);
+}
+
+.search-hit > span:not(.search-hit-title) {
+  display: block;
 }
 
 .search-hit:hover {
