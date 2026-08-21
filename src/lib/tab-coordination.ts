@@ -11,7 +11,7 @@ let channel: BroadcastChannel | null | undefined;
 
 function getChannel(): BroadcastChannel | null {
   if (channel !== undefined) return channel;
-  channel = typeof BroadcastChannel !== "undefined" && !isTauriRuntime()
+  channel = typeof window !== "undefined" && typeof BroadcastChannel !== "undefined" && !isTauriRuntime()
     ? new BroadcastChannel(CHANNEL_NAME)
     : null;
   return channel;

@@ -11,6 +11,7 @@ import { withTimeout } from "../lib/async";
 import { EditorAppearancePanel } from "./EditorAppearancePanel";
 import { isDocumentFindShortcut, isEditorLineJumpShortcut } from "../lib/shortcuts";
 import type { WebStorageStatus } from "../hooks/useWebPlatform";
+import { collectWebDiagnostics } from "../lib/web-diagnostics";
 
 interface Props {
   open: boolean;
@@ -216,6 +217,23 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
       setTimeout(() => setMessage(null), 2000);
     } catch (e) {
       setMessage(`导出失败: ${e}`);
+    }
+  };
+
+  const handleDiagnosticExport = async () => {
+    if (!webStorageStatus) return;
+    try {
+      const report = await collectWebDiagnostics(webStorageStatus);
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `nine-rings-diagnostics-${localDateKey()}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setMessage("诊断报告已导出（不含正文、标题、标签、ID 和 Token）");
+    } catch (error) {
+      setMessage(`诊断报告导出失败: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
@@ -763,6 +781,17 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
                 >+</button>
               </div>
             </Field>
+
+            {!isTauri() && settingsPage === "advanced" && webStorageStatus && (
+              <SettingsSection title="本地诊断" desc="生成仅保存在本机的脱敏问题排查报告">
+                <p className="settings-hint">
+                  导出运行环境、存储配额和数据数量，便于排查 Web/PWA 问题。报告不包含正文、标题、标签、笔记 ID 或 GitHub Token。
+                </p>
+                <button className="settings-btn-secondary" type="button" onClick={() => void handleDiagnosticExport()}>
+                  导出诊断报告
+                </button>
+              </SettingsSection>
+            )}
 
             {/* ── 保存反馈 ── */}
             {message && <div className="settings-toast">{message}</div>}
