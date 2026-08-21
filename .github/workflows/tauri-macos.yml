@@ -1,11 +1,16 @@
 name: Tauri macOS Build
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: write
 
 jobs:
   tauri-macos:
@@ -80,6 +85,9 @@ jobs:
           if ls "$BUNDLE/dmg/"*.dmg 2>/dev/null; then
             cp -v "$BUNDLE/dmg/"*.dmg artifacts/
           fi
+          for dmg in artifacts/*.dmg; do
+            shasum -a 256 "$dmg" > "$dmg.sha256"
+          done
           ls -lh artifacts/
 
       - name: Upload artifacts
@@ -90,3 +98,27 @@ jobs:
           path: artifacts/*
           if-no-files-found: error
           retention-days: 7
+
+      - name: Publish macOS ARM64 prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          TAG="macos-${{ matrix.arch }}-ci-$SHORT_SHA"
+          TITLE="Nine Rings macOS ARM64 $SHORT_SHA"
+          NOTES="macOS Apple Silicon (ARM64) Tauri CI build for commit $GITHUB_SHA.
+
+          This build is not notarized with an Apple Developer certificate. The SHA-256 checksum is attached alongside the DMG."
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" artifacts/* --clobber
+            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES" --prerelease
+          else
+            gh release create "$TAG" artifacts/* \
+              --target "$GITHUB_SHA" \
+              --title "$TITLE" \
+              --notes "$NOTES" \
+              --prerelease
+          fi
