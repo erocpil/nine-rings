@@ -4231,9 +4231,12 @@ body {
   text-indent: var(--editor-paragraph-indent);
 }
 
-.editor-appearance-preview ul {
+.editor-appearance-preview :is(ul, ol) {
   margin: 0;
   padding-inline-start: var(--editor-list-indent);
+}
+
+.editor-appearance-preview ul {
   list-style: none;
 }
 
@@ -4665,6 +4668,7 @@ body {
   align-items: center;
   cursor: pointer;
   min-height: 32px;
+  touch-action: manipulation;
 }
 
 .settings-placeholder {
@@ -6796,10 +6800,21 @@ body {
     padding: 3px 5px;
   }
 
-  /* 手机端不显示桌面鼠标交互用的块间“+”按钮；未启用块编号时
-     同时释放 gutter 占用的正文宽度。 */
+  /* 手机端保留块间插入入口。按钮占满最小 gutter，提升可见性和点按
+     命中率，同时不覆盖正文的选择区域。 */
   .editor-block-insert {
-    display: none;
+    display: block;
+    left: 0;
+    width: 24px;
+    height: 24px;
+    opacity: 0.45;
+    line-height: 22px;
+    touch-action: manipulation;
+  }
+
+  .show-line-numbers .editor-block-insert {
+    left: 2px;
+    width: 24px;
   }
 
   .editor-block-number {
@@ -6815,14 +6830,6 @@ body {
     -webkit-touch-callout: default;
     -webkit-user-select: text;
     user-select: text;
-  }
-
-  .note-editor:not(.show-line-numbers) .editor-content-shell {
-    --editor-gutter-width: 0px !important;
-  }
-
-  .note-editor:not(.show-line-numbers) .editor-block-gutter {
-    display: none;
   }
 
   .editor-status-secondary,
@@ -6849,11 +6856,11 @@ body {
   }
 
   .focus-mode .mobile-focus-bar {
-    position: absolute;
-    top: 0;
-    right: 0;
-    left: 0;
-    z-index: 30;
+    position: fixed;
+    top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top));
+    right: 8px;
+    left: 8px;
+    z-index: 32;
     display: flex;
     align-items: center;
     gap: 4px;
@@ -6886,22 +6893,27 @@ body {
   }
 
   .focus-mode .note-editor-scroll {
-    padding-top: 34px;
+    padding-top: calc(34px + var(--safe-top));
   }
 
   .focus-mode.focus-toolbar-expanded .editor-menu {
     position: fixed;
-    top: calc(var(--app-visual-viewport-offset-top, 0px) + 36px);
+    top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 36px);
     right: 8px;
     left: 8px;
     z-index: 31;
     display: flex !important;
-    overflow-x: auto;
+    width: auto;
+    overflow: visible;
     padding: 4px 6px;
     border: 1px solid var(--border);
     border-radius: 7px;
     background: var(--bg);
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+  }
+
+  .focus-mode.focus-toolbar-expanded .note-editor-scroll {
+    padding-top: calc(84px + var(--safe-top));
   }
 
   .web-keyboard-open .focus-mode .mobile-focus-bar {
@@ -6910,11 +6922,15 @@ body {
   }
 
   .web-keyboard-open .focus-mode .note-editor-scroll {
-    padding-top: 28px;
+    padding-top: calc(28px + var(--safe-top));
   }
 
   .web-keyboard-open .focus-mode.focus-toolbar-expanded .editor-menu {
-    top: calc(var(--app-visual-viewport-offset-top, 0px) + 30px);
+    top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 30px);
+  }
+
+  .web-keyboard-open .focus-mode.focus-toolbar-expanded .note-editor-scroll {
+    padding-top: calc(78px + var(--safe-top));
   }
 
   /* 属性在窄屏中作为覆盖式抽屉，不再挤压正文或变成 220px 的孤立列。 */

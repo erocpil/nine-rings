@@ -49,9 +49,11 @@ test("独立排版工作台中的设置即时生效并在重载后保持", async
     const fontSize = Number.parseFloat(getComputedStyle(element).fontSize);
     const topLevelList = element.querySelector(":scope > ul");
     const nestedList = element.querySelector(":scope > ul ul");
+    const topLevelOrderedList = element.querySelector(":scope > ol");
+    const nestedOrderedList = element.querySelector(":scope > ol ol");
     const firstParagraph = element.querySelector(":scope > h3 + p");
     const secondParagraph = firstParagraph?.nextElementSibling;
-    if (!topLevelList || !nestedList || !firstParagraph || !(secondParagraph instanceof HTMLParagraphElement)) {
+    if (!topLevelList || !nestedList || !topLevelOrderedList || !nestedOrderedList || !firstParagraph || !(secondParagraph instanceof HTMLParagraphElement)) {
       throw new Error("appearance preview spacing fixtures not found");
     }
     const firstBox = firstParagraph.getBoundingClientRect();
@@ -61,12 +63,18 @@ test("独立排版工作台中的设置即时生效并在重载后保持", async
       listTop: Number.parseFloat(getComputedStyle(topLevelList).marginTop) / fontSize,
       listBottom: Number.parseFloat(getComputedStyle(topLevelList).marginBottom) / fontSize,
       nestedTop: Number.parseFloat(getComputedStyle(nestedList).marginTop),
+      unorderedIndent: Number.parseFloat(getComputedStyle(topLevelList).paddingInlineStart) / fontSize,
+      orderedIndent: Number.parseFloat(getComputedStyle(topLevelOrderedList).paddingInlineStart) / fontSize,
+      nestedOrderedIndent: Number.parseFloat(getComputedStyle(nestedOrderedList).paddingInlineStart) / fontSize,
     };
   });
   expect(previewSpacing.paragraphGap).toBeCloseTo(1.05, 2);
   expect(previewSpacing.listTop).toBeCloseTo(0.3, 2);
   expect(previewSpacing.listBottom).toBeCloseTo(0.2, 2);
   expect(previewSpacing.nestedTop).toBe(0);
+  expect(previewSpacing.unorderedIndent).toBeCloseTo(1.2, 2);
+  expect(previewSpacing.orderedIndent).toBeCloseTo(previewSpacing.unorderedIndent, 2);
+  expect(previewSpacing.nestedOrderedIndent).toBeCloseTo(previewSpacing.unorderedIndent, 2);
 
   await page.reload();
   await expect.poll(() => page.locator(".app").evaluate((element) => ({

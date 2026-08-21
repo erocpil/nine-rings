@@ -165,6 +165,13 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     if (e.key === "Escape") { e.preventDefault(); cancelEditOwnerRepo(); }
   };
 
+  const handleOwnerRepoDisplayKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      startEditOwnerRepo();
+    }
+  }, [startEditOwnerRepo]);
+
   // ── GitHub 备份操作 ──
 
   const handleCheck = useCallback(async () => {
@@ -291,7 +298,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
         </span>
       </label>
 
-      {/* Owner / Repo — 双击编辑 */}
+      {/* Owner / Repo — 点击编辑 */}
       {editOwnerRepo ? (
         <label className="settings-label">
           Owner / Repo
@@ -312,10 +319,16 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
           Owner / Repo
           <div
             className="settings-input settings-input-ro"
-            onDoubleClick={startEditOwnerRepo}
-            title="双击编辑"
+            onClick={startEditOwnerRepo}
+            onKeyDown={handleOwnerRepoDisplayKeyDown}
+            role="button"
+            tabIndex={0}
+            aria-label="编辑 Owner / Repo"
+            title="点击编辑"
           >
-            {cfg.owner && cfg.repo ? `${cfg.owner}/${cfg.repo}` : <span className="settings-placeholder">双击设置 owner/repo</span>}
+            {cfg.owner && cfg.repo
+              ? `${cfg.owner}/${cfg.repo}`
+              : <span className="settings-placeholder">点击设置 owner/repo</span>}
           </div>
         </label>
       )}

@@ -83,7 +83,7 @@ export function EditorAppearancePanel({ config, onClose, onUpdate }: Props) {
               <AppearanceField label="列表下间距" desc="控制顶层列表与后一块的距离">
                 <AppearanceStepper label="列表下间距" value={config.editor_list_margin_bottom} minimum={0} maximum={1.5} step={0.05} unit="em" onChange={(value) => onUpdate({ editor_list_margin_bottom: value })} />
               </AppearanceField>
-              <AppearanceField label="列表层级缩进" desc="控制多级列表的缩进距离">
+              <AppearanceField label="列表层级缩进" desc="同时控制无序与有序列表的层级缩进距离">
                 <AppearanceStepper label="列表层级缩进" value={config.editor_list_indent} minimum={1} maximum={3} step={0.05} unit="em" onChange={(value) => onUpdate({ editor_list_indent: value })} />
               </AppearanceField>
               <AppearanceField label="圆点文字间距" desc="控制圆点与文字之间的距离">
@@ -140,6 +140,12 @@ export function EditorAppearancePanel({ config, onClose, onUpdate }: Props) {
                 </li>
                 <li>让相邻信息保持稳定的视觉关系</li>
               </ul>
+              <ol>
+                <li>有序列表使用相同的层级缩进
+                  <ol><li>二级编号与无序列表保持一致</li></ol>
+                </li>
+                <li>调整时两种列表同步变化</li>
+              </ol>
               <h3>紧凑的小节</h3>
               <p>标题上下间距会在这里实时呈现。</p>
               <p>相邻正文段落之间使用独立的正文块间距。</p>

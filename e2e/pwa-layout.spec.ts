@@ -16,7 +16,7 @@ test.describe("PWA 窄屏应用外壳", () => {
 
     const editor = page.locator(".ProseMirror");
     await expect(editor).toBeVisible();
-    await expect(page.locator(".editor-block-insert").first()).toBeHidden();
+    await expect(page.locator(".editor-block-insert").first()).toBeVisible();
     await expect(page.locator(".editor-status-secondary")).toBeHidden();
 
     const bullet = editor.locator("li").first();
@@ -42,6 +42,36 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(geometry.numberRight).toBeLessThanOrEqual(geometry.paragraphLeft);
   });
 
+  test("手机端可以点按块间加号插入空行", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    const blocks = editor.locator(":scope > *");
+    await expect(blocks.first()).toBeVisible();
+    const initialBlockCount = await blocks.count();
+    expect(initialBlockCount).toBeGreaterThan(1);
+    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "24px");
+
+    const insertButton = page.getByRole("button", { name: "在第 1 块后插入段落" });
+    const geometry = await insertButton.evaluate((button) => {
+      const buttonRect = button.getBoundingClientRect();
+      const paragraphRect = document.querySelector(".ProseMirror > p")!.getBoundingClientRect();
+      return {
+        button: { width: buttonRect.width, height: buttonRect.height, right: buttonRect.right },
+        paragraphLeft: paragraphRect.left,
+      };
+    });
+    expect(geometry.button).toMatchObject({ width: 24, height: 24 });
+    expect(geometry.button.right).toBeLessThanOrEqual(geometry.paragraphLeft);
+
+    const box = await insertButton.boundingBox();
+    if (!box) throw new Error("块间插入按钮不可见");
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await page.keyboard.type("手机插入块");
+
+    await expect(blocks).toHaveCount(initialBlockCount + 1);
+    await expect(blocks.nth(1)).toHaveText("手机插入块");
+  });
+
   test("专注模式保留极简标题栏并可按需展开编辑工具", async ({ page }) => {
     await page.goto("/");
     const title = await page.locator(".note-title").inputValue();
@@ -54,8 +84,39 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(page.locator(".editor-menu")).toBeHidden();
 
     await focusBar.getByTitle("更多编辑工具").click();
-    await expect(page.locator(".editor-menu")).toBeVisible();
-    await expect(page.locator(".editor-menu")).toHaveCSS("position", "fixed");
+    const toolbar = page.locator(".editor-menu");
+    await expect(toolbar).toBeVisible();
+    await expect(toolbar).toHaveCSS("position", "fixed");
+    const toolbarGeometry = await page.locator(".note-editor").evaluate((element) => {
+      const focusBarRect = element.querySelector(".mobile-focus-bar")!.getBoundingClientRect();
+      const toolbarElement = element.querySelector(".editor-menu")!;
+      const toolbarRect = toolbarElement.getBoundingClientRect();
+      const titleRect = element.querySelector(".note-title-row")!.getBoundingClientRect();
+      const style = getComputedStyle(toolbarElement);
+      return {
+        focusBarBottom: focusBarRect.bottom,
+        toolbar: { top: toolbarRect.top, right: toolbarRect.right, bottom: toolbarRect.bottom, left: toolbarRect.left },
+        titleTop: titleRect.top,
+        viewportWidth: window.visualViewport?.width ?? window.innerWidth,
+        overflowX: style.overflowX,
+        overflowY: style.overflowY,
+      };
+    });
+    expect(toolbarGeometry.toolbar.left).toBeGreaterThanOrEqual(0);
+    expect(toolbarGeometry.toolbar.right).toBeLessThanOrEqual(toolbarGeometry.viewportWidth);
+    expect(toolbarGeometry.toolbar.top).toBeGreaterThanOrEqual(toolbarGeometry.focusBarBottom);
+    expect(toolbarGeometry.titleTop).toBeGreaterThanOrEqual(toolbarGeometry.toolbar.bottom);
+    expect(toolbarGeometry.overflowX).toBe("visible");
+    expect(toolbarGeometry.overflowY).toBe("visible");
+
+    await page.getByTitle("样式").click();
+    const boldButton = page.getByRole("button", { name: "B 加粗" });
+    await expect(boldButton).toBeVisible();
+    await expect.poll(() => boldButton.evaluate((button) => {
+      const rect = button.getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return hit === button || button.contains(hit);
+    })).toBe(true);
     await focusBar.getByTitle("退出专注模式").click();
     await expect(focusBar).toHaveCount(0);
     await expect(page.locator(".app-header")).toBeVisible();

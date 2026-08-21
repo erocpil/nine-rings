@@ -94,3 +94,34 @@ test("诊断报告只导出脱敏运行信息", async ({ page }) => {
   expect(reportText).not.toContain("欢迎使用 Nine Rings");
   expect(reportText).not.toContain("storagePath");
 });
+
+test.describe("移动端设置", () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+
+  test("点按 Owner / Repo 字段可以进入编辑状态", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("设置").click();
+    await page.getByRole("button", { name: /^同步与备份/ }).click();
+
+    const ownerRepoDisplay = page.getByRole("button", { name: "编辑 Owner / Repo" });
+    const box = await ownerRepoDisplay.boundingBox();
+    if (!box) throw new Error("Owner / Repo 字段不可见");
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+
+    const ownerRepoInput = page.getByRole("textbox", { name: "Owner / Repo" });
+    await expect(ownerRepoInput).toBeVisible();
+    await expect(ownerRepoInput).toBeFocused();
+    await ownerRepoInput.fill("erocpil/nine-rings-backup");
+    await page.keyboard.press("Enter");
+    await expect(ownerRepoDisplay).toContainText("erocpil/nine-rings-backup");
+  });
+});
+
+test("单击 Owner / Repo 字段可以进入编辑状态", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^同步与备份/ }).click();
+
+  await page.getByRole("button", { name: "编辑 Owner / Repo" }).click();
+  await expect(page.getByRole("textbox", { name: "Owner / Repo" })).toBeFocused();
+});
