@@ -8,6 +8,14 @@ export interface WebStorageStatus {
   quota: number | null;
 }
 
+type ViewportStatus = {
+  viewportHeight: number;
+  viewportWidth: number;
+  keyboardHeight: number;
+  offsetTop: number;
+  offsetLeft: number;
+};
+
 const EMPTY_STORAGE_STATUS: WebStorageStatus = {
   supported: false,
   persisted: null,
@@ -36,6 +44,32 @@ export function storagePressure(status: WebStorageStatus): number | null {
   return status.usage / status.quota;
 }
 
+function syncViewportCSS() {
+  const viewport = typeof window.visualViewport === "undefined" ? null : window.visualViewport;
+  const viewportWidth = viewport?.width ?? window.innerWidth;
+  const viewportHeight = viewport?.height ?? window.innerHeight;
+  const offsetTop = viewport?.offsetTop ?? 0;
+  const offsetLeft = viewport?.offsetLeft ?? 0;
+  const keyboardHeight = Math.max(
+    0,
+    Math.round(window.innerHeight - Math.min(viewportHeight, window.innerHeight)),
+  );
+  const status: ViewportStatus = {
+    viewportHeight: Math.max(1, Math.round(viewportHeight)),
+    viewportWidth: Math.max(1, Math.round(viewportWidth)),
+    keyboardHeight,
+    offsetTop: Math.max(0, Math.round(offsetTop)),
+    offsetLeft: Math.max(0, Math.round(offsetLeft)),
+  };
+
+  const root = document.documentElement;
+  root.style.setProperty("--app-viewport-height", `${status.viewportHeight}px`);
+  root.style.setProperty("--app-viewport-width", `${status.viewportWidth}px`);
+  root.style.setProperty("--app-keyboard-height", `${status.keyboardHeight}px`);
+  root.style.setProperty("--app-visual-viewport-offset-top", `${status.offsetTop}px`);
+  root.style.setProperty("--app-visual-viewport-offset-left", `${status.offsetLeft}px`);
+}
+
 export function useWebPlatform() {
   const [online, setOnline] = useState(() => navigator.onLine);
   const [updateAvailable, setUpdateAvailable] = useState(false);
@@ -49,6 +83,18 @@ export function useWebPlatform() {
     const refreshOnline = () => setOnline(navigator.onLine);
     window.addEventListener("online", refreshOnline);
     window.addEventListener("offline", refreshOnline);
+
+    syncViewportCSS();
+    let animationFrameId = 0;
+    const scheduleViewportSync = () => {
+      if (animationFrameId) window.cancelAnimationFrame(animationFrameId);
+      animationFrameId = window.requestAnimationFrame(syncViewportCSS);
+    };
+    const viewport = window.visualViewport;
+    viewport?.addEventListener("resize", scheduleViewportSync);
+    viewport?.addEventListener("scroll", scheduleViewportSync);
+    window.addEventListener("resize", scheduleViewportSync);
+    window.addEventListener("orientationchange", scheduleViewportSync);
 
     let cancelled = false;
     const prepareStorage = async () => {
@@ -97,6 +143,11 @@ export function useWebPlatform() {
       cancelled = true;
       window.removeEventListener("online", refreshOnline);
       window.removeEventListener("offline", refreshOnline);
+      viewport?.removeEventListener("resize", scheduleViewportSync);
+      viewport?.removeEventListener("scroll", scheduleViewportSync);
+      window.removeEventListener("resize", scheduleViewportSync);
+      window.removeEventListener("orientationchange", scheduleViewportSync);
+      if (animationFrameId) window.cancelAnimationFrame(animationFrameId);
       removeControllerListener?.();
       visibilityListener?.();
     };
