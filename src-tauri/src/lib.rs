@@ -31,7 +31,11 @@ fn setup_job_object_kill_on_close() -> Result<(), String> {
     /// `HANDLE` 本质是 `*mut c_void`，不实现 `Send`/`Sync`。
     /// 但 Job Object handle 仅在主线程的 `run()` 入口处创建和存储，
     /// 此时没有其他线程存在，且此后仅被 leak 持有（永不读取），因此安全。
-    struct JobHandle(HANDLE);
+    struct JobHandle {
+        // 句柄必须在进程生命周期内保持打开；字段名以下划线开头明确表示
+        // 它只承担所有权/保活职责，不需要被业务代码读取。
+        _handle: HANDLE,
+    }
     unsafe impl Send for JobHandle {}
     unsafe impl Sync for JobHandle {}
 
@@ -54,7 +58,7 @@ fn setup_job_object_kill_on_close() -> Result<(), String> {
     };
     match result {
         Ok(()) => {
-            let _ = JOB_HANDLE.set(JobHandle(handle));
+            let _ = JOB_HANDLE.set(JobHandle { _handle: handle });
             log::info!("[JobObject] KILL_ON_CLOSE enabled — child processes auto-killed on exit");
             Ok(())
         }
