@@ -22,10 +22,45 @@ function buildVersion(): string {
 
 export default defineConfig(async () => {
   const version = buildVersion();
+  const normalizePath = (id: string): string => id.split("\\").join("/");
+  const isLazyModule = (id: string, suffix: string): boolean =>
+    normalizePath(id).endsWith(`/src/${suffix}`);
+
   return ({
   plugins: [react(), importPlugin(), pwaPlugin(version)],
   define: {
     __APP_VERSION__: JSON.stringify(version),
+  },
+  build: {
+    chunkSizeWarningLimit: 500,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id) return undefined;
+          const normalized = normalizePath(id);
+
+          if (normalized.includes("/node_modules/")) {
+            if (normalized.includes("/node_modules/@tiptap/") || normalized.includes("/node_modules/prosemirror-")) {
+              return "editor";
+            }
+            if (normalized.includes("/node_modules/@tauri-apps")) {
+              return "tauri-shim";
+            }
+            return "vendor";
+          }
+
+          if (isLazyModule(normalized, "components/SettingsPanel.tsx")) return "settings";
+          if (isLazyModule(normalized, "components/VersionHistory.tsx")) return "note-history";
+          if (isLazyModule(normalized, "components/DebugPanel.tsx")) return "debug";
+          if (isLazyModule(normalized, "components/RecycleBin.tsx")) return "recycle";
+          if (isLazyModule(normalized, "components/DocCreateDialog.tsx")) return "doc-create";
+          if (isLazyModule(normalized, "components/PropertiesPanel.tsx")) return "properties";
+          if (normalized.includes("/lib/sync/github.ts")) return "github-sync";
+
+          return undefined;
+        },
+      },
+    },
   },
   clearScreen: false,
   server: {

@@ -32,6 +32,8 @@ jobs:
       - run: npm run build
         env:
           NODE_ENV: production
+      - name: Check bundle size budget
+        run: npm run bundle-size
       - name: Check dist exists
         run: |
           test -f dist/index.html

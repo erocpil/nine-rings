@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNotes } from "./hooks/useNotes";
 import { DatePicker } from "./components/DatePicker";
 import { TodoList } from "./components/TodoList";
@@ -7,12 +7,8 @@ import { Sidebar } from "./components/Sidebar";
 import { NoteEditor } from "./components/NoteEditor";
 import { SearchBar } from "./components/SearchBar";
 import { DailyOverview } from "./components/DailyOverview";
-import { RecycleBin } from "./components/RecycleBin";
 import { UndoToast } from "./components/UndoToast";
 import type { UndoState } from "./components/UndoToast";
-import { VersionHistory } from "./components/VersionHistory";
-import { SettingsPanel } from "./components/SettingsPanel";
-import { DebugPanel } from "./components/DebugPanel";
 import TitleBar from "./components/TitleBar";
 import { useSearch } from "./hooks/useSearch";
 import { useDevImport } from "./hooks/useDevImport";
@@ -23,8 +19,6 @@ import { useAutoSave } from "./hooks/useAutoSave";
 import { useSettings } from "./hooks/useSettings";
 import { extractSnippet } from "./lib/storage/idb";
 import DocTree from "./components/DocTree";
-import DocCreateDialog from "./components/DocCreateDialog";
-import PropertiesPanel from "./components/PropertiesPanel";
 import { DocMOC } from "./components/DocMOC";
 import type { DeltaOps, Note, DocType, SearchNavigationTarget } from "./types/models";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
@@ -43,6 +37,13 @@ import { WebStatusBanner } from "./components/WebStatusBanner";
 const WORKSPACE_TARGET_KEY = "nr:workspaceTarget";
 const ACTIVE_TAG_KEY = "nr:activeTag";
 const DOC_TREE_COLLAPSED_KEY = "nr:docTreeCollapsed";
+
+const RecycleBin = lazy(() => import("./components/RecycleBin").then((module) => ({ default: module.RecycleBin })));
+const VersionHistory = lazy(() => import("./components/VersionHistory").then((module) => ({ default: module.VersionHistory })));
+const SettingsPanel = lazy(() => import("./components/SettingsPanel").then((module) => ({ default: module.SettingsPanel })));
+const DebugPanel = lazy(() => import("./components/DebugPanel").then((module) => ({ default: module.DebugPanel })));
+const PropertiesPanel = lazy(() => import("./components/PropertiesPanel"));
+const DocCreateDialog = lazy(() => import("./components/DocCreateDialog"));
 
 type WorkspaceTarget =
   | { kind: "note"; noteId: string }
@@ -1203,47 +1204,53 @@ function App() {
                     {selectedNote ? "正在打开文档..." : loading ? "加载中..." : "选择或新建一篇笔记"}
                   </div>
                 )}
-                <DebugPanel />
+                <Suspense fallback={null}>
+                  <DebugPanel />
+                </Suspense>
               </div>
             </div>
           )}
         </main>
 
         {secondaryUiReady && selectedNote?.storagePath && propertiesAutoShow && propertiesOpen && (
-          <PropertiesPanel
-            readonly={selectedNote.readonly || syncBusy}
-            note={selectedNote}
-            onMoveDocument={handleMoveDocument}
-            onNoteUpdate={(updated) => { handleSelectNote(updated); setDocTreeKey(k => k + 1); }}
-            onClose={() => setPropertiesOpen(false)}
-            onOpenConcept={(concept) => {
-              setSelectedConcept(concept);
-              setSelectedFolderPath(null);
-              handleSelectNote(null);
-              setQuery("");
-              setDocResults(null);
-              setPropertiesOpen(false);
-            }}
-          />
+          <Suspense fallback={null}>
+            <PropertiesPanel
+              readonly={selectedNote.readonly || syncBusy}
+              note={selectedNote}
+              onMoveDocument={handleMoveDocument}
+              onNoteUpdate={(updated) => { handleSelectNote(updated); setDocTreeKey(k => k + 1); }}
+              onClose={() => setPropertiesOpen(false)}
+              onOpenConcept={(concept) => {
+                setSelectedConcept(concept);
+                setSelectedFolderPath(null);
+                handleSelectNote(null);
+                setQuery("");
+                setDocResults(null);
+                setPropertiesOpen(false);
+              }}
+            />
+          </Suspense>
         )}
       </div>
 
-      <SettingsPanel
-        open={settingsOpen}
-        webStorageStatus={isTauriRuntime() ? undefined : webPlatform.storage}
-        onClose={() => setSettingsOpen(false)}
-        onConfigChange={handleConfigChange}
-        onSyncBusy={setSyncBusy}
-        onImport={() => {
-          setDate(currentDate);
-          setDocTreeKey(k => k + 1);
-        }}
-        onPullDone={() => {
-          setDate(currentDate);
-          setDocTreeKey(k => k + 1);
-          setSidebarRefreshKey(k => k + 1);
-        }}
-      />
+      <Suspense fallback={null}>
+        <SettingsPanel
+          open={settingsOpen}
+          webStorageStatus={isTauriRuntime() ? undefined : webPlatform.storage}
+          onClose={() => setSettingsOpen(false)}
+          onConfigChange={handleConfigChange}
+          onSyncBusy={setSyncBusy}
+          onImport={() => {
+            setDate(currentDate);
+            setDocTreeKey(k => k + 1);
+          }}
+          onPullDone={() => {
+            setDate(currentDate);
+            setDocTreeKey(k => k + 1);
+            setSidebarRefreshKey(k => k + 1);
+          }}
+        />
+      </Suspense>
       {docTreePopupOpen && (
         <div className="doc-tree-popup-overlay" onClick={() => setDocTreePopupOpen(false)}>
           <div className="doc-tree-popup" onClick={(e) => e.stopPropagation()}>
@@ -1339,28 +1346,34 @@ function App() {
           </div>
         </div>
       )}
-      <RecycleBin
-        open={recycleOpen}
-        onClose={() => setRecycleOpen(false)}
-      />
-      <UndoToast undo={undo} onDismiss={() => setUndo(null)} />
-      <VersionHistory
-        open={versionOpen}
-        noteId={selectedNote?.id ?? null}
-        onClose={() => setVersionOpen(false)}
-        onRestore={() => setDate(currentDate)}
-      />
-      {docCreateOpen && (
-        <DocCreateDialog
-          suggestedPath={selectedNote?.storagePath || undefined}
-          onClose={() => setDocCreateOpen(false)}
-          onCreated={(note) => {
-            setDocCreateOpen(false);
-            setDocTreeKey((k) => k + 1);  // 刷新文档树
-            handleSelectNote(note);
-            setDate(note.date);
-          }}
+      <Suspense fallback={null}>
+        <RecycleBin
+          open={recycleOpen}
+          onClose={() => setRecycleOpen(false)}
         />
+      </Suspense>
+      <UndoToast undo={undo} onDismiss={() => setUndo(null)} />
+      <Suspense fallback={null}>
+        <VersionHistory
+          open={versionOpen}
+          noteId={selectedNote?.id ?? null}
+          onClose={() => setVersionOpen(false)}
+          onRestore={() => setDate(currentDate)}
+        />
+      </Suspense>
+      {docCreateOpen && (
+        <Suspense fallback={null}>
+          <DocCreateDialog
+            suggestedPath={selectedNote?.storagePath || undefined}
+            onClose={() => setDocCreateOpen(false)}
+            onCreated={(note) => {
+              setDocCreateOpen(false);
+              setDocTreeKey((k) => k + 1);  // 刷新文档树
+              handleSelectNote(note);
+              setDate(note.date);
+            }}
+          />
+        </Suspense>
       )}
 
       {/* 移动端：侧栏遮罩层（点击关闭侧栏） */}

@@ -1,7 +1,7 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import QuickCapture from "./components/QuickCapture";
+const QuickCapture = lazy(() => import("./components/QuickCapture"));
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./styles.css";
 
@@ -12,7 +12,9 @@ const isQuickCapture = params.get("win") === "qc";
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      {isQuickCapture ? <QuickCapture /> : <App />}
+      <Suspense fallback={<div style={{ padding: "1rem", fontSize: 13, color: "var(--text-muted)" }}>加载中...</div>}>
+        {isQuickCapture ? <QuickCapture /> : <App />}
+      </Suspense>
     </ErrorBoundary>
   </React.StrictMode>
 );
