@@ -5,6 +5,10 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
     { length: 36 },
     (_, index) => `正文段落 ${index + 1}：用于验证目录跳转后的滚动定位。`,
   ).join("\n\n");
+  const outlineSections = Array.from(
+    { length: 24 },
+    (_, index) => `## 附录 ${index + 1}\n\n附录内容 ${index + 1}`,
+  ).join("\n\n");
   await page.goto("/");
   await page.getByTitle("设置").click();
   await page.getByRole("button", { name: /^数据与导入/ }).click();
@@ -19,7 +23,7 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
     name: "review-import.md",
     mimeType: "text/markdown",
     buffer: Buffer.from(
-      `# Imported Review\n\n## VFIO/UIO接入层\n\n${longSection}\n\n### 子项\n\n- **队列初始化**\n  - 完成映射`,
+      `# Imported Review\n\n## VFIO/UIO接入层\n\n${longSection}\n\n### 子项\n\n- **队列初始化**\n  - 完成映射\n\n${outlineSections}`,
       "utf8",
     ),
   });
@@ -63,11 +67,38 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
   expect(headingGaps.after).toBeGreaterThanOrEqual(4);
   expect(headingGaps.after).toBeLessThanOrEqual(9);
 
+  // 光标位于附录 12 时，打开目录应把对应项放在可滚动列表中部。
+  await page.locator(".ProseMirror > h2", { hasText: "附录 12" }).click();
   await page.getByTitle("文档目录").click();
   const outline = page.getByRole("navigation", { name: "文档目录" });
   await expect(outline).toBeVisible();
   const outlineItems = outline.locator(".document-outline-item");
-  await expect(outlineItems).toHaveCount(3);
+  await expect(outlineItems).toHaveCount(27);
+  const activeOutlineItem = outline.locator('.document-outline-item[aria-current="location"]');
+  await expect(activeOutlineItem).toContainText("附录 12");
+  await expect(outline.getByLabel("目录快速滚动")).toBeVisible();
+  const centered = await outline.locator(".document-outline-list").evaluate((list) => {
+    const active = list.querySelector<HTMLElement>('[aria-current="location"]')!;
+    const listRect = list.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    return Math.abs(
+      (activeRect.top + activeRect.height / 2) - (listRect.top + listRect.height / 2),
+    );
+  });
+  expect(centered).toBeLessThanOrEqual(2);
+
+  const outlineList = outline.locator(".document-outline-list");
+  await outline.getByRole("button", { name: "Bottom" }).click();
+  await expect.poll(() => outlineList.evaluate(
+    (list) => Math.abs(list.scrollTop - (list.scrollHeight - list.clientHeight)),
+  )).toBeLessThanOrEqual(1);
+  await outline.getByRole("button", { name: "Middle" }).click();
+  await expect.poll(() => outlineList.evaluate(
+    (list) => Math.abs(list.scrollTop - (list.scrollHeight - list.clientHeight) / 2),
+  )).toBeLessThanOrEqual(1);
+  await outline.getByRole("button", { name: "Top" }).click();
+  await expect.poll(() => outlineList.evaluate((list) => list.scrollTop)).toBeLessThanOrEqual(1);
+
   await expect(outlineItems.nth(0)).toHaveAttribute("data-level", "1");
   const levelBox = await outlineItems.nth(0).locator(".document-outline-level").boundingBox();
   const textBox = await outlineItems.nth(0).locator(".document-outline-text").boundingBox();

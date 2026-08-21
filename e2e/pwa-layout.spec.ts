@@ -19,6 +19,12 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(page.locator(".editor-block-insert").first()).toBeVisible();
     await expect(page.locator(".editor-status-secondary")).toBeHidden();
 
+    await page.getByTitle("文档目录").click();
+    const outline = page.getByRole("navigation", { name: "文档目录" });
+    await expect(outline).toBeVisible();
+    await expect(outline.getByLabel("目录快速滚动")).toHaveCount(0);
+    await page.getByTitle("文档目录").click();
+
     const bullet = editor.locator("li").first();
     await expect(bullet).toBeVisible();
     await expect.poll(() => bullet.evaluate((element) => getComputedStyle(element).listStyleType))
@@ -58,6 +64,7 @@ test.describe("PWA 窄屏应用外壳", () => {
       const orderedListRect = orderedList.getBoundingClientRect();
       const insert = shell.querySelector(".editor-block-insert")!.getBoundingClientRect();
       return {
+        shellLeft: shell.getBoundingClientRect().left,
         numberRight: number.right,
         paragraphLeft: paragraph.left,
         orderedNumberRight: orderedNumber.right,
@@ -68,10 +75,30 @@ test.describe("PWA 窄屏应用外壳", () => {
         numberLeft: number.left,
       };
     });
-    expect(geometry.numberRight).toBeLessThanOrEqual(geometry.paragraphLeft);
+    expect(geometry.shellLeft).toBeLessThanOrEqual(4.5);
+    expect(geometry.paragraphLeft - geometry.numberRight).toBeGreaterThanOrEqual(5.5);
     expect(geometry.orderedNumberRight).toBeLessThanOrEqual(geometry.orderedListLeft);
     expect(geometry.orderedItemOffset).toBeCloseTo(geometry.orderedPadding, 1);
     expect(geometry.insertRight).toBeLessThanOrEqual(geometry.numberLeft);
+  });
+
+  test("只读文档可从主编辑区直接恢复编辑", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("显示侧栏").click();
+    await page.getByTitle("切换到随笔").click();
+
+    const readonlyButton = page.locator(".sidebar-item.active").getByTitle("设为只读");
+    await readonlyButton.evaluate((button: HTMLButtonElement) => button.click());
+    await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 100 } });
+
+    const editor = page.locator(".ProseMirror");
+    await expect(editor).toHaveAttribute("contenteditable", "false");
+    const restoreEditing = page.getByRole("button", { name: "取消只读，进入编辑模式" });
+    await expect(restoreEditing).toBeVisible();
+    await restoreEditing.click();
+
+    await expect(editor).toHaveAttribute("contenteditable", "true");
+    await expect(restoreEditing).toHaveCount(0);
   });
 
   test("手机端可以点按块间加号插入空行", async ({ page }) => {

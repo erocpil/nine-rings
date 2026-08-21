@@ -7,9 +7,37 @@ interface GutterBlock {
   endPos: number;
   format: string;
   top: number;
+  firstLineCenter: number;
   bottom: number;
   marginBottom: number;
   active: boolean;
+}
+
+/** 找到块内第一段可见正文的首行中心；工具按钮和内部行号不算正文。 */
+function firstLineTextCenter(dom: HTMLElement, fallbackRect: DOMRect): number {
+  const walker = document.createTreeWalker(dom, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const text = node.textContent ?? "";
+      const firstVisible = text.search(/\S/);
+      if (firstVisible < 0) return NodeFilter.FILTER_REJECT;
+      const parent = node.parentElement;
+      if (!parent || parent.closest("button, .code-block-gutter, .column-resize-handle")) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  const textNode = walker.nextNode();
+  if (textNode instanceof Text) {
+    const text = textNode.textContent ?? "";
+    const start = Math.max(0, text.search(/\S/));
+    const range = document.createRange();
+    range.setStart(textNode, start);
+    range.setEnd(textNode, Math.min(text.length, start + 1));
+    const firstRect = range.getClientRects()[0];
+    if (firstRect && firstRect.height > 0) return firstRect.top + firstRect.height / 2;
+  }
+  return fallbackRect.top + fallbackRect.height / 2;
 }
 
 function blockFormat(typeName: string, attrs: Readonly<Record<string, unknown>>): string {
@@ -65,6 +93,7 @@ export function EditorBlockGutter({ editor, showNumbers, readonly, onBlockCountC
         endPos: pos + node.nodeSize,
         format: blockFormat(node.type.name, node.attrs),
         top: rect.top - rootRect.top,
+        firstLineCenter: firstLineTextCenter(dom, rect) - rootRect.top,
         bottom: rect.bottom - rootRect.top,
         marginBottom: index === editor.state.doc.childCount - 1
           ? Math.max(0, Number.parseFloat(getComputedStyle(dom).marginBottom) || 0)
@@ -136,7 +165,7 @@ export function EditorBlockGutter({ editor, showNumbers, readonly, onBlockCountC
         <span
           key={`number-${block.pos}`}
           className={`editor-block-number ${block.active ? "active" : ""}`}
-          style={{ top: block.top }}
+          style={{ top: block.firstLineCenter }}
           aria-hidden="true"
           data-block-format={block.format}
         >

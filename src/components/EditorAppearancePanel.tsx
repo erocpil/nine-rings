@@ -149,6 +149,8 @@ export function EditorAppearancePanel({ config, onClose, onUpdate }: Props) {
               <h3>紧凑的小节</h3>
               <p>标题上下间距会在这里实时呈现。</p>
               <p>相邻正文段落之间使用独立的正文块间距。</p>
+              <p><strong>概念标签</strong></p>
+              <p>纯粗体标签后的正文沿用紧凑的标题下间距。</p>
               <blockquote>引用块缩进帮助补充说明与正文形成清楚的层次。</blockquote>
               <p>使用 <mark>Alt+F 搜索关键字</mark> 时，匹配内容会采用所选的高亮颜色。</p>
               <table>

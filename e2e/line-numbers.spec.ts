@@ -100,6 +100,30 @@ test.describe("编辑器块级 gutter", () => {
     await expect(blockNumbers.nth(0)).toHaveAttribute("data-block-format", "H3");
     await expect(blockNumbers.nth(1)).toHaveAttribute("data-block-format", "Text");
 
+    const centerOffsets = await editor.evaluate((element) => {
+      const blocks = [...element.querySelectorAll<HTMLElement>(":scope > h3, :scope > p")];
+      const numbers = [...document.querySelectorAll<HTMLElement>(".editor-block-number")];
+      const firstLineCenter = (block: HTMLElement) => {
+        const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+        let textNode = walker.nextNode();
+        while (textNode && !(textNode.textContent ?? "").trim()) textNode = walker.nextNode();
+        if (!(textNode instanceof Text)) return 0;
+        const text = textNode.textContent ?? "";
+        const start = Math.max(0, text.search(/\S/));
+        const range = document.createRange();
+        range.setStart(textNode, start);
+        range.setEnd(textNode, start + 1);
+        const rect = range.getClientRects()[0];
+        return rect.top + rect.height / 2;
+      };
+      return blocks.map((block, index) => {
+        const number = numbers[index].getBoundingClientRect();
+        return Math.abs(number.top + number.height / 2 - firstLineCenter(block));
+      });
+    });
+    expect(centerOffsets).toHaveLength(2);
+    expect(Math.max(...centerOffsets)).toBeLessThanOrEqual(1);
+
     const tooltipOpacity = (element: Element) => getComputedStyle(element, "::after").opacity;
     const inlineStyle = (element: Element) => ({
       numberColor: getComputedStyle(element).color,
@@ -226,8 +250,27 @@ test.describe("编辑器块级 gutter", () => {
       const ordered = element.querySelector(":scope > ol")!;
       const unorderedItem = unordered.querySelector(":scope > li")!;
       const orderedItem = ordered.querySelector(":scope > li")!;
+      const unorderedBlockNumber = document.querySelector<HTMLElement>('.editor-block-number[data-block-format="UL"]');
       const orderedBlockNumber = document.querySelector<HTMLElement>('.editor-block-number[data-block-format="OL"]');
       const rect = (target: Element) => target.getBoundingClientRect();
+      const center = (target: Element | null) => {
+        if (!target) return null;
+        const box = rect(target);
+        return box.top + box.height / 2;
+      };
+      const firstTextCenter = (target: Element) => {
+        const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
+        let textNode = walker.nextNode();
+        while (textNode && !(textNode.textContent ?? "").trim()) textNode = walker.nextNode();
+        if (!(textNode instanceof Text)) return null;
+        const text = textNode.textContent ?? "";
+        const start = Math.max(0, text.search(/\S/));
+        const range = document.createRange();
+        range.setStart(textNode, start);
+        range.setEnd(textNode, start + 1);
+        const box = range.getClientRects()[0];
+        return box.top + box.height / 2;
+      };
       return {
         fontSize: Number.parseFloat(getComputedStyle(element).fontSize),
         paragraphLeft: rect(paragraph).left,
@@ -239,7 +282,11 @@ test.describe("编辑器块级 gutter", () => {
         orderedPadding: Number.parseFloat(getComputedStyle(ordered).paddingInlineStart),
         orderedMarker: getComputedStyle(orderedItem, "::before").content,
         orderedNativeMarker: getComputedStyle(orderedItem, "::marker").content,
+        unorderedBlockNumberCenter: center(unorderedBlockNumber),
         orderedBlockNumberRight: orderedBlockNumber ? rect(orderedBlockNumber).right : null,
+        orderedBlockNumberCenter: center(orderedBlockNumber),
+        unorderedFirstLineCenter: firstTextCenter(unordered),
+        orderedFirstLineCenter: firstTextCenter(ordered),
       };
     });
 
@@ -274,6 +321,10 @@ test.describe("编辑器块级 gutter", () => {
     expect(withNumbers.orderedLeft - withNumbers.paragraphLeft).toBeCloseTo(0, 1);
     expect(withNumbers.orderedBlockNumberRight).not.toBeNull();
     expect(withNumbers.orderedBlockNumberRight!).toBeLessThanOrEqual(withNumbers.orderedLeft);
+    expect(Math.abs(withNumbers.unorderedBlockNumberCenter! - withNumbers.unorderedFirstLineCenter!))
+      .toBeLessThanOrEqual(1);
+    expect(Math.abs(withNumbers.orderedBlockNumberCenter! - withNumbers.orderedFirstLineCenter!))
+      .toBeLessThanOrEqual(1);
   });
 
   test("状态栏块号跟随光标并可独立关闭", async ({ page }) => {

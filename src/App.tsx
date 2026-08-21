@@ -1219,6 +1219,11 @@ function App() {
                     noteId={selectedNote.id}
                     focusMode={focusMode}
                     readonly={selectedNote.readonly || syncBusy}
+                    onReadonlyChange={selectedNote.readonly && !syncBusy ? async (readonly) => {
+                      await updateNote(selectedNote.id, { readonly });
+                      setDocTreeKey(k => k + 1);
+                      setSidebarRefreshKey(k => k + 1);
+                    } : undefined}
                     title={selectedNote.title}
                     content={selectedNote.content}
                     tags={selectedNote.tags}

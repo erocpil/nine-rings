@@ -57,6 +57,7 @@ import {
 } from "../extensions/CjkLatinSpacing";
 import { isDocumentFindKeyEvent, isEditorLineJumpKeyEvent } from "../lib/shortcuts";
 import {
+  documentOutlineIndexAtPosition,
   extractDocumentOutline,
   type DocumentOutlineItem,
 } from "../lib/document-outline";
@@ -196,6 +197,7 @@ interface NoteEditorProps {
   content: DeltaOps;
   tags: string[];
   readonly?: boolean;
+  onReadonlyChange?: (readonly: boolean) => Promise<void> | void;
   focusMode: boolean;
   showLineNumbers: boolean;
   showStatusBlockNumber: boolean;
@@ -222,7 +224,7 @@ interface NoteEditorProps {
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, vimModeEnabled, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
+export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, vimModeEnabled, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -234,6 +236,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const editorFindInputRef = useRef<HTMLInputElement>(null);
   const vimSearchActionRef = useRef<(direction: 1 | -1 | 0) => void>(() => undefined);
   const lineJumpInputRef = useRef<HTMLInputElement>(null);
+  const outlineListRef = useRef<HTMLDivElement>(null);
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
   const [activeSearchMatch, setActiveSearchMatch] = useState(0);
   const [editorFindOpen, setEditorFindOpen] = useState(false);
@@ -242,6 +245,8 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [lineJumpValue, setLineJumpValue] = useState("");
   const [lineJumpError, setLineJumpError] = useState<string | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(false);
+  const [activeOutlineIndex, setActiveOutlineIndex] = useState(-1);
+  const [outlineOverflow, setOutlineOverflow] = useState(false);
   const [documentOutline, setDocumentOutline] = useState<DocumentOutlineItem[]>([]);
   const lastOutlineRequestIdRef = useRef(outlineRequestId);
   const outlineBaseLevel = useMemo(
@@ -614,13 +619,68 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     () => onOutlineAvailabilityChange?.(false)
   ), [onOutlineAvailabilityChange]);
 
+  const openDocumentOutline = useCallback(() => {
+    if (!editor || editor.isDestroyed || documentOutline.length === 0) return;
+    setActiveOutlineIndex(documentOutlineIndexAtPosition(
+      documentOutline,
+      editor.state.selection.from,
+    ));
+    setOutlineOverflow(false);
+    setOutlineOpen(true);
+  }, [documentOutline, editor]);
+
+  const toggleDocumentOutline = useCallback(() => {
+    if (outlineOpen) {
+      setOutlineOpen(false);
+      return;
+    }
+    openDocumentOutline();
+  }, [openDocumentOutline, outlineOpen]);
+
+  // 目录打开后把光标所属章节放在列表正中。首轮测量决定是否显示
+  // Top/Middle/Bottom；按钮出现后列表高度变化，再做一次居中即可。
+  useLayoutEffect(() => {
+    if (!outlineOpen || activeOutlineIndex < 0) return;
+    const list = outlineListRef.current;
+    if (!list) return;
+    const frame = window.requestAnimationFrame(() => {
+      const activeItem = list.querySelector<HTMLElement>(
+        `[data-outline-index="${activeOutlineIndex}"]`,
+      );
+      const overflowing = list.scrollHeight > list.clientHeight + 1;
+      setOutlineOverflow(overflowing);
+      if (!activeItem || !overflowing) {
+        list.scrollTop = 0;
+        return;
+      }
+      const listRect = list.getBoundingClientRect();
+      const activeRect = activeItem.getBoundingClientRect();
+      const activeTop = activeRect.top - listRect.top + list.scrollTop;
+      const centeredTop = activeTop
+        - (list.clientHeight - activeItem.offsetHeight) / 2;
+      list.scrollTop = Math.max(0, Math.min(
+        centeredTop,
+        list.scrollHeight - list.clientHeight,
+      ));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeOutlineIndex, documentOutline.length, outlineOpen, outlineOverflow]);
+
+  const scrollOutlineTo = useCallback((target: "top" | "middle" | "bottom") => {
+    const list = outlineListRef.current;
+    if (!list) return;
+    const maxScroll = Math.max(0, list.scrollHeight - list.clientHeight);
+    const top = target === "top" ? 0 : target === "middle" ? maxScroll / 2 : maxScroll;
+    list.scrollTo({ top, behavior: "smooth" });
+  }, []);
+
   // 专注模式下正文标题滚出视口后，App 顶栏中的文件名成为目录入口。
   // request id 只表达一次切换动作，避免普通重渲染反复开关面板。
   useEffect(() => {
     if (outlineRequestId === undefined || outlineRequestId === lastOutlineRequestIdRef.current) return;
     lastOutlineRequestIdRef.current = outlineRequestId;
-    if (documentOutline.length > 0) setOutlineOpen((open) => !open);
-  }, [documentOutline.length, outlineRequestId]);
+    toggleDocumentOutline();
+  }, [outlineRequestId, toggleDocumentOutline]);
 
   // 当 readonly 变化时同步编辑器状态
   useEffect(() => {
@@ -1674,13 +1734,22 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             <span>目录</span>
             <span>{documentOutline.length} 项</span>
           </div>
-          <div className="document-outline-list">
+          {outlineOverflow && (
+            <div className="document-outline-jumps" aria-label="目录快速滚动">
+              <button type="button" onClick={() => scrollOutlineTo("top")} title="滚动至顶部">Top</button>
+              <button type="button" onClick={() => scrollOutlineTo("middle")} title="滚动至中部">Middle</button>
+              <button type="button" onClick={() => scrollOutlineTo("bottom")} title="滚动至底部">Bottom</button>
+            </div>
+          )}
+          <div className="document-outline-list" ref={outlineListRef}>
             {documentOutline.map((item, index) => (
               <button
                 key={`${item.pos}-${index}`}
-                className="document-outline-item"
+                className={`document-outline-item ${index === activeOutlineIndex ? "current" : ""}`}
                 style={{ paddingInlineStart: `${10 + (item.level - outlineBaseLevel) * 14}px` }}
                 data-level={item.level}
+                data-outline-index={index}
+                aria-current={index === activeOutlineIndex ? "location" : undefined}
                 onClick={() => jumpToOutlineHeading(item)}
                 title={item.text}
                 type="button"
@@ -1697,7 +1766,20 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         <div className="note-editor-sticky">
           {/* ── 标题 ── */}
         <div className="note-title-row" ref={titleRef}>
-          {readonly && <span className="note-readonly-badge" title="只读">🔒</span>}
+          {readonly && (onReadonlyChange ? (
+            <button
+              type="button"
+              className="note-readonly-badge note-readonly-action"
+              onClick={() => void onReadonlyChange(false)}
+              title="取消只读，进入编辑模式"
+              aria-label="取消只读，进入编辑模式"
+            >
+              <span aria-hidden="true">🔓</span>
+              <span>编辑</span>
+            </button>
+          ) : (
+            <span className="note-readonly-badge" title="只读">🔒</span>
+          ))}
           <input
             ref={titleInputRef}
             type="text"
@@ -1713,7 +1795,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
                 className={`focus-btn document-outline-toggle ${outlineOpen ? "active" : ""}`}
                 onClick={(event) => {
                   event.stopPropagation();
-                  setOutlineOpen((open) => !open);
+                  toggleDocumentOutline();
                 }}
                 title="文档目录"
                 aria-label="文档目录"

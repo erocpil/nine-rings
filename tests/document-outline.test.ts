@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { Schema } from "@tiptap/pm/model";
-import { extractDocumentOutline } from "../src/lib/document-outline";
+import {
+  documentOutlineIndexAtPosition,
+  extractDocumentOutline,
+} from "../src/lib/document-outline";
 
 const schema = new Schema({
   nodes: {
@@ -31,5 +34,10 @@ assert.deepEqual(outline.map(({ level, text }) => ({ level, text })), [
 assert.equal(outline[0].pos, 0);
 assert.ok(outline[1].pos > outline[0].pos);
 assert.ok(outline[2].pos > outline[1].pos);
+assert.equal(documentOutlineIndexAtPosition([], 0), -1);
+assert.equal(documentOutlineIndexAtPosition(outline, -1), 0);
+assert.equal(documentOutlineIndexAtPosition(outline, outline[0].pos + 1), 0);
+assert.equal(documentOutlineIndexAtPosition(outline, outline[1].pos), 1);
+assert.equal(documentOutlineIndexAtPosition(outline, outline[2].pos + 100), 2);
 
 console.log("Document outline extraction passed");

@@ -205,6 +205,43 @@ test("四至六级标题字号不小于正文", async ({ page }) => {
   expect(noteTitleAfter).toBeGreaterThan(noteTitleBefore);
 });
 
+test("纯粗体小节标签与下一段正文保持紧凑间距", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+  const editor = page.locator(".ProseMirror");
+  await editor.evaluate((element) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "**概念**\n正文说明\n\n下一段正文");
+    element.dispatchEvent(new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData,
+    }));
+  });
+
+  const paragraphs = editor.locator(":scope > p");
+  await expect(paragraphs).toHaveCount(3);
+  await expect(paragraphs.nth(0).locator("strong")).toHaveText("概念");
+  const spacing = await editor.evaluate((element) => {
+    const [label, body, nextBody] = [...element.querySelectorAll<HTMLElement>(":scope > p")];
+    const labelRect = label.getBoundingClientRect();
+    const bodyRect = body.getBoundingClientRect();
+    const nextBodyRect = nextBody.getBoundingClientRect();
+    return {
+      labelToBody: bodyRect.top - labelRect.bottom,
+      bodyToBody: nextBodyRect.top - bodyRect.bottom,
+      labelMarginBottom: Number.parseFloat(getComputedStyle(label).marginBottom),
+      bodyMarginTop: Number.parseFloat(getComputedStyle(body).marginTop),
+    };
+  });
+  expect(spacing.bodyMarginTop).toBe(0);
+  expect(spacing.labelToBody).toBeCloseTo(spacing.labelMarginBottom, 1);
+  expect(spacing.labelToBody).toBeLessThan(spacing.bodyToBody / 2);
+});
+
 test("当前行高亮保持轻量且代码块字号接近正文", async ({ page }) => {
   await page.goto("/");
   const editor = page.locator(".ProseMirror");

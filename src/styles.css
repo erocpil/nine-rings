@@ -949,9 +949,32 @@ body {
 
 /* ── 编辑器只读徽标 ── */
 .note-readonly-badge {
+  flex: none;
   margin-right: 1px;
   font-size: 16px;
   line-height: 1;
+}
+
+.note-readonly-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.note-readonly-action:hover,
+.note-readonly-action:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
 }
 
 .sidebar-item-title {
@@ -3049,6 +3072,8 @@ body {
   z-index: 40;
   width: min(320px, calc(100vw - 48px));
   max-height: min(58vh, 440px);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -3077,8 +3102,36 @@ body {
   font-weight: 400;
 }
 
+.document-outline-jumps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.document-outline-jumps button {
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.document-outline-jumps button:hover,
+.document-outline-jumps button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
 .document-outline-list {
-  max-height: calc(min(58vh, 440px) - 35px);
+  min-height: 0;
   overflow-y: auto;
   padding: 4px 0;
 }
@@ -3102,6 +3155,11 @@ body {
 .document-outline-item:focus-visible {
   background: var(--hover-bg);
   outline: none;
+}
+
+.document-outline-item.current {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
 }
 
 .document-outline-level {
@@ -3348,6 +3406,7 @@ body {
 
 .editor-content-shell {
   --editor-gutter-width: 24px;
+  --editor-gutter-text-gap: 0px;
   position: relative;
   flex: 1;
   min-height: 200px;
@@ -3355,6 +3414,7 @@ body {
 
 .show-line-numbers .editor-content-shell {
   --editor-gutter-width: 32px;
+  --editor-gutter-text-gap: 6px;
 }
 
 .focus-mode.show-line-numbers .editor-content-shell {
@@ -3368,7 +3428,7 @@ body {
 .ProseMirror {
   outline: none !important;
   padding-bottom: max(72px, 14vh);
-  padding-left: var(--editor-gutter-width);
+  padding-left: calc(var(--editor-gutter-width) + var(--editor-gutter-text-gap));
   touch-action: auto;
   font-size: var(--editor-font-size);
   font-family: var(--editor-font-family);
@@ -3401,6 +3461,7 @@ body {
   left: 0;
   width: calc(var(--editor-gutter-width) - 8px);
   padding-right: 4px;
+  transform: translateY(-50%);
   text-align: right;
   color: var(--text-secondary);
   opacity: 0.4;
@@ -3749,6 +3810,16 @@ body {
 }
 
 .editor-content .ProseMirror > :is(h1, h2, h3, h4, h5, h6) + p {
+  margin-top: 0;
+}
+
+/* Markdown 中常用 **概念** / **原理** 作为独立小节标签。它们仍是段落
+   节点，但标签后的正文应使用标题下间距，不能套用两段正文的块间距。 */
+.editor-content .ProseMirror > p:has(> strong:only-child) {
+  margin-bottom: var(--editor-heading-margin-bottom);
+}
+
+.editor-content .ProseMirror > p:has(> strong:only-child) + p {
   margin-top: 0;
 }
 
@@ -4498,6 +4569,14 @@ body {
 }
 
 .editor-appearance-document > :is(h1, h2, h3) + p {
+  margin-top: 0;
+}
+
+.editor-appearance-document > p:has(> strong:only-child) {
+  margin-bottom: var(--editor-heading-margin-bottom);
+}
+
+.editor-appearance-document > p:has(> strong:only-child) + p {
   margin-top: 0;
 }
 
@@ -6694,7 +6773,7 @@ body {
 
   .app-main {
     flex: 1;
-    padding: 12px 8px 12px 12px;
+    padding: 12px 8px 12px 4px;
     padding-bottom: max(4px, var(--safe-bottom));
   }
 
@@ -6776,7 +6855,7 @@ body {
 
   /* ── 编辑器 ── */
   .note-editor {
-    padding: 10px 0 0 10px;
+    padding: 10px 0 0;
   }
 
   .note-title-row {
