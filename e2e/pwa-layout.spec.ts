@@ -69,6 +69,22 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(scrollPaddingBottom).not.toContain("300px");
   });
 
+  test("应用外壳跟随 iOS Visual Viewport 偏移且底部不留空白", async ({ page }) => {
+    await page.goto("/");
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty("--app-visual-viewport-offset-top", "120px");
+      document.documentElement.style.setProperty("--app-visual-viewport-offset-left", "4px");
+      document.documentElement.style.setProperty("--app-viewport-height", "430px");
+      document.documentElement.style.setProperty("--app-viewport-width", "382px");
+    });
+
+    const rect = await page.locator(".app").evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return { top: box.top, left: box.left, width: box.width, height: box.height, bottom: box.bottom };
+    });
+    expect(rect).toEqual({ top: 120, left: 4, width: 382, height: 430, bottom: 550 });
+  });
+
   test("编辑状态下光标不会被底部边界遮挡", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("设置").click();

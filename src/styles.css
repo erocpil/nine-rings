@@ -6581,6 +6581,18 @@ body {
 }
 
 @media (max-width: 768px) {
+  /* iOS 会在键盘出现时平移 visual viewport。应用不仅要使用它的高度，
+     还必须跟随 offsetTop/offsetLeft，否则底部会留下等量空白。 */
+  .app {
+    position: fixed;
+    top: var(--app-visual-viewport-offset-top, 0px);
+    left: var(--app-visual-viewport-offset-left, 0px);
+    width: var(--app-viewport-width, 100vw);
+    height: var(--app-viewport-height, 100dvh);
+    min-height: var(--app-viewport-height, 100dvh);
+    overflow: hidden;
+  }
+
   /* ── 布局：单栏 + 侧栏 overlay ── */
   .app-body {
     flex-direction: column;
