@@ -6772,6 +6772,15 @@ body {
     display: none;
   }
 
+  /* iOS 的系统 Cut/Copy/Paste callout 会覆盖应用工具栏并吞掉首次点击。
+     保留文字选择和拖动手柄，操作统一交给上方编辑工具栏。 */
+  .note-editor .ProseMirror,
+  .note-editor .ProseMirror * {
+    -webkit-touch-callout: none;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
   .note-editor:not(.show-line-numbers) .editor-content-shell {
     --editor-gutter-width: 0px !important;
   }

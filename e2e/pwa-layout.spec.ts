@@ -61,6 +61,28 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(page.locator(".app-header")).toBeVisible();
   });
 
+  test("选择文字后工具栏保留选区并能应用格式", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element) => {
+      const text = [...element.querySelectorAll("p")]
+        .find((paragraph) => paragraph.textContent?.startsWith("这是一篇"))?.firstChild;
+      if (!text) throw new Error("selection fixture not found");
+      const range = document.createRange();
+      range.setStart(text, 0);
+      range.setEnd(text, Math.min(4, text.textContent?.length ?? 0));
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      element.dispatchEvent(new Event("focus", { bubbles: true }));
+    });
+
+    await page.getByTitle("样式").click();
+    await page.getByRole("button", { name: "B 加粗" }).click();
+    await expect(editor.locator("p").filter({ hasText: /^这是一篇/ }).locator("strong").first()).toContainText("这是一篇");
+    await expect(editor).toHaveCSS("-webkit-user-select", "text");
+  });
+
   test("从文档弹层发起新建时先关闭弹层并把对话框放在最上层", async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem("nr:sidebarHidden", "true"));
     await page.goto("/");

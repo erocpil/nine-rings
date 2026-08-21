@@ -227,6 +227,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const toolbarSelectionRef = useRef<{ from: number; to: number } | null>(null);
   const searchMatchesRef = useRef<SearchMatch[]>([]);
   const editorFindOriginRef = useRef(0);
   const editorFindInputRef = useRef<HTMLInputElement>(null);
@@ -1703,6 +1704,19 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         {!readonly && (<div
           ref={toolbarRef}
           className={`editor-menu ${isNarrow ? "toolbar-compact" : "toolbar-full"} ${isMinimalToolbar ? "toolbar-minimal" : ""}`}
+          onPointerDownCapture={(event) => {
+            if (!(event.target instanceof Element) || !event.target.closest("button")) return;
+            const { from, to } = editor.state.selection;
+            toolbarSelectionRef.current = { from, to };
+            // Mobile Safari otherwise moves focus to the button before its click runs.
+            event.preventDefault();
+          }}
+          onClickCapture={(event) => {
+            if (!(event.target instanceof Element) || !event.target.closest("button")) return;
+            const selection = toolbarSelectionRef.current;
+            toolbarSelectionRef.current = null;
+            if (selection) editor.commands.setTextSelection(selection);
+          }}
         >
           {btn("↩", () => editor.chain().focus().undo().run(), false, "撤销 (Ctrl+Z)", readonly)}
           {btn("↪", () => editor.chain().focus().redo().run(), false, "重做 (Ctrl+Y)", readonly)}
