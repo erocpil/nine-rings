@@ -3,9 +3,10 @@ interface Props {
   updateAvailable: boolean;
   storagePressure: number | null;
   onApplyUpdate: () => void;
+  onExportBackup: () => void;
 }
 
-export function WebStatusBanner({ online, updateAvailable, storagePressure, onApplyUpdate }: Props) {
+export function WebStatusBanner({ online, updateAvailable, storagePressure, onApplyUpdate, onExportBackup }: Props) {
   if (updateAvailable) {
     return (
       <div className="web-status-banner update" role="status">
@@ -18,8 +19,12 @@ export function WebStatusBanner({ online, updateAvailable, storagePressure, onAp
     return <div className="web-status-banner offline" role="status">当前离线，内容仍会保存在本机，联网后可继续备份。</div>;
   }
   if (storagePressure !== null && storagePressure >= 0.85) {
-    return <div className="web-status-banner warning" role="alert">浏览器存储空间即将用尽，请尽快导出或备份数据。</div>;
+    return (
+      <div className="web-status-banner warning" role="alert">
+        <span>浏览器存储空间即将用尽，请尽快导出或备份数据。</span>
+        <button type="button" onClick={onExportBackup}>立即导出</button>
+      </div>
+    );
   }
   return null;
 }
-

@@ -2849,17 +2849,31 @@ body {
   color: #fff;
   padding: 6px 16px;
   font-size: 13px;
-  cursor: pointer;
   z-index: 500;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
+.error-bar button {
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 4px;
+  padding: 2px 7px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.error-bar button:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
 .error-dismiss {
   margin-left: auto;
   font-size: 16px;
   opacity: 0.7;
+  border: 0 !important;
 }
 
 /* ──── Tag Bar ──── */
@@ -4794,7 +4808,8 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   overflow-anchor: none;
-  scroll-padding-bottom: calc(10px + var(--app-keyboard-height, 0px));
+  /* 容器高度已跟随 Visual Viewport，不能再次叠加键盘高度。 */
+  scroll-padding-bottom: calc(10px + var(--safe-bottom, 0px));
 }
 
 /* 非专注模式：标题/标签/工具栏 sticky 固定在顶部 */
@@ -6510,7 +6525,7 @@ body {
     position: fixed;
     top: var(--app-visual-viewport-offset-top, 0px);
     left: 0;
-    bottom: calc(var(--app-keyboard-height) + var(--safe-bottom));
+    bottom: var(--safe-bottom);
     z-index: 100;
     width: 280px !important;
     max-width: 85vw;
@@ -6533,7 +6548,7 @@ body {
     top: 0;
     left: 0;
     right: 0;
-    bottom: calc(var(--app-keyboard-height) + var(--safe-bottom));
+    bottom: var(--safe-bottom);
     background: rgba(0, 0, 0, 0.35);
     z-index: 99;
     opacity: 0;
@@ -6707,7 +6722,7 @@ body {
     position: fixed;
     top: calc(var(--safe-top) + var(--app-visual-viewport-offset-top, 0px));
     right: 0;
-    bottom: calc(var(--app-keyboard-height) + var(--safe-bottom));
+    bottom: var(--safe-bottom);
     z-index: 950;
     width: min(88vw, 360px);
     max-width: none;
@@ -6756,6 +6771,27 @@ body {
   .header-sticky-area,
   .sidebar-divider {
     display: none;
+  }
+}
+
+/* 横屏手机 / 小高度窗口：保留单行工具栏，把更多垂直空间留给正文。 */
+@media (max-width: 768px) and (max-height: 480px) {
+  .app-header {
+    min-height: 36px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
+
+  .note-editor {
+    padding-top: 6px;
+  }
+
+  .editor-menu {
+    margin-bottom: 2px;
+  }
+
+  .editor-stats {
+    min-height: 24px;
   }
 }
 

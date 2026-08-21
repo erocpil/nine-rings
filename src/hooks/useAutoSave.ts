@@ -29,6 +29,8 @@ export interface AutoSaveHandle {
   flush: () => Promise<void>;
   /** 设置 noteId（切换笔记时调用，自动 flush 旧笔记） */
   setNoteId: (id: string | null) => Promise<void>;
+  /** 返回当前笔记尚未持久化的变更，供紧急备份合并。 */
+  getPendingData: () => { noteId: string; changes: Record<string, any> } | null;
 }
 
 interface Props {
@@ -146,6 +148,13 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
     await queueRef.current;
   }, [flushNote]);
 
+  const getPendingData = useCallback(() => {
+    const noteId = noteIdRef.current;
+    if (!noteId) return null;
+    const changes = dirtyRef.current.get(noteId);
+    return changes ? { noteId, changes: { ...changes } } : null;
+  }, []);
+
   // 页面隐藏 / 卸载时 flush
   useEffect(() => {
     const onHide = () => {
@@ -173,5 +182,6 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
     markTagsDirty,
     flush,
     setNoteId,
+    getPendingData,
   };
 }

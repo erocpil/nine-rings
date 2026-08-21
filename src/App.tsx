@@ -162,6 +162,35 @@ function App() {
       .catch((error) => console.error("[PWA] 刷新前保存失败，已取消更新:", error));
   }, [flushAutoSave, webPlatform.applyUpdate]);
 
+  const exportEmergencyBackup = useCallback(async () => {
+    try {
+      const json = await api.export.data();
+      const pending = autoSave.getPendingData();
+      let backup = json;
+      if (pending) {
+        const parsed = JSON.parse(json) as { notes?: Array<Record<string, unknown>> };
+        const target = parsed.notes?.find((note) => note.id === pending.noteId);
+        if (target) Object.assign(target, pending.changes);
+        backup = JSON.stringify(parsed, null, 2);
+      }
+      const blob = new Blob([backup], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `nine-rings-recovery-${localDateKey()}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (backupError) {
+      console.error("[Recovery] 紧急导出失败:", backupError);
+    }
+  }, [autoSave.getPendingData]);
+
+  const retryFailedSave = useCallback(() => {
+    void autoSave.flush()
+      .then(() => useNotesStore.getState().clearError())
+      .catch((saveError) => console.error("[Recovery] 重试保存失败:", saveError));
+  }, [autoSave.flush]);
+
   const handleSelectNote = useCallback((note: Note | null) => {
     if (note) {
       setSelectedFolderPath(null);
@@ -798,8 +827,15 @@ function App() {
       {isTauriRuntime() && <TitleBar />}
       <header className="app-header">
         {error && (
-          <div className="error-bar" onClick={clearError}>
-            ⚠ {error} <span className="error-dismiss">✕</span>
+          <div className="error-bar" role="alert">
+            <span>⚠ {error}</span>
+            {autoSave.status === "error" && (
+              <button type="button" onClick={retryFailedSave}>重试保存</button>
+            )}
+            {!isTauriRuntime() && (
+              <button type="button" onClick={() => void exportEmergencyBackup()}>导出恢复文件</button>
+            )}
+            <button type="button" className="error-dismiss" onClick={clearError} aria-label="关闭错误提示">✕</button>
           </div>
         )}
         {sidebarHidden && (
@@ -884,6 +920,7 @@ function App() {
           updateAvailable={webPlatform.updateAvailable}
           storagePressure={webPlatform.storagePressure}
           onApplyUpdate={applyWebUpdate}
+          onExportBackup={() => void exportEmergencyBackup()}
         />
       )}
 

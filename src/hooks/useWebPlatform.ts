@@ -80,9 +80,10 @@ export function useWebPlatform() {
   useEffect(() => {
     if (isTauriRuntime()) return;
 
-    const refreshOnline = () => setOnline(navigator.onLine);
-    window.addEventListener("online", refreshOnline);
-    window.addEventListener("offline", refreshOnline);
+    const markOnline = () => setOnline(true);
+    const markOffline = () => setOnline(false);
+    window.addEventListener("online", markOnline);
+    window.addEventListener("offline", markOffline);
 
     syncViewportCSS();
     let animationFrameId = 0;
@@ -141,8 +142,8 @@ export function useWebPlatform() {
 
     return () => {
       cancelled = true;
-      window.removeEventListener("online", refreshOnline);
-      window.removeEventListener("offline", refreshOnline);
+      window.removeEventListener("online", markOnline);
+      window.removeEventListener("offline", markOffline);
       viewport?.removeEventListener("resize", scheduleViewportSync);
       viewport?.removeEventListener("scroll", scheduleViewportSync);
       window.removeEventListener("resize", scheduleViewportSync);

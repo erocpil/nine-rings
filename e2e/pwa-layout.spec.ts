@@ -43,10 +43,48 @@ test.describe("PWA 窄屏应用外壳", () => {
 
   test("离线时明确提示但编辑器保持可用", async ({ page, context }) => {
     await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeEditable();
+    await page.waitForLoadState("networkidle");
     await context.setOffline(true);
+    await page.evaluate(() => window.dispatchEvent(new Event("offline")));
     await expect(page.locator(".web-status-banner.offline")).toContainText("当前离线");
     await expect(page.locator(".ProseMirror")).toBeEditable();
   });
+
+  test("软键盘高度不会重复压缩覆盖层和正文滚动区", async ({ page }) => {
+    await page.goto("/");
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty("--app-keyboard-height", "300px");
+    });
+
+    await page.getByTitle("显示侧栏").click();
+    const sidebarBottom = await page.locator(".app-sidebar").evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return Math.round(rect.bottom);
+    });
+    const scrollPaddingBottom = await page.locator(".note-editor-scroll").evaluate(
+      (element) => getComputedStyle(element).scrollPaddingBottom,
+    );
+    expect(sidebarBottom).toBe(760);
+    expect(scrollPaddingBottom).not.toContain("300px");
+  });
+});
+
+test("横屏手机保持单行工具栏且正文可滚动", async ({ page }) => {
+  await page.setViewportSize({ width: 760, height: 390 });
+  await page.goto("/");
+
+  const toolbar = page.locator(".editor-menu");
+  await expect(toolbar).toBeVisible();
+  await expect(toolbar).toHaveClass(/toolbar-minimal/);
+  const layout = await toolbar.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    viewportHeight: document.documentElement.clientHeight,
+  }));
+  expect(layout.scrollHeight).toBeLessThanOrEqual(layout.clientHeight + 1);
+  expect(layout.viewportHeight).toBe(390);
+  await expect(page.locator(".note-editor-scroll")).toBeVisible();
 });
 
 test("属性面板在窄屏中覆盖显示而不挤压正文", async ({ page }) => {
