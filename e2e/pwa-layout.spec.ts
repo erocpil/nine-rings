@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 test.describe("PWA 窄屏应用外壳", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
@@ -33,7 +33,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await lineNumberSetting.locator(".settings-toggle").click();
     await page.getByLabel("关闭设置").click();
 
-    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "32px");
+    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "28px");
     const geometry = await page.locator(".editor-content-shell").evaluate((shell) => {
       const number = shell.querySelector(".editor-block-number")!.getBoundingClientRect();
       const paragraph = shell.querySelector(".ProseMirror > *")!.getBoundingClientRect();
@@ -64,22 +64,21 @@ test.describe("PWA 窄屏应用外壳", () => {
   test("选择文字后工具栏保留选区并能应用格式", async ({ page }) => {
     await page.goto("/");
     const editor = page.locator(".ProseMirror");
-    await editor.evaluate((element) => {
-      const text = [...element.querySelectorAll("p")]
-        .find((paragraph) => paragraph.textContent?.startsWith("这是一篇"))?.firstChild;
-      if (!text) throw new Error("selection fixture not found");
-      const range = document.createRange();
-      range.setStart(text, 0);
-      range.setEnd(text, Math.min(4, text.textContent?.length ?? 0));
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      element.dispatchEvent(new Event("focus", { bubbles: true }));
-    });
+    await editor.fill("测试文字");
+    await editor.click();
+    await page.keyboard.press("End");
+    await page.keyboard.press("Shift+Home");
+    await expect.poll(() => page.evaluate(() => window.getSelection()?.toString() ?? "")).toBe("测试文字");
 
-    await page.getByTitle("样式").click();
+    const touch = async (locator: Locator) => {
+      const box = await locator.boundingBox();
+      if (!box) throw new Error("touch target has no geometry");
+      await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    };
+    await touch(page.getByTitle("样式"));
+    await expect(page.getByRole("button", { name: "B 加粗" })).toBeVisible();
     await page.getByRole("button", { name: "B 加粗" }).click();
-    await expect(editor.locator("p").filter({ hasText: /^这是一篇/ }).locator("strong").first()).toContainText("这是一篇");
+    await expect(editor.locator("strong")).toHaveText("测试文字");
     await expect(editor).toHaveCSS("-webkit-user-select", "text");
   });
 

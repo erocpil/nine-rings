@@ -6,6 +6,6 @@ export function editorGutterWidth(blockCount: number, showNumbers: boolean, comp
   if (!showNumbers) return 24;
   const safeCount = Number.isFinite(blockCount) ? Math.max(1, Math.floor(blockCount)) : 1;
   const digits = String(safeCount).length;
-  if (compact) return Math.max(32, 12 + digits * 7);
+  if (compact) return Math.max(28, 9 + digits * 7);
   return Math.max(44, 20 + digits * 8);
 }

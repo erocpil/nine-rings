@@ -6772,6 +6772,12 @@ body {
     display: none;
   }
 
+  .editor-block-number {
+    width: calc(var(--editor-gutter-width) - 4px);
+    padding-right: 2px;
+    font-size: 12px;
+  }
+
   /* iOS 的系统 Cut/Copy/Paste callout 会覆盖应用工具栏并吞掉首次点击。
      保留文字选择和拖动手柄，操作统一交给上方编辑工具栏。 */
   .note-editor .ProseMirror,

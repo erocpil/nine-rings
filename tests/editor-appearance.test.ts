@@ -68,9 +68,9 @@ assert.equal(editorGutterWidth(0, false), 24);
 assert.equal(editorGutterWidth(999, true), 44);
 assert.equal(editorGutterWidth(1_000, true), 52);
 assert.equal(editorGutterWidth(10_000, true), 60);
-assert.equal(editorGutterWidth(99, true, true), 32);
-assert.equal(editorGutterWidth(999, true, true), 33);
-assert.equal(editorGutterWidth(1_000, true, true), 40);
+assert.equal(editorGutterWidth(99, true, true), 28);
+assert.equal(editorGutterWidth(999, true, true), 30);
+assert.equal(editorGutterWidth(1_000, true, true), 37);
 
 assert.equal(needsCjkLatinSpacing("中", "A"), true);
 assert.equal(needsCjkLatinSpacing("A", "文"), true);

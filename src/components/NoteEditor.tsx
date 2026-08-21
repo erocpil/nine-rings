@@ -228,6 +228,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const scrollRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const toolbarSelectionRef = useRef<{ from: number; to: number } | null>(null);
+  const toolbarInteractingRef = useRef(false);
   const searchMatchesRef = useRef<SearchMatch[]>([]);
   const editorFindOriginRef = useRef(0);
   const editorFindInputRef = useRef<HTMLInputElement>(null);
@@ -462,6 +463,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     },
     onSelectionUpdate: ({ editor: ed }) => {
       const { from, to } = ed.state.selection;
+      if (ed.isFocused && from === to && !toolbarInteractingRef.current) toolbarSelectionRef.current = null;
       localStorage.setItem(`selectionPos:${noteId}`, JSON.stringify({ from, to }));
     },
     onUpdate: ({ editor: ed }) => {
@@ -1226,6 +1228,33 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
   if (!editor) return <div className="note-editor"><div className="empty-state">加载中...</div></div>;
 
+  const rememberToolbarSelection = () => {
+    const { from, to } = editor.state.selection;
+    if (from !== to) {
+      toolbarSelectionRef.current = { from, to };
+      return;
+    }
+    const domSelection = window.getSelection();
+    if (!domSelection || domSelection.isCollapsed || !domSelection.anchorNode || !domSelection.focusNode) return;
+    try {
+      const anchor = editor.view.posAtDOM(domSelection.anchorNode, domSelection.anchorOffset);
+      const focus = editor.view.posAtDOM(domSelection.focusNode, domSelection.focusOffset);
+      toolbarSelectionRef.current = { from: Math.min(anchor, focus), to: Math.max(anchor, focus) };
+    } catch {
+      // The browser can briefly expose a selection outside ProseMirror while moving focus.
+    }
+  };
+
+  const runToolbarFormat = (format: "bold" | "italic" | "strike") => {
+    let chain = editor.chain();
+    const selection = toolbarSelectionRef.current;
+    if (selection) chain = chain.setTextSelection(selection);
+    chain = chain.focus();
+    if (format === "bold") chain.toggleBold().run();
+    else if (format === "italic") chain.toggleItalic().run();
+    else chain.toggleStrike().run();
+  };
+
   // ── 滚动位置计算 ──
   const _el = scrollRef.current;
   const scrollableHeight = _el ? (_el.scrollHeight - _el.clientHeight) : 1;
@@ -1706,16 +1735,29 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           className={`editor-menu ${isNarrow ? "toolbar-compact" : "toolbar-full"} ${isMinimalToolbar ? "toolbar-minimal" : ""}`}
           onPointerDownCapture={(event) => {
             if (!(event.target instanceof Element) || !event.target.closest("button")) return;
-            const { from, to } = editor.state.selection;
-            toolbarSelectionRef.current = { from, to };
-            // Mobile Safari otherwise moves focus to the button before its click runs.
+            toolbarInteractingRef.current = true;
+            // The first tap may move DOM focus away from the editor. Keep the last non-empty
+            // selection across opening a dropdown and tapping one of its commands.
+            rememberToolbarSelection();
+          }}
+          onTouchStartCapture={(event) => {
+            if (!(event.target instanceof Element) || !event.target.closest("button")) return;
+            toolbarInteractingRef.current = true;
+            rememberToolbarSelection();
             event.preventDefault();
+          }}
+          onTouchEndCapture={(event) => {
+            if (!(event.target instanceof Element)) return;
+            const button = event.target.closest<HTMLButtonElement>("button");
+            if (!button) return;
+            event.preventDefault();
+            button.click();
           }}
           onClickCapture={(event) => {
             if (!(event.target instanceof Element) || !event.target.closest("button")) return;
             const selection = toolbarSelectionRef.current;
-            toolbarSelectionRef.current = null;
             if (selection) editor.commands.setTextSelection(selection);
+            requestAnimationFrame(() => { toolbarInteractingRef.current = false; });
           }}
         >
           {btn("↩", () => editor.chain().focus().undo().run(), false, "撤销 (Ctrl+Z)", readonly)}
@@ -1737,17 +1779,17 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
                 <div className="menu-dropdown-list">
                   <button
                     className={`menu-dropdown-item ${editor.isActive("bold") ? "active" : ""}`}
-                    onClick={() => { editor.chain().focus().toggleBold().run(); setStyleOpen(false); }}
+                    onClick={() => { runToolbarFormat("bold"); setStyleOpen(false); }}
                     type="button"
                   ><b>B 加粗</b></button>
                   <button
                     className={`menu-dropdown-item ${editor.isActive("italic") ? "active" : ""}`}
-                    onClick={() => { editor.chain().focus().toggleItalic().run(); setStyleOpen(false); }}
+                    onClick={() => { runToolbarFormat("italic"); setStyleOpen(false); }}
                     type="button"
                   ><i>I 斜体</i></button>
                   <button
                     className={`menu-dropdown-item ${editor.isActive("strike") ? "active" : ""}`}
-                    onClick={() => { editor.chain().focus().toggleStrike().run(); setStyleOpen(false); }}
+                    onClick={() => { runToolbarFormat("strike"); setStyleOpen(false); }}
                     type="button"
                   ><s>S 删除线</s></button>
                 </div>
