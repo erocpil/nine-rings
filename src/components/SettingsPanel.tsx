@@ -69,6 +69,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
   const configRef = useRef<AppConfig | null>(null);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const updateVersionRef = useRef(0);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [editorAppearanceOpen, setEditorAppearanceOpen] = useState(false);
   const [settingsPage, setSettingsPage] = useState<SettingsPage>("root");
 
@@ -116,6 +117,18 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
       loadSettings();
     }
     else setEditorAppearanceOpen(false);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+    return () => {
+      window.cancelAnimationFrame(frame);
+      previouslyFocused?.focus();
+    };
   }, [open]);
 
   const refreshTags = () => {
@@ -309,7 +322,14 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
 
   return (
     <div className="settings-overlay" onClick={onClose}>
-      <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="settings-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="settings-dialog-title"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(event) => { if (event.key === "Escape") onClose(); }}
+      >
         <div className="settings-header">
           <div className="settings-header-main">
             {settingsPage !== "root" && (
@@ -321,9 +341,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
                 title="返回设置分类"
               >←</button>
             )}
-            <h2>{SETTINGS_PAGE_TITLES[settingsPage]}</h2>
+            <h2 id="settings-dialog-title">{SETTINGS_PAGE_TITLES[settingsPage]}</h2>
           </div>
-          <button className="settings-close" onClick={onClose}>✕</button>
+          <button ref={closeButtonRef} className="settings-close" onClick={onClose} aria-label="关闭设置">✕</button>
         </div>
 
         {loading ? (

@@ -187,10 +187,17 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
 
   return (
     <div className="dialog-overlay" onClick={onClose}>
-      <div className="dialog doc-create-dialog" onClick={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
+      <div
+        className="dialog doc-create-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="doc-create-dialog-title"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
+      >
         <div className="dialog-header">
-          <h3>新建文档</h3>
-          <button className="btn-icon dialog-close" onClick={onClose}>✕</button>
+          <h3 id="doc-create-dialog-title">新建文档</h3>
+          <button className="btn-icon dialog-close" onClick={onClose} aria-label="关闭新建文档">✕</button>
         </div>
 
         <div className="dialog-body">

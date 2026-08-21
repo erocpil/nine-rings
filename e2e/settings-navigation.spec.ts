@@ -25,3 +25,22 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await expect(page.getByText("Markdown 导入", { exact: true })).toBeVisible();
   await expect(page.getByText("快捷键", { exact: true })).toHaveCount(0);
 });
+
+test("设置弹窗具有语义并在键盘关闭后恢复焦点", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  const trigger = page.getByTitle("设置");
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+
+  const dialog = page.getByRole("dialog", { name: "设置" });
+  await expect(dialog).toBeVisible();
+  await expect(page.getByLabel("关闭设置")).toBeFocused();
+  await expect.poll(() => page.locator(".settings-overlay").evaluate(
+    (element) => Number.parseFloat(getComputedStyle(element).animationDuration),
+  )).toBeLessThanOrEqual(0.00001);
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
