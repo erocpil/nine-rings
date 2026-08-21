@@ -343,11 +343,11 @@ test.describe("编辑器复制粘贴", () => {
     await expect(childList).toHaveCount(1);
     await expect(grandchildList).toHaveCount(1);
     await expect(grandchildList).toContainText("Grandchild");
-    // 无序列表 marker 由 ::before 统一绘制，避免 Safari 同时显示原生
-    // marker 和伪元素而形成双圆点。
+    // 两种列表 marker 均由 ::before 统一绘制，避免 Safari 同时显示
+    // 原生 marker 和伪元素而形成重复标记。
     await expect(rootList).toHaveCSS("list-style-type", "none");
     await expect(bulletChildList).toHaveCSS("list-style-type", "none");
-    await expect(childList).toHaveCSS("list-style-type", "lower-alpha");
+    await expect(childList).toHaveCSS("list-style-type", "none");
     await expect(grandchildList).toHaveCSS("list-style-type", "none");
     await expect.poll(() => rootList.locator(":scope > li").first().evaluate(
       (element) => getComputedStyle(element, "::before").content,
@@ -355,6 +355,12 @@ test.describe("编辑器复制粘贴", () => {
     await expect.poll(() => grandchildList.locator(":scope > li").first().evaluate(
       (element) => getComputedStyle(element, "::before").content,
     )).toContain("▪");
+    await expect.poll(() => childList.locator(":scope > li").first().evaluate(
+      (element) => getComputedStyle(element, "::before").content,
+    )).toContain("counter(list-item, lower-alpha)");
+    await expect.poll(() => childList.locator(":scope > li").first().evaluate(
+      (element) => getComputedStyle(element, "::before").content,
+    )).not.toContain("•");
   });
 
   test("同时携带 HTML 的 Markdown 仍完整格式化", async ({ page }) => {

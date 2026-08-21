@@ -10,7 +10,6 @@ import {
   type SyncStatus,
   type PullPrecheck,
 } from "../lib/sync/github";
-import { isTauriRuntime } from "../lib/runtime";
 
 interface Props {
   /** 备份进行中回调 — 父组件用来 freeze 编辑区 */
@@ -56,17 +55,6 @@ function fmtCountDelta(remote: number, local: number): string {
   const delta = remote - local;
   if (delta === 0) return "数量相同";
   return delta > 0 ? `远端多 ${delta}` : `远端少 ${Math.abs(delta)}`;
-}
-
-function downloadPullRestorePoint(json: string): void {
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const blob = new Blob([json], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `nine-rings-before-pull-${stamp}.json`;
-  anchor.click();
-  URL.revokeObjectURL(url);
 }
 
 export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
@@ -219,22 +207,16 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
 
   const handlePull = useCallback(async () => {
     if (!pullPrecheck) return;
-    if (!confirm("将用远端数据覆盖本地数据库，建议先确认差异。确认继续？")) {
+    if (!confirm("将从 GitHub 读取远端快照并直接覆盖本地数据库，建议先确认差异。确认继续？")) {
       setPullPrecheck(null);
       return;
     }
     setBusy(true);
     clearMessage();
     try {
-      if (!isTauriRuntime()) {
-        downloadPullRestorePoint(pullPrecheck.localBackup);
-      }
       const updated = await pullFromGitHub(cfg);
       setCfg(updated);
-      showMessage(
-        `已拉取 (${new Date().toLocaleTimeString()})${isTauriRuntime() ? "" : "；拉取前恢复文件已下载"}`,
-        "success",
-      );
+      showMessage(`已拉取并导入 (${new Date().toLocaleTimeString()})`, "success");
       onPullDone?.();
       setPullPrecheck(null);
     } catch (e) {
@@ -394,11 +376,11 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
           <div className="settings-hint" style={{ marginBottom: 8 }}>
             差异摘要：笔记{fmtCountDelta(pullPrecheck.remote.noteCount, pullPrecheck.local.noteCount)}；
             页面{fmtCountDelta(pullPrecheck.remote.pageCount, pullPrecheck.local.pageCount)}。
-            {!isTauriRuntime() && " 确认后会先自动下载本地完整恢复文件。"}
+            导入失败时会自动恢复拉取前的本地数据。
           </div>
           <div className="settings-row" style={{ gap: 8 }}>
             <button className="settings-btn settings-btn-danger" onClick={handlePull} disabled={busy}>
-              确认覆盖并拉取
+              确认覆盖并导入
             </button>
             <button className="settings-btn" onClick={() => setPullPrecheck(null)} disabled={busy}>
               取消

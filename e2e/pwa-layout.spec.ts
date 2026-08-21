@@ -23,6 +23,21 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(bullet).toBeVisible();
     await expect.poll(() => bullet.evaluate((element) => getComputedStyle(element).listStyleType))
       .toBe("none");
+    const listGeometry = await editor.evaluate((element) => {
+      const unordered = element.querySelector(":scope > ul")!;
+      const ordered = element.querySelector(":scope > ol")!;
+      const orderedItem = ordered.querySelector(":scope > li")!;
+      return {
+        fontSize: Number.parseFloat(getComputedStyle(element).fontSize),
+        unorderedPadding: Number.parseFloat(getComputedStyle(unordered).paddingInlineStart),
+        orderedPadding: Number.parseFloat(getComputedStyle(ordered).paddingInlineStart),
+        orderedMarker: getComputedStyle(orderedItem, "::before").content,
+      };
+    });
+    expect(listGeometry.orderedPadding - listGeometry.unorderedPadding)
+      .toBeCloseTo(listGeometry.fontSize * 0.75, 1);
+    expect(listGeometry.orderedMarker).toContain("counter(list-item)");
+    expect(listGeometry.orderedMarker).not.toContain("•");
   });
 
   test("移动端块编号使用紧凑且可随位数扩展的 gutter", async ({ page }) => {
@@ -37,9 +52,26 @@ test.describe("PWA 窄屏应用外壳", () => {
     const geometry = await page.locator(".editor-content-shell").evaluate((shell) => {
       const number = shell.querySelector(".editor-block-number")!.getBoundingClientRect();
       const paragraph = shell.querySelector(".ProseMirror > *")!.getBoundingClientRect();
-      return { numberRight: number.right, paragraphLeft: paragraph.left };
+      const orderedNumber = shell.querySelector<HTMLElement>('.editor-block-number[data-block-format="OL"]')!.getBoundingClientRect();
+      const orderedList = shell.querySelector<HTMLElement>(".ProseMirror > ol")!;
+      const orderedItem = orderedList.querySelector<HTMLElement>(":scope > li")!;
+      const orderedListRect = orderedList.getBoundingClientRect();
+      const insert = shell.querySelector(".editor-block-insert")!.getBoundingClientRect();
+      return {
+        numberRight: number.right,
+        paragraphLeft: paragraph.left,
+        orderedNumberRight: orderedNumber.right,
+        orderedListLeft: orderedListRect.left,
+        orderedItemOffset: orderedItem.getBoundingClientRect().left - orderedListRect.left,
+        orderedPadding: Number.parseFloat(getComputedStyle(orderedList).paddingInlineStart),
+        insertRight: insert.right,
+        numberLeft: number.left,
+      };
     });
     expect(geometry.numberRight).toBeLessThanOrEqual(geometry.paragraphLeft);
+    expect(geometry.orderedNumberRight).toBeLessThanOrEqual(geometry.orderedListLeft);
+    expect(geometry.orderedItemOffset).toBeCloseTo(geometry.orderedPadding, 1);
+    expect(geometry.insertRight).toBeLessThanOrEqual(geometry.numberLeft);
   });
 
   test("手机端可以点按块间加号插入空行", async ({ page }) => {

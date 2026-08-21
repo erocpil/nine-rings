@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-test("独立排版工作台中的设置即时生效并在重载后保持", async ({ page }) => {
+test("排版设置中的调整即时生效并在重载后保持", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("设置").click();
   await page.getByRole("button", { name: /^外观与排版/ }).click();
   await expect(page.getByText("编辑器排版", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /打开排版工作台/ }).click();
-  await expect(page.getByRole("dialog", { name: "排版工作台" })).toBeVisible();
+  await page.getByRole("button", { name: /打开排版设置/ }).click();
+  await expect(page.getByRole("dialog", { name: "排版设置" })).toBeVisible();
   await expect(page.getByLabel("编辑器排版预览")).toBeVisible();
 
   await page.getByLabel("正文字体").selectOption("serif");
@@ -51,9 +51,11 @@ test("独立排版工作台中的设置即时生效并在重载后保持", async
     const nestedList = element.querySelector(":scope > ul ul");
     const topLevelOrderedList = element.querySelector(":scope > ol");
     const nestedOrderedList = element.querySelector(":scope > ol ol");
+    const unorderedItem = topLevelList?.querySelector(":scope > li");
+    const orderedItem = topLevelOrderedList?.querySelector(":scope > li");
     const firstParagraph = element.querySelector(":scope > h3 + p");
     const secondParagraph = firstParagraph?.nextElementSibling;
-    if (!topLevelList || !nestedList || !topLevelOrderedList || !nestedOrderedList || !firstParagraph || !(secondParagraph instanceof HTMLParagraphElement)) {
+    if (!topLevelList || !nestedList || !topLevelOrderedList || !nestedOrderedList || !unorderedItem || !orderedItem || !firstParagraph || !(secondParagraph instanceof HTMLParagraphElement)) {
       throw new Error("appearance preview spacing fixtures not found");
     }
     const firstBox = firstParagraph.getBoundingClientRect();
@@ -66,6 +68,9 @@ test("独立排版工作台中的设置即时生效并在重载后保持", async
       unorderedIndent: Number.parseFloat(getComputedStyle(topLevelList).paddingInlineStart) / fontSize,
       orderedIndent: Number.parseFloat(getComputedStyle(topLevelOrderedList).paddingInlineStart) / fontSize,
       nestedOrderedIndent: Number.parseFloat(getComputedStyle(nestedOrderedList).paddingInlineStart) / fontSize,
+      unorderedMarker: getComputedStyle(unorderedItem, "::before").content,
+      orderedMarker: getComputedStyle(orderedItem, "::before").content,
+      orderedNativeMarker: getComputedStyle(orderedItem, "::marker").content,
     };
   });
   expect(previewSpacing.paragraphGap).toBeCloseTo(1.05, 2);
@@ -73,8 +78,12 @@ test("独立排版工作台中的设置即时生效并在重载后保持", async
   expect(previewSpacing.listBottom).toBeCloseTo(0.2, 2);
   expect(previewSpacing.nestedTop).toBe(0);
   expect(previewSpacing.unorderedIndent).toBeCloseTo(1.2, 2);
-  expect(previewSpacing.orderedIndent).toBeCloseTo(previewSpacing.unorderedIndent, 2);
-  expect(previewSpacing.nestedOrderedIndent).toBeCloseTo(previewSpacing.unorderedIndent, 2);
+  expect(previewSpacing.orderedIndent).toBeCloseTo(1.95, 2);
+  expect(previewSpacing.nestedOrderedIndent).toBeCloseTo(previewSpacing.orderedIndent, 2);
+  expect(previewSpacing.unorderedMarker).toContain("•");
+  expect(previewSpacing.orderedMarker).toContain("counter(list-item)");
+  expect(previewSpacing.orderedMarker).not.toContain("•");
+  expect(previewSpacing.orderedNativeMarker).toBe('""');
 
   await page.reload();
   await expect.poll(() => page.locator(".app").evaluate((element) => ({
@@ -117,7 +126,7 @@ test("中英文自动间距只改变渲染且开关可以持久化", async ({ pa
 
   await page.getByTitle("设置").click();
   await page.getByRole("button", { name: /^外观与排版/ }).click();
-  await page.getByRole("button", { name: /打开排版工作台/ }).click();
+  await page.getByRole("button", { name: /打开排版设置/ }).click();
   const toggle = page.getByLabel("中英文自动间距");
   await expect(toggle).toBeChecked();
   await page.locator(".editor-appearance-toggle").click();
@@ -184,7 +193,7 @@ test("四至六级标题字号不小于正文", async ({ page }) => {
 
   await page.getByTitle("设置").click();
   await page.getByRole("button", { name: /^外观与排版/ }).click();
-  await page.getByRole("button", { name: /打开排版工作台/ }).click();
+  await page.getByRole("button", { name: /打开排版设置/ }).click();
   await page.getByRole("button", { name: "增大正文与标题字号" }).click();
 
   const enlarged = await readSizes();

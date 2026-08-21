@@ -64,6 +64,7 @@ html {
   --editor-list-margin-top: 0.25em;
   --editor-list-margin-bottom: 0.25em;
   --editor-list-indent: 1.25em;
+  --editor-ordered-list-extra-indent: 0.75em;
   --editor-list-marker-gap: 0.2em;
   --editor-blockquote-indent: 12px;
   --editor-search-highlight: #ffd54f;
@@ -3353,11 +3354,11 @@ body {
 }
 
 .show-line-numbers .editor-content-shell {
-  --editor-gutter-width: 44px;
+  --editor-gutter-width: 32px;
 }
 
 .focus-mode.show-line-numbers .editor-content-shell {
-  --editor-gutter-width: 36px;
+  --editor-gutter-width: 32px;
 }
 
 .editor-content-shell > .editor-content {
@@ -3408,6 +3409,11 @@ body {
   line-height: var(--editor-line-height, 1.45);
   user-select: none;
   pointer-events: auto;
+}
+
+.show-line-numbers .editor-block-number {
+  left: 20px;
+  width: calc(var(--editor-gutter-width) - 20px);
 }
 
 .editor-block-number::after {
@@ -3471,8 +3477,8 @@ body {
 }
 
 .show-line-numbers .editor-block-insert {
-  left: 4px;
-  width: 24px;
+  left: 0;
+  width: 20px;
 }
 
 .editor-block-insert:hover,
@@ -3517,9 +3523,17 @@ body {
 
 /* ──── ProseMirror content ──── */
 
+.editor-content ul {
+  padding-inline-start: var(--editor-list-indent);
+}
+
+.editor-content ol {
+  /* 编号比圆点宽；额外预留固定编号列，避免多位编号侵入块号 gutter。 */
+  padding-inline-start: calc(var(--editor-list-indent) + var(--editor-ordered-list-extra-indent));
+}
+
 .editor-content ul,
 .editor-content ol {
-  padding-inline-start: var(--editor-list-indent);
   margin: 4px 0;
   list-style-position: outside;
 }
@@ -3541,21 +3555,30 @@ body {
   text-indent: 0;
 }
 
-/* Chromium 的 outside marker 间距不可独立控制。无序列表使用不进入
-   文档结构的伪元素绘制，从而让层级缩进与圆点文字间距分别可调。 */
-.editor-content ul > li {
+/* 原生 marker 的占位和间距在 Chromium/Safari 间不一致。两种列表都由
+   ::before 绘制：文本起点、标记间距和编号列因此使用同一套几何规则。 */
+.editor-content :is(ul, ol) > li {
   position: relative;
 }
 
-.editor-content ul > li::marker {
+.editor-content :is(ul, ol) > li::marker {
   content: "";
+}
+
+.editor-content :is(ul, ol) > li::before {
+  position: absolute;
+  right: calc(100% + var(--editor-list-marker-gap));
+  color: currentColor;
+  white-space: nowrap;
 }
 
 .editor-content ul > li::before {
   content: "•";
-  position: absolute;
-  right: calc(100% + var(--editor-list-marker-gap));
-  color: currentColor;
+}
+
+.editor-content ol > li::before {
+  content: counter(list-item) ".";
+  font-variant-numeric: tabular-nums;
 }
 
 .editor-content li > ul,
@@ -3564,15 +3587,10 @@ body {
   margin-top: 2px;
 }
 
-.editor-content ol {
-  list-style-type: decimal;
-}
-
-/* Safari 会同时绘制原生 marker 和自定义 ::before，形成“双圆点”。
-   无序列表完全交给伪元素绘制，跨浏览器只保留一枚 marker。 */
+/* Safari 可能同时绘制原生 marker 和 ::before。彻底关闭两种列表的
+   原生 marker，只保留上面的统一标记层。list-item counter 仍会递增。 */
 .editor-content ul,
-.editor-content li > ul,
-.editor-content li li > ul {
+.editor-content ol {
   list-style: none;
 }
 
@@ -3584,12 +3602,12 @@ body {
   content: "▪";
 }
 
-.editor-content li > ol {
-  list-style-type: lower-alpha;
+.editor-content li > ol > li::before {
+  content: counter(list-item, lower-alpha) ".";
 }
 
-.editor-content li li > ol {
-  list-style-type: lower-roman;
+.editor-content li li > ol > li::before {
+  content: counter(list-item, lower-roman) ".";
 }
 
 /* ── Markdown / TipTap 表格 ── */
@@ -3700,7 +3718,7 @@ body {
 }
 
 /* Markdown 空白行是块分隔符，不会生成空段落。正文之间保留稳定分隔，
-   标题与相邻块的节奏则由排版工作台独立控制。 */
+   标题与相邻块的节奏则由排版设置独立控制。 */
 .editor-content h1 { font-size: 1.6em; }
 .editor-content h2 { font-size: 1.3em; }
 .editor-content h3 { font-size: 1.1em; }
@@ -4231,27 +4249,55 @@ body {
   text-indent: var(--editor-paragraph-indent);
 }
 
-.editor-appearance-preview :is(ul, ol) {
+.editor-appearance-preview ul {
   margin: 0;
   padding-inline-start: var(--editor-list-indent);
-}
-
-.editor-appearance-preview ul {
   list-style: none;
 }
 
-.editor-appearance-preview li {
+.editor-appearance-preview ol {
+  margin: 0;
+  padding-inline-start: calc(var(--editor-list-indent) + var(--editor-ordered-list-extra-indent));
+  list-style: none;
+}
+
+.editor-appearance-preview :is(ul, ol) > li {
   position: relative;
 }
 
-.editor-appearance-preview li::before {
-  content: "•";
-  position: absolute;
-  right: calc(100% + var(--editor-list-marker-gap));
+.editor-appearance-preview :is(ul, ol) > li::marker {
+  content: "";
 }
 
-.editor-appearance-preview li li::before {
+.editor-appearance-preview :is(ul, ol) > li::before {
+  position: absolute;
+  right: calc(100% + var(--editor-list-marker-gap));
+  white-space: nowrap;
+}
+
+.editor-appearance-preview ul > li::before {
+  content: "•";
+}
+
+.editor-appearance-preview li > ul > li::before {
   content: "◦";
+}
+
+.editor-appearance-preview li li > ul > li::before {
+  content: "▪";
+}
+
+.editor-appearance-preview ol > li::before {
+  content: counter(list-item) ".";
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-appearance-preview li > ol > li::before {
+  content: counter(list-item, lower-alpha) ".";
+}
+
+.editor-appearance-preview li li > ol > li::before {
+  content: counter(list-item, lower-roman) ".";
 }
 
 .editor-appearance-preview mark {
@@ -6813,14 +6859,19 @@ body {
   }
 
   .show-line-numbers .editor-block-insert {
-    left: 2px;
-    width: 24px;
+    left: 0;
+    width: 14px;
   }
 
   .editor-block-number {
     width: calc(var(--editor-gutter-width) - 4px);
-    padding-right: 2px;
-    font-size: 12px;
+    padding-right: 1px;
+    font-size: 11px;
+  }
+
+  .show-line-numbers .editor-block-number {
+    left: 14px;
+    width: calc(var(--editor-gutter-width) - 14px);
   }
 
   /* 保留 iOS 原生选区菜单、文字选择和拖动手柄。系统剪贴板、替换和

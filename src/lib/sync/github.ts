@@ -3,7 +3,7 @@
  *
  * 数据流：
  *   Push: IndexedDB → 序列化 JSON → PUT /repos/{owner}/{repo}/contents/nine-rings-backup.json
- *   Pull: GET → 下载 JSON → 覆盖 IndexedDB
+ *   Pull: GET → 读取 JSON → 直接导入 IndexedDB
  *
  * 认证：个人访问令牌（Personal Access Token），需 repo 权限。
  * 设置 → 填入 token + owner/repo → 测试连接 → 手动/定时同步。
@@ -167,8 +167,6 @@ export interface SyncSnapshotSummary {
 
 export interface PullPrecheck {
   local: SyncSnapshotSummary;
-  /** Pull 前导出的本地完整快照，用于在用户确认时生成恢复文件。 */
-  localBackup: string;
   remote: SyncSnapshotSummary & {
     version: string;
     path: string;
@@ -639,7 +637,7 @@ export async function previewPullFromGitHub(config: SyncConfig): Promise<PullPre
     throw new Error("请先配置 GitHub Token、Owner 和 Repo");
   }
   const ptrPath = latestPath(config.path);
-  const [localBackup, ptr] = await Promise.all([
+  const [localSnapshot, ptr] = await Promise.all([
     exportFullDB(),
     fetchRemote(config.token, config.owner, config.repo, ptrPath),
   ]);
@@ -655,11 +653,10 @@ export async function previewPullFromGitHub(config: SyncConfig): Promise<PullPre
   if (!remote) {
     throw new Error(`远端仓库中未找到数据文件 ${dataPath}`);
   }
-  const local = summarizeBackup(localBackup);
+  const local = summarizeBackup(localSnapshot);
   const remoteSummary = summarizeBackup(remote.content);
   return {
     local,
-    localBackup,
     remote: {
       ...remoteSummary,
       version,

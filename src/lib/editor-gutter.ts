@@ -6,6 +6,8 @@ export function editorGutterWidth(blockCount: number, showNumbers: boolean, comp
   if (!showNumbers) return 24;
   const safeCount = Number.isFinite(blockCount) ? Math.max(1, Math.floor(blockCount)) : 1;
   const digits = String(safeCount).length;
-  if (compact) return Math.max(28, 9 + digits * 7);
-  return Math.max(44, 20 + digits * 8);
+  // 块号开启后，左侧为独立的“+”列，右侧仅按数字位数分配宽度。
+  // 常见的一位块号保持紧凑，多位数时阶梯扩展，避免两列互相覆盖。
+  if (compact) return Math.max(26, 16 + digits * 6);
+  return Math.max(32, 24 + digits * 8);
 }

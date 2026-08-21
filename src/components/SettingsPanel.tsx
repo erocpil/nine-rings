@@ -432,7 +432,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
               </div>
             </Field>
 
-            <Field label="编辑器排版" desc="在独立工作台中调整字体、行距、缩进和搜索高亮" visible={settingsPage === "appearance"}>
+            <Field label="编辑器排版" desc="集中调整字体、行距、缩进和搜索高亮" visible={settingsPage === "appearance"}>
               <button
                 className="editor-appearance-entry"
                 type="button"
@@ -442,7 +442,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
                   <strong>{config.note_font_size}px</strong>
                   <small>{config.editor_font_family === "system" ? "系统字体" : config.editor_font_family} · {config.editor_line_height.toFixed(1)} 行距</small>
                 </span>
-                <span className="editor-appearance-entry-action">打开排版工作台 →</span>
+                <span className="editor-appearance-entry-action">打开排版设置 →</span>
               </button>
             </Field>
 

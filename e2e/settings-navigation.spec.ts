@@ -125,3 +125,66 @@ test("单击 Owner / Repo 字段可以进入编辑状态", async ({ page }) => {
   await page.getByRole("button", { name: "编辑 Owner / Repo" }).click();
   await expect(page.getByRole("textbox", { name: "Owner / Repo" })).toBeFocused();
 });
+
+test("Web/PWA 从 GitHub Pull 时直接导入且不触发 JSON 下载", async ({ page }) => {
+  const version = "20260822T020304";
+  const remoteSnapshot = JSON.stringify({
+    version: 1,
+    exported_at: "2026-08-22T02:03:04.000Z",
+    notes: [],
+    daily_pages: [],
+  });
+  const syncConfig = {
+    token: "",
+    owner: "pwa-owner",
+    repo: "pwa-repo",
+    path: "pwa-backup.json",
+    lastSyncAt: null,
+    remoteSha: null,
+    lastPushVersion: null,
+    lastPullVersion: null,
+    rememberToken: false,
+  };
+  await page.addInitScript(({ config }) => {
+    localStorage.setItem("nr:github-sync", JSON.stringify(config));
+    localStorage.setItem("nr:github-sync-token-mode", "0");
+    sessionStorage.setItem("nr:github-sync-token", "test-token");
+  }, { config: syncConfig });
+
+  const githubFile = (content: string, sha: string) => ({
+    content: Buffer.from(content, "utf8").toString("base64"),
+    encoding: "base64",
+    sha,
+    size: Buffer.byteLength(content),
+  });
+  await page.route("https://api.github.com/**", async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === "/repos/pwa-owner/pwa-repo") {
+      await route.fulfill({ json: { permissions: { pull: true, push: true } } });
+      return;
+    }
+    if (pathname.endsWith("/contents/pwa-backup-latest")) {
+      await route.fulfill({ json: githubFile(version, "ptr-sha") });
+      return;
+    }
+    if (pathname.endsWith(`/contents/pwa-backup-${version}.json`)) {
+      await route.fulfill({ json: githubFile(remoteSnapshot, "data-sha") });
+      return;
+    }
+    await route.fulfill({ status: 404, body: "not found" });
+  });
+
+  let downloadCount = 0;
+  page.on("download", () => { downloadCount += 1; });
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeEditable({ timeout: 10000 });
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^同步与备份/ }).click();
+  await page.getByRole("button", { name: "Pull ↓" }).click();
+  await expect(page.getByText("Pull 预检（将覆盖本地数据）")).toBeVisible();
+
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "确认覆盖并导入" }).click();
+  await expect(page.getByText(/已拉取并导入/)).toBeVisible({ timeout: 10000 });
+  expect(downloadCount).toBe(0);
+});

@@ -10,6 +10,7 @@ import {
 const defaults = editorAppearanceVariables();
 assert.equal(defaults["--editor-font-size"], "16px");
 assert.equal(defaults["--editor-list-indent"], "1.25em");
+assert.equal(defaults["--editor-ordered-list-extra-indent"], "0.75em");
 assert.equal(defaults["--editor-search-highlight"], "#ffd54f");
 assert.equal(defaults["--editor-heading-margin-top"], "0.7em");
 assert.equal(defaults["--editor-heading-margin-bottom"], "0.35em");
@@ -65,12 +66,15 @@ assert.equal(guarded["--editor-list-margin-bottom"], "0em");
 assert.equal(guarded["--editor-search-highlight"], "#ffd54f");
 
 assert.equal(editorGutterWidth(0, false), 24);
-assert.equal(editorGutterWidth(999, true), 44);
-assert.equal(editorGutterWidth(1_000, true), 52);
-assert.equal(editorGutterWidth(10_000, true), 60);
+assert.equal(editorGutterWidth(9, true), 32);
+assert.equal(editorGutterWidth(99, true), 40);
+assert.equal(editorGutterWidth(999, true), 48);
+assert.equal(editorGutterWidth(1_000, true), 56);
+assert.equal(editorGutterWidth(10_000, true), 64);
+assert.equal(editorGutterWidth(9, true, true), 26);
 assert.equal(editorGutterWidth(99, true, true), 28);
-assert.equal(editorGutterWidth(999, true, true), 30);
-assert.equal(editorGutterWidth(1_000, true, true), 37);
+assert.equal(editorGutterWidth(999, true, true), 34);
+assert.equal(editorGutterWidth(1_000, true, true), 40);
 
 assert.equal(needsCjkLatinSpacing("中", "A"), true);
 assert.equal(needsCjkLatinSpacing("A", "文"), true);

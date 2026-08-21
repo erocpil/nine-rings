@@ -64,7 +64,7 @@ test.describe("编辑器块级 gutter", () => {
     await expect(lineNumberToggle).toBeChecked();
     await page.locator(".settings-close").click();
     await expect(page.locator(".note-editor")).toHaveClass(/show-line-numbers/);
-    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "44px");
+    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "32px");
 
     const readonlyButton = page.locator(".sidebar-item.active").getByTitle("设为只读");
     await readonlyButton.evaluate((button: HTMLButtonElement) => button.click());
@@ -151,6 +151,13 @@ test.describe("编辑器块级 gutter", () => {
     await expect(page.locator(".editor-block-number")).toHaveText(["1", "2"]);
     await expect(page.locator(".editor-block-insert")).toHaveCount(3);
 
+    const gutterLanes = await page.locator(".editor-content-shell").evaluate((shell) => {
+      const number = shell.querySelector(".editor-block-number")!.getBoundingClientRect();
+      const insert = shell.querySelector(".editor-block-insert")!.getBoundingClientRect();
+      return { insertRight: insert.right, numberLeft: number.left };
+    });
+    expect(gutterLanes.insertRight).toBeLessThanOrEqual(gutterLanes.numberLeft);
+
     // 编号仅用于显示，强制触发点击也不能产生编辑事务。
     await page.locator(".editor-block-number").first().dispatchEvent("click");
     await expect(editor.locator(":scope > p")).toHaveCount(2);
@@ -191,6 +198,82 @@ test.describe("编辑器块级 gutter", () => {
     const insertCenter = insertBox.y + insertBox.height / 2;
     expect(insertCenter).toBeGreaterThan(dividerBox.y + dividerBox.height + 2);
     expect(insertCenter).toBeLessThan(nextBlockBox.y);
+  });
+
+  test("有序与无序列表缩进在块号开关前后保持稳定", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    const markdown = "正文\n\n- 无序项目\n\n1. 有序项目";
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    }, markdown);
+    await expect(editor.locator(":scope > ul")).toHaveCount(1);
+    await expect(editor.locator(":scope > ol")).toHaveCount(1);
+
+    const readGeometry = () => editor.evaluate((element) => {
+      const paragraph = element.querySelector(":scope > p")!;
+      const unordered = element.querySelector(":scope > ul")!;
+      const ordered = element.querySelector(":scope > ol")!;
+      const unorderedItem = unordered.querySelector(":scope > li")!;
+      const orderedItem = ordered.querySelector(":scope > li")!;
+      const orderedBlockNumber = document.querySelector<HTMLElement>('.editor-block-number[data-block-format="OL"]');
+      const rect = (target: Element) => target.getBoundingClientRect();
+      return {
+        fontSize: Number.parseFloat(getComputedStyle(element).fontSize),
+        paragraphLeft: rect(paragraph).left,
+        unorderedLeft: rect(unordered).left,
+        orderedLeft: rect(ordered).left,
+        unorderedItemLeft: rect(unorderedItem).left,
+        orderedItemLeft: rect(orderedItem).left,
+        unorderedPadding: Number.parseFloat(getComputedStyle(unordered).paddingInlineStart),
+        orderedPadding: Number.parseFloat(getComputedStyle(ordered).paddingInlineStart),
+        orderedMarker: getComputedStyle(orderedItem, "::before").content,
+        orderedNativeMarker: getComputedStyle(orderedItem, "::marker").content,
+        orderedBlockNumberRight: orderedBlockNumber ? rect(orderedBlockNumber).right : null,
+      };
+    });
+
+    const withoutNumbers = await readGeometry();
+    expect(withoutNumbers.unorderedItemLeft - withoutNumbers.unorderedLeft)
+      .toBeCloseTo(withoutNumbers.unorderedPadding, 1);
+    expect(withoutNumbers.orderedItemLeft - withoutNumbers.orderedLeft)
+      .toBeCloseTo(withoutNumbers.orderedPadding, 1);
+    expect(withoutNumbers.orderedPadding - withoutNumbers.unorderedPadding)
+      .toBeCloseTo(withoutNumbers.fontSize * 0.75, 1);
+    expect(withoutNumbers.orderedMarker).toContain("counter(list-item)");
+    expect(withoutNumbers.orderedMarker).not.toContain("•");
+    expect(withoutNumbers.orderedNativeMarker).toBe('""');
+
+    await openEditorSettings(page);
+    const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
+      .locator('input[type="checkbox"]');
+    if (!(await lineNumberToggle.isChecked())) {
+      await lineNumberToggle.evaluate((input: HTMLInputElement) => input.click());
+    }
+    await page.locator(".settings-close").click();
+    await expect(page.locator('.editor-block-number[data-block-format="OL"]')).toHaveCount(1);
+
+    const withNumbers = await readGeometry();
+    expect(withNumbers.unorderedPadding).toBeCloseTo(withoutNumbers.unorderedPadding, 1);
+    expect(withNumbers.orderedPadding).toBeCloseTo(withoutNumbers.orderedPadding, 1);
+    expect(withNumbers.unorderedItemLeft - withNumbers.unorderedLeft)
+      .toBeCloseTo(withoutNumbers.unorderedItemLeft - withoutNumbers.unorderedLeft, 1);
+    expect(withNumbers.orderedItemLeft - withNumbers.orderedLeft)
+      .toBeCloseTo(withoutNumbers.orderedItemLeft - withoutNumbers.orderedLeft, 1);
+    expect(withNumbers.unorderedLeft - withNumbers.paragraphLeft).toBeCloseTo(0, 1);
+    expect(withNumbers.orderedLeft - withNumbers.paragraphLeft).toBeCloseTo(0, 1);
+    expect(withNumbers.orderedBlockNumberRight).not.toBeNull();
+    expect(withNumbers.orderedBlockNumberRight!).toBeLessThanOrEqual(withNumbers.orderedLeft);
   });
 
   test("状态栏块号跟随光标并可独立关闭", async ({ page }) => {

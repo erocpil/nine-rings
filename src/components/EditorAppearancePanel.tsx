@@ -36,7 +36,7 @@ export function EditorAppearancePanel({ config, onClose, onUpdate }: Props) {
         <header className="editor-appearance-header">
           <div>
             <div className="editor-appearance-kicker">编辑器</div>
-            <h2 id="editor-appearance-title">排版工作台</h2>
+            <h2 id="editor-appearance-title">排版设置</h2>
             <p>调整只影响阅读和编辑外观，不会修改文档内容或 Markdown 导出结果。</p>
           </div>
           <button className="settings-close" type="button" onClick={onClose} aria-label="关闭编辑器排版">✕</button>
@@ -83,11 +83,11 @@ export function EditorAppearancePanel({ config, onClose, onUpdate }: Props) {
               <AppearanceField label="列表下间距" desc="控制顶层列表与后一块的距离">
                 <AppearanceStepper label="列表下间距" value={config.editor_list_margin_bottom} minimum={0} maximum={1.5} step={0.05} unit="em" onChange={(value) => onUpdate({ editor_list_margin_bottom: value })} />
               </AppearanceField>
-              <AppearanceField label="列表层级缩进" desc="同时控制无序与有序列表的层级缩进距离">
+              <AppearanceField label="列表层级缩进" desc="两种列表同步调整；有序列表会额外预留编号宽度">
                 <AppearanceStepper label="列表层级缩进" value={config.editor_list_indent} minimum={1} maximum={3} step={0.05} unit="em" onChange={(value) => onUpdate({ editor_list_indent: value })} />
               </AppearanceField>
-              <AppearanceField label="圆点文字间距" desc="控制圆点与文字之间的距离">
-                <AppearanceStepper label="圆点文字间距" value={config.editor_list_marker_gap} minimum={0.1} maximum={0.8} step={0.1} unit="em" onChange={(value) => onUpdate({ editor_list_marker_gap: value })} />
+              <AppearanceField label="标记文字间距" desc="同时控制圆点或编号与文字之间的距离">
+                <AppearanceStepper label="标记文字间距" value={config.editor_list_marker_gap} minimum={0.1} maximum={0.8} step={0.1} unit="em" onChange={(value) => onUpdate({ editor_list_marker_gap: value })} />
               </AppearanceField>
               <AppearanceField label="引用块缩进" desc="控制引用竖线与正文的距离">
                 <AppearanceStepper label="引用块缩进" value={config.editor_blockquote_indent} minimum={4} maximum={32} step={2} unit="px" onChange={(value) => onUpdate({ editor_blockquote_indent: value })} />
