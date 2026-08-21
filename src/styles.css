@@ -1357,6 +1357,18 @@ body {
   margin-bottom: 8px;
   align-items: center;
   white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+.editor-menu::-webkit-scrollbar {
+  display: none;
+}
+
+.toolbar-compact {
+  padding: 3px 0;
+  margin-bottom: 6px;
 }
 
 .editor-menu > * {
@@ -1369,6 +1381,10 @@ body {
 
 .toolbar-minimal .toolbar-secondary {
   display: none;
+}
+
+.toolbar-full .menu-dropdown-list {
+  max-height: min(75vh, 460px);
 }
 
 .toolbar-table-menu,
@@ -6551,6 +6567,30 @@ body {
   }
 
   .header-btn-gap { display: none; }
+
+  .editor-menu {
+    gap: 3px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+    margin-bottom: 6px;
+  }
+
+  .menu-btn,
+  .menu-btn-sm,
+  .editor-find-bar button,
+  .editor-line-jump button {
+    min-height: 36px;
+    min-width: 36px;
+    padding: 4px 8px;
+  }
+
+  .menu-dropdown-list {
+    max-height: min(62vh, 350px);
+  }
+
+  .menu-sep {
+    height: 18px;
+  }
 
   /* ── 编辑器 ── */
   .note-editor {

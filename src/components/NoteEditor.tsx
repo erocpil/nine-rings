@@ -277,8 +277,12 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [linkDialog, setLinkDialog] = useState(false);
   const [linkDialogUrl, setLinkDialogUrl] = useState("");
   const [toolbarWidth, setToolbarWidth] = useState(1000);
-  const isNarrow = toolbarWidth < 900;
-  const isMinimalToolbar = toolbarWidth < 620;
+  const [isMobileToolbarViewport, setIsMobileToolbarViewport] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 768px)").matches;
+  });
+  const isNarrow = toolbarWidth < 900 || isMobileToolbarViewport;
+  const isMinimalToolbar = toolbarWidth < 620 || isMobileToolbarViewport;
   const CODE_LN_KEY = "nr:codeLineNumbers";
   const [showCodeLineNumbers, setShowCodeLineNumbers] = useState(() => {
     return localStorage.getItem(CODE_LN_KEY) === "true";
@@ -318,6 +322,15 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     const observer = new ResizeObserver(updateWidth);
     observer.observe(element);
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(max-width: 768px)");
+    const updateViewport = () => setIsMobileToolbarViewport(media.matches);
+    updateViewport();
+    media.addEventListener("change", updateViewport);
+    return () => media.removeEventListener("change", updateViewport);
   }, []);
 
   // 点击外部关闭下拉框
