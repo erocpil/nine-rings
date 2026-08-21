@@ -270,6 +270,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [clipOpen, setClipOpen] = useState(false);
   const [tableOpen, setTableOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [focusToolbarExpanded, setFocusToolbarExpanded] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   // 编辑器右键菜单 + 右键插入链接对话框
@@ -622,6 +623,10 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   useEffect(() => {
     editor?.setEditable(!readonly);
   }, [readonly, editor]);
+
+  useEffect(() => {
+    if (!focusMode) setFocusToolbarExpanded(false);
+  }, [focusMode]);
 
   const revealSearchMatch = useCallback((requestedIndex: number, suppliedMatches?: SearchMatch[]) => {
     if (!editor) return;
@@ -1525,11 +1530,25 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
   return (
     <div
-      className={`note-editor ${readonly ? "note-editor-readonly" : ""} ${cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${cjkLatinSpacing && !nativeCjkLatinSpacing ? "editor-cjk-spacing-fallback" : ""} ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""}`}
+      className={`note-editor ${readonly ? "note-editor-readonly" : ""} ${cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${cjkLatinSpacing && !nativeCjkLatinSpacing ? "editor-cjk-spacing-fallback" : ""} ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${focusToolbarExpanded ? "focus-toolbar-expanded" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""}`}
       onPasteCapture={handlePaste}
       onDrop={handleDrop}
       onMouseDownCapture={preventReadonlyTableResize}
     >
+      {focusMode && (
+        <div className="mobile-focus-bar" aria-label="专注模式工具栏">
+          <span className="mobile-focus-title" title={localTitle || "无标题"}>{localTitle || "无标题"}</span>
+          <button type="button" onClick={() => onFocusModeChange?.(false)} title="退出专注模式">退出</button>
+          {!readonly && (
+            <button
+              type="button"
+              aria-expanded={focusToolbarExpanded}
+              onClick={() => setFocusToolbarExpanded((expanded) => !expanded)}
+              title="更多编辑工具"
+            >更多</button>
+          )}
+        </div>
+      )}
       {editorFindOpen && (
         <div className="editor-find-bar" role="search" onClick={(event) => event.stopPropagation()}>
           <input
@@ -2225,7 +2244,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         )}
         <div
           className="editor-content-shell"
-          style={{ "--editor-gutter-width": `${editorGutterWidth(gutterBlockCount, showLineNumbers)}px` } as React.CSSProperties}
+          style={{ "--editor-gutter-width": `${editorGutterWidth(gutterBlockCount, showLineNumbers, isMobileToolbarViewport)}px` } as React.CSSProperties}
         >
           <EditorBlockGutter
             editor={editor}

@@ -68,6 +68,7 @@ function syncViewportCSS() {
   root.style.setProperty("--app-keyboard-height", `${status.keyboardHeight}px`);
   root.style.setProperty("--app-visual-viewport-offset-top", `${status.offsetTop}px`);
   root.style.setProperty("--app-visual-viewport-offset-left", `${status.offsetLeft}px`);
+  root.classList.toggle("web-keyboard-open", status.keyboardHeight >= 80 || status.offsetTop >= 80);
 }
 
 export function useWebPlatform() {

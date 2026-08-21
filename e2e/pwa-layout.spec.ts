@@ -25,6 +25,42 @@ test.describe("PWA 窄屏应用外壳", () => {
       .toBe("none");
   });
 
+  test("移动端块编号使用紧凑且可随位数扩展的 gutter", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("设置").click();
+    await page.getByRole("button", { name: /^编辑器/ }).click();
+    const lineNumberSetting = page.locator(".settings-field").filter({ hasText: "显示块编号" });
+    await lineNumberSetting.locator(".settings-toggle").click();
+    await page.getByLabel("关闭设置").click();
+
+    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "32px");
+    const geometry = await page.locator(".editor-content-shell").evaluate((shell) => {
+      const number = shell.querySelector(".editor-block-number")!.getBoundingClientRect();
+      const paragraph = shell.querySelector(".ProseMirror > *")!.getBoundingClientRect();
+      return { numberRight: number.right, paragraphLeft: paragraph.left };
+    });
+    expect(geometry.numberRight).toBeLessThanOrEqual(geometry.paragraphLeft);
+  });
+
+  test("专注模式保留极简标题栏并可按需展开编辑工具", async ({ page }) => {
+    await page.goto("/");
+    const title = await page.locator(".note-title").inputValue();
+    await page.getByTitle("专注模式").click();
+
+    await expect(page.locator(".app-header")).toBeHidden();
+    const focusBar = page.getByLabel("专注模式工具栏");
+    await expect(focusBar).toBeVisible();
+    await expect(focusBar.locator(".mobile-focus-title")).toHaveText(title);
+    await expect(page.locator(".editor-menu")).toBeHidden();
+
+    await focusBar.getByTitle("更多编辑工具").click();
+    await expect(page.locator(".editor-menu")).toBeVisible();
+    await expect(page.locator(".editor-menu")).toHaveCSS("position", "fixed");
+    await focusBar.getByTitle("退出专注模式").click();
+    await expect(focusBar).toHaveCount(0);
+    await expect(page.locator(".app-header")).toBeVisible();
+  });
+
   test("从文档弹层发起新建时先关闭弹层并把对话框放在最上层", async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem("nr:sidebarHidden", "true"));
     await page.goto("/");
@@ -83,6 +119,12 @@ test.describe("PWA 窄屏应用外壳", () => {
       return { top: box.top, left: box.left, width: box.width, height: box.height, bottom: box.bottom };
     });
     expect(rect).toEqual({ top: 120, left: 4, width: 382, height: 430, bottom: 550 });
+  });
+
+  test("键盘打开时状态栏下方不重复保留安全区", async ({ page }) => {
+    await page.goto("/");
+    await page.evaluate(() => document.documentElement.classList.add("web-keyboard-open"));
+    await expect(page.locator(".app-main")).toHaveCSS("padding-bottom", "0px");
   });
 
   test("编辑状态下光标不会被底部边界遮挡", async ({ page }) => {
