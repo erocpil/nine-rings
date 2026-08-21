@@ -13,8 +13,34 @@ interface GutterBlock {
   active: boolean;
 }
 
-/** 找到块内第一段可见正文的首行中心；工具按钮和内部行号不算正文。 */
-function firstLineTextCenter(dom: HTMLElement, fallbackRect: DOMRect): number {
+const HEADING_SIZE: Readonly<Record<number, number>> = {
+  1: 1.6,
+  2: 1.3,
+  3: 1.1,
+  4: 1.05,
+  5: 1,
+  6: 1,
+};
+
+/**
+ * 找到块内第一段可见正文的首行中心。段落、标题和普通列表占绝大多数，
+ * 它们直接复用编辑器行高，避免在长文档的每次输入中创建上千个 Range。
+ * 只有结构复杂的块才读取首个实际文本矩形。
+ */
+function firstLineTextCenter(
+  dom: HTMLElement,
+  fallbackRect: DOMRect,
+  typeName: string,
+  attrs: Readonly<Record<string, unknown>>,
+  editorLineHeight: number,
+): number {
+  if (typeName === "paragraph" || typeName === "bulletList" || typeName === "orderedList") {
+    return fallbackRect.top + editorLineHeight / 2;
+  }
+  if (typeName === "heading") {
+    const level = Number(attrs.level);
+    return fallbackRect.top + editorLineHeight * (HEADING_SIZE[level] ?? 1) / 2;
+  }
   const walker = document.createTreeWalker(dom, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       const text = node.textContent ?? "";
@@ -81,6 +107,7 @@ export function EditorBlockGutter({ editor, showNumbers, readonly, onBlockCountC
     if (!root || editor.isDestroyed) return;
 
     const rootRect = root.getBoundingClientRect();
+    const editorLineHeight = Number.parseFloat(getComputedStyle(editor.view.dom).lineHeight) || 24;
     const next: GutterBlock[] = [];
     const selectionPos = editor.state.selection.from;
     editor.state.doc.forEach((node, pos, index) => {
@@ -93,7 +120,13 @@ export function EditorBlockGutter({ editor, showNumbers, readonly, onBlockCountC
         endPos: pos + node.nodeSize,
         format: blockFormat(node.type.name, node.attrs),
         top: rect.top - rootRect.top,
-        firstLineCenter: firstLineTextCenter(dom, rect) - rootRect.top,
+        firstLineCenter: firstLineTextCenter(
+          dom,
+          rect,
+          node.type.name,
+          node.attrs,
+          editorLineHeight,
+        ) - rootRect.top,
         bottom: rect.bottom - rootRect.top,
         marginBottom: index === editor.state.doc.childCount - 1
           ? Math.max(0, Number.parseFloat(getComputedStyle(dom).marginBottom) || 0)

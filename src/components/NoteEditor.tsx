@@ -1653,12 +1653,27 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       {focusMode && (
         <div className="mobile-focus-bar" aria-label="专注模式工具栏">
           <span className="mobile-focus-title" title={localTitle || "无标题"}>{localTitle || "无标题"}</span>
+          {documentOutline.length > 0 && (
+            <button
+              type="button"
+              aria-expanded={outlineOpen}
+              onClick={(event) => {
+                event.stopPropagation();
+                setFocusToolbarExpanded(false);
+                toggleDocumentOutline();
+              }}
+              title="文档目录"
+            >目录</button>
+          )}
           <button type="button" onClick={() => onFocusModeChange?.(false)} title="退出专注模式">退出</button>
           {!readonly && (
             <button
               type="button"
               aria-expanded={focusToolbarExpanded}
-              onClick={() => setFocusToolbarExpanded((expanded) => !expanded)}
+              onClick={() => {
+                setOutlineOpen(false);
+                setFocusToolbarExpanded((expanded) => !expanded);
+              }}
               title="更多编辑工具"
             >更多</button>
           )}
@@ -1732,15 +1747,17 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         >
           <div className="document-outline-header">
             <span>目录</span>
-            <span>{documentOutline.length} 项</span>
-          </div>
-          {outlineOverflow && (
-            <div className="document-outline-jumps" aria-label="目录快速滚动">
-              <button type="button" onClick={() => scrollOutlineTo("top")} title="滚动至顶部">Top</button>
-              <button type="button" onClick={() => scrollOutlineTo("middle")} title="滚动至中部">Middle</button>
-              <button type="button" onClick={() => scrollOutlineTo("bottom")} title="滚动至底部">Bottom</button>
+            <div className="document-outline-header-actions">
+              {outlineOverflow && (
+                <div className="document-outline-jumps" aria-label="目录快速滚动">
+                  <button type="button" onClick={() => scrollOutlineTo("top")} title="滚动至顶部">Top</button>
+                  <button type="button" onClick={() => scrollOutlineTo("middle")} title="滚动至中部">Middle</button>
+                  <button type="button" onClick={() => scrollOutlineTo("bottom")} title="滚动至底部">Bottom</button>
+                </div>
+              )}
+              <span className="document-outline-count">{documentOutline.length} 项</span>
             </div>
-          )}
+          </div>
           <div className="document-outline-list" ref={outlineListRef}>
             {documentOutline.map((item, index) => (
               <button

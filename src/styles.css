@@ -3096,24 +3096,29 @@ body {
   font-weight: 600;
 }
 
-.document-outline-header span:last-child {
+.document-outline-count {
+  flex: none;
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 400;
 }
 
+.document-outline-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .document-outline-jumps {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-  padding: 5px 8px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  display: flex;
+  gap: 2px;
+  min-width: 0;
 }
 
 .document-outline-jumps button {
   min-width: 0;
-  padding: 4px 6px;
+  padding: 2px 4px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg);
@@ -6999,6 +7004,15 @@ body {
     border-bottom: 1px solid var(--border);
     background: color-mix(in srgb, var(--bg) 94%, transparent);
     backdrop-filter: blur(8px);
+  }
+
+  .focus-mode .document-outline-panel {
+    position: fixed;
+    top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 36px);
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-height: min(58dvh, calc(var(--app-viewport-height, 100dvh) - var(--safe-top) - var(--safe-bottom) - 52px));
   }
 
   .mobile-focus-title {

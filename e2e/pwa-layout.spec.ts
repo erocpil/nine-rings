@@ -142,6 +142,28 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(focusBar.locator(".mobile-focus-title")).toHaveText(title);
     await expect(page.locator(".editor-menu")).toBeHidden();
 
+    const focusOutlineButton = focusBar.getByTitle("文档目录");
+    await expect(focusOutlineButton).toBeVisible();
+    await focusOutlineButton.click();
+    const outline = page.getByRole("navigation", { name: "文档目录" });
+    await expect(outline).toBeVisible();
+    const outlineGeometry = await page.locator(".note-editor").evaluate((element) => {
+      const focusBarRect = element.querySelector(".mobile-focus-bar")!.getBoundingClientRect();
+      const outlineRect = element.querySelector(".document-outline-panel")!.getBoundingClientRect();
+      return {
+        focusBarBottom: focusBarRect.bottom,
+        outlineTop: outlineRect.top,
+        outlineRight: outlineRect.right,
+        outlineLeft: outlineRect.left,
+        viewportWidth: window.visualViewport?.width ?? window.innerWidth,
+      };
+    });
+    expect(outlineGeometry.outlineTop).toBeGreaterThanOrEqual(outlineGeometry.focusBarBottom);
+    expect(outlineGeometry.outlineLeft).toBeGreaterThanOrEqual(0);
+    expect(outlineGeometry.outlineRight).toBeLessThanOrEqual(outlineGeometry.viewportWidth);
+    await focusOutlineButton.click();
+    await expect(outline).toHaveCount(0);
+
     await focusBar.getByTitle("更多编辑工具").click();
     const toolbar = page.locator(".editor-menu");
     await expect(toolbar).toBeVisible();

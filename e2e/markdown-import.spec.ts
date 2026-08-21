@@ -77,6 +77,7 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
   const activeOutlineItem = outline.locator('.document-outline-item[aria-current="location"]');
   await expect(activeOutlineItem).toContainText("附录 12");
   await expect(outline.getByLabel("目录快速滚动")).toBeVisible();
+  await expect(outline.locator(".document-outline-header .document-outline-jumps")).toBeVisible();
   const centered = await outline.locator(".document-outline-list").evaluate((list) => {
     const active = list.querySelector<HTMLElement>('[aria-current="location"]')!;
     const listRect = list.getBoundingClientRect();
