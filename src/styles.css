@@ -4754,6 +4754,10 @@ body {
   gap: 2px;
 }
 
+.settings-token-warning {
+  color: var(--warning, #b26a00);
+}
+
 /* ──── Theme Swatch ──── */
 
 .theme-swatch {

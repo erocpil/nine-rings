@@ -1,4 +1,10 @@
-import { checkStatus, githubContentsUrl, type SyncConfig } from "../src/lib/sync/github";
+import {
+  checkStatus,
+  githubContentsUrl,
+  loadSyncConfig,
+  saveSyncConfig,
+  type SyncConfig,
+} from "../src/lib/sync/github";
 
 let passed = 0;
 function assert(condition: unknown, message: string): void {
@@ -23,6 +29,42 @@ assert(
     "https://api.github.com/repos/octo-org/notes/contents/backups/%E4%B8%AD%E6%96%87%20notes.json",
   "Contents API URL encodes each path segment while preserving directories",
 );
+
+function memoryStorage() {
+  const values = new Map<string, string>();
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value); },
+    removeItem: (key: string) => { values.delete(key); },
+  };
+}
+
+const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+const local = memoryStorage();
+const session = memoryStorage();
+Object.defineProperty(globalThis, "window", {
+  configurable: true,
+  value: { localStorage: local, sessionStorage: session },
+});
+try {
+  saveSyncConfig(config);
+  assert(!local.getItem("nr:github-sync")?.includes("test-token"),
+    "session-only token is removed from persistent config");
+  assert(local.getItem("nr:github-sync-token") === null,
+    "session-only token is not persisted in localStorage");
+  assert(session.getItem("nr:github-sync-token") === "test-token",
+    "session-only token is stored in sessionStorage");
+  assert(loadSyncConfig().token === "test-token", "session token can be loaded in the same session");
+
+  saveSyncConfig({ ...config, rememberToken: true });
+  assert(local.getItem("nr:github-sync-token") === "test-token",
+    "remembered token is stored in localStorage after explicit opt-in");
+  assert(session.getItem("nr:github-sync-token") === null,
+    "remembered token is removed from sessionStorage");
+} finally {
+  if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
+  else delete (globalThis as { window?: unknown }).window;
+}
 
 const originalFetch = globalThis.fetch;
 try {

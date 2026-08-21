@@ -167,6 +167,8 @@ export interface SyncSnapshotSummary {
 
 export interface PullPrecheck {
   local: SyncSnapshotSummary;
+  /** Pull 前导出的本地完整快照，用于在用户确认时生成恢复文件。 */
+  localBackup: string;
   remote: SyncSnapshotSummary & {
     version: string;
     path: string;
@@ -182,7 +184,11 @@ export function loadSyncConfig(): SyncConfig {
     if (parsed) {
       const rememberToken = readBool(safeGet(localStorage, TOKEN_MODE_KEY), parsed.rememberToken);
       const token = loadTokenFromStorage(parsed);
-      return { ...parsed, token, rememberToken };
+      const loaded = { ...parsed, token, rememberToken };
+      // 旧版本曾把 Token 直接写入配置 JSON。Web 首次读取时立即迁移到
+      // sessionStorage（默认）或独立的持久键，并清除配置中的明文副本。
+      if (!isTauriRuntime() && parsed.token) saveSyncConfig(loaded);
+      return loaded;
     }
   } catch {
     // ignore
@@ -653,6 +659,7 @@ export async function previewPullFromGitHub(config: SyncConfig): Promise<PullPre
   const remoteSummary = summarizeBackup(remote.content);
   return {
     local,
+    localBackup,
     remote: {
       ...remoteSummary,
       version,

@@ -10,6 +10,7 @@ import {
   type SyncStatus,
   type PullPrecheck,
 } from "../lib/sync/github";
+import { isTauriRuntime } from "../lib/runtime";
 
 interface Props {
   /** 备份进行中回调 — 父组件用来 freeze 编辑区 */
@@ -49,6 +50,23 @@ function fmtBytes(size: number | null): string {
     unit = units[i];
   }
   return `${value.toFixed(value >= 10 ? 1 : 2)} ${unit}`;
+}
+
+function fmtCountDelta(remote: number, local: number): string {
+  const delta = remote - local;
+  if (delta === 0) return "数量相同";
+  return delta > 0 ? `远端多 ${delta}` : `远端少 ${Math.abs(delta)}`;
+}
+
+function downloadPullRestorePoint(json: string): void {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `nine-rings-before-pull-${stamp}.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
@@ -97,6 +115,16 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
       return next;
     });
   }, []);
+
+  const handleRememberTokenChange = useCallback((rememberToken: boolean) => {
+    if (rememberToken) {
+      const accepted = window.confirm(
+        "持久保存会把 GitHub Token 写入此浏览器的本地存储。任何能访问本机浏览器数据或在本站执行的脚本都可能读取它。确认仍要保存？",
+      );
+      if (!accepted) return;
+    }
+    update({ rememberToken });
+  }, [update]);
 
   // ── Owner/Repo 合并编辑 ──
 
@@ -191,9 +219,15 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     setBusy(true);
     clearMessage();
     try {
+      if (!isTauriRuntime()) {
+        downloadPullRestorePoint(pullPrecheck.localBackup);
+      }
       const updated = await pullFromGitHub(cfg);
       setCfg(updated);
-      showMessage(`已拉取 (${new Date().toLocaleTimeString()})`, "success");
+      showMessage(
+        `已拉取 (${new Date().toLocaleTimeString()})${isTauriRuntime() ? "" : "；拉取前恢复文件已下载"}`,
+        "success",
+      );
       onPullDone?.();
       setPullPrecheck(null);
     } catch (e) {
@@ -201,7 +235,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     } finally {
       setBusy(false);
     }
-  }, [cfg, pullPrecheck]);
+  }, [cfg, onPullDone, pullPrecheck]);
 
   const showMessage = (msg: string, type: "success" | "error") => {
     setMessage(msg);
@@ -246,10 +280,15 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
           <input
             type="checkbox"
             checked={cfg.rememberToken}
-            onChange={(e) => update({ rememberToken: e.target.checked })}
+            onChange={(e) => handleRememberTokenChange(e.target.checked)}
           />
           <span>记住 Token（退出浏览器后保留）</span>
         </label>
+        <span className={`settings-hint ${cfg.rememberToken ? "settings-token-warning" : ""}`}>
+          {cfg.rememberToken
+            ? "Token 已持久保存在此浏览器；请仅在可信的个人设备上启用。"
+            : "默认仅保留到当前浏览器会话，关闭浏览器后清除。"}
+        </span>
       </label>
 
       {/* Owner / Repo — 双击编辑 */}
@@ -338,6 +377,11 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
               {" "}
               {fmtBytes(pullPrecheck.remote.size)}
             </span>
+          </div>
+          <div className="settings-hint" style={{ marginBottom: 8 }}>
+            差异摘要：笔记{fmtCountDelta(pullPrecheck.remote.noteCount, pullPrecheck.local.noteCount)}；
+            页面{fmtCountDelta(pullPrecheck.remote.pageCount, pullPrecheck.local.pageCount)}。
+            {!isTauriRuntime() && " 确认后会先自动下载本地完整恢复文件。"}
           </div>
           <div className="settings-row" style={{ gap: 8 }}>
             <button className="settings-btn settings-btn-danger" onClick={handlePull} disabled={busy}>
