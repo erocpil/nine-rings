@@ -60,6 +60,12 @@ import {
   extractDocumentOutline,
   type DocumentOutlineItem,
 } from "../lib/document-outline";
+import {
+  getVimEditorMode,
+  setVimModeEnabled,
+  VimMode,
+  type VimEditorMode,
+} from "../extensions/VimMode";
 
 const FontSize = Extension.create({
   name: "fontSize",
@@ -175,6 +181,13 @@ const PRESET_COLORS = [
 
 const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32];
 
+const VIM_MODE_LABELS: Record<VimEditorMode, string> = {
+  normal: "NORMAL",
+  insert: "INSERT",
+  visual: "VISUAL",
+  "visual-line": "V-LINE",
+};
+
 // ══════════════════════════════════════
 
 interface NoteEditorProps {
@@ -186,6 +199,7 @@ interface NoteEditorProps {
   focusMode: boolean;
   showLineNumbers: boolean;
   showStatusBlockNumber: boolean;
+  vimModeEnabled: boolean;
   highlightActiveLine: boolean;
   useCustomContextMenu: boolean;
   cjkLatinSpacing: boolean;
@@ -207,7 +221,7 @@ interface NoteEditorProps {
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, showStatusBlockNumber, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
+export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, showStatusBlockNumber, vimModeEnabled, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -215,6 +229,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const searchMatchesRef = useRef<SearchMatch[]>([]);
   const editorFindOriginRef = useRef(0);
   const editorFindInputRef = useRef<HTMLInputElement>(null);
+  const vimSearchActionRef = useRef<(direction: 1 | -1 | 0) => void>(() => undefined);
   const lineJumpInputRef = useRef<HTMLInputElement>(null);
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
   const [activeSearchMatch, setActiveSearchMatch] = useState(0);
@@ -272,6 +287,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [markdownSelectionNotice, setMarkdownSelectionNotice] = useState(false);
   const [gutterBlockCount, setGutterBlockCount] = useState(0);
   const [currentStatusBlock, setCurrentStatusBlock] = useState(1);
+  const [vimEditorMode, setVimEditorMode] = useState<VimEditorMode>("normal");
   const nativeCjkLatinSpacing = useMemo(supportsNativeCjkLatinSpacing, []);
 
   useEffect(() => {
@@ -415,6 +431,11 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       CodeBlockLineNumbers,
       MarkdownLinkInput,
       CjkLatinSpacing,
+      VimMode.configure({
+        enabled: vimModeEnabled && !readonly,
+        onModeChange: setVimEditorMode,
+        onSearch: (direction) => vimSearchActionRef.current(direction),
+      }),
     ],
     content: tipTapContent,
     editable: !readonly,
@@ -481,6 +502,11 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     if (!editor) return;
     setCjkLatinSpacing(editor, cjkLatinSpacing && !nativeCjkLatinSpacing);
   }, [cjkLatinSpacing, editor, nativeCjkLatinSpacing]);
+
+  useEffect(() => {
+    if (!editor) return;
+    setVimModeEnabled(editor, vimModeEnabled && !readonly);
+  }, [editor, readonly, vimModeEnabled]);
 
   useEffect(() => {
     if (!editor) return;
@@ -639,6 +665,19 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     });
   }, [closeLineJump, editor, lineJumpValue]);
 
+  const openEditorFind = useCallback(() => {
+    if (!editor || editor.isDestroyed) return;
+    closeLineJump();
+    const { from, to } = editor.state.selection;
+    const selected = from === to ? "" : editor.state.doc.textBetween(from, to, " ").trim();
+    if (selected && !selected.includes("\n")) setEditorFindQuery(selected);
+    setEditorFindOpen(true);
+    requestAnimationFrame(() => {
+      editorFindInputRef.current?.focus({ preventScroll: true });
+      editorFindInputRef.current?.select();
+    });
+  }, [closeLineJump, editor]);
+
   const navigateEditorFind = useCallback((direction: number) => {
     const matches = searchMatchesRef.current;
     if (!matches.length) return;
@@ -648,6 +687,24 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     revealSearchMatch(requestedIndex, matches);
     requestAnimationFrame(() => editorFindInputRef.current?.focus({ preventScroll: true }));
   }, [activeSearchMatch, revealSearchMatch]);
+
+  useEffect(() => {
+    vimSearchActionRef.current = (direction) => {
+      const matches = searchMatchesRef.current;
+      if (direction === 0 || matches.length === 0) {
+        openEditorFind();
+        return;
+      }
+      const requestedIndex = activeSearchMatch < 0
+        ? searchMatchIndexFromPosition(matches, editorFindOriginRef.current, direction)
+        : activeSearchMatch + direction;
+      revealSearchMatch(requestedIndex, matches);
+      requestAnimationFrame(() => editor?.commands.focus());
+    };
+    return () => {
+      vimSearchActionRef.current = () => undefined;
+    };
+  }, [activeSearchMatch, editor, openEditorFind, revealSearchMatch]);
 
   const jumpToOutlineHeading = useCallback((item: DocumentOutlineItem) => {
     if (!editor || editor.isDestroyed) return;
@@ -667,23 +724,23 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     });
   }, [editor]);
 
-  // 拦截 WebView 原生 Ctrl/Cmd+F，并为 Windows 提供 Alt+F。原生查找框由
+  // 拦截 WebView 原生 Cmd+F，并为 Windows 提供 Alt+F。Ctrl+F 不再
+  // 触发搜索：Vim 模式用它向下翻页，非 Vim 模式也不唤起 WebView 查找框。
+  // 原生查找框由
   // WebView 管理且主窗口 hide 后可能残留；应用内查找框与编辑器共用生命周期。
   useEffect(() => {
     if (!editor) return;
     const onKeyDown = (event: KeyboardEvent) => {
+      const isCtrlF = event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
+        && (event.code === "KeyF" || event.key.toLocaleLowerCase() === "f");
+      if (isCtrlF) {
+        event.preventDefault();
+        return;
+      }
       if (isDocumentFindKeyEvent(event)) {
         event.preventDefault();
         event.stopPropagation();
-        closeLineJump();
-        const { from, to } = editor.state.selection;
-        const selected = from === to ? "" : editor.state.doc.textBetween(from, to, " ").trim();
-        if (selected && !selected.includes("\n")) setEditorFindQuery(selected);
-        setEditorFindOpen(true);
-        requestAnimationFrame(() => {
-          editorFindInputRef.current?.focus({ preventScroll: true });
-          editorFindInputRef.current?.select();
-        });
+        openEditorFind();
         return;
       }
       if (isEditorLineJumpKeyEvent(event)) {
@@ -719,7 +776,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       window.removeEventListener("nine-rings:main-window-hide", onWindowHidden);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [closeEditorFind, closeLineJump, editor, editorFindOpen, lineJumpOpen, openLineJump]);
+  }, [closeEditorFind, closeLineJump, editor, editorFindOpen, lineJumpOpen, openEditorFind, openLineJump]);
 
   useEffect(() => {
     if (!editor || !editorFindOpen) return;
@@ -960,6 +1017,10 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     (e: React.ClipboardEvent) => {
       const items = e.clipboardData?.items;
       if (!items || !editor) return;
+      if (vimModeEnabled && getVimEditorMode(editor) !== "insert") {
+        e.preventDefault();
+        return;
+      }
 
       // ── URL 粘贴：自动抓标题 ──
       const plainText = e.clipboardData.getData("text/plain").trim();
@@ -1031,13 +1092,17 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         }
       }
     },
-    [editor],
+    [editor, vimModeEnabled],
   );
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       const files = e.dataTransfer?.files;
       if (!files || !editor) return;
+      if (vimModeEnabled && getVimEditorMode(editor) !== "insert") {
+        e.preventDefault();
+        return;
+      }
       for (const file of Array.from(files)) {
         if (file.type.startsWith("image/")) {
           e.preventDefault();
@@ -1047,7 +1112,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         }
       }
     },
-    [editor],
+    [editor, vimModeEnabled],
   );
 
   const insertImageUrl = () => {
@@ -2157,6 +2222,12 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             >×</button>
           </span>
         )}
+        {vimModeEnabled && !readonly && (
+          <>
+            <span className={`editor-vim-status vim-${vimEditorMode}`}>{VIM_MODE_LABELS[vimEditorMode]}</span>
+            <span className="stat-sep">|</span>
+          </>
+        )}
         {showStatusBlockNumber && (
           <>
             <span className="editor-status-block">块 {currentStatusBlock} / {totalBlocks}</span>
@@ -2169,7 +2240,9 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         <span className="stat-sep">|</span>
         <span>{words} 词</span>
         <span className="stat-sep">|</span>
-        <span className="stat-hint">Ctrl+Z · 粘贴/拖入图片</span>
+        <span className="stat-hint">
+          {vimModeEnabled && !readonly ? "Esc Normal · i Insert · Ctrl+F/B 翻页" : "Ctrl+Z · 粘贴/拖入图片"}
+        </span>
         {onVersionOpen && (
           <>
             <span className="stat-sep" />

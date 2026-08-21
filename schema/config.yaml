@@ -134,6 +134,11 @@ AppConfig:
       default: true
       description: 在编辑器状态栏显示光标所在块及总块数
 
+    editor_vim_mode:
+      type: boolean
+      default: false
+      description: 启用实验性的 Vim 模式编辑
+
     use_custom_context_menu:
       type: boolean
       default: true

@@ -429,6 +429,18 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
               </label>
             </Field>
 
+            <Field label="Vim 模式（实验性）" desc="使用 Normal、Insert 和 Visual 模式编辑；启用后按 i 输入，Esc 返回 Normal" visible={settingsPage === "editor"}>
+              <label className="settings-toggle">
+                <input
+                  type="checkbox"
+                  checked={config.editor_vim_mode}
+                  onChange={(e) => update({ editor_vim_mode: e.target.checked })}
+                />
+                <span className="toggle-track" />
+                <span className="toggle-label">{config.editor_vim_mode ? "开" : "关"}</span>
+              </label>
+            </Field>
+
             {/* ── 正文右键菜单 ── */}
             <Field label="正文右键菜单" desc="开启后正文编辑器使用软件自带菜单，关闭则使用系统原生菜单" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
@@ -728,7 +740,7 @@ function HotkeyConfig({ config, onUpdate }: {
 
     const shortcut = parts.join("+");
     if (isDocumentFindShortcut(shortcut)) {
-      setRecordingError("Ctrl/Cmd+F 与 Alt+F 已保留给当前文档查找，请使用其他组合键。");
+      setRecordingError("Ctrl+F 已保留给 Vim 翻页，Cmd+F 与 Alt+F 已保留给当前文档查找。");
       setRecordingId(null);
       return;
     }
@@ -749,7 +761,7 @@ function HotkeyConfig({ config, onUpdate }: {
 
   return (
     <div className="hotkey-list">
-      <div className="hotkey-reserved-note">Ctrl/Cmd+F、Alt+F：当前文档查找；Alt+G：跳转行号（固定保留）</div>
+      <div className="hotkey-reserved-note">Cmd+F、Alt+F：当前文档查找；Ctrl+F/Ctrl+B：Vim 翻页；Alt+G：跳转行号</div>
       {recordingError && <div className="hotkey-recording-error" role="status">{recordingError}</div>}
       {Object.entries(HOTKEY_LABELS).map(([id, label]) => {
         const current = config.hotkeys?.[id] || DEFAULT_HOTKEYS[id];

@@ -16,7 +16,7 @@ export type ShortcutAction =
   | "focusSearch"
   | "goToDaily";
 
-/** Ctrl/Cmd+F 与 Alt+F 固定留给当前文档查找，不能注册成系统级全局热键。 */
+/** F 搜索/翻页组合固定留给编辑器，不能注册成系统级全局热键。 */
 export function isDocumentFindShortcut(shortcut: string): boolean {
   const normalized = shortcut.replace(/\s+/g, "").toLowerCase();
   return [
@@ -30,12 +30,11 @@ export function isDocumentFindShortcut(shortcut: string): boolean {
   ].includes(normalized);
 }
 
-/** 识别编辑器内查找按键；code 可规避 Windows 键盘布局改变 event.key。 */
+/** 识别编辑器内查找按键；Ctrl+F 专用于 Vim，搜索使用 Cmd+F 或 Alt+F。 */
 export function isDocumentFindKeyEvent(e: ShortcutKeyEvent): boolean {
   const isF = e.code === "KeyF" || e.key.toLocaleLowerCase() === "f";
   if (!isF || e.shiftKey) return false;
-  const command = e.ctrlKey || e.metaKey;
-  return (command && !e.altKey) || (e.altKey && !command);
+  return (e.metaKey && !e.ctrlKey && !e.altKey) || (e.altKey && !e.ctrlKey && !e.metaKey);
 }
 
 /** Alt+G 固定留给当前编辑器的块行号跳转。 */

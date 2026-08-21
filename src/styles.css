@@ -1659,6 +1659,45 @@ body {
   color: var(--border);
 }
 
+.editor-vim-status {
+  min-width: 48px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.editor-vim-status.vim-insert {
+  color: var(--success, #2e8b57);
+  background: color-mix(in srgb, var(--success, #2e8b57) 10%, transparent);
+}
+
+.editor-vim-status.vim-visual,
+.editor-vim-status.vim-visual-line {
+  color: var(--warning, #b36b00);
+  background: color-mix(in srgb, var(--warning, #b36b00) 10%, transparent);
+}
+
+.ProseMirror.vim-mode-enabled[data-vim-mode="normal"] {
+  caret-color: transparent;
+}
+
+.vim-normal-caret {
+  display: inline-block;
+  width: 0.56em;
+  height: 1.12em;
+  margin-right: -0.56em;
+  vertical-align: -0.18em;
+  background: currentColor;
+  opacity: 0.28;
+  pointer-events: none;
+}
+
 .stat-hint {
   margin-left: auto;
   opacity: 0.25;

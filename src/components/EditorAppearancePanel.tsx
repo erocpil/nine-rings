@@ -94,7 +94,7 @@ export function EditorAppearancePanel({ config, onClose, onUpdate }: Props) {
               </AppearanceField>
             </div>
 
-            <AppearanceField label="搜索关键字颜色" desc="Ctrl+F 和笔记搜索定位时的匹配背景色">
+            <AppearanceField label="搜索关键字颜色" desc="Alt+F、Cmd+F 和笔记搜索定位时的匹配背景色">
               <label className="settings-color-control">
                 <input
                   type="color"
@@ -144,7 +144,7 @@ export function EditorAppearancePanel({ config, onClose, onUpdate }: Props) {
               <p>标题上下间距会在这里实时呈现。</p>
               <p>相邻正文段落之间使用独立的正文块间距。</p>
               <blockquote>引用块缩进帮助补充说明与正文形成清楚的层次。</blockquote>
-              <p>使用 <mark>Ctrl+F 搜索关键字</mark> 时，匹配内容会采用所选的高亮颜色。</p>
+              <p>使用 <mark>Alt+F 搜索关键字</mark> 时，匹配内容会采用所选的高亮颜色。</p>
               <table>
                 <thead><tr><th>项目</th><th>效果</th></tr></thead>
                 <tbody><tr><td>字体与字号</td><td>决定页面的基本气质</td></tr><tr><td>行距与缩进</td><td>控制信息密度和阅读节奏</td></tr></tbody>

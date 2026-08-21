@@ -25,6 +25,7 @@ export interface AppConfig {
   highlight_active_line: boolean;
   editor_show_line_numbers: boolean;
   editor_show_status_block_number: boolean;
+  editor_vim_mode: boolean;
   use_custom_context_menu: boolean;
   hotkeys: Record<string, string>;
 }
@@ -52,6 +53,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   highlight_active_line: true,
   editor_show_line_numbers: false,
   editor_show_status_block_number: true,
+  editor_vim_mode: false,
   use_custom_context_menu: true,
   hotkeys: {
     new_note:      "",

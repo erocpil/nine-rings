@@ -59,10 +59,10 @@ assert(resolveShortcut(key({ key: "e" })) === null, "无修饰 e 不映射");
 assert(resolveShortcut(key({ key: "e", altKey: true })) === "focusSearch", "Alt+E → focusSearch");
 assert(resolveShortcut(key({ key: "E", altKey: true })) === "focusSearch", "Alt+E（大写）→ focusSearch");
 
-assert(isDocumentFindShortcut("CommandOrControl+F") === true, "Ctrl/Cmd+F 保留给文档查找");
-assert(isDocumentFindShortcut("Ctrl + F") === true, "Ctrl+F 宽松格式仍识别为保留键");
+assert(isDocumentFindShortcut("CommandOrControl+F") === true, "CommandOrControl+F 仍是编辑器保留键");
+assert(isDocumentFindShortcut("Ctrl + F") === true, "Ctrl+F 保留给 Vim 翻页");
 assert(isDocumentFindShortcut("Alt+F") === true, "Alt+F 保留给文档查找");
-assert(isDocumentFindKeyEvent(key({ key: "f", ctrlKey: true })) === true, "Ctrl+F 打开文档查找");
+assert(isDocumentFindKeyEvent(key({ key: "f", ctrlKey: true })) === false, "Ctrl+F 不再打开文档查找");
 assert(isDocumentFindKeyEvent(key({ key: "F", metaKey: true })) === true, "Cmd+F 打开文档查找");
 assert(isDocumentFindKeyEvent(key({ key: "f", altKey: true })) === true, "Alt+F 打开文档查找");
 assert(isDocumentFindKeyEvent(key({ key: "f", ctrlKey: true, altKey: true })) === false,

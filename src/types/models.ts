@@ -156,6 +156,7 @@ export interface AppConfig {
   highlight_active_line: boolean;
   editor_show_line_numbers: boolean;
   editor_show_status_block_number: boolean;
+  editor_vim_mode: boolean;
   use_custom_context_menu: boolean;
   hotkeys: Record<string, string>;
 }

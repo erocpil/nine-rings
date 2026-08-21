@@ -46,6 +46,8 @@ pub struct AppConfig {
     pub editor_show_line_numbers: bool,
     #[serde(default = "default_true")]
     pub editor_show_status_block_number: bool,
+    #[serde(default)]
+    pub editor_vim_mode: bool,
     #[serde(default = "default_true")]
     pub use_custom_context_menu: bool,
     #[serde(default = "default_hotkeys")]
@@ -132,6 +134,7 @@ impl Default for AppConfig {
             highlight_active_line: true,
             editor_show_line_numbers: false,
             editor_show_status_block_number: true,
+            editor_vim_mode: false,
             use_custom_context_menu: true,
             hotkeys: default_hotkeys(),
         }
