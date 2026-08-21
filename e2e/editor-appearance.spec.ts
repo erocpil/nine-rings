@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 test("独立排版工作台中的设置即时生效并在重载后保持", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^外观与排版/ }).click();
   await expect(page.getByText("编辑器排版", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /打开排版工作台/ }).click();
   await expect(page.getByRole("dialog", { name: "排版工作台" })).toBeVisible();
@@ -11,9 +12,12 @@ test("独立排版工作台中的设置即时生效并在重载后保持", async
   await page.getByLabel("正文字体").selectOption("serif");
   await page.getByRole("button", { name: "增大正文与标题字号" }).click();
   await page.getByRole("button", { name: "增大行距" }).click();
+  await page.getByRole("button", { name: "增大正文块间距" }).click();
   await page.getByRole("button", { name: "减小列表层级缩进" }).click();
   await page.getByRole("button", { name: "增大标题上间距" }).click();
   await page.getByRole("button", { name: "减小标题下间距" }).click();
+  await page.getByRole("button", { name: "增大列表上间距" }).click();
+  await page.getByRole("button", { name: "减小列表下间距" }).click();
   await page.getByLabel("搜索关键字颜色").fill("#33aa77");
 
   const app = page.locator(".app");
@@ -21,28 +25,60 @@ test("独立排版工作台中的设置即时生效并在重载后保持", async
     family: (element as HTMLElement).style.getPropertyValue("--editor-font-family"),
     size: (element as HTMLElement).style.getPropertyValue("--editor-font-size"),
     lineHeight: (element as HTMLElement).style.getPropertyValue("--editor-line-height"),
+    blockSpacing: (element as HTMLElement).style.getPropertyValue("--editor-block-spacing"),
     listIndent: (element as HTMLElement).style.getPropertyValue("--editor-list-indent"),
     searchColor: (element as HTMLElement).style.getPropertyValue("--editor-search-highlight"),
     headingTop: (element as HTMLElement).style.getPropertyValue("--editor-heading-margin-top"),
     headingBottom: (element as HTMLElement).style.getPropertyValue("--editor-heading-margin-bottom"),
+    listTop: (element as HTMLElement).style.getPropertyValue("--editor-list-margin-top"),
+    listBottom: (element as HTMLElement).style.getPropertyValue("--editor-list-margin-bottom"),
   }))).toEqual({
     family: '"Noto Serif SC", "Songti SC", SimSun, serif',
     size: "17px",
     lineHeight: "1.7",
+    blockSpacing: "1.05em",
     listIndent: "1.2em",
     searchColor: "#33aa77",
     headingTop: "0.75em",
     headingBottom: "0.3em",
+    listTop: "0.3em",
+    listBottom: "0.2em",
   });
+
+  const previewSpacing = await page.getByLabel("编辑器排版预览").evaluate((element) => {
+    const fontSize = Number.parseFloat(getComputedStyle(element).fontSize);
+    const topLevelList = element.querySelector(":scope > ul");
+    const nestedList = element.querySelector(":scope > ul ul");
+    const firstParagraph = element.querySelector(":scope > h3 + p");
+    const secondParagraph = firstParagraph?.nextElementSibling;
+    if (!topLevelList || !nestedList || !firstParagraph || !(secondParagraph instanceof HTMLParagraphElement)) {
+      throw new Error("appearance preview spacing fixtures not found");
+    }
+    const firstBox = firstParagraph.getBoundingClientRect();
+    const secondBox = secondParagraph.getBoundingClientRect();
+    return {
+      paragraphGap: (secondBox.top - firstBox.bottom) / fontSize,
+      listTop: Number.parseFloat(getComputedStyle(topLevelList).marginTop) / fontSize,
+      listBottom: Number.parseFloat(getComputedStyle(topLevelList).marginBottom) / fontSize,
+      nestedTop: Number.parseFloat(getComputedStyle(nestedList).marginTop),
+    };
+  });
+  expect(previewSpacing.paragraphGap).toBeCloseTo(1.05, 2);
+  expect(previewSpacing.listTop).toBeCloseTo(0.3, 2);
+  expect(previewSpacing.listBottom).toBeCloseTo(0.2, 2);
+  expect(previewSpacing.nestedTop).toBe(0);
 
   await page.reload();
   await expect.poll(() => page.locator(".app").evaluate((element) => ({
     size: (element as HTMLElement).style.getPropertyValue("--editor-font-size"),
     lineHeight: (element as HTMLElement).style.getPropertyValue("--editor-line-height"),
+    blockSpacing: (element as HTMLElement).style.getPropertyValue("--editor-block-spacing"),
     searchColor: (element as HTMLElement).style.getPropertyValue("--editor-search-highlight"),
     headingTop: (element as HTMLElement).style.getPropertyValue("--editor-heading-margin-top"),
     headingBottom: (element as HTMLElement).style.getPropertyValue("--editor-heading-margin-bottom"),
-  }))).toEqual({ size: "17px", lineHeight: "1.7", searchColor: "#33aa77", headingTop: "0.75em", headingBottom: "0.3em" });
+    listTop: (element as HTMLElement).style.getPropertyValue("--editor-list-margin-top"),
+    listBottom: (element as HTMLElement).style.getPropertyValue("--editor-list-margin-bottom"),
+  }))).toEqual({ size: "17px", lineHeight: "1.7", blockSpacing: "1.05em", searchColor: "#33aa77", headingTop: "0.75em", headingBottom: "0.3em", listTop: "0.3em", listBottom: "0.2em" });
   await expect(page.locator(".menu-font-size-label")).toHaveText("17");
 });
 
@@ -72,6 +108,7 @@ test("中英文自动间距只改变渲染且开关可以持久化", async ({ pa
   await expect(editor).toHaveText("中文Codex中文，ABC。第3章");
 
   await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^外观与排版/ }).click();
   await page.getByRole("button", { name: /打开排版工作台/ }).click();
   const toggle = page.getByLabel("中英文自动间距");
   await expect(toggle).toBeChecked();
@@ -138,6 +175,7 @@ test("四至六级标题字号不小于正文", async ({ page }) => {
   expect(sizes.h6).toBeGreaterThanOrEqual(sizes.paragraph);
 
   await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^外观与排版/ }).click();
   await page.getByRole("button", { name: /打开排版工作台/ }).click();
   await page.getByRole("button", { name: "增大正文与标题字号" }).click();
 

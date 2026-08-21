@@ -1,4 +1,9 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+
+async function openEditorSettings(page: Page) {
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^编辑器/ }).click();
+}
 
 test.describe("编辑器块级 gutter", () => {
   test("Alt-G 可按稳定块编号跳转且不挤压正文", async ({ page }) => {
@@ -52,7 +57,7 @@ test.describe("编辑器块级 gutter", () => {
     await editor.type("第二行");
     await expect(editor.locator(":scope > p")).toHaveCount(2);
 
-    await page.getByTitle("设置").click();
+    await openEditorSettings(page);
     const lineNumberField = page.locator(".settings-field").filter({ hasText: "显示块编号" });
     const lineNumberToggle = lineNumberField.locator('input[type="checkbox"]');
     await lineNumberToggle.evaluate((input: HTMLInputElement) => input.click());
@@ -69,7 +74,7 @@ test.describe("编辑器块级 gutter", () => {
     await expect(page.locator(".editor-block-insert")).toHaveCount(0);
   });
 
-  test("悬停块编号会显示块格式", async ({ page }) => {
+  test("悬停块编号会在原位置显示块格式", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("随笔").click();
     await page.getByTitle("从模板新建").click();
@@ -82,7 +87,7 @@ test.describe("编辑器块级 gutter", () => {
     await editor.press("Enter");
     await editor.type("正文");
 
-    await page.getByTitle("设置").click();
+    await openEditorSettings(page);
     const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
       .locator('input[type="checkbox"]');
     if (!(await lineNumberToggle.isChecked())) {
@@ -96,6 +101,11 @@ test.describe("编辑器块级 gutter", () => {
     await expect(blockNumbers.nth(1)).toHaveAttribute("data-block-format", "Text");
 
     const tooltipOpacity = (element: Element) => getComputedStyle(element, "::after").opacity;
+    const inlineStyle = (element: Element) => ({
+      numberColor: getComputedStyle(element).color,
+      formatBackground: getComputedStyle(element, "::after").backgroundColor,
+      formatBorderWidth: getComputedStyle(element, "::after").borderWidth,
+    });
     const hoverNumber = async (index: number) => {
       const number = blockNumbers.nth(index);
       const box = await number.boundingBox();
@@ -107,10 +117,18 @@ test.describe("编辑器块级 gutter", () => {
     await expect.poll(() => blockNumbers.nth(0).evaluate(tooltipOpacity)).toBe("0");
     await hoverNumber(0);
     await expect.poll(() => blockNumbers.nth(0).evaluate(tooltipOpacity)).toBe("1");
+    await expect.poll(() => blockNumbers.nth(0).evaluate(inlineStyle)).toEqual({
+      numberColor: "rgba(0, 0, 0, 0)",
+      formatBackground: "rgba(0, 0, 0, 0)",
+      formatBorderWidth: "0px",
+    });
     await expect.poll(() => blockNumbers.nth(1).evaluate(tooltipOpacity)).toBe("0");
     await hoverNumber(1);
     await expect.poll(() => blockNumbers.nth(1).evaluate(tooltipOpacity)).toBe("1");
     await expect.poll(() => blockNumbers.nth(0).evaluate(tooltipOpacity)).toBe("0");
+    await expect.poll(() => blockNumbers.nth(0).evaluate(
+      (element) => getComputedStyle(element).color,
+    )).not.toBe("rgba(0, 0, 0, 0)");
   });
 
   test("只有明确的加号按钮会插入段落", async ({ page }) => {
@@ -123,7 +141,7 @@ test.describe("编辑器块级 gutter", () => {
     await editor.fill("第一块\n第二块");
     await expect(editor.locator(":scope > p")).toHaveCount(2);
 
-    await page.getByTitle("设置").click();
+    await openEditorSettings(page);
     const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
       .locator('input[type="checkbox"]');
     if (!(await lineNumberToggle.isChecked())) {
@@ -157,7 +175,7 @@ test.describe("编辑器块级 gutter", () => {
     await expect(editor.locator(":scope > hr")).toHaveCount(1);
     await editor.type("下一块");
 
-    await page.getByTitle("设置").click();
+    await openEditorSettings(page);
     const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
       .locator('input[type="checkbox"]');
     if (!(await lineNumberToggle.isChecked())) {
@@ -173,5 +191,30 @@ test.describe("编辑器块级 gutter", () => {
     const insertCenter = insertBox.y + insertBox.height / 2;
     expect(insertCenter).toBeGreaterThan(dividerBox.y + dividerBox.height + 2);
     expect(insertCenter).toBeLessThan(nextBlockBox.y);
+  });
+
+  test("状态栏块号跟随光标并可独立关闭", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("第一块\n第二块\n第三块");
+    await editor.locator(":scope > p").nth(1).click();
+    await expect(page.locator(".editor-status-block")).toHaveText("块 2 / 3");
+    await expect(page.locator(".editor-status-position")).toBeVisible();
+
+    await openEditorSettings(page);
+    const statusToggle = page.locator(".settings-field").filter({ hasText: "状态栏块号" })
+      .locator('input[type="checkbox"]');
+    await expect(statusToggle).toBeChecked();
+    await statusToggle.evaluate((input: HTMLInputElement) => input.click());
+    await page.locator(".settings-close").click();
+
+    await expect(page.locator(".editor-status-block")).toHaveCount(0);
+    await expect(page.locator(".editor-status-position")).toBeVisible();
+    await page.reload();
+    await expect(page.locator(".editor-status-block")).toHaveCount(0);
   });
 });

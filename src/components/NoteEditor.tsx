@@ -185,6 +185,7 @@ interface NoteEditorProps {
   readonly?: boolean;
   focusMode: boolean;
   showLineNumbers: boolean;
+  showStatusBlockNumber: boolean;
   highlightActiveLine: boolean;
   useCustomContextMenu: boolean;
   cjkLatinSpacing: boolean;
@@ -206,7 +207,7 @@ interface NoteEditorProps {
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
+export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, showStatusBlockNumber, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -270,6 +271,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [markdownPasteText, setMarkdownPasteText] = useState<string | null>(null);
   const [markdownSelectionNotice, setMarkdownSelectionNotice] = useState(false);
   const [gutterBlockCount, setGutterBlockCount] = useState(0);
+  const [currentStatusBlock, setCurrentStatusBlock] = useState(1);
   const nativeCjkLatinSpacing = useMemo(supportsNativeCjkLatinSpacing, []);
 
   useEffect(() => {
@@ -479,6 +481,22 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     if (!editor) return;
     setCjkLatinSpacing(editor, cjkLatinSpacing && !nativeCjkLatinSpacing);
   }, [cjkLatinSpacing, editor, nativeCjkLatinSpacing]);
+
+  useEffect(() => {
+    if (!editor) return;
+    const refresh = () => {
+      const total = editor.state.doc.childCount;
+      const selected = editor.state.selection.$from.index(0) + 1;
+      setCurrentStatusBlock(Math.max(1, Math.min(total, selected)));
+    };
+    refresh();
+    editor.on("selectionUpdate", refresh);
+    editor.on("update", refresh);
+    return () => {
+      editor.off("selectionUpdate", refresh);
+      editor.off("update", refresh);
+    };
+  }, [editor]);
 
   // Markdown 导入和手动标题最终都会成为 heading 节点，因此目录直接读取
   // 编辑器结构即可，并在正文变化时同步更新而无需改写文档内容。
@@ -1084,9 +1102,8 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   // ── 滚动位置计算 ──
   const _el = scrollRef.current;
   const scrollableHeight = _el ? (_el.scrollHeight - _el.clientHeight) : 1;
-  const totalBlocks = editor.state.doc.childCount;
+  const totalBlocks = gutterBlockCount || editor.state.doc.childCount;
   const scrollRatio = scrollableHeight > 0 ? scrollPos / scrollableHeight : 0;
-  const currentBlock = Math.min(totalBlocks, Math.max(1, Math.round(scrollRatio * totalBlocks) + 1));
   const scrollPct = Math.round(scrollRatio * 100);
 
   // ── 剪贴板操作 ──
@@ -2140,7 +2157,13 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             >×</button>
           </span>
         )}
-        <span>行 {currentBlock} / {totalBlocks}（{scrollPct}%）</span>
+        {showStatusBlockNumber && (
+          <>
+            <span className="editor-status-block">块 {currentStatusBlock} / {totalBlocks}</span>
+            <span className="stat-sep">|</span>
+          </>
+        )}
+        <span className="editor-status-position">位置 {scrollPct}%</span>
         <span className="stat-sep">|</span>
         <span>{chars} 字符</span>
         <span className="stat-sep">|</span>

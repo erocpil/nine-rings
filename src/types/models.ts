@@ -141,9 +141,12 @@ export interface AppConfig {
   note_font_size: number;
   editor_font_family: "system" | "sans" | "serif" | "monospace";
   editor_line_height: number;
+  editor_block_spacing: number;
   editor_paragraph_indent: number;
   editor_heading_margin_top: number;
   editor_heading_margin_bottom: number;
+  editor_list_margin_top: number;
+  editor_list_margin_bottom: number;
   editor_list_indent: number;
   editor_list_marker_gap: number;
   editor_blockquote_indent: number;
@@ -152,6 +155,7 @@ export interface AppConfig {
   dev_port: number;
   highlight_active_line: boolean;
   editor_show_line_numbers: boolean;
+  editor_show_status_block_number: boolean;
   use_custom_context_menu: boolean;
   hotkeys: Record<string, string>;
 }

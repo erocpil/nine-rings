@@ -65,6 +65,9 @@ export function EditorAppearancePanel({ config, onClose, onUpdate }: Props) {
               <AppearanceField label="行距" desc="正文各行之间的垂直距离">
                 <AppearanceStepper label="行距" value={config.editor_line_height} minimum={1.2} maximum={2.2} step={0.1} onChange={(value) => onUpdate({ editor_line_height: value })} />
               </AppearanceField>
+              <AppearanceField label="正文块间距" desc="控制相邻顶层正文段落之间的距离">
+                <AppearanceStepper label="正文块间距" value={config.editor_block_spacing} minimum={0} maximum={3} step={0.05} unit="em" onChange={(value) => onUpdate({ editor_block_spacing: value })} />
+              </AppearanceField>
               <AppearanceField label="段落首行缩进" desc="仅应用于顶层正文段落">
                 <AppearanceStepper label="段落首行缩进" value={config.editor_paragraph_indent} minimum={0} maximum={2} step={0.5} unit="em" onChange={(value) => onUpdate({ editor_paragraph_indent: value })} />
               </AppearanceField>
@@ -73,6 +76,12 @@ export function EditorAppearancePanel({ config, onClose, onUpdate }: Props) {
               </AppearanceField>
               <AppearanceField label="标题下间距" desc="控制各级标题与后一块的距离">
                 <AppearanceStepper label="标题下间距" value={config.editor_heading_margin_bottom} minimum={0} maximum={1.5} step={0.05} unit="em" onChange={(value) => onUpdate({ editor_heading_margin_bottom: value })} />
+              </AppearanceField>
+              <AppearanceField label="列表上间距" desc="控制顶层列表与前一块的距离">
+                <AppearanceStepper label="列表上间距" value={config.editor_list_margin_top} minimum={0} maximum={2} step={0.05} unit="em" onChange={(value) => onUpdate({ editor_list_margin_top: value })} />
+              </AppearanceField>
+              <AppearanceField label="列表下间距" desc="控制顶层列表与后一块的距离">
+                <AppearanceStepper label="列表下间距" value={config.editor_list_margin_bottom} minimum={0} maximum={1.5} step={0.05} unit="em" onChange={(value) => onUpdate({ editor_list_margin_bottom: value })} />
               </AppearanceField>
               <AppearanceField label="列表层级缩进" desc="控制多级列表的缩进距离">
                 <AppearanceStepper label="列表层级缩进" value={config.editor_list_indent} minimum={1} maximum={3} step={0.05} unit="em" onChange={(value) => onUpdate({ editor_list_indent: value })} />
@@ -133,6 +142,7 @@ export function EditorAppearancePanel({ config, onClose, onUpdate }: Props) {
               </ul>
               <h3>紧凑的小节</h3>
               <p>标题上下间距会在这里实时呈现。</p>
+              <p>相邻正文段落之间使用独立的正文块间距。</p>
               <blockquote>引用块缩进帮助补充说明与正文形成清楚的层次。</blockquote>
               <p>使用 <mark>Ctrl+F 搜索关键字</mark> 时，匹配内容会采用所选的高亮颜色。</p>
               <table>

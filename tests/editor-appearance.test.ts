@@ -13,14 +13,20 @@ assert.equal(defaults["--editor-list-indent"], "1.25em");
 assert.equal(defaults["--editor-search-highlight"], "#ffd54f");
 assert.equal(defaults["--editor-heading-margin-top"], "0.7em");
 assert.equal(defaults["--editor-heading-margin-bottom"], "0.35em");
+assert.equal(defaults["--editor-block-spacing"], "1em");
+assert.equal(defaults["--editor-list-margin-top"], "0.25em");
+assert.equal(defaults["--editor-list-margin-bottom"], "0.25em");
 
 const custom = editorAppearanceVariables({
   note_font_size: 20,
   editor_font_family: "serif",
   editor_line_height: 1.8,
+  editor_block_spacing: 1.4,
   editor_paragraph_indent: 2,
   editor_heading_margin_top: 1.25,
   editor_heading_margin_bottom: 0.45,
+  editor_list_margin_top: 0.8,
+  editor_list_margin_bottom: 0.4,
   editor_list_indent: 1.1,
   editor_list_marker_gap: 0.15,
   editor_blockquote_indent: 20,
@@ -33,20 +39,29 @@ assert.equal(custom["--editor-list-marker-gap"], "0.15em");
 assert.equal(custom["--editor-search-highlight"], "#12ABef");
 assert.equal(custom["--editor-heading-margin-top"], "1.25em");
 assert.equal(custom["--editor-heading-margin-bottom"], "0.45em");
+assert.equal(custom["--editor-block-spacing"], "1.4em");
+assert.equal(custom["--editor-list-margin-top"], "0.8em");
+assert.equal(custom["--editor-list-margin-bottom"], "0.4em");
 
 const guarded = editorAppearanceVariables({
   note_font_size: 200,
   editor_line_height: 0,
+  editor_block_spacing: 8,
   editor_list_indent: -5,
   editor_heading_margin_top: 12,
   editor_heading_margin_bottom: -1,
+  editor_list_margin_top: 12,
+  editor_list_margin_bottom: -1,
   editor_search_highlight_color: "red; color: transparent",
 });
 assert.equal(guarded["--editor-font-size"], "32px");
 assert.equal(guarded["--editor-line-height"], "1.2");
 assert.equal(guarded["--editor-list-indent"], "1em");
 assert.equal(guarded["--editor-heading-margin-top"], "2em");
+assert.equal(guarded["--editor-block-spacing"], "3em");
 assert.equal(guarded["--editor-heading-margin-bottom"], "0em");
+assert.equal(guarded["--editor-list-margin-top"], "2em");
+assert.equal(guarded["--editor-list-margin-bottom"], "0em");
 assert.equal(guarded["--editor-search-highlight"], "#ffd54f");
 
 assert.equal(editorGutterWidth(0, false), 24);

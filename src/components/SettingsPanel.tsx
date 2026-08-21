@@ -21,6 +21,33 @@ interface Props {
   onPullDone?: () => void;
 }
 
+type SettingsPage = "root" | "appearance" | "editor" | "general" | "tags" | "data" | "sync" | "advanced";
+
+const SETTINGS_CATEGORIES: Array<{
+  id: Exclude<SettingsPage, "root">;
+  title: string;
+  description: string;
+}> = [
+  { id: "appearance", title: "外观与排版", description: "主题、字体、字号与内容间距" },
+  { id: "editor", title: "编辑器", description: "高亮、块编号、状态栏与右键菜单" },
+  { id: "general", title: "工作流与快捷键", description: "默认视图、待办继承和按键绑定" },
+  { id: "data", title: "数据与导入", description: "JSON 备份及 Markdown 批量导入" },
+  { id: "tags", title: "标签管理", description: "重命名、合并或删除标签" },
+  { id: "sync", title: "同步与备份", description: "GitHub 仓库和同步操作" },
+  { id: "advanced", title: "高级", description: "回收站策略与开发服务端口" },
+];
+
+const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
+  root: "设置",
+  appearance: "外观与排版",
+  editor: "编辑器",
+  general: "工作流与快捷键",
+  tags: "标签管理",
+  data: "数据与导入",
+  sync: "同步与备份",
+  advanced: "高级",
+};
+
 export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncBusy, onPullDone }: Props) {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(false);
@@ -31,6 +58,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const updateVersionRef = useRef(0);
   const [editorAppearanceOpen, setEditorAppearanceOpen] = useState(false);
+  const [settingsPage, setSettingsPage] = useState<SettingsPage>("root");
 
   // ── 标签管理状态 ──
   const [allTags, setAllTags] = useState<string[]>([]);
@@ -68,7 +96,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
   };
 
   useEffect(() => {
-    if (open) loadSettings();
+    if (open) {
+      setSettingsPage("root");
+      loadSettings();
+    }
     else setEditorAppearanceOpen(false);
   }, [open]);
 
@@ -249,7 +280,18 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
     <div className="settings-overlay" onClick={onClose}>
       <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
         <div className="settings-header">
-          <h2>设置</h2>
+          <div className="settings-header-main">
+            {settingsPage !== "root" && (
+              <button
+                className="settings-back"
+                type="button"
+                onClick={() => setSettingsPage("root")}
+                aria-label="返回设置分类"
+                title="返回设置分类"
+              >←</button>
+            )}
+            <h2>{SETTINGS_PAGE_TITLES[settingsPage]}</h2>
+          </div>
           <button className="settings-close" onClick={onClose}>✕</button>
         </div>
 
@@ -262,8 +304,27 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
           </div>
         ) : (
           <div className="settings-body">
+            {settingsPage === "root" && (
+              <div className="settings-category-grid" aria-label="设置分类">
+                {SETTINGS_CATEGORIES.map((category) => (
+                  <button
+                    className="settings-category-card"
+                    type="button"
+                    key={category.id}
+                    onClick={() => setSettingsPage(category.id)}
+                  >
+                    <span>
+                      <strong>{category.title}</strong>
+                      <small>{category.description}</small>
+                    </span>
+                    <span className="settings-category-arrow">→</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* ── 主题 ── */}
-            <Field label="主题" desc="切换整体配色">
+            <Field label="主题" desc="切换整体配色" visible={settingsPage === "appearance"}>
               <div className="settings-radio-group">
                 {([["light", "浅", "#e2e2e2"],
                 ["dark", "深", "#0d1117"],
@@ -288,7 +349,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
               </div>
             </Field>
 
-            <Field label="编辑器排版" desc="在独立工作台中调整字体、行距、缩进和搜索高亮">
+            <Field label="编辑器排版" desc="在独立工作台中调整字体、行距、缩进和搜索高亮" visible={settingsPage === "appearance"}>
               <button
                 className="editor-appearance-entry"
                 type="button"
@@ -303,7 +364,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
             </Field>
 
             {/* ── 默认视图 ── */}
-            <Field label="默认视图" desc="打开应用时的默认布局">
+            <Field label="默认视图" desc="打开应用时的默认布局" visible={settingsPage === "general"}>
               <div className="settings-radio-group">
                 {([["daily", "每日聚合"], ["list", "全部列表"]] as const).map(([v, label]) => (
                   <button
@@ -318,7 +379,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
             </Field>
 
             {/* ── 待办跨日继承 ── */}
-            <Field label="待办跨日继承" desc="新每日页默认从未完成项继承待办">
+            <Field label="待办跨日继承" desc="新每日页默认从未完成项继承待办" visible={settingsPage === "general"}>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
@@ -331,7 +392,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
             </Field>
 
             {/* ── 高亮当前行 ── */}
-            <Field label="高亮当前行" desc="编辑器光标所在行显示浅色背景">
+            <Field label="高亮当前行" desc="编辑器光标所在行显示浅色背景" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
@@ -344,7 +405,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
             </Field>
 
             {/* ── 显示块编号 ── */}
-            <Field label="显示块编号" desc="按顶层段落、列表、图片等内容块编号">
+            <Field label="显示块编号" desc="按顶层段落、列表、图片等内容块编号" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
@@ -356,8 +417,20 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
               </label>
             </Field>
 
+            <Field label="状态栏块号" desc="显示光标所在的顶层块编号，并与正文左侧块号保持一致" visible={settingsPage === "editor"}>
+              <label className="settings-toggle">
+                <input
+                  type="checkbox"
+                  checked={config.editor_show_status_block_number}
+                  onChange={(e) => update({ editor_show_status_block_number: e.target.checked })}
+                />
+                <span className="toggle-track" />
+                <span className="toggle-label">{config.editor_show_status_block_number ? "开" : "关"}</span>
+              </label>
+            </Field>
+
             {/* ── 正文右键菜单 ── */}
-            <Field label="正文右键菜单" desc="开启后正文编辑器使用软件自带菜单，关闭则使用系统原生菜单">
+            <Field label="正文右键菜单" desc="开启后正文编辑器使用软件自带菜单，关闭则使用系统原生菜单" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
@@ -370,7 +443,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
             </Field>
 
             {/* ── 开发端口 ── */}
-            <Field label="Dev 端口" desc="Web 开发服务器端口（需重启 dev server 生效）">
+            <Field label="Dev 端口" desc="Web 开发服务器端口（需重启 dev server 生效）" visible={settingsPage === "advanced"}>
               <div className="settings-stepper">
                 <button
                   className="settings-step-btn"
@@ -389,7 +462,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
             {/* ═══════════════════════ */}
             {/* 快捷键 */}
             {/* ═══════════════════════ */}
-            <SettingsSection title="快捷键" desc="点击快捷键后按下新组合键即可修改">
+            <SettingsSection title="快捷键" desc="点击快捷键后按下新组合键即可修改" visible={settingsPage === "general"}>
               <HotkeyConfig
                 config={config}
                 onUpdate={(hk) => update({ hotkeys: hk })}
@@ -399,7 +472,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
             {/* ═══════════════════════ */}
             {/* 标签管理 */}
             {/* ═══════════════════════ */}
-            <SettingsSection title="标签管理" desc="管理所有笔记中的标签">
+            <SettingsSection title="标签管理" desc="管理所有笔记中的标签" visible={settingsPage === "tags"}>
 
               {/* 重命名输入框 */}
               {renameTag && (
@@ -462,7 +535,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
             {/* ═══════════════════════ */}
             {/* 数据导出/导入 */}
             {/* ═══════════════════════ */}
-            <SettingsSection title="数据导出 / 导入" desc="全量备份或迁移数据（JSON 格式）">
+            <SettingsSection title="数据导出 / 导入" desc="全量备份或迁移数据（JSON 格式）" visible={settingsPage === "data"}>
               <div className="settings-button-row">
                 <button className="settings-btn-primary" onClick={handleExport}>
                   导出数据
@@ -487,7 +560,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
             {/* ═══════════════════════ */}
             {/* Markdown 导入 */}
             {/* ═══════════════════════ */}
-            <SettingsSection title="Markdown 导入" desc="导入一个或多个 .md 文件，并指定文档位置与元数据">
+            <SettingsSection title="Markdown 导入" desc="导入一个或多个 .md 文件，并指定文档位置与元数据" visible={settingsPage === "data"}>
               <div className="markdown-import-form">
                 <div className="settings-radio-group markdown-import-mode" role="radiogroup" aria-label="Markdown 导入类型">
                   <button
@@ -581,10 +654,12 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
             {/* ═══════════════════════ */}
             {/* GitHub 备份 */}
             {/* ═══════════════════════ */}
-            <SettingsSync onBusyChange={onSyncBusy} onPullDone={onPullDone} />
+            {settingsPage === "sync" && (
+              <SettingsSync onBusyChange={onSyncBusy} onPullDone={onPullDone} />
+            )}
 
             {/* ── 回收站自动清理：设置项末尾 ── */}
-            <Field label="回收站自动清理" desc="超过此天数的已删除笔记自动清除。0=不自动清理">
+            <Field label="回收站自动清理" desc="超过此天数的已删除笔记自动清除。0=不自动清理" visible={settingsPage === "advanced"}>
               <div className="settings-stepper">
                 <button
                   className="settings-step-btn"
@@ -726,7 +801,8 @@ function formatShortcut(s: string): string {
 
 // ── 字段包装 ──
 
-function Field({ label, desc, children }: { label: string; desc: string; children: React.ReactNode }) {
+function Field({ label, desc, children, visible = true }: { label: string; desc: string; children: React.ReactNode; visible?: boolean }) {
+  if (!visible) return null;
   return (
     <div className="settings-field">
       <div className="settings-label">{label}</div>
@@ -738,7 +814,8 @@ function Field({ label, desc, children }: { label: string; desc: string; childre
 
 // ── 分区标题 ──
 
-function SettingsSection({ title, desc, children }: { title: string; desc: string; children: React.ReactNode }) {
+function SettingsSection({ title, desc, children, visible = true }: { title: string; desc: string; children: React.ReactNode; visible?: boolean }) {
+  if (!visible) return null;
   return (
     <div className="settings-section">
       <div className="settings-section-header">

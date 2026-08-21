@@ -7,6 +7,7 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
   ).join("\n\n");
   await page.goto("/");
   await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^数据与导入/ }).click();
 
   await page.getByLabel("Markdown 导入目标路径").fill("references/import-e2e");
   await page.getByLabel("Markdown 导入文档类型").selectOption("tutorial");

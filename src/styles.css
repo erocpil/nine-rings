@@ -56,9 +56,12 @@ html {
   --editor-font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
   --editor-font-size: 16px;
   --editor-line-height: 1.6;
+  --editor-block-spacing: 1em;
   --editor-paragraph-indent: 0em;
   --editor-heading-margin-top: 0.7em;
   --editor-heading-margin-bottom: 0.35em;
+  --editor-list-margin-top: 0.25em;
+  --editor-list-margin-bottom: 0.25em;
   --editor-list-indent: 1.25em;
   --editor-list-marker-gap: 0.2em;
   --editor-blockquote-indent: 12px;
@@ -2089,7 +2092,7 @@ body {
 /* ── 面板本体 ── */
 
 .settings-panel {
-  width: 360px;
+  width: 400px;
   max-width: 90vw;
   height: 100%;
   background: var(--surface);
@@ -2108,6 +2111,33 @@ body {
   justify-content: space-between;
   padding: 16px 20px;
   border-bottom: 1px solid var(--border);
+}
+
+.settings-header-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-back {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.settings-back:hover {
+  border-color: var(--border);
+  background: var(--bg);
+  color: var(--text);
 }
 
 .settings-header h2 {
@@ -2174,6 +2204,60 @@ body {
   flex: 1;
   overflow-y: auto;
   padding: 16px 20px 40px;
+}
+
+.settings-category-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-category-card {
+  width: 100%;
+  min-height: 64px;
+  padding: 11px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, transform 0.12s ease;
+}
+
+.settings-category-card:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+  transform: translateX(-2px);
+}
+
+.settings-category-card > span:first-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.settings-category-card strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings-category-card small {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.settings-category-arrow {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-size: 16px;
 }
 
 .settings-loading {
@@ -2856,17 +2940,10 @@ body {
   gap: 4px;
 }
 
-.app-focus-mode .date-input {
-  font-size: 12px;
-  padding: 2px 6px;
-}
-
-.app-focus-mode .header-clock {
-  font-size: 11px;
-}
-
+.app-focus-mode .date-picker,
+.app-focus-mode .header-clock,
 .app-focus-mode .daily-overview {
-  font-size: 11px;
+  display: none;
 }
 
 .app-focus-mode .search-bar {
@@ -3115,30 +3192,17 @@ body {
 .editor-block-number::after {
   content: attr(data-block-format);
   position: absolute;
-  top: 50%;
-  left: calc(100% + 6px);
-  z-index: 2;
-  padding: 2px 5px;
-  transform: translate(-3px, -50%);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface);
-  box-shadow: 0 2px 8px var(--shadow-color, rgba(0, 0, 0, 0.15));
-  color: var(--text);
+  inset: 0 0 auto;
+  padding-right: 4px;
+  text-align: right;
+  color: var(--text-secondary);
   font-size: 11px;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: inherit;
   white-space: nowrap;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.12s, transform 0.12s, visibility 0.12s;
-}
-
-.editor-block-number:hover::after {
-  transform: translate(0, -50%);
-  opacity: 1;
-  visibility: visible;
 }
 
 .editor-block-number.active {
@@ -3149,6 +3213,18 @@ body {
 .no-active-line .editor-block-number.active {
   color: var(--text-secondary);
   opacity: 0.4;
+}
+
+.editor-block-number:hover,
+.editor-block-number.active:hover,
+.no-active-line .editor-block-number:hover {
+  color: transparent;
+  opacity: 1;
+}
+
+.editor-block-number:hover::after {
+  opacity: 1;
+  visibility: visible;
 }
 
 .editor-block-insert {
@@ -3225,6 +3301,10 @@ body {
   padding-inline-start: var(--editor-list-indent);
   margin: 4px 0;
   list-style-position: outside;
+}
+
+.editor-content .ProseMirror > :is(ul, ol) {
+  margin: var(--editor-list-margin-top) 0 var(--editor-list-margin-bottom);
 }
 
 .editor-content li {
@@ -3427,7 +3507,7 @@ body {
 
 /* 只放宽正文顶层段落；列表项、引用和表格单元格仍保持紧凑。 */
 .editor-content .ProseMirror > p {
-  margin: 1em 0;
+  margin: var(--editor-block-spacing) 0;
 }
 
 /* 相邻块的折叠 margin 不应盖过用户设置的标题间距。 */
@@ -3436,6 +3516,15 @@ body {
 }
 
 .editor-content .ProseMirror > :is(h1, h2, h3, h4, h5, h6) + p {
+  margin-top: 0;
+}
+
+/* 顶层列表间距由排版设置直接决定，不让相邻正文块间距覆盖。 */
+.editor-content .ProseMirror > p:has(+ :is(ul, ol)) {
+  margin-bottom: 0;
+}
+
+.editor-content .ProseMirror > :is(ul, ol) + p {
   margin-top: 0;
 }
 
@@ -4137,7 +4226,7 @@ body {
 }
 
 .editor-appearance-document > p {
-  margin: 0.65em 0;
+  margin: var(--editor-block-spacing) 0;
 }
 
 .editor-appearance-document > p:has(+ :is(h1, h2, h3)) {
@@ -4145,6 +4234,19 @@ body {
 }
 
 .editor-appearance-document > :is(h1, h2, h3) + p {
+  margin-top: 0;
+}
+
+.editor-appearance-document > :is(ul, ol) {
+  margin-top: var(--editor-list-margin-top);
+  margin-bottom: var(--editor-list-margin-bottom);
+}
+
+.editor-appearance-document > p:has(+ :is(ul, ol)) {
+  margin-bottom: 0;
+}
+
+.editor-appearance-document > :is(ul, ol) + p {
   margin-top: 0;
 }
 

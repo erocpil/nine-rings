@@ -24,6 +24,7 @@ test.describe('导出-导入往返', () => {
 
     // 3. 打开设置面板 (Alt+, 快捷键)
     await page.keyboard.press('Alt+,');
+    await page.getByRole('button', { name: /^数据与导入/ }).click();
 
     // 4. 点击"导出数据"按钮
     const exportBtn = page.getByRole('button', { name: '导出数据' });

@@ -46,6 +46,13 @@ AppConfig:
       max: 2.2
       description: 编辑器正文行距
 
+    editor_block_spacing:
+      type: number
+      default: 1
+      min: 0
+      max: 3
+      description: 相邻顶层正文段落之间的距离（em）
+
     editor_paragraph_indent:
       type: number
       default: 0
@@ -66,6 +73,20 @@ AppConfig:
       min: 0
       max: 1.5
       description: 各级标题与后一块的间距（em）
+
+    editor_list_margin_top:
+      type: number
+      default: 0.25
+      min: 0
+      max: 2
+      description: 顶层列表与前一块的间距（em）
+
+    editor_list_margin_bottom:
+      type: number
+      default: 0.25
+      min: 0
+      max: 1.5
+      description: 顶层列表与后一块的间距（em）
 
     editor_list_indent:
       type: number
@@ -97,6 +118,26 @@ AppConfig:
       type: boolean
       default: true
       description: 在汉字与英文、数字之间增加仅用于渲染的视觉间距
+
+    highlight_active_line:
+      type: boolean
+      default: true
+      description: 高亮编辑器中光标所在的顶层块
+
+    editor_show_line_numbers:
+      type: boolean
+      default: false
+      description: 在正文左侧显示顶层块编号
+
+    editor_show_status_block_number:
+      type: boolean
+      default: true
+      description: 在编辑器状态栏显示光标所在块及总块数
+
+    use_custom_context_menu:
+      type: boolean
+      default: true
+      description: 正文编辑器使用软件内置右键菜单
 
     dev_port:
       type: integer

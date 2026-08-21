@@ -109,6 +109,9 @@ test.describe("会话位置恢复与编辑器查找", () => {
 
     await page.getByTitle("专注模式").click();
     await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
+    await expect(page.locator(".date-picker")).toBeHidden();
+    await expect(page.locator(".header-clock")).toBeHidden();
+    await expect(page.locator(".daily-overview")).toBeHidden();
 
     await page.getByTitle("折叠所有目录").click();
     const firstFolder = page.locator(".doc-tree-folder").first();
@@ -156,7 +159,7 @@ test.describe("会话位置恢复与编辑器查找", () => {
     await page.getByTitle("专注模式").click();
     await expect(page.locator(".note-editor")).toHaveClass(/focus-mode/);
     const editorTopBefore = await editor.evaluate((element) => element.getBoundingClientRect().top);
-    await editor.click();
+    await editor.locator(":scope > p").nth(1).click();
     await page.keyboard.press("Control+f");
 
     const findInput = page.getByRole("search").getByLabel("在当前文档中查找");
@@ -165,7 +168,7 @@ test.describe("会话位置恢复与编辑器查找", () => {
     const editorTopAfter = await editor.evaluate((element) => element.getBoundingClientRect().top);
     expect(Math.abs(editorTopAfter - editorTopBefore)).toBeLessThan(1);
     await findInput.fill("current-find-target");
-    await expect(page.locator(".editor-find-count")).toHaveText("1/2");
+    await expect(page.locator(".editor-find-count")).toHaveText("0/2");
     await findInput.press("Enter");
     await expect(page.locator(".editor-find-count")).toHaveText("2/2");
 

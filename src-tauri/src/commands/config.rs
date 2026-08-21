@@ -17,12 +17,18 @@ pub struct AppConfig {
     pub editor_font_family: String,
     #[serde(default = "default_editor_line_height")]
     pub editor_line_height: f64,
+    #[serde(default = "default_editor_block_spacing")]
+    pub editor_block_spacing: f64,
     #[serde(default)]
     pub editor_paragraph_indent: f64,
     #[serde(default = "default_editor_heading_margin_top")]
     pub editor_heading_margin_top: f64,
     #[serde(default = "default_editor_heading_margin_bottom")]
     pub editor_heading_margin_bottom: f64,
+    #[serde(default = "default_editor_list_margin")]
+    pub editor_list_margin_top: f64,
+    #[serde(default = "default_editor_list_margin")]
+    pub editor_list_margin_bottom: f64,
     #[serde(default = "default_editor_list_indent")]
     pub editor_list_indent: f64,
     #[serde(default = "default_editor_list_marker_gap")]
@@ -38,6 +44,8 @@ pub struct AppConfig {
     pub highlight_active_line: bool,
     #[serde(default)]
     pub editor_show_line_numbers: bool,
+    #[serde(default = "default_true")]
+    pub editor_show_status_block_number: bool,
     #[serde(default = "default_true")]
     pub use_custom_context_menu: bool,
     #[serde(default = "default_hotkeys")]
@@ -56,12 +64,20 @@ fn default_editor_line_height() -> f64 {
     1.6
 }
 
+fn default_editor_block_spacing() -> f64 {
+    1.0
+}
+
 fn default_editor_heading_margin_top() -> f64 {
     0.7
 }
 
 fn default_editor_heading_margin_bottom() -> f64 {
     0.35
+}
+
+fn default_editor_list_margin() -> f64 {
+    0.25
 }
 
 fn default_editor_list_indent() -> f64 {
@@ -101,9 +117,12 @@ impl Default for AppConfig {
             note_font_size: 16,
             editor_font_family: default_editor_font_family(),
             editor_line_height: default_editor_line_height(),
+            editor_block_spacing: default_editor_block_spacing(),
             editor_paragraph_indent: 0.0,
             editor_heading_margin_top: default_editor_heading_margin_top(),
             editor_heading_margin_bottom: default_editor_heading_margin_bottom(),
+            editor_list_margin_top: default_editor_list_margin(),
+            editor_list_margin_bottom: default_editor_list_margin(),
             editor_list_indent: default_editor_list_indent(),
             editor_list_marker_gap: default_editor_list_marker_gap(),
             editor_blockquote_indent: default_editor_blockquote_indent(),
@@ -112,6 +131,7 @@ impl Default for AppConfig {
             dev_port: 8000,
             highlight_active_line: true,
             editor_show_line_numbers: false,
+            editor_show_status_block_number: true,
             use_custom_context_menu: true,
             hotkeys: default_hotkeys(),
         }
@@ -240,10 +260,14 @@ mod tests {
         assert_eq!(config.note_font_size, 19);
         assert_eq!(config.editor_font_family, "system");
         assert_eq!(config.editor_line_height, 1.6);
+        assert_eq!(config.editor_block_spacing, 1.0);
         assert_eq!(config.editor_heading_margin_top, 0.7);
         assert_eq!(config.editor_heading_margin_bottom, 0.35);
+        assert_eq!(config.editor_list_margin_top, 0.25);
+        assert_eq!(config.editor_list_margin_bottom, 0.25);
         assert_eq!(config.editor_list_indent, 1.25);
         assert_eq!(config.editor_search_highlight_color, "#ffd54f");
         assert!(config.editor_cjk_spacing);
+        assert!(config.editor_show_status_block_number);
     }
 }

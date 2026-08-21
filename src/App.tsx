@@ -1156,6 +1156,7 @@ function App() {
                     content={selectedNote.content}
                     tags={selectedNote.tags}
                     showLineNumbers={config?.editor_show_line_numbers ?? false}
+                    showStatusBlockNumber={config?.editor_show_status_block_number ?? true}
                     highlightActiveLine={config?.highlight_active_line ?? true}
                     useCustomContextMenu={config?.use_custom_context_menu ?? true}
                     cjkLatinSpacing={config?.editor_cjk_spacing ?? true}
