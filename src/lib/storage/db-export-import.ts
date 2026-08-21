@@ -4,6 +4,7 @@ import { withDB, getAll, getOne } from "./db";
 import { noteFromDB, noteToDB, blobToBase64, now } from "./core";
 import { snakeImportToCamel } from "./normalize";
 import { noteToMarkdown } from "../markdown-serializer";
+import { parseJsonAsync, stringifyJsonAsync } from "../data-transform-client";
 
 export async function exportData(): Promise<string> {
   return withDB(async (db) => {
@@ -51,7 +52,7 @@ export async function exportData(): Promise<string> {
       note.content = { ...note.content, ops };
     }
 
-    const json = JSON.stringify({
+    const json = await stringifyJsonAsync({
       version: 1,
       exported_at: now(),
       notes: noteRecords,
@@ -60,7 +61,7 @@ export async function exportData(): Promise<string> {
         todos: typeof p.todos === "string" ? JSON.parse(p.todos) : p.todos,
         todo_carryover: p.todo_carryover === 1 || p.todo_carryover === true,
       })),
-    }, null, 2);
+    }, 2);
 
     // 日志延后到 JSON 序列化后打印
     console.log(`[exportData] 完成 — 大小 ${(json.length / 1024).toFixed(1)} KB`);
@@ -79,7 +80,7 @@ export async function exportData(): Promise<string> {
 
 export async function importData(json: string): Promise<{ notes_imported: number; pages_imported: number }> {
   return withDB(async (db) => {
-    const data = JSON.parse(json);
+    const data = await parseJsonAsync<{ notes?: any[]; daily_pages?: any[] }>(json);
     const importedNotes: any[] = (data.notes ?? []).map(snakeImportToCamel);
     const pages = data.daily_pages ?? [];
 

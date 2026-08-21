@@ -3,7 +3,8 @@ import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import type { AppConfig, DocType } from "../types/models";
 import { DEFAULT_HOTKEYS, HOTKEY_LABELS } from "../types/models";
-import { buildMarkdownImportInput, parseMetadataList } from "../lib/markdown-import";
+import { parseMetadataList } from "../lib/markdown-import";
+import { transformMarkdownBatch } from "../lib/data-transform-client";
 import { isTauri, exportWithDialog, importWithDialog } from "../lib/tauri-desktop";
 import SettingsSync from "./SettingsSync";
 import { withTimeout } from "../lib/async";
@@ -260,23 +261,27 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
     const failures: string[] = [];
     try {
       const fileList = [...files];
-      for (let fi = 0; fi < fileList.length; fi++) {
-        const file = fileList[fi];
-        setMdImportCurrentFile(file.name);
+      const sources = await Promise.all(fileList.map(async (file) => ({
+        fileName: file.name,
+        source: await file.text(),
+      })));
+      const transformed = await transformMarkdownBatch(sources, {
+        date: today,
+        mode: mdImportMode,
+        storagePath: mdImportPath,
+        docType: mdImportDocType,
+        tags: parseMetadataList(mdImportTags),
+        concepts: parseMetadataList(mdImportConcepts),
+      });
+      for (let fi = 0; fi < transformed.length; fi++) {
+        const result = transformed[fi];
+        setMdImportCurrentFile(result.fileName);
         try {
-          const text = await file.text();
-          const input = buildMarkdownImportInput(file.name, text, {
-            date: today,
-            mode: mdImportMode,
-            storagePath: mdImportPath,
-            docType: mdImportDocType,
-            tags: parseMetadataList(mdImportTags),
-            concepts: parseMetadataList(mdImportConcepts),
-          });
-          await api.notes.create(input);
+          if (!result.input) throw new Error(result.error ?? "Markdown 转换失败");
+          await api.notes.create(result.input);
           count++;
         } catch (error) {
-          failures.push(`${file.name}: ${error instanceof Error ? error.message : String(error)}`);
+          failures.push(`${result.fileName}: ${error instanceof Error ? error.message : String(error)}`);
         }
         setMdImportProgress(fi + 1);
         if ((fi + 1) % MD_IMPORT_CHUNK_SIZE === 0) {
