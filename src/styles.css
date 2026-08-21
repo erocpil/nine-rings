@@ -6760,6 +6760,13 @@ body {
     gap: 2px;
     margin-bottom: 4px;
     padding: 3px 0;
+    position: relative;
+    z-index: 30;
+    overflow: visible;
+  }
+
+  .editor-menu .menu-dropdown-list {
+    z-index: 31;
   }
 
   .editor-menu .menu-btn {
