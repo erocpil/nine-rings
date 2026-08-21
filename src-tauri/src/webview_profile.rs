@@ -4,7 +4,10 @@ use std::path::{Path, PathBuf};
 ///
 /// `Local Storage`、`IndexedDB`、Cookies 和 Preferences 刻意不在这里：
 /// Nine Rings 的窗口布局、最后文档和阅读位置保存在 Local Storage 中。
+/// `Service Worker` 只服务于浏览器 PWA；桌面端遗留的注册会接管
+/// `http://tauri.localhost` 并可能让入口请求等待数分钟，因此可安全移除。
 const CACHE_PATHS: &[&[&str]] = &[
+    &["Default", "Service Worker"],
     &["Default", "Cache"],
     &["Default", "Code Cache"],
     &["Default", "GPUCache"],
@@ -52,6 +55,7 @@ mod tests {
         ));
         let cache_file = root.join("Default/Cache/Cache_Data/cache.bin");
         let gpu_file = root.join("ShaderCache/shader.bin");
+        let service_worker = root.join("Default/Service Worker/Database/worker.db");
         let local_storage = root.join("Default/Local Storage/leveldb/state.ldb");
         let indexed_db = root.join("Default/IndexedDB/notes.leveldb/data.ldb");
         let preferences = root.join("Default/Preferences");
@@ -59,6 +63,7 @@ mod tests {
         for file in [
             &cache_file,
             &gpu_file,
+            &service_worker,
             &local_storage,
             &indexed_db,
             &preferences,
@@ -71,6 +76,10 @@ mod tests {
         assert!(report.failed.is_empty());
         assert!(!cache_file.exists());
         assert!(!gpu_file.exists());
+        assert!(
+            !service_worker.exists(),
+            "desktop startup must remove the PWA service worker"
+        );
         assert!(
             local_storage.exists(),
             "session localStorage must survive startup cleanup"

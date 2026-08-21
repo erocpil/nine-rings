@@ -230,6 +230,14 @@ pub fn run() {
             startup_log!("single_instance: second launch detected, showing main window");
             show_main_window(app);
         }))
+        .on_page_load(|webview, payload| {
+            startup_log!(
+                "page_load: label={} event={:?} url={}",
+                webview.label(),
+                payload.event(),
+                payload.url()
+            );
+        })
         .setup(|app| {
             startup_log!("setup() begin");
             let app_dir = app

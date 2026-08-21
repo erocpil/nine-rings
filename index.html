@@ -13,7 +13,15 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      if ("serviceWorker" in navigator) {
+      // Tauri Windows 使用 http://tauri.localhost 提供内置资源。若在桌面端注册
+      // PWA Service Worker，它会在下次启动时接管入口 HTML/JS；network-first
+      // 对自定义协议的失败回退可能等待数分钟，表现为原生窗口已经就绪但一直白屏。
+      const isTauriDesktop =
+        window.isTauri === true ||
+        window.__TAURI__ !== undefined ||
+        window.__TAURI_INTERNALS__ !== undefined;
+
+      if (!isTauriDesktop && "serviceWorker" in navigator) {
         window.addEventListener("load", () => {
           navigator.serviceWorker.register("/sw.js").then(
             (reg) => {

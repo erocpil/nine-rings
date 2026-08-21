@@ -71,7 +71,7 @@ WebView2 的多个子进程（GPU、Renderer、Crashpad）变成孤儿，
 ```
 JobObject KILL_ON_CLOSE ← 最先执行
     ↓
-尝试删 EBWebView（此时无 WebView2 进程，锁已释放）
+删除可再生渲染缓存和桌面端遗留的 PWA Service Worker
     ↓
 设置 WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
     ↓
@@ -118,6 +118,8 @@ setup() → 数据库、托盘、快捷键
 [HH:MM:SS] building tauri app...
 [HH:MM:SS] setup() begin
 [HH:MM:SS] setup() complete
+[HH:MM:SS] page_load: label=main event=Started url=http://tauri.localhost/
+[HH:MM:SS] page_load: label=main event=Finished url=http://tauri.localhost/
 ```
 
 如果 EBWebView 目录被系统其他组件持有锁，会出现一行 `cannot remove ... (os error 32)`，
@@ -133,3 +135,6 @@ setup() → 数据库、托盘、快捷键
    否则目标目录已被占用，清理毫无意义。
 4. **兜底代码要温和**。清理失败不阻塞启动，不要因为一个非关键路径的
    失败而影响主功能。
+5. **PWA Service Worker 不应该在 Tauri 内注册**。Windows 桌面端的
+   `http://tauri.localhost` 也是 HTTP origin，会被 Web/PWA 的 fetch handler 接管；
+   对入口页使用无超时 `network-first` 会将自定义协议异常放大成数分钟白屏。
