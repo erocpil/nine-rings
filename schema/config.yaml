@@ -134,6 +134,11 @@ AppConfig:
       default: true
       description: 在编辑器状态栏显示光标所在块及总块数
 
+    editor_show_status_bar:
+      type: boolean
+      default: true
+      description: 显示编辑器底部状态栏
+
     editor_vim_mode:
       type: boolean
       default: false

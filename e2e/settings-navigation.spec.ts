@@ -13,7 +13,7 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
 
   await page.getByRole("button", { name: /^编辑器/ }).click();
   await expect(page.getByRole("heading", { name: "编辑器", exact: true })).toBeVisible();
-  await expect(page.locator(".settings-field")).toHaveCount(5);
+  await expect(page.locator(".settings-field")).toHaveCount(6);
   await expect(page.getByText("状态栏块号", { exact: true })).toBeVisible();
   await expect(page.getByText("Vim 模式（实验性）", { exact: true })).toBeVisible();
   await expect(page.getByText("主题", { exact: true })).toHaveCount(0);
@@ -44,6 +44,32 @@ test("设置弹窗具有语义并在键盘关闭后恢复焦点", async ({ page 
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
   await expect(trigger).toBeFocused();
+});
+
+test("编辑器状态栏紧凑且可以关闭并持久化", async ({ page }) => {
+  await page.goto("/");
+  const statusBar = page.locator(".editor-stats");
+  await expect(statusBar).toBeVisible();
+  await expect.poll(() => statusBar.evaluate((element) => element.getBoundingClientRect().height)).toBeLessThanOrEqual(22);
+
+  const editor = page.locator(".ProseMirror");
+  await expect.poll(() => editor.evaluate((element) => {
+    const viewportHeight = element.ownerDocument.defaultView?.innerHeight ?? 0;
+    return Number.parseFloat(getComputedStyle(element).paddingBottom) / viewportHeight;
+  })).toBeLessThanOrEqual(0.15);
+
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^编辑器/ }).click();
+  const statusSetting = page.locator(".settings-field").filter({ hasText: "编辑器状态栏" });
+  const toggle = statusSetting.locator('input[type="checkbox"]');
+  await expect(toggle).toBeChecked();
+  await statusSetting.locator(".settings-toggle").click();
+  await expect(toggle).not.toBeChecked();
+  await page.getByLabel("关闭设置").click();
+  await expect(statusBar).toHaveCount(0);
+
+  await page.reload();
+  await expect(page.locator(".editor-stats")).toHaveCount(0);
 });
 
 test("诊断报告只导出脱敏运行信息", async ({ page }) => {

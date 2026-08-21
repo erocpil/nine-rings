@@ -199,6 +199,7 @@ interface NoteEditorProps {
   focusMode: boolean;
   showLineNumbers: boolean;
   showStatusBlockNumber: boolean;
+  showStatusBar: boolean;
   vimModeEnabled: boolean;
   highlightActiveLine: boolean;
   useCustomContextMenu: boolean;
@@ -221,7 +222,7 @@ interface NoteEditorProps {
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, showStatusBlockNumber, vimModeEnabled, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
+export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, vimModeEnabled, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -2217,7 +2218,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       </div>
 
       {/* ── 底部信息栏（位置 + 字数 + 版本历史）─ */}
-      <div className="editor-stats">
+      {(showStatusBar || searchMatches.length > 0) && <div className={`editor-stats${showStatusBar ? "" : " editor-stats-search-only"}`}>
         {searchMatches.length > 0 && !editorFindOpen && (
           <span className="editor-search-navigation" role="status" aria-live="polite">
             <span>{activeSearchMatch + 1} / {searchMatches.length}</span>
@@ -2277,7 +2278,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             </button>
           </span>
         )}
-      </div>
+      </div>}
 
       {/* ── 正文右键菜单 ── */}
       {contextMenu && (

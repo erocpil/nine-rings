@@ -1772,11 +1772,17 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 0 1px 0;
+  min-height: 20px;
+  padding: 1px 0 0;
+  line-height: 1.25;
   font-size: 11px;
   color: var(--text-secondary);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+.editor-stats-search-only {
+  min-height: 24px;
 }
 
 .editor-status-secondary {
@@ -3356,12 +3362,16 @@ body {
 
 .ProseMirror {
   outline: none !important;
-  padding-bottom: 35vh;
+  padding-bottom: max(72px, 14vh);
   padding-left: var(--editor-gutter-width);
   touch-action: auto;
   font-size: var(--editor-font-size);
   font-family: var(--editor-font-family);
   line-height: var(--editor-line-height);
+}
+
+.ProseMirror > * {
+  scroll-margin-bottom: 32px;
 }
 
 /* ══════════════════════════════════════════
@@ -6695,7 +6705,7 @@ body {
 
   /* ── 编辑器 ── */
   .note-editor {
-    padding: 10px 0 10px 10px;
+    padding: 10px 0 0 10px;
   }
 
   .note-title-row {
@@ -6755,8 +6765,8 @@ body {
   }
 
   .editor-stats {
-    min-height: 28px;
-    padding: 3px 0 0;
+    min-height: 20px;
+    padding: 1px 0 0;
   }
 
   .editor-status-actions {
@@ -6846,7 +6856,7 @@ body {
   }
 
   .editor-stats {
-    min-height: 24px;
+    min-height: 20px;
   }
 }
 

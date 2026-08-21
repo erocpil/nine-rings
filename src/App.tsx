@@ -1224,6 +1224,7 @@ function App() {
                     tags={selectedNote.tags}
                     showLineNumbers={config?.editor_show_line_numbers ?? false}
                     showStatusBlockNumber={config?.editor_show_status_block_number ?? true}
+                    showStatusBar={config?.editor_show_status_bar ?? true}
                     vimModeEnabled={config?.editor_vim_mode ?? false}
                     highlightActiveLine={config?.highlight_active_line ?? true}
                     useCustomContextMenu={config?.use_custom_context_menu ?? true}

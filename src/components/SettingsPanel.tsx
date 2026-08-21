@@ -498,6 +498,18 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
               </label>
             </Field>
 
+            <Field label="编辑器状态栏" desc="显示底部位置、字数、版本历史和调试入口；关闭后搜索导航仍会按需出现" visible={settingsPage === "editor"}>
+              <label className="settings-toggle">
+                <input
+                  type="checkbox"
+                  checked={config.editor_show_status_bar}
+                  onChange={(e) => update({ editor_show_status_bar: e.target.checked })}
+                />
+                <span className="toggle-track" />
+                <span className="toggle-label">{config.editor_show_status_bar ? "开" : "关"}</span>
+              </label>
+            </Field>
+
             <Field label="Vim 模式（实验性）" desc="使用 Normal、Insert 和 Visual 模式编辑；启用后按 i 输入，Esc 返回 Normal" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
                 <input
