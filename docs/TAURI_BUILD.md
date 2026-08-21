@@ -2,6 +2,8 @@
 
 Nine Rings 使用 Tauri v2 打包为桌面应用，支持 macOS（`.dmg`）、Linux（`.deb` / `.AppImage`）和 Windows（`.msi` / `.exe`）。
 
+`main` 分支推送后会自动构建 Linux x86_64 的 `.deb` 与 `.AppImage`，上传短期 CI artifact，并创建带 SHA-256 校验文件的 GitHub prerelease。
+
 ---
 
 ## 构建流程总览

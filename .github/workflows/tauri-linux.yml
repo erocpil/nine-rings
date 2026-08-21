@@ -1,11 +1,16 @@
 name: Tauri Linux Build
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: write
 
 jobs:
   tauri-linux:
@@ -18,8 +23,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "22"
+          cache: "npm"
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -86,6 +91,9 @@ jobs:
             echo "No AppImage found, checking for binary only..."
             ls -lh src-tauri/target/x86_64-unknown-linux-gnu/release/nine-rings 2>/dev/null || true
           fi
+          for artifact in artifacts/*; do
+            sha256sum "$artifact" > "$artifact.sha256"
+          done
 
       - name: Upload artifacts
         if: github.event_name != 'pull_request'
@@ -95,3 +103,27 @@ jobs:
           path: artifacts/*
           if-no-files-found: error
           retention-days: 7
+
+      - name: Publish Linux x86_64 prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          TAG="linux-x86_64-ci-$SHORT_SHA"
+          TITLE="Nine Rings Linux x86_64 $SHORT_SHA"
+          NOTES="Linux x86_64 Tauri CI build for commit $GITHUB_SHA.
+
+          Includes Debian package and portable AppImage. SHA-256 checksums are attached."
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" artifacts/* --clobber
+            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES" --prerelease
+          else
+            gh release create "$TAG" artifacts/* \
+              --target "$GITHUB_SHA" \
+              --title "$TITLE" \
+              --notes "$NOTES" \
+              --prerelease
+          fi

@@ -12,6 +12,7 @@ import { EditorAppearancePanel } from "./EditorAppearancePanel";
 import { isDocumentFindShortcut, isEditorLineJumpShortcut } from "../lib/shortcuts";
 import type { WebStorageStatus } from "../hooks/useWebPlatform";
 import { collectWebDiagnostics } from "../lib/web-diagnostics";
+import { rebuildWebSearchIndex } from "../lib/web-search-index";
 
 interface Props {
   open: boolean;
@@ -73,6 +74,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [editorAppearanceOpen, setEditorAppearanceOpen] = useState(false);
   const [settingsPage, setSettingsPage] = useState<SettingsPage>("root");
+  const [rebuildingSearchIndex, setRebuildingSearchIndex] = useState(false);
 
   // ── 标签管理状态 ──
   const [allTags, setAllTags] = useState<string[]>([]);
@@ -110,6 +112,18 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
       console.error("[SettingsPanel] 加载失败:", error);
       setLoadError(error instanceof Error ? error.message : String(error));
     }).finally(() => setLoading(false));
+  };
+
+  const handleSearchIndexRebuild = async () => {
+    setRebuildingSearchIndex(true);
+    try {
+      const count = await rebuildWebSearchIndex();
+      setMessage(`搜索索引已重建，共 ${count} 篇笔记`);
+    } catch (error) {
+      setMessage(`搜索索引重建失败，搜索仍会回退到原始数据: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setRebuildingSearchIndex(false);
+    }
   };
 
   useEffect(() => {
@@ -793,6 +807,19 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
                 >+</button>
               </div>
             </Field>
+
+            {!isTauri() && (
+              <Field label="Web 搜索索引" desc="索引可随时从 IndexedDB 原始笔记重新生成，不会修改笔记数据" visible={settingsPage === "advanced"}>
+                <button
+                  className="settings-btn-secondary"
+                  type="button"
+                  disabled={rebuildingSearchIndex}
+                  onClick={() => void handleSearchIndexRebuild()}
+                >
+                  {rebuildingSearchIndex ? "正在重建…" : "重建搜索索引"}
+                </button>
+              </Field>
+            )}
 
             {!isTauri() && settingsPage === "advanced" && webStorageStatus && (
               <SettingsSection title="本地诊断" desc="生成仅保存在本机的脱敏问题排查报告">

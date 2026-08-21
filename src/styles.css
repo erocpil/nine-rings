@@ -4874,7 +4874,7 @@ body {
   overflow-x: hidden;
   overflow-anchor: none;
   /* 容器高度已跟随 Visual Viewport，不能再次叠加键盘高度。 */
-  scroll-padding-bottom: calc(10px + var(--safe-bottom, 0px));
+  scroll-padding-bottom: max(32px, calc(12px + var(--safe-bottom, 0px)));
 }
 
 /* 非专注模式：标题/标签/工具栏 sticky 固定在顶部 */

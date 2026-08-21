@@ -512,6 +512,48 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     },
   });
 
+  // Mobile browsers resize the visual viewport after the keyboard animation. ProseMirror's
+  // native selection scrolling can run before that resize and leave the caret underneath
+  // the bottom edge (with or without the optional status bar), so correct it after both
+  // selection and viewport/layout changes.
+  useEffect(() => {
+    if (!editor) return;
+    let frame = 0;
+    const revealCaret = () => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const root = scrollRef.current;
+        if (!root || editor.isDestroyed || !editor.isFocused) return;
+        try {
+          const rootRect = root.getBoundingClientRect();
+          const caret = editor.view.coordsAtPos(editor.state.selection.head);
+          const visibleBottom = rootRect.bottom - 24;
+          if (caret.bottom > visibleBottom) root.scrollTop += caret.bottom - visibleBottom;
+        } catch {
+          // The view may be between transactions while the visual viewport is resizing.
+        }
+      });
+    };
+    const viewport = window.visualViewport;
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(revealCaret);
+    const scrollRoot = scrollRef.current;
+    if (scrollRoot) observer?.observe(scrollRoot);
+    editor.on("selectionUpdate", revealCaret);
+    editor.on("focus", revealCaret);
+    viewport?.addEventListener("resize", revealCaret);
+    viewport?.addEventListener("scroll", revealCaret);
+    window.addEventListener("resize", revealCaret);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      observer?.disconnect();
+      editor.off("selectionUpdate", revealCaret);
+      editor.off("focus", revealCaret);
+      viewport?.removeEventListener("resize", revealCaret);
+      viewport?.removeEventListener("scroll", revealCaret);
+      window.removeEventListener("resize", revealCaret);
+    };
+  }, [editor]);
+
   useEffect(() => {
     if (!editor) return;
     setCjkLatinSpacing(editor, cjkLatinSpacing && !nativeCjkLatinSpacing);

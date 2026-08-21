@@ -2,6 +2,7 @@ import type { StorageAdapter, DocSearchQuery } from "./storage/types";
 import { getAdapter } from "./storage";
 import type { AppConfig, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../types/models";
 import { broadcastDataChange } from "./tab-coordination";
+import { invalidateWebSearchIndex, removeFromWebSearchIndex, searchWebNotes, updateWebSearchIndex } from "./web-search-index";
 
 /**
  * API 层 — 统一接口，底层自动适配 Tauri IPC / IndexedDB
@@ -31,18 +32,21 @@ export const api = {
 
     create: async (data: CreateNoteInput) => {
       const note = await adapter().then((a) => a.createNote(data));
+      updateWebSearchIndex(note);
       broadcastDataChange({ type: "note-changed", noteId: note.id });
       return note;
     },
 
     upsert: async (data: CreateNoteInput) => {
       const note = await adapter().then((a) => a.upsertNote(data));
+      updateWebSearchIndex(note);
       broadcastDataChange({ type: "note-changed", noteId: note.id });
       return note;
     },
 
     update: async (id: string, data: UpdateNoteInput) => {
       const note = await adapter().then((a) => a.updateNote(id, data));
+      updateWebSearchIndex(note);
       broadcastDataChange({ type: "note-changed", noteId: id });
       return note;
     },
@@ -52,11 +56,12 @@ export const api = {
 
     delete: async (id: string) => {
       await adapter().then((a) => a.deleteNote(id));
+      removeFromWebSearchIndex(id);
       broadcastDataChange({ type: "note-deleted", noteId: id });
     },
 
     search: (query: string) =>
-      adapter().then((a) => a.searchNotes(query)),
+      adapter().then((a) => searchWebNotes(a, query)),
 
     listByTag: (tag: string) =>
       adapter().then((a) => a.getNotesByTag(tag)),
@@ -152,6 +157,7 @@ export const api = {
 
     import: async (json: string) => {
       const result = await adapter().then((a) => a.importData(json));
+      invalidateWebSearchIndex();
       broadcastDataChange({ type: "data-imported" });
       return result;
     },

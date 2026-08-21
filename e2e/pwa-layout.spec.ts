@@ -68,6 +68,31 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(sidebarBottom).toBe(760);
     expect(scrollPaddingBottom).not.toContain("300px");
   });
+
+  test("编辑状态下光标不会被底部边界遮挡", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("设置").click();
+    await page.getByRole("button", { name: /^编辑器/ }).click();
+    const statusSetting = page.locator(".settings-field").filter({ hasText: "编辑器状态栏" });
+    await statusSetting.locator(".settings-toggle").click();
+    await page.getByLabel("关闭设置").click();
+    await expect(page.locator(".editor-stats")).toHaveCount(0);
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill(Array.from({ length: 40 }, (_, index) => `移动编辑第 ${index + 1} 行`).join("\n"));
+    await editor.press("Control+End");
+    await page.setViewportSize({ width: 390, height: 430 });
+    await editor.press("End");
+
+    await expect.poll(() => page.evaluate(() => {
+      const root = document.querySelector(".note-editor-scroll")!.getBoundingClientRect();
+      const selection = window.getSelection();
+      if (!selection?.rangeCount) return false;
+      const range = selection.getRangeAt(0).cloneRange();
+      const rect = range.getBoundingClientRect();
+      return rect.bottom <= root.bottom - 20;
+    })).toBe(true);
+  });
 });
 
 test("横屏手机保持单行工具栏且正文可滚动", async ({ page }) => {
