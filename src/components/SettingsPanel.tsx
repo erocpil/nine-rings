@@ -50,6 +50,15 @@ const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   advanced: "高级",
 };
 
+const MD_IMPORT_CHUNK_SIZE = 4;
+
+function yieldToNextFrame(): Promise<void> {
+  if (typeof window === "undefined") {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+}
+
 export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncBusy, onPullDone, webStorageStatus }: Props) {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(false);
@@ -75,6 +84,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
   const mdInputRef = useRef<HTMLInputElement>(null);
   const [mdImporting, setMdImporting] = useState(false);
   const [mdImportCount, setMdImportCount] = useState(0);
+  const [mdImportTotal, setMdImportTotal] = useState(0);
+  const [mdImportProgress, setMdImportProgress] = useState(0);
+  const [mdImportCurrentFile, setMdImportCurrentFile] = useState("");
   const [mdImportMode, setMdImportMode] = useState<"document" | "note">("document");
   const [mdImportPath, setMdImportPath] = useState("references/imported");
   const [mdImportDocType, setMdImportDocType] = useState<DocType>("reference");
@@ -240,12 +252,17 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
     if (!files || files.length === 0) return;
     setMdImporting(true);
     setMdImportCount(0);
+    setMdImportTotal(files.length);
+    setMdImportProgress(0);
+    setMdImportCurrentFile("");
     const today = localDateKey();
     let count = 0;
     const failures: string[] = [];
     try {
-      for (let fi = 0; fi < files.length; fi++) {
-        const file = files[fi];
+      const fileList = [...files];
+      for (let fi = 0; fi < fileList.length; fi++) {
+        const file = fileList[fi];
+        setMdImportCurrentFile(file.name);
         try {
           const text = await file.text();
           const input = buildMarkdownImportInput(file.name, text, {
@@ -261,6 +278,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
         } catch (error) {
           failures.push(`${file.name}: ${error instanceof Error ? error.message : String(error)}`);
         }
+        setMdImportProgress(fi + 1);
+        if ((fi + 1) % MD_IMPORT_CHUNK_SIZE === 0) {
+          await yieldToNextFrame();
+        }
       }
       setMdImportCount(count);
       if (count > 0) onImport?.();
@@ -271,6 +292,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
       setMessage(`导入失败: ${err}`);
     } finally {
       setMdImporting(false);
+      setMdImportCurrentFile("");
+      setMdImportTotal(0);
+      setMdImportProgress(0);
       // 无论成功失败都允许再次选择同一批文件。
       e.target.value = "";
     }
@@ -659,26 +683,34 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
                 </label>
 
                 <div className="settings-button-row">
-                <button
-                  className="settings-btn-secondary"
-                  onClick={() => mdInputRef.current?.click()}
-                  disabled={mdImporting || (mdImportMode === "document" && !mdImportPath.trim())}
-                >
-                  {mdImporting ? "导入中..." : "选择 .md 文件"}
-                </button>
-                {mdImportCount > 0 && (
-                  <span className="settings-import-ok">
-                    已导入 {mdImportCount} 篇笔记
-                  </span>
-                )}
-                <input
-                  ref={mdInputRef}
-                  type="file"
-                  accept=".md"
-                  multiple
-                  style={{ display: "none" }}
-                  onChange={handleMdImport}
-                />
+                  <button
+                    className="settings-btn-secondary"
+                    onClick={() => mdInputRef.current?.click()}
+                    disabled={mdImporting || (mdImportMode === "document" && !mdImportPath.trim())}
+                  >
+                    {mdImporting
+                      ? `导入中... ${mdImportProgress}/${mdImportTotal}`
+                      : "选择 .md 文件"}
+                  </button>
+                  {(mdImporting || mdImportProgress > 0) && (
+                    <span className="settings-import-progress">
+                      {mdImportTotal > 0 ? `${mdImportProgress} / ${mdImportTotal} 已处理` : ""}
+                      {mdImportCurrentFile ? ` · ${mdImportCurrentFile}` : ""}
+                    </span>
+                  )}
+                  {mdImportCount > 0 && !mdImporting && (
+                    <span className="settings-import-ok">
+                      已导入 {mdImportCount} 篇笔记
+                    </span>
+                  )}
+                  <input
+                    ref={mdInputRef}
+                    type="file"
+                    accept=".md"
+                    multiple
+                    style={{ display: "none" }}
+                    onChange={handleMdImport}
+                  />
                 </div>
               </div>
             </SettingsSection>

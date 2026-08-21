@@ -114,12 +114,16 @@ export const api = {
       const q = query.trim().toLowerCase();
       const pages = await adapter().then((a) => a.getAllDailyPages());
       const results: { todo: any; date: string }[] = [];
-      for (const p of pages) {
+      for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
+        const p = pages[pageIndex];
         if (!Array.isArray(p.todos)) continue;
         for (const t of p.todos) {
           if (t.text?.toLowerCase().includes(q)) {
             results.push({ todo: t, date: p.date });
           }
+        }
+        if ((pageIndex + 1) % 250 === 0 && pageIndex + 1 < pages.length) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
         }
       }
       // 按日期倒序排列

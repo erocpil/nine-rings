@@ -32,6 +32,22 @@ function today(): string {
   return localDateKey();
 }
 
+const SEARCH_SCAN_CHUNK_SIZE = 250;
+
+async function filterInChunks<T>(records: T[], predicate: (record: T) => boolean): Promise<T[]> {
+  const matches: T[] = [];
+  for (let start = 0; start < records.length; start += SEARCH_SCAN_CHUNK_SIZE) {
+    const end = Math.min(start + SEARCH_SCAN_CHUNK_SIZE, records.length);
+    for (let index = start; index < end; index++) {
+      if (predicate(records[index])) matches.push(records[index]);
+    }
+    if (end < records.length) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
+  }
+  return matches;
+}
+
 // ── 适配器实现 ──
 
 export const idbAdapter: StorageAdapter = {
@@ -205,9 +221,11 @@ export const idbAdapter: StorageAdapter = {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
       const all = await getAll<any>(store);
-      return all
-        .filter((n) => !n.deleted_at)
-        .filter((n) => (n.search_text ?? "").toLowerCase().includes(like))
+      const matches = await filterInChunks(
+        all,
+        (n) => !n.deleted_at && (n.search_text ?? "").toLowerCase().includes(like),
+      );
+      return matches
         .sort((a, b) => (b.pinned ?? 0) - (a.pinned ?? 0) || b.updated_at.localeCompare(a.updated_at))
         .map(noteFromDB);
     });
@@ -539,27 +557,25 @@ export const idbAdapter: StorageAdapter = {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
       const all = await getAll<any>(store);
-      return all
+      const matches = await filterInChunks(all, (n) => {
         // 文档搜索：仅返回 storagePath 非空的文档（随笔走 getAllNotes / searchNotes）
-        .filter((n) => !n.deleted_at && n.storagePath)
-        .filter((n) => {
-          if (query.storagePath && !n.storagePath?.startsWith(query.storagePath)) return false;
-          if (query.docType && n.docType !== query.docType) return false;
-          if (query.concept) {
-            const concepts: string[] = typeof n.concepts === "string"
-              ? JSON.parse(n.concepts)
-              : n.concepts ?? [];
-            if (!concepts.includes(query.concept)) return false;
-          }
-          if (query.text) {
-            const text = (n.search_text ?? "") + " " + (n.title ?? "") + " " + (Array.isArray(n.tags) ? n.tags.join(" ") : n.tags ?? "");
-            if (!text.toLowerCase().includes(query.text.toLowerCase())) return false;
-          }
-          if (query.staleBefore) {
-            if ((n.updated_at ?? "") > query.staleBefore) return false;
-          }
-          return true;
-        })
+        if (n.deleted_at || !n.storagePath) return false;
+        if (query.storagePath && !n.storagePath?.startsWith(query.storagePath)) return false;
+        if (query.docType && n.docType !== query.docType) return false;
+        if (query.concept) {
+          const concepts: string[] = typeof n.concepts === "string"
+            ? JSON.parse(n.concepts)
+            : n.concepts ?? [];
+          if (!concepts.includes(query.concept)) return false;
+        }
+        if (query.text) {
+          const text = (n.search_text ?? "") + " " + (n.title ?? "") + " " + (Array.isArray(n.tags) ? n.tags.join(" ") : n.tags ?? "");
+          if (!text.toLowerCase().includes(query.text.toLowerCase())) return false;
+        }
+        if (query.staleBefore && (n.updated_at ?? "") > query.staleBefore) return false;
+        return true;
+      });
+      return matches
         .sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""))
         .map(noteFromDB);
     });

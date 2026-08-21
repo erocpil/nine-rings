@@ -37,6 +37,7 @@ import { WebStatusBanner } from "./components/WebStatusBanner";
 const WORKSPACE_TARGET_KEY = "nr:workspaceTarget";
 const ACTIVE_TAG_KEY = "nr:activeTag";
 const DOC_TREE_COLLAPSED_KEY = "nr:docTreeCollapsed";
+const SEARCH_RESULT_PAGE_SIZE = 80;
 
 const RecycleBin = lazy(() => import("./components/RecycleBin").then((module) => ({ default: module.RecycleBin })));
 const VersionHistory = lazy(() => import("./components/VersionHistory").then((module) => ({ default: module.VersionHistory })));
@@ -102,10 +103,11 @@ function App() {
 
   const dailyPage = useNotesStore((s) => s.dailyPage);
   const updateTodos = useNotesStore((s) => s.updateTodos);
-  const { search, results, query, setQuery } = useSearch();
+  const { search, results, query, setQuery, clear: clearSearch } = useSearch();
   const [docResults, setDocResults] = useState<Note[] | null>(null);
   const [docSearchText, setDocSearchText] = useState("");
   const [docSearching, setDocSearching] = useState(false);
+  const [visibleSearchResultCount, setVisibleSearchResultCount] = useState(SEARCH_RESULT_PAGE_SIZE);
   const docSearchRequestIdRef = useRef(0);
   const [editorSearchTarget, setEditorSearchTarget] = useState<SearchNavigationTarget | null>(null);
   const searchRequestIdRef = useRef(0);
@@ -756,11 +758,25 @@ function App() {
   const dismissSearchResults = useCallback(() => {
     // 让仍在飞行中的请求失效；SearchBar 自己保留关键词和筛选条件。
     docSearchRequestIdRef.current += 1;
-    setQuery("");
+    clearSearch();
     setDocResults(null);
     setDocSearchText("");
     setDocSearching(false);
-  }, [setQuery]);
+  }, [clearSearch]);
+
+  const searchNotes = docResults ?? results.notes;
+  const searchTodos = docResults ? [] : results.todos;
+  const totalSearchResults = searchNotes.length + searchTodos.length;
+  const visibleSearchNotes = searchNotes.slice(0, visibleSearchResultCount);
+  const visibleSearchTodos = searchTodos.slice(
+    0,
+    Math.max(0, visibleSearchResultCount - visibleSearchNotes.length),
+  );
+  const hasMoreSearchResults = visibleSearchResultCount < totalSearchResults;
+
+  useEffect(() => {
+    setVisibleSearchResultCount(SEARCH_RESULT_PAGE_SIZE);
+  }, [query, docResults, results.notes, results.todos]);
 
   useEffect(() => {
     if (!query && docResults === null) return;
@@ -1068,14 +1084,14 @@ function App() {
                 <span>
                   {docSearching
                     ? "搜索中…"
-                    : `搜索结果（${docResults ? docResults.length : results.notes.length + results.todos.length}）`}
+                    : `搜索结果（${totalSearchResults}）`}
                 </span>
                 <button type="button" onClick={dismissSearchResults} aria-label="关闭搜索结果" title="关闭搜索结果">×</button>
               </h3>
-              {(docResults ? docResults : results.notes).length > 0 && (
+              {searchNotes.length > 0 && (
                 <div className="search-section-label">笔记</div>
               )}
-              {(docResults ? docResults : results.notes).map((r) => (
+              {visibleSearchNotes.map((r) => (
                 <div
                   key={r.id}
                   className="search-hit"
@@ -1096,10 +1112,10 @@ function App() {
                   })()}
                 </div>
               ))}
-              {!docResults && results.todos.length > 0 && (
+              {searchTodos.length > 0 && visibleSearchTodos.length > 0 && (
                 <div className="search-section-label">待办</div>
               )}
-              {!docResults && results.todos.map((t) => (
+              {visibleSearchTodos.map((t) => (
                 <div
                   key={`todo-${t.todo.id}`}
                   className="search-hit"
@@ -1114,6 +1130,15 @@ function App() {
                   <div className="search-hit-date">{t.date}</div>
                 </div>
               ))}
+              {hasMoreSearchResults && (
+                <button
+                  type="button"
+                  className="search-load-more"
+                  onClick={() => setVisibleSearchResultCount((count) => count + SEARCH_RESULT_PAGE_SIZE)}
+                >
+                  显示更多（剩余 {totalSearchResults - visibleSearchResultCount}）
+                </button>
+              )}
             </div>
           ) : selectedConcept && !selectedNote ? (
             <DocMOC

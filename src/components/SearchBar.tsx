@@ -36,6 +36,7 @@ export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: Sear
   const [conceptSuggestions, setConceptSuggestions] = useState<string[]>([]);
   const [existingConcepts, setExistingConcepts] = useState<string[]>([]);
   const filterRef = useRef<HTMLDivElement>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const hasFilters = pathFilter || typeFilter || conceptFilter;
 
@@ -75,19 +76,30 @@ export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: Sear
     }
   }, [onSearch, onDocSearch]);
 
+  const scheduleSearch = useCallback((text: string, path: string, type: DocType | "", concept: string) => {
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+      searchTimerRef.current = null;
+    }
+    searchTimerRef.current = setTimeout(() => {
+      fireSearch(text, path, type, concept);
+      searchTimerRef.current = null;
+    }, 180);
+  }, [fireSearch]);
+
   const handleChange = useCallback((v: string) => {
     setValue(v);
-    fireSearch(v, pathFilter, typeFilter, conceptFilter);
-  }, [pathFilter, typeFilter, conceptFilter, fireSearch]);
+    scheduleSearch(v, pathFilter, typeFilter, conceptFilter);
+  }, [pathFilter, typeFilter, conceptFilter, scheduleSearch]);
 
   const handlePathChange = (p: string) => {
     setPathFilter(p);
-    fireSearch(value, p, typeFilter, conceptFilter);
+    scheduleSearch(value, p, typeFilter, conceptFilter);
   };
 
   const handleTypeChange = (t: DocType | "") => {
     setTypeFilter(t);
-    fireSearch(value, pathFilter, t, conceptFilter);
+    scheduleSearch(value, pathFilter, t, conceptFilter);
   };
 
   const handleConceptChange = (v: string) => {
@@ -105,13 +117,13 @@ export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: Sear
     setConceptFilter(c);
     setConceptInput(c);
     setConceptSuggestions([]);
-    fireSearch(value, pathFilter, typeFilter, c);
+    scheduleSearch(value, pathFilter, typeFilter, c);
   };
 
   const clearConcept = () => {
     setConceptFilter("");
     setConceptInput("");
-    fireSearch(value, pathFilter, typeFilter, "");
+    scheduleSearch(value, pathFilter, typeFilter, "");
   };
 
   const clearAll = () => {
@@ -120,8 +132,14 @@ export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: Sear
     setTypeFilter("");
     setConceptFilter("");
     setConceptInput("");
-    fireSearch("", "", "", "");
+    scheduleSearch("", "", "", "");
   };
+
+  useEffect(() => {
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
+  }, []);
 
   const activeFilterCount = [pathFilter, typeFilter, conceptFilter].filter(Boolean).length;
 
@@ -136,6 +154,10 @@ export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: Sear
             onChange={(e) => handleChange(e.target.value)}
             onFocus={() => {
               // 输入框已有内容时自动重新搜索（避免需要 Enter）
+              if (searchTimerRef.current) {
+                clearTimeout(searchTimerRef.current);
+                searchTimerRef.current = null;
+              }
               if (value) fireSearch(value, pathFilter, typeFilter, conceptFilter);
             }}
             onBlur={() => {
@@ -149,6 +171,10 @@ export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: Sear
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 // 重新触发搜索（用户可能想用保留的关键词再次搜索）
+                if (searchTimerRef.current) {
+                  clearTimeout(searchTimerRef.current);
+                  searchTimerRef.current = null;
+                }
                 fireSearch(value, pathFilter, typeFilter, conceptFilter);
               }
               if (e.key === "Escape") {
