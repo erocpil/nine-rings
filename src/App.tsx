@@ -236,6 +236,8 @@ function App() {
     return localStorage.getItem(FOCUS_KEY) === "true";
   });
   const [stickyTitle, setStickyTitle] = useState<string | null>(null);
+  const [documentOutlineAvailable, setDocumentOutlineAvailable] = useState(false);
+  const [documentOutlineRequestId, setDocumentOutlineRequestId] = useState(0);
   const HIDDEN_KEY = "nr:sidebarHidden";
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [isTouchDevice] = useState(() => {
@@ -745,9 +747,22 @@ function App() {
         <span className="header-spacer" />
         {stickyTitle && (
           <div className="header-sticky-area">
-            <span className="header-sticky-title" title={stickyTitle}>
-              {stickyTitle}
-            </span>
+            {documentOutlineAvailable ? (
+              <button
+                className="header-sticky-title header-sticky-title-button"
+                title="打开文档目录"
+                aria-label={`${stickyTitle}，打开文档目录`}
+                aria-haspopup="true"
+                onClick={() => setDocumentOutlineRequestId((requestId) => requestId + 1)}
+                type="button"
+              >
+                {stickyTitle}
+              </button>
+            ) : (
+              <span className="header-sticky-title" title={stickyTitle}>
+                {stickyTitle}
+              </span>
+            )}
             <button
               className={`header-focus-btn ${focusMode ? "active" : ""}`}
               onClick={() => setFocusMode(!focusMode)}
@@ -1109,6 +1124,8 @@ function App() {
                     onVersionOpen={() => setVersionOpen(true)}
                     onFocusModeChange={setFocusMode}
                     onStickyTitleChange={setStickyTitle}
+                    onOutlineAvailabilityChange={setDocumentOutlineAvailable}
+                    outlineRequestId={documentOutlineRequestId}
                     saveStatus={autoSave.status}
                   />
                 ) : (

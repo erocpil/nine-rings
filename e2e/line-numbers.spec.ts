@@ -1,6 +1,43 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("编辑器块级 gutter", () => {
+  test("Alt-G 可按稳定块编号跳转且不挤压正文", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill(Array.from({ length: 36 }, (_, index) => `第 ${index + 1} 块`).join("\n"));
+    const editorTopBefore = await editor.evaluate((element) => element.getBoundingClientRect().top);
+    await editor.press("Alt+g");
+
+    const jumpInput = page.getByRole("dialog", { name: "跳转行号" }).getByLabel("跳转到行号");
+    await expect(jumpInput).toBeVisible();
+    await expect(page.locator(".editor-line-jump")).toHaveCSS("position", "absolute");
+    const editorTopAfter = await editor.evaluate((element) => element.getBoundingClientRect().top);
+    expect(Math.abs(editorTopAfter - editorTopBefore)).toBeLessThan(1);
+
+    await jumpInput.fill("30");
+    await jumpInput.press("Enter");
+    await expect(jumpInput).toHaveCount(0);
+    await expect.poll(() => editor.evaluate((element) => {
+      const anchor = window.getSelection()?.anchorNode;
+      const block = anchor instanceof Element ? anchor.closest(":scope > p") : anchor?.parentElement?.closest("p");
+      return block?.textContent ?? "";
+    })).toBe("第 30 块");
+    await expect.poll(() => page.locator(".note-editor-scroll").evaluate(
+      (element) => (element as HTMLElement).scrollTop,
+    )).toBeGreaterThan(100);
+
+    await editor.press("Alt+g");
+    await jumpInput.fill("99");
+    await jumpInput.press("Enter");
+    await expect(page.getByRole("status")).toHaveText("请输入 1–36");
+    await jumpInput.press("Escape");
+    await expect(jumpInput).toHaveCount(0);
+  });
+
   test("只读文档仍显示块编号，但不显示插入按钮", async ({ page }) => {
     await page.goto("/");
 

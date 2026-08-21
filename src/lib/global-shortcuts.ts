@@ -10,7 +10,7 @@
  */
 
 import { isTauri } from "./tauri-desktop";
-import { isDocumentFindShortcut } from "./shortcuts";
+import { isDocumentFindShortcut, isEditorLineJumpShortcut } from "./shortcuts";
 
 export interface ShortcutActions {
   createNote: () => void;
@@ -82,8 +82,8 @@ export async function registerShortcuts(
       const handler = makeHandler(id, actions, invoke);
       if (!handler) continue;
       if (!shortcut || shortcut.trim() === "") continue;
-      if (isDocumentFindShortcut(shortcut)) {
-        console.warn(`[GlobalShortcut] ${shortcut} 已保留给当前文档查找，跳过全局注册`);
+      if (isDocumentFindShortcut(shortcut) || isEditorLineJumpShortcut(shortcut)) {
+        console.warn(`[GlobalShortcut] ${shortcut} 已保留给编辑器，跳过全局注册`);
         continue;
       }
 

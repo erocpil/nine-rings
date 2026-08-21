@@ -29,7 +29,7 @@ import {
 // ── 自定义字体大小扩展 ──
 
 import { Extension } from "@tiptap/core";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { CellSelection, deleteCellSelection, TableMap } from "@tiptap/pm/tables";
 import { addLog, toggleDebug } from "../lib/debugLog";
@@ -49,7 +49,7 @@ import {
   setCjkLatinSpacing,
   supportsNativeCjkLatinSpacing,
 } from "../extensions/CjkLatinSpacing";
-import { isDocumentFindKeyEvent } from "../lib/shortcuts";
+import { isDocumentFindKeyEvent, isEditorLineJumpKeyEvent } from "../lib/shortcuts";
 import {
   extractDocumentOutline,
   type DocumentOutlineItem,
@@ -190,6 +190,8 @@ interface NoteEditorProps {
   onVersionOpen?: () => void;
   onFocusModeChange?: (focus: boolean) => void;
   onStickyTitleChange?: (title: string | null) => void;
+  onOutlineAvailabilityChange?: (available: boolean) => void;
+  outlineRequestId?: number;
   saveStatus?: "clean" | "dirty" | "saving" | "saved" | "error";
   searchTarget?: SearchNavigationTarget | null;
   onSearchTargetConsumed?: (requestId: number) => void;
@@ -198,19 +200,24 @@ interface NoteEditorProps {
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
+export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const searchMatchesRef = useRef<SearchMatch[]>([]);
   const editorFindInputRef = useRef<HTMLInputElement>(null);
+  const lineJumpInputRef = useRef<HTMLInputElement>(null);
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
   const [activeSearchMatch, setActiveSearchMatch] = useState(0);
   const [editorFindOpen, setEditorFindOpen] = useState(false);
   const [editorFindQuery, setEditorFindQuery] = useState("");
+  const [lineJumpOpen, setLineJumpOpen] = useState(false);
+  const [lineJumpValue, setLineJumpValue] = useState("");
+  const [lineJumpError, setLineJumpError] = useState<string | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [documentOutline, setDocumentOutline] = useState<DocumentOutlineItem[]>([]);
+  const lastOutlineRequestIdRef = useRef(outlineRequestId);
   const outlineBaseLevel = useMemo(
     () => documentOutline.length > 0
       ? Math.min(...documentOutline.map((item) => item.level))
@@ -488,6 +495,22 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     return () => { editor.off("update", refresh); };
   }, [editor]);
 
+  useEffect(() => {
+    onOutlineAvailabilityChange?.(documentOutline.length > 0);
+  }, [documentOutline.length, onOutlineAvailabilityChange]);
+
+  useEffect(() => (
+    () => onOutlineAvailabilityChange?.(false)
+  ), [onOutlineAvailabilityChange]);
+
+  // 专注模式下正文标题滚出视口后，App 顶栏中的文件名成为目录入口。
+  // request id 只表达一次切换动作，避免普通重渲染反复开关面板。
+  useEffect(() => {
+    if (outlineRequestId === undefined || outlineRequestId === lastOutlineRequestIdRef.current) return;
+    lastOutlineRequestIdRef.current = outlineRequestId;
+    if (documentOutline.length > 0) setOutlineOpen((open) => !open);
+  }, [documentOutline.length, outlineRequestId]);
+
   // 当 readonly 变化时同步编辑器状态
   useEffect(() => {
     editor?.setEditable(!readonly);
@@ -527,6 +550,70 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     if (editor && !editor.isDestroyed) setSearchHighlights(editor, [], 0);
   }, [editor]);
 
+  const closeLineJump = useCallback(() => {
+    setLineJumpOpen(false);
+    setLineJumpError(null);
+  }, []);
+
+  const openLineJump = useCallback(() => {
+    if (!editor || editor.isDestroyed) return;
+    let currentLine = 1;
+    const selectionPos = editor.state.selection.from;
+    editor.state.doc.forEach((node, pos, index) => {
+      if (selectionPos >= pos && selectionPos < pos + node.nodeSize) currentLine = index + 1;
+    });
+    closeEditorFind();
+    setOutlineOpen(false);
+    setLineJumpValue(String(currentLine));
+    setLineJumpError(null);
+    setLineJumpOpen(true);
+    requestAnimationFrame(() => {
+      lineJumpInputRef.current?.focus({ preventScroll: true });
+      lineJumpInputRef.current?.select();
+    });
+  }, [closeEditorFind, editor]);
+
+  const submitLineJump = useCallback(() => {
+    if (!editor || editor.isDestroyed) return;
+    const blockCount = editor.state.doc.childCount;
+    if (!/^\d+$/.test(lineJumpValue.trim())) {
+      setLineJumpError(`请输入 1–${blockCount}`);
+      return;
+    }
+    const requestedLine = Number.parseInt(lineJumpValue, 10);
+    if (requestedLine < 1 || requestedLine > blockCount) {
+      setLineJumpError(`请输入 1–${blockCount}`);
+      lineJumpInputRef.current?.select();
+      return;
+    }
+
+    let blockPos = 0;
+    editor.state.doc.forEach((_node, pos, index) => {
+      if (index === requestedLine - 1) blockPos = pos;
+    });
+    const resolved = editor.state.doc.resolve(
+      Math.min(blockPos + 1, editor.state.doc.content.size),
+    );
+    const selection = TextSelection.near(resolved, 1);
+    editor.view.dispatch(editor.state.tr.setSelection(selection));
+    editor.view.dom.focus({ preventScroll: true });
+    closeLineJump();
+
+    requestAnimationFrame(() => {
+      const root = scrollRef.current;
+      if (!root || editor.isDestroyed) return;
+      const rootRect = root.getBoundingClientRect();
+      const stickyBottom = root.querySelector<HTMLElement>(".note-editor-sticky")
+        ?.getBoundingClientRect().bottom ?? rootRect.top;
+      const visibleTop = Math.max(rootRect.top, Math.min(stickyBottom, rootRect.bottom));
+      const coords = editor.view.coordsAtPos(selection.from);
+      root.scrollTo({
+        top: Math.max(0, root.scrollTop + coords.top - visibleTop - 12),
+        behavior: "smooth",
+      });
+    });
+  }, [closeLineJump, editor, lineJumpValue]);
+
   const navigateEditorFind = useCallback((direction: number) => {
     const matches = searchMatchesRef.current;
     if (!matches.length) return;
@@ -560,6 +647,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       if (isDocumentFindKeyEvent(event)) {
         event.preventDefault();
         event.stopPropagation();
+        closeLineJump();
         const { from, to } = editor.state.selection;
         const selected = from === to ? "" : editor.state.doc.textBetween(from, to, " ").trim();
         if (selected && !selected.includes("\n")) setEditorFindQuery(selected);
@@ -570,15 +658,30 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         });
         return;
       }
+      if (isEditorLineJumpKeyEvent(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        openLineJump();
+        return;
+      }
+      if (event.key === "Escape" && lineJumpOpen) {
+        event.preventDefault();
+        closeLineJump();
+        editor.commands.focus();
+        return;
+      }
       if (event.key === "Escape" && editorFindOpen) {
         event.preventDefault();
         closeEditorFind();
         editor.commands.focus();
       }
     };
-    const onWindowHidden = () => closeEditorFind();
+    const onWindowHidden = () => {
+      closeEditorFind();
+      closeLineJump();
+    };
     const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") closeEditorFind();
+      if (document.visibilityState === "hidden") onWindowHidden();
     };
     window.addEventListener("keydown", onKeyDown, true);
     window.addEventListener("nine-rings:main-window-hide", onWindowHidden);
@@ -588,7 +691,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       window.removeEventListener("nine-rings:main-window-hide", onWindowHidden);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [closeEditorFind, editor, editorFindOpen]);
+  }, [closeEditorFind, closeLineJump, editor, editorFindOpen, lineJumpOpen, openLineJump]);
 
   useEffect(() => {
     if (!editor || !editorFindOpen) return;
@@ -1305,6 +1408,67 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           <button type="button" onClick={() => { closeEditorFind(); editor.commands.focus(); }} title="关闭查找" aria-label="关闭查找">×</button>
         </div>
       )}
+      {lineJumpOpen && (
+        <div className="editor-line-jump" role="dialog" aria-label="跳转行号" onClick={(event) => event.stopPropagation()}>
+          <label htmlFor={`line-jump-${noteId}`}>行号</label>
+          <input
+            ref={lineJumpInputRef}
+            id={`line-jump-${noteId}`}
+            value={lineJumpValue}
+            inputMode="numeric"
+            pattern="[0-9]*"
+            aria-label="跳转到行号"
+            aria-invalid={lineJumpError ? "true" : "false"}
+            onChange={(event) => {
+              setLineJumpValue(event.target.value);
+              setLineJumpError(null);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                submitLineJump();
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                closeLineJump();
+                editor.commands.focus();
+              }
+            }}
+          />
+          <span className={lineJumpError ? "editor-line-jump-error" : "editor-line-jump-range"} role="status">
+            {lineJumpError ?? `/ ${Math.max(gutterBlockCount, editor.state.doc.childCount)}`}
+          </span>
+          <button type="button" onClick={submitLineJump} title="跳转" aria-label="跳转">↵</button>
+          <button type="button" onClick={() => { closeLineJump(); editor.commands.focus(); }} title="关闭跳转" aria-label="关闭跳转">×</button>
+        </div>
+      )}
+      {outlineOpen && documentOutline.length > 0 && (
+        <nav
+          className="document-outline-panel"
+          aria-label="文档目录"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="document-outline-header">
+            <span>目录</span>
+            <span>{documentOutline.length} 项</span>
+          </div>
+          <div className="document-outline-list">
+            {documentOutline.map((item, index) => (
+              <button
+                key={`${item.pos}-${index}`}
+                className="document-outline-item"
+                style={{ paddingInlineStart: `${10 + (item.level - outlineBaseLevel) * 14}px` }}
+                data-level={item.level}
+                onClick={() => jumpToOutlineHeading(item)}
+                title={item.text}
+                type="button"
+              >
+                <span className="document-outline-level">H{item.level}</span>
+                <span className="document-outline-text">{item.text}</span>
+              </button>
+            ))}
+          </div>
+        </nav>
+      )}
       {/* ── 标题 + 标签 + 工具栏 + 编辑器（滚动区域）── */}
       <div className="note-editor-scroll" ref={scrollRef}>
         <div className="note-editor-sticky">
@@ -1333,34 +1497,6 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
                 aria-expanded={outlineOpen}
                 type="button"
               >目录</button>
-              {outlineOpen && (
-                <nav
-                  className="document-outline-panel"
-                  aria-label="文档目录"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <div className="document-outline-header">
-                    <span>目录</span>
-                    <span>{documentOutline.length} 项</span>
-                  </div>
-                  <div className="document-outline-list">
-                    {documentOutline.map((item, index) => (
-                      <button
-                        key={`${item.pos}-${index}`}
-                        className="document-outline-item"
-                        style={{ paddingInlineStart: `${10 + (item.level - outlineBaseLevel) * 14}px` }}
-                        data-level={item.level}
-                        onClick={() => jumpToOutlineHeading(item)}
-                        title={item.text}
-                        type="button"
-                      >
-                        <span className="document-outline-level">H{item.level}</span>
-                        <span className="document-outline-text">{item.text}</span>
-                      </button>
-                    ))}
-                  </div>
-                </nav>
-              )}
             </div>
           )}
           <button

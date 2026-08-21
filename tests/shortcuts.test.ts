@@ -11,6 +11,8 @@ import {
   resolveShortcut,
   isDocumentFindShortcut,
   isDocumentFindKeyEvent,
+  isEditorLineJumpKeyEvent,
+  isEditorLineJumpShortcut,
   isEditableTarget,
   shouldIgnoreShortcut,
 } from "../src/lib/shortcuts";
@@ -67,6 +69,10 @@ assert(isDocumentFindKeyEvent(key({ key: "f", ctrlKey: true, altKey: true })) ==
   "Ctrl+Alt+F 不误触文档查找");
 assert(isDocumentFindKeyEvent(key({ key: "f", ctrlKey: true, shiftKey: true })) === false,
   "Ctrl+Shift+F 仍留给全局搜索");
+assert(isEditorLineJumpShortcut("Alt + G") === true, "Alt+G 保留给编辑器行号跳转");
+assert(isEditorLineJumpKeyEvent(key({ key: "g", altKey: true })) === true, "Alt+G 打开行号跳转");
+assert(isEditorLineJumpKeyEvent(key({ key: "G", altKey: true, shiftKey: true })) === false,
+  "Alt+Shift+G 不误触行号跳转");
 
 console.log("\n── isEditableTarget：可编辑目标判断 ──");
 

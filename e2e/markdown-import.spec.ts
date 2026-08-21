@@ -38,12 +38,25 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
   await expect(page.locator(".tag-chip", { hasText: "imported" })).toBeVisible();
   await expect(page.locator(".ProseMirror > ul > li > ul > li")).toHaveText("完成映射");
 
+  // Markdown 空白行作为块分隔符渲染成可见间距，而不是结构性空段落。
+  await expect.poll(() => page.locator(".ProseMirror").evaluate((element) => {
+    const paragraphs = [...element.querySelectorAll(":scope > p")];
+    if (paragraphs.length < 2) return 0;
+    const first = paragraphs[0].getBoundingClientRect();
+    const second = paragraphs[1].getBoundingClientRect();
+    return second.top - first.bottom;
+  })).toBeGreaterThanOrEqual(14);
+
   await page.getByTitle("文档目录").click();
   const outline = page.getByRole("navigation", { name: "文档目录" });
   await expect(outline).toBeVisible();
   const outlineItems = outline.locator(".document-outline-item");
   await expect(outlineItems).toHaveCount(3);
   await expect(outlineItems.nth(0)).toHaveAttribute("data-level", "1");
+  const levelBox = await outlineItems.nth(0).locator(".document-outline-level").boundingBox();
+  const textBox = await outlineItems.nth(0).locator(".document-outline-text").boundingBox();
+  if (!levelBox || !textBox) throw new Error("outline item geometry not found");
+  expect(textBox.x - (levelBox.x + levelBox.width)).toBeLessThanOrEqual(4);
   await expect(outlineItems.nth(1)).toHaveAttribute("data-level", "2");
   await expect(outlineItems.nth(1)).toContainText("VFIO/UIO接入层");
   await expect(outlineItems.nth(2)).toHaveAttribute("data-level", "3");
@@ -58,4 +71,19 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
   await expect.poll(() => page.locator(".note-editor-scroll").evaluate(
     (element) => (element as HTMLElement).scrollTop,
   )).toBeGreaterThan(100);
+
+  // 专注模式下原始标题会随正文滚走；顶栏文件名接替为同一目录的入口。
+  await page.getByTitle("专注模式").click();
+  const stickyOutlineTrigger = page.getByRole("button", {
+    name: "Imported Review，打开文档目录",
+  });
+  await expect(stickyOutlineTrigger).toBeVisible();
+  await stickyOutlineTrigger.click();
+  await expect(outline).toBeVisible();
+  await outline.locator(".document-outline-item").nth(1).click();
+  await expect.poll(() => page.locator(".ProseMirror").evaluate((element) => {
+    const anchor = window.getSelection()?.anchorNode;
+    const heading = anchor instanceof Element ? anchor.closest("h2") : anchor?.parentElement?.closest("h2");
+    return heading?.textContent ?? "";
+  })).toBe("VFIO/UIO接入层");
 });

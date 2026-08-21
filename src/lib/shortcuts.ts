@@ -38,6 +38,17 @@ export function isDocumentFindKeyEvent(e: ShortcutKeyEvent): boolean {
   return (command && !e.altKey) || (e.altKey && !command);
 }
 
+/** Alt+G 固定留给当前编辑器的块行号跳转。 */
+export function isEditorLineJumpShortcut(shortcut: string): boolean {
+  return shortcut.replace(/\s+/g, "").toLowerCase() === "alt+g";
+}
+
+/** 识别编辑器内跳转行号按键；code 可规避 Windows 键盘布局差异。 */
+export function isEditorLineJumpKeyEvent(e: ShortcutKeyEvent): boolean {
+  const isG = e.code === "KeyG" || e.key.toLocaleLowerCase() === "g";
+  return isG && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+}
+
 /**
  * 将一次按键解析为 App 级快捷键动作。
  * 返回 null 表示该按键不属于 App 级快捷键（应放行给编辑器/浏览器）。

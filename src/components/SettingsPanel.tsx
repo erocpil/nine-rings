@@ -8,7 +8,7 @@ import { isTauri, exportWithDialog, importWithDialog } from "../lib/tauri-deskto
 import SettingsSync from "./SettingsSync";
 import { withTimeout } from "../lib/async";
 import { EditorAppearancePanel } from "./EditorAppearancePanel";
-import { isDocumentFindShortcut } from "../lib/shortcuts";
+import { isDocumentFindShortcut, isEditorLineJumpShortcut } from "../lib/shortcuts";
 
 interface Props {
   open: boolean;
@@ -657,6 +657,11 @@ function HotkeyConfig({ config, onUpdate }: {
       setRecordingId(null);
       return;
     }
+    if (isEditorLineJumpShortcut(shortcut)) {
+      setRecordingError("Alt+G 已保留给当前文档跳转行号，请使用其他组合键。");
+      setRecordingId(null);
+      return;
+    }
     const updated = { ...config.hotkeys, [recordingId!]: shortcut };
     onUpdate(updated);
     setRecordingId(null);
@@ -669,7 +674,7 @@ function HotkeyConfig({ config, onUpdate }: {
 
   return (
     <div className="hotkey-list">
-      <div className="hotkey-reserved-note">Ctrl/Cmd+F、Alt+F：当前文档查找（固定保留）</div>
+      <div className="hotkey-reserved-note">Ctrl/Cmd+F、Alt+F：当前文档查找；Alt+G：跳转行号（固定保留）</div>
       {recordingError && <div className="hotkey-recording-error" role="status">{recordingError}</div>}
       {Object.entries(HOTKEY_LABELS).map(([id, label]) => {
         const current = config.hotkeys?.[id] || DEFAULT_HOTKEYS[id];

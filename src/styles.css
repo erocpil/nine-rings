@@ -1402,6 +1402,74 @@ body {
   cursor: default;
 }
 
+.editor-line-jump {
+  position: absolute;
+  top: 6px;
+  right: 92px;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  width: min(300px, calc(100% - 108px));
+  min-height: 34px;
+  padding: 4px 5px 4px 8px;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 2px 8px var(--shadow-color, rgba(0, 0, 0, 0.15));
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.editor-line-jump label {
+  flex-shrink: 0;
+}
+
+.editor-line-jump input {
+  width: 62px;
+  min-width: 42px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  outline: none;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-line-jump input:focus {
+  border-color: var(--accent);
+}
+
+.editor-line-jump-range,
+.editor-line-jump-error {
+  flex: 1;
+  min-width: 42px;
+  white-space: nowrap;
+}
+
+.editor-line-jump-error {
+  color: var(--danger);
+}
+
+.editor-line-jump button {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.editor-line-jump button:hover {
+  border-color: var(--border);
+  color: var(--text);
+}
+
 .menu-btn {
   background: none;
   border: 1px solid transparent;
@@ -2485,6 +2553,23 @@ body {
   min-width: 0;
 }
 
+.header-sticky-title-button {
+  -webkit-app-region: no-drag;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: color var(--transition);
+}
+
+.header-sticky-title-button:hover,
+.header-sticky-title-button:focus-visible {
+  color: var(--accent);
+  outline: none;
+}
+
 .header-sticky-area {
   display: flex;
   align-items: center;
@@ -2659,8 +2744,8 @@ body {
 
 .document-outline-panel {
   position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
+  top: 38px;
+  right: 48px;
   z-index: 40;
   width: min(320px, calc(100vw - 48px));
   max-height: min(58vh, 440px);
@@ -2669,6 +2754,10 @@ body {
   border-radius: var(--radius);
   background: var(--bg);
   box-shadow: 0 8px 24px var(--shadow-color, rgba(0, 0, 0, 0.18));
+}
+
+.focus-mode .document-outline-panel {
+  top: 8px;
 }
 
 .document-outline-header {
@@ -2699,7 +2788,7 @@ body {
   align-items: center;
   width: 100%;
   min-width: 0;
-  gap: 7px;
+  gap: 3px;
   padding-block: 6px;
   padding-inline-end: 10px;
   border: 0;
@@ -2717,7 +2806,7 @@ body {
 
 .document-outline-level {
   flex-shrink: 0;
-  width: 20px;
+  width: 16px;
   color: var(--text-secondary);
   font-family: var(--font-mono);
   font-size: 10px;
@@ -3283,12 +3372,14 @@ body {
   color: var(--text-secondary);
 }
 
-.editor-content h1 { font-size: 1.6em; margin: 12px 0 6px; }
-.editor-content h2 { font-size: 1.3em; margin: 10px 0 4px; }
-.editor-content h3 { font-size: 1.1em; margin: 8px 0 4px; }
-.editor-content h4 { font-size: 1.05em; margin: 7px 0 3px; }
-.editor-content h5 { font-size: 1em; margin: 6px 0 3px; }
-.editor-content h6 { font-size: 1em; margin: 5px 0 2px; color: var(--text-secondary); }
+/* Markdown 空白行是块分隔符，不会生成空段落。用正常的块级外边距表达
+   这个语义，避免导入文档中的段落和标题在视觉上直接粘连。 */
+.editor-content h1 { font-size: 1.6em; margin: 0.9em 0 0.5em; }
+.editor-content h2 { font-size: 1.3em; margin: 1em 0 0.55em; }
+.editor-content h3 { font-size: 1.1em; margin: 1.1em 0 0.6em; }
+.editor-content h4 { font-size: 1.05em; margin: 1.2em 0 0.65em; }
+.editor-content h5 { font-size: 1em; margin: 1.25em 0 0.65em; }
+.editor-content h6 { font-size: 1em; margin: 1.25em 0 0.65em; color: var(--text-secondary); }
 
 .editor-content p {
   margin: 2px 0;
@@ -3296,6 +3387,11 @@ body {
 
 .editor-content > p {
   text-indent: var(--editor-paragraph-indent);
+}
+
+/* 只放宽正文顶层段落；列表项、引用和表格单元格仍保持紧凑。 */
+.editor-content .ProseMirror > p {
+  margin: 1em 0;
 }
 
 /* 中文与英文/数字之间只增加视觉间距，不向文档模型插入字符。 */
