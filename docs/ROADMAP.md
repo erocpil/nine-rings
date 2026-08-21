@@ -1,6 +1,6 @@
 # Nine Rings 优化路线图
 
-> 最后更新：2026-08-14 · 当前功能状态的唯一入口；长期研究见 [未来演进方向](future-evolution.md)
+> 最后更新：2026-08-21 · 当前功能状态的唯一入口；Web 专项见 [Web / PWA 优化计划](web-optimization-plan.md)，长期研究见 [未来演进方向](future-evolution.md)
 
 ---
 
@@ -29,14 +29,14 @@
 | **随笔→文档移动** | 支持文档和目录在树中移动，并保留版本与更新时间语义 | ✅ 已实现 |
 | **概念聚合页** | 点击概念标签 → 跨目录列出所有关联文档（MOC） | ✅ 已实现 |
 | **待办提醒** | 待办项旁 🔕/🔔 按钮，设置 datetime-local 提醒，到点浏览器通知弹出 | ✅ 已实现 |
-| **移动端适配深化** | 响应式布局 (≤768/480)、底部工具栏、侧栏 overlay + 遮罩、左边缘滑动手势、safe-area 适配 | ✅ 已实现 |
+| **移动端适配深化** | 响应式布局 (≤768/480)、顶部入口、侧栏 overlay + 遮罩、左边缘滑动手势、safe-area 适配 | ✅ 已实现 |
 | **暗色蔚主题** | `theme-azure-dark`：深钴蓝底色 (#0d1628)，保持 #3b6dcc accent | ✅ 已实现 |
 
 ## P3 — 长远 / 工程
 
 | 项目 | 说明 | 状态 |
 |------|------|------|
-| **PWA 离线缓存** | SW (Cache First静态 + Network First HTML) + manifest.json + 注册脚本 | ✅ 已实现 |
+| **PWA 离线缓存** | 已有基础 SW；正在改为构建期 precache、安全更新提示和离线升级 E2E | ⚠️ 可靠性改造中（见 [Web / PWA 优化计划](web-optimization-plan.md)） |
 | **GitHub 备份** | 多设备 IndexedDB ↔ GitHub（全量 JSON 快照，Push/Pull） | ✅ GitHub V1 已实现（[使用说明](github-backup.md)） |
 | **Flutter 移动端** | Android APK 已构建（145MB debug），启动崩溃已修复（`initializeDateFormatting`）；P.A.R.A./Zettelkasten/Markdown 导入待实现 | ⚠️ APK 已构建，功能待对齐 |
 | **Tauri 桌面端** | 系统托盘（左键显示/隐藏，右键菜单）、全局热键（Rust 系统级注册）、frameless 窗口、Quick Capture 独立窗口、logo 替换 | ✅ 已实现 |

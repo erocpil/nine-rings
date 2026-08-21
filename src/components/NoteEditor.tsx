@@ -2234,17 +2234,19 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             <span className="stat-sep">|</span>
           </>
         )}
-        <span className="editor-status-position">位置 {scrollPct}%</span>
-        <span className="stat-sep">|</span>
-        <span>{chars} 字符</span>
-        <span className="stat-sep">|</span>
-        <span>{words} 词</span>
-        <span className="stat-sep">|</span>
-        <span className="stat-hint">
-          {vimModeEnabled && !readonly ? "Esc Normal · i Insert · Ctrl+F/B 翻页" : "Ctrl+Z · 粘贴/拖入图片"}
+        <span className="editor-status-secondary">
+          <span className="editor-status-position">位置 {scrollPct}%</span>
+          <span className="stat-sep">|</span>
+          <span>{chars} 字符</span>
+          <span className="stat-sep">|</span>
+          <span>{words} 词</span>
+          <span className="stat-sep">|</span>
+          <span className="stat-hint">
+            {vimModeEnabled && !readonly ? "Esc Normal · i Insert · Ctrl+F/B 翻页" : "Ctrl+Z · 粘贴/拖入图片"}
+          </span>
         </span>
         {onVersionOpen && (
-          <>
+          <span className="editor-status-actions">
             <span className="stat-sep" />
             <span className="btn-debug-toggle-wrapper">
               <button
@@ -2260,7 +2262,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             <button className="btn-version-icon" onClick={onVersionOpen} title="版本历史">
               📋
             </button>
-          </>
+          </span>
         )}
       </div>
 

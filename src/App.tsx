@@ -14,7 +14,6 @@ import { VersionHistory } from "./components/VersionHistory";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { DebugPanel } from "./components/DebugPanel";
 import TitleBar from "./components/TitleBar";
-import MobileToolbar from "./components/MobileToolbar";
 import { useSearch } from "./hooks/useSearch";
 import { useDevImport } from "./hooks/useDevImport";
 import { useNotesStore } from "./stores/useNotesStore";
@@ -38,6 +37,8 @@ import { useQuickCaptureListener } from "./hooks/useQuickCaptureListener";
 import { editorAppearanceVariables } from "./lib/editor-appearance";
 import { isPathUnder } from "./lib/storage/core";
 import { getPathAncestors } from "./lib/move-to";
+import { useWebPlatform } from "./hooks/useWebPlatform";
+import { WebStatusBanner } from "./components/WebStatusBanner";
 
 const WORKSPACE_TARGET_KEY = "nr:workspaceTarget";
 const ACTIVE_TAG_KEY = "nr:activeTag";
@@ -71,6 +72,7 @@ function saveWorkspaceTarget(target: WorkspaceTarget): void {
 }
 
 function App() {
+  const webPlatform = useWebPlatform();
   const startupWorkspaceTargetRef = useRef<WorkspaceTarget | null>(readWorkspaceTarget());
   const startupLastNoteIdRef = useRef(localStorage.getItem("nr:lastNote"));
   const startupNoteIdRef = useRef(
@@ -151,6 +153,11 @@ function App() {
     },
   });
   const flushAutoSave = autoSave.flush;
+  const applyWebUpdate = useCallback(() => {
+    void flushAutoSave()
+      .then(webPlatform.applyUpdate)
+      .catch((error) => console.error("[PWA] 刷新前保存失败，已取消更新:", error));
+  }, [flushAutoSave, webPlatform.applyUpdate]);
 
   const handleSelectNote = useCallback((note: Note | null) => {
     if (note) {
@@ -242,11 +249,10 @@ function App() {
   const [documentOutlineRequestId, setDocumentOutlineRequestId] = useState(0);
   const HIDDEN_KEY = "nr:sidebarHidden";
   const [searchExpanded, setSearchExpanded] = useState(false);
-  const [isTouchDevice] = useState(() => {
-    return typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;
-  });
   const [sidebarHidden, setSidebarHidden] = useState(() => {
-    return localStorage.getItem(HIDDEN_KEY) === "true";
+    const persisted = localStorage.getItem(HIDDEN_KEY);
+    if (persisted !== null) return persisted === "true";
+    return typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches;
   });
   const TAB_KEY = "nr:sidebarTab";
   const [sidebarTab, setSidebarTab] = useState<'daily' | 'tree'>(() => {
@@ -264,6 +270,11 @@ function App() {
       setSidebarRefreshKey((key) => key + 1);
     }
   };
+  const closeSidebarOnNarrowScreen = useCallback(() => {
+    if (window.matchMedia("(max-width: 768px)").matches) {
+      setSidebarHidden(true);
+    }
+  }, []);
   const [docCreateOpen, setDocCreateOpen] = useState(false);
   const [docTreeKey, setDocTreeKey] = useState(0);
   const [docTreeCollapsed, setDocTreeCollapsed] = useState<Set<string>>(() => {
@@ -850,6 +861,15 @@ function App() {
         </div>
       </header>
 
+      {!isTauriRuntime() && (
+        <WebStatusBanner
+          online={webPlatform.online}
+          updateAvailable={webPlatform.updateAvailable}
+          storagePressure={webPlatform.storagePressure}
+          onApplyUpdate={applyWebUpdate}
+        />
+      )}
+
       <div className="app-body">
         <aside className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}>
           <div className="sidebar-tabs">
@@ -894,6 +914,7 @@ function App() {
                 setQuery("");
                 setDocResults(null);
                 handleSelectNote(note);
+                closeSidebarOnNarrowScreen();
               }}
               onCreate={createNote}
               onCreateWithTemplate={async (template: Template) => {
@@ -955,11 +976,13 @@ function App() {
                 setDocResults(null);
                 handleSelectNote(note);
                 setDate(note.date);
+                closeSidebarOnNarrowScreen();
               }}
               onFolderSelect={(path) => {
                 setSelectedFolderPath(path);
                 setSelectedConcept(null);
                 handleSelectNote(null);
+                closeSidebarOnNarrowScreen();
               }}
               selectedId={selectedNote?.id ?? null}
               selectedFolderPath={selectedFolderPath}
@@ -1207,6 +1230,7 @@ function App() {
 
       <SettingsPanel
         open={settingsOpen}
+        webStorageStatus={isTauriRuntime() ? undefined : webPlatform.storage}
         onClose={() => setSettingsOpen(false)}
         onConfigChange={handleConfigChange}
         onSyncBusy={setSyncBusy}
@@ -1241,15 +1265,20 @@ function App() {
                   setDocResults(null);
                   handleSelectNote(note);
                   setDate(note.date);
+                  setDocTreePopupOpen(false);
                 }}
                 onFolderSelect={(path) => {
                   setSelectedFolderPath(path);
                   setSelectedConcept(null);
                   handleSelectNote(null);
+                  setDocTreePopupOpen(false);
                 }}
                 selectedId={selectedNote?.id ?? null}
                 selectedFolderPath={selectedFolderPath}
-                onCreate={() => setDocCreateOpen(true)}
+                onCreate={() => {
+                  setDocTreePopupOpen(false);
+                  setDocCreateOpen(true);
+                }}
                 refreshKey={docTreeKey}
                 onRename={(id, title) => updateNote(id, { title })}
                 onDelete={(id) => {
@@ -1340,17 +1369,6 @@ function App() {
         onClick={() => setSidebarHidden(true)}
       />
 
-      {/* 移动端底部工具栏（仅触摸设备显示，≤768px 时 CSS 生效） */}
-      {isTouchDevice && (
-        <MobileToolbar
-        onCreateNote={createNote}
-        onToggleSidebar={() => setSidebarHidden(!sidebarHidden)}
-        onFocusSearch={() => document.querySelector<HTMLInputElement>(".search-input")?.focus()}
-        onOpenSettings={() => setSettingsOpen(true)}
-        sidebarTab={sidebarTab}
-        onToggleTab={() => handleSetSidebarTab(sidebarTab === 'daily' ? 'tree' : 'daily')}
-      />
-      )}
     </div>
   );
 }

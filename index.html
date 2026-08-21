@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/ragdoll-32.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#3949ab" />
     <meta name="description" content="Nine Rings — 跨平台便签" />
     <link rel="manifest" href="/manifest.json" />
@@ -12,40 +12,5 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      // Tauri Windows 使用 http://tauri.localhost 提供内置资源。若在桌面端注册
-      // PWA Service Worker，它会在下次启动时接管入口 HTML/JS；network-first
-      // 对自定义协议的失败回退可能等待数分钟，表现为原生窗口已经就绪但一直白屏。
-      const isTauriDesktop =
-        window.isTauri === true ||
-        window.__TAURI__ !== undefined ||
-        window.__TAURI_INTERNALS__ !== undefined;
-
-      if (!isTauriDesktop && "serviceWorker" in navigator) {
-        window.addEventListener("load", () => {
-          navigator.serviceWorker.register("/sw.js").then(
-            (reg) => {
-              console.log("[SW] registered, scope:", reg.scope);
-              // 检测 SW 更新，强制刷新
-              reg.addEventListener("updatefound", () => {
-                const newWorker = reg.installing;
-                if (newWorker) {
-                  newWorker.addEventListener("statechange", () => {
-                    if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-                      console.log("[SW] new version available, reloading");
-                      window.location.reload();
-                    }
-                  });
-                }
-              });
-            },
-            (err) => {
-              console.warn("[SW] registration failed (non-fatal):", err);
-              // SW 注册失败不影响应用使用
-            }
-          );
-        });
-      }
-    </script>
   </body>
 </html>

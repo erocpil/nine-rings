@@ -343,10 +343,18 @@ test.describe("编辑器复制粘贴", () => {
     await expect(childList).toHaveCount(1);
     await expect(grandchildList).toHaveCount(1);
     await expect(grandchildList).toContainText("Grandchild");
-    await expect(rootList).toHaveCSS("list-style-type", "disc");
-    await expect(bulletChildList).toHaveCSS("list-style-type", "circle");
+    // 无序列表 marker 由 ::before 统一绘制，避免 Safari 同时显示原生
+    // marker 和伪元素而形成双圆点。
+    await expect(rootList).toHaveCSS("list-style-type", "none");
+    await expect(bulletChildList).toHaveCSS("list-style-type", "none");
     await expect(childList).toHaveCSS("list-style-type", "lower-alpha");
-    await expect(grandchildList).toHaveCSS("list-style-type", "square");
+    await expect(grandchildList).toHaveCSS("list-style-type", "none");
+    await expect.poll(() => rootList.locator(":scope > li").first().evaluate(
+      (element) => getComputedStyle(element, "::before").content,
+    )).toContain("•");
+    await expect.poll(() => grandchildList.locator(":scope > li").first().evaluate(
+      (element) => getComputedStyle(element, "::before").content,
+    )).toContain("▪");
   });
 
   test("同时携带 HTML 的 Markdown 仍完整格式化", async ({ page }) => {

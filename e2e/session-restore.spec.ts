@@ -14,6 +14,8 @@ test.describe("移动端视图切换", () => {
   test("移动端使用单一视图切换按钮并显示目标文字", async ({ page }) => {
     await page.goto("/");
 
+    await expect(page.locator(".m-toolbar")).toHaveCount(0);
+    await page.getByTitle("显示侧栏").click();
     const viewSwitch = page.locator(".sidebar-view-switch");
     await expect(viewSwitch).toHaveCount(1);
     await expect(viewSwitch).toHaveAttribute("aria-label", "切换到随笔");
@@ -22,7 +24,8 @@ test.describe("移动端视图切换", () => {
     await viewSwitch.click();
     await expect(viewSwitch).toHaveAttribute("aria-label", "切换到文档");
     await expect(viewSwitch.locator(".sidebar-view-switch-label")).toHaveText("文档");
-    await expect(page.locator(".m-toolbar").getByText("文档", { exact: true })).toBeVisible();
+    await page.locator(".sidebar-overlay").click({ position: { x: 590, y: 300 } });
+    await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
   });
 });
 
@@ -152,7 +155,7 @@ test.describe("会话位置恢复与编辑器查找", () => {
     await expect(sidebar.locator(".doc-tree-folder .doc-tree-toggle").filter({ hasText: "▼" }).first()).toBeVisible();
   });
 
-  test("专注模式中 Ctrl-F 浮层可见且在主窗口关闭时同步关闭", async ({ page }) => {
+  test("专注模式中文档查找浮层可见且在主窗口关闭时同步关闭", async ({ page }) => {
     await createDocument(page, "窗口内查找测试");
     const editor = page.locator(".ProseMirror");
     await editor.fill("第一处 current-find-target\n中间正文\n第二处 current-find-target");
@@ -160,7 +163,7 @@ test.describe("会话位置恢复与编辑器查找", () => {
     await expect(page.locator(".note-editor")).toHaveClass(/focus-mode/);
     const editorTopBefore = await editor.evaluate((element) => element.getBoundingClientRect().top);
     await editor.locator(":scope > p").nth(1).click();
-    await page.keyboard.press("Control+f");
+    await page.keyboard.press("Alt+f");
 
     const findInput = page.getByRole("search").getByLabel("在当前文档中查找");
     await expect(findInput).toBeVisible();
@@ -174,7 +177,7 @@ test.describe("会话位置恢复与编辑器查找", () => {
 
     await findInput.press("Escape");
     await expect(findInput).toHaveCount(0);
-    await page.keyboard.press("Alt+f");
+    await page.keyboard.press("Meta+f");
     await expect(page.getByRole("search").getByLabel("在当前文档中查找")).toBeVisible();
 
     // Web E2E 没有 Tauri 标题栏；直接验证标题栏在 hide 前广播的同一事件。

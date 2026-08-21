@@ -179,6 +179,61 @@ body {
   overflow: hidden;
 }
 
+.web-status-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 34px;
+  padding: 5px 14px;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--text);
+  font-size: 12px;
+  z-index: 20;
+}
+
+.web-status-banner.offline,
+.web-status-banner.warning {
+  background: color-mix(in srgb, #d29922 14%, var(--surface));
+}
+
+.web-status-banner button {
+  flex: none;
+  padding: 3px 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+}
+
+.web-storage-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  font-size: 13px;
+}
+
+.web-storage-summary strong {
+  margin-left: 4px;
+}
+
+.web-storage-hint {
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .web-status-banner {
+    justify-content: space-between;
+    padding-right: calc(10px + var(--safe-right));
+    padding-left: calc(10px + var(--safe-left));
+  }
+}
+
 .app-sidebar {
   width: 240px;
   border-right: 1px solid var(--border);
@@ -1655,6 +1710,17 @@ body {
   flex-shrink: 0;
 }
 
+.editor-status-secondary {
+  display: contents;
+}
+
+.editor-status-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
 .stat-sep {
   color: var(--border);
 }
@@ -1847,7 +1913,7 @@ body {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 200;
+  z-index: 1200;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2092,16 +2158,6 @@ body {
   animation: fadeIn 0.15s ease;
 }
 
-.image-dialog-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
 .dialog-overlay {
   position: fixed;
   inset: 0;
@@ -2109,7 +2165,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 1200;
 }
 
 .dialog {
@@ -3386,22 +3442,16 @@ body {
   list-style-type: decimal;
 }
 
-/* 用不同 marker 明确表达嵌套深度；不能用全局 `ul { list-style: disc }`
-   覆盖浏览器对多级列表的视觉区分。 */
-.editor-content ul {
-  list-style-type: disc;
-}
-
-.editor-content li > ul {
-  list-style-type: circle;
+/* Safari 会同时绘制原生 marker 和自定义 ::before，形成“双圆点”。
+   无序列表完全交给伪元素绘制，跨浏览器只保留一枚 marker。 */
+.editor-content ul,
+.editor-content li > ul,
+.editor-content li li > ul {
+  list-style: none;
 }
 
 .editor-content li > ul > li::before {
   content: "◦";
-}
-
-.editor-content li li > ul {
-  list-style-type: square;
 }
 
 .editor-content li li > ul > li::before {
@@ -6423,7 +6473,7 @@ body {
   .app-main {
     flex: 1;
     padding: 12px 8px 12px 12px;
-    padding-bottom: calc(68px + var(--safe-bottom));
+    padding-bottom: calc(12px + var(--safe-bottom));
   }
 
   /* ── Header 紧凑 ── */
@@ -6478,6 +6528,94 @@ body {
     padding: 10px 0 10px 10px;
   }
 
+  .note-title-row {
+    gap: 4px;
+  }
+
+  .note-title-row .note-title {
+    min-width: 0;
+    padding: 2px 0;
+    margin-bottom: 2px;
+    font-size: calc(var(--editor-font-size) * 1.125);
+  }
+
+  .tag-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 3px;
+    scrollbar-width: none;
+  }
+
+  .tag-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tag-chip,
+  .tag-input {
+    flex-shrink: 0;
+  }
+
+  .editor-menu {
+    gap: 2px;
+    margin-bottom: 4px;
+    padding: 3px 0;
+  }
+
+  .editor-menu .menu-btn {
+    padding: 3px 5px;
+  }
+
+  /* 手机端不显示桌面鼠标交互用的块间“+”按钮；未启用块编号时
+     同时释放 gutter 占用的正文宽度。 */
+  .editor-block-insert {
+    display: none;
+  }
+
+  .note-editor:not(.show-line-numbers) .editor-content-shell {
+    --editor-gutter-width: 0px !important;
+  }
+
+  .note-editor:not(.show-line-numbers) .editor-block-gutter {
+    display: none;
+  }
+
+  .editor-status-secondary,
+  .editor-stats .btn-debug-toggle-wrapper {
+    display: none;
+  }
+
+  .editor-stats {
+    min-height: 28px;
+    padding: 3px 0 0;
+  }
+
+  .editor-status-actions {
+    margin-left: auto;
+  }
+
+  .editor-vim-status + .stat-sep,
+  .editor-status-block + .stat-sep {
+    display: none;
+  }
+
+  .app-focus-mode .app-header {
+    display: none;
+  }
+
+  /* 属性在窄屏中作为覆盖式抽屉，不再挤压正文或变成 220px 的孤立列。 */
+  .properties-panel {
+    position: fixed;
+    top: var(--safe-top);
+    right: 0;
+    bottom: 0;
+    z-index: 950;
+    width: min(88vw, 360px);
+    max-width: none;
+    background: var(--bg);
+    border-left: 1px solid var(--border);
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.2);
+  }
+
   .note-editor .editor-title {
     font-size: 18px;
   }
@@ -6512,56 +6650,6 @@ body {
 
   .editor-content .column-resize-handle {
     display: none;
-  }
-
-  /* ── 底部工具栏 ── */
-  .m-toolbar {
-    display: flex;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 56px;
-    padding: 0 16px;
-    padding-bottom: var(--safe-bottom);
-    background: var(--surface);
-    border-top: 1px solid var(--border);
-    z-index: 90;
-    align-items: center;
-    justify-content: space-around;
-    gap: 0;
-  }
-
-  .m-toolbar-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    font-size: 10px;
-    cursor: pointer;
-    padding: 4px 12px;
-    border-radius: var(--radius);
-    transition: color 0.15s, background 0.15s;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-  }
-
-  .m-toolbar-btn:active {
-    background: var(--bg-hover, rgba(0,0,0,0.05));
-    color: var(--accent);
-  }
-
-  .m-toolbar-btn svg {
-    width: 22px;
-    height: 22px;
-  }
-
-  .m-toolbar-btn .m-toolbar-icon {
-    font-size: 20px;
-    line-height: 1;
   }
 
   /* ── 隐藏桌面端元素 ── */

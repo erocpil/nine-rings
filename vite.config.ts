@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import importPlugin from "./plugins/vite-import-plugin";
+import pwaPlugin from "./plugins/vite-pwa-plugin";
 import { execSync } from "child_process";
 import { readFileSync } from "fs";
 
@@ -19,10 +20,12 @@ function buildVersion(): string {
   }
 }
 
-export default defineConfig(async () => ({
-  plugins: [react(), importPlugin()],
+export default defineConfig(async () => {
+  const version = buildVersion();
+  return ({
+  plugins: [react(), importPlugin(), pwaPlugin(version)],
   define: {
-    __APP_VERSION__: JSON.stringify(buildVersion()),
+    __APP_VERSION__: JSON.stringify(version),
   },
   clearScreen: false,
   server: {
@@ -36,4 +39,5 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
-}));
+  });
+});

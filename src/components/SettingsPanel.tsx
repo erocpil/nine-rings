@@ -9,6 +9,7 @@ import SettingsSync from "./SettingsSync";
 import { withTimeout } from "../lib/async";
 import { EditorAppearancePanel } from "./EditorAppearancePanel";
 import { isDocumentFindShortcut, isEditorLineJumpShortcut } from "../lib/shortcuts";
+import type { WebStorageStatus } from "../hooks/useWebPlatform";
 
 interface Props {
   open: boolean;
@@ -19,6 +20,7 @@ interface Props {
   onSyncBusy?: (busy: boolean) => void;
   /** Pull 完成后回调 — 刷新侧栏和文档树 */
   onPullDone?: () => void;
+  webStorageStatus?: WebStorageStatus;
 }
 
 type SettingsPage = "root" | "appearance" | "editor" | "general" | "tags" | "data" | "sync" | "advanced";
@@ -48,7 +50,7 @@ const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   advanced: "高级",
 };
 
-export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncBusy, onPullDone }: Props) {
+export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncBusy, onPullDone, webStorageStatus }: Props) {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -547,6 +549,24 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
             {/* ═══════════════════════ */}
             {/* 数据导出/导入 */}
             {/* ═══════════════════════ */}
+            {webStorageStatus?.supported && (
+              <SettingsSection title="浏览器存储" desc="Nine Rings 的本地数据保存在当前浏览器中" visible={settingsPage === "data"}>
+                <div className="web-storage-summary">
+                  <span>
+                    持久存储：
+                    <strong>{webStorageStatus.persisted ? "已授权" : "未授权"}</strong>
+                  </span>
+                  <span>
+                    已使用：
+                    <strong>{formatStorageBytes(webStorageStatus.usage)}</strong>
+                    {webStorageStatus.quota !== null && ` / ${formatStorageBytes(webStorageStatus.quota)}`}
+                  </span>
+                </div>
+                {!webStorageStatus.persisted && (
+                  <p className="web-storage-hint">浏览器可能在空间紧张时清理本站数据，建议定期导出或配置 GitHub 备份。</p>
+                )}
+              </SettingsSection>
+            )}
             <SettingsSection title="数据导出 / 导入" desc="全量备份或迁移数据（JSON 格式）" visible={settingsPage === "data"}>
               <div className="settings-button-row">
                 <button className="settings-btn-primary" onClick={handleExport}>
@@ -706,6 +726,19 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
       )}
     </div>
   );
+}
+
+function formatStorageBytes(bytes: number | null): string {
+  if (bytes === null) return "不可用";
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1024;
+  let unit = units[0];
+  for (let i = 1; i < units.length && value >= 1024; i += 1) {
+    value /= 1024;
+    unit = units[i];
+  }
+  return `${value.toFixed(value >= 10 ? 1 : 2)} ${unit}`;
 }
 
 // ── 快捷键配置 ──

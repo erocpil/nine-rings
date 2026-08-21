@@ -33,7 +33,7 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     await expect(page.locator(".search-match-active")).toHaveCount(1);
   });
 
-  test("Ctrl-F 首次下一处从当前光标之后开始", async ({ page }) => {
+  test("文档查找首次下一处从当前光标之后开始", async ({ page }) => {
     await createDocument(page, "文档内查找起点测试");
     const editor = page.locator(".ProseMirror");
     await editor.fill([
@@ -45,7 +45,7 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     ].join("\n"));
 
     await editor.locator(":scope > p").nth(1).click();
-    await page.keyboard.press("Control+f");
+    await page.keyboard.press("Alt+f");
     const findInput = page.getByLabel("在当前文档中查找");
     await findInput.fill("needle");
     await expect(page.locator(".editor-find-count")).toHaveText("0/3");
