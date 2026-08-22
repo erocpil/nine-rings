@@ -312,6 +312,7 @@ function App() {
   const [tagFilteredNotes, setTagFilteredNotes] = useState<Note[] | null>(null);
   const [undo, setUndo] = useState<UndoState | null>(null);
   const [versionOpen, setVersionOpen] = useState(false);
+  const [pdfExportRequestId, setPdfExportRequestId] = useState(0);
   const [syncBusy, setSyncBusy] = useState(false);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const { config, settingsOpen, setSettingsOpen, handleConfigChange } = useSettings();
@@ -1318,6 +1319,7 @@ function App() {
                     content={selectedNote.content}
                     contentVersion={selectedNote.updated_at}
                     pdfDocumentInfo={pdfDocumentInfo}
+                    pdfExportRequestId={pdfExportRequestId}
                     tags={selectedNote.tags}
                     showLineNumbers={config?.editor_show_line_numbers ?? false}
                     showStatusBlockNumber={config?.editor_show_status_block_number ?? true}
@@ -1361,6 +1363,7 @@ function App() {
               note={selectedNote}
               onMetadataUpdate={handleDocumentMetadataUpdate}
               onMoveDocument={handleMoveDocument}
+              onExportPdf={() => setPdfExportRequestId((requestId) => requestId + 1)}
               onNoteUpdate={(updated) => { handleSelectNote(updated); setDocTreeKey(k => k + 1); }}
               onClose={() => setPropertiesOpen(false)}
               onOpenConcept={(concept) => {

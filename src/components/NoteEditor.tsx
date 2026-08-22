@@ -28,7 +28,7 @@ import {
 
 // ── 自定义字体大小扩展 ──
 
-import { Extension } from "@tiptap/core";
+import { Extension, type Editor } from "@tiptap/core";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { CellSelection, deleteCellSelection, TableMap } from "@tiptap/pm/tables";
@@ -216,6 +216,7 @@ interface NoteEditorProps {
   content: DeltaOps;
   contentVersion?: string;
   pdfDocumentInfo?: PdfDocumentInfo;
+  pdfExportRequestId?: number;
   tags: string[];
   readonly?: boolean;
   onReadonlyChange?: (readonly: boolean) => Promise<void> | void;
@@ -245,7 +246,7 @@ interface NoteEditorProps {
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDocumentInfo, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, vimModeEnabled, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
+export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, vimModeEnabled, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -280,6 +281,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const [headingFoldRevision, setHeadingFoldRevision] = useState(0);
   const headingFoldRenderFrameRef = useRef<number | null>(null);
   const lastOutlineRequestIdRef = useRef(outlineRequestId);
+  const lastPdfExportRequestIdRef = useRef(pdfExportRequestId);
   const outlineBaseLevel = useMemo(
     () => documentOutline.length > 0
       ? Math.min(...documentOutline.map((item) => item.level))
@@ -337,8 +339,26 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const [currentStatusBlock, setCurrentStatusBlock] = useState(1);
   const [bookmarkCursorPosition, setBookmarkCursorPosition] = useState(1);
   const [selectedTableCellCount, setSelectedTableCellCount] = useState(0);
+  const [, setEditorUiSignature] = useState("");
   const [vimEditorMode, setVimEditorMode] = useState<VimEditorMode>("normal");
+  const [documentStats, setDocumentStats] = useState({ chars: 0, words: 0 });
+  const documentStatsTimerRef = useRef<number | null>(null);
   const nativeCjkLatinSpacing = useMemo(supportsNativeCjkLatinSpacing, []);
+
+  const scheduleDocumentStats = useCallback((target: Editor, immediate = false) => {
+    if (!showStatusBar) return;
+    if (documentStatsTimerRef.current !== null) {
+      window.clearTimeout(documentStatsTimerRef.current);
+    }
+    documentStatsTimerRef.current = window.setTimeout(() => {
+      documentStatsTimerRef.current = null;
+      if (target.isDestroyed) return;
+      setDocumentStats({
+        chars: target.storage.characterCount?.characters?.() ?? 0,
+        words: target.storage.characterCount?.words?.() ?? 0,
+      });
+    }, immediate ? 0 : 180);
+  }, [showStatusBar]);
 
   useEffect(() => {
     if (!markdownPasteText) return;
@@ -475,6 +495,9 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   }, [content, contentVersion, noteId]);
 
   const editor = useEditor({
+    // ProseMirror 自己会局部更新正文 DOM。避免每次按键都重渲染整个
+    // NoteEditor；工具栏上下文由下方的轻量签名按需驱动。
+    shouldRerenderOnTransaction: false,
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3, 4, 5, 6] },
@@ -547,6 +570,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     ],
     content: tipTapContent,
     editable: !readonly,
+    onCreate: ({ editor: ed }) => scheduleDocumentStats(ed, true),
     editorProps: {
       attributes: { tabindex: "0" },
       transformPastedHTML: normalizePastedHTML,
@@ -562,6 +586,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       localStorage.setItem(`selectionPos:${noteId}`, JSON.stringify({ from, to }));
     },
     onUpdate: ({ editor: ed }) => {
+      scheduleDocumentStats(ed);
       // 搜索高亮是导航提示，不应在用户开始修改正文后继续指向旧位置。
       if (searchMatchesRef.current.length > 0) {
         searchMatchesRef.current = [];
@@ -586,9 +611,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       const now = Date.now();
       if (now - _lastSaveLog > 1000) {
         _lastSaveLog = now;
-        const ch = ed.storage.characterCount?.characters?.() ?? 0;
-        const wd = ed.storage.characterCount?.words?.() ?? 0;
-        addLog(`[变更] ${noteId.slice(0,8)} chars=${ch} words=${wd}`);
+        addLog(`[变更] ${noteId.slice(0,8)} docSize=${ed.state.doc.content.size}`);
       }
 
       // ── [[ 双向链接检测 ──
@@ -625,7 +648,14 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     if (headingFoldRenderFrameRef.current !== null) {
       window.cancelAnimationFrame(headingFoldRenderFrameRef.current);
     }
+    if (documentStatsTimerRef.current !== null) {
+      window.clearTimeout(documentStatsTimerRef.current);
+    }
   }, []);
+
+  useEffect(() => {
+    if (editor && showStatusBar) scheduleDocumentStats(editor, true);
+  }, [editor, scheduleDocumentStats, showStatusBar]);
 
   useEffect(() => () => {
     if (editor && !editor.isDestroyed) {
@@ -700,6 +730,25 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         editor.state.selection.forEachCell(() => { selectedCells++; });
       }
       setSelectedTableCellCount(selectedCells);
+      const formattingState = [
+        "bold", "italic", "strike", "link", "blockquote", "bulletList",
+        "orderedList", "codeBlock", "table",
+      ].map((name) => editor.isActive(name) ? "1" : "0").join("");
+      const headingLevel = [1, 2, 3, 4, 5, 6]
+        .find((level) => editor.isActive("heading", { level })) ?? 0;
+      const textStyle = editor.getAttributes("textStyle");
+      const selectionKind = editor.state.selection.empty
+        ? "cursor"
+        : `${editor.state.selection.from}:${editor.state.selection.to}`;
+      setEditorUiSignature([
+        formattingState,
+        headingLevel,
+        textStyle.fontSize ?? "",
+        textStyle.color ?? "",
+        selectionKind,
+        editor.can().undo() ? "u1" : "u0",
+        editor.can().redo() ? "r1" : "r0",
+      ].join("|"));
     };
     refresh();
     editor.on("selectionUpdate", refresh);
@@ -1351,8 +1400,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     };
   }, [noteId]);
 
-  const chars = editor?.storage.characterCount?.characters?.() ?? 0;
-  const words = editor?.storage.characterCount?.words?.() ?? 0;
+  const { chars, words } = documentStats;
 
   // ── Image: paste / drop ──
 
@@ -1523,14 +1571,47 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     }
   };
 
-  if (!editor) return <div className="note-editor"><div className="empty-state">加载中...</div></div>;
+  const handleExportPdf = useCallback(() => {
+    if (!editor) return;
+    const opened = exportDocumentAsPdf({
+      title: localTitle.trim() || "无标题",
+      contentHtml: editor.getHTML(),
+      metadata: pdfDocumentInfo,
+    });
+    if (!opened) {
+      window.alert("无法打开 PDF 打印页，请允许此站点打开弹出窗口后重试。");
+    }
+  }, [editor, localTitle, pdfDocumentInfo]);
 
-  const headingSections = extractHeadingSections(editor.state.doc);
-  const collapsedHeadingKeys = getCollapsedHeadingKeys(editor);
-  const visibleHeadingPositions = new Set(
-    visibleHeadingSections(headingSections, collapsedHeadingKeys).map((section) => section.pos),
+  useEffect(() => {
+    if (!editor || pdfExportRequestId === undefined || pdfExportRequestId === lastPdfExportRequestIdRef.current) return;
+    lastPdfExportRequestIdRef.current = pdfExportRequestId;
+    handleExportPdf();
+  }, [editor, handleExportPdf, pdfExportRequestId]);
+
+  // 设置面板中的任意修改都会让 App 更新一次。标题索引与长文档长度成
+  // 正比，因此只在 ProseMirror 文档快照或折叠状态真正变化时重算。
+  const editorDocument = editor?.state.doc;
+  const headingSections = useMemo(
+    () => editorDocument ? extractHeadingSections(editorDocument) : [],
+    [editorDocument],
   );
-  const headingSectionByPosition = new Map(headingSections.map((section) => [section.pos, section]));
+  const collapsedHeadingKeys = useMemo(
+    () => editor ? getCollapsedHeadingKeys(editor) : new Set<string>(),
+    [editor, headingFoldRevision],
+  );
+  const visibleHeadingPositions = useMemo(
+    () => new Set(
+      visibleHeadingSections(headingSections, collapsedHeadingKeys).map((section) => section.pos),
+    ),
+    [collapsedHeadingKeys, headingSections],
+  );
+  const headingSectionByPosition = useMemo(
+    () => new Map(headingSections.map((section) => [section.pos, section])),
+    [headingSections],
+  );
+
+  if (!editor) return <div className="note-editor"><div className="empty-state">加载中...</div></div>;
   const visibleOutlineEntries = documentOutline
     .map((item, index) => ({ item, index }))
     .filter(({ item }) => visibleHeadingPositions.has(item.pos));
@@ -1808,17 +1889,6 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     URL.revokeObjectURL(url);
   };
 
-  const handleExportPdf = () => {
-    const opened = exportDocumentAsPdf({
-      title: localTitle.trim() || "无标题",
-      contentHtml: editor.getHTML(),
-      metadata: pdfDocumentInfo,
-    });
-    if (!opened) {
-      window.alert("无法打开 PDF 打印页，请允许此站点打开弹出窗口后重试。");
-    }
-  };
-
   const getTableCellContext = () => {
     const { state, view } = editor;
     if (state.selection instanceof CellSelection) {
@@ -1940,7 +2010,6 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
   const moreActions = (<>
     <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setMoreOpen(false); }} type="button">M↑ 导出 Markdown</button>
-    <button className="menu-dropdown-item" onClick={() => { handleExportPdf(); setMoreOpen(false); }} type="button">PDF 导出（含目录）</button>
     <div className="menu-dropdown-sep" />
     <button className="menu-dropdown-item" onClick={() => {
       toggleCurrentBookmark();
@@ -2562,7 +2631,6 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
                   <button className="menu-dropdown-item" onClick={() => { handleCut(); setClipOpen(false); }} type="button">✂ 剪切</button>
                   <button className="menu-dropdown-item" onClick={() => { handleClipboardPaste(); setClipOpen(false); }} type="button">📝 粘贴</button>
                   <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setClipOpen(false); }} type="button">M↑ 导出 Markdown</button>
-                  <button className="menu-dropdown-item" onClick={() => { handleExportPdf(); setClipOpen(false); }} type="button">PDF 导出（含目录）</button>
                 </div>
               )}
             </div>
@@ -2571,7 +2639,6 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           {btn("✂", handleCut, false, "剪切 (Ctrl+X)", readonly)}
           {btn("📝", handleClipboardPaste, false, "粘贴 (Ctrl+V)", readonly)}
           {btn("M↑", () => { void handleExportMarkdown(); }, false, "导出 Markdown", false)}
-          {btn("PDF", handleExportPdf, false, "导出 PDF（含目录）", false)}
           </>)}
           <span className="menu-sep" />
 

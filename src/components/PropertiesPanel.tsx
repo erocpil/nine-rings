@@ -11,6 +11,7 @@ interface PropertiesPanelProps {
   readonlyChangeDisabled?: boolean;
   onMetadataUpdate: (metadata: DocumentMetadata) => Promise<void>;
   onMoveDocument: (id: string, targetPath: string) => Promise<void>;
+  onExportPdf: () => void;
   /** 点击概念标签时，跳转到该概念的聚合页 */
   onOpenConcept?: (concept: string) => void;
 }
@@ -30,7 +31,7 @@ const PATH_ROOT_OPTIONS = [
   { value: "archives", label: "📦 Archives" },
 ];
 
-function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChangeDisabled, onMetadataUpdate, onMoveDocument, onOpenConcept }: PropertiesPanelProps) {
+function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChangeDisabled, onMetadataUpdate, onMoveDocument, onExportPdf, onOpenConcept }: PropertiesPanelProps) {
   const [conceptInput, setConceptInput] = useState("");
   const [existingConcepts, setExistingConcepts] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -293,6 +294,17 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
             <span>创建：{new Date(note.created_at).toLocaleString()}</span>
             <span>更新：{new Date(note.updated_at).toLocaleString()}</span>
           </div>
+        </div>
+
+        <div className="prop-section">
+          <div className="prop-label">导出</div>
+          <button
+            type="button"
+            className="settings-btn-secondary"
+            onClick={onExportPdf}
+            title="按展开后的完整正文生成带目录的 PDF"
+          >导出 PDF（含目录）</button>
+          <div className="prop-empty">使用上方发布元信息；只读文档也可以导出。</div>
         </div>
 
         {/* 概念标签 */}

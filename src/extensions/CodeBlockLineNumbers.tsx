@@ -1,5 +1,5 @@
 import { NodeViewWrapper, NodeViewContent, type NodeViewProps } from "@tiptap/react";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Plugin, PluginKey, type Transaction } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { useEffect, useRef, useState } from "react";
@@ -36,6 +36,50 @@ function createCodeHighlightDecorationSet(document: ProseMirrorNode): Decoration
   return DecorationSet.create(document, decorations);
 }
 
+interface ChangedRange {
+  from: number;
+  to: number;
+}
+
+function changedRanges(transaction: Transaction): ChangedRange[] {
+  const ranges: ChangedRange[] = [];
+  transaction.mapping.maps.forEach((stepMap, index) => {
+    const remaining = transaction.mapping.slice(index + 1);
+    stepMap.forEach((_oldFrom, _oldTo, newFrom, newTo) => {
+      const from = remaining.map(newFrom, -1);
+      const to = remaining.map(newTo, 1);
+      ranges.push({ from: Math.min(from, to), to: Math.max(from, to) });
+    });
+  });
+  return ranges;
+}
+
+function changedCodeBlocks(document: ProseMirrorNode, ranges: ChangedRange[]) {
+  const blocks = new Map<number, ProseMirrorNode>();
+  const addAncestors = (position: number) => {
+    const clamped = Math.max(0, Math.min(document.content.size, position));
+    const $position = document.resolve(clamped);
+    for (let depth = $position.depth; depth > 0; depth -= 1) {
+      const node = $position.node(depth);
+      if (node.type.name === "codeBlock") {
+        blocks.set($position.before(depth), node);
+        break;
+      }
+    }
+  };
+
+  for (const range of ranges) {
+    const from = Math.max(0, Math.min(document.content.size, range.from));
+    const to = Math.max(from, Math.min(document.content.size, range.to));
+    addAncestors(from);
+    addAncestors(to);
+    document.nodesBetween(Math.max(0, from - 1), Math.min(document.content.size, to + 1), (node, position) => {
+      if (node.type.name === "codeBlock") blocks.set(position, node);
+    });
+  }
+  return blocks;
+}
+
 /**
  * CodeBlock 的 NodeView 组件（参照 TipTap 官方 CodeBlockLanguage 示例）。
  *
@@ -55,10 +99,13 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
 
   useEffect(() => {
     const syncEditable = () => setEditable(editor.isEditable);
-    editor.on("update", syncEditable);
     syncEditable();
+    // 文档更新不会改变只读状态。观察根节点属性可避免每个代码块都在
+    // 每次输入时收到一次 editor update 回调。
+    const observer = new MutationObserver(syncEditable);
+    observer.observe(editor.view.dom, { attributes: true, attributeFilter: ["contenteditable"] });
     return () => {
-      editor.off("update", syncEditable);
+      observer.disconnect();
     };
   }, [editor]);
 
@@ -167,27 +214,32 @@ export const CodeBlockLineNumbers = Node.create({
       key: codeHighlightPluginKey,
       state: {
         init: (_, state) => createCodeHighlightDecorationSet(state.doc),
-        apply: (transaction, previous, oldState, newState) => {
+        apply: (transaction, previous, _oldState, newState) => {
           if (!transaction.docChanged) return previous;
           let decorations = previous.map(transaction.mapping, transaction.doc);
-          const inverseMapping = transaction.mapping.invert();
-          const additions: Decoration[] = [];
+          const ranges = changedRanges(transaction);
+          const blocks = changedCodeBlocks(newState.doc, ranges);
 
-          transaction.doc.descendants((node, position) => {
-            if (node.type.name !== "codeBlock") return;
+          // 普通段落中的输入无需扫描全文，也无需重建任何高亮。
+          if (blocks.size === 0) {
+            const stale = ranges.flatMap(({ from, to }) => decorations.find(
+              Math.max(0, from - 1),
+              Math.min(newState.doc.content.size, Math.max(from + 1, to + 1)),
+              (spec) => spec.codeSyntaxHighlight === true,
+            ));
+            return stale.length > 0 ? decorations.remove(stale) : decorations;
+          }
+
+          const additions: Decoration[] = [];
+          for (const [position, node] of blocks) {
             const existing = decorations.find(
               position,
               position + node.nodeSize,
               (spec) => spec.codeSyntaxHighlight === true,
             );
-            const oldPosition = inverseMapping.map(position, 1);
-            const oldNode = oldState.doc.nodeAt(oldPosition);
-            const unchanged = oldNode?.type.name === "codeBlock" && oldNode.eq(node);
-            const shouldHighlight = normalizeCodeLanguage(node.attrs.language) !== null;
-            if (unchanged && (shouldHighlight ? existing.length > 0 : existing.length === 0)) return;
             if (existing.length > 0) decorations = decorations.remove(existing);
             additions.push(...codeHighlightDecorations(node, position));
-          });
+          }
 
           return additions.length > 0 ? decorations.add(newState.doc, additions) : decorations;
         },

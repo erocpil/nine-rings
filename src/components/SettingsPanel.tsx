@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import type { AppConfig, DocType } from "../types/models";
@@ -103,6 +103,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
 
   // ── 标签管理状态 ──
   const [allTags, setAllTags] = useState<string[]>([]);
+  const [tagsLoading, setTagsLoading] = useState(false);
+  const tagsLoadedRef = useRef(false);
   const [renameTag, setRenameTag] = useState<string | null>(null);
   const [renameVal, setRenameVal] = useState("");
 
@@ -126,13 +128,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
   const loadSettings = () => {
     setLoading(true);
     setLoadError(null);
-    withTimeout(Promise.all([
-      api.config.get(),
-      api.tags.listAll(),
-    ]), 15000, "加载设置").then(([c, tags]) => {
+    withTimeout(api.config.get(), 15000, "加载设置").then((c) => {
       configRef.current = c;
       setConfig(c);
-      setAllTags(tags);
     }).catch((error) => {
       console.error("[SettingsPanel] 加载失败:", error);
       setLoadError(error instanceof Error ? error.message : String(error));
@@ -154,6 +152,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
   useEffect(() => {
     if (open) {
       setSettingsPage("root");
+      tagsLoadedRef.current = false;
       loadSettings();
     }
     else setEditorAppearanceOpen(false);
@@ -171,9 +170,20 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
     };
   }, [open]);
 
-  const refreshTags = () => {
-    api.tags.listAll().then(setAllTags).catch(() => {});
-  };
+  const refreshTags = useCallback(() => {
+    setTagsLoading(true);
+    api.tags.listAll().then((tags) => {
+      setAllTags(tags);
+    }).catch(() => {}).finally(() => {
+      tagsLoadedRef.current = true;
+      setTagsLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!open || settingsPage !== "tags" || tagsLoadedRef.current || tagsLoading) return;
+    refreshTags();
+  }, [open, refreshTags, settingsPage, tagsLoading]);
 
   const updateEditorAppearance = (partial: Partial<AppConfig>) => {
     setEditorAppearanceDraft((current) => {
@@ -224,9 +234,12 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
         try {
           const merged = await api.config.set(pending);
           if (saveVersion === updateVersionRef.current) {
+            const unchanged = JSON.stringify(merged) === JSON.stringify(configRef.current);
             configRef.current = merged;
-            setConfig(merged);
-            onConfigChange(merged);
+            if (!unchanged) {
+              setConfig(merged);
+              onConfigChange(merged);
+            }
             setSaving(null);
             setMessage("已更新");
             setTimeout(() => setMessage(null), 1500);
@@ -708,7 +721,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
               )}
 
               {/* 标签列表 */}
-              {allTags.length === 0 ? (
+              {tagsLoading ? (
+                <div className="settings-empty">正在加载标签…</div>
+              ) : allTags.length === 0 ? (
                 <div className="settings-empty">暂无标签</div>
               ) : (
                 <div className="settings-tag-list">

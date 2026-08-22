@@ -144,6 +144,7 @@ export const DocumentBookmarks = Extension.create<BookmarkOptions>({
         },
         apply(transaction, previous, _oldState, nextState) {
           const meta = transaction.getMeta(documentBookmarkPluginKey) as BookmarkMeta | undefined;
+          if (transaction.docChanged && previous.bookmarks.length === 0 && !meta) return previous;
           let bookmarks = previous.bookmarks;
           if (transaction.docChanged) {
             bookmarks = normalizeBookmarks(nextState.doc, bookmarks.map((bookmark) => {
@@ -174,7 +175,13 @@ export const DocumentBookmarks = Extension.create<BookmarkOptions>({
               : bookmark);
           }
           bookmarks = normalizeBookmarks(nextState.doc, bookmarks);
-          if (sameBookmarks(bookmarks, previous.bookmarks) && !transaction.docChanged) return previous;
+          if (sameBookmarks(bookmarks, previous.bookmarks)) {
+            if (!transaction.docChanged) return previous;
+            return {
+              bookmarks: previous.bookmarks,
+              decorations: previous.decorations.map(transaction.mapping, transaction.doc),
+            };
+          }
           return { bookmarks, decorations: buildDecorations(nextState.doc, bookmarks) };
         },
       },
@@ -184,13 +191,12 @@ export const DocumentBookmarks = Extension.create<BookmarkOptions>({
         },
       },
       view(view) {
-        let previous = JSON.stringify(documentBookmarkPluginKey.getState(view.state)?.bookmarks ?? []);
+        let previous = documentBookmarkPluginKey.getState(view.state)?.bookmarks ?? [];
         return {
           update(view) {
             const bookmarks = documentBookmarkPluginKey.getState(view.state)?.bookmarks ?? [];
-            const serialized = JSON.stringify(bookmarks);
-            if (serialized === previous) return;
-            previous = serialized;
+            if (bookmarks === previous) return;
+            previous = bookmarks;
             options.onChange?.(bookmarks, view.state.doc);
           },
         };

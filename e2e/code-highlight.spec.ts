@@ -2,9 +2,12 @@ import { expect, test } from "@playwright/test";
 
 test("常用代码语言增量高亮并同步到 PDF 打印视图", async ({ page }) => {
   await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  const viewSwitch = page.locator(".sidebar-view-switch");
+  if (await viewSwitch.getAttribute("data-target-view") === "tree") await viewSwitch.click();
+  await page.getByTitle("显示属性面板").click();
+  await page.getByTitle("新建文档").click();
+  await page.getByPlaceholder("文档标题...").fill("代码高亮 PDF");
+  await page.getByRole("button", { name: "创建", exact: true }).click();
 
   const markdown = "```ts\nconst answer: number = 42;\n```";
   const editor = page.locator(".ProseMirror");
@@ -35,15 +38,14 @@ test("常用代码语言增量高亮并同步到 PDF 打印视图", async ({ pag
   await language.selectOption("typescript");
   await expect(block.locator(".hljs-keyword")).toContainText("const");
 
+  await page.locator(".properties-panel .prop-readonly-toggle").click();
+  await expect(editor).toHaveAttribute("contenteditable", "false");
+  await expect(language).toBeDisabled();
+
   const popupPromise = page.waitForEvent("popup");
-  await page.getByTitle("导出 PDF（含目录）").click();
+  await page.locator(".properties-panel").getByRole("button", { name: "导出 PDF（含目录）" }).click();
   const printPage = await popupPromise;
   await printPage.waitForLoadState("domcontentloaded");
   await expect(printPage.locator(".document-content .hljs-keyword")).toContainText("const");
   await expect(printPage.locator(".code-block-language, .code-block-copy, [data-pdf-exclude]")).toHaveCount(0);
-
-  await page.locator(".sidebar-item.active").getByTitle("设为只读")
-    .evaluate((button: HTMLButtonElement) => button.click());
-  await expect(editor).toHaveAttribute("contenteditable", "false");
-  await expect(language).toBeDisabled();
 });
