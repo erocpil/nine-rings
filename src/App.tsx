@@ -414,6 +414,35 @@ function App() {
     setDocTreeKey((key) => key + 1);
   }, [flushAutoSave, revealDocTreePath, selectNote]);
 
+  const handleBatchMoveDocuments = useCallback(async (ids: string[], targetPath: string) => {
+    const uniqueIds = [...new Set(ids)];
+    if (uniqueIds.length === 0) return;
+    const currentSelected = useNotesStore.getState().selectedNote;
+    if (currentSelected && uniqueIds.includes(currentSelected.id)) await flushAutoSave();
+
+    await api.docs.batchMoveDocuments(uniqueIds, targetPath);
+
+    if (currentSelected && uniqueIds.includes(currentSelected.id)) {
+      const updated = await api.notes.get(currentSelected.id);
+      if (updated) selectNote(updated);
+    }
+    revealDocTreePath(targetPath);
+    setDocTreeKey((key) => key + 1);
+  }, [flushAutoSave, revealDocTreePath, selectNote]);
+
+  const handleBatchSetReadonly = useCallback(async (ids: string[], readonly: boolean) => {
+    const uniqueIds = [...new Set(ids)];
+    if (uniqueIds.length === 0) return;
+    const currentSelected = useNotesStore.getState().selectedNote;
+    if (currentSelected && uniqueIds.includes(currentSelected.id)) await flushAutoSave();
+    await api.recycle.batch.setReadonly(uniqueIds, readonly);
+    if (currentSelected && uniqueIds.includes(currentSelected.id)) {
+      const updated = await api.notes.get(currentSelected.id);
+      if (updated) selectNote(updated);
+    }
+    setDocTreeKey((key) => key + 1);
+  }, [flushAutoSave, selectNote]);
+
   const handleMoveFolder = useCallback(async (sourcePath: string, targetPath: string) => {
     const currentSelected = useNotesStore.getState().selectedNote;
     if (currentSelected?.storagePath && isPathUnder(currentSelected.storagePath, sourcePath)) {
@@ -1120,6 +1149,7 @@ function App() {
                 setDocTreeKey(k => k + 1);
               }}
               onMoveDocument={handleMoveDocument}
+              onBatchMoveDocuments={handleBatchMoveDocuments}
               onMoveFolder={handleMoveFolder}
               onBatchDelete={(ids, folderPath) => {
                 ids.forEach(id => deleteNote(id));
@@ -1141,8 +1171,7 @@ function App() {
                 setDocTreeKey(k => k + 1);
               }}
               onBatchSetReadonly={async (ids, readonly) => {
-                await Promise.all(ids.map(id => updateNote(id, { readonly })));
-                setDocTreeKey(k => k + 1);
+                await handleBatchSetReadonly(ids, readonly);
               }}
               propertiesAutoShow={propertiesAutoShow}
               onTogglePropertiesAuto={() => {
@@ -1387,6 +1416,7 @@ function App() {
                   setDocTreeKey(k => k + 1);
                 }}
                 onMoveDocument={handleMoveDocument}
+                onBatchMoveDocuments={handleBatchMoveDocuments}
                 onMoveFolder={handleMoveFolder}
                 onBatchDelete={(ids, folderPath) => {
                 ids.forEach(id => deleteNote(id));
@@ -1408,8 +1438,7 @@ function App() {
                 setDocTreeKey(k => k + 1);
               }}
                 onBatchSetReadonly={async (ids, readonly) => {
-                  await Promise.all(ids.map(id => updateNote(id, { readonly })));
-                  setDocTreeKey(k => k + 1);
+                  await handleBatchSetReadonly(ids, readonly);
                 }}
                 propertiesAutoShow={propertiesAutoShow}
                 onTogglePropertiesAuto={() => {

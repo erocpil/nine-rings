@@ -34,6 +34,12 @@ function today(): string {
 
 const SEARCH_SCAN_CHUNK_SIZE = 250;
 
+interface MovableStoredNote extends Record<string, unknown> {
+  deleted_at?: string;
+  storagePath?: string;
+  storage_path?: string;
+}
+
 async function filterInChunks<T>(records: T[], predicate: (record: T) => boolean): Promise<T[]> {
   const matches: T[] = [];
   for (let start = 0; start < records.length; start += SEARCH_SCAN_CHUNK_SIZE) {
@@ -520,6 +526,27 @@ export const idbAdapter: StorageAdapter = {
         delete note.storage_path;
         await putRecord(store, note);
         return 1;
+      } catch (error) {
+        await abortTransaction(tx);
+        throw error;
+      }
+    });
+  },
+
+  async batchMoveDocuments(noteIds: string[], targetFolderPath: string): Promise<void> {
+    const target = normalizeStoragePath(targetFolderPath);
+    const ids = [...new Set(noteIds)];
+    return withDB(async (db) => {
+      const tx = db.transaction("notes", "readwrite");
+      try {
+        const store = tx.objectStore("notes");
+        for (const id of ids) {
+          const note = await getOne<MovableStoredNote>(store, id);
+          if (!note || note.deleted_at || !(note.storagePath ?? note.storage_path)) continue;
+          note.storagePath = target;
+          delete note.storage_path;
+          await putRecord(store, note);
+        }
       } catch (error) {
         await abortTransaction(tx);
         throw error;

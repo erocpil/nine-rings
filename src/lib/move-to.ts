@@ -8,6 +8,11 @@ export type MoveToSubject =
       currentPath: string;
     }
   | {
+      kind: "documents";
+      noteIds: string[];
+      count: number;
+    }
+  | {
       kind: "folder";
       sourcePath: string;
       documentCount?: number;
@@ -26,9 +31,9 @@ export function getDocumentFolderPath(nodePath: string, noteId: string): string 
  * 空父目录表示把目录移动到文档树根级。
  */
 export function resolveMoveTarget(subject: MoveToSubject, destinationInput: string): string {
-  if (subject.kind === "document") {
+  if (subject.kind === "document" || subject.kind === "documents") {
     const target = normalizeStoragePath(destinationInput);
-    if (target === normalizeStoragePath(subject.currentPath)) {
+    if (subject.kind === "document" && target === normalizeStoragePath(subject.currentPath)) {
       throw new Error("文档已经位于该目录");
     }
     return target;
@@ -60,4 +65,3 @@ export function getPathAncestors(path: string): string[] {
   const parts = path.split("/").filter(Boolean);
   return parts.map((_, index) => parts.slice(0, index + 1).join("/"));
 }
-

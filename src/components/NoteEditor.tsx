@@ -72,11 +72,11 @@ import {
 import {
   HeadingFold,
   expandHeadingFoldsAt,
-  isHeadingFolded,
+  getCollapsedHeadingKeys,
   setAllHeadingFolds,
   toggleHeadingFold,
 } from "../extensions/HeadingFold";
-import { sessionHeadingFoldStore } from "../lib/heading-fold";
+import { extractHeadingSections, sessionHeadingFoldStore, visibleHeadingSections } from "../lib/heading-fold";
 import { BlockIndent } from "../extensions/BlockIndent";
 
 const FontSize = Extension.create({
@@ -260,7 +260,8 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [activeOutlineIndex, setActiveOutlineIndex] = useState(-1);
   const [outlineOverflow, setOutlineOverflow] = useState(false);
   const [documentOutline, setDocumentOutline] = useState<DocumentOutlineItem[]>([]);
-  const [, setHeadingFoldRevision] = useState(0);
+  const [headingFoldRevision, setHeadingFoldRevision] = useState(0);
+  const headingFoldRenderFrameRef = useRef<number | null>(null);
   const lastOutlineRequestIdRef = useRef(outlineRequestId);
   const outlineBaseLevel = useMemo(
     () => documentOutline.length > 0
@@ -479,7 +480,12 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         initialCollapsedKeys: sessionHeadingFoldStore.load(noteId)?.collapsedKeys ?? [],
         onChange: (collapsedKeys) => {
           sessionHeadingFoldStore.save(noteId, { version: 1, collapsedKeys });
-          setHeadingFoldRevision((revision) => revision + 1);
+          if (headingFoldRenderFrameRef.current === null) {
+            headingFoldRenderFrameRef.current = window.requestAnimationFrame(() => {
+              headingFoldRenderFrameRef.current = null;
+              setHeadingFoldRevision((revision) => revision + 1);
+            });
+          }
         },
       }),
       VimMode.configure({
@@ -555,6 +561,12 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       }
     },
   });
+
+  useEffect(() => () => {
+    if (headingFoldRenderFrameRef.current !== null) {
+      window.cancelAnimationFrame(headingFoldRenderFrameRef.current);
+    }
+  }, []);
 
   // Mobile browsers resize the visual viewport after the keyboard animation. ProseMirror's
   // native selection scrolling can run before that resize and leave the caret underneath
@@ -716,7 +728,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       ));
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [activeOutlineIndex, documentOutline.length, outlineOpen, outlineOverflow]);
+  }, [activeOutlineIndex, documentOutline.length, headingFoldRevision, outlineOpen, outlineOverflow]);
 
   const scrollOutlineTo = useCallback((target: "top" | "middle" | "bottom") => {
     const list = outlineListRef.current;
@@ -913,6 +925,15 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       const isCtrlF = event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
         && (event.code === "KeyF" || event.key.toLocaleLowerCase() === "f");
       if (isCtrlF) {
+        const target = event.target;
+        const vimMode = getVimEditorMode(editor);
+        const isVimEditorTarget = target instanceof Node
+          && editor.view.dom.contains(target)
+          && vimMode !== null
+          && vimMode !== "insert";
+        // ProseMirror 会忽略在捕获阶段已 preventDefault 的事件。Normal/Visual
+        // 模式必须先交给 Vim 插件处理；插件返回 true 后会自行阻止浏览器查找。
+        if (isVimEditorTarget) return;
         event.preventDefault();
         return;
       }
@@ -1409,6 +1430,16 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
   if (!editor) return <div className="note-editor"><div className="empty-state">加载中...</div></div>;
 
+  const headingSections = extractHeadingSections(editor.state.doc);
+  const collapsedHeadingKeys = getCollapsedHeadingKeys(editor);
+  const visibleHeadingPositions = new Set(
+    visibleHeadingSections(headingSections, collapsedHeadingKeys).map((section) => section.pos),
+  );
+  const headingSectionByPosition = new Map(headingSections.map((section) => [section.pos, section]));
+  const visibleOutlineEntries = documentOutline
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => visibleHeadingPositions.has(item.pos));
+
   const rememberToolbarSelection = () => {
     if (editor.state.selection instanceof CellSelection) {
       toolbarCellSelectionRef.current = editor.state.selection;
@@ -1479,6 +1510,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     if (from === to) return;
     const text = clipboardSliceToPlainText(editor.state.selection.content());
     await copyToClipboard(text);
+    editor.commands.focus();
   };
   const handleCut = async () => {
     const { from, to } = editor.state.selection;
@@ -1950,11 +1982,18 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
                   <button type="button" onClick={() => scrollOutlineTo("bottom")} title="滚动至底部">Bot</button>
                 </div>
               )}
-              <span className="document-outline-count">{documentOutline.length} 项</span>
+              <span className="document-outline-count">
+                {visibleOutlineEntries.length === documentOutline.length
+                  ? `${documentOutline.length} 项`
+                  : `${visibleOutlineEntries.length}/${documentOutline.length} 项`}
+              </span>
             </div>
           </div>
           <div className="document-outline-list" ref={outlineListRef}>
-            {documentOutline.map((item, index) => (
+            {visibleOutlineEntries.map(({ item, index }) => {
+              const section = headingSectionByPosition.get(item.pos);
+              const folded = Boolean(section && collapsedHeadingKeys.has(section.key));
+              return (
               <div
                 key={`${item.pos}-${index}`}
                 className={`document-outline-item ${index === activeOutlineIndex ? "current" : ""}`}
@@ -1967,15 +2006,16 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
                 <button
                   className="document-outline-fold"
                   type="button"
-                  aria-label={`${isHeadingFolded(editor, item.pos) ? "展开" : "折叠"}章节 ${item.text}`}
+                  aria-label={`${folded ? "展开" : "折叠"}章节 ${item.text}`}
                   onClick={() => toggleHeadingFold(editor, item.pos)}
-                >{isHeadingFolded(editor, item.pos) ? "▶" : "▼"}</button>
+                >{folded ? "▶" : "▼"}</button>
                 <button className="document-outline-link" type="button" onClick={() => jumpToOutlineHeading(item)}>
                 <span className="document-outline-level">H{item.level}</span>
                 <span className="document-outline-text">{item.text}</span>
                 </button>
               </div>
-            ))}
+              );
+            })}
           </div>
         </nav>
       )}
@@ -2740,7 +2780,12 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           ref={contextMenuRef}
           className="editor-context-menu"
           style={{ left: contextMenu.x, top: contextMenu.y }}
-          onMouseDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => {
+            // 菜单依赖 ProseMirror 当前选区。阻止按钮在按下时夺走焦点，
+            // 这样关闭菜单后 Vim 可立即继续接收 h/j/k/l 等命令。
+            e.preventDefault();
+            e.stopPropagation();
+          }}
         >
           {!readonly && (
             <>

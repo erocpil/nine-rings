@@ -1,7 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import type { Transaction } from "@tiptap/pm/state";
-import { isHeadingFolded } from "../extensions/HeadingFold";
+import { getCollapsedHeadingPositions } from "../extensions/HeadingFold";
 
 interface GutterBlock {
   index: number;
@@ -126,6 +126,7 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
     const editorLineHeight = Number.parseFloat(getComputedStyle(editor.view.dom).lineHeight) || 24;
     const next: GutterBlock[] = [];
     const selectionPos = editor.state.selection.from;
+    const foldedHeadingPositions = getCollapsedHeadingPositions(editor);
     editor.state.doc.forEach((node, pos, index) => {
       const dom = editor.view.nodeDOM(pos);
       if (!(dom instanceof HTMLElement)) return;
@@ -150,7 +151,7 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
           : 0,
         active: selectionPos >= pos && selectionPos < pos + node.nodeSize,
         heading: node.type.name === "heading",
-        folded: node.type.name === "heading" && isHeadingFolded(editor, pos),
+        folded: node.type.name === "heading" && foldedHeadingPositions.has(pos),
       });
     });
     setBlocks(next);
@@ -164,11 +165,12 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
 
   const updateActiveBlock = useCallback(() => {
     const selectionPos = editor.state.selection.from;
+    const foldedHeadingPositions = getCollapsedHeadingPositions(editor);
     setBlocks((current) => {
       let changed = false;
       const next = current.map((block) => {
         const active = selectionPos >= block.pos && selectionPos < block.endPos;
-        const folded = block.heading && isHeadingFolded(editor, block.pos);
+        const folded = block.heading && foldedHeadingPositions.has(block.pos);
         if (active === block.active && folded === block.folded) return block;
         changed = true;
         return { ...block, active, folded };

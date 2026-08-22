@@ -218,6 +218,9 @@ export const api = {
     moveDocument: (noteId: string, targetFolderPath: string) =>
       adapter().then((a) => a.moveDocument(noteId, targetFolderPath)),
 
+    batchMoveDocuments: (noteIds: string[], targetFolderPath: string) =>
+      adapter().then((a) => a.batchMoveDocuments(noteIds, targetFolderPath)),
+
     relocateFolder: (sourcePath: string, targetPath: string) =>
       adapter().then((a) => a.relocateFolder(sourcePath, targetPath)),
 

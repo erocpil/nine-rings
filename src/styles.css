@@ -1965,14 +1965,19 @@ body {
 }
 
 .vim-normal-caret {
-  display: inline-block;
-  width: 0.56em;
-  height: 1.12em;
-  margin-right: -0.56em;
-  vertical-align: -0.18em;
-  background: currentColor;
+  position: fixed;
+  z-index: 40;
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 1px;
   opacity: 0.28;
   pointer-events: none;
+}
+
+.vim-normal-caret[hidden] {
+  display: none;
 }
 
 .stat-hint {
@@ -6550,12 +6555,30 @@ body {
   max-width: 300px;
 }
 
+.moc-title-line {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  gap: 7px;
+}
+
 .moc-title-text {
+  min-width: 0;
+  flex-shrink: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  display: block;
   font-weight: 500;
+}
+
+.moc-title-path {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .moc-col-type {

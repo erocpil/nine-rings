@@ -45,6 +45,10 @@ throws(
   () => resolveMoveTarget(documentSubject, "projects/nine-rings"),
   "文档不能移动到当前位置",
 );
+assert(
+  resolveMoveTarget({ kind: "documents", noteIds: ["note-1", "note-2"], count: 2 }, "new/archive") === "new/archive",
+  "多个文档可移动到尚不存在的新目录",
+);
 
 const folderSubject: MoveToSubject = {
   kind: "folder",
@@ -91,4 +95,3 @@ assert(
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
-

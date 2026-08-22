@@ -140,3 +140,152 @@ test("Vim gj/gk 按视觉换行移动，j/k 仍按逻辑文本行移动", async 
   await page.keyboard.press("k");
   await expect.poll(selection).toEqual(expect.objectContaining({ text: longLine }));
 });
+
+test("Vim Ctrl+F/B 按可见编辑区翻页并同步移动光标", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+  const editor = page.locator(".ProseMirror");
+  await editor.click();
+  await editor.evaluate((element) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", Array.from(
+      { length: 48 },
+      (_, index) => `## 章节 ${index + 1}\n\n第 ${index + 1} 节正文`,
+    ).join("\n\n"));
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  });
+  await expect(editor.locator("h2")).toHaveCount(48);
+  await enableVimMode(page);
+
+  const scrollRoot = page.locator(".note-editor-scroll");
+  await scrollRoot.evaluate((element) => { element.scrollTop = 0; });
+  await editor.locator("h2").first().click();
+  await page.keyboard.press("0");
+  const cursorBlockIndex = () => page.evaluate(() => {
+    const anchor = window.getSelection()?.anchorNode;
+    const block = (anchor instanceof Element ? anchor : anchor?.parentElement)?.closest(".ProseMirror > *");
+    return block?.parentElement ? Array.from(block.parentElement.children).indexOf(block) : -1;
+  });
+  const initialIndex = await cursorBlockIndex();
+
+  await page.keyboard.press("Control+f");
+  await expect(page.locator(".editor-find-bar")).toHaveCount(0);
+  await expect.poll(() => scrollRoot.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  await expect.poll(cursorBlockIndex).toBeGreaterThan(initialIndex);
+  const forwardIndex = await cursorBlockIndex();
+  const forwardScroll = await scrollRoot.evaluate((element) => element.scrollTop);
+
+  await page.keyboard.press("Control+b");
+  await expect.poll(cursorBlockIndex).toBeLessThan(forwardIndex);
+  await expect.poll(() => scrollRoot.evaluate((element) => element.scrollTop)).toBeLessThan(forwardScroll);
+});
+
+test("Vim Normal 模式用 Space 折叠标题，移动跳过隐藏章节", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+  const editor = page.locator(".ProseMirror");
+  await editor.click();
+  await editor.evaluate((element) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "# 第一章\n\n第一章正文\n\n## 第一节\n\n第一节正文\n\n# 第二章\n\n第二章正文");
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  });
+  await enableVimMode(page);
+
+  await editor.getByText("第一章", { exact: true }).click();
+  await page.keyboard.press("0");
+  await page.keyboard.press("Space");
+  await expect(editor.getByText("第一章正文", { exact: true })).toBeHidden();
+  await expect(editor.getByText("第一节", { exact: true })).toBeHidden();
+
+  const currentTextBlock = () => page.evaluate(() => {
+    const anchor = window.getSelection()?.anchorNode;
+    return (anchor instanceof Element ? anchor : anchor?.parentElement)
+      ?.closest("p, h1, h2, h3, h4, h5, h6")?.textContent ?? "";
+  });
+  await page.keyboard.press("j");
+  await expect.poll(currentTextBlock).toBe("第二章");
+  await page.keyboard.press("k");
+  await expect.poll(currentTextBlock).toBe("第一章");
+  await page.keyboard.press("Space");
+  await expect(editor.getByText("第一章正文", { exact: true })).toBeVisible();
+  await expect(editor.getByText("第一节", { exact: true })).toBeVisible();
+});
+
+test("Vim 块光标不改变中西文边界间距", async ({ page }) => {
+  await page.addInitScript(() => {
+    const originalSupports = CSS.supports.bind(CSS);
+    Object.defineProperty(CSS, "supports", {
+      configurable: true,
+      value: (property: string, value?: string) => property === "text-autospace"
+        ? true
+        : value === undefined
+          ? originalSupports(property)
+          : originalSupports(property, value),
+    });
+  });
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  const editor = page.locator(".ProseMirror");
+  await editor.fill("TX descriptor发布后");
+  await enableVimMode(page);
+
+  await editor.click();
+  await page.keyboard.press("0");
+  await page.keyboard.press("w");
+  const cjkBoundaryGap = () => editor.locator("p").evaluate((paragraph) => {
+    const text = paragraph.firstChild;
+    if (!(text instanceof Text)) throw new Error("expected one text node");
+    const boundary = text.data.indexOf("r发");
+    const latin = document.createRange();
+    latin.setStart(text, boundary);
+    latin.setEnd(text, boundary + 1);
+    const han = document.createRange();
+    han.setStart(text, boundary + 1);
+    han.setEnd(text, boundary + 2);
+    return han.getBoundingClientRect().left - latin.getBoundingClientRect().right;
+  });
+  const gapBefore = await cjkBoundaryGap();
+
+  await page.keyboard.press("w");
+  await expect(editor.locator(".vim-normal-caret")).toHaveCount(0);
+  await expect(page.locator("body > .vim-normal-caret")).toBeVisible();
+  await expect.poll(cjkBoundaryGap).toBeCloseTo(gapBefore, 1);
+  await expect(editor.locator("p")).toHaveText("TX descriptor发布后");
+});
+
+test("Vim 在鼠标选区和右键菜单操作后保持可用", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  const editor = page.locator(".ProseMirror");
+  await editor.fill("alpha beta gamma");
+  await enableVimMode(page);
+
+  await editor.getByText("alpha beta gamma", { exact: true }).dblclick({ position: { x: 55, y: 8 } });
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.isCollapsed)).toBe(false);
+  await page.keyboard.press("h");
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.isCollapsed)).toBe(true);
+  await expect(page.locator("body > .vim-normal-caret")).toBeVisible();
+
+  await page.keyboard.press("Control+a");
+  await editor.click({ button: "right" });
+  const menu = page.locator(".editor-context-menu");
+  await expect(menu).toBeVisible();
+  await menu.getByRole("button", { name: "复制" }).click();
+  await expect(menu).toHaveCount(0);
+  await expect(editor).toBeFocused();
+  await page.keyboard.press("l");
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.isCollapsed)).toBe(true);
+  await expect(page.locator("body > .vim-normal-caret")).toBeVisible();
+});

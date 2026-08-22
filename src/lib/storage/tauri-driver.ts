@@ -303,6 +303,22 @@ export const tauriDriver = {
     return 1;
   },
 
+  async batchMoveDocuments(noteIds: string[], targetFolderPath: string): Promise<void> {
+    const target = normalizeStoragePath(targetFolderPath);
+    const ids = [...new Set(noteIds)];
+    const ops: UpdateOp[] = ids.map((id) => ({
+      type: "update" as const,
+      table: "notes",
+      set: { storage_path: target },
+      where: [
+        { col: "id", op: "=" as const, val: id },
+        { col: "storage_path", op: "IS" as const, val: null, not: true },
+        { col: "deleted_at", op: "IS" as const, val: null },
+      ],
+    }));
+    if (ops.length > 0) await dbTransaction(ops);
+  },
+
   async relocateFolder(sourcePath: string, targetPath: string): Promise<number> {
     const { source, target } = assertFolderRelocation(sourcePath, targetPath);
     const rows = await dbQuery({

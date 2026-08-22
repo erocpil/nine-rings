@@ -10,6 +10,11 @@ export interface HeadingSection {
   ancestorKeys: string[];
 }
 
+export interface HeadingFoldRange {
+  from: number;
+  to: number;
+}
+
 const sectionCache = new WeakMap<ProseMirrorNode, HeadingSection[]>();
 
 function keyPart(text: string): string {
@@ -55,6 +60,33 @@ export function extractHeadingSections(doc: ProseMirrorNode): HeadingSection[] {
   });
   sectionCache.set(doc, sections);
   return sections;
+}
+
+/** 目录仅隐藏折叠标题的后代；折叠标题本身始终保留，作为再次展开的入口。 */
+export function visibleHeadingSections(
+  sections: HeadingSection[],
+  collapsedKeys: ReadonlySet<string>,
+): HeadingSection[] {
+  if (collapsedKeys.size === 0) return sections;
+  return sections.filter((section) => (
+    !section.ancestorKeys.some((ancestorKey) => collapsedKeys.has(ancestorKey))
+  ));
+}
+
+/** 返回实际被折叠隐藏的文档区间；父章节已覆盖的子章节不会重复加入。 */
+export function collapsedHeadingContentRanges(
+  doc: ProseMirrorNode,
+  collapsedKeys: ReadonlySet<string>,
+): HeadingFoldRange[] {
+  if (collapsedKeys.size === 0) return [];
+  const ranges: HeadingFoldRange[] = [];
+  for (const section of extractHeadingSections(doc)) {
+    if (!collapsedKeys.has(section.key) || section.end <= section.headingEnd) continue;
+    const containing = ranges[ranges.length - 1];
+    if (containing && section.pos >= containing.from && section.end <= containing.to) continue;
+    ranges.push({ from: section.headingEnd, to: section.end });
+  }
+  return ranges;
 }
 
 export interface HeadingFoldSnapshot {

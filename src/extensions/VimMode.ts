@@ -3,7 +3,13 @@ import { redo, undo } from "@tiptap/pm/history";
 import type { Node as ProseMirrorNode, Slice } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import type { EditorState, Transaction } from "@tiptap/pm/state";
-import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
+import type { EditorView } from "@tiptap/pm/view";
+import {
+  headingFoldPluginKey,
+  toggleHeadingFoldInView,
+  type HeadingFoldState,
+} from "./HeadingFold";
+import { collapsedHeadingContentRanges, extractHeadingSections } from "../lib/heading-fold";
 
 export type VimEditorMode = "normal" | "insert" | "visual" | "visual-line";
 
@@ -57,6 +63,10 @@ interface VimWordSegment {
 
 const navigationLineCache = new WeakMap<ProseMirrorNode, VimNavigationLine[]>();
 const wordSegmentCache = new WeakMap<ProseMirrorNode, VimWordSegment[]>();
+const visibleNavigationCache = new WeakMap<HeadingFoldState, {
+  lines: VimNavigationLine[];
+  words: VimWordSegment[];
+}>();
 
 /**
  * Vim 的逻辑行对应可编辑 textblock，而不是 ProseMirror 顶层节点。
@@ -80,8 +90,32 @@ function navigationLines(doc: ProseMirrorNode): VimNavigationLine[] {
   return lines;
 }
 
-function navigationLineIndex(doc: ProseMirrorNode, position: number): number {
-  const lines = navigationLines(doc);
+function visibleNavigation(state: EditorState) {
+  const folded = headingFoldPluginKey.getState(state);
+  if (!folded || folded.collapsedKeys.size === 0) {
+    return { lines: navigationLines(state.doc), words: wordSegments(state.doc) };
+  }
+  const cached = visibleNavigationCache.get(folded);
+  if (cached) return cached;
+  const ranges = collapsedHeadingContentRanges(state.doc, folded.collapsedKeys);
+  const filterVisible = <T extends { from: number }>(items: T[]): T[] => {
+    let rangeIndex = 0;
+    return items.filter((item) => {
+      while (rangeIndex < ranges.length && item.from >= ranges[rangeIndex].to) rangeIndex += 1;
+      const range = ranges[rangeIndex];
+      return !range || item.from < range.from || item.from >= range.to;
+    });
+  };
+  const visible = {
+    lines: filterVisible(navigationLines(state.doc)),
+    words: filterVisible(wordSegments(state.doc)),
+  };
+  visibleNavigationCache.set(folded, visible);
+  return visible;
+}
+
+function navigationLineIndex(state: EditorState, position: number): number {
+  const lines = visibleNavigation(state).lines;
   if (lines.length === 0) return -1;
   let low = 0;
   let high = lines.length - 1;
@@ -98,7 +132,7 @@ function navigationLineIndex(doc: ProseMirrorNode, position: number): number {
 }
 
 function positionInNavigationLine(state: EditorState, lineIndex: number, preferredOffset: number): number {
-  const lines = navigationLines(state.doc);
+  const lines = visibleNavigation(state).lines;
   const line = lines[Math.max(0, Math.min(lines.length - 1, lineIndex))];
   if (!line) return state.selection.head;
   return Math.max(line.from, Math.min(line.to, line.from + preferredOffset));
@@ -143,12 +177,11 @@ function wordMotionPosition(
   direction: "word-forward" | "word-back" | "word-end",
   count: number,
 ): number {
-  const segments = wordSegments(state.doc);
+  const { lines, words: segments } = visibleNavigation(state);
   if (segments.length === 0) return state.selection.head;
   let position = state.selection.head;
   for (let step = 0; step < count; step += 1) {
     if (direction === "word-forward") {
-      const lines = navigationLines(state.doc);
       position = segments.find((segment) => segment.from > position)?.from ?? lines[lines.length - 1].to;
     } else if (direction === "word-back") {
       const current = segments.find((segment) => position > segment.from && position <= segment.to);
@@ -285,8 +318,8 @@ function deleteInline(view: EditorView, count: number, registerRef?: { current: 
 }
 
 function setLineVisualSelection(view: EditorView) {
-  const lines = navigationLines(view.state.doc);
-  const line = lines[navigationLineIndex(view.state.doc, view.state.selection.head)];
+  const lines = visibleNavigation(view.state).lines;
+  const line = lines[navigationLineIndex(view.state, view.state.selection.head)];
   if (!line) return;
   const { from, to } = line;
   view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)).scrollIntoView());
@@ -321,24 +354,38 @@ function moveByVisualLine(view: EditorView, direction: 1 | -1, count: number, vi
 function moveByPage(view: EditorView, direction: 1 | -1, vim: VimPluginState) {
   const root = view.dom.closest<HTMLElement>(".note-editor-scroll");
   if (!root) {
-    const targetIndex = currentBlockIndex(view.state) + direction * 10;
-    dispatchSelection(view, positionInBlock(view.state, targetIndex, 0), vim);
+    const current = navigationLineIndex(view.state, view.state.selection.head);
+    dispatchSelection(view, positionInNavigationLine(view.state, current + direction * 10, 0), vim);
     return;
   }
 
   const before = view.coordsAtPos(view.state.selection.head);
-  const distance = Math.max(80, root.clientHeight * 0.8);
+  const rootRect = root.getBoundingClientRect();
+  const stickyBottom = root.querySelector<HTMLElement>(".note-editor-sticky")
+    ?.getBoundingClientRect().bottom ?? rootRect.top;
+  const visibleTop = Math.max(rootRect.top, stickyBottom) + 8;
+  const visibleBottom = rootRect.bottom - 8;
+  const viewportHeight = Math.max(80, visibleBottom - visibleTop);
+  const distance = Math.max(80, viewportHeight - 24);
+  const targetTop = Math.max(visibleTop, Math.min(visibleBottom, (before.top + before.bottom) / 2));
+  const previousScrollTop = root.scrollTop;
   root.scrollTop += direction * distance;
+  const moved = root.scrollTop !== previousScrollTop;
   requestAnimationFrame(() => {
     if (!root.isConnected || view.isDestroyed) return;
-    const rect = root.getBoundingClientRect();
     const editorRect = view.dom.getBoundingClientRect();
     const left = Math.max(editorRect.left + 8, Math.min(editorRect.right - 8, before.left));
-    const top = direction > 0
-      ? Math.max(rect.top + 24, rect.bottom - 32)
-      : Math.min(rect.bottom - 24, rect.top + 32);
-    const target = view.posAtCoords({ left, top });
-    if (target) dispatchSelection(view, target.pos, vim, false);
+    const target = view.posAtCoords({ left, top: targetTop });
+    if (target && target.pos !== view.state.selection.head) {
+      dispatchSelection(view, target.pos, vim, false);
+      return;
+    }
+    if (!moved) {
+      const current = navigationLineIndex(view.state, view.state.selection.head);
+      const lineHeight = Math.max(16, before.bottom - before.top);
+      const pageLines = Math.max(1, Math.floor(viewportHeight / lineHeight) - 1);
+      dispatchSelection(view, positionInNavigationLine(view.state, current + direction * pageLines, 0), vim);
+    }
   });
 }
 
@@ -361,6 +408,14 @@ function handleVimKey(
   const ctrlKey = event.key.toLocaleLowerCase();
   if (ctrlOnly && (ctrlKey === "f" || ctrlKey === "b")) {
     moveByPage(view, ctrlKey === "f" ? 1 : -1, vim);
+    finishCommand(view);
+    return true;
+  }
+
+  if (event.key === " " || event.code === "Space") {
+    const section = extractHeadingSections(view.state.doc)
+      .find((item) => view.state.selection.head > item.pos && view.state.selection.head < item.headingEnd);
+    if (section) toggleHeadingFoldInView(view, section.pos);
     finishCommand(view);
     return true;
   }
@@ -448,8 +503,8 @@ function handleVimKey(
   }
 
   const verticalMove = (delta: number) => {
-    const lines = navigationLines(view.state.doc);
-    const index = navigationLineIndex(view.state.doc, view.state.selection.head);
+    const lines = visibleNavigation(view.state).lines;
+    const index = navigationLineIndex(view.state, view.state.selection.head);
     const current = lines[index];
     const preferredOffset = Math.max(0, view.state.selection.head - (current?.from ?? view.state.selection.head));
     dispatchSelection(view, positionInNavigationLine(view.state, index + delta * count, preferredOffset), vim);
@@ -473,7 +528,7 @@ function handleVimKey(
     case "$": inlineMove("end"); return true;
     case "g": updateVimState(view, { pending: "g" }); return true;
     case "G": {
-      const target = vim.count ? count - 1 : navigationLines(view.state.doc).length - 1;
+      const target = vim.count ? count - 1 : visibleNavigation(view.state).lines.length - 1;
       dispatchSelection(view, positionInNavigationLine(view.state, target, 0), vim);
       finishCommand(view);
       return true;
@@ -548,33 +603,80 @@ export const VimMode = Extension.create<VimModeOptions>({
             const vim = vimModePluginKey.getState(view.state);
             return Boolean(vim?.enabled && vim.mode !== "insert");
           },
-          decorations(state) {
-            const vim = vimModePluginKey.getState(state);
-            if (!vim?.enabled || vim.mode !== "normal" || !state.selection.empty) return null;
-            const pos = Math.min(state.selection.head, state.doc.content.size);
-            return DecorationSet.create(state.doc, [
-              Decoration.widget(pos, () => {
-                const caret = document.createElement("span");
-                caret.className = "vim-normal-caret";
-                caret.setAttribute("aria-hidden", "true");
-                return caret;
-              }, { side: 1 }),
-            ]);
-          },
         },
         view(view) {
           let previous: VimEditorMode | null = null;
+          let renderFrame: number | null = null;
+          const caret = document.createElement("span");
+          caret.className = "vim-normal-caret";
+          caret.setAttribute("aria-hidden", "true");
+          document.body.append(caret);
+          const scrollRoot = view.dom.closest<HTMLElement>(".note-editor-scroll");
+
+          const renderCaret = () => {
+            renderFrame = null;
+            const vim = vimModePluginKey.getState(view.state);
+            if (!vim?.enabled || vim.mode !== "normal" || !view.state.selection.empty || !view.hasFocus()) {
+              caret.hidden = true;
+              return;
+            }
+            const position = Math.min(view.state.selection.head, view.state.doc.content.size);
+            const coords = view.coordsAtPos(position);
+            const rootRect = scrollRoot?.getBoundingClientRect();
+            const stickyBottom = scrollRoot?.querySelector<HTMLElement>(".note-editor-sticky")
+              ?.getBoundingClientRect().bottom ?? rootRect?.top ?? 0;
+            if (rootRect && (coords.bottom <= Math.max(rootRect.top, stickyBottom) || coords.top >= rootRect.bottom)) {
+              caret.hidden = true;
+              return;
+            }
+            const height = Math.max(2, coords.bottom - coords.top);
+            let width = height * 0.56;
+            if (position < view.state.doc.content.size) {
+              const next = view.coordsAtPos(position + 1);
+              if (Math.abs(next.top - coords.top) < 2 && next.left > coords.left) {
+                width = Math.min(height, next.left - coords.left);
+              }
+            }
+            caret.style.left = `${coords.left}px`;
+            caret.style.top = `${coords.top}px`;
+            caret.style.width = `${Math.max(2, width)}px`;
+            caret.style.height = `${height}px`;
+            caret.style.backgroundColor = getComputedStyle(view.dom).color;
+            caret.hidden = false;
+          };
+          const scheduleCaret = () => {
+            if (renderFrame !== null) return;
+            renderFrame = requestAnimationFrame(renderCaret);
+          };
           const refresh = () => {
             const vim = vimModePluginKey.getState(view.state);
             view.dom.classList.toggle("vim-mode-enabled", Boolean(vim?.enabled));
             view.dom.dataset.vimMode = vim?.enabled ? vim.mode : "off";
             if (vim?.enabled && vim.mode !== previous) options.onModeChange?.(vim.mode);
             previous = vim?.enabled ? vim.mode : null;
+            scheduleCaret();
           };
+          const viewport = window.visualViewport;
+          view.dom.addEventListener("focus", scheduleCaret);
+          view.dom.addEventListener("blur", scheduleCaret);
+          scrollRoot?.addEventListener("scroll", scheduleCaret, { passive: true });
+          window.addEventListener("resize", scheduleCaret);
+          window.addEventListener("scroll", scheduleCaret, true);
+          viewport?.addEventListener("resize", scheduleCaret);
+          viewport?.addEventListener("scroll", scheduleCaret);
           refresh();
           return {
             update: refresh,
             destroy() {
+              if (renderFrame !== null) cancelAnimationFrame(renderFrame);
+              view.dom.removeEventListener("focus", scheduleCaret);
+              view.dom.removeEventListener("blur", scheduleCaret);
+              scrollRoot?.removeEventListener("scroll", scheduleCaret);
+              window.removeEventListener("resize", scheduleCaret);
+              window.removeEventListener("scroll", scheduleCaret, true);
+              viewport?.removeEventListener("resize", scheduleCaret);
+              viewport?.removeEventListener("scroll", scheduleCaret);
+              caret.remove();
               view.dom.classList.remove("vim-mode-enabled");
               delete view.dom.dataset.vimMode;
             },

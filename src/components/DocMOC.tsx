@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Note } from "../types/models";
 import { api } from "../lib/api";
+import { relativeDocumentSubpath } from "../lib/doc-moc";
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   explanation: "解释",
@@ -98,7 +99,7 @@ export function DocMOC({ storagePath, concept, onSelect, onOpenConcept, selected
         <table className="moc-table">
           <thead>
             <tr>
-              <th className="moc-col-title">标题</th>
+              <th className="moc-col-title">标题 / 子路径</th>
               <th className="moc-col-type">类型</th>
               <th className="moc-col-concepts">概念</th>
               <th className="moc-col-links">关联</th>
@@ -113,7 +114,17 @@ export function DocMOC({ storagePath, concept, onSelect, onOpenConcept, selected
                 onClick={() => onSelect(note)}
               >
                 <td className="moc-col-title">
-                  <span className="moc-title-text">{note.title || "无标题"}</span>
+                  <span
+                    className="moc-title-line"
+                    title={`${note.storagePath ?? ""}/${note.title || "无标题"}`.replace(/^\//, "")}
+                  >
+                    <span className="moc-title-text">{note.title || "无标题"}</span>
+                    <span className="moc-title-path">
+                      {isConcept
+                        ? note.storagePath || "."
+                        : relativeDocumentSubpath(note.storagePath, storagePath ?? "")}
+                    </span>
+                  </span>
                 </td>
                 <td className="moc-col-type">
                   {note.docType ? (

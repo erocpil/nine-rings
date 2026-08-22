@@ -511,7 +511,7 @@ test.describe("编辑器复制粘贴", () => {
 });
 
 test.describe("文档树移动", () => {
-  test("可新建自定义一级目录", async ({ page }) => {
+  test("可新建自定义多级目录", async ({ page }) => {
     await page.goto("/");
     const viewSwitch = page.locator(".sidebar-view-switch");
     if (await viewSwitch.getAttribute("data-target-view") === "tree") await viewSwitch.click();
@@ -519,12 +519,11 @@ test.describe("文档树移动", () => {
 
     await page.getByPlaceholder("文档标题...").fill("自定义目录文档");
     await page.locator("select.dialog-select").selectOption("__custom_root__");
-    await page.getByPlaceholder("一级目录 (如 private)").fill("private");
-    await page.getByPlaceholder("子路径 (如 nine-rings)").fill("ip");
-    await expect(page.locator(".dialog-path-preview code")).toHaveText("private-ip");
+    await page.getByPlaceholder("目录路径 (如 private/network)").fill("private/network-examples");
+    await expect(page.locator(".dialog-path-preview code")).toHaveText("private/network-examples");
     await page.getByRole("button", { name: "创建" }).click();
 
-    await expect(page.locator(".doc-tree-folder").filter({ hasText: "private-ip" })).toHaveCount(1);
+    await expect(page.locator(".doc-tree-folder .doc-tree-name").filter({ hasText: /^network-examples$/ })).toHaveCount(1);
   });
 
   test("目录与属性面板共用移动对话框，重载后路径仍正确", async ({ page }) => {

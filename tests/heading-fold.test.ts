@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { Schema } from "@tiptap/pm/model";
-import { createSessionHeadingFoldStore, extractHeadingSections } from "../src/lib/heading-fold";
+import {
+  collapsedHeadingContentRanges,
+  createSessionHeadingFoldStore,
+  extractHeadingSections,
+  visibleHeadingSections,
+} from "../src/lib/heading-fold";
 
 const schema = new Schema({ nodes: {
   doc: { content: "block+" }, paragraph: { content: "text*", group: "block" },
@@ -15,6 +20,21 @@ assert.equal(sections[0].end, sections[2].pos, "H1 包含下级 H2，直到下�
 assert.equal(sections[1].end, sections[2].pos, "H2 在下一个更高层标题前结束");
 assert.notEqual(sections[0].key, sections[2].key, "同名同级标题用序号形成唯一键");
 assert.deepEqual(sections[1].ancestorKeys, [sections[0].key], "章节保留完整祖先键链");
+assert.deepEqual(
+  visibleHeadingSections(sections, new Set([sections[0].key])).map((section) => section.text),
+  ["总览", "总览"],
+  "目录折叠父标题时隐藏其后代标题",
+);
+assert.deepEqual(
+  collapsedHeadingContentRanges(doc, new Set([sections[0].key, sections[1].key])),
+  [{ from: sections[0].headingEnd, to: sections[0].end }],
+  "父章节的折叠区间覆盖子章节，隐藏范围保持不重叠",
+);
+assert.deepEqual(
+  visibleHeadingSections(sections, new Set()).map((section) => section.text),
+  ["总览", "细节", "总览"],
+  "目录展开时显示全部标题",
+);
 const store = createSessionHeadingFoldStore();
 store.save("note-1", { version: 1, collapsedKeys: [sections[0].key] });
 assert.deepEqual(store.load("note-1"), { version: 1, collapsedKeys: [sections[0].key] });

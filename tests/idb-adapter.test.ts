@@ -355,9 +355,14 @@ async function runTests() {
     assert((await idbAdapter.getNote(source.id))!.storagePath === "archives", "single document target path is exact");
     assert((await idbAdapter.getNote(source.id))!.updated_at === originalUpdatedAt, "single move preserves updated_at");
 
+    await idbAdapter.batchMoveDocuments([source.id, similarlyNamed.id], "new/batch-target");
+    assert((await idbAdapter.getNote(source.id))!.storagePath === "new/batch-target", "batch move updates first document");
+    assert((await idbAdapter.getNote(similarlyNamed.id))!.storagePath === "new/batch-target", "batch move updates second document");
+    assert((await idbAdapter.getNote(source.id))!.updated_at === originalUpdatedAt, "batch move preserves updated_at");
+
     assert(await idbAdapter.relocateFolder("projects/move-source", "archives/move-source") === 1, "folder move moves descendants");
     assert((await idbAdapter.getNote(child.id))!.storagePath === "archives/move-source/nested", "folder move preserves descendant suffix");
-    assert((await idbAdapter.getNote(similarlyNamed.id))!.storagePath === "projects/move-source-other", "folder move respects path boundary");
+    assert((await idbAdapter.getNote(similarlyNamed.id))!.storagePath === "new/batch-target", "folder move respects path boundary");
 
     let rejected = false;
     try { await idbAdapter.relocateFolder("archives", "archives/child"); } catch { rejected = true; }

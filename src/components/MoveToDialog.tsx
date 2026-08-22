@@ -17,7 +17,7 @@ interface MoveToDialogProps {
 const MAX_VISIBLE_FOLDERS = 200;
 
 function destinationLabel(subject: MoveToSubject): string {
-  return subject.kind === "document" ? "目标目录" : "目标父目录";
+  return subject.kind === "folder" ? "目标父目录" : "目标目录";
 }
 
 export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDialogProps) {
@@ -29,7 +29,9 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
   const [destination, setDestination] = useState(() => (
     subject.kind === "document"
       ? subject.currentPath
-      : subject.sourcePath.split("/").slice(0, -1).join("/")
+      : subject.kind === "folder"
+        ? subject.sourcePath.split("/").slice(0, -1).join("/")
+        : ""
   ));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -93,7 +95,11 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
     }
   }, [destination, subject]);
 
-  const sourcePath = subject.kind === "document" ? subject.currentPath : subject.sourcePath;
+  const sourcePath = subject.kind === "document"
+    ? subject.currentPath
+    : subject.kind === "documents"
+      ? `${subject.count} 篇文档`
+      : subject.sourcePath;
   const willMerge = subject.kind === "folder"
     && !!resolved.targetPath
     && existingFolderSet.has(resolved.targetPath);
@@ -144,8 +150,12 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
 
         <div className="dialog-body move-to-body">
           <div className="move-to-subject">
-            <span>{subject.kind === "document" ? "文档" : "目录"}</span>
-            <strong>{subject.kind === "document" ? subject.title : subject.sourcePath.split("/").pop()}</strong>
+            <span>{subject.kind === "folder" ? "目录" : "文档"}</span>
+            <strong>{subject.kind === "document"
+              ? subject.title
+              : subject.kind === "documents"
+                ? `已选择 ${subject.count} 篇`
+                : subject.sourcePath.split("/").pop()}</strong>
             {subject.kind === "folder" && subject.documentCount !== undefined && (
               <small>{subject.documentCount} 篇文档</small>
             )}
@@ -227,7 +237,7 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
                   void submit();
                 }
               }}
-              placeholder={subject.kind === "document" ? "例如 archives/old" : "留空表示文档根目录"}
+              placeholder={subject.kind === "folder" ? "留空表示文档根目录" : "例如 archives/old"}
               aria-invalid={!!(error || resolved.error)}
             />
           </label>

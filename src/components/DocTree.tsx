@@ -23,6 +23,7 @@ interface DocTreeProps {
   onDelete?: (id: string) => void;
   onToggleReadonly?: (id: string, readonly: boolean) => Promise<void> | void;
   onMoveDocument?: (id: string, targetPath: string) => Promise<void>;
+  onBatchMoveDocuments?: (ids: string[], targetPath: string) => Promise<void>;
   onMoveFolder?: (sourcePath: string, targetPath: string) => Promise<void>;
   onBatchDelete?: (ids: string[], folderPath: string) => void;
   onBatchSetReadonly?: (ids: string[], readonly: boolean) => Promise<void> | void;
@@ -113,7 +114,7 @@ function InlineRename({
 function DocTree({
   onSelect, onFolderSelect, selectedId, selectedFolderPath, showDaily = false, onCreate, refreshKey,
   onRename, onDelete, onToggleReadonly,
-  onMoveDocument, onMoveFolder,
+  onMoveDocument, onBatchMoveDocuments, onMoveFolder,
   onBatchDelete, onBatchSetReadonly,
   propertiesAutoShow, onTogglePropertiesAuto,
   disabled, toolbarHost, collapsed, setCollapsed,
@@ -130,6 +131,7 @@ function DocTree({
   // ── 批量选择 ──
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchBusy, setBatchBusy] = useState(false);
 
   const toggleSelectId = useCallback((noteId: string) => {
     setSelectedIds(prev => {
@@ -375,6 +377,25 @@ function DocTree({
     }
   };
 
+  const handleSelectedReadonly = async (readonly: boolean) => {
+    if (disabled || batchBusy || selectedIds.size === 0 || !onBatchSetReadonly) return;
+    const ids = [...selectedIds];
+    const idSet = new Set(ids);
+    setBatchBusy(true);
+    setTree((previous) => previous.map((node) => (
+      node.noteId && idSet.has(node.noteId) ? { ...node, readonly } : node
+    )));
+    try {
+      await onBatchSetReadonly(ids, readonly);
+      clearSelection();
+    } catch (error) {
+      console.error("batch set readonly failed:", error);
+      loadTree();
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+
   // 按路径分组
   const childrenMap = new Map<string, PathNode[]>();
   const roots: PathNode[] = [];
@@ -527,7 +548,19 @@ function DocTree({
             <button
               className="btn-icon doc-tree-batch-btn"
               onClick={() => {
-                if (disabled) return;
+                if (disabled || batchBusy || selectedIds.size === 0) return;
+                const noteIds = Array.from(selectedIds);
+                setMoveSubject({ kind: "documents", noteIds, count: noteIds.length });
+              }}
+              title="批量移动"
+              disabled={disabled || batchBusy || selectedIds.size === 0}
+            >
+              ↗
+            </button>
+            <button
+              className="btn-icon doc-tree-batch-btn"
+              onClick={() => {
+                if (disabled || batchBusy) return;
                 const ids = Array.from(selectedIds);
                 if (ids.length > 0 && confirm(`删除选中的 ${ids.length} 篇文档？`)) {
                   onBatchDelete?.(ids, "");
@@ -535,28 +568,31 @@ function DocTree({
                 }
               }}
               title="批量删除"
-              disabled={disabled || selectedIds.size === 0}
+              disabled={disabled || batchBusy || selectedIds.size === 0}
             >
               🗑
             </button>
             <button
               className="btn-icon doc-tree-batch-btn"
-              onClick={() => {
-                if (disabled) return;
-                if (selectedIds.size > 0) {
-                  onBatchSetReadonly?.(Array.from(selectedIds), true);
-                  clearSelection();
-                }
-              }}
+              onClick={() => void handleSelectedReadonly(true)}
               title="批量设为只读"
-              disabled={disabled || selectedIds.size === 0}
+              disabled={disabled || batchBusy || selectedIds.size === 0}
             >
               🔒
             </button>
             <button
               className="btn-icon doc-tree-batch-btn"
+              onClick={() => void handleSelectedReadonly(false)}
+              title="批量取消只读"
+              disabled={disabled || batchBusy || selectedIds.size === 0}
+            >
+              🔓
+            </button>
+            <button
+              className="btn-icon doc-tree-batch-btn"
               onClick={clearSelection}
               title="取消选择"
+              disabled={batchBusy}
             >
               ✕
             </button>
@@ -642,6 +678,10 @@ function DocTree({
             if (moveSubject.kind === "document") {
               if (!onMoveDocument) throw new Error("文档移动功能不可用");
               await onMoveDocument(moveSubject.noteId, targetPath);
+            } else if (moveSubject.kind === "documents") {
+              if (!onBatchMoveDocuments) throw new Error("批量移动功能不可用");
+              await onBatchMoveDocuments(moveSubject.noteIds, targetPath);
+              clearSelection();
             } else {
               if (!onMoveFolder) throw new Error("目录移动功能不可用");
               await onMoveFolder(moveSubject.sourcePath, targetPath);
