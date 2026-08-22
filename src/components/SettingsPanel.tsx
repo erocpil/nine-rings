@@ -75,6 +75,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
   const updateVersionRef = useRef(0);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [editorAppearanceOpen, setEditorAppearanceOpen] = useState(false);
+  const [editorAppearanceDraft, setEditorAppearanceDraft] = useState<AppConfig | null>(null);
   const [settingsPage, setSettingsPage] = useState<SettingsPage>("root");
   const [rebuildingSearchIndex, setRebuildingSearchIndex] = useState(false);
 
@@ -150,6 +151,22 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
 
   const refreshTags = () => {
     api.tags.listAll().then(setAllTags).catch(() => {});
+  };
+
+  const updateEditorAppearance = (partial: Partial<AppConfig>) => {
+    setEditorAppearanceDraft((current) => (current ? { ...current, ...partial } : config ? { ...config, ...partial } : null));
+  };
+
+  const applyEditorAppearance = () => {
+    if (!editorAppearanceDraft) return;
+    update(editorAppearanceDraft);
+    setEditorAppearanceOpen(false);
+    setEditorAppearanceDraft(null);
+  };
+
+  const closeEditorAppearance = () => {
+    setEditorAppearanceOpen(false);
+    setEditorAppearanceDraft(null);
   };
 
   const update = (partial: Partial<AppConfig>) => {
@@ -446,7 +463,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
               <button
                 className="editor-appearance-entry"
                 type="button"
-                onClick={() => setEditorAppearanceOpen(true)}
+                onClick={() => {
+                  if (config) setEditorAppearanceDraft({ ...config });
+                  setEditorAppearanceOpen(true);
+                }}
               >
                 <span>
                   <strong>{config.note_font_size}px</strong>
@@ -854,9 +874,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
       </div>
       {editorAppearanceOpen && config && (
         <EditorAppearancePanel
-          config={config}
-          onClose={() => setEditorAppearanceOpen(false)}
-          onUpdate={update}
+          config={editorAppearanceDraft ?? config}
+          onClose={closeEditorAppearance}
+          onUpdate={updateEditorAppearance}
+          onApply={applyEditorAppearance}
         />
       )}
     </div>

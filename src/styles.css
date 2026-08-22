@@ -4764,6 +4764,21 @@ body {
   width: 100%;
 }
 
+.editor-appearance-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.editor-appearance-apply {
+  min-width: 140px;
+}
+
+.editor-appearance-cancel {
+  min-width: 90px;
+}
+
 .editor-appearance-entry {
   width: 100%;
   display: flex;
@@ -4981,6 +4996,28 @@ body {
   padding-left: var(--editor-blockquote-indent);
   border-left: 3px solid var(--accent);
   color: var(--text-secondary);
+}
+
+.editor-appearance-document pre {
+  margin: var(--editor-block-spacing) 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  overflow-x: auto;
+  font-size: 0.91em;
+  font-family: var(--font-mono);
+}
+
+.editor-appearance-document pre code {
+  white-space: pre-wrap;
+  display: block;
+}
+
+.editor-appearance-document hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: var(--editor-block-spacing) 0;
 }
 
 .editor-appearance-document table {

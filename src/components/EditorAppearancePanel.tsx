@@ -5,10 +5,11 @@ import { DEFAULT_EDITOR_APPEARANCE, editorAppearanceVariables } from "../lib/edi
 interface Props {
   config: AppConfig;
   onClose: () => void;
+  onApply: () => void;
   onUpdate: (partial: Partial<AppConfig>) => void;
 }
 
-export function EditorAppearancePanel({ config, onClose, onUpdate }: Props) {
+export function EditorAppearancePanel({ config, onClose, onApply, onUpdate }: Props) {
   const variables = editorAppearanceVariables(config) as React.CSSProperties;
 
   useEffect(() => {
@@ -123,6 +124,10 @@ export function EditorAppearancePanel({ config, onClose, onUpdate }: Props) {
               type="button"
               onClick={() => onUpdate({ ...DEFAULT_EDITOR_APPEARANCE })}
             >恢复默认排版</button>
+            <div className="editor-appearance-actions">
+              <button className="settings-btn-secondary editor-appearance-cancel" type="button" onClick={onClose}>取消</button>
+              <button className="settings-btn-primary editor-appearance-apply" type="button" onClick={onApply}>应用到编辑器</button>
+            </div>
           </div>
 
           <div className="editor-appearance-preview-pane">
@@ -152,6 +157,9 @@ export function EditorAppearancePanel({ config, onClose, onUpdate }: Props) {
               <p><strong>概念标签</strong></p>
               <p>纯粗体标签后的正文沿用紧凑的标题下间距。</p>
               <blockquote>引用块缩进帮助补充说明与正文形成清楚的层次。</blockquote>
+              <pre><code>const keep = "Readable layout";</code></pre>
+              <hr />
+              <p>代码块和引用块样式也会随着预览中的字号/行距同步变化。</p>
               <p>使用 <mark>Alt+F 搜索关键字</mark> 时，匹配内容会采用所选的高亮颜色。</p>
               <table>
                 <thead><tr><th>项目</th><th>效果</th></tr></thead>
