@@ -36,6 +36,7 @@ import { addLog, toggleDebug } from "../lib/debugLog";
 import { copyToClipboard } from "../lib/clipboard";
 import { CodeBlockLineNumbers } from "../extensions/CodeBlockLineNumbers";
 import { EditorBlockGutter } from "./EditorBlockGutter";
+import { DocumentOutlineList, type VisibleOutlineEntry } from "./DocumentOutlineList";
 import { MobileActionSheet } from "./MobileActionSheet";
 import { storeImage } from "../lib/storage/db-images";
 import { api } from "../lib/api";
@@ -309,7 +310,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const [imageDialog, setImageDialog] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
   const [tagInput, setTagInput] = useState("");
-  const [scrollPos, setScrollPos] = useState(0);
+  const scrollPositionRef = useRef<HTMLSpanElement>(null);
   const [headingOpen, setHeadingOpen] = useState(false);
   // 受控标题：本地状态 + 从 prop 同步（支持外部重命名如 DocTree 右键改名）
   const [localTitle, setLocalTitle] = useState(title ?? "");
@@ -1077,6 +1078,11 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     });
   }, [editor]);
 
+  const toggleOutlineHeading = useCallback((position: number) => {
+    if (!editor || editor.isDestroyed) return;
+    toggleHeadingFold(editor, position);
+  }, [editor]);
+
   // 拦截 WebView 原生 Cmd+F，并为 Windows 提供 Alt+F。Ctrl+F 不再
   // 触发搜索：Vim 模式用它向下翻页，非 Vim 模式也不唤起 WebView 查找框。
   // 原生查找框由
@@ -1261,11 +1267,25 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         return;
       }
 
-      const block = Array.from(editor.view.dom.children).find((child): child is HTMLElement => {
-        if (!(child instanceof HTMLElement)) return false;
-        const rect = child.getBoundingClientRect();
-        return rect.height > 0 && rect.bottom > viewport.top + 0.5 && rect.top < viewport.bottom;
-      });
+      // posAtCoords 直接利用 ProseMirror 的文档映射定位视口顶部块。旧实现
+      // 从第一个 DOM 块开始逐个读取 rect，滚到长文档后部时每帧接近 O(N)。
+      const editorRect = editor.view.dom.getBoundingClientRect();
+      const probeX = Math.min(editorRect.right - 1, Math.max(editorRect.left + 1, editorRect.left + 48));
+      let block: HTMLElement | null = null;
+      for (const offset of [1, 8, 24, 48]) {
+        const coords = { left: probeX, top: Math.min(viewport.bottom - 1, viewport.top + offset) };
+        const mapped = editor.view.posAtCoords(coords)?.pos;
+        if (mapped === undefined) continue;
+        const $mapped = editor.state.doc.resolve(Math.max(0, Math.min(mapped, editor.state.doc.content.size)));
+        const blockPos = $mapped.depth >= 1 ? $mapped.before(1) : mapped;
+        const candidate = editor.view.nodeDOM(blockPos);
+        if (!(candidate instanceof HTMLElement)) continue;
+        const rect = candidate.getBoundingClientRect();
+        if (rect.height > 0 && rect.bottom > viewport.top + 0.5 && rect.top < viewport.bottom) {
+          block = candidate;
+          break;
+        }
+      }
       if (!block) {
         anchor = null;
         return;
@@ -1439,40 +1459,54 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    let _scrollRaf = 0;
+    let statusFrame = 0;
+    let persistTimer = 0;
     let lastKnownScrollTop = Number(localStorage.getItem(`scrollPos:${noteId}`)) || 0;
     const persistPosition = () => {
-      lastKnownScrollTop = el.scrollTop;
       localStorage.setItem(`scrollPos:${noteId}`, String(lastKnownScrollTop));
     };
-    const handler = () => {
-      persistPosition();
-      if (!_scrollRaf) {
-        _scrollRaf = requestAnimationFrame(() => {
-          setScrollPos(el.scrollTop);
-          _scrollRaf = 0;
-        });
+    const updateStatusPosition = () => {
+      statusFrame = 0;
+      const maximum = Math.max(0, el.scrollHeight - el.clientHeight);
+      const percentage = maximum > 0
+        ? Math.max(0, Math.min(100, Math.round(lastKnownScrollTop / maximum * 100)))
+        : 0;
+      if (scrollPositionRef.current) {
+        scrollPositionRef.current.textContent = `位置 ${percentage}%`;
       }
     };
-    const persistWhenHidden = () => {
-      if (document.visibilityState === "hidden") persistPosition();
+    const flushPosition = () => {
+      if (persistTimer) window.clearTimeout(persistTimer);
+      persistTimer = 0;
+      persistPosition();
     };
+    const handler = () => {
+      lastKnownScrollTop = el.scrollTop;
+      if (!statusFrame) statusFrame = requestAnimationFrame(updateStatusPosition);
+      if (persistTimer) window.clearTimeout(persistTimer);
+      persistTimer = window.setTimeout(flushPosition, 220);
+    };
+    const persistWhenHidden = () => {
+      if (document.visibilityState === "hidden") flushPosition();
+    };
+    lastKnownScrollTop = el.scrollTop;
+    updateStatusPosition();
     el.addEventListener("scroll", handler, { passive: true });
-    window.addEventListener("pagehide", persistPosition);
-    window.addEventListener("nine-rings:main-window-hide", persistPosition);
+    window.addEventListener("pagehide", flushPosition);
+    window.addEventListener("nine-rings:main-window-hide", flushPosition);
     document.addEventListener("visibilitychange", persistWhenHidden);
     return () => {
       el.removeEventListener("scroll", handler);
-      window.removeEventListener("pagehide", persistPosition);
-      window.removeEventListener("nine-rings:main-window-hide", persistPosition);
+      window.removeEventListener("pagehide", flushPosition);
+      window.removeEventListener("nine-rings:main-window-hide", flushPosition);
       document.removeEventListener("visibilitychange", persistWhenHidden);
       // 关键修复：cleanup 时 DOM 可能已进入销毁阶段，scrollTop 被误读为 0
       // 此时不覆写——滚动事件已经在用户滚动时写入了正确值
       addLog(`[离开] ${noteId.slice(0,8)} 保存位置=${el.scrollTop}`);
-      localStorage.setItem(`scrollPos:${noteId}`, String(lastKnownScrollTop));
-      if (_scrollRaf) cancelAnimationFrame(_scrollRaf);
+      flushPosition();
+      if (statusFrame) cancelAnimationFrame(statusFrame);
     };
-  }, [noteId]);
+  }, [noteId, showStatusBar]);
 
   const { chars, words } = documentStats;
 
@@ -1686,11 +1720,21 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     () => new Map(headingSections.map((section) => [section.pos, section])),
     [headingSections],
   );
+  const visibleOutlineEntries = useMemo<VisibleOutlineEntry[]>(() => (
+    documentOutline
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => visibleHeadingPositions.has(item.pos))
+      .map(({ item, index }) => ({
+        item,
+        index,
+        folded: Boolean(
+          headingSectionByPosition.get(item.pos)
+          && collapsedHeadingKeys.has(headingSectionByPosition.get(item.pos)!.key)
+        ),
+      }))
+  ), [collapsedHeadingKeys, documentOutline, headingSectionByPosition, visibleHeadingPositions]);
 
   if (!editor) return <div className="note-editor"><div className="empty-state">加载中...</div></div>;
-  const visibleOutlineEntries = documentOutline
-    .map((item, index) => ({ item, index }))
-    .filter(({ item }) => visibleHeadingPositions.has(item.pos));
 
   const rememberToolbarSelection = () => {
     if (editor.state.selection instanceof CellSelection) {
@@ -1749,12 +1793,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     else setMoreOpen(true);
   };
 
-  // ── 滚动位置计算 ──
-  const _el = scrollRef.current;
-  const scrollableHeight = _el ? (_el.scrollHeight - _el.clientHeight) : 1;
   const totalBlocks = gutterBlockCount || editor.state.doc.childCount;
-  const scrollRatio = scrollableHeight > 0 ? scrollPos / scrollableHeight : 0;
-  const scrollPct = Math.round(scrollRatio * 100);
 
   // ── 剪贴板操作 ──
   const handleCopy = async () => {
@@ -2380,34 +2419,14 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
               </span>
             </div>
           </div>
-          <div className="document-outline-list" ref={outlineListRef}>
-            {visibleOutlineEntries.map(({ item, index }) => {
-              const section = headingSectionByPosition.get(item.pos);
-              const folded = Boolean(section && collapsedHeadingKeys.has(section.key));
-              return (
-              <div
-                key={`${item.pos}-${index}`}
-                className={`document-outline-item ${index === activeOutlineIndex ? "current" : ""}`}
-                style={{ paddingInlineStart: `${10 + (item.level - outlineBaseLevel) * 14}px` }}
-                data-level={item.level}
-                data-outline-index={index}
-                aria-current={index === activeOutlineIndex ? "location" : undefined}
-                title={item.text}
-              >
-                <button
-                  className="document-outline-fold"
-                  type="button"
-                  aria-label={`${folded ? "展开" : "折叠"}章节 ${item.text}`}
-                  onClick={() => toggleHeadingFold(editor, item.pos)}
-                >{folded ? "▶" : "▼"}</button>
-                <button className="document-outline-link" type="button" onClick={() => jumpToOutlineHeading(item)}>
-                <span className="document-outline-level">H{item.level}</span>
-                <span className="document-outline-text">{item.text}</span>
-                </button>
-              </div>
-              );
-            })}
-          </div>
+          <DocumentOutlineList
+            entries={visibleOutlineEntries}
+            activeOutlineIndex={activeOutlineIndex}
+            outlineBaseLevel={outlineBaseLevel}
+            listRef={outlineListRef}
+            onToggleFold={toggleOutlineHeading}
+            onJump={jumpToOutlineHeading}
+          />
         </nav>
       )}
       {bookmarkOpen && (
@@ -3207,7 +3226,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           </>
         )}
         <span className="editor-status-secondary">
-          <span className="editor-status-position">位置 {scrollPct}%</span>
+          <span ref={scrollPositionRef} className="editor-status-position">位置 0%</span>
           <span className="stat-sep">|</span>
           <span>{chars} 字符</span>
           <span className="stat-sep">|</span>

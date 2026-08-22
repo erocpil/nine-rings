@@ -18,10 +18,18 @@ export function documentOutlineIndexAtPosition(
   position: number,
 ): number {
   if (items.length === 0) return -1;
+  // 目录可包含数千个标题；打开时用二分定位当前章节，避免每次都从头扫描。
+  let low = 0;
+  let high = items.length - 1;
   let activeIndex = 0;
-  for (let index = 1; index < items.length; index++) {
-    if (items[index].pos > position) break;
-    activeIndex = index;
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    if (items[middle].pos <= position) {
+      activeIndex = middle;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
   }
   return activeIndex;
 }

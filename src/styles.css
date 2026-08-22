@@ -3448,6 +3448,20 @@ body {
   padding: 4px 0;
 }
 
+.document-outline-window {
+  position: relative;
+  width: 100%;
+}
+
+.document-outline-list.is-virtualized .document-outline-item {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 46px;
+  content-visibility: visible;
+  contain-intrinsic-block-size: none;
+}
+
 .document-outline-item {
   display: flex;
   align-items: flex-start;

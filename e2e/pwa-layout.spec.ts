@@ -74,7 +74,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     const editor = page.locator(".ProseMirror");
     const initialHeadingCount = await editor.locator("h1, h2, h3, h4, h5, h6").count();
     const extraOutline = Array.from(
-      { length: 40 },
+      { length: 160 },
       (_, index) => `## 性能章节 ${index + 1}\n\n章节正文 ${index + 1}`,
     ).join("\n\n");
     await editor.click();
@@ -84,16 +84,19 @@ test.describe("PWA 窄屏应用外壳", () => {
       clipboardData.setData("text/plain", markdown);
       element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
     }, `\n\n${extraOutline}`);
-    await expect(editor.locator("h1, h2, h3, h4, h5, h6")).toHaveCount(initialHeadingCount + 40);
+    await expect(editor.locator("h1, h2, h3, h4, h5, h6")).toHaveCount(initialHeadingCount + 160);
 
     await outlineButton.click();
     await outline.getByTitle("展开全部章节").click();
-    await expect(outline.locator(".document-outline-item")).toHaveCount(initialHeadingCount + 40);
+    await expect(outline.locator(".document-outline-count")).toHaveText(`${initialHeadingCount + 160} 项`);
+    await expect.poll(() => outline.locator(".document-outline-item").count()).toBeLessThan(80);
     await expect(outline.getByLabel("目录快速滚动")).toBeVisible();
     const longHeaderHeight = await outline.locator(".document-outline-header").evaluate(
       (element) => element.getBoundingClientRect().height,
     );
     expect(longHeaderHeight).toBe(shortHeaderHeight);
+    await outline.getByRole("button", { name: "Bot" }).click();
+    await expect(outline.locator(".document-outline-text", { hasText: "性能章节 160" })).toBeVisible();
   });
 
   test("专注与普通模式目录同宽且长标题最多显示两行", async ({ page }) => {
@@ -230,6 +233,36 @@ test.describe("PWA 窄屏应用外壳", () => {
       }
     });
     expect(paragraphGeometryReads).toBeLessThan(20);
+
+    const scrollWork = await page.evaluate(async () => {
+      const root = document.querySelector<HTMLElement>(".note-editor-scroll")!;
+      const originalRect = HTMLElement.prototype.getBoundingClientRect;
+      const originalSetItem = Storage.prototype.setItem;
+      let paragraphRects = 0;
+      let positionWrites = 0;
+      HTMLElement.prototype.getBoundingClientRect = function measuredRect() {
+        if (this.tagName === "P" && this.parentElement?.classList.contains("ProseMirror")) paragraphRects += 1;
+        return originalRect.call(this);
+      };
+      Storage.prototype.setItem = function measuredSetItem(key: string, value: string) {
+        if (key.startsWith("scrollPos:")) positionWrites += 1;
+        return originalSetItem.call(this, key, value);
+      };
+      try {
+        const maximum = root.scrollHeight - root.clientHeight;
+        for (let step = 1; step <= 40; step += 1) {
+          root.scrollTop = maximum * step / 40;
+          root.dispatchEvent(new Event("scroll"));
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 280));
+        return { paragraphRects, positionWrites };
+      } finally {
+        HTMLElement.prototype.getBoundingClientRect = originalRect;
+        Storage.prototype.setItem = originalSetItem;
+      }
+    });
+    expect(scrollWork.paragraphRects).toBeLessThan(20);
+    expect(scrollWork.positionWrites).toBeLessThanOrEqual(2);
 
     const lastBlock = editor.locator(":scope > p").last();
     await lastBlock.click();
