@@ -27,6 +27,26 @@ interface Props {
 }
 
 type SettingsPage = "root" | "appearance" | "editor" | "general" | "tags" | "data" | "sync" | "advanced";
+const EDITOR_APPEARANCE_KEYS: Array<keyof AppConfig> = [
+  "note_font_size",
+  "editor_font_family",
+  "editor_line_height",
+  "editor_block_spacing",
+  "editor_paragraph_indent",
+  "editor_heading_margin_top",
+  "editor_heading_margin_bottom",
+  "editor_list_margin_top",
+  "editor_list_margin_bottom",
+  "editor_list_indent",
+  "editor_list_marker_gap",
+  "editor_blockquote_indent",
+  "editor_search_highlight_color",
+  "editor_cjk_spacing",
+];
+
+function pickEditorAppearanceConfig(config: AppConfig): Partial<AppConfig> {
+  return Object.fromEntries(EDITOR_APPEARANCE_KEYS.map((key) => [key, config[key]])) as Partial<AppConfig>;
+}
 
 const SETTINGS_CATEGORIES: Array<{
   id: Exclude<SettingsPage, "root">;
@@ -154,7 +174,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
   };
 
   const updateEditorAppearance = (partial: Partial<AppConfig>) => {
-    setEditorAppearanceDraft((current) => (current ? { ...current, ...partial } : config ? { ...config, ...partial } : null));
+    setEditorAppearanceDraft((current) => {
+      const base = current ?? configRef.current ?? null;
+      if (!base) return null;
+      return { ...base, ...partial };
+    });
   };
 
   const applyEditorAppearance = () => {
@@ -168,6 +192,13 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
     setEditorAppearanceOpen(false);
     setEditorAppearanceDraft(null);
   };
+
+  const isEditorAppearanceDirty = (() => {
+    if (!config || !editorAppearanceDraft) return false;
+    const draft = pickEditorAppearanceConfig(editorAppearanceDraft);
+    const current = pickEditorAppearanceConfig(config);
+    return JSON.stringify(draft) !== JSON.stringify(current);
+  })();
 
   const update = (partial: Partial<AppConfig>) => {
     if (!configRef.current) return;
@@ -878,6 +909,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
           onClose={closeEditorAppearance}
           onUpdate={updateEditorAppearance}
           onApply={applyEditorAppearance}
+          dirty={isEditorAppearanceDirty}
         />
       )}
     </div>

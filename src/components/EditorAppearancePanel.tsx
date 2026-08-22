@@ -6,10 +6,11 @@ interface Props {
   config: AppConfig;
   onClose: () => void;
   onApply: () => void;
+  dirty: boolean;
   onUpdate: (partial: Partial<AppConfig>) => void;
 }
 
-export function EditorAppearancePanel({ config, onClose, onApply, onUpdate }: Props) {
+export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdate }: Props) {
   const variables = editorAppearanceVariables(config) as React.CSSProperties;
 
   useEffect(() => {
@@ -126,7 +127,14 @@ export function EditorAppearancePanel({ config, onClose, onApply, onUpdate }: Pr
             >恢复默认排版</button>
             <div className="editor-appearance-actions">
               <button className="settings-btn-secondary editor-appearance-cancel" type="button" onClick={onClose}>取消</button>
-              <button className="settings-btn-primary editor-appearance-apply" type="button" onClick={onApply}>应用到编辑器</button>
+              <button
+                className="settings-btn-primary editor-appearance-apply"
+                type="button"
+                disabled={!dirty}
+                onClick={onApply}
+              >
+                应用到编辑器
+              </button>
             </div>
           </div>
 
