@@ -61,24 +61,6 @@ const PRINT_STYLES = `
   }
   .document-meta dt { font-weight: 600; color: #202124; }
   .document-meta dd { margin: 0; overflow-wrap: anywhere; }
-  .toc {
-    margin: 42px 0 54px;
-    padding: 28px 32px;
-    border: 1px solid #d9dce3;
-    border-radius: 10px;
-    break-after: page;
-  }
-  .toc h2 { margin: 0 0 18px; font-size: 22px; }
-  .toc-empty { color: #777; }
-  .toc-list { margin: 0; padding: 0; list-style: none; }
-  .toc-item { margin: 5px 0; }
-  .toc-item a { color: #202124; text-decoration: none; }
-  .toc-item a:hover { color: #356ae6; text-decoration: underline; }
-  .toc-level-2 { padding-left: 18px; }
-  .toc-level-3 { padding-left: 36px; }
-  .toc-level-4 { padding-left: 54px; }
-  .toc-level-5 { padding-left: 72px; }
-  .toc-level-6 { padding-left: 90px; }
   .document-content h1, .document-content h2, .document-content h3,
   .document-content h4, .document-content h5, .document-content h6 {
     line-height: 1.35;
@@ -125,7 +107,6 @@ const PRINT_STYLES = `
   @media print {
     .print-actions { display: none !important; }
     .print-document { width: auto; margin: 0; }
-    .toc { border: 0; padding: 0; }
     body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     a { color: inherit; }
   }
@@ -285,38 +266,23 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata }: PdfExportO
   });
   content.append(template.content.cloneNode(true));
 
+  // Chromium can turn semantic heading levels into the PDF viewer's clickable
+  // outline/bookmark sidebar. Keep those headings in the document structure and
+  // give every destination a stable id, but do not insert a visible TOC page in
+  // the exported body.
+  documentTitle.id = "document-title";
+  const usedIds = new Set<string>([documentTitle.id]);
   const headings = [...content.querySelectorAll<HTMLHeadingElement>("h1, h2, h3, h4, h5, h6")];
-  const usedIds = new Set<string>();
-  const toc = printDocument.createElement("nav");
-  toc.className = "toc";
-  toc.setAttribute("aria-label", "目录");
-  const tocTitle = printDocument.createElement("h2");
-  tocTitle.textContent = "目录";
-  toc.append(tocTitle);
+  headings.forEach((heading, index) => {
+    const existingId = heading.id.trim();
+    if (existingId && !usedIds.has(existingId)) {
+      usedIds.add(existingId);
+      return;
+    }
+    heading.id = headingId(heading.textContent ?? "", index, usedIds);
+  });
 
-  if (headings.length === 0) {
-    const empty = printDocument.createElement("div");
-    empty.className = "toc-empty";
-    empty.textContent = "正文中没有标题层级";
-    toc.append(empty);
-  } else {
-    const list = printDocument.createElement("ol");
-    list.className = "toc-list";
-    headings.forEach((heading, index) => {
-      const id = headingId(heading.textContent ?? "", index, usedIds);
-      heading.id = id;
-      const item = printDocument.createElement("li");
-      item.className = `toc-item toc-level-${heading.tagName.slice(1)}`;
-      const link = printDocument.createElement("a");
-      link.href = `#${id}`;
-      link.textContent = heading.textContent?.trim() || `第 ${index + 1} 节`;
-      item.append(link);
-      list.append(item);
-    });
-    toc.append(list);
-  }
-
-  wrapper.append(...coverNodes, toc, content);
+  wrapper.append(...coverNodes, content);
   printDocument.body.replaceChildren(actions, wrapper);
   if (!printFrame) printWindow.opener = null;
 

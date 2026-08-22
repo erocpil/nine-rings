@@ -43,7 +43,7 @@ test("常用代码语言增量高亮并同步到 PDF 打印视图", async ({ pag
   await expect(language).toBeDisabled();
 
   const popupPromise = page.waitForEvent("popup");
-  await page.locator(".properties-panel").getByRole("button", { name: "导出 PDF（含目录）" }).click();
+  await page.locator(".properties-panel").getByRole("button", { name: "导出 PDF（书签大纲）" }).click();
   const printPage = await popupPromise;
   await printPage.waitForLoadState("domcontentloaded");
   await expect(printPage.locator(".document-content .hljs-keyword")).toContainText("const");
@@ -76,7 +76,7 @@ test("常用代码语言增量高亮并同步到 PDF 打印视图", async ({ pag
     });
     observer.observe(document.body, { childList: true });
   });
-  await page.locator(".properties-panel").getByRole("button", { name: "导出 PDF（含目录）" }).click();
+  await page.locator(".properties-panel").getByRole("button", { name: "导出 PDF（书签大纲）" }).click();
   await expect.poll(() => page.evaluate(() => (
     window as typeof window & { __desktopPrintCalled?: boolean }
   ).__desktopPrintCalled)).toBe(true);
