@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { Schema } from "@tiptap/pm/model";
 import { editorAppearanceVariables } from "../src/lib/editor-appearance";
 import { editorGutterWidth } from "../src/lib/editor-gutter";
 import {
@@ -6,6 +7,7 @@ import {
   needsCjkLatinSpacing,
   shouldApplyCjkSpacingFallback,
 } from "../src/extensions/CjkLatinSpacing";
+import { isStandaloneStrongLabel } from "../src/extensions/StandaloneStrongLabel";
 
 const defaults = editorAppearanceVariables();
 assert.equal(defaults["--editor-font-size"], "16px");
@@ -86,5 +88,25 @@ assert.equal(needsCjkLatinSpacing("A", "B"), false);
 assert.equal(needsCjkLatinSpacing("中", "文"), false);
 assert.equal(shouldApplyCjkSpacingFallback(MAX_CJK_FALLBACK_DOCUMENT_SIZE), true);
 assert.equal(shouldApplyCjkSpacingFallback(MAX_CJK_FALLBACK_DOCUMENT_SIZE + 1), false);
+
+const labelSchema = new Schema({
+  nodes: {
+    doc: { content: "paragraph+" },
+    paragraph: { content: "text*" },
+    text: {},
+  },
+  marks: { bold: {} },
+});
+const bold = labelSchema.marks.bold.create();
+const paragraph = (...children: ReturnType<typeof labelSchema.text>[]) => (
+  labelSchema.nodes.paragraph.create(null, children)
+);
+assert.equal(isStandaloneStrongLabel(paragraph(labelSchema.text("概念", [bold]))), true);
+assert.equal(isStandaloneStrongLabel(paragraph(
+  labelSchema.text("这是"),
+  labelSchema.text("第一优先级", [bold]),
+  labelSchema.text("。"),
+)), false);
+assert.equal(isStandaloneStrongLabel(paragraph(labelSchema.text("普通正文"))), false);
 
 console.log("Editor appearance variables passed");

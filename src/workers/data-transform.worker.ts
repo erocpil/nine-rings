@@ -1,10 +1,11 @@
 /// <reference lib="webworker" />
 
 import { buildMarkdownImportInput, type MarkdownImportOptions } from "../lib/markdown-import";
+import { deltaToProseMirror } from "../lib/delta-converter";
 
 interface WorkerRequest {
   id: number;
-  task: "parse-json" | "stringify-json" | "markdown-batch";
+  task: "parse-json" | "stringify-json" | "markdown-batch" | "delta-to-prosemirror";
   payload: unknown;
 }
 
@@ -17,6 +18,8 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
     } else if (task === "stringify-json") {
       const request = payload as { value: unknown; space?: number };
       result = JSON.stringify(request.value, null, request.space);
+    } else if (task === "delta-to-prosemirror") {
+      result = deltaToProseMirror(payload);
     } else {
       const request = payload as {
         sources: Array<{ fileName: string; source: string }>;

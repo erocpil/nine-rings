@@ -7,6 +7,8 @@ export interface DocumentOutlineItem {
   pos: number;
 }
 
+const outlineCache = new WeakMap<ProseMirrorNode, DocumentOutlineItem[]>();
+
 /**
  * 返回文档位置所属的目录项：标题本身及其后内容都归属该标题，直到
  * 下一个标题开始。位置早于首个标题时仍定位到首项，便于打开目录。
@@ -26,8 +28,11 @@ export function documentOutlineIndexAtPosition(
 
 /** 从已渲染的结构化文档中提取 H1–H6，不修改或回写正文。 */
 export function extractDocumentOutline(doc: ProseMirrorNode): DocumentOutlineItem[] {
+  const cached = outlineCache.get(doc);
+  if (cached) return cached;
   const items: DocumentOutlineItem[] = [];
-  doc.descendants((node, pos) => {
+  // 标题在当前 schema 中都是顶层块；不进入段落、表格或代码块的子树。
+  doc.forEach((node, pos) => {
     if (node.type.name !== "heading") return;
     const level = Number(node.attrs.level);
     if (!Number.isInteger(level) || level < 1 || level > 6) return;
@@ -37,5 +42,6 @@ export function extractDocumentOutline(doc: ProseMirrorNode): DocumentOutlineIte
       pos,
     });
   });
+  outlineCache.set(doc, items);
   return items;
 }

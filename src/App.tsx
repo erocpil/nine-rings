@@ -34,8 +34,14 @@ import { useWebPlatform } from "./hooks/useWebPlatform";
 import { WebStatusBanner } from "./components/WebStatusBanner";
 import { SearchResultsPanel } from "./components/SearchResultsPanel";
 import { subscribeToDataChanges } from "./lib/tab-coordination";
-import { rememberRecentNote } from "./lib/quick-switcher";
-import { promoteCachedEditorDocument } from "./lib/editor-session-cache";
+import { readRecentNoteIds, rememberRecentNote } from "./lib/quick-switcher";
+import {
+  cacheEditorDocument,
+  getCachedEditorDocument,
+  promoteCachedEditorDocument,
+} from "./lib/editor-session-cache";
+import { isDelta } from "./lib/delta-converter";
+import { deltaToProseMirrorAsync } from "./lib/data-transform-client";
 
 const WORKSPACE_TARGET_KEY = "nr:workspaceTarget";
 const ACTIVE_TAG_KEY = "nr:activeTag";
@@ -59,6 +65,12 @@ type WorkspaceTarget =
   | { kind: "note"; noteId: string }
   | { kind: "folder"; path: string }
   | { kind: "concept"; concept: string };
+
+async function prepareEditorDocument(note: Note): Promise<void> {
+  if (!isDelta(note.content) || getCachedEditorDocument(note.id, note.updated_at)) return;
+  const document = await deltaToProseMirrorAsync(note.content);
+  cacheEditorDocument(note.id, note.updated_at, document);
+}
 
 function readWorkspaceTarget(): WorkspaceTarget | null {
   try {
@@ -129,13 +141,30 @@ function App() {
   const [secondaryUiReady, setSecondaryUiReady] = useState(false);
   const startupDateHydrationStartedRef = useRef(false);
   const selectedNoteId = selectedNote?.id ?? null;
+  const selectedNoteRef = useRef(selectedNote);
+  selectedNoteRef.current = selectedNote;
   useEffect(() => {
     setEditorReadyNoteId(null);
     if (!selectedNoteId || !startupRestoreComplete) return;
+    let cancelled = false;
     const frame = window.requestAnimationFrame(() => {
-      setEditorReadyNoteId(selectedNoteId);
+      const note = selectedNoteRef.current;
+      if (!note || note.id !== selectedNoteId) return;
+      void prepareEditorDocument(note)
+        .catch((error) => {
+          // Worker 不可用时 NoteEditor 仍可沿用同步转换路径，不能阻塞打开。
+          console.warn("[Editor] 后台准备文档失败，回退到同步转换:", error);
+        })
+        .finally(() => {
+          if (!cancelled && selectedNoteRef.current?.id === selectedNoteId) {
+            setEditorReadyNoteId(selectedNoteId);
+          }
+        });
     });
-    return () => window.cancelAnimationFrame(frame);
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+    };
   }, [selectedNoteId, startupRestoreComplete]);
 
   // 编辑器完成首次提交后再加载完整侧栏树。即使备份包含大量文档，应用外壳和
@@ -152,6 +181,37 @@ function App() {
     }, 100);
     return () => window.clearTimeout(timer);
   }, [currentDate, editorReadyNoteId, selectedNoteId, setDate, startupDateLoadPending, startupRestoreComplete]);
+
+  // 当前编辑器和次级界面稳定后，在浏览器空闲期预处理最近访问的另一篇
+  // 文档。仅保留两份纯 JSON，不驻留额外 TipTap/DOM，适合内存受限的 iOS。
+  useEffect(() => {
+    if (!secondaryUiReady || !selectedNoteId || editorReadyNoteId !== selectedNoteId) return;
+    const candidateId = readRecentNoteIds().find((id) => id !== selectedNoteId);
+    if (!candidateId) return;
+    let cancelled = false;
+    const warm = () => {
+      void api.notes.get(candidateId).then(async (note) => {
+        if (!note || cancelled) return;
+        await prepareEditorDocument(note);
+      }).catch((error) => console.warn("[Editor] 空闲预处理失败:", error));
+    };
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    let timer: number | undefined;
+    let idle: number | undefined;
+    if (idleWindow.requestIdleCallback) {
+      idle = idleWindow.requestIdleCallback(warm, { timeout: 1800 });
+    } else {
+      timer = window.setTimeout(warm, 600);
+    }
+    return () => {
+      cancelled = true;
+      if (idle !== undefined) idleWindow.cancelIdleCallback?.(idle);
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [editorReadyNoteId, secondaryUiReady, selectedNoteId]);
 
   // ── 自动保存 Hook ──
   const autoSave = useAutoSave({

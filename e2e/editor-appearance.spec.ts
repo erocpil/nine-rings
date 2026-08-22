@@ -225,6 +225,7 @@ test("纯粗体小节标签与下一段正文保持紧凑间距", async ({ page 
   const paragraphs = editor.locator(":scope > p");
   await expect(paragraphs).toHaveCount(3);
   await expect(paragraphs.nth(0).locator("strong")).toHaveText("概念");
+  await expect(paragraphs.nth(0)).toHaveClass(/standalone-strong-label/);
   const spacing = await editor.evaluate((element) => {
     const [label, body, nextBody] = [...element.querySelectorAll<HTMLElement>(":scope > p")];
     const labelRect = label.getBoundingClientRect();
@@ -240,6 +241,47 @@ test("纯粗体小节标签与下一段正文保持紧凑间距", async ({ page 
   expect(spacing.bodyMarginTop).toBe(0);
   expect(spacing.labelToBody).toBeCloseTo(spacing.labelMarginBottom, 1);
   expect(spacing.labelToBody).toBeLessThan(spacing.bodyToBody / 2);
+});
+
+test("局部加粗正文不会改变其后分割线间距", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+  const editor = page.locator(".ProseMirror");
+  await editor.evaluate((element) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData(
+      "text/plain",
+      "这是**第一优先级**。\n\n---\n\n中间正文\n\n这是普通优先级。\n\n---\n\n末尾正文",
+    );
+    element.dispatchEvent(new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData,
+    }));
+  });
+
+  const partialStrong = editor.getByText("这是第一优先级。", { exact: true });
+  const regular = editor.getByText("这是普通优先级。", { exact: true });
+  await expect(partialStrong.locator("strong")).toHaveText("第一优先级");
+  await expect(partialStrong).not.toHaveClass(/standalone-strong-label/);
+  await expect(editor.locator(":scope > hr")).toHaveCount(2);
+  const gaps = await editor.evaluate((element) => {
+    const paragraphs = [...element.querySelectorAll<HTMLElement>(":scope > p")];
+    const gapAfter = (text: string) => {
+      const paragraph = paragraphs.find((item) => item.textContent === text);
+      const rule = paragraph?.nextElementSibling;
+      if (!paragraph || !(rule instanceof HTMLHRElement)) throw new Error(`HR after ${text} not found`);
+      return rule.getBoundingClientRect().top - paragraph.getBoundingClientRect().bottom;
+    };
+    return {
+      partialStrong: gapAfter("这是第一优先级。"),
+      regular: gapAfter("这是普通优先级。"),
+    };
+  });
+  expect(gaps.partialStrong).toBeCloseTo(gaps.regular, 1);
 });
 
 test("当前行高亮保持轻量且代码块字号接近正文", async ({ page }) => {

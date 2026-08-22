@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 test("只读文档双击标题或正文切换所属标题章节", async ({ page }) => {
   await page.goto("/");
@@ -85,4 +85,68 @@ test("只读正文双击折叠后所属标题停留在双击位置附近", async
   expect(headingBox).not.toBeNull();
   const headingCenterY = headingBox!.y + headingBox!.height / 2;
   expect(Math.abs(headingCenterY - doubleClickY)).toBeLessThan(24);
+});
+
+test("手机只读专注模式可通过触摸双击折叠和展开章节", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+  const editor = page.locator(".ProseMirror");
+  await editor.fill("触摸标题");
+  await editor.press("Control+Alt+1");
+  await editor.press("End");
+  await editor.press("Enter");
+  await editor.type("触摸正文");
+  await editor.press("End");
+  await editor.press("Enter");
+  await editor.type("后续标题");
+  await editor.press("Control+Alt+1");
+  await editor.press("End");
+  await editor.press("Enter");
+  await editor.type("后续正文");
+  await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
+
+  await page.locator(".sidebar-item.active").getByTitle("设为只读")
+    .evaluate((button: HTMLButtonElement) => button.click());
+  await page.setViewportSize({ width: 390, height: 760 });
+  await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 100 } });
+  await page.locator(".note-title-row").getByTitle("专注模式").click();
+  await expect(page.getByLabel("专注模式工具栏")).toBeVisible();
+  await expect(editor).toHaveAttribute("contenteditable", "false");
+
+  const touchDoubleTap = async (target: Locator) => {
+    const box = await target.boundingBox();
+    expect(box).not.toBeNull();
+    const clientX = box!.x + box!.width / 2;
+    const clientY = box!.y + box!.height / 2;
+    for (let tap = 0; tap < 2; tap += 1) {
+      await target.dispatchEvent("pointerdown", {
+        pointerId: 7,
+        pointerType: "touch",
+        isPrimary: true,
+        clientX,
+        clientY,
+      });
+      await target.dispatchEvent("pointerup", {
+        pointerId: 7,
+        pointerType: "touch",
+        isPrimary: true,
+        clientX,
+        clientY,
+      });
+    }
+    // WebKit 可能在触摸 pointer 序列之后继续补发 dblclick；不能切换两次。
+    await target.dispatchEvent("dblclick", { clientX, clientY });
+  };
+
+  const heading = editor.getByText("触摸标题", { exact: true });
+  const body = editor.getByText("触摸正文", { exact: true });
+  await touchDoubleTap(body);
+  await expect(body).toHaveClass(/heading-fold-hidden/);
+  await expect(editor.getByText("后续标题", { exact: true })).toBeVisible();
+
+  await touchDoubleTap(heading);
+  await expect(body).not.toHaveClass(/heading-fold-hidden/);
 });

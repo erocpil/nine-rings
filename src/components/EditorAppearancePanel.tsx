@@ -162,7 +162,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
               <h3>紧凑的小节</h3>
               <p>标题上下间距会在这里实时呈现。</p>
               <p>相邻正文段落之间使用独立的正文块间距。</p>
-              <p><strong>概念标签</strong></p>
+              <p className="standalone-strong-label"><strong>概念标签</strong></p>
               <p>纯粗体标签后的正文沿用紧凑的标题下间距。</p>
               <blockquote>引用块缩进帮助补充说明与正文形成清楚的层次。</blockquote>
               <pre><code>const keep = "Readable layout";</code></pre>

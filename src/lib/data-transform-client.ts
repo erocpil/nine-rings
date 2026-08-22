@@ -1,9 +1,10 @@
 import type { CreateNoteInput } from "../types/models";
+import { deltaToProseMirror } from "./delta-converter";
 import type { MarkdownImportOptions } from "./markdown-import";
 import { buildMarkdownImportInput } from "./markdown-import";
 import { isTauriRuntime } from "./runtime";
 
-type WorkerTask = "parse-json" | "stringify-json" | "markdown-batch";
+type WorkerTask = "parse-json" | "stringify-json" | "markdown-batch" | "delta-to-prosemirror";
 
 interface MarkdownSource {
   fileName: string;
@@ -62,6 +63,15 @@ export function parseJsonAsync<T>(json: string): Promise<T> {
 
 export function stringifyJsonAsync(value: unknown, space?: number): Promise<string> {
   return runWorkerTask<string>("stringify-json", { value, space }, () => JSON.stringify(value, null, space));
+}
+
+/** 大文档首次打开时在 Worker 中完成纯 JSON 转换，避免阻塞界面主线程。 */
+export function deltaToProseMirrorAsync(delta: unknown): Promise<Record<string, unknown>> {
+  return runWorkerTask<Record<string, unknown>>(
+    "delta-to-prosemirror",
+    delta,
+    () => deltaToProseMirror(delta) as Record<string, unknown>,
+  );
 }
 
 export function transformMarkdownBatch(

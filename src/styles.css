@@ -3364,7 +3364,7 @@ body {
   top: 38px;
   right: 48px;
   z-index: 40;
-  width: min(320px, calc(100vw - 48px));
+  width: min(420px, calc(100% - 64px));
   max-height: min(58vh, 440px);
   display: flex;
   flex-direction: column;
@@ -3389,6 +3389,8 @@ body {
   color: var(--text);
   font-size: 12px;
   font-weight: 600;
+  flex: 0 0 37px;
+  height: 37px;
 }
 
 .document-outline-count {
@@ -3403,16 +3405,25 @@ body {
   align-items: center;
   gap: 6px;
   min-width: 0;
+  height: 20px;
 }
 
 .document-outline-jumps {
   display: flex;
+  align-items: center;
+  flex: 0 0 auto;
   gap: 2px;
-  min-width: 0;
+  height: 20px;
+}
+
+.document-outline-jumps.is-placeholder {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .document-outline-jumps button {
   min-width: 0;
+  height: 20px;
   padding: 2px 4px;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -3433,21 +3444,25 @@ body {
 .document-outline-list {
   min-height: 0;
   overflow-y: auto;
+  overflow-anchor: none;
   padding: 4px 0;
 }
 
 .document-outline-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   width: 100%;
   min-width: 0;
   gap: 3px;
-  padding-block: 6px;
+  min-height: 29px;
+  padding-block: 5px;
   padding-inline-end: 10px;
   border: 0;
   background: transparent;
   color: var(--text);
   text-align: start;
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 45px;
 }
 
 .document-outline-item:hover,
@@ -3475,7 +3490,7 @@ body {
 
 .document-outline-link {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   flex: 1;
   min-width: 0;
   gap: 3px;
@@ -3484,6 +3499,7 @@ body {
 }
 
 .document-outline-header-actions > button {
+  height: 20px;
   padding: 2px 5px;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -3507,12 +3523,16 @@ body {
 }
 
 .document-outline-text {
+  display: -webkit-box;
+  flex: 1;
   overflow: hidden;
   min-width: 0;
   font-size: 12px;
   line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 /* ──── 文档书签 ──── */
@@ -4318,11 +4338,11 @@ body {
 
 /* Markdown 中常用 **概念** / **原理** 作为独立小节标签。它们仍是段落
    节点，但标签后的正文应使用标题下间距，不能套用两段正文的块间距。 */
-.editor-content .ProseMirror > p:has(> strong:only-child) {
+.editor-content .ProseMirror > p.standalone-strong-label {
   margin-bottom: var(--editor-heading-margin-bottom);
 }
 
-.editor-content .ProseMirror > p:has(> strong:only-child) + p {
+.editor-content .ProseMirror > p.standalone-strong-label + p {
   margin-top: 0;
 }
 
@@ -5133,11 +5153,11 @@ body {
   margin-top: 0;
 }
 
-.editor-appearance-document > p:has(> strong:only-child) {
+.editor-appearance-document > p.standalone-strong-label {
   margin-bottom: var(--editor-heading-margin-bottom);
 }
 
-.editor-appearance-document > p:has(> strong:only-child) + p {
+.editor-appearance-document > p.standalone-strong-label + p {
   margin-top: 0;
 }
 
@@ -7793,12 +7813,16 @@ button.doc-tree-toggle:focus-visible {
     backdrop-filter: blur(8px);
   }
 
+  .document-outline-panel,
+  .focus-mode .document-outline-panel {
+    right: 8px;
+    left: auto;
+    width: min(420px, calc(100vw - 16px));
+  }
+
   .focus-mode .document-outline-panel {
     position: fixed;
     top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 36px);
-    right: 8px;
-    left: 8px;
-    width: auto;
     max-height: min(58dvh, calc(var(--app-viewport-height, 100dvh) - var(--safe-top) - var(--safe-bottom) - 52px));
   }
 

@@ -113,10 +113,9 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
     const root = rootRef.current;
     if (!root || editor.isDestroyed) return;
 
-    if (!showNumbers && !showInsertButtons && !onHeadingFoldToggle) {
-      // Mobile keeps insertion in the block menu. With block numbers disabled
-      // there is no gutter UI at all, so avoid walking the document or reading
-      // any DOM geometry on every edit.
+    const needsAllBlocks = showNumbers || (showInsertButtons && !readonly);
+    const needsHeadings = Boolean(onHeadingFoldToggle);
+    if (!needsAllBlocks && !needsHeadings) {
       setBlocks((current) => current.length === 0 ? current : []);
       onBlockCountChange?.(editor.state.doc.childCount);
       return;
@@ -128,6 +127,9 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
     const selectionPos = editor.state.selection.from;
     const foldedHeadingPositions = getCollapsedHeadingPositions(editor);
     editor.state.doc.forEach((node, pos, index) => {
+      // 手机端把“+”移入块菜单且默认不显示块号，只需测量少量标题的
+      // 折叠按钮。正文块不再触发 getBoundingClientRect 强制布局。
+      if (!needsAllBlocks && node.type.name !== "heading") return;
       const dom = editor.view.nodeDOM(pos);
       if (!(dom instanceof HTMLElement)) return;
       if (dom.classList.contains("heading-fold-hidden")) return;
@@ -156,7 +158,7 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
     });
     setBlocks(next);
     onBlockCountChange?.(editor.state.doc.childCount);
-  }, [editor, onBlockCountChange, onHeadingFoldToggle, showInsertButtons, showNumbers]);
+  }, [editor, onBlockCountChange, onHeadingFoldToggle, readonly, showInsertButtons, showNumbers]);
 
   const scheduleMeasure = useCallback(() => {
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);

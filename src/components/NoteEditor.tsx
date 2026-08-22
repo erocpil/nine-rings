@@ -80,6 +80,7 @@ import {
 } from "../extensions/HeadingFold";
 import { extractHeadingSections, headingSectionAtPosition, sessionHeadingFoldStore, visibleHeadingSections } from "../lib/heading-fold";
 import { BlockIndent } from "../extensions/BlockIndent";
+import { StandaloneStrongLabel } from "../extensions/StandaloneStrongLabel";
 import { cacheEditorDocument, getCachedEditorDocument } from "../lib/editor-session-cache";
 import {
   DocumentBookmarks,
@@ -282,6 +283,19 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const [headingFoldRevision, setHeadingFoldRevision] = useState(0);
   const headingFoldRenderFrameRef = useRef<number | null>(null);
   const headingFoldViewportFrameRef = useRef<number | null>(null);
+  const readonlyTouchPointerRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    moved: boolean;
+  } | null>(null);
+  const readonlyLastTapRef = useRef<{
+    time: number;
+    x: number;
+    y: number;
+    sectionPos: number;
+  } | null>(null);
+  const suppressReadonlyDoubleClickUntilRef = useRef(0);
   const lastOutlineRequestIdRef = useRef(outlineRequestId);
   const lastPdfExportRequestIdRef = useRef(pdfExportRequestId);
   const outlineBaseLevel = useMemo(
@@ -533,6 +547,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       MarkdownLinkInput,
       CjkLatinSpacing,
       BlockIndent,
+      StandaloneStrongLabel,
       HeadingFold.configure({
         initialCollapsedKeys: sessionHeadingFoldStore.load(noteId)?.collapsedKeys ?? [],
         onChange: (collapsedKeys) => {
@@ -816,22 +831,22 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     openDocumentOutline();
   }, [openDocumentOutline, outlineOpen]);
 
-  // 目录打开后把光标所属章节放在列表正中。首轮测量决定是否显示
-  // Top/Middle/Bottom；按钮出现后列表高度变化，再做一次居中即可。
+  // 目录打开后在首次绘制前完成溢出判断和当前项居中。快速滚动按钮始终
+  // 保留相同占位，因此状态切换不会改变标题栏或列表高度。
   useLayoutEffect(() => {
     if (!outlineOpen || activeOutlineIndex < 0) return;
     const list = outlineListRef.current;
     if (!list) return;
-    const frame = window.requestAnimationFrame(() => {
-      const activeItem = list.querySelector<HTMLElement>(
-        `[data-outline-index="${activeOutlineIndex}"]`,
-      );
-      const overflowing = list.scrollHeight > list.clientHeight + 1;
-      setOutlineOverflow(overflowing);
-      if (!activeItem || !overflowing) {
-        list.scrollTop = 0;
-        return;
-      }
+    const activeItem = list.querySelector<HTMLElement>(
+      `[data-outline-index="${activeOutlineIndex}"]`,
+    );
+    const overflowing = list.scrollHeight > list.clientHeight + 1;
+    setOutlineOverflow((current) => current === overflowing ? current : overflowing);
+    if (!activeItem || !overflowing) {
+      list.scrollTop = 0;
+      return;
+    }
+    const centerActiveItem = () => {
       const listRect = list.getBoundingClientRect();
       const activeRect = activeItem.getBoundingClientRect();
       const activeTop = activeRect.top - listRect.top + list.scrollTop;
@@ -841,9 +856,13 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         centeredTop,
         list.scrollHeight - list.clientHeight,
       ));
-    });
+    };
+    centerActiveItem();
+    // content-visibility 会先用固有尺寸计算离屏项。首轮滚动使当前项进入
+    // 可见区域后，再校正一次真实尺寸；标题栏不变，因此不会产生整体抖动。
+    const frame = window.requestAnimationFrame(centerActiveItem);
     return () => window.cancelAnimationFrame(frame);
-  }, [activeOutlineIndex, documentOutline.length, headingFoldRevision, outlineOpen, outlineOverflow]);
+  }, [activeOutlineIndex, documentOutline.length, headingFoldRevision, outlineOpen]);
 
   const scrollOutlineTo = useCallback((target: "top" | "middle" | "bottom") => {
     const list = outlineListRef.current;
@@ -2065,14 +2084,17 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     }
   };
 
-  const handleReadonlyHeadingDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!readonly || editor.isDestroyed) return;
-    const target = event.target;
-    if (!(target instanceof Node) || !editor.view.dom.contains(target)) return;
-    const position = editor.view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
-    if (position === undefined) return;
+  const toggleReadonlyHeadingAtPoint = (
+    target: EventTarget | null,
+    clientX: number,
+    clientY: number,
+  ): boolean => {
+    if (!readonly || editor.isDestroyed) return false;
+    if (!(target instanceof Node) || !editor.view.dom.contains(target)) return false;
+    const position = editor.view.posAtCoords({ left: clientX, top: clientY })?.pos;
+    if (position === undefined) return false;
     const section = headingSectionAtPosition(extractHeadingSections(editor.state.doc), position);
-    if (!section) return;
+    if (!section) return false;
 
     const heading = editor.view.nodeDOM(section.pos);
     const scrollRoot = scrollRef.current;
@@ -2082,16 +2104,16 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       const headingRect = heading.getBoundingClientRect();
       const rootRect = scrollRoot.getBoundingClientRect();
       // 双击标题自身时保持原位；从章节正文触发时，把所属标题带到双击点附近。
-      const requestedTop = event.clientY >= headingRect.top && event.clientY <= headingRect.bottom
+      const requestedTop = clientY >= headingRect.top && clientY <= headingRect.bottom
         ? headingRect.top
-        : event.clientY - headingRect.height / 2;
+        : clientY - headingRect.height / 2;
       desiredHeadingTop = Math.min(
         rootRect.bottom - headingRect.height - 8,
         Math.max(rootRect.top + 8, requestedTop),
       );
     }
 
-    if (!toggleHeadingFold(editor, section.pos)) return;
+    if (!toggleHeadingFold(editor, section.pos)) return false;
     if (desiredHeadingTop !== null && scrollRoot) {
       if (headingFoldViewportFrameRef.current !== null) {
         window.cancelAnimationFrame(headingFoldViewportFrameRef.current);
@@ -2104,6 +2126,88 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         scrollRoot.scrollTop += foldedHeading.getBoundingClientRect().top - desiredHeadingTop!;
       });
     }
+    return true;
+  };
+
+  const handleReadonlyHeadingDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (performance.now() < suppressReadonlyDoubleClickUntilRef.current) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (!toggleReadonlyHeadingAtPoint(event.target, event.clientX, event.clientY)) return;
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const handleReadonlyHeadingPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!readonly || !focusMode || event.pointerType !== "touch" || !event.isPrimary) return;
+    readonlyTouchPointerRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+    };
+  };
+
+  const handleReadonlyHeadingPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const pointer = readonlyTouchPointerRef.current;
+    if (!pointer || pointer.pointerId !== event.pointerId) return;
+    if (Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY) > 12) {
+      pointer.moved = true;
+      readonlyLastTapRef.current = null;
+    }
+  };
+
+  const handleReadonlyHeadingPointerCancel = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (readonlyTouchPointerRef.current?.pointerId === event.pointerId) {
+      readonlyTouchPointerRef.current = null;
+      readonlyLastTapRef.current = null;
+    }
+  };
+
+  const handleReadonlyHeadingPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    const pointer = readonlyTouchPointerRef.current;
+    readonlyTouchPointerRef.current = null;
+    if (
+      !readonly
+      || !focusMode
+      || editor.isDestroyed
+      || event.pointerType !== "touch"
+      || !event.isPrimary
+      || !pointer
+      || pointer.pointerId !== event.pointerId
+      || pointer.moved
+      || Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY) > 12
+    ) return;
+
+    const position = editor.view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+    if (position === undefined) return;
+    const section = headingSectionAtPosition(extractHeadingSections(editor.state.doc), position);
+    if (!section) return;
+    const now = performance.now();
+    const previous = readonlyLastTapRef.current;
+    const isDoubleTap = Boolean(
+      previous
+      && previous.sectionPos === section.pos
+      && now - previous.time <= 420
+      && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 24
+    );
+    if (!isDoubleTap) {
+      readonlyLastTapRef.current = {
+        time: now,
+        x: event.clientX,
+        y: event.clientY,
+        sectionPos: section.pos,
+      };
+      return;
+    }
+
+    readonlyLastTapRef.current = null;
+    if (!toggleReadonlyHeadingAtPoint(event.target, event.clientX, event.clientY)) return;
+    // 部分 WebKit 版本会在 pointer 事件后补发 dblclick，必须吞掉一次，
+    // 否则章节会立即折叠后再展开，看起来像完全没有响应。
+    suppressReadonlyDoubleClickUntilRef.current = now + 650;
     event.preventDefault();
     event.stopPropagation();
   };
@@ -2260,13 +2364,15 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             <div className="document-outline-header-actions">
               <button type="button" onClick={() => setAllHeadingFolds(editor, true)} title="折叠全部章节">全部折叠</button>
               <button type="button" onClick={() => setAllHeadingFolds(editor, false)} title="展开全部章节">全部展开</button>
-              {outlineOverflow && (
-                <div className="document-outline-jumps" aria-label="目录快速滚动">
-                  <button type="button" onClick={() => scrollOutlineTo("top")} title="滚动至顶部">Top</button>
-                  <button type="button" onClick={() => scrollOutlineTo("middle")} title="滚动至中部">Mid</button>
-                  <button type="button" onClick={() => scrollOutlineTo("bottom")} title="滚动至底部">Bot</button>
-                </div>
-              )}
+              <div
+                className={`document-outline-jumps ${outlineOverflow ? "" : "is-placeholder"}`}
+                aria-label="目录快速滚动"
+                aria-hidden={!outlineOverflow}
+              >
+                <button type="button" onClick={() => scrollOutlineTo("top")} title="滚动至顶部">Top</button>
+                <button type="button" onClick={() => scrollOutlineTo("middle")} title="滚动至中部">Mid</button>
+                <button type="button" onClick={() => scrollOutlineTo("bottom")} title="滚动至底部">Bot</button>
+              </div>
               <span className="document-outline-count">
                 {visibleOutlineEntries.length === documentOutline.length
                   ? `${documentOutline.length} 项`
@@ -3033,6 +3139,10 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             editor={editor}
             className="editor-content"
             onDoubleClick={handleReadonlyHeadingDoubleClick}
+            onPointerDown={handleReadonlyHeadingPointerDown}
+            onPointerMove={handleReadonlyHeadingPointerMove}
+            onPointerCancel={handleReadonlyHeadingPointerCancel}
+            onPointerUp={handleReadonlyHeadingPointerUp}
             onClick={() => {
               if (readonly && vimModeEnabled) {
                 editor.view.dom.focus({ preventScroll: true });

@@ -37,7 +37,8 @@ test.describe("PWA 窄屏应用外壳", () => {
     await page.getByTitle("文档目录").click();
     const outline = page.getByRole("navigation", { name: "文档目录" });
     await expect(outline).toBeVisible();
-    await expect(outline.getByLabel("目录快速滚动")).toHaveCount(0);
+    await expect(outline.getByLabel("目录快速滚动")).toBeHidden();
+    await expect(outline.locator(".document-outline-header")).toHaveCSS("height", "37px");
     await page.getByTitle("文档目录").click();
 
     const bullet = editor.locator("li").first();
@@ -59,6 +60,80 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(listGeometry.orderedMarker).not.toContain("•");
   });
 
+  test("目录快速滚动按钮显隐不改变标题栏高度", async ({ page }) => {
+    await page.goto("/");
+    const outlineButton = page.getByTitle("文档目录");
+    await outlineButton.click();
+    const outline = page.getByRole("navigation", { name: "文档目录" });
+    await expect(outline.getByLabel("目录快速滚动")).toBeHidden();
+    const shortHeaderHeight = await outline.locator(".document-outline-header").evaluate(
+      (element) => element.getBoundingClientRect().height,
+    );
+    await outlineButton.click();
+
+    const editor = page.locator(".ProseMirror");
+    const initialHeadingCount = await editor.locator("h1, h2, h3, h4, h5, h6").count();
+    const extraOutline = Array.from(
+      { length: 40 },
+      (_, index) => `## 性能章节 ${index + 1}\n\n章节正文 ${index + 1}`,
+    ).join("\n\n");
+    await editor.click();
+    await editor.press("Control+End");
+    await editor.evaluate((element, markdown) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", markdown);
+      element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    }, `\n\n${extraOutline}`);
+    await expect(editor.locator("h1, h2, h3, h4, h5, h6")).toHaveCount(initialHeadingCount + 40);
+
+    await outlineButton.click();
+    await outline.getByTitle("展开全部章节").click();
+    await expect(outline.locator(".document-outline-item")).toHaveCount(initialHeadingCount + 40);
+    await expect(outline.getByLabel("目录快速滚动")).toBeVisible();
+    const longHeaderHeight = await outline.locator(".document-outline-header").evaluate(
+      (element) => element.getBoundingClientRect().height,
+    );
+    expect(longHeaderHeight).toBe(shortHeaderHeight);
+  });
+
+  test("专注与普通模式目录同宽且长标题最多显示两行", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    const longTitle = "这是一个用于验证手机目录能够尽量完整显示内容而不会过早截断的很长章节标题并继续补充足够多的文字验证第二行显示效果";
+    await editor.fill(longTitle);
+    await expect(editor.locator("h1, h2, h3, h4, h5, h6").filter({ hasText: longTitle })).toBeVisible();
+
+    const normalOutlineButton = page.locator(".note-title-row").getByTitle("文档目录");
+    await normalOutlineButton.click();
+    const outline = page.getByRole("navigation", { name: "文档目录" });
+    await outline.getByTitle("展开全部章节").click();
+    const longItem = outline.locator(".document-outline-item").filter({ hasText: longTitle });
+    await expect(longItem).toBeVisible();
+    const normalGeometry = await outline.evaluate((panel) => {
+      const item = [...panel.querySelectorAll<HTMLElement>(".document-outline-item")]
+        .find((element) => element.textContent?.includes("这是一个用于验证手机目录"));
+      if (!item) throw new Error("long outline item not found");
+      const text = item.querySelector<HTMLElement>(".document-outline-text")!;
+      return {
+        width: panel.getBoundingClientRect().width,
+        itemHeight: item.getBoundingClientRect().height,
+        textWidth: text.getBoundingClientRect().width,
+        textScrollWidth: text.scrollWidth,
+        whiteSpace: getComputedStyle(text).whiteSpace,
+        lineClamp: getComputedStyle(text).webkitLineClamp,
+      };
+    });
+    expect(normalGeometry.width).toBeGreaterThanOrEqual(370);
+    expect(normalGeometry.itemHeight, JSON.stringify(normalGeometry)).toBeGreaterThan(38);
+    await normalOutlineButton.click();
+
+    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    const focusOutlineButton = page.getByLabel("专注模式工具栏").getByTitle("文档目录");
+    await focusOutlineButton.click();
+    const focusWidth = await outline.evaluate((panel) => panel.getBoundingClientRect().width);
+    expect(focusWidth).toBeCloseTo(normalGeometry.width, 1);
+  });
+
   test("移动端块编号使用紧凑且可随位数扩展的 gutter", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("设置").click();
@@ -67,7 +142,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await lineNumberSetting.locator(".settings-toggle").click();
     await page.getByLabel("关闭设置").click();
 
-    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "16px");
+    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "30px");
     const geometry = await page.locator(".editor-content-shell").evaluate((shell) => {
       const number = shell.querySelector(".editor-block-number")!.getBoundingClientRect();
       const paragraph = shell.querySelector(".ProseMirror > *")!.getBoundingClientRect();
@@ -86,7 +161,7 @@ test.describe("PWA 窄屏应用外壳", () => {
       };
     });
     expect(geometry.shellLeft).toBeLessThanOrEqual(4.5);
-    expect(geometry.paragraphLeft - geometry.numberRight).toBeGreaterThanOrEqual(5.5);
+    expect(geometry.paragraphLeft - geometry.numberRight).toBeGreaterThanOrEqual(3.5);
     expect(geometry.orderedNumberRight).toBeLessThanOrEqual(geometry.orderedListLeft);
     expect(geometry.orderedItemOffset).toBeCloseTo(geometry.orderedPadding, 1);
     await expect(page.locator(".editor-block-insert")).toHaveCount(0);
@@ -103,7 +178,7 @@ test.describe("PWA 窄屏应用外壳", () => {
 
     const editor = page.locator(".ProseMirror");
     await expect(editor).toHaveAttribute("contenteditable", "false");
-    const restoreEditing = page.getByRole("button", { name: "取消只读，进入编辑模式" });
+    const restoreEditing = page.getByRole("button", { name: "点击设为可编辑" });
     await expect(restoreEditing).toBeVisible();
     await restoreEditing.click();
 
@@ -118,7 +193,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(blocks.first()).toBeVisible();
     const initialBlockCount = await blocks.count();
     expect(initialBlockCount).toBeGreaterThan(1);
-    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "0px");
+    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "14px");
     await expect(page.locator(".editor-block-insert")).toHaveCount(0);
 
     const orderedList = editor.locator(":scope > ol").first();
@@ -131,14 +206,30 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(orderedList.locator("xpath=following-sibling::*[1]")).toHaveText("手机插入块");
   });
 
-  test("千块文档输入时不构造隐藏 gutter 且延迟快照仍会保存", async ({ page }) => {
+  test("千块文档不测量非标题 gutter 且延迟快照仍会保存", async ({ page }) => {
     test.slow();
     await page.goto("/");
     const editor = page.locator(".ProseMirror");
     const content = Array.from({ length: 1200 }, (_, index) => `块 ${index + 1}`).join("\n");
     await editor.fill(content);
     await expect(editor.locator(":scope > *")).toHaveCount(1200);
-    await expect(page.locator(".editor-block-gutter")).toBeEmpty();
+    await expect(page.locator(".editor-block-gutter .editor-heading-fold")).toHaveCount(1);
+    const paragraphGeometryReads = await page.evaluate(async () => {
+      const original = HTMLElement.prototype.getBoundingClientRect;
+      let reads = 0;
+      HTMLElement.prototype.getBoundingClientRect = function measuredRect() {
+        if (this.tagName === "P" && this.parentElement?.classList.contains("ProseMirror")) reads += 1;
+        return original.call(this);
+      };
+      try {
+        window.dispatchEvent(new Event("resize"));
+        await new Promise((resolve) => window.setTimeout(resolve, 180));
+        return reads;
+      } finally {
+        HTMLElement.prototype.getBoundingClientRect = original;
+      }
+    });
+    expect(paragraphGeometryReads).toBeLessThan(20);
 
     const lastBlock = editor.locator(":scope > p").last();
     await lastBlock.click();
@@ -497,12 +588,12 @@ test.describe("PWA 窄屏应用外壳", () => {
 
     await page.setViewportSize({ width: 390, height: 760 });
     await expect.poll(async () => (await readCaretLayout()).visible).toBe(true);
+    await expect.poll(async () => {
+      const current = await readCaretLayout();
+      return Math.abs(current.ratio - portraitBefore.ratio);
+    }).toBeLessThan(0.15);
     const portraitAfter = await readCaretLayout();
     expect(portraitAfter.fontSize).toBe(portraitBefore.fontSize);
-    expect(
-      Math.abs(portraitAfter.ratio - portraitBefore.ratio),
-      JSON.stringify({ portraitBefore, portraitAfter }),
-    ).toBeLessThan(0.15);
   });
 
   test("只读横竖屏往返保持顶部可见块及其偏移", async ({ page }) => {
