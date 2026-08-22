@@ -1,5 +1,5 @@
-import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
-import { useEffect, useRef, useState } from "react";
+import { NodeViewWrapper, NodeViewContent, type NodeViewProps } from "@tiptap/react";
+import { useRef, useState } from "react";
 import { copyToClipboard } from "../lib/clipboard";
 
 /**
@@ -13,45 +13,10 @@ import { copyToClipboard } from "../lib/clipboard";
  *     </div>
  *   </NodeViewWrapper>
  */
-function CodeBlockView() {
-  const gutterRef = useRef<HTMLDivElement>(null);
+function CodeBlockView({ node }: NodeViewProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
   const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    // 必须绑定当前 NodeView 所属编辑器；全局 querySelector 在分栏或多个
-    // 编辑器实例并存时会读取到另一个编辑器的显示状态。
-    const el = wrapperRef.current?.closest(".note-editor");
-    if (!el) return;
-    setVisible(el.classList.contains("show-code-line-numbers"));
-    const observer = new MutationObserver(() => {
-      setVisible(el.classList.contains("show-code-line-numbers"));
-    });
-    observer.observe(el, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, []);
-
-  // 同步 gutter 行号（监听 code 元素内容变化）
-  useEffect(() => {
-    if (!visible || !gutterRef.current) return;
-    const wrapper = gutterRef.current.closest(".code-block-wrap");
-    const codeEl = wrapper?.querySelector("code");
-    if (!codeEl) return;
-
-    const sync = () => {
-      if (!gutterRef.current) return;
-      const lines = (codeEl.textContent || "").split("\n");
-      gutterRef.current.innerHTML = lines
-        .map((_: string, i: number) => `<span>${i + 1}</span>`)
-        .join("");
-    };
-    sync();
-
-    const mo = new MutationObserver(sync);
-    mo.observe(codeEl, { characterData: true, subtree: true, childList: true });
-    return () => mo.disconnect();
-  }, [visible]);
+  const lineCount = node.textContent.split("\n").length;
 
   const handleCopy = async () => {
     const codeEl = wrapperRef.current?.querySelector("code");
@@ -62,7 +27,7 @@ function CodeBlockView() {
   };
 
   return (
-    <NodeViewWrapper className={`code-block-wrap ${visible ? "show-numbers" : ""}`}>
+    <NodeViewWrapper className="code-block-wrap">
       <div ref={wrapperRef}>
         <button
           className="code-block-copy"
@@ -75,11 +40,14 @@ function CodeBlockView() {
         </button>
         <div className="code-block-inner">
           <div
-            ref={gutterRef}
             className="code-block-gutter"
             contentEditable={false}
             suppressContentEditableWarning
-          />
+          >
+            {Array.from({ length: lineCount }, (_, index) => (
+              <span key={index}>{index + 1}</span>
+            ))}
+          </div>
           <pre>
             <NodeViewContent as="code" />
           </pre>

@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
+import type { Transaction } from "@tiptap/pm/state";
 
 interface GutterBlock {
   index: number;
@@ -86,6 +87,7 @@ function blockFormat(typeName: string, attrs: Readonly<Record<string, unknown>>)
 interface EditorBlockGutterProps {
   editor: Editor;
   showNumbers: boolean;
+  showInsertButtons: boolean;
   readonly: boolean;
   onBlockCountChange?: (count: number) => void;
 }
@@ -96,15 +98,25 @@ interface EditorBlockGutterProps {
  * 编号和插入按钮都是真实 DOM，不再借用伪元素或根据鼠标坐标猜测
  * 用户意图。ResizeObserver 会在窗口、侧栏或字体导致重排时重新测量。
  */
-export function EditorBlockGutter({ editor, showNumbers, readonly, onBlockCountChange }: EditorBlockGutterProps) {
+export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, readonly, onBlockCountChange }: EditorBlockGutterProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<number | null>(null);
+  const documentMeasureTimerRef = useRef<number | null>(null);
   const [blocks, setBlocks] = useState<GutterBlock[]>([]);
 
   const measure = useCallback(() => {
     frameRef.current = null;
     const root = rootRef.current;
     if (!root || editor.isDestroyed) return;
+
+    if (!showNumbers && !showInsertButtons) {
+      // Mobile keeps insertion in the block menu. With block numbers disabled
+      // there is no gutter UI at all, so avoid walking the document or reading
+      // any DOM geometry on every edit.
+      setBlocks((current) => current.length === 0 ? current : []);
+      onBlockCountChange?.(editor.state.doc.childCount);
+      return;
+    }
 
     const rootRect = root.getBoundingClientRect();
     const editorLineHeight = Number.parseFloat(getComputedStyle(editor.view.dom).lineHeight) || 24;
@@ -136,12 +148,39 @@ export function EditorBlockGutter({ editor, showNumbers, readonly, onBlockCountC
     });
     setBlocks(next);
     onBlockCountChange?.(next.length);
-  }, [editor, onBlockCountChange]);
+  }, [editor, onBlockCountChange, showInsertButtons, showNumbers]);
 
   const scheduleMeasure = useCallback(() => {
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     frameRef.current = requestAnimationFrame(measure);
   }, [measure]);
+
+  const updateActiveBlock = useCallback(() => {
+    const selectionPos = editor.state.selection.from;
+    setBlocks((current) => {
+      let changed = false;
+      const next = current.map((block) => {
+        const active = selectionPos >= block.pos && selectionPos < block.endPos;
+        if (active === block.active) return block;
+        changed = true;
+        return { ...block, active };
+      });
+      return changed ? next : current;
+    });
+  }, [editor]);
+
+  const scheduleDocumentMeasure = useCallback(() => {
+    if (documentMeasureTimerRef.current !== null) {
+      window.clearTimeout(documentMeasureTimerRef.current);
+    }
+    // DOM geometry for every top-level block is O(N) and forces layout. Merge
+    // a burst of typing into one measurement while selection-only transactions
+    // update the active number without touching layout at all.
+    documentMeasureTimerRef.current = window.setTimeout(() => {
+      documentMeasureTimerRef.current = null;
+      scheduleMeasure();
+    }, 100);
+  }, [scheduleMeasure]);
 
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -150,17 +189,24 @@ export function EditorBlockGutter({ editor, showNumbers, readonly, onBlockCountC
     const observer = new ResizeObserver(scheduleMeasure);
     observer.observe(root);
     observer.observe(editor.view.dom);
-    editor.on("transaction", scheduleMeasure);
+    const onTransaction = ({ transaction }: { transaction: Transaction }) => {
+      if (transaction.docChanged) scheduleDocumentMeasure();
+      else updateActiveBlock();
+    };
+    editor.on("transaction", onTransaction);
     window.addEventListener("resize", scheduleMeasure);
     scheduleMeasure();
 
     return () => {
-      editor.off("transaction", scheduleMeasure);
+      editor.off("transaction", onTransaction);
       window.removeEventListener("resize", scheduleMeasure);
       observer.disconnect();
+      if (documentMeasureTimerRef.current !== null) {
+        window.clearTimeout(documentMeasureTimerRef.current);
+      }
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     };
-  }, [editor, scheduleMeasure]);
+  }, [editor, scheduleDocumentMeasure, scheduleMeasure, updateActiveBlock]);
 
   const insertParagraph = (pos: number) => {
     const safePos = Math.min(Math.max(0, pos), editor.state.doc.content.size);
@@ -172,7 +218,7 @@ export function EditorBlockGutter({ editor, showNumbers, readonly, onBlockCountC
       .run();
   };
 
-  const boundaries = blocks.length === 0
+  const boundaries = !showInsertButtons || blocks.length === 0
     ? []
     : [
         { key: "start", pos: blocks[0].pos, top: blocks[0].top, label: "在第一块前插入段落" },
@@ -205,7 +251,7 @@ export function EditorBlockGutter({ editor, showNumbers, readonly, onBlockCountC
           {block.index}
         </span>
       ))}
-      {!readonly && boundaries.map((boundary) => (
+      {!readonly && showInsertButtons && boundaries.map((boundary) => (
         <button
           key={boundary.key}
           type="button"

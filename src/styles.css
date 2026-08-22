@@ -1746,6 +1746,103 @@ body {
   color: #fff;
 }
 
+/* ── 手机底部操作面板 ── */
+
+.mobile-action-sheet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 12px 8px calc(var(--app-visual-viewport-bottom-inset, 0px) + var(--safe-bottom) + 8px);
+  background: rgba(0, 0, 0, 0.38);
+  overscroll-behavior: contain;
+}
+
+.mobile-action-sheet {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: min(
+    70dvh,
+    520px,
+    calc(var(--app-viewport-height, 100dvh) - var(--safe-top) - var(--safe-bottom) - 20px)
+  );
+  overflow: hidden;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.38);
+  transition: transform 120ms ease-out;
+  will-change: transform;
+}
+
+.mobile-action-sheet-header {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  align-items: center;
+  min-height: 48px;
+  padding: 5px 8px 3px;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+  touch-action: none;
+  user-select: none;
+}
+
+.mobile-action-sheet-header strong {
+  grid-column: 2;
+  font-size: 14px;
+}
+
+.mobile-action-sheet-handle {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  width: 34px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  transform: translateX(-50%);
+}
+
+.mobile-action-sheet-header button {
+  grid-column: 3;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.mobile-action-sheet-content {
+  min-height: 0;
+  padding: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-action-sheet-content .menu-dropdown-item {
+  min-height: 44px;
+  padding: 9px 12px;
+  font-size: 15px;
+}
+
+.mobile-action-sheet-content .menu-dropdown-control {
+  min-height: 44px;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+
 .menu-dropdown-sep {
   height: 1px;
   background: var(--border);
@@ -6585,7 +6682,7 @@ body {
   min-width: 1.5em;
 }
 
-.show-code-line-numbers .code-block-wrap.show-numbers .code-block-gutter {
+.show-code-line-numbers .code-block-gutter {
   display: block;
 }
 
@@ -7094,45 +7191,14 @@ body {
     font-size: 16px;
   }
 
-  /* 手机端改为视口内的底部面板，避免最右侧按钮的菜单被裁掉。 */
-  .toolbar-compact .toolbar-more-list {
-    position: fixed;
-    top: auto;
-    right: 8px;
-    bottom: calc(var(--app-visual-viewport-bottom-inset, 0px) + var(--safe-bottom) + 8px);
-    left: 8px;
-    width: auto;
-    max-height: min(
-      58dvh,
-      420px,
-      calc(var(--app-viewport-height, 100dvh) - var(--safe-top) - var(--safe-bottom) - 16px)
-    );
-    margin: 0;
-    padding: 8px;
-    overflow-x: hidden;
-    overflow-y: auto;
-    border-radius: 10px;
-  }
-
   .editor-menu .menu-btn {
     padding: 3px 5px;
   }
 
-  /* 手机端保留块间插入入口。按钮占满最小 gutter，提升可见性和点按
-     命中率，同时不覆盖正文的选择区域。 */
+  /* 手机端将块间插入入口放进“块”菜单，避免 gutter 中的加号与块号
+     争用有限宽度；桌面端仍保留原有的就地插入按钮。 */
   .editor-block-insert {
-    display: block;
-    left: 0;
-    width: 24px;
-    height: 24px;
-    opacity: 0.45;
-    line-height: 22px;
-    touch-action: manipulation;
-  }
-
-  .show-line-numbers .editor-block-insert {
-    left: 0;
-    width: 14px;
+    display: none;
   }
 
   .editor-block-number {
@@ -7142,8 +7208,8 @@ body {
   }
 
   .show-line-numbers .editor-block-number {
-    left: 14px;
-    width: calc(var(--editor-gutter-width) - 14px);
+    left: 0;
+    width: calc(var(--editor-gutter-width) - 2px);
   }
 
   /* 保留 iOS 原生选区菜单、文字选择和拖动手柄。系统剪贴板、替换和

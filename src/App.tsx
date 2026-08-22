@@ -807,8 +807,8 @@ function App() {
     }
   };
 
-  const handleContentChange = (content: any) => {
-    autoSave.markDirty(content);
+  const handleContentChange = (readContent: () => DeltaOps) => {
+    autoSave.markContentDirty(readContent);
   };
 
   const handleTagsChange = (tags: string[]) => {

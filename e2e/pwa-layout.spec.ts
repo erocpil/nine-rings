@@ -31,7 +31,7 @@ test.describe("PWA 窄屏应用外壳", () => {
 
     const editor = page.locator(".ProseMirror");
     await expect(editor).toBeVisible();
-    await expect(page.locator(".editor-block-insert").first()).toBeVisible();
+    await expect(page.locator(".editor-block-insert")).toHaveCount(0);
     await expect(page.locator(".editor-status-secondary")).toBeHidden();
 
     await page.getByTitle("文档目录").click();
@@ -67,7 +67,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await lineNumberSetting.locator(".settings-toggle").click();
     await page.getByLabel("关闭设置").click();
 
-    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "28px");
+    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "16px");
     const geometry = await page.locator(".editor-content-shell").evaluate((shell) => {
       const number = shell.querySelector(".editor-block-number")!.getBoundingClientRect();
       const paragraph = shell.querySelector(".ProseMirror > *")!.getBoundingClientRect();
@@ -75,7 +75,6 @@ test.describe("PWA 窄屏应用外壳", () => {
       const orderedList = shell.querySelector<HTMLElement>(".ProseMirror > ol")!;
       const orderedItem = orderedList.querySelector<HTMLElement>(":scope > li")!;
       const orderedListRect = orderedList.getBoundingClientRect();
-      const insert = shell.querySelector(".editor-block-insert")!.getBoundingClientRect();
       return {
         shellLeft: shell.getBoundingClientRect().left,
         numberRight: number.right,
@@ -84,15 +83,13 @@ test.describe("PWA 窄屏应用外壳", () => {
         orderedListLeft: orderedListRect.left,
         orderedItemOffset: orderedItem.getBoundingClientRect().left - orderedListRect.left,
         orderedPadding: Number.parseFloat(getComputedStyle(orderedList).paddingInlineStart),
-        insertRight: insert.right,
-        numberLeft: number.left,
       };
     });
     expect(geometry.shellLeft).toBeLessThanOrEqual(4.5);
     expect(geometry.paragraphLeft - geometry.numberRight).toBeGreaterThanOrEqual(5.5);
     expect(geometry.orderedNumberRight).toBeLessThanOrEqual(geometry.orderedListLeft);
     expect(geometry.orderedItemOffset).toBeCloseTo(geometry.orderedPadding, 1);
-    expect(geometry.insertRight).toBeLessThanOrEqual(geometry.numberLeft);
+    await expect(page.locator(".editor-block-insert")).toHaveCount(0);
   });
 
   test("只读文档可从主编辑区直接恢复编辑", async ({ page }) => {
@@ -114,34 +111,49 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(restoreEditing).toHaveCount(0);
   });
 
-  test("手机端可以点按块间加号插入空行", async ({ page }) => {
+  test("手机端通过块菜单在当前块后插入空白块", async ({ page }) => {
     await page.goto("/");
     const editor = page.locator(".ProseMirror");
     const blocks = editor.locator(":scope > *");
     await expect(blocks.first()).toBeVisible();
     const initialBlockCount = await blocks.count();
     expect(initialBlockCount).toBeGreaterThan(1);
-    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "24px");
+    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "0px");
+    await expect(page.locator(".editor-block-insert")).toHaveCount(0);
 
-    const insertButton = page.getByRole("button", { name: "在第 1 块后插入段落" });
-    const geometry = await insertButton.evaluate((button) => {
-      const buttonRect = button.getBoundingClientRect();
-      const paragraphRect = document.querySelector(".ProseMirror > p")!.getBoundingClientRect();
-      return {
-        button: { width: buttonRect.width, height: buttonRect.height, right: buttonRect.right },
-        paragraphLeft: paragraphRect.left,
-      };
-    });
-    expect(geometry.button).toMatchObject({ width: 24, height: 24 });
-    expect(geometry.button.right).toBeLessThanOrEqual(geometry.paragraphLeft);
-
-    const box = await insertButton.boundingBox();
-    if (!box) throw new Error("块间插入按钮不可见");
-    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    const orderedList = editor.locator(":scope > ol").first();
+    await orderedList.locator("li").first().click();
+    await page.getByRole("button", { name: "块 ▾" }).click();
+    await page.getByRole("button", { name: "＋ 在当前块后插入空白块" }).click();
     await page.keyboard.type("手机插入块");
 
     await expect(blocks).toHaveCount(initialBlockCount + 1);
-    await expect(blocks.nth(1)).toHaveText("手机插入块");
+    await expect(orderedList.locator("xpath=following-sibling::*[1]")).toHaveText("手机插入块");
+  });
+
+  test("千块文档输入时不构造隐藏 gutter 且延迟快照仍会保存", async ({ page }) => {
+    test.slow();
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    const content = Array.from({ length: 1200 }, (_, index) => `块 ${index + 1}`).join("\n");
+    await editor.fill(content);
+    await expect(editor.locator(":scope > *")).toHaveCount(1200);
+    await expect(page.locator(".editor-block-gutter")).toBeEmpty();
+
+    const lastBlock = editor.locator(":scope > p").last();
+    await lastBlock.click();
+    await page.keyboard.press("End");
+    const startedAt = Date.now();
+    await page.keyboard.type("-连续输入-1234567890");
+    expect(Date.now() - startedAt).toBeLessThan(2500);
+    await expect(lastBlock).toHaveText("块 1200-连续输入-1234567890");
+
+    await expect(page.getByTitle("已保存")).toBeVisible({ timeout: 5000 });
+    await page.reload();
+    await expect(page.locator(".ProseMirror > p").last()).toHaveText(
+      "块 1200-连续输入-1234567890",
+      { timeout: 15000 },
+    );
   });
 
   test("专注模式保留极简标题栏并可按需展开编辑工具", async ({ page }) => {
@@ -219,8 +231,9 @@ test.describe("PWA 窄屏应用外壳", () => {
   test("更多菜单始终完整限制在手机可视区域内", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("更多编辑操作").click();
-    const menu = page.locator(".toolbar-more-list");
+    const menu = page.getByRole("dialog", { name: "更多编辑操作" });
     await expect(menu).toBeVisible();
+    await expect(page.getByRole("button", { name: "关闭更多编辑操作" })).toBeFocused();
     const geometry = await menu.evaluate((element) => {
       const rect = element.getBoundingClientRect();
       return {
@@ -239,6 +252,43 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(menu.getByRole("button", { name: /导出 Markdown/ })).toBeVisible();
   });
 
+  test("再次点按更多按钮区域只关闭面板且不会误触导出", async ({ page }) => {
+    await page.goto("/");
+    let downloadCount = 0;
+    page.on("download", () => { downloadCount += 1; });
+
+    const trigger = page.getByTitle("更多编辑操作");
+    const triggerBox = await trigger.boundingBox();
+    if (!triggerBox) throw new Error("更多按钮不可见");
+    await page.touchscreen.tap(triggerBox.x + triggerBox.width / 2, triggerBox.y + triggerBox.height / 2);
+    const sheet = page.getByRole("dialog", { name: "更多编辑操作" });
+    await expect(sheet).toBeVisible();
+
+    await page.touchscreen.tap(triggerBox.x + triggerBox.width / 2, triggerBox.y + triggerBox.height / 2);
+    await expect(sheet).toBeHidden();
+    await page.waitForTimeout(100);
+    expect(downloadCount).toBe(0);
+
+    await trigger.click();
+    await expect(sheet).toBeVisible();
+    await sheet.locator(".mobile-action-sheet-header").evaluate((header) => {
+      const rect = header.getBoundingClientRect();
+      const touchAt = (clientY: number) => new Touch({
+        identifier: 1,
+        target: header,
+        clientX: rect.left + rect.width / 2,
+        clientY,
+      });
+      const start = touchAt(rect.top + 10);
+      const end = touchAt(rect.top + 100);
+      header.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true, touches: [start] }));
+      header.dispatchEvent(new TouchEvent("touchmove", { bubbles: true, cancelable: true, touches: [end] }));
+      header.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true, touches: [] }));
+    });
+    await expect(sheet).toBeHidden();
+    expect(downloadCount).toBe(0);
+  });
+
   test("虚拟键盘打开时更多菜单停靠在可视区域底部", async ({ page }) => {
     await page.goto("/");
     await page.evaluate(() => {
@@ -248,7 +298,8 @@ test.describe("PWA 窄屏应用外壳", () => {
     });
 
     await page.getByTitle("更多编辑操作").click();
-    const geometry = await page.locator(".toolbar-more-list").evaluate((menu) => {
+    const sheet = page.getByRole("dialog", { name: "更多编辑操作" });
+    const geometry = await sheet.evaluate((menu) => {
       const menuRect = menu.getBoundingClientRect();
       const appRect = document.querySelector(".app")!.getBoundingClientRect();
       return {
@@ -260,7 +311,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     });
     expect(geometry.menuTop).toBeGreaterThanOrEqual(geometry.viewportTop);
     expect(geometry.menuBottom).toBeLessThanOrEqual(geometry.viewportBottom);
-    await expect(page.locator(".toolbar-more-list").getByRole("button", { name: /导出 Markdown/ })).toBeVisible();
+    await expect(sheet.getByRole("button", { name: /导出 Markdown/ })).toBeVisible();
   });
 
   test("选择文字后工具栏保留选区并能应用格式", async ({ page }) => {

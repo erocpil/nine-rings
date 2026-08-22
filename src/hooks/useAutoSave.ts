@@ -21,6 +21,8 @@ export interface AutoSaveHandle {
   status: SaveStatus;
   /** 通知内容已变化（自动触发 debounce 保存） */
   markDirty: (content: any) => void;
+  /** 延迟读取最新内容；只在真正保存或紧急导出时执行昂贵的全文序列化。 */
+  markContentDirty: (readContent: () => any) => void;
   /** 通知标题已变化 */
   markTitleDirty: (title: string) => void;
   /** 通知标签已变化 */
@@ -42,12 +44,19 @@ interface Props {
   debounceMs?: number;
 }
 
+type PendingChanges = Record<string, any> & { content?: any | (() => any) };
+
+export function materializeAutoSaveChanges(changes: PendingChanges): Record<string, any> {
+  if (typeof changes.content !== "function") return { ...changes };
+  return { ...changes, content: changes.content() };
+}
+
 export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle {
   const [status, setStatus] = useState<SaveStatus>("clean");
   const [, setNoteIdState] = useState<string | null>(null);
 
   // 每个笔记的脏数据
-  const dirtyRef = useRef<Map<string, Record<string, any>>>(new Map());
+  const dirtyRef = useRef<Map<string, PendingChanges>>(new Map());
   // 串行保存队列
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   // debounce timer
@@ -95,6 +104,10 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
     if (noteIdRef.current) markDirtyRaw(noteIdRef.current, "content", content);
   }, [markDirtyRaw]);
 
+  const markContentDirty = useCallback((readContent: () => any) => {
+    if (noteIdRef.current) markDirtyRaw(noteIdRef.current, "content", readContent);
+  }, [markDirtyRaw]);
+
   const markTitleDirty = useCallback((title: string) => {
     if (noteIdRef.current) markDirtyRaw(noteIdRef.current, "title", title);
   }, [markDirtyRaw]);
@@ -121,7 +134,7 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
     setStatus("saving");
     const savePromise = queueRef.current.then(async () => {
       try {
-        await onSaveRef.current(id, dirty);
+        await onSaveRef.current(id, materializeAutoSaveChanges(dirty));
         if (noteIdRef.current === id) {
           setStatus("saved");
         }
@@ -154,7 +167,7 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
     const noteId = noteIdRef.current;
     if (!noteId) return null;
     const changes = dirtyRef.current.get(noteId);
-    return changes ? { noteId, changes: { ...changes } } : null;
+    return changes ? { noteId, changes: materializeAutoSaveChanges(changes) } : null;
   }, []);
 
   const discardPending = useCallback(() => {
@@ -190,6 +203,7 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
   return {
     status,
     markDirty,
+    markContentDirty,
     markTitleDirty,
     markTagsDirty,
     flush,

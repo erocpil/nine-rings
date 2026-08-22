@@ -36,6 +36,7 @@ import { addLog, toggleDebug } from "../lib/debugLog";
 import { copyToClipboard } from "../lib/clipboard";
 import { CodeBlockLineNumbers } from "../extensions/CodeBlockLineNumbers";
 import { EditorBlockGutter } from "./EditorBlockGutter";
+import { MobileActionSheet } from "./MobileActionSheet";
 import { storeImage } from "../lib/storage/db-images";
 import { api } from "../lib/api";
 import { looksLikeMarkdown, mdToDelta } from "../lib/md-parser";
@@ -210,7 +211,7 @@ interface NoteEditorProps {
   editorFontSize: number;
   onEditorFontSizeChange: (size: number) => void;
   onTitleChange: (title: string) => void;
-  onContentChange: (content: DeltaOps) => void;
+  onContentChange: (readContent: () => DeltaOps) => void;
   onTagsChange: (tags: string[]) => void;
   onVersionOpen?: () => void;
   onFocusModeChange?: (focus: boolean) => void;
@@ -279,12 +280,14 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [clipOpen, setClipOpen] = useState(false);
   const [tableOpen, setTableOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const closeMore = useCallback(() => setMoreOpen(false), []);
   const [focusToolbarExpanded, setFocusToolbarExpanded] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   // 编辑器右键菜单 + 右键插入链接对话框
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
   const [linkDialog, setLinkDialog] = useState(false);
   const [linkDialogUrl, setLinkDialogUrl] = useState("");
   const [toolbarWidth, setToolbarWidth] = useState(1000);
@@ -485,10 +488,13 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         setSearchMatches([]);
         setSearchHighlights(ed, [], 0);
       }
-      // 保存时转为 Quill Delta（含字体大小 px→named 映射）
-      const pmJson = ed.getJSON();
-      const delta = proseMirrorToDelta(pmJson);
-      onContentChange(delta as unknown as DeltaOps);
+      // ProseMirror 节点是不可变快照。每次按键只登记一个轻量读取函数，
+      // 等自动保存真正 flush 时才执行全文 JSON + Delta 转换，避免长文档
+      // 在输入热路径上反复 O(N) 序列化。
+      const docSnapshot = ed.state.doc;
+      onContentChange(() => (
+        proseMirrorToDelta(docSnapshot.toJSON()) as unknown as DeltaOps
+      ));
       // 节流日志：每秒最多一次
       const now = Date.now();
       if (now - _lastSaveLog > 1000) {
@@ -1513,6 +1519,31 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     setBlockOpen(false);
   };
 
+  const insertBlankBlockAfterCurrent = () => {
+    const { doc, selection } = editor.state;
+    const { $from } = selection;
+    let insertPos: number;
+
+    if ($from.depth > 0) {
+      // depth=1 is always the top-level block, even when the cursor is nested
+      // inside a list, quote, table cell, or another structured node.
+      insertPos = $from.after(1);
+    } else {
+      // A NodeSelection can sit immediately before a top-level atomic block.
+      // In that case insert after the selected/following node, not before it.
+      const child = doc.childAfter($from.pos);
+      insertPos = child.node ? $from.pos + child.node.nodeSize : doc.content.size;
+    }
+
+    editor
+      .chain()
+      .insertContentAt(insertPos, { type: "paragraph" })
+      .focus(insertPos + 1)
+      .scrollIntoView()
+      .run();
+    setBlockOpen(false);
+  };
+
   const btn = (label: ReactNode, action: () => void, active?: boolean, title?: string, disabled?: boolean) => (
     <button
       className={`menu-btn ${active ? "active" : ""}`}
@@ -1661,6 +1692,42 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       event.stopPropagation();
     }
   };
+
+  const moreActions = (<>
+    <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setMoreOpen(false); }} type="button">M↑ 导出 Markdown</button>
+    <div className="menu-dropdown-sep" />
+    <button className="menu-dropdown-item" onClick={() => {
+      setLinkDialogUrl(editor.getAttributes("link").href || "");
+      setLinkDialog(true);
+      setMoreOpen(false);
+    }} type="button">🔗 添加或编辑链接</button>
+    <button className="menu-dropdown-item" onClick={() => { setImageDialog(true); setMoreOpen(false); }} type="button">🖼 插入图片</button>
+    <label className="menu-dropdown-control">
+      <span>文字字号</span>
+      <select
+        value={editor.getAttributes("textStyle").fontSize || ""}
+        onChange={(event) => {
+          if (event.target.value) (editor.chain() as any).focus().setFontSize(event.target.value).run();
+          else (editor.chain() as any).focus().unsetFontSize().run();
+        }}
+      >
+        <option value="">默认</option>
+        {FONT_SIZES.map((size) => <option key={size} value={size}>{size}px</option>)}
+      </select>
+    </label>
+    <label className="menu-dropdown-control">
+      <span>文字颜色</span>
+      <input
+        type="color"
+        value={editor.getAttributes("textStyle").color || "#333333"}
+        onChange={(event) => editor.chain().focus().setColor(event.target.value).run()}
+      />
+    </label>
+    <button className="menu-dropdown-item" onClick={() => editor.chain().focus().unsetColor().run()} type="button">清除文字颜色</button>
+    <div className="menu-dropdown-sep" />
+    <button className="menu-dropdown-item" disabled={editorFontSize <= 12} onClick={() => onEditorFontSizeChange(Math.max(12, editorFontSize - 1))} type="button">缩小编辑器字号</button>
+    <button className="menu-dropdown-item" disabled={editorFontSize >= 32} onClick={() => onEditorFontSizeChange(Math.min(32, editorFontSize + 1))} type="button">放大编辑器字号</button>
+  </>);
 
   return (
     <div
@@ -2043,6 +2110,14 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
                       type="button"
                     >↵ 退出当前块（Ctrl+Enter）</button>
                   )}
+                  {isMobileToolbarViewport && (
+                    <button
+                      className="menu-dropdown-item"
+                      onClick={insertBlankBlockAfterCurrent}
+                      disabled={readonly}
+                      type="button"
+                    >＋ 在当前块后插入空白块</button>
+                  )}
                   <button
                     className="menu-dropdown-item"
                     onClick={() => {
@@ -2368,48 +2443,27 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           {isMinimalToolbar && (
             <div className="menu-dropdown toolbar-more-menu">
               <button
+                ref={moreButtonRef}
                 className="menu-btn"
                 onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("more", moreOpen); }}
                 type="button"
                 title="更多编辑操作"
               >更多 ⋯</button>
-              {moreOpen && (
-                <div className="menu-dropdown-list toolbar-more-list" onClick={(e) => e.stopPropagation()}>
-                  <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setMoreOpen(false); }} type="button">M↑ 导出 Markdown</button>
-                  <div className="menu-dropdown-sep" />
-                  <button className="menu-dropdown-item" onClick={() => {
-                    setLinkDialogUrl(editor.getAttributes("link").href || "");
-                    setLinkDialog(true);
-                    setMoreOpen(false);
-                  }} type="button">🔗 添加或编辑链接</button>
-                  <button className="menu-dropdown-item" onClick={() => { setImageDialog(true); setMoreOpen(false); }} type="button">🖼 插入图片</button>
-                  <label className="menu-dropdown-control">
-                    <span>文字字号</span>
-                    <select
-                      value={editor.getAttributes("textStyle").fontSize || ""}
-                      onChange={(e) => {
-                        if (e.target.value) (editor.chain() as any).focus().setFontSize(e.target.value).run();
-                        else (editor.chain() as any).focus().unsetFontSize().run();
-                      }}
-                    >
-                      <option value="">默认</option>
-                      {FONT_SIZES.map((size) => <option key={size} value={size}>{size}px</option>)}
-                    </select>
-                  </label>
-                  <label className="menu-dropdown-control">
-                    <span>文字颜色</span>
-                    <input
-                      type="color"
-                      value={editor.getAttributes("textStyle").color || "#333333"}
-                      onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
-                    />
-                  </label>
-                  <button className="menu-dropdown-item" onClick={() => editor.chain().focus().unsetColor().run()} type="button">清除文字颜色</button>
-                  <div className="menu-dropdown-sep" />
-                  <button className="menu-dropdown-item" disabled={editorFontSize <= 12} onClick={() => onEditorFontSizeChange(Math.max(12, editorFontSize - 1))} type="button">缩小编辑器字号</button>
-                  <button className="menu-dropdown-item" disabled={editorFontSize >= 32} onClick={() => onEditorFontSizeChange(Math.min(32, editorFontSize + 1))} type="button">放大编辑器字号</button>
+              {moreOpen && (isMobileToolbarViewport ? (
+                <MobileActionSheet
+                  open
+                  title="更多编辑操作"
+                  onClose={closeMore}
+                  dismissAnchor={moreButtonRef.current}
+                  className="toolbar-more-sheet"
+                >
+                  {moreActions}
+                </MobileActionSheet>
+              ) : (
+                <div className="menu-dropdown-list toolbar-more-list" onClick={(event) => event.stopPropagation()}>
+                  {moreActions}
                 </div>
-              )}
+              ))}
             </div>
           )}
           {saveStatus && saveStatus !== "clean" && (
@@ -2457,6 +2511,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           <EditorBlockGutter
             editor={editor}
             showNumbers={showLineNumbers}
+            showInsertButtons={!isMobileToolbarViewport}
             readonly={!!readonly}
             onBlockCountChange={setGutterBlockCount}
           />

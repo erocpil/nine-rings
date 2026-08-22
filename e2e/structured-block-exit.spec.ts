@@ -15,6 +15,31 @@ async function activateBlock(page: Page, name: "❝ 引用" | "⏹ 代码块") {
 test.describe("结构块退出行为", () => {
   test.use({ viewport: { width: 800, height: 700 } });
 
+  test("代码块行号可开启并随内容实时更新", async ({ page }) => {
+    await createBlankNote(page);
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("first");
+    await activateBlock(page, "⏹ 代码块");
+    await editor.press("End");
+    await editor.press("Enter");
+    await editor.type("second");
+
+    await page.getByRole("button", { name: "块 ▾" }).click();
+    await page.getByRole("button", { name: "□ 显示代码行号", exact: true }).click();
+
+    const gutter = editor.locator(".code-block-gutter");
+    await expect(page.locator(".note-editor")).toHaveClass(/show-code-line-numbers/);
+    await expect(gutter).toBeVisible();
+    await expect(gutter.locator("span")).toHaveText(["1", "2"]);
+
+    const code = editor.locator(".code-block-wrap code");
+    await editor.press("End");
+    await editor.press("Enter");
+    await editor.type("third");
+    await expect(code).toHaveText("first\nsecond\nthird");
+    await expect(gutter.locator("span")).toHaveText(["1", "2", "3"]);
+  });
+
   test("代码块末尾第二次 Enter 原子退出并保留代码内容", async ({ page }) => {
     await createBlankNote(page);
     const editor = page.locator(".ProseMirror");
