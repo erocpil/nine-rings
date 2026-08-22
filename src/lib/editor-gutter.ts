@@ -10,5 +10,5 @@ export function editorGutterWidth(blockCount: number, showNumbers: boolean, comp
   // 桌面块号左侧保留“+”列；手机端只有数字列。两者都按编号位数
   // 阶梯扩展，避免长文档切换块号时正文频繁抖动。
   if (compact) return Math.max(14, 4 + digits * 6);
-  return Math.max(32, 24 + digits * 8);
+  return Math.max(30, 22 + digits * 8);
 }

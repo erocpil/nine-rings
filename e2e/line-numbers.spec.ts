@@ -64,7 +64,7 @@ test.describe("编辑器块级 gutter", () => {
     await expect(lineNumberToggle).toBeChecked();
     await page.locator(".settings-close").click();
     await expect(page.locator(".note-editor")).toHaveClass(/show-line-numbers/);
-    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "32px");
+    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "30px");
 
     const readonlyButton = page.locator(".sidebar-item.active").getByTitle("设为只读");
     await readonlyButton.evaluate((button: HTMLButtonElement) => button.click());

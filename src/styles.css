@@ -3685,12 +3685,12 @@ body {
 }
 
 .show-line-numbers .editor-content-shell {
-  --editor-gutter-width: 32px;
-  --editor-gutter-text-gap: 6px;
+  --editor-gutter-width: 30px;
+  --editor-gutter-text-gap: 4px;
 }
 
 .focus-mode.show-line-numbers .editor-content-shell {
-  --editor-gutter-width: 32px;
+  --editor-gutter-width: 30px;
 }
 
 .editor-content-shell > .editor-content {
@@ -3745,8 +3745,8 @@ body {
 }
 
 .show-line-numbers .editor-block-number {
-  left: 20px;
-  width: calc(var(--editor-gutter-width) - 20px);
+  left: 18px;
+  width: calc(var(--editor-gutter-width) - 18px);
 }
 
 .editor-block-number::after {
@@ -3811,7 +3811,7 @@ body {
 
 .show-line-numbers .editor-block-insert {
   left: 0;
-  width: 20px;
+  width: 18px;
 }
 
 .editor-block-insert:hover,

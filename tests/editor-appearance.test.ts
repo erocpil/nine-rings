@@ -65,11 +65,11 @@ assert.equal(guarded["--editor-list-margin-bottom"], "0em");
 assert.equal(guarded["--editor-search-highlight"], "#ffd54f");
 
 assert.equal(editorGutterWidth(0, false), 24);
-assert.equal(editorGutterWidth(9, true), 32);
-assert.equal(editorGutterWidth(99, true), 40);
-assert.equal(editorGutterWidth(999, true), 48);
-assert.equal(editorGutterWidth(1_000, true), 56);
-assert.equal(editorGutterWidth(10_000, true), 64);
+assert.equal(editorGutterWidth(9, true), 30);
+assert.equal(editorGutterWidth(99, true), 38);
+assert.equal(editorGutterWidth(999, true), 46);
+assert.equal(editorGutterWidth(1_000, true), 54);
+assert.equal(editorGutterWidth(10_000, true), 62);
 assert.equal(editorGutterWidth(0, false, true), 0);
 assert.equal(editorGutterWidth(9, true, true), 14);
 assert.equal(editorGutterWidth(99, true, true), 16);
