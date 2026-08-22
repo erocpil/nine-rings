@@ -429,12 +429,19 @@ function DocTree({
             style={{ paddingLeft }}
             onContextMenu={(e) => handleContextMenu(e, node)}
           >
-            <span
-              className="doc-tree-toggle"
-              onClick={(e) => { e.stopPropagation(); toggleCollapse(node.path); }}
-            >
-              {hasChildren ? (isCollapsed ? "▶" : "▼") : "  "}
-            </span>
+            {hasChildren ? (
+              <button
+                type="button"
+                className="doc-tree-toggle"
+                aria-label={`${isCollapsed ? "展开" : "折叠"}目录 ${node.name}`}
+                aria-expanded={!isCollapsed}
+                onClick={(e) => { e.stopPropagation(); toggleCollapse(node.path); }}
+              >
+                {isCollapsed ? "▶" : "▼"}
+              </button>
+            ) : (
+              <span className="doc-tree-toggle" aria-hidden="true" />
+            )}
             <span className="doc-tree-icon">
               {STATE_ICONS[node.path.split("/")[0]] ?? "📂"}
             </span>

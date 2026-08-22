@@ -74,10 +74,11 @@ import {
   HeadingFold,
   expandHeadingFoldsAt,
   getCollapsedHeadingKeys,
+  isHeadingFolded,
   setAllHeadingFolds,
   toggleHeadingFold,
 } from "../extensions/HeadingFold";
-import { extractHeadingSections, sessionHeadingFoldStore, visibleHeadingSections } from "../lib/heading-fold";
+import { extractHeadingSections, headingSectionAtPosition, sessionHeadingFoldStore, visibleHeadingSections } from "../lib/heading-fold";
 import { BlockIndent } from "../extensions/BlockIndent";
 import { cacheEditorDocument, getCachedEditorDocument } from "../lib/editor-session-cache";
 import {
@@ -280,6 +281,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const [documentOutline, setDocumentOutline] = useState<DocumentOutlineItem[]>([]);
   const [headingFoldRevision, setHeadingFoldRevision] = useState(0);
   const headingFoldRenderFrameRef = useRef<number | null>(null);
+  const headingFoldViewportFrameRef = useRef<number | null>(null);
   const lastOutlineRequestIdRef = useRef(outlineRequestId);
   const lastPdfExportRequestIdRef = useRef(pdfExportRequestId);
   const outlineBaseLevel = useMemo(
@@ -647,6 +649,9 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   useEffect(() => () => {
     if (headingFoldRenderFrameRef.current !== null) {
       window.cancelAnimationFrame(headingFoldRenderFrameRef.current);
+    }
+    if (headingFoldViewportFrameRef.current !== null) {
+      window.cancelAnimationFrame(headingFoldViewportFrameRef.current);
     }
     if (documentStatsTimerRef.current !== null) {
       window.clearTimeout(documentStatsTimerRef.current);
@@ -2004,6 +2009,49 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     }
   };
 
+  const handleReadonlyHeadingDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!readonly || editor.isDestroyed) return;
+    const target = event.target;
+    if (!(target instanceof Node) || !editor.view.dom.contains(target)) return;
+    const position = editor.view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+    if (position === undefined) return;
+    const section = headingSectionAtPosition(extractHeadingSections(editor.state.doc), position);
+    if (!section) return;
+
+    const heading = editor.view.nodeDOM(section.pos);
+    const scrollRoot = scrollRef.current;
+    const willCollapse = !isHeadingFolded(editor, section.pos);
+    let desiredHeadingTop: number | null = null;
+    if (willCollapse && heading instanceof HTMLElement && scrollRoot) {
+      const headingRect = heading.getBoundingClientRect();
+      const rootRect = scrollRoot.getBoundingClientRect();
+      // 双击标题自身时保持原位；从章节正文触发时，把所属标题带到双击点附近。
+      const requestedTop = event.clientY >= headingRect.top && event.clientY <= headingRect.bottom
+        ? headingRect.top
+        : event.clientY - headingRect.height / 2;
+      desiredHeadingTop = Math.min(
+        rootRect.bottom - headingRect.height - 8,
+        Math.max(rootRect.top + 8, requestedTop),
+      );
+    }
+
+    if (!toggleHeadingFold(editor, section.pos)) return;
+    if (desiredHeadingTop !== null && scrollRoot) {
+      if (headingFoldViewportFrameRef.current !== null) {
+        window.cancelAnimationFrame(headingFoldViewportFrameRef.current);
+      }
+      headingFoldViewportFrameRef.current = window.requestAnimationFrame(() => {
+        headingFoldViewportFrameRef.current = null;
+        if (editor.isDestroyed || !scrollRoot.isConnected) return;
+        const foldedHeading = editor.view.nodeDOM(section.pos);
+        if (!(foldedHeading instanceof HTMLElement)) return;
+        scrollRoot.scrollTop += foldedHeading.getBoundingClientRect().top - desiredHeadingTop!;
+      });
+    }
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
   const moreActions = (<>
     <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setMoreOpen(false); }} type="button">M↑ 导出 Markdown</button>
     <div className="menu-dropdown-sep" />
@@ -2928,6 +2976,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           <EditorContent
             editor={editor}
             className="editor-content"
+            onDoubleClick={handleReadonlyHeadingDoubleClick}
             onClick={() => {
               if (readonly && vimModeEnabled) {
                 editor.view.dom.focus({ preventScroll: true });

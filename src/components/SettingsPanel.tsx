@@ -21,7 +21,7 @@ interface Props {
   onImport?: () => void;
   /** 同步进行中回调 — 用来 freeze 编辑区 */
   onSyncBusy?: (busy: boolean) => void;
-  /** Pull 完成后回调 — 刷新侧栏和文档树 */
+  /** Pull 完成后回调 — 重新载入并应用恢复后的设置与工作区 */
   onPullDone?: () => void;
   webStorageStatus?: WebStorageStatus;
 }
@@ -328,8 +328,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
     setImporting(true);
     try {
       if (isTauri()) {
-        const result = await importWithDialog();
-        if (result) {
+        const text = await importWithDialog();
+        if (text) {
+          const result = await api.export.import(text);
           const configTip = result.configs_imported ? "，配置已恢复" : "";
           setMessage(`导入完成：${result.notes_imported} 篇笔记, ${result.pages_imported} 个页面${configTip}`);
           onImport?.();

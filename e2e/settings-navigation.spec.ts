@@ -126,13 +126,44 @@ test("单击 Owner / Repo 字段可以进入编辑状态", async ({ page }) => {
   await expect(page.getByRole("textbox", { name: "Owner / Repo" })).toBeFocused();
 });
 
-test("Web/PWA 从 GitHub Pull 时直接导入且不触发 JSON 下载", async ({ page }) => {
+test("Web/PWA 从 GitHub Pull 后自动应用设置并恢复最后文档位置", async ({ page }) => {
   const version = "20260822T020304";
+  const restoredNoteId = "github-restored-document";
+  const restoredBody = Array.from(
+    { length: 80 },
+    (_, index) => `恢复后的第 ${index + 1} 段：${"用于验证文档位置。".repeat(8)}`,
+  ).join("\n");
   const remoteSnapshot = JSON.stringify({
     version: 1,
     exported_at: "2026-08-22T02:03:04.000Z",
-    notes: [],
+    notes: [{
+      id: restoredNoteId,
+      date: "2026-08-18",
+      title: "GitHub 恢复的最后文档",
+      content: { ops: [{ insert: `${restoredBody}\n` }] },
+      tags: [],
+      pinned: false,
+      readonly: false,
+      sort_order: 0,
+      created_at: "2026-08-18T01:00:00.000Z",
+      updated_at: "2026-08-18T02:00:00.000Z",
+      storagePath: "projects/restored",
+      docType: "reference",
+      concepts: [],
+      linkedDocIds: [],
+    }],
     daily_pages: [],
+    config: { theme: "dark", note_font_size: 21 },
+    user_settings: {
+      version: 1,
+      values: {
+        "nr:currentDate": "2026-08-18",
+        "nr:lastNote": restoredNoteId,
+        "nr:workspaceTarget": { kind: "note", noteId: restoredNoteId },
+        [`selectionPos:${restoredNoteId}`]: { from: 20, to: 20 },
+        [`scrollPos:${restoredNoteId}`]: 480,
+      },
+    },
   });
   const syncConfig = {
     token: "",
@@ -180,11 +211,23 @@ test("Web/PWA 从 GitHub Pull 时直接导入且不触发 JSON 下载", async ({
   await expect(page.locator(".ProseMirror")).toBeEditable({ timeout: 10000 });
   await page.getByTitle("设置").click();
   await page.getByRole("button", { name: /^同步与备份/ }).click();
+  await expect(page.getByText(/Pull 会先读取并预检远端备份，不会自动导入/)).toBeVisible();
   await page.getByRole("button", { name: "Pull ↓" }).click();
   await expect(page.getByText("Pull 预检（将覆盖本地数据）")).toBeVisible();
 
   page.once("dialog", (dialog) => void dialog.accept());
+  const reloadPromise = page.waitForEvent("load");
   await page.getByRole("button", { name: "确认覆盖并导入" }).click();
-  await expect(page.getByText(/已拉取并导入/)).toBeVisible({ timeout: 10000 });
+  await reloadPromise;
+  await expect(page.locator("html")).toHaveClass(/theme-dark/);
+  await expect(page.locator(".note-title")).toHaveValue("GitHub 恢复的最后文档");
+  await expect(page.locator(".ProseMirror")).toHaveCSS("font-size", "21px");
+  await expect.poll(() => page.locator(".note-editor-scroll").evaluate(
+    (element) => (element as HTMLElement).scrollTop,
+  )).toBeGreaterThan(100);
+  await expect.poll(() => page.evaluate(
+    (id) => JSON.parse(localStorage.getItem(`selectionPos:${id}`) ?? "null"),
+    restoredNoteId,
+  )).toEqual({ from: 20, to: 20 });
   expect(downloadCount).toBe(0);
 });

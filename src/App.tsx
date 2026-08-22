@@ -1374,13 +1374,12 @@ function App() {
           onConfigChange={handleConfigChange}
           onSyncBusy={setSyncBusy}
           onImport={() => {
-            setDate(currentDate);
-            setDocTreeKey(k => k + 1);
+            // 完整恢复会同时替换数据库配置和 localStorage 中的工作区状态。
+            // 重新载入后所有 Hook 都从恢复值初始化，避免必须再点一次设置才生效。
+            window.location.reload();
           }}
           onPullDone={() => {
-            setDate(currentDate);
-            setDocTreeKey(k => k + 1);
-            setSidebarRefreshKey(k => k + 1);
+            window.location.reload();
           }}
         />
       </Suspense>

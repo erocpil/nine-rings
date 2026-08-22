@@ -165,6 +165,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     const focusBar = page.getByLabel("专注模式工具栏");
     await expect(focusBar).toBeVisible();
     await expect(focusBar.locator(".mobile-focus-title")).toHaveText(title);
+    await expect(page.locator(".note-title-row")).toBeHidden();
     await expect(page.locator(".editor-menu")).toBeHidden();
 
     const focusOutlineButton = focusBar.getByTitle("文档目录");
@@ -197,12 +198,12 @@ test.describe("PWA 窄屏应用外壳", () => {
       const focusBarRect = element.querySelector(".mobile-focus-bar")!.getBoundingClientRect();
       const toolbarElement = element.querySelector(".editor-menu")!;
       const toolbarRect = toolbarElement.getBoundingClientRect();
-      const titleRect = element.querySelector(".note-title-row")!.getBoundingClientRect();
+      const contentRect = element.querySelector(".editor-content-shell")!.getBoundingClientRect();
       const style = getComputedStyle(toolbarElement);
       return {
         focusBarBottom: focusBarRect.bottom,
         toolbar: { top: toolbarRect.top, right: toolbarRect.right, bottom: toolbarRect.bottom, left: toolbarRect.left },
-        titleTop: titleRect.top,
+        contentTop: contentRect.top,
         viewportWidth: window.visualViewport?.width ?? window.innerWidth,
         overflowX: style.overflowX,
         overflowY: style.overflowY,
@@ -211,7 +212,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(toolbarGeometry.toolbar.left).toBeGreaterThanOrEqual(0);
     expect(toolbarGeometry.toolbar.right).toBeLessThanOrEqual(toolbarGeometry.viewportWidth);
     expect(toolbarGeometry.toolbar.top).toBeGreaterThanOrEqual(toolbarGeometry.focusBarBottom);
-    expect(toolbarGeometry.titleTop).toBeGreaterThanOrEqual(toolbarGeometry.toolbar.bottom);
+    expect(toolbarGeometry.contentTop).toBeGreaterThanOrEqual(toolbarGeometry.toolbar.bottom);
     expect(toolbarGeometry.overflowX).toBe("visible");
     expect(toolbarGeometry.overflowY).toBe("visible");
 
@@ -226,6 +227,29 @@ test.describe("PWA 窄屏应用外壳", () => {
     await focusBar.getByTitle("退出专注模式").click();
     await expect(focusBar).toHaveCount(0);
     await expect(page.locator(".app-header")).toBeVisible();
+  });
+
+  test("专注模式在竖屏、横屏和桌面均隐藏原始文档标题行", async ({ page }) => {
+    await page.goto("/");
+    await page.locator(".note-title-row").getByTitle("专注模式").click();
+
+    const titleRow = page.locator(".note-title-row");
+    const focusBar = page.getByLabel("专注模式工具栏");
+    for (const viewport of [
+      { width: 390, height: 760 },
+      { width: 760, height: 390 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await expect(titleRow).toBeHidden();
+      await expect(focusBar).toBeVisible();
+      await expect(page.locator(".app-header")).toBeHidden();
+    }
+
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await expect(titleRow).toBeHidden();
+    await expect(focusBar).toBeHidden();
+    await expect(page.locator(".app-header")).toBeVisible();
+    await expect(page.locator(".app-header").getByTitle("退出专注模式")).toBeVisible();
   });
 
   test("更多菜单始终完整限制在手机可视区域内", async ({ page }) => {

@@ -62,6 +62,32 @@ export function extractHeadingSections(doc: ProseMirrorNode): HeadingSection[] {
   return sections;
 }
 
+/** 找到文档位置所属的最内层标题章节；标题自身也归属于该章节。 */
+export function headingSectionAtPosition(
+  sections: readonly HeadingSection[],
+  position: number,
+): HeadingSection | null {
+  let containing: HeadingSection | null = null;
+  for (const section of sections) {
+    if (position < section.pos) break;
+    if (position >= section.pos && position < section.end) containing = section;
+  }
+  return containing;
+}
+
+/**
+ * “全部折叠”保留有用的章节总览：多个 H1 时折叠所有层级；只有一个 H1
+ * 且存在 H2 时保留根章节展开，从 H2 开始折叠。
+ */
+export function collapsedHeadingKeysForAll(sections: readonly HeadingSection[]): string[] {
+  const foldable = sections.filter((section) => section.end > section.headingEnd);
+  const h1Count = sections.filter((section) => section.level === 1).length;
+  const collapseFromH2 = h1Count === 1 && sections.some((section) => section.level === 2);
+  return foldable
+    .filter((section) => !collapseFromH2 || section.level >= 2)
+    .map((section) => section.key);
+}
+
 /** 目录仅隐藏折叠标题的后代；折叠标题本身始终保留，作为再次展开的入口。 */
 export function visibleHeadingSections(
   sections: HeadingSection[],

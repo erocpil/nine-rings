@@ -485,6 +485,7 @@ pub fn run() {
             commands::export::import_data,
             commands::export::export_to_file,
             commands::export::import_from_file,
+            commands::export::read_import_file,
             commands::export::get_deleted_notes,
             commands::export::restore_note,
             commands::export::permanently_delete_note,

@@ -47,3 +47,30 @@ test("标题章节可按层级折叠，并从目录统一展开", async ({ page 
   await expect(outline.locator(".document-outline-item")).toHaveCount(3);
   await expect(editor.getByText("子节正文", { exact: true })).toBeVisible();
 });
+
+test("全部折叠在只有一个 H1 时保留 H2 总览", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  const editor = page.locator(".ProseMirror");
+  await editor.click();
+  await editor.evaluate((element) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "# 唯一根标题\n\n根说明\n\n## 章节一\n\n章节一正文\n\n### 章节一细节\n\n细节正文\n\n## 章节二\n\n章节二正文");
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  });
+
+  await page.getByTitle("文档目录").click();
+  const outline = page.getByRole("navigation", { name: "文档目录" });
+  await outline.getByTitle("折叠全部章节").click();
+
+  await expect(outline.locator(".document-outline-item")).toHaveCount(3);
+  await expect(outline.getByTitle("唯一根标题", { exact: true })).toBeVisible();
+  await expect(outline.getByTitle("章节一", { exact: true })).toBeVisible();
+  await expect(outline.getByTitle("章节二", { exact: true })).toBeVisible();
+  await expect(outline.getByTitle("章节一细节", { exact: true })).toHaveCount(0);
+  await expect(editor.getByText("根说明", { exact: true })).toBeVisible();
+  await expect(editor.getByText("章节一正文", { exact: true })).toBeHidden();
+  await expect(editor.getByText("章节二正文", { exact: true })).toBeHidden();
+});

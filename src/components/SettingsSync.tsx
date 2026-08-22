@@ -14,9 +14,18 @@ import {
 interface Props {
   /** 备份进行中回调 — 父组件用来 freeze 编辑区 */
   onBusyChange?: (busy: boolean) => void;
-  /** Pull 完成后回调 — 通知父组件刷新 UI（替代 window.location.reload） */
+  /** Pull 完成后回调 — 通知父组件重新载入并应用恢复后的完整工作区 */
   onPullDone?: () => void;
 }
+
+type BusyOperation = "check" | "push" | "pull-preview" | "pull";
+
+const BUSY_MESSAGES: Record<BusyOperation, string> = {
+  check: "正在检查 GitHub 连接，操作期间暂不可编辑",
+  push: "正在向 GitHub 推送备份，操作期间暂不可编辑",
+  "pull-preview": "正在读取远端备份；预检完成后需要手动确认，才会覆盖并导入",
+  pull: "正在从 GitHub 导入备份，操作期间暂不可编辑",
+};
 
 /** owner/repo 合并格式校验 */
 const OWNER_REPO_RE = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\/[a-zA-Z0-9._-]+$/;
@@ -60,7 +69,7 @@ function fmtCountDelta(remote: number, local: number): string {
 export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
   const [cfg, setCfg] = useState<SyncConfig>(loadSyncConfig);
   const [status, setStatus] = useState<SyncStatus | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busyOperation, setBusyOperation] = useState<BusyOperation | null>(null);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"" | "success" | "error">("");
   const [pullPrecheck, setPullPrecheck] = useState<PullPrecheck | null>(null);
@@ -69,6 +78,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
   const [editOwnerRepo, setEditOwnerRepo] = useState(false);
   const [ownerRepoValue, setOwnerRepoValue] = useState("");
   const [ownerRepoError, setOwnerRepoError] = useState("");
+  const busy = busyOperation !== null;
 
   // 防止 Strict Mode 重复触发
   const checkRef = useRef("");
@@ -163,7 +173,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
   // ── GitHub 备份操作 ──
 
   const handleCheck = useCallback(async () => {
-    setBusy(true);
+    setBusyOperation("check");
     clearMessage();
     try {
       const s = await checkStatus(cfg);
@@ -172,12 +182,12 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     } catch (e) {
       showMessage(`错误: ${(e as Error).message}`, "error");
     } finally {
-      setBusy(false);
+      setBusyOperation(null);
     }
   }, [cfg]);
 
   const handlePush = useCallback(async () => {
-    setBusy(true);
+    setBusyOperation("push");
     clearMessage();
     try {
       const updated = await pushToGitHub(cfg);
@@ -186,12 +196,12 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     } catch (e) {
       showMessage(`推送失败: ${(e as Error).message}`, "error");
     } finally {
-      setBusy(false);
+      setBusyOperation(null);
     }
   }, [cfg]);
 
   const handlePullPreview = useCallback(async () => {
-    setBusy(true);
+    setBusyOperation("pull-preview");
     clearMessage();
     setPullPrecheck(null);
     try {
@@ -201,7 +211,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     } catch (e) {
       showMessage(`预检失败: ${(e as Error).message}`, "error");
     } finally {
-      setBusy(false);
+      setBusyOperation(null);
     }
   }, [cfg]);
 
@@ -211,7 +221,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
       setPullPrecheck(null);
       return;
     }
-    setBusy(true);
+    setBusyOperation("pull");
     clearMessage();
     try {
       const updated = await pullFromGitHub(cfg);
@@ -222,7 +232,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     } catch (e) {
       showMessage(`拉取失败: ${(e as Error).message}`, "error");
     } finally {
-      setBusy(false);
+      setBusyOperation(null);
     }
   }, [cfg, onPullDone, pullPrecheck]);
 
@@ -247,7 +257,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
       {busy && (
         <div className="sync-banner">
           <div className="sync-banner-spinner" />
-          <span>备份操作中 — 界面已冻结，完成后自动恢复</span>
+          <span>{BUSY_MESSAGES[busyOperation]}</span>
         </div>
       )}
 
@@ -402,6 +412,9 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
           Pull ↓
         </button>
       </div>
+      <p className="settings-hint">
+        Pull 会先读取并预检远端备份，不会自动导入；需要手动点击“确认覆盖并导入”后才会恢复数据。
+      </p>
     </div>
   );
 }

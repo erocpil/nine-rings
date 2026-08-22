@@ -20,6 +20,12 @@ function memoryStorage(initial: Record<string, string> = {}) {
 const source = memoryStorage({
   "nr:focusMode": "true",
   "nr:sidebarW": "264",
+  "nr:currentDate": "2026-08-18",
+  "nr:lastNote": "last-document",
+  "nr:workspaceTarget": JSON.stringify({ kind: "note", noteId: "last-document" }),
+  "selectionPos:last-document": JSON.stringify({ from: 42, to: 42 }),
+  "scrollPos:last-document": "680",
+  "selectionPos:older-document": JSON.stringify({ from: 7, to: 7 }),
   "nr:github-sync": JSON.stringify({
     owner: "example",
     repo: "backup",
@@ -47,9 +53,14 @@ assert(JSON.parse(bundle).user_settings?.version === 1, "frontend settings envel
 
 const target = memoryStorage();
 const restored = restoreFrontendSettings(collected, target);
-assert(restored === 3, "all collected settings are restored");
+assert(restored === 8, "preferences and the last document session are restored");
 assert(target.value("nr:focusMode") === "true", "boolean preference restores in localStorage form");
 assert(target.value("nr:sidebarW") === "264", "numeric preference restores in localStorage form");
 assert(!target.value("nr:github-sync")?.includes("token"), "restored GitHub config remains sanitized");
+assert(target.value("nr:lastNote") === "last-document", "last opened document is restored");
+assert(target.value("nr:workspaceTarget")?.includes("last-document"), "workspace target is restored");
+assert(target.value("selectionPos:last-document")?.includes('"from":42'), "last document selection is restored");
+assert(target.value("scrollPos:last-document") === "680", "last document scroll position is restored");
+assert(target.value("selectionPos:older-document") === undefined, "positions from inactive documents are excluded");
 
 console.log("backup user settings tests passed");

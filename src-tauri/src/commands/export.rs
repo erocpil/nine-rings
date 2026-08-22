@@ -159,6 +159,11 @@ pub fn import_from_file(
 }
 
 #[tauri::command]
+pub fn read_import_file(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path).map_err(|e| format!("读取失败: {}", e))
+}
+
+#[tauri::command]
 pub fn export_note_markdown(state: State<AppState>, note_id: String) -> Result<String, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let note = crate::db::models::select_note_by_id(&conn, &note_id)

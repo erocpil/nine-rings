@@ -50,13 +50,10 @@ export async function exportMarkdownWithDialog(data: string, defaultName: string
 
 /**
  * 原生打开对话框 — 从用户选择的文件导入数据
- * 返回导入结果（用户取消则返回 null）
+ * 返回用户选择的备份文本（用户取消则返回 null）。实际导入仍走统一的
+ * api.export.import，这样桌面端也会恢复前端 localStorage 用户设置。
  */
-export async function importWithDialog(): Promise<{
-  notes_imported: number;
-  pages_imported: number;
-  configs_imported?: number;
-} | null> {
+export async function importWithDialog(): Promise<string | null> {
   if (!isTauri()) return null;
 
   const { open } = await import("@tauri-apps/plugin-dialog");
@@ -69,9 +66,5 @@ export async function importWithDialog(): Promise<{
 
   if (!path) return null; // 用户取消
 
-  const result = await invoke<{ notes_imported: number; pages_imported: number; configs_imported?: number }>(
-    "import_from_file",
-    { path },
-  );
-  return result;
+  return invoke<string>("read_import_file", { path });
 }

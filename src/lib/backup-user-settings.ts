@@ -9,7 +9,17 @@ const BACKED_UP_LOCAL_SETTINGS = [
   "nr:sortMode",
   "nr:sidebarShowAll",
   "nr:codeLineNumbers",
+  "nr:currentDate",
+  "nr:lastNote",
+  "nr:workspaceTarget",
+  "nr:activeTag",
+  "nr:docTreeCollapsed",
+  "nr:docTreeScrollTop",
+  "nr:sidebarScrollToday",
+  "nr:sidebarScrollAll",
 ] as const;
+
+const DOCUMENT_POSITION_PREFIXES = ["selectionPos:", "scrollPos:"] as const;
 
 export interface FrontendSettingsBackup {
   version: 1;
@@ -55,6 +65,17 @@ function serializeStoredValue(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
+function validNoteId(value: string | null): value is string {
+  return Boolean(value && /^[a-zA-Z0-9_-]{1,128}$/.test(value));
+}
+
+function isDocumentPositionKey(key: string): boolean {
+  return DOCUMENT_POSITION_PREFIXES.some((prefix) => {
+    if (!key.startsWith(prefix)) return false;
+    return validNoteId(key.slice(prefix.length));
+  });
+}
+
 export function collectFrontendSettings(storage: SettingsReadStorage = defaultReadStorage()): FrontendSettingsBackup {
   const values: Record<string, unknown> = {};
   for (const key of BACKED_UP_LOCAL_SETTINGS) {
@@ -64,6 +85,15 @@ export function collectFrontendSettings(storage: SettingsReadStorage = defaultRe
     // GitHub 配置必须是合法对象；脏字符串可能混有旧版明文 Token，宁可跳过。
     if (key === "nr:github-sync" && (!parsed || typeof parsed !== "object" || Array.isArray(parsed))) continue;
     values[key] = sanitize(parsed);
+  }
+  // 阅读位置只需跟随最后打开的文档；避免把所有历史文档的临时位置无限写入备份。
+  const lastNoteId = storage.getItem("nr:lastNote");
+  if (validNoteId(lastNoteId)) {
+    for (const prefix of DOCUMENT_POSITION_PREFIXES) {
+      const key = `${prefix}${lastNoteId}`;
+      const raw = storage.getItem(key);
+      if (raw !== null) values[key] = sanitize(parseStoredValue(raw));
+    }
   }
   return { version: 1, values };
 }
@@ -78,7 +108,7 @@ export function restoreFrontendSettings(
   const allowed = new Set<string>(BACKED_UP_LOCAL_SETTINGS);
   let restored = 0;
   for (const [key, rawValue] of Object.entries(values)) {
-    if (!allowed.has(key) || sensitiveKey(key)) continue;
+    if ((!allowed.has(key) && !isDocumentPositionKey(key)) || sensitiveKey(key)) continue;
     const value = sanitize(rawValue);
     if (value === undefined) continue;
     storage.setItem(key, serializeStoredValue(value));

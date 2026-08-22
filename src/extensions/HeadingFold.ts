@@ -2,7 +2,7 @@ import { Extension, type Editor } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
-import { collapsedHeadingContentRanges, extractHeadingSections } from "../lib/heading-fold";
+import { collapsedHeadingContentRanges, collapsedHeadingKeysForAll, extractHeadingSections } from "../lib/heading-fold";
 
 export interface HeadingFoldState {
   collapsedKeys: Set<string>;
@@ -136,9 +136,7 @@ export function toggleHeadingFoldInView(view: import("@tiptap/pm/view").EditorVi
 }
 
 export function setAllHeadingFolds(editor: Editor, folded: boolean) {
-  const keys = folded
-    ? extractHeadingSections(editor.state.doc).filter((section) => section.end > section.headingEnd).map((section) => section.key)
-    : [];
+  const keys = folded ? collapsedHeadingKeysForAll(extractHeadingSections(editor.state.doc)) : [];
   editor.view.dispatch(editor.state.tr.setMeta(headingFoldPluginKey, { type: "set", keys } satisfies HeadingFoldMeta));
 }
 
