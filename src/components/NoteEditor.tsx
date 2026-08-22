@@ -18,7 +18,7 @@ import {
   normalizeSingleParagraphPaste,
 } from "../extensions/NormalizeSingleParagraphPaste";
 import CharacterCount from "@tiptap/extension-character-count";
-import type { DeltaOps, SearchNavigationTarget } from "../types/models";
+import type { DeltaOps, DocumentBookmark, SearchNavigationTarget } from "../types/models";
 import {
   proseMirrorToDelta,
   deltaToProseMirror,
@@ -80,6 +80,12 @@ import {
 import { extractHeadingSections, sessionHeadingFoldStore, visibleHeadingSections } from "../lib/heading-fold";
 import { BlockIndent } from "../extensions/BlockIndent";
 import { cacheEditorDocument, getCachedEditorDocument } from "../lib/editor-session-cache";
+import {
+  DocumentBookmarks,
+  removeBookmark,
+  renameBookmark,
+  toggleBookmark,
+} from "../extensions/DocumentBookmarks";
 
 const FontSize = Extension.create({
   name: "fontSize",
@@ -257,6 +263,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const vimSearchActionRef = useRef<(direction: 1 | -1 | 0) => void>(() => undefined);
   const lineJumpInputRef = useRef<HTMLInputElement>(null);
   const outlineListRef = useRef<HTMLDivElement>(null);
+  const bookmarksRef = useRef<DocumentBookmark[]>(content.metadata?.bookmarks ?? []);
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
   const [activeSearchMatch, setActiveSearchMatch] = useState(0);
   const [editorFindOpen, setEditorFindOpen] = useState(false);
@@ -265,6 +272,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const [lineJumpValue, setLineJumpValue] = useState("");
   const [lineJumpError, setLineJumpError] = useState<string | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(false);
+  const [bookmarkOpen, setBookmarkOpen] = useState(false);
+  const [bookmarks, setBookmarks] = useState<DocumentBookmark[]>(bookmarksRef.current);
   const [activeOutlineIndex, setActiveOutlineIndex] = useState(-1);
   const [outlineOverflow, setOutlineOverflow] = useState(false);
   const [documentOutline, setDocumentOutline] = useState<DocumentOutlineItem[]>([]);
@@ -326,6 +335,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const [readonlyChangeNotice, setReadonlyChangeNotice] = useState(false);
   const [gutterBlockCount, setGutterBlockCount] = useState(0);
   const [currentStatusBlock, setCurrentStatusBlock] = useState(1);
+  const [bookmarkCursorPosition, setBookmarkCursorPosition] = useState(1);
   const [selectedTableCellCount, setSelectedTableCellCount] = useState(0);
   const [vimEditorMode, setVimEditorMode] = useState<VimEditorMode>("normal");
   const nativeCjkLatinSpacing = useMemo(supportsNativeCjkLatinSpacing, []);
@@ -377,7 +387,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
   // 点击外部关闭下拉框
   useEffect(() => {
-    if (!sizeOpen && !colorOpen && !headingOpen && !blockOpen && !styleOpen && !clipOpen && !linkOpen && !tableOpen && !moreOpen && !outlineOpen) return;
+    if (!sizeOpen && !colorOpen && !headingOpen && !blockOpen && !styleOpen && !clipOpen && !linkOpen && !tableOpen && !moreOpen && !outlineOpen && !bookmarkOpen) return;
     const handler = () => {
       setSizeOpen(false);
       setColorOpen(false);
@@ -389,10 +399,11 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       setTableOpen(false);
       setMoreOpen(false);
       setOutlineOpen(false);
+      setBookmarkOpen(false);
     };
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
-  }, [sizeOpen, colorOpen, headingOpen, blockOpen, styleOpen, clipOpen, linkOpen, tableOpen, moreOpen, outlineOpen]);
+  }, [sizeOpen, colorOpen, headingOpen, blockOpen, styleOpen, clipOpen, linkOpen, tableOpen, moreOpen, outlineOpen, bookmarkOpen]);
 
   // 关闭编辑器右键菜单（点击外部 / Escape / 滚动 / 失焦）
   useEffect(() => {
@@ -509,6 +520,24 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           }
         },
       }),
+      DocumentBookmarks.configure({
+        initialBookmarks: bookmarksRef.current,
+        onChange: (nextBookmarks, docSnapshot) => {
+          bookmarksRef.current = nextBookmarks;
+          setBookmarks(nextBookmarks);
+          const currentMetadata = documentMetadataRef.current ?? {};
+          const metadata = nextBookmarks.length > 0
+            ? { ...currentMetadata, bookmarks: nextBookmarks }
+            : Object.fromEntries(Object.entries(currentMetadata).filter(([key]) => key !== "bookmarks"));
+          documentMetadataRef.current = metadata;
+          onContentChange(() => {
+            const editorDocument = docSnapshot.toJSON();
+            cacheEditorDocument(noteId, contentVersionRef.current, editorDocument);
+            const delta = proseMirrorToDelta(editorDocument) as unknown as DeltaOps;
+            return Object.keys(metadata).length > 0 ? { ...delta, metadata } : delta;
+          });
+        },
+      }),
       VimMode.configure({
         enabled: vimModeEnabled,
         readOnly: Boolean(readonly),
@@ -547,7 +576,10 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         const editorDocument = docSnapshot.toJSON();
         cacheEditorDocument(noteId, contentVersionRef.current, editorDocument);
         const delta = proseMirrorToDelta(editorDocument) as unknown as DeltaOps;
-        const metadata = documentMetadataRef.current;
+        const currentMetadata = documentMetadataRef.current ?? {};
+        const metadata = bookmarksRef.current.length > 0
+          ? { ...currentMetadata, bookmarks: bookmarksRef.current }
+          : Object.fromEntries(Object.entries(currentMetadata).filter(([key]) => key !== "bookmarks"));
         return metadata ? { ...delta, metadata } : delta;
       });
       // 节流日志：每秒最多一次
@@ -661,6 +693,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       const total = editor.state.doc.childCount;
       const selected = editor.state.selection.$from.index(0) + 1;
       setCurrentStatusBlock(Math.max(1, Math.min(total, selected)));
+      const { $head } = editor.state.selection;
+      setBookmarkCursorPosition($head.depth > 0 && $head.parent.isTextblock ? $head.start() : $head.pos);
       let selectedCells = 0;
       if (editor.state.selection instanceof CellSelection) {
         editor.state.selection.forEachCell(() => { selectedCells++; });
@@ -770,6 +804,34 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     const top = target === "top" ? 0 : target === "middle" ? maxScroll / 2 : maxScroll;
     list.scrollTo({ top, behavior: "smooth" });
   }, []);
+
+  const currentBookmark = useMemo(() => {
+    if (!editor) return undefined;
+    return bookmarks.find((bookmark) => bookmark.position === bookmarkCursorPosition);
+  }, [bookmarkCursorPosition, bookmarks, editor]);
+
+  const toggleCurrentBookmark = useCallback(() => {
+    if (!editor || readonly) return;
+    toggleBookmark(editor);
+  }, [editor, readonly]);
+
+  const jumpToBookmark = useCallback((bookmark: DocumentBookmark) => {
+    if (!editor || editor.isDestroyed) return;
+    expandHeadingFoldsAt(editor, bookmark.position);
+    window.requestAnimationFrame(() => {
+      if (editor.isDestroyed) return;
+      const position = Math.max(0, Math.min(editor.state.doc.content.size, bookmark.position));
+      editor.chain().focus().setTextSelection(position).scrollIntoView().run();
+    });
+    setBookmarkOpen(false);
+  }, [editor]);
+
+  const editBookmarkLabel = useCallback((bookmark: DocumentBookmark) => {
+    if (!editor || readonly) return;
+    const label = window.prompt("书签名称（留空恢复正文摘要）", bookmark.label ?? "");
+    if (label === null) return;
+    renameBookmark(editor, bookmark.id, label);
+  }, [editor, readonly]);
 
   // 专注模式下正文标题滚出视口后，App 顶栏中的文件名成为目录入口。
   // request id 只表达一次切换动作，避免普通重渲染反复开关面板。
@@ -1881,6 +1943,15 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     <button className="menu-dropdown-item" onClick={() => { handleExportPdf(); setMoreOpen(false); }} type="button">PDF 导出（含目录）</button>
     <div className="menu-dropdown-sep" />
     <button className="menu-dropdown-item" onClick={() => {
+      toggleCurrentBookmark();
+      setMoreOpen(false);
+    }} type="button">{currentBookmark ? "取消当前位置书签" : "添加当前位置书签"} <span>Ctrl+Shift+M</span></button>
+    <button className="menu-dropdown-item" onClick={() => {
+      setBookmarkOpen(true);
+      setMoreOpen(false);
+    }} type="button">书签列表{bookmarks.length > 0 ? `（${bookmarks.length}）` : ""}</button>
+    <div className="menu-dropdown-sep" />
+    <button className="menu-dropdown-item" onClick={() => {
       setLinkDialogUrl(editor.getAttributes("link").href || "");
       setLinkDialog(true);
       setMoreOpen(false);
@@ -2064,6 +2135,44 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           </div>
         </nav>
       )}
+      {bookmarkOpen && (
+        <nav
+          className="document-bookmark-panel"
+          aria-label="文档书签"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="document-bookmark-header">
+            <span>书签</span>
+            <span>{bookmarks.length} 项</span>
+          </div>
+          <div className="document-bookmark-list">
+            {bookmarks.length === 0 ? (
+              <div className="document-bookmark-empty">当前文档还没有书签</div>
+            ) : bookmarks.map((bookmark, index) => (
+              <div className="document-bookmark-item" key={bookmark.id}>
+                <button
+                  className="document-bookmark-jump"
+                  type="button"
+                  onClick={() => jumpToBookmark(bookmark)}
+                  title={bookmark.preview}
+                >
+                  <span className="document-bookmark-index">{bookmark.key ? `'${bookmark.key}` : index + 1}</span>
+                  <span>{bookmark.label || bookmark.preview}</span>
+                </button>
+                {!readonly && <button type="button" onClick={() => editBookmarkLabel(bookmark)} title="重命名书签">✎</button>}
+                {!readonly && <button type="button" onClick={() => removeBookmark(editor, bookmark.id)} title="删除书签">×</button>}
+              </div>
+            ))}
+          </div>
+          {!readonly && (
+            <button
+              className="document-bookmark-add"
+              type="button"
+              onClick={toggleCurrentBookmark}
+            >{currentBookmark ? "取消当前位置书签" : "添加当前位置书签"}</button>
+          )}
+        </nav>
+      )}
       {/* ── 标题 + 标签 + 工具栏 + 编辑器（滚动区域）── */}
       <div className="note-editor-scroll" ref={scrollRef}>
         <div className="note-editor-sticky">
@@ -2108,6 +2217,20 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
                 type="button"
               >目录</button>
             </div>
+          )}
+          {(bookmarks.length > 0 || !readonly) && (
+            <button
+              className={`focus-btn document-bookmark-toggle ${bookmarkOpen ? "active" : ""}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setOutlineOpen(false);
+                setBookmarkOpen((open) => !open);
+              }}
+              title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
+              aria-label="文档书签"
+              aria-expanded={bookmarkOpen}
+              type="button"
+            >书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button>
           )}
           <button
             className={`focus-btn ${focusMode ? "active" : ""}`}
@@ -2885,9 +3008,19 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             className="editor-context-item"
             onClick={() => { editor.chain().focus().selectAll().run(); setContextMenu(null); }}
           >全选</button>
+          {bookmarks.length > 0 && (
+            <button
+              className="editor-context-item"
+              onClick={() => { setBookmarkOpen(true); setContextMenu(null); }}
+            >打开书签列表 <span>{bookmarks.length}</span></button>
+          )}
           {!readonly && (
             <>
               <div className="editor-context-sep" />
+              <button
+                className="editor-context-item"
+                onClick={() => { toggleCurrentBookmark(); setContextMenu(null); }}
+              >{currentBookmark ? "取消当前位置书签" : "添加当前位置书签"} <span>Ctrl+Shift+M</span></button>
               <button
                 className="editor-context-item editor-context-parent"
                 aria-expanded={contextSubmenu === "format"}

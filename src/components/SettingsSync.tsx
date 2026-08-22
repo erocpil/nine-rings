@@ -240,7 +240,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     <div className="settings-section">
       <h3>GitHub 备份</h3>
       <p className="settings-hint">
-        手动推送或恢复全量 JSON 快照。需要 GitHub Personal Access Token（repo 权限）。
+        手动推送或恢复全量 JSON 快照，包含书签、应用配置及非敏感用户设置；Token 不进入备份。需要 GitHub Personal Access Token（repo 权限）。
       </p>
 
       {/* 备份中横幅 */}

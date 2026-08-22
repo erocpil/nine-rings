@@ -73,6 +73,9 @@ export function useAppKeyboardShortcuts(actions: AppShortcutActions): void {
   // ── 浏览器 keydown（Web 端快捷键）──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // 编辑器扩展（尤其 Vim Normal/Visual）已经认领的组合键不能再次
+      // 触发 App 级动作，例如 Ctrl+P 不应同时打开快速切换器。
+      if (e.defaultPrevented) return;
       if (shouldIgnoreShortcut(e, e.target)) return;
       const action = resolveShortcut(e);
       if (!action) return;

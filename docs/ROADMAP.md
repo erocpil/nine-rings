@@ -1,6 +1,6 @@
 # Nine Rings 优化路线图
 
-> 最后更新：2026-08-21 · 当前功能状态的唯一入口；Web 专项见 [Web / PWA 优化计划](web-optimization-plan.md)，长期研究见 [未来演进方向](future-evolution.md)
+> 最后更新：2026-08-22 · 当前功能状态的唯一入口；Web 专项见 [Web / PWA 优化计划](web-optimization-plan.md)，长期研究见 [未来演进方向](future-evolution.md)
 
 ---
 
@@ -17,6 +17,9 @@
 | **Quick Capture** | `Ctrl+Alt+N` 唤出置顶迷你窗口，内容自动保存到当日笔记 | ✅ 已实现 |
 | **默认主题浅色** | CSS `:root` 浅色变量 + `storage/types.ts` DEFAULT_CONFIG = `"light"` + Rust `AppConfig::default()` = `"light"` | ✅ 已实现 |
 | **编辑器表格交互** | 响应式表格、连续单元格选择、行列批量操作、桌面列宽拖动及内部格式持久化 | ✅ 已实现（Markdown 不保存列宽；暂不开放合并单元格） |
+| **代码块语法高亮** | 常用语言增量高亮、语言选择、纯文本回退、超大代码块保护，并同步到 PDF | ✅ 已实现 |
+| **正文书签** | 文档内普通/命名书签、列表跳转、折叠章节展开及随文档备份持久化 | ✅ 已实现 |
+| **Vim 导航优先级** | Normal/Visual 接管冲突快捷键，支持整页、半页、单行滚动及 `m{a-z}` / `'{a-z}` | ✅ 已实现 |
 
 ## P2 — 功能深化
 
@@ -37,7 +40,7 @@
 | 项目 | 说明 | 状态 |
 |------|------|------|
 | **PWA 离线缓存** | 已有基础 SW；正在改为构建期 precache、安全更新提示和离线升级 E2E | ⚠️ 可靠性改造中（见 [Web / PWA 优化计划](web-optimization-plan.md)） |
-| **GitHub 备份** | 多设备 IndexedDB ↔ GitHub（全量 JSON 快照，Push/Pull） | ✅ GitHub V1 已实现（[使用说明](github-backup.md)） |
+| **GitHub 备份** | 多设备 IndexedDB ↔ GitHub（全量 JSON 快照，含非敏感用户设置并排除 Token） | ✅ GitHub V1 已实现（[使用说明](github-backup.md)） |
 | **Flutter 移动端** | Android APK 已构建（145MB debug），启动崩溃已修复（`initializeDateFormatting`）；P.A.R.A./Zettelkasten/Markdown 导入待实现 | ⚠️ APK 已构建，功能待对齐 |
 | **Tauri 桌面端** | 系统托盘（左键显示/隐藏，右键菜单）、全局热键（Rust 系统级注册）、frameless 窗口、Quick Capture 独立窗口、logo 替换 | ✅ 已实现 |
 | **协作编辑** | CRDT / Yjs 多人实时协作 | ⬜ 待做 |

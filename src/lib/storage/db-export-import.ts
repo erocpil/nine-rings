@@ -104,11 +104,13 @@ export async function exportData(): Promise<string> {
   });
 }
 
-export async function importData(json: string): Promise<{ notes_imported: number; pages_imported: number }> {
+export async function importData(json: string): Promise<{ notes_imported: number; pages_imported: number; configs_imported?: number }> {
   const data = await parseJsonAsync<{ notes?: any[]; daily_pages?: any[]; config?: unknown }>(json);
   const importedConfig = sanitizeConfigValue(data.config) as Record<string, unknown> | undefined;
+  let configsImported = 0;
   if (importedConfig && typeof importedConfig === "object") {
     await setConfig(importedConfig as Partial<AppConfig>);
+    configsImported = 1;
   }
 
   return withDB(async (db) => {
@@ -139,11 +141,15 @@ export async function importData(json: string): Promise<{ notes_imported: number
     }
 
     // ── Step 2: 去重导入 ──
-    return new Promise<{ notes_imported: number; pages_imported: number }>((resolve, reject) => {
+    return new Promise<{ notes_imported: number; pages_imported: number; configs_imported?: number }>((resolve, reject) => {
       const tx = db.transaction(["notes", "daily_pages"], "readwrite");
 
       tx.oncomplete = () => {
-        resolve({ notes_imported: importedNotes.length, pages_imported: pages.length });
+        resolve({
+          notes_imported: importedNotes.length,
+          pages_imported: pages.length,
+          ...(configsImported > 0 ? { configs_imported: configsImported } : {}),
+        });
       };
       tx.onerror = () => { console.error("[importData] 事务失败:", tx.error); reject(tx.error); };
       tx.onabort = () => { console.error("[importData] 事务中止:", tx.error); reject(tx.error); };

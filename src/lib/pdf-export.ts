@@ -1,4 +1,5 @@
 import type { DocumentMetadata } from "../types/models";
+import { applyCodeHighlighting } from "./code-highlight";
 
 export interface PdfDocumentInfo extends DocumentMetadata {
   documentType?: string;
@@ -105,6 +106,13 @@ const PRINT_STYLES = `
     break-inside: avoid-page;
   }
   .document-content code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.9em; }
+  .document-content .hljs-comment, .document-content .hljs-quote { color: #6a737d; font-style: italic; }
+  .document-content :is(.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-section, .hljs-link) { color: #b42318; }
+  .document-content :is(.hljs-string, .hljs-title, .hljs-name, .hljs-type, .hljs-attribute, .hljs-symbol, .hljs-bullet, .hljs-addition) { color: #18794e; }
+  .document-content :is(.hljs-number, .hljs-built_in, .hljs-variable, .hljs-template-variable, .hljs-selector-class, .hljs-selector-id) { color: #175cd3; }
+  .document-content :is(.hljs-meta, .hljs-regexp, .hljs-deletion) { color: #9a3412; }
+  .document-content :is(.hljs-strong, .hljs-title.class_) { font-weight: 700; }
+  .document-content .hljs-emphasis { font-style: italic; }
   .document-content :not(pre) > code { padding: 1px 4px; border-radius: 3px; background: #f1f2f4; }
   .document-content table { width: 100%; border-collapse: collapse; margin: 1em 0; }
   .document-content th, .document-content td { padding: 7px 9px; border: 1px solid #bfc3ca; vertical-align: top; }
@@ -247,6 +255,9 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata }: PdfExportO
       const value = element.getAttribute(attributeName)?.trim().toLowerCase();
       if (value?.startsWith("javascript:")) element.removeAttribute(attributeName);
     }
+  });
+  template.content.querySelectorAll<HTMLElement>("pre[data-language] > code").forEach((code) => {
+    applyCodeHighlighting(code, code.parentElement?.getAttribute("data-language"));
   });
   content.append(template.content.cloneNode(true));
 

@@ -36,6 +36,10 @@ test("实验性 Vim 模式可切换 Normal/Insert 并执行基础命令", async 
 
   await page.keyboard.press("Escape");
   await expect(mode).toHaveText("NORMAL");
+  await page.keyboard.press("Control+i");
+  await expect(editor.locator("em")).toHaveCount(0);
+  await page.keyboard.press("Control+p");
+  await expect(page.locator(".quick-switcher-overlay")).toHaveCount(0);
   await page.keyboard.press("Control+f");
   await expect(page.locator(".editor-find-bar")).toHaveCount(0);
 
@@ -171,6 +175,22 @@ test("Vim Ctrl+F/B 按可见编辑区翻页并同步移动光标", async ({ page
   });
   const initialIndex = await cursorBlockIndex();
 
+  await page.keyboard.press("Control+e");
+  await expect.poll(() => scrollRoot.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  const lineScroll = await scrollRoot.evaluate((element) => element.scrollTop);
+  await expect.poll(cursorBlockIndex).toBe(initialIndex);
+  await page.keyboard.press("Control+y");
+  await expect.poll(() => scrollRoot.evaluate((element) => element.scrollTop)).toBeLessThan(lineScroll);
+
+  await page.keyboard.press("Control+d");
+  await expect.poll(cursorBlockIndex).toBeGreaterThan(initialIndex);
+  const halfPageIndex = await cursorBlockIndex();
+  await page.keyboard.press("Control+u");
+  await expect.poll(cursorBlockIndex).toBeLessThan(halfPageIndex);
+  await scrollRoot.evaluate((element) => { element.scrollTop = 0; });
+  await editor.locator("h2").first().click();
+  await page.keyboard.press("0");
+
   await page.keyboard.press("Control+f");
   await expect(page.locator(".editor-find-bar")).toHaveCount(0);
   await expect.poll(() => scrollRoot.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
@@ -198,8 +218,12 @@ test("Vim Normal 模式用 Space 折叠标题，移动跳过隐藏章节", async
   });
   await enableVimMode(page);
 
-  await editor.getByText("第一章", { exact: true }).click();
+  await editor.locator("h1").first().click({ position: { x: 8, y: 8 } });
   await page.keyboard.press("0");
+  await expect.poll(() => page.evaluate(() => {
+    const anchor = window.getSelection()?.anchorNode;
+    return (anchor instanceof Element ? anchor : anchor?.parentElement)?.closest("h1")?.textContent ?? "";
+  })).toBe("第一章");
   await page.keyboard.press("Space");
   await expect(editor.getByText("第一章正文", { exact: true })).toBeHidden();
   await expect(editor.getByText("第一节", { exact: true })).toBeHidden();
@@ -278,7 +302,8 @@ test("Vim 在鼠标选区和右键菜单操作后保持可用", async ({ page, c
   await expect.poll(() => page.evaluate(() => window.getSelection()?.isCollapsed)).toBe(true);
   await expect(page.locator("body > .vim-normal-caret")).toBeVisible();
 
-  await page.keyboard.press("Control+a");
+  await editor.getByText("alpha beta gamma", { exact: true }).dblclick({ position: { x: 55, y: 8 } });
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.isCollapsed)).toBe(false);
   await editor.click({ button: "right" });
   const menu = page.locator(".editor-context-menu");
   await expect(menu).toBeVisible();
@@ -306,7 +331,7 @@ test("只读文档保留 Vim Normal 导航并屏蔽写命令", async ({ page }) 
   await expect(editor).toHaveAttribute("contenteditable", "false");
   await expect(page.locator(".editor-vim-status")).toHaveText("NORMAL");
 
-  await editor.click();
+  await editor.click({ position: { x: 8, y: 8 } });
   await expect(editor).toBeFocused();
   await page.keyboard.press("0");
   await page.keyboard.press("l");

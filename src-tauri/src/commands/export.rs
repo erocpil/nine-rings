@@ -1,9 +1,9 @@
-use crate::{AppState, DataDir};
 use crate::commands::config::{self, AppConfig};
+use crate::{AppState, DataDir};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::State;
 use std::sync::Mutex;
+use tauri::State;
 
 #[derive(Debug, Serialize)]
 pub struct ExportResult {
@@ -42,16 +42,22 @@ fn sanitize_config_value(value: Value) -> Value {
             }
             Value::Object(sanitized)
         }
-        Value::Array(values) => Value::Array(values.into_iter().map(sanitize_config_value).collect()),
+        Value::Array(values) => {
+            Value::Array(values.into_iter().map(sanitize_config_value).collect())
+        }
         other => other,
     }
 }
 
 #[tauri::command]
-pub fn export_data(state: State<AppState>, config_state: State<'_, Mutex<AppConfig>>) -> Result<String, String> {
+pub fn export_data(
+    state: State<AppState>,
+    config_state: State<'_, Mutex<AppConfig>>,
+) -> Result<String, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let app_config = config_state.lock().map_err(|e| e.to_string())?.clone();
-    let bundle = crate::export::export_all(&conn, &app_config).map_err(|e| e.to_string())?;
+    let mut bundle = crate::export::export_all(&conn, &app_config).map_err(|e| e.to_string())?;
+    bundle.config = bundle.config.map(sanitize_config_value);
     serde_json::to_string_pretty(&bundle).map_err(|e| e.to_string())
 }
 

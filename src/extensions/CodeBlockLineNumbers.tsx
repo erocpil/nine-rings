@@ -1,6 +1,40 @@
 import { NodeViewWrapper, NodeViewContent, type NodeViewProps } from "@tiptap/react";
-import { useRef, useState } from "react";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import { useEffect, useRef, useState } from "react";
 import { copyToClipboard } from "../lib/clipboard";
+import { CODE_LANGUAGE_OPTIONS, highlightCode, normalizeCodeLanguage } from "../lib/code-highlight";
+
+const codeHighlightPluginKey = new PluginKey<DecorationSet>("codeSyntaxHighlight");
+
+function codeHighlightDecorations(node: ProseMirrorNode, position: number): Decoration[] {
+  const language = normalizeCodeLanguage(node.attrs.language);
+  if (!language) return [];
+  const decorations: Decoration[] = [Decoration.node(
+    position,
+    position + node.nodeSize,
+    { class: "code-syntax-highlighted", "data-code-language": language },
+    { codeSyntaxHighlight: true },
+  )];
+  for (const token of highlightCode(node.textContent, language)) {
+    decorations.push(Decoration.inline(
+      position + 1 + token.from,
+      position + 1 + token.to,
+      { class: token.classes.join(" ") },
+      { codeSyntaxHighlight: true },
+    ));
+  }
+  return decorations;
+}
+
+function createCodeHighlightDecorationSet(document: ProseMirrorNode): DecorationSet {
+  const decorations: Decoration[] = [];
+  document.descendants((node, position) => {
+    if (node.type.name === "codeBlock") decorations.push(...codeHighlightDecorations(node, position));
+  });
+  return DecorationSet.create(document, decorations);
+}
 
 /**
  * CodeBlock 的 NodeView 组件（参照 TipTap 官方 CodeBlockLanguage 示例）。
@@ -13,10 +47,20 @@ import { copyToClipboard } from "../lib/clipboard";
  *     </div>
  *   </NodeViewWrapper>
  */
-function CodeBlockView({ node }: NodeViewProps) {
+function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
+  const [editable, setEditable] = useState(editor.isEditable);
   const lineCount = node.textContent.split("\n").length;
+
+  useEffect(() => {
+    const syncEditable = () => setEditable(editor.isEditable);
+    editor.on("update", syncEditable);
+    syncEditable();
+    return () => {
+      editor.off("update", syncEditable);
+    };
+  }, [editor]);
 
   const handleCopy = async () => {
     const codeEl = wrapperRef.current?.querySelector("code");
@@ -32,6 +76,24 @@ function CodeBlockView({ node }: NodeViewProps) {
       data-indent={node.attrs.indent > 0 ? node.attrs.indent : undefined}
     >
       <div ref={wrapperRef}>
+        <select
+          className="code-block-language"
+          data-pdf-exclude
+          contentEditable={false}
+          disabled={!editable}
+          value={normalizeCodeLanguage(node.attrs.language) ?? ""}
+          onMouseDown={(event) => event.stopPropagation()}
+          onChange={(event) => {
+            if (!editor.isEditable) return;
+            updateAttributes({ language: event.target.value || null });
+          }}
+          aria-label="代码语言"
+          title="代码语言 / 语法高亮"
+        >
+          {CODE_LANGUAGE_OPTIONS.map((option) => (
+            <option key={option.value || "plaintext"} value={option.value}>{option.label}</option>
+          ))}
+        </select>
         <button
           className="code-block-copy"
           data-pdf-exclude
@@ -98,6 +160,44 @@ export const CodeBlockLineNumbers = Node.create({
 
   addNodeView() {
     return ReactNodeViewRenderer(CodeBlockView);
+  },
+
+  addProseMirrorPlugins() {
+    return [new Plugin<DecorationSet>({
+      key: codeHighlightPluginKey,
+      state: {
+        init: (_, state) => createCodeHighlightDecorationSet(state.doc),
+        apply: (transaction, previous, oldState, newState) => {
+          if (!transaction.docChanged) return previous;
+          let decorations = previous.map(transaction.mapping, transaction.doc);
+          const inverseMapping = transaction.mapping.invert();
+          const additions: Decoration[] = [];
+
+          transaction.doc.descendants((node, position) => {
+            if (node.type.name !== "codeBlock") return;
+            const existing = decorations.find(
+              position,
+              position + node.nodeSize,
+              (spec) => spec.codeSyntaxHighlight === true,
+            );
+            const oldPosition = inverseMapping.map(position, 1);
+            const oldNode = oldState.doc.nodeAt(oldPosition);
+            const unchanged = oldNode?.type.name === "codeBlock" && oldNode.eq(node);
+            const shouldHighlight = normalizeCodeLanguage(node.attrs.language) !== null;
+            if (unchanged && (shouldHighlight ? existing.length > 0 : existing.length === 0)) return;
+            if (existing.length > 0) decorations = decorations.remove(existing);
+            additions.push(...codeHighlightDecorations(node, position));
+          });
+
+          return additions.length > 0 ? decorations.add(newState.doc, additions) : decorations;
+        },
+      },
+      props: {
+        decorations(state) {
+          return codeHighlightPluginKey.getState(state) ?? null;
+        },
+      },
+    })];
   },
 
   addKeyboardShortcuts() {

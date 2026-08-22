@@ -3,6 +3,8 @@ import { getAdapter } from "./storage";
 import type { AppConfig, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../types/models";
 import { broadcastDataChange } from "./tab-coordination";
 import { invalidateWebSearchIndex, removeFromWebSearchIndex, searchWebNotes, updateWebSearchIndex } from "./web-search-index";
+import { addFrontendSettingsToBackup, restoreFrontendSettings } from "./backup-user-settings";
+import { parseJsonAsync } from "./data-transform-client";
 
 /**
  * API 层 — 统一接口，底层自动适配 Tauri IPC / IndexedDB
@@ -153,10 +155,17 @@ export const api = {
   },
 
   export: {
-    data: () => adapter().then((a) => a.exportData()),
+    data: async () => addFrontendSettingsToBackup(await adapter().then((a) => a.exportData())),
 
     import: async (json: string) => {
       const result = await adapter().then((a) => a.importData(json));
+      try {
+        const bundle = await parseJsonAsync<{ user_settings?: unknown }>(json);
+        const settingsImported = restoreFrontendSettings(bundle.user_settings);
+        if (settingsImported > 0) result.configs_imported = (result.configs_imported ?? 0) + settingsImported;
+      } catch {
+        // 后端已完成格式校验；旧备份没有 user_settings 时保持兼容。
+      }
       invalidateWebSearchIndex();
       broadcastDataChange({ type: "data-imported" });
       return result;

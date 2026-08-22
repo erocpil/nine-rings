@@ -90,6 +90,19 @@ export interface DocumentMetadata {
   version?: string;
   copyright?: string;
   license?: string;
+  /** 正文书签随文档内容保存；position 会在编辑事务中自动映射。 */
+  bookmarks?: DocumentBookmark[];
+}
+
+export interface DocumentBookmark {
+  id: string;
+  position: number;
+  preview: string;
+  createdAt: string;
+  /** Vim 命名书签使用 a-z；普通书签不设置。 */
+  key?: string;
+  /** 用户可选的显示名称。 */
+  label?: string;
 }
 
 export interface DeltaOp {

@@ -10,6 +10,7 @@ import {
   type HeadingFoldState,
 } from "./HeadingFold";
 import { collapsedHeadingContentRanges, extractHeadingSections } from "../lib/heading-fold";
+import { jumpToNamedBookmarkInView, setNamedBookmarkInView } from "./DocumentBookmarks";
 
 export type VimEditorMode = "normal" | "insert" | "visual" | "visual-line";
 
@@ -18,7 +19,7 @@ interface VimPluginState {
   readOnly: boolean;
   mode: VimEditorMode;
   count: string;
-  pending: "" | "d" | "y" | "g";
+  pending: "" | "d" | "y" | "g" | "m" | "'";
   visualAnchor: number | null;
 }
 
@@ -354,7 +355,7 @@ function moveByVisualLine(view: EditorView, direction: 1 | -1, count: number, vi
   dispatchSelection(view, position, vim);
 }
 
-function moveByPage(view: EditorView, direction: 1 | -1, vim: VimPluginState) {
+function moveByPage(view: EditorView, direction: 1 | -1, vim: VimPluginState, fraction = 1) {
   const root = view.dom.closest<HTMLElement>(".note-editor-scroll");
   if (!root) {
     const current = navigationLineIndex(view.state, view.state.selection.head);
@@ -369,7 +370,7 @@ function moveByPage(view: EditorView, direction: 1 | -1, vim: VimPluginState) {
   const visibleTop = Math.max(rootRect.top, stickyBottom) + 8;
   const visibleBottom = rootRect.bottom - 8;
   const viewportHeight = Math.max(80, visibleBottom - visibleTop);
-  const distance = Math.max(80, viewportHeight - 24);
+  const distance = Math.max(40, (viewportHeight - 24) * fraction);
   const targetTop = Math.max(visibleTop, Math.min(visibleBottom, (before.top + before.bottom) / 2));
   const previousScrollTop = root.scrollTop;
   root.scrollTop += direction * distance;
@@ -390,6 +391,25 @@ function moveByPage(view: EditorView, direction: 1 | -1, vim: VimPluginState) {
       dispatchSelection(view, positionInNavigationLine(view.state, current + direction * pageLines, 0), vim);
     }
   });
+}
+
+function scrollByVisualLine(view: EditorView, direction: 1 | -1, count: number) {
+  const root = view.dom.closest<HTMLElement>(".note-editor-scroll");
+  if (!root) return;
+  const coords = view.coordsAtPos(view.state.selection.head);
+  const computed = getComputedStyle(view.dom);
+  const configured = Number.parseFloat(computed.lineHeight);
+  const lineHeight = Number.isFinite(configured)
+    ? configured
+    : Math.max(16, coords.bottom - coords.top);
+  root.scrollTop += direction * lineHeight * count;
+}
+
+function isFormattingShortcut(event: KeyboardEvent): boolean {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey) return false;
+  const key = event.key.toLocaleLowerCase();
+  if (!event.shiftKey) return key === "b" || key === "i" || key === "e";
+  return key === "x" || key === "b" || key === "7" || key === "8";
 }
 
 function handleVimKey(
@@ -415,6 +435,44 @@ function handleVimKey(
     return true;
   }
 
+  if (ctrlOnly && (ctrlKey === "e" || ctrlKey === "y")) {
+    scrollByVisualLine(view, ctrlKey === "e" ? 1 : -1, 1);
+    finishCommand(view);
+    return true;
+  }
+
+  if (ctrlOnly && (ctrlKey === "d" || ctrlKey === "u")) {
+    moveByPage(view, ctrlKey === "d" ? 1 : -1, vim, 0.5);
+    finishCommand(view);
+    return true;
+  }
+
+  if (ctrlOnly && (ctrlKey === "p" || ctrlKey === "n")) {
+    const lines = visibleNavigation(view.state).lines;
+    const index = navigationLineIndex(view.state, view.state.selection.head);
+    const current = lines[index];
+    const preferredOffset = Math.max(0, view.state.selection.head - (current?.from ?? view.state.selection.head));
+    dispatchSelection(view, positionInNavigationLine(view.state, index + (ctrlKey === "p" ? -1 : 1), preferredOffset), vim);
+    finishCommand(view);
+    return true;
+  }
+
+  if (ctrlOnly && ctrlKey === "c") {
+    if (vim.mode === "visual" || vim.mode === "visual-line") {
+      const head = view.state.selection.head;
+      view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(head), 1)));
+      enterMode(view, "normal");
+    } else {
+      finishCommand(view);
+    }
+    return true;
+  }
+
+  if (ctrlOnly && ctrlKey === "v") {
+    enterMode(view, "visual", view.state.selection.head);
+    return true;
+  }
+
   if (event.key === " " || event.code === "Space") {
     const section = extractHeadingSections(view.state.doc)
       .find((item) => view.state.selection.head > item.pos && view.state.selection.head < item.headingEnd);
@@ -428,6 +486,10 @@ function handleVimKey(
     finishCommand(view);
     return true;
   }
+  // Normal/Visual 下格式化快捷键不能穿透到 TipTap；其余尚未实现的
+  // Ctrl Vim 命令也由 Vim 吞掉，避免 Ctrl+W 关闭标签页、Ctrl+X 剪切等。
+  if (isFormattingShortcut(event)) return true;
+  if (event.ctrlKey && !event.metaKey && !event.altKey) return true;
   if (event.ctrlKey || event.metaKey || event.altKey) return false;
 
   const key = event.key;
@@ -477,6 +539,15 @@ function handleVimKey(
       dispatchSelection(view, positionInNavigationLine(view.state, 0, 0), vim);
     } else if (key === "j" || key === "k") {
       moveByVisualLine(view, key === "j" ? 1 : -1, count, vim);
+    }
+    finishCommand(view);
+    return true;
+  }
+
+  if (vim.pending === "m" || vim.pending === "'") {
+    if (/^[a-z]$/.test(key)) {
+      if (vim.pending === "m") setNamedBookmarkInView(view, key);
+      else jumpToNamedBookmarkInView(view, key);
     }
     finishCommand(view);
     return true;
@@ -534,6 +605,8 @@ function handleVimKey(
     case "^": inlineMove("start"); return true;
     case "$": inlineMove("end"); return true;
     case "g": updateVimState(view, { pending: "g" }); return true;
+    case "m": updateVimState(view, { pending: "m" }); return true;
+    case "'": updateVimState(view, { pending: "'" }); return true;
     case "G": {
       const target = vim.count ? count - 1 : visibleNavigation(view.state).lines.length - 1;
       dispatchSelection(view, positionInNavigationLine(view.state, target, 0), vim);

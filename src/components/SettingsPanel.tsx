@@ -54,7 +54,7 @@ const SETTINGS_CATEGORIES: Array<{
   description: string;
 }> = [
   { id: "appearance", title: "外观与排版", description: "主题、字体、字号与内容间距" },
-  { id: "editor", title: "编辑器", description: "高亮、块编号、状态栏与右键菜单" },
+  { id: "editor", title: "编辑器", description: "Vim、书签、块编号、状态栏与右键菜单" },
   { id: "general", title: "工作流与快捷键", description: "默认视图、待办继承和按键绑定" },
   { id: "profile", title: "用户信息", description: "文档作者、组织与发布默认值" },
   { id: "data", title: "数据与导入", description: "JSON 备份及 Markdown 批量导入" },
@@ -589,7 +589,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
               </label>
             </Field>
 
-            <Field label="Vim 模式（实验性）" desc="使用 Normal、Insert 和 Visual 模式编辑；启用后按 i 输入，Esc 返回 Normal" visible={settingsPage === "editor"}>
+            <Field label="Vim 模式（实验性）" desc="Normal/Visual 优先使用 Vim 键位；i 进入输入，Esc 返回 Normal；Ctrl+F/B 整页、Ctrl+D/U 半页、Ctrl+E/Y 单行滚动" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
@@ -600,6 +600,13 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
                 <span className="toggle-label">{config.editor_vim_mode ? "开" : "关"}</span>
               </label>
             </Field>
+
+            <SettingsSection title="书签与 Vim 标记" desc="书签随文档和备份保存；只读文档也可以查看和跳转" visible={settingsPage === "editor"}>
+              <p className="settings-hint">
+                在标题旁“书签”、工具栏“更多”或正文右键菜单中添加与打开书签；Ctrl+Shift+M 切换当前位置书签。
+                Vim Normal 模式使用 m 后接 a–z 设置命名书签，使用 ' 后接同一字母跳转。格式快捷键仅在 Insert 模式生效。
+              </p>
+            </SettingsSection>
 
             {/* ── 正文右键菜单 ── */}
             <Field label="正文右键菜单" desc="开启后正文编辑器使用软件自带菜单，关闭则使用系统原生菜单" visible={settingsPage === "editor"}>
@@ -759,7 +766,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
                 )}
               </SettingsSection>
             )}
-            <SettingsSection title="数据导出 / 导入" desc="全量备份或迁移数据（JSON 格式）" visible={settingsPage === "data"}>
+            <SettingsSection title="数据导出 / 导入" desc="全量 JSON 包含笔记、待办、书签、应用配置及非敏感用户设置；Token、密码等凭据不导出" visible={settingsPage === "data"}>
               <div className="settings-button-row">
                 <button className="settings-btn-primary" onClick={handleExport}>
                   导出数据
@@ -1020,7 +1027,7 @@ function HotkeyConfig({ config, onUpdate }: {
 
   return (
     <div className="hotkey-list">
-      <div className="hotkey-reserved-note">Cmd+F、Alt+F：当前文档查找；Ctrl+F/Ctrl+B：Vim 翻页；Alt+G：跳转行号</div>
+      <div className="hotkey-reserved-note">Cmd+F、Alt+F：当前文档查找；Alt+G：跳转行号；Vim Normal/Visual 会优先接管 Ctrl 导航键，格式快捷键只在 Insert 生效</div>
       {recordingError && <div className="hotkey-recording-error" role="status">{recordingError}</div>}
       {Object.entries(HOTKEY_LABELS).map(([id, label]) => {
         const current = config.hotkeys?.[id] || DEFAULT_HOTKEYS[id];
