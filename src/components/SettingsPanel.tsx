@@ -315,7 +315,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
       if (isTauri()) {
         const result = await importWithDialog();
         if (result) {
-          setMessage(`导入完成：${result.notes_imported} 篇笔记, ${result.pages_imported} 个页面`);
+          const configTip = result.configs_imported ? "，配置已恢复" : "";
+          setMessage(`导入完成：${result.notes_imported} 篇笔记, ${result.pages_imported} 个页面${configTip}`);
           onImport?.();
         }
       } else {
@@ -339,7 +340,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
     try {
       const text = await file.text();
       const result = await api.export.import(text);
-      setMessage(`导入完成：${result.notes_imported} 篇笔记, ${result.pages_imported} 个页面`);
+      const configTip = result.configs_imported ? "，配置已恢复" : "";
+      setMessage(`导入完成：${result.notes_imported} 篇笔记, ${result.pages_imported} 个页面${configTip}`);
       onImport?.();
       e.target.value = "";
     } catch (e) {

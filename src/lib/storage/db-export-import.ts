@@ -5,9 +5,34 @@ import { noteFromDB, noteToDB, blobToBase64, now } from "./core";
 import { snakeImportToCamel } from "./normalize";
 import { noteToMarkdown } from "../markdown-serializer";
 import { parseJsonAsync, stringifyJsonAsync } from "../data-transform-client";
+import { getConfig, setConfig } from "./db-config";
+import type { AppConfig } from "./types";
+
+function isSensitiveConfigKey(key: string): boolean {
+  return /token/i.test(key);
+}
+
+function sanitizeConfigValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => sanitizeConfigValue(item));
+  if (value && typeof value === "object") {
+    const source = value as Record<string, unknown>;
+    const result: Record<string, unknown> = {};
+    for (const [key, next] of Object.entries(source)) {
+      if (isSensitiveConfigKey(key)) continue;
+      result[key] = sanitizeConfigValue(next);
+    }
+    return result;
+  }
+  return value;
+}
+
+function sanitizeConfigForBackup(config: AppConfig): Record<string, unknown> {
+  return sanitizeConfigValue(config) as Record<string, unknown>;
+}
 
 export async function exportData(): Promise<string> {
   return withDB(async (db) => {
+    const config = await getConfig();
     const tx = db.transaction(["notes", "daily_pages", "images"], "readonly");
     const notes = await getAll<any>(tx.objectStore("notes"));
     const dailyPages = await getAll<any>(tx.objectStore("daily_pages"));
@@ -61,6 +86,7 @@ export async function exportData(): Promise<string> {
         todos: typeof p.todos === "string" ? JSON.parse(p.todos) : p.todos,
         todo_carryover: p.todo_carryover === 1 || p.todo_carryover === true,
       })),
+      config: sanitizeConfigForBackup(config),
     }, 2);
 
     // 日志延后到 JSON 序列化后打印
@@ -79,8 +105,13 @@ export async function exportData(): Promise<string> {
 }
 
 export async function importData(json: string): Promise<{ notes_imported: number; pages_imported: number }> {
+  const data = await parseJsonAsync<{ notes?: any[]; daily_pages?: any[]; config?: unknown }>(json);
+  const importedConfig = sanitizeConfigValue(data.config) as Record<string, unknown> | undefined;
+  if (importedConfig && typeof importedConfig === "object") {
+    await setConfig(importedConfig as Partial<AppConfig>);
+  }
+
   return withDB(async (db) => {
-    const data = await parseJsonAsync<{ notes?: any[]; daily_pages?: any[] }>(json);
     const importedNotes: any[] = (data.notes ?? []).map(snakeImportToCamel);
     const pages = data.daily_pages ?? [];
 

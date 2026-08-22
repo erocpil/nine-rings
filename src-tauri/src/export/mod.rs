@@ -1,4 +1,5 @@
 use crate::db::models::Note;
+use crate::commands::config::AppConfig;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -175,10 +176,12 @@ pub struct ExportBundle {
     pub exported_at: String,
     pub notes: Vec<Note>,
     pub daily_pages: Vec<crate::db::models::DailyPage>,
+    #[serde(default)]
+    pub config: Option<Value>,
 }
 
 /// 导出全部数据（不含软删除的笔记）
-pub fn export_all(conn: &Connection) -> rusqlite::Result<ExportBundle> {
+pub fn export_all(conn: &Connection, config: &AppConfig) -> rusqlite::Result<ExportBundle> {
     let mut stmt = conn.prepare(
         "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly
          FROM notes WHERE deleted_at IS NULL
@@ -209,6 +212,7 @@ pub fn export_all(conn: &Connection) -> rusqlite::Result<ExportBundle> {
         exported_at: chrono::Utc::now().to_rfc3339(),
         notes,
         daily_pages,
+        config: Some(serde_json::to_value(config).unwrap_or(Value::Null)),
     })
 }
 

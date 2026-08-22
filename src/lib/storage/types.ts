@@ -92,7 +92,7 @@ export interface StorageAdapter {
 
   // ── Export / Import ──
   exportData(): Promise<string>;
-  importData(json: string): Promise<{ notes_imported: number; pages_imported: number }>;
+  importData(json: string): Promise<{ notes_imported: number; pages_imported: number; configs_imported?: number }>;
   exportNoteMarkdown(noteId: string): Promise<string>;
 
   // ── Trash ──

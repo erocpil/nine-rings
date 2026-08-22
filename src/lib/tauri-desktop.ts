@@ -55,6 +55,7 @@ export async function exportMarkdownWithDialog(data: string, defaultName: string
 export async function importWithDialog(): Promise<{
   notes_imported: number;
   pages_imported: number;
+  configs_imported?: number;
 } | null> {
   if (!isTauri()) return null;
 
@@ -68,7 +69,7 @@ export async function importWithDialog(): Promise<{
 
   if (!path) return null; // 用户取消
 
-  const result = await invoke<{ notes_imported: number; pages_imported: number }>(
+  const result = await invoke<{ notes_imported: number; pages_imported: number; configs_imported?: number }>(
     "import_from_file",
     { path },
   );

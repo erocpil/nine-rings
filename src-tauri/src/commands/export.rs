@@ -1,6 +1,9 @@
-use crate::AppState;
+use crate::{AppState, DataDir};
+use crate::commands::config::{self, AppConfig};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tauri::State;
+use std::sync::Mutex;
 
 #[derive(Debug, Serialize)]
 pub struct ExportResult {
@@ -13,6 +16,8 @@ pub struct ExportResult {
 pub struct ImportResult {
     pub notes_imported: usize,
     pub pages_imported: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub configs_imported: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -21,22 +26,58 @@ pub struct DeleteOldInput {
     pub older_than_days: Option<i64>,
 }
 
+fn is_sensitive_config_key(key: &str) -> bool {
+    key.to_lowercase().contains("token")
+}
+
+fn sanitize_config_value(value: Value) -> Value {
+    match value {
+        Value::Object(map) => {
+            let mut sanitized = serde_json::Map::new();
+            for (key, value) in map {
+                if is_sensitive_config_key(&key) {
+                    continue;
+                }
+                sanitized.insert(key, sanitize_config_value(value));
+            }
+            Value::Object(sanitized)
+        }
+        Value::Array(values) => Value::Array(values.into_iter().map(sanitize_config_value).collect()),
+        other => other,
+    }
+}
+
 #[tauri::command]
-pub fn export_data(state: State<AppState>) -> Result<String, String> {
+pub fn export_data(state: State<AppState>, config_state: State<'_, Mutex<AppConfig>>) -> Result<String, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let bundle = crate::export::export_all(&conn).map_err(|e| e.to_string())?;
+    let app_config = config_state.lock().map_err(|e| e.to_string())?.clone();
+    let bundle = crate::export::export_all(&conn, &app_config).map_err(|e| e.to_string())?;
     serde_json::to_string_pretty(&bundle).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn import_data(state: State<AppState>, json: String) -> Result<ImportResult, String> {
+pub fn import_data(
+    state: State<AppState>,
+    config_state: State<'_, Mutex<AppConfig>>,
+    data_dir: State<'_, DataDir>,
+    json: String,
+) -> Result<ImportResult, String> {
     let bundle: crate::export::ExportBundle =
         serde_json::from_str(&json).map_err(|e| format!("parse error: {}", e))?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let (n, p) = crate::export::import_bundle(&conn, &bundle).map_err(|e| e.to_string())?;
+    let mut configs_imported = None;
+    if let Some(raw_config) = bundle.config {
+        let sanitized = sanitize_config_value(raw_config);
+        if let Value::Object(partial) = sanitized {
+            config::set_config(config_state, data_dir, Value::Object(partial))?;
+            configs_imported = Some(1);
+        }
+    }
     Ok(ImportResult {
         notes_imported: n,
         pages_imported: p,
+        configs_imported,
     })
 }
 
@@ -101,9 +142,14 @@ pub fn export_to_file(path: String, content: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn import_from_file(state: State<AppState>, path: String) -> Result<ImportResult, String> {
+pub fn import_from_file(
+    state: State<AppState>,
+    config_state: State<'_, Mutex<AppConfig>>,
+    data_dir: State<'_, DataDir>,
+    path: String,
+) -> Result<ImportResult, String> {
     let content = std::fs::read_to_string(&path).map_err(|e| format!("读取失败: {}", e))?;
-    import_data(state, content)
+    import_data(state, config_state, data_dir, content)
 }
 
 #[tauri::command]
