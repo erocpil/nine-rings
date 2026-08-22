@@ -15,6 +15,10 @@ html, body, #root {
 /* Tauri frameless: 圆角窗口 */
 html {
   border-radius: 8px;
+  /* 禁止 iOS Safari 在横竖屏切换时自行放大页面文字；编辑器字号仍由
+     应用设置控制，用户的浏览器页面缩放能力不受此规则影响。 */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   /* Windows 字体栈：Segoe UI 优先，Microsoft YaHei 中文兜底 */
   font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
   font-size: 14px;

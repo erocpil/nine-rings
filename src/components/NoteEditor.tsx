@@ -549,8 +549,10 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         try {
           const rootRect = root.getBoundingClientRect();
           const caret = editor.view.coordsAtPos(editor.state.selection.head);
+          const visibleTop = rootRect.top + 16;
           const visibleBottom = rootRect.bottom - 24;
-          if (caret.bottom > visibleBottom) root.scrollTop += caret.bottom - visibleBottom;
+          if (caret.top < visibleTop) root.scrollTop -= visibleTop - caret.top;
+          else if (caret.bottom > visibleBottom) root.scrollTop += caret.bottom - visibleBottom;
         } catch {
           // The view may be between transactions while the visual viewport is resizing.
         }
@@ -993,8 +995,20 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     if (!root || typeof ResizeObserver === "undefined") return;
 
     let frame = 0;
+    let restoreFrame = 0;
     let adjusting = false;
-    let anchor: { pos: number; viewportTop: number; width: number; visible: boolean } | null = null;
+    let lastObservedWidth = root.clientWidth;
+    let lastWindowWidth = window.innerWidth;
+    const settleTimers: number[] = [];
+    let anchor: {
+      pos: number;
+      viewportTop: number;
+      rootTop: number;
+      rootHeight: number;
+      relativeRatio: number;
+      width: number;
+      visible: boolean;
+    } | null = null;
 
     const capture = () => {
       frame = 0;
@@ -1005,6 +1019,9 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       anchor = {
         pos,
         viewportTop: coords.top,
+        rootTop: rect.top,
+        rootHeight: rect.height,
+        relativeRatio: rect.height > 0 ? (coords.top - rect.top) / rect.height : 0.5,
         width: root.clientWidth,
         visible: coords.bottom >= rect.top && coords.top <= rect.bottom,
       };
@@ -1013,7 +1030,53 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       if (!frame) frame = requestAnimationFrame(capture);
     };
 
+    const restoreAnchor = (previous: NonNullable<typeof anchor>) => {
+      if (editor.isDestroyed || !root.isConnected || !previous.visible) return;
+      const pos = Math.min(previous.pos, editor.state.doc.content.size);
+      const nextTop = editor.view.coordsAtPos(pos).top;
+      const nextRect = root.getBoundingClientRect();
+      const heightChanged = Math.abs(nextRect.height - previous.rootHeight) > 24;
+      const unclampedTarget = heightChanged
+        ? nextRect.top + previous.relativeRatio * nextRect.height
+        : previous.viewportTop + (nextRect.top - previous.rootTop);
+      const targetTop = Math.min(
+        nextRect.bottom - 32,
+        Math.max(nextRect.top + 16, unclampedTarget),
+      );
+      root.scrollTop += nextTop - targetTop;
+    };
+
+    const clearSettleTimers = () => {
+      while (settleTimers.length > 0) window.clearTimeout(settleTimers.pop());
+      if (restoreFrame) cancelAnimationFrame(restoreFrame);
+      restoreFrame = 0;
+    };
+
+    const stabilizeWidthChange = (force = false) => {
+      const nextWidth = root.clientWidth;
+      if ((!force && Math.abs(nextWidth - lastObservedWidth) < 24) || !anchor) return false;
+      if (Math.abs(nextWidth - lastObservedWidth) >= 24) lastObservedWidth = nextWidth;
+      const previous = anchor;
+      adjusting = true;
+      clearSettleTimers();
+      restoreFrame = requestAnimationFrame(() => {
+        restoreFrame = 0;
+        restoreAnchor(previous);
+      });
+      for (const delay of [120, 320]) {
+        settleTimers.push(window.setTimeout(() => {
+          restoreAnchor(previous);
+          if (delay === 320) {
+            adjusting = false;
+            scheduleCapture();
+          }
+        }, delay));
+      }
+      return true;
+    };
+
     const observer = new ResizeObserver(() => {
+      if (stabilizeWidthChange() || adjusting) return;
       const nextWidth = root.clientWidth;
       if (!anchor || Math.abs(nextWidth - anchor.width) < 0.5) {
         scheduleCapture();
@@ -1023,26 +1086,31 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       requestAnimationFrame(() => {
         if (editor.isDestroyed || !root.isConnected) return;
         adjusting = true;
-        if (previous.visible) {
-          const pos = Math.min(previous.pos, editor.state.doc.content.size);
-          const nextTop = editor.view.coordsAtPos(pos).top;
-          root.scrollTop += nextTop - previous.viewportTop;
-        }
+        restoreAnchor(previous);
         adjusting = false;
-        requestAnimationFrame(capture);
+        scheduleCapture();
       });
     });
+
+    const onWindowResize = () => {
+      const windowWidthChanged = Math.abs(window.innerWidth - lastWindowWidth) >= 24;
+      lastWindowWidth = window.innerWidth;
+      if (!stabilizeWidthChange(windowWidthChanged)) scheduleCapture();
+    };
 
     editor.on("selectionUpdate", scheduleCapture);
     editor.on("focus", scheduleCapture);
     root.addEventListener("scroll", scheduleCapture, { passive: true });
+    window.addEventListener("resize", onWindowResize);
     observer.observe(root);
     scheduleCapture();
     return () => {
       editor.off("selectionUpdate", scheduleCapture);
       editor.off("focus", scheduleCapture);
       root.removeEventListener("scroll", scheduleCapture);
+      window.removeEventListener("resize", onWindowResize);
       observer.disconnect();
+      clearSettleTimers();
       if (frame) cancelAnimationFrame(frame);
     };
   }, [editor]);

@@ -98,15 +98,26 @@ export function useWebPlatform() {
 
     syncViewportCSS();
     let animationFrameId = 0;
+    const orientationTimers: number[] = [];
     const scheduleViewportSync = () => {
       if (animationFrameId) window.cancelAnimationFrame(animationFrameId);
       animationFrameId = window.requestAnimationFrame(syncViewportCSS);
+    };
+    const syncAfterOrientation = () => {
+      scheduleViewportSync();
+      // Mobile Safari reports an intermediate layout viewport first, then
+      // updates the visual viewport and safe-area values over several frames.
+      // Re-read during that settling window so a stale landscape/portrait size
+      // cannot remain in CSS until the next user interaction.
+      for (const delay of [80, 220, 500]) {
+        orientationTimers.push(window.setTimeout(syncViewportCSS, delay));
+      }
     };
     const viewport = window.visualViewport;
     viewport?.addEventListener("resize", scheduleViewportSync);
     viewport?.addEventListener("scroll", scheduleViewportSync);
     window.addEventListener("resize", scheduleViewportSync);
-    window.addEventListener("orientationchange", scheduleViewportSync);
+    window.addEventListener("orientationchange", syncAfterOrientation);
 
     let cancelled = false;
     const prepareStorage = async () => {
@@ -158,8 +169,9 @@ export function useWebPlatform() {
       viewport?.removeEventListener("resize", scheduleViewportSync);
       viewport?.removeEventListener("scroll", scheduleViewportSync);
       window.removeEventListener("resize", scheduleViewportSync);
-      window.removeEventListener("orientationchange", scheduleViewportSync);
+      window.removeEventListener("orientationchange", syncAfterOrientation);
       if (animationFrameId) window.cancelAnimationFrame(animationFrameId);
+      for (const timer of orientationTimers) window.clearTimeout(timer);
       removeControllerListener?.();
       visibilityListener?.();
     };

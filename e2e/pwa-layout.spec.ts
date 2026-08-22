@@ -435,6 +435,51 @@ test.describe("PWA 窄屏应用外壳", () => {
       return rect.bottom <= root.bottom - 20;
     })).toBe(true);
   });
+
+  test("横竖屏往返保持字体比例和当前光标行可见位置", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await editor.fill(Array.from({ length: 90 }, (_, index) => `旋转定位第 ${index + 1} 行`).join("\n"));
+    await editor.locator(":scope > *").nth(60).click();
+    await page.evaluate(() => {
+      const root = document.querySelector<HTMLElement>(".note-editor-scroll")!;
+      const selection = window.getSelection()!;
+      const caret = selection.getRangeAt(0).getBoundingClientRect();
+      const rootRect = root.getBoundingClientRect();
+      root.scrollTop += caret.top - (rootRect.top + rootRect.height * 0.5);
+    });
+    await page.waitForTimeout(50);
+
+    const readCaretLayout = () => page.evaluate(() => {
+      const root = document.querySelector(".note-editor-scroll")!.getBoundingClientRect();
+      const editorElement = document.querySelector(".ProseMirror")!;
+      const selection = window.getSelection();
+      if (!selection?.rangeCount) throw new Error("caret not found");
+      const caret = selection.getRangeAt(0).getBoundingClientRect();
+      return {
+        fontSize: getComputedStyle(editorElement).fontSize,
+        textSizeAdjust: getComputedStyle(document.documentElement).webkitTextSizeAdjust,
+        ratio: (caret.top - root.top) / root.height,
+        visible: caret.bottom >= root.top + 8 && caret.top <= root.bottom - 20,
+      };
+    });
+
+    const portraitBefore = await readCaretLayout();
+    expect(portraitBefore.textSizeAdjust).toBe("100%");
+
+    await page.setViewportSize({ width: 760, height: 390 });
+    await expect.poll(async () => (await readCaretLayout()).visible).toBe(true);
+    expect((await readCaretLayout()).fontSize).toBe(portraitBefore.fontSize);
+
+    await page.setViewportSize({ width: 390, height: 760 });
+    await expect.poll(async () => (await readCaretLayout()).visible).toBe(true);
+    const portraitAfter = await readCaretLayout();
+    expect(portraitAfter.fontSize).toBe(portraitBefore.fontSize);
+    expect(
+      Math.abs(portraitAfter.ratio - portraitBefore.ratio),
+      JSON.stringify({ portraitBefore, portraitAfter }),
+    ).toBeLessThan(0.15);
+  });
 });
 
 test("横屏手机保持单行工具栏且正文可滚动", async ({ page }) => {
