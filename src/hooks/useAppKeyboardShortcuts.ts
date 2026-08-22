@@ -12,6 +12,7 @@ import {
 
 export interface AppShortcutActions {
   setSettingsOpen: (open: boolean) => void;
+  setQuickSwitcherOpen: (open: boolean) => void;
   setDate: (date: string) => Promise<void>;
   setSidebarHidden: (hidden: boolean) => void;
   setSidebarTab: (tab: "daily" | "tree") => void;
@@ -84,6 +85,10 @@ export function useAppKeyboardShortcuts(actions: AppShortcutActions): void {
         case "openSettings":
           e.preventDefault();
           a.setSettingsOpen(true);
+          break;
+        case "openQuickSwitcher":
+          e.preventDefault();
+          a.setQuickSwitcherOpen(true);
           break;
         case "focusSearch":
           e.preventDefault();

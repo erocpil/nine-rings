@@ -471,6 +471,14 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 - Web 端：无独立窗口，通过 `BroadcastChannel("nine-rings-qc")` 跨标签页通知
 - 快捷键：`Ctrl+Alt+N`（可配置）
 
+### 快速切换笔记（Quick Switcher）
+
+- Web 与 Tauri 主窗口均可使用 `Ctrl/Cmd+P` 打开，也可点击标题栏的切换按钮
+- 空查询按最近访问优先、最近编辑兜底；最多展示 12 项，避免长列表干扰
+- 支持按标题、日期、目录路径、标签和概念进行多关键词匹配
+- 支持方向键选择、Enter 打开、Escape 关闭，并在关闭后恢复原焦点
+- 组件按需加载，不进入编辑器主包；访问历史仅在本机 `localStorage` 保存
+
 ### 全局热键（Tauri only）
 
 | Action | 默认快捷键 | 注册方式 |

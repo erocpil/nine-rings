@@ -230,6 +230,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const scrollRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const toolbarSelectionRef = useRef<{ from: number; to: number } | null>(null);
+  const toolbarCellSelectionRef = useRef<CellSelection | null>(null);
   const toolbarInteractingRef = useRef(false);
   const searchMatchesRef = useRef<SearchMatch[]>([]);
   const editorFindOriginRef = useRef(0);
@@ -300,6 +301,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [markdownSelectionNotice, setMarkdownSelectionNotice] = useState(false);
   const [gutterBlockCount, setGutterBlockCount] = useState(0);
   const [currentStatusBlock, setCurrentStatusBlock] = useState(1);
+  const [selectedTableCellCount, setSelectedTableCellCount] = useState(0);
   const [vimEditorMode, setVimEditorMode] = useState<VimEditorMode>("normal");
   const nativeCjkLatinSpacing = useMemo(supportsNativeCjkLatinSpacing, []);
 
@@ -468,7 +470,10 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     },
     onSelectionUpdate: ({ editor: ed }) => {
       const { from, to } = ed.state.selection;
-      if (ed.isFocused && from === to && !toolbarInteractingRef.current) toolbarSelectionRef.current = null;
+      if (ed.isFocused && !toolbarInteractingRef.current) {
+        toolbarCellSelectionRef.current = null;
+        if (from === to) toolbarSelectionRef.current = null;
+      }
       localStorage.setItem(`selectionPos:${noteId}`, JSON.stringify({ from, to }));
     },
     onUpdate: ({ editor: ed }) => {
@@ -579,6 +584,11 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       const total = editor.state.doc.childCount;
       const selected = editor.state.selection.$from.index(0) + 1;
       setCurrentStatusBlock(Math.max(1, Math.min(total, selected)));
+      let selectedCells = 0;
+      if (editor.state.selection instanceof CellSelection) {
+        editor.state.selection.forEachCell(() => { selectedCells++; });
+      }
+      setSelectedTableCellCount(selectedCells);
     };
     refresh();
     editor.on("selectionUpdate", refresh);
@@ -606,9 +616,19 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       });
       if (next.length === 0) setOutlineOpen(false);
     };
+    let refreshTimer: number | undefined;
+    const scheduleRefresh = () => {
+      window.clearTimeout(refreshTimer);
+      // 大文档的目录遍历是 O(N)。输入期间合并连续更新，避免每个按键都
+      // 重新扫描整棵 ProseMirror 文档树，停顿后仍会及时刷新目录。
+      refreshTimer = window.setTimeout(refresh, 160);
+    };
     refresh();
-    editor.on("update", refresh);
-    return () => { editor.off("update", refresh); };
+    editor.on("update", scheduleRefresh);
+    return () => {
+      editor.off("update", scheduleRefresh);
+      window.clearTimeout(refreshTimer);
+    };
   }, [editor]);
 
   useEffect(() => {
@@ -1289,6 +1309,11 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   if (!editor) return <div className="note-editor"><div className="empty-state">加载中...</div></div>;
 
   const rememberToolbarSelection = () => {
+    if (editor.state.selection instanceof CellSelection) {
+      toolbarCellSelectionRef.current = editor.state.selection;
+      toolbarSelectionRef.current = null;
+      return;
+    }
     const { from, to } = editor.state.selection;
     if (from !== to) {
       toolbarSelectionRef.current = { from, to };
@@ -1624,14 +1649,6 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     }
   };
 
-  const selectedTableCellCount = editor.state.selection instanceof CellSelection
-    ? (() => {
-        let count = 0;
-        editor.state.selection.forEachCell(() => { count++; });
-        return count;
-      })()
-    : 0;
-
   const preventReadonlyTableResize = (event: React.MouseEvent) => {
     if (!readonly || !(event.target instanceof Element)) return;
     const cell = event.target.closest("td, th");
@@ -1879,8 +1896,13 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           }}
           onClickCapture={(event) => {
             if (!(event.target instanceof Element) || !event.target.closest("button")) return;
-            const selection = toolbarSelectionRef.current;
-            if (selection) editor.commands.setTextSelection(selection);
+            const cellSelection = toolbarCellSelectionRef.current;
+            const textSelection = toolbarSelectionRef.current;
+            if (cellSelection) {
+              editor.view.dispatch(editor.state.tr.setSelection(cellSelection));
+            } else if (textSelection) {
+              editor.commands.setTextSelection(textSelection);
+            }
             requestAnimationFrame(() => { toolbarInteractingRef.current = false; });
           }}
         >

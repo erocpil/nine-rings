@@ -48,6 +48,9 @@ assert(resolveShortcut(key({ key: "F11" })) === "fullscreen", "F11 → fullscree
 assert(resolveShortcut(key({ key: "F11", ctrlKey: true })) === null, "Ctrl+F11 不映射（非纯 F11）");
 assert(resolveShortcut(key({ key: ",", altKey: true })) === "openSettings", "Alt+, → openSettings");
 assert(resolveShortcut(key({ key: ",", ctrlKey: true })) === null, "Ctrl+, 不映射");
+assert(resolveShortcut(key({ key: "p", ctrlKey: true })) === "openQuickSwitcher", "Ctrl+P → openQuickSwitcher");
+assert(resolveShortcut(key({ key: "P", metaKey: true })) === "openQuickSwitcher", "Cmd+P → openQuickSwitcher");
+assert(resolveShortcut(key({ key: "p", ctrlKey: true, shiftKey: true })) === null, "Ctrl+Shift+P 不映射");
 assert(resolveShortcut(key({ key: "e", ctrlKey: true })) === null, "Ctrl+E 放行给编辑器");
 assert(resolveShortcut(key({ key: "E", ctrlKey: true })) === null, "Ctrl+E（大写）放行给编辑器");
 assert(resolveShortcut(key({ key: "e", metaKey: true })) === null, "Meta+E（macOS）放行给编辑器");

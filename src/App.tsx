@@ -34,6 +34,7 @@ import { useWebPlatform } from "./hooks/useWebPlatform";
 import { WebStatusBanner } from "./components/WebStatusBanner";
 import { SearchResultsPanel } from "./components/SearchResultsPanel";
 import { subscribeToDataChanges } from "./lib/tab-coordination";
+import { rememberRecentNote } from "./lib/quick-switcher";
 
 const WORKSPACE_TARGET_KEY = "nr:workspaceTarget";
 const ACTIVE_TAG_KEY = "nr:activeTag";
@@ -45,6 +46,7 @@ const SettingsPanel = lazy(() => import("./components/SettingsPanel").then((modu
 const DebugPanel = lazy(() => import("./components/DebugPanel").then((module) => ({ default: module.DebugPanel })));
 const PropertiesPanel = lazy(() => import("./components/PropertiesPanel"));
 const DocCreateDialog = lazy(() => import("./components/DocCreateDialog"));
+const QuickSwitcher = lazy(() => import("./components/QuickSwitcher"));
 
 type WorkspaceTarget =
   | { kind: "note"; noteId: string }
@@ -305,6 +307,7 @@ function App() {
   const [undo, setUndo] = useState<UndoState | null>(null);
   const [versionOpen, setVersionOpen] = useState(false);
   const [syncBusy, setSyncBusy] = useState(false);
+  const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const { config, settingsOpen, setSettingsOpen, handleConfigChange } = useSettings();
   const handleEditorFontSizeChange = useCallback((size: number) => {
     void api.config.set({ note_font_size: Math.min(32, Math.max(12, size)) })
@@ -346,6 +349,16 @@ function App() {
       setSidebarHidden(true);
     }
   }, []);
+  const handleQuickSwitch = useCallback(async (note: Note) => {
+    setQuery("");
+    setDocResults(null);
+    setDocSearchText("");
+    setDocSearching(false);
+    setQuickSwitcherOpen(false);
+    if (!note.storagePath && note.date !== currentDate) await setDate(note.date);
+    handleSelectNote(note);
+    closeSidebarOnNarrowScreen();
+  }, [closeSidebarOnNarrowScreen, currentDate, handleSelectNote, setDate, setQuery]);
   const [docCreateOpen, setDocCreateOpen] = useState(false);
   const [docTreeKey, setDocTreeKey] = useState(0);
   const [docTreeCollapsed, setDocTreeCollapsed] = useState<Set<string>>(() => {
@@ -458,9 +471,10 @@ function App() {
   const startupRestoreCompleteRef = useRef(false);
   useEffect(() => {
     // 启动恢复完成前不写回选择，避免回退数据覆盖真正的跨日期/文档 lastNote。
-    if (!selectedNote || !startupRestoreCompleteRef.current) return;
-    localStorage.setItem(LAST_NOTE_KEY, selectedNote.id);
-  }, [selectedNote]);
+    if (!selectedNoteId || !startupRestoreCompleteRef.current) return;
+    localStorage.setItem(LAST_NOTE_KEY, selectedNoteId);
+    rememberRecentNote(selectedNoteId);
+  }, [selectedNoteId]);
 
   useEffect(() => {
     if (!startupRestoreCompleteRef.current) return;
@@ -727,6 +741,7 @@ function App() {
   // ── 键盘快捷键（浏览器 keydown + Tauri 全局热键）──
   useAppKeyboardShortcuts({
     setSettingsOpen,
+    setQuickSwitcherOpen,
     setDate,
     setSidebarHidden,
     setSidebarTab: handleSetSidebarTab,
@@ -914,6 +929,13 @@ function App() {
           </div>
         )}
         <div className="header-right">
+          <button
+            className="btn-icon btn-quick-switcher"
+            onClick={() => setQuickSwitcherOpen(true)}
+            title="快速切换笔记 (Ctrl+P)"
+            aria-label="快速切换笔记"
+            type="button"
+          >⇄</button>
           {!searchExpanded && (
           <button
             className="btn-icon btn-search-toggle"
@@ -1283,6 +1305,12 @@ function App() {
       </div>
 
       <Suspense fallback={null}>
+        <QuickSwitcher
+          open={quickSwitcherOpen}
+          activeNoteId={selectedNote?.id ?? null}
+          onClose={() => setQuickSwitcherOpen(false)}
+          onSelect={handleQuickSwitch}
+        />
         <SettingsPanel
           open={settingsOpen}
           webStorageStatus={isTauriRuntime() ? undefined : webPlatform.storage}

@@ -13,6 +13,7 @@ export interface ShortcutKeyEvent {
 export type ShortcutAction =
   | "fullscreen"
   | "openSettings"
+  | "openQuickSwitcher"
   | "focusSearch"
   | "goToDaily";
 
@@ -66,6 +67,9 @@ export function resolveShortcut(e: ShortcutKeyEvent): ShortcutAction | null {
   }
   const ctrl = e.ctrlKey || e.metaKey;
   if (!ctrl) return null;
+  if (!e.shiftKey && !e.altKey && e.key.toLowerCase() === "p") {
+    return "openQuickSwitcher";
+  }
   if (e.shiftKey) {
     const k = e.key.toLowerCase();
     if (k === "f") return "focusSearch"; // Ctrl+Shift+F 全局搜索
