@@ -6,6 +6,7 @@ import {
   createSessionHeadingFoldStore,
   extractHeadingSections,
   headingSectionAtPosition,
+  topLevelBlocksInHeadingFoldRanges,
   visibleHeadingSections,
 } from "../src/lib/heading-fold";
 
@@ -35,6 +36,14 @@ assert.deepEqual(
   collapsedHeadingContentRanges(doc, new Set([sections[0].key, sections[1].key])),
   [{ from: sections[0].headingEnd, to: sections[0].end }],
   "父章节的折叠区间覆盖子章节，隐藏范围保持不重叠",
+);
+assert.deepEqual(
+  topLevelBlocksInHeadingFoldRanges(
+    doc,
+    collapsedHeadingContentRanges(doc, new Set([sections[0].key])),
+  ).map((block) => block.index),
+  [1, 2, 3],
+  "折叠块索引只覆盖父章节正文及其子章节",
 );
 assert.deepEqual(
   visibleHeadingSections(sections, new Set()).map((section) => section.text),

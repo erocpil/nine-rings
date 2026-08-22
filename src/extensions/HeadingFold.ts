@@ -1,12 +1,16 @@
 import { Extension, type Editor } from "@tiptap/core";
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
-import { Decoration, DecorationSet } from "@tiptap/pm/view";
-import { collapsedHeadingContentRanges, collapsedHeadingKeysForAll, extractHeadingSections } from "../lib/heading-fold";
+import {
+  collapsedHeadingContentRanges,
+  collapsedHeadingKeysForAll,
+  extractHeadingSections,
+  headingSectionAtPosition,
+  topLevelBlocksInHeadingFoldRanges,
+  type HeadingSection,
+} from "../lib/heading-fold";
 
 export interface HeadingFoldState {
   collapsedKeys: Set<string>;
-  decorations: DecorationSet;
 }
 
 type HeadingFoldMeta =
@@ -20,25 +24,26 @@ interface HeadingFoldOptions {
 }
 
 export const headingFoldPluginKey = new PluginKey<HeadingFoldState>("nineRingsHeadingFold");
+let foldScopeCounter = 0;
 
 function sameKeys(left: Set<string>, right: Set<string>): boolean {
   return left.size === right.size && [...left].every((key) => right.has(key));
 }
 
-function buildFoldDecorations(doc: ProseMirrorNode, collapsedKeys: Set<string>): DecorationSet {
+function hiddenChildRanges(
+  doc: import("@tiptap/pm/model").Node,
+  collapsedKeys: ReadonlySet<string>,
+): Array<{ from: number; to: number }> {
   const ranges = collapsedHeadingContentRanges(doc, collapsedKeys);
-  if (ranges.length === 0) return DecorationSet.empty;
-
-  const decorations: Decoration[] = [];
-  let rangeIndex = 0;
-  doc.forEach((node, pos) => {
-    while (rangeIndex < ranges.length && pos >= ranges[rangeIndex].to) rangeIndex += 1;
-    const range = ranges[rangeIndex];
-    if (range && pos >= range.from && pos < range.to) {
-      decorations.push(Decoration.node(pos, pos + node.nodeSize, { class: "heading-fold-hidden" }));
-    }
-  });
-  return DecorationSet.create(doc, decorations);
+  const blocks = topLevelBlocksInHeadingFoldRanges(doc, ranges);
+  const children: Array<{ from: number; to: number }> = [];
+  for (const block of blocks) {
+    const child = block.index + 1;
+    const previous = children[children.length - 1];
+    if (previous && child === previous.to + 1) previous.to = child;
+    else children.push({ from: child, to: child });
+  }
+  return children;
 }
 
 export const HeadingFold = Extension.create<HeadingFoldOptions>({
@@ -54,7 +59,7 @@ export const HeadingFold = Extension.create<HeadingFoldOptions>({
         init: (_, state) => {
           const valid = new Set(extractHeadingSections(state.doc).map((section) => section.key));
           const collapsedKeys = new Set(options.initialCollapsedKeys.filter((key) => valid.has(key)));
-          return { collapsedKeys, decorations: buildFoldDecorations(state.doc, collapsedKeys) };
+          return { collapsedKeys };
         },
         apply(transaction, previous, _oldState, nextState) {
           const meta = transaction.getMeta(headingFoldPluginKey) as HeadingFoldMeta | undefined;
@@ -74,26 +79,55 @@ export const HeadingFold = Extension.create<HeadingFoldOptions>({
             collapsed = new Set([...collapsed].filter((key) => valid.has(key)));
           }
           if (sameKeys(collapsed, previous.collapsedKeys) && !transaction.docChanged) return previous;
-          return {
-            collapsedKeys: collapsed,
-            decorations: buildFoldDecorations(nextState.doc, collapsed),
-          };
+          return { collapsedKeys: collapsed };
         },
       },
-      props: {
-        decorations(state) {
-          return headingFoldPluginKey.getState(state)?.decorations ?? null;
-        },
-      },
-      view() {
+      view(editorView) {
+        const ownerDocument = editorView.dom.ownerDocument;
+        const scope = `nr-heading-fold-${++foldScopeCounter}`;
+        const style = ownerDocument.createElement("style");
+        style.setAttribute("data-heading-fold-style", scope);
+        style.setAttribute("data-pdf-exclude", "true");
+        ownerDocument.head.append(style);
+        editorView.dom.setAttribute("data-heading-fold-scope", scope);
+        const supportsFilteredNthChild = ownerDocument.defaultView?.CSS?.supports(
+          "selector(:nth-child(1 of *))",
+        ) ?? false;
+        const actualEditorChild = ":not(.ProseMirror-gapcursor, .ProseMirror-widget, .ProseMirror-separator)";
+        const nthChild = (expression: string) => supportsFilteredNthChild
+          ? `:nth-child(${expression} of ${actualEditorChild})`
+          : `:nth-child(${expression})`;
+
         let previous = "";
+        let previousVisibility = "";
+        const updateVisibility = (view: import("@tiptap/pm/view").EditorView) => {
+          const collapsedKeys = headingFoldPluginKey.getState(view.state)?.collapsedKeys ?? new Set<string>();
+          const ranges = hiddenChildRanges(view.state.doc, collapsedKeys);
+          const selector = `[data-heading-fold-scope="${scope}"]`;
+          const css = ranges.length === 0
+            ? ""
+            : `${ranges.map(({ from, to }) => (
+              `${selector} > ${nthChild(`n + ${from}`)}${nthChild(`-n + ${to}`)}`
+            )).join(",\n")} { display: none !important; }`;
+          if (css === previousVisibility) return;
+          previousVisibility = css;
+          style.textContent = css;
+        };
+        updateVisibility(editorView);
         return {
           update(view) {
+            updateVisibility(view);
             const keys = [...(headingFoldPluginKey.getState(view.state)?.collapsedKeys ?? [])].sort();
             const serialized = keys.join("\n");
             if (serialized === previous) return;
             previous = serialized;
             options.onChange?.(keys);
+          },
+          destroy() {
+            if (editorView.dom.getAttribute("data-heading-fold-scope") === scope) {
+              editorView.dom.removeAttribute("data-heading-fold-scope");
+            }
+            style.remove();
           },
         };
       },
@@ -102,7 +136,8 @@ export const HeadingFold = Extension.create<HeadingFoldOptions>({
 });
 
 export function isHeadingFolded(editor: Editor, position: number): boolean {
-  const section = extractHeadingSections(editor.state.doc).find((item) => item.pos === position);
+  const section = headingSectionAtPosition(extractHeadingSections(editor.state.doc), position);
+  if (section?.pos !== position) return false;
   return Boolean(section && headingFoldPluginKey.getState(editor.state)?.collapsedKeys.has(section.key));
 }
 
@@ -121,17 +156,36 @@ export function toggleHeadingFold(editor: Editor, position: number): boolean {
   return toggleHeadingFoldInView(editor.view, position);
 }
 
+export function toggleHeadingSectionFold(
+  editor: Editor,
+  section: HeadingSection,
+  scrollIntoView = true,
+): boolean {
+  return toggleHeadingSectionFoldInView(editor.view, section, scrollIntoView);
+}
+
 /** 供编辑器插件直接切换折叠，避免为键盘命令构造 Tiptap Editor 包装。 */
 export function toggleHeadingFoldInView(view: import("@tiptap/pm/view").EditorView, position: number): boolean {
   const { state } = view;
-  const section = extractHeadingSections(state.doc).find((item) => item.pos === position);
-  if (!section || section.end <= section.headingEnd) return false;
+  const section = headingSectionAtPosition(extractHeadingSections(state.doc), position);
+  if (!section || section.pos !== position) return false;
+  return toggleHeadingSectionFoldInView(view, section);
+}
+
+function toggleHeadingSectionFoldInView(
+  view: import("@tiptap/pm/view").EditorView,
+  section: HeadingSection,
+  scrollIntoView = true,
+): boolean {
+  const { state } = view;
+  if (section.end <= section.headingEnd) return false;
   const folded = Boolean(headingFoldPluginKey.getState(state)?.collapsedKeys.has(section.key));
   let transaction = state.tr;
   if (!folded && state.selection.head >= section.headingEnd && state.selection.head < section.end) {
     transaction = transaction.setSelection(TextSelection.near(transaction.doc.resolve(section.headingEnd - 1), -1));
   }
-  view.dispatch(transaction.setMeta(headingFoldPluginKey, { type: "toggle", key: section.key } satisfies HeadingFoldMeta).scrollIntoView());
+  transaction = transaction.setMeta(headingFoldPluginKey, { type: "toggle", key: section.key } satisfies HeadingFoldMeta);
+  view.dispatch(scrollIntoView ? transaction.scrollIntoView() : transaction);
   return true;
 }
 

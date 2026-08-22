@@ -9,7 +9,11 @@ import {
   toggleHeadingFoldInView,
   type HeadingFoldState,
 } from "./HeadingFold";
-import { collapsedHeadingContentRanges, extractHeadingSections } from "../lib/heading-fold";
+import {
+  collapsedHeadingContentRanges,
+  extractHeadingSections,
+  headingSectionAtPosition,
+} from "../lib/heading-fold";
 import { jumpToNamedBookmarkInView, setNamedBookmarkInView } from "./DocumentBookmarks";
 
 export type VimEditorMode = "normal" | "insert" | "visual" | "visual-line";
@@ -474,9 +478,11 @@ function handleVimKey(
   }
 
   if (event.key === " " || event.code === "Space") {
-    const section = extractHeadingSections(view.state.doc)
-      .find((item) => view.state.selection.head > item.pos && view.state.selection.head < item.headingEnd);
-    if (section) toggleHeadingFoldInView(view, section.pos);
+    const head = view.state.selection.head;
+    const section = headingSectionAtPosition(extractHeadingSections(view.state.doc), head);
+    if (section && head > section.pos && head < section.headingEnd) {
+      toggleHeadingFoldInView(view, section.pos);
+    }
     finishCommand(view);
     return true;
   }

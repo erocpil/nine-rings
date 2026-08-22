@@ -3457,7 +3457,7 @@ body {
   position: absolute;
   right: 0;
   left: 0;
-  height: 46px;
+  height: 40px;
   content-visibility: visible;
   contain-intrinsic-block-size: none;
 }
@@ -3468,8 +3468,8 @@ body {
   width: 100%;
   min-width: 0;
   gap: 3px;
-  min-height: 29px;
-  padding-block: 5px;
+  min-height: 26px;
+  padding-block: 3px;
   padding-inline-end: 10px;
   border: 0;
   background: transparent;
@@ -4065,10 +4065,6 @@ body {
 .editor-heading-fold.folded:focus-visible {
   color: var(--accent);
   opacity: 0.75;
-}
-
-.ProseMirror > .heading-fold-hidden {
-  display: none;
 }
 
 /* 分割线本身不生成空段落；仅在其后保留一行高度的阅读间距。 */
@@ -7823,8 +7819,8 @@ button.doc-tree-toggle:focus-visible {
     height: 34px;
     padding: 3px 6px;
     border-bottom: 1px solid var(--border);
-    background: color-mix(in srgb, var(--bg) 94%, transparent);
-    backdrop-filter: blur(8px);
+    /* 固定毛玻璃层会让 iOS 在长页面滚动时持续重合成并加剧棋盘式补绘。 */
+    background: var(--bg);
   }
 
   .document-outline-panel,

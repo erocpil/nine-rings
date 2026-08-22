@@ -216,7 +216,9 @@ test.describe("PWA 窄屏应用外壳", () => {
     const content = Array.from({ length: 1200 }, (_, index) => `块 ${index + 1}`).join("\n");
     await editor.fill(content);
     await expect(editor.locator(":scope > *")).toHaveCount(1200);
-    await expect(page.locator(".editor-block-gutter .editor-heading-fold")).toHaveCount(1);
+    // 光标在文末时首个标题处于虚拟窗口外；gutter 不应再为离屏标题
+    // 永久保留 DOM。
+    expect(await page.locator(".editor-block-gutter .editor-heading-fold").count()).toBeLessThanOrEqual(1);
     const paragraphGeometryReads = await page.evaluate(async () => {
       const original = HTMLElement.prototype.getBoundingClientRect;
       let reads = 0;
@@ -250,19 +252,43 @@ test.describe("PWA 窄屏应用外壳", () => {
       };
       try {
         const maximum = root.scrollHeight - root.clientHeight;
-        for (let step = 1; step <= 40; step += 1) {
-          root.scrollTop = maximum * step / 40;
+        // 跨多个绘制帧持续向下再向上，模拟手机惯性滚动。把几十个事件
+        // 同步塞进一帧只能验证 rAF 合并，无法发现“每帧都强制布局”的问题。
+        for (let step = 1; step <= 36; step += 1) {
+          const progress = step <= 24 ? step / 24 : (36 - step) / 12;
+          root.scrollTop = maximum * Math.max(0, progress);
           root.dispatchEvent(new Event("scroll"));
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
         }
+        const paragraphRectsDuringScroll = paragraphRects;
         await new Promise((resolve) => window.setTimeout(resolve, 280));
-        return { paragraphRects, positionWrites };
+        return { paragraphRects, paragraphRectsDuringScroll, positionWrites };
       } finally {
         HTMLElement.prototype.getBoundingClientRect = originalRect;
         Storage.prototype.setItem = originalSetItem;
       }
     });
+    // 每段连续滚动允许起始锚点做一次常数级测量；不能随绘制帧增长。
+    expect(scrollWork.paragraphRectsDuringScroll).toBeLessThanOrEqual(6);
     expect(scrollWork.paragraphRects).toBeLessThan(20);
     expect(scrollWork.positionWrites).toBeLessThanOrEqual(2);
+
+    await page.getByTitle("设置").click();
+    await page.getByRole("button", { name: /^编辑器/ }).click();
+    const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
+      .locator('input[type="checkbox"]');
+    if (!(await lineNumberToggle.isChecked())) {
+      await lineNumberToggle.evaluate((input: HTMLInputElement) => input.click());
+    }
+    await page.getByLabel("关闭设置").click();
+    const gutterNumbers = page.locator(".editor-block-number");
+    await expect.poll(() => gutterNumbers.count()).toBeGreaterThan(0);
+    expect(await gutterNumbers.count()).toBeLessThan(160);
+    await page.locator(".note-editor-scroll").evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    await expect(gutterNumbers.filter({ hasText: /^1200$/ })).toBeVisible();
+    expect(await gutterNumbers.count()).toBeLessThan(160);
 
     const lastBlock = editor.locator(":scope > p").last();
     await lastBlock.click();
@@ -288,6 +314,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(page.locator(".app-header")).toBeHidden();
     const focusBar = page.getByLabel("专注模式工具栏");
     await expect(focusBar).toBeVisible();
+    await expect(focusBar).toHaveCSS("backdrop-filter", "none");
     await expect(focusBar.locator(".mobile-focus-title")).toHaveText(title);
     await expect(page.locator(".note-title-row")).toBeHidden();
     await expect(page.locator(".editor-menu")).toBeHidden();

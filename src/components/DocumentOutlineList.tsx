@@ -25,7 +25,7 @@ interface DocumentOutlineListProps {
 }
 
 const VIRTUALIZE_AFTER = 100;
-const VIRTUAL_ROW_HEIGHT = 46;
+const VIRTUAL_ROW_HEIGHT = 40;
 const OVERSCAN_ROWS = 8;
 
 function initialWindow(entries: VisibleOutlineEntry[], activeOutlineIndex: number) {

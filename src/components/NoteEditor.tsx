@@ -29,6 +29,7 @@ import {
 // ── 自定义字体大小扩展 ──
 
 import { Extension, type Editor } from "@tiptap/core";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { CellSelection, deleteCellSelection, TableMap } from "@tiptap/pm/tables";
@@ -75,11 +76,17 @@ import {
   HeadingFold,
   expandHeadingFoldsAt,
   getCollapsedHeadingKeys,
-  isHeadingFolded,
   setAllHeadingFolds,
   toggleHeadingFold,
+  toggleHeadingSectionFold,
 } from "../extensions/HeadingFold";
-import { extractHeadingSections, headingSectionAtPosition, sessionHeadingFoldStore, visibleHeadingSections } from "../lib/heading-fold";
+import {
+  extractHeadingSections,
+  headingSectionAtPosition,
+  sessionHeadingFoldStore,
+  visibleHeadingSections,
+  type HeadingSection,
+} from "../lib/heading-fold";
 import { BlockIndent } from "../extensions/BlockIndent";
 import { StandaloneStrongLabel } from "../extensions/StandaloneStrongLabel";
 import { cacheEditorDocument, getCachedEditorDocument } from "../lib/editor-session-cache";
@@ -246,6 +253,89 @@ interface NoteEditorProps {
   onSearchTargetConsumed?: (requestId: number) => void;
 }
 
+interface EditorViewportAnchor {
+  position: number;
+  offsetTop: number;
+}
+
+interface AllHeadingFoldRoundTrip {
+  noteId: string;
+  document: ProseMirrorNode;
+  originalAnchor: EditorViewportAnchor;
+  userMoved: boolean;
+}
+
+function editorReadingViewport(root: HTMLElement) {
+  const rootRect = root.getBoundingClientRect();
+  const sticky = root.querySelector<HTMLElement>(":scope > .note-editor-sticky");
+  const stickyRect = sticky?.getBoundingClientRect();
+  const stickyBottom = sticky
+    && getComputedStyle(sticky).position === "sticky"
+    && stickyRect
+    && stickyRect.bottom > rootRect.top
+    ? Math.min(rootRect.bottom, stickyRect.bottom)
+    : rootRect.top;
+  const top = Math.max(rootRect.top, stickyBottom);
+  return { top, bottom: rootRect.bottom, height: Math.max(1, rootRect.bottom - top) };
+}
+
+/** 捕获正文视口顶部的顶层块及其像素偏移，不依赖易失效的 scrollTop 比例。 */
+function captureEditorViewportAnchor(editor: Editor, root: HTMLElement): EditorViewportAnchor | null {
+  if (editor.isDestroyed || !root.isConnected) return null;
+  const viewport = editorReadingViewport(root);
+  const editorRect = editor.view.dom.getBoundingClientRect();
+  const probeX = Math.min(editorRect.right - 1, Math.max(editorRect.left + 1, editorRect.left + 48));
+  for (const offset of [1, 8, 24, 48]) {
+    const mapped = editor.view.posAtCoords({
+      left: probeX,
+      top: Math.min(viewport.bottom - 1, viewport.top + offset),
+    })?.pos;
+    if (mapped === undefined) continue;
+    const safePosition = Math.max(0, Math.min(mapped, editor.state.doc.content.size));
+    const $mapped = editor.state.doc.resolve(safePosition);
+    const position = $mapped.depth >= 1 ? $mapped.before(1) : safePosition;
+    const block = editor.view.nodeDOM(position);
+    if (!(block instanceof HTMLElement)) continue;
+    const rect = block.getBoundingClientRect();
+    if (rect.height <= 0 || rect.bottom <= viewport.top + 0.5 || rect.top >= viewport.bottom) continue;
+    return { position, offsetTop: rect.top - viewport.top };
+  }
+  return null;
+}
+
+/**
+ * 在折叠布局中恢复块锚点。若原块被隐藏，则使用最外层已折叠标题作为
+ * 临时锚点；全部展开时原始块会重新成为目标。
+ */
+function restoreEditorViewportAnchor(
+  editor: Editor,
+  root: HTMLElement,
+  anchor: EditorViewportAnchor,
+  sections: readonly HeadingSection[],
+  collapsedKeys: ReadonlySet<string>,
+): number | null {
+  if (editor.isDestroyed || !root.isConnected) return null;
+  let position = Math.max(0, Math.min(anchor.position, editor.state.doc.content.size));
+  let block = editor.view.nodeDOM(position);
+  let rect = block instanceof HTMLElement ? block.getBoundingClientRect() : null;
+  if (!(block instanceof HTMLElement) || !rect || rect.height <= 0) {
+    const foldedParent = sections.find((section) => (
+      collapsedKeys.has(section.key)
+      && position >= section.headingEnd
+      && position < section.end
+    ));
+    if (!foldedParent) return null;
+    position = foldedParent.pos;
+    block = editor.view.nodeDOM(position);
+    if (!(block instanceof HTMLElement)) return null;
+    rect = block.getBoundingClientRect();
+    if (rect.height <= 0) return null;
+  }
+  const viewport = editorReadingViewport(root);
+  root.scrollTop += rect.top - viewport.top - anchor.offsetTop;
+  return position;
+}
+
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
@@ -284,6 +374,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const [headingFoldRevision, setHeadingFoldRevision] = useState(0);
   const headingFoldRenderFrameRef = useRef<number | null>(null);
   const headingFoldViewportFrameRef = useRef<number | null>(null);
+  const allHeadingFoldRoundTripRef = useRef<AllHeadingFoldRoundTrip | null>(null);
   const readonlyTouchPointerRef = useRef<{
     pointerId: number;
     startX: number;
@@ -294,7 +385,6 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     time: number;
     x: number;
     y: number;
-    sectionPos: number;
   } | null>(null);
   const suppressReadonlyDoubleClickUntilRef = useRef(0);
   const lastOutlineRequestIdRef = useRef(outlineRequestId);
@@ -675,6 +765,39 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   }, []);
 
   useEffect(() => {
+    allHeadingFoldRoundTripRef.current = null;
+    if (headingFoldViewportFrameRef.current !== null) {
+      window.cancelAnimationFrame(headingFoldViewportFrameRef.current);
+      headingFoldViewportFrameRef.current = null;
+    }
+  }, [noteId]);
+
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root || !editor) return;
+    const markUserMove = () => {
+      const roundTrip = allHeadingFoldRoundTripRef.current;
+      if (
+        roundTrip
+        && roundTrip.noteId === noteId
+        && roundTrip.document === editor.state.doc
+      ) roundTrip.userMoved = true;
+    };
+    // 不监听 scroll：折叠布局自身也会产生可信的滚动夹取事件。只把实际
+    // 输入视为用户改变阅读位置，避免将 WebKit 的自动 clamp 误判为手势。
+    root.addEventListener("wheel", markUserMove, { passive: true });
+    // 触摸滚动在连续 touchmove 前必定先 pointerdown；只监听起点，避免
+    // 在移动端滚动热路径中增加逐帧 JavaScript 工作。
+    root.addEventListener("pointerdown", markUserMove, { passive: true });
+    root.addEventListener("keydown", markUserMove);
+    return () => {
+      root.removeEventListener("wheel", markUserMove);
+      root.removeEventListener("pointerdown", markUserMove);
+      root.removeEventListener("keydown", markUserMove);
+    };
+  }, [editor, noteId]);
+
+  useEffect(() => {
     if (editor && showStatusBar) scheduleDocumentStats(editor, true);
   }, [editor, scheduleDocumentStats, showStatusBar]);
 
@@ -885,6 +1008,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
   const jumpToBookmark = useCallback((bookmark: DocumentBookmark) => {
     if (!editor || editor.isDestroyed) return;
+    allHeadingFoldRoundTripRef.current = null;
     expandHeadingFoldsAt(editor, bookmark.position);
     window.requestAnimationFrame(() => {
       if (editor.isDestroyed) return;
@@ -1061,6 +1185,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
   const jumpToOutlineHeading = useCallback((item: DocumentOutlineItem) => {
     if (!editor || editor.isDestroyed) return;
+    allHeadingFoldRoundTripRef.current = null;
     const position = Math.min(item.pos + 1, editor.state.doc.content.size);
     expandHeadingFoldsAt(editor, position);
     editor.commands.setTextSelection(position);
@@ -1080,6 +1205,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
   const toggleOutlineHeading = useCallback((position: number) => {
     if (!editor || editor.isDestroyed) return;
+    allHeadingFoldRoundTripRef.current = null;
     toggleHeadingFold(editor, position);
   }, [editor]);
 
@@ -1210,6 +1336,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
     let frame = 0;
     let restoreFrame = 0;
+    let scrollCaptureTimer = 0;
+    let scrollGestureActive = false;
     let adjusting = false;
     let lastObservedWidth = root.clientWidth;
     let lastWindowWidth = window.innerWidth;
@@ -1224,20 +1352,6 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       blockElement?: HTMLElement;
     } | null = null;
 
-    const visibleViewport = () => {
-      const rootRect = root.getBoundingClientRect();
-      const sticky = root.querySelector<HTMLElement>(":scope > .note-editor-sticky");
-      const stickyRect = sticky?.getBoundingClientRect();
-      const stickyBottom = sticky
-        && getComputedStyle(sticky).position === "sticky"
-        && stickyRect
-        && stickyRect.bottom > rootRect.top
-        ? Math.min(rootRect.bottom, stickyRect.bottom)
-        : rootRect.top;
-      const top = Math.max(rootRect.top, stickyBottom);
-      return { top, bottom: rootRect.bottom, height: Math.max(1, rootRect.bottom - top) };
-    };
-
     const blockPosition = (element: HTMLElement) => {
       const domPosition = editor.view.posAtDOM(element, 0, -1);
       const position = Math.max(0, Math.min(domPosition, editor.state.doc.content.size));
@@ -1248,7 +1362,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     const capture = () => {
       frame = 0;
       if (adjusting || editor.isDestroyed || !root.isConnected) return;
-      const viewport = visibleViewport();
+      const viewport = editorReadingViewport(root);
       const pos = Math.min(editor.state.selection.head, editor.state.doc.content.size);
       const coords = editor.view.coordsAtPos(pos);
       const caretVisible = !readonly
@@ -1304,10 +1418,33 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     const scheduleCapture = () => {
       if (!frame) frame = requestAnimationFrame(capture);
     };
+    const cancelSettledScrollCapture = () => {
+      if (!scrollCaptureTimer) return;
+      window.clearTimeout(scrollCaptureTimer);
+      scrollCaptureTimer = 0;
+    };
+    const captureAfterScrollSettles = () => {
+      if (adjusting) return;
+      // 每段连续滚动只在开始时取一次锚点，确保用户刚停下便旋转屏幕时
+      // 仍有较新的位置；后续滚动帧只重置静止定时器，不再做布局读取。
+      if (!scrollGestureActive) {
+        scrollGestureActive = true;
+        scheduleCapture();
+      }
+      cancelSettledScrollCapture();
+      // 位置锚点只用于将来的宽度/方向变化，不需要跟随滚动逐帧更新。
+      // posAtCoords/coordsAtPos 都可能触发布局与命中测试；把它们留到
+      // 滚动静止后，避免阻塞 WebKit 分块绘制。
+      scrollCaptureTimer = window.setTimeout(() => {
+        scrollCaptureTimer = 0;
+        scrollGestureActive = false;
+        scheduleCapture();
+      }, 140);
+    };
 
     const restoreAnchor = (previous: NonNullable<typeof anchor>) => {
       if (editor.isDestroyed || !root.isConnected) return;
-      const viewport = visibleViewport();
+      const viewport = editorReadingViewport(root);
       const pos = Math.min(previous.pos, editor.state.doc.content.size);
       if (previous.kind === "block") {
         const block = previous.blockElement?.isConnected
@@ -1332,6 +1469,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
     const clearSettleTimers = () => {
       while (settleTimers.length > 0) window.clearTimeout(settleTimers.pop());
+      cancelSettledScrollCapture();
+      scrollGestureActive = false;
       if (restoreFrame) cancelAnimationFrame(restoreFrame);
       restoreFrame = 0;
     };
@@ -1384,14 +1523,14 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
     editor.on("selectionUpdate", scheduleCapture);
     editor.on("focus", scheduleCapture);
-    root.addEventListener("scroll", scheduleCapture, { passive: true });
+    root.addEventListener("scroll", captureAfterScrollSettles, { passive: true });
     window.addEventListener("resize", onWindowResize);
     observer.observe(root);
     scheduleCapture();
     return () => {
       editor.off("selectionUpdate", scheduleCapture);
       editor.off("focus", scheduleCapture);
-      root.removeEventListener("scroll", scheduleCapture);
+      root.removeEventListener("scroll", captureAfterScrollSettles);
       window.removeEventListener("resize", onWindowResize);
       observer.disconnect();
       clearSettleTimers();
@@ -1459,21 +1598,34 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    let statusFrame = 0;
+    let statusTimer = 0;
     let persistTimer = 0;
+    let maximumScroll = Math.max(0, el.scrollHeight - el.clientHeight);
     let lastKnownScrollTop = Number(localStorage.getItem(`scrollPos:${noteId}`)) || 0;
+    const showLivePosition = showStatusBar && !isMobileToolbarViewport;
     const persistPosition = () => {
       localStorage.setItem(`scrollPos:${noteId}`, String(lastKnownScrollTop));
     };
     const updateStatusPosition = () => {
-      statusFrame = 0;
-      const maximum = Math.max(0, el.scrollHeight - el.clientHeight);
-      const percentage = maximum > 0
-        ? Math.max(0, Math.min(100, Math.round(lastKnownScrollTop / maximum * 100)))
+      const percentage = maximumScroll > 0
+        ? Math.max(0, Math.min(100, Math.round(lastKnownScrollTop / maximumScroll * 100)))
         : 0;
       if (scrollPositionRef.current) {
         scrollPositionRef.current.textContent = `位置 ${percentage}%`;
       }
+    };
+    const scheduleStatusPosition = () => {
+      if (!showLivePosition || statusTimer) return;
+      // 状态文字无需 60Hz 更新；10Hz 足够跟手，并且这里完全复用缓存的
+      // 可滚动高度，不在滚动热路径读取 scrollHeight 触发布局。
+      statusTimer = window.setTimeout(() => {
+        statusTimer = 0;
+        updateStatusPosition();
+      }, 100);
+    };
+    const refreshMaximumScroll = () => {
+      maximumScroll = Math.max(0, el.scrollHeight - el.clientHeight);
+      if (showLivePosition) scheduleStatusPosition();
     };
     const flushPosition = () => {
       if (persistTimer) window.clearTimeout(persistTimer);
@@ -1482,7 +1634,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     };
     const handler = () => {
       lastKnownScrollTop = el.scrollTop;
-      if (!statusFrame) statusFrame = requestAnimationFrame(updateStatusPosition);
+      scheduleStatusPosition();
       if (persistTimer) window.clearTimeout(persistTimer);
       persistTimer = window.setTimeout(flushPosition, 220);
     };
@@ -1491,6 +1643,12 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     };
     lastKnownScrollTop = el.scrollTop;
     updateStatusPosition();
+    const resizeObserver = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(refreshMaximumScroll);
+    resizeObserver?.observe(el);
+    const contentShell = el.querySelector<HTMLElement>(".editor-content-shell");
+    if (contentShell) resizeObserver?.observe(contentShell);
     el.addEventListener("scroll", handler, { passive: true });
     window.addEventListener("pagehide", flushPosition);
     window.addEventListener("nine-rings:main-window-hide", flushPosition);
@@ -1500,13 +1658,14 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       window.removeEventListener("pagehide", flushPosition);
       window.removeEventListener("nine-rings:main-window-hide", flushPosition);
       document.removeEventListener("visibilitychange", persistWhenHidden);
+      resizeObserver?.disconnect();
       // 关键修复：cleanup 时 DOM 可能已进入销毁阶段，scrollTop 被误读为 0
       // 此时不覆写——滚动事件已经在用户滚动时写入了正确值
       addLog(`[离开] ${noteId.slice(0,8)} 保存位置=${el.scrollTop}`);
       flushPosition();
-      if (statusFrame) cancelAnimationFrame(statusFrame);
+      if (statusTimer) window.clearTimeout(statusTimer);
     };
-  }, [noteId, showStatusBar]);
+  }, [isMobileToolbarViewport, noteId, showStatusBar]);
 
   const { chars, words } = documentStats;
 
@@ -1720,6 +1879,67 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     () => new Map(headingSections.map((section) => [section.pos, section])),
     [headingSections],
   );
+  const setAllHeadingFoldsKeepingViewport = useCallback((folded: boolean) => {
+    if (!editor || editor.isDestroyed) return;
+    const root = scrollRef.current;
+    if (!root) {
+      setAllHeadingFolds(editor, folded);
+      return;
+    }
+    if (headingFoldViewportFrameRef.current !== null) {
+      window.cancelAnimationFrame(headingFoldViewportFrameRef.current);
+      headingFoldViewportFrameRef.current = null;
+    }
+
+    const currentAnchor = captureEditorViewportAnchor(editor, root);
+    const existing = allHeadingFoldRoundTripRef.current;
+    const validRoundTrip = existing
+      && existing.noteId === noteId
+      && existing.document === editor.state.doc;
+    const stayedAtCollapsedViewport = Boolean(validRoundTrip && !existing.userMoved);
+
+    let anchorToRestore = currentAnchor;
+    let roundTrip: AllHeadingFoldRoundTrip | null = null;
+    if (folded) {
+      // 连续点按“全部折叠”且期间没有移动视口时，保留第一次折叠前的
+      // 原始位置；若用户已经滚到别处，则从当前位置开始新的往返。
+      roundTrip = validRoundTrip && stayedAtCollapsedViewport
+        ? existing
+        : currentAnchor
+          ? {
+              noteId,
+              document: editor.state.doc,
+              originalAnchor: currentAnchor,
+              userMoved: false,
+            }
+          : null;
+      allHeadingFoldRoundTripRef.current = roundTrip;
+    } else {
+      if (validRoundTrip && stayedAtCollapsedViewport) {
+        anchorToRestore = existing.originalAnchor;
+      }
+      allHeadingFoldRoundTripRef.current = null;
+    }
+
+    setAllHeadingFolds(editor, folded);
+    if (!anchorToRestore) return;
+
+    const restore = () => restoreEditorViewportAnchor(
+      editor,
+      root,
+      anchorToRestore!,
+      headingSections,
+      getCollapsedHeadingKeys(editor),
+    );
+    restore();
+
+    // WebKit 可能在当前事件结束时再次按新 scrollHeight 夹取 scrollTop；
+    // 下一绘制帧校正一次即可，无需持续监听或逐帧测量。
+    headingFoldViewportFrameRef.current = window.requestAnimationFrame(() => {
+      headingFoldViewportFrameRef.current = null;
+      restore();
+    });
+  }, [editor, headingSections, noteId]);
   const visibleOutlineEntries = useMemo<VisibleOutlineEntry[]>(() => (
     documentOutline
       .map((item, index) => ({ item, index }))
@@ -2123,21 +2343,22 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     }
   };
 
-  const toggleReadonlyHeadingAtPoint = (
+  const readonlyHeadingSectionAtPoint = (
     target: EventTarget | null,
     clientX: number,
     clientY: number,
-  ): boolean => {
-    if (!readonly || editor.isDestroyed) return false;
-    if (!(target instanceof Node) || !editor.view.dom.contains(target)) return false;
+  ): HeadingSection | null => {
+    if (!readonly || editor.isDestroyed) return null;
+    if (!(target instanceof Node) || !editor.view.dom.contains(target)) return null;
     const position = editor.view.posAtCoords({ left: clientX, top: clientY })?.pos;
-    if (position === undefined) return false;
-    const section = headingSectionAtPosition(extractHeadingSections(editor.state.doc), position);
-    if (!section) return false;
+    return position === undefined ? null : headingSectionAtPosition(headingSections, position);
+  };
 
+  const toggleReadonlyHeadingSection = (section: HeadingSection, clientY: number): boolean => {
+    allHeadingFoldRoundTripRef.current = null;
     const heading = editor.view.nodeDOM(section.pos);
     const scrollRoot = scrollRef.current;
-    const willCollapse = !isHeadingFolded(editor, section.pos);
+    const willCollapse = !getCollapsedHeadingKeys(editor).has(section.key);
     let desiredHeadingTop: number | null = null;
     if (willCollapse && heading instanceof HTMLElement && scrollRoot) {
       const headingRect = heading.getBoundingClientRect();
@@ -2152,7 +2373,9 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       );
     }
 
-    if (!toggleHeadingFold(editor, section.pos)) return false;
+    // 双击路径自行保持标题的视口位置，不让 ProseMirror 再围绕旧选区
+    // scrollIntoView；后者在折叠长章节时会造成一次多余的同步滚动与布局。
+    if (!toggleHeadingSectionFold(editor, section, false)) return false;
     if (desiredHeadingTop !== null && scrollRoot) {
       if (headingFoldViewportFrameRef.current !== null) {
         window.cancelAnimationFrame(headingFoldViewportFrameRef.current);
@@ -2166,6 +2389,15 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       });
     }
     return true;
+  };
+
+  const toggleReadonlyHeadingAtPoint = (
+    target: EventTarget | null,
+    clientX: number,
+    clientY: number,
+  ): boolean => {
+    const section = readonlyHeadingSectionAtPoint(target, clientX, clientY);
+    return section ? toggleReadonlyHeadingSection(section, clientY) : false;
   };
 
   const handleReadonlyHeadingDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -2220,15 +2452,10 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       || Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY) > 12
     ) return;
 
-    const position = editor.view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
-    if (position === undefined) return;
-    const section = headingSectionAtPosition(extractHeadingSections(editor.state.doc), position);
-    if (!section) return;
     const now = performance.now();
     const previous = readonlyLastTapRef.current;
     const isDoubleTap = Boolean(
       previous
-      && previous.sectionPos === section.pos
       && now - previous.time <= 420
       && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 24
     );
@@ -2237,13 +2464,14 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         time: now,
         x: event.clientX,
         y: event.clientY,
-        sectionPos: section.pos,
       };
       return;
     }
 
     readonlyLastTapRef.current = null;
-    if (!toggleReadonlyHeadingAtPoint(event.target, event.clientX, event.clientY)) return;
+    // 与旧版原生 dblclick 一致，只在确认第二次点按后做一次命中测试。
+    const section = readonlyHeadingSectionAtPoint(event.target, event.clientX, event.clientY);
+    if (!section || !toggleReadonlyHeadingSection(section, event.clientY)) return;
     // 部分 WebKit 版本会在 pointer 事件后补发 dblclick，必须吞掉一次，
     // 否则章节会立即折叠后再展开，看起来像完全没有响应。
     suppressReadonlyDoubleClickUntilRef.current = now + 650;
@@ -2401,8 +2629,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           <div className="document-outline-header">
             <span>目录</span>
             <div className="document-outline-header-actions">
-              <button type="button" onClick={() => setAllHeadingFolds(editor, true)} title="折叠全部章节">全部折叠</button>
-              <button type="button" onClick={() => setAllHeadingFolds(editor, false)} title="展开全部章节">全部展开</button>
+              <button type="button" onClick={() => setAllHeadingFoldsKeepingViewport(true)} title="折叠全部章节">全部折叠</button>
+              <button type="button" onClick={() => setAllHeadingFoldsKeepingViewport(false)} title="展开全部章节">全部展开</button>
               <div
                 className={`document-outline-jumps ${outlineOverflow ? "" : "is-placeholder"}`}
                 aria-label="目录快速滚动"
@@ -3152,7 +3380,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             showInsertButtons={!isMobileToolbarViewport}
             readonly={!!readonly}
             onBlockCountChange={setGutterBlockCount}
-            onHeadingFoldToggle={(position) => toggleHeadingFold(editor, position)}
+            onHeadingFoldToggle={toggleOutlineHeading}
           />
           <EditorContent
             editor={editor}

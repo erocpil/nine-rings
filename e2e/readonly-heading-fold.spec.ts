@@ -36,21 +36,21 @@ test("只读文档双击标题或正文切换所属标题章节", async ({ page 
   const nextHeading = editor.locator("h1").filter({ hasText: /^下一个一级标题$/ });
 
   await firstHeading.dblclick();
-  await expect(editor.getByText("一级正文", { exact: true })).toHaveClass(/heading-fold-hidden/);
-  await expect(nestedHeading).toHaveClass(/heading-fold-hidden/);
+  await expect(editor.getByText("一级正文", { exact: true })).toBeHidden();
+  await expect(nestedHeading).toBeHidden();
   await expect(nextHeading).toBeVisible();
 
   await firstHeading.dblclick();
-  await expect(editor.getByText("一级正文", { exact: true })).not.toHaveClass(/heading-fold-hidden/);
-  await expect(nestedHeading).not.toHaveClass(/heading-fold-hidden/);
+  await expect(editor.getByText("一级正文", { exact: true })).toBeVisible();
+  await expect(nestedHeading).toBeVisible();
 
   await editor.getByText("二级正文", { exact: true }).dblclick();
-  await expect(editor.getByText("二级正文", { exact: true })).toHaveClass(/heading-fold-hidden/);
+  await expect(editor.getByText("二级正文", { exact: true })).toBeHidden();
   await expect(editor.getByText("一级正文", { exact: true })).toBeVisible();
   await expect(nestedHeading).toBeVisible();
 
   await nestedHeading.dblclick();
-  await expect(editor.getByText("二级正文", { exact: true })).not.toHaveClass(/heading-fold-hidden/);
+  await expect(editor.getByText("二级正文", { exact: true })).toBeVisible();
 });
 
 test("只读正文双击折叠后所属标题停留在双击位置附近", async ({ page }) => {
@@ -80,7 +80,7 @@ test("只读正文双击折叠后所属标题停留在双击位置附近", async
   const doubleClickY = targetBox!.y + targetBox!.height / 2;
 
   await target.dblclick();
-  await expect(target).toHaveClass(/heading-fold-hidden/);
+  await expect(target).toBeHidden();
   const headingBox = await editor.getByText("待折叠章节", { exact: true }).boundingBox();
   expect(headingBox).not.toBeNull();
   const headingCenterY = headingBox!.y + headingBox!.height / 2;
@@ -144,9 +144,67 @@ test("手机只读专注模式可通过触摸双击折叠和展开章节", async
   const heading = editor.getByText("触摸标题", { exact: true });
   const body = editor.getByText("触摸正文", { exact: true });
   await touchDoubleTap(body);
-  await expect(body).toHaveClass(/heading-fold-hidden/);
+  await expect(body).toBeHidden();
   await expect(editor.getByText("后续标题", { exact: true })).toBeVisible();
 
   await touchDoubleTap(heading);
-  await expect(body).not.toHaveClass(/heading-fold-hidden/);
+  await expect(body).toBeVisible();
+});
+
+test("千块只读文档在专注模式下触摸双击可及时折叠", async ({ page }) => {
+  test.slow();
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+  const editor = page.locator(".ProseMirror");
+  const body = Array.from({ length: 1200 }, (_, index) => `长文档正文 ${index + 1}`).join("\n\n");
+  await editor.evaluate((element, markdown) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", markdown);
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  }, `# 长文档章节\n\n${body}\n\n# 后续章节\n\n后续正文`);
+  await expect(editor.locator(":scope > *")).toHaveCount(1203);
+  await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 10000 });
+
+  await page.locator(".sidebar-item.active").getByTitle("设为只读")
+    .evaluate((button: HTMLButtonElement) => button.click());
+  await page.setViewportSize({ width: 390, height: 760 });
+  await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 100 } });
+  await page.locator(".note-title-row").getByTitle("专注模式").click();
+
+  const target = editor.getByText("长文档正文 600", { exact: true });
+  await target.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  const foldWork = await target.evaluate((element) => {
+    const editorElement = element.closest(".ProseMirror")!;
+    const observer = new MutationObserver(() => undefined);
+    observer.observe(editorElement, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class", "style", "hidden"],
+    });
+    const rect = element.getBoundingClientRect();
+    const init = {
+      bubbles: true,
+      pointerId: 9,
+      pointerType: "touch",
+      isPrimary: true,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2,
+    };
+    element.dispatchEvent(new PointerEvent("pointerdown", init));
+    element.dispatchEvent(new PointerEvent("pointerup", init));
+    const startedAt = performance.now();
+    element.dispatchEvent(new PointerEvent("pointerdown", init));
+    element.dispatchEvent(new PointerEvent("pointerup", init));
+    const elapsed = performance.now() - startedAt;
+    const blockAttributeMutations = observer.takeRecords().length;
+    observer.disconnect();
+    return { elapsed, blockAttributeMutations };
+  });
+  await expect(target).toBeHidden();
+  await expect(editor.getByText("后续章节", { exact: true })).toBeVisible();
+  expect(foldWork.blockAttributeMutations).toBeLessThan(20);
+  expect(foldWork.elapsed).toBeLessThan(100);
 });
