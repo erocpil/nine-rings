@@ -153,6 +153,23 @@ function assert(condition: boolean, msg: string): void {
   assert(result.ops.some((o: any) => o.insert === "First"), "First text found");
 }
 
+{
+  console.log("\n── Ordered list lazy continuation ──");
+  const result = mdToDelta("1. aaa\nbbb\n2. ccc\n   ddd");
+  const listLines = result.ops.filter((op: any) => op.attributes?.list === "ordered");
+  const hardBreaks = result.ops.filter((op: any) => typeof op.insert === "string" && op.insert.startsWith("\n") && op.insert.length > 1);
+  assert(listLines.length === 2, "continuation lines do not create extra list items");
+  assert(hardBreaks.length === 2, "source continuation lines are preserved as hard breaks");
+
+  const pm = deltaToProseMirror(result);
+  const items = pm.content
+    .filter((node: any) => node.type === "orderedList")
+    .flatMap((list: any) => list.content ?? []);
+  assert(items.length === 2, "two ordered list items are rendered");
+  assert(items.every((item: any) => item.content?.[0]?.content?.some((node: any) => node.type === "hardBreak")),
+    "each rendered list item preserves its continuation line");
+}
+
 // 有序项之间包含缩进段落/代码块时会成为独立的 ProseMirror 列表节点，
 // 每个节点仍必须从 Markdown 中声明的编号开始，而不是全部重置为 1。
 {

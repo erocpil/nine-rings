@@ -49,6 +49,7 @@ import {
 } from "../extensions/SearchHighlights";
 import { noteToMarkdown } from "../lib/markdown-serializer";
 import { exportMarkdownWithDialog, isTauri } from "../lib/tauri-desktop";
+import { exportDocumentAsPdf, type PdfDocumentInfo } from "../lib/pdf-export";
 import { editorGutterWidth } from "../lib/editor-gutter";
 import { clipboardSliceToPlainText } from "../lib/clipboard-plain-text";
 import { exitCurrentStructuredBlock, StructuredBlockExit } from "../extensions/StructuredBlockExit";
@@ -78,6 +79,7 @@ import {
 } from "../extensions/HeadingFold";
 import { extractHeadingSections, sessionHeadingFoldStore, visibleHeadingSections } from "../lib/heading-fold";
 import { BlockIndent } from "../extensions/BlockIndent";
+import { cacheEditorDocument, getCachedEditorDocument } from "../lib/editor-session-cache";
 
 const FontSize = Extension.create({
   name: "fontSize",
@@ -206,6 +208,8 @@ interface NoteEditorProps {
   noteId: string;
   title: string | null;
   content: DeltaOps;
+  contentVersion?: string;
+  pdfDocumentInfo?: PdfDocumentInfo;
   tags: string[];
   readonly?: boolean;
   onReadonlyChange?: (readonly: boolean) => Promise<void> | void;
@@ -235,7 +239,7 @@ interface NoteEditorProps {
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, vimModeEnabled, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
+export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDocumentInfo, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, vimModeEnabled, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -243,6 +247,10 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const toolbarSelectionRef = useRef<{ from: number; to: number } | null>(null);
   const toolbarCellSelectionRef = useRef<CellSelection | null>(null);
   const toolbarInteractingRef = useRef(false);
+  const documentMetadataRef = useRef(content.metadata);
+  documentMetadataRef.current = content.metadata;
+  const contentVersionRef = useRef(contentVersion);
+  contentVersionRef.current = contentVersion;
   const searchMatchesRef = useRef<SearchMatch[]>([]);
   const editorFindOriginRef = useRef(0);
   const editorFindInputRef = useRef<HTMLInputElement>(null);
@@ -315,6 +323,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   });
   const [markdownPasteText, setMarkdownPasteText] = useState<string | null>(null);
   const [markdownSelectionNotice, setMarkdownSelectionNotice] = useState(false);
+  const [readonlyChangeNotice, setReadonlyChangeNotice] = useState(false);
   const [gutterBlockCount, setGutterBlockCount] = useState(0);
   const [currentStatusBlock, setCurrentStatusBlock] = useState(1);
   const [selectedTableCellCount, setSelectedTableCellCount] = useState(0);
@@ -332,6 +341,12 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     const timer = window.setTimeout(() => setMarkdownSelectionNotice(false), 4000);
     return () => window.clearTimeout(timer);
   }, [markdownSelectionNotice]);
+
+  useEffect(() => {
+    if (!readonlyChangeNotice) return;
+    const timer = window.setTimeout(() => setReadonlyChangeNotice(false), 2400);
+    return () => window.clearTimeout(timer);
+  }, [readonlyChangeNotice]);
 
   // ── [[ 双向链接自动补全 ──
   const [wikiOpen, setWikiOpen] = useState(false);
@@ -438,9 +453,15 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   // 检测 content 格式并转换
   const tipTapContent = useMemo(() => {
     if (isProseMirror(content)) return content;
-    if (isDelta(content)) return deltaToProseMirror(content);
+    if (isDelta(content)) {
+      const cached = getCachedEditorDocument(noteId, contentVersion);
+      if (cached) return cached;
+      const converted = deltaToProseMirror(content);
+      cacheEditorDocument(noteId, contentVersion, converted);
+      return converted;
+    }
     return content; // fallback
-  }, [content]);
+  }, [content, contentVersion, noteId]);
 
   const editor = useEditor({
     extensions: [
@@ -489,7 +510,8 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
         },
       }),
       VimMode.configure({
-        enabled: vimModeEnabled && !readonly,
+        enabled: vimModeEnabled,
+        readOnly: Boolean(readonly),
         onModeChange: setVimEditorMode,
         onSearch: (direction) => vimSearchActionRef.current(direction),
       }),
@@ -497,6 +519,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     content: tipTapContent,
     editable: !readonly,
     editorProps: {
+      attributes: { tabindex: "0" },
       transformPastedHTML: normalizePastedHTML,
       transformPasted: normalizeSingleParagraphPaste,
       clipboardTextSerializer: clipboardSliceToPlainText,
@@ -520,9 +543,13 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       // 等自动保存真正 flush 时才执行全文 JSON + Delta 转换，避免长文档
       // 在输入热路径上反复 O(N) 序列化。
       const docSnapshot = ed.state.doc;
-      onContentChange(() => (
-        proseMirrorToDelta(docSnapshot.toJSON()) as unknown as DeltaOps
-      ));
+      onContentChange(() => {
+        const editorDocument = docSnapshot.toJSON();
+        cacheEditorDocument(noteId, contentVersionRef.current, editorDocument);
+        const delta = proseMirrorToDelta(editorDocument) as unknown as DeltaOps;
+        const metadata = documentMetadataRef.current;
+        return metadata ? { ...delta, metadata } : delta;
+      });
       // 节流日志：每秒最多一次
       const now = Date.now();
       if (now - _lastSaveLog > 1000) {
@@ -567,6 +594,12 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       window.cancelAnimationFrame(headingFoldRenderFrameRef.current);
     }
   }, []);
+
+  useEffect(() => () => {
+    if (editor && !editor.isDestroyed) {
+      cacheEditorDocument(noteId, contentVersionRef.current, editor.getJSON());
+    }
+  }, [editor, noteId]);
 
   // Mobile browsers resize the visual viewport after the keyboard animation. ProseMirror's
   // native selection scrolling can run before that resize and leave the caret underneath
@@ -619,7 +652,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
   useEffect(() => {
     if (!editor) return;
-    setVimModeEnabled(editor, vimModeEnabled && !readonly);
+    setVimModeEnabled(editor, vimModeEnabled, Boolean(readonly));
   }, [editor, readonly, vimModeEnabled]);
 
   useEffect(() => {
@@ -1713,6 +1746,17 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     URL.revokeObjectURL(url);
   };
 
+  const handleExportPdf = () => {
+    const opened = exportDocumentAsPdf({
+      title: localTitle.trim() || "无标题",
+      contentHtml: editor.getHTML(),
+      metadata: pdfDocumentInfo,
+    });
+    if (!opened) {
+      window.alert("无法打开 PDF 打印页，请允许此站点打开弹出窗口后重试。");
+    }
+  };
+
   const getTableCellContext = () => {
     const { state, view } = editor;
     if (state.selection instanceof CellSelection) {
@@ -1834,6 +1878,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
   const moreActions = (<>
     <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setMoreOpen(false); }} type="button">M↑ 导出 Markdown</button>
+    <button className="menu-dropdown-item" onClick={() => { handleExportPdf(); setMoreOpen(false); }} type="button">PDF 导出（含目录）</button>
     <div className="menu-dropdown-sep" />
     <button className="menu-dropdown-item" onClick={() => {
       setLinkDialogUrl(editor.getAttributes("link").href || "");
@@ -2028,12 +2073,14 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             <button
               type="button"
               className="note-readonly-badge note-readonly-action"
-              onClick={() => void onReadonlyChange(false)}
-              title="取消只读，进入编辑模式"
-              aria-label="取消只读，进入编辑模式"
+              onClick={async () => {
+                await onReadonlyChange(false);
+                setReadonlyChangeNotice(true);
+              }}
+              title="点击设为可编辑"
+              aria-label="点击设为可编辑"
             >
-              <span aria-hidden="true">🔓</span>
-              <span>编辑</span>
+              <span aria-hidden="true">🔒</span>
             </button>
           ) : (
             <span className="note-readonly-badge" title="只读">🔒</span>
@@ -2392,6 +2439,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
                   <button className="menu-dropdown-item" onClick={() => { handleCut(); setClipOpen(false); }} type="button">✂ 剪切</button>
                   <button className="menu-dropdown-item" onClick={() => { handleClipboardPaste(); setClipOpen(false); }} type="button">📝 粘贴</button>
                   <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setClipOpen(false); }} type="button">M↑ 导出 Markdown</button>
+                  <button className="menu-dropdown-item" onClick={() => { handleExportPdf(); setClipOpen(false); }} type="button">PDF 导出（含目录）</button>
                 </div>
               )}
             </div>
@@ -2400,6 +2448,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           {btn("✂", handleCut, false, "剪切 (Ctrl+X)", readonly)}
           {btn("📝", handleClipboardPaste, false, "粘贴 (Ctrl+V)", readonly)}
           {btn("M↑", () => { void handleExportMarkdown(); }, false, "导出 Markdown", false)}
+          {btn("PDF", handleExportPdf, false, "导出 PDF（含目录）", false)}
           </>)}
           <span className="menu-sep" />
 
@@ -2673,6 +2722,11 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             <button type="button" onClick={() => { editor.chain().focus().undo().run(); setMarkdownSelectionNotice(false); }}>撤销</button>
           </div>
         )}
+        {readonlyChangeNotice && (
+          <div className="markdown-paste-notice readonly-change-notice" role="status">
+            <span>已设置为可编辑</span>
+          </div>
+        )}
         <div
           className="editor-content-shell"
           style={{ "--editor-gutter-width": `${editorGutterWidth(gutterBlockCount, showLineNumbers, isMobileToolbarViewport)}px` } as React.CSSProperties}
@@ -2685,7 +2739,16 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             onBlockCountChange={setGutterBlockCount}
             onHeadingFoldToggle={(position) => toggleHeadingFold(editor, position)}
           />
-          <EditorContent editor={editor} className="editor-content" onContextMenu={handleEditorContextMenu} />
+          <EditorContent
+            editor={editor}
+            className="editor-content"
+            onClick={() => {
+              if (readonly && vimModeEnabled) {
+                editor.view.dom.focus({ preventScroll: true });
+              }
+            }}
+            onContextMenu={handleEditorContextMenu}
+          />
         </div>
 
         {/* ── [[ 双向链接下拉 ── */}
@@ -2730,7 +2793,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             >×</button>
           </span>
         )}
-        {vimModeEnabled && !readonly && (
+        {vimModeEnabled && (
           <>
             <span className={`editor-vim-status vim-${vimEditorMode}`}>{VIM_MODE_LABELS[vimEditorMode]}</span>
             <span className="stat-sep">|</span>
@@ -2750,7 +2813,9 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           <span>{words} 词</span>
           <span className="stat-sep">|</span>
           <span className="stat-hint">
-            {vimModeEnabled && !readonly ? "Esc Normal · i Insert · Ctrl+F/B 翻页" : "Ctrl+Z · 粘贴/拖入图片"}
+            {vimModeEnabled
+              ? readonly ? "NORMAL · 只读导航 · Ctrl+F/B 翻页" : "Esc Normal · i Insert · Ctrl+F/B 翻页"
+              : "Ctrl+Z · 粘贴/拖入图片"}
           </span>
         </span>
         {onVersionOpen && (

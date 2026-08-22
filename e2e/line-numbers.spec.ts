@@ -26,7 +26,7 @@ test.describe("编辑器块级 gutter", () => {
     await jumpInput.fill("30");
     await jumpInput.press("Enter");
     await expect(jumpInput).toHaveCount(0);
-    await expect.poll(() => editor.evaluate((element) => {
+    await expect.poll(() => editor.evaluate(() => {
       const anchor = window.getSelection()?.anchorNode;
       const block = anchor instanceof Element ? anchor.closest(":scope > p") : anchor?.parentElement?.closest("p");
       return block?.textContent ?? "";
@@ -64,7 +64,7 @@ test.describe("编辑器块级 gutter", () => {
     await expect(lineNumberToggle).toBeChecked();
     await page.locator(".settings-close").click();
     await expect(page.locator(".note-editor")).toHaveClass(/show-line-numbers/);
-    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "30px");
+    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "26px");
 
     const readonlyButton = page.locator(".sidebar-item.active").getByTitle("设为只读");
     await readonlyButton.evaluate((button: HTMLButtonElement) => button.click());
@@ -72,6 +72,12 @@ test.describe("编辑器块级 gutter", () => {
 
     await expect(page.locator(".editor-block-number")).toHaveText(["1", "2"]);
     await expect(page.locator(".editor-block-insert")).toHaveCount(0);
+
+    const unlockButton = page.getByRole("button", { name: "点击设为可编辑" });
+    await expect(unlockButton).toHaveText("🔒");
+    await unlockButton.click();
+    await expect(editor).toHaveAttribute("contenteditable", "true");
+    await expect(page.getByRole("status").filter({ hasText: "已设置为可编辑" })).toBeVisible();
   });
 
   test("悬停块编号会在原位置显示块格式", async ({ page }) => {

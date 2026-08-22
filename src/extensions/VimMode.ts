@@ -15,6 +15,7 @@ export type VimEditorMode = "normal" | "insert" | "visual" | "visual-line";
 
 interface VimPluginState {
   enabled: boolean;
+  readOnly: boolean;
   mode: VimEditorMode;
   count: string;
   pending: "" | "d" | "y" | "g";
@@ -30,14 +31,16 @@ interface VimRegister {
 
 export interface VimModeOptions {
   enabled: boolean;
+  readOnly: boolean;
   onModeChange?: (mode: VimEditorMode) => void;
   onSearch?: (direction: 1 | -1 | 0) => void;
 }
 
 export const vimModePluginKey = new PluginKey<VimPluginState>("nineRingsVimMode");
 
-const initialState = (enabled: boolean): VimPluginState => ({
+const initialState = (enabled: boolean, readOnly: boolean): VimPluginState => ({
   enabled,
+  readOnly,
   mode: enabled ? "normal" : "insert",
   count: "",
   pending: "",
@@ -421,7 +424,7 @@ function handleVimKey(
   }
 
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "r") {
-    redo(view.state, view.dispatch);
+    if (!vim.readOnly) redo(view.state, view.dispatch);
     finishCommand(view);
     return true;
   }
@@ -454,7 +457,7 @@ function handleVimKey(
       };
     }
     let tr = view.state.tr;
-    if (key === "y") {
+    if (key === "y" || vim.readOnly) {
       tr = tr.setSelection(TextSelection.near(view.state.doc.resolve(selection.head), 1));
     } else {
       tr = tr.deleteSelection();
@@ -484,6 +487,10 @@ function handleVimKey(
       const { from, to, startIndex } = blockRange(view.state, count);
       if (registerRef) registerRef.current = { slice: view.state.doc.slice(from, to), linewise: true };
       if (vim.pending === "d") {
+        if (vim.readOnly) {
+          finishCommand(view);
+          return true;
+        }
         let tr: Transaction;
         if (from === 0 && to === view.state.doc.content.size) {
           const paragraph = view.state.schema.nodes.paragraph.create();
@@ -533,22 +540,24 @@ function handleVimKey(
       finishCommand(view);
       return true;
     }
-    case "i": enterMode(view, "insert"); return true;
+    case "i": if (!vim.readOnly) enterMode(view, "insert"); return true;
     case "a": {
+      if (vim.readOnly) return true;
       dispatchSelection(view, inlineMotionPosition(view.state, "right", 1), vim, false);
       enterMode(view, "insert");
       return true;
     }
-    case "I": inlineMove("start"); enterMode(view, "insert"); return true;
-    case "A": inlineMove("end"); enterMode(view, "insert"); return true;
-    case "o": insertParagraphAtBlock(view, false); enterMode(view, "insert"); return true;
-    case "O": insertParagraphAtBlock(view, true); enterMode(view, "insert"); return true;
+    case "I": if (!vim.readOnly) { inlineMove("start"); enterMode(view, "insert"); } return true;
+    case "A": if (!vim.readOnly) { inlineMove("end"); enterMode(view, "insert"); } return true;
+    case "o": if (!vim.readOnly) { insertParagraphAtBlock(view, false); enterMode(view, "insert"); } return true;
+    case "O": if (!vim.readOnly) { insertParagraphAtBlock(view, true); enterMode(view, "insert"); } return true;
     case "v": enterMode(view, "visual", view.state.selection.head); return true;
     case "V": setLineVisualSelection(view); return true;
-    case "x": deleteInline(view, count, registerRef); finishCommand(view); return true;
-    case "d": updateVimState(view, { pending: "d" }); return true;
+    case "x": if (!vim.readOnly) deleteInline(view, count, registerRef); finishCommand(view); return true;
+    case "d": if (!vim.readOnly) updateVimState(view, { pending: "d" }); return true;
     case "y": updateVimState(view, { pending: "y" }); return true;
     case "p": {
+      if (vim.readOnly) return true;
       const register = registerRef?.current;
       if (!register) return true;
       if (register.linewise) {
@@ -561,7 +570,7 @@ function handleVimKey(
       finishCommand(view);
       return true;
     }
-    case "u": undo(view.state, view.dispatch); finishCommand(view); return true;
+    case "u": if (!vim.readOnly) undo(view.state, view.dispatch); finishCommand(view); return true;
     case "/": onSearch?.(0); finishCommand(view); return true;
     case "n": onSearch?.(1); finishCommand(view); return true;
     case "N": onSearch?.(-1); finishCommand(view); return true;
@@ -575,7 +584,7 @@ export const VimMode = Extension.create<VimModeOptions>({
   priority: 1000,
 
   addOptions() {
-    return { enabled: false };
+    return { enabled: false, readOnly: false };
   },
 
   addProseMirrorPlugins() {
@@ -585,7 +594,7 @@ export const VimMode = Extension.create<VimModeOptions>({
       new Plugin<VimPluginState>({
         key: vimModePluginKey,
         state: {
-          init: () => initialState(options.enabled),
+          init: () => initialState(options.enabled, options.readOnly),
           apply(tr, value) {
             const meta = tr.getMeta(vimModePluginKey) as VimMeta | undefined;
             return meta ? { ...value, ...meta } : value;
@@ -597,11 +606,11 @@ export const VimMode = Extension.create<VimModeOptions>({
           },
           handleTextInput(view) {
             const vim = vimModePluginKey.getState(view.state);
-            return Boolean(vim?.enabled && vim.mode !== "insert");
+            return Boolean(vim?.enabled && (vim.readOnly || vim.mode !== "insert"));
           },
           handlePaste(view) {
             const vim = vimModePluginKey.getState(view.state);
-            return Boolean(vim?.enabled && vim.mode !== "insert");
+            return Boolean(vim?.enabled && (vim.readOnly || vim.mode !== "insert"));
           },
         },
         view(view) {
@@ -657,8 +666,20 @@ export const VimMode = Extension.create<VimModeOptions>({
             scheduleCaret();
           };
           const viewport = window.visualViewport;
+          const handleReadonlyKeyDown = (event: KeyboardEvent) => {
+            const vim = vimModePluginKey.getState(view.state);
+            if (!vim?.enabled || !vim.readOnly || event.defaultPrevented) return;
+            // ProseMirror does not route its editable key handlers when the view
+            // is contenteditable=false. Keep a narrow native listener so Vim
+            // navigation remains available without making the document writable.
+            if (handleVimKey(view, event, options.onSearch, registerRef)) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          };
           view.dom.addEventListener("focus", scheduleCaret);
           view.dom.addEventListener("blur", scheduleCaret);
+          view.dom.addEventListener("keydown", handleReadonlyKeyDown);
           scrollRoot?.addEventListener("scroll", scheduleCaret, { passive: true });
           window.addEventListener("resize", scheduleCaret);
           window.addEventListener("scroll", scheduleCaret, true);
@@ -671,6 +692,7 @@ export const VimMode = Extension.create<VimModeOptions>({
               if (renderFrame !== null) cancelAnimationFrame(renderFrame);
               view.dom.removeEventListener("focus", scheduleCaret);
               view.dom.removeEventListener("blur", scheduleCaret);
+              view.dom.removeEventListener("keydown", handleReadonlyKeyDown);
               scrollRoot?.removeEventListener("scroll", scheduleCaret);
               window.removeEventListener("resize", scheduleCaret);
               window.removeEventListener("scroll", scheduleCaret, true);
@@ -687,11 +709,12 @@ export const VimMode = Extension.create<VimModeOptions>({
   },
 });
 
-export function setVimModeEnabled(editor: Editor, enabled: boolean) {
+export function setVimModeEnabled(editor: Editor, enabled: boolean, readOnly = false) {
   const current = vimModePluginKey.getState(editor.state);
-  if (!current || current.enabled === enabled) return;
+  if (!current || (current.enabled === enabled && current.readOnly === readOnly)) return;
   editor.view.dispatch(editor.state.tr.setMeta(vimModePluginKey, {
     enabled,
+    readOnly,
     mode: enabled ? "normal" : "insert",
     count: "",
     pending: "",

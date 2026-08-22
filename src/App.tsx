@@ -19,7 +19,7 @@ import { useAutoSave } from "./hooks/useAutoSave";
 import { useSettings } from "./hooks/useSettings";
 import DocTree from "./components/DocTree";
 import { DocMOC } from "./components/DocMOC";
-import type { DeltaOps, Note, DocType, SearchNavigationTarget } from "./types/models";
+import type { DeltaOps, DocumentMetadata, Note, DocType, SearchNavigationTarget } from "./types/models";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
 import type { Template } from "./lib/storage/template-store";
 import { templateStore } from "./lib/storage/template-store";
@@ -39,6 +39,12 @@ import { rememberRecentNote } from "./lib/quick-switcher";
 const WORKSPACE_TARGET_KEY = "nr:workspaceTarget";
 const ACTIVE_TAG_KEY = "nr:activeTag";
 const DOC_TREE_COLLAPSED_KEY = "nr:docTreeCollapsed";
+const PDF_DOC_TYPE_LABELS: Record<DocType, string> = {
+  explanation: "解释",
+  "how-to": "指南",
+  reference: "参考",
+  tutorial: "教程",
+};
 
 const RecycleBin = lazy(() => import("./components/RecycleBin").then((module) => ({ default: module.RecycleBin })));
 const VersionHistory = lazy(() => import("./components/VersionHistory").then((module) => ({ default: module.VersionHistory })));
@@ -309,6 +315,25 @@ function App() {
   const [syncBusy, setSyncBusy] = useState(false);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const { config, settingsOpen, setSettingsOpen, handleConfigChange } = useSettings();
+  const selectedDocumentMetadata = selectedNote?.content.metadata;
+  const pdfDocumentInfo = selectedNote ? {
+    author: selectedDocumentMetadata?.author || config?.user_name,
+    organization: selectedDocumentMetadata?.organization || config?.user_organization,
+    email: selectedDocumentMetadata?.email || config?.user_email,
+    website: selectedDocumentMetadata?.website || config?.user_website,
+    summary: selectedDocumentMetadata?.summary,
+    keywords: selectedDocumentMetadata?.keywords,
+    language: selectedDocumentMetadata?.language || config?.user_default_language,
+    version: selectedDocumentMetadata?.version,
+    copyright: selectedDocumentMetadata?.copyright || config?.user_copyright,
+    license: selectedDocumentMetadata?.license || config?.user_default_license,
+    documentType: selectedNote.docType ? PDF_DOC_TYPE_LABELS[selectedNote.docType] : undefined,
+    path: selectedNote.storagePath,
+    tags: selectedNote.tags,
+    concepts: selectedNote.concepts,
+    createdAt: selectedNote.created_at,
+    updatedAt: selectedNote.updated_at,
+  } : undefined;
   const handleEditorFontSizeChange = useCallback((size: number) => {
     void api.config.set({ note_font_size: Math.min(32, Math.max(12, size)) })
       .then(handleConfigChange)
@@ -413,6 +438,19 @@ function App() {
     revealDocTreePath(targetPath);
     setDocTreeKey((key) => key + 1);
   }, [flushAutoSave, revealDocTreePath, selectNote]);
+
+  const handleDocumentMetadataUpdate = useCallback(async (metadata: DocumentMetadata) => {
+    const currentSelected = useNotesStore.getState().selectedNote;
+    if (!currentSelected) throw new Error("当前没有打开的文档");
+    await flushAutoSave();
+    const latest = await api.notes.get(currentSelected.id);
+    if (!latest) throw new Error("文档不存在或已被删除");
+    const nextContent: DeltaOps = { ...latest.content };
+    if (Object.keys(metadata).length > 0) nextContent.metadata = metadata;
+    else delete nextContent.metadata;
+    const updated = await api.notes.update(latest.id, { content: nextContent });
+    selectNote(updated);
+  }, [flushAutoSave, selectNote]);
 
   const handleBatchMoveDocuments = useCallback(async (ids: string[], targetPath: string) => {
     const uniqueIds = [...new Set(ids)];
@@ -1278,6 +1316,8 @@ function App() {
                     } : undefined}
                     title={selectedNote.title}
                     content={selectedNote.content}
+                    contentVersion={selectedNote.updated_at}
+                    pdfDocumentInfo={pdfDocumentInfo}
                     tags={selectedNote.tags}
                     showLineNumbers={config?.editor_show_line_numbers ?? false}
                     showStatusBlockNumber={config?.editor_show_status_block_number ?? true}
@@ -1317,7 +1357,9 @@ function App() {
           <Suspense fallback={null}>
             <PropertiesPanel
               readonly={selectedNote.readonly || syncBusy}
+              readonlyChangeDisabled={syncBusy}
               note={selectedNote}
+              onMetadataUpdate={handleDocumentMetadataUpdate}
               onMoveDocument={handleMoveDocument}
               onNoteUpdate={(updated) => { handleSelectNote(updated); setDocTreeKey(k => k + 1); }}
               onClose={() => setPropertiesOpen(false)}

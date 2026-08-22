@@ -79,6 +79,11 @@ html {
   --app-visual-viewport-offset-left: 0px;
 }
 
+/* 切换主题时避免长文档中大量颜色动画并发；两帧后由 theme.ts 自动移除。 */
+.theme-switching {
+  --transition: 0s;
+}
+
 :where(button, a, input, textarea, select, [tabindex]):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -966,8 +971,10 @@ body {
 .note-readonly-action {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 3px 6px;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
@@ -1014,6 +1021,14 @@ body {
   padding: 0 2px;
   user-select: none;
   flex-shrink: 0;
+}
+
+.sidebar-item-drag[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.sidebar-item-drag[draggable="false"] {
+  cursor: default;
 }
 
 /* ── 侧栏操作按钮组（hover 叠层，不占布局空间）── */
@@ -3793,8 +3808,8 @@ body {
 }
 
 .show-line-numbers .editor-block-number {
-  left: 18px;
-  width: calc(var(--editor-gutter-width) - 18px);
+  left: 14px;
+  width: calc(var(--editor-gutter-width) - 14px);
 }
 
 .editor-block-number::after {
@@ -3859,7 +3874,7 @@ body {
 
 .show-line-numbers .editor-block-insert {
   left: 0;
-  width: 18px;
+  width: 14px;
 }
 
 .editor-block-insert:hover,
@@ -3874,7 +3889,7 @@ body {
   position: absolute;
   left: 0;
   z-index: 2;
-  width: 18px;
+  width: 14px;
   height: 20px;
   padding: 0;
   transform: translateY(-50%);
@@ -3989,6 +4004,8 @@ body {
 .editor-content ol > li::before {
   content: counter(list-item) ".";
   font-variant-numeric: tabular-nums;
+  /* 仅移动绘制位置，不改变 marker 列宽、列表缩进或正文起点。 */
+  transform: translateX(2px);
 }
 
 .editor-content li > ul,
@@ -4651,6 +4668,30 @@ body {
 
 .settings-section-body {
   padding-left: 0;
+}
+
+.user-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 12px;
+}
+
+.user-profile-grid .settings-input {
+  width: 100%;
+}
+
+.user-profile-wide {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .user-profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .user-profile-wide {
+    grid-column: auto;
+  }
 }
 
 .editor-appearance-settings .settings-field {
@@ -6249,6 +6290,71 @@ body {
   font-weight: 400;
 }
 
+.prop-readonly-toggle {
+  min-height: 28px;
+}
+
+.prop-readonly-toggle.saving,
+.prop-readonly-toggle:has(input:disabled) {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.prop-inline-error {
+  margin-top: 6px;
+  color: var(--danger, #d14343);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.prop-metadata-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.prop-metadata-wide {
+  grid-column: 1 / -1;
+}
+
+.prop-metadata-summary {
+  min-height: 68px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.prop-metadata-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.prop-metadata-message {
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.prop-system-metadata {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+@media (max-width: 640px) {
+  .prop-metadata-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .prop-metadata-wide {
+    grid-column: auto;
+  }
+}
+
 .prop-path {
   display: flex;
   align-items: center;
@@ -6869,30 +6975,39 @@ body {
 
 .code-block-inner {
   display: flex;
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", monospace;
+  font-size: 0.95em;
+  /* 与 .editor-content pre code 的 1.5 保持一致，避免行号逐行漂移。 */
+  line-height: 1.5;
 }
 
 .code-block-gutter {
   display: none;
   flex-shrink: 0;
-  padding: 2px 2px 2px 2px;
+  /* 代码有 1px 边框和 4px 内边距；从同一首行基线开始。 */
+  padding: 6px 2px 6px 0;
   text-align: right;
   user-select: none;
   border-right: 1px solid var(--border);
-  margin-right: 6px;
-  min-width: 2em;
+  margin-right: 3px;
+  min-width: 1ch;
 }
 
 .code-block-gutter span {
   display: block;
-  font-size: 0.8em;
-  font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+  font: inherit;
   color: var(--text-secondary);
-  line-height: 1.6;
-  min-width: 1.5em;
+  line-height: inherit;
 }
 
 .show-code-line-numbers .code-block-gutter {
   display: block;
+}
+
+/* 主块号开启时 code 的纵向 padding 为 2px，仍需计入 1px 边框。 */
+.show-line-numbers .code-block-gutter {
+  padding-top: 4px;
+  padding-bottom: 4px;
 }
 
 .code-block-inner pre {
@@ -6900,8 +7015,8 @@ body {
   margin: 0;
   background: none;
   border: none;
-  font-family: "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", monospace;
-  font-size: 0.95em;
+  font: inherit;
+  line-height: inherit;
 }
 
 /* 无 main 行号时，code 元素显示深色背景 */
@@ -7411,14 +7526,20 @@ body {
   }
 
   .editor-block-number {
-    width: calc(var(--editor-gutter-width) - 4px);
+    left: 14px;
+    width: calc(var(--editor-gutter-width) - 14px);
     padding-right: 1px;
     font-size: 11px;
   }
 
   .show-line-numbers .editor-block-number {
+    left: 14px;
+    width: calc(var(--editor-gutter-width) - 14px);
+  }
+
+  .editor-heading-fold {
     left: 0;
-    width: calc(var(--editor-gutter-width) - 2px);
+    width: 14px;
   }
 
   /* 保留 iOS 原生选区菜单、文字选择和拖动手柄。系统剪贴板、替换和

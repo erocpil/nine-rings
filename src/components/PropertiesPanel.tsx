@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import type { Note, DocType } from "../types/models";
+import type { AppConfig, DocumentMetadata, Note, DocType } from "../types/models";
 import { api } from "../lib/api";
 import MoveToDialog from "./MoveToDialog";
 
@@ -8,6 +8,8 @@ interface PropertiesPanelProps {
   onNoteUpdate: (note: Note) => void;
   onClose: () => void;
   readonly?: boolean;
+  readonlyChangeDisabled?: boolean;
+  onMetadataUpdate: (metadata: DocumentMetadata) => Promise<void>;
   onMoveDocument: (id: string, targetPath: string) => Promise<void>;
   /** 点击概念标签时，跳转到该概念的聚合页 */
   onOpenConcept?: (concept: string) => void;
@@ -28,7 +30,7 @@ const PATH_ROOT_OPTIONS = [
   { value: "archives", label: "📦 Archives" },
 ];
 
-function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, onMoveDocument, onOpenConcept }: PropertiesPanelProps) {
+function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChangeDisabled, onMetadataUpdate, onMoveDocument, onOpenConcept }: PropertiesPanelProps) {
   const [conceptInput, setConceptInput] = useState("");
   const [existingConcepts, setExistingConcepts] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -36,11 +38,32 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, onMoveDocument
   const [linkResults, setLinkResults] = useState<Note[]>([]);
   const [backlinks, setBacklinks] = useState<Note[]>([]);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [readonlySaving, setReadonlySaving] = useState(false);
+  const [readonlyError, setReadonlyError] = useState<string | null>(null);
+  const [userConfig, setUserConfig] = useState<AppConfig | null>(null);
+  const [metadataDraft, setMetadataDraft] = useState<DocumentMetadata>(() => note.content.metadata ?? {});
+  const [metadataSaving, setMetadataSaving] = useState(false);
+  const [metadataMessage, setMetadataMessage] = useState<string | null>(null);
 
   const concepts = note.concepts ?? [];
   const linkedIds = note.linkedDocIds ?? [];
   const pathRoot = note.storagePath?.split("/")[0] ?? "";
   const pathRest = note.storagePath?.split("/").slice(1).join("/") ?? "";
+  const metadataSignature = JSON.stringify(note.content.metadata ?? {});
+
+  const handleReadonlyChange = useCallback(async (nextReadonly: boolean) => {
+    if (readonlyChangeDisabled || readonlySaving) return;
+    setReadonlySaving(true);
+    setReadonlyError(null);
+    try {
+      const updated = await api.notes.update(note.id, { readonly: nextReadonly });
+      onNoteUpdate(updated);
+    } catch (error) {
+      setReadonlyError(`设置失败：${(error as Error).message}`);
+    } finally {
+      setReadonlySaving(false);
+    }
+  }, [note.id, onNoteUpdate, readonlyChangeDisabled, readonlySaving]);
 
   const loadBacklinks = useCallback(async () => {
     try {
@@ -66,8 +89,52 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, onMoveDocument
 
   useEffect(() => {
     api.docs.allConcepts().then(setExistingConcepts);
+    api.config.get().then(setUserConfig).catch(() => setUserConfig(null));
     void loadBacklinks();
   }, [loadBacklinks]);
+
+  useEffect(() => {
+    setMetadataDraft(JSON.parse(metadataSignature) as DocumentMetadata);
+    setMetadataMessage(null);
+  }, [metadataSignature, note.id]);
+
+  const updateMetadataField = <K extends keyof DocumentMetadata,>(key: K, value: DocumentMetadata[K]) => {
+    setMetadataDraft((current) => ({ ...current, [key]: value }));
+    setMetadataMessage(null);
+  };
+
+  const fillUserDefaults = () => {
+    if (!userConfig || readonly) return;
+    setMetadataDraft((current) => ({
+      ...current,
+      author: current.author || userConfig.user_name,
+      organization: current.organization || userConfig.user_organization,
+      email: current.email || userConfig.user_email,
+      website: current.website || userConfig.user_website,
+      copyright: current.copyright || userConfig.user_copyright,
+      language: current.language || userConfig.user_default_language,
+      license: current.license || userConfig.user_default_license,
+    }));
+    setMetadataMessage("已填充用户信息中的空缺项，请保存");
+  };
+
+  const saveMetadata = async () => {
+    if (readonly || metadataSaving) return;
+    setMetadataSaving(true);
+    setMetadataMessage(null);
+    const cleaned = Object.fromEntries(Object.entries(metadataDraft).filter(([, value]) =>
+      Array.isArray(value) ? value.length > 0 : typeof value === "string" ? value.trim().length > 0 : value != null,
+    )) as DocumentMetadata;
+    try {
+      await onMetadataUpdate(cleaned);
+      setMetadataDraft(cleaned);
+      setMetadataMessage("元信息已保存");
+    } catch (error) {
+      setMetadataMessage(`保存失败：${(error as Error).message}`);
+    } finally {
+      setMetadataSaving(false);
+    }
+  };
 
   // ── 类型变更（toggle：点击已选中 → 取消）──
 
@@ -162,6 +229,22 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, onMoveDocument
           </button>
         </div>
 
+        {/* 访问权限：即使文档已经只读，也必须保留取消只读的入口。 */}
+        <div className="prop-section">
+          <div className="prop-label">访问权限</div>
+          <label className={`settings-toggle prop-readonly-toggle ${readonlySaving ? "saving" : ""}`}>
+            <input
+              type="checkbox"
+              checked={note.readonly}
+              disabled={readonlyChangeDisabled || readonlySaving}
+              onChange={(event) => { void handleReadonlyChange(event.target.checked); }}
+            />
+            <span className="toggle-track" />
+            <span className="toggle-label">{readonlySaving ? "保存中…" : note.readonly ? "只读" : "可编辑"}</span>
+          </label>
+          {readonlyError && <div className="prop-inline-error" role="alert">{readonlyError}</div>}
+        </div>
+
         {/* 类型 */}
         <div className="prop-section">
           <div className="prop-label">类型</div>
@@ -177,11 +260,38 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, onMoveDocument
                   className="prop-type-radio"
                   value={o.value}
                   checked={note.docType === o.value}
+                  disabled={readonly}
                   onChange={() => handleTypeChange(o.value)}
                 />
                 {o.label}
               </label>
             ))}
+          </div>
+        </div>
+
+        {/* 发布元信息 */}
+        <div className="prop-section">
+          <div className="prop-label">发布元信息</div>
+          <div className="prop-metadata-grid">
+            <input className="prop-input" aria-label="作者" placeholder={userConfig?.user_name ? `作者（默认：${userConfig.user_name}）` : "作者"} value={metadataDraft.author ?? ""} disabled={readonly} onChange={(event) => updateMetadataField("author", event.target.value)} />
+            <input className="prop-input" aria-label="组织" placeholder={userConfig?.user_organization ? `组织（默认：${userConfig.user_organization}）` : "组织"} value={metadataDraft.organization ?? ""} disabled={readonly} onChange={(event) => updateMetadataField("organization", event.target.value)} />
+            <input className="prop-input" type="email" aria-label="邮箱" placeholder="联系邮箱" value={metadataDraft.email ?? ""} disabled={readonly} onChange={(event) => updateMetadataField("email", event.target.value)} />
+            <input className="prop-input" type="url" aria-label="网站" placeholder="作者网站" value={metadataDraft.website ?? ""} disabled={readonly} onChange={(event) => updateMetadataField("website", event.target.value)} />
+            <input className="prop-input" aria-label="语言" placeholder={userConfig?.user_default_language ? `语言（默认：${userConfig.user_default_language}）` : "语言，例如 zh-CN"} value={metadataDraft.language ?? ""} disabled={readonly} onChange={(event) => updateMetadataField("language", event.target.value)} />
+            <input className="prop-input" aria-label="版本" placeholder="文档版本，例如 1.0" value={metadataDraft.version ?? ""} disabled={readonly} onChange={(event) => updateMetadataField("version", event.target.value)} />
+            <input className="prop-input prop-metadata-wide" aria-label="关键词" placeholder="关键词，使用逗号分隔" value={(metadataDraft.keywords ?? []).join(", ")} disabled={readonly} onChange={(event) => updateMetadataField("keywords", event.target.value.split(/[,，]/).map((item) => item.trim()).filter(Boolean))} />
+            <textarea className="prop-input prop-metadata-wide prop-metadata-summary" aria-label="摘要" placeholder="文档摘要" value={metadataDraft.summary ?? ""} disabled={readonly} onChange={(event) => updateMetadataField("summary", event.target.value)} />
+            <input className="prop-input prop-metadata-wide" aria-label="许可证" placeholder={userConfig?.user_default_license ? `许可证（默认：${userConfig.user_default_license}）` : "许可证，例如 CC BY 4.0"} value={metadataDraft.license ?? ""} disabled={readonly} onChange={(event) => updateMetadataField("license", event.target.value)} />
+            <input className="prop-input prop-metadata-wide" aria-label="版权声明" placeholder="版权声明" value={metadataDraft.copyright ?? ""} disabled={readonly} onChange={(event) => updateMetadataField("copyright", event.target.value)} />
+          </div>
+          <div className="prop-metadata-actions">
+            <button type="button" className="settings-sm-btn" disabled={readonly || !userConfig} onClick={fillUserDefaults}>填充用户默认值</button>
+            <button type="button" className="settings-sm-btn" disabled={readonly || metadataSaving} onClick={() => { void saveMetadata(); }}>{metadataSaving ? "保存中…" : "保存元信息"}</button>
+          </div>
+          {metadataMessage && <div className="prop-metadata-message" role="status">{metadataMessage}</div>}
+          <div className="prop-system-metadata">
+            <span>创建：{new Date(note.created_at).toLocaleString()}</span>
+            <span>更新：{new Date(note.updated_at).toLocaleString()}</span>
           </div>
         </div>
 
@@ -194,6 +304,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, onMoveDocument
               className="prop-input"
               placeholder="添加概念..."
               value={conceptInput}
+              disabled={readonly}
               onChange={(e) => handleConceptInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
@@ -253,6 +364,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, onMoveDocument
               className="prop-input"
               placeholder="搜索并关联文档..."
               value={linkSearch}
+              disabled={readonly}
               onChange={(e) => handleLinkSearch(e.target.value)}
             />
             {linkResults.length > 0 && (

@@ -1,7 +1,7 @@
 /**
  * useSettings — 配置加载与主题管理。
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api } from "../lib/api";
 import type { AppConfig } from "../lib/storage/types";
 import { addLog } from "../lib/debugLog";
@@ -10,6 +10,7 @@ import { withTimeout } from "../lib/async";
 
 export function useSettings() {
   const [config, setConfig] = useState<AppConfig | null>(null);
+  const configRef = useRef<AppConfig | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // 启动时加载配置并设置主题
@@ -33,6 +34,7 @@ export function useSettings() {
         }
         applyTheme(c.theme);
         addLog(`[启动] 九环 v${__APP_VERSION__} | 主题: ${c.theme}`);
+        configRef.current = c;
         setConfig(c);
       })
       .catch((error) => {
@@ -43,7 +45,16 @@ export function useSettings() {
   }, []);
 
   const handleConfigChange = (c: AppConfig) => {
-    applyTheme(c.theme);
+    const previous = configRef.current;
+    configRef.current = c;
+    if (!previous || c.theme !== previous.theme) applyTheme(c.theme);
+    // 主题只由根节点 CSS 变量驱动。仅主题变化时无需让包含长文档的整个 App
+    // React 树重新渲染；设置面板自身仍维护并持久化最新选择。
+    if (previous && c.theme !== previous.theme) {
+      const keys = Object.keys(c) as Array<keyof AppConfig>;
+      const onlyThemeChanged = keys.every((key) => key === "theme" || c[key] === previous[key]);
+      if (onlyThemeChanged) return;
+    }
     setConfig(c);
   };
 

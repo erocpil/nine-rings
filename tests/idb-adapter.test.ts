@@ -106,6 +106,15 @@ async function runTests() {
     const partial = await idbAdapter.updateNote(note.id, { pinned: true });
     assert(partial.pinned === true, "pinned updated");
     assert(partial.title === "Updated", "title unchanged");
+    const withMetadata = await idbAdapter.updateNote(note.id, {
+      content: {
+        ops: [{ insert: "正文" }],
+        metadata: { author: "测试作者", language: "zh-CN", keywords: ["测试", "PDF"] },
+      },
+    });
+    assert(withMetadata.content.metadata?.author === "测试作者", "document metadata updated");
+    const metadataReadBack = await idbAdapter.getNote(note.id);
+    assert(metadataReadBack?.content.metadata?.keywords?.join(",") === "测试,PDF", "document metadata persisted");
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -313,10 +322,12 @@ async function runTests() {
     console.log("\n── Config ──");
     const cfg = await idbAdapter.getConfig();
     assert(cfg.theme != null, "config has theme");
-    const updated = await idbAdapter.setConfig({ theme: "dark", note_font_size: 18 });
+    const updated = await idbAdapter.setConfig({ theme: "dark", note_font_size: 18, user_name: "测试用户" });
     assert(updated.theme === "dark", "theme=dark");
+    assert(updated.user_name === "测试用户", "user profile updated");
     const reRead = await idbAdapter.getConfig();
     assert(reRead.theme === "dark", "persisted");
+    assert(reRead.user_name === "测试用户", "user profile persisted");
   }
 
   // ═══════════════════════════════════════════════════════════════

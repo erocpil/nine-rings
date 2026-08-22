@@ -52,6 +52,20 @@ pub struct AppConfig {
     pub editor_vim_mode: bool,
     #[serde(default = "default_true")]
     pub use_custom_context_menu: bool,
+    #[serde(default)]
+    pub user_name: String,
+    #[serde(default)]
+    pub user_organization: String,
+    #[serde(default)]
+    pub user_email: String,
+    #[serde(default)]
+    pub user_website: String,
+    #[serde(default)]
+    pub user_copyright: String,
+    #[serde(default = "default_user_language")]
+    pub user_default_language: String,
+    #[serde(default)]
+    pub user_default_license: String,
     #[serde(default = "default_hotkeys")]
     pub hotkeys: std::collections::HashMap<String, String>,
 }
@@ -100,6 +114,10 @@ fn default_editor_search_highlight_color() -> String {
     "#ffd54f".into()
 }
 
+fn default_user_language() -> String {
+    "zh-CN".into()
+}
+
 fn default_hotkeys() -> std::collections::HashMap<String, String> {
     std::collections::HashMap::from([
         ("new_note".into(), "".into()),
@@ -139,6 +157,13 @@ impl Default for AppConfig {
             editor_show_status_bar: true,
             editor_vim_mode: false,
             use_custom_context_menu: true,
+            user_name: String::new(),
+            user_organization: String::new(),
+            user_email: String::new(),
+            user_website: String::new(),
+            user_copyright: String::new(),
+            user_default_language: default_user_language(),
+            user_default_license: String::new(),
             hotkeys: default_hotkeys(),
         }
     }
@@ -276,5 +301,7 @@ mod tests {
         assert!(config.editor_cjk_spacing);
         assert!(config.editor_show_status_block_number);
         assert!(config.editor_show_status_bar);
+        assert_eq!(config.user_default_language, "zh-CN");
+        assert!(config.user_name.is_empty());
     }
 }

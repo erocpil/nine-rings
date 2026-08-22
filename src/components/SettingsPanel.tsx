@@ -26,7 +26,7 @@ interface Props {
   webStorageStatus?: WebStorageStatus;
 }
 
-type SettingsPage = "root" | "appearance" | "editor" | "general" | "tags" | "data" | "sync" | "advanced";
+type SettingsPage = "root" | "appearance" | "editor" | "general" | "profile" | "tags" | "data" | "sync" | "advanced";
 const EDITOR_APPEARANCE_KEYS: Array<keyof AppConfig> = [
   "note_font_size",
   "editor_font_family",
@@ -56,6 +56,7 @@ const SETTINGS_CATEGORIES: Array<{
   { id: "appearance", title: "外观与排版", description: "主题、字体、字号与内容间距" },
   { id: "editor", title: "编辑器", description: "高亮、块编号、状态栏与右键菜单" },
   { id: "general", title: "工作流与快捷键", description: "默认视图、待办继承和按键绑定" },
+  { id: "profile", title: "用户信息", description: "文档作者、组织与发布默认值" },
   { id: "data", title: "数据与导入", description: "JSON 备份及 Markdown 批量导入" },
   { id: "tags", title: "标签管理", description: "重命名、合并或删除标签" },
   { id: "sync", title: "同步与备份", description: "GitHub 仓库和同步操作" },
@@ -67,6 +68,7 @@ const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   appearance: "外观与排版",
   editor: "编辑器",
   general: "工作流与快捷键",
+  profile: "用户信息",
   tags: "标签管理",
   data: "数据与导入",
   sync: "同步与备份",
@@ -637,6 +639,40 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
                 config={config}
                 onUpdate={(hk) => update({ hotkeys: hk })}
               />
+            </SettingsSection>
+
+            <SettingsSection title="用户信息" desc="作为文档属性和 PDF 导出的默认值；单篇文档可以覆盖" visible={settingsPage === "profile"}>
+              <div className="user-profile-grid">
+                <label className="settings-label">
+                  <span>姓名 / 作者</span>
+                  <input className="settings-input" autoComplete="name" value={config.user_name} onChange={(event) => update({ user_name: event.target.value })} placeholder="例如 张三" />
+                </label>
+                <label className="settings-label">
+                  <span>组织</span>
+                  <input className="settings-input" autoComplete="organization" value={config.user_organization} onChange={(event) => update({ user_organization: event.target.value })} placeholder="公司、团队或机构" />
+                </label>
+                <label className="settings-label">
+                  <span>邮箱</span>
+                  <input className="settings-input" type="email" autoComplete="email" value={config.user_email} onChange={(event) => update({ user_email: event.target.value })} placeholder="name@example.com" />
+                </label>
+                <label className="settings-label">
+                  <span>网站</span>
+                  <input className="settings-input" type="url" autoComplete="url" value={config.user_website} onChange={(event) => update({ user_website: event.target.value })} placeholder="https://example.com" />
+                </label>
+                <label className="settings-label">
+                  <span>默认语言</span>
+                  <input className="settings-input" value={config.user_default_language} onChange={(event) => update({ user_default_language: event.target.value })} placeholder="zh-CN" />
+                </label>
+                <label className="settings-label">
+                  <span>默认许可证</span>
+                  <input className="settings-input" value={config.user_default_license} onChange={(event) => update({ user_default_license: event.target.value })} placeholder="例如 CC BY 4.0" />
+                </label>
+                <label className="settings-label user-profile-wide">
+                  <span>默认版权声明</span>
+                  <input className="settings-input" value={config.user_copyright} onChange={(event) => update({ user_copyright: event.target.value })} placeholder="例如 © 2026 作者，保留所有权利" />
+                </label>
+              </div>
+              <p className="settings-hint">这些信息属于普通配置，会随全量备份迁移；GitHub Token 等敏感凭据仍会被排除。</p>
             </SettingsSection>
 
             {/* ═══════════════════════ */}

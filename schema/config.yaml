@@ -149,6 +149,41 @@ AppConfig:
       default: true
       description: 正文编辑器使用软件内置右键菜单
 
+    user_name:
+      type: string
+      default: ""
+      description: 用户姓名，用作文档作者默认值
+
+    user_organization:
+      type: string
+      default: ""
+      description: 用户所属组织，用作文档组织默认值
+
+    user_email:
+      type: string
+      default: ""
+      description: 用户邮箱，用作文档联系信息默认值
+
+    user_website:
+      type: string
+      default: ""
+      description: 用户网站，用作文档作者主页默认值
+
+    user_copyright:
+      type: string
+      default: ""
+      description: 默认版权声明
+
+    user_default_language:
+      type: string
+      default: zh-CN
+      description: 默认文档语言
+
+    user_default_license:
+      type: string
+      default: ""
+      description: 默认文档许可证
+
     dev_port:
       type: integer
       default: 1420

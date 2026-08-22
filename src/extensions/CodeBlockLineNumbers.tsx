@@ -34,6 +34,7 @@ function CodeBlockView({ node }: NodeViewProps) {
       <div ref={wrapperRef}>
         <button
           className="code-block-copy"
+          data-pdf-exclude
           contentEditable={false}
           onClick={handleCopy}
           type="button"

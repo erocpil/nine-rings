@@ -382,6 +382,22 @@ export function mdToDelta(mdText: string): DeltaOps {
       const list = /^\d/.test(listMatch[2]) ? "ordered" : "bullet";
       const listStart = list === "ordered" ? Number.parseInt(listMatch[2], 10) : undefined;
       ops.push(...inlineToDelta(listMatch[3]));
+      i++;
+
+      // 列表项的 lazy continuation（以及显式缩进的续行）仍属于当前项。
+      // 编辑器以 hardBreak 保留 Markdown 源文件的行结构，使粘贴后的第二行
+      // 与首行正文对齐，而不是掉回列表外侧或被误建成新列表项。
+      while (i < lines.length) {
+        const continuation = lines[i].trim();
+        if (!continuation || startsBlock(continuation)) break;
+        const continuationOps = inlineToDelta(continuation);
+        const [first, ...rest] = continuationOps;
+        if (first && typeof first.insert === "string") {
+          ops.push({ ...first, insert: `\n${first.insert}` }, ...rest);
+        }
+        i++;
+      }
+
       ops.push({
         insert: "\n",
         attributes: {
@@ -390,7 +406,6 @@ export function mdToDelta(mdText: string): DeltaOps {
           ...(listStart !== undefined ? { listStart } : {}),
         },
       });
-      i++;
       continue;
     }
 

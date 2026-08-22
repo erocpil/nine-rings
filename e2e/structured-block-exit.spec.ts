@@ -38,6 +38,38 @@ test.describe("结构块退出行为", () => {
     await editor.type("third");
     await expect(code).toHaveText("first\nsecond\nthird");
     await expect(gutter.locator("span")).toHaveText(["1", "2", "3"]);
+
+    const geometry = await editor.locator(".code-block-wrap").evaluate((block) => {
+      const gutterElement = block.querySelector<HTMLElement>(".code-block-gutter")!;
+      const numberCenters = [...gutterElement.querySelectorAll<HTMLElement>("span")]
+        .map((span) => {
+          const textNode = span.firstChild!;
+          const range = document.createRange();
+          range.selectNodeContents(textNode);
+          const rect = range.getBoundingClientRect();
+          return rect.top + rect.height / 2;
+        });
+      const codeElement = block.querySelector("code");
+      const codeText = codeElement
+        ? document.createTreeWalker(codeElement, NodeFilter.SHOW_TEXT).nextNode()
+        : null;
+      if (!(codeText instanceof Text)) return { gutterWidth: 999, numberCenters, codeCenters: [] };
+      const text = codeText.textContent ?? "";
+      const codeCenters = [0, ...[...text.matchAll(/\n/g)].map((match) => (match.index ?? 0) + 1)]
+        .map((offset) => {
+          const range = document.createRange();
+          range.setStart(codeText, offset);
+          range.setEnd(codeText, Math.min(offset + 1, text.length));
+          const rect = range.getBoundingClientRect();
+          return rect.top + rect.height / 2;
+        });
+      return { gutterWidth: gutterElement.getBoundingClientRect().width, numberCenters, codeCenters };
+    });
+    expect(geometry.gutterWidth).toBeLessThan(22);
+    expect(geometry.numberCenters).toHaveLength(geometry.codeCenters.length);
+    geometry.numberCenters.forEach((center, index) => {
+      expect(Math.abs(center - geometry.codeCenters[index])).toBeLessThan(1.5);
+    });
   });
 
   test("代码块末尾第二次 Enter 原子退出并保留代码内容", async ({ page }) => {

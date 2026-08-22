@@ -82,6 +82,7 @@ export function Sidebar({
 }: SidebarProps) {
   const [moveNoteId, setMoveNoteId] = useState<string | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const dragOverIdxRef = useRef<number | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const moveInputRef = useRef<HTMLInputElement>(null);
@@ -231,26 +232,39 @@ export function Sidebar({
 
   // ── Drag & Drop reorder ──
 
-  const handleDragStart = (id: string, index: number) => {
-    if (isMultiSelect) return;
+  const canReorder = sortMode === "manual" && !showAll && !isMultiSelect && !disabled;
+
+  const handleDragStart = (event: React.DragEvent, id: string, index: number) => {
+    if (!canReorder) {
+      event.preventDefault();
+      return;
+    }
+    // Firefox and some WebViews require drag data before they start a native
+    // drag. Keeping it on the handle also prevents selecting/opening the note.
+    event.stopPropagation();
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", id);
     _dragId = id;
     _dragIndex = index;
   };
 
   const handleDragEnter = (index: number) => {
+    if (_dragId === null) return;
+    dragOverIdxRef.current = index;
     setDragOverIdx(index);
   };
 
   const handleDragEnd = () => {
     setDragOverIdx(null);
+    const targetIdx = dragOverIdxRef.current;
+    dragOverIdxRef.current = null;
     if (_dragId === null || _dragIndex === -1) return;
-    const targetIdx = dragOverIdx;
     if (targetIdx === null || targetIdx === _dragIndex) {
       _dragId = null;
       _dragIndex = -1;
       return;
     }
-    const arr = notes.map((n) => n.id);
+    const arr = sortedNotes.map((n) => n.id);
     const [moved] = arr.splice(_dragIndex, 1);
     arr.splice(targetIdx, 0, moved);
     arr.forEach((id, i) => {
@@ -370,13 +384,23 @@ export function Sidebar({
             key={note.id}
             className={`sidebar-item ${note.id === selectedId ? "active" : ""} ${isInSelected(note.id) ? "selected" : ""} ${note.readonly ? "sidebar-item-ro" : ""} ${dragOverIdx === i ? "drag-over" : ""}`}
             onMouseDown={(e) => handleItemClick(e, note, i)}
-            draggable={!isMultiSelect}
-            onDragStart={() => !isMultiSelect && handleDragStart(note.id, i)}
             onDragEnter={() => handleDragEnter(i)}
-            onDragEnd={handleDragEnd}
-            onDragOver={(e) => e.preventDefault()}
+            onDragOver={(e) => {
+              if (_dragId === null) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+            }}
           >
-            <div className="sidebar-item-drag">⠿</div>
+            <div
+              className="sidebar-item-drag"
+              draggable={canReorder}
+              aria-label="拖动排序"
+              title={canReorder ? "拖动排序" : sortMode !== "manual" ? "仅手动排序模式可拖动" : undefined}
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+              onDragStart={(event) => handleDragStart(event, note.id, i)}
+              onDragEnd={handleDragEnd}
+            >⠿</div>
             <div className="sidebar-item-info">
               {editingId === note.id ? (
                 <input

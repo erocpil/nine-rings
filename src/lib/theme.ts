@@ -1,6 +1,23 @@
+let removeSystemThemeListener: (() => void) | null = null;
+let transitionFrame = 0;
+
+function suppressThemeTransition(root: HTMLElement) {
+  root.classList.add("theme-switching");
+  if (transitionFrame) window.cancelAnimationFrame(transitionFrame);
+  transitionFrame = window.requestAnimationFrame(() => {
+    transitionFrame = window.requestAnimationFrame(() => {
+      root.classList.remove("theme-switching");
+      transitionFrame = 0;
+    });
+  });
+}
+
 /** 应用主题到 document.documentElement */
 export function applyTheme(theme: string) {
   const root = document.documentElement;
+  suppressThemeTransition(root);
+  removeSystemThemeListener?.();
+  removeSystemThemeListener = null;
   root.classList.remove(
     "theme-light", "theme-dark", "theme-fu", "theme-grace",
     "theme-sui", "theme-zhi", "theme-azure", "theme-azure-dark"
@@ -14,6 +31,7 @@ export function applyTheme(theme: string) {
     };
     applySystem();
     mq.addEventListener("change", applySystem);
+    removeSystemThemeListener = () => mq.removeEventListener("change", applySystem);
     return;
   }
 

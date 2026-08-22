@@ -75,6 +75,21 @@ export interface SyncChange {
 
 export interface DeltaOps {
   ops: DeltaOp[];
+  /** 可扩展的文档级发布元信息；正文转换只处理 ops，并原样保留此字段。 */
+  metadata?: DocumentMetadata;
+}
+
+export interface DocumentMetadata {
+  author?: string;
+  organization?: string;
+  email?: string;
+  website?: string;
+  summary?: string;
+  keywords?: string[];
+  language?: string;
+  version?: string;
+  copyright?: string;
+  license?: string;
 }
 
 export interface DeltaOp {
@@ -159,6 +174,13 @@ export interface AppConfig {
   editor_show_status_bar: boolean;
   editor_vim_mode: boolean;
   use_custom_context_menu: boolean;
+  user_name: string;
+  user_organization: string;
+  user_email: string;
+  user_website: string;
+  user_copyright: string;
+  user_default_language: string;
+  user_default_license: string;
   hotkeys: Record<string, string>;
 }
 

@@ -42,3 +42,86 @@ test("包含段落和代码块的松散有序列表保持连续编号", async ({
   await expect(page.locator(".note-title")).toHaveValue("有序列表编号测试");
   await expect.poll(listStarts).toEqual([1, 2, 3]);
 });
+
+test("有序列表的续行和后续列表项保持同一正文缩进", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+  const editor = page.locator(".ProseMirror");
+  await editor.fill("aaa");
+  await page.getByTitle("有序列表 (Ctrl+Shift+7)").click();
+  await editor.press("End");
+  await editor.press("Shift+Enter");
+  await editor.type("bbb");
+  await editor.press("End");
+  await editor.press("Enter");
+  await editor.type("ccc");
+  await editor.press("Shift+Enter");
+  await editor.type("ddd");
+
+  const listItems = editor.locator("ol > li");
+  await expect(listItems).toHaveCount(2);
+  await expect(listItems.nth(0)).toHaveText("aaabbb");
+  await expect(listItems.nth(1)).toHaveText("cccddd");
+
+  const textLefts = await listItems.evaluateAll((items) => items.flatMap((item) => {
+    const walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
+    const lefts: number[] = [];
+    let node = walker.nextNode();
+    while (node) {
+      if ((node.textContent ?? "").trim()) {
+        const range = document.createRange();
+        range.setStart(node, 0);
+        range.setEnd(node, 1);
+        lefts.push(range.getBoundingClientRect().left);
+      }
+      node = walker.nextNode();
+    }
+    return lefts;
+  }));
+  expect(textLefts).toHaveLength(4);
+  textLefts.forEach((left) => expect(Math.abs(left - textLefts[0])).toBeLessThan(1));
+});
+
+test("粘贴 Markdown 时列表 lazy continuation 保留为对齐的续行", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+  const editor = page.locator(".ProseMirror");
+  await editor.evaluate((element) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "1. aaa\nbbb\n2. ccc\n   ddd");
+    element.dispatchEvent(new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData,
+    }));
+  });
+
+  const listItems = editor.locator("ol > li");
+  await expect(listItems).toHaveCount(2);
+  await expect(listItems.nth(0).locator("br")).toHaveCount(1);
+  await expect(listItems.nth(1).locator("br")).toHaveCount(1);
+
+  const lefts = await listItems.evaluateAll((items) => items.flatMap((item) => {
+    const walker = document.createTreeWalker(item, NodeFilter.SHOW_TEXT);
+    const values: number[] = [];
+    let node = walker.nextNode();
+    while (node) {
+      if ((node.textContent ?? "").trim()) {
+        const range = document.createRange();
+        range.setStart(node, 0);
+        range.setEnd(node, 1);
+        values.push(range.getBoundingClientRect().left);
+      }
+      node = walker.nextNode();
+    }
+    return values;
+  }));
+  expect(lefts).toHaveLength(4);
+  lefts.forEach((left) => expect(Math.abs(left - lefts[0])).toBeLessThan(1));
+});

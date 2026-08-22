@@ -289,3 +289,34 @@ test("Vim 在鼠标选区和右键菜单操作后保持可用", async ({ page, c
   await expect.poll(() => page.evaluate(() => window.getSelection()?.isCollapsed)).toBe(true);
   await expect(page.locator("body > .vim-normal-caret")).toBeVisible();
 });
+
+test("只读文档保留 Vim Normal 导航并屏蔽写命令", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  const editor = page.locator(".ProseMirror");
+  await editor.fill("readonly vim");
+  await enableVimMode(page);
+  await editor.click();
+  await page.keyboard.press("0");
+
+  await page.locator(".sidebar-item.active").getByTitle("设为只读")
+    .evaluate((button: HTMLButtonElement) => button.click());
+  await expect(editor).toHaveAttribute("contenteditable", "false");
+  await expect(page.locator(".editor-vim-status")).toHaveText("NORMAL");
+
+  await editor.click();
+  await expect(editor).toBeFocused();
+  await page.keyboard.press("0");
+  await page.keyboard.press("l");
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.anchorOffset ?? -1)).toBe(1);
+  await expect(page.locator("body > .vim-normal-caret")).toBeVisible();
+
+  await page.keyboard.press("x");
+  await page.keyboard.press("i");
+  await page.keyboard.type("blocked");
+  await expect(editor).toContainText("readonly vim");
+  await expect(editor).not.toContainText("blocked");
+  await expect(page.locator(".editor-vim-status")).toHaveText("NORMAL");
+});
