@@ -89,103 +89,63 @@ jobs:
           echo "Kept ${#kept[@]} latest current artifacts; deleted $deleted legacy or superseded artifacts"
 
   prune-ci-releases:
-    name: Keep latest 3 CI prereleases
+    name: Keep latest 2 CI prereleases
     runs-on: ubuntu-latest
     steps:
-      - name: Delete superseded Windows CI prereleases
+      - name: Delete superseded CI prereleases by platform prefix
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
-          kept=0
-          deleted=0
+          retained_per_prefix=2
 
-          while IFS=$'\t' read -r published_at release_id tag_name; do
-            if [[ -z "$release_id" || -z "$tag_name" ]]; then
-              continue
-            fi
+          for prefix in \
+            "windows-ci-" \
+            "macos-arm64-ci-" \
+            "macos-x64-ci-" \
+            "linux-x86_64-ci-"
+          do
+            kept=0
+            deleted=0
 
-            if (( kept < 3 )); then
-              echo "Keeping $tag_name ($published_at)"
-              ((kept += 1))
-              continue
-            fi
+            while IFS=$'\t' read -r published_at release_id tag_name; do
+              if [[ -z "$release_id" || -z "$tag_name" ]]; then
+                continue
+              fi
 
-            gh api \
-              --method DELETE \
-              "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
-              --silent
-            echo "Deleted prerelease $tag_name ($published_at)"
-            ((deleted += 1))
+              if (( kept < retained_per_prefix )); then
+                echo "Keeping $tag_name ($published_at)"
+                ((kept += 1))
+                continue
+              fi
 
-            # CI tag 与 Release 一一对应；删除它避免 Tags 页面同样累积。
-            # tag 仅由短 SHA 组成，不需要额外 URL 编码。
-            if gh api \
-              --method DELETE \
-              "repos/${GITHUB_REPOSITORY}/git/refs/tags/${tag_name}" \
-              --silent; then
-              echo "Deleted CI tag $tag_name"
-            else
-              echo "CI tag $tag_name was already absent"
-            fi
-          done < <(
-            gh api \
-              --paginate \
-              "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-              --jq '.[] | select(.prerelease and (.tag_name | startswith("windows-ci-"))) | [.published_at, .id, .tag_name] | @tsv' |
+              gh api \
+                --method DELETE \
+                "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
+                --silent
+              echo "Deleted prerelease $tag_name ($published_at)"
+              ((deleted += 1))
+
+              # CI tag 与 Release 一一对应；删除它避免 Tags 页面同样累积。
+              # tag 仅由短 SHA 组成，不需要额外 URL 编码。
+              if gh api \
+                --method DELETE \
+                "repos/${GITHUB_REPOSITORY}/git/refs/tags/${tag_name}" \
+                --silent; then
+                echo "Deleted CI tag $tag_name"
+              else
+                echo "CI tag $tag_name was already absent"
+              fi
+            done < <(
+              gh api \
+                --paginate \
+                "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+                --arg prefix "$prefix" \
+                --jq '.[] | select(.prerelease and (.tag_name | startswith($prefix))) | [.published_at, .id, .tag_name] | @tsv' |
               sort -r
-          )
+            )
 
-          echo "Kept $kept CI prereleases; deleted $deleted superseded releases"
-
-  prune-macos-ci-releases:
-    name: Keep latest 3 macOS ARM64 CI prereleases
-    runs-on: ubuntu-latest
-    steps:
-      - name: Delete superseded macOS ARM64 CI prereleases
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-
-          kept=0
-          deleted=0
-
-          while IFS=$'\t' read -r published_at release_id tag_name; do
-            if [[ -z "$release_id" || -z "$tag_name" ]]; then
-              continue
-            fi
-
-            if (( kept < 3 )); then
-              echo "Keeping $tag_name ($published_at)"
-              ((kept += 1))
-              continue
-            fi
-
-            gh api \
-              --method DELETE \
-              "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
-              --silent
-            echo "Deleted prerelease $tag_name ($published_at)"
-            ((deleted += 1))
-
-            if gh api \
-              --method DELETE \
-              "repos/${GITHUB_REPOSITORY}/git/refs/tags/${tag_name}" \
-              --silent; then
-              echo "Deleted CI tag $tag_name"
-            else
-              echo "CI tag $tag_name was already absent"
-            fi
-          done < <(
-            gh api \
-              --paginate \
-              "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-              --jq '.[] | select(.prerelease and (.tag_name | startswith("macos-arm64-ci-"))) | [.published_at, .id, .tag_name] | @tsv' |
-              sort -r
-          )
-
-          echo "Kept $kept macOS ARM64 CI prereleases; deleted $deleted superseded releases"
+            echo "Prefix $prefix: kept $kept CI prereleases; deleted $deleted"
+          done
