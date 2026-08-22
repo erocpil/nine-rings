@@ -51,6 +51,51 @@ interface NotesStore {
   clearError: () => void;
 }
 
+const LAST_NOTE_KEY = "nr:lastNote";
+
+const NOTE_LOOKUP_TIMEOUT_MS = 5000;
+const NOTE_LIST_TIMEOUT_MS = 15000;
+
+function getPersistedLastNoteId(): string | null {
+  try {
+    const raw = localStorage.getItem(LAST_NOTE_KEY);
+    return raw && raw.trim() ? raw.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function resolvePreferredNoteId(noteId: string | undefined): Promise<Note | null> {
+  if (!noteId) return null;
+  return withTimeout(api.notes.get(noteId), NOTE_LOOKUP_TIMEOUT_MS, "恢复上次文档")
+    .catch(() => null);
+}
+
+async function resolveFallbackNoteAcrossWorkspace(lastNoteId: string | null, preferredDate: string): Promise<{ date: string; note: Note | null }> {
+  // notes.all() 只包含日期随笔，文档树中的文档必须通过 docs.search() 获取。
+  // 两类数据独立恢复，避免其中一路的瞬时失败让整个启动恢复失效。
+  const [dailyResult, docsResult] = await withTimeout(
+    Promise.allSettled([api.notes.all(), api.docs.search({})]),
+    NOTE_LIST_TIMEOUT_MS,
+    "加载全部笔记",
+  );
+  if (dailyResult.status === "rejected" && docsResult.status === "rejected") {
+    throw dailyResult.reason;
+  }
+
+  const byId = new Map<string, Note>();
+  const dailyNotes = dailyResult.status === "fulfilled" ? dailyResult.value : [];
+  const documents = docsResult.status === "fulfilled" ? docsResult.value : [];
+  for (const note of [...dailyNotes, ...documents]) byId.set(note.id, note);
+  const all = [...byId.values()].sort((a, b) =>
+    (b.updated_at ?? "").localeCompare(a.updated_at ?? ""),
+  );
+  if (!all.length) return { date: preferredDate, note: null };
+  const preferred = lastNoteId ? byId.get(lastNoteId) : undefined;
+  const fallback = preferred ?? all[0] ?? null;
+  return fallback ? { date: fallback.date, note: fallback } : { date: preferredDate, note: null };
+}
+
 export const useNotesStore = create<NotesStore>((set, get) => ({
   currentDate: loadCurrentDate(),
   notes: [],
@@ -70,18 +115,19 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
   initialize: async (preferredNoteId, selectFallback = true) => {
     set({ loading: true, startupReady: false, startupDateLoadPending: false, error: null });
     let restored: Note | null = null;
-    if (preferredNoteId) {
-      restored = await withTimeout(api.notes.get(preferredNoteId), 5000, "恢复最后文档")
-        .catch(() => null);
+    const preferredId = preferredNoteId
+      || (selectFallback ? getPersistedLastNoteId() ?? undefined : undefined);
+    if (preferredId) {
+      restored = await resolvePreferredNoteId(preferredId);
     }
 
-    const date = restored?.date ?? get().currentDate;
-    localStorage.setItem(CURRENT_DATE_KEY, date);
+    const requestedDate = restored?.date ?? get().currentDate;
+    localStorage.setItem(CURRENT_DATE_KEY, requestedDate);
     if (restored) {
       // 日期列表可能包含大量正文。不要在这里立刻读取；App 会在编辑器首次呈现
       // 后调用 setDate 补齐列表和 Todo，保证启动主路径只有一次按 ID 查询。
       set({
-        currentDate: date,
+        currentDate: requestedDate,
         selectedNote: restored,
         loading: false,
         startupReady: true,
@@ -90,14 +136,47 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
       return;
     }
 
+    const lastNoteId = getPersistedLastNoteId();
     try {
-      const [notes, dailyPage] = await withTimeout(
+      let date = requestedDate;
+      let [notes, dailyPage] = await withTimeout(
         Promise.all([api.notes.listByDate(date), api.daily.get(date)]),
-        15000,
+        NOTE_LIST_TIMEOUT_MS,
         "加载笔记",
       );
+
+      // 如果当天无可用文档，尝试在全部文档里找恢复目标。
+      if (notes.length === 0 && selectFallback) {
+        const fallback = await resolveFallbackNoteAcrossWorkspace(lastNoteId, date).catch(() => ({
+          date,
+          note: null,
+        }));
+        if (fallback.note) {
+          date = fallback.date;
+          const [fallbackNotes, fallbackPage] = await withTimeout(
+            Promise.all([api.notes.listByDate(date), api.daily.get(date)]),
+            NOTE_LIST_TIMEOUT_MS,
+            "恢复备用文档",
+          );
+          notes = fallbackNotes;
+          dailyPage = fallbackPage;
+          localStorage.setItem(CURRENT_DATE_KEY, date);
+          localStorage.setItem(LAST_NOTE_KEY, fallback.note.id);
+          set({
+            currentDate: date,
+            notes,
+            dailyPage,
+            selectedNote: fallback.note,
+            loading: false,
+            startupReady: true,
+            startupDateLoadPending: false,
+          });
+          return;
+        }
+      }
+
       set((state) => {
-        const lastId = localStorage.getItem("nr:lastNote");
+        const lastId = lastNoteId;
         const preferred = lastId ? notes.find((note) => note.id === lastId) : undefined;
         return {
           currentDate: date,
