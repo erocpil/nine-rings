@@ -28,7 +28,9 @@ function deepEqual(a: any, b: any): boolean {
 {
   console.log("\n── buildDocumentStoragePath ──");
   assert(buildDocumentStoragePath("projects", "nine-rings") === "projects/nine-rings", "P.A.R.A. root preserves child directory");
-  assert(buildDocumentStoragePath("/private/", "/ip/", true) === "private-ip", "custom top-level directory joins prefix and suffix");
+  assert(buildDocumentStoragePath("/private/", "/ip/", true) === "private/ip", "custom directory preserves child hierarchy");
+  assert(buildDocumentStoragePath("private/network-examples", "", true) === "private/network-examples", "custom multi-level path preserves separators");
+  assert(buildDocumentStoragePath("private", "network/examples", true) === "private/network/examples", "custom suffix may define multiple levels");
   assert(buildDocumentStoragePath("private", "", true) === "private", "custom root may omit suffix");
 }
 

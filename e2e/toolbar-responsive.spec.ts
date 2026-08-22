@@ -25,7 +25,14 @@ test.describe("响应式编辑器工具栏", () => {
     await expectNoHorizontalOverflow(page);
 
     await page.getByRole("button", { name: "块 ▾" }).click();
-    await page.getByRole("button", { name: "▦ 插入表格" }).click();
+    const insertTable = page.getByRole("button", { name: "▦ 插入表格" });
+    await expect(insertTable).toBeVisible();
+    await expect.poll(() => insertTable.evaluate((button) => {
+      const rect = button.getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return hit === button || button.contains(hit);
+    })).toBe(true);
+    await insertTable.click();
     const table = page.locator(".ProseMirror table");
     await expect(table).toHaveCount(1);
     await table.locator("td").first().click();

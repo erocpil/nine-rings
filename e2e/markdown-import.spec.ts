@@ -89,11 +89,11 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
   expect(centered).toBeLessThanOrEqual(2);
 
   const outlineList = outline.locator(".document-outline-list");
-  await outline.getByRole("button", { name: "Bottom" }).click();
+  await outline.getByRole("button", { name: "Bot" }).click();
   await expect.poll(() => outlineList.evaluate(
     (list) => Math.abs(list.scrollTop - (list.scrollHeight - list.clientHeight)),
   )).toBeLessThanOrEqual(1);
-  await outline.getByRole("button", { name: "Middle" }).click();
+  await outline.getByRole("button", { name: "Mid" }).click();
   await expect.poll(() => outlineList.evaluate(
     (list) => Math.abs(list.scrollTop - (list.scrollHeight - list.clientHeight) / 2),
   )).toBeLessThanOrEqual(1);

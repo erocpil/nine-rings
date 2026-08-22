@@ -7,7 +7,7 @@ import { test, expect, type Page, type Locator } from "@playwright/test";
  *   1. 作用范围 —— onContextMenu 只绑定在 EditorContent，标题/标签/工具栏不应拦截
  *   2. 视口边界 —— 菜单渲染后经 useLayoutEffect clamp，右下角/底部右键不越界
  *   3. 菜单项显示与禁用 —— 有/无选区、只读模式下的菜单项差异
- *   4. 菜单命令行为 —— 实际点击“全选/剪切/插入链接”并验证编辑器内容变化
+ *   4. 分级菜单与命令行为 —— 实际点击“全选/剪切/格式/段落/插入”并验证编辑器内容变化
  */
 
 // 新建一篇空白随笔，返回正文编辑器 locator
@@ -83,10 +83,11 @@ test.describe("正文右键菜单：视口边界", () => {
   test("视口底部右键时菜单不越界", async ({ page }) => {
     const editor = await createBlankNote(page);
     const vp = page.viewportSize()!;
-    // 全选使菜单包含“插入链接”，逼近真实最长的菜单形态
+    // 展开最长的子菜单，验证动态变高后仍会重新 clamp
     await editor.fill("选区文本");
     await editor.press("Control+A");
     await dispatchContextMenu(editor, vp.width / 2, vp.height - 2);
+    await item(page, "格式").click();
 
     const box = (await menu(page).boundingBox())!;
     expect(box.y).toBeGreaterThanOrEqual(0);
@@ -96,20 +97,22 @@ test.describe("正文右键菜单：视口边界", () => {
 });
 
 test.describe("正文右键菜单：菜单项显示与禁用", () => {
-  test("有选区时显示“插入链接”，无选区时不显示", async ({ page }) => {
+  test("插入子菜单始终显示，链接只在有选区时可用", async ({ page }) => {
     const editor = await createBlankNote(page);
 
     // 无选区：光标塌缩
     await editor.fill("测试文本");
     await dispatchContextMenu(editor, 120, 120);
-    await expect(item(page, "插入链接")).toHaveCount(0);
+    await item(page, "插入").click();
+    await expect(item(page, "链接")).toBeDisabled();
     await page.keyboard.press("Escape");
 
-    // 有选区：全选后右键，插入链接应出现
+    // 有选区：全选后右键，链接应可用
     await editor.click();
     await editor.press("Control+A");
     await dispatchContextMenu(editor, 120, 120);
-    await expect(item(page, "插入链接")).toBeVisible();
+    await item(page, "插入").click();
+    await expect(item(page, "链接")).toBeEnabled();
   });
 
   test("无选区时“复制/剪切”禁用，“全选”可用", async ({ page }) => {
@@ -136,7 +139,9 @@ test.describe("正文右键菜单：菜单项显示与禁用", () => {
     await expect(item(page, "全选")).toBeVisible();
     await expect(item(page, "撤销")).toHaveCount(0);
     await expect(item(page, "粘贴")).toHaveCount(0);
-    await expect(item(page, "插入链接")).toHaveCount(0);
+    await expect(item(page, "格式")).toHaveCount(0);
+    await expect(item(page, "段落")).toHaveCount(0);
+    await expect(item(page, "插入")).toHaveCount(0);
   });
 });
 
@@ -167,12 +172,29 @@ test.describe("正文右键菜单：菜单命令行为", () => {
     await expect.poll(() => editor.textContent()).toBe("");
   });
 
-  test("点击“插入链接”生成链接", async ({ page }) => {
+  test("格式与段落子菜单可设置粗体和 H3", async ({ page }) => {
+    const editor = await createBlankNote(page);
+    await editor.fill("要加粗的文字");
+    await editor.press("Control+A");
+    await dispatchContextMenu(editor, 120, 120);
+    await item(page, "格式").click();
+    await item(page, "粗体").click();
+    await expect(editor.locator("strong")).toHaveText("要加粗的文字");
+
+    await editor.click();
+    await dispatchContextMenu(editor, 120, 120);
+    await item(page, "段落").click();
+    await item(page, "三级标题 H3").click();
+    await expect(editor.locator("h3")).toHaveText("要加粗的文字");
+  });
+
+  test("点击“插入 > 链接”生成链接", async ({ page }) => {
     const editor = await createBlankNote(page);
     await editor.fill("要链接的文字");
     await editor.press("Control+A");
     await dispatchContextMenu(editor, 120, 120);
-    await item(page, "插入链接").click();
+    await item(page, "插入").click();
+    await item(page, "链接").click();
 
     await expect(page.locator(".image-dialog-input")).toBeVisible();
     await page.locator(".image-dialog-input").fill("https://example.com");

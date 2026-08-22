@@ -70,6 +70,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
   const [loadError, setLoadError] = useState<string | null>(null);
   const configRef = useRef<AppConfig | null>(null);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingConfigRef = useRef<Partial<AppConfig>>({});
+  const configSaveTimerRef = useRef<number | null>(null);
   const updateVersionRef = useRef(0);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [editorAppearanceOpen, setEditorAppearanceOpen] = useState(false);
@@ -153,18 +155,25 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
   const update = (partial: Partial<AppConfig>) => {
     if (!configRef.current) return;
     const key = Object.keys(partial)[0];
-    const version = ++updateVersionRef.current;
+    updateVersionRef.current += 1;
     const optimistic = { ...configRef.current, ...partial };
     configRef.current = optimistic;
     setConfig(optimistic);
     onConfigChange(optimistic);
     setSaving(key);
-    saveQueueRef.current = saveQueueRef.current
+    pendingConfigRef.current = { ...pendingConfigRef.current, ...partial };
+    if (configSaveTimerRef.current !== null) window.clearTimeout(configSaveTimerRef.current);
+    configSaveTimerRef.current = window.setTimeout(() => {
+      configSaveTimerRef.current = null;
+      const pending = pendingConfigRef.current;
+      pendingConfigRef.current = {};
+      const saveVersion = updateVersionRef.current;
+      saveQueueRef.current = saveQueueRef.current
       .catch(() => undefined)
       .then(async () => {
         try {
-          const merged = await api.config.set(partial);
-          if (version === updateVersionRef.current) {
+          const merged = await api.config.set(pending);
+          if (saveVersion === updateVersionRef.current) {
             configRef.current = merged;
             setConfig(merged);
             onConfigChange(merged);
@@ -173,7 +182,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
             setTimeout(() => setMessage(null), 1500);
           }
         } catch (error) {
-          if (version === updateVersionRef.current) {
+          if (saveVersion === updateVersionRef.current) {
             const persisted = await api.config.get().catch(() => null);
             if (persisted) {
               configRef.current = persisted;
@@ -185,6 +194,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
           }
         }
       });
+    }, 120);
   };
 
   const chk = (key: keyof AppConfig, _val: any) => saving === key ? "saving" : "";

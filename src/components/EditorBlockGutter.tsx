@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import type { Transaction } from "@tiptap/pm/state";
+import { isHeadingFolded } from "../extensions/HeadingFold";
 
 interface GutterBlock {
   index: number;
@@ -12,6 +13,8 @@ interface GutterBlock {
   bottom: number;
   marginBottom: number;
   active: boolean;
+  heading: boolean;
+  folded: boolean;
 }
 
 const HEADING_SIZE: Readonly<Record<number, number>> = {
@@ -90,6 +93,7 @@ interface EditorBlockGutterProps {
   showInsertButtons: boolean;
   readonly: boolean;
   onBlockCountChange?: (count: number) => void;
+  onHeadingFoldToggle?: (position: number) => void;
 }
 
 /**
@@ -98,7 +102,7 @@ interface EditorBlockGutterProps {
  * 编号和插入按钮都是真实 DOM，不再借用伪元素或根据鼠标坐标猜测
  * 用户意图。ResizeObserver 会在窗口、侧栏或字体导致重排时重新测量。
  */
-export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, readonly, onBlockCountChange }: EditorBlockGutterProps) {
+export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, readonly, onBlockCountChange, onHeadingFoldToggle }: EditorBlockGutterProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<number | null>(null);
   const documentMeasureTimerRef = useRef<number | null>(null);
@@ -109,7 +113,7 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
     const root = rootRef.current;
     if (!root || editor.isDestroyed) return;
 
-    if (!showNumbers && !showInsertButtons) {
+    if (!showNumbers && !showInsertButtons && !onHeadingFoldToggle) {
       // Mobile keeps insertion in the block menu. With block numbers disabled
       // there is no gutter UI at all, so avoid walking the document or reading
       // any DOM geometry on every edit.
@@ -125,6 +129,7 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
     editor.state.doc.forEach((node, pos, index) => {
       const dom = editor.view.nodeDOM(pos);
       if (!(dom instanceof HTMLElement)) return;
+      if (dom.classList.contains("heading-fold-hidden")) return;
       const rect = dom.getBoundingClientRect();
       next.push({
         index: index + 1,
@@ -144,11 +149,13 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
           ? Math.max(0, Number.parseFloat(getComputedStyle(dom).marginBottom) || 0)
           : 0,
         active: selectionPos >= pos && selectionPos < pos + node.nodeSize,
+        heading: node.type.name === "heading",
+        folded: node.type.name === "heading" && isHeadingFolded(editor, pos),
       });
     });
     setBlocks(next);
-    onBlockCountChange?.(next.length);
-  }, [editor, onBlockCountChange, showInsertButtons, showNumbers]);
+    onBlockCountChange?.(editor.state.doc.childCount);
+  }, [editor, onBlockCountChange, onHeadingFoldToggle, showInsertButtons, showNumbers]);
 
   const scheduleMeasure = useCallback(() => {
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
@@ -161,9 +168,10 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
       let changed = false;
       const next = current.map((block) => {
         const active = selectionPos >= block.pos && selectionPos < block.endPos;
-        if (active === block.active) return block;
+        const folded = block.heading && isHeadingFolded(editor, block.pos);
+        if (active === block.active && folded === block.folded) return block;
         changed = true;
-        return { ...block, active };
+        return { ...block, active, folded };
       });
       return changed ? next : current;
     });
@@ -186,7 +194,7 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
     const root = rootRef.current;
     if (!root) return;
 
-    const observer = new ResizeObserver(scheduleMeasure);
+    const observer = new ResizeObserver(scheduleDocumentMeasure);
     observer.observe(root);
     observer.observe(editor.view.dom);
     const onTransaction = ({ transaction }: { transaction: Transaction }) => {
@@ -250,6 +258,18 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
         >
           {block.index}
         </span>
+      ))}
+      {onHeadingFoldToggle && blocks.filter((block) => block.heading).map((block) => (
+        <button
+          key={`fold-${block.pos}`}
+          type="button"
+          className={`editor-heading-fold ${block.folded ? "folded" : ""}`}
+          style={{ top: block.firstLineCenter }}
+          aria-label={`${block.folded ? "展开" : "折叠"}第 ${block.index} 块章节`}
+          title={block.folded ? "展开本节" : "折叠本节"}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onHeadingFoldToggle(block.pos)}
+        >{block.folded ? "▶" : "▼"}</button>
       ))}
       {!readonly && showInsertButtons && boundaries.map((boundary) => (
         <button

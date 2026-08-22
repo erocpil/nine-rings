@@ -257,14 +257,14 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
                     {o.label} — {o.desc}
                   </option>
                 ))}
-                <option value={CUSTOM_ROOT_VALUE}>➕ 自定义一级目录</option>
+                <option value={CUSTOM_ROOT_VALUE}>➕ 自定义目录</option>
               </select>
               {rootPath === CUSTOM_ROOT_VALUE && <>
                 <span className="dialog-path-sep">/</span>
                 <input
                   type="text"
                   className="dialog-input dialog-path-input"
-                  placeholder="一级目录 (如 private)"
+                  placeholder="目录路径 (如 private/network)"
                   value={customRootPath}
                   list="custom-root-paths"
                   onChange={(e) => {
@@ -276,7 +276,7 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
                   {customRootSuggestions.map((path) => <option key={path} value={path} />)}
                 </datalist>
               </>}
-              <span className="dialog-path-sep">{rootPath === CUSTOM_ROOT_VALUE ? "+" : "/"}</span>
+              <span className="dialog-path-sep">/</span>
               <input
                 type="text"
                 className={`dialog-input dialog-path-input ${showSuggestion ? "suggested" : ""}`}

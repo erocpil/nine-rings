@@ -269,7 +269,27 @@ function assert(condition: boolean, msg: string): void {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// 15. 多级混合列表双向转换
+// 15. 普通块缩进双向转换
+// ═══════════════════════════════════════════════════════════════════
+{
+  console.log("\n── Generic block indentation ──");
+  const pm: any = { type: "doc", content: [
+    { type: "paragraph", attrs: { indent: 1 }, content: [{ type: "text", text: "Indented" }] },
+    { type: "heading", attrs: { level: 3, indent: 2 }, content: [{ type: "text", text: "Heading" }] },
+    { type: "blockquote", attrs: { indent: 1 }, content: [{ type: "paragraph", content: [{ type: "text", text: "Quote" }] }] },
+    { type: "codeBlock", attrs: { language: "ts", indent: 2 }, content: [{ type: "text", text: "code" }] },
+  ] };
+  const delta = proseMirrorToDelta(pm);
+  assert(delta.ops.filter((op: any) => op.insert === "\n").every((op: any) => op.attributes?.indent > 0),
+    "generic block indent is stored on Delta newlines");
+  const restored = deltaToProseMirror(delta);
+  assert(restored.content.map((node: any) => node.attrs?.indent ?? 0).join(",") === "1,2,1,2" &&
+    restored.content.map((node: any) => node.textContent ?? node.content?.[0]?.content?.[0]?.text ?? node.content?.[0]?.text ?? "").join(",") === "Indented,Heading,Quote,code",
+    "generic block indentation survives save and reload");
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 16. 多级混合列表双向转换
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Nested mixed lists ──");

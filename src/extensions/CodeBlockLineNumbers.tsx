@@ -27,7 +27,10 @@ function CodeBlockView({ node }: NodeViewProps) {
   };
 
   return (
-    <NodeViewWrapper className="code-block-wrap">
+    <NodeViewWrapper
+      className="code-block-wrap"
+      data-indent={node.attrs.indent > 0 ? node.attrs.indent : undefined}
+    >
       <div ref={wrapperRef}>
         <button
           className="code-block-copy"
@@ -73,6 +76,7 @@ export const CodeBlockLineNumbers = Node.create({
 
   addAttributes() {
     return {
+      ...this.parent?.(),
       language: {
         default: null,
         parseHTML: (element) => element.getAttribute("data-language") || null,

@@ -89,7 +89,10 @@ export function RecycleBin({ open, onClose }: RecycleBinProps) {
             <div key={note.id} className="recycle-item">
               <div className="recycle-item-info">
                 <div className="recycle-item-title">
-                  {note.title || "无标题"}
+                  <span className="recycle-item-name">{note.title || "无标题"}</span>
+                  {note.storagePath && (
+                    <span className="recycle-item-path" title={note.storagePath}>{note.storagePath}</span>
+                  )}
                 </div>
                 <div className="recycle-item-date">
                   删除于{" "}

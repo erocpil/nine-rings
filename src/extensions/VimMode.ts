@@ -44,6 +44,125 @@ function topLevelBlocks(doc: ProseMirrorNode) {
   return blocks;
 }
 
+interface VimNavigationLine {
+  from: number;
+  to: number;
+  text: string;
+}
+
+interface VimWordSegment {
+  from: number;
+  to: number;
+}
+
+const navigationLineCache = new WeakMap<ProseMirrorNode, VimNavigationLine[]>();
+const wordSegmentCache = new WeakMap<ProseMirrorNode, VimWordSegment[]>();
+
+/**
+ * Vim 的逻辑行对应可编辑 textblock，而不是 ProseMirror 顶层节点。
+ * 因此列表项和表格单元格可以逐行进入，HR 等原子块会被自然跨过。
+ * 文档节点不可变，按 doc 实例缓存后，连续移动不会反复遍历长文档。
+ */
+function navigationLines(doc: ProseMirrorNode): VimNavigationLine[] {
+  const cached = navigationLineCache.get(doc);
+  if (cached) return cached;
+  const lines: VimNavigationLine[] = [];
+  doc.descendants((node, pos) => {
+    if (!node.isTextblock) return true;
+    lines.push({
+      from: pos + 1,
+      to: pos + node.nodeSize - 1,
+      text: node.textBetween(0, node.content.size, "\n", "\ufffc"),
+    });
+    return false;
+  });
+  navigationLineCache.set(doc, lines);
+  return lines;
+}
+
+function navigationLineIndex(doc: ProseMirrorNode, position: number): number {
+  const lines = navigationLines(doc);
+  if (lines.length === 0) return -1;
+  let low = 0;
+  let high = lines.length - 1;
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    const line = lines[middle];
+    if (position < line.from) high = middle - 1;
+    else if (position > line.to) low = middle + 1;
+    else return middle;
+  }
+  if (low <= 0) return 0;
+  if (low >= lines.length) return lines.length - 1;
+  return position - lines[low - 1].to <= lines[low].from - position ? low - 1 : low;
+}
+
+function positionInNavigationLine(state: EditorState, lineIndex: number, preferredOffset: number): number {
+  const lines = navigationLines(state.doc);
+  const line = lines[Math.max(0, Math.min(lines.length - 1, lineIndex))];
+  if (!line) return state.selection.head;
+  return Math.max(line.from, Math.min(line.to, line.from + preferredOffset));
+}
+
+function vimCharacterClass(character: string): "keyword" | "cjk" | "punct" | "space" {
+  if (/\s/u.test(character)) return "space";
+  if (/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(character)) return "cjk";
+  if (/[\p{L}\p{N}_]/u.test(character)) return "keyword";
+  return "punct";
+}
+
+function wordSegments(doc: ProseMirrorNode): VimWordSegment[] {
+  const cached = wordSegmentCache.get(doc);
+  if (cached) return cached;
+  const segments: VimWordSegment[] = [];
+  for (const line of navigationLines(doc)) {
+    let offset = 0;
+    while (offset < line.text.length) {
+      const character = String.fromCodePoint(line.text.codePointAt(offset)!);
+      const kind = vimCharacterClass(character);
+      if (kind === "space") {
+        offset += character.length;
+        continue;
+      }
+      const start = offset;
+      offset += character.length;
+      while (offset < line.text.length) {
+        const next = String.fromCodePoint(line.text.codePointAt(offset)!);
+        if (vimCharacterClass(next) !== kind) break;
+        offset += next.length;
+      }
+      segments.push({ from: line.from + start, to: line.from + offset });
+    }
+  }
+  wordSegmentCache.set(doc, segments);
+  return segments;
+}
+
+function wordMotionPosition(
+  state: EditorState,
+  direction: "word-forward" | "word-back" | "word-end",
+  count: number,
+): number {
+  const segments = wordSegments(state.doc);
+  if (segments.length === 0) return state.selection.head;
+  let position = state.selection.head;
+  for (let step = 0; step < count; step += 1) {
+    if (direction === "word-forward") {
+      const lines = navigationLines(state.doc);
+      position = segments.find((segment) => segment.from > position)?.from ?? lines[lines.length - 1].to;
+    } else if (direction === "word-back") {
+      const current = segments.find((segment) => position > segment.from && position <= segment.to);
+      if (current) position = current.from;
+      else position = [...segments].reverse().find((segment) => segment.from < position)?.from ?? segments[0].from;
+    } else {
+      const target = segments.find((segment) => segment.to - 1 > position);
+      const last = segments[segments.length - 1];
+      position = target ? Math.max(target.from, target.to - 1) : Math.max(last.from, last.to - 1);
+    }
+  }
+  return position;
+}
+
 function currentBlockIndex(state: EditorState): number {
   return Math.max(0, Math.min(state.doc.childCount - 1, state.selection.$head.index(0)));
 }
@@ -104,43 +223,20 @@ function dispatchSelection(
 
 function inlineMotionPosition(
   state: EditorState,
-  direction: "left" | "right" | "start" | "end" | "word-forward" | "word-back" | "word-end",
+  direction: "left" | "right" | "start" | "end",
   count: number,
 ): number {
   const { $head } = state.selection;
   if (!$head.parent.isTextblock) return state.selection.head;
   const start = $head.start();
   const end = $head.end();
-  const offset = $head.parentOffset;
-  const text = $head.parent.textBetween(0, $head.parent.content.size, "\n", "\ufffc");
 
   if (direction === "start") return start;
   if (direction === "end") return end;
   if (direction === "left") return Math.max(start, state.selection.head - count);
   if (direction === "right") return Math.min(end, state.selection.head + count);
 
-  let next = Math.max(0, Math.min(text.length, offset));
-  for (let step = 0; step < count; step += 1) {
-    if (direction === "word-forward") {
-      const remainder = text.slice(Math.min(text.length, next + (step === 0 ? 0 : 1)));
-      const match = remainder.match(/(?:[\p{L}\p{N}_]+|[^\s\p{L}\p{N}_])\s*/u);
-      next = match ? Math.min(text.length, next + match.index! + match[0].length) : text.length;
-      while (next < text.length && /\s/u.test(text[next])) next += 1;
-    } else if (direction === "word-back") {
-      let cursor = Math.max(0, next - 1);
-      while (cursor > 0 && /\s/u.test(text[cursor])) cursor -= 1;
-      const word = /[\p{L}\p{N}_]/u.test(text[cursor] ?? "");
-      while (cursor > 0 && (/[\p{L}\p{N}_]/u.test(text[cursor - 1]) === word) && !/\s/u.test(text[cursor - 1])) cursor -= 1;
-      next = cursor;
-    } else {
-      let cursor = Math.min(text.length - 1, next + 1);
-      while (cursor < text.length && /\s/u.test(text[cursor])) cursor += 1;
-      const word = /[\p{L}\p{N}_]/u.test(text[cursor] ?? "");
-      while (cursor + 1 < text.length && (/[\p{L}\p{N}_]/u.test(text[cursor + 1]) === word) && !/\s/u.test(text[cursor + 1])) cursor += 1;
-      next = Math.min(text.length, cursor);
-    }
-  }
-  return Math.max(start, Math.min(end, start + next));
+  return Math.max(start, Math.min(end, state.selection.head + (direction === "left" ? -count : count)));
 }
 
 function blockRange(state: EditorState, count: number) {
@@ -189,12 +285,37 @@ function deleteInline(view: EditorView, count: number, registerRef?: { current: 
 }
 
 function setLineVisualSelection(view: EditorView) {
-  const block = topLevelBlocks(view.state.doc)[currentBlockIndex(view.state)];
-  if (!block) return;
-  const from = firstTextPosition(block.node, block.pos);
-  const to = lastTextPosition(block.node, block.pos);
+  const lines = navigationLines(view.state.doc);
+  const line = lines[navigationLineIndex(view.state.doc, view.state.selection.head)];
+  if (!line) return;
+  const { from, to } = line;
   view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)).scrollIntoView());
   enterMode(view, "visual-line", from);
+}
+
+function moveByVisualLine(view: EditorView, direction: 1 | -1, count: number, vim: VimPluginState) {
+  let position = view.state.selection.head;
+  for (let step = 0; step < count; step += 1) {
+    const coords = view.coordsAtPos(position);
+    const height = Math.max(12, coords.bottom - coords.top);
+    let targetPosition = position;
+    for (let distance = 1; distance <= 4; distance += 1) {
+      const target = view.posAtCoords({
+        left: coords.left,
+        top: (coords.top + coords.bottom) / 2 + direction * height * distance,
+      });
+      if (!target || target.pos === position) continue;
+      const targetCoords = view.coordsAtPos(target.pos);
+      if ((direction > 0 && targetCoords.top > coords.top + 1)
+        || (direction < 0 && targetCoords.top < coords.top - 1)) {
+        targetPosition = target.pos;
+        break;
+      }
+    }
+    if (targetPosition === position) break;
+    position = targetPosition;
+  }
+  dispatchSelection(view, position, vim);
 }
 
 function moveByPage(view: EditorView, direction: 1 | -1, vim: VimPluginState) {
@@ -294,7 +415,11 @@ function handleVimKey(
   }
 
   if (vim.pending === "g") {
-    if (key === "g") dispatchSelection(view, positionInBlock(view.state, 0, 0), vim);
+    if (key === "g") {
+      dispatchSelection(view, positionInNavigationLine(view.state, 0, 0), vim);
+    } else if (key === "j" || key === "k") {
+      moveByVisualLine(view, key === "j" ? 1 : -1, count, vim);
+    }
     finishCommand(view);
     return true;
   }
@@ -323,12 +448,11 @@ function handleVimKey(
   }
 
   const verticalMove = (delta: number) => {
-    const index = currentBlockIndex(view.state);
-    const blocks = topLevelBlocks(view.state.doc);
-    const current = blocks[index];
-    const currentStart = current ? firstTextPosition(current.node, current.pos) : view.state.selection.head;
-    const preferredOffset = Math.max(0, view.state.selection.head - currentStart);
-    dispatchSelection(view, positionInBlock(view.state, index + delta * count, preferredOffset), vim);
+    const lines = navigationLines(view.state.doc);
+    const index = navigationLineIndex(view.state.doc, view.state.selection.head);
+    const current = lines[index];
+    const preferredOffset = Math.max(0, view.state.selection.head - (current?.from ?? view.state.selection.head));
+    dispatchSelection(view, positionInNavigationLine(view.state, index + delta * count, preferredOffset), vim);
     finishCommand(view);
   };
   const inlineMove = (motion: Parameters<typeof inlineMotionPosition>[1]) => {
@@ -341,16 +465,16 @@ function handleVimKey(
     case "l": inlineMove("right"); return true;
     case "j": verticalMove(1); return true;
     case "k": verticalMove(-1); return true;
-    case "w": inlineMove("word-forward"); return true;
-    case "b": inlineMove("word-back"); return true;
-    case "e": inlineMove("word-end"); return true;
+    case "w": dispatchSelection(view, wordMotionPosition(view.state, "word-forward", count), vim); finishCommand(view); return true;
+    case "b": dispatchSelection(view, wordMotionPosition(view.state, "word-back", count), vim); finishCommand(view); return true;
+    case "e": dispatchSelection(view, wordMotionPosition(view.state, "word-end", count), vim); finishCommand(view); return true;
     case "0": inlineMove("start"); return true;
     case "^": inlineMove("start"); return true;
     case "$": inlineMove("end"); return true;
     case "g": updateVimState(view, { pending: "g" }); return true;
     case "G": {
-      const target = vim.count ? count - 1 : view.state.doc.childCount - 1;
-      dispatchSelection(view, positionInBlock(view.state, target, 0), vim);
+      const target = vim.count ? count - 1 : navigationLines(view.state.doc).length - 1;
+      dispatchSelection(view, positionInNavigationLine(view.state, target, 0), vim);
       finishCommand(view);
       return true;
     }

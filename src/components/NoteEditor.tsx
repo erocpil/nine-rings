@@ -69,6 +69,15 @@ import {
   VimMode,
   type VimEditorMode,
 } from "../extensions/VimMode";
+import {
+  HeadingFold,
+  expandHeadingFoldsAt,
+  isHeadingFolded,
+  setAllHeadingFolds,
+  toggleHeadingFold,
+} from "../extensions/HeadingFold";
+import { sessionHeadingFoldStore } from "../lib/heading-fold";
+import { BlockIndent } from "../extensions/BlockIndent";
 
 const FontSize = Extension.create({
   name: "fontSize",
@@ -251,6 +260,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [activeOutlineIndex, setActiveOutlineIndex] = useState(-1);
   const [outlineOverflow, setOutlineOverflow] = useState(false);
   const [documentOutline, setDocumentOutline] = useState<DocumentOutlineItem[]>([]);
+  const [, setHeadingFoldRevision] = useState(0);
   const lastOutlineRequestIdRef = useRef(outlineRequestId);
   const outlineBaseLevel = useMemo(
     () => documentOutline.length > 0
@@ -286,6 +296,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const [linkUrl, setLinkUrl] = useState("");
   // 编辑器右键菜单 + 右键插入链接对话框
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [contextSubmenu, setContextSubmenu] = useState<"format" | "paragraph" | "insert" | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const [linkDialog, setLinkDialog] = useState(false);
@@ -370,7 +381,10 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   // 关闭编辑器右键菜单（点击外部 / Escape / 滚动 / 失焦）
   useEffect(() => {
     if (!contextMenu) return;
-    const close = () => setContextMenu(null);
+    const close = () => {
+      setContextMenu(null);
+      setContextSubmenu(null);
+    };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     document.addEventListener("mousedown", close);
     document.addEventListener("keydown", onKey);
@@ -398,7 +412,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     if (clampedX !== contextMenu.x || clampedY !== contextMenu.y) {
       setContextMenu({ x: clampedX, y: clampedY });
     }
-  }, [contextMenu]);
+  }, [contextMenu, contextSubmenu]);
 
   // 观察标题是否可见，用于 sticky title（仅在专注模式）
   useEffect(() => {
@@ -460,6 +474,14 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       StructuredBlockExit,
       MarkdownLinkInput,
       CjkLatinSpacing,
+      BlockIndent,
+      HeadingFold.configure({
+        initialCollapsedKeys: sessionHeadingFoldStore.load(noteId)?.collapsedKeys ?? [],
+        onChange: (collapsedKeys) => {
+          sessionHeadingFoldStore.save(noteId, { version: 1, collapsedKeys });
+          setHeadingFoldRevision((revision) => revision + 1);
+        },
+      }),
       VimMode.configure({
         enabled: vimModeEnabled && !readonly,
         onModeChange: setVimEditorMode,
@@ -729,6 +751,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     const match = matches[index];
     setActiveSearchMatch(index);
     setSearchHighlights(editor, matches, index);
+    expandHeadingFoldsAt(editor, match.from);
 
     // 防止浏览器先把整个编辑器滚到不可预测的位置，再把命中放到
     // 可视正文区域约 1/3 的高度，保留足够的前后文。
@@ -799,6 +822,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     const resolved = editor.state.doc.resolve(
       Math.min(blockPos + 1, editor.state.doc.content.size),
     );
+    expandHeadingFoldsAt(editor, resolved.pos);
     const selection = TextSelection.near(resolved, 1);
     editor.view.dispatch(editor.state.tr.setSelection(selection));
     editor.view.dom.focus({ preventScroll: true });
@@ -863,6 +887,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
   const jumpToOutlineHeading = useCallback((item: DocumentOutlineItem) => {
     if (!editor || editor.isDestroyed) return;
     const position = Math.min(item.pos + 1, editor.state.doc.content.size);
+    expandHeadingFoldsAt(editor, position);
     editor.commands.setTextSelection(position);
     editor.view.focus();
     setOutlineOpen(false);
@@ -1501,6 +1526,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
     if (!useCustomContextMenu) return; // 关闭开关 → 系统原生菜单
     e.preventDefault();
     e.stopPropagation();
+    setContextSubmenu(null);
     setContextMenu({ x: e.clientX, y: e.clientY });
   };
 
@@ -1585,6 +1611,19 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
 
     // 关闭下拉菜单（窄屏场景）
     setBlockOpen(false);
+  };
+
+  const changeSelectedBlockIndent = (direction: 1 | -1) => {
+    if (editor.isActive("table")) return;
+    if (editor.isActive("listItem")) {
+      const chain = editor.chain().focus();
+      if (direction > 0) chain.sinkListItem("listItem").run();
+      else chain.liftListItem("listItem").run();
+      return;
+    }
+    const chain = editor.chain().focus();
+    if (direction > 0) chain.indentBlocks().run();
+    else chain.outdentBlocks().run();
   };
 
   const insertBlankBlockAfterCurrent = () => {
@@ -1902,11 +1941,13 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           <div className="document-outline-header">
             <span>目录</span>
             <div className="document-outline-header-actions">
+              <button type="button" onClick={() => setAllHeadingFolds(editor, true)} title="折叠全部章节">全部折叠</button>
+              <button type="button" onClick={() => setAllHeadingFolds(editor, false)} title="展开全部章节">全部展开</button>
               {outlineOverflow && (
                 <div className="document-outline-jumps" aria-label="目录快速滚动">
                   <button type="button" onClick={() => scrollOutlineTo("top")} title="滚动至顶部">Top</button>
-                  <button type="button" onClick={() => scrollOutlineTo("middle")} title="滚动至中部">Middle</button>
-                  <button type="button" onClick={() => scrollOutlineTo("bottom")} title="滚动至底部">Bottom</button>
+                  <button type="button" onClick={() => scrollOutlineTo("middle")} title="滚动至中部">Mid</button>
+                  <button type="button" onClick={() => scrollOutlineTo("bottom")} title="滚动至底部">Bot</button>
                 </div>
               )}
               <span className="document-outline-count">{documentOutline.length} 项</span>
@@ -1914,20 +1955,26 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           </div>
           <div className="document-outline-list" ref={outlineListRef}>
             {documentOutline.map((item, index) => (
-              <button
+              <div
                 key={`${item.pos}-${index}`}
                 className={`document-outline-item ${index === activeOutlineIndex ? "current" : ""}`}
                 style={{ paddingInlineStart: `${10 + (item.level - outlineBaseLevel) * 14}px` }}
                 data-level={item.level}
                 data-outline-index={index}
                 aria-current={index === activeOutlineIndex ? "location" : undefined}
-                onClick={() => jumpToOutlineHeading(item)}
                 title={item.text}
-                type="button"
               >
+                <button
+                  className="document-outline-fold"
+                  type="button"
+                  aria-label={`${isHeadingFolded(editor, item.pos) ? "展开" : "折叠"}章节 ${item.text}`}
+                  onClick={() => toggleHeadingFold(editor, item.pos)}
+                >{isHeadingFolded(editor, item.pos) ? "▶" : "▼"}</button>
+                <button className="document-outline-link" type="button" onClick={() => jumpToOutlineHeading(item)}>
                 <span className="document-outline-level">H{item.level}</span>
                 <span className="document-outline-text">{item.text}</span>
-              </button>
+                </button>
+              </div>
             ))}
           </div>
         </nav>
@@ -2167,6 +2214,18 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
                     type="button"
                   >1. 有序列表</button>
                   <button
+                    className="menu-dropdown-item"
+                    onClick={() => { changeSelectedBlockIndent(1); setBlockOpen(false); }}
+                    disabled={editor.isActive("table")}
+                    type="button"
+                  >→ 增加块缩进（Tab）</button>
+                  <button
+                    className="menu-dropdown-item"
+                    onClick={() => { changeSelectedBlockIndent(-1); setBlockOpen(false); }}
+                    disabled={editor.isActive("table")}
+                    type="button"
+                  >← 减少块缩进（Shift+Tab）</button>
+                  <button
                     className={`menu-dropdown-item ${editor.isActive("codeBlock") ? "active" : ""}`}
                     onClick={handleToggleCodeBlock}
                     type="button"
@@ -2220,6 +2279,8 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
           {btn("❝", () => editor.chain().focus().toggleBlockquote().run(), editor.isActive("blockquote"), "引用 (Ctrl+Shift+B)", readonly)}
           {btn("•", () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"), "无序列表 (Ctrl+Shift+8)", readonly)}
           {btn("1.", () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"), "有序列表 (Ctrl+Shift+7)", readonly)}
+          {btn("→", () => changeSelectedBlockIndent(1), false, "增加块缩进 (Tab)", readonly || editor.isActive("table"))}
+          {btn("←", () => changeSelectedBlockIndent(-1), false, "减少块缩进 (Shift+Tab)", readonly || editor.isActive("table"))}
           {btn("⏹", handleToggleCodeBlock, editor.isActive("codeBlock"), "代码块 (Ctrl+Alt+C)", readonly)}
           {btn("▦", () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), editor.isActive("table"), "插入 3×3 表格", readonly || editor.isActive("table"))}
           {btn("M↓", convertSelectionFromMarkdown, false, "转换所选 Markdown", readonly || !hasSelection())}
@@ -2582,6 +2643,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             showInsertButtons={!isMobileToolbarViewport}
             readonly={!!readonly}
             onBlockCountChange={setGutterBlockCount}
+            onHeadingFoldToggle={(position) => toggleHeadingFold(editor, position)}
           />
           <EditorContent editor={editor} className="editor-content" onContextMenu={handleEditorContextMenu} />
         </div>
@@ -2713,17 +2775,115 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
             className="editor-context-item"
             onClick={() => { editor.chain().focus().selectAll().run(); setContextMenu(null); }}
           >全选</button>
-          {!readonly && hasSelection() && (
+          {!readonly && (
             <>
               <div className="editor-context-sep" />
               <button
-                className="editor-context-item"
-                onClick={() => { setContextMenu(null); setLinkDialog(true); }}
-              >插入链接</button>
+                className="editor-context-item editor-context-parent"
+                aria-expanded={contextSubmenu === "format"}
+                onClick={() => setContextSubmenu((current) => current === "format" ? null : "format")}
+              ><span>格式</span><span aria-hidden="true">{contextSubmenu === "format" ? "▾" : "▸"}</span></button>
+              {contextSubmenu === "format" && (
+                <div className="editor-context-submenu" role="group" aria-label="格式">
+                  <button
+                    className="editor-context-item editor-context-subitem"
+                    disabled={!hasSelection()}
+                    onClick={() => { editor.chain().focus().toggleBold().run(); setContextMenu(null); }}
+                  >粗体 <span>Ctrl+B</span></button>
+                  <button
+                    className="editor-context-item editor-context-subitem"
+                    disabled={!hasSelection()}
+                    onClick={() => { editor.chain().focus().toggleItalic().run(); setContextMenu(null); }}
+                  >斜体 <span>Ctrl+I</span></button>
+                  <button
+                    className="editor-context-item editor-context-subitem"
+                    disabled={!hasSelection()}
+                    onClick={() => { editor.chain().focus().toggleStrike().run(); setContextMenu(null); }}
+                  >删除线</button>
+                  <button
+                    className="editor-context-item editor-context-subitem"
+                    disabled={!hasSelection()}
+                    onClick={() => { editor.chain().focus().toggleCode().run(); setContextMenu(null); }}
+                  >行内代码</button>
+                  <button
+                    className="editor-context-item editor-context-subitem"
+                    disabled={!hasSelection()}
+                    onClick={() => { editor.chain().focus().unsetAllMarks().run(); setContextMenu(null); }}
+                  >清除文本格式</button>
+                  <button
+                    className="editor-context-item editor-context-subitem"
+                    disabled={!hasSelection()}
+                    onClick={convertSelectionFromMarkdown}
+                  >转换所选 Markdown</button>
+                </div>
+              )}
               <button
-                className="editor-context-item"
-                onClick={convertSelectionFromMarkdown}
-              >转换所选 Markdown</button>
+                className="editor-context-item editor-context-parent"
+                aria-expanded={contextSubmenu === "paragraph"}
+                onClick={() => setContextSubmenu((current) => current === "paragraph" ? null : "paragraph")}
+              ><span>段落</span><span aria-hidden="true">{contextSubmenu === "paragraph" ? "▾" : "▸"}</span></button>
+              {contextSubmenu === "paragraph" && (
+                <div className="editor-context-submenu" role="group" aria-label="段落">
+                  <button
+                    className="editor-context-item editor-context-subitem"
+                    onClick={() => { editor.chain().focus().clearNodes().run(); setContextMenu(null); }}
+                  >正文</button>
+                  <button
+                    className="editor-context-item editor-context-subitem"
+                    onClick={() => { editor.chain().focus().toggleHeading({ level: 3 }).run(); setContextMenu(null); }}
+                  >三级标题 H3</button>
+                  <button
+                    className="editor-context-item editor-context-subitem"
+                    onClick={() => { editor.chain().focus().toggleHeading({ level: 4 }).run(); setContextMenu(null); }}
+                  >四级标题 H4</button>
+                  <button
+                    className="editor-context-item editor-context-subitem"
+                    onClick={() => { editor.chain().focus().toggleBlockquote().run(); setContextMenu(null); }}
+                  >引用块</button>
+                  <button
+                    className="editor-context-item editor-context-subitem"
+                    onClick={() => { editor.chain().focus().toggleBulletList().run(); setContextMenu(null); }}
+                  >无序列表</button>
+                  <button
+                    className="editor-context-item editor-context-subitem"
+                    onClick={() => { editor.chain().focus().toggleOrderedList().run(); setContextMenu(null); }}
+                  >有序列表</button>
+                  <button
+                    className="editor-context-item editor-context-subitem"
+                    onClick={() => { changeSelectedBlockIndent(1); setContextMenu(null); }}
+                  >增加块缩进 <span>Tab</span></button>
+                  <button
+                    className="editor-context-item editor-context-subitem"
+                    onClick={() => { changeSelectedBlockIndent(-1); setContextMenu(null); }}
+                  >减少块缩进 <span>Shift+Tab</span></button>
+                </div>
+              )}
+              <button
+                className="editor-context-item editor-context-parent"
+                aria-expanded={contextSubmenu === "insert"}
+                onClick={() => setContextSubmenu((current) => current === "insert" ? null : "insert")}
+              ><span>插入</span><span aria-hidden="true">{contextSubmenu === "insert" ? "▾" : "▸"}</span></button>
+              {contextSubmenu === "insert" && (
+                <div className="editor-context-submenu" role="group" aria-label="插入">
+                  <button
+                    className="editor-context-item editor-context-subitem"
+                    disabled={!hasSelection()}
+                    onClick={() => {
+                      setLinkDialogUrl(editor.getAttributes("link").href || "");
+                      setContextMenu(null);
+                      setLinkDialog(true);
+                    }}
+                  >链接</button>
+                  <button
+                    className="editor-context-item editor-context-subitem"
+                    onClick={() => { setContextMenu(null); setImageDialog(true); }}
+                  >图片</button>
+                  <button
+                    className="editor-context-item editor-context-subitem"
+                    onClick={() => { editor.chain().focus().setHorizontalRule().run(); setContextMenu(null); }}
+                  >水平分隔线</button>
+                </div>
+              )}
             </>
           )}
         </div>

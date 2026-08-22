@@ -81,17 +81,21 @@ function deltaAttrToMarks(attrs: Record<string, any> | undefined): any[] {
 export function proseMirrorToDelta(pmJson: any): any {
   const ops: any[] = [];
   const content = pmJson?.content ?? [];
+  const indentAttrs = (node: { attrs?: Record<string, unknown> }) => {
+    const indent = Math.max(0, Math.min(8, Math.floor(Number(node.attrs?.indent) || 0)));
+    return indent > 0 ? { indent } : {};
+  };
 
   for (const node of content) {
     switch (node.type) {
       case "paragraph":
         extractInlineOps(node, ops);
-        ops.push({ insert: "\n" });
+        ops.push({ insert: "\n", ...(node.attrs?.indent > 0 ? { attributes: indentAttrs(node) } : {}) });
         break;
 
       case "heading":
         extractInlineOps(node, ops);
-        ops.push({ insert: "\n", attributes: { header: node.attrs?.level ?? 1 } });
+        ops.push({ insert: "\n", attributes: { header: node.attrs?.level ?? 1, ...indentAttrs(node) } });
         break;
 
       case "bulletList":
@@ -108,6 +112,7 @@ export function proseMirrorToDelta(pmJson: any): any {
           insert: "\n",
           attributes: {
             "code-block": true,
+            ...indentAttrs(node),
             ...(node.attrs?.language ? { language: node.attrs.language } : {}),
           },
         });
@@ -115,7 +120,7 @@ export function proseMirrorToDelta(pmJson: any): any {
 
       case "blockquote":
         extractInlineOps(node, ops);
-        ops.push({ insert: "\n", attributes: { blockquote: true } });
+        ops.push({ insert: "\n", attributes: { blockquote: true, ...indentAttrs(node) } });
         break;
 
       case "image":
@@ -357,14 +362,19 @@ export function deltaToProseMirror(deltaData: any): any {
         // ── 非列表块级属性 → 先刷出 pendingList ──
         flushList();
 
+        const blockIndent = Math.max(0, Math.min(8, Math.floor(Number(attrs.indent) || 0)));
+        const blockIndentAttrs = blockIndent > 0 ? { indent: blockIndent } : {};
+
         if (attrs.header) {
           currentParagraph.type = "heading";
-          currentParagraph.attrs = { level: attrs.header };
+          currentParagraph.attrs = { level: attrs.header, ...blockIndentAttrs };
           flushParagraph();
         } else if (attrs["code-block"]) {
           currentParagraph.type = "codeBlock";
           if (typeof attrs.language === "string" && attrs.language) {
-            currentParagraph.attrs = { language: attrs.language };
+            currentParagraph.attrs = { ...blockIndentAttrs, language: attrs.language };
+          } else if (blockIndent > 0) {
+            currentParagraph.attrs = blockIndentAttrs;
           }
           flushParagraph();
         } else if (attrs.blockquote) {
@@ -372,11 +382,13 @@ export function deltaToProseMirror(deltaData: any): any {
           // 文本必须用 paragraph 包裹，不能直接放在 blockquote 下
           currentParagraph = {
             type: "blockquote",
+            ...(blockIndent > 0 ? { attrs: blockIndentAttrs } : {}),
             content: [{ type: "paragraph", content: currentParagraph.content }]
           };
           flushParagraph();
           currentParagraph = { type: "paragraph", content: [] };
         } else {
+          if (blockIndent > 0) currentParagraph.attrs = blockIndentAttrs;
           flushParagraph();
         }
       } else if (insert.startsWith("\n")) {
