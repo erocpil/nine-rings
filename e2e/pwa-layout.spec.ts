@@ -504,6 +504,64 @@ test.describe("PWA 窄屏应用外壳", () => {
       JSON.stringify({ portraitBefore, portraitAfter }),
     ).toBeLessThan(0.15);
   });
+
+  test("只读横竖屏往返保持顶部可见块及其偏移", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("显示侧栏").click();
+    await page.getByTitle("切换到随笔").click();
+    await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 100 } });
+    const editor = page.locator(".ProseMirror");
+    await editor.fill(Array.from({ length: 100 }, (_, index) => `阅读定位第 ${index + 1} 块`).join("\n"));
+    await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
+    await page.locator(".sidebar-item.active").getByTitle("设为只读")
+      .evaluate((button: HTMLButtonElement) => button.click());
+    await expect(editor).toHaveAttribute("contenteditable", "false");
+
+    const target = editor.locator(":scope > p").nth(54);
+    await target.evaluate((element) => {
+      const root = document.querySelector<HTMLElement>(".note-editor-scroll")!;
+      const rootRect = root.getBoundingClientRect();
+      const sticky = root.querySelector<HTMLElement>(":scope > .note-editor-sticky");
+      const stickyRect = sticky?.getBoundingClientRect();
+      const visibleTop = sticky && getComputedStyle(sticky).position === "sticky" && stickyRect
+        ? Math.max(rootRect.top, Math.min(rootRect.bottom, stickyRect.bottom))
+        : rootRect.top;
+      root.scrollTop += element.getBoundingClientRect().top - visibleTop - 10;
+    });
+    await page.waitForTimeout(80);
+
+    const readTopBlock = () => page.evaluate(() => {
+      const root = document.querySelector<HTMLElement>(".note-editor-scroll")!;
+      const rootRect = root.getBoundingClientRect();
+      const sticky = root.querySelector<HTMLElement>(":scope > .note-editor-sticky");
+      const stickyRect = sticky?.getBoundingClientRect();
+      const visibleTop = sticky && getComputedStyle(sticky).position === "sticky" && stickyRect
+        ? Math.max(rootRect.top, Math.min(rootRect.bottom, stickyRect.bottom))
+        : rootRect.top;
+      const block = Array.from(document.querySelectorAll<HTMLElement>(".ProseMirror > *"))
+        .find((element) => {
+          const rect = element.getBoundingClientRect();
+          return rect.height > 0 && rect.bottom > visibleTop + 0.5 && rect.top < rootRect.bottom;
+        });
+      if (!block) throw new Error("top visible block not found");
+      return { text: block.textContent, offset: block.getBoundingClientRect().top - visibleTop };
+    });
+
+    const portraitBefore = await readTopBlock();
+    expect(portraitBefore.text).toMatch(/^阅读定位第 5[4-6] 块$/);
+
+    for (const viewport of [
+      { width: 760, height: 390 },
+      { width: 390, height: 760 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await expect.poll(async () => {
+        const current = await readTopBlock();
+        return current.text === portraitBefore.text
+          && Math.abs(current.offset - portraitBefore.offset) < 20;
+      }).toBe(true);
+    }
+  });
 });
 
 test("横屏手机保持单行工具栏且正文可滚动", async ({ page }) => {

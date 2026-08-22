@@ -673,7 +673,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       if (frame) cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         const root = scrollRef.current;
-        if (!root || editor.isDestroyed || !editor.isFocused) return;
+        if (!root || editor.isDestroyed || !editor.isFocused || readonly) return;
         try {
           const rootRect = root.getBoundingClientRect();
           const caret = editor.view.coordsAtPos(editor.state.selection.head);
@@ -704,7 +704,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       viewport?.removeEventListener("scroll", revealCaret);
       window.removeEventListener("resize", revealCaret);
     };
-  }, [editor]);
+  }, [editor, readonly]);
 
   useEffect(() => {
     if (!editor) return;
@@ -1176,8 +1176,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     onSearchTargetConsumed?.(searchTarget.requestId);
   }, [editor, noteId, onSearchTargetConsumed, revealSearchMatch, searchTarget, title]);
 
-  // 宽度变化会让软换行重排。用当前选区的屏幕 Y 坐标作为锚点，
-  // 在 ResizeObserver 报告新宽度后补偿 scrollTop，使同一文本保持原位。
+  // 宽度变化会让软换行重排。编辑且光标可见时锚定光标；只读、失焦或
+  // 光标不在视口内时锚定顶部第一个可见块，避免横竖屏切换跳到旧选区。
   useEffect(() => {
     if (!editor) return;
     const root = scrollRef.current;
@@ -1190,29 +1190,76 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     let lastWindowWidth = window.innerWidth;
     const settleTimers: number[] = [];
     let anchor: {
+      kind: "caret" | "block";
       pos: number;
       viewportTop: number;
-      rootTop: number;
-      rootHeight: number;
+      viewportHeight: number;
       relativeRatio: number;
       width: number;
-      visible: boolean;
+      blockElement?: HTMLElement;
     } | null = null;
+
+    const visibleViewport = () => {
+      const rootRect = root.getBoundingClientRect();
+      const sticky = root.querySelector<HTMLElement>(":scope > .note-editor-sticky");
+      const stickyRect = sticky?.getBoundingClientRect();
+      const stickyBottom = sticky
+        && getComputedStyle(sticky).position === "sticky"
+        && stickyRect
+        && stickyRect.bottom > rootRect.top
+        ? Math.min(rootRect.bottom, stickyRect.bottom)
+        : rootRect.top;
+      const top = Math.max(rootRect.top, stickyBottom);
+      return { top, bottom: rootRect.bottom, height: Math.max(1, rootRect.bottom - top) };
+    };
+
+    const blockPosition = (element: HTMLElement) => {
+      const domPosition = editor.view.posAtDOM(element, 0, -1);
+      const position = Math.max(0, Math.min(domPosition, editor.state.doc.content.size));
+      const $position = editor.state.doc.resolve(position);
+      return $position.depth >= 1 ? $position.before(1) : position;
+    };
 
     const capture = () => {
       frame = 0;
       if (adjusting || editor.isDestroyed || !root.isConnected) return;
+      const viewport = visibleViewport();
       const pos = Math.min(editor.state.selection.head, editor.state.doc.content.size);
       const coords = editor.view.coordsAtPos(pos);
-      const rect = root.getBoundingClientRect();
+      const caretVisible = !readonly
+        && editor.isFocused
+        && coords.bottom >= viewport.top
+        && coords.top <= viewport.bottom;
+      if (caretVisible) {
+        anchor = {
+          kind: "caret",
+          pos,
+          viewportTop: coords.top,
+          viewportHeight: viewport.height,
+          relativeRatio: (coords.top - viewport.top) / viewport.height,
+          width: root.clientWidth,
+        };
+        return;
+      }
+
+      const block = Array.from(editor.view.dom.children).find((child): child is HTMLElement => {
+        if (!(child instanceof HTMLElement)) return false;
+        const rect = child.getBoundingClientRect();
+        return rect.height > 0 && rect.bottom > viewport.top + 0.5 && rect.top < viewport.bottom;
+      });
+      if (!block) {
+        anchor = null;
+        return;
+      }
+      const blockRect = block.getBoundingClientRect();
       anchor = {
-        pos,
-        viewportTop: coords.top,
-        rootTop: rect.top,
-        rootHeight: rect.height,
-        relativeRatio: rect.height > 0 ? (coords.top - rect.top) / rect.height : 0.5,
+        kind: "block",
+        pos: blockPosition(block),
+        viewportTop: blockRect.top - viewport.top,
+        viewportHeight: viewport.height,
+        relativeRatio: 0,
         width: root.clientWidth,
-        visible: coords.bottom >= rect.top && coords.top <= rect.bottom,
+        blockElement: block,
       };
     };
     const scheduleCapture = () => {
@@ -1220,17 +1267,26 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     };
 
     const restoreAnchor = (previous: NonNullable<typeof anchor>) => {
-      if (editor.isDestroyed || !root.isConnected || !previous.visible) return;
+      if (editor.isDestroyed || !root.isConnected) return;
+      const viewport = visibleViewport();
       const pos = Math.min(previous.pos, editor.state.doc.content.size);
+      if (previous.kind === "block") {
+        const block = previous.blockElement?.isConnected
+          ? previous.blockElement
+          : editor.view.nodeDOM(pos);
+        if (!(block instanceof HTMLElement)) return;
+        const targetTop = viewport.top + previous.viewportTop;
+        root.scrollTop += block.getBoundingClientRect().top - targetTop;
+        return;
+      }
       const nextTop = editor.view.coordsAtPos(pos).top;
-      const nextRect = root.getBoundingClientRect();
-      const heightChanged = Math.abs(nextRect.height - previous.rootHeight) > 24;
+      const heightChanged = Math.abs(viewport.height - previous.viewportHeight) > 24;
       const unclampedTarget = heightChanged
-        ? nextRect.top + previous.relativeRatio * nextRect.height
-        : previous.viewportTop + (nextRect.top - previous.rootTop);
+        ? viewport.top + previous.relativeRatio * viewport.height
+        : previous.viewportTop;
       const targetTop = Math.min(
-        nextRect.bottom - 32,
-        Math.max(nextRect.top + 16, unclampedTarget),
+        viewport.bottom - 32,
+        Math.max(viewport.top + 16, unclampedTarget),
       );
       root.scrollTop += nextTop - targetTop;
     };
@@ -1302,7 +1358,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       clearSettleTimers();
       if (frame) cancelAnimationFrame(frame);
     };
-  }, [editor]);
+  }, [editor, readonly]);
 
   // 打开标题下拉时自动检测是否存在 H6（切换至页 1）
   useEffect(() => {
