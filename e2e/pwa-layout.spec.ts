@@ -97,6 +97,17 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(longHeaderHeight).toBe(shortHeaderHeight);
     await outline.getByRole("button", { name: "Bot" }).click();
     await expect(outline.locator(".document-outline-text", { hasText: "性能章节 160" })).toBeVisible();
+    const compactRows = outline.locator(".document-outline-item").filter({ hasText: "性能章节" });
+    await expect.poll(() => compactRows.count()).toBeGreaterThan(2);
+    const compactGeometry = await compactRows.evaluateAll((items) => {
+      const rows = items.map((item) => item.getBoundingClientRect()).sort((left, right) => left.top - right.top);
+      return {
+        heights: rows.map((row) => row.height),
+        gaps: rows.slice(1).map((row, index) => row.top - rows[index].top),
+      };
+    });
+    expect(Math.max(...compactGeometry.heights)).toBeLessThanOrEqual(27);
+    expect(Math.max(...compactGeometry.gaps)).toBeLessThanOrEqual(28);
   });
 
   test("专注与普通模式目录同宽且长标题最多显示两行", async ({ page }) => {
@@ -104,7 +115,18 @@ test.describe("PWA 窄屏应用外壳", () => {
     const editor = page.locator(".ProseMirror");
     const longTitle = "这是一个用于验证手机目录能够尽量完整显示内容而不会过早截断的很长章节标题并继续补充足够多的文字验证第二行显示效果";
     await editor.fill(longTitle);
-    await expect(editor.locator("h1, h2, h3, h4, h5, h6").filter({ hasText: longTitle })).toBeVisible();
+    const longHeading = editor.locator("h1, h2, h3, h4, h5, h6").filter({ hasText: longTitle });
+    await expect(longHeading).toBeVisible();
+    await editor.press("Control+End");
+    await editor.evaluate((element) => {
+      const markdown = Array.from({ length: 105 }, (_, index) => `## 短章节 ${index + 1}\n\n正文 ${index + 1}`)
+        .join("\n\n");
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", `\n\n${markdown}`);
+      element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    });
+    await expect(editor.locator("h1, h2, h3, h4, h5, h6")).toHaveCount(106);
+    await longHeading.click();
 
     const normalOutlineButton = page.locator(".note-title-row").getByTitle("文档目录");
     await normalOutlineButton.click();
@@ -128,6 +150,9 @@ test.describe("PWA 窄屏应用外壳", () => {
     });
     expect(normalGeometry.width).toBeGreaterThanOrEqual(370);
     expect(normalGeometry.itemHeight, JSON.stringify(normalGeometry)).toBeGreaterThan(38);
+    const shortItemHeight = await outline.locator('.document-outline-item[title="短章节 1"]')
+      .evaluate((item) => item.getBoundingClientRect().height);
+    expect(shortItemHeight).toBeLessThanOrEqual(27);
     await normalOutlineButton.click();
 
     await page.locator(".note-title-row").getByTitle("专注模式").click();
