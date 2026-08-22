@@ -100,12 +100,14 @@ jobs:
           set -euo pipefail
 
           retained_per_prefix=2
-
-          for prefix in \
-            "windows-ci-" \
-            "macos-arm64-ci-" \
-            "macos-x64-ci-" \
+          explicit_prefixes=(
+            "windows-ci-"
+            "macos-arm64-ci-"
+            "macos-x64-ci-"
             "linux-x86_64-ci-"
+          )
+
+          for prefix in "${explicit_prefixes[@]}"
           do
             kept=0
             deleted=0
@@ -149,3 +151,62 @@ jobs:
 
             echo "Prefix $prefix: kept $kept CI prereleases; deleted $deleted"
           done
+
+          # Fallback: keep latest 2 for any other prerelease tag that matches pattern "*-ci-*"
+          declare -A fallback_kept=()
+          fallback_deleted=0
+          while IFS=$'\t' read -r published_at release_id tag_name; do
+            if [[ -z "$release_id" || -z "$tag_name" ]]; then
+              continue
+            fi
+
+            is_explicit_prefix=0
+            for explicit_prefix in "${explicit_prefixes[@]}"; do
+              if [[ "$tag_name" == "${explicit_prefix}"* ]]; then
+                is_explicit_prefix=1
+                break
+              fi
+            done
+            if (( is_explicit_prefix == 1 )); then
+              continue
+            fi
+
+            ci_prefix="${tag_name%%-ci-*}-ci-"
+            if [[ "$ci_prefix" == "${tag_name}" ]]; then
+              continue
+            fi
+            fallback_kept_count="${fallback_kept[$ci_prefix]:-0}"
+
+            if (( fallback_kept_count < retained_per_prefix )); then
+              echo "Keeping fallback $tag_name ($published_at)"
+              fallback_kept["$ci_prefix"]=$((fallback_kept_count + 1))
+              continue
+            fi
+
+            gh api \
+              --method DELETE \
+              "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
+              --silent
+            echo "Deleted fallback prerelease $tag_name ($published_at)"
+            ((fallback_deleted += 1))
+
+            if gh api \
+              --method DELETE \
+              "repos/${GITHUB_REPOSITORY}/git/refs/tags/${tag_name}" \
+              --silent; then
+              echo "Deleted fallback CI tag $tag_name"
+            else
+              echo "Fallback CI tag $tag_name was already absent"
+            fi
+          done < <(
+            gh api \
+              --paginate \
+              "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq '.[] | select(.prerelease and (.tag_name | contains("-ci-"))) | [.published_at, .id, .tag_name] | @tsv' |
+            sort -r
+          )
+
+          for prefix in "${!fallback_kept[@]}"; do
+            echo "Fallback prefix $prefix: kept ${fallback_kept[$prefix]} CI prereleases"
+          done
+          echo "Fallback CI prereleases deleted: $fallback_deleted"
