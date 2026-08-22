@@ -116,6 +116,9 @@ jobs:
               if [[ -z "$release_id" || -z "$tag_name" ]]; then
                 continue
               fi
+              if [[ "$tag_name" != "${prefix}"* ]]; then
+                continue
+              fi
 
               if (( kept < retained_per_prefix )); then
                 echo "Keeping $tag_name ($published_at)"
@@ -144,8 +147,7 @@ jobs:
               gh api \
                 --paginate \
                 "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-                --arg prefix "$prefix" \
-                --jq '.[] | select(.prerelease and (.tag_name | startswith($prefix))) | [.published_at, .id, .tag_name] | @tsv' |
+                --jq '.[] | select(.prerelease) | [.published_at, .id, .tag_name] | @tsv' |
               sort -r
             )
 
