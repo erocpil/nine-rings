@@ -304,7 +304,9 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
             onClick={onExportPdf}
             title="按展开后的完整正文生成带目录的 PDF"
           >导出 PDF（含目录）</button>
-          <div className="prop-empty">使用上方发布元信息；只读文档也可以导出。</div>
+          <div className="prop-empty">
+            使用上方发布元信息；只读文档也可以导出。iPhone/iPad 无需打印机：在系统打印预览中展开页面，再点分享并“存储到文件”。
+          </div>
         </div>
 
         {/* 概念标签 */}

@@ -28,6 +28,13 @@ export function cacheEditorDocument(noteId: string, revision: string, document: 
   }
 }
 
+/** Keep an already converted document valid when autosave only advances updated_at. */
+export function promoteCachedEditorDocument(noteId: string, toRevision: string): void {
+  const entry = sessions.get(noteId);
+  if (!entry || !toRevision) return;
+  sessions.set(noteId, { revision: toRevision, document: entry.document });
+}
+
 export function clearEditorSessionCache(): void {
   sessions.clear();
 }

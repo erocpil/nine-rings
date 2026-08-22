@@ -1,5 +1,6 @@
 import type { DocumentMetadata } from "../types/models";
 import { applyCodeHighlighting } from "./code-highlight";
+import { isTauriRuntime } from "./runtime";
 
 export interface PdfDocumentInfo extends DocumentMetadata {
   documentType?: string;
@@ -149,8 +150,31 @@ function headingId(text: string, index: number, used: Set<string>): string {
  * keeping this path HTML-based preserves selectable text, links and tables.
  */
 export function exportDocumentAsPdf({ title, contentHtml, metadata }: PdfExportOptions): boolean {
-  const printWindow = window.open("", "_blank");
+  // Tauri/WebView2 默认禁止脚本创建新窗口，因此桌面端使用同一 WebView
+  // 中的隔离 iframe。它仍调用系统打印界面，但不再依赖 window.open。
+  const printFrame = isTauriRuntime() ? document.createElement("iframe") : null;
+  if (printFrame) {
+    printFrame.title = "PDF 打印文档";
+    printFrame.setAttribute("aria-hidden", "true");
+    Object.assign(printFrame.style, {
+      position: "fixed",
+      width: "1px",
+      height: "1px",
+      right: "0",
+      bottom: "0",
+      border: "0",
+      opacity: "0",
+      pointerEvents: "none",
+    });
+    document.body.append(printFrame);
+  }
+  const printWindow = printFrame?.contentWindow ?? window.open("", "_blank");
   if (!printWindow) return false;
+
+  const closePrintView = () => {
+    if (printFrame) printFrame.remove();
+    else printWindow.close();
+  };
 
   const printDocument = printWindow.document;
   printDocument.title = `${title || "无标题"}.pdf`;
@@ -182,7 +206,7 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata }: PdfExportO
   const closeButton = printDocument.createElement("button");
   closeButton.type = "button";
   closeButton.textContent = "关闭";
-  closeButton.addEventListener("click", () => printWindow.close());
+  closeButton.addEventListener("click", closePrintView);
   const printButton = printDocument.createElement("button");
   printButton.type = "button";
   printButton.className = "primary";
@@ -294,7 +318,7 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata }: PdfExportO
 
   wrapper.append(...coverNodes, toc, content);
   printDocument.body.replaceChildren(actions, wrapper);
-  printWindow.opener = null;
+  if (!printFrame) printWindow.opener = null;
 
   // Let fonts and images settle before opening the system dialog. The visible
   // print button remains available when a platform suppresses automatic print.
@@ -309,7 +333,13 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata }: PdfExportO
   const fontsReady = printDocument.fonts?.ready ?? Promise.resolve();
   const timeout = new Promise<void>((resolve) => window.setTimeout(resolve, 1800));
   void Promise.race([Promise.all([imageReady, fontsReady]), timeout]).then(() => {
-    if (printWindow.closed) return;
+    if ((!printFrame && printWindow.closed) || (printFrame && !printFrame.isConnected)) return;
+    if (printFrame) {
+      printWindow.addEventListener("afterprint", closePrintView, { once: true });
+      // 某些 WebView2 版本不会向子 frame 派发 afterprint；兜底回收即可，
+      // 延迟移除不会影响已经打开的系统打印对话框。
+      window.setTimeout(closePrintView, 60_000);
+    }
     printWindow.focus();
     printWindow.print();
   });

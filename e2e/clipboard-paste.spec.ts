@@ -530,12 +530,13 @@ test.describe("文档树移动", () => {
     await page.goto("/");
     const viewSwitch = page.locator(".sidebar-view-switch");
     if (await viewSwitch.getAttribute("data-target-view") === "tree") await viewSwitch.click();
-    await page.getByTitle("显示属性面板").click();
     await page.getByTitle("新建文档").click();
 
     await page.getByPlaceholder("文档标题...").fill("移动回归文档");
     await page.getByPlaceholder("子路径 (如 nine-rings)").fill("move-e2e");
     await page.getByRole("button", { name: "创建" }).click();
+    await expect(page.locator(".properties-panel")).toHaveCount(0);
+    await page.getByTitle("显示属性面板").click();
     await expect(page.locator(".properties-panel")).toBeVisible();
 
     const sourceFolder = page.locator(".doc-tree-folder").filter({ hasText: "move-e2e" });

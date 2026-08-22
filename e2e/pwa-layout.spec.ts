@@ -502,10 +502,11 @@ test("横屏手机保持单行工具栏且正文可滚动", async ({ page }) => 
 test("属性面板在窄屏中覆盖显示而不挤压正文", async ({ page }) => {
   await page.setViewportSize({ width: 1020, height: 640 });
   await page.goto("/");
-  await page.getByTitle("显示属性面板").click();
   await page.getByTitle("新建文档").click();
   await page.getByPlaceholder("文档标题...").fill("移动属性面板测试");
   await page.getByRole("button", { name: "创建", exact: true }).click();
+  await expect(page.locator(".properties-panel")).toHaveCount(0);
+  await page.getByTitle("显示属性面板").click();
   await expect(page.locator(".properties-panel")).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 760 });

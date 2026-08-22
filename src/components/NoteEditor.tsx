@@ -657,12 +657,6 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     if (editor && showStatusBar) scheduleDocumentStats(editor, true);
   }, [editor, scheduleDocumentStats, showStatusBar]);
 
-  useEffect(() => () => {
-    if (editor && !editor.isDestroyed) {
-      cacheEditorDocument(noteId, contentVersionRef.current, editor.getJSON());
-    }
-  }, [editor, noteId]);
-
   // Mobile browsers resize the visual viewport after the keyboard animation. ProseMirror's
   // native selection scrolling can run before that resize and leave the caret underneath
   // the bottom edge (with or without the optional status bar), so correct it after both
@@ -1579,7 +1573,9 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       metadata: pdfDocumentInfo,
     });
     if (!opened) {
-      window.alert("无法打开 PDF 打印页，请允许此站点打开弹出窗口后重试。");
+      window.alert(isTauri()
+        ? "无法启动系统打印界面，请确认系统打印服务可用后重试。"
+        : "无法打开 PDF 打印页，请允许此站点打开弹出窗口后重试。");
     }
   }, [editor, localTitle, pdfDocumentInfo]);
 

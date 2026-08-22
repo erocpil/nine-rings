@@ -35,6 +35,7 @@ import { WebStatusBanner } from "./components/WebStatusBanner";
 import { SearchResultsPanel } from "./components/SearchResultsPanel";
 import { subscribeToDataChanges } from "./lib/tab-coordination";
 import { rememberRecentNote } from "./lib/quick-switcher";
+import { promoteCachedEditorDocument } from "./lib/editor-session-cache";
 
 const WORKSPACE_TARGET_KEY = "nr:workspaceTarget";
 const ACTIVE_TAG_KEY = "nr:activeTag";
@@ -131,16 +132,10 @@ function App() {
   useEffect(() => {
     setEditorReadyNoteId(null);
     if (!selectedNoteId || !startupRestoreComplete) return;
-    let secondFrame = 0;
-    const firstFrame = window.requestAnimationFrame(() => {
-      secondFrame = window.requestAnimationFrame(() => {
-        setEditorReadyNoteId(selectedNoteId);
-      });
+    const frame = window.requestAnimationFrame(() => {
+      setEditorReadyNoteId(selectedNoteId);
     });
-    return () => {
-      window.cancelAnimationFrame(firstFrame);
-      if (secondFrame) window.cancelAnimationFrame(secondFrame);
-    };
+    return () => window.cancelAnimationFrame(frame);
   }, [selectedNoteId, startupRestoreComplete]);
 
   // 编辑器完成首次提交后再加载完整侧栏树。即使备份包含大量文档，应用外壳和
@@ -161,7 +156,8 @@ function App() {
   // ── 自动保存 Hook ──
   const autoSave = useAutoSave({
     onSave: async (noteId, data) => {
-      await updateNote(noteId, data);
+      const updated = await updateNote(noteId, data);
+      promoteCachedEditorDocument(noteId, updated.updated_at);
     },
   });
   const flushAutoSave = autoSave.flush;
@@ -404,13 +400,7 @@ function App() {
     const target = startupWorkspaceTargetRef.current;
     return target?.kind === "concept" ? target.concept : null;
   });
-  const [propertiesOpen, setPropertiesOpen] = useState(() => {
-    return localStorage.getItem("nr:propertiesOpen") === "true";
-  });
-  const PROP_AUTO_KEY = "nr:propertiesAutoShow";
-  const [propertiesAutoShow, setPropertiesAutoShow] = useState(() => {
-    return localStorage.getItem(PROP_AUTO_KEY) === "true";
-  });
+  const [propertiesOpen, setPropertiesOpen] = useState(false);
 
   const revealDocTreePath = useCallback((targetPath: string, sourcePath?: string) => {
     setDocTreeCollapsed((previous) => {
@@ -503,11 +493,6 @@ function App() {
     setDocTreeKey((key) => key + 1);
   }, [flushAutoSave, revealDocTreePath, selectNote]);
 
-  // 属性面板开/关持久化
-  useEffect(() => {
-    localStorage.setItem("nr:propertiesOpen", String(propertiesOpen));
-  }, [propertiesOpen]);
-
   // 主侧栏和弹出文档树共享同一个折叠集合，并统一持久化。
   useEffect(() => {
     localStorage.setItem(DOC_TREE_COLLAPSED_KEY, JSON.stringify([...docTreeCollapsed]));
@@ -531,10 +516,10 @@ function App() {
   const error = useNotesStore((s) => s.error);
   const clearError = useNotesStore((s) => s.clearError);
 
-  // ── 属性面板：选中文档时自动打开，选随笔时关闭 ──
+  // 文档切换后保持正文优先；属性面板仅由用户针对当前文档主动打开。
   useEffect(() => {
-    setPropertiesOpen(propertiesAutoShow && !!selectedNote?.storagePath);
-  }, [propertiesAutoShow, selectedNote]);
+    setPropertiesOpen(false);
+  }, [selectedNoteId]);
   const LAST_NOTE_KEY = "nr:lastNote";
   const startupRestoreCompleteRef = useRef(false);
   useEffect(() => {
@@ -1212,13 +1197,9 @@ function App() {
               onBatchSetReadonly={async (ids, readonly) => {
                 await handleBatchSetReadonly(ids, readonly);
               }}
-              propertiesAutoShow={propertiesAutoShow}
+              propertiesAutoShow={propertiesOpen}
               onTogglePropertiesAuto={() => {
-                const next = !propertiesAutoShow;
-                setPropertiesAutoShow(next);
-                localStorage.setItem(PROP_AUTO_KEY, String(next));
-                if (next) setPropertiesOpen(true);
-                else setPropertiesOpen(false);
+                setPropertiesOpen((open) => !open);
               }}
             />
           )}
@@ -1355,7 +1336,7 @@ function App() {
           )}
         </main>
 
-        {secondaryUiReady && selectedNote?.storagePath && propertiesAutoShow && propertiesOpen && (
+        {secondaryUiReady && selectedNote?.storagePath && propertiesOpen && (
           <Suspense fallback={null}>
             <PropertiesPanel
               readonly={selectedNote.readonly || syncBusy}
@@ -1485,13 +1466,9 @@ function App() {
                 onBatchSetReadonly={async (ids, readonly) => {
                   await handleBatchSetReadonly(ids, readonly);
                 }}
-                propertiesAutoShow={propertiesAutoShow}
+                propertiesAutoShow={propertiesOpen}
                 onTogglePropertiesAuto={() => {
-                  const next = !propertiesAutoShow;
-                  setPropertiesAutoShow(next);
-                  localStorage.setItem(PROP_AUTO_KEY, String(next));
-                  if (next) setPropertiesOpen(true);
-                  else setPropertiesOpen(false);
+                  setPropertiesOpen((open) => !open);
                 }}
               />
             </div>

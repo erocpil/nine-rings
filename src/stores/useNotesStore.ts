@@ -44,7 +44,7 @@ interface NotesStore {
   setDate: (date: string) => Promise<void>;
   selectNote: (note: Note | null) => void;
   createNote: () => Promise<Note | null>;
-  updateNote: (id: string, changes: NotePatch) => Promise<void>;
+  updateNote: (id: string, changes: NotePatch) => Promise<Note>;
   deleteNote: (id: string) => Promise<void>;
   search: (query: string) => Promise<void>;
   updateTodos: (todos: DailyPage["todos"]) => Promise<void>;
@@ -264,6 +264,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
           error: null,
         };
       });
+      return updatedNote;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e ?? "unknown error");
       set({ error: `更新失败: ${msg}` });
