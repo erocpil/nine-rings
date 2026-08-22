@@ -12,6 +12,7 @@ type ViewportStatus = {
   viewportHeight: number;
   viewportWidth: number;
   keyboardHeight: number;
+  viewportBottomInset: number;
   offsetTop: number;
   offsetLeft: number;
 };
@@ -54,10 +55,18 @@ function syncViewportCSS() {
     0,
     Math.round(window.innerHeight - Math.min(viewportHeight, window.innerHeight)),
   );
+  // Fixed-position overlays are laid out against the layout viewport on iOS.
+  // This is the exact hidden area below the visual viewport; unlike keyboardHeight,
+  // it also accounts for Safari panning the visual viewport upward.
+  const viewportBottomInset = Math.max(
+    0,
+    Math.round(window.innerHeight - Math.min(offsetTop + viewportHeight, window.innerHeight)),
+  );
   const status: ViewportStatus = {
     viewportHeight: Math.max(1, Math.round(viewportHeight)),
     viewportWidth: Math.max(1, Math.round(viewportWidth)),
     keyboardHeight,
+    viewportBottomInset,
     offsetTop: Math.max(0, Math.round(offsetTop)),
     offsetLeft: Math.max(0, Math.round(offsetLeft)),
   };
@@ -66,6 +75,7 @@ function syncViewportCSS() {
   root.style.setProperty("--app-viewport-height", `${status.viewportHeight}px`);
   root.style.setProperty("--app-viewport-width", `${status.viewportWidth}px`);
   root.style.setProperty("--app-keyboard-height", `${status.keyboardHeight}px`);
+  root.style.setProperty("--app-visual-viewport-bottom-inset", `${status.viewportBottomInset}px`);
   root.style.setProperty("--app-visual-viewport-offset-top", `${status.offsetTop}px`);
   root.style.setProperty("--app-visual-viewport-offset-left", `${status.offsetLeft}px`);
   root.classList.toggle("web-keyboard-open", status.keyboardHeight >= 80 || status.offsetTop >= 80);

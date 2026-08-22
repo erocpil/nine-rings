@@ -50,6 +50,7 @@ import { noteToMarkdown } from "../lib/markdown-serializer";
 import { exportMarkdownWithDialog, isTauri } from "../lib/tauri-desktop";
 import { editorGutterWidth } from "../lib/editor-gutter";
 import { clipboardSliceToPlainText } from "../lib/clipboard-plain-text";
+import { exitCurrentStructuredBlock, StructuredBlockExit } from "../extensions/StructuredBlockExit";
 import {
   CjkLatinSpacing,
   setCjkLatinSpacing,
@@ -453,6 +454,7 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
       ActiveLinePlugin,
       SearchHighlights,
       CodeBlockLineNumbers,
+      StructuredBlockExit,
       MarkdownLinkInput,
       CjkLatinSpacing,
       VimMode.configure({
@@ -2034,6 +2036,13 @@ export function NoteEditor({ noteId, title, content, focusMode, showLineNumbers,
                     onClick={handleToggleCodeBlock}
                     type="button"
                   >⏹ 代码块</button>
+                  {(editor.isActive("codeBlock") || editor.isActive("blockquote")) && (
+                    <button
+                      className="menu-dropdown-item"
+                      onClick={() => { exitCurrentStructuredBlock(editor); setBlockOpen(false); }}
+                      type="button"
+                    >↵ 退出当前块（Ctrl+Enter）</button>
+                  )}
                   <button
                     className="menu-dropdown-item"
                     onClick={() => {

@@ -272,7 +272,6 @@ test.describe("编辑器块级 gutter", () => {
         return box.top + box.height / 2;
       };
       return {
-        fontSize: Number.parseFloat(getComputedStyle(element).fontSize),
         paragraphLeft: rect(paragraph).left,
         unorderedLeft: rect(unordered).left,
         orderedLeft: rect(ordered).left,
@@ -295,8 +294,8 @@ test.describe("编辑器块级 gutter", () => {
       .toBeCloseTo(withoutNumbers.unorderedPadding, 1);
     expect(withoutNumbers.orderedItemLeft - withoutNumbers.orderedLeft)
       .toBeCloseTo(withoutNumbers.orderedPadding, 1);
-    expect(withoutNumbers.orderedPadding - withoutNumbers.unorderedPadding)
-      .toBeCloseTo(withoutNumbers.fontSize * 0.75, 1);
+    expect(withoutNumbers.orderedPadding).toBeCloseTo(withoutNumbers.unorderedPadding, 1);
+    expect(withoutNumbers.orderedItemLeft).toBeCloseTo(withoutNumbers.unorderedItemLeft, 1);
     expect(withoutNumbers.orderedMarker).toContain("counter(list-item)");
     expect(withoutNumbers.orderedMarker).not.toContain("•");
     expect(withoutNumbers.orderedNativeMarker).toBe('""');
@@ -317,6 +316,7 @@ test.describe("编辑器块级 gutter", () => {
       .toBeCloseTo(withoutNumbers.unorderedItemLeft - withoutNumbers.unorderedLeft, 1);
     expect(withNumbers.orderedItemLeft - withNumbers.orderedLeft)
       .toBeCloseTo(withoutNumbers.orderedItemLeft - withoutNumbers.orderedLeft, 1);
+    expect(withNumbers.orderedItemLeft).toBeCloseTo(withNumbers.unorderedItemLeft, 1);
     expect(withNumbers.unorderedLeft - withNumbers.paragraphLeft).toBeCloseTo(0, 1);
     expect(withNumbers.orderedLeft - withNumbers.paragraphLeft).toBeCloseTo(0, 1);
     expect(withNumbers.orderedBlockNumberRight).not.toBeNull();

@@ -78,7 +78,7 @@ test("排版设置中的调整即时生效并在重载后保持", async ({ page 
   expect(previewSpacing.listBottom).toBeCloseTo(0.2, 2);
   expect(previewSpacing.nestedTop).toBe(0);
   expect(previewSpacing.unorderedIndent).toBeCloseTo(1.2, 2);
-  expect(previewSpacing.orderedIndent).toBeCloseTo(1.95, 2);
+  expect(previewSpacing.orderedIndent).toBeCloseTo(previewSpacing.unorderedIndent, 2);
   expect(previewSpacing.nestedOrderedIndent).toBeCloseTo(previewSpacing.orderedIndent, 2);
   expect(previewSpacing.unorderedMarker).toContain("•");
   expect(previewSpacing.orderedMarker).toContain("counter(list-item)");

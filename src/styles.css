@@ -64,13 +64,13 @@ html {
   --editor-list-margin-top: 0.25em;
   --editor-list-margin-bottom: 0.25em;
   --editor-list-indent: 1.25em;
-  --editor-ordered-list-extra-indent: 0.75em;
   --editor-list-marker-gap: 0.2em;
   --editor-blockquote-indent: 12px;
   --editor-search-highlight: #ffd54f;
   --app-viewport-width: 100vw;
   --app-viewport-height: 100dvh;
   --app-keyboard-height: 0px;
+  --app-visual-viewport-bottom-inset: 0px;
   --app-visual-viewport-offset-top: 0px;
   --app-visual-viewport-offset-left: 0px;
 }
@@ -189,6 +189,7 @@ body {
 .header-right {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 2px;
 }
 
@@ -417,6 +418,7 @@ body {
 .date-picker {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   -webkit-app-region: no-drag;
 }
 
@@ -467,7 +469,9 @@ body {
 .daily-overview {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 8px;
+  white-space: nowrap;
   font-size: 13px;
   color: var(--text-secondary);
   -webkit-app-region: no-drag;
@@ -3756,8 +3760,7 @@ body {
 }
 
 .editor-content ol {
-  /* 编号比圆点宽；额外预留固定编号列，避免多位编号侵入块号 gutter。 */
-  padding-inline-start: calc(var(--editor-list-indent) + var(--editor-ordered-list-extra-indent));
+  padding-inline-start: var(--editor-list-indent);
 }
 
 .editor-content ul,
@@ -4495,7 +4498,7 @@ body {
 
 .editor-appearance-preview ol {
   margin: 0;
-  padding-inline-start: calc(var(--editor-list-indent) + var(--editor-ordered-list-extra-indent));
+  padding-inline-start: var(--editor-list-indent);
   list-style: none;
 }
 
@@ -6956,12 +6959,13 @@ body {
     gap: 4px;
     flex-wrap: nowrap;
     min-height: 44px;
-    overflow-x: auto;
+    overflow: visible;
   }
 
   /* header-right 推到右侧（替代隐藏的 spacer） */
   .header-right {
     margin-left: auto;
+    position: relative;
   }
 
   /* 搜索折叠：移动端默认隐藏搜索栏，显示 🔍 图标 */
@@ -6969,21 +6973,39 @@ body {
     display: inline-flex !important;
   }
 
-  .search-bar-collapse:not(.expanded) .search-bar {
+  /* 搜索框覆盖在标题栏内容上方，不参与 flex 宽度计算。搜索按钮继续
+     占据原位置，打开搜索时日期概览不会被挤压或折成两行。 */
+  .btn-search-toggle.search-active {
+    visibility: hidden;
+  }
+
+  .search-bar-collapse {
     display: none;
   }
 
+  .search-bar-collapse.expanded {
+    position: absolute;
+    z-index: 60;
+    top: 50%;
+    right: 30px;
+    display: block;
+    width: min(180px, calc(100vw - 112px));
+    padding: 2px 0 2px 4px;
+    transform: translateY(-50%);
+    background: var(--surface);
+  }
+
   .search-bar-collapse.expanded .search-bar {
-    display: flex;
-    width: auto;
-    flex-shrink: 0;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
   }
 
   .header-clock { display: none; }
   .header-spacer { display: none; }
 
   .search-input {
-    width: 100px !important;
+    width: 100% !important;
     font-size: 12px;
     padding: 4px 6px;
   }
@@ -7077,10 +7099,14 @@ body {
     position: fixed;
     top: auto;
     right: 8px;
-    bottom: calc(var(--safe-bottom) + 8px);
+    bottom: calc(var(--app-visual-viewport-bottom-inset, 0px) + var(--safe-bottom) + 8px);
     left: 8px;
     width: auto;
-    max-height: min(58dvh, 420px);
+    max-height: min(
+      58dvh,
+      420px,
+      calc(var(--app-viewport-height, 100dvh) - var(--safe-top) - var(--safe-bottom) - 16px)
+    );
     margin: 0;
     padding: 8px;
     overflow-x: hidden;
@@ -7330,7 +7356,7 @@ body {
   }
 
   .search-input {
-    width: 80px !important;
+    width: 100% !important;
     font-size: 11px;
     padding: 3px 5px;
   }

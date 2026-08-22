@@ -9,10 +9,25 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(page.locator(".m-toolbar")).toHaveCount(0);
     await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
 
+    const headerBeforeSearch = await page.locator(".app-header").boundingBox();
+    const overviewBeforeSearch = await page.locator(".daily-overview").boundingBox();
     await page.getByTitle("搜索").click();
     const searchInput = page.locator(".search-input");
     await expect(searchInput).toBeVisible();
     await expect(searchInput).toBeFocused();
+    const headerAfterSearch = await page.locator(".app-header").boundingBox();
+    const overviewAfterSearch = await page.locator(".daily-overview").boundingBox();
+    expect(headerAfterSearch?.height).toBeCloseTo(headerBeforeSearch?.height ?? 0, 0);
+    expect(overviewAfterSearch?.height).toBeCloseTo(overviewBeforeSearch?.height ?? 0, 0);
+    const overviewLines = await page.locator(".daily-overview > span").evaluateAll((items) =>
+      items.map((item) => ({
+        height: item.getBoundingClientRect().height,
+        lineHeight: Number.parseFloat(getComputedStyle(item).lineHeight),
+      })),
+    );
+    for (const item of overviewLines) {
+      expect(item.height).toBeLessThanOrEqual(item.lineHeight + 1);
+    }
 
     const editor = page.locator(".ProseMirror");
     await expect(editor).toBeVisible();
@@ -34,14 +49,12 @@ test.describe("PWA 窄屏应用外壳", () => {
       const ordered = element.querySelector(":scope > ol")!;
       const orderedItem = ordered.querySelector(":scope > li")!;
       return {
-        fontSize: Number.parseFloat(getComputedStyle(element).fontSize),
         unorderedPadding: Number.parseFloat(getComputedStyle(unordered).paddingInlineStart),
         orderedPadding: Number.parseFloat(getComputedStyle(ordered).paddingInlineStart),
         orderedMarker: getComputedStyle(orderedItem, "::before").content,
       };
     });
-    expect(listGeometry.orderedPadding - listGeometry.unorderedPadding)
-      .toBeCloseTo(listGeometry.fontSize * 0.75, 1);
+    expect(listGeometry.orderedPadding).toBeCloseTo(listGeometry.unorderedPadding, 1);
     expect(listGeometry.orderedMarker).toContain("counter(list-item)");
     expect(listGeometry.orderedMarker).not.toContain("•");
   });
@@ -224,6 +237,30 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(geometry.right).toBeLessThanOrEqual(geometry.viewportWidth);
     expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewportHeight);
     await expect(menu.getByRole("button", { name: /导出 Markdown/ })).toBeVisible();
+  });
+
+  test("虚拟键盘打开时更多菜单停靠在可视区域底部", async ({ page }) => {
+    await page.goto("/");
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty("--app-viewport-height", "460px");
+      document.documentElement.style.setProperty("--app-visual-viewport-bottom-inset", "300px");
+      document.documentElement.classList.add("web-keyboard-open");
+    });
+
+    await page.getByTitle("更多编辑操作").click();
+    const geometry = await page.locator(".toolbar-more-list").evaluate((menu) => {
+      const menuRect = menu.getBoundingClientRect();
+      const appRect = document.querySelector(".app")!.getBoundingClientRect();
+      return {
+        menuTop: menuRect.top,
+        menuBottom: menuRect.bottom,
+        viewportTop: appRect.top,
+        viewportBottom: appRect.bottom,
+      };
+    });
+    expect(geometry.menuTop).toBeGreaterThanOrEqual(geometry.viewportTop);
+    expect(geometry.menuBottom).toBeLessThanOrEqual(geometry.viewportBottom);
+    await expect(page.locator(".toolbar-more-list").getByRole("button", { name: /导出 Markdown/ })).toBeVisible();
   });
 
   test("选择文字后工具栏保留选区并能应用格式", async ({ page }) => {

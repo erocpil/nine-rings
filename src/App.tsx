@@ -936,14 +936,15 @@ function App() {
             aria-label="快速切换笔记"
             type="button"
           >⇄</button>
-          {!searchExpanded && (
           <button
-            className="btn-icon btn-search-toggle"
+            className={`btn-icon btn-search-toggle${searchExpanded ? " search-active" : ""}`}
             onClick={() => setSearchExpanded(true)}
             title="搜索"
+            aria-expanded={searchExpanded}
+            aria-controls="header-search"
+            type="button"
           >🔍</button>
-          )}
-          <div className={`search-bar-collapse${searchExpanded ? ' expanded' : ''}`}>
+          <div id="header-search" className={`search-bar-collapse${searchExpanded ? ' expanded' : ''}`}>
             <SearchBar
               onSearch={search}
               onDocSearch={handleDocSearch}

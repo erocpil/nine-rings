@@ -10,7 +10,6 @@ import {
 const defaults = editorAppearanceVariables();
 assert.equal(defaults["--editor-font-size"], "16px");
 assert.equal(defaults["--editor-list-indent"], "1.25em");
-assert.equal(defaults["--editor-ordered-list-extra-indent"], "0.75em");
 assert.equal(defaults["--editor-search-highlight"], "#ffd54f");
 assert.equal(defaults["--editor-heading-margin-top"], "0.7em");
 assert.equal(defaults["--editor-heading-margin-bottom"], "0.35em");
