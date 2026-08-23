@@ -7,7 +7,7 @@
  */
 
 interface DeltaOp {
-  insert: string | { hr: true } | { table: import("./table-embed").TableEmbed };
+  insert: string | { hr: true } | { image: string } | { table: import("./table-embed").TableEmbed };
   attributes?: Record<string, unknown>;
 }
 
@@ -44,7 +44,7 @@ export function looksLikeMarkdown(text: string): boolean {
 // ── 行内解析 ──
 
 interface InlineSegment {
-  text: string;
+  insert: string | { image: string };
   attrs: Record<string, unknown>;
 }
 
@@ -53,10 +53,18 @@ function parseInline(text: string): InlineSegment[] {
   let i = 0;
 
   while (i < text.length) {
+    // ![替代文字](图片地址)
+    const imageMatch = text.slice(i).match(/^!\[([^\]]*)\]\(([^)]+)\)/);
+    if (imageMatch) {
+      result.push({ insert: { image: imageMatch[2] }, attrs: {} });
+      i += imageMatch[0].length;
+      continue;
+    }
+
     // [链接](url)
     const linkMatch = text.slice(i).match(/^\[([^\]]+)\]\(([^)]+)\)/);
     if (linkMatch) {
-      result.push({ text: linkMatch[1], attrs: { link: linkMatch[2] } });
+      result.push({ insert: linkMatch[1], attrs: { link: linkMatch[2] } });
       i += linkMatch[0].length;
       continue;
     }
@@ -65,7 +73,7 @@ function parseInline(text: string): InlineSegment[] {
     if (text.slice(i, i + 2) === "**") {
       const j = text.indexOf("**", i + 2);
       if (j !== -1) {
-        result.push({ text: text.slice(i + 2, j), attrs: { bold: true } });
+        result.push({ insert: text.slice(i + 2, j), attrs: { bold: true } });
         i = j + 2;
         continue;
       }
@@ -77,7 +85,7 @@ function parseInline(text: string): InlineSegment[] {
       if (j !== -1) {
         const inner = text.slice(i + 1, j);
         if (inner) {
-          result.push({ text: inner, attrs: { italic: true } });
+          result.push({ insert: inner, attrs: { italic: true } });
           i = j + 1;
           continue;
         }
@@ -88,14 +96,14 @@ function parseInline(text: string): InlineSegment[] {
     if (text[i] === "`") {
       const j = text.indexOf("`", i + 1);
       if (j !== -1) {
-        result.push({ text: text.slice(i + 1, j), attrs: { code: true } });
+        result.push({ insert: text.slice(i + 1, j), attrs: { code: true } });
         i = j + 1;
         continue;
       }
     }
 
     // 普通字符
-    result.push({ text: text[i], attrs: {} });
+    result.push({ insert: text[i], attrs: {} });
     i++;
   }
 
@@ -106,9 +114,13 @@ function inlineToDelta(text: string, baseAttrs?: Record<string, unknown>): Delta
   if (!text) return [];
 
   const segments = parseInline(text);
-  const merged: { text: string; attrs: Record<string, unknown> }[] = [];
+  const merged: Array<{ insert: string | { image: string }; attrs: Record<string, unknown> }> = [];
 
   for (const seg of segments) {
+    if (typeof seg.insert !== "string") {
+      merged.push(seg);
+      continue;
+    }
     const combined: Record<string, unknown> = { ...(baseAttrs || {}) };
     for (const [k, v] of Object.entries(seg.attrs)) {
       if (v) combined[k] = v;
@@ -120,15 +132,15 @@ function inlineToDelta(text: string, baseAttrs?: Record<string, unknown>): Delta
     }
 
     const last = merged[merged.length - 1];
-    if (last && JSON.stringify(last.attrs) === JSON.stringify(clean)) {
-      last.text += seg.text;
+    if (last && typeof last.insert === "string" && JSON.stringify(last.attrs) === JSON.stringify(clean)) {
+      last.insert += seg.insert;
     } else {
-      merged.push({ text: seg.text, attrs: clean });
+      merged.push({ insert: seg.insert, attrs: clean });
     }
   }
 
   return merged.map((m) => {
-    const op: DeltaOp = { insert: m.text };
+    const op: DeltaOp = { insert: m.insert };
     if (Object.keys(m.attrs).length > 0) op.attributes = m.attrs;
     return op;
   });

@@ -2,10 +2,11 @@
 
 import { buildMarkdownImportInput, type MarkdownImportOptions } from "../lib/markdown-import";
 import { deltaToProseMirror } from "../lib/delta-converter";
+import { extractTitle, mdToDelta } from "../lib/md-parser";
 
 interface WorkerRequest {
   id: number;
-  task: "parse-json" | "stringify-json" | "markdown-batch" | "delta-to-prosemirror";
+  task: "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "delta-to-prosemirror";
   payload: unknown;
 }
 
@@ -20,6 +21,12 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
       result = JSON.stringify(request.value, null, request.space);
     } else if (task === "delta-to-prosemirror") {
       result = deltaToProseMirror(payload);
+    } else if (task === "markdown-source") {
+      const request = payload as { fileName: string; source: string };
+      result = {
+        title: extractTitle(request.source, request.fileName.replace(/\.md(?:own|ark)?$/i, "")),
+        content: mdToDelta(request.source),
+      };
     } else {
       const request = payload as {
         sources: Array<{ fileName: string; source: string }>;

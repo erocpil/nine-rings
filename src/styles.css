@@ -6529,6 +6529,81 @@ button.doc-tree-toggle:focus-visible {
   font-size: 10px;
 }
 
+.prop-source-url {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.prop-source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.prop-source-detach {
+  color: var(--text-secondary);
+}
+
+.prop-source-status {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 7px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+}
+
+.prop-source-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 7px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.prop-source-preview strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prop-source-preview p {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+}
+
+.prop-source-warning {
+  padding: 5px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--warning, #d97706) 12%, transparent);
+  color: var(--warning, #b45309);
+  font-size: 10px;
+}
+
+.prop-source-message {
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.prop-source-message.error {
+  color: var(--danger);
+}
+
 @media (max-width: 640px) {
   .prop-metadata-grid {
     grid-template-columns: 1fr;

@@ -1,6 +1,10 @@
 # Markdown 导入方案
 
-九环（Nine Rings）支持三种 Markdown 导入方式，覆盖从单篇笔记到批量数据迁移的各种场景。
+九环（Nine Rings）支持文件导入、批量迁移和绑定外部 URL刷新，覆盖从单篇笔记到远端参考文档的场景。
+
+## 外部 URL来源
+
+文档属性页可绑定公开 `.md` URL，支持 GitHub 文件页自动转换为 raw 地址。应用先获取并预览，用户确认后创建版本快照并更新本地正文；详细边界见 [外部 Markdown 来源](external-markdown-source.md)。
 
 ## 架构概览
 
@@ -126,11 +130,11 @@ python3 scripts/md-to-nine-rings.py --serve ~/notes/*.md
 | `1. 有序列表` | ordered list |
 | `> 引用` | blockquote |
 | `[链接](url)` | link |
+| `![图片](url)` | image |
+| GFM 管道表格 | table |
 | `---` 分割线 | 删除线分隔符 |
 
 **未支持（后续可加）：**
-- 表格
-- 图片（`![]()`）
 - 任务列表（`- [ ]` / `- [x]`）
 - HTML 标签
 - 脚注

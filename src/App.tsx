@@ -16,7 +16,7 @@ import { useAutoSave } from "./hooks/useAutoSave";
 import { useSettings } from "./hooks/useSettings";
 import DocTree from "./components/DocTree";
 import { DocMOC } from "./components/DocMOC";
-import type { DeltaOps, DocumentMetadata, Note, DocType, SearchNavigationTarget } from "./types/models";
+import type { DeltaOps, DocumentMetadata, ExternalMarkdownSource, Note, DocType, SearchNavigationTarget } from "./types/models";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
 import type { Template } from "./lib/storage/template-store";
 import { templateStore } from "./lib/storage/template-store";
@@ -506,6 +506,48 @@ function App() {
     await flushAutoSave();
     const latest = await api.notes.get(currentSelected.id);
     if (!latest) throw new Error("文档不存在或已被删除");
+    const nextContent: DeltaOps = { ...latest.content };
+    if (Object.keys(metadata).length > 0) nextContent.metadata = metadata;
+    else delete nextContent.metadata;
+    const updated = await api.notes.update(latest.id, { content: nextContent });
+    selectNote(updated);
+  }, [flushAutoSave, selectNote]);
+
+  const handleExternalMarkdownApply = useCallback(async (
+    content: DeltaOps,
+    source: ExternalMarkdownSource,
+  ) => {
+    const currentSelected = useNotesStore.getState().selectedNote;
+    if (!currentSelected) throw new Error("当前没有打开的文档");
+    await flushAutoSave();
+    const latest = await api.notes.get(currentSelected.id);
+    if (!latest) throw new Error("文档不存在或已被删除");
+
+    // 外部更新是显式替换操作。先保存当前版本，再合并远端正文与本地元信息；
+    // 任一步失败都不会删除当前正文或未冲刷的编辑内容。
+    await api.versions.checkpoint(latest.id);
+    const nextContent: DeltaOps = {
+      ...content,
+      metadata: {
+        ...(latest.content.metadata ?? {}),
+        externalSource: { ...source, syncedAt: new Date().toISOString() },
+      },
+    };
+    const updated = await api.notes.update(latest.id, { content: nextContent });
+    const editorDocument = await deltaToProseMirrorAsync(nextContent);
+    cacheEditorDocument(updated.id, updated.updated_at, editorDocument);
+    selectNote(updated);
+    setExternalReloadKey((key) => key + 1);
+  }, [flushAutoSave, selectNote]);
+
+  const handleExternalMarkdownDetach = useCallback(async () => {
+    const currentSelected = useNotesStore.getState().selectedNote;
+    if (!currentSelected) throw new Error("当前没有打开的文档");
+    await flushAutoSave();
+    const latest = await api.notes.get(currentSelected.id);
+    if (!latest) throw new Error("文档不存在或已被删除");
+    const metadata = { ...(latest.content.metadata ?? {}) };
+    delete metadata.externalSource;
     const nextContent: DeltaOps = { ...latest.content };
     if (Object.keys(metadata).length > 0) nextContent.metadata = metadata;
     else delete nextContent.metadata;
@@ -1423,6 +1465,9 @@ function App() {
               onMetadataUpdate={handleDocumentMetadataUpdate}
               onMoveDocument={handleMoveDocument}
               onExportPdf={() => setPdfExportRequestId((requestId) => requestId + 1)}
+              onExternalMarkdownApply={handleExternalMarkdownApply}
+              onExternalMarkdownDetach={handleExternalMarkdownDetach}
+              externalSourceActionsDisabled={syncBusy}
               onNoteUpdate={(updated) => { handleSelectNote(updated); setDocTreeKey(k => k + 1); }}
               onClose={() => setPropertiesOpen(false)}
               onOpenConcept={(concept) => {

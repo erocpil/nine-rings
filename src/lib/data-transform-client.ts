@@ -1,10 +1,11 @@
-import type { CreateNoteInput } from "../types/models";
+import type { CreateNoteInput, DeltaOps } from "../types/models";
 import { deltaToProseMirror } from "./delta-converter";
 import type { MarkdownImportOptions } from "./markdown-import";
 import { buildMarkdownImportInput } from "./markdown-import";
+import { extractTitle, mdToDelta } from "./md-parser";
 import { isTauriRuntime } from "./runtime";
 
-type WorkerTask = "parse-json" | "stringify-json" | "markdown-batch" | "delta-to-prosemirror";
+type WorkerTask = "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "delta-to-prosemirror";
 
 interface MarkdownSource {
   fileName: string;
@@ -15,6 +16,11 @@ export interface MarkdownTransformResult {
   fileName: string;
   input?: CreateNoteInput;
   error?: string;
+}
+
+export interface MarkdownSourceDocument {
+  title: string;
+  content: DeltaOps;
 }
 
 interface WorkerResponse {
@@ -87,4 +93,13 @@ export function transformMarkdownBatch(
       }
     })
   ));
+}
+
+/** 单篇外部 Markdown 转换；在 Web 上进入 worker，避免长文档阻塞属性面板。 */
+export function transformMarkdownSource(fileName: string, source: string): Promise<MarkdownSourceDocument> {
+  return runWorkerTask<MarkdownSourceDocument>(
+    "markdown-source",
+    { fileName, source },
+    () => ({ title: extractTitle(source, fileName.replace(/\.md(?:own|ark)?$/i, "")), content: mdToDelta(source) }),
+  );
 }

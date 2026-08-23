@@ -124,6 +124,7 @@ export function proseMirrorToDelta(pmJson: any): any {
         break;
 
       case "image":
+      case "resizableImage":
         ops.push({ insert: { image: node.attrs?.src ?? "" } });
         ops.push({ insert: "\n" });
         break;
@@ -242,7 +243,7 @@ function extractInlineOps(
       });
     } else if (inline.type === "hardBreak") {
       ops.push({ insert: "\n" });
-    } else if (inline.type === "image") {
+    } else if (inline.type === "image" || inline.type === "resizableImage") {
       ops.push({ insert: { image: inline.attrs?.src ?? "" } });
     } else if (inline.type === "paragraph" || inline.type === "listItem") {
       // 递归提取嵌套文本（如 listItem → paragraph → text）
@@ -422,10 +423,12 @@ export function deltaToProseMirror(deltaData: any): any {
         continue;
       }
       if (insert.image) {
-        flushParagraph();
-        currentParagraph = { type: "image", attrs: { src: insert.image }, content: [] };
-        isImageBlock = true;
-        flushParagraph();
+        if (currentParagraph.content.length > 0 || isImageBlock) flushParagraph();
+        doc.push({ type: "resizableImage", attrs: { src: insert.image }, content: [] });
+        currentParagraph = { type: "paragraph", content: [] };
+        isImageBlock = false;
+        skipEmptyLineAfterBlockEmbed = true;
+        continue;
       } else if (insert.hr) {
         // 分割线前若刚刚结束一个块，currentParagraph 会是空的；不能因此
         // 插入一个额外空段落。

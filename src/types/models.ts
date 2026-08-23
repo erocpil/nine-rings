@@ -90,8 +90,22 @@ export interface DocumentMetadata {
   version?: string;
   copyright?: string;
   license?: string;
+  /** 绑定的外部 Markdown 来源；正文仍以本地 Delta 形式保存。 */
+  externalSource?: ExternalMarkdownSource;
   /** 正文书签随文档内容保存；position 会在编辑事务中自动映射。 */
   bookmarks?: DocumentBookmark[];
+}
+
+export interface ExternalMarkdownSource {
+  kind: "markdown-url";
+  url: string;
+  resolvedUrl: string;
+  provider: "github" | "generic";
+  contentHash: string;
+  localContentHash: string;
+  etag?: string;
+  lastModified?: string;
+  syncedAt: string;
 }
 
 export interface DocumentBookmark {

@@ -1,7 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
-import type { AppConfig, DocumentMetadata, Note, DocType } from "../types/models";
+import { useState, useEffect, useCallback, useRef } from "react";
+import type { AppConfig, DeltaOps, DocumentMetadata, ExternalMarkdownSource, Note, DocType } from "../types/models";
 import { api } from "../lib/api";
 import MoveToDialog from "./MoveToDialog";
+import {
+  downloadExternalMarkdown,
+  markdownContentFingerprint,
+  normalizeExternalMarkdownUrl,
+  resolveMarkdownResourceUrls,
+} from "../lib/external-markdown-source";
+import { transformMarkdownSource } from "../lib/data-transform-client";
+import { extractPlainText } from "../lib/storage/core";
 
 interface PropertiesPanelProps {
   note: Note;
@@ -12,6 +20,9 @@ interface PropertiesPanelProps {
   onMetadataUpdate: (metadata: DocumentMetadata) => Promise<void>;
   onMoveDocument: (id: string, targetPath: string) => Promise<void>;
   onExportPdf: () => void;
+  onExternalMarkdownApply: (content: DeltaOps, source: ExternalMarkdownSource) => Promise<void>;
+  onExternalMarkdownDetach: () => Promise<void>;
+  externalSourceActionsDisabled?: boolean;
   /** 点击概念标签时，跳转到该概念的聚合页 */
   onOpenConcept?: (concept: string) => void;
 }
@@ -31,7 +42,18 @@ const PATH_ROOT_OPTIONS = [
   { value: "archives", label: "📦 Archives" },
 ];
 
-function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChangeDisabled, onMetadataUpdate, onMoveDocument, onExportPdf, onOpenConcept }: PropertiesPanelProps) {
+interface ExternalSourcePreview {
+  title: string;
+  content: DeltaOps;
+  source: ExternalMarkdownSource;
+  bytes: number;
+  lines: number;
+  excerpt: string;
+  remoteChanged: boolean;
+  localModified: boolean;
+}
+
+function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChangeDisabled, onMetadataUpdate, onMoveDocument, onExportPdf, onExternalMarkdownApply, onExternalMarkdownDetach, externalSourceActionsDisabled, onOpenConcept }: PropertiesPanelProps) {
   const [conceptInput, setConceptInput] = useState("");
   const [existingConcepts, setExistingConcepts] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -45,6 +67,12 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
   const [metadataDraft, setMetadataDraft] = useState<DocumentMetadata>(() => note.content.metadata ?? {});
   const [metadataSaving, setMetadataSaving] = useState(false);
   const [metadataMessage, setMetadataMessage] = useState<string | null>(null);
+  const externalSource = note.content.metadata?.externalSource;
+  const [sourceUrl, setSourceUrl] = useState(externalSource?.url ?? "");
+  const [sourcePreview, setSourcePreview] = useState<ExternalSourcePreview | null>(null);
+  const [sourceBusy, setSourceBusy] = useState<"fetch" | "apply" | "detach" | null>(null);
+  const [sourceMessage, setSourceMessage] = useState<string | null>(null);
+  const sourceAbortRef = useRef<AbortController | null>(null);
 
   const concepts = note.concepts ?? [];
   const linkedIds = note.linkedDocIds ?? [];
@@ -98,6 +126,105 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
     setMetadataDraft(JSON.parse(metadataSignature) as DocumentMetadata);
     setMetadataMessage(null);
   }, [metadataSignature, note.id]);
+
+  useEffect(() => {
+    sourceAbortRef.current?.abort();
+    setSourceUrl(externalSource?.url ?? "");
+    setSourcePreview(null);
+    setSourceMessage(null);
+    setSourceBusy(null);
+    return () => sourceAbortRef.current?.abort();
+  }, [externalSource?.url, note.id]);
+
+  const checkExternalSource = async () => {
+    if (sourceBusy || externalSourceActionsDisabled) return;
+    setSourceBusy("fetch");
+    setSourceMessage(null);
+    setSourcePreview(null);
+    const controller = new AbortController();
+    sourceAbortRef.current?.abort();
+    sourceAbortRef.current = controller;
+    try {
+      const normalized = normalizeExternalMarkdownUrl(sourceUrl);
+      const download = await downloadExternalMarkdown(normalized.originalUrl, { signal: controller.signal });
+      const rewritten = resolveMarkdownResourceUrls(download.source, download.resolvedUrl);
+      const transformed = await transformMarkdownSource(download.fileName, rewritten);
+      const localContentHash = markdownContentFingerprint(JSON.stringify(transformed.content.ops ?? []));
+      const currentLocalHash = markdownContentFingerprint(JSON.stringify(note.content.ops ?? []));
+      const sameBinding = externalSource
+        && normalizeExternalMarkdownUrl(externalSource.url).requestUrl === normalized.requestUrl;
+      const remoteChanged = !sameBinding || externalSource.contentHash !== download.contentHash;
+      const localModified = Boolean(sameBinding && externalSource.localContentHash !== currentLocalHash);
+      const nextSource: ExternalMarkdownSource = {
+        kind: "markdown-url",
+        url: normalized.originalUrl,
+        resolvedUrl: download.resolvedUrl,
+        provider: download.provider,
+        contentHash: download.contentHash,
+        localContentHash,
+        ...(download.etag ? { etag: download.etag } : {}),
+        ...(download.lastModified ? { lastModified: download.lastModified } : {}),
+        syncedAt: new Date().toISOString(),
+      };
+      const plainText = extractPlainText(transformed.content);
+      setSourcePreview({
+        title: transformed.title,
+        content: transformed.content,
+        source: nextSource,
+        bytes: download.bytes,
+        lines: download.source.replace(/\r\n?/g, "\n").split("\n").length,
+        excerpt: plainText.slice(0, 500),
+        remoteChanged,
+        localModified,
+      });
+      setSourceMessage(remoteChanged
+        ? "已获取远端内容，请确认预览后更新"
+        : localModified
+          ? "远端未变化，但本地正文在上次同步后已修改"
+          : "远端内容与上次同步一致");
+    } catch (error) {
+      if (!controller.signal.aborted) setSourceMessage(`获取失败：${(error as Error).message}`);
+    } finally {
+      if (sourceAbortRef.current === controller) sourceAbortRef.current = null;
+      setSourceBusy(null);
+    }
+  };
+
+  const applyExternalSource = async () => {
+    if (!sourcePreview || sourceBusy || externalSourceActionsDisabled) return;
+    const warning = sourcePreview.localModified
+      ? "本地正文在上次同步后已修改。继续会用远端内容覆盖本地正文，但可从版本历史恢复。确认继续？"
+      : "将用预览中的远端 Markdown 替换本地正文，并在更新前创建版本。确认继续？";
+    if (!window.confirm(warning)) return;
+    setSourceBusy("apply");
+    setSourceMessage(null);
+    try {
+      await onExternalMarkdownApply(sourcePreview.content, sourcePreview.source);
+      setSourcePreview(null);
+      setSourceMessage("已更新本地正文并保存来源信息");
+    } catch (error) {
+      setSourceMessage(`更新失败：${(error as Error).message}`);
+    } finally {
+      setSourceBusy(null);
+    }
+  };
+
+  const detachExternalSource = async () => {
+    if (!externalSource || sourceBusy || externalSourceActionsDisabled) return;
+    if (!window.confirm("解除外部来源关联？当前本地正文会保留。")) return;
+    setSourceBusy("detach");
+    setSourceMessage(null);
+    try {
+      await onExternalMarkdownDetach();
+      setSourcePreview(null);
+      setSourceUrl("");
+      setSourceMessage("已解除来源关联，本地正文保持不变");
+    } catch (error) {
+      setSourceMessage(`解除失败：${(error as Error).message}`);
+    } finally {
+      setSourceBusy(null);
+    }
+  };
 
   const updateMetadataField = <K extends keyof DocumentMetadata,>(key: K, value: DocumentMetadata[K]) => {
     setMetadataDraft((current) => ({ ...current, [key]: value }));
@@ -307,6 +434,73 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
           <div className="prop-empty">
             正文不会插入目录页；标题层级用于生成 PDF 查看器侧栏中的可点击书签（具体支持由系统 PDF 打印引擎决定）。使用上方发布元信息；只读文档也可以导出。iPhone/iPad 无需打印机：在系统打印预览中展开页面，再点分享并“存储到文件”。
           </div>
+        </div>
+
+        <div className="prop-section prop-external-source">
+          <div className="prop-label">外部来源</div>
+          <input
+            className="prop-input prop-source-url"
+            type="url"
+            inputMode="url"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            aria-label="外部 Markdown URL"
+            placeholder="https://github.com/owner/repo/blob/main/README.md"
+            value={sourceUrl}
+            disabled={Boolean(sourceBusy || externalSourceActionsDisabled)}
+            onChange={(event) => {
+              setSourceUrl(event.target.value);
+              setSourcePreview(null);
+              setSourceMessage(null);
+            }}
+          />
+          <div className="prop-source-actions">
+            <button
+              type="button"
+              className="settings-sm-btn"
+              disabled={!sourceUrl.trim() || Boolean(sourceBusy || externalSourceActionsDisabled)}
+              onClick={() => { void checkExternalSource(); }}
+            >{sourceBusy === "fetch" ? "获取中…" : "获取并预览"}</button>
+            {externalSource && (
+              <button
+                type="button"
+                className="settings-sm-btn prop-source-detach"
+                disabled={Boolean(sourceBusy || externalSourceActionsDisabled)}
+                onClick={() => { void detachExternalSource(); }}
+              >{sourceBusy === "detach" ? "解除中…" : "解除关联"}</button>
+            )}
+          </div>
+          {externalSource && (
+            <div className="prop-source-status">
+              <span>{externalSource.provider === "github" ? "GitHub" : "URL"}</span>
+              <span>同步于 {new Date(externalSource.syncedAt).toLocaleString()}</span>
+            </div>
+          )}
+          {sourcePreview && (
+            <div className="prop-source-preview">
+              <strong title={sourcePreview.title}>{sourcePreview.title || "无标题"}</strong>
+              <span>{Math.max(1, Math.ceil(sourcePreview.bytes / 1024))} KiB · {sourcePreview.lines} 行</span>
+              {sourcePreview.excerpt && <p>{sourcePreview.excerpt}</p>}
+              {sourcePreview.localModified && (
+                <div className="prop-source-warning">本地正文在上次同步后已修改，更新将覆盖这些修改。</div>
+              )}
+              {(sourcePreview.remoteChanged || sourcePreview.localModified) ? (
+                <button
+                  type="button"
+                  className="settings-btn-secondary"
+                  disabled={Boolean(sourceBusy || externalSourceActionsDisabled)}
+                  onClick={() => { void applyExternalSource(); }}
+                >{sourceBusy === "apply" ? "更新中…" : sourcePreview.remoteChanged ? "更新本地内容" : "恢复远端内容"}</button>
+              ) : null}
+            </div>
+          )}
+          {sourceMessage && (
+            <div className={`prop-source-message ${sourceMessage.startsWith("获取失败") || sourceMessage.startsWith("更新失败") || sourceMessage.startsWith("解除失败") ? "error" : ""}`} role="status">
+              {sourceMessage}
+            </div>
+          )}
+          <div className="prop-empty">公开 Markdown 来源；只读文档也可手动更新。普通网站需要允许浏览器跨域读取。</div>
         </div>
 
         {/* 概念标签 */}
