@@ -3,6 +3,7 @@ import type { Note } from "../types/models";
 import { DEFAULT_HOTKEYS } from "../types/models";
 import { isTauriRuntime } from "../lib/runtime";
 import { localDateKey } from "../lib/local-date";
+import { toggleTauriFullscreen } from "../lib/fullscreen";
 import { useNotesStore } from "../stores/useNotesStore";
 import { registerShortcuts } from "../lib/global-shortcuts";
 import {
@@ -23,17 +24,6 @@ export interface AppShortcutActions {
 
 function focusSearchInput(): void {
   document.querySelector<HTMLInputElement>(".search-input")?.focus();
-}
-
-function toggleFullscreen(): void {
-  if (!isTauriRuntime()) return;
-  import("@tauri-apps/api/window")
-    .then(({ getCurrentWindow }) => {
-      getCurrentWindow().isFullscreen().then((fs) => {
-        getCurrentWindow().setFullscreen(!fs);
-      });
-    })
-    .catch(() => {});
 }
 
 function showWindow(): void {
@@ -82,8 +72,12 @@ export function useAppKeyboardShortcuts(actions: AppShortcutActions): void {
       const a = actionsRef.current;
       switch (action) {
         case "fullscreen":
+          // Web 版交还给浏览器处理 F11 / macOS 原生全屏快捷键。
+          if (!isTauriRuntime()) break;
           e.preventDefault();
-          toggleFullscreen();
+          void toggleTauriFullscreen().catch((error) => {
+            console.warn("[Fullscreen] 切换失败:", error);
+          });
           break;
         case "openSettings":
           e.preventDefault();

@@ -54,6 +54,17 @@ export function isEditorLineJumpKeyEvent(e: ShortcutKeyEvent): boolean {
  * 返回 null 表示该按键不属于 App 级快捷键（应放行给编辑器/浏览器）。
  */
 export function resolveShortcut(e: ShortcutKeyEvent): ShortcutAction | null {
+  // macOS 原生全屏快捷键。要求 Ctrl 与 Command 同时按下，避免占用
+  // 编辑器常用的 Cmd+F / Ctrl+F。
+  if (
+    e.key.toLocaleLowerCase() === "f"
+    && e.ctrlKey
+    && e.metaKey
+    && !e.shiftKey
+    && !e.altKey
+  ) {
+    return "fullscreen";
+  }
   // F11：全屏切换（Tauri 桌面端；Web 由浏览器原生处理）
   if (e.key === "F11" && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
     return "fullscreen";

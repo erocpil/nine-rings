@@ -46,6 +46,11 @@ console.log("\n── resolveShortcut：快捷键映射 ──");
 
 assert(resolveShortcut(key({ key: "F11" })) === "fullscreen", "F11 → fullscreen");
 assert(resolveShortcut(key({ key: "F11", ctrlKey: true })) === null, "Ctrl+F11 不映射（非纯 F11）");
+assert(resolveShortcut(key({ key: "f", ctrlKey: true, metaKey: true })) === "fullscreen",
+  "Ctrl+Cmd+F → fullscreen");
+assert(resolveShortcut(key({ key: "f", metaKey: true })) === null, "Cmd+F 不误触全屏");
+assert(resolveShortcut(key({ key: "f", ctrlKey: true, metaKey: true, shiftKey: true })) !== "fullscreen",
+  "Ctrl+Cmd+Shift+F 不误触全屏");
 assert(resolveShortcut(key({ key: ",", altKey: true })) === "openSettings", "Alt+, → openSettings");
 assert(resolveShortcut(key({ key: ",", ctrlKey: true })) === null, "Ctrl+, 不映射");
 assert(resolveShortcut(key({ key: "p", ctrlKey: true })) === "openQuickSwitcher", "Ctrl+P → openQuickSwitcher");

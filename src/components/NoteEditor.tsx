@@ -55,6 +55,7 @@ import {
 import { noteToMarkdown } from "../lib/markdown-serializer";
 import { exportMarkdownWithDialog, isTauri } from "../lib/tauri-desktop";
 import { exportDocumentAsPdf, type PdfDocumentInfo } from "../lib/pdf-export";
+import { FULLSCREEN_WILL_CHANGE_EVENT } from "../lib/fullscreen";
 import { editorGutterWidth } from "../lib/editor-gutter";
 import { clipboardSliceToPlainText } from "../lib/clipboard-plain-text";
 import { exitCurrentStructuredBlock, StructuredBlockExit } from "../extensions/StructuredBlockExit";
@@ -1529,10 +1530,19 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       if (!stabilizeWidthChange(windowWidthChanged)) scheduleCapture();
     };
 
+    const captureBeforeFullscreen = () => {
+      // setFullscreen 之后 macOS 会立即进入异步 Space 动画。必须在第一
+      // 次 resize 之前同步保存锚点，不能等待滚动静止计时器。
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
+      capture();
+    };
+
     editor.on("selectionUpdate", scheduleCapture);
     editor.on("focus", scheduleCapture);
     root.addEventListener("scroll", captureAfterScrollSettles, { passive: true });
     window.addEventListener("resize", onWindowResize);
+    window.addEventListener(FULLSCREEN_WILL_CHANGE_EVENT, captureBeforeFullscreen);
     observer.observe(root);
     scheduleCapture();
     return () => {
@@ -1540,6 +1550,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       editor.off("focus", scheduleCapture);
       root.removeEventListener("scroll", captureAfterScrollSettles);
       window.removeEventListener("resize", onWindowResize);
+      window.removeEventListener(FULLSCREEN_WILL_CHANGE_EVENT, captureBeforeFullscreen);
       observer.disconnect();
       clearSettleTimers();
       if (frame) cancelAnimationFrame(frame);

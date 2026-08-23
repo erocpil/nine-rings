@@ -452,9 +452,11 @@ cargo tauri icon source.png
 
 ## 快捷键 & 全屏
 
-### F11 全屏必须走 Rust 系统级快捷键
+### 桌面全屏必须按平台区分快捷键和重排补丁
 
-浏览器（含 Tauri WebView）拦截 F11 原语。JS 端 `e.preventDefault()` 无效。必须像 Alt+Y 一样在 Rust 侧用 `app.global_shortcut().on_shortcut("F11", ...)` 注册系统级快捷键，回调中调用 `window.set_fullscreen(!is_fullscreen)`。
+Windows/Linux 的 F11 需要在 Rust 侧用系统级快捷键注册；macOS 的标准入口是 `Control + Command + F`，不应注册会和“显示桌面”冲突的全局 F11。Frameless 窗口还必须提供可发现的标题栏按钮，macOS 同时保留 Tauri 默认应用菜单中的原生全屏项。
+
+Linux frameless WebKitGTK 退出全屏后需要 `+1px` 再恢复的强制重排，但该补丁必须使用 `#[cfg(target_os = "linux")]` 隔离。macOS 全屏是异步 Space 动画，在此期间修改窗口尺寸会干扰系统状态。全屏切换前应同步捕获编辑器顶部块或可见光标锚点，再由 ResizeObserver 在布局稳定后恢复。
 
 注册后权限声明（`capabilities.json`）会自动生成 `core:window:allow-set-fullscreen` + `core:window:allow-is-fullscreen`，需一并提交。
 

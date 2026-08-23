@@ -489,7 +489,7 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 | open_settings | Alt+, | JS `registerShortcuts` |
 | go_to_daily | Ctrl+Shift+D | JS `registerShortcuts` |
 | show_window | Alt+Y | **Rust 端注册**（系统级，WebView 不可见时也能响应） |
-| toggle_fullscreen | F11 | 浏览器 `keydown`（Web 与 Tauri 均生效） |
+| toggle_fullscreen | Windows/Linux: F11；macOS: `⌃⌘F` | 浏览器 `keydown`；Web 版交还浏览器原生处理，Tauri 另提供标题栏按钮 |
 
 ### 主题系统
 

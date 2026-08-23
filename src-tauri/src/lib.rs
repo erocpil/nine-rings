@@ -417,7 +417,8 @@ pub fn run() {
                 }
             }
 
-            // ── F11 全屏切换 ──
+            // ── F11 全屏切换（macOS 使用系统标准 ⌃⌘F）──
+            #[cfg(not(target_os = "macos"))]
             {
                 startup_log!("registering F11 shortcut...");
                 use tauri_plugin_global_shortcut::GlobalShortcutExt;
@@ -433,15 +434,18 @@ pub fn run() {
                                 let _ = window.set_fullscreen(!is_fs);
                                 // ── 强制 WebView 重排（Linux frameless 窗口退出全屏后
                                 //    WebKitGTK 不会自动 reflow，导致内容区域错位）──
-                                std::thread::sleep(std::time::Duration::from_millis(50));
-                                if let Ok(size) = window.inner_size() {
-                                    let _ = window.set_size(tauri::Size::Physical(
-                                        tauri::PhysicalSize::new(size.width + 1, size.height),
-                                    ));
-                                    std::thread::sleep(std::time::Duration::from_millis(16));
-                                    let _ = window.set_size(tauri::Size::Physical(
-                                        tauri::PhysicalSize::new(size.width, size.height),
-                                    ));
+                                #[cfg(target_os = "linux")]
+                                {
+                                    std::thread::sleep(std::time::Duration::from_millis(50));
+                                    if let Ok(size) = window.inner_size() {
+                                        let _ = window.set_size(tauri::Size::Physical(
+                                            tauri::PhysicalSize::new(size.width + 1, size.height),
+                                        ));
+                                        std::thread::sleep(std::time::Duration::from_millis(16));
+                                        let _ = window.set_size(tauri::Size::Physical(
+                                            tauri::PhysicalSize::new(size.width, size.height),
+                                        ));
+                                    }
                                 }
                             }
                         }
