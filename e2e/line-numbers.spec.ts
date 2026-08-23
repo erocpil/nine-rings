@@ -161,6 +161,51 @@ test.describe("编辑器块级 gutter", () => {
     )).not.toBe("rgba(0, 0, 0, 0)");
   });
 
+  test("长代码块的主块号固定对齐代码首行而不是块中部", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("first line");
+    await page.getByRole("button", { name: "⏹", exact: true }).click();
+    for (let index = 2; index <= 12; index += 1) {
+      await editor.press("End");
+      await editor.press("Enter");
+      await editor.type(`line ${index}`);
+    }
+
+    await openEditorSettings(page);
+    const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
+      .locator('input[type="checkbox"]');
+    if (!(await lineNumberToggle.isChecked())) {
+      await lineNumberToggle.evaluate((input: HTMLInputElement) => input.click());
+    }
+    await page.locator(".settings-close").click();
+
+    const codeNumber = page.locator('.editor-block-number[data-block-format="Code"]');
+    await expect(codeNumber).toHaveText("1");
+    await expect.poll(() => editor.locator(".code-block-wrap").evaluate((block) => {
+      const number = document.querySelector<HTMLElement>('.editor-block-number[data-block-format="Code"]');
+      const code = block.querySelector<HTMLElement>("code");
+      const textNode = code ? document.createTreeWalker(code, NodeFilter.SHOW_TEXT).nextNode() : null;
+      if (!number || !(textNode instanceof Text)) return { aligned: false, nearTop: false };
+      const firstCharacter = document.createRange();
+      firstCharacter.setStart(textNode, 0);
+      firstCharacter.setEnd(textNode, 1);
+      const textRect = firstCharacter.getBoundingClientRect();
+      const numberRect = number.getBoundingClientRect();
+      const blockRect = block.getBoundingClientRect();
+      const numberCenter = numberRect.top + numberRect.height / 2;
+      const textCenter = textRect.top + textRect.height / 2;
+      return {
+        aligned: Math.abs(numberCenter - textCenter) < 1.5,
+        nearTop: numberCenter < blockRect.top + blockRect.height * 0.25,
+      };
+    })).toEqual({ aligned: true, nearTop: true });
+  });
+
   test("只有明确的加号按钮会插入段落", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("随笔").click();

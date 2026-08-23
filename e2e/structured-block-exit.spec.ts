@@ -146,6 +146,74 @@ test.describe("结构块退出行为", () => {
 test.describe("触屏代码块退出行为", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
+  test("手机端软换行代码的行号与逻辑行首对齐且末行可见", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    const lines = [
+      "tokens = min(bucket_size, tokens + rate * elapsed_time)",
+      "if tokens >= packet_length:",
+      "  tokens -= packet_length",
+      "  conform",
+      "else:",
+      "  exceed",
+    ];
+    await editor.fill(lines[0]);
+    await activateBlock(page, "⏹ 代码块");
+    for (const line of lines.slice(1)) {
+      await editor.press("End");
+      await editor.press("Enter");
+      await editor.type(line);
+    }
+    await page.getByRole("button", { name: "块 ▾" }).click();
+    await page.getByRole("button", { name: "□ 显示代码行号", exact: true }).click();
+
+    const block = editor.locator(".code-block-wrap");
+    const gutter = block.locator(".code-block-gutter");
+    await expect(gutter.locator("span")).toHaveText(lines.map((_, index) => String(index + 1)));
+    await expect.poll(() => block.evaluate((element, expectedLines) => {
+      const codeElement = element.querySelector<HTMLElement>("code")!;
+      const textNode = document.createTreeWalker(codeElement, NodeFilter.SHOW_TEXT).nextNode();
+      const numberElements = [...element.querySelectorAll<HTMLElement>(".code-block-gutter span")];
+      if (!(textNode instanceof Text) || numberElements.length !== expectedLines.length) {
+        return { aligned: false, wraps: false, lastNumberInside: false };
+      }
+
+      const lineStarts: number[] = [];
+      let offset = 0;
+      for (const line of expectedLines) {
+        lineStarts.push(offset);
+        offset += line.length + 1;
+      }
+      const codeCenters = lineStarts.map((start) => {
+        const range = document.createRange();
+        range.setStart(textNode, start);
+        range.setEnd(textNode, Math.min(start + 1, textNode.length));
+        const rect = range.getBoundingClientRect();
+        return rect.top + rect.height / 2;
+      });
+      const numberCenters = numberElements.map((number) => {
+        const range = document.createRange();
+        range.selectNodeContents(number);
+        const rect = range.getBoundingClientRect();
+        return rect.top + rect.height / 2;
+      });
+      const firstLine = document.createRange();
+      firstLine.setStart(textNode, 0);
+      firstLine.setEnd(textNode, expectedLines[0].length);
+      const wrappedRows = new Set([...firstLine.getClientRects()].map((rect) => Math.round(rect.top))).size;
+      const lastNumberRect = numberElements.at(-1)!.getBoundingClientRect();
+      const codeRect = codeElement.getBoundingClientRect();
+      const maximumOffset = Math.max(...numberCenters.map(
+        (center, index) => Math.abs(center - codeCenters[index]),
+      ));
+      return {
+        aligned: maximumOffset < 1.5,
+        wraps: wrappedRows > 1,
+        lastNumberInside: lastNumberRect.bottom <= codeRect.bottom + 1,
+      };
+    }, lines)).toEqual({ aligned: true, wraps: true, lastNumberInside: true });
+  });
+
   test("虚拟键盘 Enter 可连续插入空行并通过块菜单退出", async ({ page }) => {
     await page.goto("/");
     const editor = page.locator(".ProseMirror");

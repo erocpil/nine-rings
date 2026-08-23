@@ -45,13 +45,19 @@ function firstLineTextCenter(
     const level = Number(attrs.level);
     return fallbackRect.top + editorLineHeight * (HEADING_SIZE[level] ?? 1) / 2;
   }
-  const walker = document.createTreeWalker(dom, NodeFilter.SHOW_TEXT, {
+  // CodeBlock NodeView 在正文前还包含语言选择器、复制按钮和内部行号。
+  // 必须从真正的 code contentDOM 开始查找，否则 select/option 的不可测量
+  // 文本会触发整块中心兜底，使长代码块的主块号落在中部。
+  const textRoot = typeName === "codeBlock"
+    ? dom.querySelector<HTMLElement>("code") ?? dom
+    : dom;
+  const walker = document.createTreeWalker(textRoot, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       const text = node.textContent ?? "";
       const firstVisible = text.search(/\S/);
       if (firstVisible < 0) return NodeFilter.FILTER_REJECT;
       const parent = node.parentElement;
-      if (!parent || parent.closest("button, .code-block-gutter, .column-resize-handle")) {
+      if (!parent || parent.closest("button, select, option, input, textarea, .code-block-gutter, .column-resize-handle")) {
         return NodeFilter.FILTER_REJECT;
       }
       return NodeFilter.FILTER_ACCEPT;
@@ -66,6 +72,14 @@ function firstLineTextCenter(
     range.setEnd(textNode, Math.min(text.length, start + 1));
     const firstRect = range.getClientRects()[0];
     if (firstRect && firstRect.height > 0) return firstRect.top + firstRect.height / 2;
+  }
+  if (typeName === "codeBlock" && textRoot !== dom) {
+    const rect = textRoot.getBoundingClientRect();
+    const style = getComputedStyle(textRoot);
+    const lineHeight = Number.parseFloat(style.lineHeight) || editorLineHeight;
+    const inset = (Number.parseFloat(style.borderTopWidth) || 0)
+      + (Number.parseFloat(style.paddingTop) || 0);
+    return rect.top + inset + lineHeight / 2;
   }
   return fallbackRect.top + fallbackRect.height / 2;
 }

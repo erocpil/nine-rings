@@ -9,19 +9,28 @@ import type { StorageAdapter } from "./types";
 import { isTauriRuntime } from "../runtime";
 
 let _adapter: StorageAdapter | null = null;
+let _adapterPromise: Promise<StorageAdapter> | null = null;
 
-export async function getAdapter(): Promise<StorageAdapter> {
-  if (_adapter) return _adapter;
+export function getAdapter(): Promise<StorageAdapter> {
+  if (_adapter) return Promise.resolve(_adapter);
+  if (_adapterPromise) return _adapterPromise;
 
-  if (isTauriRuntime()) {
-    console.log("[Storage] Tauri 模式 — 使用 Rust/SQLite IPC");
-    const { tauriAdapter } = await import("./tauri");
-    _adapter = tauriAdapter;
-  } else {
-    console.log("[Storage] Web 模式 — 使用 IndexedDB");
-    const { idbAdapter } = await import("./idb");
-    _adapter = idbAdapter;
-  }
+  _adapterPromise = (async () => {
+    if (isTauriRuntime()) {
+      console.log("[Storage] Tauri 模式 — 使用 Rust/SQLite IPC");
+      const { tauriAdapter } = await import("./tauri");
+      _adapter = tauriAdapter;
+    } else {
+      console.log("[Storage] Web 模式 — 使用 IndexedDB");
+      const { idbAdapter } = await import("./idb");
+      _adapter = idbAdapter;
+    }
 
-  return _adapter!;
+    return _adapter;
+  })().catch((error) => {
+    _adapterPromise = null;
+    throw error;
+  });
+
+  return _adapterPromise;
 }

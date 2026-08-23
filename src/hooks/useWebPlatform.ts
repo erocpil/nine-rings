@@ -72,12 +72,16 @@ function syncViewportCSS() {
   };
 
   const root = document.documentElement;
-  root.style.setProperty("--app-viewport-height", `${status.viewportHeight}px`);
-  root.style.setProperty("--app-viewport-width", `${status.viewportWidth}px`);
-  root.style.setProperty("--app-keyboard-height", `${status.keyboardHeight}px`);
-  root.style.setProperty("--app-visual-viewport-bottom-inset", `${status.viewportBottomInset}px`);
-  root.style.setProperty("--app-visual-viewport-offset-top", `${status.offsetTop}px`);
-  root.style.setProperty("--app-visual-viewport-offset-left", `${status.offsetLeft}px`);
+  const setPixels = (name: string, value: number) => {
+    const pixels = `${value}px`;
+    if (root.style.getPropertyValue(name) !== pixels) root.style.setProperty(name, pixels);
+  };
+  setPixels("--app-viewport-height", status.viewportHeight);
+  setPixels("--app-viewport-width", status.viewportWidth);
+  setPixels("--app-keyboard-height", status.keyboardHeight);
+  setPixels("--app-visual-viewport-bottom-inset", status.viewportBottomInset);
+  setPixels("--app-visual-viewport-offset-top", status.offsetTop);
+  setPixels("--app-visual-viewport-offset-left", status.offsetLeft);
   root.classList.toggle("web-keyboard-open", status.keyboardHeight >= 80 || status.offsetTop >= 80);
 }
 
@@ -98,20 +102,23 @@ export function useWebPlatform() {
 
     syncViewportCSS();
     let animationFrameId = 0;
-    const orientationTimers: number[] = [];
+    let orientationFrameId = 0;
     const scheduleViewportSync = () => {
       if (animationFrameId) window.cancelAnimationFrame(animationFrameId);
       animationFrameId = window.requestAnimationFrame(syncViewportCSS);
     };
     const syncAfterOrientation = () => {
-      scheduleViewportSync();
-      // Mobile Safari reports an intermediate layout viewport first, then
-      // updates the visual viewport and safe-area values over several frames.
-      // Re-read during that settling window so a stale landscape/portrait size
-      // cannot remain in CSS until the next user interaction.
-      for (const delay of [80, 220, 500]) {
-        orientationTimers.push(window.setTimeout(syncViewportCSS, delay));
-      }
+      if (orientationFrameId) window.cancelAnimationFrame(orientationFrameId);
+      let framesRemaining = 8;
+      // iOS 的 visual viewport 会经过数个中间尺寸。连续采样短暂的绘制窗口，
+      // 后续真实 resize 事件继续接管；不再用 500ms 定时器反复触发布局。
+      const syncFrame = () => {
+        orientationFrameId = 0;
+        syncViewportCSS();
+        framesRemaining -= 1;
+        if (framesRemaining > 0) orientationFrameId = window.requestAnimationFrame(syncFrame);
+      };
+      orientationFrameId = window.requestAnimationFrame(syncFrame);
     };
     const viewport = window.visualViewport;
     viewport?.addEventListener("resize", scheduleViewportSync);
@@ -171,7 +178,7 @@ export function useWebPlatform() {
       window.removeEventListener("resize", scheduleViewportSync);
       window.removeEventListener("orientationchange", syncAfterOrientation);
       if (animationFrameId) window.cancelAnimationFrame(animationFrameId);
-      for (const timer of orientationTimers) window.clearTimeout(timer);
+      if (orientationFrameId) window.cancelAnimationFrame(orientationFrameId);
       removeControllerListener?.();
       visibilityListener?.();
     };

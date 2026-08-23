@@ -2,11 +2,67 @@ import { NodeViewWrapper, NodeViewContent, type NodeViewProps } from "@tiptap/re
 import { Plugin, PluginKey, type Transaction } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { copyToClipboard } from "../lib/clipboard";
 import { CODE_LANGUAGE_OPTIONS, highlightCode, normalizeCodeLanguage } from "../lib/code-highlight";
 
 const codeHighlightPluginKey = new PluginKey<DecorationSet>("codeSyntaxHighlight");
+
+interface TextPoint {
+  node: Text;
+  offset: number;
+}
+
+function textPointAt(
+  textNodes: readonly Text[],
+  absoluteOffset: number,
+  preferNextNode: boolean,
+): TextPoint | null {
+  let consumed = 0;
+  for (let index = 0; index < textNodes.length; index += 1) {
+    const textNode = textNodes[index];
+    const end = consumed + textNode.data.length;
+    if (absoluteOffset < end || (!preferNextNode && absoluteOffset === end)) {
+      return { node: textNode, offset: Math.max(0, absoluteOffset - consumed) };
+    }
+    consumed = end;
+  }
+  const last = textNodes[textNodes.length - 1];
+  return last ? { node: last, offset: last.data.length } : null;
+}
+
+/** 返回每个逻辑代码行实际占用的视觉行数（软换行可能大于 1）。 */
+function measureCodeLineVisualRows(codeElement: HTMLElement, code: string): number[] {
+  const walker = document.createTreeWalker(codeElement, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  for (let current = walker.nextNode(); current; current = walker.nextNode()) {
+    if (current instanceof Text) textNodes.push(current);
+  }
+  if (textNodes.length === 0) return code.split("\n").map(() => 1);
+
+  let lineStart = 0;
+  return code.split("\n").map((line) => {
+    const lineEnd = lineStart + line.length;
+    const start = textPointAt(textNodes, lineStart, true);
+    const end = textPointAt(textNodes, lineEnd, false);
+    lineStart = lineEnd + 1;
+    if (!line.length || !start || !end) return 1;
+
+    const range = document.createRange();
+    range.setStart(start.node, start.offset);
+    range.setEnd(end.node, end.offset);
+    const rowTops: number[] = [];
+    for (const rect of range.getClientRects()) {
+      if (rect.height <= 0) continue;
+      if (!rowTops.some((top) => Math.abs(top - rect.top) < 2)) rowTops.push(rect.top);
+    }
+    return Math.max(1, rowTops.length);
+  });
+}
+
+function equalRows(left: readonly number[], right: readonly number[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
 
 function codeHighlightDecorations(node: ProseMirrorNode, position: number): Decoration[] {
   const language = normalizeCodeLanguage(node.attrs.language);
@@ -95,7 +151,41 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [editable, setEditable] = useState(editor.isEditable);
-  const lineCount = node.textContent.split("\n").length;
+  const code = node.textContent;
+  const lineCount = code.split("\n").length;
+  const [visualRows, setVisualRows] = useState<number[]>(() => Array(lineCount).fill(1));
+
+  useLayoutEffect(() => {
+    const codeElement = wrapperRef.current?.querySelector<HTMLElement>("code");
+    if (!codeElement) return;
+    let frame = 0;
+    let cancelled = false;
+    const measure = () => {
+      frame = 0;
+      if (cancelled) return;
+      const measured = measureCodeLineVisualRows(codeElement, code);
+      setVisualRows((current) => equalRows(current, measured) ? current : measured);
+    };
+    const scheduleMeasure = () => {
+      if (!frame) frame = window.requestAnimationFrame(measure);
+    };
+
+    measure();
+    const resizeObserver = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(scheduleMeasure);
+    resizeObserver?.observe(codeElement);
+    const mutationObserver = new MutationObserver(scheduleMeasure);
+    mutationObserver.observe(codeElement, { childList: true, characterData: true, subtree: true });
+    void document.fonts?.ready.then(scheduleMeasure);
+
+    return () => {
+      cancelled = true;
+      if (frame) window.cancelAnimationFrame(frame);
+      resizeObserver?.disconnect();
+      mutationObserver.disconnect();
+    };
+  }, [code]);
 
   useEffect(() => {
     const syncEditable = () => setEditable(editor.isEditable);
@@ -158,7 +248,10 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
             suppressContentEditableWarning
           >
             {Array.from({ length: lineCount }, (_, index) => (
-              <span key={index}>{index + 1}</span>
+              <span
+                key={index}
+                style={{ blockSize: `${(visualRows[index] ?? 1) * 1.5}em` }}
+              >{index + 1}</span>
             ))}
           </div>
           <pre>

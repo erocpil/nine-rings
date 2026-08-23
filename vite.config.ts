@@ -35,6 +35,10 @@ export default defineConfig(async () => {
     chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
+        // 懒加载组件只把组件自身放入命名 chunk。Rollup 的旧默认行为会把其
+        // 依赖一并吸入手动 chunk；主应用复用这些依赖时，浏览器反而必须在
+        // 首屏预加载设置、回收站、编辑器等所有延迟功能。
+        onlyExplicitManualChunks: true,
         manualChunks(id) {
           if (!id) return undefined;
           const normalized = normalizePath(id);
@@ -42,6 +46,9 @@ export default defineConfig(async () => {
           if (normalized.includes("/node_modules/")) {
             if (normalized.includes("/node_modules/@tiptap/") || normalized.includes("/node_modules/prosemirror-")) {
               return "editor";
+            }
+            if (normalized.includes("/node_modules/@dnd-kit/")) {
+              return "dnd";
             }
             if (normalized.includes("/node_modules/@tauri-apps")) {
               return "tauri-shim";

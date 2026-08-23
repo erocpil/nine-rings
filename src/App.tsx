@@ -1,15 +1,12 @@
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNotes } from "./hooks/useNotes";
 import { DatePicker } from "./components/DatePicker";
-import { TodoList } from "./components/TodoList";
 import { OverdueTodos } from "./components/OverdueTodos";
 import { Sidebar } from "./components/Sidebar";
-import { NoteEditor } from "./components/NoteEditor";
 import { SearchBar } from "./components/SearchBar";
 import { DailyOverview } from "./components/DailyOverview";
 import { UndoToast } from "./components/UndoToast";
 import type { UndoState } from "./components/UndoToast";
-import TitleBar from "./components/TitleBar";
 import { useSearch } from "./hooks/useSearch";
 import { useDevImport } from "./hooks/useDevImport";
 import { useNotesStore } from "./stores/useNotesStore";
@@ -57,9 +54,15 @@ const RecycleBin = lazy(() => import("./components/RecycleBin").then((module) =>
 const VersionHistory = lazy(() => import("./components/VersionHistory").then((module) => ({ default: module.VersionHistory })));
 const SettingsPanel = lazy(() => import("./components/SettingsPanel").then((module) => ({ default: module.SettingsPanel })));
 const DebugPanel = lazy(() => import("./components/DebugPanel").then((module) => ({ default: module.DebugPanel })));
+const TitleBar = lazy(() => import("./components/TitleBar"));
 const PropertiesPanel = lazy(() => import("./components/PropertiesPanel"));
 const DocCreateDialog = lazy(() => import("./components/DocCreateDialog"));
 const QuickSwitcher = lazy(() => import("./components/QuickSwitcher"));
+const TodoList = lazy(() => import("./components/TodoList")
+  .then((module) => ({ default: module.TodoList })));
+const loadNoteEditor = () => import("./components/NoteEditor")
+  .then((module) => ({ default: module.NoteEditor }));
+const NoteEditor = lazy(loadNoteEditor);
 
 type WorkspaceTarget =
   | { kind: "note"; noteId: string }
@@ -96,6 +99,13 @@ function saveWorkspaceTarget(target: WorkspaceTarget): void {
 
 function App() {
   const webPlatform = useWebPlatform();
+
+  // 先提交轻量应用外壳，再并行下载编辑器。这样低性能手机不必等待 TipTap
+  // 解析完成才看到界面，同时通常能在 IndexedDB 恢复文档前完成代码预热。
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => { void loadNoteEditor(); });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
   const startupWorkspaceTargetRef = useRef<WorkspaceTarget | null>(readWorkspaceTarget());
   const startupLastNoteIdRef = useRef(localStorage.getItem("nr:lastNote"));
   const startupNoteIdRef = useRef(
@@ -977,7 +987,11 @@ function App() {
       style={editorAppearanceVariables(config ?? undefined)}
     >
       {/* 桌面版（Tauri）才需要自定义标题栏；web 版无窗口概念 */}
-      {isTauriRuntime() && <TitleBar />}
+      {isTauriRuntime() && (
+        <Suspense fallback={null}>
+          <TitleBar />
+        </Suspense>
+      )}
       <header className="app-header">
         {error && (
           <div className="error-bar" role="alert">
@@ -1328,12 +1342,14 @@ function App() {
                   className="app-main-todo"
                   style={{ flex: todoFlex }}
                 >
-                  <TodoList
-                    disabled={syncBusy}
-                    todos={dailyPage?.todos ?? []}
-                    onChange={updateTodos}
-                    onOpenOverdue={() => setOverdueOpen(true)}
-                  />
+                  <Suspense fallback={<div className="empty-state">正在打开待办...</div>}>
+                    <TodoList
+                      disabled={syncBusy}
+                      todos={dailyPage?.todos ?? []}
+                      onChange={updateTodos}
+                      onOpenOverdue={() => setOverdueOpen(true)}
+                    />
+                  </Suspense>
                 </div>
               )}
               <div
@@ -1346,43 +1362,45 @@ function App() {
                 style={{ flex: todoFlex > 0 ? 10 - todoFlex : 1 }}
               >
                 {selectedNote && editorReadyNoteId === selectedNote.id ? (
-                  <NoteEditor
-                    key={`${selectedNote.id}:${externalReloadKey}`}
-                    noteId={selectedNote.id}
-                    focusMode={focusMode}
-                    readonly={selectedNote.readonly || syncBusy}
-                    onReadonlyChange={selectedNote.readonly && !syncBusy ? async (readonly) => {
-                      await updateNote(selectedNote.id, { readonly });
-                      setDocTreeKey(k => k + 1);
-                      setSidebarRefreshKey(k => k + 1);
-                    } : undefined}
-                    title={selectedNote.title}
-                    content={selectedNote.content}
-                    contentVersion={selectedNote.updated_at}
-                    pdfDocumentInfo={pdfDocumentInfo}
-                    pdfExportRequestId={pdfExportRequestId}
-                    tags={selectedNote.tags}
-                    showLineNumbers={config?.editor_show_line_numbers ?? false}
-                    showStatusBlockNumber={config?.editor_show_status_block_number ?? true}
-                    showStatusBar={config?.editor_show_status_bar ?? true}
-                    vimModeEnabled={config?.editor_vim_mode ?? false}
-                    highlightActiveLine={config?.highlight_active_line ?? true}
-                    useCustomContextMenu={config?.use_custom_context_menu ?? true}
-                    cjkLatinSpacing={config?.editor_cjk_spacing ?? true}
-                    editorFontSize={config?.note_font_size ?? 16}
-                    onEditorFontSizeChange={handleEditorFontSizeChange}
-                    searchTarget={editorSearchTarget?.noteId === selectedNote.id ? editorSearchTarget : null}
-                    onSearchTargetConsumed={handleSearchTargetConsumed}
-                    onTitleChange={handleTitleChange}
-                    onContentChange={handleContentChange}
-                    onTagsChange={handleTagsChange}
-                    onVersionOpen={() => setVersionOpen(true)}
-                    onFocusModeChange={setFocusMode}
-                    onStickyTitleChange={setStickyTitle}
-                    onOutlineAvailabilityChange={setDocumentOutlineAvailable}
-                    outlineRequestId={documentOutlineRequestId}
-                    saveStatus={autoSave.status}
-                  />
+                  <Suspense fallback={<div className="empty-state">正在打开文档...</div>}>
+                    <NoteEditor
+                      key={`${selectedNote.id}:${externalReloadKey}`}
+                      noteId={selectedNote.id}
+                      focusMode={focusMode}
+                      readonly={selectedNote.readonly || syncBusy}
+                      onReadonlyChange={selectedNote.readonly && !syncBusy ? async (readonly) => {
+                        await updateNote(selectedNote.id, { readonly });
+                        setDocTreeKey(k => k + 1);
+                        setSidebarRefreshKey(k => k + 1);
+                      } : undefined}
+                      title={selectedNote.title}
+                      content={selectedNote.content}
+                      contentVersion={selectedNote.updated_at}
+                      pdfDocumentInfo={pdfDocumentInfo}
+                      pdfExportRequestId={pdfExportRequestId}
+                      tags={selectedNote.tags}
+                      showLineNumbers={config?.editor_show_line_numbers ?? false}
+                      showStatusBlockNumber={config?.editor_show_status_block_number ?? true}
+                      showStatusBar={config?.editor_show_status_bar ?? true}
+                      vimModeEnabled={config?.editor_vim_mode ?? false}
+                      highlightActiveLine={config?.highlight_active_line ?? true}
+                      useCustomContextMenu={config?.use_custom_context_menu ?? true}
+                      cjkLatinSpacing={config?.editor_cjk_spacing ?? true}
+                      editorFontSize={config?.note_font_size ?? 16}
+                      onEditorFontSizeChange={handleEditorFontSizeChange}
+                      searchTarget={editorSearchTarget?.noteId === selectedNote.id ? editorSearchTarget : null}
+                      onSearchTargetConsumed={handleSearchTargetConsumed}
+                      onTitleChange={handleTitleChange}
+                      onContentChange={handleContentChange}
+                      onTagsChange={handleTagsChange}
+                      onVersionOpen={() => setVersionOpen(true)}
+                      onFocusModeChange={setFocusMode}
+                      onStickyTitleChange={setStickyTitle}
+                      onOutlineAvailabilityChange={setDocumentOutlineAvailable}
+                      outlineRequestId={documentOutlineRequestId}
+                      saveStatus={autoSave.status}
+                    />
+                  </Suspense>
                 ) : (
                   <div className="empty-state">
                     {selectedNote ? "正在打开文档..." : loading ? "加载中..." : "选择或新建一篇笔记"}

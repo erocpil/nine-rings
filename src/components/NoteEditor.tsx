@@ -1336,12 +1336,12 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
     let frame = 0;
     let restoreFrame = 0;
+    let followupRestoreFrame = 0;
     let scrollCaptureTimer = 0;
     let scrollGestureActive = false;
     let adjusting = false;
     let lastObservedWidth = root.clientWidth;
     let lastWindowWidth = window.innerWidth;
-    const settleTimers: number[] = [];
     let anchor: {
       kind: "caret" | "block";
       pos: number;
@@ -1468,11 +1468,12 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     };
 
     const clearSettleTimers = () => {
-      while (settleTimers.length > 0) window.clearTimeout(settleTimers.pop());
       cancelSettledScrollCapture();
       scrollGestureActive = false;
       if (restoreFrame) cancelAnimationFrame(restoreFrame);
       restoreFrame = 0;
+      if (followupRestoreFrame) cancelAnimationFrame(followupRestoreFrame);
+      followupRestoreFrame = 0;
     };
 
     const stabilizeWidthChange = (force = false) => {
@@ -1485,16 +1486,15 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       restoreFrame = requestAnimationFrame(() => {
         restoreFrame = 0;
         restoreAnchor(previous);
-      });
-      for (const delay of [120, 320]) {
-        settleTimers.push(window.setTimeout(() => {
+        // 第一帧完成宽度重排，第二帧吸收 WebKit 的滚动夹取。之后只响应
+        // 真正的 ResizeObserver/visualViewport 事件，不再延迟拉动页面。
+        followupRestoreFrame = requestAnimationFrame(() => {
+          followupRestoreFrame = 0;
           restoreAnchor(previous);
-          if (delay === 320) {
-            adjusting = false;
-            scheduleCapture();
-          }
-        }, delay));
-      }
+          adjusting = false;
+          scheduleCapture();
+        });
+      });
       return true;
     };
 

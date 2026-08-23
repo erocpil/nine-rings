@@ -669,7 +669,14 @@ test.describe("PWA 窄屏应用外壳", () => {
 
     await page.setViewportSize({ width: 760, height: 390 });
     await expect.poll(async () => (await readCaretLayout()).visible).toBe(true);
-    expect((await readCaretLayout()).fontSize).toBe(portraitBefore.fontSize);
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    }));
+    const landscapeAfterPaint = await readCaretLayout();
+    expect(landscapeAfterPaint.fontSize).toBe(portraitBefore.fontSize);
+    await page.waitForTimeout(420);
+    const landscapeSettled = await readCaretLayout();
+    expect(Math.abs(landscapeSettled.ratio - landscapeAfterPaint.ratio)).toBeLessThan(0.04);
 
     await page.setViewportSize({ width: 390, height: 760 });
     await expect.poll(async () => (await readCaretLayout()).visible).toBe(true);
@@ -736,6 +743,11 @@ test.describe("PWA 窄屏应用外壳", () => {
         return current.text === portraitBefore.text
           && Math.abs(current.offset - portraitBefore.offset) < 20;
       }).toBe(true);
+      const afterPaint = await readTopBlock();
+      await page.waitForTimeout(420);
+      const afterDelayedWindow = await readTopBlock();
+      expect(afterDelayedWindow.text).toBe(afterPaint.text);
+      expect(Math.abs(afterDelayedWindow.offset - afterPaint.offset)).toBeLessThan(4);
     }
   });
 });

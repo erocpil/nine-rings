@@ -52,7 +52,16 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin || url.pathname === "/__import") return;
 
   if (request.mode === "navigate" || request.destination === "document") {
-    event.respondWith(networkFirst(request, "/index.html"));
+    // 已安装的 PWA 优先显示本地应用外壳，同时在后台更新 HTML。旧实现会在
+    // 每次冷启动时无限等待网络，即使全部资源已缓存，也会先出现白屏。
+    const refresh = refreshNavigation(request);
+    event.respondWith(
+      caches.match(request)
+        .then((cached) => cached || caches.match("/index.html"))
+        .then((cached) => cached || refresh)
+        .catch(() => Response.error())
+    );
+    event.waitUntil(refresh.then(() => undefined).catch(() => undefined));
     return;
   }
 
@@ -72,17 +81,13 @@ async function cacheFirst(request) {
   return response;
 }
 
-async function networkFirst(request, fallbackPath) {
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(CACHE_NAME);
-      await cache.put(request, response.clone());
-    }
-    return response;
-  } catch {
-    return (await caches.match(request)) || (await caches.match(fallbackPath)) || Response.error();
+async function refreshNavigation(request) {
+  const response = await fetch(request);
+  if (response.ok) {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(request, response.clone());
   }
+  return response;
 }
 `;
 }
