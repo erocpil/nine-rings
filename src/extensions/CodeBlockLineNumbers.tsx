@@ -1,50 +1,57 @@
 import { NodeViewWrapper, NodeViewContent, type NodeViewProps } from "@tiptap/react";
+import type { Editor } from "@tiptap/core";
 import { Plugin, PluginKey, type Transaction } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { copyToClipboard } from "../lib/clipboard";
 import { CODE_LANGUAGE_OPTIONS, highlightCode, normalizeCodeLanguage } from "../lib/code-highlight";
 
 const codeHighlightPluginKey = new PluginKey<DecorationSet>("codeSyntaxHighlight");
+const codeLineNumbersPluginKey = new PluginKey<boolean>("codeLineNumbersEnabled");
 
-interface TextPoint {
+interface TextSpan {
   node: Text;
-  offset: number;
+  start: number;
+  end: number;
 }
 
 function textPointAt(
-  textNodes: readonly Text[],
+  textSpans: readonly TextSpan[],
   absoluteOffset: number,
   preferNextNode: boolean,
-): TextPoint | null {
-  let consumed = 0;
-  for (let index = 0; index < textNodes.length; index += 1) {
-    const textNode = textNodes[index];
-    const end = consumed + textNode.data.length;
-    if (absoluteOffset < end || (!preferNextNode && absoluteOffset === end)) {
-      return { node: textNode, offset: Math.max(0, absoluteOffset - consumed) };
-    }
-    consumed = end;
+): { node: Text; offset: number } | null {
+  let low = 0;
+  let high = textSpans.length - 1;
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    const span = textSpans[middle];
+    if (absoluteOffset < span.start) high = middle - 1;
+    else if (absoluteOffset > span.end || (preferNextNode && absoluteOffset === span.end)) low = middle + 1;
+    else return { node: span.node, offset: Math.max(0, absoluteOffset - span.start) };
   }
-  const last = textNodes[textNodes.length - 1];
-  return last ? { node: last, offset: last.data.length } : null;
+  const last = textSpans[textSpans.length - 1];
+  return last ? { node: last.node, offset: last.node.data.length } : null;
 }
 
 /** 返回每个逻辑代码行实际占用的视觉行数（软换行可能大于 1）。 */
 function measureCodeLineVisualRows(codeElement: HTMLElement, code: string): number[] {
   const walker = document.createTreeWalker(codeElement, NodeFilter.SHOW_TEXT);
-  const textNodes: Text[] = [];
+  const textSpans: TextSpan[] = [];
+  let textOffset = 0;
   for (let current = walker.nextNode(); current; current = walker.nextNode()) {
-    if (current instanceof Text) textNodes.push(current);
+    if (current instanceof Text) {
+      textSpans.push({ node: current, start: textOffset, end: textOffset + current.data.length });
+      textOffset += current.data.length;
+    }
   }
-  if (textNodes.length === 0) return code.split("\n").map(() => 1);
+  if (textSpans.length === 0) return code.split("\n").map(() => 1);
 
   let lineStart = 0;
   return code.split("\n").map((line) => {
     const lineEnd = lineStart + line.length;
-    const start = textPointAt(textNodes, lineStart, true);
-    const end = textPointAt(textNodes, lineEnd, false);
+    const start = textPointAt(textSpans, lineStart, true);
+    const end = textPointAt(textSpans, lineEnd, false);
     lineStart = lineEnd + 1;
     if (!line.length || !start || !end) return 1;
 
@@ -153,9 +160,29 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
   const [editable, setEditable] = useState(editor.isEditable);
   const code = node.textContent;
   const lineCount = code.split("\n").length;
+  const [lineNumbersEnabled, setLineNumbersEnabled] = useState(
+    () => codeLineNumbersPluginKey.getState(editor.state) ?? false,
+  );
   const [visualRows, setVisualRows] = useState<number[]>(() => Array(lineCount).fill(1));
 
-  useLayoutEffect(() => {
+  useEffect(() => {
+    const syncLineNumbers = () => {
+      const enabled = codeLineNumbersPluginKey.getState(editor.state) ?? false;
+      setLineNumbersEnabled((current) => current === enabled ? current : enabled);
+    };
+    editor.on("transaction", syncLineNumbers);
+    return () => {
+      editor.off("transaction", syncLineNumbers);
+    };
+  }, [editor]);
+
+  useEffect(() => {
+    if (!lineNumbersEnabled) {
+      setVisualRows((current) => current.length === lineCount && current.every((rows) => rows === 1)
+        ? current
+        : Array(lineCount).fill(1));
+      return;
+    }
     const codeElement = wrapperRef.current?.querySelector<HTMLElement>("code");
     if (!codeElement) return;
     let frame = 0;
@@ -170,7 +197,9 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
       if (!frame) frame = window.requestAnimationFrame(measure);
     };
 
-    measure();
+    // 首屏先显示正文，下一绘制帧再读取软换行几何。旧实现对每个代码块
+    // 使用 layout effect 同步逐行测量，即使行号处于关闭状态也会阻塞 WebKit。
+    scheduleMeasure();
     const resizeObserver = typeof ResizeObserver === "undefined"
       ? null
       : new ResizeObserver(scheduleMeasure);
@@ -185,7 +214,7 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
       resizeObserver?.disconnect();
       mutationObserver.disconnect();
     };
-  }, [code]);
+  }, [code, lineCount, lineNumbersEnabled]);
 
   useEffect(() => {
     const syncEditable = () => setEditable(editor.isEditable);
@@ -247,7 +276,7 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
             contentEditable={false}
             suppressContentEditableWarning
           >
-            {Array.from({ length: lineCount }, (_, index) => (
+            {lineNumbersEnabled && Array.from({ length: lineCount }, (_, index) => (
               <span
                 key={index}
                 // iOS WebKit 在 contenteditable NodeView 中有时会忽略逻辑
@@ -271,8 +300,16 @@ export { CodeBlockView };
 import { Node } from "@tiptap/core";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 
-export const CodeBlockLineNumbers = Node.create({
+interface CodeBlockLineNumberOptions {
+  lineNumbersEnabled: boolean;
+}
+
+export const CodeBlockLineNumbers = Node.create<CodeBlockLineNumberOptions>({
   name: "codeBlock",
+
+  addOptions() {
+    return { lineNumbersEnabled: false };
+  },
 
   group: "block",
   content: "text*",
@@ -306,7 +343,16 @@ export const CodeBlockLineNumbers = Node.create({
   },
 
   addProseMirrorPlugins() {
-    return [new Plugin<DecorationSet>({
+    return [new Plugin<boolean>({
+      key: codeLineNumbersPluginKey,
+      state: {
+        init: () => this.options.lineNumbersEnabled,
+        apply(transaction, previous) {
+          const requested = transaction.getMeta(codeLineNumbersPluginKey);
+          return typeof requested === "boolean" ? requested : previous;
+        },
+      },
+    }), new Plugin<DecorationSet>({
       key: codeHighlightPluginKey,
       state: {
         init: (_, state) => createCodeHighlightDecorationSet(state.doc),
@@ -361,3 +407,9 @@ export const CodeBlockLineNumbers = Node.create({
     };
   },
 });
+
+export function setCodeBlockLineNumbersEnabled(editor: Editor, enabled: boolean): void {
+  const current = codeLineNumbersPluginKey.getState(editor.state) ?? false;
+  if (current === enabled) return;
+  editor.view.dispatch(editor.state.tr.setMeta(codeLineNumbersPluginKey, enabled));
+}

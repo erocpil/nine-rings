@@ -35,7 +35,10 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { CellSelection, deleteCellSelection, TableMap } from "@tiptap/pm/tables";
 import { addLog, toggleDebug } from "../lib/debugLog";
 import { copyToClipboard } from "../lib/clipboard";
-import { CodeBlockLineNumbers } from "../extensions/CodeBlockLineNumbers";
+import {
+  CodeBlockLineNumbers,
+  setCodeBlockLineNumbersEnabled,
+} from "../extensions/CodeBlockLineNumbers";
 import { EditorBlockGutter } from "./EditorBlockGutter";
 import { DocumentOutlineList, type VisibleOutlineEntry } from "./DocumentOutlineList";
 import { MobileActionSheet } from "./MobileActionSheet";
@@ -633,7 +636,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       CharacterCount.configure(),
       ActiveLinePlugin,
       SearchHighlights,
-      CodeBlockLineNumbers,
+      CodeBlockLineNumbers.configure({ lineNumbersEnabled: showCodeLineNumbers }),
       StructuredBlockExit,
       MarkdownLinkInput,
       CjkLatinSpacing,
@@ -849,6 +852,11 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     if (!editor) return;
     setCjkLatinSpacing(editor, cjkLatinSpacing && !nativeCjkLatinSpacing);
   }, [cjkLatinSpacing, editor, nativeCjkLatinSpacing]);
+
+  useEffect(() => {
+    if (!editor) return;
+    setCodeBlockLineNumbersEnabled(editor, showCodeLineNumbers);
+  }, [editor, showCodeLineNumbers]);
 
   useEffect(() => {
     if (!editor) return;

@@ -298,6 +298,21 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(scrollWork.paragraphRects).toBeLessThan(20);
     expect(scrollWork.positionWrites).toBeLessThanOrEqual(2);
 
+    await page.evaluate(() => {
+      const monitoredWindow = window as typeof window & {
+        __gutterObserveCount?: number;
+        __gutterObserveOriginal?: IntersectionObserver["observe"];
+      };
+      const original = IntersectionObserver.prototype.observe;
+      monitoredWindow.__gutterObserveCount = 0;
+      monitoredWindow.__gutterObserveOriginal = original;
+      IntersectionObserver.prototype.observe = function observe(target: Element) {
+        if (target.parentElement?.classList.contains("ProseMirror")) {
+          monitoredWindow.__gutterObserveCount = (monitoredWindow.__gutterObserveCount ?? 0) + 1;
+        }
+        return original.call(this, target);
+      };
+    });
     await page.getByTitle("设置").click();
     await page.getByRole("button", { name: /^编辑器/ }).click();
     const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
@@ -309,6 +324,18 @@ test.describe("PWA 窄屏应用外壳", () => {
     const gutterNumbers = page.locator(".editor-block-number");
     await expect.poll(() => gutterNumbers.count()).toBeGreaterThan(0);
     expect(await gutterNumbers.count()).toBeLessThan(160);
+    const initiallyObservedBlocks = await page.evaluate(() => {
+      const monitoredWindow = window as typeof window & {
+        __gutterObserveCount?: number;
+        __gutterObserveOriginal?: IntersectionObserver["observe"];
+      };
+      const count = monitoredWindow.__gutterObserveCount ?? 0;
+      if (monitoredWindow.__gutterObserveOriginal) {
+        IntersectionObserver.prototype.observe = monitoredWindow.__gutterObserveOriginal;
+      }
+      return count;
+    });
+    expect(initiallyObservedBlocks).toBeLessThan(180);
     await page.locator(".note-editor-scroll").evaluate((element) => {
       element.scrollTop = element.scrollHeight;
     });

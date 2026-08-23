@@ -147,6 +147,9 @@ export function getCollapsedHeadingKeys(editor: Editor): ReadonlySet<string> {
 
 export function getCollapsedHeadingPositions(editor: Editor): ReadonlySet<number> {
   const collapsedKeys = getCollapsedHeadingKeys(editor);
+  // 未折叠是最常见状态。避免 gutter 初始化和窗口变化时为了得到一个
+  // 空集合反复遍历整篇大文档。
+  if (collapsedKeys.size === 0) return new Set();
   return new Set(extractHeadingSections(editor.state.doc)
     .filter((section) => collapsedKeys.has(section.key))
     .map((section) => section.pos));

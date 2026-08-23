@@ -24,6 +24,10 @@ test.describe("结构块退出行为", () => {
     await editor.press("Enter");
     await editor.type("second");
 
+    // 行号关闭时不创建逐行 DOM，也不测量软换行；大文档中的代码块因此
+    // 不会在首次打开时同步触发布局读取。
+    await expect(editor.locator(".code-block-gutter span")).toHaveCount(0);
+
     await page.getByRole("button", { name: "块 ▾" }).click();
     await page.getByRole("button", { name: "□ 显示代码行号", exact: true }).click();
 

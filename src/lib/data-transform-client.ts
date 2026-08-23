@@ -3,7 +3,6 @@ import { deltaToProseMirror } from "./delta-converter";
 import type { MarkdownImportOptions } from "./markdown-import";
 import { buildMarkdownImportInput } from "./markdown-import";
 import { extractTitle, mdToDelta } from "./md-parser";
-import { isTauriRuntime } from "./runtime";
 
 type WorkerTask = "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "delta-to-prosemirror";
 
@@ -30,12 +29,22 @@ interface WorkerResponse {
 }
 
 let worker: Worker | null = null;
+let workerUnavailable = false;
 let requestId = 0;
 const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
 
 function getWorker(): Worker | null {
-  if (worker || typeof Worker === "undefined" || isTauriRuntime()) return worker;
-  worker = new Worker(new URL("../workers/data-transform.worker.ts", import.meta.url), { type: "module" });
+  if (worker || workerUnavailable || typeof Worker === "undefined") return worker;
+  try {
+    // Vite 会把 module worker 打包成同源静态资源；Tauri 的 WebView 也能
+    // 从 frontendDist 加载它。此前按运行时排除 Tauri，反而让大文档的
+    // Delta → ProseMirror 转换全部落在 WebKit UI 线程上。
+    worker = new Worker(new URL("../workers/data-transform.worker.ts", import.meta.url), { type: "module" });
+  } catch (error) {
+    workerUnavailable = true;
+    console.warn("[DataTransform] Worker 创建失败，使用主线程兼容路径:", error);
+    return null;
+  }
   worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
     const request = pending.get(event.data.id);
     if (!request) return;
@@ -49,6 +58,7 @@ function getWorker(): Worker | null {
     pending.clear();
     worker?.terminate();
     worker = null;
+    workerUnavailable = true;
   };
   return worker;
 }

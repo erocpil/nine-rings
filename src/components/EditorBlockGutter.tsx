@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import type { Transaction } from "@tiptap/pm/state";
 import { getCollapsedHeadingPositions, headingFoldPluginKey } from "../extensions/HeadingFold";
@@ -124,7 +124,7 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
   const rootRef = useRef<HTMLDivElement>(null);
   const [blocks, setBlocks] = useState<GutterBlock[]>([]);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const root = rootRef.current;
     const scrollRoot = root?.closest<HTMLElement>(".note-editor-scroll");
     if (!root || !scrollRoot || editor.isDestroyed) return;
@@ -139,9 +139,12 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
 
     let measureFrame = 0;
     let rebuildFrame = 0;
+    let windowFrame = 0;
     let documentMeasureTimer = 0;
     let disposed = false;
+    let observedWindow = { start: -1, end: -1 };
     let foldedHeadingPositions = getCollapsedHeadingPositions(editor);
+    let topLevelBlocks: Array<{ pos: number; index: number; heading: boolean }> = [];
     const observedIndexes = new Map<HTMLElement, number>();
     const measuredBlocks = new Map<HTMLElement, GutterBlock>();
 
@@ -249,6 +252,94 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
         rootMargin: `${Math.max(640, Math.ceil(scrollRoot.clientHeight * 1.5))}px 0px`,
       });
 
+    const viewportBlockRange = (): { start: number; end: number } => {
+      const count = topLevelBlocks.length;
+      if (count === 0) return { start: 0, end: -1 };
+      const fallbackIndex = Math.max(0, Math.min(
+        count - 1,
+        editor.state.selection.$from.index(0),
+      ));
+      try {
+        const viewport = scrollRoot.getBoundingClientRect();
+        const editorRect = editor.view.dom.getBoundingClientRect();
+        const left = Math.max(editorRect.left + 1, Math.min(
+          editorRect.right - 1,
+          editorRect.left + Math.min(80, Math.max(1, editorRect.width / 2)),
+        ));
+        const top = Math.max(viewport.top + 1, editorRect.top + 1);
+        const bottom = Math.min(viewport.bottom - 1, editorRect.bottom - 1);
+        const indexAt = (vertical: number, fallback: number, direction: 1 | -1) => {
+          // posAtCoords 会让 ProseMirror 读取候选文本块的几何；连续滚动时
+          // WebKit 因此可能每帧强制布局。浏览器已经为命中测试维护了结果，
+          // elementsFromPoint 再向上找到编辑器顶层块即可得到同一位置。
+          const ownerDocument = editor.view.dom.ownerDocument;
+          for (let offset = 0; offset <= 192; offset += 16) {
+            const probe = Math.max(top, Math.min(bottom, vertical + direction * offset));
+            for (const hit of ownerDocument.elementsFromPoint(left, probe)) {
+              let target: Element | null = hit;
+              while (target && target.parentElement !== editor.view.dom) {
+                if (target === editor.view.dom) break;
+                target = target.parentElement;
+              }
+              if (!(target instanceof HTMLElement) || target.parentElement !== editor.view.dom) continue;
+              try {
+                const position = positionForDom(target);
+                return Math.max(0, Math.min(count - 1, editor.state.doc.resolve(position).index(0)));
+              } catch {
+                // Try the next hit/probe.
+              }
+            }
+          }
+          return fallback;
+        };
+        if (bottom <= top) return { start: fallbackIndex, end: fallbackIndex };
+        const first = indexAt(top, fallbackIndex, 1);
+        const last = indexAt(bottom, first, -1);
+        return { start: Math.min(first, last), end: Math.max(first, last) };
+      } catch {
+        return { start: fallbackIndex, end: fallbackIndex };
+      }
+    };
+
+    const refreshObservedWindow = (force = false) => {
+      windowFrame = 0;
+      if (disposed || editor.isDestroyed || !root.isConnected) return;
+      const visible = viewportBlockRange();
+      // 只让 WebKit 跟踪当前视口附近的顶层块。旧实现会对大文档中的
+      // 每个块调用 nodeDOM + IntersectionObserver.observe，首次布局成本
+      // 随全文长度增长，并在 WebKitGTK 中造成明显假死。
+      const overscan = 48;
+      const start = Math.max(0, visible.start - overscan);
+      const end = Math.min(topLevelBlocks.length - 1, visible.end + overscan);
+      if (!force && start === observedWindow.start && end === observedWindow.end) return;
+      observedWindow = { start, end };
+      intersectionObserver?.disconnect();
+      observedIndexes.clear();
+      measuredBlocks.clear();
+      const rootTop = intersectionObserver ? 0 : root.getBoundingClientRect().top;
+      const editorLineHeight = intersectionObserver
+        ? 0
+        : Number.parseFloat(getComputedStyle(editor.view.dom).lineHeight) || 24;
+      for (let blockIndex = start; blockIndex <= end; blockIndex += 1) {
+        const block = topLevelBlocks[blockIndex];
+        if (!block || (!needsAllBlocks && !block.heading)) continue;
+        const dom = editor.view.nodeDOM(block.pos);
+        if (!(dom instanceof HTMLElement)) continue;
+        observedIndexes.set(dom, block.index);
+        if (intersectionObserver) intersectionObserver.observe(dom);
+        else {
+          const measured = measureBlock(dom, dom.getBoundingClientRect(), rootTop, editorLineHeight);
+          if (measured) measuredBlocks.set(dom, measured);
+        }
+      }
+      publishBlocks();
+    };
+
+    const scheduleWindowRefresh = () => {
+      if (windowFrame) return;
+      windowFrame = requestAnimationFrame(() => refreshObservedWindow());
+    };
+
     const rebuildObservedBlocks = () => {
       rebuildFrame = 0;
       if (disposed || editor.isDestroyed || !root.isConnected) return;
@@ -256,23 +347,12 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
       observedIndexes.clear();
       measuredBlocks.clear();
       foldedHeadingPositions = getCollapsedHeadingPositions(editor);
-      const rootTop = intersectionObserver ? 0 : root.getBoundingClientRect().top;
-      const editorLineHeight = intersectionObserver
-        ? 0
-        : Number.parseFloat(getComputedStyle(editor.view.dom).lineHeight) || 24;
+      topLevelBlocks = [];
       editor.state.doc.forEach((node, pos, index) => {
-        if (!needsAllBlocks && node.type.name !== "heading") return;
-        const dom = editor.view.nodeDOM(pos);
-        if (!(dom instanceof HTMLElement)) return;
-        observedIndexes.set(dom, index + 1);
-        if (intersectionObserver) intersectionObserver.observe(dom);
-        else {
-          const measured = measureBlock(dom, dom.getBoundingClientRect(), rootTop, editorLineHeight);
-          if (measured) measuredBlocks.set(dom, measured);
-        }
+        topLevelBlocks.push({ pos, index: index + 1, heading: node.type.name === "heading" });
       });
       onBlockCountChange?.(editor.state.doc.childCount);
-      publishBlocks();
+      refreshObservedWindow(true);
     };
 
     const scheduleRebuild = () => {
@@ -312,7 +392,10 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
     };
     const resizeObserver = typeof ResizeObserver === "undefined"
       ? null
-      : new ResizeObserver(scheduleDocumentMeasure);
+      : new ResizeObserver(() => {
+          scheduleDocumentMeasure();
+          scheduleWindowRefresh();
+        });
     resizeObserver?.observe(root);
     resizeObserver?.observe(editor.view.dom);
     const mutationObserver = typeof MutationObserver === "undefined"
@@ -320,19 +403,22 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
       : new MutationObserver(scheduleRebuild);
     mutationObserver?.observe(editor.view.dom, { childList: true });
     editor.on("transaction", onTransaction);
-    window.addEventListener("resize", scheduleVisibleMeasure);
+    scrollRoot.addEventListener("scroll", scheduleWindowRefresh, { passive: true });
+    window.addEventListener("resize", scheduleWindowRefresh);
     rebuildObservedBlocks();
 
     return () => {
       disposed = true;
       editor.off("transaction", onTransaction);
-      window.removeEventListener("resize", scheduleVisibleMeasure);
+      scrollRoot.removeEventListener("scroll", scheduleWindowRefresh);
+      window.removeEventListener("resize", scheduleWindowRefresh);
       intersectionObserver?.disconnect();
       resizeObserver?.disconnect();
       mutationObserver?.disconnect();
       if (documentMeasureTimer) window.clearTimeout(documentMeasureTimer);
       if (measureFrame) cancelAnimationFrame(measureFrame);
       if (rebuildFrame) cancelAnimationFrame(rebuildFrame);
+      if (windowFrame) cancelAnimationFrame(windowFrame);
     };
   }, [editor, onBlockCountChange, onHeadingFoldToggle, readonly, showInsertButtons, showNumbers]);
 
