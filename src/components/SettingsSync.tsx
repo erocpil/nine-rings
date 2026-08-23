@@ -249,9 +249,19 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
   return (
     <div className="settings-section">
       <h3>GitHub 备份</h3>
-      <p className="settings-hint">
-        手动推送或恢复全量 JSON 快照，包含书签、应用配置及非敏感用户设置；Token 不进入备份。需要 GitHub Personal Access Token（repo 权限）。
-      </p>
+
+      {/* 高频操作置顶，打开页面后无需越过低频配置即可执行。 */}
+      <div className="settings-row sync-actions">
+        <button className="settings-btn" onClick={handleCheck} disabled={busy}>
+          测试连接
+        </button>
+        <button className="settings-btn settings-btn-primary" onClick={handlePush} disabled={busy}>
+          Push ↑
+        </button>
+        <button className="settings-btn settings-btn-danger" onClick={handlePullPreview} disabled={busy || !!pullPrecheck}>
+          Pull ↓
+        </button>
+      </div>
 
       {/* 备份中横幅 */}
       {busy && (
@@ -260,82 +270,6 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
           <span>{BUSY_MESSAGES[busyOperation]}</span>
         </div>
       )}
-
-      {/* Token */}
-      <label className="settings-label">
-        Token
-        <input
-          type="password"
-          className="settings-input"
-          placeholder="ghp_..."
-          value={cfg.token}
-          onChange={(e) => update({ token: e.target.value })}
-        />
-      </label>
-
-      <label className="settings-label settings-inline">
-        Token 保存策略
-        <label className="settings-row settings-row-inline">
-          <input
-            type="checkbox"
-            checked={cfg.rememberToken}
-            onChange={(e) => handleRememberTokenChange(e.target.checked)}
-          />
-          <span>记住 Token（退出浏览器后保留）</span>
-        </label>
-        <span className={`settings-hint ${cfg.rememberToken ? "settings-token-warning" : ""}`}>
-          {cfg.rememberToken
-            ? "Token 已持久保存在此浏览器；请仅在可信的个人设备上启用。"
-            : "默认仅保留到当前浏览器会话，关闭浏览器后清除。"}
-        </span>
-      </label>
-
-      {/* Owner / Repo — 点击编辑 */}
-      {editOwnerRepo ? (
-        <label className="settings-label">
-          Owner / Repo
-          <input
-            type="text"
-            className={`settings-input ${ownerRepoError ? "settings-input-err" : ""}`}
-            placeholder="erocpil/nine-rings-backup"
-            value={ownerRepoValue}
-            onChange={(e) => { setOwnerRepoValue(e.target.value); setOwnerRepoError(""); }}
-            onKeyDown={handleOwnerRepoKeyDown}
-            onBlur={commitOwnerRepo}
-            autoFocus
-          />
-          {ownerRepoError && <span className="settings-err">{ownerRepoError}</span>}
-        </label>
-      ) : (
-        <label className="settings-label">
-          Owner / Repo
-          <div
-            className="settings-input settings-input-ro"
-            onClick={startEditOwnerRepo}
-            onKeyDown={handleOwnerRepoDisplayKeyDown}
-            role="button"
-            tabIndex={0}
-            aria-label="编辑 Owner / Repo"
-            title="点击编辑"
-          >
-            {cfg.owner && cfg.repo
-              ? `${cfg.owner}/${cfg.repo}`
-              : <span className="settings-placeholder">点击设置 owner/repo</span>}
-          </div>
-        </label>
-      )}
-
-      {/* Path */}
-      <label className="settings-label">
-        备份文件路径
-        <input
-          type="text"
-          className="settings-input"
-          placeholder="nine-rings-backup.json"
-          value={cfg.path}
-          onChange={(e) => update({ path: e.target.value })}
-        />
-      </label>
 
       {/* 状态 */}
       {status && (
@@ -400,21 +334,90 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
         </div>
       )}
 
-      {/* 按钮 */}
-      <div className="settings-row" style={{ gap: 8, marginTop: 8 }}>
-        <button className="settings-btn" onClick={handleCheck} disabled={busy}>
-          测试连接
-        </button>
-        <button className="settings-btn settings-btn-primary" onClick={handlePush} disabled={busy}>
-          Push ↑
-        </button>
-        <button className="settings-btn settings-btn-danger" onClick={handlePullPreview} disabled={busy || !!pullPrecheck}>
-          Pull ↓
-        </button>
-      </div>
       <p className="settings-hint">
         Pull 会先读取并预检远端备份，不会自动导入；需要手动点击“确认覆盖并导入”后才会恢复数据。
       </p>
+
+      <div className="sync-config-section">
+        <h4>连接设置</h4>
+        <p className="settings-hint">
+          全量 JSON 快照包含书签、应用配置及非敏感用户设置；Token 不进入备份。需要 GitHub Personal Access Token（repo 权限）。
+        </p>
+
+        {/* Owner / Repo — 点击编辑 */}
+        {editOwnerRepo ? (
+          <label className="settings-label">
+            Owner / Repo
+            <input
+              type="text"
+              className={`settings-input ${ownerRepoError ? "settings-input-err" : ""}`}
+              placeholder="erocpil/nine-rings-backup"
+              value={ownerRepoValue}
+              onChange={(e) => { setOwnerRepoValue(e.target.value); setOwnerRepoError(""); }}
+              onKeyDown={handleOwnerRepoKeyDown}
+              onBlur={commitOwnerRepo}
+              autoFocus
+            />
+            {ownerRepoError && <span className="settings-err">{ownerRepoError}</span>}
+          </label>
+        ) : (
+          <label className="settings-label">
+            Owner / Repo
+            <div
+              className="settings-input settings-input-ro"
+              onClick={startEditOwnerRepo}
+              onKeyDown={handleOwnerRepoDisplayKeyDown}
+              role="button"
+              tabIndex={0}
+              aria-label="编辑 Owner / Repo"
+              title="点击编辑"
+            >
+              {cfg.owner && cfg.repo
+                ? `${cfg.owner}/${cfg.repo}`
+                : <span className="settings-placeholder">点击设置 owner/repo</span>}
+            </div>
+          </label>
+        )}
+
+        <label className="settings-label">
+          备份文件路径
+          <input
+            type="text"
+            className="settings-input"
+            placeholder="nine-rings-backup.json"
+            value={cfg.path}
+            onChange={(e) => update({ path: e.target.value })}
+          />
+        </label>
+
+        <label className="settings-label">
+          Token
+          <input
+            type="password"
+            className="settings-input"
+            placeholder="ghp_..."
+            value={cfg.token}
+            onChange={(e) => update({ token: e.target.value })}
+          />
+        </label>
+
+        <label className="settings-label settings-inline">
+          Token 保存策略
+          <label className="settings-row settings-row-inline">
+            <input
+              type="checkbox"
+              checked={cfg.rememberToken}
+              onChange={(e) => handleRememberTokenChange(e.target.checked)}
+            />
+            <span>记住 Token（退出浏览器后保留）</span>
+          </label>
+          <span className={`settings-hint ${cfg.rememberToken ? "settings-token-warning" : ""}`}>
+            {cfg.rememberToken
+              ? "Token 已持久保存在此浏览器；请仅在可信的个人设备上启用。"
+              : "默认仅保留到当前浏览器会话，关闭浏览器后清除。"}
+          </span>
+        </label>
+      </div>
     </div>
   );
 }

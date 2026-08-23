@@ -5296,6 +5296,23 @@ body {
 
 /* ── GitHub 同步 ── */
 
+.sync-actions {
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+
+.sync-config-section {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.sync-config-section h4 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
 .sync-status {
   margin-top: 8px;
   padding: 8px 10px;
