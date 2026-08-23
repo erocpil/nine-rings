@@ -7,8 +7,10 @@
 }
 
 html, body, #root {
-  height: var(--app-viewport-height, 100vh);
-  min-height: var(--app-viewport-height, 100vh);
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
 }
 
@@ -137,8 +139,10 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
   color: var(--text);
-  height: var(--app-viewport-height, 100dvh);
-  min-height: var(--app-viewport-height, 100dvh);
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
   touch-action: pan-y;
   transition: background var(--transition), color var(--transition);
@@ -149,8 +153,10 @@ body {
 .app {
   display: flex;
   flex-direction: column;
-  height: var(--app-viewport-height, 100dvh);
-  min-height: var(--app-viewport-height, 100dvh);
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .app-header {
@@ -1794,7 +1800,7 @@ body {
   max-height: min(
     70dvh,
     520px,
-    calc(var(--app-viewport-height, 100dvh) - var(--safe-top) - var(--safe-bottom) - 20px)
+    calc(100dvh - var(--safe-top) - var(--safe-bottom) - 20px)
   );
   overflow: hidden;
   color: var(--text);
@@ -1804,6 +1810,13 @@ body {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.38);
   transition: transform 120ms ease-out;
   will-change: transform;
+}
+
+.web-keyboard-open .mobile-action-sheet {
+  max-height: min(
+    520px,
+    calc(var(--app-viewport-height, 100dvh) - var(--safe-top) - var(--safe-bottom) - 20px)
+  );
 }
 
 .mobile-action-sheet-header {
@@ -7537,16 +7550,25 @@ button.doc-tree-toggle:focus-visible {
 }
 
 @media (max-width: 768px) {
-  /* iOS 会在键盘出现时平移 visual viewport。应用不仅要使用它的高度，
-     还必须跟随 offsetTop/offsetLeft，否则底部会留下等量空白。 */
+  /* 正常浏览时由 fixed inset 直接跟随布局视口。横竖屏切换期间 iOS 的
+     visualViewport 可能仍短暂报告上一方向尺寸，不能用它锁定应用外壳。 */
   .app {
     position: fixed;
+    inset: 0;
+    width: auto;
+    height: auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* 只有软键盘打开时才需要贴合 visual viewport，避免工具栏被键盘覆盖。 */
+  .web-keyboard-open .app {
+    inset: auto;
     top: var(--app-visual-viewport-offset-top, 0px);
     left: var(--app-visual-viewport-offset-left, 0px);
     width: var(--app-viewport-width, 100vw);
     height: var(--app-viewport-height, 100dvh);
     min-height: var(--app-viewport-height, 100dvh);
-    overflow: hidden;
   }
 
   /* ── 布局：单栏 + 侧栏 overlay ── */
@@ -7832,6 +7854,10 @@ button.doc-tree-toggle:focus-visible {
   .focus-mode .document-outline-panel {
     position: fixed;
     top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 36px);
+    max-height: min(58dvh, calc(100dvh - var(--safe-top) - var(--safe-bottom) - 52px));
+  }
+
+  .web-keyboard-open .focus-mode .document-outline-panel {
     max-height: min(58dvh, calc(var(--app-viewport-height, 100dvh) - var(--safe-top) - var(--safe-bottom) - 52px));
   }
 

@@ -589,13 +589,14 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(scrollPaddingBottom).not.toContain("300px");
   });
 
-  test("应用外壳跟随 iOS Visual Viewport 偏移且底部不留空白", async ({ page }) => {
+  test("软键盘打开时应用外壳跟随 iOS Visual Viewport", async ({ page }) => {
     await page.goto("/");
     await page.evaluate(() => {
       document.documentElement.style.setProperty("--app-visual-viewport-offset-top", "120px");
       document.documentElement.style.setProperty("--app-visual-viewport-offset-left", "4px");
       document.documentElement.style.setProperty("--app-viewport-height", "430px");
       document.documentElement.style.setProperty("--app-viewport-width", "382px");
+      document.documentElement.classList.add("web-keyboard-open");
     });
 
     const rect = await page.locator(".app").evaluate((element) => {
@@ -603,6 +604,24 @@ test.describe("PWA 窄屏应用外壳", () => {
       return { top: box.top, left: box.left, width: box.width, height: box.height, bottom: box.bottom };
     });
     expect(rect).toEqual({ top: 120, left: 4, width: 382, height: 430, bottom: 550 });
+  });
+
+  test("横竖屏切换时忽略滞后的 Visual Viewport 尺寸", async ({ page }) => {
+    await page.goto("/");
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty("--app-viewport-height", "390px");
+      document.documentElement.style.setProperty("--app-viewport-width", "760px");
+    });
+    await expect(page.locator(".app")).toHaveCSS("width", "390px");
+    await expect(page.locator(".app")).toHaveCSS("height", "760px");
+
+    await page.setViewportSize({ width: 760, height: 390 });
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty("--app-viewport-height", "760px");
+      document.documentElement.style.setProperty("--app-viewport-width", "390px");
+    });
+    await expect(page.locator(".app")).toHaveCSS("width", "760px");
+    await expect(page.locator(".app")).toHaveCSS("height", "390px");
   });
 
   test("键盘打开时状态栏下方不重复保留安全区", async ({ page }) => {

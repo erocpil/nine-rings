@@ -170,7 +170,7 @@ test.describe("触屏代码块退出行为", () => {
     const block = editor.locator(".code-block-wrap");
     const gutter = block.locator(".code-block-gutter");
     await expect(gutter.locator("span")).toHaveText(lines.map((_, index) => String(index + 1)));
-    await expect.poll(() => block.evaluate((element, expectedLines) => {
+    const readGeometry = () => block.evaluate((element, expectedLines) => {
       const codeElement = element.querySelector<HTMLElement>("code")!;
       const textNode = document.createTreeWalker(codeElement, NodeFilter.SHOW_TEXT).nextNode();
       const numberElements = [...element.querySelectorAll<HTMLElement>(".code-block-gutter span")];
@@ -211,7 +211,16 @@ test.describe("触屏代码块退出行为", () => {
         wraps: wrappedRows > 1,
         lastNumberInside: lastNumberRect.bottom <= codeRect.bottom + 1,
       };
-    }, lines)).toEqual({ aligned: true, wraps: true, lastNumberInside: true });
+    }, lines);
+
+    await expect.poll(readGeometry).toEqual({ aligned: true, wraps: true, lastNumberInside: true });
+    await page.setViewportSize({ width: 760, height: 390 });
+    await expect.poll(async () => {
+      const geometry = await readGeometry();
+      return { aligned: geometry.aligned, lastNumberInside: geometry.lastNumberInside };
+    }).toEqual({ aligned: true, lastNumberInside: true });
+    await page.setViewportSize({ width: 390, height: 760 });
+    await expect.poll(readGeometry).toEqual({ aligned: true, wraps: true, lastNumberInside: true });
   });
 
   test("虚拟键盘 Enter 可连续插入空行并通过块菜单退出", async ({ page }) => {

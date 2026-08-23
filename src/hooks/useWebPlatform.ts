@@ -49,16 +49,19 @@ function syncViewportCSS() {
   const viewport = typeof window.visualViewport === "undefined" ? null : window.visualViewport;
   const viewportWidth = viewport?.width ?? window.innerWidth;
   const viewportHeight = viewport?.height ?? window.innerHeight;
-  const offsetTop = viewport?.offsetTop ?? 0;
-  const offsetLeft = viewport?.offsetLeft ?? 0;
-  const keyboardHeight = Math.max(
+  // iOS 旋转时 visualViewport 会短暂保留上一方向的宽度。此时高度差
+  // 不是软键盘，若误判会把应用外壳锁成旧尺寸，露出大块页面背景。
+  const orientationSettling = Math.abs(viewportWidth - window.innerWidth) >= 24;
+  const offsetTop = orientationSettling ? 0 : (viewport?.offsetTop ?? 0);
+  const offsetLeft = orientationSettling ? 0 : (viewport?.offsetLeft ?? 0);
+  const keyboardHeight = orientationSettling ? 0 : Math.max(
     0,
     Math.round(window.innerHeight - Math.min(viewportHeight, window.innerHeight)),
   );
   // Fixed-position overlays are laid out against the layout viewport on iOS.
   // This is the exact hidden area below the visual viewport; unlike keyboardHeight,
   // it also accounts for Safari panning the visual viewport upward.
-  const viewportBottomInset = Math.max(
+  const viewportBottomInset = orientationSettling ? 0 : Math.max(
     0,
     Math.round(window.innerHeight - Math.min(offsetTop + viewportHeight, window.innerHeight)),
   );
@@ -76,13 +79,18 @@ function syncViewportCSS() {
     const pixels = `${value}px`;
     if (root.style.getPropertyValue(name) !== pixels) root.style.setProperty(name, pixels);
   };
-  setPixels("--app-viewport-height", status.viewportHeight);
-  setPixels("--app-viewport-width", status.viewportWidth);
+  const keyboardOpen = status.keyboardHeight >= 80 || status.offsetTop >= 80;
+  // 宽高变量只服务于软键盘布局。普通浏览/旋转时继续写根变量会让长文档
+  // 整棵样式树失效，而应用外壳已经由 CSS 动态视口即时覆盖。
+  if (keyboardOpen) {
+    setPixels("--app-viewport-height", status.viewportHeight);
+    setPixels("--app-viewport-width", status.viewportWidth);
+  }
   setPixels("--app-keyboard-height", status.keyboardHeight);
   setPixels("--app-visual-viewport-bottom-inset", status.viewportBottomInset);
   setPixels("--app-visual-viewport-offset-top", status.offsetTop);
   setPixels("--app-visual-viewport-offset-left", status.offsetLeft);
-  root.classList.toggle("web-keyboard-open", status.keyboardHeight >= 80 || status.offsetTop >= 80);
+  root.classList.toggle("web-keyboard-open", keyboardOpen);
 }
 
 export function useWebPlatform() {
@@ -102,23 +110,15 @@ export function useWebPlatform() {
 
     syncViewportCSS();
     let animationFrameId = 0;
-    let orientationFrameId = 0;
     const scheduleViewportSync = () => {
       if (animationFrameId) window.cancelAnimationFrame(animationFrameId);
       animationFrameId = window.requestAnimationFrame(syncViewportCSS);
     };
     const syncAfterOrientation = () => {
-      if (orientationFrameId) window.cancelAnimationFrame(orientationFrameId);
-      let framesRemaining = 8;
-      // iOS 的 visual viewport 会经过数个中间尺寸。连续采样短暂的绘制窗口，
-      // 后续真实 resize 事件继续接管；不再用 500ms 定时器反复触发布局。
-      const syncFrame = () => {
-        orientationFrameId = 0;
-        syncViewportCSS();
-        framesRemaining -= 1;
-        if (framesRemaining > 0) orientationFrameId = window.requestAnimationFrame(syncFrame);
-      };
-      orientationFrameId = window.requestAnimationFrame(syncFrame);
+      // 旋转开始便退出键盘布局；应用外壳由 CSS 视口立即接管。随后一次
+      // rAF 及真实 resize 事件只更新键盘/偏移信息，不再连续强制重排。
+      document.documentElement.classList.remove("web-keyboard-open");
+      scheduleViewportSync();
     };
     const viewport = window.visualViewport;
     viewport?.addEventListener("resize", scheduleViewportSync);
@@ -178,7 +178,6 @@ export function useWebPlatform() {
       window.removeEventListener("resize", scheduleViewportSync);
       window.removeEventListener("orientationchange", syncAfterOrientation);
       if (animationFrameId) window.cancelAnimationFrame(animationFrameId);
-      if (orientationFrameId) window.cancelAnimationFrame(orientationFrameId);
       removeControllerListener?.();
       visibilityListener?.();
     };

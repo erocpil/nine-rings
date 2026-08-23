@@ -250,7 +250,10 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
             {Array.from({ length: lineCount }, (_, index) => (
               <span
                 key={index}
-                style={{ blockSize: `${(visualRows[index] ?? 1) * 1.5}em` }}
+                // iOS WebKit 在 contenteditable NodeView 中有时会忽略逻辑
+                // block-size，导致软换行后仍按单行高度排列并丢失末尾行号。
+                // 代码块固定为横向书写，使用物理 height 更可靠。
+                style={{ height: `${(visualRows[index] ?? 1) * 1.5}em` }}
               >{index + 1}</span>
             ))}
           </div>

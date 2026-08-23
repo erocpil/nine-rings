@@ -49,8 +49,19 @@ function firstLineTextCenter(
   // 必须从真正的 code contentDOM 开始查找，否则 select/option 的不可测量
   // 文本会触发整块中心兜底，使长代码块的主块号落在中部。
   const textRoot = typeName === "codeBlock"
-    ? dom.querySelector<HTMLElement>("code") ?? dom
+    ? (dom.matches("code") ? dom : dom.querySelector<HTMLElement>("code")) ?? dom
     : dom;
+  if (typeName === "codeBlock") {
+    // WebKit 对 contenteditable <code> 内单字符 Range 偶尔返回空 rect，旧的
+    // 通用路径便退回整块中点。代码首行的位置由边框、上内边距和行高即可
+    // 确定，不依赖 Range，也不会随软换行或横竖屏切换漂到块中部。
+    const rect = textRoot.getBoundingClientRect();
+    const style = getComputedStyle(textRoot);
+    const lineHeight = Number.parseFloat(style.lineHeight) || editorLineHeight;
+    const inset = (Number.parseFloat(style.borderTopWidth) || 0)
+      + (Number.parseFloat(style.paddingTop) || 0);
+    return rect.top + inset + lineHeight / 2;
+  }
   const walker = document.createTreeWalker(textRoot, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
       const text = node.textContent ?? "";
@@ -72,14 +83,6 @@ function firstLineTextCenter(
     range.setEnd(textNode, Math.min(text.length, start + 1));
     const firstRect = range.getClientRects()[0];
     if (firstRect && firstRect.height > 0) return firstRect.top + firstRect.height / 2;
-  }
-  if (typeName === "codeBlock" && textRoot !== dom) {
-    const rect = textRoot.getBoundingClientRect();
-    const style = getComputedStyle(textRoot);
-    const lineHeight = Number.parseFloat(style.lineHeight) || editorLineHeight;
-    const inset = (Number.parseFloat(style.borderTopWidth) || 0)
-      + (Number.parseFloat(style.paddingTop) || 0);
-    return rect.top + inset + lineHeight / 2;
   }
   return fallbackRect.top + fallbackRect.height / 2;
 }

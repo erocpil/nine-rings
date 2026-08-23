@@ -186,7 +186,7 @@ test.describe("编辑器块级 gutter", () => {
 
     const codeNumber = page.locator('.editor-block-number[data-block-format="Code"]');
     await expect(codeNumber).toHaveText("1");
-    await expect.poll(() => editor.locator(".code-block-wrap").evaluate((block) => {
+    const readAlignment = () => editor.locator(".code-block-wrap").evaluate((block) => {
       const number = document.querySelector<HTMLElement>('.editor-block-number[data-block-format="Code"]');
       const code = block.querySelector<HTMLElement>("code");
       const textNode = code ? document.createTreeWalker(code, NodeFilter.SHOW_TEXT).nextNode() : null;
@@ -203,7 +203,15 @@ test.describe("编辑器块级 gutter", () => {
         aligned: Math.abs(numberCenter - textCenter) < 1.5,
         nearTop: numberCenter < blockRect.top + blockRect.height * 0.25,
       };
-    })).toEqual({ aligned: true, nearTop: true });
+    });
+    for (const viewport of [
+      { width: 390, height: 760 },
+      { width: 760, height: 390 },
+      { width: 390, height: 760 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await expect.poll(readAlignment).toEqual({ aligned: true, nearTop: true });
+    }
   });
 
   test("只有明确的加号按钮会插入段落", async ({ page }) => {
