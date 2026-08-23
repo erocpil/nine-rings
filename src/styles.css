@@ -3533,6 +3533,7 @@ body {
   color: var(--text-secondary);
   font-size: 10px;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .document-outline-item.current {
@@ -5299,6 +5300,11 @@ body {
 .sync-actions {
   gap: 8px;
   margin: 4px 0 8px;
+}
+
+/* 同步与备份本身已经是独立子页，顶部不需要通用分组分割线。 */
+.sync-settings-section {
+  border-top: 0;
 }
 
 .sync-config-section {

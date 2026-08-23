@@ -81,10 +81,10 @@ import {
   expandHeadingFoldsAt,
   getCollapsedHeadingKeys,
   setAllHeadingFolds,
-  toggleHeadingFold,
   toggleHeadingSectionFold,
 } from "../extensions/HeadingFold";
 import {
+  collapsedHeadingKeysForAll,
   extractHeadingSections,
   headingSectionAtPosition,
   sessionHeadingFoldStore,
@@ -375,6 +375,9 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const [activeOutlineIndex, setActiveOutlineIndex] = useState(-1);
   const [outlineOverflow, setOutlineOverflow] = useState(false);
   const [documentOutline, setDocumentOutline] = useState<DocumentOutlineItem[]>([]);
+  const [outlineCollapsedHeadingKeys, setOutlineCollapsedHeadingKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [headingFoldRevision, setHeadingFoldRevision] = useState(0);
   const headingFoldRenderFrameRef = useRef<number | null>(null);
   const headingFoldViewportFrameRef = useRef<number | null>(null);
@@ -770,6 +773,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
   useEffect(() => {
     allHeadingFoldRoundTripRef.current = null;
+    setOutlineCollapsedHeadingKeys(new Set());
     if (headingFoldViewportFrameRef.current !== null) {
       window.cancelAnimationFrame(headingFoldViewportFrameRef.current);
       headingFoldViewportFrameRef.current = null;
@@ -995,7 +999,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     // 可见区域后，再校正一次真实尺寸；标题栏不变，因此不会产生整体抖动。
     const frame = window.requestAnimationFrame(centerActiveItem);
     return () => window.cancelAnimationFrame(frame);
-  }, [activeOutlineIndex, documentOutline.length, headingFoldRevision, outlineOpen]);
+  }, [activeOutlineIndex, documentOutline.length, headingFoldRevision, outlineCollapsedHeadingKeys, outlineOpen]);
 
   const scrollOutlineTo = useCallback((target: "top" | "middle" | "bottom") => {
     const list = outlineListRef.current;
@@ -1210,12 +1214,6 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       const nextTop = root.scrollTop + coords.top - Math.max(rootRect.top, stickyBottom) - 12;
       root.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
     });
-  }, [editor]);
-
-  const toggleOutlineHeading = useCallback((position: number) => {
-    if (!editor || editor.isDestroyed) return;
-    allHeadingFoldRoundTripRef.current = null;
-    toggleHeadingFold(editor, position);
   }, [editor]);
 
   // 拦截 WebView 原生 Cmd+F，并为 Windows 提供 Alt+F。Ctrl+F 不再
@@ -1884,20 +1882,42 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     () => editorDocument ? extractHeadingSections(editorDocument) : [],
     [editorDocument],
   );
-  const collapsedHeadingKeys = useMemo(
-    () => editor ? getCollapsedHeadingKeys(editor) : new Set<string>(),
-    [editor, headingFoldRevision],
-  );
-  const visibleHeadingPositions = useMemo(
-    () => new Set(
-      visibleHeadingSections(headingSections, collapsedHeadingKeys).map((section) => section.pos),
-    ),
-    [collapsedHeadingKeys, headingSections],
-  );
   const headingSectionByPosition = useMemo(
     () => new Map(headingSections.map((section) => [section.pos, section])),
     [headingSections],
   );
+  const toggleEditorHeadingFromGutter = useCallback((position: number) => {
+    if (!editor || editor.isDestroyed) return;
+    const section = headingSectionByPosition.get(position);
+    if (!section) return;
+    const root = scrollRef.current;
+    const heading = editor.view.nodeDOM(section.pos);
+    const anchor = root && heading instanceof HTMLElement
+      ? {
+          position: section.pos,
+          offsetTop: heading.getBoundingClientRect().top - editorReadingViewport(root).top,
+        }
+      : null;
+
+    allHeadingFoldRoundTripRef.current = null;
+    // gutter 点击以标题自身为锚点，不请求 ProseMirror 围绕旧选区滚动。
+    if (!toggleHeadingSectionFold(editor, section, false) || !root || !anchor) return;
+    const restore = () => restoreEditorViewportAnchor(
+      editor,
+      root,
+      anchor,
+      headingSections,
+      getCollapsedHeadingKeys(editor),
+    );
+    restore();
+    if (headingFoldViewportFrameRef.current !== null) {
+      window.cancelAnimationFrame(headingFoldViewportFrameRef.current);
+    }
+    headingFoldViewportFrameRef.current = window.requestAnimationFrame(() => {
+      headingFoldViewportFrameRef.current = null;
+      restore();
+    });
+  }, [editor, headingSectionByPosition, headingSections]);
   const setAllHeadingFoldsKeepingViewport = useCallback((folded: boolean) => {
     if (!editor || editor.isDestroyed) return;
     const root = scrollRef.current;
@@ -1959,19 +1979,44 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       restore();
     });
   }, [editor, headingSections, noteId]);
+
+  const setAllOutlineFolds = useCallback((folded: boolean) => {
+    setOutlineCollapsedHeadingKeys(new Set(
+      folded ? collapsedHeadingKeysForAll(headingSections) : [],
+    ));
+  }, [headingSections]);
+
+  const toggleOutlineTreeHeading = useCallback((position: number) => {
+    const section = headingSections.find((candidate) => candidate.pos === position);
+    if (!section || section.end <= section.headingEnd) return;
+    setOutlineCollapsedHeadingKeys((current) => {
+      const next = new Set(current);
+      if (next.has(section.key)) next.delete(section.key);
+      else next.add(section.key);
+      return next;
+    });
+  }, [headingSections]);
+
+  const outlineVisibleHeadingPositions = useMemo(
+    () => new Set(
+      visibleHeadingSections(headingSections, outlineCollapsedHeadingKeys)
+        .map((section) => section.pos),
+    ),
+    [headingSections, outlineCollapsedHeadingKeys],
+  );
   const visibleOutlineEntries = useMemo<VisibleOutlineEntry[]>(() => (
     documentOutline
       .map((item, index) => ({ item, index }))
-      .filter(({ item }) => visibleHeadingPositions.has(item.pos))
+      .filter(({ item }) => outlineVisibleHeadingPositions.has(item.pos))
       .map(({ item, index }) => ({
         item,
         index,
         folded: Boolean(
           headingSectionByPosition.get(item.pos)
-          && collapsedHeadingKeys.has(headingSectionByPosition.get(item.pos)!.key)
+          && outlineCollapsedHeadingKeys.has(headingSectionByPosition.get(item.pos)!.key)
         ),
       }))
-  ), [collapsedHeadingKeys, documentOutline, headingSectionByPosition, visibleHeadingPositions]);
+  ), [documentOutline, headingSectionByPosition, outlineCollapsedHeadingKeys, outlineVisibleHeadingPositions]);
 
   if (!editor) return <div className="note-editor"><div className="empty-state">加载中...</div></div>;
 
@@ -2648,8 +2693,18 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           <div className="document-outline-header">
             <span>目录</span>
             <div className="document-outline-header-actions">
-              <button type="button" onClick={() => setAllHeadingFoldsKeepingViewport(true)} title="折叠全部章节">全部折叠</button>
-              <button type="button" onClick={() => setAllHeadingFoldsKeepingViewport(false)} title="展开全部章节">全部展开</button>
+              <button
+                type="button"
+                onClick={() => setAllOutlineFolds(true)}
+                onDoubleClick={() => setAllHeadingFoldsKeepingViewport(true)}
+                title="单击折叠目录；双击同时折叠正文"
+              >全部折叠</button>
+              <button
+                type="button"
+                onClick={() => setAllOutlineFolds(false)}
+                onDoubleClick={() => setAllHeadingFoldsKeepingViewport(false)}
+                title="单击展开目录；双击同时展开正文"
+              >全部展开</button>
               <div
                 className={`document-outline-jumps ${outlineOverflow ? "" : "is-placeholder"}`}
                 aria-label="目录快速滚动"
@@ -2671,7 +2726,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             activeOutlineIndex={activeOutlineIndex}
             outlineBaseLevel={outlineBaseLevel}
             listRef={outlineListRef}
-            onToggleFold={toggleOutlineHeading}
+            onToggleFold={toggleOutlineTreeHeading}
             onJump={jumpToOutlineHeading}
           />
         </nav>
@@ -3399,7 +3454,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             showInsertButtons={!isMobileToolbarViewport}
             readonly={!!readonly}
             onBlockCountChange={setGutterBlockCount}
-            onHeadingFoldToggle={toggleOutlineHeading}
+            onHeadingFoldToggle={toggleEditorHeadingFromGutter}
           />
           <EditorContent
             editor={editor}

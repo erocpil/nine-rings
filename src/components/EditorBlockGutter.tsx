@@ -383,6 +383,17 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
     const onTransaction = ({ transaction }: { transaction: Transaction }) => {
       if (transaction.getMeta(headingFoldPluginKey)) {
         foldedHeadingPositions = getCollapsedHeadingPositions(editor);
+        // 折叠事务本身已经同步提交。先直接更新现有 gutter 数据，让三角
+        // 在本次点击中立即翻转；下一帧重建只负责重新测量变化后的布局。
+        let foldStateChanged = false;
+        for (const [dom, block] of measuredBlocks) {
+          if (!block.heading) continue;
+          const folded = foldedHeadingPositions.has(block.pos);
+          if (folded === block.folded) continue;
+          measuredBlocks.set(dom, { ...block, folded });
+          foldStateChanged = true;
+        }
+        if (foldStateChanged) publishBlocks();
         scheduleRebuild();
       } else if (transaction.docChanged) {
         scheduleDocumentMeasure();

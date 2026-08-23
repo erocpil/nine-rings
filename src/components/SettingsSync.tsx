@@ -247,7 +247,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
   }, [cfg.token, cfg.owner, cfg.repo, cfg.path]);
 
   return (
-    <div className="settings-section">
+    <div className="settings-section sync-settings-section">
       <h3>GitHub 备份</h3>
 
       {/* 高频操作置顶，打开页面后无需越过低频配置即可执行。 */}
