@@ -1159,9 +1159,9 @@ function App() {
               aria-label={sidebarTab === 'daily' ? '切换到文档' : '切换到随笔'}
               data-target-view={sidebarTab === 'daily' ? 'tree' : 'daily'}
             >
-              <span aria-hidden="true">{sidebarTab === 'daily' ? '📂' : '✏️'}</span>
+              <span aria-hidden="true">{sidebarTab === 'daily' ? '✏️' : '📂'}</span>
               <span className="sidebar-view-switch-label">
-                {sidebarTab === 'daily' ? '文档' : '随笔'}
+                {sidebarTab === 'daily' ? '随笔' : '文档'}
               </span>
             </button>
             <span className="sidebar-tab-spacer" />

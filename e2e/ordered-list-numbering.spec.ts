@@ -85,6 +85,42 @@ test("有序列表的续行和后续列表项保持同一正文缩进", async ({
   textLefts.forEach((left) => expect(Math.abs(left - textLefts[0])).toBeLessThan(1));
 });
 
+test("两位数及以上的有序列表编号使用共享左边缘", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  const editor = page.locator(".ProseMirror");
+  const markdown = Array.from({ length: 12 }, (_, index) => `${index + 1}. 项目 ${index + 1}`).join("\n");
+  await editor.evaluate((element, text) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", text);
+    element.dispatchEvent(new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData,
+    }));
+  }, markdown);
+
+  const listItems = editor.locator(":scope > ol > li");
+  await expect(listItems).toHaveCount(12);
+  const markerStyles = await listItems.evaluateAll((items) => items.map((item) => {
+    const style = getComputedStyle(item, "::before");
+    return {
+      left: style.left,
+      width: style.width,
+      textAlign: style.textAlign,
+      transform: style.transform,
+    };
+  }));
+  expect(new Set(markerStyles.map((style) => style.left)).size).toBe(1);
+  expect(new Set(markerStyles.map((style) => style.width)).size).toBe(1);
+  markerStyles.forEach((style) => {
+    expect(style.textAlign).toBe("left");
+    expect(style.transform).toBe("none");
+  });
+});
+
 test("粘贴 Markdown 时列表 lazy continuation 保留为对齐的续行", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("随笔").click();

@@ -11,7 +11,7 @@ async function createDocument(page: Page, title: string) {
 test.describe("移动端视图切换", () => {
   test.use({ viewport: { width: 600, height: 760 }, hasTouch: true });
 
-  test("移动端使用单一视图切换按钮并显示目标文字", async ({ page }) => {
+  test("移动端使用单一视图切换按钮并显示当前视图", async ({ page }) => {
     await page.goto("/");
 
     await expect(page.locator(".m-toolbar")).toHaveCount(0);
@@ -19,11 +19,13 @@ test.describe("移动端视图切换", () => {
     const viewSwitch = page.locator(".sidebar-view-switch");
     await expect(viewSwitch).toHaveCount(1);
     await expect(viewSwitch).toHaveAttribute("aria-label", "切换到随笔");
-    await expect(viewSwitch.locator(".sidebar-view-switch-label")).toHaveText("随笔");
+    await expect(viewSwitch).toContainText("📂");
+    await expect(viewSwitch.locator(".sidebar-view-switch-label")).toHaveText("文档");
     await expect(viewSwitch.locator(".sidebar-view-switch-label")).toBeVisible();
     await viewSwitch.click();
     await expect(viewSwitch).toHaveAttribute("aria-label", "切换到文档");
-    await expect(viewSwitch.locator(".sidebar-view-switch-label")).toHaveText("文档");
+    await expect(viewSwitch).toContainText("✏️");
+    await expect(viewSwitch.locator(".sidebar-view-switch-label")).toHaveText("随笔");
     await page.locator(".sidebar-overlay").click({ position: { x: 590, y: 300 } });
     await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
   });

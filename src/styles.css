@@ -4172,6 +4172,29 @@ body {
   transform: translateX(2px);
 }
 
+/* 有序列表统一使用共享的左对齐编号列。个位数和多位数的左边缘保持
+   一致，多出的数字向正文方向延伸；正文起点和无序列表仍然对齐。
+   对所有 ol 生效也能覆盖 start="10" 以及被松散块拆分的续号列表。 */
+:is(.editor-content, .editor-appearance-preview) ol {
+  --editor-ordered-marker-column: 3ch;
+}
+
+:is(.editor-content, .editor-appearance-preview) ol:has(> li:nth-child(100)) {
+  --editor-ordered-marker-column: 4ch;
+}
+
+:is(.editor-content, .editor-appearance-preview) ol:has(> li:nth-child(1000)) {
+  --editor-ordered-marker-column: 5ch;
+}
+
+:is(.editor-content, .editor-appearance-preview) ol > li::before {
+  right: auto;
+  left: calc(0px - var(--editor-ordered-marker-column) - var(--editor-list-marker-gap));
+  width: var(--editor-ordered-marker-column);
+  text-align: left;
+  transform: none;
+}
+
 .editor-content li > ul,
 .editor-content li > ol {
   display: block;
