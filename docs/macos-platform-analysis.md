@@ -87,7 +87,7 @@ GitHub Actions macOS runner 费用是 Linux 的 **10 倍**（[官方定价](http
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
-| 第一批 | Linux 重排补丁平台隔离；增加 `⌃⌘F`；标题栏全屏入口和状态反馈；切换前捕获文档锚点；使用 Tauri 默认 macOS 菜单中的原生 View/Window/Edit 菜单 | 已实现 |
+| 第一批 | Linux 重排补丁平台隔离；增加 `⌃⌘F`；标题栏全屏入口和状态反馈；切换前捕获文档锚点；保留默认 macOS 菜单并用显式 `set_fullscreen` 替换无边框窗口失效的预定义全屏项 | 已实现 |
 | 第二批 | 评估 macOS 原生/覆盖式标题栏，恢复交通灯按钮；完善 `⌘W`、`⌘Q`、Dock 激活和关闭窗口语义；保存窗口尺寸、显示器与全屏状态 | 待办 |
 | 第三批 | Apple Silicon 与 Universal 构建、签名、公证和更新签名；调整 bundle identifier 并迁移旧数据；明确最低系统版本 | 待办 |
 | 第四批 | GitHub 凭据迁移至 Keychain；收紧 CSP；支持 Finder 打开方式、文件关联和拖放；按需求评估 Spotlight/Shortcuts | 待办 |
@@ -99,3 +99,11 @@ GitHub Actions macOS runner 费用是 Linux 的 **10 倍**（[官方定价](http
 3. `+1px` WebView 重排只在 Linux 执行。
 4. 进入或退出全屏后，长文档顶部可见块以及编辑态可见光标尽量保持在原位置。
 5. 标题栏图标以窗口真实全屏状态为准，能跟随系统菜单触发的状态变化。
+
+### Tauri 无边框窗口兼容说明
+
+Tauri 2.11/muda 0.19 的 macOS 预定义全屏菜单直接发送 Cocoa
+`toggleFullScreen:`。在 `decorations: false` 的窗口中，这条路径可能只能
+退出全屏、不能进入全屏。Nine Rings 因此将默认 View 菜单中的预定义项
+替换为带 `⌃⌘F` accelerator 的普通菜单项，并在事件回调中调用
+`WebviewWindow::set_fullscreen()`；该路径和标题栏按钮使用相同的窗口实现。

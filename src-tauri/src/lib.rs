@@ -94,6 +94,74 @@ pub struct AppState {
 /// 应用数据目录 — 在 setup() 中计算一次，避免 IPC 命令中重复调用 app_data_dir()
 pub struct DataDir(pub std::path::PathBuf);
 
+/// 统一切换主窗口全屏。macOS 的 frameless 窗口不能依赖 Cocoa 原生
+/// `toggleFullScreen:` 菜单动作；Tauri 的 set_fullscreen 路径会临时补齐
+/// 所需 window style mask，进入和退出均可靠。
+fn toggle_main_window_fullscreen(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let is_fullscreen = window.is_fullscreen().unwrap_or(false);
+        if let Err(error) = window.set_fullscreen(!is_fullscreen) {
+            log::warn!("failed to toggle main window fullscreen: {}", error);
+            return;
+        }
+
+        // Linux frameless WebKitGTK 退出全屏后不会自动 reflow。
+        #[cfg(target_os = "linux")]
+        {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            if let Ok(size) = window.inner_size() {
+                let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(
+                    size.width + 1,
+                    size.height,
+                )));
+                std::thread::sleep(std::time::Duration::from_millis(16));
+                let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(
+                    size.width,
+                    size.height,
+                )));
+            }
+        }
+    }
+}
+
+/// Tauri/muda 的预定义 macOS 全屏菜单直接调用 Cocoa `toggleFullScreen:`，
+/// 对 `decorations: false` 的窗口只能退出、不能可靠进入。保留默认菜单
+/// 结构，但把 View 中的预定义项替换成普通菜单项，由事件处理器显式调用
+/// `set_fullscreen`。
+#[cfg(target_os = "macos")]
+fn install_macos_fullscreen_menu(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::menu::MenuItemKind;
+
+    let Some(menu) = app.menu() else {
+        return Ok(());
+    };
+    for item in menu.items()? {
+        let MenuItemKind::Submenu(submenu) = item else {
+            continue;
+        };
+        if submenu.text()? != "View" {
+            continue;
+        }
+
+        let replacement =
+            MenuItemBuilder::with_id("nine-rings-toggle-fullscreen", "Toggle Full Screen")
+                .accelerator("Control+Command+F")
+                .build(app)?;
+        if let Some(index) = submenu
+            .items()?
+            .iter()
+            .position(|entry| matches!(entry, MenuItemKind::Predefined(_)))
+        {
+            submenu.remove_at(index)?;
+            submenu.insert(&replacement, index)?;
+        } else {
+            submenu.append(&replacement)?;
+        }
+        break;
+    }
+    Ok(())
+}
+
 /// 切换主窗口显示/隐藏（Alt+Y 等 toggle 型快捷键）
 fn toggle_main_window(app: &tauri::AppHandle) {
     startup_log!("toggle_main_window called");
@@ -284,6 +352,9 @@ pub fn run() {
             });
             startup_log!("state managed");
 
+            #[cfg(target_os = "macos")]
+            install_macos_fullscreen_menu(app)?;
+
             // ── 系统托盘 ──
             startup_log!("setting up tray...");
             match (|| -> Result<_, Box<dyn std::error::Error>> {
@@ -429,25 +500,7 @@ pub fn run() {
                     .global_shortcut()
                     .on_shortcut("F11", move |_app, _s, event| {
                         if event.state == ShortcutState::Pressed {
-                            if let Some(window) = app_h.get_webview_window("main") {
-                                let is_fs = window.is_fullscreen().unwrap_or(false);
-                                let _ = window.set_fullscreen(!is_fs);
-                                // ── 强制 WebView 重排（Linux frameless 窗口退出全屏后
-                                //    WebKitGTK 不会自动 reflow，导致内容区域错位）──
-                                #[cfg(target_os = "linux")]
-                                {
-                                    std::thread::sleep(std::time::Duration::from_millis(50));
-                                    if let Ok(size) = window.inner_size() {
-                                        let _ = window.set_size(tauri::Size::Physical(
-                                            tauri::PhysicalSize::new(size.width + 1, size.height),
-                                        ));
-                                        std::thread::sleep(std::time::Duration::from_millis(16));
-                                        let _ = window.set_size(tauri::Size::Physical(
-                                            tauri::PhysicalSize::new(size.width, size.height),
-                                        ));
-                                    }
-                                }
-                            }
+                            toggle_main_window_fullscreen(&app_h);
                         }
                     })
                 {
@@ -460,6 +513,11 @@ pub fn run() {
 
             startup_log!("setup() complete, returning Ok(())");
             Ok(())
+        })
+        .on_menu_event(|app, event| {
+            if event.id().as_ref() == "nine-rings-toggle-fullscreen" {
+                toggle_main_window_fullscreen(app);
+            }
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
