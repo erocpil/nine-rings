@@ -423,6 +423,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const outlineResizePointerIdRef = useRef<number | null>(null);
   const outlineResizeStartXRef = useRef(0);
   const outlineResizeStartWidthRef = useRef(DEFAULT_OUTLINE_DOCK_WIDTH);
+  const outlineResizeCurrentWidthRef = useRef(outlineDockWidth);
   const outlineResizeCleanupRef = useRef<(() => void) | null>(null);
   const suppressReadonlyDoubleClickUntilRef = useRef(0);
   const lastOutlineRequestIdRef = useRef(outlineRequestId);
@@ -1014,10 +1015,10 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     if (outlineResizePointerIdRef.current !== null) {
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      localStorage.setItem(OUTLINE_WIDTH_KEY, String(outlineDockWidth));
+      localStorage.setItem(OUTLINE_WIDTH_KEY, String(outlineResizeCurrentWidthRef.current));
       outlineResizePointerIdRef.current = null;
     }
-  }, [outlineDockWidth]);
+  }, []);
 
   useEffect(() => () => clearOutlineResize(), [clearOutlineResize]);
 
@@ -1031,12 +1032,15 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     outlineResizePointerIdRef.current = -1;
     outlineResizeStartXRef.current = event.clientX;
     outlineResizeStartWidthRef.current = outlineDockWidth;
+    outlineResizeCurrentWidthRef.current = outlineDockWidth;
     const move = (moveEvent: MouseEvent) => {
       const delta = moveEvent.clientX - outlineResizeStartXRef.current;
       const next = side === "right"
         ? outlineResizeStartWidthRef.current + delta
         : outlineResizeStartWidthRef.current - delta;
-      setOutlineDockWidth(clampOutlineDockWidth(next));
+      const width = clampOutlineDockWidth(next);
+      outlineResizeCurrentWidthRef.current = width;
+      setOutlineDockWidth(width);
     };
     const stop = () => {
       clearOutlineResize();
@@ -1063,6 +1067,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     outlineResizePointerIdRef.current = -1;
     outlineResizeStartXRef.current = event.touches[0].clientX;
     outlineResizeStartWidthRef.current = outlineDockWidth;
+    outlineResizeCurrentWidthRef.current = outlineDockWidth;
     const move = (moveEvent: TouchEvent) => {
       moveEvent.preventDefault();
       if (moveEvent.touches.length === 0) return;
@@ -1070,7 +1075,9 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       const next = side === "right"
         ? outlineResizeStartWidthRef.current + delta
         : outlineResizeStartWidthRef.current - delta;
-      setOutlineDockWidth(clampOutlineDockWidth(next));
+      const width = clampOutlineDockWidth(next);
+      outlineResizeCurrentWidthRef.current = width;
+      setOutlineDockWidth(width);
     };
     const stop = () => {
       document.body.style.userSelect = "";
