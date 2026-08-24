@@ -3552,7 +3552,7 @@ body {
   top: 0;
   bottom: 0;
   z-index: 13;
-  width: 6px;
+  width: 12px;
   background: transparent;
   touch-action: none;
   pointer-events: auto;
@@ -3560,12 +3560,12 @@ body {
 }
 
 .document-outline-resize-handle.left {
-  left: -3px;
+  left: -6px;
   cursor: w-resize;
 }
 
 .document-outline-resize-handle.right {
-  right: -3px;
+  right: -6px;
   cursor: e-resize;
 }
 

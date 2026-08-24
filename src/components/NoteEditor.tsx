@@ -1018,10 +1018,13 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     }
   }, [outlineDockWidth]);
 
-  useEffect(() => clearOutlineResize, [clearOutlineResize]);
+  useEffect(() => () => clearOutlineResize(), [clearOutlineResize]);
 
   const startOutlineResize = useCallback((event: React.PointerEvent<HTMLSpanElement>, side: "left" | "right") => {
-    if (outlineDock === "floating" || event.button !== 0) return;
+    if (outlineDock === "floating") return;
+    if (event.button !== 0 && event.button !== -1) return;
+    event.preventDefault();
+    event.stopPropagation();
     clearOutlineResize();
     document.body.style.cursor = "ew-resize";
     outlineResizeStartXRef.current = event.clientX;
@@ -1029,7 +1032,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     const move = (moveEvent: PointerEvent) => {
       if (outlineResizePointerIdRef.current !== moveEvent.pointerId) return;
       const delta = moveEvent.clientX - outlineResizeStartXRef.current;
-      const next = side === "left"
+      const next = side === "right"
         ? outlineResizeStartWidthRef.current + delta
         : outlineResizeStartWidthRef.current - delta;
       setOutlineDockWidth(clampOutlineDockWidth(next));
