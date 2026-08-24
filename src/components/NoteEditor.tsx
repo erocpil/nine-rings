@@ -370,6 +370,10 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const [lineJumpValue, setLineJumpValue] = useState("");
   const [lineJumpError, setLineJumpError] = useState<string | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(false);
+  const [outlineDock, setOutlineDock] = useState<"floating" | "left" | "right">(() => {
+    const saved = localStorage.getItem("nr:documentOutlineDock");
+    return saved === "left" || saved === "right" ? saved : "floating";
+  });
   const [bookmarkOpen, setBookmarkOpen] = useState(false);
   const [bookmarks, setBookmarks] = useState<DocumentBookmark[]>(bookmarksRef.current);
   const [activeOutlineIndex, setActiveOutlineIndex] = useState(-1);
@@ -967,6 +971,12 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     }
     openDocumentOutline();
   }, [openDocumentOutline, outlineOpen]);
+
+  const setDocumentOutlineDock = useCallback((dock: "floating" | "left" | "right") => {
+    setOutlineDock(dock);
+    localStorage.setItem("nr:documentOutlineDock", dock);
+    if (dock !== "floating") openDocumentOutline();
+  }, [openDocumentOutline]);
 
   // 目录打开后在首次绘制前完成溢出判断和当前项居中。快速滚动按钮始终
   // 保留相同占位，因此状态切换不会改变标题栏或列表高度。
@@ -1886,6 +1896,10 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     () => new Map(headingSections.map((section) => [section.pos, section])),
     [headingSections],
   );
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    setOutlineCollapsedHeadingKeys(new Set(getCollapsedHeadingKeys(editor)));
+  }, [editor, headingFoldRevision]);
   const toggleEditorHeadingFromGutter = useCallback((position: number) => {
     if (!editor || editor.isDestroyed) return;
     const section = headingSectionByPosition.get(position);
@@ -1989,13 +2003,14 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const toggleOutlineTreeHeading = useCallback((position: number) => {
     const section = headingSections.find((candidate) => candidate.pos === position);
     if (!section || section.end <= section.headingEnd) return;
+    toggleEditorHeadingFromGutter(position);
     setOutlineCollapsedHeadingKeys((current) => {
       const next = new Set(current);
       if (next.has(section.key)) next.delete(section.key);
       else next.add(section.key);
       return next;
     });
-  }, [headingSections]);
+  }, [headingSections, toggleEditorHeadingFromGutter]);
 
   const outlineVisibleHeadingPositions = useMemo(
     () => new Set(
@@ -2465,6 +2480,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   };
 
   const handleReadonlyHeadingDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!readonly || !focusMode) return;
     if (performance.now() < suppressReadonlyDoubleClickUntilRef.current) {
       event.preventDefault();
       event.stopPropagation();
@@ -2590,7 +2606,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
   return (
     <div
-      className={`note-editor ${readonly ? "note-editor-readonly" : ""} ${cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${cjkLatinSpacing && !nativeCjkLatinSpacing ? "editor-cjk-spacing-fallback" : ""} ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${focusToolbarExpanded ? "focus-toolbar-expanded" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""}`}
+      className={`note-editor ${readonly ? "note-editor-readonly" : ""} ${cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${cjkLatinSpacing && !nativeCjkLatinSpacing ? "editor-cjk-spacing-fallback" : ""} ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${focusToolbarExpanded ? "focus-toolbar-expanded" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""} ${outlineDock !== "floating" ? `outline-docked-${outlineDock}` : ""}`}
       onPasteCapture={handlePaste}
       onDrop={handleDrop}
       onMouseDownCapture={preventReadonlyTableResize}
@@ -2684,27 +2700,33 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           <button type="button" onClick={() => { closeLineJump(); editor.commands.focus(); }} title="关闭跳转" aria-label="关闭跳转">×</button>
         </div>
       )}
-      {outlineOpen && documentOutline.length > 0 && (
+      {(outlineOpen || outlineDock !== "floating") && documentOutline.length > 0 && (
         <nav
           className="document-outline-panel"
           aria-label="文档目录"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="document-outline-header">
-            <span>目录</span>
-            <div className="document-outline-header-actions">
+            <div className="document-outline-header-primary">
+              <span>目录</span>
               <button
                 type="button"
-                onClick={() => setAllOutlineFolds(true)}
-                onDoubleClick={() => setAllHeadingFoldsKeepingViewport(true)}
-                title="单击折叠目录；双击同时折叠正文"
+                onClick={() => {
+                  setAllOutlineFolds(true);
+                  setAllHeadingFoldsKeepingViewport(true);
+                }}
+                title="折叠全部章节"
               >全部折叠</button>
               <button
                 type="button"
-                onClick={() => setAllOutlineFolds(false)}
-                onDoubleClick={() => setAllHeadingFoldsKeepingViewport(false)}
-                title="单击展开目录；双击同时展开正文"
+                onClick={() => {
+                  setAllOutlineFolds(false);
+                  setAllHeadingFoldsKeepingViewport(false);
+                }}
+                title="展开全部章节"
               >全部展开</button>
+            </div>
+            <div className="document-outline-header-actions">
               <div
                 className={`document-outline-jumps ${outlineOverflow ? "" : "is-placeholder"}`}
                 aria-label="目录快速滚动"
@@ -2719,6 +2741,11 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
                   ? `${documentOutline.length} 项`
                   : `${visibleOutlineEntries.length}/${documentOutline.length} 项`}
               </span>
+              <button type="button" className={outlineDock === "left" ? "active" : ""} onClick={() => setDocumentOutlineDock("left")} title="固定目录到左侧">⇤</button>
+              <button type="button" className={outlineDock === "right" ? "active" : ""} onClick={() => setDocumentOutlineDock("right")} title="固定目录到右侧">⇥</button>
+              {outlineDock !== "floating" && (
+                <button type="button" onClick={() => setDocumentOutlineDock("floating")} title="取消固定目录">×</button>
+              )}
             </div>
           </div>
           <DocumentOutlineList

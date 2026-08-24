@@ -54,6 +54,28 @@ test("文档树支持批量取消只读并移动到新目录", async ({ page }) 
   }
 });
 
+test("文档可从树顶部重命名且标题框修改会立即同步到树", async ({ page }) => {
+  await openDocumentView(page);
+  await createDocument(page, "重命名前", "rename-entry");
+
+  await page.getByTitle("重命名当前文档").click();
+  const renameInput = page.locator(".doc-tree-rename-input");
+  await expect(renameInput).toBeFocused();
+  await renameInput.fill("树上重命名");
+  await renameInput.press("Enter");
+  await expect(page.locator(".note-title")).toHaveValue("树上重命名");
+
+  await page.locator(".note-title").fill("标题框同步");
+  await expect(page.locator(".doc-tree-doc").filter({ hasText: "标题框同步" })).toBeVisible();
+  await expect(page.locator(".doc-tree-doc").filter({ hasText: "树上重命名" })).toHaveCount(0);
+
+  await page.waitForTimeout(700);
+  await page.reload();
+  const switcher = page.locator(".sidebar-view-switch");
+  if (await switcher.getAttribute("data-target-view") === "tree") await switcher.click();
+  await expect(page.locator(".doc-tree-doc").filter({ hasText: "标题框同步" })).toBeVisible();
+});
+
 test("目录汇总为同名文档显示相对子路径", async ({ page }) => {
   await openDocumentView(page);
   await createDocument(page, "同名文档.txt", "moc-root/b");

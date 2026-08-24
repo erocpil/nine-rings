@@ -3406,19 +3406,24 @@ body {
   height: 37px;
 }
 
-.document-outline-count {
-  flex: none;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 400;
-}
-
+.document-outline-header-primary,
 .document-outline-header-actions {
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
   height: 20px;
+}
+
+.document-outline-header-primary > span {
+  flex: none;
+}
+
+.document-outline-count {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 400;
 }
 
 .document-outline-jumps {
@@ -3524,7 +3529,8 @@ body {
   text-align: start;
 }
 
-.document-outline-header-actions > button {
+.document-outline-header-actions > button,
+.document-outline-header-primary > button {
   height: 20px;
   padding: 2px 5px;
   border: 1px solid var(--border);
@@ -3533,6 +3539,50 @@ body {
   color: var(--text-secondary);
   font-size: 10px;
   cursor: pointer;
+  touch-action: manipulation;
+}
+
+.document-outline-header-actions > button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+@media (min-width: 769px) {
+  .outline-docked-left .document-outline-panel,
+  .outline-docked-right .document-outline-panel {
+    top: 0;
+    bottom: 0;
+    z-index: 12;
+    width: 280px;
+    max-height: none;
+    border-top: 0;
+    border-bottom: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .outline-docked-left .document-outline-panel {
+    right: auto;
+    left: 0;
+    border-left: 0;
+  }
+
+  .outline-docked-right .document-outline-panel {
+    right: 0;
+    left: auto;
+    border-right: 0;
+  }
+
+  .outline-docked-left .note-editor-scroll {
+    margin-left: 280px;
+  }
+
+  .outline-docked-right .note-editor-scroll {
+    margin-right: 280px;
+  }
+}
+
+.focus-mode.note-editor-readonly .ProseMirror {
   touch-action: manipulation;
 }
 
@@ -7972,6 +8022,19 @@ button.doc-tree-toggle:focus-visible {
     right: 8px;
     left: auto;
     width: min(420px, calc(100vw - 16px));
+  }
+
+  .document-outline-header {
+    gap: 6px;
+  }
+
+  .document-outline-header-actions {
+    margin-left: auto;
+  }
+
+  .document-outline-header-actions > button[title^="固定目录"],
+  .document-outline-header-actions > button[title="取消固定目录"] {
+    display: none;
   }
 
   .focus-mode .document-outline-panel {

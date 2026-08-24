@@ -15,6 +15,7 @@ interface DocTreeProps {
   onSelect: (note: Note) => void;
   onFolderSelect?: (path: string) => void;
   selectedId: string | null;
+  selectedTitle?: string;
   selectedFolderPath?: string | null;
   showDaily?: boolean;
   onCreate: () => void;
@@ -112,7 +113,7 @@ function InlineRename({
 }
 
 function DocTree({
-  onSelect, onFolderSelect, selectedId, selectedFolderPath, showDaily = false, onCreate, refreshKey,
+  onSelect, onFolderSelect, selectedId, selectedTitle, selectedFolderPath, showDaily = false, onCreate, refreshKey,
   onRename, onDelete, onToggleReadonly,
   onMoveDocument, onBatchMoveDocuments, onMoveFolder,
   onBatchDelete, onBatchSetReadonly,
@@ -173,6 +174,17 @@ function DocTree({
   useEffect(() => {
     loadTree();
   }, [refreshKey, loadTree]);
+
+  // 标题输入先更新界面、随后由自动保存持久化。不要在每次按键时重新查询
+  // 数据库，否则会在防抖保存完成前把旧标题重新显示到文档树中。
+  useEffect(() => {
+    if (!selectedId || selectedTitle === undefined) return;
+    setTree((previous) => previous.map((node) =>
+      node.noteId === selectedId && node.name !== selectedTitle
+        ? { ...node, name: selectedTitle }
+        : node
+    ));
+  }, [selectedId, selectedTitle]);
 
   useLayoutEffect(() => {
     if (loading || !treeScrollRef.current) return;
@@ -606,6 +618,14 @@ function DocTree({
           </>
         ) : (
           <>
+            <button
+              className="btn-icon doc-tree-batch-btn"
+              onClick={() => selectedId && handleRename(selectedId)}
+              title="重命名当前文档"
+              disabled={disabled || !selectedId}
+            >
+              ✎
+            </button>
             <button
               className="btn-icon doc-tree-batch-btn"
               onClick={() => setSelectMode(true)}

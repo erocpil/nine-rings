@@ -966,9 +966,15 @@ function App() {
 
   const handleTitleChange = (title: string) => {
     autoSave.markTitleDirty(title);
-    // 文档笔记：实时刷新 DocTree 以同步名称
-    if (selectedNote?.storagePath) {
-      setDocTreeKey(k => k + 1);
+    // 自动保存仍负责持久化；这里先乐观更新受控标题和侧栏，避免防抖期间
+    // 文档树重新查询数据库后显示旧名称。Web 与 Tauri 共用这条状态链路。
+    if (selectedNote) {
+      useNotesStore.setState((state) => ({
+        selectedNote: state.selectedNote?.id === selectedNote.id
+          ? { ...state.selectedNote, title }
+          : state.selectedNote,
+        notes: state.notes.map((note) => note.id === selectedNote.id ? { ...note, title } : note),
+      }));
     }
   };
 
@@ -1264,6 +1270,7 @@ function App() {
                 closeSidebarOnNarrowScreen();
               }}
               selectedId={selectedNote?.id ?? null}
+              selectedTitle={selectedNote?.title ?? undefined}
               selectedFolderPath={selectedFolderPath}
               onCreate={() => setDocCreateOpen(true)}
               refreshKey={docTreeKey}
@@ -1536,6 +1543,7 @@ function App() {
                   setDocTreePopupOpen(false);
                 }}
                 selectedId={selectedNote?.id ?? null}
+                selectedTitle={selectedNote?.title ?? undefined}
                 selectedFolderPath={selectedFolderPath}
                 onCreate={() => {
                   setDocTreePopupOpen(false);

@@ -1,6 +1,6 @@
 import { expect, test, type Locator } from "@playwright/test";
 
-test("只读文档双击标题或正文切换所属标题章节", async ({ page }) => {
+test("只有只读专注模式双击标题或正文才切换所属标题章节", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
@@ -34,6 +34,10 @@ test("只读文档双击标题或正文切换所属标题章节", async ({ page 
   const firstHeading = editor.locator("h1").filter({ hasText: /^一级标题$/ });
   const nestedHeading = editor.locator("h2").filter({ hasText: /^二级标题$/ });
   const nextHeading = editor.locator("h1").filter({ hasText: /^下一个一级标题$/ });
+
+  await firstHeading.dblclick();
+  await expect(editor.getByText("一级正文", { exact: true })).toBeVisible();
+  await page.locator(".note-title-row").getByTitle("专注模式").click();
 
   await firstHeading.dblclick();
   await expect(editor.getByText("一级正文", { exact: true })).toBeHidden();
@@ -72,6 +76,7 @@ test("只读正文双击折叠后所属标题停留在双击位置附近", async
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
   await page.locator(".sidebar-item.active").getByTitle("设为只读")
     .evaluate((button: HTMLButtonElement) => button.click());
+  await page.locator(".note-title-row").getByTitle("专注模式").click();
 
   const target = editor.getByText("目标正文 25", { exact: true });
   await target.evaluate((element) => element.scrollIntoView({ block: "center" }));
