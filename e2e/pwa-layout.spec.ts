@@ -162,6 +162,30 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(focusWidth).toBeCloseTo(normalGeometry.width, 1);
   });
 
+  test("普通模式目录与书签按钮等高且垂直对齐", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("# 按钮对齐测试\n\n正文");
+
+    const titleRow = page.locator(".note-title-row");
+    const outlineButton = titleRow.getByTitle("文档目录");
+    const bookmarkButton = titleRow.getByLabel("文档书签");
+    await expect(outlineButton).toBeVisible();
+    await expect(bookmarkButton).toBeVisible();
+
+    const geometry = await titleRow.evaluate((row) => {
+      const outline = row.querySelector<HTMLElement>(".document-outline-toggle")!.getBoundingClientRect();
+      const bookmark = row.querySelector<HTMLElement>(".document-bookmark-toggle")!.getBoundingClientRect();
+      return {
+        outline: { top: outline.top, bottom: outline.bottom, height: outline.height },
+        bookmark: { top: bookmark.top, bottom: bookmark.bottom, height: bookmark.height },
+      };
+    });
+    expect(geometry.outline.height).toBeCloseTo(geometry.bookmark.height, 1);
+    expect(geometry.outline.top).toBeCloseTo(geometry.bookmark.top, 1);
+    expect(geometry.outline.bottom).toBeCloseTo(geometry.bookmark.bottom, 1);
+  });
+
   test("移动端块编号使用紧凑且可随位数扩展的 gutter", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("设置").click();
