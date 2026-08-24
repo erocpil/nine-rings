@@ -1219,9 +1219,15 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   }, [bookmarkCursorPosition, bookmarks, editor]);
 
   const toggleCurrentBookmark = useCallback(() => {
-    if (!editor || readonly) return;
+    if (!editor) return;
     toggleBookmark(editor);
-  }, [editor, readonly]);
+  }, [editor]);
+
+  const bookmarkBlockNumber = useCallback((bookmark: DocumentBookmark) => {
+    if (!editor || editor.isDestroyed) return 1;
+    const position = Math.max(0, Math.min(editor.state.doc.content.size, bookmark.position));
+    return editor.state.doc.resolve(position).index(0) + 1;
+  }, [editor]);
 
   const jumpToBookmark = useCallback((bookmark: DocumentBookmark) => {
     if (!editor || editor.isDestroyed) return;
@@ -1236,11 +1242,11 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   }, [editor]);
 
   const editBookmarkLabel = useCallback((bookmark: DocumentBookmark) => {
-    if (!editor || readonly) return;
+    if (!editor) return;
     const label = window.prompt("书签名称（留空恢复正文摘要）", bookmark.label ?? "");
     if (label === null) return;
     renameBookmark(editor, bookmark.id, label);
-  }, [editor, readonly]);
+  }, [editor]);
 
   // 专注模式下正文标题滚出视口后，App 顶栏中的文件名成为目录入口。
   // request id 只表达一次切换动作，避免普通重渲染反复开关面板。
@@ -3099,7 +3105,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           <div className="document-bookmark-list">
             {bookmarks.length === 0 ? (
               <div className="document-bookmark-empty">当前文档还没有书签</div>
-            ) : bookmarks.map((bookmark, index) => (
+            ) : bookmarks.map((bookmark) => (
               <div className="document-bookmark-item" key={bookmark.id}>
                 <button
                   className="document-bookmark-jump"
@@ -3107,21 +3113,21 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
                   onClick={() => jumpToBookmark(bookmark)}
                   title={bookmark.preview}
                 >
-                  <span className="document-bookmark-index">{bookmark.key ? `'${bookmark.key}` : index + 1}</span>
+                  <span className="document-bookmark-index" title={`第 ${bookmarkBlockNumber(bookmark)} 块`}>
+                    {bookmarkBlockNumber(bookmark)}
+                  </span>
                   <span>{bookmark.label || bookmark.preview}</span>
                 </button>
-                {!readonly && <button type="button" onClick={() => editBookmarkLabel(bookmark)} title="重命名书签">✎</button>}
-                {!readonly && <button type="button" onClick={() => removeBookmark(editor, bookmark.id)} title="删除书签">×</button>}
+                <button type="button" onClick={() => editBookmarkLabel(bookmark)} title="重命名书签">✎</button>
+                <button type="button" onClick={() => removeBookmark(editor, bookmark.id)} title="删除书签">×</button>
               </div>
             ))}
           </div>
-          {!readonly && (
-            <button
-              className="document-bookmark-add"
-              type="button"
-              onClick={toggleCurrentBookmark}
-            >{currentBookmark ? "取消当前位置书签" : "添加当前位置书签"}</button>
-          )}
+          <button
+            className="document-bookmark-add"
+            type="button"
+            onClick={toggleCurrentBookmark}
+          >{currentBookmark ? "取消当前位置书签" : "添加当前位置书签"}</button>
         </nav>
       )}
       {/* ── 标题 + 标签 + 工具栏 + 编辑器（滚动区域）── */}
@@ -3806,6 +3812,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             showNumbers={showLineNumbers}
             showInsertButtons={!isMobileToolbarViewport}
             readonly={!!readonly}
+            bookmarkPositions={bookmarks.map((bookmark) => bookmark.position)}
             onBlockCountChange={setGutterBlockCount}
             onHeadingFoldToggle={toggleEditorHeadingFromGutter}
           />
@@ -3966,13 +3973,13 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
               onClick={() => { setBookmarkOpen(true); setContextMenu(null); }}
             >打开书签列表 <span>{bookmarks.length}</span></button>
           )}
+          <div className="editor-context-sep" />
+          <button
+            className="editor-context-item"
+            onClick={() => { toggleCurrentBookmark(); setContextMenu(null); }}
+          >{currentBookmark ? "取消当前位置书签" : "添加当前位置书签"} <span>Ctrl+Shift+M</span></button>
           {!readonly && (
             <>
-              <div className="editor-context-sep" />
-              <button
-                className="editor-context-item"
-                onClick={() => { toggleCurrentBookmark(); setContextMenu(null); }}
-              >{currentBookmark ? "取消当前位置书签" : "添加当前位置书签"} <span>Ctrl+Shift+M</span></button>
               <button
                 className="editor-context-item editor-context-parent"
                 aria-expanded={contextSubmenu === "format"}

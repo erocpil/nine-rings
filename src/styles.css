@@ -3667,7 +3667,7 @@ body {
   top: 38px;
   right: 48px;
   z-index: 41;
-  width: min(340px, calc(100vw - 48px));
+  width: min(420px, calc(100vw - 48px));
   max-height: min(58vh, 440px);
   display: flex;
   flex-direction: column;
@@ -3744,10 +3744,42 @@ body {
 }
 
 .document-bookmark-index {
-  flex: 0 0 24px;
+  flex: 0 0 32px;
   color: var(--accent);
   font: 11px/1.2 var(--font-mono);
   text-align: center;
+}
+
+.editor-block-bookmark {
+  position: absolute;
+  z-index: 3;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+
+.editor-block-bookmark.with-number {
+  left: 0;
+  width: calc(var(--editor-gutter-width) - 8px);
+  transform: translateY(3px);
+  color: var(--accent);
+  font-size: 9px;
+  line-height: 1;
+  text-align: right;
+}
+
+.show-line-numbers .editor-block-bookmark.with-number {
+  left: 14px;
+  width: calc(var(--editor-gutter-width) - 14px);
+}
+
+.editor-block-bookmark.without-number {
+  left: 5px;
+  width: 4px;
+  height: 14px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 72%, transparent);
 }
 
 .document-bookmark-empty {
@@ -8189,7 +8221,7 @@ button.doc-tree-toggle:focus-visible {
     top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 36px);
     right: 8px;
     left: auto;
-    width: min(340px, calc(100vw - 16px));
+    width: min(420px, calc(100vw - 16px));
     max-height: min(58dvh, calc(100dvh - var(--safe-top) - var(--safe-bottom) - 52px));
   }
 

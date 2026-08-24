@@ -109,6 +109,7 @@ interface EditorBlockGutterProps {
   showNumbers: boolean;
   showInsertButtons: boolean;
   readonly: boolean;
+  bookmarkPositions?: readonly number[];
   onBlockCountChange?: (count: number) => void;
   onHeadingFoldToggle?: (position: number) => void;
 }
@@ -120,7 +121,7 @@ interface EditorBlockGutterProps {
  * 用户意图。IntersectionObserver 只挂载视口及预读区域内的控件；
  * ResizeObserver 只重新测量这部分节点，避免长文档复制一整套 gutter DOM。
  */
-export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, readonly, onBlockCountChange, onHeadingFoldToggle }: EditorBlockGutterProps) {
+export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], onBlockCountChange, onHeadingFoldToggle }: EditorBlockGutterProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [blocks, setBlocks] = useState<GutterBlock[]>([]);
 
@@ -129,7 +130,7 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
     const scrollRoot = root?.closest<HTMLElement>(".note-editor-scroll");
     if (!root || !scrollRoot || editor.isDestroyed) return;
 
-    const needsAllBlocks = showNumbers || (showInsertButtons && !readonly);
+    const needsAllBlocks = showNumbers || (showInsertButtons && !readonly) || bookmarkPositions.length > 0;
     const needsHeadings = Boolean(onHeadingFoldToggle);
     if (!needsAllBlocks && !needsHeadings) {
       setBlocks((current) => current.length === 0 ? current : []);
@@ -431,7 +432,7 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
       if (rebuildFrame) cancelAnimationFrame(rebuildFrame);
       if (windowFrame) cancelAnimationFrame(windowFrame);
     };
-  }, [editor, onBlockCountChange, onHeadingFoldToggle, readonly, showInsertButtons, showNumbers]);
+  }, [bookmarkPositions.length, editor, onBlockCountChange, onHeadingFoldToggle, readonly, showInsertButtons, showNumbers]);
 
   const insertParagraph = (pos: number) => {
     const safePos = Math.min(Math.max(0, pos), editor.state.doc.content.size);
@@ -483,6 +484,17 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
         >
           {block.index}
         </span>
+      ))}
+      {blocks.filter((block) => bookmarkPositions.some(
+        (position) => position >= block.pos && position < block.endPos,
+      )).map((block) => (
+        <span
+          key={`bookmark-${block.pos}`}
+          className={`editor-block-bookmark ${showNumbers ? "with-number" : "without-number"}`}
+          style={{ top: block.firstLineCenter }}
+          aria-hidden="true"
+          title={`第 ${block.index} 块有书签`}
+        >{showNumbers ? "🔖" : ""}</span>
       ))}
       {onHeadingFoldToggle && blocks.filter((block) => block.heading).map((block) => (
         <button

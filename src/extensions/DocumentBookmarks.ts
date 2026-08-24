@@ -129,7 +129,7 @@ export const DocumentBookmarks = Extension.create<BookmarkOptions>({
 
   addKeyboardShortcuts() {
     return {
-      "Mod-Shift-m": () => this.editor.isEditable && toggleBookmark(this.editor),
+      "Mod-Shift-m": () => toggleBookmark(this.editor),
     };
   },
 
