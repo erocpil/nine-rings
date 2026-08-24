@@ -4266,16 +4266,13 @@ body {
 .editor-content ol > li::before {
   content: counter(list-item) ".";
   font-variant-numeric: tabular-nums;
-  /* 仅移动绘制位置，不改变 marker 列宽、列表缩进或正文起点。 */
-  transform: translateX(2px);
 }
 
-/* 有序列表统一使用共享的左对齐编号列。个位数和多位数的左边缘保持
-   一致，多出的数字向正文方向延伸；正文起点和无序列表仍然对齐。
-   对所有 ol 生效也能覆盖 start="10" 以及被松散块拆分的续号列表。 */
+/* 有序、无序列表都以正文起点为锚点，并共享 marker gap。有序编号列
+   右对齐，使句点始终紧邻正文；位数增加时数字只向左扩展，不再把
+   个位编号推向 gutter，也不会扩大句点后的空隙。 */
 :is(.editor-content, .editor-appearance-preview) ol {
   --editor-ordered-marker-column: 3ch;
-  --editor-ordered-marker-inset: 0.35ch;
 }
 
 :is(.editor-content, .editor-appearance-preview) ol:has(> li:nth-child(100)) {
@@ -4287,10 +4284,10 @@ body {
 }
 
 :is(.editor-content, .editor-appearance-preview) ol > li::before {
-  right: auto;
-  left: calc(0px - var(--editor-ordered-marker-column) - var(--editor-list-marker-gap) + var(--editor-ordered-marker-inset));
+  right: calc(100% + var(--editor-list-marker-gap));
+  left: auto;
   width: var(--editor-ordered-marker-column);
-  text-align: left;
+  text-align: right;
   transform: none;
 }
 

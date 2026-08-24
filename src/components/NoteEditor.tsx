@@ -366,6 +366,7 @@ function restoreEditorViewportAnchor(
 let _lastSaveLog = 0;
 
 export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, vimModeEnabled, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
+  const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -424,6 +425,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const outlineResizeStartXRef = useRef(0);
   const outlineResizeStartWidthRef = useRef(DEFAULT_OUTLINE_DOCK_WIDTH);
   const outlineResizeCurrentWidthRef = useRef(outlineDockWidth);
+  const outlineResizeFrameRef = useRef<number | null>(null);
   const outlineResizeCleanupRef = useRef<(() => void) | null>(null);
   const suppressReadonlyDoubleClickUntilRef = useRef(0);
   const lastOutlineRequestIdRef = useRef(outlineRequestId);
@@ -1007,14 +1009,35 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     if (dock !== "floating") openDocumentOutline();
   }, [openDocumentOutline]);
 
+  const updateOutlineResizeWidth = useCallback((width: number) => {
+    outlineResizeCurrentWidthRef.current = width;
+    if (outlineResizeFrameRef.current !== null) return;
+    outlineResizeFrameRef.current = requestAnimationFrame(() => {
+      outlineResizeFrameRef.current = null;
+      noteEditorRef.current?.style.setProperty(
+        "--note-outline-docked-width",
+        `${outlineResizeCurrentWidthRef.current}px`,
+      );
+    });
+  }, []);
+
   const clearOutlineResize = useCallback(() => {
     if (outlineResizeCleanupRef.current) {
       outlineResizeCleanupRef.current();
       outlineResizeCleanupRef.current = null;
     }
     if (outlineResizePointerIdRef.current !== null) {
+      if (outlineResizeFrameRef.current !== null) {
+        cancelAnimationFrame(outlineResizeFrameRef.current);
+        outlineResizeFrameRef.current = null;
+      }
+      noteEditorRef.current?.style.setProperty(
+        "--note-outline-docked-width",
+        `${outlineResizeCurrentWidthRef.current}px`,
+      );
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
+      setOutlineDockWidth(outlineResizeCurrentWidthRef.current);
       localStorage.setItem(OUTLINE_WIDTH_KEY, String(outlineResizeCurrentWidthRef.current));
       outlineResizePointerIdRef.current = null;
     }
@@ -1038,9 +1061,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       const next = side === "right"
         ? outlineResizeStartWidthRef.current + delta
         : outlineResizeStartWidthRef.current - delta;
-      const width = clampOutlineDockWidth(next);
-      outlineResizeCurrentWidthRef.current = width;
-      setOutlineDockWidth(width);
+      updateOutlineResizeWidth(clampOutlineDockWidth(next));
     };
     const stop = () => {
       clearOutlineResize();
@@ -1054,7 +1075,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     document.addEventListener("mousemove", move);
     document.addEventListener("mouseup", stop);
     move(event.nativeEvent);
-  }, [clearOutlineResize, outlineDock, outlineDockWidth]);
+  }, [clearOutlineResize, outlineDock, outlineDockWidth, updateOutlineResizeWidth]);
 
   const startOutlineResizeTouchStart = useCallback((event: React.TouchEvent<HTMLDivElement>, side: "left" | "right") => {
     if (outlineDock === "floating") return;
@@ -1075,9 +1096,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       const next = side === "right"
         ? outlineResizeStartWidthRef.current + delta
         : outlineResizeStartWidthRef.current - delta;
-      const width = clampOutlineDockWidth(next);
-      outlineResizeCurrentWidthRef.current = width;
-      setOutlineDockWidth(width);
+      updateOutlineResizeWidth(clampOutlineDockWidth(next));
     };
     const stop = () => {
       document.body.style.userSelect = "";
@@ -1094,7 +1113,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     document.addEventListener("touchend", stop);
     document.addEventListener("touchcancel", stop);
     move(event.nativeEvent);
-  }, [clearOutlineResize, outlineDock, outlineDockWidth]);
+  }, [clearOutlineResize, outlineDock, outlineDockWidth, updateOutlineResizeWidth]);
 
   // 目录打开后在首次绘制前完成溢出判断和当前项居中。快速滚动按钮始终
   // 保留相同占位，因此状态切换不会改变标题栏或列表高度。
@@ -2724,6 +2743,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
   return (
     <div
+      ref={noteEditorRef}
       className={`note-editor ${readonly ? "note-editor-readonly" : ""} ${cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${cjkLatinSpacing && !nativeCjkLatinSpacing ? "editor-cjk-spacing-fallback" : ""} ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${focusToolbarExpanded ? "focus-toolbar-expanded" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""} ${outlineDock !== "floating" ? `outline-docked-${outlineDock}` : ""} ${outlineOpen ? "outline-docked-open" : ""}`}
       style={{ "--note-outline-docked-width": `${outlineDockWidth}px` } as React.CSSProperties}
       onPasteCapture={handlePaste}
@@ -2835,16 +2855,18 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
                   setAllOutlineFolds(true);
                   setAllHeadingFoldsKeepingViewport(true);
                 }}
+                aria-label="全部折叠"
                 title="折叠全部章节"
-              >全部折叠</button>
+              >−</button>
               <button
                 type="button"
                 onClick={() => {
                   setAllOutlineFolds(false);
                   setAllHeadingFoldsKeepingViewport(false);
                 }}
+                aria-label="全部展开"
                 title="展开全部章节"
-              >全部展开</button>
+              >+</button>
             </div>
             <div className="document-outline-header-actions">
               <div
