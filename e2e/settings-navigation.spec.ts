@@ -27,6 +27,28 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await expect(page.getByText("快捷键", { exact: true })).toHaveCount(0);
 });
 
+test("设置子页首个分组没有多余顶部留白和分割线", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("设置").click();
+
+  for (const pageName of ["用户信息", "数据与导入", "标签管理", "同步与备份"]) {
+    await page.getByRole("button", { name: new RegExp(`^${pageName}`) }).click();
+
+    const firstSection = page.locator(".settings-body > .settings-section").first();
+    await expect(firstSection).toBeVisible();
+    await expect.poll(() => firstSection.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        marginTop: style.marginTop,
+        paddingTop: style.paddingTop,
+        borderTopWidth: style.borderTopWidth,
+      };
+    })).toEqual({ marginTop: "0px", paddingTop: "0px", borderTopWidth: "0px" });
+
+    await page.getByLabel("返回设置分类").click();
+  }
+});
+
 test("设置弹窗具有语义并在键盘关闭后恢复焦点", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
