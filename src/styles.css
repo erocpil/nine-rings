@@ -3547,13 +3547,35 @@ body {
   color: var(--accent);
 }
 
+.document-outline-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 13;
+  width: 6px;
+  background: transparent;
+  touch-action: none;
+  pointer-events: auto;
+  display: none;
+}
+
+.document-outline-resize-handle.left {
+  left: -3px;
+  cursor: w-resize;
+}
+
+.document-outline-resize-handle.right {
+  right: -3px;
+  cursor: e-resize;
+}
+
 @media (min-width: 769px) {
   .outline-docked-left .document-outline-panel,
   .outline-docked-right .document-outline-panel {
     top: 0;
     bottom: 0;
     z-index: 12;
-    width: 280px;
+    width: var(--note-outline-docked-width, 280px);
     max-height: none;
     border-top: 0;
     border-bottom: 0;
@@ -3573,12 +3595,17 @@ body {
     border-right: 0;
   }
 
-  .outline-docked-left .note-editor-scroll {
-    margin-left: 280px;
+  .outline-docked-left.outline-docked-open .note-editor-scroll {
+    margin-left: var(--note-outline-docked-width, 280px);
   }
 
-  .outline-docked-right .note-editor-scroll {
-    margin-right: 280px;
+  .outline-docked-right.outline-docked-open .note-editor-scroll {
+    margin-right: var(--note-outline-docked-width, 280px);
+  }
+
+  .outline-docked-left .document-outline-resize-handle.right,
+  .outline-docked-right .document-outline-resize-handle.left {
+    display: block;
   }
 }
 

@@ -221,6 +221,28 @@ const VIM_MODE_LABELS: Record<VimEditorMode, string> = {
   visual: "VISUAL",
   "visual-line": "V-LINE",
 };
+const OUTLINE_DOCK_KEY = "nr:documentOutlineDock";
+const OUTLINE_WIDTH_KEY = "nr:documentOutlineWidth";
+const DEFAULT_OUTLINE_DOCK_WIDTH = 280;
+const OUTLINE_DOCK_MIN_WIDTH = 220;
+const OUTLINE_DOCK_MAX_WIDTH = 560;
+
+function getSavedOutlineDock(): "floating" | "left" | "right" {
+  const saved = typeof localStorage === "undefined" ? null : localStorage.getItem(OUTLINE_DOCK_KEY);
+  return saved === "left" || saved === "right" ? saved : "floating";
+}
+
+function getSavedOutlineDockWidth(): number {
+  const raw = typeof localStorage === "undefined" ? null : localStorage.getItem(OUTLINE_WIDTH_KEY);
+  const parsed = Number.parseInt(raw ?? "", 10);
+  return Number.isFinite(parsed)
+    ? Math.min(OUTLINE_DOCK_MAX_WIDTH, Math.max(OUTLINE_DOCK_MIN_WIDTH, parsed))
+    : DEFAULT_OUTLINE_DOCK_WIDTH;
+}
+
+function clampOutlineDockWidth(width: number): number {
+  return Math.min(OUTLINE_DOCK_MAX_WIDTH, Math.max(OUTLINE_DOCK_MIN_WIDTH, Math.round(width)));
+}
 
 // ══════════════════════════════════════
 
@@ -369,11 +391,12 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const [lineJumpOpen, setLineJumpOpen] = useState(false);
   const [lineJumpValue, setLineJumpValue] = useState("");
   const [lineJumpError, setLineJumpError] = useState<string | null>(null);
-  const [outlineOpen, setOutlineOpen] = useState(false);
-  const [outlineDock, setOutlineDock] = useState<"floating" | "left" | "right">(() => {
-    const saved = localStorage.getItem("nr:documentOutlineDock");
-    return saved === "left" || saved === "right" ? saved : "floating";
+  const [outlineOpen, setOutlineOpen] = useState(() => {
+    const saved = getSavedOutlineDock();
+    return saved === "left" || saved === "right";
   });
+  const [outlineDock, setOutlineDock] = useState<"floating" | "left" | "right">(getSavedOutlineDock);
+  const [outlineDockWidth, setOutlineDockWidth] = useState(getSavedOutlineDockWidth);
   const [bookmarkOpen, setBookmarkOpen] = useState(false);
   const [bookmarks, setBookmarks] = useState<DocumentBookmark[]>(bookmarksRef.current);
   const [activeOutlineIndex, setActiveOutlineIndex] = useState(-1);
@@ -397,6 +420,10 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     x: number;
     y: number;
   } | null>(null);
+  const outlineResizePointerIdRef = useRef<number | null>(null);
+  const outlineResizeStartXRef = useRef(0);
+  const outlineResizeStartWidthRef = useRef(DEFAULT_OUTLINE_DOCK_WIDTH);
+  const outlineResizeCleanupRef = useRef<(() => void) | null>(null);
   const suppressReadonlyDoubleClickUntilRef = useRef(0);
   const lastOutlineRequestIdRef = useRef(outlineRequestId);
   const lastPdfExportRequestIdRef = useRef(pdfExportRequestId);
@@ -974,9 +1001,58 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
   const setDocumentOutlineDock = useCallback((dock: "floating" | "left" | "right") => {
     setOutlineDock(dock);
-    localStorage.setItem("nr:documentOutlineDock", dock);
+    localStorage.setItem(OUTLINE_DOCK_KEY, dock);
+    setOutlineOpen(true);
     if (dock !== "floating") openDocumentOutline();
   }, [openDocumentOutline]);
+
+  const clearOutlineResize = useCallback(() => {
+    if (outlineResizeCleanupRef.current) {
+      outlineResizeCleanupRef.current();
+      outlineResizeCleanupRef.current = null;
+    }
+    if (outlineResizePointerIdRef.current !== null) {
+      document.body.style.cursor = "";
+      localStorage.setItem(OUTLINE_WIDTH_KEY, String(outlineDockWidth));
+      outlineResizePointerIdRef.current = null;
+    }
+  }, [outlineDockWidth]);
+
+  useEffect(() => clearOutlineResize, [clearOutlineResize]);
+
+  const startOutlineResize = useCallback((event: React.PointerEvent<HTMLSpanElement>, side: "left" | "right") => {
+    if (outlineDock === "floating" || event.button !== 0) return;
+    clearOutlineResize();
+    document.body.style.cursor = "ew-resize";
+    outlineResizeStartXRef.current = event.clientX;
+    outlineResizeStartWidthRef.current = outlineDockWidth;
+    const move = (moveEvent: PointerEvent) => {
+      if (outlineResizePointerIdRef.current !== moveEvent.pointerId) return;
+      const delta = moveEvent.clientX - outlineResizeStartXRef.current;
+      const next = side === "left"
+        ? outlineResizeStartWidthRef.current + delta
+        : outlineResizeStartWidthRef.current - delta;
+      setOutlineDockWidth(clampOutlineDockWidth(next));
+    };
+    const stop = (stopEvent: PointerEvent) => {
+      if (outlineResizePointerIdRef.current !== stopEvent.pointerId) return;
+      clearOutlineResize();
+    };
+
+    outlineResizePointerIdRef.current = event.pointerId;
+    outlineResizeCleanupRef.current = () => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", stop);
+      document.removeEventListener("pointercancel", stop);
+    };
+    document.addEventListener("pointermove", move, { passive: true });
+    document.addEventListener("pointerup", stop, { passive: true });
+    document.addEventListener("pointercancel", stop, { passive: true });
+    if (event.currentTarget.setPointerCapture) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    move(event.nativeEvent);
+  }, [clearOutlineResize, outlineDock, outlineDockWidth]);
 
   // 目录打开后在首次绘制前完成溢出判断和当前项居中。快速滚动按钮始终
   // 保留相同占位，因此状态切换不会改变标题栏或列表高度。
@@ -2606,7 +2682,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
   return (
     <div
-      className={`note-editor ${readonly ? "note-editor-readonly" : ""} ${cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${cjkLatinSpacing && !nativeCjkLatinSpacing ? "editor-cjk-spacing-fallback" : ""} ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${focusToolbarExpanded ? "focus-toolbar-expanded" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""} ${outlineDock !== "floating" ? `outline-docked-${outlineDock}` : ""}`}
+      className={`note-editor ${readonly ? "note-editor-readonly" : ""} ${cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${cjkLatinSpacing && !nativeCjkLatinSpacing ? "editor-cjk-spacing-fallback" : ""} ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${focusToolbarExpanded ? "focus-toolbar-expanded" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""} ${outlineDock !== "floating" ? `outline-docked-${outlineDock}` : ""} ${outlineOpen ? "outline-docked-open" : ""}`}
+      style={{ "--note-outline-docked-width": `${outlineDockWidth}px` } as React.CSSProperties}
       onPasteCapture={handlePaste}
       onDrop={handleDrop}
       onMouseDownCapture={preventReadonlyTableResize}
@@ -2700,9 +2777,10 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           <button type="button" onClick={() => { closeLineJump(); editor.commands.focus(); }} title="关闭跳转" aria-label="关闭跳转">×</button>
         </div>
       )}
-      {(outlineOpen || outlineDock !== "floating") && documentOutline.length > 0 && (
+      {outlineOpen && documentOutline.length > 0 && (
         <nav
           className="document-outline-panel"
+          style={outlineDock === "floating" ? undefined : ({ width: `var(--note-outline-docked-width, ${DEFAULT_OUTLINE_DOCK_WIDTH}px)` } as React.CSSProperties)}
           aria-label="文档目录"
           onClick={(event) => event.stopPropagation()}
         >
@@ -2742,12 +2820,18 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
                   : `${visibleOutlineEntries.length}/${documentOutline.length} 项`}
               </span>
               <button type="button" className={outlineDock === "left" ? "active" : ""} onClick={() => setDocumentOutlineDock("left")} title="固定目录到左侧">⇤</button>
-              <button type="button" className={outlineDock === "right" ? "active" : ""} onClick={() => setDocumentOutlineDock("right")} title="固定目录到右侧">⇥</button>
               {outlineDock !== "floating" && (
-                <button type="button" onClick={() => setDocumentOutlineDock("floating")} title="取消固定目录">×</button>
+                <button type="button" onClick={() => setDocumentOutlineDock("floating")} title="取消固定目录">↔</button>
               )}
+              <button type="button" className={outlineDock === "right" ? "active" : ""} onClick={() => setDocumentOutlineDock("right")} title="固定目录到右侧">⇥</button>
             </div>
           </div>
+          {outlineDock !== "floating" && (
+            <span
+              className={`document-outline-resize-handle ${outlineDock === "left" ? "right" : "left"}`}
+              onPointerDown={(event) => startOutlineResize(event, outlineDock === "left" ? "right" : "left")}
+            />
+          )}
           <DocumentOutlineList
             entries={visibleOutlineEntries}
             activeOutlineIndex={activeOutlineIndex}
@@ -2841,20 +2925,18 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
               >目录</button>
             </div>
           )}
-          {(bookmarks.length > 0 || !readonly) && (
-            <button
-              className={`focus-btn document-bookmark-toggle ${bookmarkOpen ? "active" : ""}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                setOutlineOpen(false);
-                setBookmarkOpen((open) => !open);
-              }}
-              title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
-              aria-label="文档书签"
-              aria-expanded={bookmarkOpen}
-              type="button"
-            >书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button>
-          )}
+          <button
+            className={`focus-btn document-bookmark-toggle ${bookmarkOpen ? "active" : ""}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              setOutlineOpen(false);
+              setBookmarkOpen((open) => !open);
+            }}
+            title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
+            aria-label="文档书签"
+            aria-expanded={bookmarkOpen}
+            type="button"
+          >书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button>
           <button
             className={`focus-btn ${focusMode ? "active" : ""}`}
             onClick={() => { onFocusModeChange?.(!focusMode); }}
