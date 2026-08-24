@@ -4197,6 +4197,7 @@ body {
 
 .editor-content ol {
   padding-inline-start: var(--editor-list-indent);
+  counter-reset: list-item;
 }
 
 .editor-content ul,
@@ -4230,6 +4231,10 @@ body {
 
 .editor-content :is(ul, ol) > li::marker {
   content: "";
+}
+
+.editor-content ol > li {
+  counter-increment: list-item;
 }
 
 .editor-content :is(ul, ol) > li::before {
