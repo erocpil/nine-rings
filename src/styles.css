@@ -3761,10 +3761,13 @@ body {
 .editor-block-bookmark.with-number {
   left: 0;
   width: calc(var(--editor-gutter-width) - 8px);
+  box-sizing: border-box;
+  padding-right: 4px;
   transform: translateY(3px);
   color: var(--accent);
   font-size: 9px;
   line-height: 1;
+  opacity: 0.48;
   text-align: right;
 }
 
@@ -3774,7 +3777,7 @@ body {
 }
 
 .editor-block-bookmark.without-number {
-  left: 5px;
+  left: 10px;
   width: 4px;
   height: 14px;
   transform: translateY(-50%);
@@ -3797,10 +3800,6 @@ body {
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
-}
-
-.editor-bookmarked-block {
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 78%, #d59b22);
 }
 
 .focus-mode .note-title-row {
@@ -8129,6 +8128,10 @@ button.doc-tree-toggle:focus-visible {
     width: calc(var(--editor-gutter-width) - 14px);
     padding-right: 1px;
     font-size: 11px;
+  }
+
+  .editor-block-bookmark.with-number {
+    padding-right: 1px;
   }
 
   .show-line-numbers .editor-block-number {

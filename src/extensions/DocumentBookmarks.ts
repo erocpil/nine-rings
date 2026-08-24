@@ -1,7 +1,7 @@
 import { Extension, type Editor } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
-import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
+import { DecorationSet, type EditorView } from "@tiptap/pm/view";
 import type { DocumentBookmark } from "../types/models";
 import { headingFoldPluginKey } from "./HeadingFold";
 
@@ -93,19 +93,9 @@ function sameBookmarks(left: DocumentBookmark[], right: DocumentBookmark[]): boo
   });
 }
 
-function buildDecorations(doc: ProseMirrorNode, bookmarks: DocumentBookmark[]): DecorationSet {
-  const decorated = new Set<number>();
-  const decorations: Decoration[] = [];
-  for (const bookmark of bookmarks) {
-    const block = textblockAt(doc, bookmark.position);
-    if (!block || decorated.has(block.nodePos)) continue;
-    decorated.add(block.nodePos);
-    decorations.push(Decoration.node(block.nodePos, block.nodePos + block.node.nodeSize, {
-      class: "editor-bookmarked-block",
-      "data-bookmarked": "true",
-    }));
-  }
-  return DecorationSet.create(doc, decorations);
+function buildDecorations(doc: ProseMirrorNode): DecorationSet {
+  // 书签只在 gutter 中显示，避免正文块再出现一条贯穿式左边标记。
+  return DecorationSet.create(doc, []);
 }
 
 function createBookmark(doc: ProseMirrorNode, position: number, key?: string): DocumentBookmark | null {
@@ -140,7 +130,7 @@ export const DocumentBookmarks = Extension.create<BookmarkOptions>({
       state: {
         init: (_, state) => {
           const bookmarks = normalizeBookmarks(state.doc, options.initialBookmarks);
-          return { bookmarks, decorations: buildDecorations(state.doc, bookmarks) };
+          return { bookmarks, decorations: buildDecorations(state.doc) };
         },
         apply(transaction, previous, _oldState, nextState) {
           const meta = transaction.getMeta(documentBookmarkPluginKey) as BookmarkMeta | undefined;
@@ -182,7 +172,7 @@ export const DocumentBookmarks = Extension.create<BookmarkOptions>({
               decorations: previous.decorations.map(transaction.mapping, transaction.doc),
             };
           }
-          return { bookmarks, decorations: buildDecorations(nextState.doc, bookmarks) };
+          return { bookmarks, decorations: buildDecorations(nextState.doc) };
         },
       },
       props: {
