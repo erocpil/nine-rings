@@ -571,6 +571,38 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     return () => media.removeEventListener("change", updateViewport);
   }, []);
 
+  // 底部留白跟随编辑滚动视口，而不是使用固定 vh。这样无论工具栏、
+  // 专注模式或 iOS 可视视口如何变化，最后一行都能滚到可见区顶部。
+  useEffect(() => {
+    const root = scrollRef.current;
+    const host = noteEditorRef.current;
+    if (!root || !host) return;
+
+    const updateTailSpace = () => {
+      const sticky = root.querySelector<HTMLElement>(".note-editor-sticky");
+      const stickyHeight = sticky?.offsetHeight ?? 0;
+      const editorElement = root.querySelector<HTMLElement>(".ProseMirror");
+      const lineHeight = editorElement
+        ? Number.parseFloat(window.getComputedStyle(editorElement).lineHeight) || 24
+        : 24;
+      const tailSpace = Math.max(72, root.clientHeight - stickyHeight - lineHeight + 1);
+      host.style.setProperty("--editor-tail-space", `${Math.round(tailSpace)}px`);
+    };
+
+    updateTailSpace();
+    const observer = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(updateTailSpace);
+    observer?.observe(root);
+    const sticky = root.querySelector<HTMLElement>(".note-editor-sticky");
+    if (sticky) observer?.observe(sticky);
+    window.visualViewport?.addEventListener("resize", updateTailSpace);
+    return () => {
+      observer?.disconnect();
+      window.visualViewport?.removeEventListener("resize", updateTailSpace);
+    };
+  }, [focusMode]);
+
   // 点击外部关闭下拉框
   useEffect(() => {
     if (!sizeOpen && !colorOpen && !headingOpen && !blockOpen && !styleOpen && !clipOpen && !linkOpen && !tableOpen && !moreOpen && !outlineOpen && !bookmarkOpen) return;
@@ -3025,11 +3057,15 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
                   ? `${documentOutline.length} 项`
                   : `${visibleOutlineEntries.length}/${documentOutline.length} 项`}
               </span>
-              <button type="button" className={outlineDock === "left" ? "active" : ""} onClick={() => setDocumentOutlineDock("left")} title="固定目录到左侧">⇤</button>
+              {outlineDock !== "left" && (
+                <button type="button" onClick={() => setDocumentOutlineDock("left")} title="固定目录到左侧">⇤</button>
+              )}
               {outlineDock !== "floating" && (
                 <button type="button" onClick={() => setDocumentOutlineDock("floating")} title="取消固定目录">↔</button>
               )}
-              <button type="button" className={outlineDock === "right" ? "active" : ""} onClick={() => setDocumentOutlineDock("right")} title="固定目录到右侧">⇥</button>
+              {outlineDock === "left" && (
+                <button type="button" onClick={() => setDocumentOutlineDock("right")} title="固定目录到右侧">⇥</button>
+              )}
             </div>
           </div>
           {outlineDock !== "floating" && (

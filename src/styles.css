@@ -4018,7 +4018,7 @@ body {
 
 .ProseMirror {
   outline: none !important;
-  padding-bottom: max(72px, 14vh);
+  padding-bottom: var(--editor-tail-space, max(72px, 70vh));
   padding-left: calc(var(--editor-gutter-width) + var(--editor-gutter-text-gap));
   touch-action: auto;
   font-size: var(--editor-font-size);
