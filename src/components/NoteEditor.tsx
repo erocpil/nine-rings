@@ -427,6 +427,13 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const outlineResizeCurrentWidthRef = useRef(outlineDockWidth);
   const outlineResizeFrameRef = useRef<number | null>(null);
   const outlineResizeCleanupRef = useRef<(() => void) | null>(null);
+  const outlineFoldLastTouchRef = useRef<{
+    folded: boolean;
+    time: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const suppressOutlineFoldDoubleClickUntilRef = useRef(0);
   const suppressReadonlyDoubleClickUntilRef = useRef(0);
   const lastOutlineRequestIdRef = useRef(outlineRequestId);
   const lastPdfExportRequestIdRef = useRef(pdfExportRequestId);
@@ -2137,6 +2144,44 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     ));
   }, [headingSections]);
 
+  const handleOutlineFoldTouchPointerUp = useCallback((
+    event: React.PointerEvent<HTMLButtonElement>,
+    folded: boolean,
+  ) => {
+    if (event.pointerType !== "touch" || !event.isPrimary) return;
+    const now = performance.now();
+    const previous = outlineFoldLastTouchRef.current;
+    const isDoubleTap = Boolean(
+      previous
+      && previous.folded === folded
+      && now - previous.time <= 420
+      && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 24
+    );
+    if (!isDoubleTap) {
+      outlineFoldLastTouchRef.current = {
+        folded,
+        time: now,
+        x: event.clientX,
+        y: event.clientY,
+      };
+      return;
+    }
+
+    outlineFoldLastTouchRef.current = null;
+    suppressOutlineFoldDoubleClickUntilRef.current = now + 650;
+    setAllHeadingFoldsKeepingViewport(folded);
+  }, [setAllHeadingFoldsKeepingViewport]);
+
+  const handleOutlineFoldDoubleClick = useCallback((
+    event: React.MouseEvent<HTMLButtonElement>,
+    folded: boolean,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (performance.now() < suppressOutlineFoldDoubleClickUntilRef.current) return;
+    setAllHeadingFoldsKeepingViewport(folded);
+  }, [setAllHeadingFoldsKeepingViewport]);
+
   const toggleOutlineTreeHeading = useCallback((position: number) => {
     const section = headingSections.find((candidate) => candidate.pos === position);
     if (!section || section.end <= section.headingEnd) return;
@@ -2851,21 +2896,19 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
               <span>目录</span>
               <button
                 type="button"
-                onClick={() => {
-                  setAllOutlineFolds(true);
-                  setAllHeadingFoldsKeepingViewport(true);
-                }}
+                onClick={() => setAllOutlineFolds(true)}
+                onDoubleClick={(event) => handleOutlineFoldDoubleClick(event, true)}
+                onPointerUp={(event) => handleOutlineFoldTouchPointerUp(event, true)}
                 aria-label="全部折叠"
-                title="折叠全部章节"
+                title="单击折叠目录；双击同时折叠正文"
               >−</button>
               <button
                 type="button"
-                onClick={() => {
-                  setAllOutlineFolds(false);
-                  setAllHeadingFoldsKeepingViewport(false);
-                }}
+                onClick={() => setAllOutlineFolds(false)}
+                onDoubleClick={(event) => handleOutlineFoldDoubleClick(event, false)}
+                onPointerUp={(event) => handleOutlineFoldTouchPointerUp(event, false)}
                 aria-label="全部展开"
-                title="展开全部章节"
+                title="单击展开目录；双击同时展开正文"
               >+</button>
             </div>
             <div className="document-outline-header-actions">
