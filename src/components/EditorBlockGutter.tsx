@@ -468,6 +468,10 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
         }),
       ];
 
+  const blockHasBookmark = (block: GutterBlock) => bookmarkPositions.some(
+    (position) => position >= block.pos && position < block.endPos,
+  );
+
   return (
     <div
       ref={rootRef}
@@ -477,7 +481,7 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
       {showNumbers && blocks.map((block) => (
         <span
           key={`number-${block.pos}`}
-          className={`editor-block-number ${block.active ? "active" : ""}`}
+          className={`editor-block-number ${block.active ? "active" : ""} ${blockHasBookmark(block) ? "bookmarked" : ""}`}
           style={{ top: block.firstLineCenter }}
           aria-hidden="true"
           data-block-format={block.format}
@@ -485,16 +489,14 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
           {block.index}
         </span>
       ))}
-      {blocks.filter((block) => bookmarkPositions.some(
-        (position) => position >= block.pos && position < block.endPos,
-      )).map((block) => (
+      {!showNumbers && blocks.filter(blockHasBookmark).map((block) => (
         <span
           key={`bookmark-${block.pos}`}
-          className={`editor-block-bookmark ${showNumbers ? "with-number" : "without-number"}`}
+          className="editor-block-bookmark without-number"
           style={{ top: block.firstLineCenter }}
           aria-hidden="true"
           title={`第 ${block.index} 块有书签`}
-        >{showNumbers ? "🔖" : ""}</span>
+        />
       ))}
       {onHeadingFoldToggle && blocks.filter((block) => block.heading).map((block) => (
         <button
