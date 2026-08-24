@@ -1026,7 +1026,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     event.preventDefault();
     event.stopPropagation();
     clearOutlineResize();
-    document.body.style.cursor = "ew-resize";
+    document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
     outlineResizePointerIdRef.current = -1;
     outlineResizeStartXRef.current = event.clientX;
@@ -1058,7 +1058,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     event.preventDefault();
     event.stopPropagation();
     clearOutlineResize();
-    document.body.style.cursor = "ew-resize";
+    document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
     outlineResizePointerIdRef.current = -1;
     outlineResizeStartXRef.current = event.touches[0].clientX;

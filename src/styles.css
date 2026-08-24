@@ -3552,21 +3552,40 @@ body {
   top: 0;
   bottom: 0;
   z-index: 13;
-  width: 12px;
+  width: 4px;
   background: transparent;
+  cursor: col-resize;
   touch-action: none;
   pointer-events: auto;
   display: none;
 }
 
 .document-outline-resize-handle.left {
-  left: -6px;
-  cursor: w-resize;
+  left: 0;
 }
 
 .document-outline-resize-handle.right {
-  right: -6px;
-  cursor: e-resize;
+  right: 0;
+}
+
+.document-outline-resize-handle::before {
+  content: "";
+  position: absolute;
+  inset: 0 -8px;
+}
+
+.document-outline-resize-handle::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--border);
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.document-outline-resize-handle:hover::after {
+  background: var(--accent);
+  opacity: 0.5;
 }
 
 @media (min-width: 769px) {
