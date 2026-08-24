@@ -563,12 +563,12 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       setLinkOpen(false);
       setTableOpen(false);
       setMoreOpen(false);
-      setOutlineOpen(false);
+      if (outlineDock === "floating") setOutlineOpen(false);
       setBookmarkOpen(false);
     };
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
-  }, [sizeOpen, colorOpen, headingOpen, blockOpen, styleOpen, clipOpen, linkOpen, tableOpen, moreOpen, outlineOpen, bookmarkOpen]);
+  }, [sizeOpen, colorOpen, headingOpen, blockOpen, styleOpen, clipOpen, linkOpen, tableOpen, moreOpen, outlineOpen, outlineDock, bookmarkOpen]);
 
   // 关闭编辑器右键菜单（点击外部 / Escape / 滚动 / 失焦）
   useEffect(() => {
@@ -1013,6 +1013,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     }
     if (outlineResizePointerIdRef.current !== null) {
       document.body.style.cursor = "";
+      document.body.style.userSelect = "";
       localStorage.setItem(OUTLINE_WIDTH_KEY, String(outlineDockWidth));
       outlineResizePointerIdRef.current = null;
     }
@@ -1027,6 +1028,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     event.stopPropagation();
     clearOutlineResize();
     document.body.style.cursor = "ew-resize";
+    document.body.style.userSelect = "none";
     outlineResizeStartXRef.current = event.clientX;
     outlineResizeStartWidthRef.current = outlineDockWidth;
     const move = (moveEvent: PointerEvent) => {
@@ -1054,6 +1056,69 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     if (event.currentTarget.setPointerCapture) {
       event.currentTarget.setPointerCapture(event.pointerId);
     }
+    move(event.nativeEvent);
+    }, [clearOutlineResize, outlineDock, outlineDockWidth]);
+
+  const startOutlineResizeMouseDown = useCallback((event: React.MouseEvent<HTMLSpanElement>, side: "left" | "right") => {
+    if (outlineDock === "floating" || event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    clearOutlineResize();
+    document.body.style.cursor = "ew-resize";
+    document.body.style.userSelect = "none";
+    outlineResizePointerIdRef.current = -1;
+    outlineResizeStartXRef.current = event.clientX;
+    outlineResizeStartWidthRef.current = outlineDockWidth;
+    const move = (moveEvent: MouseEvent) => {
+      const delta = moveEvent.clientX - outlineResizeStartXRef.current;
+      const next = side === "right"
+        ? outlineResizeStartWidthRef.current + delta
+        : outlineResizeStartWidthRef.current - delta;
+      setOutlineDockWidth(clampOutlineDockWidth(next));
+    };
+    const stop = () => {
+      clearOutlineResize();
+    };
+    outlineResizeCleanupRef.current = () => {
+      document.removeEventListener("mousemove", move);
+      document.removeEventListener("mouseup", stop);
+    };
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", stop);
+    move(event.nativeEvent);
+  }, [clearOutlineResize, outlineDock, outlineDockWidth]);
+
+  const startOutlineResizeTouchStart = useCallback((event: React.TouchEvent<HTMLSpanElement>, side: "left" | "right") => {
+    if (outlineDock === "floating") return;
+    if (event.touches.length === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    clearOutlineResize();
+    document.body.style.cursor = "ew-resize";
+    document.body.style.userSelect = "none";
+    outlineResizePointerIdRef.current = -1;
+    outlineResizeStartXRef.current = event.touches[0].clientX;
+    outlineResizeStartWidthRef.current = outlineDockWidth;
+    const move = (moveEvent: TouchEvent) => {
+      if (moveEvent.touches.length === 0) return;
+      const delta = moveEvent.touches[0].clientX - outlineResizeStartXRef.current;
+      const next = side === "right"
+        ? outlineResizeStartWidthRef.current + delta
+        : outlineResizeStartWidthRef.current - delta;
+      setOutlineDockWidth(clampOutlineDockWidth(next));
+    };
+    const stop = () => {
+      document.body.style.userSelect = "";
+      clearOutlineResize();
+    };
+    outlineResizeCleanupRef.current = () => {
+      document.removeEventListener("touchmove", move);
+      document.removeEventListener("touchend", stop);
+      document.removeEventListener("touchcancel", stop);
+    };
+    document.addEventListener("touchmove", move, { passive: true });
+    document.addEventListener("touchend", stop);
+    document.addEventListener("touchcancel", stop);
     move(event.nativeEvent);
   }, [clearOutlineResize, outlineDock, outlineDockWidth]);
 
@@ -1292,7 +1357,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     expandHeadingFoldsAt(editor, position);
     editor.commands.setTextSelection(position);
     editor.view.focus();
-    setOutlineOpen(false);
+    if (outlineDock === "floating") setOutlineOpen(false);
     requestAnimationFrame(() => {
       const root = scrollRef.current;
       if (!root || editor.isDestroyed) return;
@@ -1303,7 +1368,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       const nextTop = root.scrollTop + coords.top - Math.max(rootRect.top, stickyBottom) - 12;
       root.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
     });
-  }, [editor]);
+  }, [editor, outlineDock, scrollRef]);
 
   // 拦截 WebView 原生 Cmd+F，并为 Windows 提供 Alt+F。Ctrl+F 不再
   // 触发搜索：Vim 模式用它向下翻页，非 Vim 模式也不唤起 WebView 查找框。
@@ -2833,6 +2898,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             <span
               className={`document-outline-resize-handle ${outlineDock === "left" ? "right" : "left"}`}
               onPointerDown={(event) => startOutlineResize(event, outlineDock === "left" ? "right" : "left")}
+              onMouseDown={(event) => startOutlineResizeMouseDown(event, outlineDock === "left" ? "right" : "left")}
+              onTouchStart={(event) => startOutlineResizeTouchStart(event, outlineDock === "left" ? "right" : "left")}
             />
           )}
           <DocumentOutlineList

@@ -4260,6 +4260,7 @@ body {
    对所有 ol 生效也能覆盖 start="10" 以及被松散块拆分的续号列表。 */
 :is(.editor-content, .editor-appearance-preview) ol {
   --editor-ordered-marker-column: 3ch;
+  --editor-ordered-marker-inset: 0.35ch;
 }
 
 :is(.editor-content, .editor-appearance-preview) ol:has(> li:nth-child(100)) {
@@ -4272,7 +4273,7 @@ body {
 
 :is(.editor-content, .editor-appearance-preview) ol > li::before {
   right: auto;
-  left: calc(0px - var(--editor-ordered-marker-column) - var(--editor-list-marker-gap));
+  left: calc(0px - var(--editor-ordered-marker-column) - var(--editor-list-marker-gap) + var(--editor-ordered-marker-inset));
   width: var(--editor-ordered-marker-column);
   text-align: left;
   transform: none;
