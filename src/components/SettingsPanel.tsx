@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState, useRef } from "react";
 import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
-import type { AppConfig, DocType } from "../types/models";
+import type { AppConfig, DocType, Note } from "../types/models";
 import { DEFAULT_HOTKEYS, HOTKEY_LABELS } from "../types/models";
 import { parseMetadataList } from "../lib/markdown-import";
 import { transformMarkdownBatch } from "../lib/data-transform-client";
@@ -24,9 +24,11 @@ interface Props {
   /** Pull 完成后回调 — 重新载入并应用恢复后的设置与工作区 */
   onPullDone?: () => void;
   webStorageStatus?: WebStorageStatus;
+  onBeforeBookmarkNoteUpdate?: (noteId: string) => Promise<void>;
+  onBookmarkNoteUpdated?: (note: Note) => void;
 }
 
-type SettingsPage = "root" | "appearance" | "editor" | "general" | "profile" | "tags" | "data" | "sync" | "advanced";
+type SettingsPage = "root" | "appearance" | "editor" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced";
 const EDITOR_APPEARANCE_KEYS: Array<keyof AppConfig> = [
   "note_font_size",
   "editor_font_family",
@@ -55,6 +57,7 @@ const SETTINGS_CATEGORIES: Array<{
 }> = [
   { id: "appearance", title: "外观与排版", description: "主题、字体、字号与内容间距" },
   { id: "editor", title: "编辑器", description: "Vim、书签、块编号、状态栏与右键菜单" },
+  { id: "bookmarks", title: "书签", description: "查看、使用和管理所有文档书签" },
   { id: "general", title: "工作流与快捷键", description: "默认视图、待办继承和按键绑定" },
   { id: "profile", title: "用户信息", description: "文档作者、组织与发布默认值" },
   { id: "data", title: "数据与导入", description: "JSON 备份及 Markdown 批量导入" },
@@ -67,6 +70,7 @@ const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   root: "设置",
   appearance: "外观与排版",
   editor: "编辑器",
+  bookmarks: "书签",
   general: "工作流与快捷键",
   profile: "用户信息",
   tags: "标签管理",
@@ -84,7 +88,7 @@ function yieldToNextFrame(): Promise<void> {
   return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
 }
 
-export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncBusy, onPullDone, webStorageStatus }: Props) {
+export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncBusy, onPullDone, webStorageStatus, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated }: Props) {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -100,6 +104,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
   const [editorAppearanceDraft, setEditorAppearanceDraft] = useState<AppConfig | null>(null);
   const [settingsPage, setSettingsPage] = useState<SettingsPage>("root");
   const [rebuildingSearchIndex, setRebuildingSearchIndex] = useState(false);
+  const [bookmarkNotes, setBookmarkNotes] = useState<Note[]>([]);
+  const [bookmarksLoading, setBookmarksLoading] = useState(false);
+  const [deletingBookmarkId, setDeletingBookmarkId] = useState<string | null>(null);
 
   // ── 标签管理状态 ──
   const [allTags, setAllTags] = useState<string[]>([]);
@@ -169,6 +176,49 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
       previouslyFocused?.focus();
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open || settingsPage !== "bookmarks") return;
+    let cancelled = false;
+    setBookmarksLoading(true);
+    api.notes.all()
+      .then((notes) => {
+        if (cancelled) return;
+        setBookmarkNotes(notes.filter((note) => (note.content.metadata?.bookmarks?.length ?? 0) > 0));
+      })
+      .catch((error) => {
+        if (!cancelled) setMessage(`加载书签失败：${error instanceof Error ? error.message : String(error)}`);
+      })
+      .finally(() => { if (!cancelled) setBookmarksLoading(false); });
+    return () => { cancelled = true; };
+  }, [open, settingsPage]);
+
+  const deleteManagedBookmark = async (note: Note, bookmarkId: string) => {
+    const bookmark = note.content.metadata?.bookmarks?.find((candidate) => candidate.id === bookmarkId);
+    if (!bookmark || !window.confirm(`删除“${bookmark.label || bookmark.preview}”书签？`)) return;
+    setDeletingBookmarkId(bookmarkId);
+    try {
+      await onBeforeBookmarkNoteUpdate?.(note.id);
+      const latestNote = await api.notes.get(note.id) ?? note;
+      const nextBookmarks = (latestNote.content.metadata?.bookmarks ?? []).filter((candidate) => candidate.id !== bookmarkId);
+      const currentMetadata = latestNote.content.metadata ?? {};
+      const nextMetadata = nextBookmarks.length > 0
+        ? { ...currentMetadata, bookmarks: nextBookmarks }
+        : Object.fromEntries(Object.entries(currentMetadata).filter(([key]) => key !== "bookmarks"));
+      const updated = await api.notes.update(note.id, {
+        content: { ...latestNote.content, metadata: nextMetadata },
+      });
+      setBookmarkNotes((notes) => notes
+        .map((candidate) => candidate.id === updated.id ? updated : candidate)
+        .filter((candidate) => (candidate.content.metadata?.bookmarks?.length ?? 0) > 0));
+      onBookmarkNoteUpdated?.(updated);
+      setMessage("书签已删除");
+    } catch (error) {
+      setMessage(`删除书签失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setDeletingBookmarkId(null);
+    }
+  };
 
   const refreshTags = useCallback(() => {
     setTagsLoading(true);
@@ -615,11 +665,42 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
               </label>
             </Field>
 
-            <SettingsSection title="书签与 Vim 标记" desc="书签随文档和备份保存；只读文档也可以查看和跳转" visible={settingsPage === "editor"}>
-              <p className="settings-hint">
-                在标题旁“书签”、工具栏“更多”或正文右键菜单中添加与打开书签；Ctrl+Shift+M 切换当前位置书签。
-                Vim Normal 模式使用 m 后接 a–z 设置命名书签，使用 ' 后接同一字母跳转。格式快捷键仅在 Insert 模式生效。
-              </p>
+            <SettingsSection title="使用方法" desc="书签随文档和备份保存；只读文档也可以查看和跳转" visible={settingsPage === "bookmarks"}>
+              <div className="bookmark-help">
+                <p><strong>普通模式：</strong>把光标放到目标位置，点击标题旁“书签”后选择“添加当前位置书签”；也可从工具栏“更多”、正文右键菜单添加，或按 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> 切换当前位置书签。</p>
+                <p><strong>删除：</strong>在当前文档书签面板点击 ×，或在下方集中管理列表中删除。普通书签不要求开启 Vim 模式。</p>
+                <p><strong>Vim 模式：</strong>Normal 模式按 <kbd>m</kbd> 后接 a–z 设置命名书签，按 <kbd>'</kbd> 后接同一字母跳转。</p>
+                <p><strong>专注模式：</strong>使用顶部“书签”按钮打开当前文档的书签列表。</p>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title="所有书签" desc="按文档集中查看和删除书签" visible={settingsPage === "bookmarks"}>
+              {bookmarksLoading ? (
+                <div className="settings-loading-inline">正在加载书签…</div>
+              ) : bookmarkNotes.length === 0 ? (
+                <div className="settings-empty-state">还没有书签</div>
+              ) : (
+                <div className="bookmark-manager-list">
+                  {bookmarkNotes.map((note) => (
+                    <section className="bookmark-manager-note" key={note.id}>
+                      <h3>{note.title || "无标题"}</h3>
+                      {(note.content.metadata?.bookmarks ?? []).map((bookmark, index) => (
+                        <div className="bookmark-manager-item" key={bookmark.id}>
+                          <span className="bookmark-manager-index">{bookmark.key ? `'${bookmark.key}` : index + 1}</span>
+                          <span className="bookmark-manager-label" title={bookmark.preview}>{bookmark.label || bookmark.preview}</span>
+                          <button
+                            type="button"
+                            disabled={deletingBookmarkId === bookmark.id}
+                            onClick={() => void deleteManagedBookmark(note, bookmark.id)}
+                            aria-label={`删除书签 ${bookmark.label || bookmark.preview}`}
+                            title="删除书签"
+                          >×</button>
+                        </div>
+                      ))}
+                    </section>
+                  ))}
+                </div>
+              )}
             </SettingsSection>
 
             {/* ── 正文右键菜单 ── */}

@@ -413,6 +413,7 @@ function App() {
   const [stickyTitle, setStickyTitle] = useState<string | null>(null);
   const [documentOutlineAvailable, setDocumentOutlineAvailable] = useState(false);
   const [documentOutlineRequestId, setDocumentOutlineRequestId] = useState(0);
+  const [documentBookmarkRequestId, setDocumentBookmarkRequestId] = useState(0);
   const HIDDEN_KEY = "nr:sidebarHidden";
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [sidebarHidden, setSidebarHidden] = useState(() => {
@@ -1101,6 +1102,14 @@ function App() {
             >
               {focusMode ? "⊞" : "⊟"}
             </button>
+            {focusMode && (
+              <button
+                className="header-focus-btn"
+                onClick={() => setDocumentBookmarkRequestId((requestId) => requestId + 1)}
+                title="文档书签"
+                type="button"
+              >书签</button>
+            )}
           </div>
         )}
         <div className="header-right">
@@ -1447,6 +1456,7 @@ function App() {
                       onStickyTitleChange={setStickyTitle}
                       onOutlineAvailabilityChange={setDocumentOutlineAvailable}
                       outlineRequestId={documentOutlineRequestId}
+                      bookmarkRequestId={documentBookmarkRequestId}
                       saveStatus={autoSave.status}
                     />
                   </Suspense>
@@ -1502,6 +1512,15 @@ function App() {
           webStorageStatus={isTauriRuntime() ? undefined : webPlatform.storage}
           onClose={() => setSettingsOpen(false)}
           onConfigChange={handleConfigChange}
+          onBeforeBookmarkNoteUpdate={async (noteId) => {
+            if (selectedNoteRef.current?.id === noteId) await autoSave.flush();
+          }}
+          onBookmarkNoteUpdated={(updated) => {
+            if (selectedNoteRef.current?.id === updated.id) {
+              handleSelectNote(updated);
+              setExternalReloadKey((key) => key + 1);
+            }
+          }}
           onSyncBusy={setSyncBusy}
           onImport={() => {
             // 完整恢复会同时替换数据库配置和 localStorage 中的工作区状态。

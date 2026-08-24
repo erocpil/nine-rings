@@ -274,6 +274,7 @@ interface NoteEditorProps {
   onStickyTitleChange?: (title: string | null) => void;
   onOutlineAvailabilityChange?: (available: boolean) => void;
   outlineRequestId?: number;
+  bookmarkRequestId?: number;
   saveStatus?: "clean" | "dirty" | "saving" | "saved" | "error";
   searchTarget?: SearchNavigationTarget | null;
   onSearchTargetConsumed?: (requestId: number) => void;
@@ -365,7 +366,7 @@ function restoreEditorViewportAnchor(
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, vimModeEnabled, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
+export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, vimModeEnabled, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -433,9 +434,19 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     x: number;
     y: number;
   } | null>(null);
+  const outlineFoldLongPressRef = useRef<{
+    pointerId: number;
+    folded: boolean;
+    x: number;
+    y: number;
+    timer: number;
+    triggered: boolean;
+  } | null>(null);
+  const suppressOutlineFoldClickUntilRef = useRef(0);
   const suppressOutlineFoldDoubleClickUntilRef = useRef(0);
   const suppressReadonlyDoubleClickUntilRef = useRef(0);
   const lastOutlineRequestIdRef = useRef(outlineRequestId);
+  const lastBookmarkRequestIdRef = useRef(bookmarkRequestId);
   const lastPdfExportRequestIdRef = useRef(pdfExportRequestId);
   const outlineBaseLevel = useMemo(
     () => documentOutline.length > 0
@@ -1052,6 +1063,13 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
   useEffect(() => () => clearOutlineResize(), [clearOutlineResize]);
 
+  useEffect(() => () => {
+    if (outlineFoldLongPressRef.current) {
+      window.clearTimeout(outlineFoldLongPressRef.current.timer);
+      outlineFoldLongPressRef.current = null;
+    }
+  }, []);
+
   const startOutlineResizeMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>, side: "left" | "right") => {
     if (outlineDock === "floating" || event.button !== 0) return;
     event.preventDefault();
@@ -1199,6 +1217,13 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     lastOutlineRequestIdRef.current = outlineRequestId;
     toggleDocumentOutline();
   }, [outlineRequestId, toggleDocumentOutline]);
+
+  useEffect(() => {
+    if (bookmarkRequestId === undefined || bookmarkRequestId === lastBookmarkRequestIdRef.current) return;
+    lastBookmarkRequestIdRef.current = bookmarkRequestId;
+    setOutlineOpen(false);
+    setBookmarkOpen((open) => !open);
+  }, [bookmarkRequestId]);
 
   // 当 readonly 变化时同步编辑器状态
   useEffect(() => {
@@ -2149,6 +2174,16 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     folded: boolean,
   ) => {
     if (event.pointerType !== "touch" || !event.isPrimary) return;
+    const press = outlineFoldLongPressRef.current;
+    if (press?.pointerId === event.pointerId) {
+      window.clearTimeout(press.timer);
+      outlineFoldLongPressRef.current = null;
+      if (press.triggered) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+    }
     const now = performance.now();
     const previous = outlineFoldLastTouchRef.current;
     const isDoubleTap = Boolean(
@@ -2171,6 +2206,53 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     suppressOutlineFoldDoubleClickUntilRef.current = now + 650;
     setAllHeadingFoldsKeepingViewport(folded);
   }, [setAllHeadingFoldsKeepingViewport]);
+
+  const handleOutlineFoldTouchPointerDown = useCallback((
+    event: React.PointerEvent<HTMLButtonElement>,
+    folded: boolean,
+  ) => {
+    if (event.pointerType !== "touch" || !event.isPrimary) return;
+    if (outlineFoldLongPressRef.current) {
+      window.clearTimeout(outlineFoldLongPressRef.current.timer);
+    }
+    const press = {
+      pointerId: event.pointerId,
+      folded,
+      x: event.clientX,
+      y: event.clientY,
+      timer: 0,
+      triggered: false,
+    };
+    press.timer = window.setTimeout(() => {
+      if (outlineFoldLongPressRef.current !== press) return;
+      press.triggered = true;
+      outlineFoldLastTouchRef.current = null;
+      const now = performance.now();
+      suppressOutlineFoldClickUntilRef.current = now + 700;
+      suppressOutlineFoldDoubleClickUntilRef.current = now + 700;
+      setAllOutlineFolds(folded);
+      setAllHeadingFoldsKeepingViewport(folded);
+      if (navigator.vibrate) navigator.vibrate(20);
+    }, 550);
+    outlineFoldLongPressRef.current = press;
+  }, [setAllHeadingFoldsKeepingViewport, setAllOutlineFolds]);
+
+  const cancelOutlineFoldLongPress = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    const press = outlineFoldLongPressRef.current;
+    if (!press || press.pointerId !== event.pointerId) return;
+    if (
+      event.type === "pointercancel"
+      || Math.hypot(event.clientX - press.x, event.clientY - press.y) > 12
+    ) {
+      window.clearTimeout(press.timer);
+      outlineFoldLongPressRef.current = null;
+    }
+  }, []);
+
+  const handleOutlineFoldClick = useCallback((folded: boolean) => {
+    if (performance.now() < suppressOutlineFoldClickUntilRef.current) return;
+    setAllOutlineFolds(folded);
+  }, [setAllOutlineFolds]);
 
   const handleOutlineFoldDoubleClick = useCallback((
     event: React.MouseEvent<HTMLButtonElement>,
@@ -2810,6 +2892,17 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
               title="文档目录"
             >目录</button>
           )}
+          <button
+            type="button"
+            aria-expanded={bookmarkOpen}
+            onClick={(event) => {
+              event.stopPropagation();
+              setFocusToolbarExpanded(false);
+              setOutlineOpen(false);
+              setBookmarkOpen((open) => !open);
+            }}
+            title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
+          >书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button>
           <button type="button" onClick={() => onFocusModeChange?.(false)} title="退出专注模式">退出</button>
           {!readonly && (
             <button
@@ -2896,19 +2989,25 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
               <span>目录</span>
               <button
                 type="button"
-                onClick={() => setAllOutlineFolds(true)}
+                onClick={() => handleOutlineFoldClick(true)}
                 onDoubleClick={(event) => handleOutlineFoldDoubleClick(event, true)}
+                onPointerDown={(event) => handleOutlineFoldTouchPointerDown(event, true)}
+                onPointerMove={cancelOutlineFoldLongPress}
+                onPointerCancel={cancelOutlineFoldLongPress}
                 onPointerUp={(event) => handleOutlineFoldTouchPointerUp(event, true)}
                 aria-label="全部折叠"
-                title="单击折叠目录；双击同时折叠正文"
+                title="单击折叠目录；双击或长按同时折叠正文"
               >−</button>
               <button
                 type="button"
-                onClick={() => setAllOutlineFolds(false)}
+                onClick={() => handleOutlineFoldClick(false)}
                 onDoubleClick={(event) => handleOutlineFoldDoubleClick(event, false)}
+                onPointerDown={(event) => handleOutlineFoldTouchPointerDown(event, false)}
+                onPointerMove={cancelOutlineFoldLongPress}
+                onPointerCancel={cancelOutlineFoldLongPress}
                 onPointerUp={(event) => handleOutlineFoldTouchPointerUp(event, false)}
                 aria-label="全部展开"
-                title="单击展开目录；双击同时展开正文"
+                title="单击展开目录；双击或长按同时展开正文"
               >+</button>
             </div>
             <div className="document-outline-header-actions">
