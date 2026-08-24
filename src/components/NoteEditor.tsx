@@ -2934,7 +2934,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
               setBookmarkOpen((open) => !open);
             }}
             title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
-          >书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button>
+            aria-label={bookmarks.length > 0 ? `文档书签，共 ${bookmarks.length} 项` : "文档书签"}
+          >🔖{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button>
           <button type="button" onClick={() => onFocusModeChange?.(false)} title="退出专注模式">退出</button>
           {!readonly && (
             <button
@@ -3063,7 +3064,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
               {outlineDock !== "floating" && (
                 <button type="button" onClick={() => setDocumentOutlineDock("floating")} title="取消固定目录">↔</button>
               )}
-              {outlineDock === "left" && (
+              {outlineDock !== "right" && (
                 <button type="button" onClick={() => setDocumentOutlineDock("right")} title="固定目录到右侧">⇥</button>
               )}
             </div>

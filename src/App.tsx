@@ -1107,8 +1107,9 @@ function App() {
                 className="header-focus-btn"
                 onClick={() => setDocumentBookmarkRequestId((requestId) => requestId + 1)}
                 title="文档书签"
+                aria-label="文档书签"
                 type="button"
-              >书签</button>
+              >🔖</button>
             )}
           </div>
         )}
