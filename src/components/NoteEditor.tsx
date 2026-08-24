@@ -1021,7 +1021,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
   useEffect(() => () => clearOutlineResize(), [clearOutlineResize]);
 
-  const startOutlineResizeMouseDown = useCallback((event: React.MouseEvent<HTMLSpanElement>, side: "left" | "right") => {
+  const startOutlineResizeMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>, side: "left" | "right") => {
     if (outlineDock === "floating" || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
@@ -1052,7 +1052,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     move(event.nativeEvent);
   }, [clearOutlineResize, outlineDock, outlineDockWidth]);
 
-  const startOutlineResizeTouchStart = useCallback((event: React.TouchEvent<HTMLSpanElement>, side: "left" | "right") => {
+  const startOutlineResizeTouchStart = useCallback((event: React.TouchEvent<HTMLDivElement>, side: "left" | "right") => {
     if (outlineDock === "floating") return;
     if (event.touches.length === 0) return;
     event.preventDefault();
@@ -2862,7 +2862,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             </div>
           </div>
           {outlineDock !== "floating" && (
-            <span
+            <div
               className={`document-outline-resize-handle ${outlineDock === "left" ? "right" : "left"}`}
               onMouseDown={(event) => startOutlineResizeMouseDown(event, outlineDock === "left" ? "right" : "left")}
               onTouchStart={(event) => startOutlineResizeTouchStart(event, outlineDock === "left" ? "right" : "left")}

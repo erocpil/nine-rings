@@ -3552,32 +3552,28 @@ body {
   top: 0;
   bottom: 0;
   z-index: 13;
-  width: 4px;
+  width: 12px;
   background: transparent;
-  cursor: col-resize;
+  cursor: col-resize !important;
   touch-action: none;
   pointer-events: auto;
   display: none;
 }
 
 .document-outline-resize-handle.left {
-  left: 0;
+  left: -6px;
 }
 
 .document-outline-resize-handle.right {
-  right: 0;
-}
-
-.document-outline-resize-handle::before {
-  content: "";
-  position: absolute;
-  inset: 0 -8px;
+  right: -6px;
 }
 
 .document-outline-resize-handle::after {
   content: "";
   position: absolute;
   inset: 0;
+  width: 1px;
+  margin-inline: auto;
   background: var(--border);
   opacity: 0.3;
   pointer-events: none;
