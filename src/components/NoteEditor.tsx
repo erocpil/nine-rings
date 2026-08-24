@@ -1021,44 +1021,6 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
   useEffect(() => () => clearOutlineResize(), [clearOutlineResize]);
 
-  const startOutlineResize = useCallback((event: React.PointerEvent<HTMLSpanElement>, side: "left" | "right") => {
-    if (outlineDock === "floating") return;
-    if (event.button !== 0 && event.button !== -1) return;
-    event.preventDefault();
-    event.stopPropagation();
-    clearOutlineResize();
-    document.body.style.cursor = "ew-resize";
-    document.body.style.userSelect = "none";
-    outlineResizeStartXRef.current = event.clientX;
-    outlineResizeStartWidthRef.current = outlineDockWidth;
-    const move = (moveEvent: PointerEvent) => {
-      if (outlineResizePointerIdRef.current !== moveEvent.pointerId) return;
-      const delta = moveEvent.clientX - outlineResizeStartXRef.current;
-      const next = side === "right"
-        ? outlineResizeStartWidthRef.current + delta
-        : outlineResizeStartWidthRef.current - delta;
-      setOutlineDockWidth(clampOutlineDockWidth(next));
-    };
-    const stop = (stopEvent: PointerEvent) => {
-      if (outlineResizePointerIdRef.current !== stopEvent.pointerId) return;
-      clearOutlineResize();
-    };
-
-    outlineResizePointerIdRef.current = event.pointerId;
-    outlineResizeCleanupRef.current = () => {
-      document.removeEventListener("pointermove", move);
-      document.removeEventListener("pointerup", stop);
-      document.removeEventListener("pointercancel", stop);
-    };
-    document.addEventListener("pointermove", move, { passive: true });
-    document.addEventListener("pointerup", stop, { passive: true });
-    document.addEventListener("pointercancel", stop, { passive: true });
-    if (event.currentTarget.setPointerCapture) {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    }
-    move(event.nativeEvent);
-    }, [clearOutlineResize, outlineDock, outlineDockWidth]);
-
   const startOutlineResizeMouseDown = useCallback((event: React.MouseEvent<HTMLSpanElement>, side: "left" | "right") => {
     if (outlineDock === "floating" || event.button !== 0) return;
     event.preventDefault();
@@ -1082,6 +1044,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     outlineResizeCleanupRef.current = () => {
       document.removeEventListener("mousemove", move);
       document.removeEventListener("mouseup", stop);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
     };
     document.addEventListener("mousemove", move);
     document.addEventListener("mouseup", stop);
@@ -1100,6 +1064,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     outlineResizeStartXRef.current = event.touches[0].clientX;
     outlineResizeStartWidthRef.current = outlineDockWidth;
     const move = (moveEvent: TouchEvent) => {
+      moveEvent.preventDefault();
       if (moveEvent.touches.length === 0) return;
       const delta = moveEvent.touches[0].clientX - outlineResizeStartXRef.current;
       const next = side === "right"
@@ -1115,8 +1080,10 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       document.removeEventListener("touchmove", move);
       document.removeEventListener("touchend", stop);
       document.removeEventListener("touchcancel", stop);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
     };
-    document.addEventListener("touchmove", move, { passive: true });
+    document.addEventListener("touchmove", move, { passive: false });
     document.addEventListener("touchend", stop);
     document.addEventListener("touchcancel", stop);
     move(event.nativeEvent);
@@ -2897,7 +2864,6 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           {outlineDock !== "floating" && (
             <span
               className={`document-outline-resize-handle ${outlineDock === "left" ? "right" : "left"}`}
-              onPointerDown={(event) => startOutlineResize(event, outlineDock === "left" ? "right" : "left")}
               onMouseDown={(event) => startOutlineResizeMouseDown(event, outlineDock === "left" ? "right" : "left")}
               onTouchStart={(event) => startOutlineResizeTouchStart(event, outlineDock === "left" ? "right" : "left")}
             />
