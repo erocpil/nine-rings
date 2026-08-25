@@ -76,6 +76,16 @@ test("文档可从树顶部重命名且标题框修改会立即同步到树", as
   await expect(page.locator(".doc-tree-doc").filter({ hasText: "标题框同步" })).toBeVisible();
 });
 
+test("文档树长名称提供完整文本提示", async ({ page }) => {
+  await openDocumentView(page);
+  const title = "这是一个用于验证文档树在名称超过侧栏宽度时仍能通过提示查看全部内容的很长文档名称";
+  await createDocument(page, title, "tooltip-entry");
+
+  const name = page.locator(".doc-tree-doc").filter({ hasText: title }).locator(".doc-tree-name");
+  await expect(name).toHaveAttribute("title", title);
+  await expect.poll(() => name.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+});
+
 test("目录汇总为同名文档显示相对子路径", async ({ page }) => {
   await openDocumentView(page);
   await createDocument(page, "同名文档.txt", "moc-root/b");

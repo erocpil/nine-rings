@@ -467,6 +467,7 @@ function DocTree({
               <>
                 <span
                   className="doc-tree-name"
+                  title={node.name}
                   onClick={() => onFolderSelect?.(node.path)}
                 >
                   {node.name}
@@ -515,7 +516,7 @@ function DocTree({
             onCancel={() => setRenamingId(null)}
           />
         ) : (
-          <span className="doc-tree-name">{node.name}</span>
+          <span className="doc-tree-name" title={node.name}>{node.name}</span>
         )}
         {node.docType && !isRenaming && (
           <span className="doc-tree-type">{DOC_TYPE_LABELS[node.docType] ?? node.docType}</span>

@@ -83,15 +83,28 @@ test.describe("移动端书签操作", () => {
   test("轻触书签条目跳转到对应文档块", async ({ page }) => {
     await page.goto("/");
     const editor = page.locator(".ProseMirror");
-    await editor.fill("第一段");
-    await editor.press("End");
-    await editor.press("Enter");
-    await page.keyboard.type("手机端书签跳转目标");
+    const paragraphs = [
+      "第一段",
+      ...Array.from({ length: 38 }, (_, index) => `用于撑开滚动区的段落 ${index + 2}`),
+      "手机端书签跳转目标",
+    ];
+    await editor.fill("");
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    }, paragraphs.join("\n\n"));
+    await expect(editor.locator(":scope > *")).toHaveCount(paragraphs.length);
     const firstParagraph = editor.locator(":scope > *").first();
-    const targetParagraph = editor.locator(":scope > *").nth(1);
+    const targetParagraph = editor.locator(":scope > *").last();
     await targetParagraph.click();
     await page.keyboard.press("Control+Shift+m");
     await firstParagraph.click();
+    await page.locator(".note-editor-scroll").evaluate((element) => { element.scrollTop = 0; });
 
     const bookmarkButton = page.locator(".document-bookmark-toggle");
     const bookmarkButtonBox = await bookmarkButton.boundingBox();
@@ -104,6 +117,7 @@ test.describe("移动端书签操作", () => {
     const panel = page.getByRole("navigation", { name: "文档书签" });
     const jumpButton = panel.locator(".document-bookmark-jump");
     await expect(jumpButton).toBeVisible();
+    await expect(jumpButton).toContainText("手机端书签跳转目标");
     const jumpButtonBox = await jumpButton.boundingBox();
     if (!jumpButtonBox) throw new Error("书签条目不可见");
     await page.touchscreen.tap(
@@ -116,6 +130,18 @@ test.describe("移动端书签操作", () => {
       const anchor = window.getSelection()?.anchorNode;
       return (anchor instanceof Element ? anchor : anchor?.parentElement)?.closest("p")?.textContent ?? "";
     })).toBe("手机端书签跳转目标");
+    await expect.poll(async () => {
+      const targetBox = await targetParagraph.boundingBox();
+      const scrollBox = await page.locator(".note-editor-scroll").boundingBox();
+      const stickyBox = await page.locator(".note-editor-sticky").boundingBox();
+      return Boolean(
+        targetBox
+        && scrollBox
+        && stickyBox
+        && targetBox.y >= stickyBox.y + stickyBox.height
+        && targetBox.y + targetBox.height <= scrollBox.y + scrollBox.height,
+      );
+    }).toBe(true);
   });
 
   test("向左滑动书签行后显示重命名和删除操作", async ({ page }) => {

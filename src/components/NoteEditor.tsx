@@ -1238,14 +1238,47 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const jumpToBookmark = useCallback((bookmark: DocumentBookmark) => {
     if (!editor || editor.isDestroyed) return;
     allHeadingFoldRoundTripRef.current = null;
-    expandHeadingFoldsAt(editor, bookmark.position);
-    window.requestAnimationFrame(() => {
-      if (editor.isDestroyed) return;
-      const position = Math.max(0, Math.min(editor.state.doc.content.size, bookmark.position));
-      editor.chain().focus().setTextSelection(position).scrollIntoView().run();
-    });
+    const position = Math.max(0, Math.min(editor.state.doc.content.size, bookmark.position));
+    expandHeadingFoldsAt(editor, position);
+    editor.view.dom.focus({ preventScroll: true });
+    // 部分移动 WebKit 会在 contenteditable 重新 focus 时恢复旧 DOM 选区，
+    // 因此必须在 focus 之后再设置 ProseMirror 选区。
+    editor.commands.setTextSelection(position);
     setBookmarkOpen(false);
-  }, [editor]);
+
+    const scrollBookmarkIntoView = () => {
+      const root = scrollRef.current;
+      if (!root || editor.isDestroyed || !root.isConnected) return;
+      const rootRect = root.getBoundingClientRect();
+      const stickyBottom = root.querySelector<HTMLElement>(".note-editor-sticky")
+        ?.getBoundingClientRect().bottom ?? rootRect.top;
+      const visibleTop = Math.max(rootRect.top, Math.min(stickyBottom, rootRect.bottom));
+      const visualViewportBottom = window.visualViewport
+        ? window.visualViewport.offsetTop + window.visualViewport.height
+        : window.innerHeight;
+      const visibleBottom = Math.min(rootRect.bottom, visualViewportBottom);
+      const coords = editor.view.coordsAtPos(position);
+      const margin = 12;
+      let nextTop = root.scrollTop;
+      if (coords.top < visibleTop + margin) {
+        nextTop += coords.top - visibleTop - margin;
+      } else if (coords.bottom > visibleBottom - margin) {
+        nextTop += coords.bottom - visibleBottom + margin;
+      }
+      root.scrollTo({
+        top: Math.max(0, nextTop),
+        behavior: isMobileToolbarViewport ? "auto" : "smooth",
+      });
+    };
+
+    // 等浮动书签面板卸载后再按真实滚动容器定位。移动 WebView 对
+    // ProseMirror scrollIntoView 的嵌套滚动支持不稳定，再补一次延迟定位，
+    // 以覆盖软键盘/visualViewport 随 focus 更新的布局阶段。
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(scrollBookmarkIntoView);
+    });
+    if (isMobileToolbarViewport) window.setTimeout(scrollBookmarkIntoView, 180);
+  }, [editor, isMobileToolbarViewport]);
 
   const editBookmarkLabel = useCallback((bookmark: DocumentBookmark) => {
     if (!editor) return;
