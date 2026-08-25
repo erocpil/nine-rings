@@ -161,6 +161,7 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
   const code = node.textContent;
   const codeTitle = typeof node.attrs.title === "string" ? node.attrs.title : "";
   const wrapEnabled = node.attrs.wrap !== false;
+  const collapsed = node.attrs.collapsed === true;
   const lineCount = code.split("\n").length;
   const [lineNumbersEnabled, setLineNumbersEnabled] = useState(
     () => codeLineNumbersPluginKey.getState(editor.state) ?? false,
@@ -240,11 +241,12 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
 
   return (
     <NodeViewWrapper
-      className="code-block-wrap"
+      className={`code-block-wrap ${collapsed ? "collapsed" : ""}`}
       data-indent={node.attrs.indent > 0 ? node.attrs.indent : undefined}
       data-code-wrap={wrapEnabled ? "true" : "false"}
+      data-collapsed={collapsed ? "true" : "false"}
     >
-      <div ref={wrapperRef}>
+      <div ref={wrapperRef} className="code-block-frame">
         <div
           className="code-block-toolbar"
           data-pdf-exclude
@@ -253,7 +255,7 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
           <input
             className="code-block-title"
             value={codeTitle}
-            placeholder="代码简介（可选）"
+            placeholder=""
             disabled={!editable}
             onMouseDown={(event) => event.stopPropagation()}
             onKeyDown={(event) => event.stopPropagation()}
@@ -261,6 +263,16 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
             aria-label="代码简介"
           />
           <div className="code-block-actions">
+            <button
+              className="code-block-collapse-toggle"
+              disabled={!editable}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => updateAttributes({ collapsed: !collapsed })}
+              type="button"
+              aria-label={collapsed ? "展开代码块" : "折叠代码块"}
+              aria-expanded={!collapsed}
+              title={collapsed ? "展开代码块" : "折叠代码块"}
+            >{collapsed ? "▶" : "▼"}</button>
             <select
               className="code-block-language"
               disabled={!editable}
@@ -368,6 +380,13 @@ export const CodeBlockLineNumbers = Node.create<CodeBlockLineNumberOptions>({
         parseHTML: (element) => element.getAttribute("data-code-wrap") !== "false",
         renderHTML: (attributes) => attributes.wrap === false
           ? { "data-code-wrap": "false" }
+          : {},
+      },
+      collapsed: {
+        default: false,
+        parseHTML: (element) => element.getAttribute("data-collapsed") === "true",
+        renderHTML: (attributes) => attributes.collapsed
+          ? { "data-collapsed": "true" }
           : {},
       },
     };

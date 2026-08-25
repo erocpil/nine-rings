@@ -95,7 +95,7 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Code block ──");
-  const pm: any = { type: "doc", content: [{ type: "codeBlock", attrs: { language: "typescript", title: "示例代码", wrap: false }, content: [{ type: "text", text: "const x = 1;" }] }] };
+  const pm: any = { type: "doc", content: [{ type: "codeBlock", attrs: { language: "typescript", title: "示例代码", wrap: false, collapsed: true }, content: [{ type: "text", text: "const x = 1;" }] }] };
   const delta = proseMirrorToDelta(pm);
   // 格式：[{insert:"const x = 1;"}, {insert:"\n", attributes:{"code-block":true}}]
   const codeText = delta.ops.find((o: any) => typeof o.insert === "string" && o.insert !== "\n" && !o.attributes);
@@ -104,9 +104,10 @@ function assert(condition: boolean, msg: string): void {
   assert(codeNl?.attributes?.["code-block"] === true, "code block newline has code-block=true");
   assert(codeNl?.attributes?.["code-title"] === "示例代码", "code block title stored");
   assert(codeNl?.attributes?.["code-wrap"] === false, "code block wrap preference stored");
+  assert(codeNl?.attributes?.["code-collapsed"] === true, "code block collapsed state stored");
   const restored = deltaToProseMirror(delta);
-  assert(restored.content[0]?.attrs?.title === "示例代码" && restored.content[0]?.attrs?.wrap === false,
-    "code block title and wrap preference survive save and reload");
+  assert(restored.content[0]?.attrs?.title === "示例代码" && restored.content[0]?.attrs?.wrap === false && restored.content[0]?.attrs?.collapsed === true,
+    "code block title, wrap preference and collapsed state survive save and reload");
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -114,10 +115,13 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Blockquote ──");
-  const pm: any = { type: "doc", content: [{ type: "blockquote", content: [{ type: "paragraph", content: [{ type: "text", text: "Quote me" }] }] }] };
+  const pm: any = { type: "doc", content: [{ type: "blockquote", attrs: { collapsed: true }, content: [{ type: "paragraph", content: [{ type: "text", text: "Quote me" }] }] }] };
   const delta = proseMirrorToDelta(pm);
   const quoteOp = delta.ops.find((o: any) => o.attributes?.blockquote);
   assert(!!quoteOp, "blockquote op exists");
+  assert(quoteOp.attributes["blockquote-collapsed"] === true, "blockquote collapsed state stored");
+  assert(deltaToProseMirror(delta).content[0]?.attrs?.collapsed === true,
+    "blockquote collapsed state survives save and reload");
 }
 
 // ═══════════════════════════════════════════════════════════════════

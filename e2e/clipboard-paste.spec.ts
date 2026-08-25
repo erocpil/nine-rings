@@ -131,12 +131,37 @@ test.describe("编辑器复制粘贴", () => {
     await expect(wrapToggle).toHaveAttribute("aria-pressed", "true");
     await wrapToggle.click();
     await expect(firstCodeBlock).toHaveAttribute("data-code-wrap", "false");
+    await firstCodeBlock.getByRole("button", { name: "折叠代码块" }).click();
+    await expect(firstCodeBlock).toHaveAttribute("data-collapsed", "true");
 
-    await editor.click();
+    await editor.locator("pre code").last().click();
     await page.keyboard.press("Control+A");
     await page.keyboard.press("Control+C");
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
       `${firstCommand}\n\n${secondCommand}`,
+    );
+  });
+
+  test("折叠引用块后全选复制仍只包含引用正文", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("需要保留的引用正文");
+    await editor.press("Control+Shift+b");
+    const quote = editor.locator("blockquote");
+    await expect(quote).toBeVisible();
+    await quote.getByRole("button", { name: "折叠引用块" }).click();
+    await expect(quote).toHaveAttribute("data-collapsed", "true");
+
+    await editor.focus();
+    await page.keyboard.press("Control+A");
+    await page.keyboard.press("Control+C");
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
+      "> 需要保留的引用正文",
     );
   });
 

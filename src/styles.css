@@ -7622,12 +7622,22 @@ button.doc-tree-toggle:focus-visible {
   position: relative;
 }
 
+.code-block-frame {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--code-bg);
+}
+
 .code-block-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
-  margin-bottom: 3px;
+  min-height: 28px;
+  padding: 3px 5px;
+  border-bottom: 1px solid var(--border);
+  background: var(--code-bg);
   -webkit-user-select: none;
   user-select: none;
 }
@@ -7639,7 +7649,7 @@ button.doc-tree-toggle:focus-visible {
   padding: 1px 5px;
   border: 1px solid transparent;
   border-radius: 3px;
-  background: transparent;
+  background: var(--code-bg);
   color: var(--text-secondary);
   font: 11px/18px var(--font);
   text-align: left;
@@ -7667,6 +7677,7 @@ button.doc-tree-toggle:focus-visible {
   gap: 4px;
 }
 
+.code-block-collapse-toggle,
 .code-block-wrap-toggle {
   height: 22px;
   padding: 1px 6px;
@@ -7685,6 +7696,12 @@ button.doc-tree-toggle:focus-visible {
   color: var(--accent);
 }
 
+.code-block-collapse-toggle {
+  width: 22px;
+  padding: 1px 3px;
+}
+
+.code-block-collapse-toggle:hover:not(:disabled),
 .code-block-wrap-toggle:hover:not(:disabled),
 .code-block-copy:hover {
   color: var(--text);
@@ -7693,10 +7710,18 @@ button.doc-tree-toggle:focus-visible {
 
 .code-block-inner {
   display: flex;
+  background: var(--code-bg);
   font-family: "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", monospace;
   font-size: 0.95em;
   /* 与 .editor-content pre code 的 1.5 保持一致，避免行号逐行漂移。 */
   line-height: 1.5;
+}
+
+.code-block-wrap.collapsed .code-block-inner {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .code-block-gutter {
@@ -7754,6 +7779,58 @@ button.doc-tree-toggle:focus-visible {
 .ProseMirror .code-block-wrap[data-code-wrap="false"] .code-block-inner pre code {
   min-width: max-content;
   white-space: pre;
+}
+
+/* 外框由 code-block-frame 统一绘制，使工具栏和正文成为一个连续块。 */
+.ProseMirror .code-block-wrap .code-block-inner pre code,
+.show-line-numbers .ProseMirror > .code-block-wrap .code-block-inner pre code,
+.show-line-numbers .ProseMirror .code-block-wrap .code-block-inner pre code {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* ──── 可折叠引用块 ──── */
+
+.blockquote-wrap {
+  position: relative;
+}
+
+.blockquote-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 24px;
+  margin-bottom: 2px;
+  color: var(--text-secondary);
+  font: 11px/1.4 var(--font);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.blockquote-toolbar button {
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.blockquote-toolbar button:hover:not(:disabled) {
+  border-color: var(--border);
+  color: var(--accent);
+}
+
+.blockquote-wrap[data-collapsed="true"] .blockquote-content {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* 语法高亮仅由 decorations 绘制，不写入文档内容。颜色使用主题 token，

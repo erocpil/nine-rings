@@ -116,13 +116,21 @@ export function proseMirrorToDelta(pmJson: any): any {
             ...(node.attrs?.language ? { language: node.attrs.language } : {}),
             ...(node.attrs?.title ? { "code-title": node.attrs.title } : {}),
             ...(node.attrs?.wrap === false ? { "code-wrap": false } : {}),
+            ...(node.attrs?.collapsed === true ? { "code-collapsed": true } : {}),
           },
         });
         break;
 
       case "blockquote":
         extractInlineOps(node, ops);
-        ops.push({ insert: "\n", attributes: { blockquote: true, ...indentAttrs(node) } });
+        ops.push({
+          insert: "\n",
+          attributes: {
+            blockquote: true,
+            ...indentAttrs(node),
+            ...(node.attrs?.collapsed === true ? { "blockquote-collapsed": true } : {}),
+          },
+        });
         break;
 
       case "image":
@@ -381,6 +389,7 @@ export function deltaToProseMirror(deltaData: any): any {
               ? { title: attrs["code-title"] }
               : {}),
             ...(attrs["code-wrap"] === false ? { wrap: false } : {}),
+            ...(attrs["code-collapsed"] === true ? { collapsed: true } : {}),
           };
           if (Object.keys(codeBlockAttrs).length > 0) currentParagraph.attrs = codeBlockAttrs;
           flushParagraph();
@@ -389,7 +398,14 @@ export function deltaToProseMirror(deltaData: any): any {
           // 文本必须用 paragraph 包裹，不能直接放在 blockquote 下
           currentParagraph = {
             type: "blockquote",
-            ...(blockIndent > 0 ? { attrs: blockIndentAttrs } : {}),
+            ...(blockIndent > 0 || attrs["blockquote-collapsed"] === true
+              ? {
+                  attrs: {
+                    ...blockIndentAttrs,
+                    ...(attrs["blockquote-collapsed"] === true ? { collapsed: true } : {}),
+                  },
+                }
+              : {}),
             content: [{ type: "paragraph", content: currentParagraph.content }]
           };
           flushParagraph();

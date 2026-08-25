@@ -93,6 +93,7 @@ import {
   type HeadingSection,
 } from "../lib/heading-fold";
 import { BlockIndent } from "../extensions/BlockIndent";
+import { CollapsibleBlockquote } from "../extensions/CollapsibleBlockquote";
 import { StandaloneStrongLabel } from "../extensions/StandaloneStrongLabel";
 import { cacheEditorDocument, getCachedEditorDocument } from "../lib/editor-session-cache";
 import {
@@ -751,6 +752,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       StarterKit.configure({
         heading: { levels: [1, 2, 3, 4, 5, 6] },
         codeBlock: false,
+        blockquote: false,
       }),
       // 仅使用扩展的 is-editor-empty class 识别空段落；不在 gutter
       // 内显示文字，避免与行号和行间插入按钮争用伪元素。
@@ -776,6 +778,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       ActiveLinePlugin,
       SearchHighlights,
       CodeBlockLineNumbers.configure({ lineNumbersEnabled: showCodeLineNumbers }),
+      CollapsibleBlockquote,
       StructuredBlockExit,
       MarkdownLinkInput,
       CjkLatinSpacing,
