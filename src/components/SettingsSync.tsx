@@ -74,9 +74,10 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
   const [messageType, setMessageType] = useState<"" | "success" | "error">("");
   const [pullPrecheck, setPullPrecheck] = useState<PullPrecheck | null>(null);
 
-  // Owner/Repo 合并编辑
-  const [editOwnerRepo, setEditOwnerRepo] = useState(false);
-  const [ownerRepoValue, setOwnerRepoValue] = useState("");
+  const [ownerRepoValue, setOwnerRepoValue] = useState(() => {
+    const initial = loadSyncConfig();
+    return initial.owner && initial.repo ? `${initial.owner}/${initial.repo}` : initial.owner || initial.repo;
+  });
   const [ownerRepoError, setOwnerRepoError] = useState("");
   const busy = busyOperation !== null;
 
@@ -126,49 +127,35 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
 
   // ── Owner/Repo 合并编辑 ──
 
-  const startEditOwnerRepo = useCallback(() => {
-    // 仅在双方都有值时显示 owner/repo，避免空字段出现孤立的 /
-    if (cfg.owner && cfg.repo) {
-      setOwnerRepoValue(`${cfg.owner}/${cfg.repo}`);
-    } else if (cfg.owner) {
-      setOwnerRepoValue(cfg.owner);
-    } else if (cfg.repo) {
-      setOwnerRepoValue(cfg.repo);
-    } else {
-      setOwnerRepoValue("");
-    }
-    setOwnerRepoError("");
-    setEditOwnerRepo(true);
+  useEffect(() => {
+    setOwnerRepoValue(cfg.owner && cfg.repo ? `${cfg.owner}/${cfg.repo}` : cfg.owner || cfg.repo);
   }, [cfg.owner, cfg.repo]);
 
   const commitOwnerRepo = useCallback(() => {
     const trimmed = ownerRepoValue.trim();
+    if (!trimmed) {
+      update({ owner: "", repo: "" });
+      setOwnerRepoError("");
+      return;
+    }
     if (!OWNER_REPO_RE.test(trimmed)) {
       setOwnerRepoError("格式: owner/repo（owner 字母数字 -，repo 字母数字 ._-）");
       return;
     }
     const [owner, repo] = trimmed.split("/");
     update({ owner, repo });
-    setEditOwnerRepo(false);
     setOwnerRepoError("");
   }, [ownerRepoValue, update]);
 
-  const cancelEditOwnerRepo = useCallback(() => {
-    setEditOwnerRepo(false);
+  const resetOwnerRepo = useCallback(() => {
+    setOwnerRepoValue(cfg.owner && cfg.repo ? `${cfg.owner}/${cfg.repo}` : cfg.owner || cfg.repo);
     setOwnerRepoError("");
-  }, []);
+  }, [cfg.owner, cfg.repo]);
 
   const handleOwnerRepoKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") { e.preventDefault(); commitOwnerRepo(); }
-    if (e.key === "Escape") { e.preventDefault(); cancelEditOwnerRepo(); }
+    if (e.key === "Escape") { e.preventDefault(); resetOwnerRepo(); }
   };
-
-  const handleOwnerRepoDisplayKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      startEditOwnerRepo();
-    }
-  }, [startEditOwnerRepo]);
 
   // ── GitHub 备份操作 ──
 
@@ -344,40 +331,19 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
           全量 JSON 快照包含书签、应用配置及非敏感用户设置；Token 不进入备份。需要 GitHub Personal Access Token（repo 权限）。
         </p>
 
-        {/* Owner / Repo — 点击编辑 */}
-        {editOwnerRepo ? (
-          <label className="settings-label">
-            Owner / Repo
-            <input
-              type="text"
-              className={`settings-input ${ownerRepoError ? "settings-input-err" : ""}`}
-              placeholder="erocpil/nine-rings-backup"
-              value={ownerRepoValue}
-              onChange={(e) => { setOwnerRepoValue(e.target.value); setOwnerRepoError(""); }}
-              onKeyDown={handleOwnerRepoKeyDown}
-              onBlur={commitOwnerRepo}
-              autoFocus
-            />
-            {ownerRepoError && <span className="settings-err">{ownerRepoError}</span>}
-          </label>
-        ) : (
-          <label className="settings-label">
-            Owner / Repo
-            <div
-              className="settings-input settings-input-ro"
-              onClick={startEditOwnerRepo}
-              onKeyDown={handleOwnerRepoDisplayKeyDown}
-              role="button"
-              tabIndex={0}
-              aria-label="编辑 Owner / Repo"
-              title="点击编辑"
-            >
-              {cfg.owner && cfg.repo
-                ? `${cfg.owner}/${cfg.repo}`
-                : <span className="settings-placeholder">点击设置 owner/repo</span>}
-            </div>
-          </label>
-        )}
+        <label className="settings-label">
+          Owner / Repo
+          <input
+            type="text"
+            className={`settings-input ${ownerRepoError ? "settings-input-err" : ""}`}
+            placeholder="erocpil/nine-rings-backup"
+            value={ownerRepoValue}
+            onChange={(e) => { setOwnerRepoValue(e.target.value); setOwnerRepoError(""); }}
+            onKeyDown={handleOwnerRepoKeyDown}
+            onBlur={commitOwnerRepo}
+          />
+          {ownerRepoError && <span className="settings-err">{ownerRepoError}</span>}
+        </label>
 
         <label className="settings-label">
           备份文件路径

@@ -37,9 +37,23 @@ test.describe("会话位置恢复与编辑器查找", () => {
     await page.goto("/");
 
     const todoList = page.locator(".todo-list");
-    await expect(todoList.getByRole("button", { name: "查看过期待办" })).toBeVisible();
+    const overdueButton = todoList.getByRole("button", { name: "查看过期待办" });
+    const exportButton = todoList.locator(".todo-export-btn");
+    await expect(overdueButton).toBeVisible();
+    await expect.poll(async () => {
+      const overdueBox = await overdueButton.boundingBox();
+      const labelBox = await overdueButton.locator(".todo-overdue-label").boundingBox();
+      const exportBox = await exportButton.boundingBox();
+      return Boolean(
+        overdueBox
+        && labelBox
+        && exportBox
+        && overdueBox.width > 28
+        && labelBox.x + labelBox.width <= exportBox.x,
+      );
+    }).toBe(true);
     await expect(page.locator(".sidebar-footer").getByText("过期待办")).toHaveCount(0);
-    await todoList.getByRole("button", { name: "查看过期待办" }).click();
+    await overdueButton.click();
     await expect(page.locator(".overdue-panel")).toBeVisible();
     await expect(page.locator(".overdue-header h3")).toHaveText("过期待办");
   });

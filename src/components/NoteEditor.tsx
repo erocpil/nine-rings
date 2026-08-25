@@ -3118,8 +3118,22 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
                   </span>
                   <span>{bookmark.label || bookmark.preview}</span>
                 </button>
-                <button type="button" onClick={() => editBookmarkLabel(bookmark)} title="重命名书签">✎</button>
-                <button type="button" onClick={() => removeBookmark(editor, bookmark.id)} title="删除书签">×</button>
+                <span className="document-bookmark-actions">
+                  <button
+                    className="document-bookmark-action document-bookmark-edit"
+                    type="button"
+                    onClick={() => editBookmarkLabel(bookmark)}
+                    title="重命名书签"
+                    aria-label={`重命名书签 ${bookmark.label || bookmark.preview}`}
+                  >✎</button>
+                  <button
+                    className="document-bookmark-action document-bookmark-delete"
+                    type="button"
+                    onClick={() => removeBookmark(editor, bookmark.id)}
+                    title="删除书签"
+                    aria-label={`删除书签 ${bookmark.label || bookmark.preview}`}
+                  >×</button>
+                </span>
               </div>
             ))}
           </div>

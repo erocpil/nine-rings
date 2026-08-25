@@ -6,10 +6,11 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await page.getByTitle("设置").click();
 
   const categories = page.getByLabel("设置分类").getByRole("button");
-  await expect(categories).toHaveCount(7);
+  await expect(categories).toHaveCount(9);
   await expect(page.getByRole("heading", { name: "设置", exact: true })).toBeVisible();
   await expect(page.locator(".settings-field")).toHaveCount(0);
   await expect(page.locator(".settings-section")).toHaveCount(0);
+  await expect(page.locator(".settings-version")).toHaveText(/^v\w+\./);
 
   await page.getByRole("button", { name: /^编辑器/ }).click();
   await expect(page.getByRole("heading", { name: "编辑器", exact: true })).toBeVisible();
@@ -17,9 +18,11 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await expect(page.getByText("状态栏块号", { exact: true })).toBeVisible();
   await expect(page.getByText("Vim 模式（实验性）", { exact: true })).toBeVisible();
   await expect(page.getByText("主题", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".settings-version")).toHaveCount(0);
 
   await page.getByLabel("返回设置分类").click();
-  await expect(categories).toHaveCount(7);
+  await expect(categories).toHaveCount(9);
+  await expect(page.locator(".settings-version")).toBeVisible();
   await page.getByRole("button", { name: /^数据与导入/ }).click();
   await expect(page.getByRole("heading", { name: "数据与导入", exact: true })).toBeVisible();
   await expect(page.getByText("数据导出 / 导入", { exact: true })).toBeVisible();
@@ -120,32 +123,31 @@ test("诊断报告只导出脱敏运行信息", async ({ page }) => {
 test.describe("移动端设置", () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
 
-  test("点按 Owner / Repo 字段可以进入编辑状态", async ({ page }) => {
+  test("Owner / Repo 字段始终可编辑", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("设置").click();
     await page.getByRole("button", { name: /^同步与备份/ }).click();
 
-    const ownerRepoDisplay = page.getByRole("button", { name: "编辑 Owner / Repo" });
-    const box = await ownerRepoDisplay.boundingBox();
+    const ownerRepoInput = page.getByRole("textbox", { name: "Owner / Repo" });
+    const box = await ownerRepoInput.boundingBox();
     if (!box) throw new Error("Owner / Repo 字段不可见");
     await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
 
-    const ownerRepoInput = page.getByRole("textbox", { name: "Owner / Repo" });
     await expect(ownerRepoInput).toBeVisible();
     await expect(ownerRepoInput).toBeFocused();
     await ownerRepoInput.fill("erocpil/nine-rings-backup");
     await page.keyboard.press("Enter");
-    await expect(ownerRepoDisplay).toContainText("erocpil/nine-rings-backup");
+    await expect(ownerRepoInput).toHaveValue("erocpil/nine-rings-backup");
   });
 });
 
-test("单击 Owner / Repo 字段可以进入编辑状态", async ({ page }) => {
+test("Owner / Repo 与 Token 一样直接显示输入框", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("设置").click();
   await page.getByRole("button", { name: /^同步与备份/ }).click();
 
-  await page.getByRole("button", { name: "编辑 Owner / Repo" }).click();
-  await expect(page.getByRole("textbox", { name: "Owner / Repo" })).toBeFocused();
+  await expect(page.getByRole("textbox", { name: "Owner / Repo" })).toBeVisible();
+  await expect(page.locator('input[type="password"]')).toBeVisible();
 });
 
 test("Web/PWA 从 GitHub Pull 后自动应用设置并恢复最后文档位置", async ({ page }) => {

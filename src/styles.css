@@ -1325,6 +1325,7 @@ body {
 }
 
 .todo-export-btn {
+  flex: 0 0 28px;
   font-size: 13px;
   padding: 1px 6px;
   border-radius: var(--radius);
@@ -1336,6 +1337,8 @@ body {
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
+  width: auto;
+  min-width: 28px;
   padding: 1px 5px;
   color: var(--text-secondary);
   font-size: 12px;
@@ -2797,6 +2800,14 @@ body {
   font-size: 16px;
 }
 
+.settings-version {
+  margin-top: 16px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  text-align: center;
+  opacity: 0.5;
+}
+
 .settings-loading {
   flex: 1;
   display: flex;
@@ -3732,6 +3743,43 @@ body {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
+}
+
+.document-bookmark-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding-right: 4px;
+}
+
+.document-bookmark-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 17px;
+}
+
+.document-bookmark-edit:hover,
+.document-bookmark-edit:focus-visible {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.document-bookmark-delete:hover,
+.document-bookmark-delete:focus-visible {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .document-bookmark-jump {
@@ -5678,19 +5726,6 @@ body {
 
 .settings-input-err {
   border-color: #e74c3c !important;
-}
-
-.settings-input-ro {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  min-height: 32px;
-  touch-action: manipulation;
-}
-
-.settings-placeholder {
-  color: var(--text-muted);
-  opacity: 0.5;
 }
 
 .settings-err {
@@ -8220,6 +8255,18 @@ button.doc-tree-toggle:focus-visible {
     left: auto;
     width: min(420px, calc(100vw - 16px));
     max-height: min(58dvh, calc(100dvh - var(--safe-top) - var(--safe-bottom) - 52px));
+  }
+
+  .document-bookmark-actions {
+    gap: 8px;
+    padding: 4px;
+  }
+
+  .document-bookmark-action {
+    width: 44px;
+    height: 44px;
+    border-color: var(--border);
+    background: var(--surface);
   }
 
   .web-keyboard-open .focus-mode .document-outline-panel {

@@ -181,10 +181,18 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
     if (!open || settingsPage !== "bookmarks") return;
     let cancelled = false;
     setBookmarksLoading(true);
-    api.notes.all()
-      .then((notes) => {
+    Promise.allSettled([api.notes.all(), api.docs.search({})])
+      .then(([dailyResult, documentsResult]) => {
         if (cancelled) return;
-        setBookmarkNotes(notes.filter((note) => (note.content.metadata?.bookmarks?.length ?? 0) > 0));
+        if (dailyResult.status === "rejected" && documentsResult.status === "rejected") {
+          throw dailyResult.reason;
+        }
+        const notesById = new Map<string, Note>();
+        const dailyNotes = dailyResult.status === "fulfilled" ? dailyResult.value : [];
+        const documents = documentsResult.status === "fulfilled" ? documentsResult.value : [];
+        for (const note of [...dailyNotes, ...documents]) notesById.set(note.id, note);
+        setBookmarkNotes([...notesById.values()]
+          .filter((note) => (note.content.metadata?.bookmarks?.length ?? 0) > 0));
       })
       .catch((error) => {
         if (!cancelled) setMessage(`加载书签失败：${error instanceof Error ? error.message : String(error)}`);
@@ -1039,9 +1047,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
             {message && <div className="settings-toast">{message}</div>}
 
             {/* ── 版本 ── */}
-            <div style={{ textAlign: "center", fontSize: 11, color: "var(--text-tertiary)", marginTop: 16, opacity: 0.5 }}>
-              v{__APP_VERSION__}
-            </div>
+            {settingsPage === "root" && (
+              <div className="settings-version">v{__APP_VERSION__}</div>
+            )}
           </div>
         )}
       </div>
