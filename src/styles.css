@@ -4060,6 +4060,11 @@ body {
   min-height: 0;
 }
 
+/* 空待办只占标题与输入框的实际高度，不沿用拖拽保存的面板比例。 */
+.app-main-todo-empty .todo-list {
+  height: auto;
+}
+
 .app-main-divider {
   height: 4px;
   cursor: row-resize;
@@ -4067,6 +4072,10 @@ body {
   flex-shrink: 0;
   position: relative;
   z-index: 10;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 .app-main-divider::before {
   content: "";

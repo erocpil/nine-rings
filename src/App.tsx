@@ -867,9 +867,13 @@ function App() {
     draggingRef.current = true;
     startYRef.current = e.touches[0].clientY;
     startRatioRef.current = todoFlex;
+    document.body.style.userSelect = "none";
 
     const handleTouchMove = (te: TouchEvent) => {
-      if (!draggingRef.current || !splitRef.current?.parentElement) return;
+      if (!draggingRef.current || !splitRef.current?.parentElement || te.touches.length === 0) return;
+      // splitter 拖动必须独占该手势，否则 iOS 会同时滚动/回弹页面，
+      // 短暂露出 PWA 的 theme-color 背景。
+      if (te.cancelable) te.preventDefault();
       const parent = splitRef.current.parentElement;
       const rect = parent.getBoundingClientRect();
       const delta = te.touches[0].clientY - startYRef.current;
@@ -881,7 +885,7 @@ function App() {
       draggingRef.current = false;
       document.removeEventListener("touchmove", handleTouchMove);
       document.removeEventListener("touchend", handleTouchEnd);
-      document.body.style.cursor = "";
+      document.removeEventListener("touchcancel", handleTouchEnd);
       document.body.style.userSelect = "";
       setTodoFlex((prev) => {
         localStorage.setItem(SPLIT_KEY, String(prev));
@@ -889,8 +893,9 @@ function App() {
       });
     };
 
-    document.addEventListener("touchmove", handleTouchMove, { passive: true });
+    document.addEventListener("touchmove", handleTouchMove, { passive: false });
     document.addEventListener("touchend", handleTouchEnd);
+    document.addEventListener("touchcancel", handleTouchEnd);
   };
 
   // ── 侧栏可拖拽分隔条 ──
@@ -1442,8 +1447,8 @@ function App() {
             <div className="app-main-split" ref={splitRef}>
               {todoFlex > 0 && (
                 <div
-                  className="app-main-todo"
-                  style={{ flex: todoFlex }}
+                  className={`app-main-todo ${(dailyPage?.todos.length ?? 0) === 0 ? "app-main-todo-empty" : ""}`}
+                  style={{ flex: (dailyPage?.todos.length ?? 0) === 0 ? "0 0 auto" : todoFlex }}
                 >
                   <Suspense fallback={<div className="empty-state">正在打开待办...</div>}>
                     <TodoList
