@@ -22,6 +22,7 @@ interface Props {
   documentId: string;
   onClose: () => void;
   onFullscreenChange?: (fullscreen: boolean) => void;
+  onCreateExcerpt?: (excerpt: { pdfId: string; pdfName: string; page: number; selectedText: string }) => Promise<void>;
 }
 
 interface OutlineItem {
@@ -92,9 +93,10 @@ interface WebkitFullscreenElement extends HTMLDivElement {
   webkitRequestFullscreen?: () => Promise<void> | void;
 }
 
-export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
+export function PdfReader({ documentId, onClose, onFullscreenChange, onCreateExcerpt }: Props) {
   const readerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const pageSurfaceRef = useRef<HTMLDivElement>(null);
   const textLayerElementRef = useRef<HTMLDivElement>(null);
@@ -138,6 +140,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
   const [fullscreen, setFullscreen] = useState(false);
   const [immersiveFallback, setImmersiveFallback] = useState(false);
   const [fullscreenControlsVisible, setFullscreenControlsVisible] = useState(true);
+  const [selectedText, setSelectedText] = useState("");
+  const [excerptSaving, setExcerptSaving] = useState(false);
 
   const applyFullscreenState = useCallback((next: boolean) => {
     if (!next) setImmersiveFallback(false);
@@ -151,6 +155,40 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
     const timer = window.setTimeout(() => setFullscreenControlsVisible(false), 1000);
     return () => window.clearTimeout(timer);
   }, [fullscreen, fullscreenControlsVisible]);
+
+  useEffect(() => {
+    const updateSelection = () => {
+      const selection = window.getSelection();
+      const layer = textLayerElementRef.current;
+      if (!selection || selection.isCollapsed || !layer) {
+        setSelectedText("");
+        return;
+      }
+      const anchor = selection.anchorNode;
+      const focus = selection.focusNode;
+      if (!anchor || !focus || !layer.contains(anchor) || !layer.contains(focus)) {
+        setSelectedText("");
+        return;
+      }
+      setSelectedText(selection.toString().trim().slice(0, 20_000));
+    };
+    document.addEventListener("selectionchange", updateSelection);
+    return () => document.removeEventListener("selectionchange", updateSelection);
+  }, []);
+
+  const createExcerpt = useCallback(async () => {
+    if (!onCreateExcerpt || !entry || !selectedText || excerptSaving) return;
+    setExcerptSaving(true);
+    try {
+      await onCreateExcerpt({ pdfId: entry.id, pdfName: entry.name, page, selectedText });
+      window.getSelection()?.removeAllRanges();
+      setSelectedText("");
+    } catch (reason) {
+      setSearchStatus(`摘录失败：${pdfErrorMessage(reason)}`);
+    } finally {
+      setExcerptSaving(false);
+    }
+  }, [entry, excerptSaving, onCreateExcerpt, page, selectedText]);
 
   const enterImmersiveFallback = useCallback(() => {
     setImmersiveFallback(true);
@@ -426,7 +464,14 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!pdf || event.target instanceof HTMLInputElement) return;
+      if (!pdf) return;
+      if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "f") {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        return;
+      }
+      if (event.target instanceof HTMLInputElement) return;
       if (event.key === "ArrowLeft" || event.key === "PageUp") {
         event.preventDefault();
         setPage((current) => Math.max(1, current - 1));
@@ -436,11 +481,43 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
       } else if (event.key === "Escape") {
         if (fullscreen) void exitFullscreen();
         else void closeReader();
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        setPage(1);
+      } else if (event.key === "End") {
+        event.preventDefault();
+        setPage(pdf.numPages);
+      } else if (event.key === "+" || event.key === "=") {
+        event.preventDefault();
+        setFitWidth(false);
+        setZoom((value) => Math.min(4, value + 0.15));
+      } else if (event.key === "-") {
+        event.preventDefault();
+        setFitWidth(false);
+        setZoom((value) => Math.max(0.25, value - 0.15));
+      } else if (event.key === "0") {
+        event.preventDefault();
+        setFitWidth(true);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [closeReader, exitFullscreen, fullscreen, pdf]);
+
+  useEffect(() => {
+    if (!pdf || rendering || page >= pdf.numPages) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (cancelled) return;
+      void pdf.getPage(page + 1)
+        .then((nextPage) => nextPage.getOperatorList())
+        .catch(() => {});
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [page, pdf, rendering]);
 
   useEffect(() => setPageInput(String(page)), [page]);
 
@@ -498,6 +575,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
             offset = cached.text.indexOf(query, offset + Math.max(1, query.length));
           }
           if (pageNumber % 8 === 0) await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+          if (pageNumber % 8 === 0 && requestId === searchRequestRef.current) {
+            setSearchStatus(`正在搜索 ${pageNumber}/${pdf.numPages} 页…`);
+          }
         }
         if (requestId !== searchRequestRef.current) return;
         setCompletedSearchQuery(query);
@@ -779,6 +859,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
         </div>
         <form className="pdf-search" onSubmit={(event) => { event.preventDefault(); void search(1); }}>
           <input
+            ref={searchInputRef}
             type="search"
             aria-label="搜索 PDF"
             placeholder="搜索 PDF…"
@@ -878,6 +959,17 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
           {rendering && !loading && <span className="pdf-render-status">正在渲染第 {page} 页…</span>}
         </main>
       </div>
+      {selectedText && onCreateExcerpt && (
+        <div className="pdf-selection-actions">
+          <span>{selectedText.length} 字</span>
+          <button
+            type="button"
+            disabled={excerptSaving}
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={() => void createExcerpt()}
+          >{excerptSaving ? "正在摘录…" : "摘录到笔记"}</button>
+        </div>
+      )}
     </div>
   );
 }

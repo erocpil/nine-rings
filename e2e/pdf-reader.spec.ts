@@ -170,6 +170,8 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   await swipe(120, 280);
   await expect(page.getByLabel("PDF 页码")).toHaveValue("1");
 
+  await page.keyboard.press("Control+f");
+  await expect(page.getByLabel("搜索 PDF")).toBeFocused();
   await page.getByLabel("搜索 PDF").fill("Nine Rings");
   await page.getByRole("button", { name: "下一个搜索结果" }).click();
   await expect(page.getByText("1/1 · 第 1 页", { exact: true })).toBeVisible();
@@ -192,4 +194,20 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   await expect(page.getByRole("button", { name: /打开 nine-rings-mvp.pdf/ })).toBeVisible();
   await page.getByRole("button", { name: /打开 nine-rings-mvp.pdf/ }).click();
   await expect(page.getByLabel("PDF 阅读器")).toBeVisible();
+  const excerptSource = page.locator(".pdf-text-layer span").filter({ hasText: "Second page searchable target" }).first();
+  await expect(excerptSource).toBeAttached();
+  await excerptSource.evaluate((span) => {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(span);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  });
+  await expect(page.getByRole("button", { name: "摘录到笔记" })).toBeVisible();
+  await page.getByRole("button", { name: "摘录到笔记" }).click();
+  await expect(page.getByLabel("PDF 阅读器")).toHaveCount(0);
+  await expect(page.locator(".note-title")).toHaveValue("PDF 摘录 · nine-rings-mvp.pdf · 第 2 页");
+  await page.getByRole("button", { name: "PDF · 2" }).click();
+  await expect(page.getByLabel("PDF 阅读器")).toBeVisible();
+  await expect(page.getByLabel("PDF 页码")).toHaveValue("2");
 });

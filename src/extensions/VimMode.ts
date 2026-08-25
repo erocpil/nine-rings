@@ -683,6 +683,19 @@ export const VimMode = Extension.create<VimModeOptions>({
           handleKeyDown(view, event) {
             return handleVimKey(view, event, options.onSearch, registerRef);
           },
+          handleClick(view, pos, event) {
+            const vim = vimModePluginKey.getState(view.state);
+            // 只接管真正的单击；双击仍交给浏览器建立文本选区。
+            if (!vim?.enabled || vim.mode === "insert" || event.detail !== 1 || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) {
+              return false;
+            }
+            const selection = TextSelection.near(view.state.doc.resolve(pos), 1);
+            view.dispatch(view.state.tr
+              .setSelection(selection)
+              .setMeta(vimModePluginKey, { count: "", pending: "", visualAnchor: null } satisfies VimMeta));
+            view.focus();
+            return true;
+          },
           handleTextInput(view) {
             const vim = vimModePluginKey.getState(view.state);
             return Boolean(vim?.enabled && (vim.readOnly || vim.mode !== "insert"));

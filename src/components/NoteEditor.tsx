@@ -18,7 +18,7 @@ import {
   normalizeSingleParagraphPaste,
 } from "../extensions/NormalizeSingleParagraphPaste";
 import CharacterCount from "@tiptap/extension-character-count";
-import type { DeltaOps, DocumentBookmark, SearchNavigationTarget } from "../types/models";
+import type { DeltaOps, DocumentBookmark, DocumentMetadata, SearchNavigationTarget } from "../types/models";
 import { DocumentBookmarkRow } from "./DocumentBookmarkRow";
 import {
   proseMirrorToDelta,
@@ -391,6 +391,8 @@ interface NoteEditorProps {
   saveStatus?: "clean" | "dirty" | "saving" | "saved" | "error";
   searchTarget?: SearchNavigationTarget | null;
   onSearchTargetConsumed?: (requestId: number) => void;
+  pdfExcerptSource?: NonNullable<DocumentMetadata["pdfExcerpt"]>;
+  onOpenPdfExcerpt?: (source: NonNullable<DocumentMetadata["pdfExcerpt"]>) => void;
 }
 
 interface EditorViewportAnchor {
@@ -479,7 +481,7 @@ function restoreEditorViewportAnchor(
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, vimModeEnabled, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed }: NoteEditorProps) {
+export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, vimModeEnabled, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt }: NoteEditorProps) {
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -3202,6 +3204,14 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       {focusMode && (
         <div className="mobile-focus-bar" aria-label="专注模式工具栏">
           <span className="mobile-focus-title" title={localTitle || "无标题"}>{localTitle || "无标题"}</span>
+          {pdfExcerptSource && onOpenPdfExcerpt && (
+            <button
+              type="button"
+              onClick={() => onOpenPdfExcerpt(pdfExcerptSource)}
+              title={`返回 ${pdfExcerptSource.pdfName} 第 ${pdfExcerptSource.page} 页`}
+              aria-label={`返回 PDF 第 ${pdfExcerptSource.page} 页`}
+            >📄 {pdfExcerptSource.page}</button>
+          )}
           {documentOutline.length > 0 && (
             <button
               type="button"
@@ -3456,6 +3466,14 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             onChange={(e) => { setLocalTitle(e.target.value); onTitleChange(e.target.value); }}
             readOnly={readonly}
           />
+          {pdfExcerptSource && onOpenPdfExcerpt && (
+            <button
+              type="button"
+              className="focus-btn pdf-excerpt-source-button"
+              onClick={() => onOpenPdfExcerpt(pdfExcerptSource)}
+              title={`返回 ${pdfExcerptSource.pdfName} 第 ${pdfExcerptSource.page} 页`}
+            >PDF · {pdfExcerptSource.page}</button>
+          )}
           {documentOutline.length > 0 && (
             <div className="document-outline-control">
               <button

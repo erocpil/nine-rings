@@ -92,6 +92,13 @@ export interface DocumentMetadata {
   license?: string;
   /** 绑定的外部 Markdown 来源；正文仍以本地 Delta 形式保存。 */
   externalSource?: ExternalMarkdownSource;
+  /** 从本地 PDF 阅读器摘录时保留可追溯的来源。 */
+  pdfExcerpt?: {
+    pdfId: string;
+    pdfName: string;
+    page: number;
+    selectedText: string;
+  };
   /** 正文书签随文档内容保存；position 会在编辑事务中自动映射。 */
   bookmarks?: DocumentBookmark[];
 }

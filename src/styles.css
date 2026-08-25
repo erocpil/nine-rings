@@ -9237,6 +9237,39 @@ button.doc-tree-toggle:focus-visible {
   font-size: 11px;
 }
 
+.pdf-selection-actions {
+  position: fixed;
+  left: 50%;
+  bottom: calc(14px + var(--safe-bottom, 0px));
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  box-shadow: 0 3px 16px rgba(0, 0, 0, 0.28);
+  color: var(--text-secondary);
+  font-size: 11px;
+  transform: translateX(-50%);
+  backdrop-filter: blur(10px);
+}
+
+.pdf-selection-actions button {
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.pdf-excerpt-source-button {
+  flex: none;
+  white-space: nowrap;
+}
+
 .pdf-reader-message {
   display: flex;
   min-height: 180px;

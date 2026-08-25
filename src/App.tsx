@@ -825,6 +825,7 @@ function App() {
   const draggingRef = useRef(false);
   const startYRef = useRef(0);
   const startRatioRef = useRef(0);
+  const dragRatioRef = useRef(todoFlex);
 
   const hideTodos = useCallback(() => {
     setTodoFlex(0);
@@ -836,6 +837,7 @@ function App() {
     draggingRef.current = true;
     startYRef.current = e.clientY;
     startRatioRef.current = todoFlex;
+    dragRatioRef.current = todoFlex;
     document.body.style.cursor = "row-resize";
     document.body.style.userSelect = "none";
 
@@ -845,7 +847,9 @@ function App() {
       const rect = parent.getBoundingClientRect();
       const delta = me.clientY - startYRef.current;
       const newFlex = Math.max(0, Math.min(10, startRatioRef.current + delta / rect.height * 10));
-      setTodoFlex(Math.round(newFlex * 10) / 10);
+      dragRatioRef.current = Math.round(newFlex * 10) / 10;
+      setTodoFlex(dragRatioRef.current);
+      localStorage.setItem(SPLIT_KEY, String(dragRatioRef.current));
     };
 
     const handleMouseUp = () => {
@@ -854,11 +858,9 @@ function App() {
       document.removeEventListener("mouseup", handleMouseUp);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      // 持久化
-      setTodoFlex((prev) => {
-        localStorage.setItem(SPLIT_KEY, String(prev));
-        return prev;
-      });
+      // React 可能尚未提交最后一次 mousemove；直接持久化拖动引用，
+      // 避免 UI 已展开而刷新后又回到折叠状态。
+      localStorage.setItem(SPLIT_KEY, String(dragRatioRef.current));
     };
 
     document.addEventListener("mousemove", handleMouseMove);
@@ -870,6 +872,7 @@ function App() {
     draggingRef.current = true;
     startYRef.current = e.touches[0].clientY;
     startRatioRef.current = todoFlex;
+    dragRatioRef.current = todoFlex;
     document.body.style.userSelect = "none";
 
     const handleTouchMove = (te: TouchEvent) => {
@@ -881,7 +884,9 @@ function App() {
       const rect = parent.getBoundingClientRect();
       const delta = te.touches[0].clientY - startYRef.current;
       const newFlex = Math.max(0, Math.min(10, startRatioRef.current + delta / rect.height * 10));
-      setTodoFlex(Math.round(newFlex * 10) / 10);
+      dragRatioRef.current = Math.round(newFlex * 10) / 10;
+      setTodoFlex(dragRatioRef.current);
+      localStorage.setItem(SPLIT_KEY, String(dragRatioRef.current));
     };
 
     const handleTouchEnd = () => {
@@ -890,10 +895,7 @@ function App() {
       document.removeEventListener("touchend", handleTouchEnd);
       document.removeEventListener("touchcancel", handleTouchEnd);
       document.body.style.userSelect = "";
-      setTodoFlex((prev) => {
-        localStorage.setItem(SPLIT_KEY, String(prev));
-        return prev;
-      });
+      localStorage.setItem(SPLIT_KEY, String(dragRatioRef.current));
     };
 
     document.addEventListener("touchmove", handleTouchMove, { passive: false });
@@ -1143,6 +1145,30 @@ function App() {
           <PdfReader
             documentId={pdfReaderDocumentId}
             onFullscreenChange={setPdfReaderFullscreen}
+            onCreateExcerpt={async ({ pdfId, pdfName, page, selectedText }) => {
+              await flushAutoSave();
+              const excerpt = await api.notes.create({
+                date: localDateKey(),
+                title: `PDF 摘录 · ${pdfName} · 第 ${page} 页`,
+                storagePath: "resources/pdf-excerpts",
+                docType: "reference",
+                concepts: ["PDF 摘录"],
+                content: {
+                  metadata: { pdfExcerpt: { pdfId, pdfName, page, selectedText } },
+                  ops: [
+                    { insert: selectedText },
+                    { insert: "\n", attributes: { blockquote: true } },
+                    { insert: `来源：${pdfName} · 第 ${page} 页` },
+                    { insert: "\n" },
+                  ],
+                },
+              });
+              setPdfReaderFullscreen(false);
+              setPdfReaderDocumentId(null);
+              revealDocTreePath("resources/pdf-excerpts");
+              setDocTreeKey((key) => key + 1);
+              selectNote(excerpt);
+            }}
             onClose={() => {
               setPdfReaderFullscreen(false);
               setPdfReaderDocumentId(null);
@@ -1509,6 +1535,24 @@ function App() {
                       } : undefined}
                       title={selectedNote.title}
                       content={selectedNote.content}
+                      pdfExcerptSource={selectedNote.content.metadata?.pdfExcerpt}
+                      onOpenPdfExcerpt={async (source) => {
+                        try {
+                          await flushAutoSave();
+                          const { getLocalPdf, updateLocalPdfProgress } = await import("./lib/pdf-library");
+                          const stored = await getLocalPdf(source.pdfId);
+                          if (!stored) throw new Error("原 PDF 已被删除");
+                          await updateLocalPdfProgress(source.pdfId, {
+                            page: source.page,
+                            zoom: stored.entry.zoom,
+                            fitWidth: stored.entry.fitWidth,
+                            pageCount: stored.entry.pageCount,
+                          });
+                          setPdfReaderDocumentId(source.pdfId);
+                        } catch (reason) {
+                          window.alert(`无法打开 PDF 来源：${reason instanceof Error ? reason.message : String(reason)}`);
+                        }
+                      }}
                       contentVersion={selectedNote.updated_at}
                       pdfDocumentInfo={pdfDocumentInfo}
                       pdfExportRequestId={pdfExportRequestId}
