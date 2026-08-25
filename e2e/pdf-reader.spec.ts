@@ -1,13 +1,16 @@
 import { expect, test } from "@playwright/test";
 
 function createPdfFixture(): Buffer {
-  const stream = "BT /F1 18 Tf 36 90 Td (Nine Rings PDF MVP) Tj ET";
+  const firstStream = "BT /F1 18 Tf 36 90 Td (Nine Rings PDF MVP) Tj ET";
+  const secondStream = "BT /F1 18 Tf 36 90 Td (Second page searchable target) Tj ET";
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Pages /Kids [3 0 R 6 0 R] /Count 2 >>",
     "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
-    `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`,
+    `<< /Length ${Buffer.byteLength(firstStream)} >>\nstream\n${firstStream}\nendstream`,
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Resources << /Font << /F1 5 0 R >> >> /Contents 7 0 R >>",
+    `<< /Length ${Buffer.byteLength(secondStream)} >>\nstream\n${secondStream}\nendstream`,
   ];
   let source = "%PDF-1.4\n";
   const offsets = [0];
@@ -60,7 +63,7 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   await expect(page.locator(".pdf-reader-title")).toHaveText("nine-rings-mvp.pdf");
   await expect.poll(() => page.locator(".pdf-page-viewport canvas").getAttribute("width")).not.toBe("0");
   await expect(page.getByLabel("PDF 页码")).toHaveValue("1");
-  await expect(page.getByText("/ 1", { exact: true })).toBeVisible();
+  await expect(page.getByText("/ 2", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "进入全屏阅读" }).click();
   await expect(page.getByRole("button", { name: "退出全屏阅读" })).toBeVisible();
@@ -82,9 +85,60 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   await expect(reader).not.toHaveClass(/pdf-reader-immersive/);
   await expect(reader).toBeVisible();
 
+  await page.locator(".pdf-page-surface").dblclick({ position: { x: 120, y: 70 } });
+  await expect(page.getByRole("button", { name: "适宽" })).not.toHaveClass(/active/);
+  await page.locator(".pdf-page-surface").dblclick({ position: { x: 120, y: 70 } });
+  await expect(page.getByRole("button", { name: "适宽" })).toHaveClass(/active/);
+
+  const selectedText = await page.locator(".pdf-text-layer span").first().evaluate((span) => {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(span);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    return selection?.toString();
+  });
+  expect(selectedText).toContain("Nine Rings PDF MVP");
+  await page.evaluate(() => window.getSelection()?.removeAllRanges());
+
+  const viewport = page.locator(".pdf-page-viewport");
+  const swipe = async (fromX: number, toX: number) => viewport.evaluate((element, points) => {
+    const touch = (clientX: number) => new Touch({
+      identifier: 1,
+      target: element,
+      clientX,
+      clientY: 200,
+      screenX: clientX,
+      screenY: 200,
+      pageX: clientX,
+      pageY: 200,
+      radiusX: 1,
+      radiusY: 1,
+      rotationAngle: 0,
+      force: 1,
+    });
+    element.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, touches: [touch(points.fromX)] }));
+    element.dispatchEvent(new TouchEvent("touchend", { bubbles: true, changedTouches: [touch(points.toX)] }));
+  }, { fromX, toX });
+  await swipe(280, 120);
+  await expect(page.getByLabel("PDF 页码")).toHaveValue("2");
+  await swipe(120, 280);
+  await expect(page.getByLabel("PDF 页码")).toHaveValue("1");
+
   await page.getByLabel("搜索 PDF").fill("Nine Rings");
-  await page.getByRole("button", { name: "查找" }).click();
-  await expect(page.getByText("第 1 页", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "下一个搜索结果" }).click();
+  await expect(page.getByText("1/1 · 第 1 页", { exact: true })).toBeVisible();
+  await expect(page.locator(".pdf-search-current")).toHaveText("Nine Rings");
+
+  await page.getByLabel("搜索 PDF").fill("searchable target");
+  await page.getByRole("button", { name: "下一个搜索结果" }).click();
+  await expect(page.getByLabel("PDF 页码")).toHaveValue("2");
+  await expect(page.getByText("1/1 · 第 2 页", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "目录" }).click();
+  await expect(page.getByLabel("PDF 目录")).toBeVisible();
+  await expect(page.getByRole("button", { name: "页面" })).toBeVisible();
+  await expect(page.locator(".pdf-page-directory button")).toHaveCount(2);
 
   await page.getByTitle("返回 Nine Rings").click();
   await expect(reader).toHaveCount(0);

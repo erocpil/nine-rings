@@ -3,6 +3,7 @@ import {
   getDocument,
   GlobalWorkerOptions,
   PasswordResponses,
+  TextLayer,
   type PDFDocumentProxy,
   type RenderTask,
 } from "pdfjs-dist";
@@ -29,6 +30,36 @@ interface OutlineItem {
   items: OutlineItem[];
 }
 
+interface PageTextCache {
+  text: string;
+  items: string[];
+  starts: number[];
+}
+
+interface SearchMatch {
+  page: number;
+  offset: number;
+}
+
+interface TouchGesture {
+  x: number;
+  y: number;
+  startedAt: number;
+  atLeft: boolean;
+  atRight: boolean;
+}
+
+function pageTextCache(items: string[]): PageTextCache {
+  const starts: number[] = [];
+  let text = "";
+  for (const item of items) {
+    if (text) text += " ";
+    starts.push(text.length);
+    text += item;
+  }
+  return { text: text.toLocaleLowerCase(), items, starts };
+}
+
 function clampPage(page: number, total: number): number {
   return Math.max(1, Math.min(total || 1, Math.round(page) || 1));
 }
@@ -53,8 +84,15 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
   const readerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const pageSurfaceRef = useRef<HTMLDivElement>(null);
+  const textLayerElementRef = useRef<HTMLDivElement>(null);
+  const textLayerRef = useRef<TextLayer | null>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
-  const textCacheRef = useRef(new Map<number, string>());
+  const textCacheRef = useRef(new Map<number, PageTextCache>());
+  const touchGestureRef = useRef<TouchGesture | null>(null);
+  const lastTapRef = useRef(0);
+  const zoomAnchorRef = useRef<{ x: number; y: number } | null>(null);
+  const searchRequestRef = useRef(0);
   const saveTimerRef = useRef<number | null>(null);
   const latestProgressRef = useRef<{
     id: string;
@@ -75,9 +113,15 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [outline, setOutline] = useState<OutlineItem[]>([]);
   const [outlineOpen, setOutlineOpen] = useState(false);
+  const [outlineMode, setOutlineMode] = useState<"outline" | "pages">("outline");
+  const [pageLabels, setPageLabels] = useState<string[] | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchStatus, setSearchStatus] = useState("");
+  const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
+  const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
+  const [completedSearchQuery, setCompletedSearchQuery] = useState("");
+  const [textLayerRevision, setTextLayerRevision] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [immersiveFallback, setImmersiveFallback] = useState(false);
 
@@ -186,6 +230,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
     const open = async () => {
       setLoading(true);
       setError(null);
+      textCacheRef.current.clear();
+      setSearchMatches([]);
+      setActiveSearchIndex(-1);
       const stored = await getLocalPdf(documentId);
       if (!stored) throw new Error("PDF 不存在或已经被删除");
       if (cancelled) return;
@@ -216,8 +263,16 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
       const restoredPage = clampPage(stored.entry.page, loadedDocument.numPages);
       setPage(restoredPage);
       setPageInput(String(restoredPage));
-      const documentOutline = await loadedDocument.getOutline();
-      if (!cancelled) setOutline((documentOutline ?? []) as OutlineItem[]);
+      const [documentOutline, labels] = await Promise.all([
+        loadedDocument.getOutline(),
+        loadedDocument.getPageLabels(),
+      ]);
+      if (!cancelled) {
+        const nextOutline = (documentOutline ?? []) as OutlineItem[];
+        setOutline(nextOutline);
+        setOutlineMode(nextOutline.length > 0 ? "outline" : "pages");
+        setPageLabels(labels);
+      }
     };
     void open()
       .catch((reason) => { if (!cancelled) setError(pdfErrorMessage(reason)); })
@@ -225,6 +280,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
     return () => {
       cancelled = true;
       renderTaskRef.current?.cancel();
+      textLayerRef.current?.cancel();
       void loadedDocument?.destroy();
     };
   }, [documentId]);
@@ -240,9 +296,10 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!pdf || !canvasRef.current || viewportWidth <= 0) return;
+    if (!pdf || !canvasRef.current || !textLayerElementRef.current || viewportWidth <= 0) return;
     let cancelled = false;
     renderTaskRef.current?.cancel();
+    textLayerRef.current?.cancel();
     const render = async () => {
       setRendering(true);
       const pdfPage = await pdf.getPage(page);
@@ -262,6 +319,13 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
       canvas.height = Math.max(1, Math.floor(displayViewport.height * outputScale));
       canvas.style.width = `${Math.floor(displayViewport.width)}px`;
       canvas.style.height = `${Math.floor(displayViewport.height)}px`;
+      const surface = pageSurfaceRef.current;
+      const textLayerElement = textLayerElementRef.current;
+      if (!surface || !textLayerElement) return;
+      surface.style.width = `${Math.floor(displayViewport.width)}px`;
+      surface.style.height = `${Math.floor(displayViewport.height)}px`;
+      surface.style.setProperty("--scale-factor", String(displayScale));
+      textLayerElement.replaceChildren();
       const task = pdfPage.render({
         canvasContext: context,
         viewport: displayViewport,
@@ -269,7 +333,28 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
         background: "rgb(255,255,255)",
       });
       renderTaskRef.current = task;
-      await task.promise;
+      const textContent = await pdfPage.getTextContent();
+      const textItems = textContent.items.map((item) => ("str" in item ? item.str : ""));
+      textCacheRef.current.set(page, pageTextCache(textItems));
+      const textLayer = new TextLayer({
+        textContentSource: textContent,
+        container: textLayerElement,
+        viewport: displayViewport,
+      });
+      textLayerRef.current = textLayer;
+      await Promise.all([task.promise, textLayer.render()]);
+      if (!cancelled) setTextLayerRevision((revision) => revision + 1);
+      const anchor = zoomAnchorRef.current;
+      if (!cancelled && anchor) {
+        zoomAnchorRef.current = null;
+        window.requestAnimationFrame(() => {
+          const scrollViewport = viewportRef.current;
+          const nextSurface = pageSurfaceRef.current;
+          if (!scrollViewport || !nextSurface) return;
+          scrollViewport.scrollLeft = anchor.x * nextSurface.clientWidth - scrollViewport.clientWidth / 2;
+          scrollViewport.scrollTop = anchor.y * nextSurface.clientHeight - scrollViewport.clientHeight / 2;
+        });
+      }
       if (!cancelled && fitWidth) setZoom(displayScale);
     };
     void render()
@@ -282,6 +367,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
     return () => {
       cancelled = true;
       renderTaskRef.current?.cancel();
+      textLayerRef.current?.cancel();
     };
   }, [fitWidth, page, pdf, viewportWidth, zoom]);
 
@@ -354,37 +440,180 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
     }
   }, [changePage, pdf]);
 
-  const searchNext = useCallback(async () => {
+  const getPageText = useCallback(async (pageNumber: number): Promise<PageTextCache> => {
+    const cached = textCacheRef.current.get(pageNumber);
+    if (cached) return cached;
+    if (!pdf) throw new Error("PDF 尚未加载");
+    const pdfPage = await pdf.getPage(pageNumber);
+    const content = await pdfPage.getTextContent();
+    const next = pageTextCache(content.items.map((item) => ("str" in item ? item.str : "")));
+    textCacheRef.current.set(pageNumber, next);
+    return next;
+  }, [pdf]);
+
+  const search = useCallback(async (direction: 1 | -1) => {
     if (!pdf || !searchQuery.trim() || searching) return;
+    const requestId = ++searchRequestRef.current;
     const query = searchQuery.trim().toLocaleLowerCase();
     setSearching(true);
     setSearchStatus("正在搜索…");
     try {
-      for (let offset = 0; offset < pdf.numPages; offset++) {
-        const candidate = ((page - 1 + offset) % pdf.numPages) + 1;
-        let text = textCacheRef.current.get(candidate);
-        if (text === undefined) {
-          const pdfPage = await pdf.getPage(candidate);
-          const content = await pdfPage.getTextContent();
-          text = content.items
-            .map((item) => ("str" in item ? item.str : ""))
-            .join(" ")
-            .toLocaleLowerCase();
-          textCacheRef.current.set(candidate, text);
+      let matches = searchMatches;
+      let nextIndex: number;
+      if (query !== completedSearchQuery) {
+        matches = [];
+        for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+          const cached = await getPageText(pageNumber);
+          if (requestId !== searchRequestRef.current) return;
+          let offset = cached.text.indexOf(query);
+          while (offset >= 0) {
+            matches.push({ page: pageNumber, offset });
+            offset = cached.text.indexOf(query, offset + Math.max(1, query.length));
+          }
+          if (pageNumber % 8 === 0) await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
         }
-        if (text.includes(query)) {
-          changePage(candidate);
-          setSearchStatus(`第 ${candidate} 页`);
+        if (requestId !== searchRequestRef.current) return;
+        setCompletedSearchQuery(query);
+        setSearchMatches(matches);
+        if (matches.length === 0) {
+          setActiveSearchIndex(-1);
+          setSearchStatus("未找到");
           return;
         }
+        const atOrAfterCurrent = matches.findIndex((match) => match.page >= page);
+        nextIndex = direction === 1
+          ? (atOrAfterCurrent >= 0 ? atOrAfterCurrent : 0)
+          : (atOrAfterCurrent > 0 ? atOrAfterCurrent - 1 : matches.length - 1);
+      } else if (matches.length > 0) {
+        nextIndex = (activeSearchIndex + direction + matches.length) % matches.length;
+      } else {
+        setSearchStatus("未找到");
+        return;
       }
-      setSearchStatus("未找到");
+      const match = matches[nextIndex];
+      setActiveSearchIndex(nextIndex);
+      changePage(match.page);
+      setSearchStatus(`${nextIndex + 1}/${matches.length} · 第 ${match.page} 页`);
     } catch (reason) {
-      setSearchStatus(`搜索失败：${pdfErrorMessage(reason)}`);
+      if (requestId === searchRequestRef.current) setSearchStatus(`搜索失败：${pdfErrorMessage(reason)}`);
     } finally {
-      setSearching(false);
+      if (requestId === searchRequestRef.current) setSearching(false);
     }
-  }, [changePage, page, pdf, searchQuery, searching]);
+  }, [activeSearchIndex, changePage, completedSearchQuery, getPageText, page, pdf, searchMatches, searchQuery, searching]);
+
+  useEffect(() => {
+    const layer = textLayerRef.current;
+    const cached = textCacheRef.current.get(page);
+    if (!layer || !cached) return;
+    const divs = layer.textDivs;
+    divs.forEach((div, index) => { div.textContent = cached.items[index] ?? ""; });
+    const query = completedSearchQuery;
+    if (!query || searchMatches.length === 0) return;
+
+    const pageMatches = searchMatches
+      .map((match, index) => ({ ...match, resultIndex: index }))
+      .filter((match) => match.page === page);
+    let activeMark: HTMLElement | null = null;
+    cached.items.forEach((item, itemIndex) => {
+      const div = divs[itemIndex];
+      if (!div || !item) return;
+      const itemStart = cached.starts[itemIndex];
+      const ranges = pageMatches
+        .map((match) => ({
+          start: Math.max(0, match.offset - itemStart),
+          end: Math.min(item.length, match.offset + query.length - itemStart),
+          resultIndex: match.resultIndex,
+        }))
+        .filter((range) => range.start < range.end)
+        .sort((left, right) => left.start - right.start);
+      if (ranges.length === 0) return;
+      const fragment = document.createDocumentFragment();
+      let cursor = 0;
+      for (const range of ranges) {
+        if (range.start > cursor) fragment.append(item.slice(cursor, range.start));
+        if (range.start < cursor) continue;
+        const mark = document.createElement("mark");
+        mark.className = range.resultIndex === activeSearchIndex ? "pdf-search-current" : "pdf-search-hit";
+        mark.textContent = item.slice(range.start, range.end);
+        fragment.append(mark);
+        if (range.resultIndex === activeSearchIndex) activeMark = mark;
+        cursor = range.end;
+      }
+      if (cursor < item.length) fragment.append(item.slice(cursor));
+      div.replaceChildren(fragment);
+    });
+    if (activeMark) {
+      window.requestAnimationFrame(() => (activeMark as HTMLElement).scrollIntoView({ block: "center", inline: "center" }));
+    }
+  }, [activeSearchIndex, completedSearchQuery, page, searchMatches, textLayerRevision]);
+
+  const toggleBoundaryZoom = useCallback((clientX: number, clientY: number) => {
+    const surface = pageSurfaceRef.current;
+    if (!surface) return;
+    const bounds = surface.getBoundingClientRect();
+    zoomAnchorRef.current = {
+      x: Math.max(0, Math.min(1, (clientX - bounds.left) / Math.max(1, bounds.width))),
+      y: Math.max(0, Math.min(1, (clientY - bounds.top) / Math.max(1, bounds.height))),
+    };
+    if (fitWidth) {
+      setFitWidth(false);
+      setZoom((value) => Math.min(4, Math.max(1.5, value * 2)));
+    } else {
+      zoomAnchorRef.current = null;
+      setFitWidth(true);
+    }
+  }, [fitWidth]);
+
+  const handleTouchStart = useCallback((event: React.TouchEvent<HTMLElement>) => {
+    if (event.touches.length !== 1) {
+      touchGestureRef.current = null;
+      return;
+    }
+    const touch = event.touches[0];
+    const viewport = viewportRef.current;
+    const maxScroll = viewport ? Math.max(0, viewport.scrollWidth - viewport.clientWidth) : 0;
+    touchGestureRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      startedAt: performance.now(),
+      atLeft: !viewport || viewport.scrollLeft <= 2,
+      atRight: !viewport || viewport.scrollLeft >= maxScroll - 2,
+    };
+  }, []);
+
+  const handleTouchEnd = useCallback((event: React.TouchEvent<HTMLElement>) => {
+    const gesture = touchGestureRef.current;
+    touchGestureRef.current = null;
+    const touch = event.changedTouches[0];
+    if (!gesture || !touch) return;
+    const dx = touch.clientX - gesture.x;
+    const dy = touch.clientY - gesture.y;
+    const duration = performance.now() - gesture.startedAt;
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed) return;
+
+    if (duration < 700 && Math.abs(dx) >= 52 && Math.abs(dx) > Math.abs(dy) * 1.25) {
+      const viewport = viewportRef.current;
+      const maxScroll = viewport ? Math.max(0, viewport.scrollWidth - viewport.clientWidth) : 0;
+      const atLeft = gesture.atLeft || !viewport || viewport.scrollLeft <= 2;
+      const atRight = gesture.atRight || !viewport || viewport.scrollLeft >= maxScroll - 2;
+      if (dx < 0 && atRight) changePage(page + 1);
+      else if (dx > 0 && atLeft) changePage(page - 1);
+      lastTapRef.current = 0;
+      return;
+    }
+
+    if (duration < 280 && Math.abs(dx) < 12 && Math.abs(dy) < 12) {
+      const now = performance.now();
+      if (now - lastTapRef.current < 320) {
+        lastTapRef.current = 0;
+        event.preventDefault();
+        toggleBoundaryZoom(touch.clientX, touch.clientY);
+      } else {
+        lastTapRef.current = now;
+      }
+    }
+  }, [changePage, page, toggleBoundaryZoom]);
 
   const renderOutline = (items: OutlineItem[], depth = 0) => items.map((item, index) => (
     <div className="pdf-outline-node" key={`${depth}-${index}-${item.title}`}>
@@ -399,6 +628,14 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
     </div>
   ));
 
+  useEffect(() => {
+    if (!outlineOpen || outlineMode !== "pages") return;
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(`.pdf-page-directory [data-pdf-page="${page}"]`)
+        ?.scrollIntoView({ block: "nearest" });
+    });
+  }, [outlineMode, outlineOpen, page]);
+
   return (
     <div
       ref={readerRef}
@@ -408,7 +645,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
       <header className="pdf-reader-toolbar">
         <button type="button" className="pdf-reader-close" onClick={() => void closeReader()} title="返回 Nine Rings">←</button>
         <span className="pdf-reader-title" title={entry?.name}>{entry?.name ?? "PDF 阅读器"}</span>
-        {outline.length > 0 && (
+        {pdf && (
           <button
             type="button"
             className={outlineOpen ? "active" : undefined}
@@ -441,30 +678,80 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
           <button type="button" className={fitWidth ? "active" : undefined} onClick={() => setFitWidth(true)}>适宽</button>
           <button type="button" onClick={() => { setFitWidth(false); setZoom((value) => Math.min(4, value + 0.15)); }}>＋</button>
         </div>
-        <form className="pdf-search" onSubmit={(event) => { event.preventDefault(); void searchNext(); }}>
+        <form className="pdf-search" onSubmit={(event) => { event.preventDefault(); void search(1); }}>
           <input
             type="search"
             aria-label="搜索 PDF"
             placeholder="搜索 PDF…"
             value={searchQuery}
-            onChange={(event) => { setSearchQuery(event.target.value); setSearchStatus(""); }}
+            onChange={(event) => {
+              searchRequestRef.current += 1;
+              setSearchQuery(event.target.value);
+              setSearching(false);
+              setSearchStatus("");
+              setCompletedSearchQuery("");
+              setSearchMatches([]);
+              setActiveSearchIndex(-1);
+            }}
           />
-          <button type="submit" disabled={!pdf || searching || !searchQuery.trim()}>查找</button>
+          <button type="button" aria-label="上一个搜索结果" onClick={() => void search(-1)} disabled={!pdf || searching || !searchQuery.trim()}>↑</button>
+          <button type="submit" aria-label="下一个搜索结果" disabled={!pdf || searching || !searchQuery.trim()}>↓</button>
           {searchStatus && <span>{searchStatus}</span>}
         </form>
       </header>
 
       <div className="pdf-reader-body">
-        {outlineOpen && outline.length > 0 && (
+        {outlineOpen && pdf && (
           <aside className="pdf-outline" aria-label="PDF 目录">
             <div className="pdf-outline-heading">
-              <strong>目录</strong>
+              <div className="pdf-outline-tabs">
+                {outline.length > 0 && (
+                  <button
+                    type="button"
+                    className={outlineMode === "outline" ? "active" : undefined}
+                    onClick={() => setOutlineMode("outline")}
+                  >书签</button>
+                )}
+                <button
+                  type="button"
+                  className={outlineMode === "pages" ? "active" : undefined}
+                  onClick={() => setOutlineMode("pages")}
+                >页面</button>
+              </div>
               <button type="button" onClick={() => setOutlineOpen(false)} aria-label="关闭目录">×</button>
             </div>
-            <div className="pdf-outline-list">{renderOutline(outline)}</div>
+            <div className="pdf-outline-list">
+              {outlineMode === "outline" && outline.length > 0 ? renderOutline(outline) : (
+                <div className="pdf-page-directory">
+                  {Array.from({ length: pdf.numPages }, (_, index) => {
+                    const pageNumber = index + 1;
+                    return (
+                      <button
+                        type="button"
+                        className={pageNumber === page ? "active" : undefined}
+                        data-pdf-page={pageNumber}
+                        key={pageNumber}
+                        onClick={() => {
+                          changePage(pageNumber);
+                          if (window.matchMedia("(max-width: 768px)").matches) setOutlineOpen(false);
+                        }}
+                      >
+                        <span>{pageLabels?.[index] ?? pageNumber}</span>
+                        <small>第 {pageNumber} 页</small>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </aside>
         )}
-        <main className="pdf-page-viewport" ref={viewportRef}>
+        <main
+          className="pdf-page-viewport"
+          ref={viewportRef}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
           {loading && <div className="pdf-reader-message">正在打开 PDF…</div>}
           {error && (
             <div className="pdf-reader-message pdf-reader-error">
@@ -473,7 +760,19 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
               <button type="button" onClick={() => void closeReader()}>返回</button>
             </div>
           )}
-          {!error && <canvas ref={canvasRef} className={rendering ? "pdf-page-rendering" : ""} />}
+          {!error && (
+            <div
+              className={rendering ? "pdf-page-surface pdf-page-rendering" : "pdf-page-surface"}
+              ref={pageSurfaceRef}
+              onDoubleClick={(event) => {
+                event.preventDefault();
+                toggleBoundaryZoom(event.clientX, event.clientY);
+              }}
+            >
+              <canvas ref={canvasRef} />
+              <div ref={textLayerElementRef} className="pdf-text-layer textLayer" />
+            </div>
+          )}
           {rendering && !loading && <span className="pdf-render-status">正在渲染第 {page} 页…</span>}
         </main>
       </div>

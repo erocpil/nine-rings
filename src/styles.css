@@ -9057,6 +9057,23 @@ button.doc-tree-toggle:focus-visible {
   font-size: 18px;
 }
 
+.pdf-outline-tabs {
+  display: flex;
+  gap: 3px;
+}
+
+.pdf-outline-tabs button {
+  width: auto;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.pdf-outline-tabs button.active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+
 .pdf-outline-list {
   flex: 1;
   min-height: 0;
@@ -9089,6 +9106,40 @@ button.doc-tree-toggle:focus-visible {
   cursor: default;
 }
 
+.pdf-page-directory {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pdf-page-directory button {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.pdf-page-directory button:hover,
+.pdf-page-directory button.active {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.pdf-page-directory button.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pdf-page-directory small {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
 .pdf-page-viewport {
   position: relative;
   display: flex;
@@ -9102,15 +9153,65 @@ button.doc-tree-toggle:focus-visible {
   overscroll-behavior: contain;
 }
 
-.pdf-page-viewport canvas {
-  display: block;
+.pdf-page-surface {
+  position: relative;
   flex: none;
+  overflow: hidden;
   background: #fff;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.34);
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+.pdf-page-surface canvas {
+  display: block;
+  pointer-events: none;
 }
 
 .pdf-page-rendering {
   opacity: 0.72;
+}
+
+.pdf-text-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: clip;
+  color: transparent;
+  line-height: 1;
+  text-align: initial;
+  text-size-adjust: none;
+  transform-origin: 0 0;
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-text-size-adjust: none;
+}
+
+.pdf-text-layer :is(span, br) {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+}
+
+.pdf-text-layer span.markedContent {
+  top: 0;
+  height: 0;
+}
+
+.pdf-text-layer ::selection {
+  background: color-mix(in srgb, var(--accent) 34%, transparent);
+}
+
+.pdf-text-layer mark {
+  color: transparent;
+  border-radius: 2px;
+  background: rgba(255, 208, 0, 0.34);
+}
+
+.pdf-text-layer mark.pdf-search-current {
+  background: rgba(255, 126, 0, 0.52);
+  outline: 1px solid rgba(190, 80, 0, 0.65);
 }
 
 .pdf-render-status {
