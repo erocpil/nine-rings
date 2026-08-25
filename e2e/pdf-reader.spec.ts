@@ -24,6 +24,27 @@ function createPdfFixture(): Buffer {
 }
 
 test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", async ({ page }) => {
+  await page.addInitScript(() => {
+    let fullscreenElement: Element | null = null;
+    Object.defineProperty(document, "fullscreenElement", {
+      configurable: true,
+      get: () => fullscreenElement,
+    });
+    Object.defineProperty(Element.prototype, "requestFullscreen", {
+      configurable: true,
+      value: async function requestFullscreen(this: Element) {
+        fullscreenElement = this;
+        document.dispatchEvent(new Event("fullscreenchange"));
+      },
+    });
+    Object.defineProperty(document, "exitFullscreen", {
+      configurable: true,
+      value: async () => {
+        fullscreenElement = null;
+        document.dispatchEvent(new Event("fullscreenchange"));
+      },
+    });
+  });
   await page.goto("/");
   await page.getByTitle("设置").click();
   await page.getByRole("button", { name: /^数据与导入/ }).click();
@@ -40,6 +61,13 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   await expect.poll(() => page.locator(".pdf-page-viewport canvas").getAttribute("width")).not.toBe("0");
   await expect(page.getByLabel("PDF 页码")).toHaveValue("1");
   await expect(page.getByText("/ 1", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "进入全屏阅读" }).click();
+  await expect(page.getByRole("button", { name: "退出全屏阅读" })).toBeVisible();
+  await expect(reader).toHaveClass(/pdf-reader-fullscreen/);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "进入全屏阅读" })).toBeVisible();
+  await expect(reader).toBeVisible();
 
   await page.getByLabel("搜索 PDF").fill("Nine Rings");
   await page.getByRole("button", { name: "查找" }).click();

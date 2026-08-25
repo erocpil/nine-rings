@@ -8874,6 +8874,18 @@ button.doc-tree-toggle:focus-visible {
   color: var(--text);
 }
 
+.pdf-reader:fullscreen,
+.pdf-reader:-webkit-full-screen,
+.pdf-reader.pdf-reader-fullscreen {
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+}
+
+.pdf-fullscreen-button {
+  font-size: 17px !important;
+}
+
 .pdf-reader-toolbar {
   z-index: 20;
   display: flex;

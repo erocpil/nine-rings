@@ -12,12 +12,15 @@ import {
   updateLocalPdfProgress,
   type LocalPdfEntry,
 } from "../lib/pdf-library";
+import { toggleTauriFullscreen } from "../lib/fullscreen";
+import { isTauriRuntime } from "../lib/runtime";
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 interface Props {
   documentId: string;
   onClose: () => void;
+  onFullscreenChange?: (fullscreen: boolean) => void;
 }
 
 interface OutlineItem {
@@ -37,7 +40,17 @@ function pdfErrorMessage(error: unknown): string {
   return error.message || "PDF 打开失败";
 }
 
-export function PdfReader({ documentId, onClose }: Props) {
+interface WebkitFullscreenDocument extends Document {
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => Promise<void> | void;
+}
+
+interface WebkitFullscreenElement extends HTMLDivElement {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+}
+
+export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
+  const readerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
@@ -65,6 +78,91 @@ export function PdfReader({ documentId, onClose }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchStatus, setSearchStatus] = useState("");
+  const [fullscreen, setFullscreen] = useState(false);
+
+  const applyFullscreenState = useCallback((next: boolean) => {
+    setFullscreen(next);
+    onFullscreenChange?.(next);
+  }, [onFullscreenChange]);
+
+  const exitFullscreen = useCallback(async () => {
+    if (isTauriRuntime()) {
+      if (fullscreen) await toggleTauriFullscreen();
+      applyFullscreenState(false);
+      return;
+    }
+    const fullscreenDocument = document as WebkitFullscreenDocument;
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else if (fullscreenDocument.webkitFullscreenElement) await fullscreenDocument.webkitExitFullscreen?.();
+    applyFullscreenState(false);
+  }, [applyFullscreenState, fullscreen]);
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (isTauriRuntime()) {
+        const next = await toggleTauriFullscreen();
+        if (next !== null) applyFullscreenState(next);
+        return;
+      }
+      const fullscreenDocument = document as WebkitFullscreenDocument;
+      const element = readerRef.current as WebkitFullscreenElement | null;
+      if (document.fullscreenElement || fullscreenDocument.webkitFullscreenElement) {
+        await exitFullscreen();
+      } else if (element?.requestFullscreen) {
+        await element.requestFullscreen();
+      } else if (element?.webkitRequestFullscreen) {
+        await element.webkitRequestFullscreen();
+      } else {
+        setSearchStatus("当前浏览器不支持全屏；安装到桌面后可获得全屏体验");
+      }
+    } catch (reason) {
+      setSearchStatus(`全屏切换失败：${pdfErrorMessage(reason)}`);
+    }
+  }, [applyFullscreenState, exitFullscreen]);
+
+  const closeReader = useCallback(async () => {
+    try {
+      if (fullscreen) await exitFullscreen();
+    } catch (reason) {
+      console.warn("[PDF] 退出阅读全屏失败:", reason);
+    } finally {
+      onClose();
+    }
+  }, [exitFullscreen, fullscreen, onClose]);
+
+  useEffect(() => {
+    if (isTauriRuntime()) {
+      let disposed = false;
+      let unlisten: (() => void) | undefined;
+      void import("@tauri-apps/api/window").then(async ({ getCurrentWindow }) => {
+        const appWindow = getCurrentWindow();
+        const sync = async () => {
+          const next = await appWindow.isFullscreen();
+          if (!disposed) applyFullscreenState(next);
+        };
+        await sync();
+        unlisten = await appWindow.onResized(() => { void sync().catch(() => {}); });
+        if (disposed) unlisten();
+      }).catch(() => {});
+      return () => {
+        disposed = true;
+        unlisten?.();
+        onFullscreenChange?.(false);
+      };
+    }
+
+    const sync = () => {
+      const fullscreenDocument = document as WebkitFullscreenDocument;
+      applyFullscreenState(Boolean(document.fullscreenElement || fullscreenDocument.webkitFullscreenElement));
+    };
+    document.addEventListener("fullscreenchange", sync);
+    document.addEventListener("webkitfullscreenchange", sync);
+    return () => {
+      document.removeEventListener("fullscreenchange", sync);
+      document.removeEventListener("webkitfullscreenchange", sync);
+      onFullscreenChange?.(false);
+    };
+  }, [applyFullscreenState, onFullscreenChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -207,12 +305,13 @@ export function PdfReader({ documentId, onClose }: Props) {
         event.preventDefault();
         setPage((current) => Math.min(pdf.numPages, current + 1));
       } else if (event.key === "Escape") {
-        onClose();
+        if (fullscreen) void exitFullscreen();
+        else void closeReader();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, pdf]);
+  }, [closeReader, exitFullscreen, fullscreen, pdf]);
 
   useEffect(() => setPageInput(String(page)), [page]);
 
@@ -285,9 +384,13 @@ export function PdfReader({ documentId, onClose }: Props) {
   ));
 
   return (
-    <div className="pdf-reader" aria-label="PDF 阅读器">
+    <div
+      ref={readerRef}
+      className={`pdf-reader ${fullscreen ? "pdf-reader-fullscreen" : ""}`}
+      aria-label="PDF 阅读器"
+    >
       <header className="pdf-reader-toolbar">
-        <button type="button" className="pdf-reader-close" onClick={onClose} title="返回 Nine Rings">←</button>
+        <button type="button" className="pdf-reader-close" onClick={() => void closeReader()} title="返回 Nine Rings">←</button>
         <span className="pdf-reader-title" title={entry?.name}>{entry?.name ?? "PDF 阅读器"}</span>
         {outline.length > 0 && (
           <button
@@ -297,6 +400,13 @@ export function PdfReader({ documentId, onClose }: Props) {
             onClick={() => setOutlineOpen((open) => !open)}
           >目录</button>
         )}
+        <button
+          type="button"
+          className={fullscreen ? "pdf-fullscreen-button active" : "pdf-fullscreen-button"}
+          onClick={() => void toggleFullscreen()}
+          aria-label={fullscreen ? "退出全屏阅读" : "进入全屏阅读"}
+          title={fullscreen ? "退出全屏阅读（Esc）" : "进入全屏阅读"}
+        >{fullscreen ? "⤢" : "⛶"}</button>
         <div className="pdf-page-controls">
           <button type="button" onClick={() => changePage(page - 1)} disabled={!pdf || page <= 1}>‹</button>
           <input
@@ -344,7 +454,7 @@ export function PdfReader({ documentId, onClose }: Props) {
             <div className="pdf-reader-message pdf-reader-error">
               <strong>无法打开 PDF</strong>
               <span>{error}</span>
-              <button type="button" onClick={onClose}>返回</button>
+              <button type="button" onClick={() => void closeReader()}>返回</button>
             </div>
           )}
           {!error && <canvas ref={canvasRef} className={rendering ? "pdf-page-rendering" : ""} />}

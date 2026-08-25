@@ -372,6 +372,7 @@ function App() {
 
   const [recycleOpen, setRecycleOpen] = useState(false);
   const [pdfReaderDocumentId, setPdfReaderDocumentId] = useState<string | null>(null);
+  const [pdfReaderFullscreen, setPdfReaderFullscreen] = useState(false);
   const [overdueOpen, setOverdueOpen] = useState(false);
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
   const [docTreeToolbarHost, setDocTreeToolbarHost] = useState<HTMLDivElement | null>(null);
@@ -1133,13 +1134,20 @@ function App() {
   if (pdfReaderDocumentId) {
     return (
       <div className="pdf-reader-app">
-        {isTauriRuntime() && (
+        {isTauriRuntime() && !pdfReaderFullscreen && (
           <Suspense fallback={null}>
             <TitleBar />
           </Suspense>
         )}
         <Suspense fallback={<div className="pdf-reader-boot">正在加载 PDF 阅读器…</div>}>
-          <PdfReader documentId={pdfReaderDocumentId} onClose={() => setPdfReaderDocumentId(null)} />
+          <PdfReader
+            documentId={pdfReaderDocumentId}
+            onFullscreenChange={setPdfReaderFullscreen}
+            onClose={() => {
+              setPdfReaderFullscreen(false);
+              setPdfReaderDocumentId(null);
+            }}
+          />
         </Suspense>
       </div>
     );
