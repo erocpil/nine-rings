@@ -17,14 +17,22 @@ test("只读文档隐藏代码语法选项并保留查看操作", async ({ page 
     }));
   });
   const codeBlock = editor.locator(".code-block-wrap");
+  const codeTitle = codeBlock.getByLabel("代码简介");
   await expect(codeBlock.getByLabel("代码语言")).toBeVisible();
+  await codeTitle.hover();
+  await expect(codeTitle).toHaveCSS("border-top-color", "rgba(0, 0, 0, 0)");
+  await expect(codeTitle).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await codeTitle.focus();
+  await expect(codeTitle).toHaveCSS("border-top-color", "rgba(0, 0, 0, 0)");
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
 
   await page.locator(".sidebar-item.active").getByTitle("设为只读")
     .evaluate((button: HTMLButtonElement) => button.click());
   await expect(editor).toHaveAttribute("contenteditable", "false");
   await expect(codeBlock.getByLabel("代码语言")).toHaveCount(0);
-  await expect(codeBlock.getByLabel("代码简介")).toBeDisabled();
+  await expect(codeTitle).toBeHidden();
+  await expect(codeTitle).toHaveCSS("visibility", "hidden");
+  expect(await codeTitle.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(0);
 
   const collapseButton = codeBlock.getByRole("button", { name: "折叠代码块" });
   const wrapButton = codeBlock.getByRole("button", { name: "关闭代码自动换行" });

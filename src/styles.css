@@ -7649,7 +7649,7 @@ button.doc-tree-toggle:focus-visible {
   padding: 1px 5px;
   border: 1px solid transparent;
   border-radius: 3px;
-  background: var(--code-bg);
+  background: transparent;
   color: var(--text-secondary);
   font: 11px/18px var(--font);
   text-align: left;
@@ -7660,14 +7660,13 @@ button.doc-tree-toggle:focus-visible {
 
 .code-block-title:hover,
 .code-block-title:focus {
-  border-color: var(--border);
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
   color: var(--text);
   outline: none;
 }
 
 .code-block-title:disabled {
-  opacity: 0.72;
+  /* 只读时保留原有 flex 占位，避免右侧操作按钮发生位移。 */
+  visibility: hidden;
 }
 
 .code-block-actions {
