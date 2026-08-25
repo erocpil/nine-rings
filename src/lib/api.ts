@@ -121,8 +121,11 @@ export const api = {
   },
 
   daily: {
-    get: (date: string) =>
-      adapter().then((a) => a.getDailyPage(date)),
+    get: async (date: string) => {
+      const storage = await adapter();
+      const config = await storage.getConfig();
+      return storage.getDailyPage(date, config.todo_carryover_default);
+    },
 
     getAll: () =>
       adapter().then((a) => a.getAllDailyPages()),

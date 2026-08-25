@@ -100,7 +100,7 @@ export interface StorageAdapter {
   getAllTags(): Promise<string[]>;
 
   // ── Daily Page ──
-  getDailyPage(date: string): Promise<DailyPage>;
+  getDailyPage(date: string, carryoverDefault?: boolean): Promise<DailyPage>;
   updateTodos(data: UpdateTodosInput): Promise<DailyPage>;
   getAllDailyPages(): Promise<DailyPage[]>;
 

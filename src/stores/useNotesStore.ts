@@ -46,6 +46,7 @@ interface NotesStore {
   createNote: () => Promise<Note | null>;
   updateNote: (id: string, changes: NotePatch) => Promise<Note>;
   deleteNote: (id: string) => Promise<void>;
+  batchDelete: (ids: string[]) => Promise<void>;
   search: (query: string) => Promise<void>;
   updateTodos: (todos: DailyPage["todos"]) => Promise<void>;
   clearError: () => void;
@@ -55,6 +56,8 @@ const LAST_NOTE_KEY = "nr:lastNote";
 
 const NOTE_LOOKUP_TIMEOUT_MS = 5000;
 const NOTE_LIST_TIMEOUT_MS = 15000;
+let dateLoadGeneration = 0;
+let searchGeneration = 0;
 
 function getPersistedLastNoteId(): string | null {
   try {
@@ -113,6 +116,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
   // 启动优先恢复最后文档：单行主键查询完成后立即交给界面渲染，日期列表和
   // Todo 等编辑器首次呈现后再加载。大备份不再要求先扫描列表才能看到文档。
   initialize: async (preferredNoteId, selectFallback = true) => {
+    const generation = ++dateLoadGeneration;
     set({ loading: true, startupReady: false, startupDateLoadPending: false, error: null });
     let restored: Note | null = null;
     const preferredId = preferredNoteId
@@ -120,6 +124,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
     if (preferredId) {
       restored = await resolvePreferredNoteId(preferredId);
     }
+    if (generation !== dateLoadGeneration) return;
 
     const requestedDate = restored?.date ?? get().currentDate;
     localStorage.setItem(CURRENT_DATE_KEY, requestedDate);
@@ -160,6 +165,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
           );
           notes = fallbackNotes;
           dailyPage = fallbackPage;
+          if (generation !== dateLoadGeneration) return;
           localStorage.setItem(CURRENT_DATE_KEY, date);
           localStorage.setItem(LAST_NOTE_KEY, fallback.note.id);
           set({
@@ -175,6 +181,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
         }
       }
 
+      if (generation !== dateLoadGeneration) return;
       set((state) => {
         const lastId = lastNoteId;
         const preferred = lastId ? notes.find((note) => note.id === lastId) : undefined;
@@ -189,6 +196,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
         };
       });
     } catch (e) {
+      if (generation !== dateLoadGeneration) return;
       set({
         loading: false,
         startupReady: true,
@@ -199,6 +207,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
   },
 
   setDate: async (date: string) => {
+    const generation = ++dateLoadGeneration;
     const prevSelected = get().selectedNote;
     localStorage.setItem(CURRENT_DATE_KEY, date);
     set({ loading: true, currentDate: date, startupDateLoadPending: false, error: null });
@@ -211,6 +220,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
         15000,
         "加载笔记",
       );
+      if (generation !== dateLoadGeneration) return;
       // 若当前选中的是文档（有 storagePath），保持在文档视图不切换
       if (prevSelected?.storagePath) {
         set({ notes, dailyPage, loading: false });
@@ -221,6 +231,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
       const preferred = lastId ? notes.find((n) => n.id === lastId) : undefined;
       set({ notes, dailyPage, selectedNote: preferred ?? notes[0] ?? null, loading: false });
     } catch (e) {
+      if (generation !== dateLoadGeneration) return;
       set({ loading: false, error: `加载失败: ${(e as Error).message}` });
     }
   },
@@ -236,8 +247,8 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
         content: { ops: [] },
       });
       set((s) => ({
-        notes: [...s.notes, note],
-        selectedNote: note,
+        notes: s.currentDate === currentDate ? [...s.notes, note] : s.notes,
+        selectedNote: s.currentDate === currentDate ? note : s.selectedNote,
         error: null,
       }));
       return note;
@@ -282,10 +293,29 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
       }));
     } catch (e) {
       set({ error: `删除失败: ${(e as Error).message}` });
+      throw e;
+    }
+  },
+
+  batchDelete: async (ids) => {
+    const uniqueIds = [...new Set(ids)];
+    if (uniqueIds.length === 0) return;
+    try {
+      await api.recycle.batch.delete(uniqueIds);
+      const deletedIds = new Set(uniqueIds);
+      set((s) => ({
+        notes: s.notes.filter((note) => !deletedIds.has(note.id)),
+        selectedNote: s.selectedNote && deletedIds.has(s.selectedNote.id) ? null : s.selectedNote,
+        error: null,
+      }));
+    } catch (e) {
+      set({ error: `批量删除失败: ${(e as Error).message}` });
+      throw e;
     }
   },
 
   search: async (query) => {
+    const generation = ++searchGeneration;
     if (!query.trim()) {
       set({ searchResults: [], searchQuery: "" });
       return;
@@ -293,8 +323,10 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
     set({ searchQuery: query, loading: true, error: null });
     try {
       const results = await api.notes.search(query);
+      if (generation !== searchGeneration) return;
       set({ searchResults: results, loading: false });
     } catch (e) {
+      if (generation !== searchGeneration) return;
       set({ loading: false, error: `搜索失败: ${(e as Error).message}` });
     }
   },
@@ -307,7 +339,7 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
         todos,
         todo_carryover: dailyPage?.todo_carryover ?? false,
       });
-      set({ dailyPage: updated, error: null });
+      if (get().currentDate === currentDate) set({ dailyPage: updated, error: null });
     } catch (e) {
       set({ error: `保存待办失败: ${(e as Error).message}` });
     }

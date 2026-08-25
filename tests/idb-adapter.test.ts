@@ -182,6 +182,8 @@ async function runTests() {
     const page = await idbAdapter.getDailyPage("2026-07-25");
     assert(page.date === "2026-07-25", "date correct");
     assert(Array.isArray(page.todos), "todos is array");
+    const defaultCarryoverPage = await idbAdapter.getDailyPage("2026-07-24", true);
+    assert(defaultCarryoverPage.todo_carryover, "new daily page uses configured carryover default");
 
     const todos: Todo[] = [
       { id: "t1", text: "Task 1", done: false, order: 0, tags: [] },

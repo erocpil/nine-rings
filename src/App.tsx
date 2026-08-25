@@ -134,6 +134,7 @@ function App() {
 
   const dailyPage = useNotesStore((s) => s.dailyPage);
   const updateTodos = useNotesStore((s) => s.updateTodos);
+  const batchDelete = useNotesStore((s) => s.batchDelete);
   const { search, results, query, setQuery, clear: clearSearch } = useSearch();
   const [docResults, setDocResults] = useState<Note[] | null>(null);
   const [docSearchText, setDocSearchText] = useState("");
@@ -377,6 +378,7 @@ function App() {
   const [activeTag, setActiveTag] = useState<string | null>(() => localStorage.getItem(ACTIVE_TAG_KEY));
   const [tagFilteredNotes, setTagFilteredNotes] = useState<Note[] | null>(null);
   const [undo, setUndo] = useState<UndoState | null>(null);
+  const undoTimerRef = useRef<number | null>(null);
   const [versionOpen, setVersionOpen] = useState(false);
   const [pdfExportRequestId, setPdfExportRequestId] = useState(0);
   const [syncBusy, setSyncBusy] = useState(false);
@@ -437,6 +439,25 @@ function App() {
       setSidebarRefreshKey((key) => key + 1);
     }
   };
+  const configuredDefaultView = config?.default_view;
+  useEffect(() => {
+    if (!configuredDefaultView) return;
+    const configuredTab = configuredDefaultView === "daily" ? "daily" : "tree";
+    setSidebarTab(configuredTab);
+    localStorage.setItem(TAB_KEY, configuredTab);
+  }, [configuredDefaultView]);
+
+  const autoCleanDaysRef = useRef<number | null>(null);
+  const configuredAutoCleanDays = config?.auto_clean_days;
+  useEffect(() => {
+    const days = configuredAutoCleanDays;
+    if (!days || autoCleanDaysRef.current === days) return;
+    autoCleanDaysRef.current = days;
+    void api.recycle.cleanOld(days).catch((error) => {
+      autoCleanDaysRef.current = null;
+      console.error("[App] 自动清理回收站失败:", error);
+    });
+  }, [configuredAutoCleanDays]);
   const closeSidebarOnNarrowScreen = useCallback(() => {
     if (window.matchMedia("(max-width: 768px)").matches) {
       setSidebarHidden(true);
@@ -584,6 +605,69 @@ function App() {
     }
     setDocTreeKey((key) => key + 1);
   }, [flushAutoSave, selectNote]);
+
+  const showUndo = useCallback((nextUndo: UndoState) => {
+    if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current);
+    setUndo(nextUndo);
+    undoTimerRef.current = window.setTimeout(() => {
+      setUndo((current) => current?.key === nextUndo.key ? null : current);
+      undoTimerRef.current = null;
+    }, 5000);
+  }, []);
+
+  useEffect(() => () => {
+    if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current);
+  }, []);
+
+  const handleDeleteWithUndo = useCallback(async (id: string) => {
+    const current = useNotesStore.getState();
+    const note = current.notes.find((item) => item.id === id)
+      ?? (current.selectedNote?.id === id ? current.selectedNote : null);
+    if (current.selectedNote?.id === id) await flushAutoSave();
+    try {
+      await deleteNote(id);
+    } catch (error) {
+      console.error("[App] 删除笔记失败:", error);
+      return;
+    }
+    setDocTreeKey((key) => key + 1);
+    const key = `delete-${id}-${Date.now()}`;
+    showUndo({
+      key,
+      message: `已删除「${note?.title || "无标题"}」`,
+      onUndo: async () => {
+        await api.recycle.restore(id);
+        await setDate(useNotesStore.getState().currentDate);
+        setDocTreeKey((value) => value + 1);
+      },
+    });
+  }, [deleteNote, flushAutoSave, setDate, showUndo]);
+
+  const handleBatchDeleteWithUndo = useCallback(async (ids: string[], folderPath?: string) => {
+    const uniqueIds = [...new Set(ids)];
+    if (uniqueIds.length === 0) return;
+    const current = useNotesStore.getState().selectedNote;
+    if (current && uniqueIds.includes(current.id)) await flushAutoSave();
+    try {
+      await batchDelete(uniqueIds);
+    } catch (error) {
+      console.error("[App] 批量删除笔记失败:", error);
+      return;
+    }
+    setDocTreeKey((key) => key + 1);
+    const folderName = folderPath ? folderPath.split("/").pop() || "选中" : "选中";
+    showUndo({
+      key: `batch-delete-${Date.now()}`,
+      message: uniqueIds.length > 1
+        ? `已删除「${folderName}」及其下 ${uniqueIds.length} 篇文档`
+        : `已删除「${folderName}」`,
+      onUndo: async () => {
+        await Promise.all(uniqueIds.map((id) => api.recycle.restore(id)));
+        await setDate(useNotesStore.getState().currentDate);
+        setDocTreeKey((value) => value + 1);
+      },
+    });
+  }, [batchDelete, flushAutoSave, setDate, showUndo]);
 
   const handleMoveFolder = useCallback(async (sourcePath: string, targetPath: string) => {
     const currentSelected = useNotesStore.getState().selectedNote;
@@ -886,14 +970,18 @@ function App() {
       try {
         const today = new Date();
         const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-        // 查询当天是否有笔记（兼容清除 IndexedDB 而 localStorage 残留的场景）
-        const existing = await api.notes.listByDate(dateStr);
-        if (existing.length > 0) {
+        // 检查整个工作区，避免“今天没有随笔”被误判为全新数据库。
+        // 即使 IndexedDB 被清空但 localStorage 仍有标记，也能重新播种。
+        const [dailyNotes, documents] = await Promise.all([
+          api.notes.all(),
+          api.docs.search({}),
+        ]);
+        if (dailyNotes.length > 0 || documents.length > 0) {
           // 已有笔记，标记已播种
           localStorage.setItem(SEED_KEY, "1");
           return;
         }
-        // 当天无笔记 → 写入示例笔记
+        // 整个工作区为空 → 写入示例笔记
         await api.notes.create({
           date: dateStr,
           title: DEMO_TITLE,
@@ -907,7 +995,7 @@ function App() {
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [setDate]);
 
   // ── 键盘快捷键（浏览器 keydown + Tauri 全局热键）──
   useAppKeyboardShortcuts({
@@ -1233,23 +1321,7 @@ function App() {
                 setDate(today);
                 handleSelectNote(note);
               }}
-              onDelete={(id) => {
-                // Find note for undo context
-                const note = notes.find((n) => n.id === id) ?? selectedNote;
-                const title = note?.title || "无标题";
-                deleteNote(id);
-                // Auto-dismiss after 5s
-                const timer = setTimeout(() => setUndo(null), 5000);
-                setUndo({
-                  key: `delete-${id}`,
-                  message: `已删除「${title}」`,
-                  onUndo: async () => {
-                    clearTimeout(timer);
-                    await api.recycle.restore(id);
-                    setDate(currentDate); // reload
-                  },
-                });
-              }}
+              onDelete={handleDeleteWithUndo}
               onReorder={async (id, sortOrder) => {
                 await api.notes.updateOrder(id, sortOrder);
                 // Refresh current date to reflect new order
@@ -1290,22 +1362,7 @@ function App() {
               onCreate={() => setDocCreateOpen(true)}
               refreshKey={docTreeKey}
               onRename={(id, title) => updateNote(id, { title })}
-              onDelete={(id) => {
-                const note = notes.find((n) => n.id === id);
-                const title = note?.title || "无标题";
-                deleteNote(id);
-                const timer = setTimeout(() => setUndo(null), 5000);
-                setUndo({
-                  key: `delete-${id}`,
-                  message: `已删除「${title}」`,
-                  onUndo: async () => {
-                    clearTimeout(timer);
-                    await api.recycle.restore(id);
-                    setDocTreeKey(k => k + 1);
-                  },
-                });
-                setDocTreeKey(k => k + 1);
-              }}
+              onDelete={handleDeleteWithUndo}
               onToggleReadonly={async (id, readonly) => {
                 await updateNote(id, { readonly });
                 setDocTreeKey(k => k + 1);
@@ -1313,25 +1370,7 @@ function App() {
               onMoveDocument={handleMoveDocument}
               onBatchMoveDocuments={handleBatchMoveDocuments}
               onMoveFolder={handleMoveFolder}
-              onBatchDelete={(ids, folderPath) => {
-                ids.forEach(id => deleteNote(id));
-                const folderName = folderPath ? folderPath.split("/").pop() || "选中" : "选中";
-                const timer = setTimeout(() => setUndo(null), 5000);
-                setUndo({
-                  key: `batch-delete-${Date.now()}`,
-                  message: ids.length > 1
-                    ? `已删除「${folderName}」及其下 ${ids.length} 篇文档`
-                    : `已删除「${folderName}」`,
-                  onUndo: async () => {
-                    clearTimeout(timer);
-                    for (const id of ids) {
-                      await api.recycle.restore(id);
-                    }
-                    setDocTreeKey(k => k + 1);
-                  },
-                });
-                setDocTreeKey(k => k + 1);
-              }}
+              onBatchDelete={handleBatchDeleteWithUndo}
               onBatchSetReadonly={async (ids, readonly) => {
                 await handleBatchSetReadonly(ids, readonly);
               }}
@@ -1577,22 +1616,7 @@ function App() {
                 }}
                 refreshKey={docTreeKey}
                 onRename={(id, title) => updateNote(id, { title })}
-                onDelete={(id) => {
-                const note = notes.find((n) => n.id === id);
-                const title = note?.title || "无标题";
-                deleteNote(id);
-                const timer = setTimeout(() => setUndo(null), 5000);
-                setUndo({
-                  key: `delete-${id}`,
-                  message: `已删除「${title}」`,
-                  onUndo: async () => {
-                    clearTimeout(timer);
-                    await api.recycle.restore(id);
-                    setDocTreeKey(k => k + 1);
-                  },
-                });
-                setDocTreeKey(k => k + 1);
-              }}
+                onDelete={handleDeleteWithUndo}
                 onToggleReadonly={async (id, readonly) => {
                   await updateNote(id, { readonly });
                   setDocTreeKey(k => k + 1);
@@ -1600,25 +1624,7 @@ function App() {
                 onMoveDocument={handleMoveDocument}
                 onBatchMoveDocuments={handleBatchMoveDocuments}
                 onMoveFolder={handleMoveFolder}
-                onBatchDelete={(ids, folderPath) => {
-                ids.forEach(id => deleteNote(id));
-                const folderName = folderPath ? folderPath.split("/").pop() || "选中" : "选中";
-                const timer = setTimeout(() => setUndo(null), 5000);
-                setUndo({
-                  key: `batch-delete-${Date.now()}`,
-                  message: ids.length > 1
-                    ? `已删除「${folderName}」及其下 ${ids.length} 篇文档`
-                    : `已删除「${folderName}」`,
-                  onUndo: async () => {
-                    clearTimeout(timer);
-                    for (const id of ids) {
-                      await api.recycle.restore(id);
-                    }
-                    setDocTreeKey(k => k + 1);
-                  },
-                });
-                setDocTreeKey(k => k + 1);
-              }}
+                onBatchDelete={handleBatchDeleteWithUndo}
                 onBatchSetReadonly={async (ids, readonly) => {
                   await handleBatchSetReadonly(ids, readonly);
                 }}

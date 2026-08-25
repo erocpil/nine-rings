@@ -68,7 +68,8 @@ export const tauriAdapter: StorageAdapter = {
   getAllTags: () => invoke<string[]>("get_all_tags"),
 
   // ── Daily ──
-  getDailyPage: (date) => invokeDailyPage("get_daily_page", { date }),
+  getDailyPage: (date, carryoverDefault = false) =>
+    invokeDailyPage("get_daily_page", { date, carryoverDefault }),
   updateTodos: (data) => invokeDailyPage("update_todos", { data }),
   getAllDailyPages: () => tauriDriver.getAllDailyPages(),
 

@@ -287,7 +287,7 @@ export const idbAdapter: StorageAdapter = {
 
   // ══════ Daily Page ══════
 
-  async getDailyPage(date: string): Promise<DailyPage> {
+  async getDailyPage(date: string, carryoverDefault = false): Promise<DailyPage> {
     return withDB(async (db) => {
       const store = db.transaction("daily_pages", "readwrite").objectStore("daily_pages");
       let page = await getOne<any>(store, date);
@@ -298,7 +298,9 @@ export const idbAdapter: StorageAdapter = {
         const yesterday = localDateKey(d);
         const yPage = await getOne<any>(store, yesterday);
         let carryoverTodos: Todo[] = [];
+        let carryoverEnabled = carryoverDefault;
         if (yPage && yPage.todo_carryover) {
+          carryoverEnabled = true;
           const todos: Todo[] = typeof yPage.todos === "string" ? JSON.parse(yPage.todos) : yPage.todos;
           carryoverTodos = todos
             .filter((t: any) => !(t.done === 1 || t.done === true))
@@ -307,7 +309,7 @@ export const idbAdapter: StorageAdapter = {
         page = {
           date,
           todos: JSON.stringify(carryoverTodos),
-          todo_carryover: 0,
+          todo_carryover: carryoverEnabled ? 1 : 0,
           updated_at: now(),
         };
         await putRecord(store, page);

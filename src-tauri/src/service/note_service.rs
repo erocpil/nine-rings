@@ -27,7 +27,11 @@ pub fn reorder_note(conn: &Connection, id: &str, new_order: i32) -> rusqlite::Re
 
 // ──── DailyPage ────
 
-pub fn get_or_create_daily_page(conn: &Connection, date: &str) -> rusqlite::Result<DailyPage> {
+pub fn get_or_create_daily_page(
+    conn: &Connection,
+    date: &str,
+    carryover_default: bool,
+) -> rusqlite::Result<DailyPage> {
     if let Some(page) = db::models::select_daily_page(conn, date)? {
         return Ok(page);
     }
@@ -49,7 +53,7 @@ pub fn get_or_create_daily_page(conn: &Connection, date: &str) -> rusqlite::Resu
     let page = DailyPage {
         date: date.to_string(),
         todos: vec![],
-        todo_carryover: false,
+        todo_carryover: carryover_default,
         updated_at: now,
     };
     db::models::upsert_daily_page(conn, &page)?;

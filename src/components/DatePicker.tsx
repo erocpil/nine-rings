@@ -19,8 +19,11 @@ export function DatePicker({ value, onChange }: DatePickerProps) {
       }
     };
     // 延迟绑定，避免触发 toggle 自身的 click
-    setTimeout(() => document.addEventListener("click", handler), 0);
-    return () => document.removeEventListener("click", handler);
+    const timer = window.setTimeout(() => document.addEventListener("click", handler), 0);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("click", handler);
+    };
   }, [open]);
 
   const toggle = () => {
@@ -49,12 +52,12 @@ export function DatePicker({ value, onChange }: DatePickerProps) {
             onChange={handleChange}
             className="date-input"
           />
-          <span className="date-close" onClick={() => setOpen(false)}>✕</span>
+          <button type="button" className="date-close" onClick={() => setOpen(false)} aria-label="关闭日期选择">✕</button>
         </div>
       ) : (
-        <span className="date-display" onClick={toggle} title="切换日期">
+        <button type="button" className="date-display" onClick={toggle} title="切换日期" aria-label="切换日期">
           📅<span className="date-arrow">▼</span>
-        </span>
+        </button>
       )}
     </div>
   );

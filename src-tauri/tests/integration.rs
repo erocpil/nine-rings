@@ -280,8 +280,9 @@ fn test_carryover_inherits_incomplete() {
         make_todo("b", "已完成B", true),
     ];
     nine_rings_lib::service::note_service::update_todos(&conn, "2026-07-01", &day1, true).unwrap();
-    let day2 = nine_rings_lib::service::note_service::get_or_create_daily_page(&conn, "2026-07-02")
-        .unwrap();
+    let day2 =
+        nine_rings_lib::service::note_service::get_or_create_daily_page(&conn, "2026-07-02", false)
+            .unwrap();
     assert_eq!(day2.todos.len(), 1);
     assert_eq!(day2.todos[0].text, "未完成A");
     assert!(day2.todo_carryover);
@@ -292,8 +293,19 @@ fn test_no_carryover_when_disabled() {
     let conn = setup_db();
     let day1 = vec![make_todo("x", "不会继承", false)];
     nine_rings_lib::service::note_service::update_todos(&conn, "2026-07-01", &day1, false).unwrap();
-    let day2 = nine_rings_lib::service::note_service::get_or_create_daily_page(&conn, "2026-07-02")
-        .unwrap();
+    let day2 =
+        nine_rings_lib::service::note_service::get_or_create_daily_page(&conn, "2026-07-02", false)
+            .unwrap();
     assert!(day2.todos.is_empty());
     assert!(!day2.todo_carryover);
+}
+
+#[test]
+fn test_new_daily_page_uses_carryover_default() {
+    let conn = setup_db();
+    let page =
+        nine_rings_lib::service::note_service::get_or_create_daily_page(&conn, "2026-07-02", true)
+            .unwrap();
+    assert!(page.todos.is_empty());
+    assert!(page.todo_carryover);
 }

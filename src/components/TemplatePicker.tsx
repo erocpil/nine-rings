@@ -46,8 +46,11 @@ export function TemplatePicker({ onSelect, onBlank, onClose, anchorRect, filterN
       }
     };
     // 延迟绑定，避免触发 click 时立即关闭
-    setTimeout(() => document.addEventListener("click", handler), 0);
-    return () => document.removeEventListener("click", handler);
+    const timer = window.setTimeout(() => document.addEventListener("click", handler), 0);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("click", handler);
+    };
   }, [onClose]);
 
   // ESC 关闭

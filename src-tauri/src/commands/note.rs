@@ -60,9 +60,15 @@ pub fn get_all_tags(state: State<AppState>) -> Result<Vec<String>, String> {
 pub fn get_daily_page(
     state: State<AppState>,
     date: String,
+    carryover_default: Option<bool>,
 ) -> Result<crate::db::models::DailyPage, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    service::note_service::get_or_create_daily_page(&conn, &date).map_err(|e| e.to_string())
+    service::note_service::get_or_create_daily_page(
+        &conn,
+        &date,
+        carryover_default.unwrap_or(false),
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

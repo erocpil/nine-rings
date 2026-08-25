@@ -97,6 +97,31 @@ async function main(): Promise<void> {
     api.daily.get = originalDailyGet;
   }
 
+  console.log("\n── stale date response is ignored ──");
+  let releaseOldNotes!: (notes: Note[]) => void;
+  let releaseOldPage!: (page: DailyPage) => void;
+  const oldNotes = new Promise<Note[]>((resolve) => { releaseOldNotes = resolve; });
+  const oldPage = new Promise<DailyPage>((resolve) => { releaseOldPage = resolve; });
+  const newest: Note = { ...restored, id: "newest", date: "2026-08-22", title: "Newest", storagePath: undefined };
+  const newestPage: DailyPage = { ...dailyPage, date: newest.date };
+  api.notes.listByDate = async (date) => date === "2026-08-21" ? oldNotes : [newest];
+  api.daily.get = async (date) => date === "2026-08-21" ? oldPage : newestPage;
+  try {
+    const staleRequest = useNotesStore.getState().setDate("2026-08-21");
+    await useNotesStore.getState().setDate(newest.date);
+    releaseOldNotes([{ ...newest, id: "stale", date: "2026-08-21", title: "Stale" }]);
+    releaseOldPage({ ...dailyPage, date: "2026-08-21" });
+    await staleRequest;
+
+    const state = useNotesStore.getState();
+    assert(state.currentDate === newest.date, "latest requested date remains active");
+    assert(state.notes[0]?.id === newest.id, "late response cannot overwrite the newest note list");
+    assert(state.dailyPage?.date === newest.date, "late response cannot overwrite the newest daily page");
+  } finally {
+    api.notes.listByDate = originalListByDate;
+    api.daily.get = originalDailyGet;
+  }
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }

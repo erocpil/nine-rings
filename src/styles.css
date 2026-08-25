@@ -438,6 +438,12 @@ body {
 }
 
 .date-display {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
   white-space: nowrap;
   display: flex;
@@ -468,6 +474,10 @@ body {
 }
 
 .date-close {
+  appearance: none;
+  padding: 2px;
+  border: 0;
+  background: transparent;
   cursor: pointer;
   color: var(--text-tertiary);
   font-size: 14px;

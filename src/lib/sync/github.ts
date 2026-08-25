@@ -504,7 +504,7 @@ export async function pushToGitHub(config: SyncConfig, message?: string): Promis
   const content = await exportFullDB();
   dumpBundle("导出本地数据", content);
 
-  const version = new Date().toISOString().replace(/[:-]/g, "").replace(/\..+/, ""); // "20260715T123000"
+  const version = new Date().toISOString().replace(/[:-]/g, "").replace(/\.(\d{3})Z$/, "$1"); // "20260715T123000123"
   const dataPath = versionedPath(config.path, version);
   const ptrPath = latestPath(config.path);
 

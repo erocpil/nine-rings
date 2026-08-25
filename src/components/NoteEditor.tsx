@@ -1950,20 +1950,43 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     const el = scrollRef.current;
     if (!el) return;
     const saved = localStorage.getItem('scrollPos:' + noteId);
-    const opsCount = Array.isArray(content) ? (content as any[]).length : 0;
-    addLog(`[加载] ${title}  id=${noteId.slice(0,8)} ops=${opsCount} 恢复位置=${saved ?? '无'}`);
+    addLog(`[加载] id=${noteId.slice(0,8)} 恢复位置=${saved ?? '无'}`);
     if (saved === null) {
       return;
     }
-    const scrollTop = Number(saved);
-    let retries = 8;
+    const scrollTop = Math.max(0, Number(saved) || 0);
+    const deadline = performance.now() + 2000;
+    let frame = 0;
+    let settledFrames = 0;
+    let stopped = false;
+    let observer: ResizeObserver | null = null;
     const restore = () => {
-      requestAnimationFrame(() => {
-        el.scrollTop = scrollTop;
-        if (--retries > 0) restore();
-      });
+      if (stopped) return;
+      const maximum = Math.max(0, el.scrollHeight - el.clientHeight);
+      el.scrollTop = Math.min(scrollTop, maximum);
+      const targetIsReachable = maximum >= scrollTop;
+      const targetIsApplied = Math.abs(el.scrollTop - scrollTop) <= 1;
+      settledFrames = targetIsReachable && targetIsApplied ? settledFrames + 1 : 0;
+      if (settledFrames >= 2 || performance.now() >= deadline) {
+        stopped = true;
+        observer?.disconnect();
+        return;
+      }
+      frame = requestAnimationFrame(restore);
     };
-    restore();
+    observer = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(() => {
+          cancelAnimationFrame(frame);
+          frame = requestAnimationFrame(restore);
+        })
+      : null;
+    observer?.observe(el);
+    frame = requestAnimationFrame(restore);
+    return () => {
+      stopped = true;
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+    };
   }, [noteId]);
 
   // 滚动时保存位置 & 更新位置显示
