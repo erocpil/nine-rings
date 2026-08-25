@@ -44,6 +44,9 @@ export default defineConfig(async () => {
           const normalized = normalizePath(id);
 
           if (normalized.includes("/node_modules/")) {
+            // PDF 阅读器是独立的按需界面；PDF.js 体积较大，不能并入普通
+            // 文档首屏共用的 vendor chunk。
+            if (normalized.includes("/node_modules/pdfjs-dist/")) return "pdfjs";
             if (normalized.includes("/node_modules/@tiptap/") || normalized.includes("/node_modules/prosemirror-")) {
               return "editor";
             }

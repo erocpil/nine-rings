@@ -13,6 +13,12 @@ import { isDocumentFindShortcut, isEditorLineJumpShortcut } from "../lib/shortcu
 import type { WebStorageStatus } from "../hooks/useWebPlatform";
 import { collectWebDiagnostics } from "../lib/web-diagnostics";
 import { rebuildWebSearchIndex } from "../lib/web-search-index";
+import {
+  deleteLocalPdf,
+  importLocalPdf,
+  listLocalPdfs,
+  type LocalPdfEntry,
+} from "../lib/pdf-library";
 
 interface Props {
   open: boolean;
@@ -27,6 +33,7 @@ interface Props {
   webStorageStatus?: WebStorageStatus;
   onBeforeBookmarkNoteUpdate?: (noteId: string) => Promise<void>;
   onBookmarkNoteUpdated?: (note: Note) => void;
+  onOpenPdf?: (documentId: string) => void;
 }
 
 type SettingsPage = "root" | "appearance" | "editor" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced";
@@ -88,7 +95,7 @@ function yieldToNextFrame(): Promise<void> {
   return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
 }
 
-export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onPullDone, webStorageStatus, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated }: Props) {
+export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onPullDone, webStorageStatus, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onOpenPdf }: Props) {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -131,6 +138,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [mdImportDocType, setMdImportDocType] = useState<DocType>("reference");
   const [mdImportTags, setMdImportTags] = useState("");
   const [mdImportConcepts, setMdImportConcepts] = useState("");
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const [pdfEntries, setPdfEntries] = useState<LocalPdfEntry[]>([]);
+  const [pdfLibraryLoading, setPdfLibraryLoading] = useState(false);
+  const [pdfImporting, setPdfImporting] = useState(false);
 
   const loadSettings = () => {
     setLoading(true);
@@ -513,6 +524,50 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
       setMdImportProgress(0);
       // 无论成功失败都允许再次选择同一批文件。
       e.target.value = "";
+    }
+  };
+
+  const refreshPdfLibrary = useCallback(async () => {
+    setPdfLibraryLoading(true);
+    try {
+      setPdfEntries(await listLocalPdfs());
+    } catch (reason) {
+      setMessage(`PDF 资料库读取失败：${reason instanceof Error ? reason.message : String(reason)}`);
+    } finally {
+      setPdfLibraryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open || settingsPage !== "data") return;
+    void refreshPdfLibrary();
+  }, [open, refreshPdfLibrary, settingsPage]);
+
+  const handlePdfImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setPdfImporting(true);
+    try {
+      const imported = await importLocalPdf(file);
+      await refreshPdfLibrary();
+      setMessage(`已导入 PDF：${imported.name}`);
+      onOpenPdf?.(imported.id);
+    } catch (reason) {
+      setMessage(`PDF 导入失败：${reason instanceof Error ? reason.message : String(reason)}`);
+    } finally {
+      setPdfImporting(false);
+      event.target.value = "";
+    }
+  };
+
+  const handlePdfDelete = async (entry: LocalPdfEntry) => {
+    if (!window.confirm(`删除本地 PDF「${entry.name}」？此操作不会影响笔记。`)) return;
+    try {
+      await deleteLocalPdf(entry.id);
+      await refreshPdfLibrary();
+      setMessage(`已删除 PDF：${entry.name}`);
+    } catch (reason) {
+      setMessage(`PDF 删除失败：${reason instanceof Error ? reason.message : String(reason)}`);
     }
   };
 
@@ -943,6 +998,60 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             {/* ═══════════════════════ */}
             {/* 数据导出/导入 */}
             {/* ═══════════════════════ */}
+            <SettingsSection
+              title="本地 PDF 阅读"
+              desc="导入后在独立阅读器中打开；PDF 暂不包含在 JSON 或 GitHub 备份中"
+              visible={settingsPage === "data"}
+            >
+              <div className="settings-button-row">
+                <button
+                  className="settings-btn-primary"
+                  type="button"
+                  onClick={() => pdfInputRef.current?.click()}
+                  disabled={pdfImporting}
+                >{pdfImporting ? "正在导入 PDF…" : "选择本地 PDF"}</button>
+                <input
+                  ref={pdfInputRef}
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  style={{ display: "none" }}
+                  onChange={handlePdfImport}
+                />
+              </div>
+              {pdfLibraryLoading ? (
+                <div className="pdf-library-empty">正在读取 PDF 资料库…</div>
+              ) : pdfEntries.length === 0 ? (
+                <div className="pdf-library-empty">尚未导入 PDF</div>
+              ) : (
+                <div className="pdf-library-list">
+                  {pdfEntries.map((entry) => (
+                    <div className="pdf-library-item" key={entry.id}>
+                      <button
+                        type="button"
+                        className="pdf-library-open"
+                        onClick={() => onOpenPdf?.(entry.id)}
+                        title={`打开 ${entry.name}`}
+                        aria-label={`打开 ${entry.name}`}
+                      >
+                        <strong>{entry.name}</strong>
+                        <small>
+                          {formatStorageBytes(entry.size)}
+                          {entry.pageCount ? ` · 第 ${entry.page}/${entry.pageCount} 页` : ""}
+                        </small>
+                      </button>
+                      <button
+                        type="button"
+                        className="pdf-library-delete"
+                        onClick={() => void handlePdfDelete(entry)}
+                        aria-label={`删除 ${entry.name}`}
+                        title="删除本地 PDF"
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SettingsSection>
+
             {webStorageStatus?.supported && (
               <SettingsSection title="浏览器存储" desc="Nine Rings 的本地数据保存在当前浏览器中" visible={settingsPage === "data"}>
                 <div className="web-storage-summary">

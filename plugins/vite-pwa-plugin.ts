@@ -18,10 +18,19 @@ function cacheKey(paths: string[]): string {
   return (hash >>> 0).toString(36);
 }
 
+/**
+ * PDF 阅读器是按需入口，其渲染器和 Worker 体积较大。它们仍会在首次打开时
+ * 被下方的 cache-first 策略缓存，但不应拖慢普通笔记用户安装或更新 PWA。
+ */
+export function shouldPrecache(path: string): boolean {
+  if (path.endsWith(".map")) return false;
+  return !/^\/assets\/(?:pdfjs-|PdfReader-|pdf\.worker)/.test(path);
+}
+
 export function createServiceWorkerSource(generatedFiles: string[], buildId: string): string {
   const generatedAssets = generatedFiles
     .map((fileName) => `/${fileName}`)
-    .filter((path) => !path.endsWith(".map"));
+    .filter(shouldPrecache);
   const precache = [...new Set([...PUBLIC_ASSETS, ...generatedAssets])].sort();
   const cacheName = `nine-rings-${cacheKey([...precache, buildId])}`;
 

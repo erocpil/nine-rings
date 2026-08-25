@@ -58,6 +58,7 @@ const TitleBar = lazy(() => import("./components/TitleBar"));
 const PropertiesPanel = lazy(() => import("./components/PropertiesPanel"));
 const DocCreateDialog = lazy(() => import("./components/DocCreateDialog"));
 const QuickSwitcher = lazy(() => import("./components/QuickSwitcher"));
+const PdfReader = lazy(() => import("./components/PdfReader"));
 const TodoList = lazy(() => import("./components/TodoList")
   .then((module) => ({ default: module.TodoList })));
 const loadNoteEditor = () => import("./components/NoteEditor")
@@ -370,6 +371,7 @@ function App() {
   }, [flushAutoSave]);
 
   const [recycleOpen, setRecycleOpen] = useState(false);
+  const [pdfReaderDocumentId, setPdfReaderDocumentId] = useState<string | null>(null);
   const [overdueOpen, setOverdueOpen] = useState(false);
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
   const [docTreeToolbarHost, setDocTreeToolbarHost] = useState<HTMLDivElement | null>(null);
@@ -1128,6 +1130,21 @@ function App() {
     return () => document.removeEventListener("keydown", handleEscape);
   }, [dismissSearchResults, docResults, query]);
 
+  if (pdfReaderDocumentId) {
+    return (
+      <div className="pdf-reader-app">
+        {isTauriRuntime() && (
+          <Suspense fallback={null}>
+            <TitleBar />
+          </Suspense>
+        )}
+        <Suspense fallback={<div className="pdf-reader-boot">正在加载 PDF 阅读器…</div>}>
+          <PdfReader documentId={pdfReaderDocumentId} onClose={() => setPdfReaderDocumentId(null)} />
+        </Suspense>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`app ${focusMode ? "app-focus-mode" : ""}`}
@@ -1563,6 +1580,14 @@ function App() {
           webStorageStatus={isTauriRuntime() ? undefined : webPlatform.storage}
           onClose={() => setSettingsOpen(false)}
           onConfigChange={handleConfigChange}
+          onOpenPdf={(documentId) => {
+            void flushAutoSave()
+              .then(() => {
+                setSettingsOpen(false);
+                setPdfReaderDocumentId(documentId);
+              })
+              .catch((saveError) => console.error("[PDF] 打开阅读器前保存笔记失败:", saveError));
+          }}
           onBeforeBookmarkNoteUpdate={async (noteId) => {
             if (selectedNoteRef.current?.id === noteId) await autoSave.flush();
           }}

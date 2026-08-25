@@ -6,6 +6,9 @@ const first = createServiceWorkerSource([
   "assets/index-abc.js",
   "assets/index-def.css",
   "assets/index-def.css.map",
+  "assets/pdfjs-lazy.js",
+  "assets/PdfReader-lazy.js",
+  "assets/pdf.worker.min-lazy.mjs",
 ], "build-one");
 const second = createServiceWorkerSource([
   "assets/index-abc.js",
@@ -15,6 +18,9 @@ const second = createServiceWorkerSource([
 assert.match(first, /\/assets\/index-abc\.js/);
 assert.match(first, /\/assets\/index-def\.css/);
 assert.doesNotMatch(first, /index-def\.css\.map/);
+assert.doesNotMatch(first, /\/assets\/pdfjs-lazy\.js/);
+assert.doesNotMatch(first, /\/assets\/PdfReader-lazy\.js/);
+assert.doesNotMatch(first, /\/assets\/pdf\.worker\.min-lazy\.mjs/);
 assert.match(first, /SKIP_WAITING/);
 assert.match(first, /caches\.match\(request\)/);
 assert.match(first, /cached \|\| caches\.match\("\/index\.html"\)/);
