@@ -158,10 +158,14 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [editable, setEditable] = useState(editor.isEditable);
+  const [readonlyWrapOverride, setReadonlyWrapOverride] = useState<boolean | null>(null);
+  const [readonlyCollapsedOverride, setReadonlyCollapsedOverride] = useState<boolean | null>(null);
   const code = node.textContent;
   const codeTitle = typeof node.attrs.title === "string" ? node.attrs.title : "";
-  const wrapEnabled = node.attrs.wrap !== false;
-  const collapsed = node.attrs.collapsed === true;
+  const storedWrapEnabled = node.attrs.wrap !== false;
+  const storedCollapsed = node.attrs.collapsed === true;
+  const wrapEnabled = editable ? storedWrapEnabled : readonlyWrapOverride ?? storedWrapEnabled;
+  const collapsed = editable ? storedCollapsed : readonlyCollapsedOverride ?? storedCollapsed;
   const lineCount = code.split("\n").length;
   const [lineNumbersEnabled, setLineNumbersEnabled] = useState(
     () => codeLineNumbersPluginKey.getState(editor.state) ?? false,
@@ -220,7 +224,14 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
   }, [code, lineCount, lineNumbersEnabled]);
 
   useEffect(() => {
-    const syncEditable = () => setEditable(editor.isEditable);
+    const syncEditable = () => {
+      const nextEditable = editor.isEditable;
+      setEditable((current) => current === nextEditable ? current : nextEditable);
+      if (nextEditable) {
+        setReadonlyWrapOverride(null);
+        setReadonlyCollapsedOverride(null);
+      }
+    };
     syncEditable();
     // 文档更新不会改变只读状态。观察根节点属性可避免每个代码块都在
     // 每次输入时收到一次 editor update 回调。
@@ -265,35 +276,37 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
           <div className="code-block-actions">
             <button
               className="code-block-collapse-toggle"
-              disabled={!editable}
               onMouseDown={(event) => event.preventDefault()}
-              onClick={() => updateAttributes({ collapsed: !collapsed })}
+              onClick={() => {
+                if (editable) updateAttributes({ collapsed: !collapsed });
+                else setReadonlyCollapsedOverride(!collapsed);
+              }}
               type="button"
               aria-label={collapsed ? "展开代码块" : "折叠代码块"}
               aria-expanded={!collapsed}
               title={collapsed ? "展开代码块" : "折叠代码块"}
             >{collapsed ? "▶" : "▼"}</button>
-            <select
-              className="code-block-language"
-              disabled={!editable}
-              value={normalizeCodeLanguage(node.attrs.language) ?? ""}
-              onMouseDown={(event) => event.stopPropagation()}
-              onChange={(event) => {
-                if (!editor.isEditable) return;
-                updateAttributes({ language: event.target.value || null });
-              }}
-              aria-label="代码语言"
-              title="代码语言 / 语法高亮"
-            >
-              {CODE_LANGUAGE_OPTIONS.map((option) => (
-                <option key={option.value || "plaintext"} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            {editable && (
+              <select
+                className="code-block-language"
+                value={normalizeCodeLanguage(node.attrs.language) ?? ""}
+                onMouseDown={(event) => event.stopPropagation()}
+                onChange={(event) => updateAttributes({ language: event.target.value || null })}
+                aria-label="代码语言"
+                title="代码语言 / 语法高亮"
+              >
+                {CODE_LANGUAGE_OPTIONS.map((option) => (
+                  <option key={option.value || "plaintext"} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            )}
             <button
               className={`code-block-wrap-toggle ${wrapEnabled ? "active" : ""}`}
-              disabled={!editable}
               onMouseDown={(event) => event.preventDefault()}
-              onClick={() => updateAttributes({ wrap: !wrapEnabled })}
+              onClick={() => {
+                if (editable) updateAttributes({ wrap: !wrapEnabled });
+                else setReadonlyWrapOverride(!wrapEnabled);
+              }}
               type="button"
               aria-label={wrapEnabled ? "关闭代码自动换行" : "开启代码自动换行"}
               aria-pressed={wrapEnabled}

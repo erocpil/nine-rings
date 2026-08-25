@@ -1,5 +1,53 @@
 import { expect, test, type Locator } from "@playwright/test";
 
+test("只读文档隐藏代码语法选项并保留查看操作", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+  const editor = page.locator(".ProseMirror");
+  await editor.evaluate((element) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "```typescript\nconst answer = 42;\n```");
+    element.dispatchEvent(new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData,
+    }));
+  });
+  const codeBlock = editor.locator(".code-block-wrap");
+  await expect(codeBlock.getByLabel("代码语言")).toBeVisible();
+  await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
+
+  await page.locator(".sidebar-item.active").getByTitle("设为只读")
+    .evaluate((button: HTMLButtonElement) => button.click());
+  await expect(editor).toHaveAttribute("contenteditable", "false");
+  await expect(codeBlock.getByLabel("代码语言")).toHaveCount(0);
+  await expect(codeBlock.getByLabel("代码简介")).toBeDisabled();
+
+  const collapseButton = codeBlock.getByRole("button", { name: "折叠代码块" });
+  const wrapButton = codeBlock.getByRole("button", { name: "关闭代码自动换行" });
+  const copyButton = codeBlock.getByRole("button", { name: "复制代码" });
+  await expect(collapseButton).toBeEnabled();
+  await expect(wrapButton).toBeEnabled();
+  await expect(copyButton).toBeEnabled();
+  await collapseButton.click();
+  await expect(codeBlock).toHaveAttribute("data-collapsed", "true");
+  await codeBlock.getByRole("button", { name: "展开代码块" }).click();
+  await wrapButton.click();
+  await expect(codeBlock).toHaveAttribute("data-code-wrap", "false");
+
+  await page.setViewportSize({ width: 390, height: 760 });
+  await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 100 } });
+  await page.locator(".note-title-row").getByTitle("专注模式").click();
+  await expect(page.getByLabel("专注模式工具栏")).toBeVisible();
+  await expect(codeBlock.getByLabel("代码语言")).toHaveCount(0);
+  await expect(codeBlock.getByRole("button", { name: "折叠代码块" })).toBeEnabled();
+  await expect(codeBlock.getByRole("button", { name: "开启代码自动换行" })).toBeEnabled();
+  await expect(codeBlock.getByRole("button", { name: "复制代码" })).toBeEnabled();
+});
+
 test("只有只读专注模式双击标题或正文才切换所属标题章节", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("随笔").click();
