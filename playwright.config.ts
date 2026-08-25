@@ -5,6 +5,7 @@ export default defineConfig({
   testIgnore: '**/pwa-offline.spec.ts',
   timeout: 30000,
   retries: process.env.CI ? 1 : 0,
+  workers: process.env.CI ? 2 : 4,
   use: {
     baseURL: 'http://localhost:8000',
     headless: true,

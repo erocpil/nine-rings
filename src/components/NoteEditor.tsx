@@ -1233,16 +1233,16 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     if (!outlineOpen || activeOutlineIndex < 0) return;
     const list = outlineListRef.current;
     if (!list) return;
-    const activeItem = list.querySelector<HTMLElement>(
-      `[data-outline-index="${activeOutlineIndex}"]`,
-    );
-    const overflowing = list.scrollHeight > list.clientHeight + 1;
-    setOutlineOverflow((current) => current === overflowing ? current : overflowing);
-    if (!activeItem || !overflowing) {
-      list.scrollTop = 0;
-      return;
-    }
     const centerActiveItem = () => {
+      const activeItem = list.querySelector<HTMLElement>(
+        `[data-outline-index="${activeOutlineIndex}"]`,
+      );
+      const overflowing = list.scrollHeight > list.clientHeight + 1;
+      setOutlineOverflow((current) => current === overflowing ? current : overflowing);
+      if (!activeItem || !overflowing) {
+        list.scrollTop = 0;
+        return;
+      }
       const listRect = list.getBoundingClientRect();
       const activeRect = activeItem.getBoundingClientRect();
       const activeTop = activeRect.top - listRect.top + list.scrollTop;
@@ -1254,10 +1254,25 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       ));
     };
     centerActiveItem();
-    // content-visibility 会先用固有尺寸计算离屏项。首轮滚动使当前项进入
-    // 可见区域后，再校正一次真实尺寸；标题栏不变，因此不会产生整体抖动。
-    const frame = window.requestAnimationFrame(centerActiveItem);
-    return () => window.cancelAnimationFrame(frame);
+    // 浮动面板的 max-height 与 content-visibility 可能在首次布局后才约束
+    // 列表高度。连续两帧并监听这段时间内的尺寸变化，避免目录停在顶部。
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      centerActiveItem();
+      secondFrame = window.requestAnimationFrame(() => {
+        centerActiveItem();
+        observer?.disconnect();
+      });
+    });
+    const observer = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(centerActiveItem);
+    observer?.observe(list);
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+      observer?.disconnect();
+    };
   }, [activeOutlineIndex, documentOutline.length, headingFoldRevision, outlineCollapsedHeadingKeys, outlineOpen]);
 
   const scrollOutlineTo = useCallback((target: "top" | "middle" | "bottom") => {
@@ -1955,11 +1970,13 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       return;
     }
     const scrollTop = Math.max(0, Number(saved) || 0);
-    const deadline = performance.now() + 2000;
+    const startedAt = performance.now();
+    const deadline = performance.now() + 10000;
     let frame = 0;
     let settledFrames = 0;
     let stopped = false;
     let observer: ResizeObserver | null = null;
+    let mutationObserver: MutationObserver | null = null;
     const restore = () => {
       if (stopped) return;
       const maximum = Math.max(0, el.scrollHeight - el.clientHeight);
@@ -1967,9 +1984,11 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       const targetIsReachable = maximum >= scrollTop;
       const targetIsApplied = Math.abs(el.scrollTop - scrollTop) <= 1;
       settledFrames = targetIsReachable && targetIsApplied ? settledFrames + 1 : 0;
-      if (settledFrames >= 2 || performance.now() >= deadline) {
+      const minimumRestoreWindowElapsed = performance.now() - startedAt >= 600;
+      if ((settledFrames >= 4 && minimumRestoreWindowElapsed) || performance.now() >= deadline) {
         stopped = true;
         observer?.disconnect();
+        mutationObserver?.disconnect();
         return;
       }
       frame = requestAnimationFrame(restore);
@@ -1981,11 +2000,19 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         })
       : null;
     observer?.observe(el);
+    mutationObserver = typeof MutationObserver !== "undefined"
+      ? new MutationObserver(() => {
+          cancelAnimationFrame(frame);
+          frame = requestAnimationFrame(restore);
+        })
+      : null;
+    mutationObserver?.observe(el, { childList: true, subtree: true });
     frame = requestAnimationFrame(restore);
     return () => {
       stopped = true;
       cancelAnimationFrame(frame);
       observer?.disconnect();
+      mutationObserver?.disconnect();
     };
   }, [noteId]);
 
@@ -2038,7 +2065,6 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     const persistWhenHidden = () => {
       if (document.visibilityState === "hidden") flushPosition();
     };
-    lastKnownScrollTop = el.scrollTop;
     updateStatusPosition();
     const resizeObserver = typeof ResizeObserver === "undefined"
       ? null
@@ -2056,10 +2082,10 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       window.removeEventListener("nine-rings:main-window-hide", flushPosition);
       document.removeEventListener("visibilitychange", persistWhenHidden);
       resizeObserver?.disconnect();
-      // 关键修复：cleanup 时 DOM 可能已进入销毁阶段，scrollTop 被误读为 0
-      // 此时不覆写——滚动事件已经在用户滚动时写入了正确值
+      // cleanup 时 DOM 可能已进入销毁阶段并触发 scrollTop=0；用户滚动时的
+      // 防抖写入以及 pagehide/visibilitychange 已负责持久化，这里只取消定时器。
       addLog(`[离开] ${noteId.slice(0,8)} 保存位置=${el.scrollTop}`);
-      flushPosition();
+      if (persistTimer) window.clearTimeout(persistTimer);
       if (statusTimer) window.clearTimeout(statusTimer);
     };
   }, [isMobileToolbarViewport, noteId, showStatusBar]);
@@ -3072,7 +3098,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   return (
     <div
       ref={noteEditorRef}
-      className={`note-editor ${readonly ? "note-editor-readonly" : ""} ${cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${cjkLatinSpacing && !nativeCjkLatinSpacing ? "editor-cjk-spacing-fallback" : ""} ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${focusToolbarExpanded ? "focus-toolbar-expanded" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""} ${outlineDock !== "floating" ? `outline-docked-${outlineDock}` : ""} ${outlineOpen ? "outline-docked-open" : ""}`}
+      className={`note-editor ${readonly ? "note-editor-readonly" : ""} ${cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${cjkLatinSpacing && !nativeCjkLatinSpacing ? "editor-cjk-spacing-fallback" : ""} ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${focusToolbarExpanded ? "focus-toolbar-expanded" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""} ${outlineDock !== "floating" ? `outline-docked-${outlineDock}` : ""} ${outlineOpen && outlineDock !== "floating" ? "outline-docked-open" : ""}`}
       style={{ "--note-outline-docked-width": `${outlineDockWidth}px` } as React.CSSProperties}
       onPasteCapture={handlePaste}
       onDrop={handleDrop}

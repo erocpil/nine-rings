@@ -78,15 +78,14 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
   await expect(activeOutlineItem).toContainText("附录 12");
   await expect(outline.getByLabel("目录快速滚动")).toBeVisible();
   await expect(outline.locator(".document-outline-header .document-outline-jumps")).toBeVisible();
-  const centered = await outline.locator(".document-outline-list").evaluate((list) => {
+  await expect.poll(() => outline.locator(".document-outline-list").evaluate((list) => {
     const active = list.querySelector<HTMLElement>('[aria-current="location"]')!;
     const listRect = list.getBoundingClientRect();
     const activeRect = active.getBoundingClientRect();
     return Math.abs(
       (activeRect.top + activeRect.height / 2) - (listRect.top + listRect.height / 2),
     );
-  });
-  expect(centered).toBeLessThanOrEqual(2);
+  })).toBeLessThanOrEqual(2);
 
   const outlineList = outline.locator(".document-outline-list");
   await outline.getByRole("button", { name: "Bot" }).click();

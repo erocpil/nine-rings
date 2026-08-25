@@ -524,9 +524,9 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
             {suggestions.length > 0 && (
               <div className="prop-suggestions">
                 {suggestions.map((s) => (
-                  <div key={s} className="prop-suggestion" onClick={() => addConcept(s)}>
+                  <button type="button" key={s} className="prop-suggestion" onClick={() => addConcept(s)}>
                     {s}
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -535,13 +535,15 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
             <div className="prop-tags">
               {concepts.map((c) => (
                 <span key={c} className="prop-tag">
-                  <span
+                  <button
+                    type="button"
                     className="prop-tag-name"
                     onClick={onOpenConcept ? () => onOpenConcept(c) : undefined}
+                    disabled={!onOpenConcept}
                     title={onOpenConcept ? `查看 #${c} 的所有文档` : undefined}
                   >
                     {c}
-                  </span>
+                  </button>
                   <button className="prop-tag-remove" onClick={() => removeConcept(c)}>✕</button>
                 </span>
               ))}
@@ -578,10 +580,10 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
             {linkResults.length > 0 && (
               <div className="prop-suggestions">
                 {linkResults.map((r) => (
-                  <div key={r.id} className="prop-suggestion" onClick={() => addLink(r)}>
+                  <button type="button" key={r.id} className="prop-suggestion" onClick={() => addLink(r)}>
                     <span className="prop-link-title">{r.title || "无标题"}</span>
                     <span className="prop-link-date">{r.date}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}

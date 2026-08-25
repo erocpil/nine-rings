@@ -40,7 +40,7 @@ test("常用代码语言增量高亮并同步到 PDF 打印视图", async ({ pag
 
   await page.locator(".properties-panel .prop-readonly-toggle").click();
   await expect(editor).toHaveAttribute("contenteditable", "false");
-  await expect(language).toBeDisabled();
+  await expect(language).toHaveCount(0);
 
   const popupPromise = page.waitForEvent("popup");
   await page.locator(".properties-panel").getByRole("button", { name: "导出 PDF（书签大纲）" }).click();

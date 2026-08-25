@@ -223,16 +223,22 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
       if (generation !== dateLoadGeneration) return;
       // 若当前选中的是文档（有 storagePath），保持在文档视图不切换
       if (prevSelected?.storagePath) {
-        set({ notes, dailyPage, loading: false });
+        set({ notes, dailyPage, loading: false, startupReady: true });
         return;
       }
       // 优先恢复上次浏览的笔记，否则取第一项
       const lastId = localStorage.getItem("nr:lastNote");
       const preferred = lastId ? notes.find((n) => n.id === lastId) : undefined;
-      set({ notes, dailyPage, selectedNote: preferred ?? notes[0] ?? null, loading: false });
+      set({
+        notes,
+        dailyPage,
+        selectedNote: preferred ?? notes[0] ?? null,
+        loading: false,
+        startupReady: true,
+      });
     } catch (e) {
       if (generation !== dateLoadGeneration) return;
-      set({ loading: false, error: `加载失败: ${(e as Error).message}` });
+      set({ loading: false, startupReady: true, error: `加载失败: ${(e as Error).message}` });
     }
   },
 

@@ -332,6 +332,12 @@ body {
 }
 
 .sidebar-recycle-btn {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
   font-size: 12px;
   color: var(--text-secondary);
   cursor: pointer;
@@ -704,6 +710,12 @@ body {
 }
 
 .search-filter-suggestion {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
   padding: 4px 6px;
   font-size: 12px;
   cursor: pointer;
@@ -7168,6 +7180,12 @@ button.doc-tree-toggle:focus-visible {
 }
 
 .prop-suggestion {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
   padding: 5px 8px;
   font-size: 12px;
   cursor: pointer;
@@ -7198,12 +7216,22 @@ button.doc-tree-toggle:focus-visible {
 }
 
 .prop-tag-name {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
 }
 
 .prop-tag-name:hover {
   color: var(--accent);
   text-decoration: underline;
+}
+
+.prop-tag-name:disabled {
+  cursor: default;
+  text-decoration: none;
 }
 
 .prop-tag-remove {

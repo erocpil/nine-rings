@@ -127,11 +127,12 @@ test.describe("结构块退出行为", () => {
     await activateBlock(page, "❝ 引用");
     await editor.press("End");
     await editor.press("Enter");
-    await expect(editor.locator(":scope > blockquote > p")).toHaveCount(2);
+    const quoteParagraphs = editor.locator(":scope > blockquote p");
+    await expect(quoteParagraphs).toHaveCount(2);
     await editor.press("Enter");
 
-    await expect(editor.locator(":scope > blockquote")).toHaveText("需要保留的引用");
-    await expect(editor.locator(":scope > blockquote > p")).toHaveCount(1);
+    await expect(quoteParagraphs).toHaveText("需要保留的引用");
+    await expect(quoteParagraphs).toHaveCount(1);
     await expect(editor.locator(":scope > p")).toHaveCount(1);
   });
 

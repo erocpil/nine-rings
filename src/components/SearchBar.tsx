@@ -246,9 +246,9 @@ export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: Sear
               {conceptSuggestions.length > 0 && (
                 <div className="search-filter-suggestions">
                   {conceptSuggestions.map((c) => (
-                    <div key={c} className="search-filter-suggestion" onClick={() => selectConcept(c)}>
+                    <button type="button" key={c} className="search-filter-suggestion" onClick={() => selectConcept(c)}>
                       {c}
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}

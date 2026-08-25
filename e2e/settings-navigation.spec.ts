@@ -109,7 +109,7 @@ test("编辑器状态栏紧凑且可以关闭并持久化", async ({ page }) => 
   await expect.poll(() => editor.evaluate((element) => {
     const viewportHeight = element.ownerDocument.defaultView?.innerHeight ?? 0;
     return Number.parseFloat(getComputedStyle(element).paddingBottom) / viewportHeight;
-  })).toBeLessThanOrEqual(0.15);
+  })).toBeGreaterThan(0.5);
 
   await page.getByTitle("设置").click();
   await page.getByRole("button", { name: /^外观与排版/ }).click();

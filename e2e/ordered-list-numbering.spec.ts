@@ -116,7 +116,7 @@ test("两位数及以上的有序列表编号使用共享左边缘", async ({ pa
   expect(new Set(markerStyles.map((style) => style.left)).size).toBe(1);
   expect(new Set(markerStyles.map((style) => style.width)).size).toBe(1);
   markerStyles.forEach((style) => {
-    expect(style.textAlign).toBe("left");
+    expect(style.textAlign).toBe("right");
     expect(style.transform).toBe("none");
   });
 });

@@ -19,6 +19,7 @@ interface Props {
   onClose: () => void;
   onConfigChange: (config: AppConfig) => void;
   onImport?: () => void;
+  onMarkdownImport?: () => void;
   /** 同步进行中回调 — 用来 freeze 编辑区 */
   onSyncBusy?: (busy: boolean) => void;
   /** Pull 完成后回调 — 重新载入并应用恢复后的设置与工作区 */
@@ -87,7 +88,7 @@ function yieldToNextFrame(): Promise<void> {
   return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
 }
 
-export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncBusy, onPullDone, webStorageStatus, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated }: Props) {
+export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onPullDone, webStorageStatus, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated }: Props) {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -250,11 +251,43 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
     });
   };
 
-  const applyEditorAppearance = () => {
+  const applyEditorAppearance = async () => {
     if (!editorAppearanceDraft) return;
-    update(editorAppearanceDraft);
-    setEditorAppearanceOpen(false);
-    setEditorAppearanceDraft(null);
+    const pending = {
+      ...pendingConfigRef.current,
+      ...pickEditorAppearanceConfig(editorAppearanceDraft),
+    };
+    pendingConfigRef.current = {};
+    if (configSaveTimerRef.current !== null) {
+      window.clearTimeout(configSaveTimerRef.current);
+      configSaveTimerRef.current = null;
+    }
+
+    const saveVersion = updateVersionRef.current + 1;
+    updateVersionRef.current = saveVersion;
+    setSaving("editor_appearance");
+    let persisted: AppConfig | null = null;
+    saveQueueRef.current = saveQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        persisted = await api.config.set(pending);
+      });
+    try {
+      await saveQueueRef.current;
+      if (!persisted || saveVersion !== updateVersionRef.current) return;
+      configRef.current = persisted;
+      setConfig(persisted);
+      onConfigChange(persisted);
+      setSaving(null);
+      setMessage("已更新");
+      setEditorAppearanceOpen(false);
+      setEditorAppearanceDraft(null);
+      window.setTimeout(() => setMessage(null), 1500);
+    } catch (error) {
+      if (saveVersion !== updateVersionRef.current) return;
+      setSaving(null);
+      setMessage(`保存失败: ${error}`);
+    }
   };
 
   const closeEditorAppearance = () => {
@@ -467,7 +500,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
         }
       }
       setMdImportCount(count);
-      if (count > 0) onImport?.();
+      if (count > 0) onMarkdownImport?.();
       setMessage(failures.length > 0
         ? `已导入 ${count} 篇，失败 ${failures.length} 篇：${failures[0]}`
         : `Markdown 导入完成：${count} 篇${mdImportMode === "document" ? `，路径 ${mdImportPath}` : ""}`);
@@ -644,7 +677,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
                   <button
                     key={v}
                     className={`settings-radio ${config.default_view === v ? "active" : ""} ${chk("default_view", v)}`}
-                    onClick={() => update({ default_view: v })}
+                    onClick={() => {
+                      localStorage.setItem("nr:defaultViewConfigured", "1");
+                      update({ default_view: v });
+                    }}
                   >
                     {label}
                   </button>

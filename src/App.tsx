@@ -441,7 +441,7 @@ function App() {
   };
   const configuredDefaultView = config?.default_view;
   useEffect(() => {
-    if (!configuredDefaultView) return;
+    if (!configuredDefaultView || localStorage.getItem("nr:defaultViewConfigured") !== "1") return;
     const configuredTab = configuredDefaultView === "daily" ? "daily" : "tree";
     setSidebarTab(configuredTab);
     localStorage.setItem(TAB_KEY, configuredTab);
@@ -1381,9 +1381,9 @@ function App() {
             />
           )}
           <div className="sidebar-footer">
-            <span className="sidebar-recycle-btn" onClick={() => setRecycleOpen(true)}>
+            <button type="button" className="sidebar-recycle-btn" onClick={() => setRecycleOpen(true)}>
               🗑 回收站
-            </span>
+            </button>
           </div>
         </aside>
 
@@ -1570,8 +1570,13 @@ function App() {
           onSyncBusy={setSyncBusy}
           onImport={() => {
             // 完整恢复会同时替换数据库配置和 localStorage 中的工作区状态。
-            // 重新载入后所有 Hook 都从恢复值初始化，避免必须再点一次设置才生效。
-            window.location.reload();
+            // 先让成功反馈完成绘制，再重新载入并让所有 Hook 从恢复值初始化。
+            window.setTimeout(() => window.location.reload(), 1000);
+          }}
+          onMarkdownImport={() => {
+            setDocTreeKey((key) => key + 1);
+            setSidebarRefreshKey((key) => key + 1);
+            void setDate(currentDate);
           }}
           onPullDone={() => {
             window.location.reload();

@@ -87,7 +87,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(editor.locator("h1, h2, h3, h4, h5, h6")).toHaveCount(initialHeadingCount + 160);
 
     await outlineButton.click();
-    await outline.getByTitle("展开全部章节").click();
+    await outline.getByRole("button", { name: "全部展开" }).click();
     await expect(outline.locator(".document-outline-count")).toHaveText(`${initialHeadingCount + 160} 项`);
     await expect.poll(() => outline.locator(".document-outline-item").count()).toBeLessThan(80);
     await expect(outline.getByLabel("目录快速滚动")).toBeVisible();
@@ -131,7 +131,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     const normalOutlineButton = page.locator(".note-title-row").getByTitle("文档目录");
     await normalOutlineButton.click();
     const outline = page.getByRole("navigation", { name: "文档目录" });
-    await outline.getByTitle("展开全部章节").click();
+    await outline.getByRole("button", { name: "全部展开" }).click();
     const longItem = outline.locator(".document-outline-item").filter({ hasText: longTitle });
     await expect(longItem).toBeVisible();
     const normalGeometry = await outline.evaluate((panel) => {

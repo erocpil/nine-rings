@@ -19,6 +19,7 @@ test("排版设置中的调整即时生效并在重载后保持", async ({ page 
   await page.getByRole("button", { name: "增大列表上间距" }).click();
   await page.getByRole("button", { name: "减小列表下间距" }).click();
   await page.getByLabel("搜索关键字颜色").fill("#33aa77");
+  await page.getByRole("button", { name: "应用到编辑器" }).click();
 
   const app = page.locator(".app");
   await expect.poll(() => app.evaluate((element) => ({
@@ -44,6 +45,8 @@ test("排版设置中的调整即时生效并在重载后保持", async ({ page 
     listTop: "0.3em",
     listBottom: "0.2em",
   });
+
+  await page.getByRole("button", { name: /打开排版设置/ }).click();
 
   const previewSpacing = await page.getByLabel("编辑器排版预览").evaluate((element) => {
     const fontSize = Number.parseFloat(getComputedStyle(element).fontSize);
@@ -131,6 +134,7 @@ test("中英文自动间距只改变渲染且开关可以持久化", async ({ pa
   await expect(toggle).toBeChecked();
   await page.locator(".editor-appearance-toggle").click();
   await expect(toggle).not.toBeChecked();
+  await page.getByRole("button", { name: "应用到编辑器" }).click();
   await expect(noteEditor).not.toHaveClass(/editor-auto-cjk-spacing/);
 
   await page.reload();
@@ -195,6 +199,7 @@ test("四至六级标题字号不小于正文", async ({ page }) => {
   await page.getByRole("button", { name: /^外观与排版/ }).click();
   await page.getByRole("button", { name: /打开排版设置/ }).click();
   await page.getByRole("button", { name: "增大正文与标题字号" }).click();
+  await page.getByRole("button", { name: "应用到编辑器" }).click();
 
   const enlarged = await readSizes();
   const noteTitleAfter = await page.locator(".note-title").evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));

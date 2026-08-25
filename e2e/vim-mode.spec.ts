@@ -305,7 +305,10 @@ test("Vim 在鼠标选区和右键菜单操作后保持可用", async ({ page, c
 
   await editor.getByText("alpha beta gamma", { exact: true }).dblclick({ position: { x: 55, y: 8 } });
   await expect.poll(() => page.evaluate(() => window.getSelection()?.isCollapsed)).toBe(false);
-  await editor.click({ button: "right" });
+  await editor.getByText("alpha beta gamma", { exact: true }).click({
+    button: "right",
+    position: { x: 55, y: 8 },
+  });
   const menu = page.locator(".editor-context-menu");
   await expect(menu).toBeVisible();
   await menu.getByRole("button", { name: "复制" }).click();

@@ -44,7 +44,8 @@ const item = (page: Page, text: string) =>
 test.describe("正文右键菜单：作用范围", () => {
   test("右键正文弹出自定义菜单", async ({ page }) => {
     const editor = await createBlankNote(page);
-    await editor.click({ button: "right" });
+    await editor.fill("正文");
+    await editor.locator("p").click({ button: "right" });
     await expect(menu(page)).toBeVisible();
   });
 
