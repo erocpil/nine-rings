@@ -42,20 +42,43 @@ test.describe("会话位置恢复与编辑器查找", () => {
     await expect(overdueButton).toBeVisible();
     await expect.poll(async () => {
       const overdueBox = await overdueButton.boundingBox();
-      const labelBox = await overdueButton.locator(".todo-overdue-label").boundingBox();
       const exportBox = await exportButton.boundingBox();
       return Boolean(
         overdueBox
-        && labelBox
         && exportBox
-        && overdueBox.width > 28
-        && labelBox.x + labelBox.width <= exportBox.x,
+        && overdueBox.x + overdueBox.width <= exportBox.x
+        && overdueBox.width === 28
+        && exportBox.width === 28,
       );
     }).toBe(true);
+    await expect(overdueButton.locator("svg")).toHaveCount(1);
+    await expect(exportButton.locator("svg")).toHaveCount(1);
     await expect(page.locator(".sidebar-footer").getByText("过期待办")).toHaveCount(0);
     await overdueButton.click();
     await expect(page.locator(".overdue-panel")).toBeVisible();
     await expect(page.locator(".overdue-header h3")).toHaveText("过期待办");
+  });
+
+  test("可隐藏待办并通过拖动分隔条重新打开", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("nr:todoSplit", "3"));
+    await page.goto("/");
+
+    await page.getByRole("button", { name: "隐藏待办" }).click();
+    await expect(page.locator(".app-main-todo")).toHaveCount(0);
+    const divider = page.locator(".app-main-divider");
+    await expect(divider).toHaveClass(/divider-collapsed/);
+    await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:todoSplit"))).toBe("0");
+
+    const box = await divider.boundingBox();
+    if (!box) throw new Error("待办分隔条不可见");
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y + 150, { steps: 5 });
+    await page.mouse.up();
+
+    await expect(page.locator(".app-main-todo")).toBeVisible();
+    await expect(divider).not.toHaveClass(/divider-collapsed/);
+    await expect.poll(() => page.evaluate(() => Number(localStorage.getItem("nr:todoSplit")))).toBeGreaterThan(0);
   });
 
   test("重载后恢复最后打开的文档、光标和滚动位置", async ({ page }) => {

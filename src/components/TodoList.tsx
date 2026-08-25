@@ -105,6 +105,7 @@ interface TodoListProps {
   todos: Todo[];
   onChange: (todos: Todo[]) => void;
   onOpenOverdue: () => void;
+  onHide: () => void;
   disabled?: boolean;
 }
 
@@ -412,7 +413,7 @@ function TodoLevel({
 
 // ── 主组件 ──
 
-export function TodoList({ todos, onChange, onOpenOverdue, disabled }: TodoListProps) {
+export function TodoList({ todos, onChange, onOpenOverdue, onHide, disabled }: TodoListProps) {
   const [undoTodo, setUndoTodo] = useState<{
     todo: Todo;
     previousTodos: Todo[];
@@ -771,16 +772,33 @@ export function TodoList({ todos, onChange, onOpenOverdue, disabled }: TodoListP
             title="查看过期待办"
             aria-label="查看过期待办"
           >
-            <span aria-hidden="true">⚠</span>
-            <span className="todo-overdue-label">过期待办</span>
+            <svg className="todo-title-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3.5" y="5.5" width="17" height="15" rx="2" />
+              <path d="M8 3.5v4M16 3.5v4M3.5 9.5h17M12 12.5v3" />
+              <path d="M12 18h.01" />
+            </svg>
           </button>
         )}
         <button
           className={`btn-icon todo-export-btn ${exportOpen ? "active" : ""}`}
           onClick={handleExportClick}
           title={exportOpen ? "取消导出" : "单击导出 / 双击复制"}
+          aria-label={exportOpen ? "取消导出待办" : "导出待办"}
         >
-          ⬆
+          <svg className="todo-title-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 16V4M7 9l5-5 5 5M5 20h14" />
+          </svg>
+        </button>
+        <button
+          className="btn-icon todo-hide-btn"
+          type="button"
+          onClick={onHide}
+          title="隐藏待办"
+          aria-label="隐藏待办"
+        >
+          <svg className="todo-title-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 15l7-7 7 7M5 20h14" />
+          </svg>
         </button>
       </h3>
 

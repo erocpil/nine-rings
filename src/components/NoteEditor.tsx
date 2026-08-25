@@ -19,6 +19,7 @@ import {
 } from "../extensions/NormalizeSingleParagraphPaste";
 import CharacterCount from "@tiptap/extension-character-count";
 import type { DeltaOps, DocumentBookmark, SearchNavigationTarget } from "../types/models";
+import { DocumentBookmarkRow } from "./DocumentBookmarkRow";
 import {
   proseMirrorToDelta,
   deltaToProseMirror,
@@ -401,6 +402,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const [outlineDockWidth, setOutlineDockWidth] = useState(getSavedOutlineDockWidth);
   const [bookmarkOpen, setBookmarkOpen] = useState(false);
   const [bookmarks, setBookmarks] = useState<DocumentBookmark[]>(bookmarksRef.current);
+  const [openBookmarkActionsId, setOpenBookmarkActionsId] = useState<string | null>(null);
   const [activeOutlineIndex, setActiveOutlineIndex] = useState(-1);
   const [outlineOverflow, setOutlineOverflow] = useState(false);
   const [documentOutline, setDocumentOutline] = useState<DocumentOutlineItem[]>([]);
@@ -531,6 +533,10 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     const timer = window.setTimeout(() => setMarkdownPasteText(null), 6000);
     return () => window.clearTimeout(timer);
   }, [markdownPasteText]);
+
+  useEffect(() => {
+    if (!bookmarkOpen) setOpenBookmarkActionsId(null);
+  }, [bookmarkOpen]);
 
   useEffect(() => {
     if (!markdownSelectionNotice) return;
@@ -3106,35 +3112,17 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             {bookmarks.length === 0 ? (
               <div className="document-bookmark-empty">当前文档还没有书签</div>
             ) : bookmarks.map((bookmark) => (
-              <div className="document-bookmark-item" key={bookmark.id}>
-                <button
-                  className="document-bookmark-jump"
-                  type="button"
-                  onClick={() => jumpToBookmark(bookmark)}
-                  title={bookmark.preview}
-                >
-                  <span className="document-bookmark-index" title={`第 ${bookmarkBlockNumber(bookmark)} 块`}>
-                    {bookmarkBlockNumber(bookmark)}
-                  </span>
-                  <span>{bookmark.label || bookmark.preview}</span>
-                </button>
-                <span className="document-bookmark-actions">
-                  <button
-                    className="document-bookmark-action document-bookmark-edit"
-                    type="button"
-                    onClick={() => editBookmarkLabel(bookmark)}
-                    title="重命名书签"
-                    aria-label={`重命名书签 ${bookmark.label || bookmark.preview}`}
-                  >✎</button>
-                  <button
-                    className="document-bookmark-action document-bookmark-delete"
-                    type="button"
-                    onClick={() => removeBookmark(editor, bookmark.id)}
-                    title="删除书签"
-                    aria-label={`删除书签 ${bookmark.label || bookmark.preview}`}
-                  >×</button>
-                </span>
-              </div>
+              <DocumentBookmarkRow
+                key={bookmark.id}
+                bookmark={bookmark}
+                blockNumber={bookmarkBlockNumber(bookmark)}
+                mobile={isMobileToolbarViewport}
+                open={openBookmarkActionsId === bookmark.id}
+                onOpenChange={setOpenBookmarkActionsId}
+                onJump={() => jumpToBookmark(bookmark)}
+                onEdit={() => editBookmarkLabel(bookmark)}
+                onDelete={() => removeBookmark(editor, bookmark.id)}
+              />
             ))}
           </div>
           <button

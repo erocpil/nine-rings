@@ -739,6 +739,11 @@ function App() {
   const startYRef = useRef(0);
   const startRatioRef = useRef(0);
 
+  const hideTodos = useCallback(() => {
+    setTodoFlex(0);
+    localStorage.setItem(SPLIT_KEY, "0");
+  }, []);
+
   const handleSplitMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
     draggingRef.current = true;
@@ -1407,6 +1412,7 @@ function App() {
                       todos={dailyPage?.todos ?? []}
                       onChange={updateTodos}
                       onOpenOverdue={() => setOverdueOpen(true)}
+                      onHide={hideTodos}
                     />
                   </Suspense>
                 </div>

@@ -29,7 +29,7 @@ test("正文书签可切换、跳转并随文档保存", async ({ page }) => {
   await bookmarkButton.click();
   const panel = page.getByRole("navigation", { name: "文档书签" });
   await expect(panel).toContainText("第二段书签位置");
-  await expect(editor.locator(".editor-bookmarked-block")).toHaveCount(1);
+  await expect(page.locator(".editor-block-bookmark")).toHaveCount(1);
 
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
   await page.reload();
@@ -80,7 +80,7 @@ test("Vim m{a-z} 设置命名书签，'{a-z} 跳转", async ({ page }) => {
 test.describe("移动端书签操作", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
-  test("重命名和删除按钮保持足够的触控尺寸与间距", async ({ page }) => {
+  test("向左滑动书签行后显示重命名和删除操作", async ({ page }) => {
     await page.goto("/");
     const editor = page.locator(".ProseMirror");
     await editor.fill("移动端书签操作测试");
@@ -90,18 +90,52 @@ test.describe("移动端书签操作", () => {
     await expect(bookmarkButton).toContainText("1");
     await bookmarkButton.click();
 
+    const row = page.locator(".document-bookmark-item");
     const actions = page.locator(".document-bookmark-action");
     await expect(actions).toHaveCount(2);
-    const geometry = await actions.evaluateAll((buttons) => {
+    await row.dispatchEvent("pointerdown", {
+      pointerId: 1,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      clientX: 300,
+      clientY: 120,
+    });
+    await row.dispatchEvent("pointermove", {
+      pointerId: 1,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      clientX: 190,
+      clientY: 121,
+    });
+    await row.dispatchEvent("pointerup", {
+      pointerId: 1,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      clientX: 190,
+      clientY: 121,
+    });
+    await expect(row).toHaveClass(/swipe-open/);
+
+    const readGeometry = () => actions.evaluateAll((buttons) => {
       const [rename, remove] = buttons.map((button) => button.getBoundingClientRect());
+      const row = buttons[0].closest(".document-bookmark-item")!.getBoundingClientRect();
+      const content = buttons[0].closest(".document-bookmark-item")!
+        .querySelector(".document-bookmark-jump")!.getBoundingClientRect();
       return {
         widths: [rename.width, remove.width],
         heights: [rename.height, remove.height],
         gap: remove.left - rename.right,
+        actionsRevealed: content.right <= rename.left + 0.5 && remove.right <= row.right + 0.5,
       };
     });
+    await expect.poll(async () => (await readGeometry()).actionsRevealed).toBe(true);
+    const geometry = await readGeometry();
     expect(Math.min(...geometry.widths)).toBeGreaterThanOrEqual(44);
     expect(Math.min(...geometry.heights)).toBeGreaterThanOrEqual(44);
     expect(geometry.gap).toBeGreaterThanOrEqual(8);
+    expect(geometry.actionsRevealed).toBe(true);
   });
 });

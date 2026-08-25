@@ -1332,22 +1332,40 @@ body {
   margin-left: 6px;
 }
 
+.todo-hide-btn {
+  flex: 0 0 28px;
+  margin-left: 4px;
+  padding: 1px 6px;
+  color: var(--text-secondary);
+}
+
+.todo-hide-btn:hover {
+  color: var(--accent);
+  background: var(--hover);
+}
+
 .todo-overdue-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  width: auto;
-  min-width: 28px;
-  padding: 1px 5px;
+  flex: 0 0 28px;
+  width: 28px;
+  padding: 1px 6px;
   color: var(--text-secondary);
-  font-size: 12px;
-  white-space: nowrap;
 }
 
 .todo-overdue-btn:hover {
   color: var(--accent);
   background: var(--hover);
+}
+
+.todo-title-action-icon {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .todo-export-btn.active {
@@ -8258,8 +8276,35 @@ button.doc-tree-toggle:focus-visible {
   }
 
   .document-bookmark-actions {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 0;
     gap: 8px;
     padding: 4px;
+  }
+
+  .document-bookmark-item {
+    position: relative;
+    min-height: 52px;
+    overflow: hidden;
+    gap: 0;
+  }
+
+  .document-bookmark-item .document-bookmark-jump {
+    z-index: 1;
+    flex: none !important;
+    width: 100%;
+    min-height: 52px;
+    background: var(--bg);
+    touch-action: pan-y;
+    transform: translateX(var(--bookmark-swipe-offset, 0));
+    transition: transform 180ms ease-out;
+    will-change: transform;
+  }
+
+  .document-bookmark-item.swiping .document-bookmark-jump {
+    transition: none;
   }
 
   .document-bookmark-action {
@@ -8415,10 +8460,6 @@ button.doc-tree-toggle:focus-visible {
 
 /* ── 手机 (≤480px) ── */
 @media (max-width: 480px) {
-  .todo-overdue-label {
-    display: none;
-  }
-
   .app-header {
     padding: 4px 6px;
     gap: 3px;
