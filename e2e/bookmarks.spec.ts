@@ -80,6 +80,44 @@ test("Vim m{a-z} 设置命名书签，'{a-z} 跳转", async ({ page }) => {
 test.describe("移动端书签操作", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
+  test("轻触书签条目跳转到对应文档块", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("第一段");
+    await editor.press("End");
+    await editor.press("Enter");
+    await page.keyboard.type("手机端书签跳转目标");
+    const firstParagraph = editor.locator(":scope > *").first();
+    const targetParagraph = editor.locator(":scope > *").nth(1);
+    await targetParagraph.click();
+    await page.keyboard.press("Control+Shift+m");
+    await firstParagraph.click();
+
+    const bookmarkButton = page.locator(".document-bookmark-toggle");
+    const bookmarkButtonBox = await bookmarkButton.boundingBox();
+    if (!bookmarkButtonBox) throw new Error("书签按钮不可见");
+    await page.touchscreen.tap(
+      bookmarkButtonBox.x + bookmarkButtonBox.width / 2,
+      bookmarkButtonBox.y + bookmarkButtonBox.height / 2,
+    );
+
+    const panel = page.getByRole("navigation", { name: "文档书签" });
+    const jumpButton = panel.locator(".document-bookmark-jump");
+    await expect(jumpButton).toBeVisible();
+    const jumpButtonBox = await jumpButton.boundingBox();
+    if (!jumpButtonBox) throw new Error("书签条目不可见");
+    await page.touchscreen.tap(
+      jumpButtonBox.x + jumpButtonBox.width / 2,
+      jumpButtonBox.y + jumpButtonBox.height / 2,
+    );
+
+    await expect(panel).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => {
+      const anchor = window.getSelection()?.anchorNode;
+      return (anchor instanceof Element ? anchor : anchor?.parentElement)?.closest("p")?.textContent ?? "";
+    })).toBe("手机端书签跳转目标");
+  });
+
   test("向左滑动书签行后显示重命名和删除操作", async ({ page }) => {
     await page.goto("/");
     const editor = page.locator(".ProseMirror");

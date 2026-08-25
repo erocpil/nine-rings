@@ -53,11 +53,6 @@ export function DocumentBookmarkRow({
       offset: startOffset,
       axis: "pending",
     };
-    try {
-      event.currentTarget.setPointerCapture(event.pointerId);
-    } catch {
-      // Synthetic test events and older WebKit builds may not expose pointer capture.
-    }
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -73,6 +68,11 @@ export function DocumentBookmarkRow({
       }
       if (Math.abs(deltaX) < SWIPE_DECISION_DISTANCE || Math.abs(deltaX) <= Math.abs(deltaY) * 1.2) return;
       gesture.axis = "horizontal";
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // Synthetic test events and older WebKit builds may not expose pointer capture.
+      }
     }
 
     event.preventDefault();
