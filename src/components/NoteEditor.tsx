@@ -387,6 +387,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const lineJumpInputRef = useRef<HTMLInputElement>(null);
   const outlineListRef = useRef<HTMLDivElement>(null);
   const bookmarksRef = useRef<DocumentBookmark[]>(content.metadata?.bookmarks ?? []);
+  const bookmarkJumpPulseTimerRef = useRef<number | null>(null);
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
   const [activeSearchMatch, setActiveSearchMatch] = useState(0);
   const [editorFindOpen, setEditorFindOpen] = useState(false);
@@ -402,6 +403,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const [outlineDockWidth, setOutlineDockWidth] = useState(getSavedOutlineDockWidth);
   const [bookmarkOpen, setBookmarkOpen] = useState(false);
   const [bookmarks, setBookmarks] = useState<DocumentBookmark[]>(bookmarksRef.current);
+  const [bookmarkJumpBlockIndex, setBookmarkJumpBlockIndex] = useState<number | null>(null);
   const [openBookmarkActionsId, setOpenBookmarkActionsId] = useState<string | null>(null);
   const [activeOutlineIndex, setActiveOutlineIndex] = useState(-1);
   const [outlineOverflow, setOutlineOverflow] = useState(false);
@@ -1246,6 +1248,43 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     editor.commands.setTextSelection(position);
     setBookmarkOpen(false);
 
+    const pulseBookmarkTarget = () => {
+      const root = noteEditorRef.current;
+      if (!root || editor.isDestroyed || !root.isConnected) return;
+      if (bookmarkJumpPulseTimerRef.current !== null) {
+        window.clearTimeout(bookmarkJumpPulseTimerRef.current);
+      }
+      root.classList.remove("bookmark-jump-pulsing");
+      root.querySelectorAll(".bookmark-jump-target, .bookmark-jump-gutter").forEach((element) => {
+        element.classList.remove("bookmark-jump-target", "bookmark-jump-gutter");
+      });
+      root.classList.add("bookmark-jump-pulsing");
+
+      const resolved = editor.state.doc.resolve(position);
+      const topLevelPosition = resolved.depth > 0 ? resolved.before(1) : 0;
+      const targetNode = editor.view.nodeDOM(topLevelPosition);
+      const blockIndex = resolved.index(0) + 1;
+      setBookmarkJumpBlockIndex(blockIndex);
+      const highlightedElements: Element[] = [];
+      if (targetNode instanceof HTMLElement) {
+        targetNode.classList.add("bookmark-jump-target");
+        highlightedElements.push(targetNode);
+      }
+      root.querySelectorAll(`[data-block-index="${blockIndex}"]`).forEach((element) => {
+        element.classList.add("bookmark-jump-gutter");
+        highlightedElements.push(element);
+      });
+
+      bookmarkJumpPulseTimerRef.current = window.setTimeout(() => {
+        root.classList.remove("bookmark-jump-pulsing");
+        setBookmarkJumpBlockIndex(null);
+        highlightedElements.forEach((element) => {
+          element.classList.remove("bookmark-jump-target", "bookmark-jump-gutter");
+        });
+        bookmarkJumpPulseTimerRef.current = null;
+      }, 1400);
+    };
+
     const scrollBookmarkIntoView = () => {
       const root = scrollRef.current;
       if (!root || editor.isDestroyed || !root.isConnected) return;
@@ -1275,10 +1314,22 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     // ProseMirror scrollIntoView 的嵌套滚动支持不稳定，再补一次延迟定位，
     // 以覆盖软键盘/visualViewport 随 focus 更新的布局阶段。
     window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(scrollBookmarkIntoView);
+      window.requestAnimationFrame(() => {
+        scrollBookmarkIntoView();
+        // 滚动会让虚拟化沟槽刷新可见块；再等一帧，确保目标行号或
+        // 无行号模式下的书签竖块已经挂载后再同步高亮。
+        window.requestAnimationFrame(pulseBookmarkTarget);
+      });
     });
     if (isMobileToolbarViewport) window.setTimeout(scrollBookmarkIntoView, 180);
   }, [editor, isMobileToolbarViewport]);
+
+  useEffect(() => () => {
+    if (bookmarkJumpPulseTimerRef.current !== null) {
+      window.clearTimeout(bookmarkJumpPulseTimerRef.current);
+    }
+    noteEditorRef.current?.classList.remove("bookmark-jump-pulsing");
+  }, []);
 
   const editBookmarkLabel = useCallback((bookmark: DocumentBookmark) => {
     if (!editor) return;
@@ -3848,6 +3899,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             showInsertButtons={!isMobileToolbarViewport}
             readonly={!!readonly}
             bookmarkPositions={bookmarks.map((bookmark) => bookmark.position)}
+            highlightedBlockIndex={bookmarkJumpBlockIndex}
             onBlockCountChange={setGutterBlockCount}
             onHeadingFoldToggle={toggleEditorHeadingFromGutter}
           />

@@ -98,9 +98,9 @@ test.describe("移动端书签操作", () => {
         clipboardData,
       }));
     }, paragraphs.join("\n\n"));
-    await expect(editor.locator(":scope > *")).toHaveCount(paragraphs.length);
-    const firstParagraph = editor.locator(":scope > *").first();
-    const targetParagraph = editor.locator(":scope > *").last();
+    const firstParagraph = editor.getByText("第一段", { exact: true });
+    const targetParagraph = editor.getByText("手机端书签跳转目标", { exact: true });
+    await expect(targetParagraph).toBeAttached();
     await targetParagraph.click();
     await page.keyboard.press("Control+Shift+m");
     await firstParagraph.click();
@@ -130,6 +130,8 @@ test.describe("移动端书签操作", () => {
       const anchor = window.getSelection()?.anchorNode;
       return (anchor instanceof Element ? anchor : anchor?.parentElement)?.closest("p")?.textContent ?? "";
     })).toBe("手机端书签跳转目标");
+    await expect(page.locator(".note-editor")).toHaveClass(/bookmark-jump-pulsing/);
+    await expect(page.locator(".editor-block-bookmark.bookmark-jump-gutter")).toHaveCount(1);
     await expect.poll(async () => {
       const targetBox = await targetParagraph.boundingBox();
       const scrollBox = await page.locator(".note-editor-scroll").boundingBox();

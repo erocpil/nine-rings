@@ -110,6 +110,7 @@ interface EditorBlockGutterProps {
   showInsertButtons: boolean;
   readonly: boolean;
   bookmarkPositions?: readonly number[];
+  highlightedBlockIndex?: number | null;
   onBlockCountChange?: (count: number) => void;
   onHeadingFoldToggle?: (position: number) => void;
 }
@@ -121,7 +122,7 @@ interface EditorBlockGutterProps {
  * 用户意图。IntersectionObserver 只挂载视口及预读区域内的控件；
  * ResizeObserver 只重新测量这部分节点，避免长文档复制一整套 gutter DOM。
  */
-export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], onBlockCountChange, onHeadingFoldToggle }: EditorBlockGutterProps) {
+export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], highlightedBlockIndex, onBlockCountChange, onHeadingFoldToggle }: EditorBlockGutterProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [blocks, setBlocks] = useState<GutterBlock[]>([]);
 
@@ -481,9 +482,10 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
       {showNumbers && blocks.map((block) => (
         <span
           key={`number-${block.pos}`}
-          className={`editor-block-number ${block.active ? "active" : ""} ${blockHasBookmark(block) ? "bookmarked" : ""}`}
+          className={`editor-block-number ${block.active ? "active" : ""} ${blockHasBookmark(block) ? "bookmarked" : ""} ${block.index === highlightedBlockIndex ? "bookmark-jump-gutter" : ""}`}
           style={{ top: block.firstLineCenter }}
           aria-hidden="true"
+          data-block-index={block.index}
           data-block-format={block.format}
         >
           {block.index}
@@ -492,9 +494,10 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
       {!showNumbers && blocks.filter(blockHasBookmark).map((block) => (
         <span
           key={`bookmark-${block.pos}`}
-          className="editor-block-bookmark without-number"
+          className={`editor-block-bookmark without-number ${block.index === highlightedBlockIndex ? "bookmark-jump-gutter" : ""}`}
           style={{ top: block.firstLineCenter }}
           aria-hidden="true"
+          data-block-index={block.index}
           title={`第 ${block.index} 块有书签`}
         />
       ))}

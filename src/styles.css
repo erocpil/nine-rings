@@ -3842,6 +3842,54 @@ body {
   background: color-mix(in srgb, var(--accent) 72%, transparent);
 }
 
+/* 书签跳转后的单次定位提示：正文块与沟槽标记同步淡出。 */
+.bookmark-jump-target,
+.bookmark-jump-pulsing .ProseMirror-activeline {
+  animation: bookmark-jump-target-pulse 1.4s ease-out;
+}
+
+.editor-block-number.bookmark-jump-gutter {
+  animation: bookmark-jump-number-pulse 1.4s ease-out;
+}
+
+.editor-block-bookmark.bookmark-jump-gutter {
+  animation: bookmark-jump-marker-pulse 1.4s ease-out;
+}
+
+@keyframes bookmark-jump-target-pulse {
+  0%, 30% {
+    outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+    outline-offset: 2px;
+    box-shadow: inset 4px 0 color-mix(in srgb, var(--accent) 88%, transparent);
+  }
+  100% {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: inset 4px 0 transparent;
+  }
+}
+
+@keyframes bookmark-jump-number-pulse {
+  0%, 30% {
+    color: var(--accent);
+    opacity: 1;
+    text-shadow: 0 0 7px color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+  100% {
+    text-shadow: 0 0 0 transparent;
+  }
+}
+
+@keyframes bookmark-jump-marker-pulse {
+  0%, 30% {
+    background: var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 24%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
 .document-bookmark-empty {
   padding: 20px 10px;
   color: var(--text-secondary);
