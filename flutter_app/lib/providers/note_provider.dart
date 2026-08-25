@@ -247,9 +247,27 @@ class NoteProvider extends ChangeNotifier {
 
   Future<String> exportAll() => _service.exportAll();
 
-  Future<({int notesImported, int pagesImported})> importBundle(String jsonStr) async {
-    final result = await _service.importBundle(jsonStr);
-    await loadRecentDates();
+  Future<({int notesImported, int pagesImported})> importBundle(
+    String jsonStr, {
+    bool replace = false,
+  }) async {
+    final result = await _service.importBundle(jsonStr, replace: replace);
+    if (replace) {
+      _notesByDate.clear();
+      _trashNotes = [];
+      _searchResults = [];
+      _tagFilteredNotes = [];
+      _versions = [];
+      _currentDailyPage = null;
+      _docsByPath = [];
+      _backlinks = [];
+    }
+    await Future.wait([
+      loadRecentDates(),
+      loadPathTree(),
+      loadAllTags(),
+      loadAllConcepts(),
+    ]);
     notifyListeners();
     return result;
   }

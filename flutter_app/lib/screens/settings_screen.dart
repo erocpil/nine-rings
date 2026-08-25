@@ -17,7 +17,8 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  late SyncConfig _cfg;
+  SyncConfig _cfg = SyncConfig();
+  bool _configLoaded = false;
   SyncStatus? _status;
   bool _busy = false;
   String? _message;
@@ -32,15 +33,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // 防抖：避免每次按键触发 HTTP 请求
   Timer? _autoCheckTimer;
+  Future<void> _saveQueue = Future<void>.value();
 
   @override
   void initState() {
     super.initState();
-    _cfg = loadSyncConfig();
-    _tokenCtrl.text = _cfg.token;
-    _pathCtrl.text = _cfg.path;
-    // 首次打开时检查连接
-    _scheduleAutoCheck();
+    _loadConfig();
+  }
+
+  Future<void> _loadConfig() async {
+    try {
+      final config = await loadSyncConfig();
+      if (!mounted) return;
+      setState(() {
+        _cfg = config;
+        _configLoaded = true;
+        _tokenCtrl.text = config.token;
+        _pathCtrl.text = config.path;
+      });
+      _scheduleAutoCheck();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _configLoaded = true;
+        _message = '加载同步配置失败: $error';
+        _messageIsError = true;
+      });
+    }
   }
 
   @override
@@ -76,9 +95,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _update(SyncConfig Function(SyncConfig) fn) {
+    late SyncConfig next;
     setState(() {
-      _cfg = fn(_cfg);
-      saveSyncConfig(_cfg);
+      next = fn(_cfg);
+      _cfg = next;
+    });
+    _saveQueue = _saveQueue.then((_) => saveSyncConfig(next)).catchError((error) {
+      if (mounted) _showMessage('保存同步配置失败: $error', error: true);
     });
     _scheduleAutoCheck();
   }
@@ -214,7 +237,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final updated = await pullFromGitHub(
         _cfg,
         importData: (json) async {
-          final result = await provider.importBundle(json);
+          final result = await provider.importBundle(json, replace: true);
           return (
             notesImported: result.notesImported,
             pagesImported: result.pagesImported,
@@ -242,7 +265,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// 格式化版本时间戳 "20260715T123000" → "2026-07-15 20:30:00"
   String _fmtVersion(String? version) {
-    if (version == null || version.length != 15) return version ?? '';
+    if (version == null || version.length < 15) return version ?? '';
     final y = version.substring(0, 4);
     final M = version.substring(4, 6);
     final d = version.substring(6, 8);
@@ -255,6 +278,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    if (!_configLoaded) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('设置')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
@@ -349,19 +379,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ] else
             GestureDetector(
               onDoubleTap: _startEditOwnerRepo,
-              child: AbsorbPointer(
-                child: TextField(
-                  decoration: InputDecoration(
-                    labelText: 'Owner / Repo',
-                    hintText: _cfg.isConfigured ? null : '双击设置 owner/repo',
-                    border: const OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  controller: TextEditingController(
-                      text: _cfg.isConfigured
-                          ? '${_cfg.owner}/${_cfg.repo}'
-                          : ''),
-                  enabled: false,
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Owner / Repo',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                child: Text(
+                  _cfg.owner.isNotEmpty && _cfg.repo.isNotEmpty
+                      ? '${_cfg.owner}/${_cfg.repo}'
+                      : '双击设置 owner/repo',
                 ),
               ),
             ),

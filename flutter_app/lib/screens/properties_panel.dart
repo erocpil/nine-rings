@@ -22,6 +22,7 @@ class PropertiesPanel extends StatefulWidget {
 class _PropertiesPanelState extends State<PropertiesPanel> {
   final _conceptController = TextEditingController();
   final _linkSearchController = TextEditingController();
+  final _pathController = TextEditingController();
   final _focusNode = FocusNode();
 
   List<String> _existingConcepts = [];
@@ -42,6 +43,7 @@ class _PropertiesPanelState extends State<PropertiesPanel> {
     final parts = (_note.storagePath ?? '').split('/');
     _editRoot = parts.isNotEmpty && parts[0].isNotEmpty ? parts[0] : 'projects';
     _editSub = parts.length > 1 ? parts.sublist(1).join('/') : '';
+    _pathController.text = _editSub;
     _linkedDocIds = Set.from(_note.linkedDocIds ?? []);
     _loadData();
   }
@@ -129,9 +131,12 @@ class _PropertiesPanelState extends State<PropertiesPanel> {
 
   void _startEditPath() {
     final parts = (_note.storagePath ?? '').split('/');
+    final subPath = parts.length > 1 ? parts.sublist(1).join('/') : '';
+    _pathController.text = subPath;
+    _pathController.selection = TextSelection.collapsed(offset: subPath.length);
     setState(() {
       _editRoot = parts.isNotEmpty && parts[0].isNotEmpty ? parts[0] : 'projects';
-      _editSub = parts.length > 1 ? parts.sublist(1).join('/') : '';
+      _editSub = subPath;
       _editingPath = true;
     });
   }
@@ -177,6 +182,7 @@ class _PropertiesPanelState extends State<PropertiesPanel> {
   void dispose() {
     _conceptController.dispose();
     _linkSearchController.dispose();
+    _pathController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -416,7 +422,7 @@ class _PropertiesPanelState extends State<PropertiesPanel> {
           Expanded(
             flex: 3,
             child: TextField(
-              controller: TextEditingController(text: _editSub),
+              controller: _pathController,
               style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface),
               decoration: InputDecoration(
                 isDense: true,

@@ -15,6 +15,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import '../models/note.dart';
 
 // ── 类型 ──
@@ -72,41 +74,42 @@ class SyncStatus {
 
 // 存储键：与 Web 端 localStorage 对齐
 const _storageKey = 'nr:github-sync';
+const _configFileName = 'nine-rings-github-sync.json';
 
 SyncConfig? _cachedConfig;
 
 SyncConfig _defaultConfig() => SyncConfig();
 
-String _configFilePath() {
-  // 存放在应用数据目录，与数据库同目录
-  final dbPath = Directory.current.path;
-  return '$dbPath/$_storageKey.json';
+Future<File> _configFile() async {
+  final directory = await getApplicationSupportDirectory();
+  await directory.create(recursive: true);
+  return File(p.join(directory.path, _configFileName));
 }
 
-SyncConfig loadSyncConfig() {
+Future<SyncConfig> loadSyncConfig() async {
   if (_cachedConfig != null) return _cachedConfig!;
-  try {
-    final file = File(_configFilePath());
-    if (file.existsSync()) {
-      final raw = file.readAsStringSync();
-      _cachedConfig = SyncConfig.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-      return _cachedConfig!;
-    }
-  } catch (_) {
-    /* ignore */
+  final file = await _configFile();
+  if (await file.exists()) {
+    final raw = await file.readAsString();
+    _cachedConfig = SyncConfig.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    return _cachedConfig!;
+  }
+  // 兼容旧版本：旧配置曾错误地写入进程工作目录。找到后迁移到应用目录。
+  final legacy = File(p.join(Directory.current.path, '$_storageKey.json'));
+  if (await legacy.exists()) {
+    final raw = await legacy.readAsString();
+    _cachedConfig = SyncConfig.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    await file.writeAsString(jsonEncode(_cachedConfig!.toJson()), flush: true);
+    return _cachedConfig!;
   }
   _cachedConfig = _defaultConfig();
   return _cachedConfig!;
 }
 
-void saveSyncConfig(SyncConfig config) {
+Future<void> saveSyncConfig(SyncConfig config) async {
   _cachedConfig = config;
-  try {
-    final file = File(_configFilePath());
-    file.writeAsStringSync(jsonEncode(config.toJson()));
-  } catch (_) {
-    /* ignore */
-  }
+  final file = await _configFile();
+  await file.writeAsString(jsonEncode(config.toJson()), flush: true);
 }
 
 // ── API 调用 ──
@@ -123,29 +126,24 @@ Future<HttpClientResponse> _apiRequest({
   required Map<String, String> headers,
   String? body,
 }) async {
-  final client = HttpClient();
-  try {
-    final uri = Uri.parse(url);
-    final request = method == 'GET'
-        ? await client.getUrl(uri)
-        : method == 'PUT'
-            ? await client.putUrl(uri)
-            : await client.getUrl(uri); // fallback
+  final uri = Uri.parse(url);
+  final request = method == 'GET'
+      ? await _httpClient.getUrl(uri)
+      : method == 'PUT'
+          ? await _httpClient.putUrl(uri)
+          : throw ArgumentError.value(method, 'method', '仅支持 GET/PUT');
 
-    headers.forEach((k, v) => request.headers.set(k, v));
+  headers.forEach((k, v) => request.headers.set(k, v));
 
-    if (body != null) {
-      request.headers.set('Content-Type', 'application/json');
-      request.write(body);
-    }
-
-    final response = await request.close();
-    return response;
-  } catch (e) {
-    client.close();
-    rethrow;
+  if (body != null) {
+    request.headers.set('Content-Type', 'application/json');
+    request.write(body);
   }
+
+  return request.close();
 }
+
+final HttpClient _httpClient = HttpClient();
 
 /// 获取远端文件内容 + SHA
 Future<({String content, String sha})?> fetchRemote(
@@ -287,7 +285,8 @@ Future<SyncConfig> pushToGitHub(
       .toUtc()
       .toIso8601String()
       .replaceAll(RegExp(r'[:-]'), '')
-      .replaceAll(RegExp(r'\..+'), ''); // "20260715T123000"
+      .replaceAll('.', '')
+      .replaceAll('Z', ''); // "20260715T123000123"
 
   final dataPath = _versionedPath(config.path, version);
   final ptrPath = _latestPath(config.path);
@@ -330,7 +329,7 @@ Future<SyncConfig> pushToGitHub(
     lastPushVersion: version,
     lastPullVersion: config.lastPullVersion,
   );
-  saveSyncConfig(updated);
+  await saveSyncConfig(updated);
   return updated;
 }
 
@@ -376,7 +375,7 @@ Future<SyncConfig> pullFromGitHub(
       lastPullVersion: version,
       lastPushVersion: config.lastPushVersion,
     );
-    saveSyncConfig(updated);
+    await saveSyncConfig(updated);
     return updated;
   }
   try {
@@ -397,7 +396,7 @@ Future<SyncConfig> pullFromGitHub(
     lastPullVersion: version,
     lastPushVersion: config.lastPushVersion,
   );
-  saveSyncConfig(updated);
+  await saveSyncConfig(updated);
   return updated;
 }
 
@@ -415,9 +414,11 @@ Future<SyncStatus> checkStatus(SyncConfig config) async {
         await _apiRequest(method: 'GET', url: url, headers: _authHeader(config.token));
 
     if (response.statusCode == 404) {
+      await response.drain();
       return const SyncStatus(ok: true, message: '仓库连接正常，远端暂无备份');
     }
     if (response.statusCode == 401) {
+      await response.drain();
       return const SyncStatus(ok: false, message: 'Token 无效或无权限');
     }
     if (response.statusCode != 200) {
@@ -426,6 +427,7 @@ Future<SyncStatus> checkStatus(SyncConfig config) async {
           ok: false,
           message: 'API ${response.statusCode}: ${body.substring(0, body.length.clamp(0, 100))}');
     }
+    await response.drain();
     return const SyncStatus(ok: true, message: '连接正常');
   } catch (e) {
     return SyncStatus(ok: false, message: '连接失败: $e');

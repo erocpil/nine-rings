@@ -131,8 +131,10 @@ class NoteService {
   }
 
   Future<void> permanentlyDeleteNote(String id) async {
-    await _db.database.delete('notes', where: 'id = ?', whereArgs: [id]);
-    await _db.database.delete('note_versions', where: 'note_id = ?', whereArgs: [id]);
+    await _db.database.transaction((txn) async {
+      await txn.delete('note_versions', where: 'note_id = ?', whereArgs: [id]);
+      await txn.delete('notes', where: 'id = ?', whereArgs: [id]);
+    });
   }
 
   // ── Trash ──
@@ -331,7 +333,10 @@ class NoteService {
 
   /// 从 JSON 字符串导入全量数据。返回 (notesImported, pagesImported)。
   /// 与 Web 端 importData 语义对齐。
-  Future<({int notesImported, int pagesImported})> importBundle(String jsonStr) async {
+  Future<({int notesImported, int pagesImported})> importBundle(
+    String jsonStr, {
+    bool replace = false,
+  }) async {
     final data = jsonDecode(jsonStr) as Map;
     final notes = data['notes'] as List? ?? [];
     final dailyPages = data['daily_pages'] as List? ?? [];
@@ -340,6 +345,12 @@ class NoteService {
     int pagesCount = 0;
 
     final batch = _db.database.batch();
+
+    if (replace) {
+      batch.delete('note_versions');
+      batch.delete('notes');
+      batch.delete('daily_pages');
+    }
 
     // ── 导入笔记 ──
     for (final n in notes) {
@@ -560,47 +571,38 @@ class NoteService {
 
   Future<int> renameFolder(String oldPath, String newPath) async {
     final db = _db.database;
-    // Find all notes under oldPath
-    final rows = await db.query(
-      'notes',
-      columns: ['id', 'storage_path'],
-      where: 'storage_path LIKE ? AND deleted_at IS NULL',
-      whereArgs: ['$oldPath%'],
-    );
-    int count = 0;
-    final now = DateTime.now().toUtc().toIso8601String();
-    for (final row in rows) {
-      final currentPath = row['storage_path'] as String?;
-      if (currentPath == null) continue;
-      // Replace oldPath prefix with newPath
-      final updatedPath = currentPath.replaceFirst(oldPath, newPath);
-      await db.update(
-        'notes',
-        {'storage_path': updatedPath, 'updated_at': now},
-        where: 'id = ?',
-        whereArgs: [row['id']],
-      );
-      count++;
+    final source = oldPath.trim().replaceAll(RegExp(r'/+$'), '');
+    final target = newPath.trim().replaceAll(RegExp(r'/+$'), '');
+    if (source.isEmpty || target.isEmpty || source == target) return 0;
+    if (target.startsWith('$source/')) {
+      throw ArgumentError('不能把目录移动到它自己的子目录');
     }
-    // Also handle sub-folders: notes that have storage_path exactly matching oldPath
-    // (already covered by LIKE above, but ensure exact match too)
-    final exactRows = await db.query(
-      'notes',
-      columns: ['id'],
-      where: 'storage_path = ? AND deleted_at IS NULL',
-      whereArgs: [oldPath],
-    );
-    for (final row in exactRows) {
-      final id = row['id'] as String;
-      await db.update(
+
+    return db.transaction((txn) async {
+      // 在 Dart 侧做路径边界判断，避免 SQL LIKE 中的 %/_ 被当作通配符。
+      final rows = await txn.query(
         'notes',
-        {'storage_path': newPath, 'updated_at': now},
-        where: 'id = ?',
-        whereArgs: [id],
+        columns: ['id', 'storage_path'],
+        where: 'storage_path IS NOT NULL AND deleted_at IS NULL',
       );
-      count++;
-    }
-    return count;
+      final matches = rows.where((row) {
+        final path = row['storage_path'] as String?;
+        return path == source || (path?.startsWith('$source/') ?? false);
+      }).toList();
+      for (final row in matches) {
+        final currentPath = row['storage_path'] as String;
+        final updatedPath = currentPath == source
+            ? target
+            : target + currentPath.substring(source.length);
+        await txn.update(
+          'notes',
+          {'storage_path': updatedPath},
+          where: 'id = ?',
+          whereArgs: [row['id']],
+        );
+      }
+      return matches.length;
+    });
   }
 
   // ── Markdown export (Delta → Markdown) ──
