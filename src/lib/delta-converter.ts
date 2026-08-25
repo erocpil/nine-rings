@@ -114,6 +114,8 @@ export function proseMirrorToDelta(pmJson: any): any {
             "code-block": true,
             ...indentAttrs(node),
             ...(node.attrs?.language ? { language: node.attrs.language } : {}),
+            ...(node.attrs?.title ? { "code-title": node.attrs.title } : {}),
+            ...(node.attrs?.wrap === false ? { "code-wrap": false } : {}),
           },
         });
         break;
@@ -372,11 +374,15 @@ export function deltaToProseMirror(deltaData: any): any {
           flushParagraph();
         } else if (attrs["code-block"]) {
           currentParagraph.type = "codeBlock";
-          if (typeof attrs.language === "string" && attrs.language) {
-            currentParagraph.attrs = { ...blockIndentAttrs, language: attrs.language };
-          } else if (blockIndent > 0) {
-            currentParagraph.attrs = blockIndentAttrs;
-          }
+          const codeBlockAttrs = {
+            ...blockIndentAttrs,
+            ...(typeof attrs.language === "string" && attrs.language ? { language: attrs.language } : {}),
+            ...(typeof attrs["code-title"] === "string" && attrs["code-title"]
+              ? { title: attrs["code-title"] }
+              : {}),
+            ...(attrs["code-wrap"] === false ? { wrap: false } : {}),
+          };
+          if (Object.keys(codeBlockAttrs).length > 0) currentParagraph.attrs = codeBlockAttrs;
           flushParagraph();
         } else if (attrs.blockquote) {
           // ProseMirror 的 blockquote schema 要求 content: "paragraph*"

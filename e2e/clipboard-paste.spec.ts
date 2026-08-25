@@ -105,6 +105,41 @@ test.describe("编辑器复制粘贴", () => {
     await expect(editor.locator("p")).toHaveCount(1);
   });
 
+  test("全选复制多个代码块不会包含语言和复制控件文字", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const firstCommand = "kubectl patch deployment boson-probe";
+    const secondCommand = "kubectl get deployment.apps/boson-probe";
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element, markdown) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", markdown);
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    }, `\`\`\`\n${firstCommand}\n\`\`\`\n\n\`\`\`\n${secondCommand}\n\`\`\``);
+    await expect(editor.locator("pre code")).toHaveCount(2);
+    const firstCodeBlock = editor.locator(".code-block-wrap").first();
+    await firstCodeBlock.getByLabel("代码简介").fill("更新探针部署");
+    const wrapToggle = firstCodeBlock.getByRole("button", { name: "关闭代码自动换行" });
+    await expect(wrapToggle).toHaveAttribute("aria-pressed", "true");
+    await wrapToggle.click();
+    await expect(firstCodeBlock).toHaveAttribute("data-code-wrap", "false");
+
+    await editor.click();
+    await page.keyboard.press("Control+A");
+    await page.keyboard.press("Control+C");
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
+      `${firstCommand}\n\n${secondCommand}`,
+    );
+  });
+
   test("复制有序列表到纯文本时列表项之间没有多余空行", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await page.goto("/");

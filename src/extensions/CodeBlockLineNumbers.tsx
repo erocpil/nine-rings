@@ -159,6 +159,8 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
   const [copied, setCopied] = useState(false);
   const [editable, setEditable] = useState(editor.isEditable);
   const code = node.textContent;
+  const codeTitle = typeof node.attrs.title === "string" ? node.attrs.title : "";
+  const wrapEnabled = node.attrs.wrap !== false;
   const lineCount = code.split("\n").length;
   const [lineNumbersEnabled, setLineNumbersEnabled] = useState(
     () => codeLineNumbersPluginKey.getState(editor.state) ?? false,
@@ -240,36 +242,63 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
     <NodeViewWrapper
       className="code-block-wrap"
       data-indent={node.attrs.indent > 0 ? node.attrs.indent : undefined}
+      data-code-wrap={wrapEnabled ? "true" : "false"}
     >
       <div ref={wrapperRef}>
-        <select
-          className="code-block-language"
+        <div
+          className="code-block-toolbar"
           data-pdf-exclude
           contentEditable={false}
-          disabled={!editable}
-          value={normalizeCodeLanguage(node.attrs.language) ?? ""}
-          onMouseDown={(event) => event.stopPropagation()}
-          onChange={(event) => {
-            if (!editor.isEditable) return;
-            updateAttributes({ language: event.target.value || null });
-          }}
-          aria-label="代码语言"
-          title="代码语言 / 语法高亮"
         >
-          {CODE_LANGUAGE_OPTIONS.map((option) => (
-            <option key={option.value || "plaintext"} value={option.value}>{option.label}</option>
-          ))}
-        </select>
-        <button
-          className="code-block-copy"
-          data-pdf-exclude
-          contentEditable={false}
-          onClick={handleCopy}
-          type="button"
-          title="复制代码"
-        >
-          {copied ? "已复制" : "⎘"}
-        </button>
+          <input
+            className="code-block-title"
+            value={codeTitle}
+            placeholder="代码简介（可选）"
+            disabled={!editable}
+            onMouseDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+            onChange={(event) => updateAttributes({ title: event.target.value })}
+            aria-label="代码简介"
+          />
+          <div className="code-block-actions">
+            <select
+              className="code-block-language"
+              disabled={!editable}
+              value={normalizeCodeLanguage(node.attrs.language) ?? ""}
+              onMouseDown={(event) => event.stopPropagation()}
+              onChange={(event) => {
+                if (!editor.isEditable) return;
+                updateAttributes({ language: event.target.value || null });
+              }}
+              aria-label="代码语言"
+              title="代码语言 / 语法高亮"
+            >
+              {CODE_LANGUAGE_OPTIONS.map((option) => (
+                <option key={option.value || "plaintext"} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            <button
+              className={`code-block-wrap-toggle ${wrapEnabled ? "active" : ""}`}
+              disabled={!editable}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => updateAttributes({ wrap: !wrapEnabled })}
+              type="button"
+              aria-label={wrapEnabled ? "关闭代码自动换行" : "开启代码自动换行"}
+              aria-pressed={wrapEnabled}
+              title={wrapEnabled ? "自动换行：开" : "自动换行：关"}
+            >换行</button>
+            <button
+              className="code-block-copy"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={handleCopy}
+              type="button"
+              title="复制代码"
+              aria-label="复制代码"
+            >
+              {copied ? "已复制" : "⎘"}
+            </button>
+          </div>
+        </div>
         <div className="code-block-inner">
           <div
             className="code-block-gutter"
@@ -325,6 +354,20 @@ export const CodeBlockLineNumbers = Node.create<CodeBlockLineNumberOptions>({
         parseHTML: (element) => element.getAttribute("data-language") || null,
         renderHTML: (attributes) => attributes.language
           ? { "data-language": attributes.language }
+          : {},
+      },
+      title: {
+        default: "",
+        parseHTML: (element) => element.getAttribute("data-code-title") || "",
+        renderHTML: (attributes) => attributes.title
+          ? { "data-code-title": attributes.title }
+          : {},
+      },
+      wrap: {
+        default: true,
+        parseHTML: (element) => element.getAttribute("data-code-wrap") !== "false",
+        renderHTML: (attributes) => attributes.wrap === false
+          ? { "data-code-wrap": "false" }
           : {},
       },
     };

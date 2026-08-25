@@ -95,13 +95,18 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Code block ──");
-  const pm: any = { type: "doc", content: [{ type: "codeBlock", attrs: { language: "typescript" }, content: [{ type: "text", text: "const x = 1;" }] }] };
+  const pm: any = { type: "doc", content: [{ type: "codeBlock", attrs: { language: "typescript", title: "示例代码", wrap: false }, content: [{ type: "text", text: "const x = 1;" }] }] };
   const delta = proseMirrorToDelta(pm);
   // 格式：[{insert:"const x = 1;"}, {insert:"\n", attributes:{"code-block":true}}]
   const codeText = delta.ops.find((o: any) => typeof o.insert === "string" && o.insert !== "\n" && !o.attributes);
   const codeNl = delta.ops.find((o: any) => o.attributes?.["code-block"]);
   assert(codeText?.insert === "const x = 1;", "code block text correct");
   assert(codeNl?.attributes?.["code-block"] === true, "code block newline has code-block=true");
+  assert(codeNl?.attributes?.["code-title"] === "示例代码", "code block title stored");
+  assert(codeNl?.attributes?.["code-wrap"] === false, "code block wrap preference stored");
+  const restored = deltaToProseMirror(delta);
+  assert(restored.content[0]?.attrs?.title === "示例代码" && restored.content[0]?.attrs?.wrap === false,
+    "code block title and wrap preference survive save and reload");
 }
 
 // ═══════════════════════════════════════════════════════════════════
