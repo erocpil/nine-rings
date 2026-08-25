@@ -250,6 +250,74 @@ const ActiveLinePlugin = Extension.create({
   },
 });
 
+// ── 工具栏交互期间保留文本选区的可见反馈 ──
+
+interface ToolbarSelectionPluginState {
+  range: { from: number; to: number } | null;
+  decorations: DecorationSet;
+}
+
+interface ToolbarSelectionPluginMeta {
+  range: { from: number; to: number } | null;
+}
+
+const toolbarSelectionPluginKey = new PluginKey<ToolbarSelectionPluginState>("toolbarSelection");
+
+function toolbarSelectionDecorations(
+  document: ProseMirrorNode,
+  range: { from: number; to: number } | null,
+): DecorationSet {
+  if (!range) return DecorationSet.empty;
+  const from = Math.max(0, Math.min(range.from, document.content.size));
+  const to = Math.max(from, Math.min(range.to, document.content.size));
+  if (from === to) return DecorationSet.empty;
+  return DecorationSet.create(document, [
+    Decoration.inline(from, to, { class: "toolbar-preserved-selection" }),
+  ]);
+}
+
+const ToolbarSelection = Extension.create({
+  name: "toolbarSelection",
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: toolbarSelectionPluginKey,
+        state: {
+          init(): ToolbarSelectionPluginState {
+            return { range: null, decorations: DecorationSet.empty };
+          },
+          apply(tr, current): ToolbarSelectionPluginState {
+            const meta = tr.getMeta(toolbarSelectionPluginKey) as ToolbarSelectionPluginMeta | undefined;
+            let range = meta ? meta.range : current.range;
+            if (!meta && range && tr.docChanged) {
+              const from = tr.mapping.map(range.from, 1);
+              const to = tr.mapping.map(range.to, -1);
+              range = from < to ? { from, to } : null;
+            }
+            return {
+              range,
+              decorations: toolbarSelectionDecorations(tr.doc, range),
+            };
+          },
+        },
+        props: {
+          decorations(state) {
+            return this.getState(state)?.decorations ?? DecorationSet.empty;
+          },
+        },
+      }),
+    ];
+  },
+});
+
+function setToolbarSelectionHighlight(
+  editor: Editor,
+  range: { from: number; to: number } | null,
+) {
+  editor.view.dispatch(editor.state.tr.setMeta(toolbarSelectionPluginKey, { range }));
+}
+
 // ── 预设颜色 ──
 
 const PRESET_COLORS = [
@@ -794,6 +862,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       // 可能超过 50,000 字符；设置 limit 会让 ProseMirror 拒绝整笔事务。
       CharacterCount.configure(),
       ActiveLinePlugin,
+      ToolbarSelection,
       SearchHighlights,
       CodeBlockLineNumbers.configure({ lineNumbersEnabled: showCodeLineNumbers }),
       CollapsibleBlockquote,
@@ -2553,6 +2622,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     const { from, to } = editor.state.selection;
     if (from !== to) {
       toolbarSelectionRef.current = { from, to };
+      setToolbarSelectionHighlight(editor, { from, to });
       return;
     }
     const domSelection = window.getSelection();
@@ -2561,6 +2631,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       const anchor = editor.view.posAtDOM(domSelection.anchorNode, domSelection.anchorOffset);
       const focus = editor.view.posAtDOM(domSelection.focusNode, domSelection.focusOffset);
       toolbarSelectionRef.current = { from: Math.min(anchor, focus), to: Math.max(anchor, focus) };
+      setToolbarSelectionHighlight(editor, toolbarSelectionRef.current);
     } catch {
       // The browser can briefly expose a selection outside ProseMirror while moving focus.
     }
@@ -3121,6 +3192,12 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       onPasteCapture={handlePaste}
       onDrop={handleDrop}
       onMouseDownCapture={preventReadonlyTableResize}
+      onPointerDownCapture={(event) => {
+        if (!(event.target instanceof Element) || !event.target.closest(".ProseMirror")) return;
+        toolbarSelectionRef.current = null;
+        toolbarCellSelectionRef.current = null;
+        setToolbarSelectionHighlight(editor, null);
+      }}
     >
       {focusMode && (
         <div className="mobile-focus-bar" aria-label="专注模式工具栏">
@@ -3128,6 +3205,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           {documentOutline.length > 0 && (
             <button
               type="button"
+              className={outlineOpen ? "active" : undefined}
               aria-expanded={outlineOpen}
               onClick={(event) => {
                 event.stopPropagation();
@@ -3140,6 +3218,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           )}
           <button
             type="button"
+            className={bookmarkOpen ? "active" : undefined}
             aria-expanded={bookmarkOpen}
             onClick={(event) => {
               event.stopPropagation();
@@ -3153,6 +3232,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           {!readonly && (
             <button
               type="button"
+              className={focusToolbarExpanded ? "active" : undefined}
               aria-expanded={focusToolbarExpanded}
               onClick={() => {
                 setOutlineOpen(false);

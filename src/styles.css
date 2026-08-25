@@ -1727,6 +1727,20 @@ body {
   color: var(--text);
 }
 
+/* 触屏浏览器会在菜单关闭后保留最后一个按钮的 :hover，造成灰色状态残留。 */
+@media (hover: none) {
+  .menu-btn:hover:not(.active) {
+    background: none;
+    border-color: transparent;
+    box-shadow: none;
+    color: var(--text-secondary);
+  }
+
+  .menu-dropdown-item:hover:not(.active) {
+    background: none;
+  }
+}
+
 .menu-btn-sm {
   padding: 2px 4px;
   font-size: 11px;
@@ -2099,6 +2113,13 @@ body {
 .search-match-active {
   background: color-mix(in srgb, var(--accent) 28%, var(--editor-search-highlight));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+/* iOS 上关闭原生编辑菜单会清除 DOM Range；此 decoration 继续标出工具栏
+   将要处理的范围，直到用户重新触碰正文。 */
+.toolbar-preserved-selection {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  border-radius: 2px;
 }
 
 .btn-version-icon {
@@ -8340,6 +8361,25 @@ button.doc-tree-toggle:focus-visible {
     padding-bottom: max(4px, var(--safe-bottom));
   }
 
+  /* 普通模式的上下分屏保持紧凑：视觉分隔条变窄，但通过透明伪元素
+     保留约 20px 的触摸拖动热区。 */
+  .app:not(.app-focus-mode) .app-main-divider:not(.divider-collapsed) {
+    height: 2px;
+  }
+
+  .app:not(.app-focus-mode) .app-main-divider:not(.divider-collapsed)::before {
+    inset: -9px 0;
+  }
+
+  .app:not(.app-focus-mode) .app-main-todo .todo-input {
+    margin-top: 2px;
+    padding-block: 3px;
+  }
+
+  .app:not(.app-focus-mode) .app-main-editor > .note-editor {
+    padding-top: 6px;
+  }
+
   /* 键盘已经覆盖 Home Indicator 区域，不再在状态栏下重复预留 safe area。 */
   .web-keyboard-open .app-main {
     padding-bottom: 0;
@@ -8555,8 +8595,8 @@ button.doc-tree-toggle:focus-visible {
     display: flex;
     align-items: center;
     gap: 4px;
-    height: 34px;
-    padding: 3px 6px;
+    height: 30px;
+    padding: 1px 6px;
     border-bottom: 1px solid var(--border);
     /* 固定毛玻璃层会让 iOS 在长页面滚动时持续重合成并加剧棋盘式补绘。 */
     background: var(--bg);
@@ -8584,14 +8624,14 @@ button.doc-tree-toggle:focus-visible {
 
   .focus-mode .document-outline-panel {
     position: fixed;
-    top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 36px);
+    top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 32px);
     max-height: min(58dvh, calc(100dvh - var(--safe-top) - var(--safe-bottom) - 52px));
   }
 
   .document-bookmark-panel,
   .focus-mode .document-bookmark-panel {
     position: fixed;
-    top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 36px);
+    top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 32px);
     right: 8px;
     left: auto;
     width: min(420px, calc(100vw - 16px));
@@ -8653,7 +8693,7 @@ button.doc-tree-toggle:focus-visible {
 
   .mobile-focus-bar button {
     min-width: 42px;
-    height: 28px;
+    height: 26px;
     padding: 2px 7px;
     border: 1px solid var(--border);
     border-radius: 5px;
@@ -8662,8 +8702,19 @@ button.doc-tree-toggle:focus-visible {
     font-size: 11px;
   }
 
+  .mobile-focus-bar button:active,
+  .mobile-focus-bar button.active,
+  .mobile-focus-bar button[aria-expanded="true"] {
+    border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+    background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent),
+      0 2px 6px color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--text);
+  }
+
   .focus-mode .note-editor-scroll {
-    padding-top: calc(34px + var(--safe-top));
+    padding-top: calc(30px + var(--safe-top));
   }
 
   .focus-mode.note-editor {
@@ -8672,7 +8723,7 @@ button.doc-tree-toggle:focus-visible {
 
   .focus-mode.focus-toolbar-expanded .editor-menu {
     position: fixed;
-    top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 36px);
+    top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 32px);
     right: 8px;
     left: 8px;
     z-index: 31;
@@ -8687,7 +8738,7 @@ button.doc-tree-toggle:focus-visible {
   }
 
   .focus-mode.focus-toolbar-expanded .note-editor-scroll {
-    padding-top: calc(84px + var(--safe-top));
+    padding-top: calc(80px + var(--safe-top));
   }
 
   .web-keyboard-open .focus-mode .mobile-focus-bar {
