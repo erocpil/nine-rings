@@ -29,6 +29,13 @@ test("标题章节可按层级折叠，并从目录统一展开", async ({ page 
   await expect(editor.getByText("子节正文", { exact: true })).toBeHidden();
   await expect(editor.getByText("第二部分", { exact: true })).toBeVisible();
 
+  // 标题文字只负责跳转；折叠状态只能由前方三角切换。
+  await outline.locator('.document-outline-item[title="子节"] .document-outline-link').click();
+  await expect(editor.getByText("子节正文", { exact: true })).toBeHidden();
+  await expect(outline).toHaveCount(0);
+  await page.getByTitle("文档目录").click();
+  await expect(outline.getByLabel("展开章节 子节")).toBeVisible();
+
   await outline.getByRole("button", { name: "全部折叠" }).dblclick();
   await expect(outline.locator(".document-outline-item")).toHaveCount(2);
   await outline.getByLabel("展开章节 总览").click();

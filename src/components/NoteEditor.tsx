@@ -539,6 +539,13 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     setTableOpen(false);
     setMoreOpen(false);
   }, []);
+  const dismissNativeSelectionMenu = useCallback(() => {
+    const selection = window.getSelection();
+    // iOS 没有供网页主动关闭/重新打开编辑菜单的 API。清除当前 DOM Range
+    // 可以关闭原生浮层；ProseMirror 的逻辑选区已由 toolbarSelectionRef 保存，
+    // 工具命令执行前会恢复，因此格式化目标不会丢失。
+    if (selection && !selection.isCollapsed) selection.removeAllRanges();
+  }, []);
   // 编辑器右键菜单 + 右键插入链接对话框
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contextSubmenu, setContextSubmenu] = useState<"format" | "paragraph" | "insert" | null>(null);
@@ -1584,7 +1591,6 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     if (!editor || editor.isDestroyed) return;
     allHeadingFoldRoundTripRef.current = null;
     const position = Math.min(item.pos + 1, editor.state.doc.content.size);
-    expandHeadingFoldsAt(editor, position);
     editor.commands.setTextSelection(position);
     editor.view.focus();
     if (outlineDock === "floating") setOutlineOpen(false);
@@ -3144,6 +3150,19 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
             aria-label={bookmarks.length > 0 ? `文档书签，共 ${bookmarks.length} 项` : "文档书签"}
           >🔖{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button>
+          {!readonly && (
+            <button
+              type="button"
+              aria-expanded={focusToolbarExpanded}
+              onClick={() => {
+                setOutlineOpen(false);
+                setBookmarkOpen(false);
+                setFocusToolbarExpanded((expanded) => !expanded);
+              }}
+              title="更多编辑工具"
+              aria-label="更多编辑工具"
+            >🛠️</button>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -3155,18 +3174,6 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             title="退出专注模式"
             aria-label="退出专注模式"
           >🚪</button>
-          {!readonly && (
-            <button
-              type="button"
-              aria-expanded={focusToolbarExpanded}
-              onClick={() => {
-                setOutlineOpen(false);
-                setBookmarkOpen(false);
-                setFocusToolbarExpanded((expanded) => !expanded);
-              }}
-              title="更多编辑工具"
-            >更多</button>
-          )}
         </div>
       )}
       {editorFindOpen && (
@@ -3438,11 +3445,13 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             // The first tap may move DOM focus away from the editor. Keep the last non-empty
             // selection across opening a dropdown and tapping one of its commands.
             rememberToolbarSelection();
+            if (event.pointerType === "touch") dismissNativeSelectionMenu();
           }}
           onTouchStartCapture={(event) => {
             if (!(event.target instanceof Element) || !event.target.closest("button")) return;
             toolbarInteractingRef.current = true;
             rememberToolbarSelection();
+            dismissNativeSelectionMenu();
             event.preventDefault();
           }}
           onTouchEndCapture={(event) => {

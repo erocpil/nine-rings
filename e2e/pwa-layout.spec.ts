@@ -407,10 +407,16 @@ test.describe("PWA 窄屏应用外壳", () => {
 
     const focusOutlineButton = focusBar.getByTitle("文档目录");
     const focusBookmarkButton = focusBar.getByLabel(/文档书签/);
+    const focusMoreButton = focusBar.getByTitle("更多编辑工具");
     const focusExitButton = focusBar.getByTitle("退出专注模式");
     await expect(focusOutlineButton).toHaveText("📑");
     await expect(focusBookmarkButton).toContainText("🔖");
+    await expect(focusMoreButton).toHaveText("🛠️");
     await expect(focusExitButton).toHaveText("🚪");
+    const focusButtonOrder = await focusBar.locator("button").evaluateAll((buttons) =>
+      buttons.map((button) => button.getAttribute("title")),
+    );
+    expect(focusButtonOrder.indexOf("更多编辑工具")).toBeLessThan(focusButtonOrder.indexOf("退出专注模式"));
     await focusBookmarkButton.click();
     const bookmarkPanel = page.getByRole("navigation", { name: "文档书签" });
     await expect(bookmarkPanel).toBeVisible();
