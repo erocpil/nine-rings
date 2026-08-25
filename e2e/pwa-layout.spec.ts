@@ -398,8 +398,17 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(page.locator(".editor-menu")).toBeHidden();
 
     const focusOutlineButton = focusBar.getByTitle("文档目录");
+    const focusBookmarkButton = focusBar.getByLabel(/文档书签/);
+    const focusExitButton = focusBar.getByTitle("退出专注模式");
+    await expect(focusOutlineButton).toHaveText("📑");
+    await expect(focusBookmarkButton).toContainText("🔖");
+    await expect(focusExitButton).toHaveText("🚪");
+    await focusBookmarkButton.click();
+    const bookmarkPanel = page.getByRole("navigation", { name: "文档书签" });
+    await expect(bookmarkPanel).toBeVisible();
     await expect(focusOutlineButton).toBeVisible();
     await focusOutlineButton.click();
+    await expect(bookmarkPanel).toHaveCount(0);
     const outline = page.getByRole("navigation", { name: "文档目录" });
     await expect(outline).toBeVisible();
     const outlineGeometry = await page.locator(".note-editor").evaluate((element) => {

@@ -1095,6 +1095,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       editor.state.selection.from,
     ));
     setOutlineOverflow(false);
+    setBookmarkOpen(false);
     setOutlineOpen(true);
   }, [documentOutline, editor]);
 
@@ -3067,7 +3068,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
                 toggleDocumentOutline();
               }}
               title="文档目录"
-            >目录</button>
+              aria-label="文档目录"
+            >📑</button>
           )}
           <button
             type="button"
@@ -3081,13 +3083,24 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
             aria-label={bookmarks.length > 0 ? `文档书签，共 ${bookmarks.length} 项` : "文档书签"}
           >🔖{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button>
-          <button type="button" onClick={() => onFocusModeChange?.(false)} title="退出专注模式">退出</button>
+          <button
+            type="button"
+            onClick={() => {
+              setOutlineOpen(false);
+              setBookmarkOpen(false);
+              setFocusToolbarExpanded(false);
+              onFocusModeChange?.(false);
+            }}
+            title="退出专注模式"
+            aria-label="退出专注模式"
+          >🚪</button>
           {!readonly && (
             <button
               type="button"
               aria-expanded={focusToolbarExpanded}
               onClick={() => {
                 setOutlineOpen(false);
+                setBookmarkOpen(false);
                 setFocusToolbarExpanded((expanded) => !expanded);
               }}
               title="更多编辑工具"
