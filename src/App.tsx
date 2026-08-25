@@ -1315,8 +1315,8 @@ function App() {
                 const today = localDateKey();
                 const note = await api.notes.create({
                   date: today,
-                  title: meta.title ?? "新随笔",
-                  content: { ops: [] },
+                  title: meta.title ?? template.name,
+                  content: meta.content,
                   tags: meta.tags,
                   storagePath: meta.storagePath ?? undefined,
                   docType: meta.docType ?? undefined,

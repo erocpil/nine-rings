@@ -397,6 +397,14 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(page.locator(".note-title-row")).toBeHidden();
     await expect(page.locator(".editor-menu")).toBeHidden();
 
+    const initialContentGeometry = await page.locator(".note-editor").evaluate((element) => {
+      const focusBarRect = element.querySelector(".mobile-focus-bar")!.getBoundingClientRect();
+      const firstBlockRect = element.querySelector(".ProseMirror > :first-child")!.getBoundingClientRect();
+      return { focusBarBottom: focusBarRect.bottom, firstBlockTop: firstBlockRect.top };
+    });
+    expect(initialContentGeometry.firstBlockTop).toBeGreaterThanOrEqual(initialContentGeometry.focusBarBottom);
+    expect(initialContentGeometry.firstBlockTop - initialContentGeometry.focusBarBottom).toBeLessThanOrEqual(24);
+
     const focusOutlineButton = focusBar.getByTitle("文档目录");
     const focusBookmarkButton = focusBar.getByLabel(/文档书签/);
     const focusExitButton = focusBar.getByTitle("退出专注模式");
@@ -605,6 +613,11 @@ test.describe("PWA 窄屏应用外壳", () => {
     await boldButton.click();
     await expect(editor.locator("strong")).toHaveText("测试文字");
     await expect(editor).toHaveCSS("-webkit-user-select", "text");
+
+    await touch(page.getByTitle("样式"));
+    await expect(boldButton).toBeVisible();
+    await editor.dispatchEvent("pointerdown", { pointerType: "touch", bubbles: true });
+    await expect(boldButton).toBeHidden();
   });
 
   test("从文档弹层发起新建时先关闭弹层并把对话框放在最上层", async ({ page }) => {
@@ -621,6 +634,39 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(dialog).toBeVisible();
     await expect.poll(() => page.locator(".dialog-overlay").evaluate((element) => getComputedStyle(element).zIndex))
       .toBe("1200");
+  });
+
+  test("新建文档默认布局不产生横向或纵向滚动条", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("nr:sidebarHidden", "true"));
+    await page.goto("/");
+
+    await page.getByTitle("文档视图").click();
+    const popup = page.locator(".doc-tree-popup-overlay");
+    await popup.getByTitle("新建文档").click();
+
+    const dialog = page.locator(".doc-create-dialog");
+    const body = dialog.locator(".dialog-body");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator(".dialog-template-chip").first()).toBeVisible();
+    const firstPathOption = dialog.locator(".dialog-path-row option").first();
+    await expect(firstPathOption).toHaveText(/Projects$/);
+    await expect(firstPathOption).not.toContainText("活跃项目");
+
+    const layout = await body.evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+    }));
+    expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1);
+    expect(layout.scrollHeight).toBeLessThanOrEqual(layout.clientHeight + 1);
+
+    await dialog.getByRole("button", { name: /会议纪要/ }).click();
+    await dialog.getByPlaceholder("文档标题...").fill("模板正文测试");
+    await dialog.getByRole("button", { name: "创建", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator(".ProseMirror")).toContainText("会议信息");
+    await expect(page.locator(".ProseMirror")).toContainText("行动项");
   });
 
   test("离线时明确提示但编辑器保持可用", async ({ page, context }) => {

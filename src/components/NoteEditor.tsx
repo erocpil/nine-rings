@@ -528,6 +528,17 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const [focusToolbarExpanded, setFocusToolbarExpanded] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
+  const closeToolbarDropdowns = useCallback(() => {
+    setSizeOpen(false);
+    setColorOpen(false);
+    setHeadingOpen(false);
+    setBlockOpen(false);
+    setStyleOpen(false);
+    setClipOpen(false);
+    setLinkOpen(false);
+    setTableOpen(false);
+    setMoreOpen(false);
+  }, []);
   // 编辑器右键菜单 + 右键插入链接对话框
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [contextSubmenu, setContextSubmenu] = useState<"format" | "paragraph" | "insert" | null>(null);
@@ -835,6 +846,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       if (ed.isFocused && !toolbarInteractingRef.current) {
         toolbarCellSelectionRef.current = null;
         if (from === to) toolbarSelectionRef.current = null;
+        else closeToolbarDropdowns();
       }
       localStorage.setItem(`selectionPos:${noteId}`, JSON.stringify({ from, to }));
     },
@@ -4017,6 +4029,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           <EditorContent
             editor={editor}
             className="editor-content"
+            onPointerDownCapture={closeToolbarDropdowns}
             onDoubleClick={handleReadonlyHeadingDoubleClick}
             onPointerDown={handleReadonlyHeadingPointerDown}
             onPointerMove={handleReadonlyHeadingPointerMove}

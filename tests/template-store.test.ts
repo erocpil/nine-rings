@@ -236,8 +236,34 @@ async function run() {
     const meta = await templateStore.applyTemplate(meeting);
     if (meta.tags[0] !== "会议") throw new Error(`tags: ${JSON.stringify(meta.tags)}`);
     if (meta.storagePath !== "projects/meetings") throw new Error(`storagePath: ${meta.storagePath}`);
-    if (meta.docType !== "meeting") throw new Error(`docType: ${meta.docType}`);
+    if (meta.docType !== "reference") throw new Error(`docType: ${meta.docType}`);
     if (meta.concepts[0] !== "会议纪要") throw new Error(`concepts: ${JSON.stringify(meta.concepts)}`);
+    if (!meta.content.ops.some((op) => op.attributes?.header === 2 && op.insert === "\n")) {
+      throw new Error("meeting template should contain structured headings");
+    }
+    if (!meta.content.ops.some((op) => typeof op.insert === "string" && op.insert.includes("行动项"))) {
+      throw new Error("meeting template should contain action items");
+    }
+  })();
+
+  await test("每个非空内置模板都生成正文，空白模板保持为空", async () => {
+    const templates = await seedAndVerify();
+    for (const template of templates) {
+      const applied = await templateStore.applyTemplate(template);
+      if (template.id === "builtin-blank") {
+        if (applied.content.ops.length !== 0) throw new Error("blank template should stay empty");
+      } else if (applied.content.ops.length === 0) {
+        throw new Error(`${template.id} should contain generated content`);
+      }
+    }
+  })();
+
+  await test("旧版内置模板的无效文档类型会映射为当前 Diátaxis 类型", async () => {
+    const templates = await seedAndVerify();
+    const meeting = templates.find((template) => template.id === "builtin-meeting")!;
+    meeting.doc_type = "meeting";
+    const applied = await templateStore.applyTemplate(meeting);
+    if (applied.docType !== "reference") throw new Error(`docType: ${applied.docType}`);
   })();
 
   // ── 边界：localStorage 脏数据兜底 ──

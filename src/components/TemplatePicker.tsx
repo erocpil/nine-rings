@@ -28,7 +28,8 @@ export function TemplatePicker({ onSelect, onBlank, onClose, anchorRect, filterN
     }).then((list) => {
       console.log(`[TemplatePicker] 获取到 ${list.length} 个模板`, list.map(t => t.name));
       // 随笔页：过滤掉带 storage_path 的模板（这些模板用于文档页）
-      const filtered = filterNoPath ? list.filter(t => !t.storage_path) : list;
+      const withoutDuplicateBlank = list.filter((t) => t.id !== "builtin-blank");
+      const filtered = filterNoPath ? withoutDuplicateBlank.filter(t => !t.storage_path) : withoutDuplicateBlank;
       console.log(`[TemplatePicker] 过滤后 ${filtered.length} 个模板 (filterNoPath=${filterNoPath})`);
       setTemplates(filtered);
     }).catch((err) => {
@@ -131,7 +132,7 @@ export function TemplatePicker({ onSelect, onBlank, onClose, anchorRect, filterN
       </div>
 
       <div className="template-popover-footer">
-        <span className="template-hint">模板仅预设元数据（标签、路径、类型），不影响内容</span>
+        <span className="template-hint">内置模板会预设正文结构和元数据，创建后可自由修改</span>
       </div>
     </div>
   );

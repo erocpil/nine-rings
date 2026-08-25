@@ -4656,6 +4656,11 @@ body {
   margin-top: 0;
 }
 
+/* 文档首块直接承接编辑区顶部留白；章节上间距只用于正文内部。 */
+.editor-content .ProseMirror > :first-child {
+  margin-top: 0;
+}
+
 /* Markdown 中常用 **概念** / **原理** 作为独立小节标签。它们仍是段落
    节点，但标签后的正文应使用标题下间距，不能套用两段正文的块间距。 */
 .editor-content .ProseMirror > p.standalone-strong-label {
@@ -6317,8 +6322,86 @@ button.doc-tree-toggle:focus-visible {
 /* ──── DocCreateDialog ──── */
 
 .doc-create-dialog {
+  display: flex;
+  flex-direction: column;
   width: 520px;
-  max-width: 90vw;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 24px);
+  overflow: hidden;
+}
+
+.doc-create-dialog .dialog-header {
+  padding: 12px 16px 0;
+}
+
+.doc-create-dialog .dialog-body {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  padding: 10px 16px 6px;
+  overflow-x: hidden;
+}
+
+.doc-create-dialog .dialog-field {
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.doc-create-dialog .dialog-input,
+.doc-create-dialog .dialog-select {
+  min-width: 0;
+  padding: 6px 8px;
+}
+
+.doc-create-dialog .dialog-path-row {
+  width: 100%;
+  min-width: 0;
+  gap: 4px;
+}
+
+.doc-create-dialog .dialog-path-row .dialog-select {
+  flex: 0 1 42%;
+  width: 42%;
+}
+
+.doc-create-dialog .dialog-path-input {
+  flex: 1 1 0;
+  width: 0;
+}
+
+.doc-create-dialog .dialog-path-preview {
+  min-width: 0;
+  padding: 0 2px;
+  line-height: 1.35;
+}
+
+.doc-create-dialog .dialog-path-preview code {
+  overflow-wrap: anywhere;
+}
+
+.doc-create-dialog .dialog-type-grid {
+  gap: 6px;
+}
+
+.doc-create-dialog .dialog-type-btn {
+  padding: 6px 9px;
+}
+
+.doc-create-dialog .dialog-type-desc {
+  margin-top: 0;
+  line-height: 1.3;
+}
+
+.doc-create-dialog .dialog-template-row {
+  gap: 4px;
+}
+
+.doc-create-dialog .dialog-template-chip {
+  padding: 3px 8px;
+}
+
+.doc-create-dialog .dialog-footer {
+  padding: 8px 16px;
 }
 
 /* ──── MoveToDialog ──── */
@@ -8581,6 +8664,10 @@ button.doc-tree-toggle:focus-visible {
 
   .focus-mode .note-editor-scroll {
     padding-top: calc(34px + var(--safe-top));
+  }
+
+  .focus-mode.note-editor {
+    padding-top: 0;
   }
 
   .focus-mode.focus-toolbar-expanded .editor-menu {

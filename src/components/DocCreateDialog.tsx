@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import type { DocType, Note } from "../types/models";
-import { templateStore, type Template } from "../lib/storage/template-store";
+import { applyTemplateMetadata, templateStore, type Template } from "../lib/storage/template-store";
 import { buildDocumentStoragePath, splitSuggestedDocPath } from "../lib/storage/core";
 
 interface DocCreateDialogProps {
@@ -30,15 +30,16 @@ const DOC_TYPE_OPTIONS: { value: DocType; label: string; desc: string }[] = [
 
 /** 从模板提取预填字段 */
 function applyTemplateMeta(template: Template) {
+  const defaults = applyTemplateMetadata(template);
   // 去掉前导 /（兼容旧版内置模板路径格式 "/工作/会议"）
-  const rawPath = template.storage_path?.replace(/^\/+/, "") ?? "";
+  const rawPath = defaults.storagePath?.replace(/^\/+/, "") ?? "";
   const parts = rawPath ? rawPath.split("/") : [];
   return {
-    title: template.title_template ?? "",
+    title: defaults.title ?? "",
     rootPath: parts[0] as string | undefined,
     subPath: parts.slice(1).join("/"),
-    docType: (template.doc_type as DocType) ?? "explanation",
-    concepts: template.concepts ?? [],
+    docType: defaults.docType ?? "explanation",
+    concepts: defaults.concepts,
   };
 }
 
@@ -94,8 +95,8 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
       setCustomRootPath("");
       setSubPath(meta.subPath);
       setPathTouched(true);
-      if (meta.docType) setDocType(meta.docType);
-      if (meta.concepts.length > 0) setConcepts(meta.concepts);
+      setDocType(meta.docType);
+      setConcepts(meta.concepts);
       setActiveTemplateId(template.id);
     } else {
       // 空白
@@ -156,12 +157,15 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
     try {
       const storagePath = buildStoragePath();
       const today = localDateKey();
+      const selectedTemplate = templates.find((template) => template.id === activeTemplateId);
+      const defaults = selectedTemplate ? await templateStore.applyTemplate(selectedTemplate) : null;
 
       const note = await api.notes.create({
         date: today,
         title: title.trim(),
-        content: { ops: [] },
-        tags: [],
+        content: defaults?.content ?? { ops: [] },
+        tags: defaults?.tags ?? [],
+        pinned: defaults?.pinned ?? false,
         storagePath,
         docType,
         concepts: concepts.length > 0 ? concepts : undefined,
@@ -251,10 +255,11 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
                 className={`dialog-select ${showSuggestion ? "suggested" : ""}`}
                 value={rootPath}
                 onChange={(e) => handleRootPathChange(e.target.value)}
+                title={PATH_OPTIONS.find((option) => option.value === rootPath)?.desc}
               >
                 {PATH_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
-                    {o.label} — {o.desc}
+                    {o.label}
                   </option>
                 ))}
                 <option value={CUSTOM_ROOT_VALUE}>➕ 自定义目录</option>
