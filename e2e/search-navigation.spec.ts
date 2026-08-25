@@ -87,6 +87,35 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     await expect(header).toContainText("搜索结果（0）");
   });
 
+  test("搜索结果超过可视区域时可向下滚动", async ({ page }) => {
+    await createDocument(page, "搜索结果滚动测试");
+    const keyword = "scrollable-search-results-target";
+    await page.locator(".ProseMirror").fill(`正文包含 ${keyword}`);
+    await page.waitForTimeout(800);
+    await page.locator(".search-input").fill(keyword);
+
+    const panel = page.locator(".search-results");
+    const firstHit = panel.locator(".search-hit").first();
+    await expect(firstHit).toBeVisible();
+    await panel.evaluate((element) => {
+      const hit = element.querySelector(".search-hit");
+      if (!hit) throw new Error("Expected a search hit");
+      for (let index = 0; index < 80; index += 1) {
+        const clone = hit.cloneNode(true) as HTMLElement;
+        clone.dataset.testClone = String(index);
+        element.appendChild(clone);
+      }
+    });
+
+    await expect.poll(() => panel.evaluate((element) => ({
+      overflowY: getComputedStyle(element).overflowY,
+      hasOverflow: element.scrollHeight > element.clientHeight,
+    }))).toEqual({ overflowY: "auto", hasOverflow: true });
+
+    await panel.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+    await expect.poll(() => panel.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  });
+
   test("表格单元格内容进入全文搜索并可定位", async ({ page }) => {
     await createDocument(page, "表格搜索测试");
     const editor = page.locator(".ProseMirror");

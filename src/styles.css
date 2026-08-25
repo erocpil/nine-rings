@@ -2318,6 +2318,13 @@ body {
 
 /* ──── Search Results ──── */
 
+.search-results {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
 .search-results h3 {
   font-size: 14px;
   color: var(--text-secondary);
