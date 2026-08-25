@@ -56,13 +56,12 @@ const SETTINGS_CATEGORIES: Array<{
   description: string;
 }> = [
   { id: "appearance", title: "外观与排版", description: "主题、字体、字号与内容间距" },
-  { id: "editor", title: "编辑器", description: "Vim、书签、块编号、状态栏与右键菜单" },
   { id: "bookmarks", title: "书签", description: "查看、使用和管理所有文档书签" },
   { id: "general", title: "工作流与快捷键", description: "默认视图、待办继承和按键绑定" },
-  { id: "profile", title: "用户信息", description: "文档作者、组织与发布默认值" },
-  { id: "data", title: "数据与导入", description: "JSON 备份及 Markdown 批量导入" },
   { id: "tags", title: "标签管理", description: "重命名、合并或删除标签" },
   { id: "sync", title: "同步与备份", description: "GitHub 仓库和同步操作" },
+  { id: "data", title: "数据与导入", description: "JSON 备份及 Markdown 批量导入" },
+  { id: "profile", title: "用户信息", description: "文档作者、组织与发布默认值" },
   { id: "advanced", title: "高级", description: "回收站策略与开发服务端口" },
 ];
 
@@ -502,9 +501,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
               <button
                 className="settings-back"
                 type="button"
-                onClick={() => setSettingsPage("root")}
-                aria-label="返回设置分类"
-                title="返回设置分类"
+                onClick={() => setSettingsPage(settingsPage === "editor" ? "appearance" : "root")}
+                aria-label={settingsPage === "editor" ? "返回外观与排版" : "返回设置分类"}
+                title={settingsPage === "editor" ? "返回外观与排版" : "返回设置分类"}
               >←</button>
             )}
             <h2 id="settings-dialog-title">{SETTINGS_PAGE_TITLES[settingsPage]}</h2>
@@ -580,6 +579,20 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
                   <small>{config.editor_font_family === "system" ? "系统字体" : config.editor_font_family} · {config.editor_line_height.toFixed(1)} 行距</small>
                 </span>
                 <span className="editor-appearance-entry-action">打开排版设置 →</span>
+              </button>
+            </Field>
+
+            <Field label="编辑器" desc="Vim、块编号、状态栏与右键菜单" visible={settingsPage === "appearance"}>
+              <button
+                className="editor-appearance-entry"
+                type="button"
+                onClick={() => setSettingsPage("editor")}
+              >
+                <span>
+                  <strong>编辑器设置</strong>
+                  <small>行为、导航与辅助显示</small>
+                </span>
+                <span className="editor-appearance-entry-action">打开编辑器设置 →</span>
               </button>
             </Field>
 

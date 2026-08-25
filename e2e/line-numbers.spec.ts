@@ -2,7 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 
 async function openEditorSettings(page: Page) {
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^编辑器/ }).click();
+  await page.getByRole("button", { name: /^外观与排版/ }).click();
+  await page.getByRole("button", { name: /^编辑器设置/ }).click();
 }
 
 test.describe("编辑器块级 gutter", () => {

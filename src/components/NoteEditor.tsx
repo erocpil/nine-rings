@@ -173,32 +173,75 @@ const AlignedTableHeader = TableHeader.extend({
 
 // ── 高亮当前行扩展 ──
 
+interface ActiveLinePluginState {
+  bookmarkJumpPosition: number | null;
+  decorations: DecorationSet;
+}
+
+interface ActiveLinePluginMeta {
+  bookmarkJumpPosition: number | null;
+}
+
+const activeLinePluginKey = new PluginKey<ActiveLinePluginState>("activeLine");
+
+function createActiveLineDecorations(
+  document: ProseMirrorNode,
+  selection: { $from: { depth: number; before: (depth: number) => number; after: (depth: number) => number } },
+  bookmarkJumpPosition: number | null,
+): DecorationSet {
+  const decorations: Decoration[] = [];
+  if (selection.$from.depth > 0) {
+    const start = selection.$from.before(1);
+    const end = selection.$from.after(1);
+    if (start < end) {
+      decorations.push(Decoration.node(start, end, { class: "ProseMirror-activeline" }));
+    }
+  }
+  if (bookmarkJumpPosition !== null) {
+    const targetNode = document.nodeAt(bookmarkJumpPosition);
+    if (targetNode) {
+      decorations.push(Decoration.node(
+        bookmarkJumpPosition,
+        bookmarkJumpPosition + targetNode.nodeSize,
+        { class: "bookmark-jump-target" },
+      ));
+    }
+  }
+  return DecorationSet.create(document, decorations);
+}
+
 const ActiveLinePlugin = Extension.create({
   name: "activeLinePlugin",
 
   addProseMirrorPlugins() {
     return [
       new Plugin({
-        key: new PluginKey("activeLine"),
+        key: activeLinePluginKey,
         state: {
-          init() {
-            return DecorationSet.empty;
+          init(_, state): ActiveLinePluginState {
+            return {
+              bookmarkJumpPosition: null,
+              decorations: createActiveLineDecorations(state.doc, state.selection, null),
+            };
           },
-          apply(tr) {
-            const { selection } = tr;
-            if (!selection || !selection.$from) return DecorationSet.empty;
-            if (selection.$from.depth === 0) return DecorationSet.empty;
-            const start = selection.$from.before(1);
-            const end = selection.$from.after(1);
-            if (start >= end) return DecorationSet.empty;
-            return DecorationSet.create(tr.doc, [
-              Decoration.node(start, end, { class: "ProseMirror-activeline" }),
-            ]);
+          apply(tr, current): ActiveLinePluginState {
+            const meta = tr.getMeta(activeLinePluginKey) as ActiveLinePluginMeta | undefined;
+            let bookmarkJumpPosition = current.bookmarkJumpPosition;
+            if (meta) {
+              bookmarkJumpPosition = meta.bookmarkJumpPosition;
+            } else if (bookmarkJumpPosition !== null && tr.docChanged) {
+              const mapped = tr.mapping.mapResult(bookmarkJumpPosition, -1);
+              bookmarkJumpPosition = mapped.deleted ? null : mapped.pos;
+            }
+            return {
+              bookmarkJumpPosition,
+              decorations: createActiveLineDecorations(tr.doc, tr.selection, bookmarkJumpPosition),
+            };
           },
         },
         props: {
           decorations(state) {
-            return this.getState(state);
+            return this.getState(state)?.decorations ?? DecorationSet.empty;
           },
         },
       }),
@@ -1255,21 +1298,19 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         window.clearTimeout(bookmarkJumpPulseTimerRef.current);
       }
       root.classList.remove("bookmark-jump-pulsing");
-      root.querySelectorAll(".bookmark-jump-target, .bookmark-jump-gutter").forEach((element) => {
-        element.classList.remove("bookmark-jump-target", "bookmark-jump-gutter");
+      root.querySelectorAll(".bookmark-jump-gutter").forEach((element) => {
+        element.classList.remove("bookmark-jump-gutter");
       });
       root.classList.add("bookmark-jump-pulsing");
 
       const resolved = editor.state.doc.resolve(position);
       const topLevelPosition = resolved.depth > 0 ? resolved.before(1) : 0;
-      const targetNode = editor.view.nodeDOM(topLevelPosition);
       const blockIndex = resolved.index(0) + 1;
+      editor.view.dispatch(editor.state.tr.setMeta(activeLinePluginKey, {
+        bookmarkJumpPosition: topLevelPosition,
+      } satisfies ActiveLinePluginMeta));
       setBookmarkJumpBlockIndex(blockIndex);
       const highlightedElements: Element[] = [];
-      if (targetNode instanceof HTMLElement) {
-        targetNode.classList.add("bookmark-jump-target");
-        highlightedElements.push(targetNode);
-      }
       root.querySelectorAll(`[data-block-index="${blockIndex}"]`).forEach((element) => {
         element.classList.add("bookmark-jump-gutter");
         highlightedElements.push(element);
@@ -1278,6 +1319,11 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       bookmarkJumpPulseTimerRef.current = window.setTimeout(() => {
         root.classList.remove("bookmark-jump-pulsing");
         setBookmarkJumpBlockIndex(null);
+        if (!editor.isDestroyed) {
+          editor.view.dispatch(editor.state.tr.setMeta(activeLinePluginKey, {
+            bookmarkJumpPosition: null,
+          } satisfies ActiveLinePluginMeta));
+        }
         highlightedElements.forEach((element) => {
           element.classList.remove("bookmark-jump-target", "bookmark-jump-gutter");
         });

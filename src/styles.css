@@ -3843,8 +3843,7 @@ body {
 }
 
 /* 书签跳转后的单次定位提示：正文块与沟槽标记同步淡出。 */
-.bookmark-jump-target,
-.bookmark-jump-pulsing .ProseMirror-activeline {
+.bookmark-jump-target {
   animation: bookmark-jump-target-pulse 1.4s ease-out;
 }
 

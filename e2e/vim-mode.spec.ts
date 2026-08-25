@@ -2,7 +2,8 @@ import { expect, test } from "@playwright/test";
 
 async function enableVimMode(page: import("@playwright/test").Page) {
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^编辑器/ }).click();
+  await page.getByRole("button", { name: /^外观与排版/ }).click();
+  await page.getByRole("button", { name: /^编辑器设置/ }).click();
   const vimField = page.locator(".settings-field").filter({ hasText: "Vim 模式（实验性）" });
   if (!(await vimField.locator('input[type="checkbox"]').isChecked())) {
     await vimField.locator(".settings-toggle").click();

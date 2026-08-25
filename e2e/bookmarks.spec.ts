@@ -8,7 +8,8 @@ async function createBlankNote(page: import("@playwright/test").Page) {
 
 async function enableVimMode(page: import("@playwright/test").Page) {
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^编辑器/ }).click();
+  await page.getByRole("button", { name: /^外观与排版/ }).click();
+  await page.getByRole("button", { name: /^编辑器设置/ }).click();
   const field = page.locator(".settings-field").filter({ hasText: "Vim 模式（实验性）" });
   if (!(await field.locator('input[type="checkbox"]').isChecked())) await field.locator(".settings-toggle").click();
   await page.locator(".settings-close").click();
@@ -75,6 +76,31 @@ test("Vim m{a-z} 设置命名书签，'{a-z} 跳转", async ({ page }) => {
     const anchor = window.getSelection()?.anchorNode;
     return (anchor instanceof Element ? anchor : anchor?.parentElement)?.closest("p")?.textContent ?? "";
   })).toBe("第二段");
+});
+
+test("书签定位高亮固定在目标块，不跟随之后的点击", async ({ page }) => {
+  await page.goto("/");
+  await createBlankNote(page);
+  const editor = page.locator(".ProseMirror");
+  await editor.fill("第一段");
+  await editor.press("End");
+  await editor.press("Enter");
+  await page.keyboard.type("第二段书签位置");
+  const firstParagraph = editor.getByText("第一段", { exact: true });
+  const targetParagraph = editor.getByText("第二段书签位置", { exact: true });
+  await page.keyboard.press("Control+Shift+m");
+  await firstParagraph.click();
+  await page.getByRole("button", { name: "文档书签" }).click();
+  await page.locator(".document-bookmark-jump").click();
+
+  await expect(page.locator(".note-editor")).toHaveClass(/bookmark-jump-pulsing/);
+  await expect(targetParagraph).toHaveClass(/bookmark-jump-target/);
+  await firstParagraph.click();
+  await expect(page.locator(".note-editor")).toHaveClass(/bookmark-jump-pulsing/);
+  await expect(firstParagraph).not.toHaveClass(/bookmark-jump-target/);
+  await expect.poll(() => firstParagraph.evaluate((element) => (
+    getComputedStyle(element).animationName
+  ))).not.toContain("bookmark-jump-target-pulse");
 });
 
 test.describe("移动端书签操作", () => {

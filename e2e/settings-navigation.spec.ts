@@ -6,13 +6,25 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await page.getByTitle("设置").click();
 
   const categories = page.getByLabel("设置分类").getByRole("button");
-  await expect(categories).toHaveCount(9);
+  await expect(categories).toHaveCount(8);
+  await expect(categories.locator("strong")).toHaveText([
+    "外观与排版",
+    "书签",
+    "工作流与快捷键",
+    "标签管理",
+    "同步与备份",
+    "数据与导入",
+    "用户信息",
+    "高级",
+  ]);
   await expect(page.getByRole("heading", { name: "设置", exact: true })).toBeVisible();
   await expect(page.locator(".settings-field")).toHaveCount(0);
   await expect(page.locator(".settings-section")).toHaveCount(0);
   await expect(page.locator(".settings-version")).toHaveText(/^v\w+\./);
 
-  await page.getByRole("button", { name: /^编辑器/ }).click();
+  await page.getByRole("button", { name: /^外观与排版/ }).click();
+  await expect(page.getByRole("heading", { name: "外观与排版", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /^编辑器设置/ }).click();
   await expect(page.getByRole("heading", { name: "编辑器", exact: true })).toBeVisible();
   await expect(page.locator(".settings-field")).toHaveCount(6);
   await expect(page.getByText("状态栏块号", { exact: true })).toBeVisible();
@@ -20,8 +32,9 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await expect(page.getByText("主题", { exact: true })).toHaveCount(0);
   await expect(page.locator(".settings-version")).toHaveCount(0);
 
+  await page.getByLabel("返回外观与排版").click();
   await page.getByLabel("返回设置分类").click();
-  await expect(categories).toHaveCount(9);
+  await expect(categories).toHaveCount(8);
   await expect(page.locator(".settings-version")).toBeVisible();
   await page.getByRole("button", { name: /^数据与导入/ }).click();
   await expect(page.getByRole("heading", { name: "数据与导入", exact: true })).toBeVisible();
@@ -84,7 +97,8 @@ test("编辑器状态栏紧凑且可以关闭并持久化", async ({ page }) => 
   })).toBeLessThanOrEqual(0.15);
 
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^编辑器/ }).click();
+  await page.getByRole("button", { name: /^外观与排版/ }).click();
+  await page.getByRole("button", { name: /^编辑器设置/ }).click();
   const statusSetting = page.locator(".settings-field").filter({ hasText: "编辑器状态栏" });
   const toggle = statusSetting.locator('input[type="checkbox"]');
   await expect(toggle).toBeChecked();

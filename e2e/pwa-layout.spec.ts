@@ -189,7 +189,8 @@ test.describe("PWA 窄屏应用外壳", () => {
   test("移动端块编号使用紧凑且可随位数扩展的 gutter", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("设置").click();
-    await page.getByRole("button", { name: /^编辑器/ }).click();
+    await page.getByRole("button", { name: /^外观与排版/ }).click();
+    await page.getByRole("button", { name: /^编辑器设置/ }).click();
     const lineNumberSetting = page.locator(".settings-field").filter({ hasText: "显示块编号" });
     await lineNumberSetting.locator(".settings-toggle").click();
     await page.getByLabel("关闭设置").click();
@@ -338,7 +339,8 @@ test.describe("PWA 窄屏应用外壳", () => {
       };
     });
     await page.getByTitle("设置").click();
-    await page.getByRole("button", { name: /^编辑器/ }).click();
+    await page.getByRole("button", { name: /^外观与排版/ }).click();
+    await page.getByRole("button", { name: /^编辑器设置/ }).click();
     const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
       .locator('input[type="checkbox"]');
     if (!(await lineNumberToggle.isChecked())) {
@@ -684,7 +686,8 @@ test.describe("PWA 窄屏应用外壳", () => {
   test("编辑状态下光标不会被底部边界遮挡", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("设置").click();
-    await page.getByRole("button", { name: /^编辑器/ }).click();
+    await page.getByRole("button", { name: /^外观与排版/ }).click();
+    await page.getByRole("button", { name: /^编辑器设置/ }).click();
     const statusSetting = page.locator(".settings-field").filter({ hasText: "编辑器状态栏" });
     await statusSetting.locator(".settings-toggle").click();
     await page.getByLabel("关闭设置").click();
