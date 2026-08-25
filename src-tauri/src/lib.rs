@@ -201,35 +201,47 @@ fn show_main_window(app: &tauri::AppHandle) {
     }
 }
 
-/// Windows WebView2 hide/show 后合成器可能不重绘 → 强制 repaint
+/// Windows WebView2 hide/show 后合成器偶尔不会立即重绘。
 ///
-/// 策略：最大化状态下 set_size() 会退出最大化，改用 toggle maximize 触发重绘。
-/// 普通窗口则用 ±1px resize 触发 repaint。
+/// 旧策略通过取消/恢复最大化或 ±1px resize 强制刷新，会让窗口和整个
+/// Web 前端连续经历两次 viewport 变化；最大化窗口恢复时尤其明显。这里
+/// 直接让 Win32 重绘主窗口及其 WebView2 子窗口，不再改变任何窗口几何。
 #[cfg(target_os = "windows")]
 fn bump_webview2(window: &tauri::WebviewWindow) {
-    startup_log!("bump_webview2 called");
-    if window.is_maximized().unwrap_or(false) {
-        startup_log!("bump_webview2: window is maximized, toggle-to-trigger-repaint");
-        let _ = window.unmaximize();
-        std::thread::sleep(std::time::Duration::from_millis(16));
-        let _ = window.maximize();
-        startup_log!("bump_webview2 done (maximize toggle)");
-    } else if let Ok(size) = window.inner_size() {
-        let w = size.width;
-        let h = size.height;
-        startup_log!(
-            "bump_webview2: current size {}x{}, resizing to {}x{}",
-            w,
-            h,
-            w + 1,
-            h
-        );
-        let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(w + 1, h)));
-        std::thread::sleep(std::time::Duration::from_millis(16));
-        let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(w, h)));
-        startup_log!("bump_webview2 done");
-    } else {
-        startup_log!("bump_webview2: inner_size() failed");
+    use std::ffi::c_void;
+
+    const RDW_INVALIDATE: u32 = 0x0001;
+    const RDW_ALLCHILDREN: u32 = 0x0080;
+    const RDW_UPDATENOW: u32 = 0x0100;
+
+    #[link(name = "user32")]
+    extern "system" {
+        fn RedrawWindow(
+            hwnd: *mut c_void,
+            update_rect: *const c_void,
+            update_region: *mut c_void,
+            flags: u32,
+        ) -> i32;
+    }
+
+    startup_log!("bump_webview2 called (geometry-preserving redraw)");
+    match window.hwnd() {
+        Ok(hwnd) => {
+            // SAFETY: hwnd 由当前仍存活的 Tauri WebviewWindow 提供；空的 rect
+            // 与 region 表示重绘整个窗口，RDW_ALLCHILDREN 同时覆盖 WebView2。
+            let result = unsafe {
+                RedrawWindow(
+                    hwnd.0,
+                    std::ptr::null(),
+                    std::ptr::null_mut(),
+                    RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW,
+                )
+            };
+            startup_log!("bump_webview2 done (RedrawWindow result={})", result);
+        }
+        Err(error) => {
+            startup_log!("bump_webview2: hwnd() failed: {}", error);
+        }
     }
 }
 
