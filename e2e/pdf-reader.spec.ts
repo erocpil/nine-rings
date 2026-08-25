@@ -69,6 +69,19 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   await expect(page.getByRole("button", { name: "进入全屏阅读" })).toBeVisible();
   await expect(reader).toBeVisible();
 
+  await page.evaluate(() => {
+    delete (Element.prototype as unknown as { requestFullscreen?: () => Promise<void> }).requestFullscreen;
+    delete (Element.prototype as unknown as { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen;
+    delete (document as unknown as { exitFullscreen?: () => Promise<void> }).exitFullscreen;
+    delete (document as unknown as { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen;
+  });
+  await page.getByRole("button", { name: "进入全屏阅读" }).click();
+  await expect(reader).toHaveClass(/pdf-reader-immersive/);
+  await expect(page.getByRole("button", { name: "退出全屏阅读" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(reader).not.toHaveClass(/pdf-reader-immersive/);
+  await expect(reader).toBeVisible();
+
   await page.getByLabel("搜索 PDF").fill("Nine Rings");
   await page.getByRole("button", { name: "查找" }).click();
   await expect(page.getByText("第 1 页", { exact: true })).toBeVisible();

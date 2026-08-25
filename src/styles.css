@@ -8886,6 +8886,56 @@ button.doc-tree-toggle:focus-visible {
   font-size: 17px !important;
 }
 
+/* iOS 主屏幕 Web App 没有元素 Fullscreen API：应用已占满可用视口，
+   通过浮动最小控制条提供等价的沉浸阅读，且始终保留明确的退出入口。 */
+.pdf-reader.pdf-reader-immersive {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  width: 100vw;
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
+.pdf-reader-immersive .pdf-reader-toolbar {
+  position: absolute;
+  top: max(5px, var(--safe-top, 0px));
+  right: max(6px, var(--safe-right, 0px));
+  z-index: 30;
+  width: auto;
+  min-height: 0;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.pdf-reader-immersive .pdf-reader-close,
+.pdf-reader-immersive .pdf-reader-title,
+.pdf-reader-immersive .pdf-zoom-controls,
+.pdf-reader-immersive .pdf-search,
+.pdf-reader-immersive .pdf-reader-toolbar > button:not(.pdf-fullscreen-button) {
+  display: none;
+}
+
+.pdf-reader-immersive .pdf-outline {
+  display: none;
+}
+
+.pdf-reader-immersive .pdf-page-controls {
+  order: 0;
+}
+
+.pdf-reader-immersive .pdf-fullscreen-button {
+  order: 1;
+}
+
+.pdf-reader-immersive .pdf-page-viewport {
+  padding-top: max(8px, var(--safe-top, 0px));
+}
+
 .pdf-reader-toolbar {
   z-index: 20;
   display: flex;

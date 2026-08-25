@@ -79,11 +79,18 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
   const [searching, setSearching] = useState(false);
   const [searchStatus, setSearchStatus] = useState("");
   const [fullscreen, setFullscreen] = useState(false);
+  const [immersiveFallback, setImmersiveFallback] = useState(false);
 
   const applyFullscreenState = useCallback((next: boolean) => {
+    if (!next) setImmersiveFallback(false);
     setFullscreen(next);
     onFullscreenChange?.(next);
   }, [onFullscreenChange]);
+
+  const enterImmersiveFallback = useCallback(() => {
+    setImmersiveFallback(true);
+    applyFullscreenState(true);
+  }, [applyFullscreenState]);
 
   const exitFullscreen = useCallback(async () => {
     if (isTauriRuntime()) {
@@ -110,15 +117,24 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
         await exitFullscreen();
       } else if (element?.requestFullscreen) {
         await element.requestFullscreen();
+        if (!document.fullscreenElement && !fullscreenDocument.webkitFullscreenElement) {
+          enterImmersiveFallback();
+        }
       } else if (element?.webkitRequestFullscreen) {
         await element.webkitRequestFullscreen();
+        if (!document.fullscreenElement && !fullscreenDocument.webkitFullscreenElement) {
+          enterImmersiveFallback();
+        }
       } else {
-        setSearchStatus("当前浏览器不支持全屏；安装到桌面后可获得全屏体验");
+        // iOS 主屏幕 Web App 不提供元素 Fullscreen API。此时应用本身已经
+        // 占据系统允许的全部视口，改用隐藏非必要控件的沉浸式阅读回退。
+        enterImmersiveFallback();
       }
     } catch (reason) {
-      setSearchStatus(`全屏切换失败：${pdfErrorMessage(reason)}`);
+      if (!isTauriRuntime()) enterImmersiveFallback();
+      else setSearchStatus(`全屏切换失败：${pdfErrorMessage(reason)}`);
     }
-  }, [applyFullscreenState, exitFullscreen]);
+  }, [applyFullscreenState, enterImmersiveFallback, exitFullscreen]);
 
   const closeReader = useCallback(async () => {
     try {
@@ -386,7 +402,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
   return (
     <div
       ref={readerRef}
-      className={`pdf-reader ${fullscreen ? "pdf-reader-fullscreen" : ""}`}
+      className={`pdf-reader ${fullscreen ? "pdf-reader-fullscreen" : ""} ${immersiveFallback ? "pdf-reader-immersive" : ""}`}
       aria-label="PDF 阅读器"
     >
       <header className="pdf-reader-toolbar">
