@@ -59,6 +59,7 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   });
 
   const reader = page.getByLabel("PDF 阅读器");
+  const viewport = page.locator(".pdf-page-viewport");
   await expect(reader).toBeVisible();
   await expect(page.locator(".pdf-reader-title")).toHaveText("nine-rings-mvp.pdf");
   await expect.poll(() => page.locator(".pdf-page-viewport canvas").getAttribute("width")).not.toBe("0");
@@ -68,7 +69,13 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   await page.getByRole("button", { name: "进入全屏阅读" }).click();
   await expect(page.getByRole("button", { name: "退出全屏阅读" })).toBeVisible();
   await expect(reader).toHaveClass(/pdf-reader-fullscreen/);
-  await page.keyboard.press("Escape");
+  await expect(reader).toHaveClass(/pdf-fullscreen-controls-hidden/, { timeout: 2000 });
+  await viewport.click({ position: { x: 20, y: 20 } });
+  await expect(reader).not.toHaveClass(/pdf-fullscreen-controls-hidden/);
+  await viewport.click({ position: { x: 20, y: 20 } });
+  await expect(reader).toHaveClass(/pdf-fullscreen-controls-hidden/);
+  await viewport.click({ position: { x: 20, y: 20 } });
+  await page.getByRole("button", { name: "退出全屏阅读" }).click();
   await expect(page.getByRole("button", { name: "进入全屏阅读" })).toBeVisible();
   await expect(reader).toBeVisible();
 
@@ -81,7 +88,7 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   await page.getByRole("button", { name: "进入全屏阅读" }).click();
   await expect(reader).toHaveClass(/pdf-reader-immersive/);
   await expect(page.getByRole("button", { name: "退出全屏阅读" })).toBeVisible();
-  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "退出全屏阅读" }).click();
   await expect(reader).not.toHaveClass(/pdf-reader-immersive/);
   await expect(reader).toBeVisible();
 
@@ -90,7 +97,46 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   await page.locator(".pdf-page-surface").dblclick({ position: { x: 120, y: 70 } });
   await expect(page.getByRole("button", { name: "适宽" })).toHaveClass(/active/);
 
-  const selectedText = await page.locator(".pdf-text-layer span").first().evaluate((span) => {
+  const initialSurfaceWidth = await page.locator(".pdf-page-surface").evaluate((element) => element.clientWidth);
+  await viewport.evaluate((element) => {
+    const touch = (identifier: number, clientX: number) => new Touch({
+      identifier,
+      target: element,
+      clientX,
+      clientY: 180,
+      screenX: clientX,
+      screenY: 180,
+      pageX: clientX,
+      pageY: 180,
+      radiusX: 1,
+      radiusY: 1,
+      rotationAngle: 0,
+      force: 1,
+    });
+    element.dispatchEvent(new TouchEvent("touchstart", {
+      bubbles: true,
+      cancelable: true,
+      touches: [touch(1, 150), touch(2, 250)],
+    }));
+    element.dispatchEvent(new TouchEvent("touchmove", {
+      bubbles: true,
+      cancelable: true,
+      touches: [touch(1, 180), touch(2, 220)],
+    }));
+    element.dispatchEvent(new TouchEvent("touchend", {
+      bubbles: true,
+      cancelable: true,
+      touches: [],
+      changedTouches: [touch(1, 180), touch(2, 220)],
+    }));
+  });
+  await expect(page.getByRole("button", { name: "适宽" })).not.toHaveClass(/active/);
+  await expect.poll(() => page.locator(".pdf-page-surface").evaluate((element) => element.clientWidth)).toBeLessThan(initialSurfaceWidth);
+  await page.getByRole("button", { name: "适宽" }).click();
+
+  const selectableText = page.locator(".pdf-text-layer span").filter({ hasText: "Nine Rings PDF MVP" }).first();
+  await expect(selectableText).toBeAttached();
+  const selectedText = await selectableText.evaluate((span) => {
     const selection = window.getSelection();
     const range = document.createRange();
     range.selectNodeContents(span);
@@ -101,7 +147,6 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   expect(selectedText).toContain("Nine Rings PDF MVP");
   await page.evaluate(() => window.getSelection()?.removeAllRanges());
 
-  const viewport = page.locator(".pdf-page-viewport");
   const swipe = async (fromX: number, toX: number) => viewport.evaluate((element, points) => {
     const touch = (clientX: number) => new Touch({
       identifier: 1,

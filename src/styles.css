@@ -8886,8 +8886,8 @@ button.doc-tree-toggle:focus-visible {
   font-size: 17px !important;
 }
 
-/* iOS 主屏幕 Web App 没有元素 Fullscreen API：应用已占满可用视口，
-   通过浮动最小控制条提供等价的沉浸阅读，且始终保留明确的退出入口。 */
+/* 全屏阅读使用可自动隐藏的最小悬浮控制条；iOS 主屏幕 Web App 没有
+   元素 Fullscreen API 时，同一布局作为沉浸式回退。 */
 .pdf-reader.pdf-reader-immersive {
   position: fixed;
   inset: 0;
@@ -8897,7 +8897,7 @@ button.doc-tree-toggle:focus-visible {
   min-height: 100dvh;
 }
 
-.pdf-reader-immersive .pdf-reader-toolbar {
+.pdf-reader-fullscreen .pdf-reader-toolbar {
   position: absolute;
   top: max(5px, var(--safe-top, 0px));
   right: max(6px, var(--safe-right, 0px));
@@ -8910,30 +8910,37 @@ button.doc-tree-toggle:focus-visible {
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(10px);
+  transition: opacity 120ms ease, transform 120ms ease;
 }
 
-.pdf-reader-immersive .pdf-reader-close,
-.pdf-reader-immersive .pdf-reader-title,
-.pdf-reader-immersive .pdf-zoom-controls,
-.pdf-reader-immersive .pdf-search,
-.pdf-reader-immersive .pdf-reader-toolbar > button:not(.pdf-fullscreen-button) {
+.pdf-reader-fullscreen .pdf-reader-close,
+.pdf-reader-fullscreen .pdf-reader-title,
+.pdf-reader-fullscreen .pdf-zoom-controls,
+.pdf-reader-fullscreen .pdf-search,
+.pdf-reader-fullscreen .pdf-reader-toolbar > button:not(.pdf-fullscreen-button) {
   display: none;
 }
 
-.pdf-reader-immersive .pdf-outline {
+.pdf-reader-fullscreen .pdf-outline {
   display: none;
 }
 
-.pdf-reader-immersive .pdf-page-controls {
+.pdf-reader-fullscreen .pdf-page-controls {
   order: 0;
 }
 
-.pdf-reader-immersive .pdf-fullscreen-button {
+.pdf-reader-fullscreen .pdf-fullscreen-button {
   order: 1;
 }
 
-.pdf-reader-immersive .pdf-page-viewport {
+.pdf-reader-fullscreen .pdf-page-viewport {
   padding-top: max(8px, var(--safe-top, 0px));
+}
+
+.pdf-reader-fullscreen.pdf-fullscreen-controls-hidden .pdf-reader-toolbar {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px);
 }
 
 .pdf-reader-toolbar {
@@ -9147,7 +9154,7 @@ button.doc-tree-toggle:focus-visible {
   min-width: 0;
   min-height: 0;
   align-items: flex-start;
-  justify-content: center;
+  justify-content: flex-start;
   overflow: auto;
   padding: 12px;
   overscroll-behavior: contain;
@@ -9156,10 +9163,15 @@ button.doc-tree-toggle:focus-visible {
 .pdf-page-surface {
   position: relative;
   flex: none;
+  margin-inline: auto;
   overflow: hidden;
   background: #fff;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.34);
-  touch-action: pan-x pan-y pinch-zoom;
+  touch-action: pan-x pan-y;
+}
+
+.pdf-reader-fullscreen .pdf-page-surface {
+  margin: auto;
 }
 
 .pdf-page-surface canvas {

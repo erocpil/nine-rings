@@ -49,6 +49,18 @@ interface TouchGesture {
   atRight: boolean;
 }
 
+interface PinchGesture {
+  initialDistance: number;
+  initialZoom: number;
+  targetZoom: number;
+  anchorX: number;
+  anchorY: number;
+}
+
+function touchDistance(first: React.Touch, second: React.Touch): number {
+  return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+}
+
 function pageTextCache(items: string[]): PageTextCache {
   const starts: number[] = [];
   let text = "";
@@ -90,6 +102,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
   const renderTaskRef = useRef<RenderTask | null>(null);
   const textCacheRef = useRef(new Map<number, PageTextCache>());
   const touchGestureRef = useRef<TouchGesture | null>(null);
+  const pinchGestureRef = useRef<PinchGesture | null>(null);
   const lastTapRef = useRef(0);
   const zoomAnchorRef = useRef<{ x: number; y: number } | null>(null);
   const searchRequestRef = useRef(0);
@@ -124,12 +137,20 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
   const [textLayerRevision, setTextLayerRevision] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [immersiveFallback, setImmersiveFallback] = useState(false);
+  const [fullscreenControlsVisible, setFullscreenControlsVisible] = useState(true);
 
   const applyFullscreenState = useCallback((next: boolean) => {
     if (!next) setImmersiveFallback(false);
+    setFullscreenControlsVisible(true);
     setFullscreen(next);
     onFullscreenChange?.(next);
   }, [onFullscreenChange]);
+
+  useEffect(() => {
+    if (!fullscreen || !fullscreenControlsVisible) return;
+    const timer = window.setTimeout(() => setFullscreenControlsVisible(false), 1000);
+    return () => window.clearTimeout(timer);
+  }, [fullscreen, fullscreenControlsVisible]);
 
   const enterImmersiveFallback = useCallback(() => {
     setImmersiveFallback(true);
@@ -150,6 +171,12 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
 
   const toggleFullscreen = useCallback(async () => {
     try {
+      // iOS 沉浸式回退没有 document.fullscreenElement，必须优先使用
+      // 阅读器自身状态判断退出，否则按钮会再次执行“进入全屏”。
+      if (fullscreen) {
+        await exitFullscreen();
+        return;
+      }
       if (isTauriRuntime()) {
         const next = await toggleTauriFullscreen();
         if (next !== null) applyFullscreenState(next);
@@ -178,7 +205,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
       if (!isTauriRuntime()) enterImmersiveFallback();
       else setSearchStatus(`全屏切换失败：${pdfErrorMessage(reason)}`);
     }
-  }, [applyFullscreenState, enterImmersiveFallback, exitFullscreen]);
+  }, [applyFullscreenState, enterImmersiveFallback, exitFullscreen, fullscreen]);
 
   const closeReader = useCallback(async () => {
     try {
@@ -565,6 +592,26 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
   }, [fitWidth]);
 
   const handleTouchStart = useCallback((event: React.TouchEvent<HTMLElement>) => {
+    if (event.touches.length === 2) {
+      const first = event.touches[0];
+      const second = event.touches[1];
+      const surface = pageSurfaceRef.current;
+      if (!surface) return;
+      const bounds = surface.getBoundingClientRect();
+      const centerX = (first.clientX + second.clientX) / 2;
+      const centerY = (first.clientY + second.clientY) / 2;
+      pinchGestureRef.current = {
+        initialDistance: Math.max(1, touchDistance(first, second)),
+        initialZoom: zoom,
+        targetZoom: zoom,
+        anchorX: Math.max(0, Math.min(1, (centerX - bounds.left) / Math.max(1, bounds.width))),
+        anchorY: Math.max(0, Math.min(1, (centerY - bounds.top) / Math.max(1, bounds.height))),
+      };
+      touchGestureRef.current = null;
+      lastTapRef.current = 0;
+      event.preventDefault();
+      return;
+    }
     if (event.touches.length !== 1) {
       touchGestureRef.current = null;
       return;
@@ -579,9 +626,43 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
       atLeft: !viewport || viewport.scrollLeft <= 2,
       atRight: !viewport || viewport.scrollLeft >= maxScroll - 2,
     };
+  }, [zoom]);
+
+  const handleTouchMove = useCallback((event: React.TouchEvent<HTMLElement>) => {
+    const pinch = pinchGestureRef.current;
+    if (!pinch || event.touches.length < 2) return;
+    event.preventDefault();
+    const distance = touchDistance(event.touches[0], event.touches[1]);
+    pinch.targetZoom = Math.max(0.25, Math.min(4, pinch.initialZoom * distance / pinch.initialDistance));
+    const surface = pageSurfaceRef.current;
+    if (!surface) return;
+    surface.style.transformOrigin = `${pinch.anchorX * 100}% ${pinch.anchorY * 100}%`;
+    surface.style.transform = `scale(${pinch.targetZoom / Math.max(0.25, pinch.initialZoom)})`;
+  }, []);
+
+  const finishPinch = useCallback(() => {
+    const pinch = pinchGestureRef.current;
+    if (!pinch) return false;
+    pinchGestureRef.current = null;
+    const surface = pageSurfaceRef.current;
+    if (surface) {
+      surface.style.transform = "";
+      surface.style.transformOrigin = "";
+    }
+    zoomAnchorRef.current = { x: pinch.anchorX, y: pinch.anchorY };
+    setFitWidth(false);
+    setZoom(pinch.targetZoom);
+    return true;
   }, []);
 
   const handleTouchEnd = useCallback((event: React.TouchEvent<HTMLElement>) => {
+    if (pinchGestureRef.current && event.touches.length < 2) {
+      event.preventDefault();
+      finishPinch();
+      touchGestureRef.current = null;
+      lastTapRef.current = 0;
+      return;
+    }
     const gesture = touchGestureRef.current;
     touchGestureRef.current = null;
     const touch = event.changedTouches[0];
@@ -613,7 +694,25 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
         lastTapRef.current = now;
       }
     }
-  }, [changePage, page, toggleBoundaryZoom]);
+  }, [changePage, finishPinch, page, toggleBoundaryZoom]);
+
+  const handleTouchCancel = useCallback(() => {
+    touchGestureRef.current = null;
+    if (!pinchGestureRef.current) return;
+    pinchGestureRef.current = null;
+    const surface = pageSurfaceRef.current;
+    if (surface) {
+      surface.style.transform = "";
+      surface.style.transformOrigin = "";
+    }
+  }, []);
+
+  const handlePageClick = useCallback((event: React.MouseEvent<HTMLElement>) => {
+    if (!fullscreen || event.detail > 1) return;
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed) return;
+    setFullscreenControlsVisible((visible) => !visible);
+  }, [fullscreen]);
 
   const renderOutline = (items: OutlineItem[], depth = 0) => items.map((item, index) => (
     <div className="pdf-outline-node" key={`${depth}-${index}-${item.title}`}>
@@ -639,7 +738,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
   return (
     <div
       ref={readerRef}
-      className={`pdf-reader ${fullscreen ? "pdf-reader-fullscreen" : ""} ${immersiveFallback ? "pdf-reader-immersive" : ""}`}
+      className={`pdf-reader ${fullscreen ? "pdf-reader-fullscreen" : ""} ${immersiveFallback ? "pdf-reader-immersive" : ""} ${fullscreen && !fullscreenControlsVisible ? "pdf-fullscreen-controls-hidden" : ""}`}
       aria-label="PDF 阅读器"
     >
       <header className="pdf-reader-toolbar">
@@ -749,8 +848,11 @@ export function PdfReader({ documentId, onClose, onFullscreenChange }: Props) {
         <main
           className="pdf-page-viewport"
           ref={viewportRef}
+          onClick={handlePageClick}
           onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchCancel}
         >
           {loading && <div className="pdf-reader-message">正在打开 PDF…</div>}
           {error && (
