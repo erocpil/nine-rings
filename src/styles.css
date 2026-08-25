@@ -4372,12 +4372,21 @@ body {
   opacity: 0.75;
 }
 
-/* 分割线本身不生成空段落；仅在其后保留一行高度的阅读间距。 */
+/* HR 独立承担上下留白，避免普通段落、代码块和标题各自的 margin
+   参与折叠后产生不同结果。这样分割线前后的视觉距离始终一致。 */
+.ProseMirror > *:has(+ hr) {
+  margin-bottom: 0;
+}
+
+.ProseMirror > hr + * {
+  margin-top: 0;
+}
+
 .ProseMirror > hr {
   height: 0;
   border: 0;
   border-top: 1px solid var(--border);
-  margin: 2px 0 1.45em;
+  margin: 1em 0;
 }
 
 /* ── Pre / code 背景（避免背景覆盖 gutter 区）── */
