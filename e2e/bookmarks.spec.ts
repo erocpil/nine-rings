@@ -49,6 +49,7 @@ test("设置中的书签列表包含文档书签", async ({ page }) => {
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
 
   await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^文档管理/ }).click();
   await page.getByRole("button", { name: /^书签/ }).click();
   const bookmarkManager = page.locator(".bookmark-manager-list");
   await expect(bookmarkManager).toContainText("书签集中管理测试");

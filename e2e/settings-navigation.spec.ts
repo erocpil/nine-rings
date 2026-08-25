@@ -6,12 +6,11 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await page.getByTitle("设置").click();
 
   const categories = page.getByLabel("设置分类").getByRole("button");
-  await expect(categories).toHaveCount(8);
+  await expect(categories).toHaveCount(7);
   await expect(categories.locator("strong")).toHaveText([
     "外观与排版",
-    "书签",
+    "文档管理",
     "工作流与快捷键",
-    "标签管理",
     "同步与备份",
     "数据与导入",
     "用户信息",
@@ -34,7 +33,7 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
 
   await page.getByLabel("返回外观与排版").click();
   await page.getByLabel("返回设置分类").click();
-  await expect(categories).toHaveCount(8);
+  await expect(categories).toHaveCount(7);
   await expect(page.locator(".settings-version")).toBeVisible();
   await page.getByRole("button", { name: /^数据与导入/ }).click();
   await expect(page.getByRole("heading", { name: "数据与导入", exact: true })).toBeVisible();
@@ -47,7 +46,7 @@ test("设置子页首个分组没有多余顶部留白和分割线", async ({ pa
   await page.goto("/");
   await page.getByTitle("设置").click();
 
-  for (const pageName of ["用户信息", "数据与导入", "标签管理", "同步与备份"]) {
+  for (const pageName of ["用户信息", "数据与导入", "同步与备份"]) {
     await page.getByRole("button", { name: new RegExp(`^${pageName}`) }).click();
 
     const firstSection = page.locator(".settings-body > .settings-section").first();
@@ -63,6 +62,22 @@ test("设置子页首个分组没有多余顶部留白和分割线", async ({ pa
 
     await page.getByLabel("返回设置分类").click();
   }
+
+  await page.getByRole("button", { name: /^文档管理/ }).click();
+  await expect(page.getByLabel("文档管理分类").getByRole("button")).toHaveCount(2);
+  await page.getByRole("button", { name: /^标签管理/ }).click();
+  const firstTagSection = page.locator(".settings-body > .settings-section").first();
+  await expect(firstTagSection).toBeVisible();
+  await expect.poll(() => firstTagSection.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      marginTop: style.marginTop,
+      paddingTop: style.paddingTop,
+      borderTopWidth: style.borderTopWidth,
+    };
+  })).toEqual({ marginTop: "0px", paddingTop: "0px", borderTopWidth: "0px" });
+  await page.getByLabel("返回文档管理").click();
+  await expect(page.getByRole("heading", { name: "文档管理", exact: true })).toBeVisible();
 });
 
 test("设置弹窗具有语义并在键盘关闭后恢复焦点", async ({ page }) => {

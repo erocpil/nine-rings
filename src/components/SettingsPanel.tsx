@@ -28,7 +28,7 @@ interface Props {
   onBookmarkNoteUpdated?: (note: Note) => void;
 }
 
-type SettingsPage = "root" | "appearance" | "editor" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced";
+type SettingsPage = "root" | "appearance" | "editor" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced";
 const EDITOR_APPEARANCE_KEYS: Array<keyof AppConfig> = [
   "note_font_size",
   "editor_font_family",
@@ -56,9 +56,8 @@ const SETTINGS_CATEGORIES: Array<{
   description: string;
 }> = [
   { id: "appearance", title: "外观与排版", description: "主题、字体、字号与内容间距" },
-  { id: "bookmarks", title: "书签", description: "查看、使用和管理所有文档书签" },
+  { id: "documents", title: "文档管理", description: "集中管理书签与标签" },
   { id: "general", title: "工作流与快捷键", description: "默认视图、待办继承和按键绑定" },
-  { id: "tags", title: "标签管理", description: "重命名、合并或删除标签" },
   { id: "sync", title: "同步与备份", description: "GitHub 仓库和同步操作" },
   { id: "data", title: "数据与导入", description: "JSON 备份及 Markdown 批量导入" },
   { id: "profile", title: "用户信息", description: "文档作者、组织与发布默认值" },
@@ -69,6 +68,7 @@ const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   root: "设置",
   appearance: "外观与排版",
   editor: "编辑器",
+  documents: "文档管理",
   bookmarks: "书签",
   general: "工作流与快捷键",
   profile: "用户信息",
@@ -501,9 +501,23 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
               <button
                 className="settings-back"
                 type="button"
-                onClick={() => setSettingsPage(settingsPage === "editor" ? "appearance" : "root")}
-                aria-label={settingsPage === "editor" ? "返回外观与排版" : "返回设置分类"}
-                title={settingsPage === "editor" ? "返回外观与排版" : "返回设置分类"}
+                onClick={() => setSettingsPage(
+                  settingsPage === "editor"
+                    ? "appearance"
+                    : settingsPage === "bookmarks" || settingsPage === "tags"
+                      ? "documents"
+                      : "root",
+                )}
+                aria-label={settingsPage === "editor"
+                  ? "返回外观与排版"
+                  : settingsPage === "bookmarks" || settingsPage === "tags"
+                    ? "返回文档管理"
+                    : "返回设置分类"}
+                title={settingsPage === "editor"
+                  ? "返回外观与排版"
+                  : settingsPage === "bookmarks" || settingsPage === "tags"
+                    ? "返回文档管理"
+                    : "返回设置分类"}
               >←</button>
             )}
             <h2 id="settings-dialog-title">{SETTINGS_PAGE_TITLES[settingsPage]}</h2>
@@ -536,6 +550,33 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onSyncB
                     <span className="settings-category-arrow">→</span>
                   </button>
                 ))}
+              </div>
+            )}
+
+            {settingsPage === "documents" && (
+              <div className="settings-category-grid" aria-label="文档管理分类">
+                <button
+                  className="settings-category-card"
+                  type="button"
+                  onClick={() => setSettingsPage("bookmarks")}
+                >
+                  <span>
+                    <strong>书签</strong>
+                    <small>查看、使用和管理所有文档书签</small>
+                  </span>
+                  <span className="settings-category-arrow">→</span>
+                </button>
+                <button
+                  className="settings-category-card"
+                  type="button"
+                  onClick={() => setSettingsPage("tags")}
+                >
+                  <span>
+                    <strong>标签管理</strong>
+                    <small>重命名、合并或删除标签</small>
+                  </span>
+                  <span className="settings-category-arrow">→</span>
+                </button>
               </div>
             )}
 
