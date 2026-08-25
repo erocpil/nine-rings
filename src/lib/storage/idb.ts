@@ -398,11 +398,16 @@ export const idbAdapter: StorageAdapter = {
   async cleanOldDeleted(olderThanDays: number): Promise<number> {
     const cutoff = new Date(Date.now() - olderThanDays * 86400000).toISOString();
     return withDB(async (db) => {
-      const store = db.transaction("notes", "readwrite").objectStore("notes");
+      const tx = db.transaction(["notes", "note_versions"], "readwrite");
+      const store = tx.objectStore("notes");
+      const versionStore = tx.objectStore("note_versions");
+      const versionIndex = versionStore.index("note_id");
       const all = await getAll<any>(store);
       let cleaned = 0;
       for (const n of all) {
         if (n.deleted_at && n.deleted_at < cutoff) {
+          const versions = await getAllFromIndex<any>(versionIndex, n.id);
+          for (const version of versions) await delRecord(versionStore, version.id);
           await delRecord(store, n.id);
           cleaned++;
         }

@@ -157,8 +157,8 @@ export const api = {
   export: {
     data: async () => addFrontendSettingsToBackup(await adapter().then((a) => a.exportData())),
 
-    import: async (json: string) => {
-      const result = await adapter().then((a) => a.importData(json));
+    import: async (json: string, mode: "merge" | "replace" = "merge") => {
+      const result = await adapter().then((a) => a.importData(json, mode));
       try {
         const bundle = await parseJsonAsync<{ user_settings?: unknown }>(json);
         const settingsImported = restoreFrontendSettings(bundle.user_settings);

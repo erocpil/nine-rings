@@ -112,13 +112,17 @@ fn test_export_roundtrip() {
 
     create_note_via_op(&conn, "n1", "2026-07-08", "原始", &["work"]);
 
-    let bundle = nine_rings_lib::export::export_all(&conn).unwrap();
+    let bundle = nine_rings_lib::export::export_all(
+        &conn,
+        &nine_rings_lib::commands::config::AppConfig::default(),
+    )
+    .unwrap();
     assert_eq!(bundle.notes.len(), 1);
     assert_eq!(bundle.notes[0].title.as_deref(), Some("原始"));
     assert_eq!(bundle.notes[0].tags, vec!["work"]);
 
     let conn2 = setup_db();
-    let (n, p) = nine_rings_lib::export::import_bundle(&conn2, &bundle).unwrap();
+    let (n, p) = nine_rings_lib::export::import_bundle(&conn2, &bundle, false).unwrap();
     assert_eq!(n, 1);
     assert_eq!(p, 0);
 
@@ -168,6 +172,54 @@ fn test_import_skips_duplicates() {
         rows[0]["title"], "A v2",
         "INSERT OR REPLACE overwrote title"
     );
+}
+
+#[test]
+fn test_replace_import_removes_local_only_notes() {
+    let source = setup_db();
+    create_note_via_op(&source, "remote", "2026-07-08", "Remote", &[]);
+    let bundle = nine_rings_lib::export::export_all(
+        &source,
+        &nine_rings_lib::commands::config::AppConfig::default(),
+    )
+    .unwrap();
+
+    let destination = setup_db();
+    create_note_via_op(&destination, "local", "2026-07-08", "Local", &[]);
+    nine_rings_lib::export::import_bundle(&destination, &bundle, true).unwrap();
+
+    assert!(get_notes_by_date_via_op(&destination, "2026-07-08")
+        .iter()
+        .any(|note| note["id"] == "remote"));
+    assert!(!get_notes_by_date_via_op(&destination, "2026-07-08")
+        .iter()
+        .any(|note| note["id"] == "local"));
+}
+
+#[test]
+fn test_replace_import_rolls_back_on_failure() {
+    let source = setup_db();
+    create_note_via_op(&source, "good", "2026-07-08", "Good", &[]);
+    create_note_via_op(&source, "bad", "2026-07-08", "Bad", &[]);
+    let bundle = nine_rings_lib::export::export_all(
+        &source,
+        &nine_rings_lib::commands::config::AppConfig::default(),
+    )
+    .unwrap();
+
+    let destination = setup_db();
+    create_note_via_op(&destination, "local", "2026-07-08", "Local", &[]);
+    destination
+        .execute_batch(
+            "CREATE TRIGGER reject_bad_note BEFORE INSERT ON notes
+             WHEN NEW.id = 'bad' BEGIN SELECT RAISE(ABORT, 'injected failure'); END;",
+        )
+        .unwrap();
+
+    assert!(nine_rings_lib::export::import_bundle(&destination, &bundle, true).is_err());
+    let notes = get_notes_by_date_via_op(&destination, "2026-07-08");
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0]["id"], "local");
 }
 
 // ──── Recycle Bin ────

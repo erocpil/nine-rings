@@ -477,6 +477,34 @@ async function runTests() {
     assert(!!rustFolder, "rust-lib/ folder in tree after snake_case import");
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // 21. 全量替换导入（GitHub Pull / 恢复点）
+  // ═══════════════════════════════════════════════════════════════
+  {
+    console.log("\n── Replace import ──");
+    const stale = await idbAdapter.createNote({ date: "2026-08-01", title: "Local only" });
+    const replacement = {
+      version: 1,
+      exported_at: "2026-08-01T00:00:00Z",
+      notes: [{
+        id: "remote-only",
+        date: "2026-08-01",
+        title: "Remote only",
+        content: { ops: [{ insert: "remote" }] },
+        search_text: "remote",
+        tags: [],
+        pinned: false,
+        sort_order: 0,
+        created_at: "2026-08-01T00:00:00Z",
+        updated_at: "2026-08-01T00:00:00Z",
+      }],
+      daily_pages: [],
+    };
+    await idbAdapter.importData(JSON.stringify(replacement), "replace");
+    assert(await idbAdapter.getNote(stale.id) === null, "replace removes local-only notes");
+    assert((await idbAdapter.getNote("remote-only"))?.title === "Remote only", "replace imports remote snapshot");
+  }
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }

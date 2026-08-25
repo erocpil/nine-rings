@@ -104,7 +104,10 @@ export async function exportData(): Promise<string> {
   });
 }
 
-export async function importData(json: string): Promise<{ notes_imported: number; pages_imported: number; configs_imported?: number }> {
+export async function importData(
+  json: string,
+  mode: "merge" | "replace" = "merge",
+): Promise<{ notes_imported: number; pages_imported: number; configs_imported?: number }> {
   const data = await parseJsonAsync<{ notes?: any[]; daily_pages?: any[]; config?: unknown }>(json);
   const importedConfig = sanitizeConfigValue(data.config) as Record<string, unknown> | undefined;
   let configsImported = 0;
@@ -125,14 +128,16 @@ export async function importData(json: string): Promise<{ notes_imported: number
     //    兼容 Rust serde 导出格式和 Web 导出格式 ──
     // （inline 在顶部，函数定义见文件末尾）
 
-    // ── Step 1: 读取现有笔记，构建去重索引（按 id）──
-    const existingNotes: any[] = await new Promise((resolve, reject) => {
-      const tx = db.transaction("notes", "readonly");
-      const store = tx.objectStore("notes");
-      const req = store.getAll();
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
+    // ── Step 1: 合并模式下读取现有笔记，构建去重索引（按 id）──
+    const existingNotes: any[] = mode === "merge"
+      ? await new Promise((resolve, reject) => {
+          const tx = db.transaction("notes", "readonly");
+          const store = tx.objectStore("notes");
+          const req = store.getAll();
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        })
+      : [];
 
     const existingIds = new Set<string>();
     for (const n of existingNotes) {
@@ -142,7 +147,10 @@ export async function importData(json: string): Promise<{ notes_imported: number
 
     // ── Step 2: 去重导入 ──
     return new Promise<{ notes_imported: number; pages_imported: number; configs_imported?: number }>((resolve, reject) => {
-      const tx = db.transaction(["notes", "daily_pages"], "readwrite");
+      const stores = mode === "replace"
+        ? ["notes", "daily_pages", "note_versions"]
+        : ["notes", "daily_pages"];
+      const tx = db.transaction(stores, "readwrite");
 
       tx.oncomplete = () => {
         resolve({
@@ -156,6 +164,14 @@ export async function importData(json: string): Promise<{ notes_imported: number
 
       const noteStore = tx.objectStore("notes");
       const pageStore = tx.objectStore("daily_pages");
+
+      // GitHub Pull / 恢复点是全量快照：删除快照中不存在的本地数据和失效版本。
+      // 手动 JSON 导入仍保持原来的合并语义。
+      if (mode === "replace") {
+        noteStore.clear();
+        pageStore.clear();
+        tx.objectStore("note_versions").clear();
+      }
 
       let merged = 0;
       for (const imported of importedNotes) {

@@ -377,7 +377,7 @@ async function exportFullDB(): Promise<string> {
 async function importFullDB(json: string): Promise<void> {
   const { api } = await import("../api");
   console.log("[importFullDB] 开始导入, json 长度:", json.length);
-  const result = await api.export.import(json);
+  const result = await api.export.import(json, "replace");
   console.log("[importFullDB] 导入完成:", result);
 }
 

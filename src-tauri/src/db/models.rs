@@ -370,6 +370,22 @@ pub fn upsert_note(conn: &Connection, note: &Note) -> rusqlite::Result<()> {
     Ok(())
 }
 
+fn parse_json_column<T>(value: &str, column: usize, empty_is_default: bool) -> rusqlite::Result<T>
+where
+    T: serde::de::DeserializeOwned + Default,
+{
+    if empty_is_default && value.trim().is_empty() {
+        return Ok(T::default());
+    }
+    serde_json::from_str(value).map_err(|error| {
+        rusqlite::Error::FromSqlConversionFailure(
+            column,
+            rusqlite::types::Type::Text,
+            Box::new(error),
+        )
+    })
+}
+
 pub fn note_from_row(row: &rusqlite::Row) -> rusqlite::Result<Note> {
     let content_str: String = row.get(3)?;
     let tags_json: String = row.get(5)?;
@@ -380,17 +396,17 @@ pub fn note_from_row(row: &rusqlite::Row) -> rusqlite::Result<Note> {
         id: row.get(0)?,
         date: row.get(1)?,
         title: row.get(2)?,
-        content: serde_json::from_str(&content_str).unwrap_or_default(),
+        content: parse_json_column(&content_str, 3, false)?,
         search_text: row.get(4)?,
-        tags: serde_json::from_str(&tags_json).unwrap_or_default(),
+        tags: parse_json_column(&tags_json, 5, true)?,
         pinned: row.get::<_, i32>(6)? != 0,
         sort_order: row.get(7)?,
         created_at: row.get(8)?,
         updated_at: row.get(9)?,
         storage_path: row.get::<_, Option<String>>(10)?,
         doc_type: row.get::<_, Option<String>>(11)?,
-        concepts: serde_json::from_str(&concepts_str).unwrap_or_default(),
-        linked_doc_ids: serde_json::from_str(&linked_str).unwrap_or_default(),
+        concepts: parse_json_column(&concepts_str, 12, true)?,
+        linked_doc_ids: parse_json_column(&linked_str, 13, true)?,
         readonly: readonly_raw != 0,
     })
 }

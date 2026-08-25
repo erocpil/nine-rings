@@ -67,11 +67,13 @@ pub fn import_data(
     config_state: State<'_, Mutex<AppConfig>>,
     data_dir: State<'_, DataDir>,
     json: String,
+    replace: Option<bool>,
 ) -> Result<ImportResult, String> {
     let bundle: crate::export::ExportBundle =
         serde_json::from_str(&json).map_err(|e| format!("parse error: {}", e))?;
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let (n, p) = crate::export::import_bundle(&conn, &bundle).map_err(|e| e.to_string())?;
+    let (n, p) = crate::export::import_bundle(&conn, &bundle, replace.unwrap_or(false))
+        .map_err(|e| e.to_string())?;
     let mut configs_imported = None;
     if let Some(raw_config) = bundle.config {
         let sanitized = sanitize_config_value(raw_config);
@@ -122,8 +124,15 @@ pub fn restore_note(state: State<AppState>, id: String) -> Result<(), String> {
 #[tauri::command]
 pub fn permanently_delete_note(state: State<AppState>, id: String) -> Result<(), String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM notes WHERE id = ?1", rusqlite::params![id])
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    tx.execute(
+        "DELETE FROM note_versions WHERE note_id = ?1",
+        rusqlite::params![id],
+    )
+    .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM notes WHERE id = ?1", rusqlite::params![id])
         .map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -131,12 +140,19 @@ pub fn permanently_delete_note(state: State<AppState>, id: String) -> Result<(),
 pub fn clean_old_deleted(state: State<AppState>, older_than_days: i64) -> Result<usize, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let cutoff = (chrono::Utc::now() - chrono::Duration::days(older_than_days)).to_rfc3339();
-    let deleted = conn
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    tx.execute(
+        "DELETE FROM note_versions WHERE note_id IN (SELECT id FROM notes WHERE deleted_at IS NOT NULL AND deleted_at < ?1)",
+        rusqlite::params![cutoff],
+    )
+    .map_err(|e| e.to_string())?;
+    let deleted = tx
         .execute(
             "DELETE FROM notes WHERE deleted_at IS NOT NULL AND deleted_at < ?1",
             rusqlite::params![cutoff],
         )
         .map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
     Ok(deleted)
 }
 
@@ -155,7 +171,7 @@ pub fn import_from_file(
     path: String,
 ) -> Result<ImportResult, String> {
     let content = std::fs::read_to_string(&path).map_err(|e| format!("读取失败: {}", e))?;
-    import_data(state, config_state, data_dir, content)
+    import_data(state, config_state, data_dir, content, None)
 }
 
 #[tauri::command]

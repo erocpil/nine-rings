@@ -74,7 +74,11 @@ export const tauriAdapter: StorageAdapter = {
 
   // ── Export / Import ──
   exportData: () => invoke<string>("export_data"),
-  importData: (json) => invoke<{ notes_imported: number; pages_imported: number }>("import_data", { json }),
+  importData: (json, mode = "merge") =>
+    invoke<{ notes_imported: number; pages_imported: number }>("import_data", {
+      json,
+      replace: mode === "replace",
+    }),
   exportNoteMarkdown: (noteId) => invoke<string>("export_note_markdown", { noteId }),
 
   // ── Trash ──
