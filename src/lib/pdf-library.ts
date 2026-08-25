@@ -1,6 +1,9 @@
 const PDF_DB_NAME = "nine_rings_pdf_library";
-const PDF_DB_VERSION = 1;
+const PDF_DB_VERSION = 2;
 const PDF_STORE = "documents";
+const PDF_HIGHLIGHT_STORE = "highlights";
+const PDF_BOOKMARK_STORE = "bookmarks";
+const PDF_ID_INDEX = "pdfId";
 export const MAX_LOCAL_PDF_BYTES = 250 * 1024 * 1024;
 
 export interface LocalPdfEntry {
@@ -14,6 +17,25 @@ export interface LocalPdfEntry {
   zoom: number;
   fitWidth?: boolean;
   pageCount?: number;
+}
+
+export interface LocalPdfHighlight {
+  id: string;
+  pdfId: string;
+  page: number;
+  start: number;
+  end: number;
+  text: string;
+  color: "yellow";
+  createdAt: string;
+}
+
+export interface LocalPdfBookmark {
+  id: string;
+  pdfId: string;
+  page: number;
+  label: string;
+  createdAt: string;
 }
 
 interface StoredPdfRecord extends LocalPdfEntry {
@@ -30,6 +52,14 @@ function openPdfDatabase(): Promise<IDBDatabase> {
       const database = request.result;
       if (!database.objectStoreNames.contains(PDF_STORE)) {
         database.createObjectStore(PDF_STORE, { keyPath: "id" });
+      }
+      if (!database.objectStoreNames.contains(PDF_HIGHLIGHT_STORE)) {
+        const highlights = database.createObjectStore(PDF_HIGHLIGHT_STORE, { keyPath: "id" });
+        highlights.createIndex(PDF_ID_INDEX, PDF_ID_INDEX, { unique: false });
+      }
+      if (!database.objectStoreNames.contains(PDF_BOOKMARK_STORE)) {
+        const bookmarks = database.createObjectStore(PDF_BOOKMARK_STORE, { keyPath: "id" });
+        bookmarks.createIndex(PDF_ID_INDEX, PDF_ID_INDEX, { unique: false });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -155,11 +185,94 @@ export async function updateLocalPdfProgress(
   await done;
 }
 
+export async function listLocalPdfHighlights(pdfId: string): Promise<LocalPdfHighlight[]> {
+  const database = await openPdfDatabase();
+  const transaction = database.transaction(PDF_HIGHLIGHT_STORE, "readonly");
+  const done = transactionDone(transaction);
+  const records = await requestResult<LocalPdfHighlight[]>(
+    transaction.objectStore(PDF_HIGHLIGHT_STORE).index(PDF_ID_INDEX).getAll(pdfId),
+  );
+  await done;
+  return records.sort((left, right) => left.page - right.page || left.start - right.start);
+}
+
+export async function addLocalPdfHighlight(
+  input: Pick<LocalPdfHighlight, "pdfId" | "page" | "start" | "end" | "text">,
+): Promise<LocalPdfHighlight> {
+  if (input.start < 0 || input.end <= input.start || !input.text.trim()) throw new Error("PDF 高亮范围无效");
+  const highlight: LocalPdfHighlight = {
+    ...input,
+    id: createId(),
+    page: Math.max(1, Math.round(input.page)),
+    text: input.text.trim().slice(0, 20_000),
+    color: "yellow",
+    createdAt: new Date().toISOString(),
+  };
+  const database = await openPdfDatabase();
+  const transaction = database.transaction(PDF_HIGHLIGHT_STORE, "readwrite");
+  const done = transactionDone(transaction);
+  transaction.objectStore(PDF_HIGHLIGHT_STORE).put(highlight);
+  await done;
+  return highlight;
+}
+
+export async function deleteLocalPdfHighlight(id: string): Promise<void> {
+  const database = await openPdfDatabase();
+  const transaction = database.transaction(PDF_HIGHLIGHT_STORE, "readwrite");
+  const done = transactionDone(transaction);
+  transaction.objectStore(PDF_HIGHLIGHT_STORE).delete(id);
+  await done;
+}
+
+export async function listLocalPdfBookmarks(pdfId: string): Promise<LocalPdfBookmark[]> {
+  const database = await openPdfDatabase();
+  const transaction = database.transaction(PDF_BOOKMARK_STORE, "readonly");
+  const done = transactionDone(transaction);
+  const records = await requestResult<LocalPdfBookmark[]>(
+    transaction.objectStore(PDF_BOOKMARK_STORE).index(PDF_ID_INDEX).getAll(pdfId),
+  );
+  await done;
+  return records.sort((left, right) => left.page - right.page || left.createdAt.localeCompare(right.createdAt));
+}
+
+export async function addLocalPdfBookmark(
+  pdfId: string,
+  page: number,
+  label: string,
+): Promise<LocalPdfBookmark> {
+  const bookmark: LocalPdfBookmark = {
+    id: createId(),
+    pdfId,
+    page: Math.max(1, Math.round(page)),
+    label: label.trim().slice(0, 160) || `第 ${Math.max(1, Math.round(page))} 页`,
+    createdAt: new Date().toISOString(),
+  };
+  const database = await openPdfDatabase();
+  const transaction = database.transaction(PDF_BOOKMARK_STORE, "readwrite");
+  const done = transactionDone(transaction);
+  transaction.objectStore(PDF_BOOKMARK_STORE).put(bookmark);
+  await done;
+  return bookmark;
+}
+
+export async function deleteLocalPdfBookmark(id: string): Promise<void> {
+  const database = await openPdfDatabase();
+  const transaction = database.transaction(PDF_BOOKMARK_STORE, "readwrite");
+  const done = transactionDone(transaction);
+  transaction.objectStore(PDF_BOOKMARK_STORE).delete(id);
+  await done;
+}
+
 export async function deleteLocalPdf(id: string): Promise<void> {
   const database = await openPdfDatabase();
-  const transaction = database.transaction(PDF_STORE, "readwrite");
+  const transaction = database.transaction([PDF_STORE, PDF_HIGHLIGHT_STORE, PDF_BOOKMARK_STORE], "readwrite");
   const done = transactionDone(transaction);
   transaction.objectStore(PDF_STORE).delete(id);
+  for (const storeName of [PDF_HIGHLIGHT_STORE, PDF_BOOKMARK_STORE]) {
+    const store = transaction.objectStore(storeName);
+    const keys = await requestResult<IDBValidKey[]>(store.index(PDF_ID_INDEX).getAllKeys(id));
+    keys.forEach((key) => store.delete(key));
+  }
   await done;
 }
 

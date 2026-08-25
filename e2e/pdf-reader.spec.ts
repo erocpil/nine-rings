@@ -145,7 +145,16 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
     return selection?.toString();
   });
   expect(selectedText).toContain("Nine Rings PDF MVP");
-  await page.evaluate(() => window.getSelection()?.removeAllRanges());
+  await expect(page.getByRole("button", { name: "高亮", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "高亮", exact: true }).click();
+  await expect(page.locator(".pdf-annotation-highlight")).toContainText("Nine Rings PDF MVP");
+
+  await page.getByRole("button", { name: "添加第 1 页书签" }).click();
+  await expect(page.getByRole("button", { name: "取消第 1 页书签" })).toBeVisible();
+  await page.getByRole("button", { name: "目录", exact: true }).click();
+  await page.getByRole("button", { name: "书签 1", exact: true }).click();
+  await expect(page.getByLabel("PDF 目录").getByText("第 1 页", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "关闭目录" }).click();
 
   const swipe = async (fromX: number, toX: number) => viewport.evaluate((element, points) => {
     const touch = (clientX: number) => new Touch({
@@ -185,6 +194,7 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   await page.getByRole("button", { name: "目录" }).click();
   await expect(page.getByLabel("PDF 目录")).toBeVisible();
   await expect(page.getByRole("button", { name: "页面" })).toBeVisible();
+  await page.getByRole("button", { name: "页面" }).click();
   await expect(page.locator(".pdf-page-directory button")).toHaveCount(2);
 
   await page.getByTitle("返回 Nine Rings").click();
@@ -210,4 +220,17 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   await page.getByRole("button", { name: "PDF · 2" }).click();
   await expect(page.getByLabel("PDF 阅读器")).toBeVisible();
   await expect(page.getByLabel("PDF 页码")).toHaveValue("2");
+  await expect(page.locator(".pdf-highlight-target")).toContainText("Second page searchable target");
+
+  await page.getByRole("button", { name: "目录", exact: true }).click();
+  await page.getByRole("button", { name: "高亮 2", exact: true }).click();
+  await page.getByRole("button", { name: "删除第 2 页高亮" }).click();
+  await page.getByTitle("返回 Nine Rings").click();
+  await page.getByRole("button", { name: "PDF · 2" }).click();
+  await expect(page.getByLabel("PDF 页码")).toHaveValue("2");
+  await expect(page.locator(".pdf-highlight-target")).toContainText("Second page searchable target");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await expect(page.getByRole("button", { name: "添加第 2 页书签" })).toBeVisible();
 });

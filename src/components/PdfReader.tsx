@@ -9,9 +9,17 @@ import {
 } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
+  addLocalPdfBookmark,
+  addLocalPdfHighlight,
+  deleteLocalPdfBookmark,
+  deleteLocalPdfHighlight,
   getLocalPdf,
+  listLocalPdfBookmarks,
+  listLocalPdfHighlights,
   updateLocalPdfProgress,
+  type LocalPdfBookmark,
   type LocalPdfEntry,
+  type LocalPdfHighlight,
 } from "../lib/pdf-library";
 import { toggleTauriFullscreen } from "../lib/fullscreen";
 import { isTauriRuntime } from "../lib/runtime";
@@ -22,7 +30,9 @@ interface Props {
   documentId: string;
   onClose: () => void;
   onFullscreenChange?: (fullscreen: boolean) => void;
-  onCreateExcerpt?: (excerpt: { pdfId: string; pdfName: string; page: number; selectedText: string }) => Promise<void>;
+  initialHighlightId?: string | null;
+  initialTargetRange?: { page: number; start: number; end: number } | null;
+  onCreateExcerpt?: (excerpt: { pdfId: string; pdfName: string; page: number; selectedText: string; highlightId: string; start: number; end: number }) => Promise<void>;
 }
 
 interface OutlineItem {
@@ -40,6 +50,12 @@ interface PageTextCache {
 interface SearchMatch {
   page: number;
   offset: number;
+}
+
+interface PdfTextSelection {
+  text: string;
+  start: number;
+  end: number;
 }
 
 interface TouchGesture {
@@ -93,7 +109,7 @@ interface WebkitFullscreenElement extends HTMLDivElement {
   webkitRequestFullscreen?: () => Promise<void> | void;
 }
 
-export function PdfReader({ documentId, onClose, onFullscreenChange, onCreateExcerpt }: Props) {
+export function PdfReader({ documentId, onClose, onFullscreenChange, initialHighlightId, initialTargetRange, onCreateExcerpt }: Props) {
   const readerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -128,7 +144,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, onCreateExc
   const [error, setError] = useState<string | null>(null);
   const [outline, setOutline] = useState<OutlineItem[]>([]);
   const [outlineOpen, setOutlineOpen] = useState(false);
-  const [outlineMode, setOutlineMode] = useState<"outline" | "pages">("outline");
+  const [outlineMode, setOutlineMode] = useState<"outline" | "pages" | "highlights" | "bookmarks">("outline");
   const [pageLabels, setPageLabels] = useState<string[] | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -140,7 +156,11 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, onCreateExc
   const [fullscreen, setFullscreen] = useState(false);
   const [immersiveFallback, setImmersiveFallback] = useState(false);
   const [fullscreenControlsVisible, setFullscreenControlsVisible] = useState(true);
-  const [selectedText, setSelectedText] = useState("");
+  const [selectionAnchor, setSelectionAnchor] = useState<PdfTextSelection | null>(null);
+  const [highlights, setHighlights] = useState<LocalPdfHighlight[]>([]);
+  const [bookmarks, setBookmarks] = useState<LocalPdfBookmark[]>([]);
+  const [targetHighlightId, setTargetHighlightId] = useState(initialHighlightId ?? (initialTargetRange ? "pdf-source-target" : null));
+  const [highlightSaving, setHighlightSaving] = useState(false);
   const [excerptSaving, setExcerptSaving] = useState(false);
 
   const applyFullscreenState = useCallback((next: boolean) => {
@@ -161,34 +181,114 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, onCreateExc
       const selection = window.getSelection();
       const layer = textLayerElementRef.current;
       if (!selection || selection.isCollapsed || !layer) {
-        setSelectedText("");
+        setSelectionAnchor(null);
         return;
       }
       const anchor = selection.anchorNode;
       const focus = selection.focusNode;
       if (!anchor || !focus || !layer.contains(anchor) || !layer.contains(focus)) {
-        setSelectedText("");
+        setSelectionAnchor(null);
         return;
       }
-      setSelectedText(selection.toString().trim().slice(0, 20_000));
+      const cached = textCacheRef.current.get(page);
+      const divs = textLayerRef.current?.textDivs;
+      if (!cached || !divs) {
+        setSelectionAnchor(null);
+        return;
+      }
+      const pageOffset = (node: Node, offset: number) => {
+        let element = node instanceof Element ? node : node.parentElement;
+        while (element && element.parentElement !== layer) element = element.parentElement;
+        const itemIndex = element ? divs.indexOf(element as HTMLDivElement) : -1;
+        if (itemIndex < 0) return null;
+        const range = document.createRange();
+        range.setStart(element!, 0);
+        range.setEnd(node, offset);
+        return cached.starts[itemIndex] + range.toString().length;
+      };
+      try {
+        const anchorOffset = pageOffset(anchor, selection.anchorOffset);
+        const focusOffset = pageOffset(focus, selection.focusOffset);
+        const text = selection.toString().trim().slice(0, 20_000);
+        if (anchorOffset === null || focusOffset === null || !text) {
+          setSelectionAnchor(null);
+          return;
+        }
+        setSelectionAnchor({
+          text,
+          start: Math.min(anchorOffset, focusOffset),
+          end: Math.max(anchorOffset, focusOffset),
+        });
+      } catch {
+        setSelectionAnchor(null);
+      }
     };
     document.addEventListener("selectionchange", updateSelection);
     return () => document.removeEventListener("selectionchange", updateSelection);
-  }, []);
+  }, [page, textLayerRevision]);
+
+  const ensureSelectionHighlight = useCallback(async () => {
+    if (!entry || !selectionAnchor) throw new Error("请先选择 PDF 文本");
+    const existing = highlights.find((highlight) => (
+      highlight.page === page
+      && highlight.start === selectionAnchor.start
+      && highlight.end === selectionAnchor.end
+    ));
+    if (existing) return { highlight: existing, created: false };
+    const highlight = await addLocalPdfHighlight({
+      pdfId: entry.id,
+      page,
+      start: selectionAnchor.start,
+      end: selectionAnchor.end,
+      text: selectionAnchor.text,
+    });
+    setHighlights((current) => [...current, highlight]);
+    return { highlight, created: true };
+  }, [entry, highlights, page, selectionAnchor]);
+
+  const saveHighlight = useCallback(async () => {
+    if (!selectionAnchor || highlightSaving) return;
+    setHighlightSaving(true);
+    try {
+      await ensureSelectionHighlight();
+      window.getSelection()?.removeAllRanges();
+      setSelectionAnchor(null);
+      setSearchStatus("已保存高亮");
+    } catch (reason) {
+      setSearchStatus(`高亮失败：${pdfErrorMessage(reason)}`);
+    } finally {
+      setHighlightSaving(false);
+    }
+  }, [ensureSelectionHighlight, highlightSaving, selectionAnchor]);
 
   const createExcerpt = useCallback(async () => {
-    if (!onCreateExcerpt || !entry || !selectedText || excerptSaving) return;
+    if (!onCreateExcerpt || !entry || !selectionAnchor || excerptSaving) return;
     setExcerptSaving(true);
+    let createdHighlight: LocalPdfHighlight | null = null;
     try {
-      await onCreateExcerpt({ pdfId: entry.id, pdfName: entry.name, page, selectedText });
+      const { highlight, created } = await ensureSelectionHighlight();
+      if (created) createdHighlight = highlight;
+      await onCreateExcerpt({
+        pdfId: entry.id,
+        pdfName: entry.name,
+        page,
+        selectedText: selectionAnchor.text,
+        highlightId: highlight.id,
+        start: selectionAnchor.start,
+        end: selectionAnchor.end,
+      });
       window.getSelection()?.removeAllRanges();
-      setSelectedText("");
+      setSelectionAnchor(null);
     } catch (reason) {
+      if (createdHighlight) {
+        await deleteLocalPdfHighlight(createdHighlight.id).catch(() => {});
+        setHighlights((current) => current.filter((highlight) => highlight.id !== createdHighlight?.id));
+      }
       setSearchStatus(`摘录失败：${pdfErrorMessage(reason)}`);
     } finally {
       setExcerptSaving(false);
     }
-  }, [entry, excerptSaving, onCreateExcerpt, page, selectedText]);
+  }, [ensureSelectionHighlight, entry, excerptSaving, onCreateExcerpt, page, selectionAnchor]);
 
   const enterImmersiveFallback = useCallback(() => {
     setImmersiveFallback(true);
@@ -298,6 +398,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, onCreateExc
       textCacheRef.current.clear();
       setSearchMatches([]);
       setActiveSearchIndex(-1);
+      setHighlights([]);
+      setBookmarks([]);
+      setTargetHighlightId(initialHighlightId ?? (initialTargetRange ? "pdf-source-target" : null));
       const stored = await getLocalPdf(documentId);
       if (!stored) throw new Error("PDF 不存在或已经被删除");
       if (cancelled) return;
@@ -307,7 +410,15 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, onCreateExc
       setZoom(stored.entry.zoom || 1);
       setFitWidth(stored.entry.fitWidth !== false);
 
-      const loadingTask = getDocument({ data: await stored.blob.arrayBuffer() });
+      const [data, storedHighlights, storedBookmarks] = await Promise.all([
+        stored.blob.arrayBuffer(),
+        listLocalPdfHighlights(documentId),
+        listLocalPdfBookmarks(documentId),
+      ]);
+      if (cancelled) return;
+      setHighlights(storedHighlights);
+      setBookmarks(storedBookmarks);
+      const loadingTask = getDocument({ data });
       loadingTask.onPassword = (updatePassword: (password: string) => void, reason: number) => {
         const promptText = reason === PasswordResponses.INCORRECT_PASSWORD
           ? "密码不正确，请重新输入 PDF 密码"
@@ -348,7 +459,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, onCreateExc
       textLayerRef.current?.cancel();
       void loadedDocument?.destroy();
     };
-  }, [documentId]);
+  }, [documentId, initialHighlightId, initialTargetRange]);
 
   useEffect(() => {
     const element = viewportRef.current;
@@ -526,6 +637,52 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, onCreateExc
     setPage(clampPage(nextPage, pdf.numPages));
   }, [pdf]);
 
+  const currentPageBookmark = bookmarks.find((bookmark) => bookmark.page === page);
+
+  const togglePageBookmark = useCallback(async () => {
+    if (!entry) return;
+    try {
+      const existing = bookmarks.find((bookmark) => bookmark.page === page);
+      if (existing) {
+        await deleteLocalPdfBookmark(existing.id);
+        setBookmarks((current) => current.filter((bookmark) => bookmark.id !== existing.id));
+        setSearchStatus(`已取消第 ${page} 页书签`);
+      } else {
+        const label = pageLabels?.[page - 1];
+        const bookmark = await addLocalPdfBookmark(entry.id, page, label ? `${label} · 第 ${page} 页` : `第 ${page} 页`);
+        setBookmarks((current) => [...current, bookmark].sort((left, right) => left.page - right.page));
+        setSearchStatus(`已添加第 ${page} 页书签`);
+      }
+    } catch (reason) {
+      setSearchStatus(`书签操作失败：${pdfErrorMessage(reason)}`);
+    }
+  }, [bookmarks, entry, page, pageLabels]);
+
+  const jumpToHighlight = useCallback((highlight: LocalPdfHighlight) => {
+    setTargetHighlightId(highlight.id);
+    changePage(highlight.page);
+    if (window.matchMedia("(max-width: 768px)").matches) setOutlineOpen(false);
+  }, [changePage]);
+
+  const removeHighlight = useCallback(async (id: string) => {
+    try {
+      await deleteLocalPdfHighlight(id);
+      setHighlights((current) => current.filter((highlight) => highlight.id !== id));
+      setTargetHighlightId((current) => current === id ? null : current);
+    } catch (reason) {
+      setSearchStatus(`删除高亮失败：${pdfErrorMessage(reason)}`);
+    }
+  }, []);
+
+  const removeBookmark = useCallback(async (id: string) => {
+    try {
+      await deleteLocalPdfBookmark(id);
+      setBookmarks((current) => current.filter((bookmark) => bookmark.id !== id));
+    } catch (reason) {
+      setSearchStatus(`删除书签失败：${pdfErrorMessage(reason)}`);
+    }
+  }, []);
+
   const jumpToDestination = useCallback(async (destination: string | unknown[] | null) => {
     if (!pdf || !destination) return;
     try {
@@ -613,46 +770,92 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, onCreateExc
     const cached = textCacheRef.current.get(page);
     if (!layer || !cached) return;
     const divs = layer.textDivs;
-    divs.forEach((div, index) => { div.textContent = cached.items[index] ?? ""; });
     const query = completedSearchQuery;
-    if (!query || searchMatches.length === 0) return;
-
     const pageMatches = searchMatches
       .map((match, index) => ({ ...match, resultIndex: index }))
       .filter((match) => match.page === page);
+    const pageHighlights = highlights.filter((highlight) => highlight.page === page);
+    if (
+      targetHighlightId
+      && initialTargetRange?.page === page
+      && !pageHighlights.some((highlight) => highlight.id === targetHighlightId)
+    ) {
+      pageHighlights.push({
+        id: targetHighlightId,
+        pdfId: documentId,
+        page,
+        start: initialTargetRange.start,
+        end: initialTargetRange.end,
+        text: "",
+        color: "yellow",
+        createdAt: "",
+      });
+    }
     let activeMark: HTMLElement | null = null;
+    let targetMark: HTMLElement | null = null;
     cached.items.forEach((item, itemIndex) => {
       const div = divs[itemIndex];
-      if (!div || !item) return;
+      if (!div) return;
+      div.textContent = item;
+      if (!item) return;
       const itemStart = cached.starts[itemIndex];
-      const ranges = pageMatches
+      const searchRanges = query ? pageMatches
         .map((match) => ({
           start: Math.max(0, match.offset - itemStart),
           end: Math.min(item.length, match.offset + query.length - itemStart),
           resultIndex: match.resultIndex,
         }))
-        .filter((range) => range.start < range.end)
-        .sort((left, right) => left.start - right.start);
-      if (ranges.length === 0) return;
+        .filter((range) => range.start < range.end) : [];
+      const highlightRanges = pageHighlights
+        .map((highlight) => ({
+          start: Math.max(0, highlight.start - itemStart),
+          end: Math.min(item.length, highlight.end - itemStart),
+          highlight,
+        }))
+        .filter((range) => range.start < range.end);
+      if (searchRanges.length === 0 && highlightRanges.length === 0) return;
+
+      const boundaries = new Set<number>([0, item.length]);
+      searchRanges.forEach((range) => { boundaries.add(range.start); boundaries.add(range.end); });
+      highlightRanges.forEach((range) => { boundaries.add(range.start); boundaries.add(range.end); });
+      const points = [...boundaries].sort((left, right) => left - right);
       const fragment = document.createDocumentFragment();
-      let cursor = 0;
-      for (const range of ranges) {
-        if (range.start > cursor) fragment.append(item.slice(cursor, range.start));
-        if (range.start < cursor) continue;
+      for (let index = 0; index < points.length - 1; index++) {
+        const start = points[index];
+        const end = points[index + 1];
+        if (start >= end) continue;
+        const searchRange = searchRanges.find((range) => range.start <= start && range.end >= end);
+        const highlightRange = highlightRanges.find((range) => range.start <= start && range.end >= end);
+        if (!searchRange && !highlightRange) {
+          fragment.append(item.slice(start, end));
+          continue;
+        }
         const mark = document.createElement("mark");
-        mark.className = range.resultIndex === activeSearchIndex ? "pdf-search-current" : "pdf-search-hit";
-        mark.textContent = item.slice(range.start, range.end);
+        const classes: string[] = [];
+        if (highlightRange) {
+          classes.push("pdf-annotation-highlight");
+          mark.dataset.highlightId = highlightRange.highlight.id;
+          if (highlightRange.highlight.id === targetHighlightId) classes.push("pdf-highlight-target");
+        }
+        if (searchRange) {
+          classes.push(searchRange.resultIndex === activeSearchIndex ? "pdf-search-current" : "pdf-search-hit");
+        }
+        mark.className = classes.join(" ");
+        mark.textContent = item.slice(start, end);
         fragment.append(mark);
-        if (range.resultIndex === activeSearchIndex) activeMark = mark;
-        cursor = range.end;
+        if (searchRange?.resultIndex === activeSearchIndex) activeMark = mark;
+        if (highlightRange?.highlight.id === targetHighlightId) targetMark = mark;
       }
-      if (cursor < item.length) fragment.append(item.slice(cursor));
       div.replaceChildren(fragment);
     });
-    if (activeMark) {
-      window.requestAnimationFrame(() => (activeMark as HTMLElement).scrollIntoView({ block: "center", inline: "center" }));
+    const reveal = targetMark ?? activeMark;
+    if (reveal) {
+      window.requestAnimationFrame(() => (reveal as HTMLElement).scrollIntoView({ block: "center", inline: "center" }));
     }
-  }, [activeSearchIndex, completedSearchQuery, page, searchMatches, textLayerRevision]);
+    if (!targetMark) return;
+    const timer = window.setTimeout(() => setTargetHighlightId((current) => current === targetHighlightId ? null : current), 2400);
+    return () => window.clearTimeout(timer);
+  }, [activeSearchIndex, completedSearchQuery, documentId, highlights, initialTargetRange, page, searchMatches, targetHighlightId, textLayerRevision]);
 
   const toggleBoundaryZoom = useCallback((clientX: number, clientY: number) => {
     const surface = pageSurfaceRef.current;
@@ -832,6 +1035,15 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, onCreateExc
             onClick={() => setOutlineOpen((open) => !open)}
           >目录</button>
         )}
+        {pdf && (
+          <button
+            type="button"
+            className={currentPageBookmark ? "pdf-page-bookmark active" : "pdf-page-bookmark"}
+            onClick={() => void togglePageBookmark()}
+            aria-label={currentPageBookmark ? `取消第 ${page} 页书签` : `添加第 ${page} 页书签`}
+            title={currentPageBookmark ? "取消当前页书签" : "添加当前页书签"}
+          >🔖</button>
+        )}
         <button
           type="button"
           className={fullscreen ? "pdf-fullscreen-button active" : "pdf-fullscreen-button"}
@@ -890,18 +1102,55 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, onCreateExc
                     type="button"
                     className={outlineMode === "outline" ? "active" : undefined}
                     onClick={() => setOutlineMode("outline")}
-                  >书签</button>
+                  >目录</button>
                 )}
                 <button
                   type="button"
                   className={outlineMode === "pages" ? "active" : undefined}
                   onClick={() => setOutlineMode("pages")}
                 >页面</button>
+                <button
+                  type="button"
+                  className={outlineMode === "highlights" ? "active" : undefined}
+                  onClick={() => setOutlineMode("highlights")}
+                >高亮{highlights.length > 0 ? ` ${highlights.length}` : ""}</button>
+                <button
+                  type="button"
+                  className={outlineMode === "bookmarks" ? "active" : undefined}
+                  onClick={() => setOutlineMode("bookmarks")}
+                >书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button>
               </div>
               <button type="button" onClick={() => setOutlineOpen(false)} aria-label="关闭目录">×</button>
             </div>
             <div className="pdf-outline-list">
-              {outlineMode === "outline" && outline.length > 0 ? renderOutline(outline) : (
+              {outlineMode === "outline" && outline.length > 0 ? renderOutline(outline) : outlineMode === "highlights" ? (
+                <div className="pdf-annotation-directory">
+                  {highlights.length === 0 ? <p>还没有高亮。选择页面文字后点击“高亮”。</p> : highlights.map((highlight) => (
+                    <div className="pdf-annotation-item" key={highlight.id}>
+                      <button type="button" onClick={() => jumpToHighlight(highlight)} title={highlight.text}>
+                        <strong>第 {highlight.page} 页</strong>
+                        <span>{highlight.text}</span>
+                      </button>
+                      <button type="button" className="pdf-annotation-delete" onClick={() => void removeHighlight(highlight.id)} aria-label={`删除第 ${highlight.page} 页高亮`}>×</button>
+                    </div>
+                  ))}
+                </div>
+              ) : outlineMode === "bookmarks" ? (
+                <div className="pdf-annotation-directory">
+                  {bookmarks.length === 0 ? <p>还没有书签。点击工具栏中的 🔖 标记当前页。</p> : bookmarks.map((bookmark) => (
+                    <div className="pdf-annotation-item" key={bookmark.id}>
+                      <button type="button" onClick={() => {
+                        changePage(bookmark.page);
+                        if (window.matchMedia("(max-width: 768px)").matches) setOutlineOpen(false);
+                      }} title={bookmark.label}>
+                        <strong>第 {bookmark.page} 页</strong>
+                        <span>{bookmark.label}</span>
+                      </button>
+                      <button type="button" className="pdf-annotation-delete" onClick={() => void removeBookmark(bookmark.id)} aria-label={`删除第 ${bookmark.page} 页书签`}>×</button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
                 <div className="pdf-page-directory">
                   {Array.from({ length: pdf.numPages }, (_, index) => {
                     const pageNumber = index + 1;
@@ -959,15 +1208,18 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, onCreateExc
           {rendering && !loading && <span className="pdf-render-status">正在渲染第 {page} 页…</span>}
         </main>
       </div>
-      {selectedText && onCreateExcerpt && (
+      {selectionAnchor && (
         <div className="pdf-selection-actions">
-          <span>{selectedText.length} 字</span>
-          <button
+          <span>{selectionAnchor.text.length} 字</span>
+          <button type="button" disabled={highlightSaving || excerptSaving} onPointerDown={(event) => event.preventDefault()} onClick={() => void saveHighlight()}>
+            {highlightSaving ? "保存中…" : "高亮"}
+          </button>
+          {onCreateExcerpt && <button
             type="button"
-            disabled={excerptSaving}
+            disabled={excerptSaving || highlightSaving}
             onPointerDown={(event) => event.preventDefault()}
             onClick={() => void createExcerpt()}
-          >{excerptSaving ? "正在摘录…" : "摘录到笔记"}</button>
+          >{excerptSaving ? "正在摘录…" : "摘录到笔记"}</button>}
         </div>
       )}
     </div>

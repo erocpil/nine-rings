@@ -1,9 +1,15 @@
 import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import {
+  addLocalPdfBookmark,
+  addLocalPdfHighlight,
   deleteLocalPdf,
+  deleteLocalPdfBookmark,
+  deleteLocalPdfHighlight,
   getLocalPdf,
   importLocalPdf,
+  listLocalPdfBookmarks,
+  listLocalPdfHighlights,
   listLocalPdfs,
   resetPdfLibraryConnectionForTests,
   updateLocalPdfProgress,
@@ -15,7 +21,21 @@ function pdfFile(name: string, body = "sample"): File {
   return blob as File;
 }
 
+async function createVersionOneDatabase(): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.open("nine_rings_pdf_library", 1);
+    request.onupgradeneeded = () => request.result.createObjectStore("documents", { keyPath: "id" });
+    request.onsuccess = () => {
+      request.result.close();
+      resolve();
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
 async function run() {
+  // 已安装用户会从仅包含 documents store 的 v1 原位升级。
+  await createVersionOneDatabase();
   const imported = await importLocalPdf(pdfFile("manual.pdf"));
   assert.equal(imported.name, "manual.pdf");
   assert.equal(imported.page, 1);
@@ -41,10 +61,38 @@ async function run() {
   assert.equal(progressed?.entry.fitWidth, false);
   assert.equal(progressed?.entry.pageCount, 18);
 
+  const highlight = await addLocalPdfHighlight({
+    pdfId: imported.id,
+    page: 7,
+    start: 4,
+    end: 15,
+    text: "stable text",
+  });
+  assert.deepEqual((await listLocalPdfHighlights(imported.id)).map((item) => item.id), [highlight.id]);
+  await assert.rejects(() => addLocalPdfHighlight({
+    pdfId: imported.id,
+    page: 7,
+    start: 4,
+    end: 4,
+    text: "invalid",
+  }), /范围无效/);
+  await deleteLocalPdfHighlight(highlight.id);
+  assert.deepEqual(await listLocalPdfHighlights(imported.id), []);
+
+  const bookmark = await addLocalPdfBookmark(imported.id, 7, "重要章节");
+  assert.equal((await listLocalPdfBookmarks(imported.id))[0]?.label, "重要章节");
+  await deleteLocalPdfBookmark(bookmark.id);
+  assert.deepEqual(await listLocalPdfBookmarks(imported.id), []);
+
+  await addLocalPdfHighlight({ pdfId: imported.id, page: 2, start: 0, end: 4, text: "keep" });
+  await addLocalPdfBookmark(imported.id, 2, "第二页");
+
   await assert.rejects(() => importLocalPdf(new Blob(["not pdf"], { type: "text/plain" }) as File), /不是有效的 PDF/);
 
   await deleteLocalPdf(imported.id);
   assert.equal(await getLocalPdf(imported.id), null);
+  assert.deepEqual(await listLocalPdfHighlights(imported.id), []);
+  assert.deepEqual(await listLocalPdfBookmarks(imported.id), []);
   assert.deepEqual(await listLocalPdfs(), []);
 
   await resetPdfLibraryConnectionForTests();

@@ -98,6 +98,9 @@ export interface DocumentMetadata {
     pdfName: string;
     page: number;
     selectedText: string;
+    highlightId?: string;
+    anchorStart?: number;
+    anchorEnd?: number;
   };
   /** 正文书签随文档内容保存；position 会在编辑事务中自动映射。 */
   bookmarks?: DocumentBookmark[];

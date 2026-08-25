@@ -9066,14 +9066,21 @@ button.doc-tree-toggle:focus-visible {
 
 .pdf-outline-tabs {
   display: flex;
+  flex: 1;
+  min-width: 0;
   gap: 3px;
 }
 
 .pdf-outline-tabs button {
+  overflow: hidden;
+  flex: 1;
   width: auto;
-  padding: 3px 8px;
+  min-width: 0;
+  padding: 3px 5px;
   border-radius: 4px;
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pdf-outline-tabs button.active {
@@ -9145,6 +9152,76 @@ button.doc-tree-toggle:focus-visible {
 .pdf-page-directory small {
   color: var(--text-secondary);
   font-size: 10px;
+}
+
+.pdf-annotation-directory {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pdf-annotation-directory > p {
+  margin: 0;
+  padding: 14px 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pdf-annotation-item {
+  display: flex;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.pdf-annotation-item > button:first-child {
+  display: flex;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 8px 6px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pdf-annotation-item > button:first-child:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.pdf-annotation-item strong {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pdf-annotation-item span {
+  overflow: hidden;
+  width: 100%;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-annotation-item .pdf-annotation-delete {
+  flex: 0 0 36px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 17px;
+}
+
+.pdf-annotation-item .pdf-annotation-delete:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .pdf-page-viewport {
@@ -9219,6 +9296,22 @@ button.doc-tree-toggle:focus-visible {
   color: transparent;
   border-radius: 2px;
   background: rgba(255, 208, 0, 0.34);
+}
+
+.pdf-text-layer mark.pdf-annotation-highlight {
+  background: rgba(255, 214, 0, 0.38);
+}
+
+.pdf-text-layer mark.pdf-highlight-target {
+  outline: 2px solid rgba(224, 122, 0, 0.92);
+  animation: pdf-highlight-pulse 700ms ease-in-out 3;
+}
+
+@keyframes pdf-highlight-pulse {
+  50% {
+    background: rgba(255, 145, 0, 0.68);
+    outline-offset: 2px;
+  }
 }
 
 .pdf-text-layer mark.pdf-search-current {
@@ -9363,7 +9456,8 @@ button.doc-tree-toggle:focus-visible {
   }
 
   .pdf-reader-title {
-    flex-basis: calc(100% - 94px);
+    flex-basis: calc(100% - 158px);
+    min-width: 80px;
   }
 
   .pdf-page-controls {

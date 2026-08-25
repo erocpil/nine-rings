@@ -372,6 +372,8 @@ function App() {
 
   const [recycleOpen, setRecycleOpen] = useState(false);
   const [pdfReaderDocumentId, setPdfReaderDocumentId] = useState<string | null>(null);
+  const [pdfReaderTargetHighlightId, setPdfReaderTargetHighlightId] = useState<string | null>(null);
+  const [pdfReaderTargetRange, setPdfReaderTargetRange] = useState<{ page: number; start: number; end: number } | null>(null);
   const [pdfReaderFullscreen, setPdfReaderFullscreen] = useState(false);
   const [overdueOpen, setOverdueOpen] = useState(false);
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
@@ -1144,8 +1146,10 @@ function App() {
         <Suspense fallback={<div className="pdf-reader-boot">正在加载 PDF 阅读器…</div>}>
           <PdfReader
             documentId={pdfReaderDocumentId}
+            initialHighlightId={pdfReaderTargetHighlightId}
+            initialTargetRange={pdfReaderTargetRange}
             onFullscreenChange={setPdfReaderFullscreen}
-            onCreateExcerpt={async ({ pdfId, pdfName, page, selectedText }) => {
+            onCreateExcerpt={async ({ pdfId, pdfName, page, selectedText, highlightId, start, end }) => {
               await flushAutoSave();
               const excerpt = await api.notes.create({
                 date: localDateKey(),
@@ -1154,7 +1158,7 @@ function App() {
                 docType: "reference",
                 concepts: ["PDF 摘录"],
                 content: {
-                  metadata: { pdfExcerpt: { pdfId, pdfName, page, selectedText } },
+                  metadata: { pdfExcerpt: { pdfId, pdfName, page, selectedText, highlightId, anchorStart: start, anchorEnd: end } },
                   ops: [
                     { insert: selectedText },
                     { insert: "\n", attributes: { blockquote: true } },
@@ -1165,6 +1169,8 @@ function App() {
               });
               setPdfReaderFullscreen(false);
               setPdfReaderDocumentId(null);
+              setPdfReaderTargetHighlightId(null);
+              setPdfReaderTargetRange(null);
               revealDocTreePath("resources/pdf-excerpts");
               setDocTreeKey((key) => key + 1);
               selectNote(excerpt);
@@ -1172,6 +1178,8 @@ function App() {
             onClose={() => {
               setPdfReaderFullscreen(false);
               setPdfReaderDocumentId(null);
+              setPdfReaderTargetHighlightId(null);
+              setPdfReaderTargetRange(null);
             }}
           />
         </Suspense>
@@ -1548,6 +1556,12 @@ function App() {
                             fitWidth: stored.entry.fitWidth,
                             pageCount: stored.entry.pageCount,
                           });
+                          setPdfReaderTargetHighlightId(source.highlightId ?? null);
+                          setPdfReaderTargetRange(
+                            source.anchorStart !== undefined && source.anchorEnd !== undefined
+                              ? { page: source.page, start: source.anchorStart, end: source.anchorEnd }
+                              : null,
+                          );
                           setPdfReaderDocumentId(source.pdfId);
                         } catch (reason) {
                           window.alert(`无法打开 PDF 来源：${reason instanceof Error ? reason.message : String(reason)}`);
@@ -1636,6 +1650,8 @@ function App() {
             void flushAutoSave()
               .then(() => {
                 setSettingsOpen(false);
+                setPdfReaderTargetHighlightId(null);
+                setPdfReaderTargetRange(null);
                 setPdfReaderDocumentId(documentId);
               })
               .catch((saveError) => console.error("[PDF] 打开阅读器前保存笔记失败:", saveError));
