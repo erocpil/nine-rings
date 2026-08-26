@@ -9241,6 +9241,8 @@ button.doc-tree-toggle:focus-visible {
 .pdf-page-viewport-vertical {
   flex-direction: column;
   align-items: stretch;
+  overflow-anchor: auto;
+  scrollbar-gutter: stable;
 }
 
 .pdf-page-surface {
@@ -9260,7 +9262,7 @@ button.doc-tree-toggle:focus-visible {
 .pdf-page-viewport-vertical .pdf-page-placeholder {
   width: 100%;
   max-width: 100%;
-  aspect-ratio: 1 / 1.4142;
+  aspect-ratio: var(--pdf-page-aspect-ratio, 0.7071);
   contain: layout paint;
 }
 
@@ -9271,10 +9273,6 @@ button.doc-tree-toggle:focus-visible {
 .pdf-page-surface canvas {
   display: block;
   pointer-events: none;
-}
-
-.pdf-page-rendering {
-  opacity: 0.72;
 }
 
 .pdf-text-layer {
@@ -9334,17 +9332,6 @@ button.doc-tree-toggle:focus-visible {
 .pdf-text-layer mark.pdf-search-current {
   background: rgba(255, 126, 0, 0.52);
   outline: 1px solid rgba(190, 80, 0, 0.65);
-}
-
-.pdf-render-status {
-  position: fixed;
-  right: 14px;
-  bottom: calc(10px + var(--safe-bottom, 0px));
-  padding: 4px 8px;
-  border-radius: 5px;
-  background: rgba(0, 0, 0, 0.68);
-  color: #fff;
-  font-size: 11px;
 }
 
 .pdf-selection-actions {

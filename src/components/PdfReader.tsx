@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getDocument,
   GlobalWorkerOptions,
@@ -127,6 +127,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const textLayerRefs = useRef(new Map<number, TextLayer>());
   const renderTaskRefs = useRef(new Map<number, RenderTask>());
   const pageRenderPipelineRefs = useRef(new Map<number, Promise<void>>());
+  const pageRequestedSignatureRefs = useRef(new Map<number, string>());
   const pageRenderVersionRefs = useRef(new Map<number, number>());
   const documentRenderGenerationRef = useRef(0);
   const textCacheRef = useRef(new Map<number, PageTextCache>());
@@ -563,20 +564,22 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       return;
     }
     const observer = new IntersectionObserver((entries) => {
-      setVisibleVerticalPages((current) => {
-        const next = new Set(current);
-        for (const entry of entries) {
-          const pageNumber = Number((entry.target as HTMLElement).dataset.pdfPage);
-          if (!Number.isFinite(pageNumber)) continue;
-          if (entry.isIntersecting) next.add(pageNumber);
-          else next.delete(pageNumber);
-        }
-        if (next.size === current.size && [...next].every((pageNumber) => current.has(pageNumber))) return current;
-        return next;
+      startTransition(() => {
+        setVisibleVerticalPages((current) => {
+          const next = new Set(current);
+          for (const entry of entries) {
+            const pageNumber = Number((entry.target as HTMLElement).dataset.pdfPage);
+            if (!Number.isFinite(pageNumber)) continue;
+            if (entry.isIntersecting) next.add(pageNumber);
+            else next.delete(pageNumber);
+          }
+          if (next.size === current.size && [...next].every((pageNumber) => current.has(pageNumber))) return current;
+          return next;
+        });
       });
     }, {
       root: viewport,
-      rootMargin: `${Math.max(240, viewportHeight)}px 0px`,
+      rootMargin: `${Math.max(480, Math.ceil(viewportHeight * 1.75))}px 0px`,
       threshold: 0,
     });
     pageSurfaceRefs.current.forEach((surface) => observer.observe(surface));
@@ -588,27 +591,35 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     let cancelled = false;
     const documentGeneration = documentRenderGenerationRef.current;
     const currentPages = [...renderedPages];
-    const pageSet = new Set<number>(currentPages);
-    const activeRenderTasks = new Map<number, RenderTask>(renderTaskRefs.current);
-    const activeTextLayers = new Map<number, TextLayer>(textLayerRefs.current);
+    const renderSignature = [documentGeneration, viewportWidth, viewportHeight, fitWidth, fitHeight, zoom].join(":");
+    const pagesToRender = currentPages.filter(
+      (pageNumber) => canvasRefs.current.get(pageNumber)?.dataset.pdfRenderSignature !== renderSignature
+        && pageRequestedSignatureRefs.current.get(pageNumber) !== renderSignature,
+    );
+    if (pagesToRender.length === 0) return;
+    pagesToRender.forEach((pageNumber) => {
+      const previousSignature = pageRequestedSignatureRefs.current.get(pageNumber);
+      if (previousSignature && previousSignature !== renderSignature) {
+        renderTaskRefs.current.get(pageNumber)?.cancel();
+      }
+      pageRequestedSignatureRefs.current.set(pageNumber, renderSignature);
+    });
     setRendering(true);
-
-    activeRenderTasks.forEach((task, pageNumber) => {
-      if (pageSet.has(pageNumber)) {
-        task.cancel();
-      }
-    });
-    activeTextLayers.forEach((textLayer, pageNumber) => {
-      if (pageSet.has(pageNumber)) {
-        textLayer.cancel();
-      }
-    });
 
     const render = async () => {
       const surfacePadding = 24;
       const availableWidth = Math.max(160, viewportWidth - surfacePadding);
       const availableHeight = Math.max(120, viewportHeight - surfacePadding);
-      const tasks = currentPages.map((pageNumber) => {
+      const viewportRect = viewportRef.current?.getBoundingClientRect();
+      const renderDistance = (pageNumber: number) => {
+        const rect = pageSurfaceRefs.current.get(pageNumber)?.getBoundingClientRect();
+        if (!rect || !viewportRect) return Number.MAX_SAFE_INTEGER;
+        if (rect.bottom < viewportRect.top) return viewportRect.top - rect.bottom;
+        if (rect.top > viewportRect.bottom) return rect.top - viewportRect.bottom;
+        return 0;
+      };
+      const orderedPages = [...pagesToRender].sort((left, right) => renderDistance(left) - renderDistance(right));
+      const renderPage = (pageNumber: number) => {
         const renderVersion = (pageRenderVersionRefs.current.get(pageNumber) ?? 0) + 1;
         pageRenderVersionRefs.current.set(pageNumber, renderVersion);
         const previousPipeline = pageRenderPipelineRefs.current.get(pageNumber) ?? Promise.resolve();
@@ -618,9 +629,10 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           const textLayerElement = textLayerElementRefs.current.get(pageNumber);
           if (!canvas || !surface || !textLayerElement) return;
 
-          const isStale = () => cancelled
-            || documentRenderGenerationRef.current !== documentGeneration
-            || pageRenderVersionRefs.current.get(pageNumber) !== renderVersion;
+          const isStale = () => documentRenderGenerationRef.current !== documentGeneration
+            || pageRenderVersionRefs.current.get(pageNumber) !== renderVersion
+            || canvasRefs.current.get(pageNumber) !== canvas
+            || textLayerElementRefs.current.get(pageNumber) !== textLayerElement;
           if (isStale()) return;
 
           const previousTask = renderTaskRefs.current.get(pageNumber);
@@ -646,6 +658,12 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           if (isStale()) return;
 
           const baseViewport = pdfPage.getViewport({ scale: 1 });
+          if (viewMode === "vertical" && baseViewport.height > 0) {
+            viewportRef.current?.style.setProperty(
+              "--pdf-page-aspect-ratio",
+              String(baseViewport.width / baseViewport.height),
+            );
+          }
           const displayScale = fitHeight
             ? clampZoom(availableHeight / baseViewport.height)
             : fitWidth
@@ -654,21 +672,16 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           const displayViewport = pdfPage.getViewport({ scale: displayScale });
           const outputScale = Math.min(window.devicePixelRatio || 1, 2.5);
 
-          const context = canvas.getContext("2d", { alpha: false });
+          const stagedCanvas = document.createElement("canvas");
+          const context = stagedCanvas.getContext("2d", { alpha: false });
           if (!context) throw new Error("当前环境不支持 Canvas PDF 渲染");
 
-          canvas.width = Math.max(1, Math.floor(displayViewport.width * outputScale));
-          canvas.height = Math.max(1, Math.floor(displayViewport.height * outputScale));
-          canvas.style.width = `${Math.floor(displayViewport.width)}px`;
-          canvas.style.height = `${Math.floor(displayViewport.height)}px`;
+          stagedCanvas.width = Math.max(1, Math.floor(displayViewport.width * outputScale));
+          stagedCanvas.height = Math.max(1, Math.floor(displayViewport.height * outputScale));
           surface.style.width = `${Math.floor(displayViewport.width)}px`;
           surface.style.height = `${Math.floor(displayViewport.height)}px`;
           surface.style.setProperty("--scale-factor", String(displayScale));
           surface.dataset.pdfPage = String(pageNumber);
-          textLayerElement.replaceChildren();
-          textLayerElement.style.width = `${Math.floor(displayViewport.width)}px`;
-          textLayerElement.style.height = `${Math.floor(displayViewport.height)}px`;
-          textLayerElement.dataset.pdfPage = String(pageNumber);
 
           const textContent = await pdfPage.getTextContent();
           if (isStale()) return;
@@ -676,9 +689,10 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
             pageNumber,
             pageTextCache(textContent.items.map((item) => ("str" in item ? item.str : ""))),
           );
+          const stagedTextLayerElement = document.createElement("div");
           const textLayer = new TextLayer({
             textContentSource: textContent,
-            container: textLayerElement,
+            container: stagedTextLayerElement,
             viewport: displayViewport,
           });
           if (isStale()) return;
@@ -691,11 +705,29 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           });
           renderTaskRefs.current.set(pageNumber, renderTask);
 
+          let completed = false;
           try {
             await Promise.all([renderTask.promise, textLayer.render()]);
+            if (isStale()) return;
+            canvas.width = stagedCanvas.width;
+            canvas.height = stagedCanvas.height;
+            canvas.style.width = `${Math.floor(displayViewport.width)}px`;
+            canvas.style.height = `${Math.floor(displayViewport.height)}px`;
+            const visibleContext = canvas.getContext("2d", { alpha: false });
+            if (!visibleContext) throw new Error("当前环境不支持 Canvas PDF 渲染");
+            visibleContext.drawImage(stagedCanvas, 0, 0);
+            canvas.dataset.pdfRenderSignature = renderSignature;
+            textLayerElement.style.cssText = stagedTextLayerElement.style.cssText;
+            textLayerElement.replaceChildren(...stagedTextLayerElement.childNodes);
+            textLayerElement.style.width = `${Math.floor(displayViewport.width)}px`;
+            textLayerElement.style.height = `${Math.floor(displayViewport.height)}px`;
+            textLayerElement.dataset.pdfPage = String(pageNumber);
+            completed = true;
           } finally {
             if (renderTaskRefs.current.get(pageNumber) === renderTask) renderTaskRefs.current.delete(pageNumber);
-            if (textLayerRefs.current.get(pageNumber) === textLayer) textLayerRefs.current.delete(pageNumber);
+            if (!completed && textLayerRefs.current.get(pageNumber) === textLayer) {
+              textLayerRefs.current.delete(pageNumber);
+            }
           }
 
           const anchor = pageNumber === page ? zoomAnchorRef.current : null;
@@ -714,11 +746,20 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         pageRenderPipelineRefs.current.set(pageNumber, pipeline);
         void pipeline.finally(() => {
           if (pageRenderPipelineRefs.current.get(pageNumber) === pipeline) pageRenderPipelineRefs.current.delete(pageNumber);
+          if (pageRequestedSignatureRefs.current.get(pageNumber) === renderSignature) {
+            pageRequestedSignatureRefs.current.delete(pageNumber);
+          }
         }).catch(() => {});
         return pipeline;
-      });
+      };
 
-      await Promise.all(tasks);
+      for (const pageNumber of orderedPages) {
+        try {
+          await renderPage(pageNumber);
+        } catch (reason) {
+          if ((reason as { name?: string })?.name !== "RenderingCancelledException") throw reason;
+        }
+      }
       if (!cancelled) setTextLayerRevision((revision) => revision + 1);
     };
 
@@ -728,20 +769,19 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           setError(pdfErrorMessage(reason));
         }
       })
-      .finally(() => { if (!cancelled) setRendering(false); });
+      .finally(() => {
+        pagesToRender.forEach((pageNumber) => {
+          if (pageRequestedSignatureRefs.current.get(pageNumber) === renderSignature) {
+            pageRequestedSignatureRefs.current.delete(pageNumber);
+          }
+        });
+        setRendering(false);
+      });
 
     return () => {
       cancelled = true;
-      const cleanupTasks = new Map<number, RenderTask>(renderTaskRefs.current);
-      const cleanupLayers = new Map<number, TextLayer>(textLayerRefs.current);
-      cleanupTasks.forEach((task, pageNumber) => {
-        if (pageSet.has(pageNumber)) task.cancel();
-      });
-      cleanupLayers.forEach((textLayer, pageNumber) => {
-        if (pageSet.has(pageNumber)) textLayer.cancel();
-      });
     };
-  }, [fitHeight, fitWidth, page, pdf, renderedPages, viewportHeight, viewportWidth, zoom]);
+  }, [fitHeight, fitWidth, page, pdf, renderedPages, viewMode, viewportHeight, viewportWidth, zoom]);
 
   useEffect(() => {
     if (!pdf || !entry) return;
@@ -1401,7 +1441,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           )}
           {!error && displayedPages.map((pageNumber) => (
             <div
-              className={`${rendering && renderedPages.includes(pageNumber) ? "pdf-page-surface pdf-page-rendering" : "pdf-page-surface"} ${renderedPages.includes(pageNumber) ? "" : "pdf-page-placeholder"}`}
+              className={`pdf-page-surface ${renderedPages.includes(pageNumber) ? "" : "pdf-page-placeholder"}`}
               key={pageNumber}
               data-pdf-page={pageNumber}
               data-pdf-mode={viewMode}
@@ -1415,7 +1455,6 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
               )}
             </div>
           ))}
-          {rendering && !loading && <span className="pdf-render-status">正在渲染 PDF…</span>}
         </main>
       </div>
       {selectionAnchor && (
