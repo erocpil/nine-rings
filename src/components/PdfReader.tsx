@@ -682,6 +682,10 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           surface.style.height = `${Math.floor(displayViewport.height)}px`;
           surface.style.setProperty("--scale-factor", String(displayScale));
           surface.dataset.pdfPage = String(pageNumber);
+          textLayerElement.replaceChildren();
+          textLayerElement.style.width = `${Math.floor(displayViewport.width)}px`;
+          textLayerElement.style.height = `${Math.floor(displayViewport.height)}px`;
+          textLayerElement.dataset.pdfPage = String(pageNumber);
 
           const textContent = await pdfPage.getTextContent();
           if (isStale()) return;
@@ -689,10 +693,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
             pageNumber,
             pageTextCache(textContent.items.map((item) => ("str" in item ? item.str : ""))),
           );
-          const stagedTextLayerElement = document.createElement("div");
           const textLayer = new TextLayer({
             textContentSource: textContent,
-            container: stagedTextLayerElement,
+            container: textLayerElement,
             viewport: displayViewport,
           });
           if (isStale()) return;
@@ -717,11 +720,6 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
             if (!visibleContext) throw new Error("当前环境不支持 Canvas PDF 渲染");
             visibleContext.drawImage(stagedCanvas, 0, 0);
             canvas.dataset.pdfRenderSignature = renderSignature;
-            textLayerElement.style.cssText = stagedTextLayerElement.style.cssText;
-            textLayerElement.replaceChildren(...stagedTextLayerElement.childNodes);
-            textLayerElement.style.width = `${Math.floor(displayViewport.width)}px`;
-            textLayerElement.style.height = `${Math.floor(displayViewport.height)}px`;
-            textLayerElement.dataset.pdfPage = String(pageNumber);
             completed = true;
           } finally {
             if (renderTaskRefs.current.get(pageNumber) === renderTask) renderTaskRefs.current.delete(pageNumber);
