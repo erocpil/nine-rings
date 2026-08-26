@@ -116,10 +116,17 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await epubNote.blur();
   await page.getByRole("button", { name: "完成", exact: true }).click();
 
-  await page.getByRole("button", { name: "添加当前位置书签" }).click();
-  await expect(page.getByRole("button", { name: "取消当前位置书签" })).toBeVisible();
+  await page.getByRole("button", { name: "打开 EPUB 书签" }).click();
+  let bookmarkDialog = page.getByRole("dialog", { name: "EPUB 书签" });
+  await expect(bookmarkDialog).toBeVisible();
+  await bookmarkDialog.getByRole("button", { name: "添加当前位置书签" }).click();
+  await expect(bookmarkDialog.getByRole("button", { name: "取消本章书签" })).toBeVisible();
+  await bookmarkDialog.getByRole("button", { name: "关闭 EPUB 书签" }).click();
   await page.getByRole("button", { name: "进入 EPUB 专注模式" }).click();
   await expect(reader).toHaveClass(/epub-reader-focus/);
+  await expect(page.locator(".epub-reader-toolbar")).toBeHidden();
+  await expect(page.locator(".epub-bottom-navigation")).toBeHidden();
+  await expect(page.locator(".epub-focus-exit")).toBeVisible();
   await page.getByRole("button", { name: "退出 EPUB 专注模式" }).click();
 
   await chapterFrame.getByText("阅读进度应当保存到这里。").evaluate((element) => {
@@ -135,7 +142,12 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await page.getByRole("button", { name: "EPUB · 2" }).click({ force: true });
   await expect(reader).toBeVisible();
   await expect(chapterFrame.locator("mark.epub-highlight-target")).toContainText("阅读进度应当保存到这里");
-  await expect(page.getByRole("button", { name: "取消当前位置书签" })).toBeVisible();
+  await page.getByRole("button", { name: "打开 EPUB 书签" }).click();
+  bookmarkDialog = page.getByRole("dialog", { name: "EPUB 书签" });
+  await expect(bookmarkDialog.getByRole("button", { name: "取消本章书签" })).toBeVisible();
+  await expect(bookmarkDialog.locator(".epub-annotation-item > button:first-child")).toHaveText(/继续阅读 · \d+%/);
+  await expect(bookmarkDialog.getByRole("button", { name: /删除书签 继续阅读 · \d+%/ })).toBeVisible();
+  await bookmarkDialog.getByRole("button", { name: "关闭 EPUB 书签" }).click();
   await chapterFrame.locator("mark.epub-highlight-target").click();
   await expect(page.getByRole("textbox", { name: "EPUB 高亮备注" })).toHaveValue("这是 EPUB 备注");
   await page.getByRole("button", { name: "完成", exact: true }).click();
@@ -143,6 +155,9 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "进入 EPUB 专注模式" }).click();
   await expect(reader).toHaveClass(/epub-reader-focus/);
+  await expect(page.locator(".epub-reader-toolbar")).toBeHidden();
+  await expect(page.locator(".epub-bottom-navigation")).toBeHidden();
+  await expect(page.locator(".epub-focus-exit")).toBeVisible();
   await page.getByRole("button", { name: "退出 EPUB 专注模式" }).click();
   await chapterFrame.locator("html").evaluate((element) => {
     element.ownerDocument.defaultView?.scrollTo(0, 900);

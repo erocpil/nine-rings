@@ -289,6 +289,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const [selection, setSelection] = useState<EpubSelection | null>(null);
   const [targetHighlightId, setTargetHighlightId] = useState(initialHighlightId ?? null);
   const [annotationOpen, setAnnotationOpen] = useState(false);
+  const [bookmarkPanelOpen, setBookmarkPanelOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [tocOpen, setTocOpen] = useState(true);
@@ -448,7 +449,10 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && fullscreen) {
+      if (event.key === "Escape" && bookmarkPanelOpen) {
+        setBookmarkPanelOpen(false);
+      }
+      else if (event.key === "Escape" && fullscreen) {
         if (!document.fullscreenElement) { setFullscreen(false); onFullscreenChange?.(false); }
       }
       else if (event.key === "Escape") closeReader();
@@ -457,7 +461,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [book, closeReader, fullscreen, onFullscreenChange]);
+  }, [book, bookmarkPanelOpen, closeReader, fullscreen, onFullscreenChange]);
 
   const handleFrameLoad = () => {
     const frameDocument = iframeRef.current?.contentDocument;
@@ -626,6 +630,11 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const toggleFullscreen = useCallback(async () => {
     const reader = readerRef.current;
     if (!reader) return;
+    if (!fullscreen) {
+      setTocOpen(false);
+      setBookmarkPanelOpen(false);
+      setAnnotationOpen(false);
+    }
     if (fullscreen && !document.fullscreenElement) {
       setFullscreen(false);
       onFullscreenChange?.(false);
@@ -704,7 +713,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
           <span>{completedSearchQuery ? (searchMatches.length > 0 ? `${activeSearchIndex + 1}/${searchMatches.length}` : "未找到") : ""}</span>
         </form>
         <button type="button" className={tocOpen ? "active" : ""} onClick={() => setTocOpen((open) => !open)} aria-label="EPUB 目录">目录</button>
-        <button type="button" className={currentBookmark ? "active" : ""} onClick={() => void toggleBookmark()} aria-label={currentBookmark ? "取消当前位置书签" : "添加当前位置书签"}>🔖</button>
+        <button type="button" className={bookmarkPanelOpen || currentBookmark ? "active" : ""} onClick={() => setBookmarkPanelOpen(true)} aria-label="打开 EPUB 书签">🔖{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button>
         <button type="button" onClick={() => void toggleFullscreen()} aria-label={fullscreen ? "退出 EPUB 专注模式" : "进入 EPUB 专注模式"}>⛶</button>
       </header>
       <div className="pdf-reader-body">
@@ -770,6 +779,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
           )}
         </main>
       </div>
+      {fullscreen && <button type="button" className="epub-focus-exit" onClick={() => void toggleFullscreen()} aria-label="退出 EPUB 专注模式">退出专注</button>}
       {selection && (
         <div className="epub-selection-actions">
           <span>{selection.text.length} 字</span>
@@ -783,6 +793,31 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
           <label>颜色<input type="color" value={activeHighlight.color} onChange={(event) => void updateLocalEpubHighlight(activeHighlight.id, { color: event.target.value }).then((updated) => setHighlights((current) => current.map((item) => item.id === updated.id ? updated : item)))} /></label>
           <textarea aria-label="EPUB 高亮备注" defaultValue={activeHighlight.note ?? ""} placeholder="添加备注…" onBlur={(event) => void updateLocalEpubHighlight(activeHighlight.id, { note: event.target.value }).then((updated) => setHighlights((current) => current.map((item) => item.id === updated.id ? updated : item)))} />
           <button type="button" onClick={() => setAnnotationOpen(false)}>完成</button>
+        </aside>
+      )}
+      {bookmarkPanelOpen && book && (
+        <aside className="epub-bookmark-popover" role="dialog" aria-modal="true" aria-label="EPUB 书签">
+          <header>
+            <strong>书签</strong>
+            <button type="button" onClick={() => setBookmarkPanelOpen(false)} aria-label="关闭 EPUB 书签">×</button>
+          </header>
+          <button type="button" className="epub-bookmark-current" onClick={() => void toggleBookmark()}>
+            {currentBookmark ? "取消本章书签" : "添加当前位置书签"}
+          </button>
+          <div className="epub-bookmark-list">
+            {bookmarks.length === 0 && <p>还没有书签</p>}
+            {bookmarks.map((bookmark) => (
+              <div className="epub-annotation-item" key={bookmark.id}>
+                <button type="button" onClick={() => {
+                  setChapter(bookmark.chapter);
+                  setFragment(undefined);
+                  setScrollProgress(bookmark.scrollProgress);
+                  setBookmarkPanelOpen(false);
+                }}>{bookmark.label}</button>
+                <button type="button" aria-label={`删除书签 ${bookmark.label}`} onClick={() => void deleteLocalEpubBookmark(bookmark.id).then(() => setBookmarks((current) => current.filter((item) => item.id !== bookmark.id)))}>×</button>
+              </div>
+            ))}
+          </div>
         </aside>
       )}
     </section>
