@@ -7992,6 +7992,19 @@ button.doc-tree-toggle:focus-visible {
   pointer-events: none;
 }
 
+@media (max-width: 768px) {
+  .blockquote-toolbar {
+    min-height: 44px;
+  }
+
+  .blockquote-toolbar button {
+    width: 44px;
+    height: 44px;
+    margin: -4px -6px -4px 0;
+    touch-action: manipulation;
+  }
+}
+
 /* 语法高亮仅由 decorations 绘制，不写入文档内容。颜色使用主题 token，
    因此切换主题无需重新运行高亮器。 */
 .code-syntax-highlighted .hljs-comment,

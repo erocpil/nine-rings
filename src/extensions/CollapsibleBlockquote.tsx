@@ -1,8 +1,11 @@
 import Blockquote from "@tiptap/extension-blockquote";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
+import { useRef } from "react";
 
 function CollapsibleBlockquoteView({ node, editor, updateAttributes }: NodeViewProps) {
   const collapsed = node.attrs.collapsed === true;
+  const suppressClickRef = useRef(false);
+  const toggle = () => updateAttributes({ collapsed: !collapsed });
 
   return (
     <NodeViewWrapper
@@ -14,7 +17,26 @@ function CollapsibleBlockquoteView({ node, editor, updateAttributes }: NodeViewP
           type="button"
           disabled={!editor.isEditable}
           onMouseDown={(event) => event.preventDefault()}
-          onClick={() => updateAttributes({ collapsed: !collapsed })}
+          onPointerDown={(event) => {
+            if (event.pointerType !== "touch") return;
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onPointerUp={(event) => {
+            if (event.pointerType !== "touch") return;
+            event.preventDefault();
+            event.stopPropagation();
+            suppressClickRef.current = true;
+            toggle();
+            window.setTimeout(() => { suppressClickRef.current = false; }, 500);
+          }}
+          onClick={() => {
+            if (suppressClickRef.current) {
+              suppressClickRef.current = false;
+              return;
+            }
+            toggle();
+          }}
           aria-label={collapsed ? "展开引用块" : "折叠引用块"}
           aria-expanded={!collapsed}
           title={collapsed ? "展开引用块" : "折叠引用块"}

@@ -163,6 +163,13 @@ test.describe("编辑器复制粘贴", () => {
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
       "> 需要保留的引用正文",
     );
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    const expand = quote.getByRole("button", { name: "展开引用块" });
+    await expand.dispatchEvent("pointerdown", { pointerType: "touch", bubbles: true });
+    await expand.dispatchEvent("pointerup", { pointerType: "touch", bubbles: true });
+    await expect(quote).toHaveAttribute("data-collapsed", "false");
+    await expect(quote.getByText("需要保留的引用正文", { exact: true })).toBeVisible();
   });
 
   test("复制有序列表到纯文本时列表项之间没有多余空行", async ({ page, context }) => {
