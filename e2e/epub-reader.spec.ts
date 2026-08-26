@@ -189,7 +189,13 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(page.locator(".epub-focus-exit")).toBeHidden();
   await chapterFrame.locator("body").evaluate((element) => {
     element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch", isPrimary: true, clientX: 80, clientY: 160 }));
-    element.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", isPrimary: true, clientX: 82, clientY: 162 }));
+    const touchStart = new Event("touchstart", { bubbles: true });
+    Object.defineProperty(touchStart, "touches", { value: [{ clientX: 80, clientY: 160 }] });
+    element.dispatchEvent(touchStart);
+    element.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true, pointerType: "touch", isPrimary: true, clientX: 81, clientY: 161 }));
+    const touchEnd = new Event("touchend", { bubbles: true });
+    Object.defineProperty(touchEnd, "changedTouches", { value: [{ clientX: 82, clientY: 162 }] });
+    element.dispatchEvent(touchEnd);
   });
   await expect(page.locator(".epub-bottom-navigation")).toBeVisible();
   await expect(page.locator(".epub-focus-exit")).toHaveText("↙️");

@@ -393,8 +393,8 @@ function safeChapterDocument(
   const style = document.createElement("style");
   style.textContent = `
     :root { color-scheme: ${theme === "dark" ? "dark" : "light"}; }
-    html { background: ${palette.background}; color: ${palette.text}; font-size: ${fontSize}%; }
-    body { box-sizing: border-box; max-width: 48rem; min-height: 100vh; margin: 0 auto; padding: 2rem clamp(1.1rem, 5vw, 3rem) 5rem; font-family: ui-serif, Georgia, "Noto Serif CJK SC", serif; line-height: 1.75; overflow-wrap: anywhere; }
+    html { background: ${palette.background}; color: ${palette.text}; font-size: ${fontSize}%; touch-action: pan-y; overscroll-behavior-x: none; }
+    body { box-sizing: border-box; max-width: 48rem; min-height: 100vh; margin: 0 auto; padding: 2rem clamp(1.1rem, 5vw, 3rem) 5rem; font-family: ui-serif, Georgia, "Noto Serif CJK SC", serif; line-height: 1.75; overflow-wrap: anywhere; touch-action: pan-y; }
     img, svg, video { max-width: 100% !important; height: auto !important; }
     table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
     a { color: ${palette.link}; }
@@ -419,6 +419,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const swipeNoticeTimerRef = useRef<number | null>(null);
   const pendingViewportAnchorRef = useRef<ViewportTextAnchor | null>(null);
   const fullscreenRef = useRef(false);
+  const tauriNativeFullscreenRef = useRef(false);
   const [entry, setEntry] = useState<LocalEpubEntry | null>(null);
   const [book, setBook] = useState<ParsedEpub | null>(null);
   const [chapter, setChapter] = useState(0);
@@ -756,18 +757,23 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     };
     frameWindow.addEventListener("scroll", captureScroll, { passive: true });
     frameDocument.addEventListener("scroll", captureScroll, { passive: true, capture: true });
-    let gestureStart: { x: number; y: number; time: number } | null = null;
-    let pointerGestureActive = false;
+    type GestureStart = { x: number; y: number; time: number };
+    let pointerStart: GestureStart | null = null;
+    let touchStart: GestureStart | null = null;
     let lastHandledTouch = 0;
-    const finishGesture = (x: number, y: number) => {
-      if (!gestureStart) return;
-      const selection = frameWindow.getSelection();
-      if (selection && !selection.isCollapsed) { gestureStart = null; captureFrameSelection(); return; }
-      const deltaX = x - gestureStart.x;
-      const deltaY = y - gestureStart.y;
-      const elapsed = Date.now() - gestureStart.time;
-      gestureStart = null;
+    let lastHandledSource: "pointer" | "touch" | null = null;
+    const finishGesture = (source: "pointer" | "touch", start: GestureStart, x: number, y: number) => {
+      if (source !== lastHandledSource && Date.now() - lastHandledTouch < 80) return;
+      const deltaX = x - start.x;
+      const deltaY = y - start.y;
+      const elapsed = Date.now() - start.time;
       lastHandledTouch = Date.now();
+      lastHandledSource = source;
+      const selection = frameWindow.getSelection();
+      if (selection && !selection.isCollapsed && elapsed > 350 && Math.abs(deltaX) < 52) {
+        captureFrameSelection();
+        return;
+      }
       if (elapsed <= 900 && Math.abs(deltaX) < 18 && Math.abs(deltaY) < 18) {
         toggleFocusControls();
         return;
@@ -783,23 +789,32 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     };
     frameDocument.addEventListener("pointerdown", (event) => {
       if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
-      pointerGestureActive = true;
-      gestureStart = { x: event.clientX, y: event.clientY, time: Date.now() };
-    }, { passive: true });
+      pointerStart = { x: event.clientX, y: event.clientY, time: Date.now() };
+    }, { passive: true, capture: true });
     frameDocument.addEventListener("pointerup", (event) => {
-      if (!pointerGestureActive) return;
-      pointerGestureActive = false;
-      finishGesture(event.clientX, event.clientY);
-    }, { passive: true });
-    frameDocument.addEventListener("pointercancel", () => { pointerGestureActive = false; gestureStart = null; }, { passive: true });
+      if (!pointerStart) return;
+      const start = pointerStart;
+      pointerStart = null;
+      finishGesture("pointer", start, event.clientX, event.clientY);
+    }, { passive: true, capture: true });
+    frameDocument.addEventListener("pointercancel", () => { pointerStart = null; }, { passive: true, capture: true });
     frameDocument.addEventListener("touchstart", (event) => {
-      if (pointerGestureActive || event.touches.length !== 1) return;
-      gestureStart = { x: event.touches[0].clientX, y: event.touches[0].clientY, time: Date.now() };
-    }, { passive: true });
+      if (event.touches.length !== 1) { touchStart = null; return; }
+      touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY, time: Date.now() };
+    }, { passive: true, capture: true });
+    frameDocument.addEventListener("touchmove", (event) => {
+      if (!touchStart || event.touches.length !== 1 || Date.now() - touchStart.time > 350) return;
+      const deltaX = event.touches[0].clientX - touchStart.x;
+      const deltaY = event.touches[0].clientY - touchStart.y;
+      if (Math.abs(deltaX) > 12 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) event.preventDefault();
+    }, { passive: false, capture: true });
     frameDocument.addEventListener("touchend", (event) => {
-      if (pointerGestureActive || !gestureStart || event.changedTouches.length !== 1) return;
-      finishGesture(event.changedTouches[0].clientX, event.changedTouches[0].clientY);
-    }, { passive: true });
+      if (!touchStart || event.changedTouches.length !== 1) return;
+      const start = touchStart;
+      touchStart = null;
+      finishGesture("touch", start, event.changedTouches[0].clientX, event.changedTouches[0].clientY);
+    }, { passive: true, capture: true });
+    frameDocument.addEventListener("touchcancel", () => { touchStart = null; }, { passive: true, capture: true });
     frameDocument.addEventListener("click", () => {
       if (Date.now() - lastHandledTouch > 500) toggleFocusControls();
     });
@@ -940,8 +955,9 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       setLineMergePanelOpen(false);
       hideFocusControls();
     }
-    if (fullscreen && !document.fullscreenElement) {
+    if (fullscreen && !document.fullscreenElement && !tauriNativeFullscreenRef.current) {
       hideFocusControls();
+      fullscreenRef.current = false;
       setFullscreen(false);
       onFullscreenChange?.(false);
       return;
@@ -949,6 +965,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     const standalone = window.matchMedia("(display-mode: standalone)").matches
       || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
     if (!fullscreen && (standalone || window.matchMedia("(max-width: 768px)").matches)) {
+      fullscreenRef.current = true;
       setFullscreen(true);
       onFullscreenChange?.(true);
       return;
@@ -958,6 +975,8 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       else if (isTauriRuntime()) {
         const active = await toggleTauriFullscreen();
         if (active === null) throw new Error("Tauri fullscreen unavailable");
+        tauriNativeFullscreenRef.current = active;
+        fullscreenRef.current = active;
         setFullscreen(active);
         onFullscreenChange?.(active);
       }
@@ -965,6 +984,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       else throw new Error("Fullscreen API unavailable");
     } catch {
       setFullscreen((value) => {
+        fullscreenRef.current = !value;
         onFullscreenChange?.(!value);
         return !value;
       });
@@ -975,6 +995,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     const update = () => {
       const active = document.fullscreenElement === readerRef.current;
       if (!active) hideFocusControls();
+      fullscreenRef.current = active;
       setFullscreen(active);
       onFullscreenChange?.(active);
     };
