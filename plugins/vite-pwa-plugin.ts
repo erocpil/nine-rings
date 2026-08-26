@@ -4,6 +4,7 @@ const PUBLIC_ASSETS = [
   "/",
   "/index.html",
   "/manifest.json",
+  "/epub-frame-bridge.js",
   "/icon-192.png",
   "/icon-512.png",
   "/ragdoll-32.png",

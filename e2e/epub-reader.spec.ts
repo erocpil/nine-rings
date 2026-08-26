@@ -106,7 +106,8 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(page.getByRole("status")).toHaveText("已经是最后一章");
   await swipeFrame(100, 330);
   await expect(chapterFrame.getByRole("heading", { name: "第一章" })).toBeVisible();
-  await expect(chapterFrame.locator("script")).toHaveCount(0);
+  await expect(chapterFrame.locator('script[src="/epub-frame-bridge.js"]')).toHaveCount(1);
+  await expect(chapterFrame.locator('script:not([src="/epub-frame-bridge.js"])')).toHaveCount(0);
   await expect(page.locator("body")).not.toHaveAttribute("data-epub-unsafe");
 
   await toc.getByRole("button", { name: "继续阅读" }).click();
@@ -137,6 +138,7 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await backgroundPalette.getByRole("button", { name: "关闭 EPUB 背景色板" }).click();
   await chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollTo(0, 900));
   await page.waitForTimeout(250);
+  await expect.poll(() => chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollY ?? 0)).toBeGreaterThan(400);
 
   await page.getByRole("button", { name: "关闭 EPUB 阅读器" }).click();
   await page.getByTitle("设置").click();

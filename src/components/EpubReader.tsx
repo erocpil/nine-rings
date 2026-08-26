@@ -405,7 +405,14 @@ function safeChapterDocument(
     mark.epub-highlight { padding: 0 .04em; border-radius: .12em; cursor: pointer; color: inherit; }
     mark.epub-highlight-target { outline: 2px solid #ef6c00; }
   `;
-  (document.head ?? document.documentElement.insertBefore(document.createElement("head"), document.documentElement.firstChild)).appendChild(style);
+  const head = document.head ?? document.documentElement.insertBefore(document.createElement("head"), document.documentElement.firstChild);
+  head.appendChild(style);
+  const bridge = document.createElement("script");
+  bridge.setAttribute("src", "/epub-frame-bridge.js");
+  // XMLSerializer 会把空的 script 写成自闭合标签，而 srcDoc 最终按 HTML
+  // 解析；保留一个空白文本节点以确保生成显式结束标签。
+  bridge.textContent = " ";
+  head.appendChild(bridge);
   return `<!doctype html>${new XMLSerializer().serializeToString(document.documentElement)}`;
 }
 
@@ -420,6 +427,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const swipeNoticeTimerRef = useRef<number | null>(null);
   const pendingViewportAnchorRef = useRef<ViewportTextAnchor | null>(null);
   const boundFrameDocumentRef = useRef<{ document: Document; chapterPath: string } | null>(null);
+  const bridgeRestoredDocumentRef = useRef<Document | null>(null);
   const fullscreenRef = useRef(false);
   const tauriNativeFullscreenRef = useRef(false);
   const [entry, setEntry] = useState<LocalEpubEntry | null>(null);
@@ -686,14 +694,64 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     }, 1400);
   }, []);
 
+  useEffect(() => {
+    const receiveFrameMessage = (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      const message = event.data as { type?: unknown; action?: unknown } | null;
+      if (message?.type !== "nine-rings:epub-frame" || typeof message.action !== "string") return;
+      if (message.action === "ready") {
+        handleFrameLoad();
+        const frameDocument = iframeRef.current?.contentDocument;
+        const frameWindow = iframeRef.current?.contentWindow;
+        if (frameDocument && frameWindow && bridgeRestoredDocumentRef.current !== frameDocument) {
+          bridgeRestoredDocumentRef.current = frameDocument;
+          window.requestAnimationFrame(() => {
+            const marked = frameDocument.querySelector<HTMLElement>("mark.epub-highlight-target, mark.epub-search-current");
+            if (marked) marked.scrollIntoView({ block: "center" });
+            else if (fragment) frameDocument.getElementById(fragment)?.scrollIntoView();
+            else if (scrollProgress > 0) {
+              const root = frameDocument.documentElement;
+              const body = frameDocument.body;
+              const maximum = Math.max(0, root.scrollHeight, body.scrollHeight) - Math.max(1, frameWindow.innerHeight, root.clientHeight);
+              const top = scrollProgress * Math.max(0, maximum);
+              frameWindow.scrollTo(0, top);
+              root.scrollTop = top;
+              body.scrollTop = top;
+            }
+          });
+        }
+        return;
+      }
+      if (message.action === "tap") {
+        toggleFocusControls();
+        return;
+      }
+      if (!book || (message.action !== "swipe-left" && message.action !== "swipe-right")) return;
+      setFragment(undefined);
+      setScrollProgress(0);
+      if (message.action === "swipe-left") {
+        if (chapter >= book.chapters.length - 1) showSwipeNotice("已经是最后一章");
+        else setChapter(chapter + 1);
+      }
+      else if (chapter <= 0) showSwipeNotice("已经是第一章");
+      else setChapter(chapter - 1);
+    };
+    window.addEventListener("message", receiveFrameMessage);
+    return () => window.removeEventListener("message", receiveFrameMessage);
+  });
+
   const handleFrameLoad = () => {
     const frameDocument = iframeRef.current?.contentDocument;
     const frameWindow = iframeRef.current?.contentWindow;
     if (!frameDocument || !frameWindow || !book) return;
     if (frameDocument.documentElement.getAttribute("data-nine-rings-epub-chapter") !== book.chapters[chapter].path) return;
+    // srcDoc 的 <html> 标记在正文解析完成前就可见。此时若提前记为“已绑定”，
+    // 后续 ready 会跳过真正的正文监听器，正是部分 WebView 上点击失效的来源。
+    if (frameDocument.readyState === "loading" || !frameDocument.body) return;
     const chapterPath = book.chapters[chapter].path;
-    if (boundFrameDocumentRef.current?.document === frameDocument && boundFrameDocumentRef.current.chapterPath === chapterPath) return;
-    boundFrameDocumentRef.current = { document: frameDocument, chapterPath };
+    const alreadyBound = boundFrameDocumentRef.current?.document === frameDocument
+      && boundFrameDocumentRef.current.chapterPath === chapterPath;
+    if (!alreadyBound) boundFrameDocumentRef.current = { document: frameDocument, chapterPath };
     const chapterSearchMatches = searchMatches.filter((match) => match.chapter === chapter);
     const activeMatch = searchMatches[activeSearchIndex];
     const activeOccurrence = activeMatch?.chapter === chapter
@@ -702,6 +760,12 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     const chapterHighlights = highlights.filter((highlight) => highlight.anchor.chapterPath === book.chapters[chapter].path);
     const targetMark = markFrameHighlights(frameDocument, chapterHighlights, targetHighlightId);
     const activeMark = markFrameSearch(frameDocument, completedSearchQuery, activeOccurrence);
+    // 桥接脚本会在 DOM 就绪后的多个时刻报告 ready。后续报告只刷新依赖
+    // 异步存储加载的标记，不重复绑定监听器，也不能再次滚动并覆盖读者
+    // 在首次 ready 之后产生的新位置。
+    if (alreadyBound) {
+      return;
+    }
     const viewportAnchor = pendingViewportAnchorRef.current;
     pendingViewportAnchorRef.current = null;
     if (viewportAnchor) {
@@ -764,67 +828,6 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     };
     frameWindow.addEventListener("scroll", captureScroll, { passive: true });
     frameDocument.addEventListener("scroll", captureScroll, { passive: true, capture: true });
-    type GestureStart = { x: number; y: number; time: number };
-    let pointerStart: GestureStart | null = null;
-    let touchStart: GestureStart | null = null;
-    let lastHandledTouch = 0;
-    let lastHandledSource: "pointer" | "touch" | null = null;
-    const finishGesture = (source: "pointer" | "touch", start: GestureStart, x: number, y: number) => {
-      if (source !== lastHandledSource && Date.now() - lastHandledTouch < 80) return;
-      const deltaX = x - start.x;
-      const deltaY = y - start.y;
-      const elapsed = Date.now() - start.time;
-      lastHandledTouch = Date.now();
-      lastHandledSource = source;
-      const selection = frameWindow.getSelection();
-      if (selection && !selection.isCollapsed && elapsed > 350 && Math.abs(deltaX) < 52) {
-        captureFrameSelection();
-        return;
-      }
-      if (elapsed <= 900 && Math.abs(deltaX) < 18 && Math.abs(deltaY) < 18) {
-        toggleFocusControls();
-        return;
-      }
-      if (elapsed > 900 || Math.abs(deltaX) < 52 || Math.abs(deltaX) < Math.abs(deltaY) * 1.25) return;
-      setFragment(undefined);
-      setScrollProgress(0);
-      if (deltaX < 0) {
-        if (chapter >= book.chapters.length - 1) showSwipeNotice("已经是最后一章");
-        else setChapter(chapter + 1);
-      } else if (chapter <= 0) showSwipeNotice("已经是第一章");
-      else setChapter(chapter - 1);
-    };
-    frameDocument.addEventListener("pointerdown", (event) => {
-      if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
-      pointerStart = { x: event.clientX, y: event.clientY, time: Date.now() };
-    }, { passive: true, capture: true });
-    frameDocument.addEventListener("pointerup", (event) => {
-      if (!pointerStart) return;
-      const start = pointerStart;
-      pointerStart = null;
-      finishGesture("pointer", start, event.clientX, event.clientY);
-    }, { passive: true, capture: true });
-    frameDocument.addEventListener("pointercancel", () => { pointerStart = null; }, { passive: true, capture: true });
-    frameDocument.addEventListener("touchstart", (event) => {
-      if (event.touches.length !== 1) { touchStart = null; return; }
-      touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY, time: Date.now() };
-    }, { passive: true, capture: true });
-    frameDocument.addEventListener("touchmove", (event) => {
-      if (!touchStart || event.touches.length !== 1 || Date.now() - touchStart.time > 350) return;
-      const deltaX = event.touches[0].clientX - touchStart.x;
-      const deltaY = event.touches[0].clientY - touchStart.y;
-      if (Math.abs(deltaX) > 12 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) event.preventDefault();
-    }, { passive: false, capture: true });
-    frameDocument.addEventListener("touchend", (event) => {
-      if (!touchStart || event.changedTouches.length !== 1) return;
-      const start = touchStart;
-      touchStart = null;
-      finishGesture("touch", start, event.changedTouches[0].clientX, event.changedTouches[0].clientY);
-    }, { passive: true, capture: true });
-    frameDocument.addEventListener("touchcancel", () => { touchStart = null; }, { passive: true, capture: true });
-    frameDocument.addEventListener("click", () => {
-      if (Date.now() - lastHandledTouch > 500) toggleFocusControls();
-    });
     frameDocument.addEventListener("mouseup", captureFrameSelection);
     frameDocument.addEventListener("selectionchange", () => window.requestAnimationFrame(captureFrameSelection));
     frameDocument.addEventListener("click", (event) => {
@@ -851,6 +854,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
 
   useEffect(() => {
     if (!chapterResult.html) return;
+    bridgeRestoredDocumentRef.current = null;
     const bind = () => handleFrameLoad();
     const frameElement = iframeRef.current;
     frameElement?.addEventListener("load", bind);
@@ -1154,7 +1158,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
               ref={iframeRef}
               className="epub-chapter-frame"
               title={book?.chapters[chapter].title ?? "EPUB 章节"}
-              sandbox="allow-same-origin"
+              sandbox="allow-same-origin allow-scripts"
               srcDoc={chapterResult.html}
               onLoad={handleFrameLoad}
             />
