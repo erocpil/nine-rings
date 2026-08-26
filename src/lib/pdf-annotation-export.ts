@@ -1,5 +1,6 @@
 import {
   PDFArray,
+  PDFDict,
   PDFDocument,
   PDFHexString,
   PDFName,
@@ -17,6 +18,11 @@ export interface PdfTextGeometryItem {
 export interface PdfHighlightGeometry {
   highlight: LocalPdfHighlight;
   quadPoints: number[][];
+}
+
+function rgbComponents(color: string): [number, number, number] {
+  const normalized = /^#[0-9a-f]{6}$/i.test(color) ? color.slice(1) : "ffd600";
+  return [0, 2, 4].map((offset) => Number.parseInt(normalized.slice(offset, offset + 2), 16) / 255) as [number, number, number];
 }
 
 export function highlightQuadPoints(
@@ -81,22 +87,71 @@ export async function exportPdfWithHighlights(
   const document = await PDFDocument.load(source, { updateMetadata: false });
   const pages = document.getPages();
   for (const { highlight, quadPoints } of geometries) {
-    if (quadPoints.length === 0) continue;
     const page = pages[highlight.page - 1];
     if (!page) continue;
-    const annotation = document.context.obj({
+    const kind = highlight.kind ?? "highlight";
+    const color = rgbComponents(highlight.color);
+    const common = {
       Type: "Annot",
-      Subtype: "Highlight",
-      Rect: annotationRect(quadPoints),
-      QuadPoints: quadPoints.flat(),
-      C: [1, 0.82, 0],
+      C: color,
       CA: 0.38,
       F: 4,
       T: PDFHexString.fromText("Nine Rings"),
-      Contents: PDFHexString.fromText(highlight.text),
+      Contents: PDFHexString.fromText(highlight.note || highlight.text),
       M: PDFString.fromDate(new Date(highlight.createdAt || Date.now())),
       NM: PDFHexString.fromText(highlight.id),
-    });
+    };
+    let annotation: PDFDict;
+    if (kind === "highlight" || kind === "underline" || kind === "strikeout") {
+      if (quadPoints.length === 0) continue;
+      annotation = document.context.obj({
+        ...common,
+        Subtype: kind === "highlight" ? "Highlight" : kind === "underline" ? "Underline" : "StrikeOut",
+        Rect: annotationRect(quadPoints),
+        QuadPoints: quadPoints.flat(),
+      });
+    } else if (kind === "freeText" || kind === "square" || kind === "circle") {
+      if (!highlight.rect) continue;
+      const { width: pageWidth, height: pageHeight } = page.getSize();
+      const rect = [
+        highlight.rect.x * pageWidth,
+        (1 - highlight.rect.y - highlight.rect.height) * pageHeight,
+        (highlight.rect.x + highlight.rect.width) * pageWidth,
+        (1 - highlight.rect.y) * pageHeight,
+      ];
+      annotation = document.context.obj({
+        ...common,
+        Subtype: kind === "freeText" ? "FreeText" : kind === "square" ? "Square" : "Circle",
+        Rect: rect,
+        Contents: PDFHexString.fromText(highlight.text || highlight.note || ""),
+        BS: { W: 2, S: "S" },
+        ...(kind === "freeText" ? {
+          DA: PDFString.of(`/Helv ${highlight.fontSize ?? 14} Tf ${color.join(" ")} rg`),
+          Q: 0,
+        } : {}),
+      });
+    } else {
+      if (!highlight.points) continue;
+      const { width: pageWidth, height: pageHeight } = page.getSize();
+      annotation = document.context.obj({
+        ...common,
+        Subtype: "Line",
+        Rect: [
+          Math.min(highlight.points.x1, highlight.points.x2) * pageWidth - 2,
+          (1 - Math.max(highlight.points.y1, highlight.points.y2)) * pageHeight - 2,
+          Math.max(highlight.points.x1, highlight.points.x2) * pageWidth + 2,
+          (1 - Math.min(highlight.points.y1, highlight.points.y2)) * pageHeight + 2,
+        ],
+        L: [
+          highlight.points.x1 * pageWidth,
+          (1 - highlight.points.y1) * pageHeight,
+          highlight.points.x2 * pageWidth,
+          (1 - highlight.points.y2) * pageHeight,
+        ],
+        LE: kind === "arrow" ? ["None", "OpenArrow"] : ["None", "None"],
+        BS: { W: 2, S: "S" },
+      });
+    }
     const annotationRef = document.context.register(annotation);
     let annotations = page.node.lookupMaybe(PDFName.of("Annots"), PDFArray);
     if (!annotations) {

@@ -4,9 +4,10 @@ import { api } from "../lib/api";
 interface TagFilterProps {
   activeTag: string | null;
   onTagSelect: (tag: string | null) => void;
+  refreshKey?: number;
 }
 
-export function TagFilter({ activeTag, onTagSelect }: TagFilterProps) {
+export function TagFilter({ activeTag, onTagSelect, refreshKey }: TagFilterProps) {
   const [tags, setTags] = useState<string[]>([]);
 
   useEffect(() => {
@@ -16,7 +17,7 @@ export function TagFilter({ activeTag, onTagSelect }: TagFilterProps) {
   // Refresh when activeTag changes (e.g., after note update adds/removes tags)
   useEffect(() => {
     api.tags.listAll().then(setTags).catch(() => {});
-  }, [activeTag]);
+  }, [activeTag, refreshKey]);
 
   if (tags.length === 0) return null;
 

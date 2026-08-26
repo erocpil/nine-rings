@@ -34,6 +34,7 @@ interface Props {
   webStorageStatus?: WebStorageStatus;
   onBeforeBookmarkNoteUpdate?: (noteId: string) => Promise<void>;
   onBookmarkNoteUpdated?: (note: Note) => void;
+  onNotesChanged?: () => void;
   onOpenPdf?: (documentId: string) => void;
 }
 
@@ -96,7 +97,7 @@ function yieldToNextFrame(): Promise<void> {
   return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
 }
 
-export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onPullDone, webStorageStatus, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onOpenPdf }: Props) {
+export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onPullDone, webStorageStatus, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onNotesChanged, onOpenPdf }: Props) {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -233,6 +234,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
         .map((candidate) => candidate.id === updated.id ? updated : candidate)
         .filter((candidate) => (candidate.content.metadata?.bookmarks?.length ?? 0) > 0));
       onBookmarkNoteUpdated?.(updated);
+      onNotesChanged?.();
       showMessage("书签已删除");
     } catch (error) {
       showMessage(`删除书签失败：${error instanceof Error ? error.message : String(error)}`);
@@ -371,6 +373,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     setRenameTag(null);
     setRenameVal("");
     refreshTags();
+    onNotesChanged?.();
   };
 
   const handleRemoveTag = async (name: string) => {
@@ -378,6 +381,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     const result = await api.tags.remove(name);
     showMessage(`已移除，影响 ${result.affected} 篇笔记`);
     refreshTags();
+    onNotesChanged?.();
   };
 
   // ── 导出/导入 ──
@@ -974,6 +978,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                             const result = await api.tags.merge(t, target);
                             showMessage(`已合并，影响 ${result.affected} 篇笔记`);
                             refreshTags();
+                            onNotesChanged?.();
                           }}
                           title="合并到其他标签"
                         >⊕</button>

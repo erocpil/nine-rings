@@ -2,6 +2,7 @@ import "fake-indexeddb/auto";
 import assert from "node:assert/strict";
 import {
   addLocalPdfBookmark,
+  addLocalPdfAnnotation,
   addLocalPdfHighlight,
   deleteLocalPdf,
   deleteLocalPdfBookmark,
@@ -13,6 +14,7 @@ import {
   listLocalPdfs,
   resetPdfLibraryConnectionForTests,
   updateLocalPdfProgress,
+  updateLocalPdfHighlight,
 } from "../src/lib/pdf-library";
 
 function pdfFile(name: string, body = "sample"): File {
@@ -78,6 +80,22 @@ async function run() {
   }), /范围无效/);
   await deleteLocalPdfHighlight(highlight.id);
   assert.deepEqual(await listLocalPdfHighlights(imported.id), []);
+
+  const textBox = await addLocalPdfAnnotation({
+    pdfId: imported.id,
+    page: 3,
+    kind: "freeText",
+    start: 0,
+    end: 0,
+    text: "review this",
+    color: "#ff0000",
+    rect: { x: 0.1, y: 0.2, width: 0.3, height: 0.1 },
+    fontSize: 16,
+  });
+  const updatedTextBox = await updateLocalPdfHighlight(textBox.id, { note: "important", fontSize: 18 });
+  assert.equal(updatedTextBox.note, "important");
+  assert.equal(updatedTextBox.fontSize, 18);
+  await deleteLocalPdfHighlight(textBox.id);
 
   const bookmark = await addLocalPdfBookmark(imported.id, 7, "重要章节");
   assert.equal((await listLocalPdfBookmarks(imported.id))[0]?.label, "重要章节");

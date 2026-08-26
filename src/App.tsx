@@ -489,6 +489,10 @@ function App() {
     }
   });
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0);
+  const refreshNoteViews = useCallback(() => {
+    setSidebarRefreshKey((key) => key + 1);
+    setDocTreeKey((key) => key + 1);
+  }, []);
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(() => {
     const target = startupWorkspaceTargetRef.current;
     return target?.kind === "folder" ? target.path : null;
@@ -635,7 +639,7 @@ function App() {
       console.error("[App] 删除笔记失败:", error);
       return;
     }
-    setDocTreeKey((key) => key + 1);
+    refreshNoteViews();
     const key = `delete-${id}-${Date.now()}`;
     showUndo({
       key,
@@ -643,10 +647,10 @@ function App() {
       onUndo: async () => {
         await api.recycle.restore(id);
         await setDate(useNotesStore.getState().currentDate);
-        setDocTreeKey((value) => value + 1);
+        refreshNoteViews();
       },
     });
-  }, [deleteNote, flushAutoSave, setDate, showUndo]);
+  }, [deleteNote, flushAutoSave, refreshNoteViews, setDate, showUndo]);
 
   const handleBatchDeleteWithUndo = useCallback(async (ids: string[], folderPath?: string) => {
     const uniqueIds = [...new Set(ids)];
@@ -659,7 +663,7 @@ function App() {
       console.error("[App] 批量删除笔记失败:", error);
       return;
     }
-    setDocTreeKey((key) => key + 1);
+    refreshNoteViews();
     const folderName = folderPath ? folderPath.split("/").pop() || "选中" : "选中";
     showUndo({
       key: `batch-delete-${Date.now()}`,
@@ -669,10 +673,10 @@ function App() {
       onUndo: async () => {
         await Promise.all(uniqueIds.map((id) => api.recycle.restore(id)));
         await setDate(useNotesStore.getState().currentDate);
-        setDocTreeKey((value) => value + 1);
+        refreshNoteViews();
       },
     });
-  }, [batchDelete, flushAutoSave, setDate, showUndo]);
+  }, [batchDelete, flushAutoSave, refreshNoteViews, setDate, showUndo]);
 
   const handleMoveFolder = useCallback(async (sourcePath: string, targetPath: string) => {
     const currentSelected = useNotesStore.getState().selectedNote;
@@ -785,14 +789,14 @@ function App() {
     let unlisten: (() => void) | undefined;
     import("@tauri-apps/api/event").then(({ listen }) => {
       listen("tray-new-note", () => {
-        createNote();
+        void createNote().then(refreshNoteViews);
       }).then((fn) => { unlisten = fn; });
     }).catch(() => {});
     return () => { unlisten?.(); };
-  }, []); // 仅挂载一次，通过 ref 访问最新值
+  }, [createNote, refreshNoteViews]);
 
   // ── Quick Capture 提交后刷新列表 ──
-  useQuickCaptureListener({ setDate });
+  useQuickCaptureListener({ setDate, onNotesChanged: refreshNoteViews });
 
   // 启动主键查询完成后恢复工作区。最后文档已由 useNotes.initialize 优先加载；
   // 这里仅处理目录/概念视图并开启持久化，避免再次扫描列表或重复查询正文。
@@ -1356,11 +1360,13 @@ function App() {
               onTagSelect={(tag) => {
                 setActiveTag(tag);
               }}
-              onTogglePin={(id, pinned) => {
-                updateNote(id, { pinned });
+              onTogglePin={async (id, pinned) => {
+                await updateNote(id, { pinned });
+                refreshNoteViews();
               }}
-              onRename={(id, title) => {
-                updateNote(id, { title });
+              onRename={async (id, title) => {
+                await updateNote(id, { title });
+                refreshNoteViews();
               }}
               onSelect={(note) => {
                 setQuery("");
@@ -1368,7 +1374,9 @@ function App() {
                 handleSelectNote(note);
                 closeSidebarOnNarrowScreen();
               }}
-              onCreate={createNote}
+              onCreate={() => {
+                void createNote().then(refreshNoteViews);
+              }}
               onCreateWithTemplate={async (template: Template) => {
                 const meta = await templateStore.applyTemplate(template);
                 const today = localDateKey();
@@ -1382,22 +1390,27 @@ function App() {
                   concepts: meta.concepts?.length ? meta.concepts : undefined,
                   pinned: meta.pinned,
                 });
-                setDate(today);
+                await setDate(today);
                 handleSelectNote(note);
+                refreshNoteViews();
               }}
               onDelete={handleDeleteWithUndo}
+              onBatchDelete={handleBatchDeleteWithUndo}
               onReorder={async (id, sortOrder) => {
                 await api.notes.updateOrder(id, sortOrder);
                 // Refresh current date to reflect new order
-                setDate(currentDate);
+                await setDate(currentDate);
+                refreshNoteViews();
               }}
               onMoveToDate={async (id, date) => {
                 await api.notes.update(id, { date });
                 // Refresh current date to reflect removal
-                setDate(currentDate);
+                await setDate(currentDate);
+                refreshNoteViews();
               }}
-              onToggleReadonly={(id, readonly) => {
-                updateNote(id, { readonly });
+              onToggleReadonly={async (id, readonly) => {
+                await updateNote(id, { readonly });
+                refreshNoteViews();
               }}
               sidebarRefreshKey={sidebarRefreshKey}
             />
@@ -1619,7 +1632,10 @@ function App() {
               onExternalMarkdownApply={handleExternalMarkdownApply}
               onExternalMarkdownDetach={handleExternalMarkdownDetach}
               externalSourceActionsDisabled={syncBusy}
-              onNoteUpdate={(updated) => { handleSelectNote(updated); setDocTreeKey(k => k + 1); }}
+              onNoteUpdate={(updated) => {
+                handleSelectNote(updated);
+                refreshNoteViews();
+              }}
               onClose={() => setPropertiesOpen(false)}
               onOpenConcept={(concept) => {
                 setSelectedConcept(concept);
@@ -1665,6 +1681,7 @@ function App() {
               setExternalReloadKey((key) => key + 1);
             }
           }}
+          onNotesChanged={refreshNoteViews}
           onSyncBusy={setSyncBusy}
           onImport={() => {
             // 完整恢复会同时替换数据库配置和 localStorage 中的工作区状态。
@@ -1744,6 +1761,10 @@ function App() {
         <RecycleBin
           open={recycleOpen}
           onClose={() => setRecycleOpen(false)}
+          onNotesChanged={() => {
+            void setDate(currentDate);
+            refreshNoteViews();
+          }}
         />
       </Suspense>
       <UndoToast undo={undo} onDismiss={() => setUndo(null)} />
@@ -1752,7 +1773,10 @@ function App() {
           open={versionOpen}
           noteId={selectedNote?.id ?? null}
           onClose={() => setVersionOpen(false)}
-          onRestore={() => setDate(currentDate)}
+          onRestore={() => {
+            void setDate(currentDate);
+            refreshNoteViews();
+          }}
         />
       </Suspense>
       {docCreateOpen && (

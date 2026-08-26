@@ -9,6 +9,7 @@ import {
 } from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
+  addLocalPdfAnnotation,
   addLocalPdfBookmark,
   addLocalPdfHighlight,
   deleteLocalPdfBookmark,
@@ -17,6 +18,7 @@ import {
   listLocalPdfBookmarks,
   listLocalPdfHighlights,
   updateLocalPdfProgress,
+  updateLocalPdfHighlight,
   type LocalPdfBookmark,
   type LocalPdfEntry,
   type LocalPdfHighlight,
@@ -114,6 +116,19 @@ function pdfErrorMessage(error: unknown): string {
   return error.message || "PDF 打开失败";
 }
 
+function annotationKindLabel(kind: LocalPdfHighlight["kind"]): string {
+  return {
+    highlight: "高亮",
+    underline: "下划线",
+    strikeout: "删除线",
+    freeText: "文本框",
+    square: "矩形",
+    circle: "圆形",
+    line: "直线",
+    arrow: "箭头",
+  }[kind ?? "highlight"];
+}
+
 interface WebkitFullscreenDocument extends Document {
   webkitFullscreenElement?: Element | null;
   webkitExitFullscreen?: () => Promise<void> | void;
@@ -124,6 +139,25 @@ interface WebkitFullscreenElement extends HTMLDivElement {
 }
 
 type PdfViewMode = "horizontal" | "vertical";
+type PdfAnnotationTool = "freeText" | "square" | "circle" | "line" | "arrow";
+
+interface PdfAnnotationDraft {
+  page: number;
+  kind: PdfAnnotationTool;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+interface PdfAnnotationManipulation {
+  id: string;
+  page: number;
+  mode: "move" | "resize";
+  startX: number;
+  startY: number;
+  rect: NonNullable<LocalPdfHighlight["rect"]>;
+}
 
 export function PdfReader({ documentId, onClose, onFullscreenChange, initialHighlightId, initialTargetRange, onCreateExcerpt }: Props) {
   const readerRef = useRef<HTMLDivElement>(null);
@@ -148,6 +182,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const pendingPinchCommitRef = useRef<{ pageNumber: number; surface: HTMLDivElement } | null>(null);
   const zoomAnchorRef = useRef<{ pageNumber: number; x: number; y: number } | null>(null);
   const pendingPageNavigationRef = useRef<number | null>(null);
+  const annotationDraftRef = useRef<PdfAnnotationDraft | null>(null);
+  const annotationManipulationRef = useRef<PdfAnnotationManipulation | null>(null);
   const searchRequestRef = useRef(0);
   const saveTimerRef = useRef<number | null>(null);
   const latestProgressRef = useRef<{
@@ -196,6 +232,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const [highlightSaving, setHighlightSaving] = useState(false);
   const [excerptSaving, setExcerptSaving] = useState(false);
   const [annotatedPdfExporting, setAnnotatedPdfExporting] = useState(false);
+  const [annotationTool, setAnnotationTool] = useState<PdfAnnotationTool | null>(null);
+  const [annotationDraft, setAnnotationDraft] = useState<PdfAnnotationDraft | null>(null);
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
 
   const applyFullscreenState = useCallback((next: boolean) => {
     if (!next) setImmersiveFallback(false);
@@ -280,12 +319,13 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     return () => document.removeEventListener("selectionchange", updateSelection);
   }, [textLayerRevision]);
 
-  const ensureSelectionHighlight = useCallback(async () => {
+  const ensureSelectionHighlight = useCallback(async (kind: "highlight" | "underline" | "strikeout" = "highlight") => {
     if (!entry || !selectionAnchor) throw new Error("请先选择 PDF 文本");
     const existing = highlights.find((highlight) => (
       highlight.page === selectionAnchor.page
       && highlight.start === selectionAnchor.start
       && highlight.end === selectionAnchor.end
+      && (highlight.kind ?? "highlight") === kind
     ));
     if (existing) return { highlight: existing, created: false };
     const highlight = await addLocalPdfHighlight({
@@ -294,6 +334,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       start: selectionAnchor.start,
       end: selectionAnchor.end,
       text: selectionAnchor.text,
+      kind,
     });
     setHighlights((current) => [...current, highlight]);
     return { highlight, created: true };
@@ -303,31 +344,43 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     highlight.page === selectionAnchor.page
     && highlight.start === selectionAnchor.start
     && highlight.end === selectionAnchor.end
+    && (highlight.kind ?? "highlight") === "highlight"
   )) : undefined;
+  const selectedUnderline = selectionAnchor ? highlights.some((highlight) => highlight.page === selectionAnchor.page
+    && highlight.start === selectionAnchor.start && highlight.end === selectionAnchor.end && highlight.kind === "underline") : false;
+  const selectedStrikeout = selectionAnchor ? highlights.some((highlight) => highlight.page === selectionAnchor.page
+    && highlight.start === selectionAnchor.start && highlight.end === selectionAnchor.end && highlight.kind === "strikeout") : false;
 
-  const saveHighlight = useCallback(async () => {
+  const saveTextAnnotation = useCallback(async (kind: "highlight" | "underline" | "strikeout") => {
     if (!selectionAnchor || highlightSaving) return;
+    const existing = highlights.find((highlight) => highlight.page === selectionAnchor.page
+      && highlight.start === selectionAnchor.start
+      && highlight.end === selectionAnchor.end
+      && (highlight.kind ?? "highlight") === kind);
     setHighlightSaving(true);
     try {
-      if (selectedHighlight) {
-        await deleteLocalPdfHighlight(selectedHighlight.id);
-        setHighlights((current) => current.filter((highlight) => highlight.id !== selectedHighlight.id));
-        setTargetHighlightId((current) => current === selectedHighlight.id ? null : current);
+      const label = annotationKindLabel(kind);
+      if (existing) {
+        await deleteLocalPdfHighlight(existing.id);
+        setHighlights((current) => current.filter((highlight) => highlight.id !== existing.id));
+        setTargetHighlightId((current) => current === existing.id ? null : current);
         window.getSelection()?.removeAllRanges();
         setSelectionAnchor(null);
-        showActionNotice("已取消高亮");
+        showActionNotice(`已取消${label}`);
         return;
       }
-      await ensureSelectionHighlight();
+      await ensureSelectionHighlight(kind);
       window.getSelection()?.removeAllRanges();
       setSelectionAnchor(null);
-      showActionNotice("已保存高亮");
+      showActionNotice(`已保存${label}`);
     } catch (reason) {
-      showActionNotice(`高亮失败：${pdfErrorMessage(reason)}`);
+      showActionNotice(`${annotationKindLabel(kind)}失败：${pdfErrorMessage(reason)}`);
     } finally {
       setHighlightSaving(false);
     }
-  }, [ensureSelectionHighlight, highlightSaving, selectedHighlight, selectionAnchor, showActionNotice]);
+  }, [ensureSelectionHighlight, highlightSaving, highlights, selectionAnchor, showActionNotice]);
+
+  const saveHighlight = useCallback(() => saveTextAnnotation("highlight"), [saveTextAnnotation]);
 
   const createExcerpt = useCallback(async () => {
     if (!onCreateExcerpt || !entry || !selectionAnchor || excerptSaving) return;
@@ -1020,7 +1073,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   }, [bookmarks, entry, page, pageLabels, showActionNotice]);
 
   const jumpToHighlight = useCallback((highlight: LocalPdfHighlight) => {
-    setTargetHighlightId(highlight.id);
+    const kind = highlight.kind ?? "highlight";
+    if (kind === "highlight" || kind === "underline" || kind === "strikeout") setTargetHighlightId(highlight.id);
+    else setSelectedAnnotationId(highlight.id);
     changePage(highlight.page);
     if (window.matchMedia("(max-width: 768px)").matches) setOutlineOpen(false);
   }, [changePage]);
@@ -1031,9 +1086,168 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       setHighlights((current) => current.filter((highlight) => highlight.id !== id));
       setTargetHighlightId((current) => current === id ? null : current);
     } catch (reason) {
-      showActionNotice(`删除高亮失败：${pdfErrorMessage(reason)}`);
+      showActionNotice(`删除批注失败：${pdfErrorMessage(reason)}`);
     }
   }, [showActionNotice]);
+
+  const updateAnnotation = useCallback(async (
+    id: string,
+    changes: Parameters<typeof updateLocalPdfHighlight>[1],
+  ) => {
+    try {
+      const updated = await updateLocalPdfHighlight(id, changes);
+      setHighlights((current) => current.map((annotation) => annotation.id === id ? updated : annotation));
+    } catch (reason) {
+      showActionNotice(`批注更新失败：${pdfErrorMessage(reason)}`);
+    }
+  }, [showActionNotice]);
+
+  const annotationPoint = (surface: HTMLElement, clientX: number, clientY: number) => {
+    const rect = surface.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width))),
+      y: Math.max(0, Math.min(1, (clientY - rect.top) / Math.max(1, rect.height))),
+    };
+  };
+
+  const handleAnnotationPointerDown = useCallback((event: React.PointerEvent<HTMLElement>) => {
+    if (!annotationTool || !entry || event.pointerType === "touch" && event.isPrimary === false) return;
+    const target = event.target instanceof Element ? event.target : null;
+    const surface = target?.closest<HTMLElement>(".pdf-page-surface");
+    if (!surface) return;
+    const pageNumber = Number(surface.dataset.pdfPage);
+    if (!pageNumber) return;
+    const point = annotationPoint(surface, event.clientX, event.clientY);
+    const draft = { page: pageNumber, kind: annotationTool, x1: point.x, y1: point.y, x2: point.x, y2: point.y };
+    annotationDraftRef.current = draft;
+    setAnnotationDraft(draft);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  }, [annotationTool, entry]);
+
+  const handleAnnotationPointerMove = useCallback((event: React.PointerEvent<HTMLElement>) => {
+    const draft = annotationDraftRef.current;
+    const manipulation = annotationManipulationRef.current;
+    if (!draft && !manipulation) return;
+    if (manipulation) {
+      const surface = pageSurfaceRefs.current.get(manipulation.page);
+      if (!surface) return;
+      const bounds = surface.getBoundingClientRect();
+      const deltaX = (event.clientX - manipulation.startX) / Math.max(1, bounds.width);
+      const deltaY = (event.clientY - manipulation.startY) / Math.max(1, bounds.height);
+      const rect = manipulation.mode === "move" ? {
+        ...manipulation.rect,
+        x: Math.max(0, Math.min(1 - manipulation.rect.width, manipulation.rect.x + deltaX)),
+        y: Math.max(0, Math.min(1 - manipulation.rect.height, manipulation.rect.y + deltaY)),
+      } : {
+        ...manipulation.rect,
+        width: Math.max(0.06, Math.min(1 - manipulation.rect.x, manipulation.rect.width + deltaX)),
+        height: Math.max(0.04, Math.min(1 - manipulation.rect.y, manipulation.rect.height + deltaY)),
+      };
+      manipulation.rect = rect;
+      manipulation.startX = event.clientX;
+      manipulation.startY = event.clientY;
+      setHighlights((current) => current.map((annotation) => annotation.id === manipulation.id ? { ...annotation, rect } : annotation));
+      event.preventDefault();
+      return;
+    }
+    if (!draft) return;
+    const surface = pageSurfaceRefs.current.get(draft.page);
+    if (!surface) return;
+    const point = annotationPoint(surface, event.clientX, event.clientY);
+    const next = { ...draft, x2: point.x, y2: point.y };
+    annotationDraftRef.current = next;
+    setAnnotationDraft(next);
+    event.preventDefault();
+  }, []);
+
+  const handleAnnotationPointerUp = useCallback(async (event: React.PointerEvent<HTMLElement>) => {
+    const releasePointer = () => {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    };
+    const manipulation = annotationManipulationRef.current;
+    if (manipulation) {
+      annotationManipulationRef.current = null;
+      releasePointer();
+      await updateAnnotation(manipulation.id, { rect: manipulation.rect });
+      return;
+    }
+    const draft = annotationDraftRef.current;
+    annotationDraftRef.current = null;
+    setAnnotationDraft(null);
+    if (!draft || !entry) {
+      releasePointer();
+      return;
+    }
+    const left = Math.min(draft.x1, draft.x2);
+    const top = Math.min(draft.y1, draft.y2);
+    const minimumWidth = draft.kind === "freeText" ? 0.22 : 0.04;
+    const minimumHeight = draft.kind === "freeText" ? 0.08 : 0.025;
+    const width = Math.min(1 - left, Math.max(minimumWidth, Math.abs(draft.x2 - draft.x1)));
+    const height = Math.min(1 - top, Math.max(minimumHeight, Math.abs(draft.y2 - draft.y1)));
+    let text = "";
+    if (draft.kind === "freeText") {
+      text = window.prompt("输入 PDF 文本批注")?.trim() ?? "";
+      if (!text) {
+        releasePointer();
+        return;
+      }
+    }
+    try {
+      const annotation = await addLocalPdfAnnotation({
+        pdfId: entry.id,
+        page: draft.page,
+        kind: draft.kind,
+        start: 0,
+        end: 0,
+        text,
+        color: "#ffb300",
+        rect: draft.kind === "freeText" || draft.kind === "square" || draft.kind === "circle"
+          ? { x: left, y: top, width, height }
+          : undefined,
+        points: draft.kind === "line" || draft.kind === "arrow"
+          ? { x1: draft.x1, y1: draft.y1, x2: draft.x2, y2: draft.y2 }
+          : undefined,
+        fontSize: 14,
+      });
+      setHighlights((current) => [...current, annotation]);
+      setSelectedAnnotationId(annotation.id);
+      showActionNotice(`已添加${annotationKindLabel(annotation.kind)}`);
+    } catch (reason) {
+      showActionNotice(`添加批注失败：${pdfErrorMessage(reason)}`);
+    } finally {
+      releasePointer();
+    }
+  }, [entry, showActionNotice, updateAnnotation]);
+
+  const handleAnnotationPointerCancel = useCallback((event: React.PointerEvent<HTMLElement>) => {
+    const manipulation = annotationManipulationRef.current;
+    if (manipulation) void updateAnnotation(manipulation.id, { rect: manipulation.rect });
+    annotationDraftRef.current = null;
+    annotationManipulationRef.current = null;
+    setAnnotationDraft(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  }, [updateAnnotation]);
+
+  const beginAnnotationManipulation = useCallback((
+    event: React.PointerEvent<HTMLElement>,
+    annotation: LocalPdfHighlight,
+    mode: "move" | "resize",
+  ) => {
+    if (annotation.kind !== "freeText" || !annotation.rect) return;
+    annotationManipulationRef.current = {
+      id: annotation.id,
+      page: annotation.page,
+      mode,
+      startX: event.clientX,
+      startY: event.clientY,
+      rect: annotation.rect,
+    };
+    setSelectedAnnotationId(annotation.id);
+    viewportRef.current?.setPointerCapture(event.pointerId);
+    event.stopPropagation();
+    event.preventDefault();
+  }, []);
 
   const exportAnnotatedPdf = useCallback(async () => {
     if (!pdf || !entry || highlights.length === 0 || annotatedPdfExporting) return;
@@ -1067,8 +1281,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           });
         });
       }
-      const exportableCount = geometries.filter((geometry) => geometry.quadPoints.length > 0).length;
-      if (exportableCount === 0) throw new Error("无法从当前 PDF 文字层定位高亮区域");
+      const exportableCount = geometries.filter(({ highlight, quadPoints }) => quadPoints.length > 0 || highlight.rect || highlight.points).length;
+      if (exportableCount === 0) throw new Error("当前批注缺少可导出的页面位置");
       const bytes = await exportPdfWithHighlights(await stored.blob.arrayBuffer(), geometries);
       const baseName = entry.name.replace(/\.pdf$/i, "").replace(/[\\/:*?"<>|]/g, "-").slice(0, 120) || "文档";
       const filename = `${baseName}-已标注.pdf`;
@@ -1255,8 +1469,10 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           const mark = document.createElement("mark");
           const classes: string[] = [];
           if (highlightRange) {
-            classes.push("pdf-annotation-highlight");
+            const kind = highlightRange.highlight.kind ?? "highlight";
+            classes.push(`pdf-annotation-${kind}`);
             mark.dataset.highlightId = highlightRange.highlight.id;
+            mark.style.setProperty("--pdf-annotation-color", highlightRange.highlight.color || "#ffd600");
             if (highlightRange.highlight.id === targetHighlightId) classes.push("pdf-highlight-target");
           }
           if (searchRange) {
@@ -1282,6 +1498,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
 
   const handleTouchStart = useCallback((event: React.TouchEvent<HTMLElement>) => {
     if (event.touches.length === 2) {
+      annotationDraftRef.current = null;
+      setAnnotationDraft(null);
       const first = event.touches[0];
       const second = event.touches[1];
       const eventTarget = event.target instanceof Element ? event.target : null;
@@ -1422,6 +1640,80 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     setFullscreenControlsVisible((visible) => !visible);
   }, [fullscreen]);
 
+  const renderPageAnnotationOverlays = (pageNumber: number) => {
+    const annotations = highlights.filter((annotation) => annotation.page === pageNumber
+      && annotation.kind !== "highlight" && annotation.kind !== "underline" && annotation.kind !== "strikeout");
+    const draft = annotationDraft?.page === pageNumber ? annotationDraft : null;
+    return (
+      <div className={`pdf-annotation-overlay ${annotationTool ? "drawing" : ""}`} contentEditable={false}>
+        {annotations.map((annotation) => {
+          const selected = annotation.id === selectedAnnotationId;
+          if (annotation.rect) {
+            return (
+              <div
+                key={annotation.id}
+                className={`pdf-page-annotation pdf-page-annotation-${annotation.kind} ${selected ? "selected" : ""}`}
+                style={{
+                  left: `${annotation.rect.x * 100}%`,
+                  top: `${annotation.rect.y * 100}%`,
+                  width: `${annotation.rect.width * 100}%`,
+                  height: `${annotation.rect.height * 100}%`,
+                  borderColor: annotation.color,
+                  color: annotation.color,
+                  fontSize: annotation.kind === "freeText" ? `calc(${annotation.fontSize ?? 14}px * var(--scale-factor, 1))` : undefined,
+                }}
+                onPointerDown={(event) => beginAnnotationManipulation(event, annotation, "move")}
+                onClick={(event) => { event.stopPropagation(); setSelectedAnnotationId(annotation.id); }}
+                title={annotation.note || annotation.text || annotationKindLabel(annotation.kind)}
+              >
+                {annotation.kind === "freeText" && <span>{annotation.text}</span>}
+                {selected && annotation.kind === "freeText" && (
+                  <button
+                    type="button"
+                    className="pdf-annotation-resize-handle"
+                    aria-label="调整文本框大小"
+                    onPointerDown={(event) => beginAnnotationManipulation(event, annotation, "resize")}
+                  />
+                )}
+              </div>
+            );
+          }
+          if (annotation.points) {
+            const markerId = `pdf-arrow-${annotation.id}`;
+            return (
+              <svg key={annotation.id} className={`pdf-line-annotation ${selected ? "selected" : ""}`} viewBox="0 0 100 100" preserveAspectRatio="none">
+                {annotation.kind === "arrow" && <defs><marker id={markerId} markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 z" fill={annotation.color} /></marker></defs>}
+                <line
+                  x1={annotation.points.x1 * 100}
+                  y1={annotation.points.y1 * 100}
+                  x2={annotation.points.x2 * 100}
+                  y2={annotation.points.y2 * 100}
+                  stroke={annotation.color}
+                  strokeWidth={selected ? 0.8 : 0.5}
+                  markerEnd={annotation.kind === "arrow" ? `url(#${markerId})` : undefined}
+                  style={{ pointerEvents: "stroke" }}
+                  onClick={() => setSelectedAnnotationId(annotation.id)}
+                />
+              </svg>
+            );
+          }
+          return null;
+        })}
+        {draft && (
+          <div
+            className={`pdf-annotation-draft pdf-page-annotation-${draft.kind}`}
+            style={{
+              left: `${Math.min(draft.x1, draft.x2) * 100}%`,
+              top: `${Math.min(draft.y1, draft.y2) * 100}%`,
+              width: `${Math.max(0.01, Math.abs(draft.x2 - draft.x1)) * 100}%`,
+              height: `${Math.max(0.01, Math.abs(draft.y2 - draft.y1)) * 100}%`,
+            }}
+          />
+        )}
+      </div>
+    );
+  };
+
   const renderOutline = (items: OutlineItem[], depth = 0) => items.map((item, index) => (
     <div className="pdf-outline-node" key={`${depth}-${index}-${item.title}`}>
       <button
@@ -1538,6 +1830,24 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
             setViewMode("vertical");
           }}>纵向</button>
         </div>
+        <div className="pdf-annotation-tools" aria-label="PDF 批注工具">
+          {([
+            ["freeText", "文本"],
+            ["square", "矩形"],
+            ["circle", "圆形"],
+            ["line", "直线"],
+            ["arrow", "箭头"],
+          ] as const).map(([tool, label]) => (
+            <button
+              key={tool}
+              type="button"
+              className={annotationTool === tool ? "active" : undefined}
+              aria-pressed={annotationTool === tool}
+              onClick={() => setAnnotationTool((current) => current === tool ? null : tool)}
+              title={`在页面上绘制${label}批注`}
+            >{label}</button>
+          ))}
+        </div>
         <form className="pdf-search" onSubmit={(event) => { event.preventDefault(); void search(1); }}>
           <input
             ref={searchInputRef}
@@ -1582,7 +1892,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
                   type="button"
                   className={outlineMode === "highlights" ? "active" : undefined}
                   onClick={() => setOutlineMode("highlights")}
-                >高亮{highlights.length > 0 ? ` ${highlights.length}` : ""}</button>
+                >批注{highlights.length > 0 ? ` ${highlights.length}` : ""}</button>
                 <button
                   type="button"
                   className={outlineMode === "bookmarks" ? "active" : undefined}
@@ -1594,13 +1904,43 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
             <div className="pdf-outline-list">
               {outlineMode === "outline" && outline.length > 0 ? renderOutline(outline) : outlineMode === "highlights" ? (
                 <div className="pdf-annotation-directory">
-                  {highlights.length === 0 ? <p>还没有高亮。选择页面文字后点击“高亮”。</p> : highlights.map((highlight) => (
+                  {highlights.length === 0 ? <p>还没有批注。选择文字或使用工具栏中的绘制工具。</p> : highlights.map((highlight) => (
                     <div className="pdf-annotation-item" key={highlight.id}>
-                      <button type="button" onClick={() => jumpToHighlight(highlight)} title={highlight.text}>
-                        <strong>第 {highlight.page} 页</strong>
-                        <span>{highlight.text}</span>
+                      <button type="button" onClick={() => jumpToHighlight(highlight)} title={highlight.note || highlight.text}>
+                        <strong>第 {highlight.page} 页 · {annotationKindLabel(highlight.kind)}</strong>
+                        <span>{highlight.text || highlight.note || annotationKindLabel(highlight.kind)}</span>
                       </button>
-                      <button type="button" className="pdf-annotation-delete" onClick={() => void removeHighlight(highlight.id)} aria-label={`删除第 ${highlight.page} 页高亮`}>×</button>
+                      <div className="pdf-annotation-properties">
+                        <input
+                          type="color"
+                          value={highlight.color.startsWith("#") ? highlight.color : "#ffd600"}
+                          aria-label="批注颜色"
+                          onChange={(event) => void updateAnnotation(highlight.id, { color: event.target.value })}
+                        />
+                        {highlight.kind === "freeText" && <input
+                          type="text"
+                          defaultValue={highlight.text}
+                          aria-label="文本框内容"
+                          onBlur={(event) => void updateAnnotation(highlight.id, { text: event.target.value })}
+                        />}
+                        {highlight.kind === "freeText" && <input
+                          type="number"
+                          min="8"
+                          max="72"
+                          defaultValue={highlight.fontSize ?? 14}
+                          aria-label="文本框字号"
+                          onBlur={(event) => void updateAnnotation(highlight.id, { fontSize: Math.max(8, Math.min(72, Number(event.target.value) || 14)) })}
+                        />}
+                        <input
+                          type="text"
+                          defaultValue={highlight.note ?? ""}
+                          placeholder="备注"
+                          aria-label="批注备注"
+                          onBlur={(event) => void updateAnnotation(highlight.id, { note: event.target.value })}
+                        />
+                        <small>{new Date(highlight.updatedAt || highlight.createdAt).toLocaleString()}</small>
+                      </div>
+                      <button type="button" className="pdf-annotation-delete" onClick={() => void removeHighlight(highlight.id)} aria-label={`删除第 ${highlight.page} 页批注`}>×</button>
                     </div>
                   ))}
                 </div>
@@ -1648,6 +1988,10 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           className={`pdf-page-viewport ${viewMode === "vertical" ? "pdf-page-viewport-vertical" : ""}`}
           ref={viewportRef}
           onClick={handlePageClick}
+          onPointerDown={handleAnnotationPointerDown}
+          onPointerMove={handleAnnotationPointerMove}
+          onPointerUp={handleAnnotationPointerUp}
+          onPointerCancel={handleAnnotationPointerCancel}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -1673,6 +2017,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
                 <>
                   <canvas ref={canvasRefForPage(pageNumber)} />
                   <div ref={textLayerRefForPage(pageNumber)} className="pdf-text-layer textLayer" />
+                  {renderPageAnnotationOverlays(pageNumber)}
                 </>
               )}
             </div>
@@ -1685,6 +2030,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           <button type="button" disabled={highlightSaving || excerptSaving} onPointerDown={(event) => event.preventDefault()} onClick={() => void saveHighlight()}>
             {highlightSaving ? (selectedHighlight ? "取消中…" : "保存中…") : (selectedHighlight ? "取消高亮" : "高亮")}
           </button>
+          <button type="button" disabled={highlightSaving || excerptSaving} onPointerDown={(event) => event.preventDefault()} onClick={() => void saveTextAnnotation("underline")}>{selectedUnderline ? "取消下划线" : "下划线"}</button>
+          <button type="button" disabled={highlightSaving || excerptSaving} onPointerDown={(event) => event.preventDefault()} onClick={() => void saveTextAnnotation("strikeout")}>{selectedStrikeout ? "取消删除线" : "删除线"}</button>
           {onCreateExcerpt && <button
             type="button"
             disabled={excerptSaving || highlightSaving}

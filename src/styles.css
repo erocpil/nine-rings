@@ -8916,6 +8916,7 @@ button.doc-tree-toggle:focus-visible {
 .pdf-reader-fullscreen .pdf-reader-close,
 .pdf-reader-fullscreen .pdf-reader-title,
 .pdf-reader-fullscreen .pdf-zoom-controls,
+.pdf-reader-fullscreen .pdf-annotation-tools,
 .pdf-reader-fullscreen .pdf-search,
 .pdf-reader-fullscreen .pdf-reader-toolbar > button:not(.pdf-fullscreen-button) {
   display: none;
@@ -9170,7 +9171,8 @@ button.doc-tree-toggle:focus-visible {
 }
 
 .pdf-annotation-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
   min-width: 0;
   align-items: stretch;
 }
@@ -9223,6 +9225,38 @@ button.doc-tree-toggle:focus-visible {
 .pdf-annotation-item .pdf-annotation-delete:hover {
   background: var(--danger-bg);
   color: var(--danger);
+}
+
+.pdf-annotation-properties {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 4px;
+  padding: 2px 8px 7px 12px;
+}
+
+.pdf-annotation-properties input {
+  min-width: 0;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.pdf-annotation-properties input[type="color"] {
+  width: 28px;
+  padding: 2px;
+}
+
+.pdf-annotation-properties input[type="text"] {
+  padding: 3px 6px;
+}
+
+.pdf-annotation-properties small {
+  grid-column: 2;
+  color: var(--text-secondary);
+  font-size: 9px;
 }
 
 .pdf-page-viewport {
@@ -9314,7 +9348,99 @@ button.doc-tree-toggle:focus-visible {
 }
 
 .pdf-text-layer mark.pdf-annotation-highlight {
-  background: rgba(255, 214, 0, 0.38);
+  background: color-mix(in srgb, var(--pdf-annotation-color, #ffd600) 38%, transparent);
+}
+
+.pdf-text-layer mark.pdf-annotation-underline,
+.pdf-text-layer mark.pdf-annotation-strikeout {
+  background: transparent;
+  text-decoration-color: var(--pdf-annotation-color, #ffd600);
+  text-decoration-thickness: 2px;
+}
+
+.pdf-text-layer mark.pdf-annotation-underline {
+  text-decoration-line: underline;
+  text-underline-offset: 2px;
+}
+
+.pdf-text-layer mark.pdf-annotation-strikeout {
+  text-decoration-line: line-through;
+}
+
+.pdf-annotation-tools {
+  display: flex;
+  gap: 3px;
+}
+
+.pdf-annotation-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.pdf-annotation-overlay.drawing {
+  pointer-events: auto;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.pdf-page-annotation {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid;
+  pointer-events: auto;
+}
+
+.pdf-page-annotation-freeText {
+  overflow: hidden;
+  padding: 3px 5px;
+  background: rgba(255, 255, 255, 0.86);
+  font: 12px/1.35 var(--font);
+  cursor: move;
+}
+
+.pdf-page-annotation-circle {
+  border-radius: 50%;
+}
+
+.pdf-page-annotation.selected {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.pdf-annotation-resize-handle {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px 0 0;
+  background: var(--accent);
+  cursor: nwse-resize;
+}
+
+.pdf-line-annotation {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.pdf-annotation-draft {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px dashed var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  pointer-events: none;
+}
+
+.pdf-annotation-draft.pdf-page-annotation-circle {
+  border-radius: 50%;
 }
 
 .pdf-text-layer mark.pdf-highlight-target {
@@ -9479,6 +9605,18 @@ button.doc-tree-toggle:focus-visible {
   .pdf-search {
     order: 7;
     flex: 1 1 180px;
+  }
+
+  .pdf-annotation-tools {
+    order: 9;
+    overflow-x: auto;
+    flex: 1 1 100%;
+    padding-bottom: 1px;
+    scrollbar-width: thin;
+  }
+
+  .pdf-annotation-tools button {
+    flex: 0 0 auto;
   }
 
   .pdf-search input {

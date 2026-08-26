@@ -28,8 +28,14 @@ export interface LocalPdfHighlight {
   start: number;
   end: number;
   text: string;
-  color: "yellow";
+  kind?: "highlight" | "underline" | "strikeout" | "freeText" | "square" | "circle" | "line" | "arrow";
+  color: string;
+  note?: string;
+  rect?: { x: number; y: number; width: number; height: number };
+  points?: { x1: number; y1: number; x2: number; y2: number };
+  fontSize?: number;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface LocalPdfBookmark {
@@ -206,11 +212,13 @@ export async function listLocalPdfHighlights(pdfId: string): Promise<LocalPdfHig
     transaction.objectStore(PDF_HIGHLIGHT_STORE).index(PDF_ID_INDEX).getAll(pdfId),
   );
   await done;
-  return records.sort((left, right) => left.page - right.page || left.start - right.start);
+  return records
+    .map((record) => ({ ...record, kind: record.kind ?? "highlight", color: record.color || "#ffd600" }))
+    .sort((left, right) => left.page - right.page || left.start - right.start);
 }
 
 export async function addLocalPdfHighlight(
-  input: Pick<LocalPdfHighlight, "pdfId" | "page" | "start" | "end" | "text">,
+  input: Pick<LocalPdfHighlight, "pdfId" | "page" | "start" | "end" | "text"> & Partial<Pick<LocalPdfHighlight, "kind" | "color" | "note">>,
 ): Promise<LocalPdfHighlight> {
   if (input.start < 0 || input.end <= input.start || !input.text.trim()) throw new Error("PDF 高亮范围无效");
   const highlight: LocalPdfHighlight = {
@@ -218,7 +226,8 @@ export async function addLocalPdfHighlight(
     id: createId(),
     page: Math.max(1, Math.round(input.page)),
     text: input.text.trim().slice(0, 20_000),
-    color: "yellow",
+    kind: input.kind ?? "highlight",
+    color: input.color ?? "#ffd600",
     createdAt: new Date().toISOString(),
   };
   const database = await openPdfDatabase();
@@ -227,6 +236,48 @@ export async function addLocalPdfHighlight(
   transaction.objectStore(PDF_HIGHLIGHT_STORE).put(highlight);
   await done;
   return highlight;
+}
+
+export async function addLocalPdfAnnotation(
+  input: Omit<LocalPdfHighlight, "id" | "createdAt" | "updatedAt">,
+): Promise<LocalPdfHighlight> {
+  if (input.page < 1) throw new Error("PDF 批注页码无效");
+  if (input.kind === "freeText" && (!input.rect || !input.text.trim())) throw new Error("PDF 文本批注无效");
+  if ((input.kind === "square" || input.kind === "circle") && !input.rect) throw new Error("PDF 图形批注无效");
+  if ((input.kind === "line" || input.kind === "arrow") && !input.points) throw new Error("PDF 线条批注无效");
+  const timestamp = new Date().toISOString();
+  const annotation: LocalPdfHighlight = {
+    ...input,
+    id: createId(),
+    page: Math.max(1, Math.round(input.page)),
+    text: input.text.slice(0, 20_000),
+    note: input.note?.slice(0, 20_000),
+    color: input.color || "#ffd600",
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+  const database = await openPdfDatabase();
+  const transaction = database.transaction(PDF_HIGHLIGHT_STORE, "readwrite");
+  const done = transactionDone(transaction);
+  transaction.objectStore(PDF_HIGHLIGHT_STORE).put(annotation);
+  await done;
+  return annotation;
+}
+
+export async function updateLocalPdfHighlight(
+  id: string,
+  changes: Partial<Pick<LocalPdfHighlight, "color" | "note" | "text" | "rect" | "points" | "fontSize">>,
+): Promise<LocalPdfHighlight> {
+  const database = await openPdfDatabase();
+  const transaction = database.transaction(PDF_HIGHLIGHT_STORE, "readwrite");
+  const done = transactionDone(transaction);
+  const store = transaction.objectStore(PDF_HIGHLIGHT_STORE);
+  const current = await requestResult<LocalPdfHighlight | undefined>(store.get(id));
+  if (!current) throw new Error("PDF 批注不存在");
+  const updated = { ...current, ...changes, id: current.id, updatedAt: new Date().toISOString() };
+  store.put(updated);
+  await done;
+  return updated;
 }
 
 export async function deleteLocalPdfHighlight(id: string): Promise<void> {

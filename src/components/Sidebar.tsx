@@ -61,7 +61,8 @@ interface SidebarProps {
   onSelect: (note: Note) => void;
   onCreate: () => void;
   onCreateWithTemplate: (template: Template) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string) => Promise<void>;
+  onBatchDelete: (ids: string[]) => Promise<void>;
   onReorder: (id: string, sortOrder: number) => void;
   onMoveToDate: (id: string, date: string) => void;
   onTagSelect: (tag: string | null) => void;
@@ -77,7 +78,7 @@ let _dragIndex: number = -1;
 
 export function Sidebar({
   notes, selectedId, activeTag, onHide, onSelect, onCreate, onCreateWithTemplate,
-  onDelete, onReorder, onMoveToDate,
+  onDelete, onBatchDelete, onReorder, onMoveToDate,
   onTagSelect, onTogglePin, onRename, onToggleReadonly, sidebarRefreshKey, disabled,
 }: SidebarProps) {
   const [moveNoteId, setMoveNoteId] = useState<string | null>(null);
@@ -123,10 +124,21 @@ export function Sidebar({
   const [allNotes, setAllNotes] = useState<Note[]>([]);
 
   useEffect(() => {
-    if (showAll) {
-      api.notes.all().then(setAllNotes).catch(() => setAllNotes([]));
-    }
+    if (!showAll) return;
+    let cancelled = false;
+    api.notes.all()
+      .then((nextNotes) => { if (!cancelled) setAllNotes(nextNotes); })
+      .catch(() => { if (!cancelled) setAllNotes([]); });
+    return () => { cancelled = true; };
   }, [showAll, sidebarRefreshKey]);
+
+  // 当日列表由全局 store 乐观更新；“全部”模式的独立缓存也同步替换
+  // 已加载项目，避免标题、置顶和只读状态要等下一次完整查询才变化。
+  useEffect(() => {
+    if (!showAll || notes.length === 0) return;
+    const currentById = new Map(notes.map((note) => [note.id, note]));
+    setAllNotes((current) => current.map((note) => currentById.get(note.id) ?? note));
+  }, [notes, showAll]);
 
   const displayNotes = showAll ? allNotes : notes;
   const sortedNotes = applySort(displayNotes, sortMode);
@@ -204,8 +216,7 @@ export function Sidebar({
     setBatchBusy(true);
     const ids = [...selectedIds];
     try {
-      await api.recycle.batch.delete(ids);
-      ids.forEach((id) => onDelete(id));
+      await onBatchDelete(ids);
       clearSelection();
     } catch { /* noop */ }
     setBatchBusy(false);
@@ -224,10 +235,10 @@ export function Sidebar({
 
   // ── Delete (immediate) ──
 
-  const handleDelete = (e: React.MouseEvent, id: string) => {
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (disabled) return;
-    onDelete(id);
+    await onDelete(id);
   };
 
   // ── Drag & Drop reorder ──
@@ -364,7 +375,7 @@ export function Sidebar({
           </button>
         </div>
       </div>
-      <TagFilter activeTag={activeTag} onTagSelect={onTagSelect} />
+      <TagFilter activeTag={activeTag} onTagSelect={onTagSelect} refreshKey={sidebarRefreshKey} />
       {isMultiSelect && (
         <div className="sidebar-multi-info">
           已选 {selectedIds.size} 篇

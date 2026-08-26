@@ -5,9 +5,10 @@ import { api } from "../lib/api";
 interface RecycleBinProps {
   open: boolean;
   onClose: () => void;
+  onNotesChanged?: () => void;
 }
 
-export function RecycleBin({ open, onClose }: RecycleBinProps) {
+export function RecycleBin({ open, onClose, onNotesChanged }: RecycleBinProps) {
   const [deleted, setDeleted] = useState<Note[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -31,6 +32,7 @@ export function RecycleBin({ open, onClose }: RecycleBinProps) {
     try {
       await api.recycle.restore(id);
       setDeleted((prev) => prev.filter((n) => n.id !== id));
+      onNotesChanged?.();
     } catch (e) {
       console.error("恢复失败", e);
     }
@@ -40,6 +42,7 @@ export function RecycleBin({ open, onClose }: RecycleBinProps) {
     try {
       await api.recycle.permanentlyDelete(id);
       setDeleted((prev) => prev.filter((n) => n.id !== id));
+      onNotesChanged?.();
     } catch (e) {
       console.error("永久删除失败", e);
     }
@@ -57,6 +60,7 @@ export function RecycleBin({ open, onClose }: RecycleBinProps) {
               days * 86400000
           )
         );
+        onNotesChanged?.();
       }
     } catch (e) {
       console.error("清理失败", e);

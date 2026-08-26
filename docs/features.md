@@ -1,9 +1,9 @@
 # Nine Rings（九环）功能规格
 
-> 版本：v0.6.0（复核至 fbe611c）
-> 最后更新：2026-08-14
+> 版本：持续更新（复核至 2026-08-26）
+> 最后更新：2026-08-26
 >
-> 本文档完整列出九个功能域，每个功能域覆盖：数据模型、输入/输出、接口规格、行为约定、边界条件、与 `docs/` 现有文档的不一致项。
+> 本文档列出主要功能域，并覆盖数据模型、输入/输出、接口规格、行为约定、边界条件及跨端差异。
 
 ---
 
@@ -20,6 +20,7 @@
 | 7 | 导出 / 导入 | `api.export.*` | `StorageAdapter` |
 | 8 | GitHub 备份 | `SettingsSync` → `github.ts` | 前端独立 |
 | 9 | 模板系统 | `template-store.ts` | SQLite (Tauri) / localStorage (Web) |
+| 10 | PDF 阅读与批注 | `pdf-library.ts` / `PdfReader.tsx` | IndexedDB + PDF.js / pdf-lib |
 
 ---
 
@@ -67,6 +68,7 @@ Table: notes
 - **软删除**：删除操作写 `deleted_at = now()`，不真删。`getNotesByDate` 自动过滤已删除记录
 - **Tauri 端（5 个操作已迁移到 Op 抽象）**：`getNotesByDate`、`createNote`、`updateNote`、`deleteNote`、`getPathTree` 走 `tauriDriver` → `db_query`/`db_exec`；其余走旧 `invoke` 命令
 - **Web 端**：全部走 IndexedDB 直接操作，未使用 Op 抽象（`idb.ts` 内联实现）
+- **列表一致性**：创建、删除/撤销、批量删除、移动日期、重命名、置顶、只读、回收站恢复、快捷记录和标签管理完成后，当前日期、“全部”随笔、标签及文档树会同步刷新；“全部”模式不需要切换视图才能看到结果。
 
 ### 边界条件
 
@@ -444,6 +446,26 @@ seedBuiltinTemplates() → void  // 幂等：已存在则跳过
 
 ---
 
+## 10. PDF 阅读与批注
+
+PDF 作为独立本地资料保存，不进入笔记正文和现有 SQLite/IndexedDB 笔记数据模型。具体产品边界与交互说明见 [`pdf-reading-mvp.md`](pdf-reading-mvp.md)。
+
+### 当前批注能力
+
+- 文字选择支持高亮、下划线和删除线；再次选择相同范围并点击相同类型可取消。
+- 批注属性页支持定位、删除、颜色和备注编辑，并显示创建/更新时间。
+- 页面工具支持自由文本、矩形、圆形、直线和箭头；自由文本可移动、缩放并设置文字和字号。
+- 批注保存在 `nine_rings_pdf_library` IndexedDB 的兼容 `highlights` object store 中，不会直接修改原 PDF。
+- “导出标注 PDF”使用标准 PDF 注释对象生成新文件；原始导入文件始终保持不变。
+
+### 暂不实现
+
+- 手写、自由荧光笔和签名。
+- 页面旋转、删除、插入和重排。
+- 修改 PDF 原有正文、图片、字体、表单或 OCR 文字层。
+
+---
+
 ## 其他功能清单
 
 ### 配置系统
@@ -515,7 +537,7 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 
 ---
 
-## Tauri 与 Web 差异对照表（复核至 2026-08-14）
+## Tauri 与 Web 差异对照表（复核至 2026-08-26）
 
 | 功能 | Tauri | Web | 差异说明 |
 |------|-------|-----|---------|
@@ -529,6 +551,7 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 | Quick Capture | ✅ 独立 frameless 窗口 | ✅ BroadcastChannel 跨标签页 | ✅ 功能等价 |
 | 导出到文件 | ✅ 原生保存对话框 | ✅ Blob download | ✅ 功能等价 |
 | 标签重命名/合并 | ✅ api.ts 实现 | ✅ api.ts 实现 | ✅ 功能等价 |
+| PDF 阅读与批注 | ✅ WebView 中本地保存、批注及导出 | ✅ 浏览器本地保存、批注及下载 | ✅ 核心功能等价；文件选择/保存由各平台能力实现 |
 
 ### 当前无功能缺失差异
 
@@ -547,6 +570,7 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 | `github-backup.md` | 命名与语义一致（备份、全量快照、Git Blobs API 回退） |
 | `cross-platform-consistency.md` | 差异清单已同步更新 |
 | `ROADMAP.md` | 版本历史、模板、跨端状态已同步 |
+| `pdf-reading-mvp.md` | PDF 阅读、批注能力、数据边界和暂不实现范围已同步 |
 
 ---
 

@@ -10,6 +10,7 @@ import {
 
 export interface QuickCaptureListenerOptions {
   setDate: (date: string) => Promise<void>;
+  onNotesChanged?: () => void;
 }
 
 /**
@@ -19,13 +20,16 @@ export interface QuickCaptureListenerOptions {
  *
  * 通过 ref 读取最新 setDate，避免闭包旧值；effect 仅挂载一次。
  */
-export function useQuickCaptureListener({ setDate }: QuickCaptureListenerOptions): void {
+export function useQuickCaptureListener({ setDate, onNotesChanged }: QuickCaptureListenerOptions): void {
   const setDateRef = useRef(setDate);
   setDateRef.current = setDate;
+  const onNotesChangedRef = useRef(onNotesChanged);
+  onNotesChangedRef.current = onNotesChanged;
 
   useEffect(() => {
     const onMessage = () => {
       addLog("[QC→主窗口] 收到 Quick Capture 提交，切到当日");
+      onNotesChangedRef.current?.();
       void setDateRef.current(localDateKey());
     };
 

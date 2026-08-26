@@ -40,6 +40,7 @@
 | **主题** | 8 套配色（浅 / 深 / 暗 / 静 / 蔚 / 粋 / 雅 / 幟） |
 | **编辑体验** | 会话恢复、查找对话框、Vim Normal/Insert/Visual、块级行号 / 插入按钮、响应式工具栏 |
 | **文件管理** | 导入 / 导出 JSON 全量备份（含配置与非敏感用户设置）；Markdown → Nine Rings 一键导入（脚本或设置面板） |
+| **PDF 阅读与批注** | 横向/纵向阅读、搜索、书签、摘录；高亮/下划线/删除线、自由文本、矩形/圆形/直线/箭头，并可另存为标准批注 PDF |
 | **PWA** | 离线可用，Service Worker 缓存策略，可安装到桌面 |
 | **多框架** | Web（React） + macOS / Linux / Windows（Tauri） + macOS / iOS / Android（Flutter，核心功能已实现） |
 
