@@ -84,7 +84,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
 
   const showMessage = useCallback((msg: string, type: "success" | "error") => {
     setMessageType(type);
-    showTransientMessage(msg, type === "error" ? 8000 : undefined);
+    showTransientMessage(msg, { severity: type });
   }, [showTransientMessage]);
   const clearMessage = useCallback(() => {
     clearTransientMessage();
