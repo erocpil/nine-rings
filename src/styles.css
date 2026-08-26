@@ -9257,6 +9257,13 @@ button.doc-tree-toggle:focus-visible {
   margin-block: 8px;
 }
 
+.pdf-page-viewport-vertical .pdf-page-placeholder {
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 1 / 1.4142;
+  contain: layout paint;
+}
+
 .pdf-reader-fullscreen .pdf-page-surface {
   margin: auto;
 }
