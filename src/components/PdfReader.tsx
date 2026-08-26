@@ -126,6 +126,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const viewportRef = useRef<HTMLDivElement>(null);
   const textLayerRefs = useRef(new Map<number, TextLayer>());
   const renderTaskRefs = useRef(new Map<number, RenderTask>());
+  const pageRenderVersionRefs = useRef(new Map<number, number>());
   const textCacheRef = useRef(new Map<number, PageTextCache>());
   const touchGestureRef = useRef<TouchGesture | null>(null);
   const pinchGestureRef = useRef<PinchGesture | null>(null);
@@ -431,6 +432,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       canvasRefs.current.clear();
       pageSurfaceRefs.current.clear();
       textLayerElementRefs.current.clear();
+      pageRenderVersionRefs.current.clear();
       textCacheRef.current.clear();
       renderTaskRefs.current.forEach((task) => task.cancel());
       textLayerRefs.current.forEach((textLayer) => textLayer.cancel());
@@ -562,10 +564,13 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       const availableWidth = Math.max(160, viewportWidth - surfacePadding);
       const availableHeight = Math.max(120, viewportHeight - surfacePadding);
       const tasks = currentPages.map(async (pageNumber) => {
-        const canvas = canvasRefs.current.get(pageNumber);
+        let canvas = canvasRefs.current.get(pageNumber);
         const surface = pageSurfaceRefs.current.get(pageNumber);
         const textLayerElement = textLayerElementRefs.current.get(pageNumber);
         if (!canvas || !surface || !textLayerElement) return;
+
+        const renderVersion = (pageRenderVersionRefs.current.get(pageNumber) ?? 0) + 1;
+        pageRenderVersionRefs.current.set(pageNumber, renderVersion);
 
         const previousTask = renderTaskRefs.current.get(pageNumber);
         if (previousTask) {
@@ -575,15 +580,27 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           } catch {
             // Ignore cancellation or previous completion errors
           }
+          renderTaskRefs.current.delete(pageNumber);
         }
+
+        if (cancelled || pageRenderVersionRefs.current.get(pageNumber) !== renderVersion) return;
 
         const previousTextLayer = textLayerRefs.current.get(pageNumber);
         if (previousTextLayer) {
           previousTextLayer.cancel();
+          textLayerRefs.current.delete(pageNumber);
+        }
+
+        const currentCanvas = canvas;
+        if (previousTask && currentCanvas.parentElement) {
+          const nextCanvas = currentCanvas.ownerDocument.createElement("canvas");
+          currentCanvas.parentElement.replaceChild(nextCanvas, currentCanvas);
+          canvasRefs.current.set(pageNumber, nextCanvas);
+          canvas = nextCanvas;
         }
 
         const pdfPage = await pdf.getPage(pageNumber);
-        if (cancelled) return;
+        if (cancelled || pageRenderVersionRefs.current.get(pageNumber) !== renderVersion) return;
 
         const baseViewport = pdfPage.getViewport({ scale: 1 });
         const displayScale = fitHeight
