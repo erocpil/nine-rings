@@ -10,6 +10,7 @@ import {
   type SyncStatus,
   type PullPrecheck,
 } from "../lib/sync/github";
+import { useTransientMessage } from "../hooks/useTransientMessage";
 
 interface Props {
   /** 备份进行中回调 — 父组件用来 freeze 编辑区 */
@@ -70,7 +71,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
   const [cfg, setCfg] = useState<SyncConfig>(loadSyncConfig);
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [busyOperation, setBusyOperation] = useState<BusyOperation | null>(null);
-  const [message, setMessage] = useState("");
+  const { message, showMessage: showTransientMessage, clearMessage: clearTransientMessage } = useTransientMessage();
   const [messageType, setMessageType] = useState<"" | "success" | "error">("");
   const [pullPrecheck, setPullPrecheck] = useState<PullPrecheck | null>(null);
 
@@ -80,6 +81,15 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
   });
   const [ownerRepoError, setOwnerRepoError] = useState("");
   const busy = busyOperation !== null;
+
+  const showMessage = useCallback((msg: string, type: "success" | "error") => {
+    setMessageType(type);
+    showTransientMessage(msg, type === "error" ? 8000 : undefined);
+  }, [showTransientMessage]);
+  const clearMessage = useCallback(() => {
+    clearTransientMessage();
+    setMessageType("");
+  }, [clearTransientMessage]);
 
   // 防止 Strict Mode 重复触发
   const checkRef = useRef("");
@@ -171,7 +181,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     } finally {
       setBusyOperation(null);
     }
-  }, [cfg]);
+  }, [cfg, clearMessage, showMessage]);
 
   const handlePush = useCallback(async () => {
     setBusyOperation("push");
@@ -185,7 +195,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     } finally {
       setBusyOperation(null);
     }
-  }, [cfg]);
+  }, [cfg, clearMessage, showMessage]);
 
   const handlePullPreview = useCallback(async () => {
     setBusyOperation("pull-preview");
@@ -200,7 +210,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     } finally {
       setBusyOperation(null);
     }
-  }, [cfg]);
+  }, [cfg, clearMessage, showMessage]);
 
   const handlePull = useCallback(async () => {
     if (!pullPrecheck) return;
@@ -221,13 +231,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     } finally {
       setBusyOperation(null);
     }
-  }, [cfg, onPullDone, pullPrecheck]);
-
-  const showMessage = (msg: string, type: "success" | "error") => {
-    setMessage(msg);
-    setMessageType(type);
-  };
-  const clearMessage = () => { setMessage(""); setMessageType(""); };
+  }, [cfg, clearMessage, onPullDone, pullPrecheck, showMessage]);
 
   useEffect(() => {
     setPullPrecheck(null);
@@ -279,7 +283,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
       )}
 
       {message && (
-        <div className={`sync-toast ${messageType}`}>
+        <div className={`sync-toast ${messageType}`} role="status" aria-live="polite">
           {messageType === "success" ? "✓ " : messageType === "error" ? "✗ " : ""}
           {message}
         </div>

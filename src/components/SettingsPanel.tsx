@@ -11,6 +11,7 @@ import { withTimeout } from "../lib/async";
 import { EditorAppearancePanel } from "./EditorAppearancePanel";
 import { isDocumentFindShortcut, isEditorLineJumpShortcut } from "../lib/shortcuts";
 import type { WebStorageStatus } from "../hooks/useWebPlatform";
+import { useTransientMessage } from "../hooks/useTransientMessage";
 import { collectWebDiagnostics } from "../lib/web-diagnostics";
 import { rebuildWebSearchIndex } from "../lib/web-search-index";
 import {
@@ -99,7 +100,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const { message, showMessage, clearMessage } = useTransientMessage();
   const [loadError, setLoadError] = useState<string | null>(null);
   const configRef = useRef<AppConfig | null>(null);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -159,22 +160,23 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     setRebuildingSearchIndex(true);
     try {
       const count = await rebuildWebSearchIndex();
-      setMessage(`搜索索引已重建，共 ${count} 篇笔记`);
+      showMessage(`搜索索引已重建，共 ${count} 篇笔记`);
     } catch (error) {
-      setMessage(`搜索索引重建失败，搜索仍会回退到原始数据: ${error instanceof Error ? error.message : String(error)}`);
+      showMessage(`搜索索引重建失败，搜索仍会回退到原始数据: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setRebuildingSearchIndex(false);
     }
   };
 
   useEffect(() => {
+    clearMessage();
     if (open) {
       setSettingsPage("root");
       tagsLoadedRef.current = false;
       loadSettings();
     }
     else setEditorAppearanceOpen(false);
-  }, [open]);
+  }, [clearMessage, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -206,11 +208,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
           .filter((note) => (note.content.metadata?.bookmarks?.length ?? 0) > 0));
       })
       .catch((error) => {
-        if (!cancelled) setMessage(`加载书签失败：${error instanceof Error ? error.message : String(error)}`);
+        if (!cancelled) showMessage(`加载书签失败：${error instanceof Error ? error.message : String(error)}`);
       })
       .finally(() => { if (!cancelled) setBookmarksLoading(false); });
     return () => { cancelled = true; };
-  }, [open, settingsPage]);
+  }, [open, settingsPage, showMessage]);
 
   const deleteManagedBookmark = async (note: Note, bookmarkId: string) => {
     const bookmark = note.content.metadata?.bookmarks?.find((candidate) => candidate.id === bookmarkId);
@@ -231,9 +233,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
         .map((candidate) => candidate.id === updated.id ? updated : candidate)
         .filter((candidate) => (candidate.content.metadata?.bookmarks?.length ?? 0) > 0));
       onBookmarkNoteUpdated?.(updated);
-      setMessage("书签已删除");
+      showMessage("书签已删除");
     } catch (error) {
-      setMessage(`删除书签失败：${error instanceof Error ? error.message : String(error)}`);
+      showMessage(`删除书签失败：${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setDeletingBookmarkId(null);
     }
@@ -290,14 +292,13 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
       setConfig(persisted);
       onConfigChange(persisted);
       setSaving(null);
-      setMessage("已更新");
+      showMessage("已更新");
       setEditorAppearanceOpen(false);
       setEditorAppearanceDraft(null);
-      window.setTimeout(() => setMessage(null), 1500);
     } catch (error) {
       if (saveVersion !== updateVersionRef.current) return;
       setSaving(null);
-      setMessage(`保存失败: ${error}`);
+      showMessage(`保存失败: ${error}`);
     }
   };
 
@@ -342,8 +343,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               onConfigChange(merged);
             }
             setSaving(null);
-            setMessage("已更新");
-            setTimeout(() => setMessage(null), 1500);
+            showMessage("已更新");
           }
         } catch (error) {
           if (saveVersion === updateVersionRef.current) {
@@ -354,7 +354,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               onConfigChange(persisted);
             }
             setSaving(null);
-            setMessage(`保存失败: ${error}`);
+            showMessage(`保存失败: ${error}`);
           }
         }
       });
@@ -367,19 +367,17 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const handleRename = async () => {
     if (!renameTag || !renameVal.trim()) return;
     const result = await api.tags.rename(renameTag, renameVal.trim());
-    setMessage(`已重命名，影响 ${result.affected} 篇笔记`);
+    showMessage(`已重命名，影响 ${result.affected} 篇笔记`);
     setRenameTag(null);
     setRenameVal("");
     refreshTags();
-    setTimeout(() => setMessage(null), 2000);
   };
 
   const handleRemoveTag = async (name: string) => {
     if (!confirm(`确认从所有笔记中移除标签「${name}」？`)) return;
     const result = await api.tags.remove(name);
-    setMessage(`已移除，影响 ${result.affected} 篇笔记`);
+    showMessage(`已移除，影响 ${result.affected} 篇笔记`);
     refreshTags();
-    setTimeout(() => setMessage(null), 2000);
   };
 
   // ── 导出/导入 ──
@@ -389,7 +387,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
       if (isTauri()) {
         const path = await exportWithDialog(data);
         if (path) {
-          setMessage(`已保存到 ${path}`);
+          showMessage(`已保存到 ${path}`);
         }
         // 用户取消则不显示任何消息
       } else {
@@ -400,11 +398,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
         a.download = `nine-rings-${localDateKey()}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        setMessage("导出成功");
+        showMessage("导出成功");
       }
-      setTimeout(() => setMessage(null), 2000);
     } catch (e) {
-      setMessage(`导出失败: ${e}`);
+      showMessage(`导出失败: ${e}`);
     }
   };
 
@@ -419,9 +416,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
       anchor.download = `nine-rings-diagnostics-${localDateKey()}.json`;
       anchor.click();
       URL.revokeObjectURL(url);
-      setMessage("诊断报告已导出（不含正文、标题、标签、ID 和 Token）");
+      showMessage("诊断报告已导出（不含正文、标题、标签、ID 和 Token）");
     } catch (error) {
-      setMessage(`诊断报告导出失败: ${error instanceof Error ? error.message : String(error)}`);
+      showMessage(`诊断报告导出失败: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
@@ -433,7 +430,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
         if (text) {
           const result = await api.export.import(text);
           const configTip = result.configs_imported ? "，配置已恢复" : "";
-          setMessage(`导入完成：${result.notes_imported} 篇笔记, ${result.pages_imported} 个页面${configTip}`);
+          showMessage(`导入完成：${result.notes_imported} 篇笔记, ${result.pages_imported} 个页面${configTip}`);
           onImport?.();
         }
       } else {
@@ -442,10 +439,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
         return; // 后续由 handleImportFile 处理
       }
     } catch (e) {
-      setMessage(`导入失败: ${e}`);
+      showMessage(`导入失败: ${e}`);
     } finally {
       setImporting(false);
-      setTimeout(() => setMessage(null), 3000);
     }
   };
 
@@ -458,14 +454,13 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
       const text = await file.text();
       const result = await api.export.import(text);
       const configTip = result.configs_imported ? "，配置已恢复" : "";
-      setMessage(`导入完成：${result.notes_imported} 篇笔记, ${result.pages_imported} 个页面${configTip}`);
+      showMessage(`导入完成：${result.notes_imported} 篇笔记, ${result.pages_imported} 个页面${configTip}`);
       onImport?.();
       e.target.value = "";
     } catch (e) {
-      setMessage(`导入失败: ${e}`);
+      showMessage(`导入失败: ${e}`);
     } finally {
       setImporting(false);
-      setTimeout(() => setMessage(null), 3000);
     }
   };
 
@@ -512,11 +507,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
       }
       setMdImportCount(count);
       if (count > 0) onMarkdownImport?.();
-      setMessage(failures.length > 0
+      showMessage(failures.length > 0
         ? `已导入 ${count} 篇，失败 ${failures.length} 篇：${failures[0]}`
         : `Markdown 导入完成：${count} 篇${mdImportMode === "document" ? `，路径 ${mdImportPath}` : ""}`);
     } catch (err) {
-      setMessage(`导入失败: ${err}`);
+      showMessage(`导入失败: ${err}`);
     } finally {
       setMdImporting(false);
       setMdImportCurrentFile("");
@@ -532,11 +527,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     try {
       setPdfEntries(await listLocalPdfs());
     } catch (reason) {
-      setMessage(`PDF 资料库读取失败：${reason instanceof Error ? reason.message : String(reason)}`);
+      showMessage(`PDF 资料库读取失败：${reason instanceof Error ? reason.message : String(reason)}`);
     } finally {
       setPdfLibraryLoading(false);
     }
-  }, []);
+  }, [showMessage]);
 
   useEffect(() => {
     if (!open || settingsPage !== "data") return;
@@ -550,10 +545,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     try {
       const imported = await importLocalPdf(file);
       await refreshPdfLibrary();
-      setMessage(`已导入 PDF：${imported.name}`);
+      showMessage(`已导入 PDF：${imported.name}`);
       onOpenPdf?.(imported.id);
     } catch (reason) {
-      setMessage(`PDF 导入失败：${reason instanceof Error ? reason.message : String(reason)}`);
+      showMessage(`PDF 导入失败：${reason instanceof Error ? reason.message : String(reason)}`);
     } finally {
       setPdfImporting(false);
       event.target.value = "";
@@ -565,9 +560,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     try {
       await deleteLocalPdf(entry.id);
       await refreshPdfLibrary();
-      setMessage(`已删除 PDF：${entry.name}`);
+      showMessage(`已删除 PDF：${entry.name}`);
     } catch (reason) {
-      setMessage(`PDF 删除失败：${reason instanceof Error ? reason.message : String(reason)}`);
+      showMessage(`PDF 删除失败：${reason instanceof Error ? reason.message : String(reason)}`);
     }
   };
 
@@ -977,9 +972,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                             const target = prompt(`将「${t}」合并到哪个标签？输入目标标签名：`);
                             if (!target || target === t) return;
                             const result = await api.tags.merge(t, target);
-                            setMessage(`已合并，影响 ${result.affected} 篇笔记`);
+                            showMessage(`已合并，影响 ${result.affected} 篇笔记`);
                             refreshTags();
-                            setTimeout(() => setMessage(null), 2000);
                           }}
                           title="合并到其他标签"
                         >⊕</button>
@@ -1243,7 +1237,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             )}
 
             {/* ── 保存反馈 ── */}
-            {message && <div className="settings-toast">{message}</div>}
+            {message && <div className="settings-toast" role="status" aria-live="polite">{message}</div>}
 
             {/* ── 版本 ── */}
             {settingsPage === "root" && (

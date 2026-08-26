@@ -23,6 +23,7 @@ import {
 } from "../lib/pdf-library";
 import { toggleTauriFullscreen } from "../lib/fullscreen";
 import { isTauriRuntime } from "../lib/runtime";
+import { useTransientMessage } from "../hooks/useTransientMessage";
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -149,6 +150,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchStatus, setSearchStatus] = useState("");
+  const { message: actionNotice, showMessage: showActionNotice, clearMessage: clearActionNotice } = useTransientMessage();
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
   const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
   const [completedSearchQuery, setCompletedSearchQuery] = useState("");
@@ -253,13 +255,13 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       await ensureSelectionHighlight();
       window.getSelection()?.removeAllRanges();
       setSelectionAnchor(null);
-      setSearchStatus("已保存高亮");
+      showActionNotice("已保存高亮");
     } catch (reason) {
-      setSearchStatus(`高亮失败：${pdfErrorMessage(reason)}`);
+      showActionNotice(`高亮失败：${pdfErrorMessage(reason)}`);
     } finally {
       setHighlightSaving(false);
     }
-  }, [ensureSelectionHighlight, highlightSaving, selectionAnchor]);
+  }, [ensureSelectionHighlight, highlightSaving, selectionAnchor, showActionNotice]);
 
   const createExcerpt = useCallback(async () => {
     if (!onCreateExcerpt || !entry || !selectionAnchor || excerptSaving) return;
@@ -284,11 +286,11 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         await deleteLocalPdfHighlight(createdHighlight.id).catch(() => {});
         setHighlights((current) => current.filter((highlight) => highlight.id !== createdHighlight?.id));
       }
-      setSearchStatus(`摘录失败：${pdfErrorMessage(reason)}`);
+      showActionNotice(`摘录失败：${pdfErrorMessage(reason)}`);
     } finally {
       setExcerptSaving(false);
     }
-  }, [ensureSelectionHighlight, entry, excerptSaving, onCreateExcerpt, page, selectionAnchor]);
+  }, [ensureSelectionHighlight, entry, excerptSaving, onCreateExcerpt, page, selectionAnchor, showActionNotice]);
 
   const enterImmersiveFallback = useCallback(() => {
     setImmersiveFallback(true);
@@ -341,9 +343,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       }
     } catch (reason) {
       if (!isTauriRuntime()) enterImmersiveFallback();
-      else setSearchStatus(`全屏切换失败：${pdfErrorMessage(reason)}`);
+      else showActionNotice(`全屏切换失败：${pdfErrorMessage(reason)}`);
     }
-  }, [applyFullscreenState, enterImmersiveFallback, exitFullscreen, fullscreen]);
+  }, [applyFullscreenState, enterImmersiveFallback, exitFullscreen, fullscreen, showActionNotice]);
 
   const closeReader = useCallback(async () => {
     try {
@@ -646,17 +648,17 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       if (existing) {
         await deleteLocalPdfBookmark(existing.id);
         setBookmarks((current) => current.filter((bookmark) => bookmark.id !== existing.id));
-        setSearchStatus(`已取消第 ${page} 页书签`);
+        showActionNotice(`已取消第 ${page} 页书签`);
       } else {
         const label = pageLabels?.[page - 1];
         const bookmark = await addLocalPdfBookmark(entry.id, page, label ? `${label} · 第 ${page} 页` : `第 ${page} 页`);
         setBookmarks((current) => [...current, bookmark].sort((left, right) => left.page - right.page));
-        setSearchStatus(`已添加第 ${page} 页书签`);
+        showActionNotice(`已添加第 ${page} 页书签`);
       }
     } catch (reason) {
-      setSearchStatus(`书签操作失败：${pdfErrorMessage(reason)}`);
+      showActionNotice(`书签操作失败：${pdfErrorMessage(reason)}`);
     }
-  }, [bookmarks, entry, page, pageLabels]);
+  }, [bookmarks, entry, page, pageLabels, showActionNotice]);
 
   const jumpToHighlight = useCallback((highlight: LocalPdfHighlight) => {
     setTargetHighlightId(highlight.id);
@@ -670,18 +672,18 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       setHighlights((current) => current.filter((highlight) => highlight.id !== id));
       setTargetHighlightId((current) => current === id ? null : current);
     } catch (reason) {
-      setSearchStatus(`删除高亮失败：${pdfErrorMessage(reason)}`);
+      showActionNotice(`删除高亮失败：${pdfErrorMessage(reason)}`);
     }
-  }, []);
+  }, [showActionNotice]);
 
   const removeBookmark = useCallback(async (id: string) => {
     try {
       await deleteLocalPdfBookmark(id);
       setBookmarks((current) => current.filter((bookmark) => bookmark.id !== id));
     } catch (reason) {
-      setSearchStatus(`删除书签失败：${pdfErrorMessage(reason)}`);
+      showActionNotice(`删除书签失败：${pdfErrorMessage(reason)}`);
     }
-  }, []);
+  }, [showActionNotice]);
 
   const jumpToDestination = useCallback(async (destination: string | unknown[] | null) => {
     if (!pdf || !destination) return;
@@ -697,9 +699,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       changePage(index + 1);
       if (window.matchMedia("(max-width: 768px)").matches) setOutlineOpen(false);
     } catch (reason) {
-      setSearchStatus(`目录跳转失败：${pdfErrorMessage(reason)}`);
+      showActionNotice(`目录跳转失败：${pdfErrorMessage(reason)}`);
     }
-  }, [changePage, pdf]);
+  }, [changePage, pdf, showActionNotice]);
 
   const getPageText = useCallback(async (pageNumber: number): Promise<PageTextCache> => {
     const cached = textCacheRef.current.get(pageNumber);
@@ -714,6 +716,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
 
   const search = useCallback(async (direction: 1 | -1) => {
     if (!pdf || !searchQuery.trim() || searching) return;
+    clearActionNotice();
     const requestId = ++searchRequestRef.current;
     const query = searchQuery.trim().toLocaleLowerCase();
     setSearching(true);
@@ -763,7 +766,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     } finally {
       if (requestId === searchRequestRef.current) setSearching(false);
     }
-  }, [activeSearchIndex, changePage, completedSearchQuery, getPageText, page, pdf, searchMatches, searchQuery, searching]);
+  }, [activeSearchIndex, changePage, clearActionNotice, completedSearchQuery, getPageText, page, pdf, searchMatches, searchQuery, searching]);
 
   useEffect(() => {
     const layer = textLayerRef.current;
@@ -1088,7 +1091,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           />
           <button type="button" aria-label="上一个搜索结果" onClick={() => void search(-1)} disabled={!pdf || searching || !searchQuery.trim()}>↑</button>
           <button type="submit" aria-label="下一个搜索结果" disabled={!pdf || searching || !searchQuery.trim()}>↓</button>
-          {searchStatus && <span>{searchStatus}</span>}
+          {(actionNotice || searchStatus) && <span role="status" aria-live="polite">{actionNotice || searchStatus}</span>}
         </form>
       </header>
 

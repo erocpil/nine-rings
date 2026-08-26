@@ -137,6 +137,8 @@ test("诊断报告只导出脱敏运行信息", async ({ page }) => {
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "导出诊断报告" }).click();
   const download = await downloadPromise;
+  const exportNotice = page.getByRole("status").filter({ hasText: "诊断报告已导出" });
+  await expect(exportNotice).toBeVisible();
   const path = await download.path();
   if (!path) throw new Error("诊断报告没有下载路径");
   const reportText = await readFile(path, "utf8");
@@ -147,6 +149,7 @@ test("诊断报告只导出脱敏运行信息", async ({ page }) => {
   expect(reportText).not.toContain(secretToken);
   expect(reportText).not.toContain("欢迎使用 Nine Rings");
   expect(reportText).not.toContain("storagePath");
+  await expect(exportNotice).toHaveCount(0, { timeout: 5000 });
 });
 
 test.describe("移动端设置", () => {

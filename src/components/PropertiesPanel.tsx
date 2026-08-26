@@ -10,6 +10,7 @@ import {
 } from "../lib/external-markdown-source";
 import { transformMarkdownSource } from "../lib/data-transform-client";
 import { extractPlainText } from "../lib/storage/core";
+import { useTransientMessage } from "../hooks/useTransientMessage";
 
 interface PropertiesPanelProps {
   note: Note;
@@ -66,12 +67,12 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
   const [userConfig, setUserConfig] = useState<AppConfig | null>(null);
   const [metadataDraft, setMetadataDraft] = useState<DocumentMetadata>(() => note.content.metadata ?? {});
   const [metadataSaving, setMetadataSaving] = useState(false);
-  const [metadataMessage, setMetadataMessage] = useState<string | null>(null);
+  const { message: metadataMessage, showMessage: showMetadataMessage, clearMessage: clearMetadataMessage } = useTransientMessage();
   const externalSource = note.content.metadata?.externalSource;
   const [sourceUrl, setSourceUrl] = useState(externalSource?.url ?? "");
   const [sourcePreview, setSourcePreview] = useState<ExternalSourcePreview | null>(null);
   const [sourceBusy, setSourceBusy] = useState<"fetch" | "apply" | "detach" | null>(null);
-  const [sourceMessage, setSourceMessage] = useState<string | null>(null);
+  const { message: sourceMessage, showMessage: showSourceMessage, clearMessage: clearSourceMessage } = useTransientMessage();
   const sourceAbortRef = useRef<AbortController | null>(null);
 
   const concepts = note.concepts ?? [];
@@ -124,22 +125,22 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
 
   useEffect(() => {
     setMetadataDraft(JSON.parse(metadataSignature) as DocumentMetadata);
-    setMetadataMessage(null);
-  }, [metadataSignature, note.id]);
+    clearMetadataMessage();
+  }, [clearMetadataMessage, metadataSignature, note.id]);
 
   useEffect(() => {
     sourceAbortRef.current?.abort();
     setSourceUrl(externalSource?.url ?? "");
     setSourcePreview(null);
-    setSourceMessage(null);
+    clearSourceMessage();
     setSourceBusy(null);
     return () => sourceAbortRef.current?.abort();
-  }, [externalSource?.url, note.id]);
+  }, [clearSourceMessage, externalSource?.url, note.id]);
 
   const checkExternalSource = async () => {
     if (sourceBusy || externalSourceActionsDisabled) return;
     setSourceBusy("fetch");
-    setSourceMessage(null);
+    clearSourceMessage();
     setSourcePreview(null);
     const controller = new AbortController();
     sourceAbortRef.current?.abort();
@@ -177,13 +178,13 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
         remoteChanged,
         localModified,
       });
-      setSourceMessage(remoteChanged
+      showSourceMessage(remoteChanged
         ? "已获取远端内容，请确认预览后更新"
         : localModified
           ? "远端未变化，但本地正文在上次同步后已修改"
-          : "远端内容与上次同步一致");
+          : "远端内容与上次同步一致", 0);
     } catch (error) {
-      if (!controller.signal.aborted) setSourceMessage(`获取失败：${(error as Error).message}`);
+      if (!controller.signal.aborted) showSourceMessage(`获取失败：${(error as Error).message}`);
     } finally {
       if (sourceAbortRef.current === controller) sourceAbortRef.current = null;
       setSourceBusy(null);
@@ -197,13 +198,13 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
       : "将用预览中的远端 Markdown 替换本地正文，并在更新前创建版本。确认继续？";
     if (!window.confirm(warning)) return;
     setSourceBusy("apply");
-    setSourceMessage(null);
+    clearSourceMessage();
     try {
       await onExternalMarkdownApply(sourcePreview.content, sourcePreview.source);
       setSourcePreview(null);
-      setSourceMessage("已更新本地正文并保存来源信息");
+      showSourceMessage("已更新本地正文并保存来源信息");
     } catch (error) {
-      setSourceMessage(`更新失败：${(error as Error).message}`);
+      showSourceMessage(`更新失败：${(error as Error).message}`);
     } finally {
       setSourceBusy(null);
     }
@@ -213,14 +214,14 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
     if (!externalSource || sourceBusy || externalSourceActionsDisabled) return;
     if (!window.confirm("解除外部来源关联？当前本地正文会保留。")) return;
     setSourceBusy("detach");
-    setSourceMessage(null);
+    clearSourceMessage();
     try {
       await onExternalMarkdownDetach();
       setSourcePreview(null);
       setSourceUrl("");
-      setSourceMessage("已解除来源关联，本地正文保持不变");
+      showSourceMessage("已解除来源关联，本地正文保持不变");
     } catch (error) {
-      setSourceMessage(`解除失败：${(error as Error).message}`);
+      showSourceMessage(`解除失败：${(error as Error).message}`);
     } finally {
       setSourceBusy(null);
     }
@@ -228,7 +229,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
 
   const updateMetadataField = <K extends keyof DocumentMetadata,>(key: K, value: DocumentMetadata[K]) => {
     setMetadataDraft((current) => ({ ...current, [key]: value }));
-    setMetadataMessage(null);
+    clearMetadataMessage();
   };
 
   const fillUserDefaults = () => {
@@ -243,22 +244,22 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
       language: current.language || userConfig.user_default_language,
       license: current.license || userConfig.user_default_license,
     }));
-    setMetadataMessage("已填充用户信息中的空缺项，请保存");
+    showMetadataMessage("已填充用户信息中的空缺项，请保存", 0);
   };
 
   const saveMetadata = async () => {
     if (readonly || metadataSaving) return;
     setMetadataSaving(true);
-    setMetadataMessage(null);
+    clearMetadataMessage();
     const cleaned = Object.fromEntries(Object.entries(metadataDraft).filter(([, value]) =>
       Array.isArray(value) ? value.length > 0 : typeof value === "string" ? value.trim().length > 0 : value != null,
     )) as DocumentMetadata;
     try {
       await onMetadataUpdate(cleaned);
       setMetadataDraft(cleaned);
-      setMetadataMessage("元信息已保存");
+      showMetadataMessage("元信息已保存");
     } catch (error) {
-      setMetadataMessage(`保存失败：${(error as Error).message}`);
+      showMetadataMessage(`保存失败：${(error as Error).message}`);
     } finally {
       setMetadataSaving(false);
     }
@@ -452,7 +453,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
             onChange={(event) => {
               setSourceUrl(event.target.value);
               setSourcePreview(null);
-              setSourceMessage(null);
+              clearSourceMessage();
             }}
           />
           <div className="prop-source-actions">
