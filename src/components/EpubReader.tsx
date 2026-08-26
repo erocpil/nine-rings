@@ -18,6 +18,11 @@ interface FlatTocItem extends EpubTocItem {
   depth: number;
 }
 
+interface EpubSearchMatch {
+  chapter: number;
+  offset: number;
+}
+
 const MIME_BY_EXTENSION: Record<string, string> = {
   css: "text/css",
   gif: "image/gif",
@@ -38,6 +43,52 @@ function mimeForPath(path: string): string {
 
 function flattenToc(items: EpubTocItem[], depth = 0): FlatTocItem[] {
   return items.flatMap((item) => [{ ...item, depth }, ...flattenToc(item.children, depth + 1)]);
+}
+
+function chapterPlainText(book: ParsedEpub, chapter: number): string {
+  const bytes = book.files[book.chapters[chapter].path];
+  if (!bytes) return "";
+  const source = new TextDecoder().decode(bytes);
+  const document = new DOMParser().parseFromString(source, "text/html");
+  document.querySelectorAll("script, style").forEach((node) => node.remove());
+  return document.body.textContent ?? "";
+}
+
+function markFrameSearch(document: Document, query: string, activeOccurrence: number): HTMLElement | null {
+  document.querySelectorAll("mark.epub-search-hit").forEach((mark) => mark.replaceWith(document.createTextNode(mark.textContent ?? "")));
+  if (!query) return null;
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode: (node) => node.parentElement?.closest("script, style") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+  });
+  const textNodes: Text[] = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode as Text);
+  let occurrence = 0;
+  let activeMark: HTMLElement | null = null;
+  const needle = query.toLocaleLowerCase();
+  textNodes.forEach((textNode) => {
+    const source = textNode.data;
+    const lower = source.toLocaleLowerCase();
+    const ranges: Array<{ start: number; end: number; occurrence: number }> = [];
+    let from = 0;
+    while (from <= lower.length - needle.length) {
+      const start = lower.indexOf(needle, from);
+      if (start < 0) break;
+      ranges.push({ start, end: start + query.length, occurrence });
+      occurrence += 1;
+      from = start + Math.max(1, query.length);
+    }
+    for (const range of ranges.reverse()) {
+      const matched = textNode.splitText(range.start);
+      matched.splitText(range.end - range.start);
+      const mark = document.createElement("mark");
+      mark.className = `epub-search-hit${range.occurrence === activeOccurrence ? " epub-search-current" : ""}`;
+      matched.replaceWith(mark);
+      mark.append(matched);
+      if (range.occurrence === activeOccurrence) activeMark = mark;
+    }
+  });
+  document.body.normalize();
+  return activeMark;
 }
 
 function rewriteCssResources(css: string, basePath: string, resourceUrl: (path: string) => string | null): string {
@@ -140,6 +191,8 @@ function safeChapterDocument(
     table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
     a { color: ${palette.link}; }
     pre { overflow-x: auto; white-space: pre-wrap; }
+    mark.epub-search-hit { padding: 0 .08em; border-radius: .15em; background: #ffe082; color: #241c00; }
+    mark.epub-search-current { outline: 2px solid #ef6c00; background: #ffca28; }
   `;
   (document.head ?? document.documentElement.insertBefore(document.createElement("head"), document.documentElement.firstChild)).appendChild(style);
   return `<!doctype html>${new XMLSerializer().serializeToString(document.documentElement)}`;
@@ -148,12 +201,18 @@ function safeChapterDocument(
 export function EpubReader({ documentId, onClose }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const registryRef = useRef<ReturnType<typeof createResourceRegistry> | null>(null);
+  const scrollSaveTimerRef = useRef<number | null>(null);
   const [entry, setEntry] = useState<LocalEpubEntry | null>(null);
   const [book, setBook] = useState<ParsedEpub | null>(null);
   const [chapter, setChapter] = useState(0);
   const [fragment, setFragment] = useState<string | undefined>();
   const [fontSize, setFontSize] = useState(100);
   const [theme, setTheme] = useState<LocalEpubEntry["theme"]>("light");
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [completedSearchQuery, setCompletedSearchQuery] = useState("");
+  const [searchMatches, setSearchMatches] = useState<EpubSearchMatch[]>([]);
+  const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
   const [tocOpen, setTocOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -176,11 +235,13 @@ export function EpubReader({ documentId, onClose }: Props) {
       setFragment(savedLocation?.[0] === parsed.chapters[savedChapter].path ? savedLocation[1] : undefined);
       setFontSize(stored.entry.fontSize || 100);
       setTheme(stored.entry.theme || "light");
+      setScrollProgress(stored.entry.scrollProgress ?? 0);
     }).catch((reason) => {
       if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
     }).finally(() => { if (!cancelled) setLoading(false); });
     return () => {
       cancelled = true;
+      if (scrollSaveTimerRef.current !== null) window.clearTimeout(scrollSaveTimerRef.current);
       registryRef.current?.destroy();
       registryRef.current = null;
     };
@@ -199,12 +260,53 @@ export function EpubReader({ documentId, onClose }: Props) {
   const flatToc = useMemo(() => flattenToc(book?.toc ?? []), [book]);
   const progress = book ? Math.round((chapter + 1) / book.chapters.length * 100) : 0;
 
+  const runSearch = useCallback((direction: 1 | -1 = 1) => {
+    if (!book) return;
+    const query = searchQuery.trim();
+    if (!query) {
+      setCompletedSearchQuery("");
+      setSearchMatches([]);
+      setActiveSearchIndex(-1);
+      return;
+    }
+    let matches = searchMatches;
+    if (query !== completedSearchQuery) {
+      const needle = query.toLocaleLowerCase();
+      matches = book.chapters.flatMap((_item, chapterIndex) => {
+        const text = chapterPlainText(book, chapterIndex).toLocaleLowerCase();
+        const chapterMatches: EpubSearchMatch[] = [];
+        let from = 0;
+        while (from <= text.length - needle.length) {
+          const offset = text.indexOf(needle, from);
+          if (offset < 0) break;
+          chapterMatches.push({ chapter: chapterIndex, offset });
+          from = offset + Math.max(1, needle.length);
+        }
+        return chapterMatches;
+      });
+      setCompletedSearchQuery(query);
+      setSearchMatches(matches);
+    }
+    if (matches.length === 0) {
+      setActiveSearchIndex(-1);
+      return;
+    }
+    const nextIndex = query !== completedSearchQuery
+      ? (direction === 1 ? 0 : matches.length - 1)
+      : (activeSearchIndex + direction + matches.length) % matches.length;
+    setActiveSearchIndex(nextIndex);
+    setFragment(undefined);
+    setScrollProgress(0);
+    setChapter(matches[nextIndex].chapter);
+  }, [activeSearchIndex, book, completedSearchQuery, searchMatches, searchQuery]);
+
   const navigateTo = useCallback((path: string, targetFragment?: string) => {
     if (!book) return;
     const index = book.chapters.findIndex((item) => item.path === path);
     if (index < 0) return;
     setChapter(index);
     setFragment(targetFragment);
+    setScrollProgress(0);
   }, [book]);
 
   useEffect(() => {
@@ -220,8 +322,9 @@ export function EpubReader({ documentId, onClose }: Props) {
       location: `${current.path}${fragment ? `#${fragment}` : ""}`,
       fontSize,
       theme,
+      scrollProgress,
     });
-  }, [book, chapter, entry, fontSize, fragment, theme]);
+  }, [book, chapter, entry, fontSize, fragment, scrollProgress, theme]);
 
   useEffect(() => {
     void persistProgress().catch((reason) => console.warn("[EPUB] 保存阅读进度失败:", reason));
@@ -245,8 +348,26 @@ export function EpubReader({ documentId, onClose }: Props) {
 
   const handleFrameLoad = () => {
     const frameDocument = iframeRef.current?.contentDocument;
-    if (!frameDocument || !book) return;
-    if (fragment) frameDocument.getElementById(fragment)?.scrollIntoView();
+    const frameWindow = iframeRef.current?.contentWindow;
+    if (!frameDocument || !frameWindow || !book) return;
+    const chapterSearchMatches = searchMatches.filter((match) => match.chapter === chapter);
+    const activeMatch = searchMatches[activeSearchIndex];
+    const activeOccurrence = activeMatch?.chapter === chapter
+      ? chapterSearchMatches.findIndex((match) => match === activeMatch)
+      : -1;
+    const activeMark = markFrameSearch(frameDocument, completedSearchQuery, activeOccurrence);
+    if (activeMark) activeMark.scrollIntoView({ block: "center" });
+    else if (fragment) frameDocument.getElementById(fragment)?.scrollIntoView();
+    else if (scrollProgress > 0) {
+      window.requestAnimationFrame(() => frameWindow.scrollTo(0, scrollProgress * Math.max(0, frameDocument.documentElement.scrollHeight - frameWindow.innerHeight)));
+    }
+    frameWindow.addEventListener("scroll", () => {
+      if (scrollSaveTimerRef.current !== null) window.clearTimeout(scrollSaveTimerRef.current);
+      scrollSaveTimerRef.current = window.setTimeout(() => {
+        const maximum = Math.max(0, frameDocument.documentElement.scrollHeight - frameWindow.innerHeight);
+        setScrollProgress(maximum > 0 ? frameWindow.scrollY / maximum : 0);
+      }, 160);
+    }, { passive: true });
     frameDocument.addEventListener("click", (event) => {
       // iframe 有独立的 DOM realm，不能用父窗口的 instanceof Element 判断。
       const anchor = (event.target as { closest?: (selector: string) => Element | null } | null)
@@ -266,8 +387,20 @@ export function EpubReader({ documentId, onClose }: Props) {
   const changeChapter = (next: number) => {
     if (!book) return;
     setFragment(undefined);
+    setScrollProgress(0);
     setChapter(Math.max(0, Math.min(book.chapters.length - 1, next)));
   };
+
+  useEffect(() => {
+    const frameDocument = iframeRef.current?.contentDocument;
+    if (!frameDocument) return;
+    const chapterMatches = searchMatches.filter((match) => match.chapter === chapter);
+    const activeMatch = searchMatches[activeSearchIndex];
+    const activeOccurrence = activeMatch?.chapter === chapter
+      ? chapterMatches.findIndex((match) => match === activeMatch)
+      : -1;
+    markFrameSearch(frameDocument, completedSearchQuery, activeOccurrence)?.scrollIntoView({ block: "center" });
+  }, [activeSearchIndex, chapter, completedSearchQuery, searchMatches]);
 
   return (
     <section className={`pdf-reader epub-reader epub-theme-${theme}`} aria-label="EPUB 阅读器">
@@ -291,6 +424,18 @@ export function EpubReader({ documentId, onClose }: Props) {
             </button>
           ))}
         </div>
+        <form className="pdf-search epub-search" role="search" onSubmit={(event) => { event.preventDefault(); runSearch(1); }}>
+          <input
+            type="search"
+            aria-label="搜索 EPUB"
+            placeholder="搜索全文"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+          />
+          <button type="button" aria-label="上一个 EPUB 搜索结果" disabled={searchMatches.length === 0} onClick={() => runSearch(-1)}>↑</button>
+          <button type="submit" aria-label="下一个 EPUB 搜索结果">↓</button>
+          <span>{completedSearchQuery ? (searchMatches.length > 0 ? `${activeSearchIndex + 1}/${searchMatches.length}` : "未找到") : ""}</span>
+        </form>
         <button type="button" className={tocOpen ? "active" : ""} onClick={() => setTocOpen((open) => !open)} aria-label="EPUB 目录">目录</button>
       </header>
       <div className="pdf-reader-body">

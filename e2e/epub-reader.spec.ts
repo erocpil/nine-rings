@@ -34,7 +34,7 @@ function createEpubFixture(): Buffer {
       <body><h1>第一章</h1><p>这是 EPUB 第一章正文。</p><a href="chapter-2.xhtml#target">正文下一章</a><script>parent.document.body.dataset.epubUnsafe='true'</script></body></html>`),
     "OEBPS/chapter-2.xhtml": strToU8(`<?xml version="1.0" encoding="UTF-8"?>
       <html xmlns="http://www.w3.org/1999/xhtml"><head><title>继续阅读</title></head>
-      <body><h1 id="target">第二章</h1><p>阅读进度应当保存到这里。</p></body></html>`),
+      <body><h1 id="target">第二章</h1><p>阅读进度应当保存到这里。</p><div style="height: 1800px"></div><p>章节末尾内容。</p></body></html>`),
   };
   return Buffer.from(zipSync(files, { level: 6 }));
 }
@@ -69,10 +69,18 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await chapterFrame.getByRole("link", { name: "正文下一章" }).click();
   await expect(chapterFrame.getByRole("heading", { name: "第二章" })).toBeVisible();
 
+  await toc.getByRole("button", { name: "开始阅读" }).click();
+  await page.getByLabel("搜索 EPUB").fill("阅读进度");
+  await page.getByLabel("下一个 EPUB 搜索结果").click();
+  await expect(chapterFrame.locator("mark.epub-search-current")).toHaveText("阅读进度");
+  await expect(page.locator(".epub-search")).toContainText("1/1");
+
   await page.getByLabel("EPUB 字号").getByRole("button", { name: "A＋" }).click();
   await expect(page.getByLabel("EPUB 字号")).toContainText("110%");
   await page.getByRole("button", { name: "护眼主题" }).click();
   await expect(reader).toHaveClass(/epub-theme-sepia/);
+  await chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollTo(0, 900));
+  await page.waitForTimeout(250);
 
   await page.getByRole("button", { name: "关闭 EPUB 阅读器" }).click();
   await page.getByTitle("设置").click();
@@ -87,6 +95,7 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(page.getByLabel("EPUB 字号")).toContainText("110%");
   await expect(reader).toHaveClass(/epub-theme-sepia/);
   await expect(chapterFrame.getByRole("heading", { name: "第二章" })).toBeVisible();
+  await expect.poll(() => chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollY ?? 0)).toBeGreaterThan(400);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

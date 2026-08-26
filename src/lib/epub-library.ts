@@ -20,6 +20,7 @@ export interface LocalEpubEntry {
   chapter: number;
   chapterCount: number;
   location?: string;
+  scrollProgress?: number;
   fontSize: number;
   theme: "light" | "sepia" | "dark";
 }
@@ -345,7 +346,7 @@ export async function getLocalEpub(id: string): Promise<{ entry: LocalEpubEntry;
 
 export async function updateLocalEpubProgress(
   id: string,
-  progress: Pick<LocalEpubEntry, "chapter" | "fontSize" | "theme"> & { location?: string },
+  progress: Pick<LocalEpubEntry, "chapter" | "fontSize" | "theme"> & { location?: string; scrollProgress?: number },
 ): Promise<void> {
   const database = await openEpubDatabase();
   const transaction = database.transaction(EPUB_STORE, "readwrite");
@@ -357,6 +358,7 @@ export async function updateLocalEpubProgress(
     ...record,
     chapter: Math.max(0, Math.min(record.chapterCount - 1, Math.round(progress.chapter))),
     location: progress.location,
+    scrollProgress: Math.max(0, Math.min(1, progress.scrollProgress ?? 0)),
     fontSize: Math.max(70, Math.min(180, Math.round(progress.fontSize))),
     theme: progress.theme,
     lastOpenedAt: new Date().toISOString(),

@@ -9619,6 +9619,11 @@ button.doc-tree-toggle:focus-visible {
   padding-inline: 6px;
 }
 
+.epub-search {
+  flex: 1 1 180px;
+  max-width: 330px;
+}
+
 .epub-outline .pdf-outline-node button.active {
   background: color-mix(in srgb, var(--accent) 16%, var(--surface));
   color: var(--accent);
@@ -9783,8 +9788,13 @@ button.doc-tree-toggle:focus-visible {
     order: 7;
   }
 
-  .epub-reader-toolbar > button:last-child {
+  .epub-search {
     order: 8;
+    max-width: none;
+  }
+
+  .epub-reader-toolbar > button:last-child {
+    order: 9;
     margin-left: auto;
   }
 
