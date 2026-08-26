@@ -70,11 +70,18 @@ interface TouchGesture {
 }
 
 interface PinchGesture {
+  pageNumber: number;
+  surface: HTMLDivElement;
   initialDistance: number;
   initialZoom: number;
   targetZoom: number;
   anchorX: number;
   anchorY: number;
+  initialCenterX: number;
+  initialCenterY: number;
+  currentCenterX: number;
+  currentCenterY: number;
+  frame: number;
 }
 
 function touchDistance(first: React.Touch, second: React.Touch): number {
@@ -138,7 +145,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const textCacheRef = useRef(new Map<number, PageTextCache>());
   const touchGestureRef = useRef<TouchGesture | null>(null);
   const pinchGestureRef = useRef<PinchGesture | null>(null);
-  const zoomAnchorRef = useRef<{ x: number; y: number } | null>(null);
+  const pendingPinchCommitRef = useRef<{ pageNumber: number; surface: HTMLDivElement } | null>(null);
+  const zoomAnchorRef = useRef<{ pageNumber: number; x: number; y: number } | null>(null);
   const pendingPageNavigationRef = useRef<number | null>(null);
   const searchRequestRef = useRef(0);
   const saveTimerRef = useRef<number | null>(null);
@@ -579,6 +587,13 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       renderTaskRefs.current.get(pageNumber)?.cancel();
       pageRenderVersionRefs.current.set(pageNumber, (pageRenderVersionRefs.current.get(pageNumber) ?? 0) + 1);
       pageRequestedSignatureRefs.current.delete(pageNumber);
+      const pendingPinch = pendingPinchCommitRef.current;
+      if (pendingPinch?.pageNumber === pageNumber) {
+        pendingPinch.surface.style.transform = "";
+        pendingPinch.surface.style.transformOrigin = "";
+        pendingPinch.surface.style.willChange = "";
+        pendingPinchCommitRef.current = null;
+      }
     };
     canvasRefCallbacks.current.set(pageNumber, callback);
     return callback;
@@ -768,6 +783,15 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           surface.style.height = `${Math.floor(displayViewport.height)}px`;
           surface.style.setProperty("--scale-factor", String(displayScale));
           surface.dataset.pdfPage = String(pageNumber);
+          const pendingPinch = pendingPinchCommitRef.current;
+          if (pendingPinch?.pageNumber === pageNumber && pendingPinch.surface === surface) {
+            canvas.style.width = `${Math.floor(displayViewport.width)}px`;
+            canvas.style.height = `${Math.floor(displayViewport.height)}px`;
+            surface.style.transform = "";
+            surface.style.transformOrigin = "";
+            surface.style.willChange = "";
+            pendingPinchCommitRef.current = null;
+          }
           textLayerElement.replaceChildren();
           textLayerElement.style.width = `${Math.floor(displayViewport.width)}px`;
           textLayerElement.style.height = `${Math.floor(displayViewport.height)}px`;
@@ -814,15 +838,16 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
             }
           }
 
-          const anchor = pageNumber === page ? zoomAnchorRef.current : null;
+          const pendingAnchor = zoomAnchorRef.current;
+          const anchor = pendingAnchor?.pageNumber === pageNumber ? pendingAnchor : null;
           if (!isStale() && anchor) {
             zoomAnchorRef.current = null;
             window.requestAnimationFrame(() => {
               const scrollViewport = viewportRef.current;
               const nextSurface = pageSurfaceRefs.current.get(pageNumber);
               if (!scrollViewport || !nextSurface) return;
-              scrollViewport.scrollLeft = anchor.x * nextSurface.clientWidth - scrollViewport.clientWidth / 2;
-              scrollViewport.scrollTop = anchor.y * nextSurface.clientHeight - scrollViewport.clientHeight / 2;
+              scrollViewport.scrollLeft = nextSurface.offsetLeft + anchor.x * nextSurface.clientWidth - scrollViewport.clientWidth / 2;
+              scrollViewport.scrollTop = nextSurface.offsetTop + anchor.y * nextSurface.clientHeight - scrollViewport.clientHeight / 2;
             });
           }
           if (!isStale() && (fitWidth || fitHeight) && pageNumber === page) setZoom(displayScale);
@@ -1259,17 +1284,28 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     if (event.touches.length === 2) {
       const first = event.touches[0];
       const second = event.touches[1];
-      const surface = pageSurfaceRefs.current.get(page);
+      const eventTarget = event.target instanceof Element ? event.target : null;
+      const surface = eventTarget?.closest<HTMLDivElement>(".pdf-page-surface")
+        ?? pageSurfaceRefs.current.get(page);
       if (!surface) return;
       const bounds = surface.getBoundingClientRect();
       const centerX = (first.clientX + second.clientX) / 2;
       const centerY = (first.clientY + second.clientY) / 2;
+      const pageNumber = Number(surface.dataset.pdfPage) || page;
+      surface.style.willChange = "transform";
       pinchGestureRef.current = {
+        pageNumber,
+        surface,
         initialDistance: Math.max(1, touchDistance(first, second)),
         initialZoom: zoom,
         targetZoom: zoom,
         anchorX: Math.max(0, Math.min(1, (centerX - bounds.left) / Math.max(1, bounds.width))),
         anchorY: Math.max(0, Math.min(1, (centerY - bounds.top) / Math.max(1, bounds.height))),
+        initialCenterX: centerX,
+        initialCenterY: centerY,
+        currentCenterX: centerX,
+        currentCenterY: centerY,
+        frame: 0,
       };
       touchGestureRef.current = null;
       event.preventDefault();
@@ -1295,29 +1331,44 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     const pinch = pinchGestureRef.current;
     if (!pinch || event.touches.length < 2) return;
     event.preventDefault();
-    const distance = touchDistance(event.touches[0], event.touches[1]);
+    const first = event.touches[0];
+    const second = event.touches[1];
+    const distance = touchDistance(first, second);
     pinch.targetZoom = Math.max(0.25, Math.min(4, pinch.initialZoom * distance / pinch.initialDistance));
-    const surface = pageSurfaceRefs.current.get(page);
-    if (!surface) return;
-    surface.style.transformOrigin = `${pinch.anchorX * 100}% ${pinch.anchorY * 100}%`;
-    surface.style.transform = `scale(${pinch.targetZoom / Math.max(0.25, pinch.initialZoom)})`;
-  }, [page]);
+    pinch.currentCenterX = (first.clientX + second.clientX) / 2;
+    pinch.currentCenterY = (first.clientY + second.clientY) / 2;
+    if (pinch.frame) return;
+    pinch.frame = window.requestAnimationFrame(() => {
+      pinch.frame = 0;
+      const scale = pinch.targetZoom / Math.max(0.25, pinch.initialZoom);
+      const offsetX = pinch.currentCenterX - pinch.initialCenterX;
+      const offsetY = pinch.currentCenterY - pinch.initialCenterY;
+      pinch.surface.style.transformOrigin = `${pinch.anchorX * 100}% ${pinch.anchorY * 100}%`;
+      pinch.surface.style.transform = `translate3d(${offsetX}px, ${offsetY}px, 0) scale(${scale})`;
+    });
+  }, []);
 
   const finishPinch = useCallback(() => {
     const pinch = pinchGestureRef.current;
     if (!pinch) return false;
     pinchGestureRef.current = null;
-    const surface = pageSurfaceRefs.current.get(page);
-    if (surface) {
-      surface.style.transform = "";
-      surface.style.transformOrigin = "";
+    if (pinch.frame) {
+      window.cancelAnimationFrame(pinch.frame);
+      pinch.frame = 0;
     }
-    zoomAnchorRef.current = { x: pinch.anchorX, y: pinch.anchorY };
+    zoomAnchorRef.current = { pageNumber: pinch.pageNumber, x: pinch.anchorX, y: pinch.anchorY };
+    if (Math.abs(pinch.targetZoom - pinch.initialZoom) < 0.005) {
+      pinch.surface.style.transform = "";
+      pinch.surface.style.transformOrigin = "";
+      pinch.surface.style.willChange = "";
+      return true;
+    }
+    pendingPinchCommitRef.current = { pageNumber: pinch.pageNumber, surface: pinch.surface };
     setFitWidth(false);
     setFitHeight(false);
     setZoom(pinch.targetZoom);
     return true;
-  }, [page]);
+  }, []);
 
   const handleTouchEnd = useCallback((event: React.TouchEvent<HTMLElement>) => {
     if (pinchGestureRef.current && event.touches.length < 2) {
@@ -1356,13 +1407,13 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const handleTouchCancel = useCallback(() => {
     touchGestureRef.current = null;
     if (!pinchGestureRef.current) return;
+    const pinch = pinchGestureRef.current;
     pinchGestureRef.current = null;
-    const surface = pageSurfaceRefs.current.get(page);
-    if (surface) {
-      surface.style.transform = "";
-      surface.style.transformOrigin = "";
-    }
-  }, [page]);
+    if (pinch.frame) window.cancelAnimationFrame(pinch.frame);
+    pinch.surface.style.transform = "";
+    pinch.surface.style.transformOrigin = "";
+    pinch.surface.style.willChange = "";
+  }, []);
 
   const handlePageClick = useCallback((event: React.MouseEvent<HTMLElement>) => {
     if (!fullscreen || event.detail > 1) return;
