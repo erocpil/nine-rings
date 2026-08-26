@@ -540,24 +540,47 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   useEffect(() => {
     if (!pdf || !renderedPages.length || viewportWidth <= 0 || viewportHeight <= 0) return;
     let cancelled = false;
+    const currentPages = [...renderedPages];
+    const pageSet = new Set<number>(currentPages);
+    const activeRenderTasks = new Map<number, RenderTask>(renderTaskRefs.current);
+    const activeTextLayers = new Map<number, TextLayer>(textLayerRefs.current);
     setRendering(true);
 
-    renderTaskRefs.current.forEach((task, pageNumber) => {
-      if (renderedPages.includes(pageNumber)) task.cancel();
+    activeRenderTasks.forEach((task, pageNumber) => {
+      if (pageSet.has(pageNumber)) {
+        task.cancel();
+      }
     });
-    textLayerRefs.current.forEach((textLayer, pageNumber) => {
-      if (renderedPages.includes(pageNumber)) textLayer.cancel();
+    activeTextLayers.forEach((textLayer, pageNumber) => {
+      if (pageSet.has(pageNumber)) {
+        textLayer.cancel();
+      }
     });
 
     const render = async () => {
       const surfacePadding = 24;
       const availableWidth = Math.max(160, viewportWidth - surfacePadding);
       const availableHeight = Math.max(120, viewportHeight - surfacePadding);
-      const tasks = renderedPages.map(async (pageNumber) => {
+      const tasks = currentPages.map(async (pageNumber) => {
         const canvas = canvasRefs.current.get(pageNumber);
         const surface = pageSurfaceRefs.current.get(pageNumber);
         const textLayerElement = textLayerElementRefs.current.get(pageNumber);
         if (!canvas || !surface || !textLayerElement) return;
+
+        const previousTask = renderTaskRefs.current.get(pageNumber);
+        if (previousTask) {
+          previousTask.cancel();
+          try {
+            await previousTask.promise;
+          } catch {
+            // Ignore cancellation or previous completion errors
+          }
+        }
+
+        const previousTextLayer = textLayerRefs.current.get(pageNumber);
+        if (previousTextLayer) {
+          previousTextLayer.cancel();
+        }
 
         const pdfPage = await pdf.getPage(pageNumber);
         if (cancelled) return;
@@ -636,11 +659,13 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
 
     return () => {
       cancelled = true;
-      renderTaskRefs.current.forEach((task, pageNumber) => {
-        if (renderedPages.includes(pageNumber)) task.cancel();
+      const cleanupTasks = new Map<number, RenderTask>(renderTaskRefs.current);
+      const cleanupLayers = new Map<number, TextLayer>(textLayerRefs.current);
+      cleanupTasks.forEach((task, pageNumber) => {
+        if (pageSet.has(pageNumber)) task.cancel();
       });
-      textLayerRefs.current.forEach((textLayer, pageNumber) => {
-        if (renderedPages.includes(pageNumber)) textLayer.cancel();
+      cleanupLayers.forEach((textLayer, pageNumber) => {
+        if (pageSet.has(pageNumber)) textLayer.cancel();
       });
     };
   }, [fitHeight, fitWidth, page, pdf, renderedPages, viewportHeight, viewportWidth, zoom]);
