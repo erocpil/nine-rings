@@ -9605,7 +9605,7 @@ button.doc-tree-toggle:focus-visible {
 
 /* ── EPUB 阅读器：复用 PDF 的工具栏、目录和资料库视觉语言 ── */
 .epub-reader {
-  background: #d8d4cc;
+  background: #f1f2f4;
 }
 
 .epub-reader-focus {
@@ -9644,6 +9644,12 @@ button.doc-tree-toggle:focus-visible {
   color: #fff;
   opacity: .72;
   backdrop-filter: blur(8px);
+  display: none;
+  font-size: 20px;
+}
+
+.epub-reader-focus.epub-focus-controls-visible .epub-focus-exit {
+  display: block;
 }
 
 .epub-reader-toolbar {
@@ -9668,6 +9674,77 @@ button.doc-tree-toggle:focus-visible {
 .epub-theme-controls button {
   min-width: 30px;
   padding-inline: 6px;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.epub-line-merge-toggle.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  color: var(--accent);
+}
+
+.epub-swipe-notice {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 10004;
+  padding: 9px 14px;
+  border-radius: 8px;
+  background: rgba(24, 24, 26, .78);
+  color: #fff;
+  font-size: 13px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(8px);
+}
+
+.epub-background-palette {
+  position: fixed;
+  top: 58px;
+  right: 12px;
+  z-index: 10003;
+  display: flex;
+  width: min(320px, calc(100vw - 24px));
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .32);
+}
+
+.epub-background-palette header,
+.epub-background-palette label,
+.epub-background-swatches {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.epub-background-palette header button {
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.epub-background-swatches {
+  justify-content: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.epub-background-swatches button {
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+}
+
+.epub-background-swatches button.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 .epub-search {
@@ -9780,6 +9857,42 @@ button.doc-tree-toggle:focus-visible {
   border-top: 1px solid var(--border);
 }
 
+.epub-outline-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.epub-outline-actions span {
+  margin-right: 3px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.epub-toc-row {
+  display: flex;
+  align-items: center;
+}
+
+.pdf-outline-node .epub-toc-disclosure {
+  flex: 0 0 28px;
+  width: 28px;
+  padding: 0;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.epub-toc-disclosure-placeholder {
+  flex: 0 0 28px;
+  width: 28px;
+}
+
+.pdf-outline-node .epub-toc-link {
+  flex: 1;
+  width: auto;
+  padding-left: 2px;
+}
+
 .epub-annotation-directory h4 {
   margin: 8px 2px 4px;
   color: var(--text-secondary);
@@ -9844,7 +9957,7 @@ button.doc-tree-toggle:focus-visible {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  background: #d8d4cc;
+  background: #f1f2f4;
 }
 
 .epub-theme-dark .epub-reading-viewport {
@@ -9860,7 +9973,12 @@ button.doc-tree-toggle:focus-visible {
   height: 100%;
   margin: 0 auto;
   border: 0;
-  background: #fffdf9;
+  background: #fff;
+}
+
+.epub-reader-focus.epub-focus-controls-visible .epub-bottom-navigation {
+  display: flex;
+  z-index: 10001;
 }
 
 .epub-bottom-navigation {
@@ -10019,6 +10137,14 @@ button.doc-tree-toggle:focus-visible {
     left: 8px;
     width: auto;
     max-height: min(72dvh, 560px);
+  }
+
+  .epub-background-palette {
+    top: auto;
+    right: 8px;
+    bottom: max(8px, var(--safe-bottom, 0px));
+    left: 8px;
+    width: auto;
   }
 }
 

@@ -26,6 +26,8 @@ export interface LocalEpubEntry {
   scrollProgress?: number;
   fontSize: number;
   theme: "light" | "sepia" | "dark";
+  themeBackgrounds?: Partial<Record<"light" | "sepia" | "dark", string>>;
+  smartLineMerge?: boolean;
   hasCover?: boolean;
 }
 
@@ -362,6 +364,7 @@ export async function importLocalEpub(file: File): Promise<LocalEpubEntry> {
     chapterCount: parsed.chapters.length,
     fontSize: 100,
     theme: "light",
+    smartLineMerge: false,
     hasCover: Boolean(parsed.cover),
     blob: file,
     coverBlob: parsed.cover ? new Blob([parsed.files[parsed.cover.path]], { type: parsed.cover.mediaType }) : undefined,
@@ -474,7 +477,7 @@ export async function deleteLocalEpubBookmark(id: string): Promise<void> {
 
 export async function updateLocalEpubProgress(
   id: string,
-  progress: Pick<LocalEpubEntry, "chapter" | "fontSize" | "theme"> & { location?: string; scrollProgress?: number },
+  progress: Pick<LocalEpubEntry, "chapter" | "fontSize" | "theme" | "themeBackgrounds" | "smartLineMerge"> & { location?: string; scrollProgress?: number },
 ): Promise<void> {
   const database = await openEpubDatabase();
   const transaction = database.transaction(EPUB_STORE, "readwrite");
@@ -489,6 +492,8 @@ export async function updateLocalEpubProgress(
     scrollProgress: Math.max(0, Math.min(1, progress.scrollProgress ?? 0)),
     fontSize: Math.max(70, Math.min(180, Math.round(progress.fontSize))),
     theme: progress.theme,
+    themeBackgrounds: progress.themeBackgrounds,
+    smartLineMerge: Boolean(progress.smartLineMerge),
     lastOpenedAt: new Date().toISOString(),
   });
   await done;

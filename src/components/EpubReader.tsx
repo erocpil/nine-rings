@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { toggleTauriFullscreen } from "../lib/fullscreen";
 import { isTauriRuntime } from "../lib/runtime";
 import {
@@ -31,10 +32,6 @@ interface Props {
 
 interface EpubSelection { anchor: EpubTextAnchor; text: string; }
 
-interface FlatTocItem extends EpubTocItem {
-  depth: number;
-}
-
 interface EpubSearchMatch {
   chapter: number;
   offset: number;
@@ -54,21 +51,68 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   woff2: "font/woff2",
 };
 
+const EPUB_THEME_DEFAULT_BACKGROUNDS = { light: "#fffdf9", sepia: "#f4ecd8", dark: "#202124" } as const;
+const EPUB_BACKGROUND_PRESETS = ["#ffffff", "#fffdf9", "#f7f1df", "#eaf2e3", "#e8f0f7", "#202124", "#17191c"];
+
+function isDarkColor(color: string): boolean {
+  const match = /^#([0-9a-f]{6})$/i.exec(color);
+  if (!match) return false;
+  const value = Number.parseInt(match[1], 16);
+  const red = value >> 16;
+  const green = value >> 8 & 0xff;
+  const blue = value & 0xff;
+  return red * .299 + green * .587 + blue * .114 < 145;
+}
+
 function mimeForPath(path: string): string {
   return MIME_BY_EXTENSION[path.split(".").pop()?.toLowerCase() ?? ""] ?? "application/octet-stream";
 }
 
-function flattenToc(items: EpubTocItem[], depth = 0): FlatTocItem[] {
-  return items.flatMap((item) => [{ ...item, depth }, ...flattenToc(item.children, depth + 1)]);
-}
-
-function chapterPlainText(book: ParsedEpub, chapter: number): string {
+function chapterPlainText(book: ParsedEpub, chapter: number, smartLineMerge = false): string {
   const bytes = book.files[book.chapters[chapter].path];
   if (!bytes) return "";
   const source = new TextDecoder().decode(bytes);
   const document = new DOMParser().parseFromString(source, "text/html");
   document.querySelectorAll("script, style").forEach((node) => node.remove());
+  if (smartLineMerge) normalizeHardLineBreaks(document);
   return document.body.textContent ?? "";
+}
+
+function isHardLineContinuation(previous: string, next: string): boolean {
+  const left = previous.replace(/\s+/g, " ").trim();
+  const right = next.replace(/\s+/g, " ").trim();
+  if (!left || !right || left.length > 180 || right.length > 180) return false;
+  if (/[.!?。！？:：;；]$/.test(left) || /^[—–•▪◦]/.test(right)) return false;
+  return /^[a-zà-öø-ÿ]/.test(right);
+}
+
+function normalizeHardLineBreaks(document: Document): void {
+  const excluded = "h1,h2,h3,h4,h5,h6,li,pre,code,table,figure,figcaption,blockquote,address,nav";
+  document.querySelectorAll("br").forEach((breakNode) => {
+    if (breakNode.parentElement?.closest(excluded)) return;
+    const previous = breakNode.previousSibling?.textContent ?? "";
+    const next = breakNode.nextSibling?.textContent ?? "";
+    if (isHardLineContinuation(previous, next)) breakNode.replaceWith(document.createTextNode(" "));
+  });
+  const candidates = [...document.querySelectorAll<HTMLElement>("p, div")];
+  for (const element of candidates) {
+    if (!element.isConnected || element.closest(excluded) || element.querySelector("p, div, br, ul, ol, table, pre, blockquote")) continue;
+    if (/poem|verse|stanza|title|heading|caption|credit|author/i.test(element.className)) continue;
+    if (/text-align\s*:\s*(?:center|right)/i.test(element.getAttribute("style") ?? "")) continue;
+    let next = element.nextElementSibling as HTMLElement | null;
+    while (next && /^(p|div)$/.test(next.tagName.toLowerCase())
+      && !next.closest(excluded)
+      && !next.querySelector("p, div, br, ul, ol, table, pre, blockquote")
+      && !/poem|verse|stanza|title|heading|caption|credit|author/i.test(next.className)
+      && !/text-align\s*:\s*(?:center|right)/i.test(next.getAttribute("style") ?? "")
+      && isHardLineContinuation(element.textContent ?? "", next.textContent ?? "")) {
+      element.append(document.createTextNode(" "), ...Array.from(next.childNodes));
+      const following = next.nextElementSibling as HTMLElement | null;
+      next.remove();
+      next = following;
+    }
+  }
+  document.body.normalize();
 }
 
 function markFrameSearch(document: Document, query: string, activeOccurrence: number): HTMLElement | null {
@@ -198,6 +242,8 @@ function safeChapterDocument(
   resourceUrl: (path: string) => string | null,
   fontSize: number,
   theme: LocalEpubEntry["theme"],
+  customBackground?: string,
+  smartLineMerge = false,
 ): string {
   const bytes = book.files[chapterPath];
   if (!bytes) throw new Error("EPUB 章节内容不存在");
@@ -243,13 +289,20 @@ function safeChapterDocument(
   document.querySelectorAll("style").forEach((element) => {
     element.textContent = rewriteCssResources(element.textContent ?? "", chapterPath, resourceUrl);
   });
+  if (smartLineMerge) normalizeHardLineBreaks(document);
 
   const palettes = {
     light: { background: "#fffdf9", text: "#25231f", link: "#315f9b" },
     sepia: { background: "#f4ecd8", text: "#403629", link: "#7b542c" },
     dark: { background: "#202124", text: "#e8eaed", link: "#8ab4f8" },
   } as const;
-  const palette = palettes[theme];
+  const safeCustomBackground = customBackground && /^#[0-9a-f]{6}$/i.test(customBackground) ? customBackground : undefined;
+  const palette: { background: string; text: string; link: string } = { ...palettes[theme], background: safeCustomBackground ?? palettes[theme].background };
+  if (safeCustomBackground) {
+    const darkBackground = isDarkColor(safeCustomBackground);
+    palette.text = darkBackground ? "#edf0f2" : "#25231f";
+    palette.link = darkBackground ? "#8ab4f8" : "#315f9b";
+  }
   const style = document.createElement("style");
   style.textContent = `
     :root { color-scheme: ${theme === "dark" ? "dark" : "light"}; }
@@ -273,12 +326,22 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const registryRef = useRef<ReturnType<typeof createResourceRegistry> | null>(null);
   const scrollSaveTimerRef = useRef<number | null>(null);
+  const focusControlsTimerRef = useRef<number | null>(null);
+  const themeLongPressTimerRef = useRef<number | null>(null);
+  const themeLongPressTriggeredRef = useRef(false);
+  const swipeNoticeTimerRef = useRef<number | null>(null);
+  const fullscreenRef = useRef(false);
   const [entry, setEntry] = useState<LocalEpubEntry | null>(null);
   const [book, setBook] = useState<ParsedEpub | null>(null);
   const [chapter, setChapter] = useState(0);
   const [fragment, setFragment] = useState<string | undefined>();
   const [fontSize, setFontSize] = useState(100);
   const [theme, setTheme] = useState<LocalEpubEntry["theme"]>("light");
+  const [themeBackgrounds, setThemeBackgrounds] = useState<NonNullable<LocalEpubEntry["themeBackgrounds"]>>({});
+  const [colorPaletteTheme, setColorPaletteTheme] = useState<LocalEpubEntry["theme"] | null>(null);
+  const [smartLineMerge, setSmartLineMerge] = useState(false);
+  const [swipeNotice, setSwipeNotice] = useState<string | null>(null);
+  const [collapsedTocItems, setCollapsedTocItems] = useState<Set<string>>(() => new Set());
   const [scrollProgress, setScrollProgress] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [completedSearchQuery, setCompletedSearchQuery] = useState("");
@@ -291,10 +354,43 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const [annotationOpen, setAnnotationOpen] = useState(false);
   const [bookmarkPanelOpen, setBookmarkPanelOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [focusControlsVisible, setFocusControlsVisible] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [tocOpen, setTocOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { fullscreenRef.current = fullscreen; }, [fullscreen]);
+
+  const hideFocusControls = useCallback(() => {
+    if (focusControlsTimerRef.current !== null) window.clearTimeout(focusControlsTimerRef.current);
+    focusControlsTimerRef.current = null;
+    setFocusControlsVisible(false);
+  }, []);
+
+  const showFocusControls = useCallback(() => {
+    if (!fullscreenRef.current) return;
+    if (focusControlsTimerRef.current !== null) window.clearTimeout(focusControlsTimerRef.current);
+    setFocusControlsVisible(true);
+    focusControlsTimerRef.current = window.setTimeout(() => {
+      focusControlsTimerRef.current = null;
+      setFocusControlsVisible(false);
+    }, 1000);
+  }, []);
+
+  const toggleFocusControls = useCallback(() => {
+    if (!fullscreenRef.current) return;
+    if (focusControlsTimerRef.current !== null) window.clearTimeout(focusControlsTimerRef.current);
+    focusControlsTimerRef.current = null;
+    setFocusControlsVisible((visible) => {
+      if (visible) return false;
+      focusControlsTimerRef.current = window.setTimeout(() => {
+        focusControlsTimerRef.current = null;
+        setFocusControlsVisible(false);
+      }, 1000);
+      return true;
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -320,6 +416,8 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       setFragment(savedLocation?.[0] === parsed.chapters[savedChapter].path ? savedLocation[1] : undefined);
       setFontSize(stored.entry.fontSize || 100);
       setTheme(stored.entry.theme || "light");
+      setThemeBackgrounds(stored.entry.themeBackgrounds ?? {});
+      setSmartLineMerge(Boolean(stored.entry.smartLineMerge));
       setScrollProgress(stored.entry.scrollProgress ?? 0);
       setHighlights(storedHighlights);
       setBookmarks(storedBookmarks);
@@ -330,6 +428,9 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     return () => {
       cancelled = true;
       if (scrollSaveTimerRef.current !== null) window.clearTimeout(scrollSaveTimerRef.current);
+      if (focusControlsTimerRef.current !== null) window.clearTimeout(focusControlsTimerRef.current);
+      if (themeLongPressTimerRef.current !== null) window.clearTimeout(themeLongPressTimerRef.current);
+      if (swipeNoticeTimerRef.current !== null) window.clearTimeout(swipeNoticeTimerRef.current);
       registryRef.current?.destroy();
       registryRef.current = null;
     };
@@ -338,14 +439,26 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const chapterResult = useMemo(() => {
     if (!book || !registryRef.current) return { html: "", error: null as string | null };
     try {
-      return { html: safeChapterDocument(book, book.chapters[chapter].path, registryRef.current.resourceUrl, fontSize, theme), error: null };
+      return { html: safeChapterDocument(book, book.chapters[chapter].path, registryRef.current.resourceUrl, fontSize, theme, themeBackgrounds[theme], smartLineMerge), error: null };
     } catch (reason) {
       return { html: "", error: reason instanceof Error ? reason.message : String(reason) };
     }
-  }, [book, chapter, fontSize, theme]);
+  }, [book, chapter, fontSize, smartLineMerge, theme, themeBackgrounds]);
   const displayError = error ?? chapterResult.error;
 
-  const flatToc = useMemo(() => flattenToc(book?.toc ?? []), [book]);
+  const tocTree = useMemo<EpubTocItem[]>(() => book
+    ? (book.toc.length > 0 ? book.toc : book.chapters.map((item) => ({ label: item.title, path: item.path, href: item.path, fragment: undefined, children: [] })))
+    : [], [book]);
+  const collapsibleTocItems = useMemo(() => {
+    const ids = new Set<string>();
+    const visit = (items: EpubTocItem[], parentId = "toc") => items.forEach((item, index) => {
+      const id = `${parentId}/${index}:${item.href}`;
+      if (item.children.length > 0) ids.add(id);
+      visit(item.children, id);
+    });
+    visit(tocTree);
+    return ids;
+  }, [tocTree]);
   const progress = book ? Math.round((chapter + 1) / book.chapters.length * 100) : 0;
 
   const readFrameScrollProgress = useCallback(() => {
@@ -373,7 +486,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     if (query !== completedSearchQuery) {
       const needle = query.toLocaleLowerCase();
       matches = book.chapters.flatMap((_item, chapterIndex) => {
-        const text = chapterPlainText(book, chapterIndex).toLocaleLowerCase();
+        const text = chapterPlainText(book, chapterIndex, smartLineMerge).toLocaleLowerCase();
         const chapterMatches: EpubSearchMatch[] = [];
         let from = 0;
         while (from <= text.length - needle.length) {
@@ -398,7 +511,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     setFragment(undefined);
     setScrollProgress(0);
     setChapter(matches[nextIndex].chapter);
-  }, [activeSearchIndex, book, completedSearchQuery, searchMatches, searchQuery]);
+  }, [activeSearchIndex, book, completedSearchQuery, searchMatches, searchQuery, smartLineMerge]);
 
   const navigateTo = useCallback((path: string, targetFragment?: string) => {
     if (!book) return;
@@ -422,9 +535,11 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       location: `${current.path}${fragment ? `#${fragment}` : ""}`,
       fontSize,
       theme,
+      themeBackgrounds,
+      smartLineMerge,
       scrollProgress: liveScrollProgress,
     });
-  }, [book, chapter, entry, fontSize, fragment, scrollProgress, theme]);
+  }, [book, chapter, entry, fontSize, fragment, scrollProgress, smartLineMerge, theme, themeBackgrounds]);
 
   useEffect(() => {
     void persistProgress().catch((reason) => console.warn("[EPUB] 保存阅读进度失败:", reason));
@@ -462,6 +577,15 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [book, bookmarkPanelOpen, closeReader, fullscreen, onFullscreenChange]);
+
+  const showSwipeNotice = useCallback((message: string) => {
+    if (swipeNoticeTimerRef.current !== null) window.clearTimeout(swipeNoticeTimerRef.current);
+    setSwipeNotice(message);
+    swipeNoticeTimerRef.current = window.setTimeout(() => {
+      swipeNoticeTimerRef.current = null;
+      setSwipeNotice(null);
+    }, 1400);
+  }, []);
 
   const handleFrameLoad = () => {
     const frameDocument = iframeRef.current?.contentDocument;
@@ -504,6 +628,29 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     };
     frameWindow.addEventListener("scroll", captureScroll, { passive: true });
     frameDocument.addEventListener("scroll", captureScroll, { passive: true, capture: true });
+    let touchStart: { x: number; y: number; time: number } | null = null;
+    frameDocument.addEventListener("touchstart", (event) => {
+      if (event.touches.length !== 1) { touchStart = null; return; }
+      touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY, time: Date.now() };
+    }, { passive: true });
+    frameDocument.addEventListener("touchend", (event) => {
+      if (!touchStart || event.changedTouches.length !== 1) return;
+      const selection = frameWindow.getSelection();
+      if (selection && !selection.isCollapsed) { touchStart = null; return; }
+      const deltaX = event.changedTouches[0].clientX - touchStart.x;
+      const deltaY = event.changedTouches[0].clientY - touchStart.y;
+      const elapsed = Date.now() - touchStart.time;
+      touchStart = null;
+      if (elapsed > 900 || Math.abs(deltaX) < 60 || Math.abs(deltaX) < Math.abs(deltaY) * 1.35) return;
+      setFragment(undefined);
+      setScrollProgress(0);
+      if (deltaX < 0) {
+        if (chapter >= book.chapters.length - 1) showSwipeNotice("已经是最后一章");
+        else setChapter(chapter + 1);
+      } else if (chapter <= 0) showSwipeNotice("已经是第一章");
+      else setChapter(chapter - 1);
+    }, { passive: true });
+    frameDocument.addEventListener("click", toggleFocusControls);
     frameDocument.addEventListener("mouseup", () => {
       const current = frameWindow.getSelection();
       if (!current || current.rangeCount === 0 || current.isCollapsed) { setSelection(null); return; }
@@ -634,8 +781,10 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       setTocOpen(false);
       setBookmarkPanelOpen(false);
       setAnnotationOpen(false);
+      hideFocusControls();
     }
     if (fullscreen && !document.fullscreenElement) {
+      hideFocusControls();
       setFullscreen(false);
       onFullscreenChange?.(false);
       return;
@@ -663,23 +812,62 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
         return !value;
       });
     }
-  }, [fullscreen, onFullscreenChange]);
+  }, [fullscreen, hideFocusControls, onFullscreenChange]);
 
   useEffect(() => {
     const update = () => {
       const active = document.fullscreenElement === readerRef.current;
+      if (!active) hideFocusControls();
       setFullscreen(active);
       onFullscreenChange?.(active);
     };
     document.addEventListener("fullscreenchange", update);
     return () => document.removeEventListener("fullscreenchange", update);
-  }, [onFullscreenChange]);
+  }, [hideFocusControls, onFullscreenChange]);
 
   const activeHighlight = highlights.find((item) => item.id === targetHighlightId) ?? null;
   const currentBookmark = bookmarks.some((item) => item.chapter === chapter);
 
+  const startThemeLongPress = (value: LocalEpubEntry["theme"]) => {
+    if (themeLongPressTimerRef.current !== null) window.clearTimeout(themeLongPressTimerRef.current);
+    themeLongPressTriggeredRef.current = false;
+    themeLongPressTimerRef.current = window.setTimeout(() => {
+      themeLongPressTriggeredRef.current = true;
+      setTheme(value);
+      setColorPaletteTheme(value);
+      themeLongPressTimerRef.current = null;
+    }, 500);
+  };
+
+  const endThemeLongPress = () => {
+    if (themeLongPressTimerRef.current !== null) window.clearTimeout(themeLongPressTimerRef.current);
+    themeLongPressTimerRef.current = null;
+  };
+
+  const renderTocItems = (items: EpubTocItem[], depth = 0, parentId = "toc"): ReactNode => items.map((item, index) => {
+    const nodeId = `${parentId}/${index}:${item.href}`;
+    const itemChapter = book?.chapters.findIndex((candidate) => candidate.path === item.path) ?? -1;
+    const hasChildren = item.children.length > 0;
+    const collapsed = collapsedTocItems.has(nodeId);
+    return (
+      <div className="pdf-outline-node epub-toc-node" key={nodeId}>
+        <div className="epub-toc-row" style={{ paddingInlineStart: `${4 + depth * 14}px` }}>
+          {hasChildren
+            ? <button type="button" className="epub-toc-disclosure" aria-label={`${collapsed ? "展开" : "折叠"} ${item.label}`} aria-expanded={!collapsed} onClick={() => setCollapsedTocItems((current) => {
+              const next = new Set(current);
+              if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId);
+              return next;
+            })}>{collapsed ? "▸" : "▾"}</button>
+            : <span className="epub-toc-disclosure-placeholder" />}
+          <button type="button" className={`epub-toc-link${itemChapter === chapter ? " active" : ""}`} onClick={() => navigateTo(item.path, item.fragment)}>{item.label}</button>
+        </div>
+        {hasChildren && !collapsed && renderTocItems(item.children, depth + 1, nodeId)}
+      </div>
+    );
+  });
+
   return (
-    <section ref={readerRef} className={`pdf-reader epub-reader epub-theme-${theme}${fullscreen ? " epub-reader-focus" : ""}`} aria-label="EPUB 阅读器">
+    <section ref={readerRef} className={`pdf-reader epub-reader epub-theme-${theme}${fullscreen ? " epub-reader-focus" : ""}${focusControlsVisible ? " epub-focus-controls-visible" : ""}`} aria-label="EPUB 阅读器">
       <header className="pdf-reader-toolbar epub-reader-toolbar">
         <button type="button" className="pdf-reader-close" onClick={closeReader} aria-label="关闭 EPUB 阅读器">←</button>
         <strong className="pdf-reader-title" title={entry?.name}>{book?.title ?? entry?.name ?? "EPUB 阅读器"}</strong>
@@ -695,11 +883,15 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
         </div>
         <div className="epub-theme-controls" aria-label="EPUB 主题">
           {(["light", "sepia", "dark"] as const).map((value) => (
-            <button key={value} type="button" className={theme === value ? "active" : ""} onClick={() => setTheme(value)} aria-label={`${value === "light" ? "浅色" : value === "sepia" ? "护眼" : "深色"}主题`}>
+            <button key={value} type="button" className={theme === value ? "active" : ""} onPointerDown={() => startThemeLongPress(value)} onPointerUp={endThemeLongPress} onPointerCancel={endThemeLongPress} onPointerLeave={endThemeLongPress} onContextMenu={(event) => event.preventDefault()} onClick={() => {
+              if (themeLongPressTriggeredRef.current) { themeLongPressTriggeredRef.current = false; return; }
+              setTheme(value);
+            }} aria-label={`${value === "light" ? "浅色" : value === "sepia" ? "护眼" : "深色"}主题`}>
               {value === "light" ? "☀" : value === "sepia" ? "◐" : "☾"}
             </button>
           ))}
         </div>
+        <button type="button" className={smartLineMerge ? "active epub-line-merge-toggle" : "epub-line-merge-toggle"} aria-pressed={smartLineMerge} aria-label="智能合并 EPUB 硬换行" title="智能合并硬换行" onClick={() => setSmartLineMerge((enabled) => !enabled)}>断行</button>
         <form className="pdf-search epub-search" role="search" onSubmit={(event) => { event.preventDefault(); runSearch(1); }}>
           <input
             type="search"
@@ -721,19 +913,14 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
           <aside className="pdf-outline epub-outline" aria-label="EPUB 目录">
             <div className="pdf-outline-heading">
               <strong>目录</strong>
-              <span>{progress}%</span>
+              <div className="epub-outline-actions">
+                <span>{progress}%</span>
+                <button type="button" aria-label="展开全部 EPUB 目录" onClick={() => setCollapsedTocItems(new Set())}>＋</button>
+                <button type="button" aria-label="折叠全部 EPUB 目录" onClick={() => setCollapsedTocItems(new Set(collapsibleTocItems))}>−</button>
+              </div>
             </div>
             <div className="pdf-outline-list">
-              {(flatToc.length > 0 ? flatToc : book.chapters.map((item) => ({ label: item.title, path: item.path, href: item.path, fragment: undefined, children: [], depth: 0 }))).map((item, index) => {
-                const itemChapter = book.chapters.findIndex((candidate) => candidate.path === item.path);
-                return (
-                  <div className="pdf-outline-node" key={`${item.href}-${index}`}>
-                    <button type="button" className={itemChapter === chapter ? "active" : ""} style={{ paddingInlineStart: `${10 + item.depth * 14}px` }} onClick={() => navigateTo(item.path, item.fragment)}>
-                      {item.label}
-                    </button>
-                  </div>
-                );
-              })}
+              {renderTocItems(tocTree)}
               {(highlights.length > 0 || bookmarks.length > 0) && <div className="epub-annotation-directory">
                 <h4>高亮与备注</h4>
                 {highlights.map((highlight) => (
@@ -772,14 +959,29 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
           )}
           {!loading && !displayError && book && (
             <nav className="epub-bottom-navigation" aria-label="EPUB 章节导航">
-              <button type="button" onClick={() => changeChapter(chapter - 1)} disabled={chapter <= 0}>← 上一章</button>
+              <button type="button" onClick={() => { showFocusControls(); changeChapter(chapter - 1); }} disabled={chapter <= 0}>← 上一章</button>
               <span>{book.chapters[chapter].title} · {progress}%</span>
-              <button type="button" onClick={() => changeChapter(chapter + 1)} disabled={chapter >= book.chapters.length - 1}>下一章 →</button>
+              <button type="button" onClick={() => { showFocusControls(); changeChapter(chapter + 1); }} disabled={chapter >= book.chapters.length - 1}>下一章 →</button>
             </nav>
           )}
         </main>
       </div>
-      {fullscreen && <button type="button" className="epub-focus-exit" onClick={() => void toggleFullscreen()} aria-label="退出 EPUB 专注模式">退出专注</button>}
+      {fullscreen && <button type="button" className="epub-focus-exit" onClick={() => void toggleFullscreen()} aria-label="退出 EPUB 专注模式">↙️</button>}
+      {swipeNotice && <div className="epub-swipe-notice" role="status">{swipeNotice}</div>}
+      {colorPaletteTheme && (
+        <aside className="epub-background-palette" role="dialog" aria-modal="true" aria-label="EPUB 背景色板">
+          <header><strong>自定义{colorPaletteTheme === "light" ? "浅色" : colorPaletteTheme === "sepia" ? "护眼" : "深色"}背景</strong><button type="button" aria-label="关闭 EPUB 背景色板" onClick={() => setColorPaletteTheme(null)}>×</button></header>
+          <div className="epub-background-swatches">
+            {EPUB_BACKGROUND_PRESETS.map((color) => <button key={color} type="button" aria-label={`选择背景色 ${color}`} className={themeBackgrounds[colorPaletteTheme] === color ? "active" : ""} style={{ backgroundColor: color }} onClick={() => setThemeBackgrounds((current) => ({ ...current, [colorPaletteTheme]: color }))} />)}
+          </div>
+          <label>自定义颜色<input type="color" aria-label="自定义 EPUB 背景色" value={themeBackgrounds[colorPaletteTheme] ?? EPUB_THEME_DEFAULT_BACKGROUNDS[colorPaletteTheme]} onChange={(event) => setThemeBackgrounds((current) => ({ ...current, [colorPaletteTheme]: event.target.value }))} /></label>
+          <button type="button" onClick={() => setThemeBackgrounds((current) => {
+            const next = { ...current };
+            delete next[colorPaletteTheme];
+            return next;
+          })}>恢复该主题默认背景</button>
+        </aside>
+      )}
       {selection && (
         <div className="epub-selection-actions">
           <span>{selection.text.length} 字</span>

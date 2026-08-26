@@ -27,13 +27,13 @@ function createEpubFixture(): Buffer {
       </package>`),
     "OEBPS/nav.xhtml": strToU8(`<?xml version="1.0" encoding="UTF-8"?>
       <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body>
-        <nav epub:type="toc"><ol><li><a href="chapter-1.xhtml">开始阅读</a></li><li><a href="chapter-2.xhtml#target">继续阅读</a></li></ol></nav>
+        <nav epub:type="toc"><ol><li><a href="chapter-1.xhtml">开始阅读</a><ol><li><a href="chapter-2.xhtml#target">继续阅读</a></li></ol></li></ol></nav>
       </body></html>`),
     "OEBPS/book.css": strToU8("h1 { letter-spacing: 0.02em; }"),
     "OEBPS/cover.svg": strToU8(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600"><rect width="400" height="600" fill="#315f9b"/><text x="200" y="300" text-anchor="middle" fill="white">Nine Rings</text></svg>`),
     "OEBPS/chapter-1.xhtml": strToU8(`<?xml version="1.0" encoding="UTF-8"?>
       <html xmlns="http://www.w3.org/1999/xhtml"><head><title>开始阅读</title><link rel="stylesheet" href="book.css"/></head>
-      <body><h1>第一章</h1><p>这是 EPUB 第一章正文。</p><a href="chapter-2.xhtml#target">正文下一章</a><script>parent.document.body.dataset.epubUnsafe='true'</script></body></html>`),
+      <body><h1>第一章</h1><p>这是 EPUB 第一章正文。</p><p id="hard-line-a">At one time or</p><p id="hard-line-b">another, this line should be joined.</p><a href="chapter-2.xhtml#target">正文下一章</a><script>parent.document.body.dataset.epubUnsafe='true'</script></body></html>`),
     "OEBPS/chapter-2.xhtml": strToU8(`<?xml version="1.0" encoding="UTF-8"?>
       <html xmlns="http://www.w3.org/1999/xhtml"><head><title>继续阅读</title></head>
       <body><h1 id="target">第二章</h1><p>阅读进度应当保存到这里。</p><div style="height: 1800px"></div><p>章节末尾内容。</p></body></html>`),
@@ -58,9 +58,38 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(reader).toBeVisible();
   await expect(page.locator(".pdf-reader-title")).toHaveText("Nine Rings EPUB MVP");
   await expect(toc).toBeVisible();
-  await expect(toc.getByRole("button", { name: "开始阅读" })).toBeVisible();
+  await expect(toc.getByRole("button", { name: "开始阅读", exact: true })).toBeVisible();
+  await toc.getByRole("button", { name: "折叠 开始阅读" }).click();
+  await expect(toc.getByRole("button", { name: "继续阅读" })).toBeHidden();
+  await toc.getByRole("button", { name: "展开 开始阅读" }).click();
+  await expect(toc.getByRole("button", { name: "继续阅读" })).toBeVisible();
+  await toc.getByRole("button", { name: "折叠全部 EPUB 目录" }).click();
+  await expect(toc.getByRole("button", { name: "继续阅读" })).toBeHidden();
+  await toc.getByRole("button", { name: "展开全部 EPUB 目录" }).click();
+  await expect(toc.getByRole("button", { name: "继续阅读" })).toBeVisible();
 
   const chapterFrame = page.locator(".epub-chapter-frame").contentFrame();
+  const swipeFrame = async (fromX: number, toX: number) => chapterFrame.locator("body").evaluate((element, points) => {
+    const start = new Event("touchstart", { bubbles: true });
+    Object.defineProperty(start, "touches", { value: [{ clientX: points.fromX, clientY: 300 }] });
+    element.dispatchEvent(start);
+    const end = new Event("touchend", { bubbles: true });
+    Object.defineProperty(end, "changedTouches", { value: [{ clientX: points.toX, clientY: 304 }] });
+    element.dispatchEvent(end);
+  }, { fromX, toX });
+  await expect(chapterFrame.getByRole("heading", { name: "第一章" })).toBeVisible();
+  await expect(chapterFrame.locator("#hard-line-b")).toBeVisible();
+  await page.getByRole("button", { name: "智能合并 EPUB 硬换行" }).click();
+  await expect(page.getByRole("button", { name: "智能合并 EPUB 硬换行" })).toHaveAttribute("aria-pressed", "true");
+  await expect(chapterFrame.locator("#hard-line-b")).toHaveCount(0);
+  await expect(chapterFrame.locator("#hard-line-a")).toContainText("At one time or another, this line should be joined.");
+  await swipeFrame(300, 390);
+  await expect(page.getByRole("status")).toHaveText("已经是第一章");
+  await swipeFrame(330, 100);
+  await expect(chapterFrame.getByRole("heading", { name: "第二章" })).toBeVisible();
+  await swipeFrame(330, 100);
+  await expect(page.getByRole("status")).toHaveText("已经是最后一章");
+  await swipeFrame(100, 330);
   await expect(chapterFrame.getByRole("heading", { name: "第一章" })).toBeVisible();
   await expect(chapterFrame.locator("script")).toHaveCount(0);
   await expect(page.locator("body")).not.toHaveAttribute("data-epub-unsafe");
@@ -68,11 +97,11 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await toc.getByRole("button", { name: "继续阅读" }).click();
   await expect(chapterFrame.getByRole("heading", { name: "第二章" })).toBeVisible();
   await expect(page.locator(".epub-chapter-controls")).toContainText("2/2");
-  await toc.getByRole("button", { name: "开始阅读" }).click();
+  await toc.getByRole("button", { name: "开始阅读", exact: true }).click();
   await chapterFrame.getByRole("link", { name: "正文下一章" }).click();
   await expect(chapterFrame.getByRole("heading", { name: "第二章" })).toBeVisible();
 
-  await toc.getByRole("button", { name: "开始阅读" }).click();
+  await toc.getByRole("button", { name: "开始阅读", exact: true }).click();
   await page.getByLabel("搜索 EPUB").fill("阅读进度");
   await page.getByLabel("下一个 EPUB 搜索结果").click();
   await expect(chapterFrame.locator("mark.epub-search-current")).toHaveText("阅读进度");
@@ -82,6 +111,15 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(page.getByLabel("EPUB 字号")).toContainText("110%");
   await page.getByRole("button", { name: "护眼主题" }).click();
   await expect(reader).toHaveClass(/epub-theme-sepia/);
+  const sepiaButton = page.getByRole("button", { name: "护眼主题" });
+  await sepiaButton.dispatchEvent("pointerdown");
+  await page.waitForTimeout(550);
+  await sepiaButton.dispatchEvent("pointerup");
+  const backgroundPalette = page.getByRole("dialog", { name: "EPUB 背景色板" });
+  await expect(backgroundPalette).toBeVisible();
+  await backgroundPalette.getByRole("button", { name: "选择背景色 #eaf2e3" }).click();
+  await expect(chapterFrame.locator("html")).toHaveCSS("background-color", "rgb(234, 242, 227)");
+  await backgroundPalette.getByRole("button", { name: "关闭 EPUB 背景色板" }).click();
   await chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollTo(0, 900));
   await page.waitForTimeout(250);
 
@@ -98,6 +136,7 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(page.locator(".epub-chapter-controls")).toContainText("2/2");
   await expect(page.getByLabel("EPUB 字号")).toContainText("110%");
   await expect(reader).toHaveClass(/epub-theme-sepia/);
+  await expect(page.getByRole("button", { name: "智能合并 EPUB 硬换行" })).toHaveAttribute("aria-pressed", "true");
   await expect(chapterFrame.getByRole("heading", { name: "第二章" })).toBeVisible();
   await expect.poll(() => chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollY ?? 0)).toBeGreaterThan(400);
 
@@ -126,7 +165,16 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(reader).toHaveClass(/epub-reader-focus/);
   await expect(page.locator(".epub-reader-toolbar")).toBeHidden();
   await expect(page.locator(".epub-bottom-navigation")).toBeHidden();
-  await expect(page.locator(".epub-focus-exit")).toBeVisible();
+  await expect(page.locator(".epub-focus-exit")).toBeHidden();
+  await chapterFrame.locator("body").click({ position: { x: 8, y: 8 } });
+  await expect(page.locator(".epub-bottom-navigation")).toBeVisible();
+  await expect(page.locator(".epub-focus-exit")).toHaveText("↙️");
+  await chapterFrame.locator("body").click({ position: { x: 8, y: 8 } });
+  await expect(page.locator(".epub-bottom-navigation")).toBeHidden();
+  await chapterFrame.locator("body").click({ position: { x: 8, y: 8 } });
+  await expect(page.locator(".epub-bottom-navigation")).toBeVisible();
+  await expect(page.locator(".epub-bottom-navigation")).toBeHidden({ timeout: 2_000 });
+  await chapterFrame.locator("body").click({ position: { x: 8, y: 8 } });
   await page.getByRole("button", { name: "退出 EPUB 专注模式" }).click();
 
   await chapterFrame.getByText("阅读进度应当保存到这里。").evaluate((element) => {
@@ -157,6 +205,9 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(reader).toHaveClass(/epub-reader-focus/);
   await expect(page.locator(".epub-reader-toolbar")).toBeHidden();
   await expect(page.locator(".epub-bottom-navigation")).toBeHidden();
+  await expect(page.locator(".epub-focus-exit")).toBeHidden();
+  await chapterFrame.locator("body").click({ position: { x: 8, y: 8 } });
+  await expect(page.locator(".epub-bottom-navigation")).toBeVisible();
   await expect(page.locator(".epub-focus-exit")).toBeVisible();
   await page.getByRole("button", { name: "退出 EPUB 专注模式" }).click();
   await chapterFrame.locator("html").evaluate((element) => {
