@@ -19,6 +19,7 @@ import {
   type LocalEpubBookmark,
   type LocalEpubEntry,
   type LocalEpubHighlight,
+  type LocalEpubLineMerge,
   type ParsedEpub,
 } from "../lib/epub-library";
 
@@ -30,7 +31,13 @@ interface Props {
   onCreateExcerpt?: (excerpt: { epubId: string; epubName: string; chapter: number; chapterTitle: string; selectedText: string; highlightId: string; anchor: EpubTextAnchor }) => Promise<void>;
 }
 
-interface EpubSelection { anchor: EpubTextAnchor; text: string; }
+interface EpubSelection {
+  anchor: EpubTextAnchor;
+  text: string;
+  lineMergeBoundary?: Pick<LocalEpubLineMerge, "left" | "right">;
+}
+
+interface ViewportTextAnchor { text: string; offsetY: number; }
 
 interface EpubSearchMatch {
   chapter: number;
@@ -68,12 +75,13 @@ function mimeForPath(path: string): string {
   return MIME_BY_EXTENSION[path.split(".").pop()?.toLowerCase() ?? ""] ?? "application/octet-stream";
 }
 
-function chapterPlainText(book: ParsedEpub, chapter: number, smartLineMerge = false): string {
+function chapterPlainText(book: ParsedEpub, chapter: number, smartLineMerge = false, manualLineMerges: LocalEpubLineMerge[] = []): string {
   const bytes = book.files[book.chapters[chapter].path];
   if (!bytes) return "";
   const source = new TextDecoder().decode(bytes);
   const document = new DOMParser().parseFromString(source, "text/html");
   document.querySelectorAll("script, style").forEach((node) => node.remove());
+  applyManualLineMerges(document, manualLineMerges.filter((fix) => fix.chapterPath === book.chapters[chapter].path));
   if (smartLineMerge) normalizeHardLineBreaks(document);
   return document.body.textContent ?? "";
 }
@@ -113,6 +121,83 @@ function normalizeHardLineBreaks(document: Document): void {
     }
   }
   document.body.normalize();
+}
+
+function normalizedText(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function applyManualLineMerges(document: Document, fixes: LocalEpubLineMerge[]): void {
+  for (const fix of fixes) {
+    let applied = false;
+    for (const breakNode of [...document.querySelectorAll("br")]) {
+      const parentText = normalizedText(breakNode.parentElement?.textContent ?? "");
+      if (!parentText.includes(fix.left) || !parentText.includes(fix.right)) continue;
+      breakNode.replaceWith(document.createTextNode(" "));
+      applied = true;
+      break;
+    }
+    if (applied) continue;
+    for (const leftElement of [...document.querySelectorAll<HTMLElement>("p, div")]) {
+      if (!leftElement.isConnected || !normalizedText(leftElement.textContent ?? "").endsWith(fix.left)) continue;
+      let rightElement = leftElement.nextElementSibling as HTMLElement | null;
+      while (rightElement && !normalizedText(rightElement.textContent ?? "")) rightElement = rightElement.nextElementSibling as HTMLElement | null;
+      if (!rightElement || !/^(p|div)$/i.test(rightElement.tagName) || !normalizedText(rightElement.textContent ?? "").startsWith(fix.right)) continue;
+      leftElement.append(document.createTextNode(" "), ...Array.from(rightElement.childNodes));
+      rightElement.remove();
+      applied = true;
+      break;
+    }
+  }
+  document.body.normalize();
+}
+
+function selectionLineMergeBoundary(range: Range): Pick<LocalEpubLineMerge, "left" | "right"> | undefined {
+  const elementFor = (node: Node) => (node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement);
+  const startElement = elementFor(range.startContainer);
+  const endElement = elementFor(range.endContainer);
+  const startBlock = startElement?.closest("p, div");
+  const endBlock = endElement?.closest("p, div");
+  if (startBlock && endBlock && startBlock !== endBlock) {
+    const left = normalizedText(startBlock.textContent ?? "").slice(-48);
+    const right = normalizedText(endBlock.textContent ?? "").slice(0, 48);
+    return left && right ? { left, right } : undefined;
+  }
+  const root = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+    ? range.commonAncestorContainer as Element
+    : range.commonAncestorContainer.parentElement;
+  const crossedBreak = root && [...root.querySelectorAll("br")].find((node) => range.intersectsNode(node));
+  if (!crossedBreak) return undefined;
+  const left = normalizedText(crossedBreak.previousSibling?.textContent ?? "").slice(-48);
+  const right = normalizedText(crossedBreak.nextSibling?.textContent ?? "").slice(0, 48);
+  return left && right ? { left, right } : undefined;
+}
+
+function captureViewportTextAnchor(document: Document, window: Window): ViewportTextAnchor | null {
+  const caretRange = (document as Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null })
+    .caretRangeFromPoint?.(Math.max(20, window.innerWidth / 2), 96);
+  const node = caretRange?.startContainer;
+  if (!node || node.nodeType !== 3 || !(node as Text).data.trim()) return null;
+  const textNode = node as Text;
+  const from = Math.max(0, caretRange.startOffset - 12);
+  const text = textNode.data.slice(from, from + 60).trim();
+  return text.length >= 8 ? { text, offsetY: 96 } : null;
+}
+
+function restoreViewportTextAnchor(document: Document, window: Window, anchor: ViewportTextAnchor): boolean {
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    const node = walker.currentNode as Text;
+    const index = node.data.indexOf(anchor.text);
+    if (index < 0) continue;
+    node.parentElement?.scrollIntoView({ block: "start" });
+    const range = document.createRange();
+    range.setStart(node, Math.min(index, node.data.length));
+    range.setEnd(node, Math.min(node.data.length, index + 1));
+    window.scrollBy(0, range.getBoundingClientRect().top - anchor.offsetY);
+    return true;
+  }
+  return false;
 }
 
 function markFrameSearch(document: Document, query: string, activeOccurrence: number): HTMLElement | null {
@@ -244,6 +329,7 @@ function safeChapterDocument(
   theme: LocalEpubEntry["theme"],
   customBackground?: string,
   smartLineMerge = false,
+  manualLineMerges: LocalEpubLineMerge[] = [],
 ): string {
   const bytes = book.files[chapterPath];
   if (!bytes) throw new Error("EPUB 章节内容不存在");
@@ -289,6 +375,7 @@ function safeChapterDocument(
   document.querySelectorAll("style").forEach((element) => {
     element.textContent = rewriteCssResources(element.textContent ?? "", chapterPath, resourceUrl);
   });
+  applyManualLineMerges(document, manualLineMerges.filter((fix) => fix.chapterPath === chapterPath));
   if (smartLineMerge) normalizeHardLineBreaks(document);
 
   const palettes = {
@@ -330,6 +417,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const themeLongPressTimerRef = useRef<number | null>(null);
   const themeLongPressTriggeredRef = useRef(false);
   const swipeNoticeTimerRef = useRef<number | null>(null);
+  const pendingViewportAnchorRef = useRef<ViewportTextAnchor | null>(null);
   const fullscreenRef = useRef(false);
   const [entry, setEntry] = useState<LocalEpubEntry | null>(null);
   const [book, setBook] = useState<ParsedEpub | null>(null);
@@ -340,6 +428,8 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const [themeBackgrounds, setThemeBackgrounds] = useState<NonNullable<LocalEpubEntry["themeBackgrounds"]>>({});
   const [colorPaletteTheme, setColorPaletteTheme] = useState<LocalEpubEntry["theme"] | null>(null);
   const [smartLineMerge, setSmartLineMerge] = useState(false);
+  const [manualLineMerges, setManualLineMerges] = useState<LocalEpubLineMerge[]>([]);
+  const [lineMergePanelOpen, setLineMergePanelOpen] = useState(false);
   const [swipeNotice, setSwipeNotice] = useState<string | null>(null);
   const [collapsedTocItems, setCollapsedTocItems] = useState<Set<string>>(() => new Set());
   const [scrollProgress, setScrollProgress] = useState(0);
@@ -418,6 +508,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       setTheme(stored.entry.theme || "light");
       setThemeBackgrounds(stored.entry.themeBackgrounds ?? {});
       setSmartLineMerge(Boolean(stored.entry.smartLineMerge));
+      setManualLineMerges(stored.entry.manualLineMerges ?? []);
       setScrollProgress(stored.entry.scrollProgress ?? 0);
       setHighlights(storedHighlights);
       setBookmarks(storedBookmarks);
@@ -439,11 +530,11 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const chapterResult = useMemo(() => {
     if (!book || !registryRef.current) return { html: "", error: null as string | null };
     try {
-      return { html: safeChapterDocument(book, book.chapters[chapter].path, registryRef.current.resourceUrl, fontSize, theme, themeBackgrounds[theme], smartLineMerge), error: null };
+      return { html: safeChapterDocument(book, book.chapters[chapter].path, registryRef.current.resourceUrl, fontSize, theme, themeBackgrounds[theme], smartLineMerge, manualLineMerges), error: null };
     } catch (reason) {
       return { html: "", error: reason instanceof Error ? reason.message : String(reason) };
     }
-  }, [book, chapter, fontSize, smartLineMerge, theme, themeBackgrounds]);
+  }, [book, chapter, fontSize, manualLineMerges, smartLineMerge, theme, themeBackgrounds]);
   const displayError = error ?? chapterResult.error;
 
   const tocTree = useMemo<EpubTocItem[]>(() => book
@@ -486,7 +577,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     if (query !== completedSearchQuery) {
       const needle = query.toLocaleLowerCase();
       matches = book.chapters.flatMap((_item, chapterIndex) => {
-        const text = chapterPlainText(book, chapterIndex, smartLineMerge).toLocaleLowerCase();
+        const text = chapterPlainText(book, chapterIndex, smartLineMerge, manualLineMerges).toLocaleLowerCase();
         const chapterMatches: EpubSearchMatch[] = [];
         let from = 0;
         while (from <= text.length - needle.length) {
@@ -511,7 +602,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     setFragment(undefined);
     setScrollProgress(0);
     setChapter(matches[nextIndex].chapter);
-  }, [activeSearchIndex, book, completedSearchQuery, searchMatches, searchQuery, smartLineMerge]);
+  }, [activeSearchIndex, book, completedSearchQuery, manualLineMerges, searchMatches, searchQuery, smartLineMerge]);
 
   const navigateTo = useCallback((path: string, targetFragment?: string) => {
     if (!book) return;
@@ -537,9 +628,10 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       theme,
       themeBackgrounds,
       smartLineMerge,
+      manualLineMerges,
       scrollProgress: liveScrollProgress,
     });
-  }, [book, chapter, entry, fontSize, fragment, scrollProgress, smartLineMerge, theme, themeBackgrounds]);
+  }, [book, chapter, entry, fontSize, fragment, manualLineMerges, scrollProgress, smartLineMerge, theme, themeBackgrounds]);
 
   useEffect(() => {
     void persistProgress().catch((reason) => console.warn("[EPUB] 保存阅读进度失败:", reason));
@@ -564,7 +656,10 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && bookmarkPanelOpen) {
+      if (event.key === "Escape" && lineMergePanelOpen) {
+        setLineMergePanelOpen(false);
+      }
+      else if (event.key === "Escape" && bookmarkPanelOpen) {
         setBookmarkPanelOpen(false);
       }
       else if (event.key === "Escape" && fullscreen) {
@@ -576,7 +671,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [book, bookmarkPanelOpen, closeReader, fullscreen, onFullscreenChange]);
+  }, [book, bookmarkPanelOpen, closeReader, fullscreen, lineMergePanelOpen, onFullscreenChange]);
 
   const showSwipeNotice = useCallback((message: string) => {
     if (swipeNoticeTimerRef.current !== null) window.clearTimeout(swipeNoticeTimerRef.current);
@@ -599,7 +694,15 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     const chapterHighlights = highlights.filter((highlight) => highlight.anchor.chapterPath === book.chapters[chapter].path);
     const targetMark = markFrameHighlights(frameDocument, chapterHighlights, targetHighlightId);
     const activeMark = markFrameSearch(frameDocument, completedSearchQuery, activeOccurrence);
-    if (targetMark) targetMark.scrollIntoView({ block: "center" });
+    const viewportAnchor = pendingViewportAnchorRef.current;
+    pendingViewportAnchorRef.current = null;
+    if (viewportAnchor) {
+      const restoreAnchor = () => restoreViewportTextAnchor(frameDocument, frameWindow, viewportAnchor);
+      window.requestAnimationFrame(restoreAnchor);
+      window.setTimeout(restoreAnchor, 80);
+      window.setTimeout(restoreAnchor, 240);
+    }
+    else if (targetMark) targetMark.scrollIntoView({ block: "center" });
     else if (activeMark) activeMark.scrollIntoView({ block: "center" });
     else if (fragment) frameDocument.getElementById(fragment)?.scrollIntoView();
     else if (scrollProgress > 0) {
@@ -626,32 +729,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
         setScrollProgress(maximum > 0 ? Math.max(0, Math.min(1, top / maximum)) : 0);
       }, 160);
     };
-    frameWindow.addEventListener("scroll", captureScroll, { passive: true });
-    frameDocument.addEventListener("scroll", captureScroll, { passive: true, capture: true });
-    let touchStart: { x: number; y: number; time: number } | null = null;
-    frameDocument.addEventListener("touchstart", (event) => {
-      if (event.touches.length !== 1) { touchStart = null; return; }
-      touchStart = { x: event.touches[0].clientX, y: event.touches[0].clientY, time: Date.now() };
-    }, { passive: true });
-    frameDocument.addEventListener("touchend", (event) => {
-      if (!touchStart || event.changedTouches.length !== 1) return;
-      const selection = frameWindow.getSelection();
-      if (selection && !selection.isCollapsed) { touchStart = null; return; }
-      const deltaX = event.changedTouches[0].clientX - touchStart.x;
-      const deltaY = event.changedTouches[0].clientY - touchStart.y;
-      const elapsed = Date.now() - touchStart.time;
-      touchStart = null;
-      if (elapsed > 900 || Math.abs(deltaX) < 60 || Math.abs(deltaX) < Math.abs(deltaY) * 1.35) return;
-      setFragment(undefined);
-      setScrollProgress(0);
-      if (deltaX < 0) {
-        if (chapter >= book.chapters.length - 1) showSwipeNotice("已经是最后一章");
-        else setChapter(chapter + 1);
-      } else if (chapter <= 0) showSwipeNotice("已经是第一章");
-      else setChapter(chapter - 1);
-    }, { passive: true });
-    frameDocument.addEventListener("click", toggleFocusControls);
-    frameDocument.addEventListener("mouseup", () => {
+    const captureFrameSelection = () => {
       const current = frameWindow.getSelection();
       if (!current || current.rangeCount === 0 || current.isCollapsed) { setSelection(null); return; }
       const range = current.getRangeAt(0);
@@ -665,6 +743,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       const bodyText = frameDocument.body.textContent ?? "";
       setSelection({
         text,
+        lineMergeBoundary: selectionLineMergeBoundary(range),
         anchor: {
           chapterPath: book.chapters[chapter].path,
           start,
@@ -674,7 +753,58 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
           suffix: bodyText.slice(start + text.length, start + text.length + 32),
         },
       });
+    };
+    frameWindow.addEventListener("scroll", captureScroll, { passive: true });
+    frameDocument.addEventListener("scroll", captureScroll, { passive: true, capture: true });
+    let gestureStart: { x: number; y: number; time: number } | null = null;
+    let pointerGestureActive = false;
+    let lastHandledTouch = 0;
+    const finishGesture = (x: number, y: number) => {
+      if (!gestureStart) return;
+      const selection = frameWindow.getSelection();
+      if (selection && !selection.isCollapsed) { gestureStart = null; captureFrameSelection(); return; }
+      const deltaX = x - gestureStart.x;
+      const deltaY = y - gestureStart.y;
+      const elapsed = Date.now() - gestureStart.time;
+      gestureStart = null;
+      lastHandledTouch = Date.now();
+      if (elapsed <= 900 && Math.abs(deltaX) < 18 && Math.abs(deltaY) < 18) {
+        toggleFocusControls();
+        return;
+      }
+      if (elapsed > 900 || Math.abs(deltaX) < 52 || Math.abs(deltaX) < Math.abs(deltaY) * 1.25) return;
+      setFragment(undefined);
+      setScrollProgress(0);
+      if (deltaX < 0) {
+        if (chapter >= book.chapters.length - 1) showSwipeNotice("已经是最后一章");
+        else setChapter(chapter + 1);
+      } else if (chapter <= 0) showSwipeNotice("已经是第一章");
+      else setChapter(chapter - 1);
+    };
+    frameDocument.addEventListener("pointerdown", (event) => {
+      if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+      pointerGestureActive = true;
+      gestureStart = { x: event.clientX, y: event.clientY, time: Date.now() };
+    }, { passive: true });
+    frameDocument.addEventListener("pointerup", (event) => {
+      if (!pointerGestureActive) return;
+      pointerGestureActive = false;
+      finishGesture(event.clientX, event.clientY);
+    }, { passive: true });
+    frameDocument.addEventListener("pointercancel", () => { pointerGestureActive = false; gestureStart = null; }, { passive: true });
+    frameDocument.addEventListener("touchstart", (event) => {
+      if (pointerGestureActive || event.touches.length !== 1) return;
+      gestureStart = { x: event.touches[0].clientX, y: event.touches[0].clientY, time: Date.now() };
+    }, { passive: true });
+    frameDocument.addEventListener("touchend", (event) => {
+      if (pointerGestureActive || !gestureStart || event.changedTouches.length !== 1) return;
+      finishGesture(event.changedTouches[0].clientX, event.changedTouches[0].clientY);
+    }, { passive: true });
+    frameDocument.addEventListener("click", () => {
+      if (Date.now() - lastHandledTouch > 500) toggleFocusControls();
     });
+    frameDocument.addEventListener("mouseup", captureFrameSelection);
+    frameDocument.addEventListener("selectionchange", () => window.requestAnimationFrame(captureFrameSelection));
     frameDocument.addEventListener("click", (event) => {
       const marked = (event.target as { closest?: (selector: string) => Element | null } | null)?.closest?.("mark.epub-highlight") as HTMLElement | null;
       if (!marked?.dataset.highlightId) return;
@@ -756,6 +886,32 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     } finally { setActionBusy(false); }
   }, [book, chapter, ensureHighlight, entry, onCreateExcerpt, selection]);
 
+  const rememberViewportForReflow = useCallback(() => {
+    const frameDocument = iframeRef.current?.contentDocument;
+    const frameWindow = iframeRef.current?.contentWindow;
+    if (frameDocument && frameWindow) pendingViewportAnchorRef.current = captureViewportTextAnchor(frameDocument, frameWindow);
+  }, []);
+
+  const addManualLineMerge = useCallback(() => {
+    if (!book || !selection?.lineMergeBoundary) return;
+    rememberViewportForReflow();
+    const fix: LocalEpubLineMerge = {
+      id: globalThis.crypto?.randomUUID?.() ?? `merge-${Date.now().toString(36)}`,
+      chapterPath: book.chapters[chapter].path,
+      ...selection.lineMergeBoundary,
+      createdAt: new Date().toISOString(),
+    };
+    setManualLineMerges((current) => [...current, fix]);
+    iframeRef.current?.contentWindow?.getSelection()?.removeAllRanges();
+    setSelection(null);
+    showSwipeNotice("已合并此处断行");
+  }, [book, chapter, rememberViewportForReflow, selection, showSwipeNotice]);
+
+  const removeManualLineMerge = useCallback((id: string) => {
+    rememberViewportForReflow();
+    setManualLineMerges((current) => current.filter((fix) => fix.id !== id));
+  }, [rememberViewportForReflow]);
+
   const toggleBookmark = useCallback(async () => {
     if (!entry || !book) return;
     const existing = bookmarks.find((item) => item.chapter === chapter);
@@ -781,6 +937,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       setTocOpen(false);
       setBookmarkPanelOpen(false);
       setAnnotationOpen(false);
+      setLineMergePanelOpen(false);
       hideFocusControls();
     }
     if (fullscreen && !document.fullscreenElement) {
@@ -891,7 +1048,8 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
             </button>
           ))}
         </div>
-        <button type="button" className={smartLineMerge ? "active epub-line-merge-toggle" : "epub-line-merge-toggle"} aria-pressed={smartLineMerge} aria-label="智能合并 EPUB 硬换行" title="智能合并硬换行" onClick={() => setSmartLineMerge((enabled) => !enabled)}>断行</button>
+        <button type="button" className={smartLineMerge ? "active epub-line-merge-toggle" : "epub-line-merge-toggle"} aria-pressed={smartLineMerge} aria-label="智能合并 EPUB 硬换行" title="智能合并硬换行" onClick={() => { rememberViewportForReflow(); setSmartLineMerge((enabled) => !enabled); }}>断行</button>
+        <button type="button" className={lineMergePanelOpen ? "active epub-line-merge-toggle" : "epub-line-merge-toggle"} aria-label="管理 EPUB 人工断行修复" onClick={() => setLineMergePanelOpen((open) => !open)}>修复{manualLineMerges.length ? ` ${manualLineMerges.length}` : ""}</button>
         <form className="pdf-search epub-search" role="search" onSubmit={(event) => { event.preventDefault(); runSearch(1); }}>
           <input
             type="search"
@@ -985,9 +1143,27 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       {selection && (
         <div className="epub-selection-actions">
           <span>{selection.text.length} 字</span>
+          {selection.lineMergeBoundary && <button type="button" disabled={actionBusy} onClick={addManualLineMerge}>合并此处断行</button>}
           <button type="button" disabled={actionBusy} onClick={() => void saveHighlight()}>高亮</button>
           {onCreateExcerpt && <button type="button" disabled={actionBusy} onClick={() => void createExcerpt()}>摘录到笔记</button>}
         </div>
+      )}
+      {lineMergePanelOpen && (
+        <aside className="epub-line-merge-panel" role="dialog" aria-modal="true" aria-label="EPUB 人工断行修复">
+          <header><strong>人工断行修复</strong><button type="button" aria-label="关闭 EPUB 人工断行修复" onClick={() => setLineMergePanelOpen(false)}>×</button></header>
+          <p>跨断行选中前后文字，再点击“合并此处断行”。修复只影响阅读显示。</p>
+          <div className="epub-line-merge-list">
+            {manualLineMerges.length === 0 && <span>还没有人工修复</span>}
+            {manualLineMerges.map((fix) => <div key={fix.id}>
+              <button type="button" onClick={() => {
+                const targetChapter = book?.chapters.findIndex((item) => item.path === fix.chapterPath) ?? -1;
+                if (targetChapter >= 0) setChapter(targetChapter);
+                setLineMergePanelOpen(false);
+              }}>{fix.left.slice(-24)} <b>⌁</b> {fix.right.slice(0, 24)}</button>
+              <button type="button" aria-label={`撤销断行修复 ${fix.left.slice(-12)}`} onClick={() => removeManualLineMerge(fix.id)}>×</button>
+            </div>)}
+          </div>
+        </aside>
       )}
       {annotationOpen && activeHighlight && (
         <aside className="epub-note-popover" aria-label="EPUB 高亮备注">

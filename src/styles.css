@@ -9881,6 +9881,64 @@ button.doc-tree-toggle:focus-visible {
   backdrop-filter: blur(8px);
 }
 
+.epub-line-merge-panel {
+  position: fixed;
+  top: max(60px, calc(48px + var(--safe-top, 0px)));
+  right: 12px;
+  z-index: 10003;
+  display: flex;
+  width: min(390px, calc(100vw - 24px));
+  max-height: min(70vh, 560px);
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .32);
+}
+
+.epub-line-merge-panel header,
+.epub-line-merge-list > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+}
+
+.epub-line-merge-panel header button {
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.epub-line-merge-panel > p,
+.epub-line-merge-list > span {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.epub-line-merge-list {
+  overflow-y: auto;
+}
+
+.epub-line-merge-list > div {
+  margin-top: 4px;
+}
+
+.epub-line-merge-list > div > button:first-child {
+  overflow: hidden;
+  flex: 1;
+  min-height: 34px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.epub-line-merge-list b {
+  color: var(--accent);
+}
+
 .epub-background-palette {
   position: fixed;
   top: 58px;
@@ -10327,6 +10385,15 @@ button.doc-tree-toggle:focus-visible {
     bottom: max(8px, var(--safe-bottom, 0px));
     left: 8px;
     width: auto;
+  }
+
+  .epub-line-merge-panel {
+    top: auto;
+    right: 8px;
+    bottom: max(8px, var(--safe-bottom, 0px));
+    left: 8px;
+    width: auto;
+    max-height: min(72dvh, 560px);
   }
 }
 

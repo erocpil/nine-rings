@@ -28,7 +28,16 @@ export interface LocalEpubEntry {
   theme: "light" | "sepia" | "dark";
   themeBackgrounds?: Partial<Record<"light" | "sepia" | "dark", string>>;
   smartLineMerge?: boolean;
+  manualLineMerges?: LocalEpubLineMerge[];
   hasCover?: boolean;
+}
+
+export interface LocalEpubLineMerge {
+  id: string;
+  chapterPath: string;
+  left: string;
+  right: string;
+  createdAt: string;
 }
 
 interface StoredEpubRecord extends LocalEpubEntry {
@@ -477,7 +486,7 @@ export async function deleteLocalEpubBookmark(id: string): Promise<void> {
 
 export async function updateLocalEpubProgress(
   id: string,
-  progress: Pick<LocalEpubEntry, "chapter" | "fontSize" | "theme" | "themeBackgrounds" | "smartLineMerge"> & { location?: string; scrollProgress?: number },
+  progress: Pick<LocalEpubEntry, "chapter" | "fontSize" | "theme" | "themeBackgrounds" | "smartLineMerge" | "manualLineMerges"> & { location?: string; scrollProgress?: number },
 ): Promise<void> {
   const database = await openEpubDatabase();
   const transaction = database.transaction(EPUB_STORE, "readwrite");
@@ -494,6 +503,7 @@ export async function updateLocalEpubProgress(
     theme: progress.theme,
     themeBackgrounds: progress.themeBackgrounds,
     smartLineMerge: Boolean(progress.smartLineMerge),
+    manualLineMerges: progress.manualLineMerges ?? [],
     lastOpenedAt: new Date().toISOString(),
   });
   await done;

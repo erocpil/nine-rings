@@ -33,7 +33,7 @@ function createEpubFixture(): Buffer {
     "OEBPS/cover.svg": strToU8(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600"><rect width="400" height="600" fill="#315f9b"/><text x="200" y="300" text-anchor="middle" fill="white">Nine Rings</text></svg>`),
     "OEBPS/chapter-1.xhtml": strToU8(`<?xml version="1.0" encoding="UTF-8"?>
       <html xmlns="http://www.w3.org/1999/xhtml"><head><title>开始阅读</title><link rel="stylesheet" href="book.css"/></head>
-      <body><h1>第一章</h1><p>这是 EPUB 第一章正文。</p><p id="hard-line-a">At one time or</p><p id="hard-line-b">another, this line should be joined.</p><a href="chapter-2.xhtml#target">正文下一章</a><script>parent.document.body.dataset.epubUnsafe='true'</script></body></html>`),
+      <body><h1>第一章</h1><p>这是 EPUB 第一章正文。</p><p id="hard-line-a">At one time or</p><p id="hard-line-b">another, this line should be joined.</p><p id="manual-line-a">Manual line break</p><p id="manual-line-b">Needs exact repair.</p><a href="chapter-2.xhtml#target">正文下一章</a><script>parent.document.body.dataset.epubUnsafe='true'</script></body></html>`),
     "OEBPS/chapter-2.xhtml": strToU8(`<?xml version="1.0" encoding="UTF-8"?>
       <html xmlns="http://www.w3.org/1999/xhtml"><head><title>继续阅读</title></head>
       <body><h1 id="target">第二章</h1><p>阅读进度应当保存到这里。</p><div style="height: 1800px"></div><p>章节末尾内容。</p></body></html>`),
@@ -70,12 +70,8 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
 
   const chapterFrame = page.locator(".epub-chapter-frame").contentFrame();
   const swipeFrame = async (fromX: number, toX: number) => chapterFrame.locator("body").evaluate((element, points) => {
-    const start = new Event("touchstart", { bubbles: true });
-    Object.defineProperty(start, "touches", { value: [{ clientX: points.fromX, clientY: 300 }] });
-    element.dispatchEvent(start);
-    const end = new Event("touchend", { bubbles: true });
-    Object.defineProperty(end, "changedTouches", { value: [{ clientX: points.toX, clientY: 304 }] });
-    element.dispatchEvent(end);
+    element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch", isPrimary: true, clientX: points.fromX, clientY: 300 }));
+    element.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", isPrimary: true, clientX: points.toX, clientY: 304 }));
   }, { fromX, toX });
   await expect(chapterFrame.getByRole("heading", { name: "第一章" })).toBeVisible();
   await expect(chapterFrame.locator("#hard-line-b")).toBeVisible();
@@ -83,6 +79,23 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(page.getByRole("button", { name: "智能合并 EPUB 硬换行" })).toHaveAttribute("aria-pressed", "true");
   await expect(chapterFrame.locator("#hard-line-b")).toHaveCount(0);
   await expect(chapterFrame.locator("#hard-line-a")).toContainText("At one time or another, this line should be joined.");
+  const manualLineTop = await chapterFrame.locator("#manual-line-a").evaluate((element) => element.getBoundingClientRect().top);
+  await chapterFrame.locator("#manual-line-a").evaluate((element) => {
+    const next = element.nextElementSibling;
+    if (!next) throw new Error("missing manual line continuation");
+    const selection = element.ownerDocument.defaultView?.getSelection();
+    const range = element.ownerDocument.createRange();
+    range.setStart(element.firstChild!, 0);
+    range.setEnd(next.firstChild!, next.firstChild?.textContent?.length ?? 0);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    next.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+  });
+  await page.getByRole("button", { name: "合并此处断行" }).click();
+  await expect(chapterFrame.locator("#manual-line-b")).toHaveCount(0);
+  await expect(chapterFrame.locator("#manual-line-a")).toContainText("Manual line break Needs exact repair.");
+  await expect.poll(() => chapterFrame.locator("#manual-line-a").evaluate((element) => element.getBoundingClientRect().top)).toBeCloseTo(manualLineTop, 0);
+  await expect(page.getByRole("button", { name: "管理 EPUB 人工断行修复" })).toContainText("1");
   await swipeFrame(300, 390);
   await expect(page.getByRole("status")).toHaveText("已经是第一章");
   await swipeFrame(330, 100);
@@ -144,6 +157,7 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(page.getByLabel("EPUB 字号")).toContainText("110%");
   await expect(reader).toHaveClass(/epub-theme-sepia/);
   await expect(page.getByRole("button", { name: "智能合并 EPUB 硬换行" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "管理 EPUB 人工断行修复" })).toContainText("1");
   await expect(chapterFrame.getByRole("heading", { name: "第二章" })).toBeVisible();
   await expect.poll(() => chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollY ?? 0)).toBeGreaterThan(400);
 
@@ -173,7 +187,10 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(page.locator(".epub-reader-toolbar")).toBeHidden();
   await expect(page.locator(".epub-bottom-navigation")).toBeHidden();
   await expect(page.locator(".epub-focus-exit")).toBeHidden();
-  await chapterFrame.locator("body").click({ position: { x: 8, y: 8 } });
+  await chapterFrame.locator("body").evaluate((element) => {
+    element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch", isPrimary: true, clientX: 80, clientY: 160 }));
+    element.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", isPrimary: true, clientX: 82, clientY: 162 }));
+  });
   await expect(page.locator(".epub-bottom-navigation")).toBeVisible();
   await expect(page.locator(".epub-focus-exit")).toHaveText("↙️");
   await chapterFrame.locator("body").click({ position: { x: 8, y: 8 } });
@@ -213,7 +230,10 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(page.locator(".epub-reader-toolbar")).toBeHidden();
   await expect(page.locator(".epub-bottom-navigation")).toBeHidden();
   await expect(page.locator(".epub-focus-exit")).toBeHidden();
-  await chapterFrame.locator("body").click({ position: { x: 8, y: 8 } });
+  await chapterFrame.locator("body").evaluate((element) => {
+    element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch", isPrimary: true, clientX: 80, clientY: 160 }));
+    element.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", isPrimary: true, clientX: 82, clientY: 162 }));
+  });
   await expect(page.locator(".epub-bottom-navigation")).toBeVisible();
   await expect(page.locator(".epub-focus-exit")).toBeVisible();
   await page.getByRole("button", { name: "退出 EPUB 专注模式" }).click();
