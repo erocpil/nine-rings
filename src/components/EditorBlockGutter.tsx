@@ -45,16 +45,20 @@ function firstLineTextCenter(
     const level = Number(attrs.level);
     return fallbackRect.top + editorLineHeight * (HEADING_SIZE[level] ?? 1) / 2;
   }
-  // CodeBlock NodeView 在正文前还包含语言选择器、复制按钮和内部行号。
-  // 必须从真正的 code contentDOM 开始查找，否则 select/option 的不可测量
-  // 文本会触发整块中心兜底，使长代码块的主块号落在中部。
+  // 代码块和引用块都把顶部工具栏作为块的第一行。代码块直接使用工具栏
+  // 的几何中心，让主块号与描述、语言和操作按钮对齐，而不是落在代码正文首行。
+  if (typeName === "codeBlock") {
+    const toolbar = dom.querySelector<HTMLElement>(".code-block-toolbar");
+    if (toolbar) {
+      const toolbarRect = toolbar.getBoundingClientRect();
+      return toolbarRect.top + toolbarRect.height / 2;
+    }
+  }
   const textRoot = typeName === "codeBlock"
     ? (dom.matches("code") ? dom : dom.querySelector<HTMLElement>("code")) ?? dom
     : dom;
   if (typeName === "codeBlock") {
-    // WebKit 对 contenteditable <code> 内单字符 Range 偶尔返回空 rect，旧的
-    // 通用路径便退回整块中点。代码首行的位置由边框、上内边距和行高即可
-    // 确定，不依赖 Range，也不会随软换行或横竖屏切换漂到块中部。
+    // 兼容工具栏尚未挂载完成的瞬间；此时以正文首行作为稳定兜底。
     const rect = textRoot.getBoundingClientRect();
     const style = getComputedStyle(textRoot);
     const lineHeight = Number.parseFloat(style.lineHeight) || editorLineHeight;
