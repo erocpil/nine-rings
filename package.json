@@ -46,6 +46,7 @@
     "@tiptap/pm": "^2",
     "@tiptap/react": "^2",
     "@tiptap/starter-kit": "^2",
+    "fflate": "^0.8.3",
     "highlight.js": "~11.11.0",
     "lowlight": "^3.3.0",
     "pdf-lib": "^1.17.1",

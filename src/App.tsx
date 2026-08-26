@@ -59,6 +59,7 @@ const PropertiesPanel = lazy(() => import("./components/PropertiesPanel"));
 const DocCreateDialog = lazy(() => import("./components/DocCreateDialog"));
 const QuickSwitcher = lazy(() => import("./components/QuickSwitcher"));
 const PdfReader = lazy(() => import("./components/PdfReader"));
+const EpubReader = lazy(() => import("./components/EpubReader"));
 const TodoList = lazy(() => import("./components/TodoList")
   .then((module) => ({ default: module.TodoList })));
 const loadNoteEditor = () => import("./components/NoteEditor")
@@ -375,6 +376,7 @@ function App() {
   const [pdfReaderTargetHighlightId, setPdfReaderTargetHighlightId] = useState<string | null>(null);
   const [pdfReaderTargetRange, setPdfReaderTargetRange] = useState<{ page: number; start: number; end: number } | null>(null);
   const [pdfReaderFullscreen, setPdfReaderFullscreen] = useState(false);
+  const [epubReaderDocumentId, setEpubReaderDocumentId] = useState<string | null>(null);
   const [overdueOpen, setOverdueOpen] = useState(false);
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
   const [docTreeToolbarHost, setDocTreeToolbarHost] = useState<HTMLDivElement | null>(null);
@@ -1191,6 +1193,24 @@ function App() {
     );
   }
 
+  if (epubReaderDocumentId) {
+    return (
+      <div className="pdf-reader-app epub-reader-app">
+        {isTauriRuntime() && (
+          <Suspense fallback={null}>
+            <TitleBar />
+          </Suspense>
+        )}
+        <Suspense fallback={<div className="pdf-reader-boot">正在加载 EPUB 阅读器…</div>}>
+          <EpubReader
+            documentId={epubReaderDocumentId}
+            onClose={() => setEpubReaderDocumentId(null)}
+          />
+        </Suspense>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`app ${focusMode ? "app-focus-mode" : ""}`}
@@ -1671,6 +1691,14 @@ function App() {
                 setPdfReaderDocumentId(documentId);
               })
               .catch((saveError) => console.error("[PDF] 打开阅读器前保存笔记失败:", saveError));
+          }}
+          onOpenEpub={(documentId) => {
+            void flushAutoSave()
+              .then(() => {
+                setSettingsOpen(false);
+                setEpubReaderDocumentId(documentId);
+              })
+              .catch((saveError) => console.error("[EPUB] 打开阅读器前保存笔记失败:", saveError));
           }}
           onBeforeBookmarkNoteUpdate={async (noteId) => {
             if (selectedNoteRef.current?.id === noteId) await autoSave.flush();

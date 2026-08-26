@@ -890,6 +890,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
               textLayerRefs.current.delete(pageNumber);
             }
           }
+          if (!isStale()) setTextLayerRevision((revision) => revision + 1);
 
           const pendingAnchor = zoomAnchorRef.current;
           const anchor = pendingAnchor?.pageNumber === pageNumber ? pendingAnchor : null;
@@ -922,7 +923,6 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           if ((reason as { name?: string })?.name !== "RenderingCancelledException") throw reason;
         }
       }
-      if (!cancelled) setTextLayerRevision((revision) => revision + 1);
     };
 
     const queuedRender = globalPageRenderQueueRef.current.catch(() => {}).then(render);
@@ -1496,6 +1496,30 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     return () => window.clearTimeout(timer);
   }, [activeSearchIndex, completedSearchQuery, documentId, highlights, initialTargetRange, searchMatches, showHighlights, targetHighlightId, textLayerRevision]);
 
+  const handlePageDoubleClick = useCallback((event: React.MouseEvent<HTMLElement>) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const surface = target?.closest<HTMLDivElement>(".pdf-page-surface");
+    if (!surface || !event.currentTarget.contains(surface)) return;
+
+    event.preventDefault();
+    const bounds = surface.getBoundingClientRect();
+    const pageNumber = Number(surface.dataset.pdfPage) || page;
+    zoomAnchorRef.current = {
+      pageNumber,
+      x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / Math.max(1, bounds.width))),
+      y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / Math.max(1, bounds.height))),
+    };
+
+    setFitHeight(false);
+    if (fitWidth) {
+      setFitWidth(false);
+      setZoom((value) => Math.min(4, Math.max(1.5, value * 2)));
+    } else {
+      zoomAnchorRef.current = null;
+      setFitWidth(true);
+    }
+  }, [fitWidth, page]);
+
   const handleTouchStart = useCallback((event: React.TouchEvent<HTMLElement>) => {
     if (event.touches.length === 2) {
       annotationDraftRef.current = null;
@@ -1988,6 +2012,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           className={`pdf-page-viewport ${viewMode === "vertical" ? "pdf-page-viewport-vertical" : ""}`}
           ref={viewportRef}
           onClick={handlePageClick}
+          onDoubleClick={handlePageDoubleClick}
           onPointerDown={handleAnnotationPointerDown}
           onPointerMove={handleAnnotationPointerMove}
           onPointerUp={handleAnnotationPointerUp}

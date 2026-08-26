@@ -20,6 +20,12 @@ import {
   listLocalPdfs,
   type LocalPdfEntry,
 } from "../lib/pdf-library";
+import {
+  deleteLocalEpub,
+  importLocalEpub,
+  listLocalEpubs,
+  type LocalEpubEntry,
+} from "../lib/epub-library";
 
 interface Props {
   open: boolean;
@@ -36,6 +42,7 @@ interface Props {
   onBookmarkNoteUpdated?: (note: Note) => void;
   onNotesChanged?: () => void;
   onOpenPdf?: (documentId: string) => void;
+  onOpenEpub?: (documentId: string) => void;
 }
 
 type SettingsPage = "root" | "appearance" | "editor" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced";
@@ -97,7 +104,7 @@ function yieldToNextFrame(): Promise<void> {
   return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
 }
 
-export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onPullDone, webStorageStatus, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onNotesChanged, onOpenPdf }: Props) {
+export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onPullDone, webStorageStatus, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onNotesChanged, onOpenPdf, onOpenEpub }: Props) {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -144,6 +151,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [pdfEntries, setPdfEntries] = useState<LocalPdfEntry[]>([]);
   const [pdfLibraryLoading, setPdfLibraryLoading] = useState(false);
   const [pdfImporting, setPdfImporting] = useState(false);
+  const epubInputRef = useRef<HTMLInputElement>(null);
+  const [epubEntries, setEpubEntries] = useState<LocalEpubEntry[]>([]);
+  const [epubLibraryLoading, setEpubLibraryLoading] = useState(false);
+  const [epubImporting, setEpubImporting] = useState(false);
 
   const loadSettings = () => {
     setLoading(true);
@@ -567,6 +578,50 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
       showMessage(`已删除 PDF：${entry.name}`);
     } catch (reason) {
       showMessage(`PDF 删除失败：${reason instanceof Error ? reason.message : String(reason)}`);
+    }
+  };
+
+  const refreshEpubLibrary = useCallback(async () => {
+    setEpubLibraryLoading(true);
+    try {
+      setEpubEntries(await listLocalEpubs());
+    } catch (reason) {
+      showMessage(`EPUB 资料库读取失败：${reason instanceof Error ? reason.message : String(reason)}`);
+    } finally {
+      setEpubLibraryLoading(false);
+    }
+  }, [showMessage]);
+
+  useEffect(() => {
+    if (!open || settingsPage !== "data") return;
+    void refreshEpubLibrary();
+  }, [open, refreshEpubLibrary, settingsPage]);
+
+  const handleEpubImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setEpubImporting(true);
+    try {
+      const imported = await importLocalEpub(file);
+      await refreshEpubLibrary();
+      showMessage(`已导入 EPUB：${imported.title}`);
+      onOpenEpub?.(imported.id);
+    } catch (reason) {
+      showMessage(`EPUB 导入失败：${reason instanceof Error ? reason.message : String(reason)}`);
+    } finally {
+      setEpubImporting(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleEpubDelete = async (entry: LocalEpubEntry) => {
+    if (!window.confirm(`删除本地 EPUB「${entry.title}」？此操作不会影响笔记。`)) return;
+    try {
+      await deleteLocalEpub(entry.id);
+      await refreshEpubLibrary();
+      showMessage(`已删除 EPUB：${entry.title}`);
+    } catch (reason) {
+      showMessage(`EPUB 删除失败：${reason instanceof Error ? reason.message : String(reason)}`);
     }
   };
 
@@ -1044,6 +1099,60 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                         onClick={() => void handlePdfDelete(entry)}
                         aria-label={`删除 ${entry.name}`}
                         title="删除本地 PDF"
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SettingsSection>
+
+            <SettingsSection
+              title="本地 EPUB 阅读"
+              desc="支持无 DRM 的 EPUB 2/3；书籍与阅读进度保存在当前设备，不包含在 JSON 或 GitHub 备份中"
+              visible={settingsPage === "data"}
+            >
+              <div className="settings-button-row">
+                <button
+                  className="settings-btn-primary"
+                  type="button"
+                  onClick={() => epubInputRef.current?.click()}
+                  disabled={epubImporting}
+                >{epubImporting ? "正在导入 EPUB…" : "选择本地 EPUB"}</button>
+                <input
+                  ref={epubInputRef}
+                  type="file"
+                  accept="application/epub+zip,.epub"
+                  style={{ display: "none" }}
+                  onChange={handleEpubImport}
+                />
+              </div>
+              {epubLibraryLoading ? (
+                <div className="pdf-library-empty">正在读取 EPUB 资料库…</div>
+              ) : epubEntries.length === 0 ? (
+                <div className="pdf-library-empty">尚未导入 EPUB</div>
+              ) : (
+                <div className="pdf-library-list">
+                  {epubEntries.map((entry) => (
+                    <div className="pdf-library-item" key={entry.id}>
+                      <button
+                        type="button"
+                        className="pdf-library-open"
+                        onClick={() => onOpenEpub?.(entry.id)}
+                        title={`打开 ${entry.title}`}
+                        aria-label={`打开 ${entry.title}`}
+                      >
+                        <strong>{entry.title}</strong>
+                        <small>
+                          {entry.author ? `${entry.author} · ` : ""}{formatStorageBytes(entry.size)}
+                          {entry.chapterCount ? ` · 第 ${entry.chapter + 1}/${entry.chapterCount} 章` : ""}
+                        </small>
+                      </button>
+                      <button
+                        type="button"
+                        className="pdf-library-delete"
+                        onClick={() => void handleEpubDelete(entry)}
+                        aria-label={`删除 ${entry.title}`}
+                        title="删除本地 EPUB"
                       >×</button>
                     </div>
                   ))}

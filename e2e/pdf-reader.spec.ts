@@ -223,8 +223,9 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   await expect(page.locator(".pdf-highlight-target")).toContainText("Second page searchable target");
 
   await page.getByRole("button", { name: "目录", exact: true }).click();
-  await page.getByRole("button", { name: "高亮 2", exact: true }).click();
-  await page.getByRole("button", { name: "删除第 2 页高亮" }).click();
+  const pdfOutline = page.getByLabel("PDF 目录");
+  await pdfOutline.getByRole("button", { name: "批注 2", exact: true }).click();
+  await pdfOutline.getByRole("button", { name: "删除第 2 页批注" }).click();
   await page.getByTitle("返回 Nine Rings").click();
   await page.getByRole("button", { name: "PDF · 2" }).click();
   await expect(page.getByLabel("PDF 页码")).toHaveValue("2");
