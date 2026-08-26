@@ -48,6 +48,20 @@ export async function exportMarkdownWithDialog(data: string, defaultName: string
   return path;
 }
 
+/** 原生保存对话框 — 导出二进制 PDF。 */
+export async function exportPdfWithDialog(data: Uint8Array, defaultName: string): Promise<string | null> {
+  if (!isTauri()) return null;
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  const { invoke } = await import("@tauri-apps/api/core");
+  const path = await save({
+    defaultPath: defaultName,
+    filters: [{ name: "PDF", extensions: ["pdf"] }],
+  });
+  if (!path) return null;
+  await invoke("export_binary_to_file", { path, content: Array.from(data) });
+  return path;
+}
+
 /**
  * 原生打开对话框 — 从用户选择的文件导入数据
  * 返回用户选择的备份文本（用户取消则返回 null）。实际导入仍走统一的

@@ -558,6 +558,7 @@ pub fn run() {
             commands::export::export_data,
             commands::export::import_data,
             commands::export::export_to_file,
+            commands::export::export_binary_to_file,
             commands::export::import_from_file,
             commands::export::read_import_file,
             commands::export::get_deleted_notes,

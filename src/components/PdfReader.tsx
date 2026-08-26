@@ -24,6 +24,7 @@ import {
 import { toggleTauriFullscreen } from "../lib/fullscreen";
 import { isTauriRuntime } from "../lib/runtime";
 import { useTransientMessage } from "../hooks/useTransientMessage";
+import type { PdfHighlightGeometry } from "../lib/pdf-annotation-export";
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -122,6 +123,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const canvasRefs = useRef(new Map<number, HTMLCanvasElement>());
   const pageSurfaceRefs = useRef(new Map<number, HTMLDivElement>());
   const textLayerElementRefs = useRef(new Map<number, HTMLDivElement>());
+  const canvasRefCallbacks = useRef(new Map<number, (node: HTMLCanvasElement | null) => void>());
+  const pageSurfaceRefCallbacks = useRef(new Map<number, (node: HTMLDivElement | null) => void>());
+  const textLayerRefCallbacks = useRef(new Map<number, (node: HTMLDivElement | null) => void>());
   const searchInputRef = useRef<HTMLInputElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const textLayerRefs = useRef(new Map<number, TextLayer>());
@@ -181,6 +185,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const [targetHighlightId, setTargetHighlightId] = useState(initialHighlightId ?? (initialTargetRange ? "pdf-source-target" : null));
   const [highlightSaving, setHighlightSaving] = useState(false);
   const [excerptSaving, setExcerptSaving] = useState(false);
+  const [annotatedPdfExporting, setAnnotatedPdfExporting] = useState(false);
 
   const applyFullscreenState = useCallback((next: boolean) => {
     if (!next) setImmersiveFallback(false);
@@ -436,6 +441,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       setLoading(true);
       setError(null);
       setPdf(null);
+      viewportRef.current?.style.removeProperty("--pdf-page-aspect-ratio");
       canvasRefs.current.clear();
       pageSurfaceRefs.current.clear();
       textLayerElementRefs.current.clear();
@@ -486,6 +492,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       setPdf(loadedDocument);
       const restoredPage = clampPage(stored.entry.page, loadedDocument.numPages);
       setPage(restoredPage);
+      setVisibleVerticalPages(new Set([restoredPage]));
       setPageInput(String(restoredPage));
       const [documentOutline, labels] = await Promise.all([
         loadedDocument.getOutline(),
@@ -542,19 +549,48 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   );
   const displayedPages = viewMode === "vertical" ? allPdfPages : renderedPages;
 
-  const setCanvasRef = useCallback((pageNumber: number, node: HTMLCanvasElement | null) => {
-    if (node) canvasRefs.current.set(pageNumber, node);
-    else canvasRefs.current.delete(pageNumber);
+  const canvasRefForPage = useCallback((pageNumber: number) => {
+    let callback = canvasRefCallbacks.current.get(pageNumber);
+    if (callback) return callback;
+    callback = (node) => {
+      if (node) {
+        canvasRefs.current.set(pageNumber, node);
+        return;
+      }
+      canvasRefs.current.delete(pageNumber);
+      renderTaskRefs.current.get(pageNumber)?.cancel();
+      pageRenderVersionRefs.current.set(pageNumber, (pageRenderVersionRefs.current.get(pageNumber) ?? 0) + 1);
+      pageRequestedSignatureRefs.current.delete(pageNumber);
+    };
+    canvasRefCallbacks.current.set(pageNumber, callback);
+    return callback;
   }, []);
 
-  const setPageSurfaceRef = useCallback((pageNumber: number, node: HTMLDivElement | null) => {
-    if (node) pageSurfaceRefs.current.set(pageNumber, node);
-    else pageSurfaceRefs.current.delete(pageNumber);
+  const pageSurfaceRefForPage = useCallback((pageNumber: number) => {
+    let callback = pageSurfaceRefCallbacks.current.get(pageNumber);
+    if (callback) return callback;
+    callback = (node) => {
+      if (node) pageSurfaceRefs.current.set(pageNumber, node);
+      else pageSurfaceRefs.current.delete(pageNumber);
+    };
+    pageSurfaceRefCallbacks.current.set(pageNumber, callback);
+    return callback;
   }, []);
 
-  const setTextLayerElementRef = useCallback((pageNumber: number, node: HTMLDivElement | null) => {
-    if (node) textLayerElementRefs.current.set(pageNumber, node);
-    else textLayerElementRefs.current.delete(pageNumber);
+  const textLayerRefForPage = useCallback((pageNumber: number) => {
+    let callback = textLayerRefCallbacks.current.get(pageNumber);
+    if (callback) return callback;
+    callback = (node) => {
+      if (node) {
+        textLayerElementRefs.current.set(pageNumber, node);
+        return;
+      }
+      textLayerElementRefs.current.delete(pageNumber);
+      textLayerRefs.current.get(pageNumber)?.cancel();
+      textLayerRefs.current.delete(pageNumber);
+    };
+    textLayerRefCallbacks.current.set(pageNumber, callback);
+    return callback;
   }, []);
 
   useEffect(() => {
@@ -563,6 +599,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       setVisibleVerticalPages(new Set([page]));
       return;
     }
+    const mobileViewport = window.matchMedia("(max-width: 768px)").matches;
     const observer = new IntersectionObserver((entries) => {
       startTransition(() => {
         setVisibleVerticalPages((current) => {
@@ -579,7 +616,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       });
     }, {
       root: viewport,
-      rootMargin: `${Math.max(480, Math.ceil(viewportHeight * 1.75))}px 0px`,
+      rootMargin: `${Math.max(mobileViewport ? 180 : 480, Math.ceil(viewportHeight * (mobileViewport ? 0.65 : 1.75)))}px 0px`,
       threshold: 0,
     });
     pageSurfaceRefs.current.forEach((surface) => observer.observe(surface));
@@ -659,10 +696,10 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
 
           const baseViewport = pdfPage.getViewport({ scale: 1 });
           if (viewMode === "vertical" && baseViewport.height > 0) {
-            viewportRef.current?.style.setProperty(
-              "--pdf-page-aspect-ratio",
-              String(baseViewport.width / baseViewport.height),
-            );
+            const viewportElement = viewportRef.current;
+            if (viewportElement && !viewportElement.style.getPropertyValue("--pdf-page-aspect-ratio")) {
+              viewportElement.style.setProperty("--pdf-page-aspect-ratio", String(baseViewport.width / baseViewport.height));
+            }
           }
           const displayScale = fitHeight
             ? clampZoom(availableHeight / baseViewport.height)
@@ -670,7 +707,10 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
               ? clampZoom(availableWidth / baseViewport.width)
               : clampZoom(zoom);
           const displayViewport = pdfPage.getViewport({ scale: displayScale });
-          const outputScale = Math.min(window.devicePixelRatio || 1, 2.5);
+          const mobileViewport = window.matchMedia("(max-width: 768px)").matches;
+          const outputPixelBudget = mobileViewport ? 4_000_000 : 20_000_000;
+          const pixelBudgetScale = Math.sqrt(outputPixelBudget / Math.max(1, displayViewport.width * displayViewport.height));
+          const outputScale = Math.min(window.devicePixelRatio || 1, mobileViewport ? 1.6 : 2.5, pixelBudgetScale);
 
           const stagedCanvas = document.createElement("canvas");
           const context = stagedCanvas.getContext("2d", { alpha: false });
@@ -919,6 +959,67 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       showActionNotice(`删除高亮失败：${pdfErrorMessage(reason)}`);
     }
   }, [showActionNotice]);
+
+  const exportAnnotatedPdf = useCallback(async () => {
+    if (!pdf || !entry || highlights.length === 0 || annotatedPdfExporting) return;
+    setAnnotatedPdfExporting(true);
+    clearActionNotice();
+    try {
+      const stored = await getLocalPdf(entry.id);
+      if (!stored) throw new Error("PDF 不存在或已经被删除");
+      const { exportPdfWithHighlights, highlightQuadPoints } = await import("../lib/pdf-annotation-export");
+      const grouped = new Map<number, LocalPdfHighlight[]>();
+      highlights.forEach((highlight) => {
+        const pageHighlights = grouped.get(highlight.page) ?? [];
+        pageHighlights.push(highlight);
+        grouped.set(highlight.page, pageHighlights);
+      });
+      const geometries: PdfHighlightGeometry[] = [];
+      for (const [pageNumber, pageHighlights] of grouped) {
+        const pdfPage = await pdf.getPage(pageNumber);
+        const textContent = await pdfPage.getTextContent();
+        const items = textContent.items.map((item) => ("str" in item ? {
+          str: item.str,
+          width: item.width,
+          height: item.height,
+          transform: item.transform,
+        } : { str: "", width: 0, height: 0, transform: [] }));
+        const cache = pageTextCache(items.map((item) => item.str));
+        pageHighlights.forEach((highlight) => {
+          geometries.push({
+            highlight,
+            quadPoints: highlightQuadPoints(items, cache.starts, highlight),
+          });
+        });
+      }
+      const exportableCount = geometries.filter((geometry) => geometry.quadPoints.length > 0).length;
+      if (exportableCount === 0) throw new Error("无法从当前 PDF 文字层定位高亮区域");
+      const bytes = await exportPdfWithHighlights(await stored.blob.arrayBuffer(), geometries);
+      const baseName = entry.name.replace(/\.pdf$/i, "").replace(/[\\/:*?"<>|]/g, "-").slice(0, 120) || "文档";
+      const filename = `${baseName}-已标注.pdf`;
+      if (isTauriRuntime()) {
+        const { exportPdfWithDialog } = await import("../lib/tauri-desktop");
+        const path = await exportPdfWithDialog(bytes, filename);
+        if (!path) return;
+      } else {
+        const blobBytes = new Uint8Array(bytes.byteLength);
+        blobBytes.set(bytes);
+        const blob = new Blob([blobBytes.buffer], { type: "application/pdf" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+      const skipped = highlights.length - exportableCount;
+      showActionNotice(skipped > 0 ? `已导出 ${exportableCount} 条高亮，${skipped} 条无法定位` : `已导出 ${exportableCount} 条标准 PDF 高亮`);
+    } catch (reason) {
+      showActionNotice(`导出失败：${pdfErrorMessage(reason)}`);
+    } finally {
+      setAnnotatedPdfExporting(false);
+    }
+  }, [annotatedPdfExporting, clearActionNotice, entry, highlights, pdf, showActionNotice]);
 
   const removeBookmark = useCallback(async (id: string) => {
     try {
@@ -1309,6 +1410,12 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           <button type="button" className={showHighlights ? "active" : undefined} onClick={() => setShowHighlights((value) => !value)} title="显示/隐藏高亮标注">
             高亮
           </button>
+          <button
+            type="button"
+            onClick={() => void exportAnnotatedPdf()}
+            disabled={!pdf || highlights.length === 0 || annotatedPdfExporting}
+            title="将当前高亮写入新的标准 PDF 文件"
+          >{annotatedPdfExporting ? "导出中…" : "导出批注"}</button>
         </div>
         <div className="pdf-view-mode-controls">
           <button type="button" className={viewMode === "horizontal" ? "active" : undefined} onClick={() => setViewMode("horizontal")}>横向</button>
@@ -1443,12 +1550,12 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
               key={pageNumber}
               data-pdf-page={pageNumber}
               data-pdf-mode={viewMode}
-              ref={(node) => setPageSurfaceRef(pageNumber, node)}
+              ref={pageSurfaceRefForPage(pageNumber)}
             >
               {renderedPages.includes(pageNumber) && (
                 <>
-                  <canvas ref={(node) => setCanvasRef(pageNumber, node)} />
-                  <div ref={(node) => setTextLayerElementRef(pageNumber, node)} className="pdf-text-layer textLayer" />
+                  <canvas ref={canvasRefForPage(pageNumber)} />
+                  <div ref={textLayerRefForPage(pageNumber)} className="pdf-text-layer textLayer" />
                 </>
               )}
             </div>

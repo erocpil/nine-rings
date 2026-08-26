@@ -47,6 +47,13 @@ export default defineConfig(async () => {
             // PDF 阅读器是独立的按需界面；PDF.js 体积较大，不能并入普通
             // 文档首屏共用的 vendor chunk。
             if (normalized.includes("/node_modules/pdfjs-dist/")) return "pdfjs";
+            // PDF 写入库只在用户导出标准批注时加载，不能增加移动端打开
+            // 阅读器或应用首屏的内存与解析开销。
+            if (normalized.includes("/node_modules/pdf-lib/")
+              || normalized.includes("/node_modules/@pdf-lib/")
+              || normalized.includes("/node_modules/pako/")) {
+              return "pdf-edit";
+            }
             if (normalized.includes("/node_modules/@tiptap/") || normalized.includes("/node_modules/prosemirror-")) {
               return "editor";
             }

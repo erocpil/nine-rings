@@ -164,6 +164,11 @@ pub fn export_to_file(path: String, content: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn export_binary_to_file(path: String, content: Vec<u8>) -> Result<(), String> {
+    std::fs::write(&path, content).map_err(|e| format!("写入失败: {}", e))
+}
+
+#[tauri::command]
 pub fn import_from_file(
     state: State<AppState>,
     config_state: State<'_, Mutex<AppConfig>>,
