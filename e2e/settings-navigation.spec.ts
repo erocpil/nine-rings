@@ -6,11 +6,12 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await page.getByTitle("设置").click();
 
   const categories = page.getByLabel("设置分类").getByRole("button");
-  await expect(categories).toHaveCount(7);
+  await expect(categories).toHaveCount(8);
   await expect(categories.locator("strong")).toHaveText([
     "外观与排版",
     "文档管理",
     "工作流与快捷键",
+    "阅读资料库",
     "同步与备份",
     "数据与导入",
     "用户信息",
@@ -33,7 +34,7 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
 
   await page.getByLabel("返回外观与排版").click();
   await page.getByLabel("返回设置分类").click();
-  await expect(categories).toHaveCount(7);
+  await expect(categories).toHaveCount(8);
   await expect(page.locator(".settings-version")).toBeVisible();
   await page.getByRole("button", { name: /^数据与导入/ }).click();
   await expect(page.getByRole("heading", { name: "数据与导入", exact: true })).toBeVisible();

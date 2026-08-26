@@ -46,7 +46,7 @@ interface Props {
   onOpenEpub?: (documentId: string) => void;
 }
 
-type SettingsPage = "root" | "appearance" | "editor" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced";
+type SettingsPage = "root" | "appearance" | "editor" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "library" | "data" | "sync" | "advanced";
 const EDITOR_APPEARANCE_KEYS: Array<keyof AppConfig> = [
   "note_font_size",
   "editor_font_family",
@@ -76,6 +76,7 @@ const SETTINGS_CATEGORIES: Array<{
   { id: "appearance", title: "外观与排版", description: "主题、字体、字号与内容间距" },
   { id: "documents", title: "文档管理", description: "集中管理书签与标签" },
   { id: "general", title: "工作流与快捷键", description: "默认视图、待办继承和按键绑定" },
+  { id: "library", title: "阅读资料库", description: "导入和管理本地 PDF、EPUB 图书" },
   { id: "sync", title: "同步与备份", description: "GitHub 仓库和同步操作" },
   { id: "data", title: "数据与导入", description: "JSON 备份及 Markdown 批量导入" },
   { id: "profile", title: "用户信息", description: "文档作者、组织与发布默认值" },
@@ -91,6 +92,7 @@ const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   general: "工作流与快捷键",
   profile: "用户信息",
   tags: "标签管理",
+  library: "阅读资料库",
   data: "数据与导入",
   sync: "同步与备份",
   advanced: "高级",
@@ -157,6 +159,15 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [epubLibraryLoading, setEpubLibraryLoading] = useState(false);
   const [epubImporting, setEpubImporting] = useState(false);
   const [epubCoverUrls, setEpubCoverUrls] = useState<Record<string, string>>({});
+  const [libraryFormat, setLibraryFormat] = useState<"all" | "pdf" | "epub">("all");
+  const [libraryView, setLibraryView] = useState<"shelf" | "list">(() => {
+    try { return localStorage.getItem("nine-rings-reader-library-view") === "list" ? "list" : "shelf"; }
+    catch { return "shelf"; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem("nine-rings-reader-library-view", libraryView); } catch { /* ignore unavailable storage */ }
+  }, [libraryView]);
 
   const loadSettings = () => {
     setLoading(true);
@@ -551,7 +562,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   }, [showMessage]);
 
   useEffect(() => {
-    if (!open || settingsPage !== "data") return;
+    if (!open || settingsPage !== "library") return;
     void refreshPdfLibrary();
   }, [open, refreshPdfLibrary, settingsPage]);
 
@@ -606,7 +617,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   useEffect(() => () => { Object.values(epubCoverUrls).forEach((url) => URL.revokeObjectURL(url)); }, [epubCoverUrls]);
 
   useEffect(() => {
-    if (!open || settingsPage !== "data") return;
+    if (!open || settingsPage !== "library") return;
     void refreshEpubLibrary();
   }, [open, refreshEpubLibrary, settingsPage]);
 
@@ -637,6 +648,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
       showMessage(`EPUB 删除失败：${reason instanceof Error ? reason.message : String(reason)}`);
     }
   };
+
+  const libraryItems: Array<{ format: "pdf"; entry: LocalPdfEntry } | { format: "epub"; entry: LocalEpubEntry }> = [
+    ...(libraryFormat !== "epub" ? pdfEntries.map((entry) => ({ format: "pdf" as const, entry })) : []),
+    ...(libraryFormat !== "pdf" ? epubEntries.map((entry) => ({ format: "epub" as const, entry })) : []),
+  ].sort((left, right) => right.entry.lastOpenedAt.localeCompare(left.entry.lastOpenedAt));
 
   if (!open) return null;
 
@@ -1062,119 +1078,55 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               )}
             </SettingsSection>
 
+            <SettingsSection title="本地阅读资料库" desc="PDF 与无 DRM 的 EPUB 保存在当前设备，不包含在 JSON 或 GitHub 备份中" visible={settingsPage === "library"}>
+              <div className="reader-library-toolbar">
+                <div className="settings-button-row reader-library-imports">
+                  <button className="settings-btn-primary" type="button" onClick={() => pdfInputRef.current?.click()} disabled={pdfImporting}>{pdfImporting ? "正在导入 PDF…" : "导入 PDF"}</button>
+                  <button className="settings-btn-primary" type="button" onClick={() => epubInputRef.current?.click()} disabled={epubImporting}>{epubImporting ? "正在导入 EPUB…" : "导入 EPUB"}</button>
+                  <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" style={{ display: "none" }} onChange={handlePdfImport} />
+                  <input ref={epubInputRef} type="file" accept="application/epub+zip,.epub" style={{ display: "none" }} onChange={handleEpubImport} />
+                </div>
+                <div className="reader-library-controls">
+                  <div className="reader-library-segment" aria-label="阅读资料库格式筛选">
+                    {(["all", "pdf", "epub"] as const).map((format) => <button type="button" key={format} className={libraryFormat === format ? "active" : ""} aria-pressed={libraryFormat === format} onClick={() => setLibraryFormat(format)}>{format === "all" ? "全部" : format.toUpperCase()}</button>)}
+                  </div>
+                  <div className="reader-library-segment" aria-label="阅读资料库视图">
+                    <button type="button" className={libraryView === "shelf" ? "active" : ""} aria-pressed={libraryView === "shelf"} onClick={() => setLibraryView("shelf")} aria-label="书架视图">▦</button>
+                    <button type="button" className={libraryView === "list" ? "active" : ""} aria-pressed={libraryView === "list"} onClick={() => setLibraryView("list")} aria-label="列表视图">☷</button>
+                  </div>
+                </div>
+              </div>
+              {pdfLibraryLoading || epubLibraryLoading ? <div className="pdf-library-empty">正在读取阅读资料库…</div>
+                : libraryItems.length === 0 ? <div className="pdf-library-empty">{libraryFormat === "all" ? "尚未导入 PDF 或 EPUB" : `尚未导入 ${libraryFormat.toUpperCase()}`}</div>
+                  : <div className={`reader-library-items reader-library-${libraryView}`}>
+                    {libraryItems.map((item) => {
+                      const isPdf = item.format === "pdf";
+                      const title = isPdf ? item.entry.name : item.entry.title;
+                      const progressText = isPdf
+                        ? (item.entry.pageCount ? `第 ${item.entry.page}/${item.entry.pageCount} 页` : "尚未记录页数")
+                        : (item.entry.chapterCount ? `第 ${item.entry.chapter + 1}/${item.entry.chapterCount} 章` : "尚未记录章节");
+                      return <article className="reader-library-item" data-format={item.format} key={`${item.format}-${item.entry.id}`}>
+                        <button type="button" className="reader-library-open" onClick={() => isPdf ? onOpenPdf?.(item.entry.id) : onOpenEpub?.(item.entry.id)} title={`打开 ${title}`} aria-label={`打开 ${title}`}>
+                          <span className="reader-library-cover">
+                            {!isPdf && epubCoverUrls[item.entry.id] ? <img src={epubCoverUrls[item.entry.id]} alt="" /> : <span aria-hidden="true">{isPdf ? "PDF" : "📖"}</span>}
+                            <em>{item.format.toUpperCase()}</em>
+                          </span>
+                          <span className="reader-library-meta">
+                            <strong>{title}</strong>
+                            {!isPdf && item.entry.author && <small>{item.entry.author}</small>}
+                            <small>{progressText} · {formatStorageBytes(item.entry.size)}</small>
+                            <small>最近阅读 {formatLibraryDate(item.entry.lastOpenedAt)}</small>
+                          </span>
+                        </button>
+                        <button type="button" className="reader-library-delete" onClick={() => isPdf ? void handlePdfDelete(item.entry) : void handleEpubDelete(item.entry)} aria-label={`删除 ${title}`} title={`删除本地 ${item.format.toUpperCase()}`}>×</button>
+                      </article>;
+                    })}
+                  </div>}
+            </SettingsSection>
+
             {/* ═══════════════════════ */}
             {/* 数据导出/导入 */}
             {/* ═══════════════════════ */}
-            <SettingsSection
-              title="本地 PDF 阅读"
-              desc="导入后在独立阅读器中打开；PDF 暂不包含在 JSON 或 GitHub 备份中"
-              visible={settingsPage === "data"}
-            >
-              <div className="settings-button-row">
-                <button
-                  className="settings-btn-primary"
-                  type="button"
-                  onClick={() => pdfInputRef.current?.click()}
-                  disabled={pdfImporting}
-                >{pdfImporting ? "正在导入 PDF…" : "选择本地 PDF"}</button>
-                <input
-                  ref={pdfInputRef}
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  style={{ display: "none" }}
-                  onChange={handlePdfImport}
-                />
-              </div>
-              {pdfLibraryLoading ? (
-                <div className="pdf-library-empty">正在读取 PDF 资料库…</div>
-              ) : pdfEntries.length === 0 ? (
-                <div className="pdf-library-empty">尚未导入 PDF</div>
-              ) : (
-                <div className="pdf-library-list">
-                  {pdfEntries.map((entry) => (
-                    <div className="pdf-library-item" key={entry.id}>
-                      <button
-                        type="button"
-                        className="pdf-library-open"
-                        onClick={() => onOpenPdf?.(entry.id)}
-                        title={`打开 ${entry.name}`}
-                        aria-label={`打开 ${entry.name}`}
-                      >
-                        <strong>{entry.name}</strong>
-                        <small>
-                          {formatStorageBytes(entry.size)}
-                          {entry.pageCount ? ` · 第 ${entry.page}/${entry.pageCount} 页` : ""}
-                        </small>
-                      </button>
-                      <button
-                        type="button"
-                        className="pdf-library-delete"
-                        onClick={() => void handlePdfDelete(entry)}
-                        aria-label={`删除 ${entry.name}`}
-                        title="删除本地 PDF"
-                      >×</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </SettingsSection>
-
-            <SettingsSection
-              title="本地 EPUB 阅读"
-              desc="支持无 DRM 的 EPUB 2/3；书籍与阅读进度保存在当前设备，不包含在 JSON 或 GitHub 备份中"
-              visible={settingsPage === "data"}
-            >
-              <div className="settings-button-row">
-                <button
-                  className="settings-btn-primary"
-                  type="button"
-                  onClick={() => epubInputRef.current?.click()}
-                  disabled={epubImporting}
-                >{epubImporting ? "正在导入 EPUB…" : "选择本地 EPUB"}</button>
-                <input
-                  ref={epubInputRef}
-                  type="file"
-                  accept="application/epub+zip,.epub"
-                  style={{ display: "none" }}
-                  onChange={handleEpubImport}
-                />
-              </div>
-              {epubLibraryLoading ? (
-                <div className="pdf-library-empty">正在读取 EPUB 资料库…</div>
-              ) : epubEntries.length === 0 ? (
-                <div className="pdf-library-empty">尚未导入 EPUB</div>
-              ) : (
-                <div className="pdf-library-list epub-library-grid">
-                  {epubEntries.map((entry) => (
-                    <div className="pdf-library-item epub-library-item" key={entry.id}>
-                      <button
-                        type="button"
-                        className="pdf-library-open"
-                        onClick={() => onOpenEpub?.(entry.id)}
-                        title={`打开 ${entry.title}`}
-                        aria-label={`打开 ${entry.title}`}
-                      >
-                        {epubCoverUrls[entry.id]
-                          ? <img className="epub-library-cover" src={epubCoverUrls[entry.id]} alt="" />
-                          : <span className="epub-library-cover epub-library-cover-placeholder" aria-hidden="true">📖</span>}
-                        <strong>{entry.title}</strong>
-                        <small>
-                          {entry.author ? `${entry.author} · ` : ""}{formatStorageBytes(entry.size)}
-                          {entry.chapterCount ? ` · 第 ${entry.chapter + 1}/${entry.chapterCount} 章` : ""}
-                        </small>
-                      </button>
-                      <button
-                        type="button"
-                        className="pdf-library-delete"
-                        onClick={() => void handleEpubDelete(entry)}
-                        aria-label={`删除 ${entry.title}`}
-                        title="删除本地 EPUB"
-                      >×</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </SettingsSection>
 
             {webStorageStatus?.supported && (
               <SettingsSection title="浏览器存储" desc="Nine Rings 的本地数据保存在当前浏览器中" visible={settingsPage === "data"}>
@@ -1400,6 +1352,12 @@ function formatStorageBytes(bytes: number | null): string {
     unit = units[i];
   }
   return `${value.toFixed(value >= 10 ? 1 : 2)} ${unit}`;
+}
+
+function formatLibraryDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "未知";
+  return new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
 // ── 快捷键配置 ──

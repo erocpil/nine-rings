@@ -45,7 +45,7 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   test.setTimeout(60_000);
   await page.goto("/");
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^数据与导入/ }).click();
+  await page.getByRole("button", { name: /^阅读资料库/ }).click();
 
   await page.locator('input[type="file"][accept="application/epub+zip,.epub"]').setInputFiles({
     name: "nine-rings-mvp.epub",
@@ -125,11 +125,18 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
 
   await page.getByRole("button", { name: "关闭 EPUB 阅读器" }).click();
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^数据与导入/ }).click();
+  await page.getByRole("button", { name: /^阅读资料库/ }).click();
   const libraryEntry = page.getByRole("button", { name: "打开 Nine Rings EPUB MVP" });
-  await expect(libraryEntry.locator("img.epub-library-cover")).toBeVisible();
+  await expect(libraryEntry.locator(".reader-library-cover img")).toBeVisible();
   await expect(libraryEntry).toContainText("测试作者");
   await expect(libraryEntry).toContainText("第 2/2 章");
+  await page.getByRole("button", { name: "列表视图" }).click();
+  await expect(page.locator(".reader-library-items")).toHaveClass(/reader-library-list/);
+  const formatFilter = page.getByLabel("阅读资料库格式筛选");
+  await formatFilter.getByRole("button", { name: "PDF", exact: true }).click();
+  await expect(libraryEntry).toBeHidden();
+  await formatFilter.getByRole("button", { name: "EPUB", exact: true }).click();
+  await expect(libraryEntry).toBeVisible();
   await libraryEntry.click();
 
   await expect(reader).toBeVisible();
@@ -218,7 +225,7 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await page.getByRole("button", { name: "关闭 EPUB 阅读器" }).click();
   await page.setViewportSize({ width: 900, height: 844 });
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^数据与导入/ }).click();
+  await page.getByRole("button", { name: /^阅读资料库/ }).click();
   await page.getByRole("button", { name: "打开 Nine Rings EPUB MVP" }).click();
   await expect.poll(() => chapterFrame.locator("html").evaluate((element) => Math.max(
     element.scrollTop,

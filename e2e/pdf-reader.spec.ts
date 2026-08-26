@@ -50,7 +50,7 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   });
   await page.goto("/");
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^数据与导入/ }).click();
+  await page.getByRole("button", { name: /^阅读资料库/ }).click();
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
     name: "nine-rings-mvp.pdf",
@@ -200,7 +200,7 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   await page.getByTitle("返回 Nine Rings").click();
   await expect(reader).toHaveCount(0);
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^数据与导入/ }).click();
+  await page.getByRole("button", { name: /^阅读资料库/ }).click();
   await expect(page.getByRole("button", { name: /打开 nine-rings-mvp.pdf/ })).toBeVisible();
   await page.getByRole("button", { name: /打开 nine-rings-mvp.pdf/ }).click();
   await expect(page.getByLabel("PDF 阅读器")).toBeVisible();

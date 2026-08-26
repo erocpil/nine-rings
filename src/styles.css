@@ -9603,6 +9603,188 @@ button.doc-tree-toggle:focus-visible {
   color: var(--danger);
 }
 
+.reader-library-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reader-library-controls,
+.reader-library-segment {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reader-library-controls {
+  justify-content: space-between;
+}
+
+.reader-library-segment {
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.reader-library-segment button {
+  min-height: 30px;
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.reader-library-segment button.active {
+  background: var(--bg);
+  color: var(--accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
+}
+
+.reader-library-items {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.reader-library-shelf {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.reader-library-item {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.reader-library-open {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  padding: 9px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.reader-library-shelf .reader-library-open {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reader-library-cover {
+  position: relative;
+  display: grid;
+  flex: none;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 5px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 20%, var(--surface)), var(--surface));
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 22px;
+}
+
+.reader-library-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.reader-library-cover em {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: rgba(20, 22, 25, .72);
+  color: #fff;
+  font-style: normal;
+  font-size: 9px;
+}
+
+.reader-library-meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.reader-library-meta strong,
+.reader-library-meta small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-library-meta small {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.reader-library-delete {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 32px;
+  min-height: 32px;
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  color: var(--text-secondary);
+  font-size: 17px;
+}
+
+.reader-library-delete:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.reader-library-list {
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.reader-library-list .reader-library-open {
+  align-items: center;
+  gap: 10px;
+  padding-right: 44px;
+}
+
+.reader-library-list .reader-library-cover {
+  width: 48px;
+  height: 64px;
+  aspect-ratio: auto;
+  font-size: 12px;
+}
+
+@media (max-width: 480px) {
+  .reader-library-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .reader-library-segment {
+    justify-content: center;
+  }
+
+  .reader-library-segment button {
+    flex: 1;
+  }
+
+  .reader-library-shelf {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* ── EPUB 阅读器：复用 PDF 的工具栏、目录和资料库视觉语言 ── */
 .epub-reader {
   background: #f1f2f4;
