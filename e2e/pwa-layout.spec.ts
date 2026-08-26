@@ -31,7 +31,7 @@ test.describe("PWA 窄屏应用外壳", () => {
 
     const editor = page.locator(".ProseMirror");
     await expect(editor).toBeVisible();
-    await expect(page.locator(".editor-block-insert")).toHaveCount(0);
+    await expect(page.locator(".editor-block-insert").first()).toBeVisible();
     await expect(page.locator(".editor-status-secondary")).toBeHidden();
 
     await page.getByTitle("文档目录").click();
@@ -195,7 +195,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await lineNumberSetting.locator(".settings-toggle").click();
     await page.getByLabel("关闭设置").click();
 
-    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "30px");
+    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "38px");
     const geometry = await page.locator(".editor-content-shell").evaluate((shell) => {
       const number = shell.querySelector(".editor-block-number")!.getBoundingClientRect();
       const paragraph = shell.querySelector(".ProseMirror > *")!.getBoundingClientRect();
@@ -203,8 +203,11 @@ test.describe("PWA 窄屏应用外壳", () => {
       const orderedList = shell.querySelector<HTMLElement>(".ProseMirror > ol")!;
       const orderedItem = orderedList.querySelector<HTMLElement>(":scope > li")!;
       const orderedListRect = orderedList.getBoundingClientRect();
+      const insert = shell.querySelector<HTMLElement>(".editor-block-insert")!.getBoundingClientRect();
       return {
         shellLeft: shell.getBoundingClientRect().left,
+        insertRight: insert.right,
+        numberLeft: number.left,
         numberRight: number.right,
         paragraphLeft: paragraph.left,
         orderedNumberRight: orderedNumber.right,
@@ -217,7 +220,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(geometry.paragraphLeft - geometry.numberRight).toBeGreaterThanOrEqual(3.5);
     expect(geometry.orderedNumberRight).toBeLessThanOrEqual(geometry.orderedListLeft);
     expect(geometry.orderedItemOffset).toBeCloseTo(geometry.orderedPadding, 1);
-    await expect(page.locator(".editor-block-insert")).toHaveCount(0);
+    expect(geometry.insertRight).toBeLessThanOrEqual(geometry.numberLeft);
   });
 
   test("只读文档可从主编辑区直接恢复编辑", async ({ page }) => {
@@ -246,8 +249,8 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(blocks.first()).toBeVisible();
     const initialBlockCount = await blocks.count();
     expect(initialBlockCount).toBeGreaterThan(1);
-    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "14px");
-    await expect(page.locator(".editor-block-insert")).toHaveCount(0);
+    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "22px");
+    await expect(page.locator(".editor-block-insert").first()).toBeVisible();
 
     const orderedList = editor.locator(":scope > ol").first();
     await orderedList.locator("li").first().click();
@@ -259,7 +262,30 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(orderedList.locator("xpath=following-sibling::*[1]")).toHaveText("手机插入块");
   });
 
-  test("千块文档不测量非标题 gutter 且延迟快照仍会保存", async ({ page }) => {
+  test("手机端可稳定点按 gutter 加号且编辑区避开 splitter 热区", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await expect(editor).toBeVisible();
+    const blocks = editor.locator(":scope > *");
+    const initialBlockCount = await blocks.count();
+
+    const separation = await page.evaluate(() => {
+      const divider = document.querySelector<HTMLElement>(".app-main-divider")!.getBoundingClientRect();
+      const sticky = document.querySelector<HTMLElement>(".note-editor-sticky")!.getBoundingClientRect();
+      return sticky.top - divider.bottom;
+    });
+    expect(separation).toBeGreaterThanOrEqual(9.5);
+
+    const insertAfterFirst = page.getByRole("button", { name: "在第 1 块后插入段落" });
+    await expect(insertAfterFirst).toBeVisible();
+    await insertAfterFirst.click();
+    await page.keyboard.type("手机就地插入");
+
+    await expect(blocks).toHaveCount(initialBlockCount + 1);
+    await expect(blocks.nth(1)).toHaveText("手机就地插入");
+  });
+
+  test("千块文档仅测量视口附近 gutter 且延迟快照仍会保存", async ({ page }) => {
     test.slow();
     await page.goto("/");
     const editor = page.locator(".ProseMirror");

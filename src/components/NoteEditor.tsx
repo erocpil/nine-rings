@@ -4125,8 +4125,9 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         >
           <EditorBlockGutter
             editor={editor}
+            compact={isMobileToolbarViewport}
             showNumbers={showLineNumbers}
-            showInsertButtons={!isMobileToolbarViewport}
+            showInsertButtons
             readonly={!!readonly}
             bookmarkPositions={bookmarks.map((bookmark) => bookmark.position)}
             highlightedBlockIndex={bookmarkJumpBlockIndex}

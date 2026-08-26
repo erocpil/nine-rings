@@ -110,6 +110,7 @@ function blockFormat(typeName: string, attrs: Readonly<Record<string, unknown>>)
 
 interface EditorBlockGutterProps {
   editor: Editor;
+  compact?: boolean;
   showNumbers: boolean;
   showInsertButtons: boolean;
   readonly: boolean;
@@ -126,7 +127,7 @@ interface EditorBlockGutterProps {
  * 用户意图。IntersectionObserver 只挂载视口及预读区域内的控件；
  * ResizeObserver 只重新测量这部分节点，避免长文档复制一整套 gutter DOM。
  */
-export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], highlightedBlockIndex, onBlockCountChange, onHeadingFoldToggle }: EditorBlockGutterProps) {
+export function EditorBlockGutter({ editor, compact = false, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], highlightedBlockIndex, onBlockCountChange, onHeadingFoldToggle }: EditorBlockGutterProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [blocks, setBlocks] = useState<GutterBlock[]>([]);
 
@@ -253,9 +254,12 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
         if (changed) publishBlocks();
       }, {
         root: scrollRoot,
-        // 预挂载视口上下约两屏的 gutter 控件。快速滑动时目标块号已经
-        // 就绪，同时整篇长文档仍只保留几十个块号/插入按钮 DOM。
-        rootMargin: `${Math.max(640, Math.ceil(scrollRoot.clientHeight * 1.5))}px 0px`,
+        // 桌面端预挂载视口上下约两屏；手机端缩小预读区，避免触摸滚动
+        // 与软键盘 resize 时反复测量过多节点。窗口切换会保留重叠控件，
+        // 因此缩小预读区也不会再让块号和插入按钮闪失。
+        rootMargin: `${compact
+          ? Math.max(96, Math.ceil(scrollRoot.clientHeight * 0.2))
+          : Math.max(640, Math.ceil(scrollRoot.clientHeight * 1.5))}px 0px`,
       });
 
     const viewportBlockRange = (): { start: number; end: number } => {
@@ -314,14 +318,12 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
       // 只让 WebKit 跟踪当前视口附近的顶层块。旧实现会对大文档中的
       // 每个块调用 nodeDOM + IntersectionObserver.observe，首次布局成本
       // 随全文长度增长，并在 WebKitGTK 中造成明显假死。
-      const overscan = 48;
+      const overscan = compact ? 20 : 48;
       const start = Math.max(0, visible.start - overscan);
       const end = Math.min(topLevelBlocks.length - 1, visible.end + overscan);
       if (!force && start === observedWindow.start && end === observedWindow.end) return;
       observedWindow = { start, end };
-      intersectionObserver?.disconnect();
-      observedIndexes.clear();
-      measuredBlocks.clear();
+      const nextObservedIndexes = new Map<HTMLElement, number>();
       const rootTop = intersectionObserver ? 0 : root.getBoundingClientRect().top;
       const editorLineHeight = intersectionObserver
         ? 0
@@ -331,13 +333,21 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
         if (!block || (!needsAllBlocks && !block.heading)) continue;
         const dom = editor.view.nodeDOM(block.pos);
         if (!(dom instanceof HTMLElement)) continue;
-        observedIndexes.set(dom, block.index);
-        if (intersectionObserver) intersectionObserver.observe(dom);
-        else {
+        nextObservedIndexes.set(dom, block.index);
+        if (intersectionObserver) {
+          if (!observedIndexes.has(dom)) intersectionObserver.observe(dom);
+        } else {
           const measured = measureBlock(dom, dom.getBoundingClientRect(), rootTop, editorLineHeight);
           if (measured) measuredBlocks.set(dom, measured);
         }
       }
+      for (const dom of observedIndexes.keys()) {
+        if (nextObservedIndexes.has(dom)) continue;
+        intersectionObserver?.unobserve(dom);
+        measuredBlocks.delete(dom);
+      }
+      observedIndexes.clear();
+      for (const [dom, index] of nextObservedIndexes) observedIndexes.set(dom, index);
       publishBlocks();
     };
 
@@ -437,7 +447,7 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
       if (rebuildFrame) cancelAnimationFrame(rebuildFrame);
       if (windowFrame) cancelAnimationFrame(windowFrame);
     };
-  }, [bookmarkPositions.length, editor, onBlockCountChange, onHeadingFoldToggle, readonly, showInsertButtons, showNumbers]);
+  }, [bookmarkPositions.length, compact, editor, onBlockCountChange, onHeadingFoldToggle, readonly, showInsertButtons, showNumbers]);
 
   const insertParagraph = (pos: number) => {
     const safePos = Math.min(Math.max(0, pos), editor.state.doc.content.size);
@@ -513,7 +523,7 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
           style={{ top: block.firstLineCenter }}
           aria-label={`${block.folded ? "展开" : "折叠"}第 ${block.index} 块章节`}
           title={block.folded ? "展开本节" : "折叠本节"}
-          onMouseDown={(event) => event.preventDefault()}
+          onPointerDown={(event) => event.preventDefault()}
           onClick={() => onHeadingFoldToggle(block.pos)}
         >{block.folded ? "▶" : "▼"}</button>
       ))}
@@ -525,7 +535,7 @@ export function EditorBlockGutter({ editor, showNumbers, showInsertButtons, read
           style={{ top: boundary.top }}
           aria-label={boundary.label}
           title={boundary.label}
-          onMouseDown={(event) => event.preventDefault()}
+          onPointerDown={(event) => event.preventDefault()}
           onClick={() => insertParagraph(boundary.pos)}
         >
           +

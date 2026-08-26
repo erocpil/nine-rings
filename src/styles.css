@@ -8386,7 +8386,7 @@ button.doc-tree-toggle:focus-visible {
   }
 
   .app:not(.app-focus-mode) .app-main-editor > .note-editor {
-    padding-top: 6px;
+    padding-top: 10px;
   }
 
   /* 键盘已经覆盖 Home Indicator 区域，不再在状态栏下重复预留 safe area。 */
@@ -8540,27 +8540,32 @@ button.doc-tree-toggle:focus-visible {
     padding: 3px 5px;
   }
 
-  /* 手机端将块间插入入口放进“块”菜单，避免 gutter 中的加号与块号
-     争用有限宽度；桌面端仍保留原有的就地插入按钮。 */
+  /* 手机端保留就地插入入口，并给它独立的触摸列；“块”菜单中的入口
+     继续作为键盘打开或 gutter 暂时离屏时的备用操作。 */
   .editor-block-insert {
-    display: none;
+    left: 0;
+    width: 22px;
+    height: 24px;
+    line-height: 22px;
+    touch-action: manipulation;
   }
 
   .editor-block-number {
-    left: 14px;
-    width: calc(var(--editor-gutter-width) - 14px);
+    left: 22px;
+    width: calc(var(--editor-gutter-width) - 22px);
     padding-right: 1px;
     font-size: 11px;
   }
 
   .show-line-numbers .editor-block-number {
-    left: 14px;
-    width: calc(var(--editor-gutter-width) - 14px);
+    left: 22px;
+    width: calc(var(--editor-gutter-width) - 22px);
   }
 
   .editor-heading-fold {
     left: 0;
-    width: 14px;
+    width: 22px;
+    touch-action: manipulation;
   }
 
   /* 保留 iOS 原生选区菜单、文字选择和拖动手柄。系统剪贴板、替换和
