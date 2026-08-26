@@ -102,6 +102,23 @@ export interface DocumentMetadata {
     anchorStart?: number;
     anchorEnd?: number;
   };
+  /** 从本地 EPUB 阅读器摘录时保留稳定文字锚点。 */
+  epubExcerpt?: {
+    epubId: string;
+    epubName: string;
+    chapter: number;
+    chapterTitle: string;
+    selectedText: string;
+    highlightId?: string;
+    anchor: {
+      chapterPath: string;
+      start: number;
+      end: number;
+      exact: string;
+      prefix: string;
+      suffix: string;
+    };
+  };
   /** 正文书签随文档内容保存；position 会在编辑事务中自动映射。 */
   bookmarks?: DocumentBookmark[];
 }

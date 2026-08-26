@@ -22,6 +22,7 @@ import {
 } from "../lib/pdf-library";
 import {
   deleteLocalEpub,
+  getLocalEpubCover,
   importLocalEpub,
   listLocalEpubs,
   type LocalEpubEntry,
@@ -155,6 +156,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [epubEntries, setEpubEntries] = useState<LocalEpubEntry[]>([]);
   const [epubLibraryLoading, setEpubLibraryLoading] = useState(false);
   const [epubImporting, setEpubImporting] = useState(false);
+  const [epubCoverUrls, setEpubCoverUrls] = useState<Record<string, string>>({});
 
   const loadSettings = () => {
     setLoading(true);
@@ -584,13 +586,24 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const refreshEpubLibrary = useCallback(async () => {
     setEpubLibraryLoading(true);
     try {
-      setEpubEntries(await listLocalEpubs());
+      const entries = await listLocalEpubs();
+      setEpubEntries(entries);
+      const covers = await Promise.all(entries.filter((entry) => entry.hasCover).map(async (entry) => {
+        const blob = await getLocalEpubCover(entry.id);
+        return [entry.id, blob ? URL.createObjectURL(blob) : ""] as const;
+      }));
+      setEpubCoverUrls((current) => {
+        Object.values(current).forEach((url) => URL.revokeObjectURL(url));
+        return Object.fromEntries(covers.filter(([, url]) => url));
+      });
     } catch (reason) {
       showMessage(`EPUB 资料库读取失败：${reason instanceof Error ? reason.message : String(reason)}`);
     } finally {
       setEpubLibraryLoading(false);
     }
   }, [showMessage]);
+
+  useEffect(() => () => { Object.values(epubCoverUrls).forEach((url) => URL.revokeObjectURL(url)); }, [epubCoverUrls]);
 
   useEffect(() => {
     if (!open || settingsPage !== "data") return;
@@ -1131,9 +1144,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               ) : epubEntries.length === 0 ? (
                 <div className="pdf-library-empty">尚未导入 EPUB</div>
               ) : (
-                <div className="pdf-library-list">
+                <div className="pdf-library-list epub-library-grid">
                   {epubEntries.map((entry) => (
-                    <div className="pdf-library-item" key={entry.id}>
+                    <div className="pdf-library-item epub-library-item" key={entry.id}>
                       <button
                         type="button"
                         className="pdf-library-open"
@@ -1141,6 +1154,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                         title={`打开 ${entry.title}`}
                         aria-label={`打开 ${entry.title}`}
                       >
+                        {epubCoverUrls[entry.id]
+                          ? <img className="epub-library-cover" src={epubCoverUrls[entry.id]} alt="" />
+                          : <span className="epub-library-cover epub-library-cover-placeholder" aria-hidden="true">📖</span>}
                         <strong>{entry.title}</strong>
                         <small>
                           {entry.author ? `${entry.author} · ` : ""}{formatStorageBytes(entry.size)}

@@ -1,18 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  addLocalEpubBookmark,
+  addLocalEpubHighlight,
+  deleteLocalEpubBookmark,
+  deleteLocalEpubHighlight,
   getLocalEpub,
+  listLocalEpubBookmarks,
+  listLocalEpubHighlights,
   parseEpubArchiveAsync,
   resolveEpubPath,
+  updateLocalEpubHighlight,
   updateLocalEpubProgress,
+  type EpubTextAnchor,
   type EpubTocItem,
+  type LocalEpubBookmark,
   type LocalEpubEntry,
+  type LocalEpubHighlight,
   type ParsedEpub,
 } from "../lib/epub-library";
 
 interface Props {
   documentId: string;
   onClose: () => void;
+  initialHighlightId?: string | null;
+  onFullscreenChange?: (fullscreen: boolean) => void;
+  onCreateExcerpt?: (excerpt: { epubId: string; epubName: string; chapter: number; chapterTitle: string; selectedText: string; highlightId: string; anchor: EpubTextAnchor }) => Promise<void>;
 }
+
+interface EpubSelection { anchor: EpubTextAnchor; text: string; }
 
 interface FlatTocItem extends EpubTocItem {
   depth: number;
@@ -89,6 +104,57 @@ function markFrameSearch(document: Document, query: string, activeOccurrence: nu
   });
   document.body.normalize();
   return activeMark;
+}
+
+function resolveAnchor(text: string, anchor: EpubTextAnchor): { start: number; end: number } | null {
+  if (text.slice(anchor.start, anchor.end) === anchor.exact) return { start: anchor.start, end: anchor.end };
+  const candidates: number[] = [];
+  let from = 0;
+  while (from <= text.length - anchor.exact.length) {
+    const index = text.indexOf(anchor.exact, from);
+    if (index < 0) break;
+    candidates.push(index);
+    from = index + Math.max(1, anchor.exact.length);
+  }
+  if (candidates.length === 0) return null;
+  const best = candidates.sort((left, right) => {
+    const score = (index: number) => Number(text.slice(Math.max(0, index - anchor.prefix.length), index) === anchor.prefix)
+      + Number(text.slice(index + anchor.exact.length, index + anchor.exact.length + anchor.suffix.length) === anchor.suffix);
+    return score(right) - score(left) || Math.abs(left - anchor.start) - Math.abs(right - anchor.start);
+  })[0];
+  return { start: best, end: best + anchor.exact.length };
+}
+
+function markFrameHighlights(document: Document, highlights: LocalEpubHighlight[], targetId?: string | null): HTMLElement | null {
+  document.querySelectorAll("mark.epub-highlight").forEach((mark) => mark.replaceWith(document.createTextNode(mark.textContent ?? "")));
+  document.body.normalize();
+  const bodyText = document.body.textContent ?? "";
+  let target: HTMLElement | null = null;
+  [...highlights].reverse().forEach((highlight) => {
+    const range = resolveAnchor(bodyText, highlight.anchor);
+    if (!range) return;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let offset = 0;
+    const nodes: Array<{ node: Text; start: number; end: number }> = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode as Text;
+      const end = offset + node.data.length;
+      if (end > range.start && offset < range.end) nodes.push({ node, start: Math.max(0, range.start - offset), end: Math.min(node.data.length, range.end - offset) });
+      offset = end;
+    }
+    nodes.reverse().forEach(({ node, start, end }) => {
+      const selected = node.splitText(start);
+      selected.splitText(end - start);
+      const mark = document.createElement("mark");
+      mark.className = `epub-highlight${highlight.id === targetId ? " epub-highlight-target" : ""}`;
+      mark.dataset.highlightId = highlight.id;
+      mark.style.backgroundColor = highlight.color;
+      selected.replaceWith(mark);
+      mark.append(selected);
+      if (highlight.id === targetId) target = mark;
+    });
+  });
+  return target;
 }
 
 function rewriteCssResources(css: string, basePath: string, resourceUrl: (path: string) => string | null): string {
@@ -193,12 +259,15 @@ function safeChapterDocument(
     pre { overflow-x: auto; white-space: pre-wrap; }
     mark.epub-search-hit { padding: 0 .08em; border-radius: .15em; background: #ffe082; color: #241c00; }
     mark.epub-search-current { outline: 2px solid #ef6c00; background: #ffca28; }
+    mark.epub-highlight { padding: 0 .04em; border-radius: .12em; cursor: pointer; color: inherit; }
+    mark.epub-highlight-target { outline: 2px solid #ef6c00; }
   `;
   (document.head ?? document.documentElement.insertBefore(document.createElement("head"), document.documentElement.firstChild)).appendChild(style);
   return `<!doctype html>${new XMLSerializer().serializeToString(document.documentElement)}`;
 }
 
-export function EpubReader({ documentId, onClose }: Props) {
+export function EpubReader({ documentId, onClose, initialHighlightId, onFullscreenChange, onCreateExcerpt }: Props) {
+  const readerRef = useRef<HTMLElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const registryRef = useRef<ReturnType<typeof createResourceRegistry> | null>(null);
   const scrollSaveTimerRef = useRef<number | null>(null);
@@ -213,6 +282,13 @@ export function EpubReader({ documentId, onClose }: Props) {
   const [completedSearchQuery, setCompletedSearchQuery] = useState("");
   const [searchMatches, setSearchMatches] = useState<EpubSearchMatch[]>([]);
   const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
+  const [highlights, setHighlights] = useState<LocalEpubHighlight[]>([]);
+  const [bookmarks, setBookmarks] = useState<LocalEpubBookmark[]>([]);
+  const [selection, setSelection] = useState<EpubSelection | null>(null);
+  const [targetHighlightId, setTargetHighlightId] = useState(initialHighlightId ?? null);
+  const [annotationOpen, setAnnotationOpen] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
   const [tocOpen, setTocOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -223,19 +299,28 @@ export function EpubReader({ documentId, onClose }: Props) {
     setError(null);
     void getLocalEpub(documentId).then(async (stored) => {
       if (!stored) throw new Error("EPUB 不存在或已经被删除");
-      const parsed = await parseEpubArchiveAsync(await stored.blob.arrayBuffer());
+      const [parsed, storedHighlights, storedBookmarks] = await Promise.all([
+        parseEpubArchiveAsync(await stored.blob.arrayBuffer()),
+        listLocalEpubHighlights(documentId),
+        listLocalEpubBookmarks(documentId),
+      ]);
       if (cancelled) return;
       registryRef.current?.destroy();
       registryRef.current = createResourceRegistry(parsed);
       setEntry(stored.entry);
       setBook(parsed);
-      const savedChapter = Math.max(0, Math.min(parsed.chapters.length - 1, stored.entry.chapter));
+      const targetHighlight = storedHighlights.find((highlight) => highlight.id === initialHighlightId);
+      const targetChapter = targetHighlight ? parsed.chapters.findIndex((item) => item.path === targetHighlight.anchor.chapterPath) : -1;
+      const savedChapter = targetChapter >= 0 ? targetChapter : Math.max(0, Math.min(parsed.chapters.length - 1, stored.entry.chapter));
       setChapter(savedChapter);
       const savedLocation = stored.entry.location?.split("#", 2);
       setFragment(savedLocation?.[0] === parsed.chapters[savedChapter].path ? savedLocation[1] : undefined);
       setFontSize(stored.entry.fontSize || 100);
       setTheme(stored.entry.theme || "light");
       setScrollProgress(stored.entry.scrollProgress ?? 0);
+      setHighlights(storedHighlights);
+      setBookmarks(storedBookmarks);
+      setTargetHighlightId(initialHighlightId ?? null);
     }).catch((reason) => {
       if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
     }).finally(() => { if (!cancelled) setLoading(false); });
@@ -245,7 +330,7 @@ export function EpubReader({ documentId, onClose }: Props) {
       registryRef.current?.destroy();
       registryRef.current = null;
     };
-  }, [documentId]);
+  }, [documentId, initialHighlightId]);
 
   const chapterResult = useMemo(() => {
     if (!book || !registryRef.current) return { html: "", error: null as string | null };
@@ -338,13 +423,16 @@ export function EpubReader({ documentId, onClose }: Props) {
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeReader();
+      if (event.key === "Escape" && fullscreen) {
+        if (!document.fullscreenElement) { setFullscreen(false); onFullscreenChange?.(false); }
+      }
+      else if (event.key === "Escape") closeReader();
       else if (event.key === "ArrowLeft" || event.key === "PageUp") setChapter((value) => Math.max(0, value - 1));
       else if (event.key === "ArrowRight" || event.key === "PageDown") setChapter((value) => book ? Math.min(book.chapters.length - 1, value + 1) : value);
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [book, closeReader]);
+  }, [book, closeReader, fullscreen, onFullscreenChange]);
 
   const handleFrameLoad = () => {
     const frameDocument = iframeRef.current?.contentDocument;
@@ -355,8 +443,11 @@ export function EpubReader({ documentId, onClose }: Props) {
     const activeOccurrence = activeMatch?.chapter === chapter
       ? chapterSearchMatches.findIndex((match) => match === activeMatch)
       : -1;
+    const chapterHighlights = highlights.filter((highlight) => highlight.anchor.chapterPath === book.chapters[chapter].path);
+    const targetMark = markFrameHighlights(frameDocument, chapterHighlights, targetHighlightId);
     const activeMark = markFrameSearch(frameDocument, completedSearchQuery, activeOccurrence);
-    if (activeMark) activeMark.scrollIntoView({ block: "center" });
+    if (targetMark) targetMark.scrollIntoView({ block: "center" });
+    else if (activeMark) activeMark.scrollIntoView({ block: "center" });
     else if (fragment) frameDocument.getElementById(fragment)?.scrollIntoView();
     else if (scrollProgress > 0) {
       window.requestAnimationFrame(() => frameWindow.scrollTo(0, scrollProgress * Math.max(0, frameDocument.documentElement.scrollHeight - frameWindow.innerHeight)));
@@ -368,6 +459,36 @@ export function EpubReader({ documentId, onClose }: Props) {
         setScrollProgress(maximum > 0 ? frameWindow.scrollY / maximum : 0);
       }, 160);
     }, { passive: true });
+    frameDocument.addEventListener("mouseup", () => {
+      const current = frameWindow.getSelection();
+      if (!current || current.rangeCount === 0 || current.isCollapsed) { setSelection(null); return; }
+      const range = current.getRangeAt(0);
+      if (!frameDocument.body.contains(range.commonAncestorContainer)) return;
+      const before = frameDocument.createRange();
+      before.selectNodeContents(frameDocument.body);
+      before.setEnd(range.startContainer, range.startOffset);
+      const text = current.toString().trim();
+      if (!text) { setSelection(null); return; }
+      const start = before.toString().length + current.toString().indexOf(text);
+      const bodyText = frameDocument.body.textContent ?? "";
+      setSelection({
+        text,
+        anchor: {
+          chapterPath: book.chapters[chapter].path,
+          start,
+          end: start + text.length,
+          exact: text,
+          prefix: bodyText.slice(Math.max(0, start - 32), start),
+          suffix: bodyText.slice(start + text.length, start + text.length + 32),
+        },
+      });
+    });
+    frameDocument.addEventListener("click", (event) => {
+      const marked = (event.target as { closest?: (selector: string) => Element | null } | null)?.closest?.("mark.epub-highlight") as HTMLElement | null;
+      if (!marked?.dataset.highlightId) return;
+      setTargetHighlightId(marked.dataset.highlightId);
+      setAnnotationOpen(true);
+    });
     frameDocument.addEventListener("click", (event) => {
       // iframe 有独立的 DOM realm，不能用父窗口的 instanceof Element 判断。
       const anchor = (event.target as { closest?: (selector: string) => Element | null } | null)
@@ -399,11 +520,98 @@ export function EpubReader({ documentId, onClose }: Props) {
     const activeOccurrence = activeMatch?.chapter === chapter
       ? chapterMatches.findIndex((match) => match === activeMatch)
       : -1;
-    markFrameSearch(frameDocument, completedSearchQuery, activeOccurrence)?.scrollIntoView({ block: "center" });
-  }, [activeSearchIndex, chapter, completedSearchQuery, searchMatches]);
+    const chapterHighlights = highlights.filter((highlight) => highlight.anchor.chapterPath === book?.chapters[chapter].path);
+    const targetMark = markFrameHighlights(frameDocument, chapterHighlights, targetHighlightId);
+    const searchMark = markFrameSearch(frameDocument, completedSearchQuery, activeOccurrence);
+    (targetMark ?? searchMark)?.scrollIntoView({ block: "center" });
+  }, [activeSearchIndex, book, chapter, completedSearchQuery, highlights, searchMatches, targetHighlightId]);
+
+  const ensureHighlight = useCallback(async () => {
+    if (!entry || !selection) throw new Error("请先选择 EPUB 文字");
+    const existing = highlights.find((item) => item.anchor.chapterPath === selection.anchor.chapterPath
+      && item.anchor.start === selection.anchor.start && item.anchor.end === selection.anchor.end);
+    if (existing) return existing;
+    const created = await addLocalEpubHighlight(entry.id, selection.anchor);
+    setHighlights((current) => [...current, created]);
+    setTargetHighlightId(created.id);
+    return created;
+  }, [entry, highlights, selection]);
+
+  const saveHighlight = useCallback(async () => {
+    setActionBusy(true);
+    try {
+      await ensureHighlight();
+      iframeRef.current?.contentWindow?.getSelection()?.removeAllRanges();
+      setSelection(null);
+      setAnnotationOpen(true);
+    } finally { setActionBusy(false); }
+  }, [ensureHighlight]);
+
+  const createExcerpt = useCallback(async () => {
+    if (!onCreateExcerpt || !entry || !book || !selection) return;
+    setActionBusy(true);
+    try {
+      const highlight = await ensureHighlight();
+      await onCreateExcerpt({
+        epubId: entry.id,
+        epubName: book.title,
+        chapter: chapter + 1,
+        chapterTitle: book.chapters[chapter].title,
+        selectedText: selection.text,
+        highlightId: highlight.id,
+        anchor: selection.anchor,
+      });
+    } finally { setActionBusy(false); }
+  }, [book, chapter, ensureHighlight, entry, onCreateExcerpt, selection]);
+
+  const toggleBookmark = useCallback(async () => {
+    if (!entry || !book) return;
+    const existing = bookmarks.find((item) => item.chapter === chapter);
+    if (existing) {
+      await deleteLocalEpubBookmark(existing.id);
+      setBookmarks((current) => current.filter((item) => item.id !== existing.id));
+      return;
+    }
+    const created = await addLocalEpubBookmark({
+      epubId: entry.id,
+      chapter,
+      chapterPath: book.chapters[chapter].path,
+      scrollProgress,
+      label: `${book.chapters[chapter].title} · ${Math.round(scrollProgress * 100)}%`,
+    });
+    setBookmarks((current) => [...current, created]);
+  }, [book, bookmarks, chapter, entry, scrollProgress]);
+
+  const toggleFullscreen = useCallback(async () => {
+    const reader = readerRef.current;
+    if (!reader) return;
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else if (reader.requestFullscreen) await reader.requestFullscreen();
+      else throw new Error("Fullscreen API unavailable");
+    } catch {
+      setFullscreen((value) => {
+        onFullscreenChange?.(!value);
+        return !value;
+      });
+    }
+  }, [onFullscreenChange]);
+
+  useEffect(() => {
+    const update = () => {
+      const active = document.fullscreenElement === readerRef.current;
+      setFullscreen(active);
+      onFullscreenChange?.(active);
+    };
+    document.addEventListener("fullscreenchange", update);
+    return () => document.removeEventListener("fullscreenchange", update);
+  }, [onFullscreenChange]);
+
+  const activeHighlight = highlights.find((item) => item.id === targetHighlightId) ?? null;
+  const currentBookmark = bookmarks.some((item) => item.chapter === chapter);
 
   return (
-    <section className={`pdf-reader epub-reader epub-theme-${theme}`} aria-label="EPUB 阅读器">
+    <section ref={readerRef} className={`pdf-reader epub-reader epub-theme-${theme}${fullscreen ? " epub-reader-focus" : ""}`} aria-label="EPUB 阅读器">
       <header className="pdf-reader-toolbar epub-reader-toolbar">
         <button type="button" className="pdf-reader-close" onClick={closeReader} aria-label="关闭 EPUB 阅读器">←</button>
         <strong className="pdf-reader-title" title={entry?.name}>{book?.title ?? entry?.name ?? "EPUB 阅读器"}</strong>
@@ -437,6 +645,8 @@ export function EpubReader({ documentId, onClose }: Props) {
           <span>{completedSearchQuery ? (searchMatches.length > 0 ? `${activeSearchIndex + 1}/${searchMatches.length}` : "未找到") : ""}</span>
         </form>
         <button type="button" className={tocOpen ? "active" : ""} onClick={() => setTocOpen((open) => !open)} aria-label="EPUB 目录">目录</button>
+        <button type="button" className={currentBookmark ? "active" : ""} onClick={() => void toggleBookmark()} aria-label={currentBookmark ? "取消当前位置书签" : "添加当前位置书签"}>🔖</button>
+        <button type="button" onClick={() => void toggleFullscreen()} aria-label={fullscreen ? "退出 EPUB 专注模式" : "进入 EPUB 专注模式"}>⛶</button>
       </header>
       <div className="pdf-reader-body">
         {tocOpen && book && (
@@ -456,6 +666,26 @@ export function EpubReader({ documentId, onClose }: Props) {
                   </div>
                 );
               })}
+              {(highlights.length > 0 || bookmarks.length > 0) && <div className="epub-annotation-directory">
+                <h4>高亮与备注</h4>
+                {highlights.map((highlight) => (
+                  <div className="epub-annotation-item" key={highlight.id}>
+                    <button type="button" onClick={() => {
+                      const targetChapter = book.chapters.findIndex((item) => item.path === highlight.anchor.chapterPath);
+                      if (targetChapter >= 0) { setChapter(targetChapter); setTargetHighlightId(highlight.id); }
+                      setAnnotationOpen(true);
+                    }}>{highlight.anchor.exact}</button>
+                    <button type="button" aria-label={`删除高亮 ${highlight.anchor.exact}`} onClick={() => void deleteLocalEpubHighlight(highlight.id).then(() => setHighlights((current) => current.filter((item) => item.id !== highlight.id)))}>×</button>
+                  </div>
+                ))}
+                <h4>书签</h4>
+                {bookmarks.map((bookmark) => (
+                  <div className="epub-annotation-item" key={bookmark.id}>
+                    <button type="button" onClick={() => { setChapter(bookmark.chapter); setFragment(undefined); setScrollProgress(bookmark.scrollProgress); }}>{bookmark.label}</button>
+                    <button type="button" aria-label={`删除书签 ${bookmark.label}`} onClick={() => void deleteLocalEpubBookmark(bookmark.id).then(() => setBookmarks((current) => current.filter((item) => item.id !== bookmark.id)))}>×</button>
+                  </div>
+                ))}
+              </div>}
             </div>
           </aside>
         )}
@@ -481,6 +711,21 @@ export function EpubReader({ documentId, onClose }: Props) {
           )}
         </main>
       </div>
+      {selection && (
+        <div className="epub-selection-actions">
+          <span>{selection.text.length} 字</span>
+          <button type="button" disabled={actionBusy} onClick={() => void saveHighlight()}>高亮</button>
+          {onCreateExcerpt && <button type="button" disabled={actionBusy} onClick={() => void createExcerpt()}>摘录到笔记</button>}
+        </div>
+      )}
+      {annotationOpen && activeHighlight && (
+        <aside className="epub-note-popover" aria-label="EPUB 高亮备注">
+          <strong>{activeHighlight.anchor.exact}</strong>
+          <label>颜色<input type="color" value={activeHighlight.color} onChange={(event) => void updateLocalEpubHighlight(activeHighlight.id, { color: event.target.value }).then((updated) => setHighlights((current) => current.map((item) => item.id === updated.id ? updated : item)))} /></label>
+          <textarea aria-label="EPUB 高亮备注" defaultValue={activeHighlight.note ?? ""} placeholder="添加备注…" onBlur={(event) => void updateLocalEpubHighlight(activeHighlight.id, { note: event.target.value }).then((updated) => setHighlights((current) => current.map((item) => item.id === updated.id ? updated : item)))} />
+          <button type="button" onClick={() => setAnnotationOpen(false)}>完成</button>
+        </aside>
+      )}
     </section>
   );
 }

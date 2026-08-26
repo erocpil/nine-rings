@@ -393,6 +393,8 @@ interface NoteEditorProps {
   onSearchTargetConsumed?: (requestId: number) => void;
   pdfExcerptSource?: NonNullable<DocumentMetadata["pdfExcerpt"]>;
   onOpenPdfExcerpt?: (source: NonNullable<DocumentMetadata["pdfExcerpt"]>) => void;
+  epubExcerptSource?: NonNullable<DocumentMetadata["epubExcerpt"]>;
+  onOpenEpubExcerpt?: (source: NonNullable<DocumentMetadata["epubExcerpt"]>) => void;
 }
 
 interface EditorViewportAnchor {
@@ -481,7 +483,7 @@ function restoreEditorViewportAnchor(
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, vimModeEnabled, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt }: NoteEditorProps) {
+export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, vimModeEnabled, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps) {
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -3212,6 +3214,9 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
               aria-label={`返回 PDF 第 ${pdfExcerptSource.page} 页`}
             >📄 {pdfExcerptSource.page}</button>
           )}
+          {epubExcerptSource && onOpenEpubExcerpt && (
+            <button type="button" onClick={() => onOpenEpubExcerpt(epubExcerptSource)} title={`返回 ${epubExcerptSource.epubName} · ${epubExcerptSource.chapterTitle}`} aria-label={`返回 EPUB 第 ${epubExcerptSource.chapter} 章`}>📖 {epubExcerptSource.chapter}</button>
+          )}
           {documentOutline.length > 0 && (
             <button
               type="button"
@@ -3473,6 +3478,9 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
               onClick={() => onOpenPdfExcerpt(pdfExcerptSource)}
               title={`返回 ${pdfExcerptSource.pdfName} 第 ${pdfExcerptSource.page} 页`}
             >PDF · {pdfExcerptSource.page}</button>
+          )}
+          {epubExcerptSource && onOpenEpubExcerpt && (
+            <button type="button" className="focus-btn pdf-excerpt-source-button" onClick={() => onOpenEpubExcerpt(epubExcerptSource)} title={`返回 ${epubExcerptSource.epubName} · ${epubExcerptSource.chapterTitle}`}>EPUB · {epubExcerptSource.chapter}</button>
           )}
           {documentOutline.length > 0 && (
             <div className="document-outline-control">

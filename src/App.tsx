@@ -377,6 +377,8 @@ function App() {
   const [pdfReaderTargetRange, setPdfReaderTargetRange] = useState<{ page: number; start: number; end: number } | null>(null);
   const [pdfReaderFullscreen, setPdfReaderFullscreen] = useState(false);
   const [epubReaderDocumentId, setEpubReaderDocumentId] = useState<string | null>(null);
+  const [epubReaderTargetHighlightId, setEpubReaderTargetHighlightId] = useState<string | null>(null);
+  const [epubReaderFullscreen, setEpubReaderFullscreen] = useState(false);
   const [overdueOpen, setOverdueOpen] = useState(false);
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
   const [docTreeToolbarHost, setDocTreeToolbarHost] = useState<HTMLDivElement | null>(null);
@@ -1196,7 +1198,7 @@ function App() {
   if (epubReaderDocumentId) {
     return (
       <div className="pdf-reader-app epub-reader-app">
-        {isTauriRuntime() && (
+        {isTauriRuntime() && !epubReaderFullscreen && (
           <Suspense fallback={null}>
             <TitleBar />
           </Suspense>
@@ -1204,7 +1206,38 @@ function App() {
         <Suspense fallback={<div className="pdf-reader-boot">正在加载 EPUB 阅读器…</div>}>
           <EpubReader
             documentId={epubReaderDocumentId}
-            onClose={() => setEpubReaderDocumentId(null)}
+            initialHighlightId={epubReaderTargetHighlightId}
+            onFullscreenChange={setEpubReaderFullscreen}
+            onCreateExcerpt={async ({ epubId, epubName, chapter, chapterTitle, selectedText, highlightId, anchor }) => {
+              await flushAutoSave();
+              const excerpt = await api.notes.create({
+                date: localDateKey(),
+                title: `EPUB 摘录 · ${epubName} · ${chapterTitle}`,
+                storagePath: "resources/epub-excerpts",
+                docType: "reference",
+                concepts: ["EPUB 摘录"],
+                content: {
+                  metadata: { epubExcerpt: { epubId, epubName, chapter, chapterTitle, selectedText, highlightId, anchor } },
+                  ops: [
+                    { insert: selectedText },
+                    { insert: "\n", attributes: { blockquote: true } },
+                    { insert: `来源：${epubName} · ${chapterTitle}` },
+                    { insert: "\n" },
+                  ],
+                },
+              });
+              setEpubReaderFullscreen(false);
+              setEpubReaderDocumentId(null);
+              setEpubReaderTargetHighlightId(null);
+              revealDocTreePath("resources/epub-excerpts");
+              setDocTreeKey((key) => key + 1);
+              selectNote(excerpt);
+            }}
+            onClose={() => {
+              setEpubReaderFullscreen(false);
+              setEpubReaderDocumentId(null);
+              setEpubReaderTargetHighlightId(null);
+            }}
           />
         </Suspense>
       </div>
@@ -1600,6 +1633,18 @@ function App() {
                           window.alert(`无法打开 PDF 来源：${reason instanceof Error ? reason.message : String(reason)}`);
                         }
                       }}
+                      epubExcerptSource={selectedNote.content.metadata?.epubExcerpt}
+                      onOpenEpubExcerpt={async (source) => {
+                        try {
+                          await flushAutoSave();
+                          const { getLocalEpub } = await import("./lib/epub-library");
+                          if (!await getLocalEpub(source.epubId)) throw new Error("原 EPUB 已被删除");
+                          setEpubReaderTargetHighlightId(source.highlightId ?? null);
+                          setEpubReaderDocumentId(source.epubId);
+                        } catch (reason) {
+                          window.alert(`无法打开 EPUB 来源：${reason instanceof Error ? reason.message : String(reason)}`);
+                        }
+                      }}
                       contentVersion={selectedNote.updated_at}
                       pdfDocumentInfo={pdfDocumentInfo}
                       pdfExportRequestId={pdfExportRequestId}
@@ -1696,6 +1741,7 @@ function App() {
             void flushAutoSave()
               .then(() => {
                 setSettingsOpen(false);
+                setEpubReaderTargetHighlightId(null);
                 setEpubReaderDocumentId(documentId);
               })
               .catch((saveError) => console.error("[EPUB] 打开阅读器前保存笔记失败:", saveError));

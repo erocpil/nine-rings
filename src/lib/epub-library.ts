@@ -1,8 +1,11 @@
 import { unzip, unzipSync, type Unzipped } from "fflate";
 
 const EPUB_DB_NAME = "nine_rings_epub_library";
-const EPUB_DB_VERSION = 1;
+const EPUB_DB_VERSION = 2;
 const EPUB_STORE = "books";
+const EPUB_HIGHLIGHT_STORE = "highlights";
+const EPUB_BOOKMARK_STORE = "bookmarks";
+const EPUB_ID_INDEX = "epubId";
 export const MAX_LOCAL_EPUB_BYTES = 100 * 1024 * 1024;
 const MAX_EXPANDED_EPUB_BYTES = 300 * 1024 * 1024;
 const MAX_EPUB_FILE_COUNT = 10_000;
@@ -23,10 +26,41 @@ export interface LocalEpubEntry {
   scrollProgress?: number;
   fontSize: number;
   theme: "light" | "sepia" | "dark";
+  hasCover?: boolean;
 }
 
 interface StoredEpubRecord extends LocalEpubEntry {
   blob: Blob;
+  coverBlob?: Blob;
+}
+
+export interface EpubTextAnchor {
+  chapterPath: string;
+  start: number;
+  end: number;
+  exact: string;
+  prefix: string;
+  suffix: string;
+}
+
+export interface LocalEpubHighlight {
+  id: string;
+  epubId: string;
+  anchor: EpubTextAnchor;
+  color: string;
+  note?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface LocalEpubBookmark {
+  id: string;
+  epubId: string;
+  chapter: number;
+  chapterPath: string;
+  scrollProgress: number;
+  label: string;
+  createdAt: string;
 }
 
 export interface EpubChapter {
@@ -51,6 +85,7 @@ export interface ParsedEpub {
   chapters: EpubChapter[];
   toc: EpubTocItem[];
   files: Unzipped;
+  cover?: { path: string; mediaType: string };
 }
 
 let openPromise: Promise<IDBDatabase> | null = null;
@@ -78,6 +113,12 @@ function openEpubDatabase(): Promise<IDBDatabase> {
       if (!request.result.objectStoreNames.contains(EPUB_STORE)) {
         request.result.createObjectStore(EPUB_STORE, { keyPath: "id" });
       }
+      for (const storeName of [EPUB_HIGHLIGHT_STORE, EPUB_BOOKMARK_STORE]) {
+        if (!request.result.objectStoreNames.contains(storeName)) {
+          const store = request.result.createObjectStore(storeName, { keyPath: "id" });
+          store.createIndex(EPUB_ID_INDEX, EPUB_ID_INDEX, { unique: false });
+        }
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("EPUB 资料库打开失败"));
@@ -87,7 +128,7 @@ function openEpubDatabase(): Promise<IDBDatabase> {
 }
 
 function publicEntry(record: StoredEpubRecord): LocalEpubEntry {
-  const { blob: _blob, ...entry } = record;
+  const { blob: _blob, coverBlob: _coverBlob, ...entry } = record;
   return entry;
 }
 
@@ -224,6 +265,11 @@ function parseEpubFiles(files: Unzipped): ParsedEpub {
   const ncxPath = (ncxId ? manifest.get(ncxId)?.path : undefined)
     ?? [...manifest.values()].find((item) => item.mediaType === "application/x-dtbncx+xml")?.path;
   const toc = parseNavigation(files, navPath, ncxPath);
+  const coverItem = [...manifest.values()].find((item) => item.properties.split(/\s+/).includes("cover-image"))
+    ?? (() => {
+      const coverId = localNameElements(packageDocument, "meta").find((item) => item.getAttribute("name") === "cover")?.getAttribute("content");
+      return coverId ? manifest.get(coverId) : undefined;
+    })();
   const titleByPath = new Map<string, string>();
   const indexToc = (items: EpubTocItem[]) => items.forEach((item) => {
     if (!titleByPath.has(item.path)) titleByPath.set(item.path, item.label);
@@ -239,6 +285,7 @@ function parseEpubFiles(files: Unzipped): ParsedEpub {
     chapters,
     toc,
     files,
+    cover: coverItem && files[coverItem.path] ? { path: coverItem.path, mediaType: coverItem.mediaType } : undefined,
   };
 }
 
@@ -315,7 +362,9 @@ export async function importLocalEpub(file: File): Promise<LocalEpubEntry> {
     chapterCount: parsed.chapters.length,
     fontSize: 100,
     theme: "light",
+    hasCover: Boolean(parsed.cover),
     blob: file,
+    coverBlob: parsed.cover ? new Blob([parsed.files[parsed.cover.path]], { type: parsed.cover.mediaType }) : undefined,
   };
   const database = await openEpubDatabase();
   const transaction = database.transaction(EPUB_STORE, "readwrite");
@@ -344,6 +393,85 @@ export async function getLocalEpub(id: string): Promise<{ entry: LocalEpubEntry;
   return record ? { entry: publicEntry(record), blob: record.blob } : null;
 }
 
+export async function getLocalEpubCover(id: string): Promise<Blob | null> {
+  const database = await openEpubDatabase();
+  const transaction = database.transaction(EPUB_STORE, "readonly");
+  const done = transactionDone(transaction);
+  const record = await requestResult<StoredEpubRecord | undefined>(transaction.objectStore(EPUB_STORE).get(id));
+  await done;
+  return record?.coverBlob ?? null;
+}
+
+export async function listLocalEpubHighlights(epubId: string): Promise<LocalEpubHighlight[]> {
+  const database = await openEpubDatabase();
+  const transaction = database.transaction(EPUB_HIGHLIGHT_STORE, "readonly");
+  const done = transactionDone(transaction);
+  const records = await requestResult<LocalEpubHighlight[]>(transaction.objectStore(EPUB_HIGHLIGHT_STORE).index(EPUB_ID_INDEX).getAll(epubId));
+  await done;
+  return records.sort((left, right) => left.anchor.chapterPath.localeCompare(right.anchor.chapterPath) || left.anchor.start - right.anchor.start);
+}
+
+export async function addLocalEpubHighlight(epubId: string, anchor: EpubTextAnchor): Promise<LocalEpubHighlight> {
+  if (!anchor.exact.trim() || anchor.end <= anchor.start) throw new Error("EPUB 高亮范围无效");
+  const highlight: LocalEpubHighlight = {
+    id: createId(), epubId, anchor, color: "#ffd54f", createdAt: new Date().toISOString(),
+  };
+  const database = await openEpubDatabase();
+  const transaction = database.transaction(EPUB_HIGHLIGHT_STORE, "readwrite");
+  const done = transactionDone(transaction);
+  transaction.objectStore(EPUB_HIGHLIGHT_STORE).put(highlight);
+  await done;
+  return highlight;
+}
+
+export async function updateLocalEpubHighlight(id: string, changes: Partial<Pick<LocalEpubHighlight, "color" | "note">>): Promise<LocalEpubHighlight> {
+  const database = await openEpubDatabase();
+  const transaction = database.transaction(EPUB_HIGHLIGHT_STORE, "readwrite");
+  const done = transactionDone(transaction);
+  const store = transaction.objectStore(EPUB_HIGHLIGHT_STORE);
+  const current = await requestResult<LocalEpubHighlight | undefined>(store.get(id));
+  if (!current) throw new Error("EPUB 高亮不存在");
+  const updated = { ...current, ...changes, id: current.id, updatedAt: new Date().toISOString() };
+  store.put(updated);
+  await done;
+  return updated;
+}
+
+export async function deleteLocalEpubHighlight(id: string): Promise<void> {
+  const database = await openEpubDatabase();
+  const transaction = database.transaction(EPUB_HIGHLIGHT_STORE, "readwrite");
+  const done = transactionDone(transaction);
+  transaction.objectStore(EPUB_HIGHLIGHT_STORE).delete(id);
+  await done;
+}
+
+export async function listLocalEpubBookmarks(epubId: string): Promise<LocalEpubBookmark[]> {
+  const database = await openEpubDatabase();
+  const transaction = database.transaction(EPUB_BOOKMARK_STORE, "readonly");
+  const done = transactionDone(transaction);
+  const records = await requestResult<LocalEpubBookmark[]>(transaction.objectStore(EPUB_BOOKMARK_STORE).index(EPUB_ID_INDEX).getAll(epubId));
+  await done;
+  return records.sort((left, right) => left.chapter - right.chapter || left.scrollProgress - right.scrollProgress);
+}
+
+export async function addLocalEpubBookmark(input: Omit<LocalEpubBookmark, "id" | "createdAt">): Promise<LocalEpubBookmark> {
+  const bookmark = { ...input, id: createId(), createdAt: new Date().toISOString() };
+  const database = await openEpubDatabase();
+  const transaction = database.transaction(EPUB_BOOKMARK_STORE, "readwrite");
+  const done = transactionDone(transaction);
+  transaction.objectStore(EPUB_BOOKMARK_STORE).put(bookmark);
+  await done;
+  return bookmark;
+}
+
+export async function deleteLocalEpubBookmark(id: string): Promise<void> {
+  const database = await openEpubDatabase();
+  const transaction = database.transaction(EPUB_BOOKMARK_STORE, "readwrite");
+  const done = transactionDone(transaction);
+  transaction.objectStore(EPUB_BOOKMARK_STORE).delete(id);
+  await done;
+}
+
 export async function updateLocalEpubProgress(
   id: string,
   progress: Pick<LocalEpubEntry, "chapter" | "fontSize" | "theme"> & { location?: string; scrollProgress?: number },
@@ -368,9 +496,14 @@ export async function updateLocalEpubProgress(
 
 export async function deleteLocalEpub(id: string): Promise<void> {
   const database = await openEpubDatabase();
-  const transaction = database.transaction(EPUB_STORE, "readwrite");
+  const transaction = database.transaction([EPUB_STORE, EPUB_HIGHLIGHT_STORE, EPUB_BOOKMARK_STORE], "readwrite");
   const done = transactionDone(transaction);
   transaction.objectStore(EPUB_STORE).delete(id);
+  for (const storeName of [EPUB_HIGHLIGHT_STORE, EPUB_BOOKMARK_STORE]) {
+    const index = transaction.objectStore(storeName).index(EPUB_ID_INDEX);
+    const keys = await requestResult<IDBValidKey[]>(index.getAllKeys(id));
+    keys.forEach((key) => transaction.objectStore(storeName).delete(key));
+  }
   await done;
 }
 
