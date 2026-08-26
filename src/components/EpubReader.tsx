@@ -377,6 +377,7 @@ function safeChapterDocument(
   });
   applyManualLineMerges(document, manualLineMerges.filter((fix) => fix.chapterPath === chapterPath));
   if (smartLineMerge) normalizeHardLineBreaks(document);
+  document.documentElement.setAttribute("data-nine-rings-epub-chapter", chapterPath);
 
   const palettes = {
     light: { background: "#fffdf9", text: "#25231f", link: "#315f9b" },
@@ -418,6 +419,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const themeLongPressTriggeredRef = useRef(false);
   const swipeNoticeTimerRef = useRef<number | null>(null);
   const pendingViewportAnchorRef = useRef<ViewportTextAnchor | null>(null);
+  const boundFrameDocumentRef = useRef<{ document: Document; chapterPath: string } | null>(null);
   const fullscreenRef = useRef(false);
   const tauriNativeFullscreenRef = useRef(false);
   const [entry, setEntry] = useState<LocalEpubEntry | null>(null);
@@ -523,6 +525,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       if (focusControlsTimerRef.current !== null) window.clearTimeout(focusControlsTimerRef.current);
       if (themeLongPressTimerRef.current !== null) window.clearTimeout(themeLongPressTimerRef.current);
       if (swipeNoticeTimerRef.current !== null) window.clearTimeout(swipeNoticeTimerRef.current);
+      boundFrameDocumentRef.current = null;
       registryRef.current?.destroy();
       registryRef.current = null;
     };
@@ -687,6 +690,10 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     const frameDocument = iframeRef.current?.contentDocument;
     const frameWindow = iframeRef.current?.contentWindow;
     if (!frameDocument || !frameWindow || !book) return;
+    if (frameDocument.documentElement.getAttribute("data-nine-rings-epub-chapter") !== book.chapters[chapter].path) return;
+    const chapterPath = book.chapters[chapter].path;
+    if (boundFrameDocumentRef.current?.document === frameDocument && boundFrameDocumentRef.current.chapterPath === chapterPath) return;
+    boundFrameDocumentRef.current = { document: frameDocument, chapterPath };
     const chapterSearchMatches = searchMatches.filter((match) => match.chapter === chapter);
     const activeMatch = searchMatches[activeSearchIndex];
     const activeOccurrence = activeMatch?.chapter === chapter
@@ -841,6 +848,22 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       navigateTo(target.path || book.chapters[chapter].path, target.fragment);
     });
   };
+
+  useEffect(() => {
+    if (!chapterResult.html) return;
+    const bind = () => handleFrameLoad();
+    const frameElement = iframeRef.current;
+    frameElement?.addEventListener("load", bind);
+    const frame = window.requestAnimationFrame(bind);
+    const timers = [40, 160, 480, 1200].map((delay) => window.setTimeout(bind, delay));
+    return () => {
+      window.cancelAnimationFrame(frame);
+      timers.forEach((timer) => window.clearTimeout(timer));
+      frameElement?.removeEventListener("load", bind);
+    };
+    // WebView 可能只为空白 srcDoc 触发 onLoad；章节 HTML 变化时主动重试绑定。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapterResult.html]);
 
   const changeChapter = (next: number) => {
     if (!book) return;

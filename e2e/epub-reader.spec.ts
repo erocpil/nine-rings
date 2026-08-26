@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { strToU8, zipSync } from "fflate";
 
+test.use({ hasTouch: true });
+
 function createEpubFixture(): Buffer {
   const files = {
     mimetype: strToU8("application/epub+zip"),
@@ -236,10 +238,21 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(page.locator(".epub-reader-toolbar")).toBeHidden();
   await expect(page.locator(".epub-bottom-navigation")).toBeHidden();
   await expect(page.locator(".epub-focus-exit")).toBeHidden();
-  await chapterFrame.locator("body").evaluate((element) => {
-    element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch", isPrimary: true, clientX: 80, clientY: 160 }));
-    element.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, pointerType: "touch", isPrimary: true, clientX: 82, clientY: 162 }));
-  });
+  const frameBox = await page.locator(".epub-chapter-frame").boundingBox();
+  if (!frameBox) throw new Error("EPUB frame is not visible");
+  const cdp = await page.context().newCDPSession(page);
+  const dispatchSwipe = async (fromX: number, toX: number) => {
+    const y = frameBox.y + frameBox.height / 2;
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: fromX, y }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: (fromX + toX) / 2, y: y + 2 }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: toX, y: y + 3 }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  };
+  await dispatchSwipe(frameBox.x + 70, frameBox.x + frameBox.width - 70);
+  await expect(chapterFrame.getByRole("heading", { name: "第一章" })).toBeVisible();
+  await dispatchSwipe(frameBox.x + frameBox.width - 70, frameBox.x + 70);
+  await expect(chapterFrame.getByRole("heading", { name: "第二章" })).toBeVisible();
+  await page.touchscreen.tap(frameBox.x + frameBox.width / 2, frameBox.y + frameBox.height / 2);
   await expect(page.locator(".epub-bottom-navigation")).toBeVisible();
   await expect(page.locator(".epub-focus-exit")).toBeVisible();
   await page.getByRole("button", { name: "退出 EPUB 专注模式" }).click();
