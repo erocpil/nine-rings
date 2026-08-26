@@ -131,6 +131,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const textLayerRefs = useRef(new Map<number, TextLayer>());
   const renderTaskRefs = useRef(new Map<number, RenderTask>());
   const pageRenderPipelineRefs = useRef(new Map<number, Promise<void>>());
+  const globalPageRenderQueueRef = useRef<Promise<void>>(Promise.resolve());
   const pageRequestedSignatureRefs = useRef(new Map<number, string>());
   const pageRenderVersionRefs = useRef(new Map<number, number>());
   const documentRenderGenerationRef = useRef(0);
@@ -138,6 +139,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const touchGestureRef = useRef<TouchGesture | null>(null);
   const pinchGestureRef = useRef<PinchGesture | null>(null);
   const zoomAnchorRef = useRef<{ x: number; y: number } | null>(null);
+  const pendingPageNavigationRef = useRef<number | null>(null);
   const searchRequestRef = useRef(0);
   const saveTimerRef = useRef<number | null>(null);
   const latestProgressRef = useRef<{
@@ -491,6 +493,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       }
       setPdf(loadedDocument);
       const restoredPage = clampPage(stored.entry.page, loadedDocument.numPages);
+      pendingPageNavigationRef.current = restoredPage;
       setPage(restoredPage);
       setVisibleVerticalPages(new Set([restoredPage]));
       setPageInput(String(restoredPage));
@@ -610,9 +613,37 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
             if (entry.isIntersecting) next.add(pageNumber);
             else next.delete(pageNumber);
           }
+          const maximumPages = mobileViewport ? 5 : 12;
+          if (next.size > maximumPages) {
+            const viewportCenter = viewport.getBoundingClientRect().top + viewport.clientHeight / 2;
+            const nearest = [...next]
+              .sort((left, right) => {
+                const leftRect = pageSurfaceRefs.current.get(left)?.getBoundingClientRect();
+                const rightRect = pageSurfaceRefs.current.get(right)?.getBoundingClientRect();
+                const leftDistance = leftRect ? Math.abs((leftRect.top + leftRect.bottom) / 2 - viewportCenter) : Number.MAX_SAFE_INTEGER;
+                const rightDistance = rightRect ? Math.abs((rightRect.top + rightRect.bottom) / 2 - viewportCenter) : Number.MAX_SAFE_INTEGER;
+                return leftDistance - rightDistance;
+              })
+              .slice(0, maximumPages);
+            next.clear();
+            nearest.forEach((pageNumber) => next.add(pageNumber));
+          }
           if (next.size === current.size && [...next].every((pageNumber) => current.has(pageNumber))) return current;
           return next;
         });
+        if (pendingPageNavigationRef.current === null) {
+          const viewportRect = viewport.getBoundingClientRect();
+          const probeX = viewportRect.left + viewportRect.width / 2;
+          const probeY = viewportRect.top + viewportRect.height / 2;
+          let visiblePage = 0;
+          for (const offset of [0, -24, 24, -48, 48]) {
+            const hit = viewport.ownerDocument.elementFromPoint(probeX, probeY + offset);
+            const surface = hit?.closest<HTMLElement>(".pdf-page-surface");
+            visiblePage = Number(surface?.dataset.pdfPage) || 0;
+            if (visiblePage) break;
+          }
+          if (visiblePage) setPage((current) => current === visiblePage ? current : visiblePage);
+        }
       });
     }, {
       root: viewport,
@@ -801,7 +832,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       if (!cancelled) setTextLayerRevision((revision) => revision + 1);
     };
 
-    void render()
+    const queuedRender = globalPageRenderQueueRef.current.catch(() => {}).then(render);
+    globalPageRenderQueueRef.current = queuedRender;
+    void queuedRender
       .catch((reason) => {
         if (!cancelled && (reason as { name?: string })?.name !== "RenderingCancelledException") {
           setError(pdfErrorMessage(reason));
@@ -920,7 +953,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
 
   const changePage = useCallback((nextPage: number) => {
     if (!pdf) return;
-    setPage(clampPage(nextPage, pdf.numPages));
+    const next = clampPage(nextPage, pdf.numPages);
+    pendingPageNavigationRef.current = next;
+    setPage(next);
   }, [pdf]);
 
   const currentPageBookmark = bookmarks.find((bookmark) => bookmark.page === page);
@@ -1344,6 +1379,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
 
   useEffect(() => {
     if (!pdf || viewMode !== "vertical") return;
+    if (pendingPageNavigationRef.current !== page) return;
     const target = pageSurfaceRefs.current.get(page);
     if (!target) return;
     window.requestAnimationFrame(() => {
@@ -1353,6 +1389,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         top: Math.max(0, target.offsetTop - 12),
         left: Math.max(0, target.offsetLeft - 12),
       });
+      pendingPageNavigationRef.current = null;
     });
   }, [page, viewMode, pdf]);
 
@@ -1419,7 +1456,10 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         </div>
         <div className="pdf-view-mode-controls">
           <button type="button" className={viewMode === "horizontal" ? "active" : undefined} onClick={() => setViewMode("horizontal")}>横向</button>
-          <button type="button" className={viewMode === "vertical" ? "active" : undefined} onClick={() => setViewMode("vertical")}>纵向</button>
+          <button type="button" className={viewMode === "vertical" ? "active" : undefined} onClick={() => {
+            pendingPageNavigationRef.current = page;
+            setViewMode("vertical");
+          }}>纵向</button>
         </div>
         <form className="pdf-search" onSubmit={(event) => { event.preventDefault(); void search(1); }}>
           <input
