@@ -129,6 +129,7 @@ interface EditorBlockGutterProps {
  */
 export function EditorBlockGutter({ editor, compact = false, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], highlightedBlockIndex, onBlockCountChange, onHeadingFoldToggle }: EditorBlockGutterProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const suppressCompatibilityClickUntilRef = useRef(0);
   const [blocks, setBlocks] = useState<GutterBlock[]>([]);
 
   useEffect(() => {
@@ -487,6 +488,22 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
     (position) => position >= block.pos && position < block.endPos,
   );
 
+  const runGutterActionFromPointer = (event: React.PointerEvent<HTMLButtonElement>, action: () => void) => {
+    if (event.pointerType !== "touch" || !event.isPrimary) return;
+    // iOS standalone/PWA 会在 pointerdown.preventDefault() 后偶发不再派发
+    // compatibility click。触摸操作直接在 pointerup 完成，并抑制随后可能
+    // 到达的合成 click；滚动手势会收到 pointercancel，因此不会误插入。
+    event.preventDefault();
+    event.stopPropagation();
+    suppressCompatibilityClickUntilRef.current = Date.now() + 500;
+    action();
+  };
+
+  const runGutterActionFromClick = (action: () => void) => {
+    if (Date.now() < suppressCompatibilityClickUntilRef.current) return;
+    action();
+  };
+
   return (
     <div
       ref={rootRef}
@@ -523,8 +540,11 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
           style={{ top: block.firstLineCenter }}
           aria-label={`${block.folded ? "展开" : "折叠"}第 ${block.index} 块章节`}
           title={block.folded ? "展开本节" : "折叠本节"}
-          onPointerDown={(event) => event.preventDefault()}
-          onClick={() => onHeadingFoldToggle(block.pos)}
+          onPointerDown={(event) => {
+            if (event.pointerType !== "touch") event.preventDefault();
+          }}
+          onPointerUp={(event) => runGutterActionFromPointer(event, () => onHeadingFoldToggle(block.pos))}
+          onClick={() => runGutterActionFromClick(() => onHeadingFoldToggle(block.pos))}
         >{block.folded ? "▶" : "▼"}</button>
       ))}
       {!readonly && showInsertButtons && boundaries.map((boundary) => (
@@ -535,8 +555,11 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
           style={{ top: boundary.top }}
           aria-label={boundary.label}
           title={boundary.label}
-          onPointerDown={(event) => event.preventDefault()}
-          onClick={() => insertParagraph(boundary.pos)}
+          onPointerDown={(event) => {
+            if (event.pointerType !== "touch") event.preventDefault();
+          }}
+          onPointerUp={(event) => runGutterActionFromPointer(event, () => insertParagraph(boundary.pos))}
+          onClick={() => runGutterActionFromClick(() => insertParagraph(boundary.pos))}
         >
           +
         </button>

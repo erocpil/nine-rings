@@ -278,7 +278,12 @@ test.describe("PWA 窄屏应用外壳", () => {
 
     const insertAfterFirst = page.getByRole("button", { name: "在第 1 块后插入段落" });
     await expect(insertAfterFirst).toBeVisible();
-    await insertAfterFirst.click();
+    const insertBox = await insertAfterFirst.boundingBox();
+    if (!insertBox) throw new Error("mobile gutter insert button geometry not found");
+    await page.touchscreen.tap(
+      insertBox.x + insertBox.width / 2,
+      insertBox.y + insertBox.height / 2,
+    );
     await page.keyboard.type("手机就地插入");
 
     await expect(blocks).toHaveCount(initialBlockCount + 1);
@@ -429,7 +434,8 @@ test.describe("PWA 窄屏应用外壳", () => {
       return { focusBarBottom: focusBarRect.bottom, firstBlockTop: firstBlockRect.top };
     });
     expect(initialContentGeometry.firstBlockTop).toBeGreaterThanOrEqual(initialContentGeometry.focusBarBottom);
-    expect(initialContentGeometry.firstBlockTop - initialContentGeometry.focusBarBottom).toBeLessThanOrEqual(24);
+    // 为首个 24px gutter 加号的上半部预留空间后，正文仍保持紧凑。
+    expect(initialContentGeometry.firstBlockTop - initialContentGeometry.focusBarBottom).toBeLessThanOrEqual(40);
 
     const focusOutlineButton = focusBar.getByTitle("文档目录");
     const focusBookmarkButton = focusBar.getByLabel(/文档书签/);
@@ -505,6 +511,38 @@ test.describe("PWA 窄屏应用外壳", () => {
     await focusBar.getByTitle("退出专注模式").click();
     await expect(focusBar).toHaveCount(0);
     await expect(page.locator(".app-header")).toBeVisible();
+  });
+
+  test("专注模式首个 gutter 加号完整避开固定标题栏并可触摸", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await expect(editor).toBeVisible();
+    const blocks = editor.locator(":scope > *");
+    const initialBlockCount = await blocks.count();
+
+    await page.getByTitle("专注模式").click();
+    const focusBar = page.getByLabel("专注模式工具栏");
+    const insertBeforeFirst = page.getByRole("button", { name: "在第一块前插入段落" });
+    await expect(focusBar).toBeVisible();
+    await expect(insertBeforeFirst).toBeVisible();
+
+    const geometry = await page.locator(".note-editor").evaluate((element) => {
+      const bar = element.querySelector<HTMLElement>(".mobile-focus-bar")!.getBoundingClientRect();
+      const insert = element.querySelector<HTMLElement>('.editor-block-insert[aria-label="在第一块前插入段落"]')!.getBoundingClientRect();
+      return { barBottom: bar.bottom, insertTop: insert.top };
+    });
+    expect(geometry.insertTop).toBeGreaterThanOrEqual(geometry.barBottom + 1);
+
+    const insertBox = await insertBeforeFirst.boundingBox();
+    if (!insertBox) throw new Error("focus mode first gutter insert button geometry not found");
+    await page.touchscreen.tap(
+      insertBox.x + insertBox.width / 2,
+      insertBox.y + insertBox.height / 2,
+    );
+    await page.keyboard.type("专注模式首块");
+
+    await expect(blocks).toHaveCount(initialBlockCount + 1);
+    await expect(blocks.first()).toHaveText("专注模式首块");
   });
 
   test("专注模式在竖屏、横屏和桌面均隐藏原始文档标题行", async ({ page }) => {
