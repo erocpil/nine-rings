@@ -8996,6 +8996,7 @@ button.doc-tree-toggle:focus-visible {
 }
 
 .pdf-page-controls,
+.pdf-view-mode-controls,
 .pdf-zoom-controls,
 .pdf-search {
   display: flex;
@@ -9237,6 +9238,11 @@ button.doc-tree-toggle:focus-visible {
   overscroll-behavior: contain;
 }
 
+.pdf-page-viewport-vertical {
+  flex-direction: column;
+  align-items: stretch;
+}
+
 .pdf-page-surface {
   position: relative;
   flex: none;
@@ -9245,6 +9251,10 @@ button.doc-tree-toggle:focus-visible {
   background: #fff;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.34);
   touch-action: pan-x pan-y;
+}
+
+.pdf-page-viewport-vertical .pdf-page-surface {
+  margin-block: 8px;
 }
 
 .pdf-reader-fullscreen .pdf-page-surface {
@@ -9462,6 +9472,10 @@ button.doc-tree-toggle:focus-visible {
 
   .pdf-page-controls {
     order: 5;
+  }
+
+  .pdf-view-mode-controls {
+    order: 8;
   }
 
   .pdf-zoom-controls {

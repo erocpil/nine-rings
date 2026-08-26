@@ -16,6 +16,8 @@ export interface LocalPdfEntry {
   page: number;
   zoom: number;
   fitWidth?: boolean;
+  fitHeight?: boolean;
+  viewMode?: "horizontal" | "vertical";
   pageCount?: number;
 }
 
@@ -95,6 +97,8 @@ function publicEntry(record: StoredPdfRecord): LocalPdfEntry {
     page: record.page,
     zoom: record.zoom,
     fitWidth: record.fitWidth,
+    fitHeight: record.fitHeight,
+    viewMode: record.viewMode,
     pageCount: record.pageCount,
   };
 }
@@ -130,6 +134,8 @@ export async function importLocalPdf(file: File): Promise<LocalPdfEntry> {
     page: 1,
     zoom: 1,
     fitWidth: true,
+    fitHeight: false,
+    viewMode: "horizontal",
     blob: file,
   };
   const database = await openPdfDatabase();
@@ -163,7 +169,12 @@ export async function getLocalPdf(id: string): Promise<{ entry: LocalPdfEntry; b
 
 export async function updateLocalPdfProgress(
   id: string,
-  progress: Pick<LocalPdfEntry, "page" | "zoom"> & { fitWidth?: boolean; pageCount?: number },
+  progress: Pick<LocalPdfEntry, "page" | "zoom"> & {
+    fitWidth?: boolean;
+    fitHeight?: boolean;
+    viewMode?: "horizontal" | "vertical";
+    pageCount?: number;
+  },
 ): Promise<void> {
   const database = await openPdfDatabase();
   const transaction = database.transaction(PDF_STORE, "readwrite");
@@ -179,6 +190,8 @@ export async function updateLocalPdfProgress(
     page: Math.max(1, Math.round(progress.page)),
     zoom: Math.max(0.25, Math.min(4, progress.zoom)),
     fitWidth: progress.fitWidth ?? record.fitWidth,
+    fitHeight: progress.fitHeight ?? record.fitHeight,
+    viewMode: progress.viewMode ?? record.viewMode,
     pageCount: progress.pageCount ?? record.pageCount,
     lastOpenedAt: new Date().toISOString(),
   });

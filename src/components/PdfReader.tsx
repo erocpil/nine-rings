@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getDocument,
   GlobalWorkerOptions,
@@ -54,6 +54,7 @@ interface SearchMatch {
 }
 
 interface PdfTextSelection {
+  page: number;
   text: string;
   start: number;
   end: number;
@@ -90,6 +91,10 @@ function pageTextCache(items: string[]): PageTextCache {
   return { text: text.toLocaleLowerCase(), items, starts };
 }
 
+function clampZoom(value: number): number {
+  return Math.max(0.25, Math.min(4, value));
+}
+
 function clampPage(page: number, total: number): number {
   return Math.max(1, Math.min(total || 1, Math.round(page) || 1));
 }
@@ -110,19 +115,20 @@ interface WebkitFullscreenElement extends HTMLDivElement {
   webkitRequestFullscreen?: () => Promise<void> | void;
 }
 
+type PdfViewMode = "horizontal" | "vertical";
+
 export function PdfReader({ documentId, onClose, onFullscreenChange, initialHighlightId, initialTargetRange, onCreateExcerpt }: Props) {
   const readerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRefs = useRef(new Map<number, HTMLCanvasElement>());
+  const pageSurfaceRefs = useRef(new Map<number, HTMLDivElement>());
+  const textLayerElementRefs = useRef(new Map<number, HTMLDivElement>());
   const searchInputRef = useRef<HTMLInputElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const pageSurfaceRef = useRef<HTMLDivElement>(null);
-  const textLayerElementRef = useRef<HTMLDivElement>(null);
-  const textLayerRef = useRef<TextLayer | null>(null);
-  const renderTaskRef = useRef<RenderTask | null>(null);
+  const textLayerRefs = useRef(new Map<number, TextLayer>());
+  const renderTaskRefs = useRef(new Map<number, RenderTask>());
   const textCacheRef = useRef(new Map<number, PageTextCache>());
   const touchGestureRef = useRef<TouchGesture | null>(null);
   const pinchGestureRef = useRef<PinchGesture | null>(null);
-  const lastTapRef = useRef(0);
   const zoomAnchorRef = useRef<{ x: number; y: number } | null>(null);
   const searchRequestRef = useRef(0);
   const saveTimerRef = useRef<number | null>(null);
@@ -131,6 +137,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     page: number;
     zoom: number;
     fitWidth: boolean;
+    fitHeight: boolean;
+    viewMode: PdfViewMode;
     pageCount: number;
   } | null>(null);
   const [entry, setEntry] = useState<LocalPdfEntry | null>(null);
@@ -139,7 +147,11 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const [pageInput, setPageInput] = useState("1");
   const [zoom, setZoom] = useState(1);
   const [fitWidth, setFitWidth] = useState(true);
+  const [fitHeight, setFitHeight] = useState(false);
+  const [viewMode, setViewMode] = useState<PdfViewMode>("horizontal");
+  const [showHighlights, setShowHighlights] = useState(true);
   const [viewportWidth, setViewportWidth] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
   const [loading, setLoading] = useState(true);
   const [rendering, setRendering] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -181,19 +193,37 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   useEffect(() => {
     const updateSelection = () => {
       const selection = window.getSelection();
-      const layer = textLayerElementRef.current;
-      if (!selection || selection.isCollapsed || !layer) {
+      if (!selection || selection.isCollapsed) {
         setSelectionAnchor(null);
         return;
       }
       const anchor = selection.anchorNode;
       const focus = selection.focusNode;
-      if (!anchor || !focus || !layer.contains(anchor) || !layer.contains(focus)) {
+      if (!anchor || !focus) {
         setSelectionAnchor(null);
         return;
       }
-      const cached = textCacheRef.current.get(page);
-      const divs = textLayerRef.current?.textDivs;
+      let layer: HTMLElement | null = null;
+      let current: HTMLElement | null = anchor instanceof HTMLElement ? anchor : anchor.parentElement;
+      while (current) {
+        if (current.classList.contains("pdf-text-layer")) {
+          layer = current;
+          break;
+        }
+        current = current.parentElement;
+      }
+      if (!layer || !layer.contains(anchor) || !layer.contains(focus)) {
+        setSelectionAnchor(null);
+        return;
+      }
+      const pageNumber = Number(layer.dataset.pdfPage);
+      if (!Number.isFinite(pageNumber) || Number.isNaN(pageNumber)) {
+        setSelectionAnchor(null);
+        return;
+      }
+      const cached = textCacheRef.current.get(pageNumber);
+      const pageTextLayer = textLayerRefs.current.get(pageNumber);
+      const divs = pageTextLayer?.textDivs;
       if (!cached || !divs) {
         setSelectionAnchor(null);
         return;
@@ -217,6 +247,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           return;
         }
         setSelectionAnchor({
+          page: pageNumber,
           text,
           start: Math.min(anchorOffset, focusOffset),
           end: Math.max(anchorOffset, focusOffset),
@@ -227,26 +258,26 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     };
     document.addEventListener("selectionchange", updateSelection);
     return () => document.removeEventListener("selectionchange", updateSelection);
-  }, [page, textLayerRevision]);
+  }, [textLayerRevision]);
 
   const ensureSelectionHighlight = useCallback(async () => {
     if (!entry || !selectionAnchor) throw new Error("请先选择 PDF 文本");
     const existing = highlights.find((highlight) => (
-      highlight.page === page
+      highlight.page === selectionAnchor.page
       && highlight.start === selectionAnchor.start
       && highlight.end === selectionAnchor.end
     ));
     if (existing) return { highlight: existing, created: false };
     const highlight = await addLocalPdfHighlight({
       pdfId: entry.id,
-      page,
+      page: selectionAnchor.page,
       start: selectionAnchor.start,
       end: selectionAnchor.end,
       text: selectionAnchor.text,
     });
     setHighlights((current) => [...current, highlight]);
     return { highlight, created: true };
-  }, [entry, highlights, page, selectionAnchor]);
+  }, [entry, highlights, selectionAnchor]);
 
   const saveHighlight = useCallback(async () => {
     if (!selectionAnchor || highlightSaving) return;
@@ -273,7 +304,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       await onCreateExcerpt({
         pdfId: entry.id,
         pdfName: entry.name,
-        page,
+        page: selectionAnchor.page,
         selectedText: selectionAnchor.text,
         highlightId: highlight.id,
         start: selectionAnchor.start,
@@ -290,7 +321,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     } finally {
       setExcerptSaving(false);
     }
-  }, [ensureSelectionHighlight, entry, excerptSaving, onCreateExcerpt, page, selectionAnchor, showActionNotice]);
+  }, [ensureSelectionHighlight, entry, excerptSaving, onCreateExcerpt, selectionAnchor, showActionNotice]);
 
   const enterImmersiveFallback = useCallback(() => {
     setImmersiveFallback(true);
@@ -397,7 +428,14 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     const open = async () => {
       setLoading(true);
       setError(null);
+      canvasRefs.current.clear();
+      pageSurfaceRefs.current.clear();
+      textLayerElementRefs.current.clear();
       textCacheRef.current.clear();
+      renderTaskRefs.current.forEach((task) => task.cancel());
+      textLayerRefs.current.forEach((textLayer) => textLayer.cancel());
+      renderTaskRefs.current.clear();
+      textLayerRefs.current.clear();
       setSearchMatches([]);
       setActiveSearchIndex(-1);
       setHighlights([]);
@@ -411,6 +449,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       setPageInput(String(Math.max(1, stored.entry.page)));
       setZoom(stored.entry.zoom || 1);
       setFitWidth(stored.entry.fitWidth !== false);
+      setFitHeight(Boolean(stored.entry.fitHeight));
+      setViewMode(stored.entry.viewMode === "vertical" ? "vertical" : "horizontal");
 
       const [data, storedHighlights, storedBookmarks] = await Promise.all([
         stored.blob.arrayBuffer(),
@@ -457,8 +497,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => {
       cancelled = true;
-      renderTaskRef.current?.cancel();
-      textLayerRef.current?.cancel();
+      renderTaskRefs.current.forEach((task) => task.cancel());
+      textLayerRefs.current.forEach((textLayer) => textLayer.cancel());
       void loadedDocument?.destroy();
     };
   }, [documentId, initialHighlightId, initialTargetRange]);
@@ -466,75 +506,126 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   useEffect(() => {
     const element = viewportRef.current;
     if (!element) return;
-    const update = () => setViewportWidth(element.clientWidth);
+    const update = () => {
+      setViewportWidth(element.clientWidth);
+      setViewportHeight(element.clientHeight);
+    };
     update();
     const observer = new ResizeObserver(update);
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
 
+  const renderedPages = useMemo(() => {
+    if (!pdf) return [];
+    if (viewMode === "horizontal") return [clampPage(page, pdf.numPages)];
+    return Array.from({ length: pdf.numPages }, (_, index) => index + 1);
+  }, [page, pdf, viewMode]);
+
+  const setCanvasRef = useCallback((pageNumber: number, node: HTMLCanvasElement | null) => {
+    if (node) canvasRefs.current.set(pageNumber, node);
+    else canvasRefs.current.delete(pageNumber);
+  }, []);
+
+  const setPageSurfaceRef = useCallback((pageNumber: number, node: HTMLDivElement | null) => {
+    if (node) pageSurfaceRefs.current.set(pageNumber, node);
+    else pageSurfaceRefs.current.delete(pageNumber);
+  }, []);
+
+  const setTextLayerElementRef = useCallback((pageNumber: number, node: HTMLDivElement | null) => {
+    if (node) textLayerElementRefs.current.set(pageNumber, node);
+    else textLayerElementRefs.current.delete(pageNumber);
+  }, []);
+
   useEffect(() => {
-    if (!pdf || !canvasRef.current || !textLayerElementRef.current || viewportWidth <= 0) return;
+    if (!pdf || !renderedPages.length || viewportWidth <= 0 || viewportHeight <= 0) return;
     let cancelled = false;
-    renderTaskRef.current?.cancel();
-    textLayerRef.current?.cancel();
+    setRendering(true);
+
+    renderTaskRefs.current.forEach((task, pageNumber) => {
+      if (renderedPages.includes(pageNumber)) task.cancel();
+    });
+    textLayerRefs.current.forEach((textLayer, pageNumber) => {
+      if (renderedPages.includes(pageNumber)) textLayer.cancel();
+    });
+
     const render = async () => {
-      setRendering(true);
-      const pdfPage = await pdf.getPage(page);
-      if (cancelled) return;
-      const baseViewport = pdfPage.getViewport({ scale: 1 });
-      const availableWidth = Math.max(160, viewportWidth - 24);
-      const displayScale = fitWidth
-        ? Math.max(0.25, Math.min(4, availableWidth / baseViewport.width))
-        : zoom;
-      const displayViewport = pdfPage.getViewport({ scale: displayScale });
-      const outputScale = Math.min(window.devicePixelRatio || 1, 2.5);
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const context = canvas.getContext("2d", { alpha: false });
-      if (!context) throw new Error("当前环境不支持 Canvas PDF 渲染");
-      canvas.width = Math.max(1, Math.floor(displayViewport.width * outputScale));
-      canvas.height = Math.max(1, Math.floor(displayViewport.height * outputScale));
-      canvas.style.width = `${Math.floor(displayViewport.width)}px`;
-      canvas.style.height = `${Math.floor(displayViewport.height)}px`;
-      const surface = pageSurfaceRef.current;
-      const textLayerElement = textLayerElementRef.current;
-      if (!surface || !textLayerElement) return;
-      surface.style.width = `${Math.floor(displayViewport.width)}px`;
-      surface.style.height = `${Math.floor(displayViewport.height)}px`;
-      surface.style.setProperty("--scale-factor", String(displayScale));
-      textLayerElement.replaceChildren();
-      const task = pdfPage.render({
-        canvasContext: context,
-        viewport: displayViewport,
-        transform: outputScale === 1 ? undefined : [outputScale, 0, 0, outputScale, 0, 0],
-        background: "rgb(255,255,255)",
-      });
-      renderTaskRef.current = task;
-      const textContent = await pdfPage.getTextContent();
-      const textItems = textContent.items.map((item) => ("str" in item ? item.str : ""));
-      textCacheRef.current.set(page, pageTextCache(textItems));
-      const textLayer = new TextLayer({
-        textContentSource: textContent,
-        container: textLayerElement,
-        viewport: displayViewport,
-      });
-      textLayerRef.current = textLayer;
-      await Promise.all([task.promise, textLayer.render()]);
-      if (!cancelled) setTextLayerRevision((revision) => revision + 1);
-      const anchor = zoomAnchorRef.current;
-      if (!cancelled && anchor) {
-        zoomAnchorRef.current = null;
-        window.requestAnimationFrame(() => {
-          const scrollViewport = viewportRef.current;
-          const nextSurface = pageSurfaceRef.current;
-          if (!scrollViewport || !nextSurface) return;
-          scrollViewport.scrollLeft = anchor.x * nextSurface.clientWidth - scrollViewport.clientWidth / 2;
-          scrollViewport.scrollTop = anchor.y * nextSurface.clientHeight - scrollViewport.clientHeight / 2;
+      const surfacePadding = 24;
+      const availableWidth = Math.max(160, viewportWidth - surfacePadding);
+      const availableHeight = Math.max(120, viewportHeight - surfacePadding);
+      const tasks = renderedPages.map(async (pageNumber) => {
+        const canvas = canvasRefs.current.get(pageNumber);
+        const surface = pageSurfaceRefs.current.get(pageNumber);
+        const textLayerElement = textLayerElementRefs.current.get(pageNumber);
+        if (!canvas || !surface || !textLayerElement) return;
+
+        const pdfPage = await pdf.getPage(pageNumber);
+        if (cancelled) return;
+
+        const baseViewport = pdfPage.getViewport({ scale: 1 });
+        const displayScale = fitHeight
+          ? clampZoom(availableHeight / baseViewport.height)
+          : fitWidth
+            ? clampZoom(availableWidth / baseViewport.width)
+            : clampZoom(zoom);
+        const displayViewport = pdfPage.getViewport({ scale: displayScale });
+        const outputScale = Math.min(window.devicePixelRatio || 1, 2.5);
+
+        const context = canvas.getContext("2d", { alpha: false });
+        if (!context) throw new Error("当前环境不支持 Canvas PDF 渲染");
+
+        canvas.width = Math.max(1, Math.floor(displayViewport.width * outputScale));
+        canvas.height = Math.max(1, Math.floor(displayViewport.height * outputScale));
+        canvas.style.width = `${Math.floor(displayViewport.width)}px`;
+        canvas.style.height = `${Math.floor(displayViewport.height)}px`;
+        surface.style.width = `${Math.floor(displayViewport.width)}px`;
+        surface.style.height = `${Math.floor(displayViewport.height)}px`;
+        surface.style.setProperty("--scale-factor", String(displayScale));
+        surface.dataset.pdfPage = String(pageNumber);
+        textLayerElement.replaceChildren();
+        textLayerElement.style.width = `${Math.floor(displayViewport.width)}px`;
+        textLayerElement.style.height = `${Math.floor(displayViewport.height)}px`;
+        textLayerElement.dataset.pdfPage = String(pageNumber);
+
+        const textContent = await pdfPage.getTextContent();
+        textCacheRef.current.set(
+          pageNumber,
+          pageTextCache(textContent.items.map((item) => ("str" in item ? item.str : ""))),
+        );
+        const textLayer = new TextLayer({
+          textContentSource: textContent,
+          container: textLayerElement,
+          viewport: displayViewport,
         });
-      }
-      if (!cancelled && fitWidth) setZoom(displayScale);
+        textLayerRefs.current.set(pageNumber, textLayer);
+        const renderTask = pdfPage.render({
+          canvasContext: context,
+          viewport: displayViewport,
+          transform: outputScale === 1 ? undefined : [outputScale, 0, 0, outputScale, 0, 0],
+          background: "rgb(255,255,255)",
+        });
+        renderTaskRefs.current.set(pageNumber, renderTask);
+
+        await Promise.all([renderTask.promise, textLayer.render()]);
+
+        const anchor = pageNumber === page ? zoomAnchorRef.current : null;
+        if (!cancelled && anchor) {
+          zoomAnchorRef.current = null;
+          window.requestAnimationFrame(() => {
+            const scrollViewport = viewportRef.current;
+            const nextSurface = pageSurfaceRefs.current.get(pageNumber);
+            if (!scrollViewport || !nextSurface) return;
+            scrollViewport.scrollLeft = anchor.x * nextSurface.clientWidth - scrollViewport.clientWidth / 2;
+            scrollViewport.scrollTop = anchor.y * nextSurface.clientHeight - scrollViewport.clientHeight / 2;
+          });
+        }
+        if (!cancelled && (fitWidth || fitHeight) && pageNumber === page) setZoom(displayScale);
+      });
+
+      await Promise.all(tasks);
+      if (!cancelled) setTextLayerRevision((revision) => revision + 1);
     };
+
     void render()
       .catch((reason) => {
         if (!cancelled && (reason as { name?: string })?.name !== "RenderingCancelledException") {
@@ -542,12 +633,17 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         }
       })
       .finally(() => { if (!cancelled) setRendering(false); });
+
     return () => {
       cancelled = true;
-      renderTaskRef.current?.cancel();
-      textLayerRef.current?.cancel();
+      renderTaskRefs.current.forEach((task, pageNumber) => {
+        if (renderedPages.includes(pageNumber)) task.cancel();
+      });
+      textLayerRefs.current.forEach((textLayer, pageNumber) => {
+        if (renderedPages.includes(pageNumber)) textLayer.cancel();
+      });
     };
-  }, [fitWidth, page, pdf, viewportWidth, zoom]);
+  }, [fitHeight, fitWidth, page, pdf, renderedPages, viewportHeight, viewportWidth, zoom]);
 
   useEffect(() => {
     if (!pdf || !entry) return;
@@ -556,15 +652,24 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       page,
       zoom,
       fitWidth,
+      fitHeight,
+      viewMode,
       pageCount: pdf.numPages,
     };
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = window.setTimeout(() => {
-      void updateLocalPdfProgress(entry.id, { page, zoom, fitWidth, pageCount: pdf.numPages })
+      void updateLocalPdfProgress(entry.id, {
+        page,
+        zoom,
+        fitWidth,
+        fitHeight,
+        viewMode,
+        pageCount: pdf.numPages,
+      })
         .catch((reason) => console.warn("[PDF] 保存阅读进度失败:", reason));
       saveTimerRef.current = null;
     }, 400);
-  }, [entry, fitWidth, page, pdf, zoom]);
+  }, [entry, fitHeight, fitWidth, page, pdf, viewMode, zoom]);
 
   useEffect(() => () => {
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
@@ -603,14 +708,17 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       } else if (event.key === "+" || event.key === "=") {
         event.preventDefault();
         setFitWidth(false);
+        setFitHeight(false);
         setZoom((value) => Math.min(4, value + 0.15));
       } else if (event.key === "-") {
         event.preventDefault();
         setFitWidth(false);
+        setFitHeight(false);
         setZoom((value) => Math.max(0.25, value - 0.15));
       } else if (event.key === "0") {
         event.preventDefault();
         setFitWidth(true);
+        setFitHeight(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -769,87 +877,87 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   }, [activeSearchIndex, changePage, clearActionNotice, completedSearchQuery, getPageText, page, pdf, searchMatches, searchQuery, searching]);
 
   useEffect(() => {
-    const layer = textLayerRef.current;
-    const cached = textCacheRef.current.get(page);
-    if (!layer || !cached) return;
-    const divs = layer.textDivs;
     const query = completedSearchQuery;
-    const pageMatches = searchMatches
-      .map((match, index) => ({ ...match, resultIndex: index }))
-      .filter((match) => match.page === page);
-    const pageHighlights = highlights.filter((highlight) => highlight.page === page);
-    if (
-      targetHighlightId
-      && initialTargetRange?.page === page
-      && !pageHighlights.some((highlight) => highlight.id === targetHighlightId)
-    ) {
-      pageHighlights.push({
-        id: targetHighlightId,
-        pdfId: documentId,
-        page,
-        start: initialTargetRange.start,
-        end: initialTargetRange.end,
-        text: "",
-        color: "yellow",
-        createdAt: "",
-      });
-    }
+    const queryMatches = searchMatches
+      .map((match, index) => ({ ...match, resultIndex: index }));
+    const layers = Array.from(textLayerRefs.current.entries());
     let activeMark: HTMLElement | null = null;
     let targetMark: HTMLElement | null = null;
-    cached.items.forEach((item, itemIndex) => {
-      const div = divs[itemIndex];
-      if (!div) return;
-      div.textContent = item;
-      if (!item) return;
-      const itemStart = cached.starts[itemIndex];
-      const searchRanges = query ? pageMatches
-        .map((match) => ({
-          start: Math.max(0, match.offset - itemStart),
-          end: Math.min(item.length, match.offset + query.length - itemStart),
-          resultIndex: match.resultIndex,
-        }))
-        .filter((range) => range.start < range.end) : [];
-      const highlightRanges = pageHighlights
-        .map((highlight) => ({
-          start: Math.max(0, highlight.start - itemStart),
-          end: Math.min(item.length, highlight.end - itemStart),
-          highlight,
-        }))
-        .filter((range) => range.start < range.end);
-      if (searchRanges.length === 0 && highlightRanges.length === 0) return;
-
-      const boundaries = new Set<number>([0, item.length]);
-      searchRanges.forEach((range) => { boundaries.add(range.start); boundaries.add(range.end); });
-      highlightRanges.forEach((range) => { boundaries.add(range.start); boundaries.add(range.end); });
-      const points = [...boundaries].sort((left, right) => left - right);
-      const fragment = document.createDocumentFragment();
-      for (let index = 0; index < points.length - 1; index++) {
-        const start = points[index];
-        const end = points[index + 1];
-        if (start >= end) continue;
-        const searchRange = searchRanges.find((range) => range.start <= start && range.end >= end);
-        const highlightRange = highlightRanges.find((range) => range.start <= start && range.end >= end);
-        if (!searchRange && !highlightRange) {
-          fragment.append(item.slice(start, end));
-          continue;
+    layers.forEach(([pageNumber, layer]) => {
+      const cached = textCacheRef.current.get(pageNumber);
+      const divs = layer.textDivs;
+      if (!cached || !divs.length) return;
+      const pageMatches = queryMatches.filter((match) => match.page === pageNumber);
+      const pageHighlights = highlights.filter((highlight) => highlight.page === pageNumber);
+      const markedHighlights = initialTargetRange?.page === pageNumber && targetHighlightId && !pageHighlights.some((highlight) => highlight.id === targetHighlightId)
+        ? [...pageHighlights, {
+          id: targetHighlightId,
+          pdfId: documentId,
+          page: pageNumber,
+          start: initialTargetRange.start,
+          end: initialTargetRange.end,
+          text: "",
+          color: "yellow",
+          createdAt: "",
+        }]
+        : pageHighlights;
+      const visibleHighlights = markedHighlights.filter(
+        (highlight) => showHighlights || highlight.id === targetHighlightId,
+      );
+      cached.items.forEach((item, itemIndex) => {
+        const div = divs[itemIndex];
+        if (!div) return;
+        div.textContent = item;
+        if (!item) return;
+        const itemStart = cached.starts[itemIndex];
+        const searchRanges = query ? pageMatches
+          .map((match) => ({
+            start: Math.max(0, match.offset - itemStart),
+            end: Math.min(item.length, match.offset + query.length - itemStart),
+            resultIndex: match.resultIndex,
+          }))
+          .filter((range) => range.start < range.end) : [];
+        const highlightRanges = visibleHighlights
+          .map((highlight) => ({
+            start: Math.max(0, highlight.start - itemStart),
+            end: Math.min(item.length, highlight.end - itemStart),
+            highlight,
+          }))
+          .filter((range) => range.start < range.end);
+        if (searchRanges.length === 0 && highlightRanges.length === 0) return;
+        const boundaries = new Set<number>([0, item.length]);
+        searchRanges.forEach((range) => { boundaries.add(range.start); boundaries.add(range.end); });
+        highlightRanges.forEach((range) => { boundaries.add(range.start); boundaries.add(range.end); });
+        const points = [...boundaries].sort((left, right) => left - right);
+        const fragment = document.createDocumentFragment();
+        for (let index = 0; index < points.length - 1; index++) {
+          const start = points[index];
+          const end = points[index + 1];
+          if (start >= end) continue;
+          const searchRange = searchRanges.find((range) => range.start <= start && range.end >= end);
+          const highlightRange = highlightRanges.find((range) => range.start <= start && range.end >= end);
+          if (!searchRange && !highlightRange) {
+            fragment.append(item.slice(start, end));
+            continue;
+          }
+          const mark = document.createElement("mark");
+          const classes: string[] = [];
+          if (highlightRange) {
+            classes.push("pdf-annotation-highlight");
+            mark.dataset.highlightId = highlightRange.highlight.id;
+            if (highlightRange.highlight.id === targetHighlightId) classes.push("pdf-highlight-target");
+          }
+          if (searchRange) {
+            classes.push(searchRange.resultIndex === activeSearchIndex ? "pdf-search-current" : "pdf-search-hit");
+          }
+          mark.className = classes.join(" ");
+          mark.textContent = item.slice(start, end);
+          fragment.append(mark);
+          if (searchRange?.resultIndex === activeSearchIndex) activeMark = mark;
+          if (highlightRange?.highlight.id === targetHighlightId) targetMark = mark;
         }
-        const mark = document.createElement("mark");
-        const classes: string[] = [];
-        if (highlightRange) {
-          classes.push("pdf-annotation-highlight");
-          mark.dataset.highlightId = highlightRange.highlight.id;
-          if (highlightRange.highlight.id === targetHighlightId) classes.push("pdf-highlight-target");
-        }
-        if (searchRange) {
-          classes.push(searchRange.resultIndex === activeSearchIndex ? "pdf-search-current" : "pdf-search-hit");
-        }
-        mark.className = classes.join(" ");
-        mark.textContent = item.slice(start, end);
-        fragment.append(mark);
-        if (searchRange?.resultIndex === activeSearchIndex) activeMark = mark;
-        if (highlightRange?.highlight.id === targetHighlightId) targetMark = mark;
-      }
-      div.replaceChildren(fragment);
+        div.replaceChildren(fragment);
+      });
     });
     const reveal = targetMark ?? activeMark;
     if (reveal) {
@@ -858,30 +966,13 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     if (!targetMark) return;
     const timer = window.setTimeout(() => setTargetHighlightId((current) => current === targetHighlightId ? null : current), 2400);
     return () => window.clearTimeout(timer);
-  }, [activeSearchIndex, completedSearchQuery, documentId, highlights, initialTargetRange, page, searchMatches, targetHighlightId, textLayerRevision]);
-
-  const toggleBoundaryZoom = useCallback((clientX: number, clientY: number) => {
-    const surface = pageSurfaceRef.current;
-    if (!surface) return;
-    const bounds = surface.getBoundingClientRect();
-    zoomAnchorRef.current = {
-      x: Math.max(0, Math.min(1, (clientX - bounds.left) / Math.max(1, bounds.width))),
-      y: Math.max(0, Math.min(1, (clientY - bounds.top) / Math.max(1, bounds.height))),
-    };
-    if (fitWidth) {
-      setFitWidth(false);
-      setZoom((value) => Math.min(4, Math.max(1.5, value * 2)));
-    } else {
-      zoomAnchorRef.current = null;
-      setFitWidth(true);
-    }
-  }, [fitWidth]);
+  }, [activeSearchIndex, completedSearchQuery, documentId, highlights, initialTargetRange, searchMatches, showHighlights, targetHighlightId, textLayerRevision]);
 
   const handleTouchStart = useCallback((event: React.TouchEvent<HTMLElement>) => {
     if (event.touches.length === 2) {
       const first = event.touches[0];
       const second = event.touches[1];
-      const surface = pageSurfaceRef.current;
+      const surface = pageSurfaceRefs.current.get(page);
       if (!surface) return;
       const bounds = surface.getBoundingClientRect();
       const centerX = (first.clientX + second.clientX) / 2;
@@ -894,7 +985,6 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         anchorY: Math.max(0, Math.min(1, (centerY - bounds.top) / Math.max(1, bounds.height))),
       };
       touchGestureRef.current = null;
-      lastTapRef.current = 0;
       event.preventDefault();
       return;
     }
@@ -909,10 +999,10 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       x: touch.clientX,
       y: touch.clientY,
       startedAt: performance.now(),
-      atLeft: !viewport || viewport.scrollLeft <= 2,
-      atRight: !viewport || viewport.scrollLeft >= maxScroll - 2,
+      atLeft: viewMode === "horizontal" ? !viewport || viewport.scrollLeft <= 2 : false,
+      atRight: viewMode === "horizontal" ? !viewport || viewport.scrollLeft >= maxScroll - 2 : false,
     };
-  }, [zoom]);
+  }, [page, viewMode, zoom]);
 
   const handleTouchMove = useCallback((event: React.TouchEvent<HTMLElement>) => {
     const pinch = pinchGestureRef.current;
@@ -920,33 +1010,33 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     event.preventDefault();
     const distance = touchDistance(event.touches[0], event.touches[1]);
     pinch.targetZoom = Math.max(0.25, Math.min(4, pinch.initialZoom * distance / pinch.initialDistance));
-    const surface = pageSurfaceRef.current;
+    const surface = pageSurfaceRefs.current.get(page);
     if (!surface) return;
     surface.style.transformOrigin = `${pinch.anchorX * 100}% ${pinch.anchorY * 100}%`;
     surface.style.transform = `scale(${pinch.targetZoom / Math.max(0.25, pinch.initialZoom)})`;
-  }, []);
+  }, [page]);
 
   const finishPinch = useCallback(() => {
     const pinch = pinchGestureRef.current;
     if (!pinch) return false;
     pinchGestureRef.current = null;
-    const surface = pageSurfaceRef.current;
+    const surface = pageSurfaceRefs.current.get(page);
     if (surface) {
       surface.style.transform = "";
       surface.style.transformOrigin = "";
     }
     zoomAnchorRef.current = { x: pinch.anchorX, y: pinch.anchorY };
     setFitWidth(false);
+    setFitHeight(false);
     setZoom(pinch.targetZoom);
     return true;
-  }, []);
+  }, [page]);
 
   const handleTouchEnd = useCallback((event: React.TouchEvent<HTMLElement>) => {
     if (pinchGestureRef.current && event.touches.length < 2) {
       event.preventDefault();
       finishPinch();
       touchGestureRef.current = null;
-      lastTapRef.current = 0;
       return;
     }
     const gesture = touchGestureRef.current;
@@ -959,39 +1049,33 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     const selection = window.getSelection();
     if (selection && !selection.isCollapsed) return;
 
-    if (duration < 700 && Math.abs(dx) >= 52 && Math.abs(dx) > Math.abs(dy) * 1.25) {
+    if (
+      viewMode === "horizontal"
+      && duration < 700
+      && Math.abs(dx) >= 52
+      && Math.abs(dx) > Math.abs(dy) * 1.25
+    ) {
       const viewport = viewportRef.current;
       const maxScroll = viewport ? Math.max(0, viewport.scrollWidth - viewport.clientWidth) : 0;
       const atLeft = gesture.atLeft || !viewport || viewport.scrollLeft <= 2;
       const atRight = gesture.atRight || !viewport || viewport.scrollLeft >= maxScroll - 2;
       if (dx < 0 && atRight) changePage(page + 1);
       else if (dx > 0 && atLeft) changePage(page - 1);
-      lastTapRef.current = 0;
       return;
     }
 
-    if (duration < 280 && Math.abs(dx) < 12 && Math.abs(dy) < 12) {
-      const now = performance.now();
-      if (now - lastTapRef.current < 320) {
-        lastTapRef.current = 0;
-        event.preventDefault();
-        toggleBoundaryZoom(touch.clientX, touch.clientY);
-      } else {
-        lastTapRef.current = now;
-      }
-    }
-  }, [changePage, finishPinch, page, toggleBoundaryZoom]);
+  }, [changePage, finishPinch, page, viewMode]);
 
   const handleTouchCancel = useCallback(() => {
     touchGestureRef.current = null;
     if (!pinchGestureRef.current) return;
     pinchGestureRef.current = null;
-    const surface = pageSurfaceRef.current;
+    const surface = pageSurfaceRefs.current.get(page);
     if (surface) {
       surface.style.transform = "";
       surface.style.transformOrigin = "";
     }
-  }, []);
+  }, [page]);
 
   const handlePageClick = useCallback((event: React.MouseEvent<HTMLElement>) => {
     if (!fullscreen || event.detail > 1) return;
@@ -1020,6 +1104,15 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         ?.scrollIntoView({ block: "nearest" });
     });
   }, [outlineMode, outlineOpen, page]);
+
+  useEffect(() => {
+    if (!pdf || viewMode !== "vertical") return;
+    const target = pageSurfaceRefs.current.get(page);
+    if (!target) return;
+    window.requestAnimationFrame(() => {
+      target.scrollIntoView({ block: "start", inline: "start" });
+    });
+  }, [page, viewMode, pdf]);
 
   return (
     <div
@@ -1068,9 +1161,17 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           <button type="button" onClick={() => changePage(page + 1)} disabled={!pdf || page >= pdf.numPages}>›</button>
         </div>
         <div className="pdf-zoom-controls">
-          <button type="button" onClick={() => { setFitWidth(false); setZoom((value) => Math.max(0.25, value - 0.15)); }}>−</button>
-          <button type="button" className={fitWidth ? "active" : undefined} onClick={() => setFitWidth(true)}>适宽</button>
-          <button type="button" onClick={() => { setFitWidth(false); setZoom((value) => Math.min(4, value + 0.15)); }}>＋</button>
+          <button type="button" onClick={() => { setFitWidth(false); setFitHeight(false); setZoom((value) => Math.max(0.25, value - 0.15)); }}>−</button>
+          <button type="button" className={fitWidth ? "active" : undefined} onClick={() => { setFitWidth(true); setFitHeight(false); }}>适宽</button>
+          <button type="button" onClick={() => { setFitWidth(false); setFitHeight(false); setZoom((value) => Math.min(4, value + 0.15)); }}>＋</button>
+          <button type="button" className={fitHeight ? "active" : undefined} onClick={() => { setFitHeight(true); setFitWidth(false); }}>适高</button>
+          <button type="button" className={showHighlights ? "active" : undefined} onClick={() => setShowHighlights((value) => !value)} title="显示/隐藏高亮标注">
+            高亮
+          </button>
+        </div>
+        <div className="pdf-view-mode-controls">
+          <button type="button" className={viewMode === "horizontal" ? "active" : undefined} onClick={() => setViewMode("horizontal")}>横向</button>
+          <button type="button" className={viewMode === "vertical" ? "active" : undefined} onClick={() => setViewMode("vertical")}>纵向</button>
         </div>
         <form className="pdf-search" onSubmit={(event) => { event.preventDefault(); void search(1); }}>
           <input
@@ -1179,7 +1280,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           </aside>
         )}
         <main
-          className="pdf-page-viewport"
+          className={`pdf-page-viewport ${viewMode === "vertical" ? "pdf-page-viewport-vertical" : ""}`}
           ref={viewportRef}
           onClick={handlePageClick}
           onTouchStart={handleTouchStart}
@@ -1195,20 +1296,19 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
               <button type="button" onClick={() => void closeReader()}>返回</button>
             </div>
           )}
-          {!error && (
+          {!error && renderedPages.map((pageNumber) => (
             <div
               className={rendering ? "pdf-page-surface pdf-page-rendering" : "pdf-page-surface"}
-              ref={pageSurfaceRef}
-              onDoubleClick={(event) => {
-                event.preventDefault();
-                toggleBoundaryZoom(event.clientX, event.clientY);
-              }}
+              key={pageNumber}
+              data-pdf-page={pageNumber}
+              data-pdf-mode={viewMode}
+              ref={(node) => setPageSurfaceRef(pageNumber, node)}
             >
-              <canvas ref={canvasRef} />
-              <div ref={textLayerElementRef} className="pdf-text-layer textLayer" />
+              <canvas ref={(node) => setCanvasRef(pageNumber, node)} />
+              <div ref={(node) => setTextLayerElementRef(pageNumber, node)} className="pdf-text-layer textLayer" />
             </div>
-          )}
-          {rendering && !loading && <span className="pdf-render-status">正在渲染第 {page} 页…</span>}
+          ))}
+          {rendering && !loading && <span className="pdf-render-status">正在渲染 PDF…</span>}
         </main>
       </div>
       {selectionAnchor && (
