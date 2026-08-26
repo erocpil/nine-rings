@@ -291,10 +291,25 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     return { highlight, created: true };
   }, [entry, highlights, selectionAnchor]);
 
+  const selectedHighlight = selectionAnchor ? highlights.find((highlight) => (
+    highlight.page === selectionAnchor.page
+    && highlight.start === selectionAnchor.start
+    && highlight.end === selectionAnchor.end
+  )) : undefined;
+
   const saveHighlight = useCallback(async () => {
     if (!selectionAnchor || highlightSaving) return;
     setHighlightSaving(true);
     try {
+      if (selectedHighlight) {
+        await deleteLocalPdfHighlight(selectedHighlight.id);
+        setHighlights((current) => current.filter((highlight) => highlight.id !== selectedHighlight.id));
+        setTargetHighlightId((current) => current === selectedHighlight.id ? null : current);
+        window.getSelection()?.removeAllRanges();
+        setSelectionAnchor(null);
+        showActionNotice("已取消高亮");
+        return;
+      }
       await ensureSelectionHighlight();
       window.getSelection()?.removeAllRanges();
       setSelectionAnchor(null);
@@ -304,7 +319,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     } finally {
       setHighlightSaving(false);
     }
-  }, [ensureSelectionHighlight, highlightSaving, selectionAnchor, showActionNotice]);
+  }, [ensureSelectionHighlight, highlightSaving, selectedHighlight, selectionAnchor, showActionNotice]);
 
   const createExcerpt = useCallback(async () => {
     if (!onCreateExcerpt || !entry || !selectionAnchor || excerptSaving) return;
@@ -1419,6 +1434,17 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
             title={currentPageBookmark ? "取消当前页书签" : "添加当前页书签"}
           >🔖</button>
         )}
+        {pdf && (
+          <button
+            type="button"
+            className={outlineOpen && outlineMode === "highlights" ? "active" : undefined}
+            onClick={() => {
+              setOutlineMode("highlights");
+              setOutlineOpen(true);
+            }}
+            title="查看和管理 PDF 批注"
+          >批注{highlights.length > 0 ? ` ${highlights.length}` : ""}</button>
+        )}
         <button
           type="button"
           className={fullscreen ? "pdf-fullscreen-button active" : "pdf-fullscreen-button"}
@@ -1445,14 +1471,14 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           <button type="button" onClick={() => { setFitWidth(false); setFitHeight(false); setZoom((value) => Math.min(4, value + 0.15)); }}>＋</button>
           <button type="button" className={fitHeight ? "active" : undefined} onClick={() => { setFitHeight(true); setFitWidth(false); }}>适高</button>
           <button type="button" className={showHighlights ? "active" : undefined} onClick={() => setShowHighlights((value) => !value)} title="显示/隐藏高亮标注">
-            高亮
+            {showHighlights ? "隐藏高亮" : "显示高亮"}
           </button>
           <button
             type="button"
             onClick={() => void exportAnnotatedPdf()}
             disabled={!pdf || highlights.length === 0 || annotatedPdfExporting}
             title="将当前高亮写入新的标准 PDF 文件"
-          >{annotatedPdfExporting ? "导出中…" : "导出批注"}</button>
+          >{annotatedPdfExporting ? "导出中…" : "导出标注 PDF"}</button>
         </div>
         <div className="pdf-view-mode-controls">
           <button type="button" className={viewMode === "horizontal" ? "active" : undefined} onClick={() => setViewMode("horizontal")}>横向</button>
@@ -1606,7 +1632,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         <div className="pdf-selection-actions">
           <span>{selectionAnchor.text.length} 字</span>
           <button type="button" disabled={highlightSaving || excerptSaving} onPointerDown={(event) => event.preventDefault()} onClick={() => void saveHighlight()}>
-            {highlightSaving ? "保存中…" : "高亮"}
+            {highlightSaving ? (selectedHighlight ? "取消中…" : "保存中…") : (selectedHighlight ? "取消高亮" : "高亮")}
           </button>
           {onCreateExcerpt && <button
             type="button"
