@@ -1,5 +1,6 @@
 import {
   checkStatus,
+  githubApiFetch,
   githubContentsUrl,
   loadSyncConfig,
   saveSyncConfig,
@@ -68,6 +69,14 @@ try {
 
 const originalFetch = globalThis.fetch;
 try {
+  globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+    init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+  })) as typeof fetch;
+  let timedOut = false;
+  try { await githubApiFetch("https://api.github.com", {}, 10); }
+  catch (error) { timedOut = (error as Error).message.includes("GitHub 请求超时"); }
+  assert(timedOut, "a pending WebView request is aborted and reported as a timeout");
+
   globalThis.fetch = (async () => new Response(JSON.stringify({
     permissions: { pull: true, push: false, maintain: false, admin: false },
   }), { status: 200 })) as typeof fetch;

@@ -49,6 +49,7 @@ export interface SyncStatus {
 const STORAGE_KEY = "nr:github-sync";
 const TOKEN_VALUE_KEY = "nr:github-sync-token";
 const TOKEN_MODE_KEY = "nr:github-sync-token-mode";
+const GITHUB_REQUEST_TIMEOUT_MS = 20_000;
 
 const DEFAULT_SYNC_CONFIG: SyncConfig = {
   token: "",
@@ -242,6 +243,36 @@ function authHeader(token: string): Record<string, string> {
   };
 }
 
+/** WebView2 偶尔会让 fetch 永久停在 pending；必须主动中止，避免同步界面永久锁定。 */
+export async function githubApiFetch(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs = GITHUB_REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort("timeout"), timeoutMs);
+  const abortFromCaller = () => controller.abort(init.signal?.reason);
+  init.signal?.addEventListener("abort", abortFromCaller, { once: true });
+  try {
+    const request = isTauriRuntime()
+      ? (await import("@tauri-apps/plugin-http")).fetch
+      : fetch;
+    return await request(input, { ...init, signal: controller.signal });
+  } catch (reason) {
+    if (controller.signal.aborted) {
+      if (init.signal?.aborted) throw new Error("GitHub 请求已取消");
+      throw new Error(`GitHub 请求超时（${Math.ceil(timeoutMs / 1000)} 秒）。请检查 Windows 网络、代理或防火墙是否允许访问 api.github.com`);
+    }
+    if (reason instanceof TypeError) {
+      throw new Error("无法连接 GitHub API。请检查 Windows 网络、代理、防火墙及 WebView2 是否能访问 api.github.com");
+    }
+    throw reason;
+  } finally {
+    globalThis.clearTimeout(timeout);
+    init.signal?.removeEventListener("abort", abortFromCaller);
+  }
+}
+
 /**
  * GitHub Contents API 将仓库内路径作为 URL path 的一部分。
  * 必须逐段编码：编码整个路径会把 `/` 变成 `%2F`，在部分 WebView/代理下
@@ -259,7 +290,7 @@ export function githubContentsUrl(owner: string, repo: string, path: string): st
 /** 获取远端文件内容 + sha */
 async function fetchRemote(token: string, owner: string, repo: string, path: string): Promise<{ content: string; sha: string } | null> {
   const url = githubContentsUrl(owner, repo, path);
-  const res = await fetch(url, { headers: authHeader(token) });
+  const res = await githubApiFetch(url, { headers: authHeader(token) });
   if (res.status === 404) return null; // 文件不存在
   if (!res.ok) {
     const body = await res.text();
@@ -298,7 +329,7 @@ async function fetchRemote(token: string, owner: string, repo: string, path: str
     // 大文件：用 Git Blobs API 拉取（无大小限制 + CORS 友好）
     console.log(`[fetchRemote] 文件 >1MB，用 Git Blobs API (sha=${data.sha.slice(0, 7)})`);
     const blobUrl = `https://api.github.com/repos/${owner}/${repo}/git/blobs/${data.sha}`;
-    const blobRes = await fetch(blobUrl, { headers: authHeader(token) });
+    const blobRes = await githubApiFetch(blobUrl, { headers: authHeader(token) });
     if (!blobRes.ok) {
       throw new Error(`Git Blobs API ${blobRes.status}`);
     }
@@ -322,7 +353,7 @@ async function putRemote(token: string, owner: string, repo: string, path: strin
   };
   if (sha) body.sha = sha;
 
-  const res = await fetch(url, {
+  const res = await githubApiFetch(url, {
     method: "PUT",
     headers: { ...authHeader(token), "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -680,7 +711,7 @@ export async function checkStatus(config: SyncConfig): Promise<SyncStatus> {
     // Contents GET 只能证明 Token 有读取权限；Push 还需要 Contents write。
     // 先检查仓库权限，避免把只读 Token 误报为“连接正常”。
     const repoUrl = `https://api.github.com/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.repo)}`;
-    const repoRes = await fetch(repoUrl, { headers: authHeader(config.token) });
+    const repoRes = await githubApiFetch(repoUrl, { headers: authHeader(config.token) });
     if (repoRes.status === 401) {
       return { ok: false, message: "Token 无效或无权限" };
     }
@@ -700,7 +731,7 @@ export async function checkStatus(config: SyncConfig): Promise<SyncStatus> {
     // 检查 latest 指针文件是否存在
     const ptrPath = latestPath(config.path);
     const url = githubContentsUrl(config.owner, config.repo, ptrPath);
-    const res = await fetch(url, { headers: authHeader(config.token) });
+    const res = await githubApiFetch(url, { headers: authHeader(config.token) });
     if (res.status === 404) {
       return {
         ok: true,

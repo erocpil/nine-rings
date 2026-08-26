@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toggleTauriFullscreen } from "../lib/fullscreen";
+import { isTauriRuntime } from "../lib/runtime";
 import {
   addLocalEpubBookmark,
   addLocalEpubHighlight,
@@ -345,6 +347,18 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const flatToc = useMemo(() => flattenToc(book?.toc ?? []), [book]);
   const progress = book ? Math.round((chapter + 1) / book.chapters.length * 100) : 0;
 
+  const readFrameScrollProgress = useCallback(() => {
+    const frameDocument = iframeRef.current?.contentDocument;
+    const frameWindow = iframeRef.current?.contentWindow;
+    if (!frameDocument || !frameWindow) return scrollProgress;
+    const root = frameDocument.documentElement;
+    const body = frameDocument.body;
+    const top = Math.max(frameWindow.scrollY, root.scrollTop, body.scrollTop);
+    const viewportHeight = Math.max(1, frameWindow.innerHeight, root.clientHeight);
+    const maximum = Math.max(0, root.scrollHeight, body.scrollHeight) - viewportHeight;
+    return maximum > 0 ? Math.max(0, Math.min(1, top / maximum)) : 0;
+  }, [scrollProgress]);
+
   const runSearch = useCallback((direction: 1 | -1 = 1) => {
     if (!book) return;
     const query = searchQuery.trim();
@@ -399,7 +413,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     iframeRef.current?.contentDocument?.getElementById(fragment)?.scrollIntoView();
   }, [chapter, fragment]);
 
-  const persistProgress = useCallback(async () => {
+  const persistProgress = useCallback(async (liveScrollProgress = scrollProgress) => {
     if (!entry || !book) return;
     const current = book.chapters[chapter];
     await updateLocalEpubProgress(entry.id, {
@@ -407,7 +421,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       location: `${current.path}${fragment ? `#${fragment}` : ""}`,
       fontSize,
       theme,
-      scrollProgress,
+      scrollProgress: liveScrollProgress,
     });
   }, [book, chapter, entry, fontSize, fragment, scrollProgress, theme]);
 
@@ -416,10 +430,21 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   }, [persistProgress]);
 
   const closeReader = useCallback(() => {
-    void persistProgress()
+    void persistProgress(readFrameScrollProgress())
       .catch((reason) => console.warn("[EPUB] 保存最终阅读进度失败:", reason))
       .finally(onClose);
-  }, [onClose, persistProgress]);
+  }, [onClose, persistProgress, readFrameScrollProgress]);
+
+  useEffect(() => {
+    const flushLiveProgress = () => { void persistProgress(readFrameScrollProgress()).catch(() => {}); };
+    const handleVisibility = () => { if (document.visibilityState === "hidden") flushLiveProgress(); };
+    window.addEventListener("pagehide", flushLiveProgress);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("pagehide", flushLiveProgress);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [persistProgress, readFrameScrollProgress]);
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -450,15 +475,31 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     else if (activeMark) activeMark.scrollIntoView({ block: "center" });
     else if (fragment) frameDocument.getElementById(fragment)?.scrollIntoView();
     else if (scrollProgress > 0) {
-      window.requestAnimationFrame(() => frameWindow.scrollTo(0, scrollProgress * Math.max(0, frameDocument.documentElement.scrollHeight - frameWindow.innerHeight)));
+      const restoreScroll = () => {
+        const root = frameDocument.documentElement;
+        const body = frameDocument.body;
+        const maximum = Math.max(0, root.scrollHeight, body.scrollHeight) - Math.max(1, frameWindow.innerHeight, root.clientHeight);
+        const top = scrollProgress * Math.max(0, maximum);
+        frameWindow.scrollTo(0, top);
+        root.scrollTop = top;
+        body.scrollTop = top;
+      };
+      window.requestAnimationFrame(restoreScroll);
+      window.setTimeout(restoreScroll, 80);
+      window.setTimeout(restoreScroll, 240);
     }
-    frameWindow.addEventListener("scroll", () => {
+    const captureScroll = () => {
       if (scrollSaveTimerRef.current !== null) window.clearTimeout(scrollSaveTimerRef.current);
       scrollSaveTimerRef.current = window.setTimeout(() => {
-        const maximum = Math.max(0, frameDocument.documentElement.scrollHeight - frameWindow.innerHeight);
-        setScrollProgress(maximum > 0 ? frameWindow.scrollY / maximum : 0);
+        const root = frameDocument.documentElement;
+        const body = frameDocument.body;
+        const top = Math.max(frameWindow.scrollY, root.scrollTop, body.scrollTop);
+        const maximum = Math.max(0, root.scrollHeight, body.scrollHeight) - Math.max(1, frameWindow.innerHeight, root.clientHeight);
+        setScrollProgress(maximum > 0 ? Math.max(0, Math.min(1, top / maximum)) : 0);
       }, 160);
-    }, { passive: true });
+    };
+    frameWindow.addEventListener("scroll", captureScroll, { passive: true });
+    frameDocument.addEventListener("scroll", captureScroll, { passive: true, capture: true });
     frameDocument.addEventListener("mouseup", () => {
       const current = frameWindow.getSelection();
       if (!current || current.rangeCount === 0 || current.isCollapsed) { setSelection(null); return; }
@@ -585,8 +626,26 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const toggleFullscreen = useCallback(async () => {
     const reader = readerRef.current;
     if (!reader) return;
+    if (fullscreen && !document.fullscreenElement) {
+      setFullscreen(false);
+      onFullscreenChange?.(false);
+      return;
+    }
+    const standalone = window.matchMedia("(display-mode: standalone)").matches
+      || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+    if (!fullscreen && (standalone || window.matchMedia("(max-width: 768px)").matches)) {
+      setFullscreen(true);
+      onFullscreenChange?.(true);
+      return;
+    }
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
+      else if (isTauriRuntime()) {
+        const active = await toggleTauriFullscreen();
+        if (active === null) throw new Error("Tauri fullscreen unavailable");
+        setFullscreen(active);
+        onFullscreenChange?.(active);
+      }
       else if (reader.requestFullscreen) await reader.requestFullscreen();
       else throw new Error("Fullscreen API unavailable");
     } catch {
@@ -595,7 +654,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
         return !value;
       });
     }
-  }, [onFullscreenChange]);
+  }, [fullscreen, onFullscreenChange]);
 
   useEffect(() => {
     const update = () => {

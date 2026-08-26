@@ -19,6 +19,10 @@
     "dialog:allow-save",
     "dialog:allow-message",
     "dialog:allow-ask",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://api.github.com/**" }]
+    },
     "global-shortcut:default",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",

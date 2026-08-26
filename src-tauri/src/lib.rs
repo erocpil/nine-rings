@@ -309,6 +309,7 @@ pub fn run() {
     startup_log!("building tauri app...");
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             startup_log!("single_instance: second launch detected, showing main window");

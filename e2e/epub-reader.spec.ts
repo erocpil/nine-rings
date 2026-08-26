@@ -132,7 +132,7 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   });
   await page.getByRole("button", { name: "摘录到笔记" }).click();
   await expect(page.locator(".note-title")).toHaveValue(/EPUB 摘录/);
-  await page.getByRole("button", { name: "EPUB · 2" }).click();
+  await page.getByRole("button", { name: "EPUB · 2" }).click({ force: true });
   await expect(reader).toBeVisible();
   await expect(chapterFrame.locator("mark.epub-highlight-target")).toContainText("阅读进度应当保存到这里");
   await expect(page.getByRole("button", { name: "取消当前位置书签" })).toBeVisible();
@@ -140,6 +140,25 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(page.getByRole("textbox", { name: "EPUB 高亮备注" })).toHaveValue("这是 EPUB 备注");
   await page.getByRole("button", { name: "完成", exact: true }).click();
 
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "进入 EPUB 专注模式" }).click();
+  await expect(reader).toHaveClass(/epub-reader-focus/);
+  await page.getByRole("button", { name: "退出 EPUB 专注模式" }).click();
+  await chapterFrame.locator("html").evaluate((element) => {
+    element.ownerDocument.defaultView?.scrollTo(0, 900);
+    element.scrollTop = 900;
+    element.ownerDocument.body.scrollTop = 900;
+  });
+  await page.getByRole("button", { name: "关闭 EPUB 阅读器" }).click();
+  await page.setViewportSize({ width: 900, height: 844 });
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^数据与导入/ }).click();
+  await page.getByRole("button", { name: "打开 Nine Rings EPUB MVP" }).click();
+  await expect.poll(() => chapterFrame.locator("html").evaluate((element) => Math.max(
+    element.scrollTop,
+    element.ownerDocument.body.scrollTop,
+    element.ownerDocument.defaultView?.scrollY ?? 0,
+  ))).toBeGreaterThan(400);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
