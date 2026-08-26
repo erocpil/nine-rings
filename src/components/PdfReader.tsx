@@ -126,7 +126,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const viewportRef = useRef<HTMLDivElement>(null);
   const textLayerRefs = useRef(new Map<number, TextLayer>());
   const renderTaskRefs = useRef(new Map<number, RenderTask>());
+  const pageRenderPipelineRefs = useRef(new Map<number, Promise<void>>());
   const pageRenderVersionRefs = useRef(new Map<number, number>());
+  const documentRenderGenerationRef = useRef(0);
   const textCacheRef = useRef(new Map<number, PageTextCache>());
   const touchGestureRef = useRef<TouchGesture | null>(null);
   const pinchGestureRef = useRef<PinchGesture | null>(null);
@@ -426,18 +428,18 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   useEffect(() => {
     let cancelled = false;
     let loadedDocument: PDFDocumentProxy | null = null;
+    const documentGeneration = documentRenderGenerationRef.current + 1;
+    documentRenderGenerationRef.current = documentGeneration;
     const open = async () => {
       setLoading(true);
       setError(null);
+      setPdf(null);
       canvasRefs.current.clear();
       pageSurfaceRefs.current.clear();
       textLayerElementRefs.current.clear();
-      pageRenderVersionRefs.current.clear();
       textCacheRef.current.clear();
       renderTaskRefs.current.forEach((task) => task.cancel());
       textLayerRefs.current.forEach((textLayer) => textLayer.cancel());
-      renderTaskRefs.current.clear();
-      textLayerRefs.current.clear();
       setSearchMatches([]);
       setActiveSearchIndex(-1);
       setHighlights([]);
@@ -445,7 +447,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       setTargetHighlightId(initialHighlightId ?? (initialTargetRange ? "pdf-source-target" : null));
       const stored = await getLocalPdf(documentId);
       if (!stored) throw new Error("PDF 不存在或已经被删除");
-      if (cancelled) return;
+      if (cancelled || documentRenderGenerationRef.current !== documentGeneration) return;
       setEntry(stored.entry);
       setPage(Math.max(1, stored.entry.page));
       setPageInput(String(Math.max(1, stored.entry.page)));
@@ -459,7 +461,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         listLocalPdfHighlights(documentId),
         listLocalPdfBookmarks(documentId),
       ]);
-      if (cancelled) return;
+      if (cancelled || documentRenderGenerationRef.current !== documentGeneration) return;
       setHighlights(storedHighlights);
       setBookmarks(storedBookmarks);
       const loadingTask = getDocument({ data });
@@ -475,7 +477,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         updatePassword(password);
       };
       loadedDocument = await loadingTask.promise;
-      if (cancelled) {
+      if (cancelled || documentRenderGenerationRef.current !== documentGeneration) {
         await loadedDocument.destroy();
         return;
       }
@@ -499,6 +501,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => {
       cancelled = true;
+      if (documentRenderGenerationRef.current === documentGeneration) {
+        documentRenderGenerationRef.current += 1;
+      }
       renderTaskRefs.current.forEach((task) => task.cancel());
       textLayerRefs.current.forEach((textLayer) => textLayer.cancel());
       void loadedDocument?.destroy();
@@ -542,6 +547,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   useEffect(() => {
     if (!pdf || !renderedPages.length || viewportWidth <= 0 || viewportHeight <= 0) return;
     let cancelled = false;
+    const documentGeneration = documentRenderGenerationRef.current;
     const currentPages = [...renderedPages];
     const pageSet = new Set<number>(currentPages);
     const activeRenderTasks = new Map<number, RenderTask>(renderTaskRefs.current);
@@ -563,103 +569,114 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       const surfacePadding = 24;
       const availableWidth = Math.max(160, viewportWidth - surfacePadding);
       const availableHeight = Math.max(120, viewportHeight - surfacePadding);
-      const tasks = currentPages.map(async (pageNumber) => {
-        let canvas = canvasRefs.current.get(pageNumber);
-        const surface = pageSurfaceRefs.current.get(pageNumber);
-        const textLayerElement = textLayerElementRefs.current.get(pageNumber);
-        if (!canvas || !surface || !textLayerElement) return;
-
+      const tasks = currentPages.map((pageNumber) => {
         const renderVersion = (pageRenderVersionRefs.current.get(pageNumber) ?? 0) + 1;
         pageRenderVersionRefs.current.set(pageNumber, renderVersion);
+        const previousPipeline = pageRenderPipelineRefs.current.get(pageNumber) ?? Promise.resolve();
+        const pipeline = previousPipeline.catch(() => {}).then(async () => {
+          const canvas = canvasRefs.current.get(pageNumber);
+          const surface = pageSurfaceRefs.current.get(pageNumber);
+          const textLayerElement = textLayerElementRefs.current.get(pageNumber);
+          if (!canvas || !surface || !textLayerElement) return;
 
-        const previousTask = renderTaskRefs.current.get(pageNumber);
-        if (previousTask) {
-          previousTask.cancel();
-          try {
-            await previousTask.promise;
-          } catch {
-            // Ignore cancellation or previous completion errors
+          const isStale = () => cancelled
+            || documentRenderGenerationRef.current !== documentGeneration
+            || pageRenderVersionRefs.current.get(pageNumber) !== renderVersion;
+          if (isStale()) return;
+
+          const previousTask = renderTaskRefs.current.get(pageNumber);
+          if (previousTask) {
+            previousTask.cancel();
+            try {
+              await previousTask.promise;
+            } catch {
+              // Ignore cancellation or previous completion errors
+            }
+            renderTaskRefs.current.delete(pageNumber);
           }
-          renderTaskRefs.current.delete(pageNumber);
-        }
 
-        if (cancelled || pageRenderVersionRefs.current.get(pageNumber) !== renderVersion) return;
+          if (isStale()) return;
 
-        const previousTextLayer = textLayerRefs.current.get(pageNumber);
-        if (previousTextLayer) {
-          previousTextLayer.cancel();
-          textLayerRefs.current.delete(pageNumber);
-        }
+          const previousTextLayer = textLayerRefs.current.get(pageNumber);
+          if (previousTextLayer) {
+            previousTextLayer.cancel();
+            textLayerRefs.current.delete(pageNumber);
+          }
 
-        const currentCanvas = canvas;
-        if (previousTask && currentCanvas.parentElement) {
-          const nextCanvas = currentCanvas.ownerDocument.createElement("canvas");
-          currentCanvas.parentElement.replaceChild(nextCanvas, currentCanvas);
-          canvasRefs.current.set(pageNumber, nextCanvas);
-          canvas = nextCanvas;
-        }
+          const pdfPage = await pdf.getPage(pageNumber);
+          if (isStale()) return;
 
-        const pdfPage = await pdf.getPage(pageNumber);
-        if (cancelled || pageRenderVersionRefs.current.get(pageNumber) !== renderVersion) return;
+          const baseViewport = pdfPage.getViewport({ scale: 1 });
+          const displayScale = fitHeight
+            ? clampZoom(availableHeight / baseViewport.height)
+            : fitWidth
+              ? clampZoom(availableWidth / baseViewport.width)
+              : clampZoom(zoom);
+          const displayViewport = pdfPage.getViewport({ scale: displayScale });
+          const outputScale = Math.min(window.devicePixelRatio || 1, 2.5);
 
-        const baseViewport = pdfPage.getViewport({ scale: 1 });
-        const displayScale = fitHeight
-          ? clampZoom(availableHeight / baseViewport.height)
-          : fitWidth
-            ? clampZoom(availableWidth / baseViewport.width)
-            : clampZoom(zoom);
-        const displayViewport = pdfPage.getViewport({ scale: displayScale });
-        const outputScale = Math.min(window.devicePixelRatio || 1, 2.5);
+          const context = canvas.getContext("2d", { alpha: false });
+          if (!context) throw new Error("当前环境不支持 Canvas PDF 渲染");
 
-        const context = canvas.getContext("2d", { alpha: false });
-        if (!context) throw new Error("当前环境不支持 Canvas PDF 渲染");
+          canvas.width = Math.max(1, Math.floor(displayViewport.width * outputScale));
+          canvas.height = Math.max(1, Math.floor(displayViewport.height * outputScale));
+          canvas.style.width = `${Math.floor(displayViewport.width)}px`;
+          canvas.style.height = `${Math.floor(displayViewport.height)}px`;
+          surface.style.width = `${Math.floor(displayViewport.width)}px`;
+          surface.style.height = `${Math.floor(displayViewport.height)}px`;
+          surface.style.setProperty("--scale-factor", String(displayScale));
+          surface.dataset.pdfPage = String(pageNumber);
+          textLayerElement.replaceChildren();
+          textLayerElement.style.width = `${Math.floor(displayViewport.width)}px`;
+          textLayerElement.style.height = `${Math.floor(displayViewport.height)}px`;
+          textLayerElement.dataset.pdfPage = String(pageNumber);
 
-        canvas.width = Math.max(1, Math.floor(displayViewport.width * outputScale));
-        canvas.height = Math.max(1, Math.floor(displayViewport.height * outputScale));
-        canvas.style.width = `${Math.floor(displayViewport.width)}px`;
-        canvas.style.height = `${Math.floor(displayViewport.height)}px`;
-        surface.style.width = `${Math.floor(displayViewport.width)}px`;
-        surface.style.height = `${Math.floor(displayViewport.height)}px`;
-        surface.style.setProperty("--scale-factor", String(displayScale));
-        surface.dataset.pdfPage = String(pageNumber);
-        textLayerElement.replaceChildren();
-        textLayerElement.style.width = `${Math.floor(displayViewport.width)}px`;
-        textLayerElement.style.height = `${Math.floor(displayViewport.height)}px`;
-        textLayerElement.dataset.pdfPage = String(pageNumber);
-
-        const textContent = await pdfPage.getTextContent();
-        textCacheRef.current.set(
-          pageNumber,
-          pageTextCache(textContent.items.map((item) => ("str" in item ? item.str : ""))),
-        );
-        const textLayer = new TextLayer({
-          textContentSource: textContent,
-          container: textLayerElement,
-          viewport: displayViewport,
-        });
-        textLayerRefs.current.set(pageNumber, textLayer);
-        const renderTask = pdfPage.render({
-          canvasContext: context,
-          viewport: displayViewport,
-          transform: outputScale === 1 ? undefined : [outputScale, 0, 0, outputScale, 0, 0],
-          background: "rgb(255,255,255)",
-        });
-        renderTaskRefs.current.set(pageNumber, renderTask);
-
-        await Promise.all([renderTask.promise, textLayer.render()]);
-
-        const anchor = pageNumber === page ? zoomAnchorRef.current : null;
-        if (!cancelled && anchor) {
-          zoomAnchorRef.current = null;
-          window.requestAnimationFrame(() => {
-            const scrollViewport = viewportRef.current;
-            const nextSurface = pageSurfaceRefs.current.get(pageNumber);
-            if (!scrollViewport || !nextSurface) return;
-            scrollViewport.scrollLeft = anchor.x * nextSurface.clientWidth - scrollViewport.clientWidth / 2;
-            scrollViewport.scrollTop = anchor.y * nextSurface.clientHeight - scrollViewport.clientHeight / 2;
+          const textContent = await pdfPage.getTextContent();
+          if (isStale()) return;
+          textCacheRef.current.set(
+            pageNumber,
+            pageTextCache(textContent.items.map((item) => ("str" in item ? item.str : ""))),
+          );
+          const textLayer = new TextLayer({
+            textContentSource: textContent,
+            container: textLayerElement,
+            viewport: displayViewport,
           });
-        }
-        if (!cancelled && (fitWidth || fitHeight) && pageNumber === page) setZoom(displayScale);
+          if (isStale()) return;
+          textLayerRefs.current.set(pageNumber, textLayer);
+          const renderTask = pdfPage.render({
+            canvasContext: context,
+            viewport: displayViewport,
+            transform: outputScale === 1 ? undefined : [outputScale, 0, 0, outputScale, 0, 0],
+            background: "rgb(255,255,255)",
+          });
+          renderTaskRefs.current.set(pageNumber, renderTask);
+
+          try {
+            await Promise.all([renderTask.promise, textLayer.render()]);
+          } finally {
+            if (renderTaskRefs.current.get(pageNumber) === renderTask) renderTaskRefs.current.delete(pageNumber);
+            if (textLayerRefs.current.get(pageNumber) === textLayer) textLayerRefs.current.delete(pageNumber);
+          }
+
+          const anchor = pageNumber === page ? zoomAnchorRef.current : null;
+          if (!isStale() && anchor) {
+            zoomAnchorRef.current = null;
+            window.requestAnimationFrame(() => {
+              const scrollViewport = viewportRef.current;
+              const nextSurface = pageSurfaceRefs.current.get(pageNumber);
+              if (!scrollViewport || !nextSurface) return;
+              scrollViewport.scrollLeft = anchor.x * nextSurface.clientWidth - scrollViewport.clientWidth / 2;
+              scrollViewport.scrollTop = anchor.y * nextSurface.clientHeight - scrollViewport.clientHeight / 2;
+            });
+          }
+          if (!isStale() && (fitWidth || fitHeight) && pageNumber === page) setZoom(displayScale);
+        });
+        pageRenderPipelineRefs.current.set(pageNumber, pipeline);
+        void pipeline.finally(() => {
+          if (pageRenderPipelineRefs.current.get(pageNumber) === pipeline) pageRenderPipelineRefs.current.delete(pageNumber);
+        }).catch(() => {});
+        return pipeline;
       });
 
       await Promise.all(tasks);
