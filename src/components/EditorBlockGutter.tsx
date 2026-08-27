@@ -45,20 +45,12 @@ function firstLineTextCenter(
     const level = Number(attrs.level);
     return fallbackRect.top + editorLineHeight * (HEADING_SIZE[level] ?? 1) / 2;
   }
-  // 代码块和引用块都把顶部工具栏作为块的第一行。代码块直接使用工具栏
-  // 的几何中心，让主块号与描述、语言和操作按钮对齐，而不是落在代码正文首行。
-  if (typeName === "codeBlock") {
-    const toolbar = dom.querySelector<HTMLElement>(".code-block-toolbar");
-    if (toolbar) {
-      const toolbarRect = toolbar.getBoundingClientRect();
-      return toolbarRect.top + toolbarRect.height / 2;
-    }
-  }
   const textRoot = typeName === "codeBlock"
     ? (dom.matches("code") ? dom : dom.querySelector<HTMLElement>("code")) ?? dom
     : dom;
   if (typeName === "codeBlock") {
-    // 兼容工具栏尚未挂载完成的瞬间；此时以正文首行作为稳定兜底。
+    // 主块号始终对齐代码正文首行；工具栏高度变化或横竖屏切换不会
+    // 再把块号推到工具栏中部。
     const rect = textRoot.getBoundingClientRect();
     const style = getComputedStyle(textRoot);
     const lineHeight = Number.parseFloat(style.lineHeight) || editorLineHeight;
@@ -537,23 +529,22 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
     event.preventDefault();
     event.stopPropagation();
     lastTouchActionAtRef.current = now;
-    suppressCompatibilityClickUntilRef.current = now + 500;
+    suppressCompatibilityClickUntilRef.current = now + 2000;
     action();
   };
 
-  const runGutterActionFromPointer = (event: React.PointerEvent<HTMLButtonElement>, action: () => void) => {
-    if (event.pointerType !== "touch" || !event.isPrimary) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const now = Date.now();
-    if (now - lastTouchActionAtRef.current < 32) return;
-    lastTouchActionAtRef.current = now;
-    suppressCompatibilityClickUntilRef.current = now + 500;
-    action();
-  };
-
-  const runGutterActionFromClick = (action: () => void) => {
-    if (Date.now() < suppressCompatibilityClickUntilRef.current) return;
+  const runGutterActionFromClick = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    action: () => void,
+  ) => {
+    const sourceCapabilities = (event.nativeEvent as MouseEvent & {
+      sourceCapabilities?: { firesTouchEvents?: boolean } | null;
+    }).sourceCapabilities;
+    if (sourceCapabilities?.firesTouchEvents || Date.now() < suppressCompatibilityClickUntilRef.current) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     action();
   };
 
@@ -598,8 +589,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
           onTouchMove={moveGutterTouch}
           onTouchCancel={cancelGutterTouch}
           onTouchEnd={(event) => runGutterActionFromTouch(event, () => onHeadingFoldToggle(block.pos))}
-          onPointerUp={(event) => runGutterActionFromPointer(event, () => onHeadingFoldToggle(block.pos))}
-          onClick={() => runGutterActionFromClick(() => onHeadingFoldToggle(block.pos))}
+          onClick={(event) => runGutterActionFromClick(event, () => onHeadingFoldToggle(block.pos))}
         >{block.folded ? "▶" : "▼"}</button>
       ))}
       {!readonly && showInsertButtons && boundaries.map((boundary) => (
@@ -615,8 +605,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
           onTouchMove={moveGutterTouch}
           onTouchCancel={cancelGutterTouch}
           onTouchEnd={(event) => runGutterActionFromTouch(event, () => insertParagraph(boundary.pos))}
-          onPointerUp={(event) => runGutterActionFromPointer(event, () => insertParagraph(boundary.pos))}
-          onClick={() => runGutterActionFromClick(() => insertParagraph(boundary.pos))}
+          onClick={(event) => runGutterActionFromClick(event, () => insertParagraph(boundary.pos))}
         >
           +
         </button>

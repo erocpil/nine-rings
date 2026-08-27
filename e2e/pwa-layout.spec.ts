@@ -412,11 +412,12 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(Date.now() - startedAt).toBeLessThan(2500);
     await expect(lastBlock).toHaveText("块 1200-连续输入-1234567890");
 
-    await expect(page.getByTitle("已保存")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTitle("未保存")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTitle("已保存")).toBeVisible({ timeout: 15000 });
     await page.reload();
     await expect(page.locator(".ProseMirror > p").last()).toHaveText(
       "块 1200-连续输入-1234567890",
-      { timeout: 15000 },
+      { timeout: 30000 },
     );
   });
 

@@ -90,9 +90,14 @@ export const HeadingFold = Extension.create<HeadingFoldOptions>({
         style.setAttribute("data-pdf-exclude", "true");
         ownerDocument.head.append(style);
         editorView.dom.setAttribute("data-heading-fold-scope", scope);
-        const supportsFilteredNthChild = ownerDocument.defaultView?.CSS?.supports(
+        const ownerWindow = ownerDocument.defaultView as (Window & typeof globalThis & {
+          __TAURI__?: unknown;
+          __TAURI_INTERNALS__?: unknown;
+        }) | null;
+        const isTauri = Boolean(ownerWindow?.__TAURI_INTERNALS__ || ownerWindow?.__TAURI__);
+        const supportsFilteredNthChild = !isTauri && Boolean(ownerWindow?.CSS?.supports(
           "selector(:nth-child(1 of *))",
-        ) ?? false;
+        ));
         const actualEditorChild = ":not(.ProseMirror-gapcursor, .ProseMirror-widget, .ProseMirror-separator)";
         const nthChild = (expression: string) => supportsFilteredNthChild
           ? `:nth-child(${expression} of ${actualEditorChild})`
@@ -104,6 +109,9 @@ export const HeadingFold = Extension.create<HeadingFoldOptions>({
           const collapsedKeys = headingFoldPluginKey.getState(view.state)?.collapsedKeys ?? new Set<string>();
           const ranges = hiddenChildRanges(view.state.doc, collapsedKeys);
           const selector = `[data-heading-fold-scope="${scope}"]`;
+          // Tauri 强制使用 CSS2 标准语法：旧版 WebView2 会错误地声称支持
+          // `:nth-child(... of selector)`，却静默丢弃组合后的整条规则。Web/PWA
+          // 则排除 ProseMirror 临时辅助节点，避免编辑过程中子节点序号漂移。
           const css = ranges.length === 0
             ? ""
             : `${ranges.map(({ from, to }) => (

@@ -43,9 +43,12 @@ test.describe("手机安装版折叠操作", () => {
     });
 
     const chapterBody = editor.getByText("章节正文", { exact: true });
-    await page.getByRole("button", { name: "折叠第 1 块章节" }).tap();
+    const chapterBlockIndex = await editor.getByRole("heading", { name: "触摸章节" }).evaluate(
+      (heading) => Array.from(heading.parentElement?.children ?? []).indexOf(heading) + 1,
+    );
+    await page.getByRole("button", { name: `折叠第 ${chapterBlockIndex} 块章节` }).tap();
     await expect(chapterBody).toBeHidden();
-    await page.getByRole("button", { name: "展开第 1 块章节" }).tap();
+    await page.getByRole("button", { name: `展开第 ${chapterBlockIndex} 块章节` }).tap();
     await expect(chapterBody).toBeVisible();
 
     const quote = editor.locator("blockquote");

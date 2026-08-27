@@ -8755,7 +8755,7 @@ button.doc-tree-toggle:focus-visible {
      专注模式标题栏是 fixed 覆盖层，需要额外留出这段空间，避免 iOS PWA
      中按钮上半部落在标题栏下面而无法完整显示或命中。 */
   .focus-mode .editor-content-shell {
-    margin-top: 20px;
+    margin-top: 18px;
   }
 
   .focus-mode.note-editor {
