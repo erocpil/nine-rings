@@ -225,31 +225,45 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
       measureFrame = requestAnimationFrame(measureVisibleBlocks);
     };
 
+    const intersectionRootMargin = compact
+      ? Math.max(96, Math.ceil(scrollRoot.clientHeight * 0.2))
+      : Math.max(640, Math.ceil(scrollRoot.clientHeight * 1.5));
     const intersectionObserver = typeof IntersectionObserver === "undefined"
       ? null
       : new IntersectionObserver((entries) => {
         if (disposed || editor.isDestroyed || !root.isConnected) return;
         let changed = false;
         let rootTop = 0;
+        let observationTop = 0;
+        let observationBottom = 0;
         let editorLineHeight = 0;
         const ensureMetrics = () => {
           if (editorLineHeight > 0) return;
           rootTop = root.getBoundingClientRect().top;
+          const viewport = scrollRoot.getBoundingClientRect();
+          observationTop = viewport.top - intersectionRootMargin;
+          observationBottom = viewport.bottom + intersectionRootMargin;
           editorLineHeight = Number.parseFloat(getComputedStyle(editor.view.dom).lineHeight) || 24;
         };
         for (const entry of entries) {
           const dom = entry.target;
           if (!(dom instanceof HTMLElement)) continue;
           if (!observedIndexes.has(dom)) continue;
-          if (!entry.isIntersecting) {
+          ensureMetrics();
+          // 折叠会同时改变大量节点的可见性和 scrollTop。队列中的
+          // isIntersecting 可能仍是旧布局的 false，不能据此删除当前可见标题。
+          const currentRect = dom.getBoundingClientRect();
+          const currentlyObserved = currentRect.height > 0
+            && currentRect.bottom >= observationTop
+            && currentRect.top <= observationBottom;
+          if (!currentlyObserved) {
             changed = measuredBlocks.delete(dom) || changed;
             continue;
           }
-          ensureMetrics();
           // IntersectionObserver 的队列可能在折叠布局完成后才送达，其中的
           // boundingClientRect 仍是折叠前坐标。必须读取当前 DOM；否则旧标题
           // 的块号和三角会在清理后被陈旧回调重新放进引用等当前可见块中。
-          const measured = measureBlock(dom, dom.getBoundingClientRect(), rootTop, editorLineHeight);
+          const measured = measureBlock(dom, currentRect, rootTop, editorLineHeight);
           if (!measured) {
             changed = measuredBlocks.delete(dom) || changed;
             continue;
@@ -263,9 +277,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
         // 桌面端预挂载视口上下约两屏；手机端缩小预读区，避免触摸滚动
         // 与软键盘 resize 时反复测量过多节点。窗口切换会保留重叠控件，
         // 因此缩小预读区也不会再让块号和插入按钮闪失。
-        rootMargin: `${compact
-          ? Math.max(96, Math.ceil(scrollRoot.clientHeight * 0.2))
-          : Math.max(640, Math.ceil(scrollRoot.clientHeight * 1.5))}px 0px`,
+        rootMargin: `${intersectionRootMargin}px 0px`,
       });
 
     const viewportBlockRange = (): { start: number; end: number } => {

@@ -117,6 +117,42 @@ test("目录全部折叠再全部展开后保持正文可视位置", async ({ pa
   expect(Math.abs(after!.y - before!.y)).toBeLessThan(32);
 });
 
+test("全部折叠后文档尾部的标题三角在小幅滚动中保持显示", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+  const editor = page.locator(".ProseMirror");
+  const markdown = Array.from({ length: 40 }, (_, index) => (
+    `# 尾部章节 ${index + 1}\n\n章节正文 ${index + 1}`
+  )).join("\n\n");
+  await editor.evaluate((element, content) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", content);
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  }, markdown);
+
+  const lastHeading = editor.getByText("尾部章节 40", { exact: true });
+  await lastHeading.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await page.getByTitle("文档目录").click();
+  await page.getByRole("navigation", { name: "文档目录" })
+    .getByRole("button", { name: "全部折叠" }).dblclick();
+
+  const lastFold = page.getByRole("button", { name: "展开第 79 块章节" });
+  const scrollRoot = page.locator(".note-editor-scroll");
+  await expect(lastHeading).toBeVisible();
+  await expect(lastFold).toBeVisible();
+  await scrollRoot.evaluate((element) => {
+    const maximum = element.scrollHeight - element.clientHeight;
+    for (let index = 0; index < 12; index += 1) {
+      element.scrollTop = Math.max(0, maximum - (index % 2 === 0 ? 28 : 0));
+      element.dispatchEvent(new Event("scroll"));
+    }
+  });
+  await expect(lastFold).toBeVisible();
+});
+
 test("桌面目录可固定到左右两侧并记住选择", async ({ page }) => {
   await page.goto("/");
   const editor = page.locator(".ProseMirror");
