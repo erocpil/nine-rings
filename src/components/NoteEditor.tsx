@@ -533,6 +533,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const allHeadingFoldRoundTripRef = useRef<AllHeadingFoldRoundTrip | null>(null);
   const readonlyTouchPointerRef = useRef<{
     pointerId: number;
+    pointerType: string;
     startX: number;
     startY: number;
     moved: boolean;
@@ -541,6 +542,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     time: number;
     x: number;
     y: number;
+    pointerType: string;
   } | null>(null);
   const outlineResizePointerIdRef = useRef<number | null>(null);
   const outlineResizeStartXRef = useRef(0);
@@ -3041,8 +3043,41 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   ): HeadingSection | null => {
     if (!readonly || editor.isDestroyed) return null;
     if (!(target instanceof Node) || !editor.view.dom.contains(target)) return null;
-    const position = editor.view.posAtCoords({ left: clientX, top: clientY })?.pos;
-    return position === undefined ? null : headingSectionAtPosition(headingSections, position);
+    // Read the current document here instead of relying on the render-time snapshot. In
+    // WebView2 a readonly view can finish updating before React has rendered again.
+    const currentSections = extractHeadingSections(editor.state.doc);
+    const targetElement = target instanceof Element ? target : target.parentElement;
+    const headingElement = targetElement?.closest("h1, h2, h3, h4, h5, h6");
+
+    // WebView2 occasionally returns no result from posAtCoords after a Tauri window has
+    // been backgrounded. A DOM position is more reliable when the gesture starts on a title.
+    if (headingElement && editor.view.dom.contains(headingElement)) {
+      try {
+        const domPosition = editor.view.posAtDOM(headingElement, 0, -1);
+        const section = headingSectionAtPosition(currentSections, domPosition);
+        if (section) return section;
+      } catch {
+        // Detached DOM nodes are possible during a ProseMirror decoration refresh.
+      }
+    }
+
+    const coordinatePosition = editor.view.posAtCoords({ left: clientX, top: clientY })?.pos;
+    if (coordinatePosition !== undefined) {
+      const section = headingSectionAtPosition(currentSections, coordinatePosition);
+      if (section) return section;
+    }
+
+    if (targetElement && editor.view.dom.contains(targetElement)) {
+      try {
+        return headingSectionAtPosition(
+          currentSections,
+          editor.view.posAtDOM(targetElement, 0, -1),
+        );
+      } catch {
+        // Ignore a stale event target and leave the document unchanged.
+      }
+    }
+    return null;
   };
 
   const toggleReadonlyHeadingSection = (section: HeadingSection, clientY: number): boolean => {
@@ -3104,9 +3139,15 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   };
 
   const handleReadonlyHeadingPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!readonly || !focusMode || event.pointerType !== "touch" || !event.isPrimary) return;
+    if (
+      !readonly
+      || !focusMode
+      || !event.isPrimary
+      || ((event.pointerType === "mouse" || event.pointerType === "pen") && event.button !== 0)
+    ) return;
     readonlyTouchPointerRef.current = {
       pointerId: event.pointerId,
+      pointerType: event.pointerType,
       startX: event.clientX,
       startY: event.clientY,
       moved: false,
@@ -3136,10 +3177,10 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       !readonly
       || !focusMode
       || editor.isDestroyed
-      || event.pointerType !== "touch"
       || !event.isPrimary
       || !pointer
       || pointer.pointerId !== event.pointerId
+      || pointer.pointerType !== event.pointerType
       || pointer.moved
       || Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY) > 12
     ) return;
@@ -3149,6 +3190,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     const isDoubleTap = Boolean(
       previous
       && now - previous.time <= 420
+      && previous.pointerType === event.pointerType
       && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 24
     );
     if (!isDoubleTap) {
@@ -3156,6 +3198,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         time: now,
         x: event.clientX,
         y: event.clientY,
+        pointerType: event.pointerType,
       };
       return;
     }
@@ -3164,7 +3207,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     // 与旧版原生 dblclick 一致，只在确认第二次点按后做一次命中测试。
     const section = readonlyHeadingSectionAtPoint(event.target, event.clientX, event.clientY);
     if (!section || !toggleReadonlyHeadingSection(section, event.clientY)) return;
-    // 部分 WebKit 版本会在 pointer 事件后补发 dblclick，必须吞掉一次，
+    // WebKit 和 WebView2 都可能在 pointer 事件后补发 dblclick，必须吞掉一次，
     // 否则章节会立即折叠后再展开，看起来像完全没有响应。
     suppressReadonlyDoubleClickUntilRef.current = now + 650;
     event.preventDefault();
