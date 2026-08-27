@@ -555,7 +555,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     y: number;
   } | null>(null);
   const outlineFoldLongPressRef = useRef<{
-    pointerId: number;
+    touchId: number;
     folded: boolean;
     x: number;
     y: number;
@@ -998,6 +998,10 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     }
     if (documentStatsTimerRef.current !== null) {
       window.clearTimeout(documentStatsTimerRef.current);
+    }
+    if (outlineFoldLongPressRef.current) {
+      window.clearTimeout(outlineFoldLongPressRef.current.timer);
+      outlineFoldLongPressRef.current = null;
     }
   }, []);
 
@@ -2389,7 +2393,11 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   }, [editor, headingFoldRevision]);
   const toggleEditorHeadingFromGutter = useCallback((position: number) => {
     if (!editor || editor.isDestroyed) return;
-    const section = headingSectionByPosition.get(position);
+    // `shouldRerenderOnTransaction` 被关闭后，React 中缓存的章节数组可能比
+    // ProseMirror 当前文档旧一拍（尤其是隐藏状态栏的移动端）。操作入口
+    // 必须以当前 state.doc 为准，否则编辑过正文后会拿着旧 end/pos 静默失败。
+    const currentSections = extractHeadingSections(editor.state.doc);
+    const section = currentSections.find((candidate) => candidate.pos === position);
     if (!section) return;
     const root = scrollRef.current;
     const heading = editor.view.nodeDOM(section.pos);
@@ -2407,7 +2415,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       editor,
       root,
       anchor,
-      headingSections,
+      currentSections,
       getCollapsedHeadingKeys(editor),
     );
     restore();
@@ -2418,7 +2426,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       headingFoldViewportFrameRef.current = null;
       restore();
     });
-  }, [editor, headingSectionByPosition, headingSections]);
+  }, [editor]);
   const setAllHeadingFoldsKeepingViewport = useCallback((folded: boolean) => {
     if (!editor || editor.isDestroyed) return;
     const root = scrollRef.current;
@@ -2461,6 +2469,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       allHeadingFoldRoundTripRef.current = null;
     }
 
+    const currentSections = extractHeadingSections(editor.state.doc);
     setAllHeadingFolds(editor, folded);
     if (!anchorToRestore) return;
 
@@ -2468,7 +2477,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       editor,
       root,
       anchorToRestore!,
-      headingSections,
+      currentSections,
       getCollapsedHeadingKeys(editor),
     );
     restore();
@@ -2479,21 +2488,27 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       headingFoldViewportFrameRef.current = null;
       restore();
     });
-  }, [editor, headingSections, noteId]);
+  }, [editor, noteId]);
 
   const setAllOutlineFolds = useCallback((folded: boolean) => {
+    const currentSections = editor && !editor.isDestroyed
+      ? extractHeadingSections(editor.state.doc)
+      : headingSections;
     setOutlineCollapsedHeadingKeys(new Set(
-      folded ? collapsedHeadingKeysForAll(headingSections) : [],
+      folded ? collapsedHeadingKeysForAll(currentSections) : [],
     ));
-  }, [headingSections]);
+  }, [editor, headingSections]);
 
-  const handleOutlineFoldTouchPointerUp = useCallback((
-    event: React.PointerEvent<HTMLButtonElement>,
+  const handleOutlineFoldTouchEnd = useCallback((
+    event: React.TouchEvent<HTMLButtonElement>,
     folded: boolean,
   ) => {
-    if (event.pointerType !== "touch" || !event.isPrimary) return;
+    const touch = Array.from(event.changedTouches).find((item) => (
+      item.identifier === outlineFoldLongPressRef.current?.touchId
+    )) ?? event.changedTouches[0];
+    if (!touch) return;
     const press = outlineFoldLongPressRef.current;
-    if (press?.pointerId === event.pointerId) {
+    if (press?.touchId === touch.identifier) {
       window.clearTimeout(press.timer);
       outlineFoldLongPressRef.current = null;
       if (press.triggered) {
@@ -2508,36 +2523,40 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       previous
       && previous.folded === folded
       && now - previous.time <= 420
-      && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 24
+      && Math.hypot(touch.clientX - previous.x, touch.clientY - previous.y) <= 24
     );
     if (!isDoubleTap) {
       outlineFoldLastTouchRef.current = {
         folded,
         time: now,
-        x: event.clientX,
-        y: event.clientY,
+        x: touch.clientX,
+        y: touch.clientY,
       };
       return;
     }
 
     outlineFoldLastTouchRef.current = null;
+    suppressOutlineFoldClickUntilRef.current = now + 650;
     suppressOutlineFoldDoubleClickUntilRef.current = now + 650;
+    event.preventDefault();
+    event.stopPropagation();
     setAllHeadingFoldsKeepingViewport(folded);
   }, [setAllHeadingFoldsKeepingViewport]);
 
-  const handleOutlineFoldTouchPointerDown = useCallback((
-    event: React.PointerEvent<HTMLButtonElement>,
+  const handleOutlineFoldTouchStart = useCallback((
+    event: React.TouchEvent<HTMLButtonElement>,
     folded: boolean,
   ) => {
-    if (event.pointerType !== "touch" || !event.isPrimary) return;
+    const touch = event.changedTouches[0];
+    if (!touch) return;
     if (outlineFoldLongPressRef.current) {
       window.clearTimeout(outlineFoldLongPressRef.current.timer);
     }
     const press = {
-      pointerId: event.pointerId,
+      touchId: touch.identifier,
       folded,
-      x: event.clientX,
-      y: event.clientY,
+      x: touch.clientX,
+      y: touch.clientY,
       timer: 0,
       triggered: false,
     };
@@ -2555,16 +2574,23 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     outlineFoldLongPressRef.current = press;
   }, [setAllHeadingFoldsKeepingViewport, setAllOutlineFolds]);
 
-  const cancelOutlineFoldLongPress = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+  const handleOutlineFoldTouchMove = useCallback((event: React.TouchEvent<HTMLButtonElement>) => {
     const press = outlineFoldLongPressRef.current;
-    if (!press || press.pointerId !== event.pointerId) return;
-    if (
-      event.type === "pointercancel"
-      || Math.hypot(event.clientX - press.x, event.clientY - press.y) > 12
-    ) {
+    if (!press) return;
+    const touch = Array.from(event.touches).find((item) => item.identifier === press.touchId);
+    if (!touch || Math.hypot(touch.clientX - press.x, touch.clientY - press.y) > 12) {
       window.clearTimeout(press.timer);
       outlineFoldLongPressRef.current = null;
+      outlineFoldLastTouchRef.current = null;
     }
+  }, []);
+
+  const cancelOutlineFoldLongPress = useCallback(() => {
+    const press = outlineFoldLongPressRef.current;
+    if (!press) return;
+    window.clearTimeout(press.timer);
+    outlineFoldLongPressRef.current = null;
+    outlineFoldLastTouchRef.current = null;
   }, []);
 
   const handleOutlineFoldClick = useCallback((folded: boolean) => {
@@ -2583,7 +2609,9 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   }, [setAllHeadingFoldsKeepingViewport]);
 
   const toggleOutlineTreeHeading = useCallback((position: number) => {
-    const section = headingSections.find((candidate) => candidate.pos === position);
+    if (!editor || editor.isDestroyed) return;
+    const section = extractHeadingSections(editor.state.doc)
+      .find((candidate) => candidate.pos === position);
     if (!section || section.end <= section.headingEnd) return;
     toggleEditorHeadingFromGutter(position);
     setOutlineCollapsedHeadingKeys((current) => {
@@ -2592,7 +2620,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       else next.add(section.key);
       return next;
     });
-  }, [headingSections, toggleEditorHeadingFromGutter]);
+  }, [editor, toggleEditorHeadingFromGutter]);
 
   const outlineVisibleHeadingPositions = useMemo(
     () => new Set(
@@ -3345,10 +3373,10 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
                 type="button"
                 onClick={() => handleOutlineFoldClick(true)}
                 onDoubleClick={(event) => handleOutlineFoldDoubleClick(event, true)}
-                onPointerDown={(event) => handleOutlineFoldTouchPointerDown(event, true)}
-                onPointerMove={cancelOutlineFoldLongPress}
-                onPointerCancel={cancelOutlineFoldLongPress}
-                onPointerUp={(event) => handleOutlineFoldTouchPointerUp(event, true)}
+                onTouchStart={(event) => handleOutlineFoldTouchStart(event, true)}
+                onTouchMove={handleOutlineFoldTouchMove}
+                onTouchCancel={cancelOutlineFoldLongPress}
+                onTouchEnd={(event) => handleOutlineFoldTouchEnd(event, true)}
                 aria-label="全部折叠"
                 title="单击折叠目录；双击或长按同时折叠正文"
               >−</button>
@@ -3356,10 +3384,10 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
                 type="button"
                 onClick={() => handleOutlineFoldClick(false)}
                 onDoubleClick={(event) => handleOutlineFoldDoubleClick(event, false)}
-                onPointerDown={(event) => handleOutlineFoldTouchPointerDown(event, false)}
-                onPointerMove={cancelOutlineFoldLongPress}
-                onPointerCancel={cancelOutlineFoldLongPress}
-                onPointerUp={(event) => handleOutlineFoldTouchPointerUp(event, false)}
+                onTouchStart={(event) => handleOutlineFoldTouchStart(event, false)}
+                onTouchMove={handleOutlineFoldTouchMove}
+                onTouchCancel={cancelOutlineFoldLongPress}
+                onTouchEnd={(event) => handleOutlineFoldTouchEnd(event, false)}
                 aria-label="全部展开"
                 title="单击展开目录；双击或长按同时展开正文"
               >+</button>

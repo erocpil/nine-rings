@@ -272,9 +272,14 @@ test.describe("PWA 窄屏应用外壳", () => {
     const separation = await page.evaluate(() => {
       const divider = document.querySelector<HTMLElement>(".app-main-divider")!.getBoundingClientRect();
       const sticky = document.querySelector<HTMLElement>(".note-editor-sticky")!.getBoundingClientRect();
-      return sticky.top - divider.bottom;
+      const firstInsert = document.querySelector<HTMLElement>('.editor-block-insert[aria-label="在第一块前插入段落"]')!.getBoundingClientRect();
+      return {
+        splitterToEditor: sticky.top - divider.bottom,
+        stickyToFirstInsert: firstInsert.top - sticky.bottom,
+      };
     });
-    expect(separation).toBeGreaterThanOrEqual(9.5);
+    expect(separation.splitterToEditor).toBeGreaterThanOrEqual(9.5);
+    expect(separation.stickyToFirstInsert).toBeGreaterThanOrEqual(3.5);
 
     const insertAfterFirst = page.getByRole("button", { name: "在第 1 块后插入段落" });
     await expect(insertAfterFirst).toBeVisible();
@@ -531,7 +536,7 @@ test.describe("PWA 窄屏应用外壳", () => {
       const insert = element.querySelector<HTMLElement>('.editor-block-insert[aria-label="在第一块前插入段落"]')!.getBoundingClientRect();
       return { barBottom: bar.bottom, insertTop: insert.top };
     });
-    expect(geometry.insertTop).toBeGreaterThanOrEqual(geometry.barBottom + 1);
+    expect(geometry.insertTop).toBeGreaterThanOrEqual(geometry.barBottom + 5);
 
     const insertBox = await insertBeforeFirst.boundingBox();
     if (!insertBox) throw new Error("focus mode first gutter insert button geometry not found");

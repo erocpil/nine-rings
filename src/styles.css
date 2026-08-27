@@ -4188,6 +4188,9 @@ body {
   position: relative;
   flex: 1;
   min-height: 200px;
+  /* 首块前的插入按钮以第一块顶部为圆心，会向上伸出半个按钮高度。
+     给 gutter 留出独立净空，避免被上方 sticky 工具栏盖住。 */
+  margin-top: 12px;
 }
 
 .show-line-numbers .editor-content-shell {
@@ -8555,6 +8558,10 @@ button.doc-tree-toggle:focus-visible {
 
   /* 手机端保留就地插入入口，并给它独立的触摸列；“块”菜单中的入口
      继续作为键盘打开或 gutter 暂时离屏时的备用操作。 */
+  .editor-content-shell {
+    margin-top: 16px;
+  }
+
   .editor-block-insert {
     left: 0;
     width: 22px;
@@ -8748,7 +8755,7 @@ button.doc-tree-toggle:focus-visible {
      专注模式标题栏是 fixed 覆盖层，需要额外留出这段空间，避免 iOS PWA
      中按钮上半部落在标题栏下面而无法完整显示或命中。 */
   .focus-mode .editor-content-shell {
-    margin-top: 14px;
+    margin-top: 20px;
   }
 
   .focus-mode.note-editor {

@@ -130,6 +130,13 @@ interface EditorBlockGutterProps {
 export function EditorBlockGutter({ editor, compact = false, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], highlightedBlockIndex, onBlockCountChange, onHeadingFoldToggle }: EditorBlockGutterProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const suppressCompatibilityClickUntilRef = useRef(0);
+  const lastTouchActionAtRef = useRef(0);
+  const touchGestureRef = useRef<{
+    identifier: number;
+    startX: number;
+    startY: number;
+    moved: boolean;
+  } | null>(null);
   const [blocks, setBlocks] = useState<GutterBlock[]>([]);
 
   useEffect(() => {
@@ -488,14 +495,60 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
     (position) => position >= block.pos && position < block.endPos,
   );
 
-  const runGutterActionFromPointer = (event: React.PointerEvent<HTMLButtonElement>, action: () => void) => {
-    if (event.pointerType !== "touch" || !event.isPrimary) return;
-    // iOS standalone/PWA 会在 pointerdown.preventDefault() 后偶发不再派发
-    // compatibility click。触摸操作直接在 pointerup 完成，并抑制随后可能
-    // 到达的合成 click；滚动手势会收到 pointercancel，因此不会误插入。
+  const startGutterTouch = (event: React.TouchEvent<HTMLButtonElement>) => {
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    touchGestureRef.current = {
+      identifier: touch.identifier,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      moved: false,
+    };
+  };
+
+  const moveGutterTouch = (event: React.TouchEvent<HTMLButtonElement>) => {
+    const gesture = touchGestureRef.current;
+    if (!gesture) return;
+    const touch = Array.from(event.touches).find((item) => item.identifier === gesture.identifier);
+    if (!touch || Math.hypot(touch.clientX - gesture.startX, touch.clientY - gesture.startY) > 12) {
+      gesture.moved = true;
+    }
+  };
+
+  const cancelGutterTouch = () => {
+    touchGestureRef.current = null;
+  };
+
+  const runGutterActionFromTouch = (event: React.TouchEvent<HTMLButtonElement>, action: () => void) => {
+    const gesture = touchGestureRef.current;
+    touchGestureRef.current = null;
+    if (!gesture || gesture.moved) return;
+    const touch = Array.from(event.changedTouches)
+      .find((item) => item.identifier === gesture.identifier);
+    if (!touch || Math.hypot(touch.clientX - gesture.startX, touch.clientY - gesture.startY) > 12) return;
+    const now = Date.now();
+    if (now - lastTouchActionAtRef.current < 32) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    // iOS 安装版在可滚动编辑器内可能把 pointerup 改派为 pointercancel，
+    // 但仍会可靠地产生 touchend。直接在 touchend 完成操作并吞掉合成 click。
     event.preventDefault();
     event.stopPropagation();
-    suppressCompatibilityClickUntilRef.current = Date.now() + 500;
+    lastTouchActionAtRef.current = now;
+    suppressCompatibilityClickUntilRef.current = now + 500;
+    action();
+  };
+
+  const runGutterActionFromPointer = (event: React.PointerEvent<HTMLButtonElement>, action: () => void) => {
+    if (event.pointerType !== "touch" || !event.isPrimary) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const now = Date.now();
+    if (now - lastTouchActionAtRef.current < 32) return;
+    lastTouchActionAtRef.current = now;
+    suppressCompatibilityClickUntilRef.current = now + 500;
     action();
   };
 
@@ -540,9 +593,11 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
           style={{ top: block.firstLineCenter }}
           aria-label={`${block.folded ? "展开" : "折叠"}第 ${block.index} 块章节`}
           title={block.folded ? "展开本节" : "折叠本节"}
-          onPointerDown={(event) => {
-            if (event.pointerType !== "touch") event.preventDefault();
-          }}
+          onMouseDown={(event) => event.preventDefault()}
+          onTouchStart={startGutterTouch}
+          onTouchMove={moveGutterTouch}
+          onTouchCancel={cancelGutterTouch}
+          onTouchEnd={(event) => runGutterActionFromTouch(event, () => onHeadingFoldToggle(block.pos))}
           onPointerUp={(event) => runGutterActionFromPointer(event, () => onHeadingFoldToggle(block.pos))}
           onClick={() => runGutterActionFromClick(() => onHeadingFoldToggle(block.pos))}
         >{block.folded ? "▶" : "▼"}</button>
@@ -555,9 +610,11 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
           style={{ top: boundary.top }}
           aria-label={boundary.label}
           title={boundary.label}
-          onPointerDown={(event) => {
-            if (event.pointerType !== "touch") event.preventDefault();
-          }}
+          onMouseDown={(event) => event.preventDefault()}
+          onTouchStart={startGutterTouch}
+          onTouchMove={moveGutterTouch}
+          onTouchCancel={cancelGutterTouch}
+          onTouchEnd={(event) => runGutterActionFromTouch(event, () => insertParagraph(boundary.pos))}
           onPointerUp={(event) => runGutterActionFromPointer(event, () => insertParagraph(boundary.pos))}
           onClick={() => runGutterActionFromClick(() => insertParagraph(boundary.pos))}
         >
