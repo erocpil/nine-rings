@@ -228,42 +228,38 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
     const intersectionRootMargin = compact
       ? Math.max(96, Math.ceil(scrollRoot.clientHeight * 0.2))
       : Math.max(640, Math.ceil(scrollRoot.clientHeight * 1.5));
-    const intersectionObserver = typeof IntersectionObserver === "undefined"
-      ? null
-      : new IntersectionObserver((entries) => {
-        if (disposed || editor.isDestroyed || !root.isConnected) return;
+    let observerGeneration = 0;
+    let intersectionObserver: IntersectionObserver | null = null;
+    const createIntersectionObserver = (generation: number) => {
+      if (typeof IntersectionObserver === "undefined") return null;
+      return new IntersectionObserver((entries) => {
+        // 折叠、展开或文档结构变化时会换用新一代观察器。旧观察器即使
+        // 在 disconnect 后才送达队列，也不能再用折叠前坐标覆盖当前 gutter。
+        if (generation !== observerGeneration
+          || disposed
+          || editor.isDestroyed
+          || !root.isConnected) return;
         let changed = false;
         let rootTop = 0;
-        let observationTop = 0;
-        let observationBottom = 0;
         let editorLineHeight = 0;
         const ensureMetrics = () => {
           if (editorLineHeight > 0) return;
           rootTop = root.getBoundingClientRect().top;
-          const viewport = scrollRoot.getBoundingClientRect();
-          observationTop = viewport.top - intersectionRootMargin;
-          observationBottom = viewport.bottom + intersectionRootMargin;
           editorLineHeight = Number.parseFloat(getComputedStyle(editor.view.dom).lineHeight) || 24;
         };
         for (const entry of entries) {
           const dom = entry.target;
           if (!(dom instanceof HTMLElement)) continue;
           if (!observedIndexes.has(dom)) continue;
-          ensureMetrics();
-          // 折叠会同时改变大量节点的可见性和 scrollTop。队列中的
-          // isIntersecting 可能仍是旧布局的 false，不能据此删除当前可见标题。
-          const currentRect = dom.getBoundingClientRect();
-          const currentlyObserved = currentRect.height > 0
-            && currentRect.bottom >= observationTop
-            && currentRect.top <= observationBottom;
-          if (!currentlyObserved) {
+          if (!entry.isIntersecting) {
             changed = measuredBlocks.delete(dom) || changed;
             continue;
           }
-          // IntersectionObserver 的队列可能在折叠布局完成后才送达，其中的
-          // boundingClientRect 仍是折叠前坐标。必须读取当前 DOM；否则旧标题
-          // 的块号和三角会在清理后被陈旧回调重新放进引用等当前可见块中。
-          const measured = measureBlock(dom, currentRect, rootTop, editorLineHeight);
+          ensureMetrics();
+          // entry.boundingClientRect 是浏览器本轮布局的现成结果。不要在这里
+          // 对每个块调用 getBoundingClientRect；Windows WebView2 会把这些
+          // 同步读取放大成连续的强制布局，千块文档滚动时尤其明显。
+          const measured = measureBlock(dom, entry.boundingClientRect, rootTop, editorLineHeight);
           if (!measured) {
             changed = measuredBlocks.delete(dom) || changed;
             continue;
@@ -279,6 +275,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
         // 因此缩小预读区也不会再让块号和插入按钮闪失。
         rootMargin: `${intersectionRootMargin}px 0px`,
       });
+    };
 
     const viewportBlockRange = (): { start: number; end: number } => {
       const count = topLevelBlocks.length;
@@ -384,6 +381,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
       rebuildFrame = 0;
       if (disposed || editor.isDestroyed || !root.isConnected) return;
       intersectionObserver?.disconnect();
+      intersectionObserver = createIntersectionObserver(observerGeneration);
       observedIndexes.clear();
       measuredBlocks.clear();
       foldedHeadingPositions = getCollapsedHeadingPositions(editor);
@@ -400,6 +398,11 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
 
     const scheduleRebuild = () => {
       if (rebuildFrame) return;
+      // 先同步使旧观察器失效，再等下一帧读取新布局。这样不需要在每个
+      // IntersectionObserver 回调里逐块重新测量，也能挡住折叠前的陈旧批次。
+      observerGeneration += 1;
+      intersectionObserver?.disconnect();
+      intersectionObserver = null;
       rebuildFrame = requestAnimationFrame(rebuildObservedBlocks);
     };
 
@@ -463,6 +466,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
 
     return () => {
       disposed = true;
+      observerGeneration += 1;
       editor.off("transaction", onTransaction);
       scrollRoot.removeEventListener("scroll", scheduleWindowRefresh);
       window.removeEventListener("resize", scheduleWindowRefresh);

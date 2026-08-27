@@ -153,6 +153,60 @@ test("全部折叠后文档尾部的标题三角在小幅滚动中保持显示",
   await expect(lastFold).toBeVisible();
 });
 
+test("千块文档全部展开后滚动不再逐块同步测量", async ({ page }) => {
+  test.slow();
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+  const editor = page.locator(".ProseMirror");
+  const markdown = Array.from({ length: 50 }, (_, section) => [
+    `# 性能章节 ${section + 1}`,
+    ...Array.from({ length: 29 }, (_, paragraph) => (
+      `性能正文 ${section + 1}-${paragraph + 1}`
+    )),
+  ].join("\n\n")).join("\n\n");
+  await editor.evaluate((element, content) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", content);
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  }, markdown);
+  await expect(editor.locator(":scope > *")).toHaveCount(1500);
+
+  await page.getByTitle("文档目录").click();
+  const outline = page.getByRole("navigation", { name: "文档目录" });
+  await outline.getByRole("button", { name: "全部折叠" }).dblclick();
+  await expect(editor.getByText("性能正文 25-15", { exact: true })).toBeHidden();
+  await outline.getByRole("button", { name: "全部展开" }).dblclick();
+  await expect(editor.getByText("性能正文 25-15", { exact: true })).toBeVisible();
+
+  const scrollRoot = page.locator(".note-editor-scroll");
+  const geometryReads = await scrollRoot.evaluate(async (element) => {
+    const original = Element.prototype.getBoundingClientRect;
+    let reads = 0;
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      reads += 1;
+      return original.call(this);
+    };
+    try {
+      const maximum = element.scrollHeight - element.clientHeight;
+      for (let frame = 0; frame <= 40; frame += 1) {
+        element.scrollTop = maximum * frame / 40;
+        element.dispatchEvent(new Event("scroll"));
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      }
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      return reads;
+    } finally {
+      Element.prototype.getBoundingClientRect = original;
+    }
+  });
+
+  // 每帧允许少量视口、锚点和 gutter 根元素测量；不能再随观察块数量增长。
+  expect(geometryReads).toBeLessThan(600);
+});
+
 test("桌面目录可固定到左右两侧并记住选择", async ({ page }) => {
   await page.goto("/");
   const editor = page.locator(".ProseMirror");
