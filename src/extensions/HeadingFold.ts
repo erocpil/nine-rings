@@ -8,6 +8,7 @@ import {
   topLevelBlocksInHeadingFoldRanges,
   type HeadingSection,
 } from "../lib/heading-fold";
+import { supportsFilteredNthChildSelector } from "../lib/runtime";
 
 export interface HeadingFoldState {
   collapsedKeys: Set<string>;
@@ -90,14 +91,10 @@ export const HeadingFold = Extension.create<HeadingFoldOptions>({
         style.setAttribute("data-pdf-exclude", "true");
         ownerDocument.head.append(style);
         editorView.dom.setAttribute("data-heading-fold-scope", scope);
-        const ownerWindow = ownerDocument.defaultView as (Window & typeof globalThis & {
-          __TAURI__?: unknown;
-          __TAURI_INTERNALS__?: unknown;
-        }) | null;
-        const isTauri = Boolean(ownerWindow?.__TAURI_INTERNALS__ || ownerWindow?.__TAURI__);
-        const supportsFilteredNthChild = !isTauri && Boolean(ownerWindow?.CSS?.supports(
-          "selector(:nth-child(1 of *))",
-        ));
+        const ownerWindow = ownerDocument.defaultView;
+        // Tauri v2 的默认运行时标记是 window.isTauri；只检查旧版全局对象会
+        // 把 Windows 安装版误判为网页，并生成旧 WebView2 无法执行的选择器。
+        const supportsFilteredNthChild = supportsFilteredNthChildSelector(ownerWindow ?? undefined);
         const actualEditorChild = ":not(.ProseMirror-gapcursor, .ProseMirror-widget, .ProseMirror-separator)";
         const nthChild = (expression: string) => supportsFilteredNthChild
           ? `:nth-child(${expression} of ${actualEditorChild})`

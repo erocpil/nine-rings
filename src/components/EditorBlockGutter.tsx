@@ -375,6 +375,9 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
       });
       onBlockCountChange?.(editor.state.doc.childCount);
       refreshObservedWindow(true);
+      // iOS WebKit 在文档尾部收缩、scrollTop 被浏览器自动钳制时，首帧可能
+      // 仍返回折叠前的矩形。下一帧复核已挂载的块，避免尾段块号滞留或错位。
+      scheduleVisibleMeasure();
     };
 
     const scheduleRebuild = () => {

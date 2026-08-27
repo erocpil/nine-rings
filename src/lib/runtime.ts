@@ -22,3 +22,23 @@ export function isTauriRuntime(
 export function runtimeKind(): "tauri" | "web" {
   return isTauriRuntime() ? "tauri" : "web";
 }
+
+/**
+ * `:nth-child(... of selector)` is useful on modern browsers, but older
+ * WebView2 versions can report support and then discard the complete rule.
+ */
+export function supportsFilteredNthChildSelector(
+  target: Window | undefined = typeof window === "undefined"
+    ? undefined
+    : window,
+): boolean {
+  const css = (
+    target as
+      (Window & { CSS?: { supports(query: string): boolean } }) | undefined
+  )?.CSS;
+  return Boolean(
+    target &&
+    !isTauriRuntime(target) &&
+    css?.supports("selector(:nth-child(1 of *))"),
+  );
+}

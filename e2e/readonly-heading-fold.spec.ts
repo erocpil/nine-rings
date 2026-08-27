@@ -212,6 +212,37 @@ test("手机只读专注模式可通过触摸双击折叠和展开章节", async
   await expect(body).toBeVisible();
 });
 
+test("手机文档末章的最后几个段落可反复折叠和展示", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+  const editor = page.locator(".ProseMirror");
+  await editor.evaluate((element) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "# 前章\n\n前章正文\n\n# 最后一章\n\n尾段一\n\n尾段二\n\n尾段三");
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  });
+  await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
+  await page.locator(".sidebar-item.active").getByTitle("设为只读")
+    .evaluate((button: HTMLButtonElement) => button.click());
+  await page.setViewportSize({ width: 390, height: 760 });
+  await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 100 } });
+  await page.locator(".note-title-row").getByTitle("专注模式").click();
+
+  const heading = editor.getByText("最后一章", { exact: true });
+  const lastBody = editor.getByText("尾段三", { exact: true });
+  await lastBody.dblclick();
+  await expect(lastBody).toBeHidden();
+  await heading.dblclick();
+  await expect(lastBody).toBeVisible();
+  await heading.dblclick();
+  await expect(lastBody).toBeHidden();
+  await heading.dblclick();
+  await expect(lastBody).toBeVisible();
+});
+
 test("千块只读文档在专注模式下触摸双击可及时折叠", async ({ page }) => {
   test.slow();
   await page.goto("/");
