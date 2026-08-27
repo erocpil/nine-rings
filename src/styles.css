@@ -7997,14 +7997,24 @@ button.doc-tree-toggle:focus-visible {
 
 @media (max-width: 768px) {
   .blockquote-toolbar {
-    min-height: 44px;
+    /* 按钮仍保留 36px 触控热区，但不再让每条引用额外占据 44px 高度。 */
+    min-height: 28px;
+    margin-bottom: 0;
   }
 
   .blockquote-toolbar button {
-    width: 44px;
-    height: 44px;
+    width: 36px;
+    height: 36px;
     margin: -4px -6px -4px 0;
     touch-action: manipulation;
+  }
+
+  .blockquote-content > :first-child {
+    margin-top: 0;
+  }
+
+  .blockquote-content > :last-child {
+    margin-bottom: 0;
   }
 }
 

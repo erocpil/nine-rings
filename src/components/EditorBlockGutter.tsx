@@ -324,10 +324,14 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
       if (!force && start === observedWindow.start && end === observedWindow.end) return;
       observedWindow = { start, end };
       const nextObservedIndexes = new Map<HTMLElement, number>();
-      const rootTop = intersectionObserver ? 0 : root.getBoundingClientRect().top;
-      const editorLineHeight = intersectionObserver
-        ? 0
-        : Number.parseFloat(getComputedStyle(editor.view.dom).lineHeight) || 24;
+      // 强制重建发生在折叠事务之后。此时不能只等待 IntersectionObserver：
+      // WebView / WebKit 可能要到下一次滚动才回调，已经隐藏的正文块号便会
+      // 暂留在旧坐标。force 时同步读取当前布局，立即淘汰高度为 0 的块。
+      const measureImmediately = force || !intersectionObserver;
+      const rootTop = measureImmediately ? root.getBoundingClientRect().top : 0;
+      const editorLineHeight = measureImmediately
+        ? Number.parseFloat(getComputedStyle(editor.view.dom).lineHeight) || 24
+        : 0;
       for (let blockIndex = start; blockIndex <= end; blockIndex += 1) {
         const block = topLevelBlocks[blockIndex];
         if (!block || (!needsAllBlocks && !block.heading)) continue;
@@ -336,9 +340,11 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
         nextObservedIndexes.set(dom, block.index);
         if (intersectionObserver) {
           if (!observedIndexes.has(dom)) intersectionObserver.observe(dom);
-        } else {
+        }
+        if (measureImmediately) {
           const measured = measureBlock(dom, dom.getBoundingClientRect(), rootTop, editorLineHeight);
           if (measured) measuredBlocks.set(dom, measured);
+          else measuredBlocks.delete(dom);
         }
       }
       for (const dom of observedIndexes.keys()) {
