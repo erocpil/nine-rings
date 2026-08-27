@@ -137,7 +137,9 @@ export function deltaToMarkdown(content: unknown): string {
   blocks.forEach((block, index) => {
     if (index > 0) {
       const previous = blocks[index - 1];
-      markdown += block.kind === "list" && previous.kind === "list" ? "\n" : "\n\n";
+      const sameCompactContainer = block.kind === previous.kind
+        && (block.kind === "list" || block.kind === "quote");
+      markdown += sameCompactContainer ? "\n" : "\n\n";
     }
     markdown += block.value;
   });

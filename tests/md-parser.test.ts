@@ -271,6 +271,15 @@ function assert(condition: boolean, msg: string): void {
     "standalone label remains bold");
   assert(pm.content[6]?.content?.map((node: any) => node.text).join("").includes("上下文切换开销。"),
     "wrapped body stays in one paragraph");
+
+  const pastedQuote = deltaToProseMirror(mdToDelta("> 第一段\n>\n> 第二段"));
+  assert(pastedQuote.content.length === 1 && pastedQuote.content[0]?.type === "blockquote",
+    "quoted paragraphs separated by a blank quoted line share one blockquote");
+  assert(pastedQuote.content[0]?.content?.length === 3,
+    "blank quoted line remains inside the shared blockquote");
+  assert(pastedQuote.content[0]?.content?.[0]?.content?.[0]?.text === "第一段"
+    && pastedQuote.content[0]?.content?.[2]?.content?.[0]?.text === "第二段",
+  "both quoted paragraphs retain their text");
 }
 
 // 整行加粗标签与下一行正文之间即使没有空行，也必须保留块级分隔。

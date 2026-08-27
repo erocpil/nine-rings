@@ -122,6 +122,27 @@ function assert(condition: boolean, msg: string): void {
   assert(quoteOp.attributes["blockquote-collapsed"] === true, "blockquote collapsed state stored");
   assert(deltaToProseMirror(delta).content[0]?.attrs?.collapsed === true,
     "blockquote collapsed state survives save and reload");
+
+  const multiParagraph = { type: "doc", content: [{
+    type: "blockquote",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: "第一段" }] },
+      { type: "paragraph", content: [] },
+      { type: "paragraph", content: [{ type: "text", text: "第二段" }] },
+    ],
+  }] };
+  const multiParagraphDelta = proseMirrorToDelta(multiParagraph);
+  const restoredMultiParagraph = deltaToProseMirror(multiParagraphDelta);
+  assert(multiParagraphDelta.ops.filter((op: any) => op.attributes?.blockquote).length === 3,
+    "blockquote paragraphs are stored as three quoted Delta lines");
+  assert(restoredMultiParagraph.content.length === 1 && restoredMultiParagraph.content[0]?.type === "blockquote",
+    "adjacent quoted Delta lines restore as one blockquote");
+  assert(restoredMultiParagraph.content[0]?.content?.length === 3,
+    "blank line remains an inner paragraph instead of a separate blockquote");
+  assert(restoredMultiParagraph.content[0]?.content?.[2]?.content?.[0]?.text === "第二段",
+    "text after a blank quoted line survives round trip");
+  assert(deltaToMarkdown(multiParagraphDelta) === "> 第一段\n> \n> 第二段",
+    "multi-paragraph blockquote exports as one contiguous Markdown quote");
 }
 
 // ═══════════════════════════════════════════════════════════════════

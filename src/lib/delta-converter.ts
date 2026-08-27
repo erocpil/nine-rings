@@ -122,15 +122,20 @@ export function proseMirrorToDelta(pmJson: any): any {
         break;
 
       case "blockquote":
-        extractInlineOps(node, ops);
-        ops.push({
-          insert: "\n",
-          attributes: {
+        {
+          const attributes = {
             blockquote: true,
             ...indentAttrs(node),
             ...(node.attrs?.collapsed === true ? { "blockquote-collapsed": true } : {}),
-          },
-        });
+          };
+          const blocks = node.content?.length ? node.content : [{ type: "paragraph", content: [] }];
+          // 一个 ProseMirror blockquote 可以包含多个段落。每个段落都写成
+          // 带 blockquote 属性的 Delta 行，避免保存后把段落文字直接拼接。
+          for (const block of blocks) {
+            extractInlineOps(block, ops);
+            ops.push({ insert: "\n", attributes });
+          }
+        }
         break;
 
       case "image":
@@ -396,20 +401,28 @@ export function deltaToProseMirror(deltaData: any): any {
         } else if (attrs.blockquote) {
           // ProseMirror 的 blockquote schema 要求 content: "paragraph*"
           // 文本必须用 paragraph 包裹，不能直接放在 blockquote 下
-          currentParagraph = {
+          const quoteAttrs = blockIndent > 0 || attrs["blockquote-collapsed"] === true
+            ? {
+                ...blockIndentAttrs,
+                ...(attrs["blockquote-collapsed"] === true ? { collapsed: true } : {}),
+              }
+            : undefined;
+          const paragraph = { type: "paragraph", content: currentParagraph.content };
+          const previous = doc[doc.length - 1];
+          const sameQuote = previous?.type === "blockquote"
+            && Math.max(0, Math.floor(Number(previous.attrs?.indent) || 0)) === blockIndent
+            && Boolean(previous.attrs?.collapsed) === (attrs["blockquote-collapsed"] === true);
+          if (sameQuote) {
+            previous.content.push(paragraph);
+          } else {
+            doc.push({
             type: "blockquote",
-            ...(blockIndent > 0 || attrs["blockquote-collapsed"] === true
-              ? {
-                  attrs: {
-                    ...blockIndentAttrs,
-                    ...(attrs["blockquote-collapsed"] === true ? { collapsed: true } : {}),
-                  },
-                }
-              : {}),
-            content: [{ type: "paragraph", content: currentParagraph.content }]
-          };
-          flushParagraph();
+              ...(quoteAttrs ? { attrs: quoteAttrs } : {}),
+              content: [paragraph],
+            });
+          }
           currentParagraph = { type: "paragraph", content: [] };
+          isImageBlock = false;
         } else {
           if (blockIndent > 0) currentParagraph.attrs = blockIndentAttrs;
           flushParagraph();

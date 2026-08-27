@@ -172,6 +172,29 @@ test.describe("编辑器复制粘贴", () => {
     await expect(quote.getByText("需要保留的引用正文", { exact: true })).toBeVisible();
   });
 
+  test("引用段落之间的空行不会拆成三个引用块", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", "> 第一段\n>\n> 第二段");
+      clipboardData.setData("text/html", "<blockquote><p>第一段</p><p><br></p><p>第二段</p></blockquote>");
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    });
+
+    const quotes = editor.locator(":scope > blockquote");
+    await expect(quotes).toHaveCount(1);
+    await expect(quotes.locator("p")).toHaveText(["第一段", "", "第二段"]);
+  });
+
   test("复制有序列表到纯文本时列表项之间没有多余空行", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await page.goto("/");

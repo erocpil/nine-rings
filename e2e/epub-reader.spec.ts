@@ -234,6 +234,14 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(page.getByRole("textbox", { name: "EPUB 高亮备注" })).toHaveValue("这是 EPUB 备注");
   await page.getByRole("button", { name: "完成", exact: true }).click();
 
+  // iOS 安装版在后台停留较久后可能回收 iframe 的正文 realm；恢复时应重建
+  // 当前章节，而不是让高亮刷新对 null body 调用 normalize 导致整页崩溃。
+  await chapterFrame.locator("body").evaluate((body) => body.remove());
+  await page.evaluate(() => window.dispatchEvent(new Event("pageshow")));
+  await expect(reader).toBeVisible();
+  await expect(chapterFrame.getByRole("heading", { name: "第二章" })).toBeVisible();
+  await expect(chapterFrame.locator("mark.epub-highlight-target")).toContainText("阅读进度应当保存到这里");
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "进入 EPUB 专注模式" }).click();
   await expect(reader).toHaveClass(/epub-reader-focus/);

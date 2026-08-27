@@ -120,7 +120,7 @@ function normalizeHardLineBreaks(document: Document): void {
       next = following;
     }
   }
-  document.body.normalize();
+  document.body?.normalize();
 }
 
 function normalizedText(value: string): string {
@@ -149,7 +149,7 @@ function applyManualLineMerges(document: Document, fixes: LocalEpubLineMerge[]):
       break;
     }
   }
-  document.body.normalize();
+  document.body?.normalize();
 }
 
 function selectionLineMergeBoundary(range: Range): Pick<LocalEpubLineMerge, "left" | "right"> | undefined {
@@ -185,7 +185,9 @@ function captureViewportTextAnchor(document: Document, window: Window): Viewport
 }
 
 function restoreViewportTextAnchor(document: Document, window: Window, anchor: ViewportTextAnchor): boolean {
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const body = document.body;
+  if (!body) return false;
+  const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
   while (walker.nextNode()) {
     const node = walker.currentNode as Text;
     const index = node.data.indexOf(anchor.text);
@@ -203,7 +205,9 @@ function restoreViewportTextAnchor(document: Document, window: Window, anchor: V
 function markFrameSearch(document: Document, query: string, activeOccurrence: number): HTMLElement | null {
   document.querySelectorAll("mark.epub-search-hit").forEach((mark) => mark.replaceWith(document.createTextNode(mark.textContent ?? "")));
   if (!query) return null;
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+  const body = document.body;
+  if (!body) return null;
+  const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, {
     acceptNode: (node) => node.parentElement?.closest("script, style") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
   });
   const textNodes: Text[] = [];
@@ -233,7 +237,7 @@ function markFrameSearch(document: Document, query: string, activeOccurrence: nu
       if (range.occurrence === activeOccurrence) activeMark = mark;
     }
   });
-  document.body.normalize();
+  body.normalize();
   return activeMark;
 }
 
@@ -258,13 +262,15 @@ function resolveAnchor(text: string, anchor: EpubTextAnchor): { start: number; e
 
 function markFrameHighlights(document: Document, highlights: LocalEpubHighlight[], targetId?: string | null): HTMLElement | null {
   document.querySelectorAll("mark.epub-highlight").forEach((mark) => mark.replaceWith(document.createTextNode(mark.textContent ?? "")));
-  document.body.normalize();
-  const bodyText = document.body.textContent ?? "";
+  const body = document.body;
+  if (!body) return null;
+  body.normalize();
+  const bodyText = body.textContent ?? "";
   let target: HTMLElement | null = null;
   [...highlights].reverse().forEach((highlight) => {
     const range = resolveAnchor(bodyText, highlight.anchor);
     if (!range) return;
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
     let offset = 0;
     const nodes: Array<{ node: Text; start: number; end: number }> = [];
     while (walker.nextNode()) {
@@ -456,6 +462,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const [bookmarkPanelOpen, setBookmarkPanelOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [focusControlsVisible, setFocusControlsVisible] = useState(false);
+  const [frameRevision, setFrameRevision] = useState(0);
   const [actionBusy, setActionBusy] = useState(false);
   const [tocOpen, setTocOpen] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -570,6 +577,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     if (!frameDocument || !frameWindow) return scrollProgress;
     const root = frameDocument.documentElement;
     const body = frameDocument.body;
+    if (!root || !body) return scrollProgress;
     const top = Math.max(frameWindow.scrollY, root.scrollTop, body.scrollTop);
     const viewportHeight = Math.max(1, frameWindow.innerHeight, root.clientHeight);
     const maximum = Math.max(0, root.scrollHeight, body.scrollHeight) - viewportHeight;
@@ -706,12 +714,14 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
         if (frameDocument && frameWindow && bridgeRestoredDocumentRef.current !== frameDocument) {
           bridgeRestoredDocumentRef.current = frameDocument;
           window.requestAnimationFrame(() => {
+            if (iframeRef.current?.contentDocument !== frameDocument || !frameDocument.body) return;
             const marked = frameDocument.querySelector<HTMLElement>("mark.epub-highlight-target, mark.epub-search-current");
             if (marked) marked.scrollIntoView({ block: "center" });
             else if (fragment) frameDocument.getElementById(fragment)?.scrollIntoView();
             else if (scrollProgress > 0) {
               const root = frameDocument.documentElement;
               const body = frameDocument.body;
+              if (!root || !body) return;
               const maximum = Math.max(0, root.scrollHeight, body.scrollHeight) - Math.max(1, frameWindow.innerHeight, root.clientHeight);
               const top = scrollProgress * Math.max(0, maximum);
               frameWindow.scrollTo(0, top);
@@ -779,8 +789,10 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     else if (fragment) frameDocument.getElementById(fragment)?.scrollIntoView();
     else if (scrollProgress > 0) {
       const restoreScroll = () => {
+        if (iframeRef.current?.contentDocument !== frameDocument) return;
         const root = frameDocument.documentElement;
         const body = frameDocument.body;
+        if (!root || !body) return;
         const maximum = Math.max(0, root.scrollHeight, body.scrollHeight) - Math.max(1, frameWindow.innerHeight, root.clientHeight);
         const top = scrollProgress * Math.max(0, maximum);
         frameWindow.scrollTo(0, top);
@@ -794,8 +806,10 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     const captureScroll = () => {
       if (scrollSaveTimerRef.current !== null) window.clearTimeout(scrollSaveTimerRef.current);
       scrollSaveTimerRef.current = window.setTimeout(() => {
+        if (iframeRef.current?.contentDocument !== frameDocument) return;
         const root = frameDocument.documentElement;
         const body = frameDocument.body;
+        if (!root || !body) return;
         const top = Math.max(frameWindow.scrollY, root.scrollTop, body.scrollTop);
         const maximum = Math.max(0, root.scrollHeight, body.scrollHeight) - Math.max(1, frameWindow.innerHeight, root.clientHeight);
         setScrollProgress(maximum > 0 ? Math.max(0, Math.min(1, top / maximum)) : 0);
@@ -804,15 +818,17 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     const captureFrameSelection = () => {
       const current = frameWindow.getSelection();
       if (!current || current.rangeCount === 0 || current.isCollapsed) { setSelection(null); return; }
+      const body = frameDocument.body;
+      if (!body) return;
       const range = current.getRangeAt(0);
-      if (!frameDocument.body.contains(range.commonAncestorContainer)) return;
+      if (!body.contains(range.commonAncestorContainer)) return;
       const before = frameDocument.createRange();
-      before.selectNodeContents(frameDocument.body);
+      before.selectNodeContents(body);
       before.setEnd(range.startContainer, range.startOffset);
       const text = current.toString().trim();
       if (!text) { setSelection(null); return; }
       const start = before.toString().length + current.toString().indexOf(text);
-      const bodyText = frameDocument.body.textContent ?? "";
+      const bodyText = body.textContent ?? "";
       setSelection({
         text,
         lineMergeBoundary: selectionLineMergeBoundary(range),
@@ -869,6 +885,49 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapterResult.html]);
 
+  useEffect(() => {
+    if (!chapterResult.html) return;
+    let resumeTimer: number | null = null;
+    const inspectFrameAfterResume = () => {
+      resumeTimer = null;
+      if (document.visibilityState === "hidden") return;
+      try {
+        const frameDocument = iframeRef.current?.contentDocument;
+        const expectedChapter = book?.chapters[chapter]?.path;
+        const valid = Boolean(frameDocument?.body
+          && frameDocument.readyState !== "loading"
+          && frameDocument.documentElement?.getAttribute("data-nine-rings-epub-chapter") === expectedChapter);
+        if (valid) {
+          handleFrameLoad();
+          return;
+        }
+      } catch {
+        // iOS 从后台恢复 WebView 时，旧 iframe realm 可能已不可访问。
+      }
+      boundFrameDocumentRef.current = null;
+      bridgeRestoredDocumentRef.current = null;
+      setFrameRevision((revision) => revision + 1);
+    };
+    const scheduleResumeInspection = () => {
+      if (document.visibilityState === "hidden") return;
+      if (resumeTimer !== null) window.clearTimeout(resumeTimer);
+      // 给 WebKit 一个恢复 iframe 文档的机会；若仍为空，再用相同 srcDoc
+      // 重建 frame，并通过已有阅读进度恢复可见位置。
+      resumeTimer = window.setTimeout(inspectFrameAfterResume, 180);
+    };
+    window.addEventListener("pageshow", scheduleResumeInspection);
+    window.addEventListener("focus", scheduleResumeInspection);
+    document.addEventListener("visibilitychange", scheduleResumeInspection);
+    return () => {
+      if (resumeTimer !== null) window.clearTimeout(resumeTimer);
+      window.removeEventListener("pageshow", scheduleResumeInspection);
+      window.removeEventListener("focus", scheduleResumeInspection);
+      document.removeEventListener("visibilitychange", scheduleResumeInspection);
+    };
+    // 恢复检查只需跟随实际渲染的章节/frame 代次重新注册。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapterResult.html, frameRevision]);
+
   const changeChapter = (next: number) => {
     if (!book) return;
     setFragment(undefined);
@@ -878,7 +937,8 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
 
   useEffect(() => {
     const frameDocument = iframeRef.current?.contentDocument;
-    if (!frameDocument) return;
+    if (!frameDocument?.body || frameDocument.readyState === "loading") return;
+    if (frameDocument.documentElement?.getAttribute("data-nine-rings-epub-chapter") !== book?.chapters[chapter]?.path) return;
     const chapterMatches = searchMatches.filter((match) => match.chapter === chapter);
     const activeMatch = searchMatches[activeSearchIndex];
     const activeOccurrence = activeMatch?.chapter === chapter
@@ -1156,6 +1216,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
           {!loading && !displayError && chapterResult.html && (
             <iframe
               ref={iframeRef}
+              key={`${chapter}-${frameRevision}`}
               className="epub-chapter-frame"
               title={book?.chapters[chapter].title ?? "EPUB 章节"}
               sandbox="allow-same-origin allow-scripts"
