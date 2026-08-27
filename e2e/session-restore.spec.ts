@@ -29,6 +29,55 @@ test.describe("移动端视图切换", () => {
     await page.locator(".sidebar-overlay").click({ position: { x: 590, y: 300 } });
     await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
   });
+
+  test("安装版重启后优先定位最近文档的目录路径", async ({ page }) => {
+    // 先用桌面宽度创建嵌套文档，再模拟手机安装版冷启动时侧栏默认隐藏。
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/");
+    await page.getByTitle("新建文档").click();
+    await page.getByPlaceholder("文档标题...").fill("手机启动恢复文档");
+    await page.getByPlaceholder("子路径 (如 nine-rings)").fill("mobile-startup/deep");
+    await page.getByRole("button", { name: "创建", exact: true }).click();
+    await expect(page.locator(".note-title")).toHaveValue("手机启动恢复文档");
+
+    await page.evaluate(() => {
+      localStorage.setItem("nr:sidebarTab", "daily");
+      localStorage.setItem("nr:sidebarHidden", "true");
+      localStorage.setItem("nr:defaultViewConfigured", "1");
+      localStorage.setItem("nr:docTreeCollapsed", JSON.stringify([
+        "projects",
+        "projects/mobile-startup",
+        "projects/mobile-startup/deep",
+      ]));
+      const raw = localStorage.getItem("nine_rings_config");
+      const config = raw ? JSON.parse(raw) : {};
+      localStorage.setItem("nine_rings_config", JSON.stringify({ ...config, default_view: "daily" }));
+    });
+    await page.setViewportSize({ width: 600, height: 760 });
+    await page.reload();
+
+    await expect(page.locator(".note-title")).toHaveValue("手机启动恢复文档");
+    await page.getByTitle("显示侧栏").click();
+    const viewSwitch = page.locator(".sidebar-view-switch");
+    await expect(viewSwitch).toHaveAttribute("aria-label", "切换到随笔");
+
+    const selected = page.locator(".doc-tree-selected");
+    await expect(selected).toContainText("手机启动恢复文档");
+    await expect(selected).toBeVisible();
+    for (const folder of ["projects", "mobile-startup", "deep"]) {
+      const name = page.locator(`.doc-tree-folder > .doc-tree-name[title="${folder}"]`);
+      await expect(name).toBeVisible();
+      await expect(name.locator("..").locator(":scope > .doc-tree-toggle"))
+        .toHaveAttribute("aria-expanded", "true");
+    }
+    await expect.poll(() => selected.evaluate((element) => {
+      const root = element.closest(".doc-tree");
+      if (!root) return false;
+      const itemRect = element.getBoundingClientRect();
+      const rootRect = root.getBoundingClientRect();
+      return itemRect.top >= rootRect.top && itemRect.bottom <= rootRect.bottom;
+    })).toBe(true);
+  });
 });
 
 test.describe("会话位置恢复与编辑器查找", () => {

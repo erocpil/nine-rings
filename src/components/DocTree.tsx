@@ -132,6 +132,7 @@ function DocTree({
   // ── 批量选择 ──
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const revealedSelectionRef = useRef<{ noteId: string; element: HTMLElement } | null>(null);
   const [batchBusy, setBatchBusy] = useState(false);
 
   const toggleSelectId = useCallback((noteId: string) => {
@@ -191,6 +192,26 @@ function DocTree({
     const saved = Number(localStorage.getItem(DOC_TREE_SCROLL_KEY));
     if (Number.isFinite(saved) && saved >= 0) treeScrollRef.current.scrollTop = saved;
   }, [loading]);
+
+  useLayoutEffect(() => {
+    const scrollRoot = treeScrollRef.current;
+    if (loading || !selectedId || !scrollRoot) {
+      if (!selectedId) revealedSelectionRef.current = null;
+      return;
+    }
+    const selected = scrollRoot.querySelector<HTMLElement>(".doc-tree-selected");
+    // 祖先目录尚未展开时节点还不在 DOM；collapsed 更新后本 effect 会重试。
+    if (!selected) return;
+    const previous = revealedSelectionRef.current;
+    if (previous?.noteId === selectedId && previous.element === selected) return;
+    const rootRect = scrollRoot.getBoundingClientRect();
+    const selectedRect = selected.getBoundingClientRect();
+    const centeredTop = selectedRect.top - rootRect.top
+      - Math.max(0, (scrollRoot.clientHeight - selectedRect.height) / 2);
+    scrollRoot.scrollTop = Math.max(0, scrollRoot.scrollTop + centeredTop);
+    localStorage.setItem(DOC_TREE_SCROLL_KEY, String(scrollRoot.scrollTop));
+    revealedSelectionRef.current = { noteId: selectedId, element: selected };
+  }, [collapsed, loading, selectedId, tree]);
 
   useEffect(() => {
     if (contextMenu) {

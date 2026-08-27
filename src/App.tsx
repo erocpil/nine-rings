@@ -451,10 +451,13 @@ function App() {
   const configuredDefaultView = config?.default_view;
   useEffect(() => {
     if (!configuredDefaultView || localStorage.getItem("nr:defaultViewConfigured") !== "1") return;
+    // 冷启动已经按 nr:lastNote 恢复到具体文档时，文档路径比通用默认视图
+    // 更精确。尤其是手机安装版，不能再被“默认随笔”切回无关的随笔列表。
+    if (selectedNote?.storagePath) return;
     const configuredTab = configuredDefaultView === "daily" ? "daily" : "tree";
     setSidebarTab(configuredTab);
     localStorage.setItem(TAB_KEY, configuredTab);
-  }, [configuredDefaultView]);
+  }, [configuredDefaultView, selectedNote?.storagePath]);
 
   const autoCleanDaysRef = useRef<number | null>(null);
   const configuredAutoCleanDays = config?.auto_clean_days;
@@ -519,6 +522,17 @@ function App() {
       return next;
     });
   }, []);
+
+  useEffect(() => {
+    const documentPath = selectedNote?.storagePath;
+    if (!documentPath) return;
+    // 文档可能从快速切换、搜索或冷启动恢复，而此前侧栏停留在随笔页。
+    // 选择文档时统一准备好文档树及其完整祖先路径；侧栏即使当前隐藏，
+    // 用户在手机上再次打开时也会直接看到当前文档所在位置。
+    setSidebarTab("tree");
+    localStorage.setItem(TAB_KEY, "tree");
+    revealDocTreePath(documentPath);
+  }, [revealDocTreePath, selectedNote?.id, selectedNote?.storagePath]);
 
   const handleMoveDocument = useCallback(async (id: string, targetPath: string) => {
     const currentSelected = useNotesStore.getState().selectedNote;
