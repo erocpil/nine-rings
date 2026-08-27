@@ -12,10 +12,17 @@ export function isTauriRuntime(
 ): boolean {
   if (!target) return false;
   const candidate = target as TauriWindow;
-  return (
+  if (
     candidate.isTauri === true ||
     candidate.__TAURI__ !== undefined ||
     candidate.__TAURI_INTERNALS__ !== undefined
+  )
+    return true;
+  // Tauri v2 的 Windows 自定义协议通常映射为 http://tauri.localhost；
+  // 其他平台仍可能使用 tauri://。即使全局注入形态变化也能正确识别。
+  return (
+    candidate.location?.protocol === "tauri:" ||
+    candidate.location?.hostname === "tauri.localhost"
   );
 }
 

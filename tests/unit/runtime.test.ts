@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   isTauriRuntime,
   runtimeKind,
@@ -6,6 +6,8 @@ import {
 } from "../../src/lib/runtime";
 
 describe("isTauriRuntime", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it("rejects missing and ordinary browser windows", () => {
     expect(isTauriRuntime(undefined)).toBe(false);
     expect(isTauriRuntime({} as Window)).toBe(false);
@@ -18,12 +20,29 @@ describe("isTauriRuntime", () => {
     },
   );
 
+  it.each([
+    { location: { protocol: "tauri:", hostname: "localhost" } },
+    { location: { protocol: "http:", hostname: "tauri.localhost" } },
+  ])("recognizes a Tauri application URL: %o", (candidate) => {
+    expect(isTauriRuntime(candidate as unknown as Window)).toBe(true);
+  });
+
   it("reports the current process as web", () => {
     expect(runtimeKind()).toBe("web");
+  });
+
+  it("uses the current browser window when no target is passed", () => {
+    vi.stubGlobal("window", {
+      location: { protocol: "tauri:", hostname: "localhost" },
+    });
+    expect(isTauriRuntime()).toBe(true);
+    expect(runtimeKind()).toBe("tauri");
   });
 });
 
 describe("supportsFilteredNthChildSelector", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   const candidate = (tauri: boolean, supported: boolean) =>
     ({
       isTauri: tauri,
@@ -39,5 +58,12 @@ describe("supportsFilteredNthChildSelector", () => {
 
   it("always uses the compatible selector in Tauri v2", () => {
     expect(supportsFilteredNthChildSelector(candidate(true, true))).toBe(false);
+  });
+
+  it("rejects missing CSS support and uses the implicit browser window", () => {
+    expect(supportsFilteredNthChildSelector(undefined)).toBe(false);
+    expect(supportsFilteredNthChildSelector({} as Window)).toBe(false);
+    vi.stubGlobal("window", candidate(false, true));
+    expect(supportsFilteredNthChildSelector()).toBe(true);
   });
 });

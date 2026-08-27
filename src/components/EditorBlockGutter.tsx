@@ -246,8 +246,14 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
             continue;
           }
           ensureMetrics();
-          const measured = measureBlock(dom, entry.boundingClientRect, rootTop, editorLineHeight);
-          if (!measured) continue;
+          // IntersectionObserver 的队列可能在折叠布局完成后才送达，其中的
+          // boundingClientRect 仍是折叠前坐标。必须读取当前 DOM；否则旧标题
+          // 的块号和三角会在清理后被陈旧回调重新放进引用等当前可见块中。
+          const measured = measureBlock(dom, dom.getBoundingClientRect(), rootTop, editorLineHeight);
+          if (!measured) {
+            changed = measuredBlocks.delete(dom) || changed;
+            continue;
+          }
           measuredBlocks.set(dom, measured);
           changed = true;
         }

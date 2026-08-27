@@ -4375,6 +4375,12 @@ body {
   opacity: 0.75;
 }
 
+/* Tauri/WebView2 使用 ProseMirror 节点装饰执行折叠。规则放在打包样式中，
+   不依赖原生 WebView 对动态 style/nth-child 组合规则的支持。 */
+.ProseMirror > .heading-fold-hidden {
+  display: none !important;
+}
+
 /* HR 独立承担上下留白，避免普通段落、代码块和标题各自的 margin
    参与折叠后产生不同结果。这样分割线前后的视觉距离始终一致。 */
 .ProseMirror > *:has(+ hr) {

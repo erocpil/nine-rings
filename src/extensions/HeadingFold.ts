@@ -1,5 +1,7 @@
 import { Extension, type Editor } from "@tiptap/core";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import {
   collapsedHeadingContentRanges,
   collapsedHeadingKeysForAll,
@@ -8,10 +10,11 @@ import {
   topLevelBlocksInHeadingFoldRanges,
   type HeadingSection,
 } from "../lib/heading-fold";
-import { supportsFilteredNthChildSelector } from "../lib/runtime";
+import { isTauriRuntime, supportsFilteredNthChildSelector } from "../lib/runtime";
 
 export interface HeadingFoldState {
   collapsedKeys: Set<string>;
+  decorations: DecorationSet;
 }
 
 type HeadingFoldMeta =
@@ -32,7 +35,7 @@ function sameKeys(left: Set<string>, right: Set<string>): boolean {
 }
 
 function hiddenChildRanges(
-  doc: import("@tiptap/pm/model").Node,
+  doc: ProseMirrorNode,
   collapsedKeys: ReadonlySet<string>,
 ): Array<{ from: number; to: number }> {
   const ranges = collapsedHeadingContentRanges(doc, collapsedKeys);
@@ -47,6 +50,19 @@ function hiddenChildRanges(
   return children;
 }
 
+/** Windows Tauri 使用提交 a54a06c 之前已经验证过的节点装饰隐藏方式。 */
+function buildFoldDecorations(
+  doc: ProseMirrorNode,
+  collapsedKeys: ReadonlySet<string>,
+): DecorationSet {
+  const ranges = collapsedHeadingContentRanges(doc, collapsedKeys);
+  const blocks = topLevelBlocksInHeadingFoldRanges(doc, ranges);
+  if (blocks.length === 0) return DecorationSet.empty;
+  return DecorationSet.create(doc, blocks.map((block) => (
+    Decoration.node(block.from, block.to, { class: "heading-fold-hidden" })
+  )));
+}
+
 export const HeadingFold = Extension.create<HeadingFoldOptions>({
   name: "headingFold",
   addOptions() {
@@ -54,13 +70,21 @@ export const HeadingFold = Extension.create<HeadingFoldOptions>({
   },
   addProseMirrorPlugins() {
     const options = this.options;
+    // Web/Mobile 保留长文档友好的批量 CSS；Tauri 回到 a54a06c 之前的
+    // ProseMirror Decoration。后者不依赖 WebView2 对动态样式规则的实现。
+    const useNodeDecorations = isTauriRuntime();
     return [new Plugin<HeadingFoldState>({
       key: headingFoldPluginKey,
       state: {
         init: (_, state) => {
           const valid = new Set(extractHeadingSections(state.doc).map((section) => section.key));
           const collapsedKeys = new Set(options.initialCollapsedKeys.filter((key) => valid.has(key)));
-          return { collapsedKeys };
+          return {
+            collapsedKeys,
+            decorations: useNodeDecorations
+              ? buildFoldDecorations(state.doc, collapsedKeys)
+              : DecorationSet.empty,
+          };
         },
         apply(transaction, previous, _oldState, nextState) {
           const meta = transaction.getMeta(headingFoldPluginKey) as HeadingFoldMeta | undefined;
@@ -80,20 +104,32 @@ export const HeadingFold = Extension.create<HeadingFoldOptions>({
             collapsed = new Set([...collapsed].filter((key) => valid.has(key)));
           }
           if (sameKeys(collapsed, previous.collapsedKeys) && !transaction.docChanged) return previous;
-          return { collapsedKeys: collapsed };
+          return {
+            collapsedKeys: collapsed,
+            decorations: useNodeDecorations
+              ? buildFoldDecorations(nextState.doc, collapsed)
+              : DecorationSet.empty,
+          };
+        },
+      },
+      props: {
+        decorations(state) {
+          return useNodeDecorations
+            ? headingFoldPluginKey.getState(state)?.decorations ?? DecorationSet.empty
+            : null;
         },
       },
       view(editorView) {
         const ownerDocument = editorView.dom.ownerDocument;
         const scope = `nr-heading-fold-${++foldScopeCounter}`;
-        const style = ownerDocument.createElement("style");
-        style.setAttribute("data-heading-fold-style", scope);
-        style.setAttribute("data-pdf-exclude", "true");
-        ownerDocument.head.append(style);
-        editorView.dom.setAttribute("data-heading-fold-scope", scope);
+        const style = useNodeDecorations ? null : ownerDocument.createElement("style");
+        if (style) {
+          style.setAttribute("data-heading-fold-style", scope);
+          style.setAttribute("data-pdf-exclude", "true");
+          ownerDocument.head.append(style);
+          editorView.dom.setAttribute("data-heading-fold-scope", scope);
+        }
         const ownerWindow = ownerDocument.defaultView;
-        // Tauri v2 的默认运行时标记是 window.isTauri；只检查旧版全局对象会
-        // 把 Windows 安装版误判为网页，并生成旧 WebView2 无法执行的选择器。
         const supportsFilteredNthChild = supportsFilteredNthChildSelector(ownerWindow ?? undefined);
         const actualEditorChild = ":not(.ProseMirror-gapcursor, .ProseMirror-widget, .ProseMirror-separator)";
         const nthChild = (expression: string) => supportsFilteredNthChild
@@ -103,12 +139,10 @@ export const HeadingFold = Extension.create<HeadingFoldOptions>({
         let previous = "";
         let previousVisibility = "";
         const updateVisibility = (view: import("@tiptap/pm/view").EditorView) => {
+          if (!style) return;
           const collapsedKeys = headingFoldPluginKey.getState(view.state)?.collapsedKeys ?? new Set<string>();
           const ranges = hiddenChildRanges(view.state.doc, collapsedKeys);
           const selector = `[data-heading-fold-scope="${scope}"]`;
-          // Tauri 强制使用 CSS2 标准语法：旧版 WebView2 会错误地声称支持
-          // `:nth-child(... of selector)`，却静默丢弃组合后的整条规则。Web/PWA
-          // 则排除 ProseMirror 临时辅助节点，避免编辑过程中子节点序号漂移。
           const css = ranges.length === 0
             ? ""
             : `${ranges.map(({ from, to }) => (
@@ -129,10 +163,10 @@ export const HeadingFold = Extension.create<HeadingFoldOptions>({
             options.onChange?.(keys);
           },
           destroy() {
-            if (editorView.dom.getAttribute("data-heading-fold-scope") === scope) {
+            if (style && editorView.dom.getAttribute("data-heading-fold-scope") === scope) {
               editorView.dom.removeAttribute("data-heading-fold-scope");
             }
-            style.remove();
+            style?.remove();
           },
         };
       },
