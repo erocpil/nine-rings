@@ -153,6 +153,101 @@ test("全部折叠后文档尾部的标题三角在小幅滚动中保持显示",
   await expect(lastFold).toBeVisible();
 });
 
+test("手机端尾部逐节折叠不发布观察器中的陈旧块号", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true }));
+
+    // 模拟 iOS WebKit 在文档尾部收缩后，当前一代 IntersectionObserver
+    // 仍延迟送达折叠前矩形。旧观察器代际测试无法覆盖这种情况。
+    const NativeIntersectionObserver = window.IntersectionObserver;
+    const lastVisibleRects = new WeakMap<Element, DOMRectReadOnly>();
+    class StaleRectIntersectionObserver extends NativeIntersectionObserver {
+      private readonly replayCallback: IntersectionObserverCallback;
+
+      constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+        super(callback, options);
+        this.replayCallback = callback;
+      }
+
+      override observe(target: Element) {
+        const currentRect = target.getBoundingClientRect();
+        if (currentRect.height > 0) lastVisibleRects.set(target, currentRect);
+        super.observe(target);
+        const staleRect = lastVisibleRects.get(target);
+        if (!staleRect || target.parentElement?.classList.contains("ProseMirror") !== true) return;
+        for (const delay of [80, 180, 300]) {
+          window.setTimeout(() => {
+            this.replayCallback([{
+              time: performance.now(),
+              target,
+              rootBounds: null,
+              boundingClientRect: staleRect,
+              intersectionRect: staleRect,
+              isIntersecting: true,
+              intersectionRatio: 1,
+            } as IntersectionObserverEntry], this);
+          }, delay);
+        }
+      }
+    }
+    Object.defineProperty(window, "IntersectionObserver", {
+      configurable: true,
+      writable: true,
+      value: StaleRectIntersectionObserver,
+    });
+  });
+  await page.setViewportSize({ width: 390, height: 760 });
+  await page.goto("/");
+
+  const editor = page.locator(".ProseMirror");
+  await editor.fill("");
+  const markdown = Array.from({ length: 25 }, (_, section) => [
+    `# 尾部连续章节 ${section + 1}`,
+    ...Array.from({ length: 7 }, (_, paragraph) => (
+      `尾部正文 ${section + 1}-${paragraph + 1}`
+    )),
+  ].join("\n\n")).join("\n\n");
+  await editor.evaluate((element, content) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", content);
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  }, markdown);
+  await expect.poll(() => editor.locator(":scope > *").count()).toBeGreaterThanOrEqual(200);
+
+  const lastHeading = editor.getByText("尾部连续章节 25", { exact: true });
+  await lastHeading.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  const tailBlocks = await editor.evaluate((element) => {
+    const children = Array.from(element.children);
+    return [23, 24, 25].map((section) => {
+      const heading = children.find((child) => child.textContent === `尾部连续章节 ${section}`);
+      if (!heading) throw new Error(`tail heading ${section} missing`);
+      const headingIndex = children.indexOf(heading) + 1;
+      const nextHeading = children.findIndex((child, index) => (
+        index >= headingIndex && child.tagName === "H1"
+      ));
+      const bodyEnd = nextHeading < 0 ? children.length : nextHeading;
+      return { headingIndex, firstBodyIndex: headingIndex + 1, lastBodyIndex: bodyEnd };
+    });
+  });
+  for (const { headingIndex } of [...tailBlocks].reverse()) {
+    const blockIndex = headingIndex;
+    const fold = page.getByRole("button", { name: `折叠第 ${blockIndex} 块章节` });
+    await expect(fold).toBeAttached();
+    await fold.dispatchEvent("click");
+  }
+  await expect(editor.getByText("尾部正文 25-7", { exact: true })).toBeHidden();
+  await page.waitForTimeout(360);
+
+  for (const { headingIndex } of tailBlocks) {
+    await expect(page.getByRole("button", { name: `展开第 ${headingIndex} 块章节` })).toBeVisible();
+    await expect(page.locator(`.editor-block-number[data-block-index="${headingIndex}"]`)).toBeVisible();
+  }
+  for (const { firstBodyIndex, lastBodyIndex } of tailBlocks) {
+    await expect(page.locator(`.editor-block-number[data-block-index="${firstBodyIndex}"]`)).toHaveCount(0);
+    await expect(page.locator(`.editor-block-number[data-block-index="${lastBodyIndex}"]`)).toHaveCount(0);
+  }
+});
+
 test("千块文档全部展开后滚动不再逐块同步测量", async ({ page }) => {
   test.slow();
   await page.goto("/");

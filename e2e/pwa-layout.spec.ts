@@ -1,5 +1,33 @@
 import { expect, test, type Locator } from "@playwright/test";
 
+async function swipeNoteEditor(
+  editor: Locator,
+  points: { startX: number; startY: number; endX: number; endY: number },
+) {
+  await editor.evaluate((element, gesture) => {
+    const touchAt = (clientX: number, clientY: number) => new Touch({
+      identifier: 41,
+      target: element,
+      clientX,
+      clientY,
+    });
+    const start = touchAt(gesture.startX, gesture.startY);
+    const end = touchAt(gesture.endX, gesture.endY);
+    element.dispatchEvent(new TouchEvent("touchstart", {
+      bubbles: true,
+      cancelable: true,
+      touches: [start],
+      changedTouches: [start],
+    }));
+    element.dispatchEvent(new TouchEvent("touchend", {
+      bubbles: true,
+      cancelable: true,
+      touches: [],
+      changedTouches: [end],
+    }));
+  }, points);
+}
+
 test.describe("PWA 窄屏应用外壳", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
@@ -184,6 +212,54 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(geometry.outline.height).toBeCloseTo(geometry.bookmark.height, 1);
     expect(geometry.outline.top).toBeCloseTo(geometry.bookmark.top, 1);
     expect(geometry.outline.bottom).toBeCloseTo(geometry.bookmark.bottom, 1);
+  });
+
+  test("专注模式右侧近边缘左划按上下区域打开书签和目录", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("# 边缘手势目录\n\n用于验证右侧分区手势的正文");
+    await expect(editor.locator("h1, h2, h3, h4, h5, h6")).toHaveCount(1);
+    const noteEditor = page.locator(".note-editor");
+    const bookmarkPanel = page.getByRole("navigation", { name: "文档书签" });
+    const outlinePanel = page.getByRole("navigation", { name: "文档目录" });
+
+    // 普通模式与距离右边缘过远的左划都不应占用该手势。
+    await swipeNoteEditor(noteEditor, { startX: 366, startY: 190, endX: 286, endY: 190 });
+    await expect(bookmarkPanel).toHaveCount(0);
+    await page.locator(".note-title-row").getByTitle("专注模式").click();
+
+    // 左侧近边缘右划仍交给 App 打开文档树，不被右侧分区手势占用。
+    const sidebar = page.locator(".app-sidebar");
+    await expect(sidebar).toHaveClass(/sidebar-hidden/);
+    await swipeNoteEditor(noteEditor, { startX: 20, startY: 380, endX: 100, endY: 380 });
+    await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+    await page.locator(".sidebar-overlay.active").click({ position: { x: 350, y: 380 } });
+    await expect(sidebar).toHaveClass(/sidebar-hidden/);
+
+    await swipeNoteEditor(noteEditor, { startX: 320, startY: 190, endX: 240, endY: 190 });
+    await expect(bookmarkPanel).toHaveCount(0);
+    await expect(outlinePanel).toHaveCount(0);
+
+    // 390px 视口中从 x=366 起划，距离右边缘 24px，位于近边缘有效区。
+    await swipeNoteEditor(noteEditor, { startX: 366, startY: 190, endX: 286, endY: 190 });
+    await expect(bookmarkPanel).toBeVisible();
+    await expect(outlinePanel).toHaveCount(0);
+
+    await swipeNoteEditor(noteEditor, { startX: 366, startY: 570, endX: 286, endY: 570 });
+    await expect(bookmarkPanel).toHaveCount(0);
+    await expect(outlinePanel).toBeVisible();
+
+    await editor.fill("没有标题时目录手势不应打开空面板");
+    await editor.press("Control+Alt+0");
+    await expect(editor.locator("h1, h2, h3, h4, h5, h6")).toHaveCount(0);
+    await expect(outlinePanel).toHaveCount(0);
+    await swipeNoteEditor(noteEditor, { startX: 366, startY: 570, endX: 286, endY: 570 });
+    await expect(outlinePanel).toHaveCount(0);
+    await expect(bookmarkPanel).toHaveCount(0);
+
+    await swipeNoteEditor(noteEditor, { startX: 366, startY: 190, endX: 286, endY: 190 });
+    await expect(outlinePanel).toHaveCount(0);
+    await expect(bookmarkPanel).toBeVisible();
   });
 
   test("移动端块编号使用紧凑且可随位数扩展的 gutter", async ({ page }) => {

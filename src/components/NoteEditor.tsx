@@ -1197,6 +1197,90 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     setOutlineOpen(true);
   }, [documentOutline, editor]);
 
+  useEffect(() => {
+    const host = noteEditorRef.current;
+    if (!host || !focusMode || !isMobileToolbarViewport) return;
+
+    type EdgeGesture = {
+      identifier: number;
+      startX: number;
+      startY: number;
+      startedAt: number;
+      target: "bookmark" | "outline";
+    };
+    let gesture: EdgeGesture | null = null;
+    const RIGHT_EDGE_MIN_INSET = 12;
+    const RIGHT_EDGE_MAX_INSET = 44;
+    const HORIZONTAL_THRESHOLD = 60;
+    const MAX_VERTICAL_DRIFT = 48;
+    const MAX_DURATION_MS = 1000;
+
+    const onTouchStart = (event: TouchEvent) => {
+      gesture = null;
+      if (event.touches.length !== 1) return;
+      const touch = event.touches[0];
+      const eventTarget = event.target;
+      if (eventTarget instanceof Element && eventTarget.closest(
+        "button, input, textarea, select, .document-outline-panel, .document-bookmark-panel, .editor-menu",
+      )) return;
+      const selection = host.ownerDocument.getSelection();
+      if (selection && !selection.isCollapsed) return;
+
+      const viewport = window.visualViewport;
+      const viewportLeft = viewport?.offsetLeft ?? 0;
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const viewportWidth = viewport?.width ?? window.innerWidth;
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      const distanceFromRight = viewportLeft + viewportWidth - touch.clientX;
+      // 留出最外侧的系统返回/前进手势区，同时保持“从边缘划入”的手感。
+      if (distanceFromRight < RIGHT_EDGE_MIN_INSET || distanceFromRight > RIGHT_EDGE_MAX_INSET) return;
+      gesture = {
+        identifier: touch.identifier,
+        startX: touch.clientX,
+        startY: touch.clientY,
+        startedAt: performance.now(),
+        target: touch.clientY < viewportTop + viewportHeight / 2 ? "bookmark" : "outline",
+      };
+    };
+
+    const onTouchEnd = (event: TouchEvent) => {
+      const current = gesture;
+      gesture = null;
+      if (!current || event.changedTouches.length !== 1) return;
+      const touch = Array.from(event.changedTouches)
+        .find((item) => item.identifier === current.identifier);
+      if (!touch) return;
+      const dx = touch.clientX - current.startX;
+      const dy = touch.clientY - current.startY;
+      if (dx > -HORIZONTAL_THRESHOLD
+        || Math.abs(dy) > MAX_VERTICAL_DRIFT
+        || Math.abs(dx) < Math.abs(dy) * 1.5
+        || performance.now() - current.startedAt > MAX_DURATION_MS) return;
+
+      // 阻止完成手势后的合成 click，并避免 App 的全局左划逻辑继续把
+      // 本次专注模式边缘手势解释为“关闭侧栏”。
+      event.preventDefault();
+      event.stopPropagation();
+      setFocusToolbarExpanded(false);
+      if (current.target === "bookmark") {
+        setOutlineOpen(false);
+        setBookmarkOpen(true);
+      } else {
+        openDocumentOutline();
+      }
+    };
+
+    const cancelGesture = () => { gesture = null; };
+    host.addEventListener("touchstart", onTouchStart, { passive: true });
+    host.addEventListener("touchend", onTouchEnd, { passive: false });
+    host.addEventListener("touchcancel", cancelGesture, { passive: true });
+    return () => {
+      host.removeEventListener("touchstart", onTouchStart);
+      host.removeEventListener("touchend", onTouchEnd);
+      host.removeEventListener("touchcancel", cancelGesture);
+    };
+  }, [focusMode, isMobileToolbarViewport, openDocumentOutline]);
+
   const toggleDocumentOutline = useCallback(() => {
     if (outlineOpen) {
       setOutlineOpen(false);

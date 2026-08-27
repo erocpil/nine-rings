@@ -194,6 +194,21 @@ export function getCollapsedHeadingPositions(editor: Editor): ReadonlySet<number
     .map((section) => section.pos));
 }
 
+/**
+ * 返回当前折叠状态语义上隐藏的顶层块位置。
+ *
+ * gutter 不能只依赖 IntersectionObserver 的矩形判断可见性：WebKit 在
+ * 文档尾部收缩时可能把折叠前矩形延迟送给新观察器。折叠插件状态才是
+ * 可见性的权威来源，几何观察只应负责定位仍然可见的块。
+ */
+export function getHiddenHeadingFoldBlockPositions(editor: Editor): ReadonlySet<number> {
+  const collapsedKeys = getCollapsedHeadingKeys(editor);
+  if (collapsedKeys.size === 0) return new Set();
+  const doc = editor.state.doc;
+  const ranges = collapsedHeadingContentRanges(doc, collapsedKeys);
+  return new Set(topLevelBlocksInHeadingFoldRanges(doc, ranges).map((block) => block.from));
+}
+
 export function toggleHeadingFold(editor: Editor, position: number): boolean {
   return toggleHeadingFoldInView(editor.view, position);
 }

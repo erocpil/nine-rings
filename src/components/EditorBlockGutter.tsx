@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import type { Transaction } from "@tiptap/pm/state";
-import { getCollapsedHeadingPositions, headingFoldPluginKey } from "../extensions/HeadingFold";
+import {
+  getCollapsedHeadingPositions,
+  getHiddenHeadingFoldBlockPositions,
+  headingFoldPluginKey,
+} from "../extensions/HeadingFold";
 
 interface GutterBlock {
   index: number;
@@ -151,6 +155,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
     let disposed = false;
     let observedWindow = { start: -1, end: -1 };
     let foldedHeadingPositions = getCollapsedHeadingPositions(editor);
+    let hiddenFoldBlockPositions = getHiddenHeadingFoldBlockPositions(editor);
     let topLevelBlocks: Array<{ pos: number; index: number; heading: boolean }> = [];
     const observedIndexes = new Map<HTMLElement, number>();
     const measuredBlocks = new Map<HTMLElement, GutterBlock>();
@@ -179,6 +184,9 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
       } catch {
         return null;
       }
+      // IntersectionObserver 的矩形可能来自折叠前布局。先按 ProseMirror
+      // 折叠状态过滤，避免隐藏正文重新发布块号、插入按钮或错误边界。
+      if (hiddenFoldBlockPositions.has(pos)) return null;
       const node = editor.state.doc.nodeAt(pos);
       if (!node) return null;
       const index = observedIndexes.get(dom) ?? editor.state.doc.resolve(pos).index(0) + 1;
@@ -210,6 +218,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
       measureFrame = 0;
       if (disposed || editor.isDestroyed || !root.isConnected) return;
       foldedHeadingPositions = getCollapsedHeadingPositions(editor);
+      hiddenFoldBlockPositions = getHiddenHeadingFoldBlockPositions(editor);
       const rootTop = root.getBoundingClientRect().top;
       const editorLineHeight = Number.parseFloat(getComputedStyle(editor.view.dom).lineHeight) || 24;
       for (const dom of [...measuredBlocks.keys()]) {
@@ -349,7 +358,9 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
         : 0;
       for (let blockIndex = start; blockIndex <= end; blockIndex += 1) {
         const block = topLevelBlocks[blockIndex];
-        if (!block || (!needsAllBlocks && !block.heading)) continue;
+        if (!block
+          || hiddenFoldBlockPositions.has(block.pos)
+          || (!needsAllBlocks && !block.heading)) continue;
         const dom = editor.view.nodeDOM(block.pos);
         if (!(dom instanceof HTMLElement)) continue;
         nextObservedIndexes.set(dom, block.index);
@@ -385,6 +396,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
       observedIndexes.clear();
       measuredBlocks.clear();
       foldedHeadingPositions = getCollapsedHeadingPositions(editor);
+      hiddenFoldBlockPositions = getHiddenHeadingFoldBlockPositions(editor);
       topLevelBlocks = [];
       editor.state.doc.forEach((node, pos, index) => {
         topLevelBlocks.push({ pos, index: index + 1, heading: node.type.name === "heading" });
@@ -429,17 +441,24 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
     const onTransaction = ({ transaction }: { transaction: Transaction }) => {
       if (transaction.getMeta(headingFoldPluginKey)) {
         foldedHeadingPositions = getCollapsedHeadingPositions(editor);
+        hiddenFoldBlockPositions = getHiddenHeadingFoldBlockPositions(editor);
         // 折叠事务本身已经同步提交。先直接更新现有 gutter 数据，让三角
-        // 在本次点击中立即翻转；下一帧重建只负责重新测量变化后的布局。
-        let foldStateChanged = false;
+        // 在本次点击中立即翻转，并立即剔除语义上已隐藏的正文。下一帧
+        // 重建只负责重新测量变化后的可见布局。
+        let foldVisibilityChanged = false;
         for (const [dom, block] of measuredBlocks) {
+          if (hiddenFoldBlockPositions.has(block.pos)) {
+            measuredBlocks.delete(dom);
+            foldVisibilityChanged = true;
+            continue;
+          }
           if (!block.heading) continue;
           const folded = foldedHeadingPositions.has(block.pos);
           if (folded === block.folded) continue;
           measuredBlocks.set(dom, { ...block, folded });
-          foldStateChanged = true;
+          foldVisibilityChanged = true;
         }
-        if (foldStateChanged) publishBlocks();
+        if (foldVisibilityChanged) publishBlocks();
         scheduleRebuild();
       } else if (transaction.docChanged) {
         scheduleDocumentMeasure();
