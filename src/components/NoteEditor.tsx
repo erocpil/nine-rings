@@ -152,10 +152,20 @@ function isSelectionInsideCodeBlock(editor: Editor): boolean {
 
 function insertCodeBlockPlainText(editor: Editor, text: string): void {
   if (!text) return;
-  const { from, to } = editor.state.selection;
+  const { from, to, $from } = editor.state.selection;
+  let normalizedText = text.replace(/\r\n?/g, "\n");
+  // Copying a complete line or a fenced snippet commonly adds one terminal
+  // newline to the clipboard. In a newly created empty code block that newline
+  // has no following content to separate, so it only creates a phantom blank
+  // row. Keep terminal newlines everywhere else because they may separate the
+  // pasted text from code that already follows the cursor.
+  if ($from.parent.content.size === 0 && normalizedText.endsWith("\n")) {
+    normalizedText = normalizedText.slice(0, -1);
+  }
+  if (!normalizedText) return;
   editor.view.dispatch(
     editor.state.tr
-      .insertText(text.replace(/\r\n?/g, "\n"), from, to)
+      .insertText(normalizedText, from, to)
       .scrollIntoView(),
   );
   editor.commands.focus();

@@ -17,6 +17,7 @@ const markdownLikeShellSource = [
   "  * cleanup preserves an existing VF count.",
   "",
 ].join("\n");
+const markdownLikeShellWithoutClipboardNewline = markdownLikeShellSource.replace(/\n$/, "");
 
 test.describe("编辑器复制粘贴", () => {
   test("代码块内原生粘贴 shell 源码不会触发 Markdown 转换", async ({ page }) => {
@@ -42,7 +43,7 @@ test.describe("编辑器复制粘贴", () => {
 
     const code = editor.locator("pre code");
     await expect(code).toHaveCount(1);
-    await expect.poll(() => code.textContent()).toBe(markdownLikeShellSource);
+    await expect.poll(() => code.textContent()).toBe(markdownLikeShellWithoutClipboardNewline);
     await expect(editor.locator("h1, ul")).toHaveCount(0);
     await expect(page.getByText("已按 Markdown 格式化", { exact: true })).toHaveCount(0);
   });
@@ -70,9 +71,34 @@ test.describe("编辑器复制粘贴", () => {
 
     const code = editor.locator("pre code");
     await expect(code).toHaveCount(1);
-    await expect.poll(() => code.textContent()).toBe(markdownLikeShellSource);
+    await expect.poll(() => code.textContent()).toBe(markdownLikeShellWithoutClipboardNewline);
     await expect(editor.locator("h1, ul")).toHaveCount(0);
     await expect(editor).not.toContainText("不应采用的 HTML");
+  });
+
+  test("已有代码块仍保留粘贴文本的末尾换行", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("已有代码：");
+    await page.getByTitle("代码块 (Ctrl+Alt+C)").click();
+    await editor.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", "rg -n \\\n  'pp_init_ctx|ibv_poll_cq' \\\n");
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    });
+    await editor.pressSequentially("rc_pingpong.c");
+
+    await expect.poll(() => editor.locator("pre code").textContent()).toBe(
+      "已有代码：rg -n \\\n  'pp_init_ctx|ibv_poll_cq' \\\nrc_pingpong.c",
+    );
   });
 
   test("复制行内文本后粘贴不会引入首尾空白", async ({ page, context }) => {
