@@ -17,7 +17,12 @@ const markdownLikeShellSource = [
   "  * cleanup preserves an existing VF count.",
   "",
 ].join("\n");
-const markdownLikeShellWithoutClipboardNewline = markdownLikeShellSource.replace(/\n$/, "");
+const wrappedRgCommand = [
+  "rg -n \\",
+  "  'pp_init_ctx|pp_connect_ctx|pp_post_recv|pp_post_send|parse_single_wc|ibv_modify_qp|pingpong_dest|ibv_poll_cq' \\",
+  "  rc_pingpong.c",
+  "",
+].join("\n");
 
 test.describe("编辑器复制粘贴", () => {
   test("代码块内原生粘贴 shell 源码不会触发 Markdown 转换", async ({ page }) => {
@@ -43,7 +48,7 @@ test.describe("编辑器复制粘贴", () => {
 
     const code = editor.locator("pre code");
     await expect(code).toHaveCount(1);
-    await expect.poll(() => code.textContent()).toBe(markdownLikeShellWithoutClipboardNewline);
+    await expect.poll(() => code.textContent()).toBe(markdownLikeShellSource);
     await expect(editor.locator("h1, ul")).toHaveCount(0);
     await expect(page.getByText("已按 Markdown 格式化", { exact: true })).toHaveCount(0);
   });
@@ -71,7 +76,7 @@ test.describe("编辑器复制粘贴", () => {
 
     const code = editor.locator("pre code");
     await expect(code).toHaveCount(1);
-    await expect.poll(() => code.textContent()).toBe(markdownLikeShellWithoutClipboardNewline);
+    await expect.poll(() => code.textContent()).toBe(markdownLikeShellSource);
     await expect(editor.locator("h1, ul")).toHaveCount(0);
     await expect(editor).not.toContainText("不应采用的 HTML");
   });
@@ -99,6 +104,87 @@ test.describe("编辑器复制粘贴", () => {
     await expect.poll(() => editor.locator("pre code").textContent()).toBe(
       "已有代码：rg -n \\\n  'pp_init_ctx|ibv_poll_cq' \\\nrc_pingpong.c",
     );
+  });
+
+  test("长 shell 参数自动换行时不会让前导空格单独占据视觉行", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    await editor.click();
+    await page.getByTitle("代码块 (Ctrl+Alt+C)").click();
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    }, wrappedRgCommand);
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    const code = editor.locator("pre code");
+    await expect.poll(() => code.textContent()).toBe(wrappedRgCommand);
+    const geometry = await code.evaluate((element) => {
+      const text = element.textContent ?? "";
+      const secondLineStart = text.indexOf("\n") + 1;
+      const secondLineEnd = text.indexOf("\n", secondLineStart);
+      const spans: Array<{ node: Text; start: number; end: number }> = [];
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      let offset = 0;
+      for (let current = walker.nextNode(); current; current = walker.nextNode()) {
+        if (!(current instanceof Text)) continue;
+        spans.push({ node: current, start: offset, end: offset + current.data.length });
+        offset += current.data.length;
+      }
+      const topAt = (target: number) => {
+        const span = spans.find(({ start, end }) => target >= start && target < end);
+        if (!span) throw new Error(`missing text at offset ${target}`);
+        const range = document.createRange();
+        range.setStart(span.node, target - span.start);
+        range.setEnd(span.node, target - span.start + 1);
+        return range.getBoundingClientRect().top;
+      };
+      const style = getComputedStyle(element);
+      return {
+        indentTop: topAt(secondLineStart),
+        openingQuoteTop: topAt(secondLineStart + 2),
+        closingQuoteTop: topAt(secondLineEnd - 3),
+        wordBreak: style.wordBreak,
+        whiteSpace: style.whiteSpace,
+      };
+    });
+
+    expect(geometry.whiteSpace).toBe("pre-wrap");
+    expect(geometry.wordBreak).toBe("break-all");
+    expect(Math.abs(geometry.indentTop - geometry.openingQuoteTop)).toBeLessThan(2);
+    expect(geometry.closingQuoteTop).toBeGreaterThan(geometry.openingQuoteTop + 2);
+
+    const codeBlock = editor.locator(".code-block-wrap");
+    // Narrowing the desktop fixture activates the mobile sidebar overlay;
+    // dispatch directly because this control belongs to the editor underneath.
+    await codeBlock.getByRole("button", { name: "关闭代码自动换行" }).dispatchEvent("click");
+    await expect(codeBlock).toHaveAttribute("data-code-wrap", "false");
+    const noWrap = await code.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const pre = element.parentElement;
+      return {
+        wrapAttribute: element.closest(".code-block-wrap")?.getAttribute("data-code-wrap"),
+        minWidth: style.minWidth,
+        wordBreak: style.wordBreak,
+        preOverflowsHorizontally: Boolean(pre && pre.scrollWidth > pre.clientWidth),
+      };
+    });
+    expect(noWrap).toMatchObject({
+      wrapAttribute: "false",
+      minWidth: "max-content",
+      wordBreak: "normal",
+      preOverflowsHorizontally: true,
+    });
+    await expect.poll(() => code.textContent()).toBe(wrappedRgCommand);
   });
 
   test("复制行内文本后粘贴不会引入首尾空白", async ({ page, context }) => {
