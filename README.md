@@ -110,6 +110,12 @@ npm run build         # 产物在 dist/
 python3 serve.py      # 静态服务 → http://localhost:1420
 ```
 
+### 关键功能冒烟回归
+
+```bash
+npm run test:smoke   # 编辑器、折叠、EPUB、PDF、会话恢复与设置关键链路
+```
+
 ### Tauri 桌面端
 
 环境要求：Rust ≥ 1.77。

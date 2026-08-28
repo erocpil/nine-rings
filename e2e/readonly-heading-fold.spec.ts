@@ -35,7 +35,7 @@ test("只读文档隐藏代码语法选项并保留查看操作", async ({ page 
   expect(await codeTitle.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(0);
 
   const collapseButton = codeBlock.getByRole("button", { name: "折叠代码块" });
-  const wrapButton = codeBlock.getByRole("button", { name: "关闭代码自动换行" });
+  const wrapButton = codeBlock.getByRole("button", { name: "关闭代码软换行" });
   const copyButton = codeBlock.getByRole("button", { name: "复制代码" });
   await expect(collapseButton).toBeEnabled();
   await expect(wrapButton).toBeEnabled();
@@ -52,7 +52,7 @@ test("只读文档隐藏代码语法选项并保留查看操作", async ({ page 
   await expect(page.getByLabel("专注模式工具栏")).toBeVisible();
   await expect(codeBlock.getByLabel("代码语言")).toHaveCount(0);
   await expect(codeBlock.getByRole("button", { name: "折叠代码块" })).toBeEnabled();
-  await expect(codeBlock.getByRole("button", { name: "开启代码自动换行" })).toBeEnabled();
+  await expect(codeBlock.getByRole("button", { name: "开启代码软换行" })).toBeEnabled();
   await expect(codeBlock.getByRole("button", { name: "复制代码" })).toBeEnabled();
 });
 

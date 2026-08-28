@@ -51,6 +51,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub editor_vim_mode: bool,
     #[serde(default = "default_true")]
+    pub editor_code_wrap_default: bool,
+    #[serde(default = "default_true")]
     pub use_custom_context_menu: bool,
     #[serde(default)]
     pub user_name: String,
@@ -156,6 +158,7 @@ impl Default for AppConfig {
             editor_show_status_block_number: true,
             editor_show_status_bar: true,
             editor_vim_mode: false,
+            editor_code_wrap_default: true,
             use_custom_context_menu: true,
             user_name: String::new(),
             user_organization: String::new(),
@@ -301,6 +304,7 @@ mod tests {
         assert!(config.editor_cjk_spacing);
         assert!(config.editor_show_status_block_number);
         assert!(config.editor_show_status_bar);
+        assert!(config.editor_code_wrap_default);
         assert_eq!(config.user_default_language, "zh-CN");
         assert!(config.user_name.is_empty());
     }

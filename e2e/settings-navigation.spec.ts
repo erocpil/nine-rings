@@ -26,8 +26,9 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await expect(page.getByRole("heading", { name: "外观与排版", exact: true })).toBeVisible();
   await page.getByRole("button", { name: /^编辑器设置/ }).click();
   await expect(page.getByRole("heading", { name: "编辑器", exact: true })).toBeVisible();
-  await expect(page.locator(".settings-field")).toHaveCount(6);
+  await expect(page.locator(".settings-field")).toHaveCount(7);
   await expect(page.getByText("状态栏块号", { exact: true })).toBeVisible();
+  await expect(page.getByText("新代码块默认软换行", { exact: true })).toBeVisible();
   await expect(page.getByText("Vim 模式（实验性）", { exact: true })).toBeVisible();
   await expect(page.getByText("主题", { exact: true })).toHaveCount(0);
   await expect(page.locator(".settings-version")).toHaveCount(0);
@@ -125,6 +126,31 @@ test("编辑器状态栏紧凑且可以关闭并持久化", async ({ page }) => 
 
   await page.reload();
   await expect(page.locator(".editor-stats")).toHaveCount(0);
+});
+
+test("新代码块遵循默认软换行设置且说明不修改内容", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^外观与排版/ }).click();
+  await page.getByRole("button", { name: /^编辑器设置/ }).click();
+
+  const field = page.locator(".settings-field").filter({ hasText: "新代码块默认软换行" });
+  const toggle = field.locator('input[type="checkbox"]');
+  await expect(toggle).toBeChecked();
+  await expect(field).toContainText("不修改代码内容");
+  await field.locator(".settings-toggle").click();
+  await expect(toggle).not.toBeChecked();
+  await expect(page.getByRole("status").filter({ hasText: "已更新" })).toBeVisible();
+  await page.getByLabel("关闭设置").click();
+
+  const editor = page.locator(".ProseMirror");
+  await editor.fill("new-code");
+  await editor.press("Control+Alt+c");
+  const codeBlock = editor.locator(".code-block-wrap");
+  await expect(codeBlock).toHaveAttribute("data-code-wrap", "false");
+  const wrapButton = codeBlock.getByRole("button", { name: "开启代码软换行" });
+  await expect(wrapButton).toHaveText("软换行");
+  await expect(wrapButton).toHaveAttribute("title", /仅改变显示，不修改代码/);
 });
 
 test("诊断报告只导出脱敏运行信息", async ({ page }) => {
@@ -289,6 +315,7 @@ test("Web/PWA 从 GitHub Pull 后自动应用设置并恢复最后文档位置",
   await expect(page.getByLabel("Pull 文档差异摘要")).toContainText("远端独有");
   const replaceButton = page.getByRole("button", { name: /删除本地独有 \d+ 篇并全量覆盖/ });
   await expect(replaceButton).toBeVisible();
+  await expect(page.getByRole("button", { name: "先导出本地 JSON" })).toBeVisible();
   const replaceWarning = page.waitForEvent("dialog").then(async (dialog) => {
     expect(dialog.message()).toContain("本地独有");
     expect(dialog.message()).toContain("将被删除");

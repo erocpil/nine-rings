@@ -12,6 +12,7 @@ import {
   type PullMode,
 } from "../lib/sync/github";
 import { useTransientMessage } from "../hooks/useTransientMessage";
+import { exportLocalJsonBackup } from "../lib/local-backup-export";
 
 interface Props {
   /** 备份进行中回调 — 父组件用来 freeze 编辑区 */
@@ -97,6 +98,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
   const { message, showMessage: showTransientMessage, clearMessage: clearTransientMessage } = useTransientMessage();
   const [messageType, setMessageType] = useState<"" | "success" | "error">("");
   const [pullPrecheck, setPullPrecheck] = useState<PullPrecheck | null>(null);
+  const [exportingLocal, setExportingLocal] = useState(false);
 
   const [ownerRepoValue, setOwnerRepoValue] = useState(() => {
     const initial = loadSyncConfig();
@@ -276,6 +278,24 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     }
   }, [cfg, clearMessage, onPullDone, pullPrecheck, showMessage]);
 
+  const handleLocalExport = useCallback(async () => {
+    setExportingLocal(true);
+    clearMessage();
+    try {
+      const result = await exportLocalJsonBackup();
+      if (result) {
+        showMessage(
+          result.desktop ? `本地备份已保存到 ${result.destination}` : "本地备份已导出",
+          "success",
+        );
+      }
+    } catch (error) {
+      showMessage(`本地备份导出失败: ${error instanceof Error ? error.message : String(error)}`, "error");
+    } finally {
+      setExportingLocal(false);
+    }
+  }, [clearMessage, showMessage]);
+
   useEffect(() => {
     setPullPrecheck(null);
   }, [cfg.token, cfg.owner, cfg.repo, cfg.path]);
@@ -416,6 +436,9 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
             </button>
             <button className="settings-btn" onClick={() => setPullPrecheck(null)} disabled={busy}>
               取消
+            </button>
+            <button className="settings-btn" onClick={() => void handleLocalExport()} disabled={busy || exportingLocal}>
+              {exportingLocal ? "正在导出…" : "先导出本地 JSON"}
             </button>
             <button className="settings-btn settings-btn-danger sync-replace-button" onClick={() => void handlePull("replace")} disabled={busy}>
               {pullPrecheck.comparison.localOnly.length > 0

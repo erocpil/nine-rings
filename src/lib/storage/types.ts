@@ -27,6 +27,7 @@ export interface AppConfig {
   editor_show_status_block_number: boolean;
   editor_show_status_bar: boolean;
   editor_vim_mode: boolean;
+  editor_code_wrap_default: boolean;
   use_custom_context_menu: boolean;
   user_name: string;
   user_organization: string;
@@ -63,6 +64,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   editor_show_status_block_number: true,
   editor_show_status_bar: true,
   editor_vim_mode: false,
+  editor_code_wrap_default: true,
   use_custom_context_menu: true,
   user_name: "",
   user_organization: "",

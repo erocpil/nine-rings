@@ -144,6 +144,11 @@ AppConfig:
       default: false
       description: 启用实验性的 Vim 模式编辑
 
+    editor_code_wrap_default:
+      type: boolean
+      default: true
+      description: 新建代码块默认启用视觉软换行，不改变代码内容
+
     use_custom_context_menu:
       type: boolean
       default: true

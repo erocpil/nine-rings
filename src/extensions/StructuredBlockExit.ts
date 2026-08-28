@@ -51,20 +51,17 @@ export function exitCurrentStructuredBlock(editor: Editor): boolean {
 }
 
 function exitCodeBlockAfterEmptyLine(editor: Editor): boolean {
-  // A software keyboard has no Shift+Enter. On touch-first devices Enter must
-  // remain capable of creating consecutive blank code lines; users leave the
-  // block through the explicit toolbar action instead.
-  if (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches) return false;
   const { selection } = editor.state;
   if (!selection.empty || selection.$from.parent.type.name !== "codeBlock") return false;
   const { $from } = selection;
   const code = $from.parent;
-  if ($from.parentOffset !== code.content.size || !code.textContent.endsWith("\n")) return false;
+  if ($from.parentOffset !== code.content.size || !code.textContent.endsWith("\n\n")) return false;
 
-  // The first Enter created this trailing newline. Remove only that sentinel and
-  // create the following paragraph in the same transaction so undo is atomic.
+  // Two trailing newlines remain available for an intentional empty code line.
+  // The third Enter removes those exit sentinels and creates the following
+  // paragraph in the same transaction so undo remains atomic.
   return insertParagraphAfterDepth(editor, $from.depth, {
-    deleteFrom: $from.pos - 1,
+    deleteFrom: $from.pos - 2,
     deleteTo: $from.pos,
   });
 }
@@ -89,11 +86,20 @@ function handleBlockquoteEmptyParagraph(editor: Editor): boolean {
   if (paragraphIndex === 0) return false;
 
   // Empty paragraphs in the middle are intentional spacing: keep them inside
-  // the quote. Only a trailing empty paragraph is the second-Enter sentinel.
+  // the quote. At the end, preserve the first empty paragraph and create a
+  // second one. A further Enter exits and removes both exit sentinels.
   if (paragraphIndex < quote.childCount - 1) return editor.commands.splitBlock();
 
+  const previousParagraph = quote.child(paragraphIndex - 1);
+  if (previousParagraph.content.size > 0) return editor.commands.splitBlock();
+
+  const currentStart = $from.before($from.depth);
+  // Keep one paragraph when an otherwise-empty quote is exited so the quote
+  // itself remains schema-valid.
+  const deletePrevious = quote.childCount > 2;
+
   return insertParagraphAfterDepth(editor, quoteDepth, {
-    deleteFrom: $from.before($from.depth),
+    deleteFrom: deletePrevious ? currentStart - previousParagraph.nodeSize : currentStart,
     deleteTo: $from.after($from.depth),
   });
 }

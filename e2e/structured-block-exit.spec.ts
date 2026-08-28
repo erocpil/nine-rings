@@ -76,7 +76,7 @@ test.describe("结构块退出行为", () => {
     });
   });
 
-  test("代码块末尾第二次 Enter 原子退出并保留代码内容", async ({ page }) => {
+  test("代码块末尾保留两个换行并在第三次 Enter 原子退出", async ({ page }) => {
     await createBlankNote(page);
     const editor = page.locator(".ProseMirror");
     await editor.fill("const answer = 42;");
@@ -84,6 +84,9 @@ test.describe("结构块退出行为", () => {
     await editor.press("End");
     await editor.press("Enter");
     await expect(editor.locator(".code-block-wrap code")).toHaveText("const answer = 42;\n");
+    await editor.press("Enter");
+    await expect(editor.locator(".code-block-wrap code")).toHaveText("const answer = 42;\n\n");
+    await expect(editor.locator(":scope > p")).toHaveCount(0);
     await editor.press("Enter");
 
     await expect(editor.locator(".code-block-wrap code")).toHaveText("const answer = 42;");
@@ -100,11 +103,12 @@ test.describe("结构块退出行为", () => {
     await editor.press("End");
     await editor.press("Enter");
     await editor.press("Enter");
+    await editor.press("Enter");
     await expect(editor.locator(":scope > p")).toHaveCount(1);
 
     await editor.press("Control+z");
     await expect(editor.locator(":scope > p")).toHaveCount(0);
-    await expect(editor.locator(".code-block-wrap code")).toHaveText("undo-safe\n");
+    await expect(editor.locator(".code-block-wrap code")).toHaveText("undo-safe\n\n");
   });
 
   test("Shift+Enter 可以在代码块末尾保留连续空行", async ({ page }) => {
@@ -120,7 +124,7 @@ test.describe("结构块退出行为", () => {
     await expect(editor.locator(".code-block-wrap code")).toHaveText("keep-blank-lines\n\n");
   });
 
-  test("引用块只在末尾空段落退出并建立一个块外段落", async ({ page }) => {
+  test("引用块保留两个末尾空段落并在第三次 Enter 退出", async ({ page }) => {
     await createBlankNote(page);
     const editor = page.locator(".ProseMirror");
     await editor.fill("需要保留的引用");
@@ -129,6 +133,9 @@ test.describe("结构块退出行为", () => {
     await editor.press("Enter");
     const quoteParagraphs = editor.locator(":scope > blockquote p");
     await expect(quoteParagraphs).toHaveCount(2);
+    await editor.press("Enter");
+    await expect(quoteParagraphs).toHaveCount(3);
+    await expect(editor.locator(":scope > p")).toHaveCount(0);
     await editor.press("Enter");
 
     await expect(quoteParagraphs).toHaveText("需要保留的引用");
@@ -228,7 +235,7 @@ test.describe("触屏代码块退出行为", () => {
     await expect.poll(readGeometry).toEqual({ aligned: true, wraps: true, lastNumberInside: true });
   });
 
-  test("虚拟键盘 Enter 可连续插入空行并通过块菜单退出", async ({ page }) => {
+  test("虚拟键盘可保留两个换行并在第三次 Enter 退出", async ({ page }) => {
     await page.goto("/");
     const editor = page.locator(".ProseMirror");
     await editor.fill("mobile-code");
@@ -239,6 +246,20 @@ test.describe("触屏代码块退出行为", () => {
 
     await expect(editor.locator(":scope > p")).toHaveCount(0);
     await expect(editor.locator(".code-block-wrap code")).toHaveText("mobile-code\n\n");
+
+    await editor.press("Enter");
+    await expect(editor.locator(":scope > p")).toHaveCount(1);
+    await expect(editor.locator(".code-block-wrap code")).toHaveText("mobile-code");
+  });
+
+  test("块菜单仍可从含末尾空行的代码块显式退出", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("mobile-code");
+    await activateBlock(page, "⏹ 代码块");
+    await editor.press("End");
+    await editor.press("Enter");
+    await editor.press("Enter");
 
     await page.getByRole("button", { name: "块 ▾" }).click();
     await page.getByRole("button", { name: /退出当前块/ }).click();

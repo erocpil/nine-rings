@@ -5,7 +5,8 @@ import type { AppConfig, DocType, Note } from "../types/models";
 import { DEFAULT_HOTKEYS, HOTKEY_LABELS } from "../types/models";
 import { parseMetadataList } from "../lib/markdown-import";
 import { transformMarkdownBatch } from "../lib/data-transform-client";
-import { isTauri, exportWithDialog, importWithDialog } from "../lib/tauri-desktop";
+import { isTauri, importWithDialog } from "../lib/tauri-desktop";
+import { exportLocalJsonBackup } from "../lib/local-backup-export";
 import SettingsSync from "./SettingsSync";
 import { withTimeout } from "../lib/async";
 import { EditorAppearancePanel } from "./EditorAppearancePanel";
@@ -411,23 +412,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   // ── 导出/导入 ──
   const handleExport = async () => {
     try {
-      const data = await api.export.data();
-      if (isTauri()) {
-        const path = await exportWithDialog(data);
-        if (path) {
-          showMessage(`已保存到 ${path}`);
-        }
-        // 用户取消则不显示任何消息
-      } else {
-        const blob = new Blob([data], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `nine-rings-${localDateKey()}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showMessage("导出成功");
-      }
+      const result = await exportLocalJsonBackup();
+      if (!result) return;
+      showMessage(result.desktop ? `已保存到 ${result.destination}` : "导出成功");
     } catch (e) {
       showMessage(`导出失败: ${e}`);
     }
@@ -886,6 +873,18 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 />
                 <span className="toggle-track" />
                 <span className="toggle-label">{config.editor_show_status_bar ? "开" : "关"}</span>
+              </label>
+            </Field>
+
+            <Field label="新代码块默认软换行" desc="仅改变新建代码块的显示方式，不修改代码内容；已有代码块保持各自设置" visible={settingsPage === "editor"}>
+              <label className="settings-toggle">
+                <input
+                  type="checkbox"
+                  checked={config.editor_code_wrap_default}
+                  onChange={(e) => update({ editor_code_wrap_default: e.target.checked })}
+                />
+                <span className="toggle-track" />
+                <span className="toggle-label">{config.editor_code_wrap_default ? "开" : "关"}</span>
               </label>
             </Field>
 

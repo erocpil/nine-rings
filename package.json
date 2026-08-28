@@ -22,6 +22,9 @@
     "test:ops": "tsx src/lib/storage/idb-driver.test.ts",
     "check:ipc": "python3 scripts/check-ipc-contract.py",
     "test:e2e": "npx playwright test",
+    "test:smoke": "playwright test e2e/structured-block-exit.spec.ts e2e/clipboard-paste.spec.ts e2e/readonly-heading-fold.spec.ts --grep \"结构块退出行为|触屏代码块退出行为|长 shell 参数自动换行|只读文档隐藏代码语法选项|手机文档末章的最后几个段落\" --workers=1 && playwright test e2e/epub-reader.spec.ts e2e/pdf-reader.spec.ts e2e/session-restore.spec.ts e2e/settings-navigation.spec.ts --grep \"本地 EPUB 可导入|本地 PDF 从设置导入|安装版重启后优先定位|新代码块遵循默认软换行\" --workers=1",
+    "test:smoke:editor": "playwright test e2e/structured-block-exit.spec.ts e2e/clipboard-paste.spec.ts e2e/readonly-heading-fold.spec.ts --grep \"结构块退出行为|触屏代码块退出行为|长 shell 参数自动换行|只读文档隐藏代码语法选项|手机文档末章的最后几个段落\" --workers=1",
+    "test:smoke:workspace": "playwright test e2e/epub-reader.spec.ts e2e/pdf-reader.spec.ts e2e/session-restore.spec.ts e2e/settings-navigation.spec.ts --grep \"本地 EPUB 可导入|本地 PDF 从设置导入|安装版重启后优先定位|新代码块遵循默认软换行\" --workers=1",
     "test:pwa": "npm run build && npx playwright test --config playwright.pwa.config.ts",
     "test:e2e:ui": "npx playwright test --ui"
   },

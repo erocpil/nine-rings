@@ -1683,6 +1683,7 @@ function App() {
                       showStatusBlockNumber={config?.editor_show_status_block_number ?? true}
                       showStatusBar={config?.editor_show_status_bar ?? true}
                       vimModeEnabled={config?.editor_vim_mode ?? false}
+                      defaultCodeBlockWrap={config?.editor_code_wrap_default ?? true}
                       highlightActiveLine={config?.highlight_active_line ?? true}
                       useCustomContextMenu={config?.use_custom_context_menu ?? true}
                       cjkLatinSpacing={config?.editor_cjk_spacing ?? true}

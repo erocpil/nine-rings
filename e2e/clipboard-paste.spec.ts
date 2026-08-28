@@ -166,7 +166,7 @@ test.describe("编辑器复制粘贴", () => {
     const codeBlock = editor.locator(".code-block-wrap");
     // Narrowing the desktop fixture activates the mobile sidebar overlay;
     // dispatch directly because this control belongs to the editor underneath.
-    await codeBlock.getByRole("button", { name: "关闭代码自动换行" }).dispatchEvent("click");
+    await codeBlock.getByRole("button", { name: "关闭代码软换行" }).dispatchEvent("click");
     await expect(codeBlock).toHaveAttribute("data-code-wrap", "false");
     const noWrap = await code.evaluate((element) => {
       const style = getComputedStyle(element);
@@ -312,7 +312,7 @@ test.describe("编辑器复制粘贴", () => {
     await expect(editor.locator("pre code")).toHaveCount(2);
     const firstCodeBlock = editor.locator(".code-block-wrap").first();
     await firstCodeBlock.getByLabel("代码简介").fill("更新探针部署");
-    const wrapToggle = firstCodeBlock.getByRole("button", { name: "关闭代码自动换行" });
+    const wrapToggle = firstCodeBlock.getByRole("button", { name: "关闭代码软换行" });
     await expect(wrapToggle).toHaveAttribute("aria-pressed", "true");
     await wrapToggle.click();
     await expect(firstCodeBlock).toHaveAttribute("data-code-wrap", "false");

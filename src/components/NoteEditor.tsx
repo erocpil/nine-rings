@@ -38,6 +38,7 @@ import { addLog, toggleDebug } from "../lib/debugLog";
 import { copyToClipboard } from "../lib/clipboard";
 import {
   CodeBlockLineNumbers,
+  setCodeBlockDefaultWrap,
   setCodeBlockLineNumbersEnabled,
 } from "../extensions/CodeBlockLineNumbers";
 import { EditorBlockGutter } from "./EditorBlockGutter";
@@ -395,6 +396,7 @@ interface NoteEditorProps {
   showStatusBlockNumber: boolean;
   showStatusBar: boolean;
   vimModeEnabled: boolean;
+  defaultCodeBlockWrap: boolean;
   highlightActiveLine: boolean;
   useCustomContextMenu: boolean;
   cjkLatinSpacing: boolean;
@@ -504,7 +506,7 @@ function restoreEditorViewportAnchor(
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, vimModeEnabled, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps) {
+export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps) {
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -891,7 +893,10 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       ActiveLinePlugin,
       ToolbarSelection,
       SearchHighlights,
-      CodeBlockLineNumbers.configure({ lineNumbersEnabled: showCodeLineNumbers }),
+      CodeBlockLineNumbers.configure({
+        lineNumbersEnabled: showCodeLineNumbers,
+        defaultWrap: defaultCodeBlockWrap,
+      }),
       CollapsibleBlockquote,
       StructuredBlockExit,
       MarkdownLinkInput,
@@ -1119,6 +1124,11 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     if (!editor) return;
     setCodeBlockLineNumbersEnabled(editor, showCodeLineNumbers);
   }, [editor, showCodeLineNumbers]);
+
+  useEffect(() => {
+    if (!editor) return;
+    setCodeBlockDefaultWrap(editor, defaultCodeBlockWrap);
+  }, [defaultCodeBlockWrap, editor]);
 
   useEffect(() => {
     if (!editor) return;
@@ -2950,7 +2960,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     });
 
     if (blockCount <= 1) {
-      editor.chain().focus().setNode('codeBlock').run();
+      editor.chain().focus().setNode('codeBlock', { wrap: defaultCodeBlockWrap }).run();
       return;
     }
 
@@ -2960,6 +2970,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       .deleteRange({ from, to })
       .insertContentAt(from, {
         type: 'codeBlock',
+        attrs: { wrap: defaultCodeBlockWrap },
         content: text ? [{ type: 'text', text }] : [],
       })
       .run();

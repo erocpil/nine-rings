@@ -9,6 +9,7 @@ import { CODE_LANGUAGE_OPTIONS, highlightCode, normalizeCodeLanguage } from "../
 
 const codeHighlightPluginKey = new PluginKey<DecorationSet>("codeSyntaxHighlight");
 const codeLineNumbersPluginKey = new PluginKey<boolean>("codeLineNumbersEnabled");
+const codeBlockDefaultWrapPluginKey = new PluginKey<boolean>("codeBlockDefaultWrap");
 
 interface TextSpan {
   node: Text;
@@ -308,10 +309,10 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
                 else setReadonlyWrapOverride(!wrapEnabled);
               }}
               type="button"
-              aria-label={wrapEnabled ? "关闭代码自动换行" : "开启代码自动换行"}
+              aria-label={wrapEnabled ? "关闭代码软换行" : "开启代码软换行"}
               aria-pressed={wrapEnabled}
-              title={wrapEnabled ? "自动换行：开" : "自动换行：关"}
-            >换行</button>
+              title={`视觉软换行：${wrapEnabled ? "开" : "关"}（仅改变显示，不修改代码）`}
+            >软换行</button>
             <button
               className="code-block-copy"
               onMouseDown={(event) => event.preventDefault()}
@@ -356,13 +357,14 @@ import { ReactNodeViewRenderer } from "@tiptap/react";
 
 interface CodeBlockLineNumberOptions {
   lineNumbersEnabled: boolean;
+  defaultWrap: boolean;
 }
 
 export const CodeBlockLineNumbers = Node.create<CodeBlockLineNumberOptions>({
   name: "codeBlock",
 
   addOptions() {
-    return { lineNumbersEnabled: false };
+    return { lineNumbersEnabled: false, defaultWrap: true };
   },
 
   group: "block",
@@ -427,6 +429,15 @@ export const CodeBlockLineNumbers = Node.create<CodeBlockLineNumberOptions>({
           return typeof requested === "boolean" ? requested : previous;
         },
       },
+    }), new Plugin<boolean>({
+      key: codeBlockDefaultWrapPluginKey,
+      state: {
+        init: () => this.options.defaultWrap,
+        apply(transaction, previous) {
+          const requested = transaction.getMeta(codeBlockDefaultWrapPluginKey);
+          return typeof requested === "boolean" ? requested : previous;
+        },
+      },
     }), new Plugin<DecorationSet>({
       key: codeHighlightPluginKey,
       state: {
@@ -475,7 +486,8 @@ export const CodeBlockLineNumbers = Node.create<CodeBlockLineNumberOptions>({
         if (editor.isActive('codeBlock')) {
           editor.chain().focus().setNode('paragraph').run();
         } else {
-          editor.chain().focus().setNode('codeBlock').run();
+          const defaultWrap = codeBlockDefaultWrapPluginKey.getState(editor.state) ?? true;
+          editor.chain().focus().setNode('codeBlock', { wrap: defaultWrap }).run();
         }
         return true;
       },
@@ -487,4 +499,10 @@ export function setCodeBlockLineNumbersEnabled(editor: Editor, enabled: boolean)
   const current = codeLineNumbersPluginKey.getState(editor.state) ?? false;
   if (current === enabled) return;
   editor.view.dispatch(editor.state.tr.setMeta(codeLineNumbersPluginKey, enabled));
+}
+
+export function setCodeBlockDefaultWrap(editor: Editor, enabled: boolean): void {
+  const current = codeBlockDefaultWrapPluginKey.getState(editor.state) ?? true;
+  if (current === enabled) return;
+  editor.view.dispatch(editor.state.tr.setMeta(codeBlockDefaultWrapPluginKey, enabled));
 }
