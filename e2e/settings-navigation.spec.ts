@@ -266,15 +266,40 @@ test("Web/PWA 从 GitHub Pull 后自动应用设置并恢复最后文档位置",
   page.on("download", () => { downloadCount += 1; });
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeEditable({ timeout: 10000 });
+  const localOnlyNote = await page.evaluate(() => new Promise<{ id: string; title: string }>((resolve, reject) => {
+    const request = indexedDB.open("nine_rings");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const getAll = db.transaction("notes", "readonly").objectStore("notes").getAll();
+      getAll.onerror = () => reject(getAll.error);
+      getAll.onsuccess = () => {
+        const note = getAll.result.find((item) => !item.deleted_at);
+        db.close();
+        if (!note) reject(new Error("缺少用于验证安全合并的本地文档"));
+        else resolve({ id: note.id, title: note.title ?? "无标题" });
+      };
+    };
+  }));
   await page.getByTitle("设置").click();
   await page.getByRole("button", { name: /^同步与备份/ }).click();
-  await expect(page.getByText(/Pull 会先读取并预检远端备份，不会自动导入/)).toBeVisible();
+  await expect(page.getByText(/Pull 会先按文档 UUID 比较本地、远端和上次同步基线/)).toBeVisible();
   await page.getByRole("button", { name: "Pull ↓" }).click();
-  await expect(page.getByText("Pull 预检（将覆盖本地数据）")).toBeVisible();
+  await expect(page.getByText("Pull 文档级预检")).toBeVisible();
+  await expect(page.getByLabel("Pull 文档差异摘要")).toContainText("远端独有");
+  const replaceButton = page.getByRole("button", { name: /删除本地独有 \d+ 篇并全量覆盖/ });
+  await expect(replaceButton).toBeVisible();
+  const replaceWarning = page.waitForEvent("dialog").then(async (dialog) => {
+    expect(dialog.message()).toContain("本地独有");
+    expect(dialog.message()).toContain("将被删除");
+    expect(dialog.message()).toContain("不会按标题合并");
+    await dialog.dismiss();
+  });
+  await replaceButton.click();
+  await replaceWarning;
 
-  page.once("dialog", (dialog) => void dialog.accept());
   const reloadPromise = page.waitForEvent("load");
-  await page.getByRole("button", { name: "确认覆盖并导入" }).click();
+  await page.getByRole("button", { name: "安全合并（推荐）" }).click();
   await reloadPromise;
   await expect(page.locator("html")).toHaveClass(/theme-dark/);
   await expect(page.locator(".note-title")).toHaveValue("GitHub 恢复的最后文档");
@@ -286,5 +311,19 @@ test("Web/PWA 从 GitHub Pull 后自动应用设置并恢复最后文档位置",
     (id) => JSON.parse(localStorage.getItem(`selectionPos:${id}`) ?? "null"),
     restoredNoteId,
   )).toEqual({ from: 20, to: 20 });
+  await expect.poll(() => page.evaluate((id) => new Promise<boolean>((resolve, reject) => {
+    const request = indexedDB.open("nine_rings");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const get = db.transaction("notes", "readonly").objectStore("notes").get(id);
+      get.onerror = () => reject(get.error);
+      get.onsuccess = () => {
+        const exists = Boolean(get.result && !get.result.deleted_at);
+        db.close();
+        resolve(exists);
+      };
+    };
+  }), localOnlyNote.id)).toBe(true);
   expect(downloadCount).toBe(0);
 });

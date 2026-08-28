@@ -9,6 +9,7 @@ import {
   type SyncConfig,
   type SyncStatus,
   type PullPrecheck,
+  type PullMode,
 } from "../lib/sync/github";
 import { useTransientMessage } from "../hooks/useTransientMessage";
 
@@ -19,13 +20,14 @@ interface Props {
   onPullDone?: () => void;
 }
 
-type BusyOperation = "check" | "push" | "pull-preview" | "pull";
+type BusyOperation = "check" | "push" | "pull-preview" | "pull-merge" | "pull-replace";
 
 const BUSY_MESSAGES: Record<BusyOperation, string> = {
   check: "正在检查 GitHub 连接，操作期间暂不可编辑",
   push: "正在向 GitHub 推送备份，操作期间暂不可编辑",
-  "pull-preview": "正在读取远端备份；预检完成后需要手动确认，才会覆盖并导入",
-  pull: "正在从 GitHub 导入备份，操作期间暂不可编辑",
+  "pull-preview": "正在读取远端备份并逐篇比较；预检完成前不会修改本地数据",
+  "pull-merge": "正在安全合并 GitHub 备份，本地独有内容会保留",
+  "pull-replace": "正在用 GitHub 快照覆盖本地数据库，操作期间暂不可编辑",
 };
 
 /** owner/repo 合并格式校验 */
@@ -34,15 +36,11 @@ const OWNER_REPO_RE = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\/[a-zA-Z0-9._-]+$
 /** 格式化 UTC 时间戳 "20260715T143911" → 本地时间 "2026-07-15 22:39:11" */
 function fmtVersion(version: string | null): string {
   if (!version) return "";
-  if (version.length !== 15) return version;
-  const y = version.slice(0, 4);
-  const M = version.slice(4, 6);
-  const d = version.slice(6, 8);
-  const h = version.slice(9, 11);
-  const m = version.slice(11, 13);
-  const s = version.slice(13, 15);
+  const match = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(\d{3})?$/.exec(version);
+  if (!match) return version;
+  const [, y, M, d, h, m, s, ms = "0"] = match;
   // 版本时间戳为 UTC，转为本地时区显示
-  const utcMs = Date.UTC(+y, +M - 1, +d, +h, +m, +s);
+  const utcMs = Date.UTC(+y, +M - 1, +d, +h, +m, +s, +ms);
   const local = new Date(utcMs);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())} ${pad(local.getHours())}:${pad(local.getMinutes())}:${pad(local.getSeconds())}`;
@@ -61,10 +59,35 @@ function fmtBytes(size: number | null): string {
   return `${value.toFixed(value >= 10 ? 1 : 2)} ${unit}`;
 }
 
-function fmtCountDelta(remote: number, local: number): string {
-  const delta = remote - local;
-  if (delta === 0) return "数量相同";
-  return delta > 0 ? `远端多 ${delta}` : `远端少 ${Math.abs(delta)}`;
+function SyncDocumentList({
+  title,
+  items,
+  description,
+  danger = false,
+}: {
+  title: string;
+  items: PullPrecheck["comparison"]["localOnly"];
+  description: string;
+  danger?: boolean;
+}) {
+  if (items.length === 0) return null;
+  const visible = items.slice(0, 50);
+  return (
+    <details className={`sync-diff-group ${danger ? "danger" : ""}`}>
+      <summary>{title} <strong>{items.length}</strong></summary>
+      <p>{description}</p>
+      <ul>
+        {visible.map((item) => (
+          <li key={item.id}>
+            <span>{item.kind === "document" ? "📄" : "📝"} {item.title}</span>
+            <small>{item.storagePath || item.date || item.id.slice(0, 8)}</small>
+            {item.remoteTitle && item.remoteTitle !== item.title && <small>远端标题：{item.remoteTitle}</small>}
+          </li>
+        ))}
+      </ul>
+      {items.length > visible.length && <p>另有 {items.length - visible.length} 项未展开显示。</p>}
+    </details>
+  );
 }
 
 export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
@@ -212,18 +235,38 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     }
   }, [cfg, clearMessage, showMessage]);
 
-  const handlePull = useCallback(async () => {
+  const handlePull = useCallback(async (mode: PullMode) => {
     if (!pullPrecheck) return;
-    if (!confirm("将从 GitHub 读取远端快照并直接覆盖本地数据库，建议先确认差异。确认继续？")) {
-      setPullPrecheck(null);
-      return;
+    if (mode === "replace") {
+      const localOnly = pullPrecheck.comparison.localOnly.length;
+      const overwritten = pullPrecheck.comparison.localChanged.length + pullPrecheck.comparison.conflicts.length;
+      const warning = [
+        "危险操作：将用 GitHub 全量快照替换本地数据库。",
+        localOnly > 0 ? `本地独有的 ${localOnly} 篇随笔/文档将被删除。` : "本地版本历史仍会被清空。",
+        overwritten > 0 ? `${overwritten} 篇本地修改或冲突文档将被远端版本覆盖。` : "",
+        "该操作不会按标题合并；建议先导出本地 JSON。确认仍要继续？",
+      ].filter(Boolean).join("\n");
+      if (!confirm(warning)) return;
     }
-    setBusyOperation("pull");
+    setBusyOperation(mode === "safe-merge" ? "pull-merge" : "pull-replace");
     clearMessage();
     try {
-      const updated = await pullFromGitHub(cfg);
+      const updated = await pullFromGitHub(cfg, {
+        mode,
+        expectedVersion: pullPrecheck.remote.version,
+      });
       setCfg(updated);
-      showMessage(`已拉取并导入 (${new Date().toLocaleTimeString()})`, "success");
+      if (mode === "safe-merge") {
+        const comparison = pullPrecheck.comparison;
+        showMessage(
+          `安全合并完成：保留本地独有 ${comparison.localOnly.length} 篇，`
+          + `导入远端独有 ${comparison.remoteOnly.length} 篇，`
+          + `冲突副本 ${comparison.conflicts.length} 篇`,
+          "success",
+        );
+      } else {
+        showMessage(`已用远端快照覆盖本地数据 (${new Date().toLocaleTimeString()})`, "success");
+      }
       onPullDone?.();
       setPullPrecheck(null);
     } catch (e) {
@@ -291,7 +334,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
 
       {pullPrecheck && (
         <div className="sync-preview">
-          <p style={{ margin: "6px 0", fontWeight: 600 }}>Pull 预检（将覆盖本地数据）</p>
+          <p className="sync-preview-title">Pull 文档级预检</p>
           <div className="sync-versions" style={{ marginBottom: 8 }}>
             <span>
               本地: {fmtVersion(pullPrecheck.local.version || "") || "-"}
@@ -308,17 +351,76 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
               {fmtBytes(pullPrecheck.remote.size)}
             </span>
           </div>
-          <div className="settings-hint" style={{ marginBottom: 8 }}>
-            差异摘要：笔记{fmtCountDelta(pullPrecheck.remote.noteCount, pullPrecheck.local.noteCount)}；
-            页面{fmtCountDelta(pullPrecheck.remote.pageCount, pullPrecheck.local.pageCount)}。
-            导入失败时会自动恢复拉取前的本地数据。
+          <div className="sync-diff-summary" aria-label="Pull 文档差异摘要">
+            <span>本地独有 <strong>{pullPrecheck.comparison.localOnly.length}</strong></span>
+            <span>远端独有 <strong>{pullPrecheck.comparison.remoteOnly.length}</strong></span>
+            <span>仅本地修改 <strong>{pullPrecheck.comparison.localChanged.length}</strong></span>
+            <span>仅远端修改 <strong>{pullPrecheck.comparison.remoteChanged.length}</strong></span>
+            <span className={pullPrecheck.comparison.conflicts.length ? "danger" : ""}>冲突 <strong>{pullPrecheck.comparison.conflicts.length}</strong></span>
+            <span>相同 <strong>{pullPrecheck.comparison.unchanged}</strong></span>
           </div>
-          <div className="settings-row" style={{ gap: 8 }}>
-            <button className="settings-btn settings-btn-danger" onClick={handlePull} disabled={busy}>
-              确认覆盖并导入
+
+          <div className="settings-hint sync-base-hint">
+            {pullPrecheck.baseVersion
+              ? `已使用共同基线 ${fmtVersion(pullPrecheck.baseVersion)} 做三方比较。`
+              : "当前设备没有可用的共同基线；同 ID 且内容不同的文档会保守地作为冲突处理。"}
+          </div>
+
+          <SyncDocumentList
+            title="本地独有"
+            items={pullPrecheck.comparison.localOnly}
+            description="安全合并会保留；全量覆盖会删除这些内容。"
+            danger
+          />
+          <SyncDocumentList
+            title="远端独有"
+            items={pullPrecheck.comparison.remoteOnly}
+            description="安全合并和全量覆盖都会导入这些内容。"
+          />
+          <SyncDocumentList
+            title="仅本地修改"
+            items={pullPrecheck.comparison.localChanged}
+            description="安全合并会保留本地版本。"
+          />
+          <SyncDocumentList
+            title="仅远端修改"
+            items={pullPrecheck.comparison.remoteChanged}
+            description="安全合并会采用远端版本。"
+          />
+          <SyncDocumentList
+            title="双方冲突"
+            items={pullPrecheck.comparison.conflicts}
+            description="安全合并采用远端版本，并把本地内容另存为“本地同步冲突副本”。"
+            danger
+          />
+
+          {(pullPrecheck.comparison.pages.localOnly
+            + pullPrecheck.comparison.pages.remoteOnly
+            + pullPrecheck.comparison.pages.localChanged
+            + pullPrecheck.comparison.pages.remoteChanged
+            + pullPrecheck.comparison.pages.conflicts) > 0 && (
+            <div className="settings-hint sync-page-summary">
+              每日页面：本地独有 {pullPrecheck.comparison.pages.localOnly}，远端独有 {pullPrecheck.comparison.pages.remoteOnly}，
+              仅本地修改 {pullPrecheck.comparison.pages.localChanged}，仅远端修改 {pullPrecheck.comparison.pages.remoteChanged}，
+              冲突 {pullPrecheck.comparison.pages.conflicts}。
+            </div>
+          )}
+
+          <div className="sync-merge-explanation">
+            安全合并不会按标题去重，也不会传播删除操作；同名但 UUID 不同的文档会同时保留。
+            导入失败时会尝试恢复拉取前快照。
+          </div>
+          <div className="settings-row sync-preview-actions">
+            <button className="settings-btn settings-btn-primary" onClick={() => void handlePull("safe-merge")} disabled={busy}>
+              安全合并（推荐）
             </button>
             <button className="settings-btn" onClick={() => setPullPrecheck(null)} disabled={busy}>
               取消
+            </button>
+            <button className="settings-btn settings-btn-danger sync-replace-button" onClick={() => void handlePull("replace")} disabled={busy}>
+              {pullPrecheck.comparison.localOnly.length > 0
+                ? `删除本地独有 ${pullPrecheck.comparison.localOnly.length} 篇并全量覆盖`
+                : "清空版本历史并全量覆盖"}
             </button>
           </div>
           <div className="settings-hint">远端文件: {pullPrecheck.remote.path}</div>
@@ -326,7 +428,8 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
       )}
 
       <p className="settings-hint">
-        Pull 会先读取并预检远端备份，不会自动导入；需要手动点击“确认覆盖并导入”后才会恢复数据。
+        Pull 会先按文档 UUID 比较本地、远端和上次同步基线，不会自动修改数据；默认使用保留本地独有内容的安全合并。
+        Push 若发现远端存在本机尚未合并的新版本会停止上传，需先安全 Pull，避免旧设备覆盖远端新增内容。
       </p>
 
       <div className="sync-config-section">

@@ -54,6 +54,8 @@ fn make_todo(id: &str, text: &str, done: bool) -> nine_rings_lib::db::models::To
         done,
         order: 0,
         tags: vec![],
+        remind_at: None,
+        parent_id: None,
     }
 }
 
@@ -128,6 +130,45 @@ fn test_export_roundtrip() {
 
     let notes = get_notes_by_date_via_op(&conn2, "2026-07-08");
     assert_eq!(notes.len(), 1);
+}
+
+#[test]
+fn test_merge_import_preserves_local_only_notes() {
+    let source = setup_db();
+    create_note_via_op(&source, "remote", "2026-07-08", "Remote", &[]);
+    let bundle = nine_rings_lib::export::export_all(
+        &source,
+        &nine_rings_lib::commands::config::AppConfig::default(),
+    )
+    .unwrap();
+
+    let destination = setup_db();
+    create_note_via_op(&destination, "local", "2026-07-08", "Local", &[]);
+    nine_rings_lib::export::import_bundle(&destination, &bundle, false).unwrap();
+
+    let notes = get_notes_by_date_via_op(&destination, "2026-07-08");
+    assert!(notes.iter().any(|note| note["id"] == "remote"));
+    assert!(
+        notes.iter().any(|note| note["id"] == "local"),
+        "safe merge import must preserve local-only notes"
+    );
+}
+
+#[test]
+fn test_todo_backup_preserves_reminder_and_parent() {
+    let raw = json!({
+        "id": "child",
+        "text": "Follow up",
+        "done": false,
+        "order": 1,
+        "tags": ["work"],
+        "remind_at": "2026-08-29T03:00:00.000Z",
+        "parent_id": "parent"
+    });
+    let todo: nine_rings_lib::db::models::Todo = serde_json::from_value(raw).unwrap();
+    let exported = serde_json::to_value(todo).unwrap();
+    assert_eq!(exported["remind_at"], "2026-08-29T03:00:00.000Z");
+    assert_eq!(exported["parent_id"], "parent");
 }
 
 #[test]

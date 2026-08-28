@@ -3,6 +3,7 @@ import {
   githubApiFetch,
   githubContentsUrl,
   loadSyncConfig,
+  remoteBackupNeedsMerge,
   saveSyncConfig,
   type SyncConfig,
 } from "../src/lib/sync/github";
@@ -24,6 +25,15 @@ const config: SyncConfig = {
   lastPullVersion: null,
   rememberToken: false,
 };
+
+assert(remoteBackupNeedsMerge(config, "20260828T010203004"),
+  "a device with no common base must Pull before replacing an existing remote snapshot");
+assert(!remoteBackupNeedsMerge({ ...config, lastPullVersion: "20260828T010203004" }, "20260828T010203004"),
+  "a device that has pulled the current remote version may Push");
+assert(!remoteBackupNeedsMerge({ ...config, lastPushVersion: "20260828T010203004" }, "20260828T010203004"),
+  "the device that created the current remote version may Push again");
+assert(remoteBackupNeedsMerge({ ...config, lastPullVersion: "20260827T010203004" }, "20260828T010203004"),
+  "a newer remote version blocks stale-device Push");
 
 assert(
   githubContentsUrl(config.owner, config.repo, config.path) ===

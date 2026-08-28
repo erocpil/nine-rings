@@ -5695,6 +5695,130 @@ body {
   padding: 8px 10px;
   background: rgba(255, 196, 35, 0.06);
 }
+
+.sync-preview-title {
+  margin: 6px 0;
+  font-weight: 650;
+}
+
+.sync-diff-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.sync-diff-summary > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.sync-diff-summary > span.danger {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  color: var(--danger);
+}
+
+.sync-base-hint,
+.sync-page-summary {
+  margin: 8px 0;
+}
+
+.sync-diff-group {
+  margin: 5px 0;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  font-size: 12px;
+}
+
+.sync-diff-group.danger {
+  border-color: color-mix(in srgb, var(--danger) 38%, var(--border));
+}
+
+.sync-diff-group summary {
+  padding: 7px 9px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.sync-diff-group.danger summary {
+  color: var(--danger);
+}
+
+.sync-diff-group > p {
+  margin: 0;
+  padding: 0 9px 7px;
+  color: var(--text-secondary);
+}
+
+.sync-diff-group ul {
+  max-height: 220px;
+  margin: 0;
+  padding: 0 9px 8px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.sync-diff-group li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  padding: 5px 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.sync-diff-group li > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-diff-group li > small {
+  color: var(--text-muted);
+}
+
+.sync-merge-explanation {
+  margin: 10px 0 8px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.sync-preview-actions {
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sync-replace-button {
+  margin-left: auto;
+}
+
+@media (max-width: 768px) {
+  .sync-diff-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sync-preview-actions > button {
+    flex: 1 1 auto;
+  }
+
+  .sync-replace-button {
+    flex-basis: 100% !important;
+    margin-left: 0;
+  }
+}
 @keyframes toastIn {
   from { opacity: 0; transform: translateY(-4px); }
   to   { opacity: 1; transform: translateY(0); }

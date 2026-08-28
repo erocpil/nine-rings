@@ -2,8 +2,8 @@
  * GitHub 同步服务 — 方案 A：全量 JSON 快照
  *
  * 数据流：
- *   Push: IndexedDB → 序列化 JSON → PUT /repos/{owner}/{repo}/contents/nine-rings-backup.json
- *   Pull: GET → 读取 JSON → 直接导入 IndexedDB
+ *   Push: 本地数据库 → 序列化 JSON → GitHub 版本化全量快照
+ *   Pull: GET → 按 UUID 与共同基线比较 → 安全合并（默认）或显式全量覆盖
  *
  * 认证：个人访问令牌（Personal Access Token），需 repo 权限。
  * 设置 → 填入 token + owner/repo → 测试连接 → 手动/定时同步。
@@ -11,6 +11,11 @@
 
 import { addLog } from "../debugLog";
 import { isTauriRuntime } from "../runtime";
+import {
+  buildSafeMergedBackup,
+  compareBackupSnapshots,
+  type BackupComparison,
+} from "./backup-merge";
 
 // ── 类型 ──
 
@@ -174,6 +179,17 @@ export interface PullPrecheck {
     ptrPath: string;
     sha: string | null;
   };
+  comparison: BackupComparison;
+  /** 用于三方比较的上次 Push/Pull 快照；null 表示只能保守识别冲突。 */
+  baseVersion: string | null;
+}
+
+export type PullMode = "safe-merge" | "replace";
+
+export interface PullOptions {
+  mode?: PullMode;
+  /** 防止预检之后 latest 指针已变化却仍按旧摘要执行。 */
+  expectedVersion?: string;
 }
 
 export function loadSyncConfig(): SyncConfig {
@@ -412,6 +428,52 @@ async function importFullDB(json: string): Promise<void> {
   console.log("[importFullDB] 导入完成:", result);
 }
 
+/** 安全合并只 upsert 合并结果，不清空本地独有记录和版本历史。 */
+async function importMergedDB(json: string): Promise<void> {
+  const { api } = await import("../api");
+  console.log("[importMergedDB] 开始安全合并, json 长度:", json.length);
+  const result = await api.export.import(json, "merge");
+  console.log("[importMergedDB] 合并完成:", result);
+}
+
+function latestKnownBaseVersion(config: SyncConfig): string | null {
+  const versions = [config.lastPullVersion, config.lastPushVersion]
+    .filter((version): version is string => Boolean(version))
+    .sort();
+  return versions.length > 0 ? versions[versions.length - 1] : null;
+}
+
+export function remoteBackupNeedsMerge(config: SyncConfig, remoteVersion: string | null): boolean {
+  const normalizedRemote = remoteVersion?.trim() ?? "";
+  return Boolean(normalizedRemote && normalizedRemote !== latestKnownBaseVersion(config));
+}
+
+async function fetchBaseSnapshot(
+  config: SyncConfig,
+  remoteVersion: string,
+  remoteContent: string,
+): Promise<{ version: string | null; content: string | null }> {
+  const version = latestKnownBaseVersion(config);
+  if (!version) return { version: null, content: null };
+  if (version === remoteVersion) return { version, content: remoteContent };
+  try {
+    const base = await fetchRemote(
+      config.token,
+      config.owner,
+      config.repo,
+      versionedPath(config.path, version),
+    );
+    if (!base) {
+      addLog(`[Sync] 共同基线 ${version} 已不存在，改用保守冲突判断`);
+      return { version: null, content: null };
+    }
+    return { version, content: base.content };
+  } catch (reason) {
+    addLog(`[Sync] 读取共同基线失败，改用保守冲突判断: ${(reason as Error).message}`);
+    return { version: null, content: null };
+  }
+}
+
 /** 树形 dump 导出数据摘要 + P.A.R.A. 文档树 */
 function dumpBundle(label: string, json: string): void {
   let data: any;
@@ -532,12 +594,33 @@ export async function pushToGitHub(config: SyncConfig, message?: string): Promis
   }
 
   addLog("[Sync] ═══ Push → GitHub ═══");
+  const ptrPath = latestPath(config.path);
+
+  // Push 之前先确认本机确实见过远端 latest。否则旧设备可以直接把一个
+  // 缺少远端新文档的全量快照设为 latest，历史文件虽仍在 GitHub，正常
+  // Pull 却看不到它。要求先安全 Pull，形成并集后才允许继续 Push。
+  let currentPointer: { content: string; sha: string } | null = null;
+  try {
+    currentPointer = await fetchRemote(config.token, config.owner, config.repo, ptrPath);
+  } catch (reason) {
+    addLog(`[Sync] 读取 latest 指针失败: ${(reason as Error).message}`);
+    throw reason;
+  }
+  const remoteVersion = currentPointer?.content.trim() ?? "";
+  const knownBaseVersion = latestKnownBaseVersion(config);
+  if (remoteBackupNeedsMerge(config, remoteVersion)) {
+    throw new Error(
+      knownBaseVersion
+        ? `远端备份已更新为 ${remoteVersion}，本机最近基线是 ${knownBaseVersion}。请先执行 Pull 安全合并，再重新 Push`
+        : `远端已有备份 ${remoteVersion}，当前设备尚未合并。请先执行 Pull 安全合并，再重新 Push`,
+    );
+  }
+
   const content = await exportFullDB();
   dumpBundle("导出本地数据", content);
 
   const version = new Date().toISOString().replace(/[:-]/g, "").replace(/\.(\d{3})Z$/, "$1"); // "20260715T123000123"
   const dataPath = versionedPath(config.path, version);
-  const ptrPath = latestPath(config.path);
 
   // ── 1. 写数据文件（创建，sha=null）──
   addLog(`[Sync] 写入数据文件: ${dataPath}`);
@@ -552,15 +635,9 @@ export async function pushToGitHub(config: SyncConfig, message?: string): Promis
   // ── 2. 写 latest 指针 ──
   addLog(`[Sync] 写入 latest 指针: ${ptrPath} → ${version}`);
   try {
-    // 先获取 latest 的 SHA（可能不存在）
-    let ptrSha: string | null = null;
-    try {
-      const ptr = await fetchRemote(config.token, config.owner, config.repo, ptrPath);
-      ptrSha = ptr?.sha ?? null;
-    } catch {
-      // 文件不存在，null 即 create
-    }
-    await putRemote(config.token, config.owner, config.repo, ptrPath, version, ptrSha,
+    // 使用上传数据前读取的 SHA。如果此间另一台设备更新了 latest，GitHub
+    // 会拒绝旧 SHA，避免竞态覆盖。
+    await putRemote(config.token, config.owner, config.repo, ptrPath, version, currentPointer?.sha ?? null,
       `latest: ${version}`);
   } catch (e) {
     addLog(`[Sync] latest 指针写入失败: ${(e as Error).message}`);
@@ -584,7 +661,7 @@ export async function pushToGitHub(config: SyncConfig, message?: string): Promis
  *
  * 先读 {path}-latest 指针文件获取版本号 → 再拉对应版本的数据文件。
  */
-export async function pullFromGitHub(config: SyncConfig): Promise<SyncConfig> {
+export async function pullFromGitHub(config: SyncConfig, options: PullOptions = {}): Promise<SyncConfig> {
   if (!config.token || !config.owner || !config.repo) {
     throw new Error("请先配置 GitHub Token、Owner 和 Repo");
   }
@@ -603,6 +680,9 @@ export async function pullFromGitHub(config: SyncConfig): Promise<SyncConfig> {
   const version = ptr.content.trim();
   if (!version) {
     throw new Error("latest 指针文件为空");
+  }
+  if (options.expectedVersion && version !== options.expectedVersion) {
+    throw new Error(`远端备份已从 ${options.expectedVersion} 更新为 ${version}，请重新预检后再导入`);
   }
   addLog(`[Sync] latest → 版本 ${version}`);
 
@@ -635,12 +715,27 @@ export async function pullFromGitHub(config: SyncConfig): Promise<SyncConfig> {
 
   dumpBundle("拉取远端数据", remote.content);
 
+  const mode = options.mode ?? "safe-merge";
   try {
-    await importFullDB(remote.content);
+    if (mode === "safe-merge") {
+      const base = await fetchBaseSnapshot(config, version, remote.content);
+      const merged = buildSafeMergedBackup(restorePoint, remote.content, base.content);
+      addLog(
+        `[Sync] 安全合并: 保留本地独有 ${merged.comparison.localOnly.length}，`
+        + `导入远端独有 ${merged.comparison.remoteOnly.length}，`
+        + `冲突副本 ${merged.conflictCopies}`,
+      );
+      await importMergedDB(merged.json);
+    } else {
+      await importFullDB(remote.content);
+    }
   } catch (e) {
     addLog(`[Sync] 导入失败，尝试恢复拉取前快照: ${(e as Error).message}`);
     try {
-      await importFullDB(restorePoint);
+      // 安全合并失败时避免用 replace 清空本地版本历史；两端的记录写入
+      // 本身都在事务中，merge 恢复足以还原已有记录与配置。
+      if (mode === "safe-merge") await importMergedDB(restorePoint);
+      else await importFullDB(restorePoint);
       addLog("[Sync] 已恢复拉取前本地快照");
     } catch (restoreError) {
       addLog(`[Sync] 恢复快照失败: ${(restoreError as Error).message}`);
@@ -650,7 +745,7 @@ export async function pullFromGitHub(config: SyncConfig): Promise<SyncConfig> {
   }
 
   const bundle = JSON.parse(remote.content);
-  addLog(`[Sync] Pull ✓ 完成 — 导入 ${bundle.notes?.length ?? 0} 笔记 + ${bundle.daily_pages?.length ?? 0} 页面`);
+  addLog(`[Sync] Pull ✓ 完成（${mode === "safe-merge" ? "安全合并" : "全量覆盖"}）— 远端 ${bundle.notes?.length ?? 0} 笔记 + ${bundle.daily_pages?.length ?? 0} 页面`);
   addLog("[Sync] 刷新页面后生效");
   addLog("");
 
@@ -686,6 +781,8 @@ export async function previewPullFromGitHub(config: SyncConfig): Promise<PullPre
   }
   const local = summarizeBackup(localSnapshot);
   const remoteSummary = summarizeBackup(remote.content);
+  const base = await fetchBaseSnapshot(config, version, remote.content);
+  const comparison = compareBackupSnapshots(localSnapshot, remote.content, base.content);
   return {
     local,
     remote: {
@@ -695,6 +792,8 @@ export async function previewPullFromGitHub(config: SyncConfig): Promise<PullPre
       ptrPath,
       sha: remote.sha,
     },
+    comparison,
+    baseVersion: base.version,
   };
 }
 
