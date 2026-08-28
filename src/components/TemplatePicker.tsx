@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { templateStore, type Template } from "../lib/storage/template-store";
 
 interface TemplatePickerProps {
@@ -37,7 +38,7 @@ export function TemplatePicker({ onSelect, onBlank, onClose, anchorRect, filterN
     }).finally(() => {
       setLoading(false);
     });
-  }, []);
+  }, [filterNoPath]);
 
   // 点击外部关闭
   useEffect(() => {
@@ -63,14 +64,35 @@ export function TemplatePicker({ onSelect, onBlank, onClose, anchorRect, filterN
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  // 计算 popover 位置
+  // 侧栏在移动端通过 transform 滑入，并设置了 overflow: hidden。fixed
+  // 子节点若仍挂在侧栏内，会以侧栏为包含块并被侧栏边界裁切。浮层通过
+  // portal 挂到 body 后，再相对可视视口定位；优先与“+”按钮右对齐，使
+  // 260px 的面板在窄侧栏中也能完整显示。
+  const visualViewport = window.visualViewport;
+  const viewportLeft = visualViewport?.offsetLeft ?? 0;
+  const viewportTop = visualViewport?.offsetTop ?? 0;
+  const viewportWidth = visualViewport?.width ?? window.innerWidth;
+  const viewportHeight = visualViewport?.height ?? window.innerHeight;
+  const viewportGap = 8;
+  const popoverWidth = Math.min(260, Math.max(0, viewportWidth - viewportGap * 2));
+  const popoverMaxHeight = Math.min(360, Math.max(0, viewportHeight - viewportGap * 2));
+  const viewportRight = viewportLeft + viewportWidth;
+  const viewportBottom = viewportTop + viewportHeight;
   const style: React.CSSProperties = anchorRect ? {
     position: "fixed",
-    top: Math.min(anchorRect.bottom + 4, window.innerHeight - 320),
-    left: Math.min(anchorRect.left, window.innerWidth - 260),
+    width: popoverWidth,
+    maxHeight: popoverMaxHeight,
+    top: Math.max(
+      viewportTop + viewportGap,
+      Math.min(anchorRect.bottom + 4, viewportBottom - popoverMaxHeight - viewportGap),
+    ),
+    left: Math.max(
+      viewportLeft + viewportGap,
+      Math.min(anchorRect.right - popoverWidth, viewportRight - popoverWidth - viewportGap),
+    ),
   } : {};
 
-  return (
+  return createPortal((
     <div className="template-popover" ref={popoverRef} style={style}>
       <div className="template-popover-header">
         <span>从模板创建</span>
@@ -135,5 +157,5 @@ export function TemplatePicker({ onSelect, onBlank, onClose, anchorRect, filterN
         <span className="template-hint">内置模板会预设正文结构和元数据，创建后可自由修改</span>
       </div>
     </div>
-  );
+  ), document.body);
 }

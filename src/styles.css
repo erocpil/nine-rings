@@ -8402,6 +8402,16 @@ button.doc-tree-toggle:focus-visible {
     padding-bottom: max(4px, var(--safe-bottom));
   }
 
+  /* 专注模式的固定工具栏已经承担顶部导航，普通分屏为 splitter 和正文
+     预留的上边距不应继续叠加，否则首行会在工具栏下方留下近 50px 空白。 */
+  .app-focus-mode .app-main {
+    padding-top: 0;
+  }
+
+  .app-focus-mode .app-main-divider {
+    display: none;
+  }
+
   /* 普通模式的上下分屏保持紧凑：视觉分隔条变窄，但通过透明伪元素
      保留约 20px 的触摸拖动热区。 */
   .app:not(.app-focus-mode) .app-main-divider:not(.divider-collapsed) {

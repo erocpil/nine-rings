@@ -27,6 +27,7 @@ function createPdfFixture(): Buffer {
 }
 
 test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 500 });
   await page.addInitScript(() => {
     let fullscreenElement: Element | null = null;
     Object.defineProperty(document, "fullscreenElement", {
@@ -92,9 +93,29 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   await expect(reader).not.toHaveClass(/pdf-reader-immersive/);
   await expect(reader).toBeVisible();
 
-  await page.locator(".pdf-page-surface").dblclick({ position: { x: 120, y: 70 } });
+  const doubleClickSurface = page.locator(".pdf-page-surface").first();
+  const doubleClickPoint = { x: 120, y: 70 };
+  const anchorBeforeZoom = await doubleClickSurface.evaluate((element, point) => {
+    const bounds = element.getBoundingClientRect();
+    return {
+      x: bounds.left + point.x,
+      y: bounds.top + point.y,
+      ratioX: point.x / bounds.width,
+      ratioY: point.y / bounds.height,
+    };
+  }, doubleClickPoint);
+  const canvasWidthBeforeZoom = await doubleClickSurface.locator("canvas").getAttribute("width");
+  await doubleClickSurface.dblclick({ position: doubleClickPoint });
   await expect(page.getByRole("button", { name: "适宽" })).not.toHaveClass(/active/);
-  await page.locator(".pdf-page-surface").dblclick({ position: { x: 120, y: 70 } });
+  await expect.poll(() => doubleClickSurface.locator("canvas").getAttribute("width"))
+    .not.toBe(canvasWidthBeforeZoom);
+  await expect.poll(() => doubleClickSurface.evaluate((element, anchor) => {
+    const bounds = element.getBoundingClientRect();
+    const currentX = bounds.left + anchor.ratioX * bounds.width;
+    const currentY = bounds.top + anchor.ratioY * bounds.height;
+    return Math.max(Math.abs(currentX - anchor.x), Math.abs(currentY - anchor.y));
+  }, anchorBeforeZoom)).toBeLessThan(3);
+  await doubleClickSurface.dblclick({ position: doubleClickPoint });
   await expect(page.getByRole("button", { name: "适宽" })).toHaveClass(/active/);
 
   const initialSurfaceWidth = await page.locator(".pdf-page-surface").evaluate((element) => element.clientWidth);

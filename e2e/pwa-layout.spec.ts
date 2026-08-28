@@ -611,9 +611,11 @@ test.describe("PWA 窄屏应用外壳", () => {
     const geometry = await page.locator(".note-editor").evaluate((element) => {
       const bar = element.querySelector<HTMLElement>(".mobile-focus-bar")!.getBoundingClientRect();
       const insert = element.querySelector<HTMLElement>('.editor-block-insert[aria-label="在第一块前插入段落"]')!.getBoundingClientRect();
-      return { barBottom: bar.bottom, insertTop: insert.top };
+      const firstBlock = element.querySelector<HTMLElement>(".ProseMirror > *")!.getBoundingClientRect();
+      return { barBottom: bar.bottom, insertTop: insert.top, firstBlockTop: firstBlock.top };
     });
     expect(geometry.insertTop).toBeGreaterThanOrEqual(geometry.barBottom + 5);
+    expect(geometry.firstBlockTop - geometry.barBottom).toBeLessThanOrEqual(24);
 
     const insertBox = await insertBeforeFirst.boundingBox();
     if (!insertBox) throw new Error("focus mode first gutter insert button geometry not found");
@@ -625,6 +627,45 @@ test.describe("PWA 窄屏应用外壳", () => {
 
     await expect(blocks).toHaveCount(initialBlockCount + 1);
     await expect(blocks.first()).toHaveText("专注模式首块");
+  });
+
+  test("随笔模板选择器在移动侧栏中完整显示", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("显示侧栏").click();
+    await page.getByTitle("切换到随笔").click();
+    await page.getByTitle("从模板新建").click();
+
+    const popover = page.locator(".template-popover");
+    await expect(popover).toBeVisible();
+    await expect(popover.getByText("内置模板会预设正文结构和元数据，创建后可自由修改")).toBeVisible();
+
+    const geometry = await popover.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      const viewportLeft = viewport?.offsetLeft ?? 0;
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const viewportRight = viewportLeft + (viewport?.width ?? window.innerWidth);
+      const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
+      const hit = document.elementFromPoint(rect.right - 4, rect.top + rect.height / 2);
+      return {
+        parentIsBody: element.parentElement === document.body,
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        viewportLeft,
+        viewportTop,
+        viewportRight,
+        viewportBottom,
+        rightEdgeIsInteractive: hit === element || element.contains(hit),
+      };
+    });
+    expect(geometry.parentIsBody).toBe(true);
+    expect(geometry.left).toBeGreaterThanOrEqual(geometry.viewportLeft);
+    expect(geometry.top).toBeGreaterThanOrEqual(geometry.viewportTop);
+    expect(geometry.right).toBeLessThanOrEqual(geometry.viewportRight);
+    expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewportBottom);
+    expect(geometry.rightEdgeIsInteractive).toBe(true);
   });
 
   test("专注模式在竖屏、横屏和桌面均隐藏原始文档标题行", async ({ page }) => {

@@ -7,6 +7,7 @@ import {
   type PDFDocumentProxy,
   type RenderTask,
 } from "pdfjs-dist";
+import type { TextContent } from "pdfjs-dist/types/src/display/api";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
   addLocalPdfAnnotation,
@@ -86,6 +87,17 @@ interface PinchGesture {
   frame: number;
 }
 
+interface PdfZoomAnchor {
+  pageNumber: number;
+  x: number;
+  y: number;
+  viewportX: number;
+  viewportY: number;
+  fitWidth: boolean;
+  fitHeight: boolean;
+  zoom: number;
+}
+
 function touchDistance(first: React.Touch, second: React.Touch): number {
   return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
 }
@@ -107,6 +119,15 @@ function clampZoom(value: number): number {
 
 function clampPage(page: number, total: number): number {
   return Math.max(1, Math.min(total || 1, Math.round(page) || 1));
+}
+
+function restorePdfZoomAnchor(viewport: HTMLElement, surface: HTMLElement, anchor: PdfZoomAnchor): void {
+  const viewportBounds = viewport.getBoundingClientRect();
+  const surfaceBounds = surface.getBoundingClientRect();
+  const currentX = surfaceBounds.left + anchor.x * surfaceBounds.width;
+  const currentY = surfaceBounds.top + anchor.y * surfaceBounds.height;
+  viewport.scrollLeft += currentX - (viewportBounds.left + anchor.viewportX);
+  viewport.scrollTop += currentY - (viewportBounds.top + anchor.viewportY);
 }
 
 function pdfErrorMessage(error: unknown): string {
@@ -170,6 +191,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const searchInputRef = useRef<HTMLInputElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const textLayerRefs = useRef(new Map<number, TextLayer>());
+  const textContentCacheRef = useRef(new Map<number, TextContent>());
   const renderTaskRefs = useRef(new Map<number, RenderTask>());
   const pageRenderPipelineRefs = useRef(new Map<number, Promise<void>>());
   const globalPageRenderQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -179,8 +201,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const textCacheRef = useRef(new Map<number, PageTextCache>());
   const touchGestureRef = useRef<TouchGesture | null>(null);
   const pinchGestureRef = useRef<PinchGesture | null>(null);
-  const pendingPinchCommitRef = useRef<{ pageNumber: number; surface: HTMLDivElement } | null>(null);
-  const zoomAnchorRef = useRef<{ pageNumber: number; x: number; y: number } | null>(null);
+  const pendingZoomCommitRef = useRef<{ pageNumber: number; surface: HTMLDivElement } | null>(null);
+  const zoomAnchorRef = useRef<PdfZoomAnchor | null>(null);
+  const zoomPreviewFrameRef = useRef<number | null>(null);
   const pendingPageNavigationRef = useRef<number | null>(null);
   const annotationDraftRef = useRef<PdfAnnotationDraft | null>(null);
   const annotationManipulationRef = useRef<PdfAnnotationManipulation | null>(null);
@@ -524,6 +547,13 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       pageSurfaceRefs.current.clear();
       textLayerElementRefs.current.clear();
       textCacheRef.current.clear();
+      textContentCacheRef.current.clear();
+      if (zoomPreviewFrameRef.current !== null) {
+        window.cancelAnimationFrame(zoomPreviewFrameRef.current);
+        zoomPreviewFrameRef.current = null;
+      }
+      zoomAnchorRef.current = null;
+      pendingZoomCommitRef.current = null;
       renderTaskRefs.current.forEach((task) => task.cancel());
       textLayerRefs.current.forEach((textLayer) => textLayer.cancel());
       setSearchMatches([]);
@@ -594,6 +624,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       }
       renderTaskRefs.current.forEach((task) => task.cancel());
       textLayerRefs.current.forEach((textLayer) => textLayer.cancel());
+      if (zoomPreviewFrameRef.current !== null) window.cancelAnimationFrame(zoomPreviewFrameRef.current);
       void loadedDocument?.destroy();
     };
   }, [documentId, initialHighlightId, initialTargetRange]);
@@ -640,12 +671,12 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       renderTaskRefs.current.get(pageNumber)?.cancel();
       pageRenderVersionRefs.current.set(pageNumber, (pageRenderVersionRefs.current.get(pageNumber) ?? 0) + 1);
       pageRequestedSignatureRefs.current.delete(pageNumber);
-      const pendingPinch = pendingPinchCommitRef.current;
+      const pendingPinch = pendingZoomCommitRef.current;
       if (pendingPinch?.pageNumber === pageNumber) {
         pendingPinch.surface.style.transform = "";
         pendingPinch.surface.style.transformOrigin = "";
         pendingPinch.surface.style.willChange = "";
-        pendingPinchCommitRef.current = null;
+        pendingZoomCommitRef.current = null;
       }
     };
     canvasRefCallbacks.current.set(pageNumber, callback);
@@ -742,7 +773,17 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     let cancelled = false;
     const documentGeneration = documentRenderGenerationRef.current;
     const currentPages = [...renderedPages];
-    const renderSignature = [documentGeneration, viewportWidth, viewportHeight, fitWidth, fitHeight, zoom].join(":");
+    // 适宽/适高时实际比例只由视口决定。此时 setZoom 只用于记录计算结果，
+    // 不应改变渲染签名，否则会紧接着重复渲染同一尺寸。
+    const scaleSignature = fitWidth ? "fit-width" : fitHeight ? "fit-height" : zoom;
+    const renderSignature = [documentGeneration, viewportWidth, viewportHeight, scaleSignature].join(":");
+    const pendingZoomAnchor = zoomAnchorRef.current;
+    const zoomAnchor = pendingZoomAnchor
+      && pendingZoomAnchor.fitWidth === fitWidth
+      && pendingZoomAnchor.fitHeight === fitHeight
+      && (fitWidth || fitHeight || Math.abs(pendingZoomAnchor.zoom - zoom) < 0.0001)
+      ? pendingZoomAnchor
+      : null;
     const pagesToRender = currentPages.filter(
       (pageNumber) => canvasRefs.current.get(pageNumber)?.dataset.pdfRenderSignature !== renderSignature
         && pageRequestedSignatureRefs.current.get(pageNumber) !== renderSignature,
@@ -782,6 +823,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
 
           const isStale = () => documentRenderGenerationRef.current !== documentGeneration
             || pageRenderVersionRefs.current.get(pageNumber) !== renderVersion
+            || pageRequestedSignatureRefs.current.get(pageNumber) !== renderSignature
             || canvasRefs.current.get(pageNumber) !== canvas
             || textLayerElementRefs.current.get(pageNumber) !== textLayerElement;
           if (isStale()) return;
@@ -836,21 +878,41 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           surface.style.height = `${Math.floor(displayViewport.height)}px`;
           surface.style.setProperty("--scale-factor", String(displayScale));
           surface.dataset.pdfPage = String(pageNumber);
-          const pendingPinch = pendingPinchCommitRef.current;
+          const pendingPinch = pendingZoomCommitRef.current;
           if (pendingPinch?.pageNumber === pageNumber && pendingPinch.surface === surface) {
             canvas.style.width = `${Math.floor(displayViewport.width)}px`;
             canvas.style.height = `${Math.floor(displayViewport.height)}px`;
             surface.style.transform = "";
             surface.style.transformOrigin = "";
             surface.style.willChange = "";
-            pendingPinchCommitRef.current = null;
+            pendingZoomCommitRef.current = null;
+          }
+          if (zoomAnchor && zoomAnchorRef.current === zoomAnchor) {
+            window.requestAnimationFrame(() => {
+              const scrollViewport = viewportRef.current;
+              const anchorSurface = pageSurfaceRefs.current.get(zoomAnchor.pageNumber);
+              if (!scrollViewport || !anchorSurface || zoomAnchorRef.current !== zoomAnchor) return;
+              restorePdfZoomAnchor(scrollViewport, anchorSurface, zoomAnchor);
+            });
           }
           textLayerElement.replaceChildren();
           textLayerElement.style.width = `${Math.floor(displayViewport.width)}px`;
           textLayerElement.style.height = `${Math.floor(displayViewport.height)}px`;
           textLayerElement.dataset.pdfPage = String(pageNumber);
 
-          const textContent = await pdfPage.getTextContent();
+          let textContent = textContentCacheRef.current.get(pageNumber);
+          if (textContent) {
+            textContentCacheRef.current.delete(pageNumber);
+            textContentCacheRef.current.set(pageNumber, textContent);
+          } else {
+            textContent = await pdfPage.getTextContent();
+            textContentCacheRef.current.set(pageNumber, textContent);
+            while (textContentCacheRef.current.size > 12) {
+              const oldestPage = textContentCacheRef.current.keys().next().value;
+              if (oldestPage === undefined) break;
+              textContentCacheRef.current.delete(oldestPage);
+            }
+          }
           if (isStale()) return;
           textCacheRef.current.set(
             pageNumber,
@@ -892,16 +954,12 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           }
           if (!isStale()) setTextLayerRevision((revision) => revision + 1);
 
-          const pendingAnchor = zoomAnchorRef.current;
-          const anchor = pendingAnchor?.pageNumber === pageNumber ? pendingAnchor : null;
-          if (!isStale() && anchor) {
-            zoomAnchorRef.current = null;
+          if (!isStale() && zoomAnchor && zoomAnchorRef.current === zoomAnchor) {
             window.requestAnimationFrame(() => {
               const scrollViewport = viewportRef.current;
-              const nextSurface = pageSurfaceRefs.current.get(pageNumber);
-              if (!scrollViewport || !nextSurface) return;
-              scrollViewport.scrollLeft = nextSurface.offsetLeft + anchor.x * nextSurface.clientWidth - scrollViewport.clientWidth / 2;
-              scrollViewport.scrollTop = nextSurface.offsetTop + anchor.y * nextSurface.clientHeight - scrollViewport.clientHeight / 2;
+              const anchorSurface = pageSurfaceRefs.current.get(zoomAnchor.pageNumber);
+              if (!scrollViewport || !anchorSurface || zoomAnchorRef.current !== zoomAnchor) return;
+              restorePdfZoomAnchor(scrollViewport, anchorSurface, zoomAnchor);
             });
           }
           if (!isStale() && (fitWidth || fitHeight) && pageNumber === page) setZoom(displayScale);
@@ -922,6 +980,15 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         } catch (reason) {
           if ((reason as { name?: string })?.name !== "RenderingCancelledException") throw reason;
         }
+      }
+      if (!cancelled && zoomAnchor && zoomAnchorRef.current === zoomAnchor) {
+        window.requestAnimationFrame(() => {
+          const scrollViewport = viewportRef.current;
+          const anchorSurface = pageSurfaceRefs.current.get(zoomAnchor.pageNumber);
+          if (!scrollViewport || !anchorSurface || zoomAnchorRef.current !== zoomAnchor) return;
+          restorePdfZoomAnchor(scrollViewport, anchorSurface, zoomAnchor);
+          zoomAnchorRef.current = null;
+        });
       }
     };
 
@@ -1499,26 +1566,51 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const handlePageDoubleClick = useCallback((event: React.MouseEvent<HTMLElement>) => {
     const target = event.target instanceof Element ? event.target : null;
     const surface = target?.closest<HTMLDivElement>(".pdf-page-surface");
-    if (!surface || !event.currentTarget.contains(surface)) return;
+    const viewport = viewportRef.current;
+    if (!surface || !viewport || !event.currentTarget.contains(surface)) return;
 
     event.preventDefault();
     const bounds = surface.getBoundingClientRect();
+    const viewportBounds = viewport.getBoundingClientRect();
     const pageNumber = Number(surface.dataset.pdfPage) || page;
+    const anchorX = Math.max(0, Math.min(1, (event.clientX - bounds.left) / Math.max(1, bounds.width)));
+    const anchorY = Math.max(0, Math.min(1, (event.clientY - bounds.top) / Math.max(1, bounds.height)));
+    const currentScale = Number(surface.style.getPropertyValue("--scale-factor")) || zoom;
+    const nextFitWidth = !fitWidth;
+    const nextZoom = nextFitWidth
+      ? currentScale
+      : Math.min(4, Math.max(1.5, currentScale * 2));
+    const targetScale = nextFitWidth
+      ? clampZoom(Math.max(160, viewport.clientWidth - 24) / Math.max(1, bounds.width / currentScale))
+      : nextZoom;
     zoomAnchorRef.current = {
       pageNumber,
-      x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / Math.max(1, bounds.width))),
-      y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / Math.max(1, bounds.height))),
+      x: anchorX,
+      y: anchorY,
+      viewportX: event.clientX - viewportBounds.left,
+      viewportY: event.clientY - viewportBounds.top,
+      fitWidth: nextFitWidth,
+      fitHeight: false,
+      zoom: nextZoom,
     };
 
-    setFitHeight(false);
-    if (fitWidth) {
-      setFitWidth(false);
-      setZoom((value) => Math.min(4, Math.max(1.5, value * 2)));
-    } else {
-      zoomAnchorRef.current = null;
-      setFitWidth(true);
-    }
-  }, [fitWidth, page]);
+    // 先缩放现有位图给出即时反馈；下一帧再提交高清重绘。渲染管线会把
+    // 旧画布拉伸到目标尺寸，完成后无缝替换为新的高分辨率画布。
+    const previewScale = targetScale / Math.max(0.25, currentScale);
+    surface.style.willChange = "transform";
+    surface.style.transformOrigin = `${anchorX * 100}% ${anchorY * 100}%`;
+    surface.style.transform = `scale(${previewScale})`;
+    pendingZoomCommitRef.current = { pageNumber, surface };
+    if (zoomPreviewFrameRef.current !== null) window.cancelAnimationFrame(zoomPreviewFrameRef.current);
+    zoomPreviewFrameRef.current = window.requestAnimationFrame(() => {
+      zoomPreviewFrameRef.current = window.requestAnimationFrame(() => {
+        zoomPreviewFrameRef.current = null;
+        setFitHeight(false);
+        setFitWidth(nextFitWidth);
+        if (!nextFitWidth) setZoom(nextZoom);
+      });
+    });
+  }, [fitWidth, page, zoom]);
 
   const handleTouchStart = useCallback((event: React.TouchEvent<HTMLElement>) => {
     if (event.touches.length === 2) {
@@ -1598,14 +1690,25 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       window.cancelAnimationFrame(pinch.frame);
       pinch.frame = 0;
     }
-    zoomAnchorRef.current = { pageNumber: pinch.pageNumber, x: pinch.anchorX, y: pinch.anchorY };
     if (Math.abs(pinch.targetZoom - pinch.initialZoom) < 0.005) {
       pinch.surface.style.transform = "";
       pinch.surface.style.transformOrigin = "";
       pinch.surface.style.willChange = "";
       return true;
     }
-    pendingPinchCommitRef.current = { pageNumber: pinch.pageNumber, surface: pinch.surface };
+    const viewport = viewportRef.current;
+    const viewportBounds = viewport?.getBoundingClientRect();
+    zoomAnchorRef.current = {
+      pageNumber: pinch.pageNumber,
+      x: pinch.anchorX,
+      y: pinch.anchorY,
+      viewportX: viewportBounds ? pinch.currentCenterX - viewportBounds.left : (viewport?.clientWidth ?? 0) / 2,
+      viewportY: viewportBounds ? pinch.currentCenterY - viewportBounds.top : (viewport?.clientHeight ?? 0) / 2,
+      fitWidth: false,
+      fitHeight: false,
+      zoom: pinch.targetZoom,
+    };
+    pendingZoomCommitRef.current = { pageNumber: pinch.pageNumber, surface: pinch.surface };
     setFitWidth(false);
     setFitHeight(false);
     setZoom(pinch.targetZoom);
