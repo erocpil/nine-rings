@@ -140,6 +140,27 @@ const FontSize = Extension.create({
   },
 });
 
+/**
+ * Code blocks must win over the editor-wide Markdown/URL paste heuristics.
+ * A text transaction preserves shell operators, indentation and line breaks
+ * instead of asking TipTap to parse the pasted value as block content.
+ */
+function isSelectionInsideCodeBlock(editor: Editor): boolean {
+  const { $from, $to } = editor.state.selection;
+  return $from.parent === $to.parent && $from.parent.type.name === "codeBlock";
+}
+
+function insertCodeBlockPlainText(editor: Editor, text: string): void {
+  if (!text) return;
+  const { from, to } = editor.state.selection;
+  editor.view.dispatch(
+    editor.state.tr
+      .insertText(text.replace(/\r\n?/g, "\n"), from, to)
+      .scrollIntoView(),
+  );
+  editor.commands.focus();
+}
+
 const AlignedTableCell = TableCell.extend({
   content: "paragraph",
   addAttributes() {
@@ -2302,8 +2323,17 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         return;
       }
 
+      // The user explicitly chose a code block, so paste literal text before
+      // considering URL enrichment or automatic Markdown conversion.
+      const rawPlainText = e.clipboardData.getData("text/plain");
+      if (rawPlainText && isSelectionInsideCodeBlock(editor)) {
+        e.preventDefault();
+        insertCodeBlockPlainText(editor, rawPlainText);
+        return;
+      }
+
       // ── URL 粘贴：自动抓标题 ──
-      const plainText = e.clipboardData.getData("text/plain").trim();
+      const plainText = rawPlainText.trim();
       if (plainText && URL_RE.test(plainText)) {
         e.preventDefault();
         // 先插入 URL
@@ -2815,7 +2845,12 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       for (const item of items) {
         if (item.types.includes("text/plain")) {
           const blob = await item.getType("text/plain");
-          const plainText = (await blob.text()).trim();
+          const rawPlainText = await blob.text();
+          if (rawPlainText && isSelectionInsideCodeBlock(editor)) {
+            insertCodeBlockPlainText(editor, rawPlainText);
+            return;
+          }
+          const plainText = rawPlainText.trim();
           if (plainText && looksLikeMarkdown(plainText)) {
             const parsed = deltaToProseMirror(mdToDelta(plainText));
             editor.chain().focus().insertContent(parsed.content).run();

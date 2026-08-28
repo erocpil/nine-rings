@@ -1,7 +1,80 @@
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
+const markdownLikeShellSource = [
+  "#!/usr/bin/env bash",
+  "set -Eeuo pipefail",
+  "",
+  "# Single-host, dual-VF RoCEv2 lab for ConnectX SR-IOV.",
+  "# Usage:",
+  "#   sudo ./rdma-vf-lab.sh setup",
+  "vf_attr() {",
+  "    # vf_attr <vf-index> <mac|link-state>",
+  "    printf '%s\\n' \"$1\"",
+  "}",
+  "",
+  "  * setup uses VF0/VF1 of PF_IF.",
+  "  * cleanup preserves an existing VF count.",
+  "",
+].join("\n");
+
 test.describe("编辑器复制粘贴", () => {
+  test("代码块内原生粘贴 shell 源码不会触发 Markdown 转换", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    await editor.click();
+    await page.getByTitle("代码块 (Ctrl+Alt+C)").click();
+    await expect(editor.locator("pre code")).toHaveCount(1);
+
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    }, markdownLikeShellSource);
+
+    const code = editor.locator("pre code");
+    await expect(code).toHaveCount(1);
+    await expect.poll(() => code.textContent()).toBe(markdownLikeShellSource);
+    await expect(editor.locator("h1, ul")).toHaveCount(0);
+    await expect(page.getByText("已按 Markdown 格式化", { exact: true })).toHaveCount(0);
+  });
+
+  test("代码块内使用粘贴按钮仍按原始纯文本插入", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    await editor.click();
+    await page.getByTitle("代码块 (Ctrl+Alt+C)").click();
+    await page.evaluate(async (text) => {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([text], { type: "text/plain" }),
+          "text/html": new Blob(["<h1>不应采用的 HTML</h1>"], { type: "text/html" }),
+        }),
+      ]);
+    }, markdownLikeShellSource);
+
+    await page.getByTitle("粘贴 (Ctrl+V)").click();
+
+    const code = editor.locator("pre code");
+    await expect(code).toHaveCount(1);
+    await expect.poll(() => code.textContent()).toBe(markdownLikeShellSource);
+    await expect(editor.locator("h1, ul")).toHaveCount(0);
+    await expect(editor).not.toContainText("不应采用的 HTML");
+  });
+
   test("复制行内文本后粘贴不会引入首尾空白", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await page.goto("/");
