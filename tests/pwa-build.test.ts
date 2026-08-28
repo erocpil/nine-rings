@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createServiceWorkerSource } from "../plugins/vite-pwa-plugin";
+import { isModuleLoadError } from "../src/lib/module-load-recovery";
 
 const first = createServiceWorkerSource([
   "assets/index-abc.js",
@@ -22,10 +23,16 @@ assert.doesNotMatch(first, /\/assets\/pdfjs-lazy\.js/);
 assert.doesNotMatch(first, /\/assets\/PdfReader-lazy\.js/);
 assert.doesNotMatch(first, /\/assets\/pdf\.worker\.min-lazy\.mjs/);
 assert.match(first, /SKIP_WAITING/);
-assert.match(first, /caches\.match\(request\)/);
-assert.match(first, /cached \|\| caches\.match\("\/index\.html"\)/);
-assert.match(first, /event\.waitUntil\(refresh/);
+assert.match(first, /caches\.open\(CACHE_NAME\)/);
+assert.match(first, /cache\.match\(request\)/);
+assert.match(first, /cached \|\| cache\.match\("\/index\.html"\)/);
+assert.match(first, /cached \|\| fetch\(request\)/);
+assert.doesNotMatch(first, /refreshNavigation/);
+assert.doesNotMatch(first, /event\.waitUntil\(refresh/);
 assert.doesNotMatch(first, /networkFirst/);
+assert.equal(isModuleLoadError(new Error("Importing a module script failed.")), true);
+assert.equal(isModuleLoadError(new TypeError("Failed to fetch dynamically imported module: /assets/EpubReader.js")), true);
+assert.equal(isModuleLoadError(new Error("EPUB 文件解析失败")), false);
 assert.notEqual(
   first.match(/const CACHE_NAME = "([^"]+)"/)?.[1],
   second.match(/const CACHE_NAME = "([^"]+)"/)?.[1],

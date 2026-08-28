@@ -81,6 +81,27 @@ test.describe("移动端视图切换", () => {
 });
 
 test.describe("会话位置恢复与编辑器查找", () => {
+  test("默认随笔视图不会覆盖用户打开的文档目录", async ({ page }) => {
+    await createDocument(page, "目录选择优先级测试");
+    await page.evaluate(() => {
+      localStorage.setItem("nr:sidebarTab", "tree");
+      localStorage.setItem("nr:defaultViewConfigured", "1");
+      const raw = localStorage.getItem("nine_rings_config");
+      const config = raw ? JSON.parse(raw) : {};
+      localStorage.setItem("nine_rings_config", JSON.stringify({ ...config, default_view: "daily" }));
+    });
+    await page.reload();
+    await expect(page.locator(".note-title")).toHaveValue("目录选择优先级测试");
+
+    const folder = page.locator(".doc-tree-folder").first();
+    const folderName = await folder.locator(".doc-tree-name").innerText();
+    await folder.locator(".doc-tree-name").click();
+
+    await expect(page.locator(".moc-breadcrumb")).toHaveText(folderName);
+    await expect(page.locator(".sidebar-view-switch")).toHaveAttribute("aria-label", "切换到随笔");
+    await expect(page.getByText("选择或新建一篇笔记", { exact: true })).toHaveCount(0);
+  });
+
   test("过期待办入口位于今日待办标题栏", async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem("nr:todoSplit", "3"));
     await page.goto("/");

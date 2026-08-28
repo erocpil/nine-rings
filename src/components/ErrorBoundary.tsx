@@ -1,4 +1,5 @@
 import React from "react";
+import { isModuleLoadError, recoverModuleLoad } from "../lib/module-load-recovery";
 
 interface Props {
   children: React.ReactNode;
@@ -6,6 +7,8 @@ interface Props {
 
 interface State {
   error: Error | null;
+  recovering: boolean;
+  recoveryMessage: string | null;
 }
 
 /**
@@ -15,19 +18,32 @@ interface State {
 export class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { error: null };
+    this.state = { error: null, recovering: false, recoveryMessage: null };
   }
 
-  static getDerivedStateFromError(error: Error): State {
-    return { error };
+  static getDerivedStateFromError(error: Error): Partial<State> {
+    return { error, recovering: false, recoveryMessage: null };
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error("[ErrorBoundary]", error, info.componentStack);
   }
 
-  handleRetry = () => {
-    this.setState({ error: null });
+  handleRetry = async () => {
+    const { error } = this.state;
+    if (!error || !isModuleLoadError(error)) {
+      this.setState({ error: null, recoveryMessage: null });
+      return;
+    }
+    this.setState({ recovering: true, recoveryMessage: null });
+    try {
+      await recoverModuleLoad();
+    } catch (reason) {
+      this.setState({
+        recovering: false,
+        recoveryMessage: reason instanceof Error ? reason.message : String(reason),
+      });
+    }
   };
 
   render() {
@@ -60,8 +76,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
           }}>
             {this.state.error.stack}
           </pre>
+          {this.state.recoveryMessage && <p style={{ color: "#d29922", margin: "0 0 16px" }}>{this.state.recoveryMessage}</p>}
           <button
             onClick={this.handleRetry}
+            disabled={this.state.recovering}
             style={{
               padding: "8px 16px",
               background: "#238636",
@@ -72,7 +90,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               fontSize: 14,
             }}
           >
-            重试
+            {this.state.recovering ? "正在恢复…" : "重试"}
           </button>
         </div>
       );

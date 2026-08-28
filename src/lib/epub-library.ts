@@ -24,6 +24,7 @@ export interface LocalEpubEntry {
   chapterCount: number;
   location?: string;
   scrollProgress?: number;
+  chapterProgress?: Record<string, number>;
   fontSize: number;
   theme: "light" | "sepia" | "dark";
   themeBackgrounds?: Partial<Record<"light" | "sepia" | "dark", string>>;
@@ -118,7 +119,7 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
 
 function openEpubDatabase(): Promise<IDBDatabase> {
   if (openPromise) return openPromise;
-  openPromise = new Promise((resolve, reject) => {
+  const attempt = new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(EPUB_DB_NAME, EPUB_DB_VERSION);
     request.onupgradeneeded = () => {
       if (!request.result.objectStoreNames.contains(EPUB_STORE)) {
@@ -131,11 +132,29 @@ function openEpubDatabase(): Promise<IDBDatabase> {
         }
       }
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("EPUB 资料库打开失败"));
-    request.onblocked = () => reject(new Error("EPUB 资料库正在被另一个窗口占用"));
+    request.onsuccess = () => {
+      if (openPromise !== attempt) {
+        request.result.close();
+        return;
+      }
+      const database = request.result;
+      database.onversionchange = () => {
+        database.close();
+        if (openPromise === attempt) openPromise = null;
+      };
+      resolve(database);
+    };
+    request.onerror = () => {
+      if (openPromise === attempt) openPromise = null;
+      reject(request.error ?? new Error("EPUB 资料库打开失败"));
+    };
+    request.onblocked = () => {
+      if (openPromise === attempt) openPromise = null;
+      reject(new Error("EPUB 资料库正在被另一个窗口占用"));
+    };
   });
-  return openPromise;
+  openPromise = attempt;
+  return attempt;
 }
 
 function publicEntry(record: StoredEpubRecord): LocalEpubEntry {
@@ -371,6 +390,7 @@ export async function importLocalEpub(file: File): Promise<LocalEpubEntry> {
     lastOpenedAt: timestamp,
     chapter: 0,
     chapterCount: parsed.chapters.length,
+    chapterProgress: { [parsed.chapters[0].path]: 0 },
     fontSize: 100,
     theme: "light",
     smartLineMerge: false,
@@ -486,7 +506,7 @@ export async function deleteLocalEpubBookmark(id: string): Promise<void> {
 
 export async function updateLocalEpubProgress(
   id: string,
-  progress: Pick<LocalEpubEntry, "chapter" | "fontSize" | "theme" | "themeBackgrounds" | "smartLineMerge" | "manualLineMerges"> & { location?: string; scrollProgress?: number },
+  progress: Pick<LocalEpubEntry, "chapter" | "fontSize" | "theme" | "themeBackgrounds" | "smartLineMerge" | "manualLineMerges"> & { location?: string; scrollProgress?: number; chapterProgress?: Record<string, number> },
 ): Promise<void> {
   const database = await openEpubDatabase();
   const transaction = database.transaction(EPUB_STORE, "readwrite");
@@ -499,6 +519,9 @@ export async function updateLocalEpubProgress(
     chapter: Math.max(0, Math.min(record.chapterCount - 1, Math.round(progress.chapter))),
     location: progress.location,
     scrollProgress: Math.max(0, Math.min(1, progress.scrollProgress ?? 0)),
+    chapterProgress: Object.fromEntries(Object.entries(progress.chapterProgress ?? {})
+      .filter(([path, value]) => Boolean(path) && Number.isFinite(value))
+      .map(([path, value]) => [path, Math.max(0, Math.min(1, value))])),
     fontSize: Math.max(70, Math.min(180, Math.round(progress.fontSize))),
     theme: progress.theme,
     themeBackgrounds: progress.themeBackgrounds,

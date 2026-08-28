@@ -62,16 +62,15 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin || url.pathname === "/__import") return;
 
   if (request.mode === "navigate" || request.destination === "document") {
-    // 已安装的 PWA 优先显示本地应用外壳，同时在后台更新 HTML。旧实现会在
-    // 每次冷启动时无限等待网络，即使全部资源已缓存，也会先出现白屏。
-    const refresh = refreshNavigation(request);
+    // HTML 与当前版本预缓存的哈希资源必须保持原子性。不能用后台
+    // 网络请求改写旧版缓存中的 HTML，否则新入口会引用旧缓存不存在的模块。
+    // 新版本只由新 Service Worker 的 install/activate 整体替换。
     event.respondWith(
-      caches.match(request)
-        .then((cached) => cached || caches.match("/index.html"))
-        .then((cached) => cached || refresh)
+      caches.open(CACHE_NAME)
+        .then((cache) => cache.match(request).then((cached) => cached || cache.match("/index.html")))
+        .then((cached) => cached || fetch(request))
         .catch(() => Response.error())
     );
-    event.waitUntil(refresh.then(() => undefined).catch(() => undefined));
     return;
   }
 
@@ -91,14 +90,6 @@ async function cacheFirst(request) {
   return response;
 }
 
-async function refreshNavigation(request) {
-  const response = await fetch(request);
-  if (response.ok) {
-    const cache = await caches.open(CACHE_NAME);
-    await cache.put(request, response.clone());
-  }
-  return response;
-}
 `;
 }
 

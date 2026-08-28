@@ -433,10 +433,13 @@ function App() {
     return typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches;
   });
   const TAB_KEY = "nr:sidebarTab";
+  const defaultViewAppliedRef = useRef(false);
+  const sidebarViewTouchedRef = useRef(false);
   const [sidebarTab, setSidebarTab] = useState<'daily' | 'tree'>(() => {
     return (localStorage.getItem(TAB_KEY) as 'daily' | 'tree') || 'tree';
   });
   const handleSetSidebarTab = (tab: 'daily' | 'tree') => {
+    sidebarViewTouchedRef.current = true;
     setSidebarTab(tab);
     localStorage.setItem(TAB_KEY, tab);
     if (tab === 'daily') {
@@ -449,15 +452,6 @@ function App() {
     }
   };
   const configuredDefaultView = config?.default_view;
-  useEffect(() => {
-    if (!configuredDefaultView || localStorage.getItem("nr:defaultViewConfigured") !== "1") return;
-    // 冷启动已经按 nr:lastNote 恢复到具体文档时，文档路径比通用默认视图
-    // 更精确。尤其是手机安装版，不能再被“默认随笔”切回无关的随笔列表。
-    if (selectedNote?.storagePath) return;
-    const configuredTab = configuredDefaultView === "daily" ? "daily" : "tree";
-    setSidebarTab(configuredTab);
-    localStorage.setItem(TAB_KEY, configuredTab);
-  }, [configuredDefaultView, selectedNote?.storagePath]);
 
   const autoCleanDaysRef = useRef<number | null>(null);
   const configuredAutoCleanDays = config?.auto_clean_days;
@@ -509,6 +503,27 @@ function App() {
     return target?.kind === "concept" ? target.concept : null;
   });
   const [propertiesOpen, setPropertiesOpen] = useState(false);
+
+  useEffect(() => {
+    if (!configuredDefaultView || !startupReady || defaultViewAppliedRef.current) return;
+    // 默认视图是一次性冷启动决策。若将 selectedNote 作为持续依赖，点击目录
+    // 时清空当前文档会再次触发它，把刚打开的目录误切回随笔页。
+    defaultViewAppliedRef.current = true;
+    if (localStorage.getItem("nr:defaultViewConfigured") !== "1") return;
+    const startupTarget = startupWorkspaceTargetRef.current;
+    const hasExplicitWorkspaceTarget = Boolean(
+      selectedNote?.storagePath
+      || selectedFolderPath
+      || selectedConcept
+      || startupTarget?.kind === "folder"
+      || startupTarget?.kind === "concept"
+      || sidebarViewTouchedRef.current
+    );
+    if (hasExplicitWorkspaceTarget) return;
+    const configuredTab = configuredDefaultView === "daily" ? "daily" : "tree";
+    setSidebarTab(configuredTab);
+    localStorage.setItem(TAB_KEY, configuredTab);
+  }, [configuredDefaultView, selectedConcept, selectedFolderPath, selectedNote?.storagePath, startupReady]);
 
   const revealDocTreePath = useCallback((targetPath: string, sourcePath?: string) => {
     setDocTreeCollapsed((previous) => {
@@ -1495,6 +1510,7 @@ function App() {
                 closeSidebarOnNarrowScreen();
               }}
               onFolderSelect={(path) => {
+                dismissSearchResults();
                 setSelectedFolderPath(path);
                 setSelectedConcept(null);
                 handleSelectNote(null);
@@ -1810,6 +1826,7 @@ function App() {
                   setDocTreePopupOpen(false);
                 }}
                 onFolderSelect={(path) => {
+                  dismissSearchResults();
                   setSelectedFolderPath(path);
                   setSelectedConcept(null);
                   handleSelectNote(null);

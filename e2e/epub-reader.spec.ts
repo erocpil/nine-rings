@@ -139,6 +139,11 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollTo(0, 900));
   await page.waitForTimeout(250);
   await expect.poll(() => chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollY ?? 0)).toBeGreaterThan(400);
+  await toc.getByRole("button", { name: "开始阅读", exact: true }).click();
+  await expect(chapterFrame.getByRole("heading", { name: "第一章" })).toBeVisible();
+  await swipeFrame(330, 100);
+  await expect(chapterFrame.getByRole("heading", { name: "第二章" })).toBeVisible();
+  await expect.poll(() => chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollY ?? 0)).toBeGreaterThan(400);
 
   await page.getByRole("button", { name: "关闭 EPUB 阅读器" }).click();
   await page.getByTitle("设置").click();
@@ -163,6 +168,10 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(page.getByRole("button", { name: "智能合并 EPUB 硬换行" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "管理 EPUB 人工断行修复" })).toContainText("1");
   await expect(chapterFrame.getByRole("heading", { name: "第二章" })).toBeVisible();
+  await expect.poll(() => chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollY ?? 0)).toBeGreaterThan(400);
+  await page.getByRole("button", { name: "回到本章顶部" }).click();
+  await expect.poll(() => chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollY ?? 0)).toBeLessThan(10);
+  await page.getByRole("button", { name: "跳到本章末尾" }).click();
   await expect.poll(() => chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollY ?? 0)).toBeGreaterThan(400);
 
   await chapterFrame.getByText("阅读进度应当保存到这里。").evaluate((element) => {
@@ -203,6 +212,12 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   });
   await expect(page.locator(".epub-bottom-navigation")).toBeVisible();
   await expect(page.locator(".epub-focus-exit")).toHaveText("↙️");
+  await expect(page.getByRole("button", { name: "回到本章顶部" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "跳到本章末尾" })).toBeVisible();
+  await page.getByRole("button", { name: "回到本章顶部" }).click();
+  await expect.poll(() => chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollY ?? 0)).toBeLessThan(10);
+  await page.getByRole("button", { name: "跳到本章末尾" }).click();
+  await expect.poll(() => chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollY ?? 0)).toBeGreaterThan(400);
   await chapterFrame.locator("body").click({ position: { x: 8, y: 8 } });
   await expect(page.locator(".epub-bottom-navigation")).toBeHidden();
   await chapterFrame.locator("body").click({ position: { x: 8, y: 8 } });

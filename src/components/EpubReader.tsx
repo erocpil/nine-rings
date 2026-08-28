@@ -434,6 +434,8 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const pendingViewportAnchorRef = useRef<ViewportTextAnchor | null>(null);
   const boundFrameDocumentRef = useRef<{ document: Document; chapterPath: string } | null>(null);
   const bridgeRestoredDocumentRef = useRef<Document | null>(null);
+  const chapterProgressRef = useRef<Record<string, number>>({});
+  const pendingTargetScrollRef = useRef<"highlight" | "search" | null>(initialHighlightId ? "highlight" : null);
   const fullscreenRef = useRef(false);
   const tauriNativeFullscreenRef = useRef(false);
   const [entry, setEntry] = useState<LocalEpubEntry | null>(null);
@@ -467,6 +469,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const [tocOpen, setTocOpen] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadRevision, setLoadRevision] = useState(0);
 
   useEffect(() => { fullscreenRef.current = fullscreen; }, [fullscreen]);
 
@@ -504,6 +507,8 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setBook(null);
+    setEntry(null);
     void getLocalEpub(documentId).then(async (stored) => {
       if (!stored) throw new Error("EPUB 不存在或已经被删除");
       const [parsed, storedHighlights, storedBookmarks] = await Promise.all([
@@ -519,6 +524,12 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       const targetHighlight = storedHighlights.find((highlight) => highlight.id === initialHighlightId);
       const targetChapter = targetHighlight ? parsed.chapters.findIndex((item) => item.path === targetHighlight.anchor.chapterPath) : -1;
       const savedChapter = targetChapter >= 0 ? targetChapter : Math.max(0, Math.min(parsed.chapters.length - 1, stored.entry.chapter));
+      const savedChapterPath = parsed.chapters[savedChapter].path;
+      const savedChapterProgress = { ...stored.entry.chapterProgress };
+      if (savedChapterProgress[savedChapterPath] === undefined) {
+        savedChapterProgress[savedChapterPath] = stored.entry.scrollProgress ?? 0;
+      }
+      chapterProgressRef.current = savedChapterProgress;
       setChapter(savedChapter);
       const savedLocation = stored.entry.location?.split("#", 2);
       setFragment(savedLocation?.[0] === parsed.chapters[savedChapter].path ? savedLocation[1] : undefined);
@@ -527,10 +538,11 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       setThemeBackgrounds(stored.entry.themeBackgrounds ?? {});
       setSmartLineMerge(Boolean(stored.entry.smartLineMerge));
       setManualLineMerges(stored.entry.manualLineMerges ?? []);
-      setScrollProgress(stored.entry.scrollProgress ?? 0);
+      setScrollProgress(savedChapterProgress[savedChapterPath] ?? 0);
       setHighlights(storedHighlights);
       setBookmarks(storedBookmarks);
       setTargetHighlightId(initialHighlightId ?? null);
+      pendingTargetScrollRef.current = initialHighlightId ? "highlight" : null;
     }).catch((reason) => {
       if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
     }).finally(() => { if (!cancelled) setLoading(false); });
@@ -544,7 +556,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       registryRef.current?.destroy();
       registryRef.current = null;
     };
-  }, [documentId, initialHighlightId]);
+  }, [documentId, initialHighlightId, loadRevision]);
 
   const chapterResult = useMemo(() => {
     if (!book || !registryRef.current) return { html: "", error: null as string | null };
@@ -584,6 +596,65 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     return maximum > 0 ? Math.max(0, Math.min(1, top / maximum)) : 0;
   }, [scrollProgress]);
 
+  const applyFrameScrollProgress = useCallback((progressValue: number) => {
+    const frameDocument = iframeRef.current?.contentDocument;
+    const frameWindow = iframeRef.current?.contentWindow;
+    if (!frameDocument || !frameWindow) return;
+    const apply = () => {
+      if (iframeRef.current?.contentDocument !== frameDocument || !frameDocument.body) return;
+      const root = frameDocument.documentElement;
+      const body = frameDocument.body;
+      const maximum = Math.max(0, root.scrollHeight, body.scrollHeight)
+        - Math.max(1, frameWindow.innerHeight, root.clientHeight);
+      const top = Math.max(0, Math.min(1, progressValue)) * Math.max(0, maximum);
+      frameWindow.scrollTo(0, top);
+      root.scrollTop = top;
+      body.scrollTop = top;
+    };
+    apply();
+    window.requestAnimationFrame(apply);
+    window.setTimeout(apply, 80);
+  }, []);
+
+  const goToChapter = useCallback((next: number, options?: {
+    fragment?: string;
+    scrollProgress?: number;
+    restoreProgress?: boolean;
+  }) => {
+    if (!book) return;
+    const targetChapter = Math.max(0, Math.min(book.chapters.length - 1, next));
+    const currentPath = book.chapters[chapter]?.path;
+    if (currentPath) chapterProgressRef.current[currentPath] = readFrameScrollProgress();
+    const targetPath = book.chapters[targetChapter].path;
+    const targetProgress = options?.scrollProgress
+      ?? (options?.fragment || options?.restoreProgress === false ? 0 : chapterProgressRef.current[targetPath] ?? 0);
+    chapterProgressRef.current[targetPath] = targetProgress;
+    setFragment(options?.fragment);
+    setScrollProgress(targetProgress);
+    setChapter(targetChapter);
+    if (targetChapter === chapter) {
+      if (options?.fragment) {
+        window.requestAnimationFrame(() => iframeRef.current?.contentDocument?.getElementById(options.fragment!)?.scrollIntoView());
+      } else {
+        applyFrameScrollProgress(targetProgress);
+      }
+    }
+  }, [applyFrameScrollProgress, book, chapter, readFrameScrollProgress]);
+
+  const changeChapter = useCallback((next: number) => {
+    goToChapter(next);
+  }, [goToChapter]);
+
+  const scrollChapterToEdge = useCallback((edge: "start" | "end") => {
+    if (!book) return;
+    const progressAtEdge = edge === "start" ? 0 : 1;
+    setFragment(undefined);
+    setScrollProgress(progressAtEdge);
+    chapterProgressRef.current[book.chapters[chapter].path] = progressAtEdge;
+    applyFrameScrollProgress(progressAtEdge);
+    showFocusControls();
+  }, [applyFrameScrollProgress, book, chapter, showFocusControls]);
+
   const runSearch = useCallback((direction: 1 | -1 = 1) => {
     if (!book) return;
     const query = searchQuery.trim();
@@ -619,19 +690,16 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       ? (direction === 1 ? 0 : matches.length - 1)
       : (activeSearchIndex + direction + matches.length) % matches.length;
     setActiveSearchIndex(nextIndex);
-    setFragment(undefined);
-    setScrollProgress(0);
-    setChapter(matches[nextIndex].chapter);
-  }, [activeSearchIndex, book, completedSearchQuery, manualLineMerges, searchMatches, searchQuery, smartLineMerge]);
+    pendingTargetScrollRef.current = "search";
+    goToChapter(matches[nextIndex].chapter, { restoreProgress: false });
+  }, [activeSearchIndex, book, completedSearchQuery, goToChapter, manualLineMerges, searchMatches, searchQuery, smartLineMerge]);
 
   const navigateTo = useCallback((path: string, targetFragment?: string) => {
     if (!book) return;
     const index = book.chapters.findIndex((item) => item.path === path);
     if (index < 0) return;
-    setChapter(index);
-    setFragment(targetFragment);
-    setScrollProgress(0);
-  }, [book]);
+    goToChapter(index, { fragment: targetFragment });
+  }, [book, goToChapter]);
 
   useEffect(() => {
     if (!fragment) return;
@@ -641,6 +709,8 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const persistProgress = useCallback(async (liveScrollProgress = scrollProgress) => {
     if (!entry || !book) return;
     const current = book.chapters[chapter];
+    const boundedProgress = Math.max(0, Math.min(1, liveScrollProgress));
+    chapterProgressRef.current[current.path] = boundedProgress;
     await updateLocalEpubProgress(entry.id, {
       chapter,
       location: `${current.path}${fragment ? `#${fragment}` : ""}`,
@@ -649,7 +719,8 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       themeBackgrounds,
       smartLineMerge,
       manualLineMerges,
-      scrollProgress: liveScrollProgress,
+      scrollProgress: boundedProgress,
+      chapterProgress: { ...chapterProgressRef.current },
     });
   }, [book, chapter, entry, fontSize, fragment, manualLineMerges, scrollProgress, smartLineMerge, theme, themeBackgrounds]);
 
@@ -686,12 +757,12 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
         if (!document.fullscreenElement) { setFullscreen(false); onFullscreenChange?.(false); }
       }
       else if (event.key === "Escape") closeReader();
-      else if (event.key === "ArrowLeft" || event.key === "PageUp") setChapter((value) => Math.max(0, value - 1));
-      else if (event.key === "ArrowRight" || event.key === "PageDown") setChapter((value) => book ? Math.min(book.chapters.length - 1, value + 1) : value);
+      else if (event.key === "ArrowLeft" || event.key === "PageUp") changeChapter(chapter - 1);
+      else if (event.key === "ArrowRight" || event.key === "PageDown") changeChapter(chapter + 1);
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [book, bookmarkPanelOpen, closeReader, fullscreen, lineMergePanelOpen, onFullscreenChange]);
+  }, [bookmarkPanelOpen, changeChapter, chapter, closeReader, fullscreen, lineMergePanelOpen, onFullscreenChange]);
 
   const showSwipeNotice = useCallback((message: string) => {
     if (swipeNoticeTimerRef.current !== null) window.clearTimeout(swipeNoticeTimerRef.current);
@@ -711,13 +782,15 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
         handleFrameLoad();
         const frameDocument = iframeRef.current?.contentDocument;
         const frameWindow = iframeRef.current?.contentWindow;
+        if (boundFrameDocumentRef.current?.document === frameDocument) {
+          bridgeRestoredDocumentRef.current = frameDocument ?? null;
+          return;
+        }
         if (frameDocument && frameWindow && bridgeRestoredDocumentRef.current !== frameDocument) {
           bridgeRestoredDocumentRef.current = frameDocument;
           window.requestAnimationFrame(() => {
             if (iframeRef.current?.contentDocument !== frameDocument || !frameDocument.body) return;
-            const marked = frameDocument.querySelector<HTMLElement>("mark.epub-highlight-target, mark.epub-search-current");
-            if (marked) marked.scrollIntoView({ block: "center" });
-            else if (fragment) frameDocument.getElementById(fragment)?.scrollIntoView();
+            if (fragment) frameDocument.getElementById(fragment)?.scrollIntoView();
             else if (scrollProgress > 0) {
               const root = frameDocument.documentElement;
               const body = frameDocument.body;
@@ -737,14 +810,12 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
         return;
       }
       if (!book || (message.action !== "swipe-left" && message.action !== "swipe-right")) return;
-      setFragment(undefined);
-      setScrollProgress(0);
       if (message.action === "swipe-left") {
         if (chapter >= book.chapters.length - 1) showSwipeNotice("已经是最后一章");
-        else setChapter(chapter + 1);
+        else changeChapter(chapter + 1);
       }
       else if (chapter <= 0) showSwipeNotice("已经是第一章");
-      else setChapter(chapter - 1);
+      else changeChapter(chapter - 1);
     };
     window.addEventListener("message", receiveFrameMessage);
     return () => window.removeEventListener("message", receiveFrameMessage);
@@ -784,8 +855,14 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       window.setTimeout(restoreAnchor, 80);
       window.setTimeout(restoreAnchor, 240);
     }
-    else if (targetMark) targetMark.scrollIntoView({ block: "center" });
-    else if (activeMark) activeMark.scrollIntoView({ block: "center" });
+    else if (targetMark && pendingTargetScrollRef.current === "highlight") {
+      pendingTargetScrollRef.current = null;
+      targetMark.scrollIntoView({ block: "center" });
+    }
+    else if (activeMark && pendingTargetScrollRef.current === "search") {
+      pendingTargetScrollRef.current = null;
+      activeMark.scrollIntoView({ block: "center" });
+    }
     else if (fragment) frameDocument.getElementById(fragment)?.scrollIntoView();
     else if (scrollProgress > 0) {
       const restoreScroll = () => {
@@ -812,7 +889,9 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
         if (!root || !body) return;
         const top = Math.max(frameWindow.scrollY, root.scrollTop, body.scrollTop);
         const maximum = Math.max(0, root.scrollHeight, body.scrollHeight) - Math.max(1, frameWindow.innerHeight, root.clientHeight);
-        setScrollProgress(maximum > 0 ? Math.max(0, Math.min(1, top / maximum)) : 0);
+        const nextProgress = maximum > 0 ? Math.max(0, Math.min(1, top / maximum)) : 0;
+        chapterProgressRef.current[chapterPath] = nextProgress;
+        setScrollProgress(nextProgress);
       }, 160);
     };
     const captureFrameSelection = () => {
@@ -928,13 +1007,6 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapterResult.html, frameRevision]);
 
-  const changeChapter = (next: number) => {
-    if (!book) return;
-    setFragment(undefined);
-    setScrollProgress(0);
-    setChapter(Math.max(0, Math.min(book.chapters.length - 1, next)));
-  };
-
   useEffect(() => {
     const frameDocument = iframeRef.current?.contentDocument;
     if (!frameDocument?.body || frameDocument.readyState === "loading") return;
@@ -947,7 +1019,14 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     const chapterHighlights = highlights.filter((highlight) => highlight.anchor.chapterPath === book?.chapters[chapter].path);
     const targetMark = markFrameHighlights(frameDocument, chapterHighlights, targetHighlightId);
     const searchMark = markFrameSearch(frameDocument, completedSearchQuery, activeOccurrence);
-    (targetMark ?? searchMark)?.scrollIntoView({ block: "center" });
+    if (targetMark && pendingTargetScrollRef.current === "highlight") {
+      pendingTargetScrollRef.current = null;
+      targetMark.scrollIntoView({ block: "center" });
+    }
+    else if (searchMark && pendingTargetScrollRef.current === "search") {
+      pendingTargetScrollRef.current = null;
+      searchMark.scrollIntoView({ block: "center" });
+    }
   }, [activeSearchIndex, book, chapter, completedSearchQuery, highlights, searchMatches, targetHighlightId]);
 
   const ensureHighlight = useCallback(async () => {
@@ -1137,9 +1216,11 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
         <button type="button" className="pdf-reader-close" onClick={closeReader} aria-label="关闭 EPUB 阅读器">←</button>
         <strong className="pdf-reader-title" title={entry?.name}>{book?.title ?? entry?.name ?? "EPUB 阅读器"}</strong>
         <div className="pdf-page-controls epub-chapter-controls">
+          <button type="button" onClick={() => scrollChapterToEdge("start")} disabled={!book} aria-label="回到本章顶部" title="回到本章顶部">⤒</button>
           <button type="button" onClick={() => changeChapter(chapter - 1)} disabled={!book || chapter <= 0}>‹</button>
           <span>{book ? `${chapter + 1}/${book.chapters.length}` : "–/–"}</span>
           <button type="button" onClick={() => changeChapter(chapter + 1)} disabled={!book || chapter >= book.chapters.length - 1}>›</button>
+          <button type="button" onClick={() => scrollChapterToEdge("end")} disabled={!book} aria-label="跳到本章末尾" title="跳到本章末尾">⤓</button>
         </div>
         <div className="epub-font-controls" aria-label="EPUB 字号">
           <button type="button" onClick={() => setFontSize((size) => Math.max(70, size - 10))} disabled={fontSize <= 70}>A−</button>
@@ -1193,7 +1274,11 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
                   <div className="epub-annotation-item" key={highlight.id}>
                     <button type="button" onClick={() => {
                       const targetChapter = book.chapters.findIndex((item) => item.path === highlight.anchor.chapterPath);
-                      if (targetChapter >= 0) { setChapter(targetChapter); setTargetHighlightId(highlight.id); }
+                      if (targetChapter >= 0) {
+                        pendingTargetScrollRef.current = "highlight";
+                        goToChapter(targetChapter);
+                        setTargetHighlightId(highlight.id);
+                      }
                       setAnnotationOpen(true);
                     }}>{highlight.anchor.exact}</button>
                     <button type="button" aria-label={`删除高亮 ${highlight.anchor.exact}`} onClick={() => void deleteLocalEpubHighlight(highlight.id).then(() => setHighlights((current) => current.filter((item) => item.id !== highlight.id)))}>×</button>
@@ -1202,7 +1287,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
                 <h4>书签</h4>
                 {bookmarks.map((bookmark) => (
                   <div className="epub-annotation-item" key={bookmark.id}>
-                    <button type="button" onClick={() => { setChapter(bookmark.chapter); setFragment(undefined); setScrollProgress(bookmark.scrollProgress); }}>{bookmark.label}</button>
+                    <button type="button" onClick={() => goToChapter(bookmark.chapter, { scrollProgress: bookmark.scrollProgress })}>{bookmark.label}</button>
                     <button type="button" aria-label={`删除书签 ${bookmark.label}`} onClick={() => void deleteLocalEpubBookmark(bookmark.id).then(() => setBookmarks((current) => current.filter((item) => item.id !== bookmark.id)))}>×</button>
                   </div>
                 ))}
@@ -1212,7 +1297,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
         )}
         <main className="epub-reading-viewport">
           {loading && <div className="pdf-reader-message">正在打开 EPUB…</div>}
-          {displayError && <div className="pdf-reader-message pdf-reader-error"><strong>无法打开 EPUB</strong><span>{displayError}</span></div>}
+          {displayError && <div className="pdf-reader-message pdf-reader-error"><strong>无法打开 EPUB</strong><span>{displayError}</span><button type="button" onClick={() => setLoadRevision((revision) => revision + 1)}>重试打开</button></div>}
           {!loading && !displayError && chapterResult.html && (
             <iframe
               ref={iframeRef}
@@ -1227,7 +1312,9 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
           {!loading && !displayError && book && (
             <nav className="epub-bottom-navigation" aria-label="EPUB 章节导航">
               <button type="button" onClick={() => { showFocusControls(); changeChapter(chapter - 1); }} disabled={chapter <= 0}>← 上一章</button>
+              {fullscreen && <button type="button" className="epub-focus-edge-button" onClick={() => scrollChapterToEdge("start")} aria-label="回到本章顶部">⤒ 顶端</button>}
               <span>{book.chapters[chapter].title} · {progress}%</span>
+              {fullscreen && <button type="button" className="epub-focus-edge-button" onClick={() => scrollChapterToEdge("end")} aria-label="跳到本章末尾">末尾 ⤓</button>}
               <button type="button" onClick={() => { showFocusControls(); changeChapter(chapter + 1); }} disabled={chapter >= book.chapters.length - 1}>下一章 →</button>
             </nav>
           )}
@@ -1266,7 +1353,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
             {manualLineMerges.map((fix) => <div key={fix.id}>
               <button type="button" onClick={() => {
                 const targetChapter = book?.chapters.findIndex((item) => item.path === fix.chapterPath) ?? -1;
-                if (targetChapter >= 0) setChapter(targetChapter);
+                if (targetChapter >= 0) goToChapter(targetChapter);
                 setLineMergePanelOpen(false);
               }}>{fix.left.slice(-24)} <b>⌁</b> {fix.right.slice(0, 24)}</button>
               <button type="button" aria-label={`撤销断行修复 ${fix.left.slice(-12)}`} onClick={() => removeManualLineMerge(fix.id)}>×</button>
@@ -1296,9 +1383,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
             {bookmarks.map((bookmark) => (
               <div className="epub-annotation-item" key={bookmark.id}>
                 <button type="button" onClick={() => {
-                  setChapter(bookmark.chapter);
-                  setFragment(undefined);
-                  setScrollProgress(bookmark.scrollProgress);
+                  goToChapter(bookmark.chapter, { scrollProgress: bookmark.scrollProgress });
                   setBookmarkPanelOpen(false);
                 }}>{bookmark.label}</button>
                 <button type="button" aria-label={`删除书签 ${bookmark.label}`} onClick={() => void deleteLocalEpubBookmark(bookmark.id).then(() => setBookmarks((current) => current.filter((item) => item.id !== bookmark.id)))}>×</button>
