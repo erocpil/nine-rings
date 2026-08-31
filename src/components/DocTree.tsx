@@ -125,6 +125,7 @@ function DocTree({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renamingFolder, setRenamingFolder] = useState<string | null>(null);  // 正在重命名的 folder path
   const [moveSubject, setMoveSubject] = useState<MoveToSubject | null>(null);
@@ -132,7 +133,6 @@ function DocTree({
   // ── 批量选择 ──
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const revealedSelectionRef = useRef<{ noteId: string; element: HTMLElement } | null>(null);
   const [batchBusy, setBatchBusy] = useState(false);
 
   const toggleSelectId = useCallback((noteId: string) => {
@@ -195,22 +195,22 @@ function DocTree({
 
   useLayoutEffect(() => {
     const scrollRoot = treeScrollRef.current;
-    if (loading || !selectedId || !scrollRoot) {
-      if (!selectedId) revealedSelectionRef.current = null;
-      return;
-    }
+    if (loading || !selectedId || !scrollRoot) return;
     const selected = scrollRoot.querySelector<HTMLElement>(".doc-tree-selected");
     // 祖先目录尚未展开时节点还不在 DOM；collapsed 更新后本 effect 会重试。
     if (!selected) return;
-    const previous = revealedSelectionRef.current;
-    if (previous?.noteId === selectedId && previous.element === selected) return;
     const rootRect = scrollRoot.getBoundingClientRect();
     const selectedRect = selected.getBoundingClientRect();
-    const centeredTop = selectedRect.top - rootRect.top
-      - Math.max(0, (scrollRoot.clientHeight - selectedRect.height) / 2);
-    scrollRoot.scrollTop = Math.max(0, scrollRoot.scrollTop + centeredTop);
-    localStorage.setItem(DOC_TREE_SCROLL_KEY, String(scrollRoot.scrollTop));
-    revealedSelectionRef.current = { noteId: selectedId, element: selected };
+    const margin = 4;
+    const visibleTop = rootRect.top + margin;
+    const visibleBottom = rootRect.bottom - margin;
+    let delta = 0;
+    if (selectedRect.top < visibleTop) delta = selectedRect.top - visibleTop;
+    else if (selectedRect.bottom > visibleBottom) delta = selectedRect.bottom - visibleBottom;
+    if (delta !== 0) {
+      scrollRoot.scrollTop = Math.max(0, scrollRoot.scrollTop + delta);
+      localStorage.setItem(DOC_TREE_SCROLL_KEY, String(scrollRoot.scrollTop));
+    }
   }, [collapsed, loading, selectedId, tree]);
 
   useEffect(() => {
@@ -218,6 +218,26 @@ function DocTree({
       const close = () => setContextMenu(null);
       document.addEventListener("click", close);
       return () => document.removeEventListener("click", close);
+    }
+  }, [contextMenu]);
+
+  // 菜单渲染后再按真实尺寸限制到视觉视口内。右键点接近窗口底部或
+  // 右侧时向上/向左避让；菜单高于小窗口时由 CSS 在内部滚动。
+  useLayoutEffect(() => {
+    if (!contextMenu || !contextMenuRef.current) return;
+    const rect = contextMenuRef.current.getBoundingClientRect();
+    const viewport = window.visualViewport;
+    const viewportLeft = viewport?.offsetLeft ?? 0;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportRight = viewportLeft + (viewport?.width ?? window.innerWidth);
+    const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
+    const margin = 8;
+    const maxX = Math.max(viewportLeft + margin, viewportRight - rect.width - margin);
+    const maxY = Math.max(viewportTop + margin, viewportBottom - rect.height - margin);
+    const x = Math.max(viewportLeft + margin, Math.min(contextMenu.x, maxX));
+    const y = Math.max(viewportTop + margin, Math.min(contextMenu.y, maxY));
+    if (x !== contextMenu.x || y !== contextMenu.y) {
+      setContextMenu((current) => current ? { ...current, x, y } : current);
     }
   }, [contextMenu]);
 
@@ -683,6 +703,7 @@ function DocTree({
 
       {contextMenu && (
         <div
+          ref={contextMenuRef}
           className="doc-context-menu"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >

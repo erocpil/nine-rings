@@ -22,6 +22,52 @@ async function selectDocuments(page: Page, titles: string[]) {
   await expect(page.locator(".doc-tree-checkbox:checked")).toHaveCount(titles.length);
 }
 
+async function seedViewportDocuments(page: Page, count = 36) {
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 10000 });
+  await page.evaluate(async (documentCount) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("nine_rings");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const transaction = db.transaction("notes", "readwrite");
+    const store = transaction.objectStore("notes");
+    const timestamp = new Date().toISOString();
+    for (let index = 0; index < documentCount; index += 1) {
+      const title = `视口文档 ${String(index).padStart(2, "0")}`;
+      store.put({
+        id: `doc-tree-viewport-${String(index).padStart(3, "0")}`,
+        date: "2026-08-31",
+        title,
+        content: { ops: [{ insert: `${title}\n` }] },
+        tags: "[]",
+        pinned: 0,
+        readonly: 0,
+        sort_order: 0,
+        created_at: timestamp,
+        updated_at: timestamp,
+        storagePath: "projects/viewport-tests",
+        docType: "reference",
+        concepts: "[]",
+        linkedDocIds: "[]",
+        search_text: title,
+      });
+    }
+    await new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+    db.close();
+    localStorage.setItem("nr:docTreeCollapsed", "[]");
+    localStorage.setItem("nr:sidebarTab", "tree");
+  }, count);
+  await page.reload();
+  const switcher = page.locator(".sidebar-view-switch");
+  if (await switcher.getAttribute("data-target-view") === "tree") await switcher.click();
+  await expect(page.locator(".doc-tree-doc").filter({ hasText: "视口文档 35" })).toBeAttached();
+}
+
 test("文档树支持批量取消只读并移动到新目录", async ({ page }) => {
   await openDocumentView(page);
   const titles = ["批量文档甲", "批量文档乙"];
@@ -84,6 +130,53 @@ test("文档树长名称提供完整文本提示", async ({ page }) => {
   const name = page.locator(".doc-tree-doc").filter({ hasText: title }).locator(".doc-tree-name");
   await expect(name).toHaveAttribute("title", title);
   await expect.poll(() => name.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+});
+
+test("文档树点击可见项不强制居中且底部右键菜单不越出视口", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 420 });
+  await openDocumentView(page);
+  await seedViewportDocuments(page);
+
+  const tree = page.locator(".doc-tree");
+  const target = page.locator(".doc-tree-doc").filter({ hasText: "视口文档 20" });
+  await expect(target).toBeAttached();
+  const initial = await target.evaluate((element) => {
+    const root = element.closest<HTMLElement>(".doc-tree")!;
+    const rootRect = root.getBoundingClientRect();
+    root.scrollTop += element.getBoundingClientRect().top - rootRect.top - 12;
+    return { scrollTop: root.scrollTop, clientHeight: root.clientHeight };
+  });
+  expect(initial.scrollTop).toBeGreaterThan(0);
+  expect(initial.clientHeight).toBeGreaterThan(80);
+  await expect(target).toBeVisible();
+
+  await target.click();
+  await expect(target).toHaveClass(/doc-tree-selected/);
+  await expect.poll(async () => Math.abs(
+    await tree.evaluate((element) => element.scrollTop) - initial.scrollTop,
+  )).toBeLessThanOrEqual(1);
+
+  await tree.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  const lastDocument = page.locator(".doc-tree-doc").filter({ hasText: "视口文档 35" });
+  await expect(lastDocument).toBeVisible();
+  const viewport = page.viewportSize()!;
+  const triggerBox = (await lastDocument.boundingBox())!;
+  await lastDocument.click({ button: "right" });
+
+  const menu = page.locator(".doc-context-menu");
+  await expect(menu).toBeVisible();
+  await expect.poll(async () => {
+    const box = await menu.boundingBox();
+    return Boolean(box
+      && box.x >= 0
+      && box.y >= 0
+      && box.x + box.width <= viewport.width
+      && box.y + box.height <= viewport.height);
+  }).toBe(true);
+  const menuBox = (await menu.boundingBox())!;
+  // Playwright 默认在目标中心右键；若仍直接使用原始 clientY，菜单必然越过底边。
+  expect(triggerBox.y + triggerBox.height / 2 + menuBox.height).toBeGreaterThan(viewport.height);
+  await expect(menu).toHaveCSS("overflow-y", "auto");
 });
 
 test("目录汇总为同名文档显示相对子路径", async ({ page }) => {
