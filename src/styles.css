@@ -8146,17 +8146,6 @@ button.doc-tree-toggle:focus-visible {
   color: var(--accent);
 }
 
-/* iOS WebKit may retain the old raster layer of an overflowing NodeView
-   control when an ancestor heading switches from display:none back to visible.
-   HeadingFold keeps these controls hidden across one committed paint so they
-   are recreated at the new layout position instead of leaving a ghost glyph. */
-.ProseMirror.heading-fold-repainting :is(
-  .blockquote-toolbar button,
-  .code-block-collapse-toggle
-) {
-  visibility: hidden !important;
-}
-
 .blockquote-wrap[data-collapsed="true"] .blockquote-content {
   max-height: 0;
   overflow: hidden;

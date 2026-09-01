@@ -265,10 +265,15 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
             continue;
           }
           ensureMetrics();
-          // entry.boundingClientRect 是浏览器本轮布局的现成结果。不要在这里
-          // 对每个块调用 getBoundingClientRect；Windows WebView2 会把这些
-          // 同步读取放大成连续的强制布局，千块文档滚动时尤其明显。
-          const measured = measureBlock(dom, entry.boundingClientRect, rootTop, editorLineHeight);
+          // 正文沿用观察器的现成矩形，避免千块文档滚动时逐块强制布局。
+          // 标题数量通常很少，且它们承载 gutter 三角；iOS WebKit 在章节
+          // 展开后可能延迟送达折叠前坐标，必须读取标题当前矩形，不能让
+          // 陈旧批次把三角重新发布到旧位置，等待滚动才自行纠正。
+          const blockIndex = observedIndexes.get(dom);
+          const rect = blockIndex !== undefined && topLevelBlocks[blockIndex - 1]?.heading
+            ? dom.getBoundingClientRect()
+            : entry.boundingClientRect;
+          const measured = measureBlock(dom, rect, rootTop, editorLineHeight);
           if (!measured) {
             changed = measuredBlocks.delete(dom) || changed;
             continue;

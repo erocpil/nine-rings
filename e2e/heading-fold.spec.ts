@@ -248,6 +248,99 @@ test("手机端尾部逐节折叠不发布观察器中的陈旧块号", async ({
   }
 });
 
+test("手机端重新展开后标题三角不采用观察器的陈旧坐标", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true }));
+
+    // 模拟 iOS WebKit 在折叠布局已经恢复后，仍把标题折叠前的旧矩形
+    // 延迟送给新一代观察器。正文矩形可直接复用，标题三角必须以实时
+    // DOM 布局为准，否则它会停在错误块旁边直到用户滚动。
+    const NativeIntersectionObserver = window.IntersectionObserver;
+    class StaleHeadingIntersectionObserver extends NativeIntersectionObserver {
+      private readonly replayCallback: IntersectionObserverCallback;
+
+      constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+        super(callback, options);
+        this.replayCallback = callback;
+      }
+
+      override observe(target: Element) {
+        super.observe(target);
+        if (!/^H[1-6]$/.test(target.tagName)) return;
+        const current = target.getBoundingClientRect();
+        const stale = new DOMRectReadOnly(
+          current.x,
+          current.y + 42,
+          current.width,
+          current.height,
+        );
+        window.setTimeout(() => {
+          this.replayCallback([{
+            time: performance.now(),
+            target,
+            rootBounds: null,
+            boundingClientRect: stale,
+            intersectionRect: stale,
+            isIntersecting: true,
+            intersectionRatio: 1,
+          } as IntersectionObserverEntry], this);
+        }, 180);
+      }
+    }
+    Object.defineProperty(window, "IntersectionObserver", {
+      configurable: true,
+      writable: true,
+      value: StaleHeadingIntersectionObserver,
+    });
+  });
+  await page.setViewportSize({ width: 390, height: 760 });
+  await page.goto("/");
+
+  const editor = page.locator(".ProseMirror");
+  await editor.fill("");
+  await editor.evaluate((element) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData(
+      "text/plain",
+      "# 上级章节\n\n上级正文\n\n## 示例答案\n\n> 引用正文\n\n# 下一章节\n\n末尾正文",
+    );
+    element.dispatchEvent(new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData,
+    }));
+  });
+
+  const parent = editor.getByRole("heading", { name: "上级章节" });
+  const nested = editor.getByRole("heading", { name: "示例答案" });
+  const parentIndex = await parent.evaluate(
+    (element) => Array.from(element.parentElement?.children ?? []).indexOf(element) + 1,
+  );
+  const nestedIndex = await nested.evaluate(
+    (element) => Array.from(element.parentElement?.children ?? []).indexOf(element) + 1,
+  );
+
+  await page.getByRole("button", { name: `折叠第 ${parentIndex} 块章节` }).click();
+  await expect(nested).toBeHidden();
+  await page.getByRole("button", { name: `展开第 ${parentIndex} 块章节` }).click();
+  await expect(nested).toBeVisible();
+  await page.waitForTimeout(260);
+
+  const nestedFold = page.getByRole("button", { name: `折叠第 ${nestedIndex} 块章节` });
+  await expect(nestedFold).toBeVisible();
+  const offset = await nestedFold.evaluate((button, index) => {
+    const heading = document.querySelector<HTMLElement>(`.ProseMirror > :nth-child(${index})`);
+    const editor = document.querySelector<HTMLElement>(".ProseMirror");
+    if (!heading || !editor) throw new Error("heading missing");
+    const buttonRect = button.getBoundingClientRect();
+    const headingRect = heading.getBoundingClientRect();
+    const editorLineHeight = Number.parseFloat(getComputedStyle(editor).lineHeight) || 24;
+    const expectedCenter = headingRect.top + editorLineHeight * 1.3 / 2;
+    return Math.abs(buttonRect.top + buttonRect.height / 2 - expectedCenter);
+  }, nestedIndex);
+  expect(offset).toBeLessThan(1);
+});
+
 test("千块文档全部展开后滚动不再逐块同步测量", async ({ page }) => {
   test.slow();
   await page.goto("/");
