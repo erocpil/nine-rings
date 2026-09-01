@@ -43,6 +43,12 @@ test("设置中的书签列表包含文档书签", async ({ page }) => {
   await page.getByPlaceholder("文档标题...").fill("书签集中管理测试");
   await page.getByRole("button", { name: "创建", exact: true }).click();
 
+  // 创建操作会等待存储后端返回。Playwright 的 fill() 不需要真实鼠标命中，
+  // 若不等待对话框卸载，会越过遮罩修改仍挂载在背后的旧编辑器，继而把
+  // 书签正确地保存到旧文档，却让集中管理看起来像是读错了标题。
+  await expect(page.getByRole("dialog", { name: "新建文档" })).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("书签集中管理测试");
+
   const editor = page.locator(".ProseMirror");
   await editor.fill("设置页应显示的文档书签");
   await page.keyboard.press("Control+Shift+m");

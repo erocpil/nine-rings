@@ -35,4 +35,45 @@ for (const token of [
   }
 }
 
+for (const token of [
+  "--ui-radius-small",
+  "--ui-radius-medium",
+  "--ui-radius-popover",
+  "--ui-control-height",
+  "--ui-icon-button-size",
+  "--ui-panel-header-height",
+  "--ui-panel-padding",
+  "--ui-overlay",
+  "--ui-shadow-popover",
+  "--ui-shadow-dialog",
+  "--ui-focus-ring",
+]) {
+  if (!definitions.has(token)) {
+    console.error(`Shared application chrome must define ${token}`);
+    process.exit(1);
+  }
+}
+
+const sharedChrome = css.slice(css.lastIndexOf("Shared application chrome"));
+for (const selector of [
+  ".version-panel",
+  ".recycle-panel",
+  ".overdue-panel",
+  ".properties-panel",
+  ".sidebar-item",
+  ".todo-item",
+  ".search-filter-btn",
+  ".search-results-header",
+  ".quick-switcher-item",
+  ".template-popover",
+  ".qc-container",
+  ".pdf-reader-toolbar",
+  ".epub-bookmark-popover",
+]) {
+  if (!sharedChrome.includes(selector)) {
+    console.error(`Shared application chrome must cover ${selector}`);
+    process.exit(1);
+  }
+}
+
 console.log(`Theme contract passed (${definitions.size} tokens defined)`);

@@ -138,6 +138,25 @@ export const HeadingFold = Extension.create<HeadingFoldOptions>({
 
         let previous = "";
         let previousVisibility = "";
+        let repaintFrame = 0;
+        let revealFrame = 0;
+        const repaintNestedFoldControls = () => {
+          if (!ownerWindow) return;
+          // iOS WebKit 会把超出工具栏布局边界的引用/代码折叠按钮单独缓存。
+          // 父标题从 display:none 恢复时，旧纹理偶尔会留在原坐标，直到
+          // 下一次滚动才重新栅格化。先让旧控件完整消失一帧，再在新布局
+          // 已提交后显示，确保 WebKit 丢弃折叠前的绘制层。
+          editorView.dom.classList.add("heading-fold-repainting");
+          if (repaintFrame) ownerWindow.cancelAnimationFrame(repaintFrame);
+          if (revealFrame) ownerWindow.cancelAnimationFrame(revealFrame);
+          repaintFrame = ownerWindow.requestAnimationFrame(() => {
+            repaintFrame = 0;
+            revealFrame = ownerWindow.requestAnimationFrame(() => {
+              revealFrame = 0;
+              editorView.dom.classList.remove("heading-fold-repainting");
+            });
+          });
+        };
         const updateVisibility = (view: import("@tiptap/pm/view").EditorView) => {
           if (!style) return;
           const collapsedKeys = headingFoldPluginKey.getState(view.state)?.collapsedKeys ?? new Set<string>();
@@ -151,6 +170,7 @@ export const HeadingFold = Extension.create<HeadingFoldOptions>({
           if (css === previousVisibility) return;
           previousVisibility = css;
           style.textContent = css;
+          repaintNestedFoldControls();
         };
         updateVisibility(editorView);
         return {
@@ -163,6 +183,9 @@ export const HeadingFold = Extension.create<HeadingFoldOptions>({
             options.onChange?.(keys);
           },
           destroy() {
+            if (repaintFrame && ownerWindow) ownerWindow.cancelAnimationFrame(repaintFrame);
+            if (revealFrame && ownerWindow) ownerWindow.cancelAnimationFrame(revealFrame);
+            editorView.dom.classList.remove("heading-fold-repainting");
             if (style && editorView.dom.getAttribute("data-heading-fold-scope") === scope) {
               editorView.dom.removeAttribute("data-heading-fold-scope");
             }
