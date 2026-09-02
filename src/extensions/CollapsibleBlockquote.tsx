@@ -2,6 +2,8 @@ import Blockquote from "@tiptap/extension-blockquote";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useRef } from "react";
 
+export const blockquoteFoldTransactionMeta = "nine-rings:blockquote-fold";
+
 function CollapsibleBlockquoteView({ node, editor, getPos }: NodeViewProps) {
   const collapsed = node.attrs.collapsed === true;
   const suppressClickUntilRef = useRef(0);
@@ -15,10 +17,14 @@ function CollapsibleBlockquoteView({ node, editor, getPos }: NodeViewProps) {
     if (!current || current.type.name !== "blockquote") return;
     // 直接基于当前节点提交事务，避免 React NodeView 闭包中的 collapsed
     // 在后台恢复或连续触摸时过期；折叠属于阅读操作，只读文档也允许切换。
-    editor.view.dispatch(editor.state.tr.setNodeMarkup(position, undefined, {
-      ...current.attrs,
-      collapsed: current.attrs.collapsed !== true,
-    }));
+    editor.view.dispatch(
+      editor.state.tr
+        .setNodeMarkup(position, undefined, {
+          ...current.attrs,
+          collapsed: current.attrs.collapsed !== true,
+        })
+        .setMeta(blockquoteFoldTransactionMeta, true),
+    );
   };
 
   return (

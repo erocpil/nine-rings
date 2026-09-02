@@ -1,5 +1,40 @@
 import { expect, test, type Locator } from "@playwright/test";
 
+test("引用块折叠状态在切换文档后保持", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+
+  const createBlankNote = async (title: string) => {
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    const titleInput = page.getByRole("textbox", { name: "随心记 — 标题" });
+    await titleInput.fill(title);
+    await expect(titleInput).toHaveValue(title);
+  };
+
+  await createBlankNote("引用折叠文档 A");
+  const editor = page.locator(".ProseMirror");
+  await editor.fill("引用正文");
+  await editor.press("Control+Shift+b");
+  await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
+
+  await createBlankNote("引用折叠文档 B");
+  await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
+  const noteA = page.locator('.sidebar-item-title[title="引用折叠文档 A"]');
+  const noteB = page.locator('.sidebar-item-title[title="引用折叠文档 B"]');
+  await noteA.click();
+
+  const quote = editor.locator("blockquote");
+  await quote.getByRole("button", { name: "折叠引用块" }).click();
+  await expect(quote).toHaveAttribute("data-collapsed", "true");
+
+  // 不等待 600ms 自动保存；A → B → A 必须直接使用会话中的最新文档。
+  await noteB.click();
+  await noteA.click();
+  await expect(editor.locator("blockquote")).toHaveAttribute("data-collapsed", "true");
+  await expect(editor.getByRole("button", { name: "展开引用块" })).toBeVisible();
+});
+
 async function longPress(button: Locator) {
   await button.evaluate(async (element) => {
     const rect = element.getBoundingClientRect();

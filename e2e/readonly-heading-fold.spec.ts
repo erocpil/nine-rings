@@ -1,5 +1,32 @@
 import { expect, test, type Locator } from "@playwright/test";
 
+test("只读文档拒绝 Windows WebView2 式粘贴事件", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+  const editor = page.locator(".ProseMirror");
+  await editor.fill("只读原文");
+  await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
+  await page.locator(".sidebar-item.active").getByTitle("设为只读")
+    .evaluate((button: HTMLButtonElement) => button.click());
+  await expect(editor).toHaveAttribute("contenteditable", "false");
+
+  const prevented = await editor.evaluate((element) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "# 不应粘贴的标题\n\n不应出现的正文");
+    return !element.dispatchEvent(new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData,
+    }));
+  });
+  expect(prevented).toBe(true);
+  await expect(editor).toHaveText("只读原文");
+  await expect(editor.getByRole("heading", { name: "不应粘贴的标题" })).toHaveCount(0);
+});
+
 test("只读文档隐藏代码语法选项并保留查看操作", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("随笔").click();

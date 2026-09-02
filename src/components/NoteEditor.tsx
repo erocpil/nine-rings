@@ -94,7 +94,10 @@ import {
   type HeadingSection,
 } from "../lib/heading-fold";
 import { BlockIndent } from "../extensions/BlockIndent";
-import { CollapsibleBlockquote } from "../extensions/CollapsibleBlockquote";
+import {
+  blockquoteFoldTransactionMeta,
+  CollapsibleBlockquote,
+} from "../extensions/CollapsibleBlockquote";
 import { StandaloneStrongLabel } from "../extensions/StandaloneStrongLabel";
 import { cacheEditorDocument, getCachedEditorDocument } from "../lib/editor-session-cache";
 import {
@@ -160,6 +163,27 @@ function insertCodeBlockPlainText(editor: Editor, text: string): void {
       .scrollIntoView(),
   );
   editor.commands.focus();
+}
+
+/**
+ * `contenteditable=false` is the first readonly boundary, but some WebView2
+ * paste paths still reach ProseMirror commands or dispatch transactions.
+ * Reject every document mutation while readonly, except the persisted visual
+ * state of a collapsible quote which remains an allowed reading operation.
+ */
+function createReadonlyDocumentGuard(isReadonly: () => boolean) {
+  return Extension.create({
+    name: "readonlyDocumentGuard",
+    addProseMirrorPlugins() {
+      return [new Plugin({
+        filterTransaction(transaction) {
+          return !isReadonly()
+            || !transaction.docChanged
+            || transaction.getMeta(blockquoteFoldTransactionMeta) === true;
+        },
+      })];
+    },
+  });
 }
 
 const AlignedTableCell = TableCell.extend({
@@ -517,6 +541,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const toolbarInteractingRef = useRef(false);
   const documentMetadataRef = useRef(content.metadata);
   documentMetadataRef.current = content.metadata;
+  const readonlyRef = useRef(Boolean(readonly));
+  readonlyRef.current = Boolean(readonly);
   const contentVersionRef = useRef(contentVersion);
   contentVersionRef.current = contentVersion;
   const searchMatchesRef = useRef<SearchMatch[]>([]);
@@ -898,6 +924,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         defaultWrap: defaultCodeBlockWrap,
       }),
       CollapsibleBlockquote,
+      createReadonlyDocumentGuard(() => readonlyRef.current),
       StructuredBlockExit,
       MarkdownLinkInput,
       CjkLatinSpacing,
@@ -958,7 +985,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       }
       localStorage.setItem(`selectionPos:${noteId}`, JSON.stringify({ from, to }));
     },
-    onUpdate: ({ editor: ed }) => {
+    onUpdate: ({ editor: ed, transaction }) => {
       scheduleDocumentStats(ed);
       // 搜索高亮是导航提示，不应在用户开始修改正文后继续指向旧位置。
       if (searchMatchesRef.current.length > 0) {
@@ -970,6 +997,12 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       // 等自动保存真正 flush 时才执行全文 JSON + Delta 转换，避免长文档
       // 在输入热路径上反复 O(N) 序列化。
       const docSnapshot = ed.state.doc;
+      // Quote folding is a tiny but persistent document change. Cache its
+      // current JSON immediately so a rapid A → B → A switch cannot recreate
+      // A from the pre-fold autosave revision while the write is still queued.
+      if (transaction.getMeta(blockquoteFoldTransactionMeta)) {
+        cacheEditorDocument(noteId, contentVersionRef.current, docSnapshot.toJSON());
+      }
       onContentChange(() => {
         const editorDocument = docSnapshot.toJSON();
         cacheEditorDocument(noteId, contentVersionRef.current, editorDocument);
@@ -2326,6 +2359,11 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
+      if (readonlyRef.current || !editor?.isEditable) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       const items = e.clipboardData?.items;
       if (!items || !editor) return;
       if (vimModeEnabled && getVimEditorMode(editor) !== "insert") {
@@ -2350,6 +2388,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         editor.chain().focus().insertContent(plainText).run();
         // 异步抓取标题
         fetchUrlTitle(plainText).then((title) => {
+          if (readonlyRef.current || editor.isDestroyed || !editor.isEditable) return;
           if (!title) {
             // 抓取失败，把 URL 变成可点击链接
             const { from } = editor.state.selection;
@@ -2400,6 +2439,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           const file = item.getAsFile();
           if (!file) continue;
           storeImage(file).then((ref) => {
+            if (readonlyRef.current || editor.isDestroyed || !editor.isEditable) return;
             const { $from } = editor.state.selection;
             // ResizableImage 是 block node，不能在段落中间插入。
             // 在光标所在段落的末尾之后插入图片节点。
@@ -2417,6 +2457,11 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
+      if (readonlyRef.current || !editor?.isEditable) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       const files = e.dataTransfer?.files;
       if (!files || !editor) return;
       if (vimModeEnabled && getVimEditorMode(editor) !== "insert") {
@@ -2427,6 +2472,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         if (file.type.startsWith("image/")) {
           e.preventDefault();
           storeImage(file).then((ref) => {
+            if (readonlyRef.current || editor.isDestroyed || !editor.isEditable) return;
             (editor.chain().focus() as any).setResizableImage({ src: ref }).run();
           });
         }
@@ -3396,6 +3442,11 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       style={{ "--note-outline-docked-width": `${outlineDockWidth}px` } as React.CSSProperties}
       onPasteCapture={handlePaste}
       onDrop={handleDrop}
+      onBeforeInputCapture={(event) => {
+        if (!readonlyRef.current) return;
+        event.preventDefault();
+        event.stopPropagation();
+      }}
       onMouseDownCapture={preventReadonlyTableResize}
       onPointerDownCapture={(event) => {
         if (!(event.target instanceof Element) || !event.target.closest(".ProseMirror")) return;
