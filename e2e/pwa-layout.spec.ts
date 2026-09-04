@@ -80,10 +80,18 @@ test.describe("PWA 窄屏应用外壳", () => {
       return {
         unorderedPadding: Number.parseFloat(getComputedStyle(unordered).paddingInlineStart),
         orderedPadding: Number.parseFloat(getComputedStyle(ordered).paddingInlineStart),
+        fontSize: Number.parseFloat(getComputedStyle(ordered).fontSize),
+        orderedOffset: Number.parseFloat(
+          getComputedStyle(ordered).getPropertyValue("--editor-ordered-list-offset"),
+        ),
         orderedMarker: getComputedStyle(orderedItem, "::before").content,
       };
     });
-    expect(listGeometry.orderedPadding).toBeCloseTo(listGeometry.unorderedPadding, 1);
+    expect(listGeometry.orderedPadding - listGeometry.unorderedPadding).toBeCloseTo(
+      listGeometry.fontSize * listGeometry.orderedOffset,
+      1,
+    );
+    expect(listGeometry.orderedPadding).toBeGreaterThan(listGeometry.unorderedPadding);
     expect(listGeometry.orderedMarker).toContain("counter(list-item)");
     expect(listGeometry.orderedMarker).not.toContain("•");
   });

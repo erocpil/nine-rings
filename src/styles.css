@@ -86,6 +86,7 @@ html {
   --editor-list-margin-bottom: 0.25em;
   --editor-list-indent: 1.25em;
   --editor-list-marker-gap: 0.2em;
+  --editor-ordered-list-offset: 0.5em;
   --editor-blockquote-indent: 12px;
   --editor-search-highlight: #ffd54f;
   --app-viewport-width: 100vw;
@@ -4527,7 +4528,7 @@ body.app-split-dragging * {
 }
 
 .editor-content ol {
-  padding-inline-start: var(--editor-list-indent);
+  padding-inline-start: calc(var(--editor-list-indent) + var(--editor-ordered-list-offset));
   counter-reset: list-item;
 }
 
@@ -4584,9 +4585,8 @@ body.app-split-dragging * {
   font-variant-numeric: tabular-nums;
 }
 
-/* 有序、无序列表都以正文起点为锚点，并共享 marker gap。有序编号列
-   右对齐，使句点始终紧邻正文；位数增加时数字只向左扩展，不再把
-   个位编号推向 gutter，也不会扩大句点后的空隙。 */
+/* `outside` marker 的成熟布局由列表容器预留标记空间。有序编号比圆点宽，
+   因此额外保留半个字宽；编号仍然右对齐，位数增加时不会挤压正文。 */
 :is(.editor-content, .editor-appearance-preview) ol {
   --editor-ordered-marker-column: 3ch;
 }
@@ -5363,7 +5363,7 @@ body.app-split-dragging * {
 
 .editor-appearance-preview ol {
   margin: 0;
-  padding-inline-start: var(--editor-list-indent);
+  padding-inline-start: calc(var(--editor-list-indent) + var(--editor-ordered-list-offset));
   list-style: none;
 }
 
