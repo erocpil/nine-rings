@@ -1592,6 +1592,18 @@ body {
   gap: 0;
 }
 
+.toolbar-history-icon {
+  display: inline-block;
+}
+
+.toolbar-history-icon-undo {
+  transform: translateX(3px);
+}
+
+.toolbar-history-icon-redo {
+  transform: translateX(-3px);
+}
+
 .toolbar-secondary {
   display: contents;
 }
@@ -1928,6 +1940,7 @@ body {
 }
 
 .mobile-action-sheet {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: min(560px, 100%);
@@ -2002,6 +2015,22 @@ body {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+}
+
+.mobile-action-sheet-scroll-hint {
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  z-index: 2;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: 0 1px 6px var(--shadow-color, rgba(0, 0, 0, 0.16));
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  pointer-events: none;
 }
 
 .move-date-content {
@@ -2486,6 +2515,17 @@ body {
   color: var(--accent);
   cursor: pointer;
   font: inherit;
+}
+
+.readonly-change-notice {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: 1;
+  margin: 0;
+  transform: translateX(-50%);
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 /* ──── Empty State ──── */
@@ -3807,6 +3847,11 @@ body {
     box-shadow: none;
   }
 
+  .outline-docked-left .document-bookmark-panel,
+  .outline-docked-right .document-bookmark-panel {
+    top: 0;
+  }
+
   .outline-docked-left .document-outline-panel {
     right: auto;
     left: 0;
@@ -4568,7 +4613,11 @@ body.app-split-dragging * {
 }
 
 .editor-content ol {
-  padding-inline-start: calc(var(--editor-list-indent) + var(--editor-ordered-list-offset));
+  --editor-ordered-content-indent: calc(
+    var(--editor-list-indent) + var(--editor-ordered-list-offset) +
+      var(--editor-ordered-marker-extra, 0ch)
+  );
+  padding-inline-start: var(--editor-ordered-content-indent);
   counter-reset: list-item;
 }
 
@@ -4625,26 +4674,19 @@ body.app-split-dragging * {
   font-variant-numeric: tabular-nums;
 }
 
-/* `outside` marker 的成熟布局由列表容器预留标记空间。有序编号比圆点宽，
-   因此额外保留半个字宽；编号仍然右对齐，位数增加时不会挤压正文。 */
+/* `outside` marker 的成熟布局由列表容器预留标记空间。编号左边沿固定，
+   位数增加时向正文方向增长；达到三/四位数时同步拓宽正文缩进，避免标记
+   反向侵入块号沟槽。 */
 :is(.editor-content, .editor-appearance-preview) ol {
-  --editor-ordered-marker-column: 3ch;
+  --editor-ordered-marker-extra: 0ch;
 }
 
 :is(.editor-content, .editor-appearance-preview) ol:has(> li:nth-child(100)) {
-  --editor-ordered-marker-column: 4ch;
+  --editor-ordered-marker-extra: 1ch;
 }
 
 :is(.editor-content, .editor-appearance-preview) ol:has(> li:nth-child(1000)) {
-  --editor-ordered-marker-column: 5ch;
-}
-
-:is(.editor-content, .editor-appearance-preview) ol > li::before {
-  right: calc(100% + var(--editor-list-marker-gap));
-  left: auto;
-  width: var(--editor-ordered-marker-column);
-  text-align: right;
-  transform: none;
+  --editor-ordered-marker-extra: 2ch;
 }
 
 .editor-content li > ul,
@@ -5403,7 +5445,11 @@ body.app-split-dragging * {
 
 .editor-appearance-preview ol {
   margin: 0;
-  padding-inline-start: calc(var(--editor-list-indent) + var(--editor-ordered-list-offset));
+  --editor-ordered-content-indent: calc(
+    var(--editor-list-indent) + var(--editor-ordered-list-offset) +
+      var(--editor-ordered-marker-extra, 0ch)
+  );
+  padding-inline-start: var(--editor-ordered-content-indent);
   list-style: none;
 }
 
@@ -5444,6 +5490,16 @@ body.app-split-dragging * {
 
 .editor-appearance-preview li li > ol > li::before {
   content: counter(list-item, lower-roman) ".";
+}
+
+/* 这条规则必须位于预览通用 marker 规则之后，避免其重新写入 right。
+   marker 盒子的左边沿固定；数字从这里向右排布，而不是以句点为基准向左长。 */
+:is(.editor-content, .editor-appearance-preview) ol > li::before {
+  right: auto;
+  left: calc(-1 * var(--editor-ordered-content-indent));
+  width: max-content;
+  text-align: left;
+  transform: none;
 }
 
 .editor-appearance-preview mark {
@@ -6360,7 +6416,7 @@ body.app-split-dragging * {
 
 /* 专注模式：不固定，随滚动一起离开视口 */
 .focus-mode .note-editor-sticky {
-  position: static;
+  position: relative;
   background: none;
 }
 
@@ -9024,7 +9080,7 @@ button.doc-tree-toggle:focus-visible {
     flex: 1;
     overflow: hidden;
     min-width: 0;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     line-height: 1.2;
     text-overflow: ellipsis;
@@ -11722,5 +11778,71 @@ button.doc-tree-toggle:focus-visible {
   .web-keyboard-open .move-to-body {
     min-height: 0;
     max-height: none;
+  }
+}
+
+/* 触屏浏览器会把一次轻触保留为 :hover；设置页又会在导航时
+   替换同位置控件，若不显式还原，下一页的无关选项会看起来像已选中。 */
+@media (hover: none), (pointer: coarse), (any-pointer: coarse) {
+  .settings-back:hover {
+    border-color: transparent;
+    background: transparent;
+    color: var(--text-secondary);
+  }
+
+  .settings-close:hover {
+    background: transparent;
+    color: var(--text-secondary);
+  }
+
+  .settings-category-card:hover {
+    border-color: var(--border);
+    background: var(--bg);
+    transform: none;
+  }
+
+  .editor-appearance-entry:hover {
+    border-color: var(--border);
+    background: var(--bg);
+  }
+
+  .settings-radio:hover:not(.active),
+  .settings-step-btn:hover {
+    background: transparent;
+    color: var(--text-secondary);
+  }
+
+  .settings-btn:hover {
+    background: var(--bg);
+  }
+
+  .settings-btn-primary:hover {
+    background: var(--accent);
+  }
+
+  .settings-btn-danger:hover {
+    background: var(--bg);
+  }
+
+  .settings-sm-btn:hover {
+    border-color: var(--border);
+    color: var(--text-secondary);
+  }
+
+  .settings-sm-btn.danger:hover {
+    color: var(--danger);
+  }
+
+  .settings-btn-secondary:hover {
+    border-color: var(--border);
+  }
+
+  .bookmark-manager-item:hover,
+  .bookmark-manager-item button:hover {
+    background: transparent;
+  }
+
+  .bookmark-manager-item button:hover {
+    color: var(--text-secondary);
   }
 }

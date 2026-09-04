@@ -44,6 +44,12 @@ test.describe("响应式编辑器工具栏", () => {
       return redo.getBoundingClientRect().left - undo.getBoundingClientRect().right;
     });
     expect(historyGap).toBeLessThanOrEqual(0.5);
+    const historyIconCenterGap = await page.locator(".toolbar-history-actions").evaluate((element) => {
+      const undo = element.querySelector<HTMLElement>(".toolbar-history-icon-undo")!.getBoundingClientRect();
+      const redo = element.querySelector<HTMLElement>(".toolbar-history-icon-redo")!.getBoundingClientRect();
+      return (redo.left + redo.width / 2) - (undo.left + undo.width / 2);
+    });
+    expect(historyIconCenterGap).toBeLessThanOrEqual(31);
   });
 
   test("默认桌面窗口和表格上下文均不产生水平滚动", async ({ page }) => {
@@ -80,6 +86,7 @@ test.describe("响应式编辑器工具栏", () => {
     await more.click();
     const moreMenu = page.locator(".toolbar-more-list");
     await expect(moreMenu).toBeVisible();
+    await expect(moreMenu.getByRole("button", { name: "↵ 块内换行" })).toBeVisible();
     const moreGap = await Promise.all([
       toolbar.evaluate((element) => element.getBoundingClientRect().bottom),
       moreMenu.evaluate((element) => element.getBoundingClientRect().top),

@@ -257,7 +257,9 @@ function extractInlineOps(
         ...(Object.keys(attrs).length > 0 ? { attributes: attrs } : {}),
       });
     } else if (inline.type === "hardBreak") {
-      ops.push({ insert: "\n" });
+      // 块内换行与 Delta 的块结束符都是 `\n`，必须显式区分。
+      // 否则内存中的 <br> 会在自动保存后被还原成新段落。
+      ops.push({ insert: "\n", attributes: { "hard-break": true } });
     } else if (inline.type === "image" || inline.type === "resizableImage") {
       ops.push({ insert: { image: inline.attrs?.src ?? "" } });
     } else if (inline.type === "paragraph" || inline.type === "listItem") {
@@ -350,6 +352,11 @@ export function deltaToProseMirror(deltaData: any): any {
 
     if (typeof insert === "string") {
       if (insert === "\n") {
+        if (attrs["hard-break"] === true) {
+          skipEmptyLineAfterBlockEmbed = false;
+          currentParagraph.content.push({ type: "hardBreak" });
+          continue;
+        }
         if (
           skipEmptyLineAfterBlockEmbed &&
           currentParagraph.content.length === 0 &&

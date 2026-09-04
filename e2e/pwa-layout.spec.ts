@@ -330,6 +330,15 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(editor).toHaveAttribute("contenteditable", "false");
     await expect(restoreEditing).toBeVisible();
     await expect(restoreEditing).toHaveText("🔒");
+    const readonlyNotice = page.locator(".readonly-change-notice");
+    await expect(readonlyNotice).toBeVisible();
+    await expect(readonlyNotice).toHaveCSS("position", "absolute");
+    const contentTopWhileNoticeVisible = await page.locator(".editor-content-shell")
+      .evaluate((element) => element.getBoundingClientRect().top);
+    await expect(readonlyNotice).toHaveCount(0, { timeout: 4000 });
+    const contentTopAfterNotice = await page.locator(".editor-content-shell")
+      .evaluate((element) => element.getBoundingClientRect().top);
+    expect(Math.abs(contentTopAfterNotice - contentTopWhileNoticeVisible)).toBeLessThanOrEqual(1);
   });
 
   test("手机端通过块菜单在当前块后插入空白块", async ({ page }) => {
@@ -644,7 +653,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(focusBar).toHaveCSS("backdrop-filter", "none");
     const focusTitle = focusBar.locator(".mobile-focus-title");
     await expect(focusTitle).toHaveText(title);
-    await expect(focusTitle).toHaveCSS("font-size", "14px");
+    await expect(focusTitle).toHaveCSS("font-size", "16px");
     await expect(focusBar).toHaveCSS("height", "30px");
     await expect(page.locator(".note-title-row")).toBeHidden();
     await expect(page.locator(".editor-menu")).toBeHidden();
@@ -896,6 +905,13 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(blocks).toHaveCount(1);
     await expect(currentBlock.locator("br")).toHaveCount(1);
     await expect(currentBlock).toHaveText("第一行第二行");
+
+    await expect(page.getByTitle("已保存")).toBeVisible({ timeout: 15000 });
+    await page.reload();
+    const restoredBlocks = page.locator(".ProseMirror > *");
+    await expect(restoredBlocks).toHaveCount(1);
+    await expect(restoredBlocks.first().locator("br")).toHaveCount(1);
+    await expect(restoredBlocks.first()).toHaveText("第一行第二行");
   });
 
   test("再次点按更多按钮区域只关闭面板且不会误触导出", async ({ page }) => {
@@ -962,6 +978,11 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(geometry.menuTop - geometry.toolbarBottom).toBeGreaterThanOrEqual(3);
     expect(geometry.menuTop - geometry.toolbarBottom).toBeLessThanOrEqual(5);
     await expect(sheet.getByRole("button", { name: /导出 Markdown/ })).toBeVisible();
+    const lastAction = sheet.getByRole("button", { name: "放大编辑器字号" });
+    await expect(sheet.locator(".mobile-action-sheet-scroll-hint")).toBeVisible();
+    await lastAction.scrollIntoViewIfNeeded();
+    await expect(lastAction).toBeVisible();
+    await expect(sheet.locator(".mobile-action-sheet-scroll-hint")).toHaveCount(0);
   });
 
   test("选择文字后工具栏保留选区并能应用格式", async ({ page }) => {

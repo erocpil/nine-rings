@@ -693,7 +693,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
         ) : (
           <div className="settings-body">
             {settingsPage === "root" && (
-              <div className="settings-category-grid" aria-label="设置分类">
+              <div key="settings-root-categories" className="settings-category-grid" aria-label="设置分类">
                 {SETTINGS_CATEGORIES.map((category) => (
                   <button
                     className="settings-category-card"
@@ -712,7 +712,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             )}
 
             {settingsPage === "documents" && (
-              <div className="settings-category-grid" aria-label="文档管理分类">
+              <div key="settings-document-categories" className="settings-category-grid" aria-label="文档管理分类">
                 <button
                   className="settings-category-card"
                   type="button"

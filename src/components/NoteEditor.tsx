@@ -3372,18 +3372,16 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   };
 
   const moreActions = (<>
-    {isMobileToolbarViewport && (<>
-      <button
-        className="menu-dropdown-item"
-        disabled={editor.isActive("codeBlock") || !editor.can().setHardBreak()}
-        onClick={() => {
-          editor.chain().focus().setHardBreak().run();
-          setMoreOpen(false);
-        }}
-        type="button"
-      >↵ 块内换行</button>
-      <div className="menu-dropdown-sep" />
-    </>)}
+    <button
+      className="menu-dropdown-item"
+      disabled={editor.isActive("codeBlock") || !editor.can().setHardBreak()}
+      onClick={() => {
+        editor.chain().focus().setHardBreak().run();
+        setMoreOpen(false);
+      }}
+      type="button"
+    >↵ 块内换行</button>
+    <div className="menu-dropdown-sep" />
     <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setMoreOpen(false); }} type="button">M↑ 导出 Markdown</button>
     <div className="menu-dropdown-sep" />
     <button className="menu-dropdown-item" onClick={() => {
@@ -3832,8 +3830,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           }}
         >
           <span className="toolbar-history-actions">
-            {btn("↩", () => editor.chain().focus().undo().run(), false, "撤销 (Ctrl+Z)", readonly)}
-            {btn("↪", () => editor.chain().focus().redo().run(), false, "重做 (Ctrl+Y)", readonly)}
+            {btn(<span className="toolbar-history-icon toolbar-history-icon-undo">↩</span>, () => editor.chain().focus().undo().run(), false, "撤销 (Ctrl+Z)", readonly)}
+            {btn(<span className="toolbar-history-icon toolbar-history-icon-redo">↪</span>, () => editor.chain().focus().redo().run(), false, "重做 (Ctrl+Y)", readonly)}
           </span>
           <span className="menu-sep" />
           {isNarrow ? (
@@ -4354,6 +4352,11 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           )}
         </div>
         )}
+        {readonlyChangeNotice && (
+          <div className="markdown-paste-notice readonly-change-notice" role="status">
+            <span>{readonly ? "已设置为只读" : "已设置为可编辑"}</span>
+          </div>
+        )}
         </div>
 
         {/* ── 编辑器内容 ── */}
@@ -4376,11 +4379,6 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           <div className="markdown-paste-notice" role="status">
             <span>已转换所选 Markdown</span>
             <button type="button" onClick={() => { editor.chain().focus().undo().run(); setMarkdownSelectionNotice(false); }}>撤销</button>
-          </div>
-        )}
-        {readonlyChangeNotice && (
-          <div className="markdown-paste-notice readonly-change-notice" role="status">
-            <span>{readonly ? "已设置为只读" : "已设置为可编辑"}</span>
           </div>
         )}
         <div

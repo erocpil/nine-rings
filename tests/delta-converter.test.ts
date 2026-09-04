@@ -48,6 +48,40 @@ function assert(condition: boolean, msg: string): void {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// 2b. 块内换行持久化
+// ═══════════════════════════════════════════════════════════════════
+{
+  console.log("\n── Hard break round-trip ──");
+  const pm: any = { type: "doc", content: [{ type: "paragraph", content: [
+    { type: "text", text: "第一行" },
+    { type: "hardBreak" },
+    { type: "text", text: "第二行" },
+  ] }] };
+  const delta = proseMirrorToDelta(pm);
+  const hardBreak = delta.ops.find((op: any) => op.attributes?.["hard-break"] === true);
+  assert(hardBreak?.insert === "\n", "hard break uses an explicit Delta attribute");
+  assert(JSON.stringify(deltaToProseMirror(delta)) === JSON.stringify(pm),
+    "hard break survives save and reload without becoming a new paragraph");
+  assert(deltaToMarkdown(delta) === "第一行  \n第二行", "hard break exports as a Markdown hard line break");
+  assert(extractPlainText(delta) === "第一行\n第二行", "hard break remains searchable as one line boundary");
+
+  const listWithBreaks: any = { type: "doc", content: [{ type: "orderedList", content: [
+    { type: "listItem", content: [{ type: "paragraph", content: [
+      { type: "text", text: "第一项第一行" },
+      { type: "hardBreak" },
+      { type: "text", text: "第一项第二行" },
+    ] }] },
+    { type: "listItem", content: [{ type: "paragraph", content: [
+      { type: "text", text: "第二项第一行" },
+      { type: "hardBreak" },
+      { type: "text", text: "第二项第二行" },
+    ] }] },
+  ] }] };
+  assert(JSON.stringify(deltaToProseMirror(proseMirrorToDelta(listWithBreaks))) === JSON.stringify(listWithBreaks),
+    "hard breaks in later list items do not split or renumber the list");
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // 3. 粗体和斜体
 // ═══════════════════════════════════════════════════════════════════
 {

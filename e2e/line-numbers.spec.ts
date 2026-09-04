@@ -396,6 +396,73 @@ test.describe("编辑器块级 gutter", () => {
       .toBeLessThanOrEqual(1);
   });
 
+  test("多位有序编号按编号左沿对齐且不侵入块号沟槽", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("随笔").click();
+    await page.getByTitle("从模板新建").click();
+    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+
+    const editor = page.locator(".ProseMirror");
+    const markdown = Array.from({ length: 105 }, (_, index) => `${index + 1}. 项目 ${index + 1}`)
+      .join("\n");
+    await editor.evaluate((element, text) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", text);
+      element.dispatchEvent(new ClipboardEvent("paste", {
+        bubbles: true,
+        cancelable: true,
+        clipboardData,
+      }));
+    }, markdown);
+    const ordered = editor.locator(":scope > ol");
+    await expect(ordered.locator(":scope > li")).toHaveCount(105);
+
+    await openEditorSettings(page);
+    const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
+      .locator('input[type="checkbox"]');
+    if (!(await lineNumberToggle.isChecked())) {
+      await lineNumberToggle.evaluate((input: HTMLInputElement) => input.click());
+    }
+    await page.locator(".settings-close").click();
+    await expect(page.locator('.editor-block-number[data-block-format="OL"]')).toHaveCount(1);
+
+    const geometry = await ordered.evaluate((list) => {
+      const items = Array.from(list.querySelectorAll(":scope > li"));
+      const marker = (index: number) => {
+        const item = items[index];
+        const itemBox = item.getBoundingClientRect();
+        const style = getComputedStyle(item, "::before");
+        const left = itemBox.left + Number.parseFloat(style.left);
+        return {
+          left,
+          textAlign: style.textAlign,
+          width: Number.parseFloat(style.width),
+        };
+      };
+      const blockNumber = document.querySelector<HTMLElement>(
+        '.editor-block-number[data-block-format="OL"]',
+      );
+      return {
+        listLeft: list.getBoundingClientRect().left,
+        blockNumberRight: blockNumber?.getBoundingClientRect().right ?? null,
+        marker1: marker(0),
+        marker10: marker(9),
+        marker100: marker(99),
+        markerExtra: getComputedStyle(list)
+          .getPropertyValue("--editor-ordered-marker-extra").trim(),
+      };
+    });
+
+    expect(geometry.marker1.textAlign).toBe("left");
+    expect(geometry.marker1.left).toBeCloseTo(geometry.marker10.left, 1);
+    expect(geometry.marker1.left).toBeCloseTo(geometry.marker100.left, 1);
+    expect(geometry.marker1.width).toBeGreaterThan(0);
+    expect(geometry.markerExtra).toBe("1ch");
+    expect(geometry.marker1.left).toBeGreaterThanOrEqual(geometry.listLeft - 1);
+    expect(geometry.blockNumberRight).not.toBeNull();
+    expect(geometry.blockNumberRight!).toBeLessThanOrEqual(geometry.marker1.left);
+  });
+
   test("状态栏块号跟随光标并可独立关闭", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("随笔").click();

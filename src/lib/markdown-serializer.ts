@@ -108,7 +108,9 @@ export function deltaToMarkdown(content: unknown): string {
 
   for (const op of ops) {
     if (typeof op.insert === "string") {
-      if (op.insert === "\n") flushLine(op.attributes ?? {});
+      if (op.insert === "\n" && op.attributes?.["hard-break"] === true) {
+        inline += "  \n";
+      } else if (op.insert === "\n") flushLine(op.attributes ?? {});
       else {
         inline += inlineOpToMarkdown(op);
         raw += op.insert;

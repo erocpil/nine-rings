@@ -83,6 +83,47 @@ test("设置子页首个分组没有多余顶部留白和分割线", async ({ pa
   await expect(page.getByRole("heading", { name: "文档管理", exact: true })).toBeVisible();
 });
 
+test.describe("触屏设置导航", () => {
+  test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
+
+  test("进入子页后不会把上一页的触摸高亮转移到同位置选项", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("设置").tap();
+
+    await page.getByRole("button", { name: /^文档管理/ }).tap();
+    const tagManagement = page.getByRole("button", { name: /^标签管理/ });
+    await expect(tagManagement).toBeVisible();
+    await expect(tagManagement).not.toBeFocused();
+    await expect.poll(() => tagManagement.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        borderColor: style.borderColor,
+        transform: style.transform,
+      };
+    })).toEqual(expect.objectContaining({ transform: "none" }));
+    const tagColors = await tagManagement.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const probe = document.createElement("span");
+      probe.style.color = "var(--border)";
+      document.body.appendChild(probe);
+      const expectedBorderColor = getComputedStyle(probe).color;
+      probe.remove();
+      return {
+        borderColor: style.borderColor,
+        expectedBorderColor,
+      };
+    });
+    expect(tagColors.borderColor).toBe(tagColors.expectedBorderColor);
+
+    await page.getByLabel("返回设置分类").tap();
+    await page.getByRole("button", { name: /^外观与排版/ }).tap();
+    const editorEntry = page.getByRole("button", { name: /^编辑器设置/ });
+    await expect(editorEntry).toBeVisible();
+    await expect(editorEntry).not.toBeFocused();
+    await expect(editorEntry).toHaveCSS("border-color", tagColors.expectedBorderColor);
+  });
+});
+
 test("设置弹窗具有语义并在键盘关闭后恢复焦点", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");

@@ -416,9 +416,22 @@ test("桌面目录可固定到左右两侧并记住选择", async ({ page }) => 
   await expect(page.locator(".note-editor")).toHaveClass(/outline-docked-right/);
   await page.reload();
   await expect(page.locator(".note-editor")).toHaveClass(/outline-docked-right/);
-  await expect(page.getByRole("navigation", { name: "文档目录" })).toBeVisible();
+  const dockedOutline = page.getByRole("navigation", { name: "文档目录" });
+  await expect(dockedOutline).toBeVisible();
+  const dockedOutlineTop = await dockedOutline.evaluate((element) => element.getBoundingClientRect().top);
 
-  await page.getByRole("navigation", { name: "文档目录" }).getByTitle("取消固定目录").click();
+  await page.getByRole("button", { name: "文档书签", exact: true }).click();
+  const bookmarkPanel = page.getByRole("navigation", { name: "文档书签" });
+  await expect(bookmarkPanel).toBeVisible();
+  const bookmarkTop = await bookmarkPanel.evaluate((element) => element.getBoundingClientRect().top);
+  expect(Math.abs(bookmarkTop - dockedOutlineTop)).toBeLessThanOrEqual(1);
+
+  await page.evaluate(() => document.body.click());
+  await expect(bookmarkPanel).toHaveCount(0);
+  await page.getByRole("button", { name: "文档目录", exact: true }).click();
+  await expect(dockedOutline).toBeVisible();
+
+  await dockedOutline.getByTitle("取消固定目录").click();
   await expect(page.locator(".note-editor")).not.toHaveClass(/outline-docked-/);
 });
 

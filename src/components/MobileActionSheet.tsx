@@ -33,6 +33,7 @@ export function MobileActionSheet({
   children,
 }: MobileActionSheetProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
   const touchStartYRef = useRef<number | null>(null);
@@ -41,6 +42,7 @@ export function MobileActionSheet({
   const dragOffsetRef = useRef(0);
   const [dragOffset, setDragOffset] = useState(0);
   const [anchorPlacement, setAnchorPlacement] = useState<{ top: number; maxHeight: number } | null>(null);
+  const [canScrollDown, setCanScrollDown] = useState(false);
   onCloseRef.current = onClose;
 
   useLayoutEffect(() => {
@@ -108,6 +110,30 @@ export function MobileActionSheet({
       });
     };
   }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setCanScrollDown(false);
+      return;
+    }
+    const content = contentRef.current;
+    if (!content) return;
+    const updateOverflow = () => {
+      setCanScrollDown(content.scrollHeight - content.scrollTop - content.clientHeight > 2);
+    };
+    updateOverflow();
+    const frame = window.requestAnimationFrame(updateOverflow);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateOverflow);
+    observer?.observe(content);
+    content.addEventListener("scroll", updateOverflow, { passive: true });
+    window.visualViewport?.addEventListener("resize", updateOverflow);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+      content.removeEventListener("scroll", updateOverflow);
+      window.visualViewport?.removeEventListener("resize", updateOverflow);
+    };
+  }, [anchorPlacement, children, open]);
 
   if (!open) return null;
 
@@ -189,7 +215,10 @@ export function MobileActionSheet({
           <strong>{title}</strong>
           <button ref={closeRef} type="button" onClick={onClose} aria-label={`关闭${title}`}>×</button>
         </header>
-        <div className="mobile-action-sheet-content">{children}</div>
+        <div ref={contentRef} className="mobile-action-sheet-content">{children}</div>
+        {canScrollDown && (
+          <div className="mobile-action-sheet-scroll-hint" aria-hidden="true">↑ 上滑查看更多</div>
+        )}
       </section>
     </div>
   );
