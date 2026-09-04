@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type TouchEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type TouchEvent } from "react";
 import { createPortal } from "react-dom";
 
 interface MobileActionSheetProps {
@@ -7,6 +7,8 @@ interface MobileActionSheetProps {
   onClose: () => void;
   className?: string;
   dismissAnchor?: HTMLElement | null;
+  placementAnchor?: HTMLElement | null;
+  placementGap?: number;
   children: ReactNode;
 }
 
@@ -20,7 +22,16 @@ const DRAG_CLOSE_DISTANCE = 72;
  * and suppresses the synthetic click that mobile Safari can emit after a
  * scroll or dismiss gesture.
  */
-export function MobileActionSheet({ open, title, onClose, className = "", dismissAnchor, children }: MobileActionSheetProps) {
+export function MobileActionSheet({
+  open,
+  title,
+  onClose,
+  className = "",
+  dismissAnchor,
+  placementAnchor,
+  placementGap = 4,
+  children,
+}: MobileActionSheetProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
@@ -29,7 +40,46 @@ export function MobileActionSheet({ open, title, onClose, className = "", dismis
   const suppressClickUntilRef = useRef(0);
   const dragOffsetRef = useRef(0);
   const [dragOffset, setDragOffset] = useState(0);
+  const [anchorPlacement, setAnchorPlacement] = useState<{ top: number; maxHeight: number } | null>(null);
   onCloseRef.current = onClose;
+
+  useLayoutEffect(() => {
+    if (!open || !placementAnchor) {
+      setAnchorPlacement(null);
+      return;
+    }
+
+    const updatePlacement = () => {
+      const anchorRect = placementAnchor.getBoundingClientRect();
+      const viewport = window.visualViewport;
+      const appRect = placementAnchor.closest<HTMLElement>(".app")?.getBoundingClientRect();
+      const viewportTop = appRect?.top ?? viewport?.offsetTop ?? 0;
+      const viewportBottom = appRect?.bottom
+        ?? viewportTop + (viewport?.height ?? window.innerHeight);
+      const top = Math.max(viewportTop, anchorRect.bottom + placementGap);
+      setAnchorPlacement({
+        top: Math.round(top),
+        maxHeight: Math.max(80, Math.floor(viewportBottom - top - 8)),
+      });
+    };
+
+    updatePlacement();
+    const observer = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(updatePlacement);
+    observer?.observe(placementAnchor);
+    window.addEventListener("resize", updatePlacement);
+    window.addEventListener("scroll", updatePlacement, true);
+    window.visualViewport?.addEventListener("resize", updatePlacement);
+    window.visualViewport?.addEventListener("scroll", updatePlacement);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", updatePlacement);
+      window.removeEventListener("scroll", updatePlacement, true);
+      window.visualViewport?.removeEventListener("resize", updatePlacement);
+      window.visualViewport?.removeEventListener("scroll", updatePlacement);
+    };
+  }, [open, placementAnchor, placementGap]);
 
   useEffect(() => {
     if (!open) return;
@@ -93,7 +143,7 @@ export function MobileActionSheet({ open, title, onClose, className = "", dismis
 
   const sheet = (
     <div
-      className="mobile-action-sheet-layer"
+      className={`mobile-action-sheet-layer${placementAnchor ? " mobile-action-sheet-layer-anchored" : ""}`}
       role="presentation"
       onClick={onClose}
     >
@@ -102,7 +152,14 @@ export function MobileActionSheet({ open, title, onClose, className = "", dismis
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        style={{ transform: `translateY(${dragOffset}px)` }}
+        style={{
+          transform: `translateY(${dragOffset}px)`,
+          ...(placementAnchor
+            ? anchorPlacement
+              ? { marginTop: `${anchorPlacement.top}px`, maxHeight: `${anchorPlacement.maxHeight}px` }
+              : { visibility: "hidden" }
+            : {}),
+        }}
         onClick={(event) => event.stopPropagation()}
         onClickCapture={(event) => {
           const anchorRect = dismissAnchor?.getBoundingClientRect();

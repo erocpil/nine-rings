@@ -1557,9 +1557,9 @@ body {
   width: 100%;
   min-width: 0;
   gap: 4px;
-  padding: 4px 0;
+  padding: 3px 0;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   align-items: center;
   white-space: nowrap;
   overflow-x: auto;
@@ -1574,8 +1574,8 @@ body {
 .toolbar-compact {
   position: relative;
   z-index: 30;
-  padding: 3px 0;
-  margin-bottom: 6px;
+  padding: 2px 0;
+  margin-bottom: 4px;
   overflow: visible;
 }
 
@@ -1585,6 +1585,11 @@ body {
 
 .editor-menu > * {
   flex-shrink: 0;
+}
+
+.toolbar-history-actions {
+  display: inline-flex;
+  gap: 0;
 }
 
 .toolbar-secondary {
@@ -1620,9 +1625,10 @@ body {
   white-space: normal;
 }
 
-.toolbar-more-list {
+.menu-dropdown-list.toolbar-more-list {
   right: 0;
   left: auto;
+  margin-top: 8px;
 }
 
 .menu-dropdown-control {
@@ -1834,7 +1840,8 @@ body {
 
 .save-status {
   display: inline-block;
-  margin-left: 4px;
+  margin-left: auto;
+  padding-left: 4px;
   font-size: 11px;
   vertical-align: middle;
 }
@@ -1913,6 +1920,11 @@ body {
   padding: 12px 8px calc(var(--app-visual-viewport-bottom-inset, 0px) + var(--safe-bottom) + 8px);
   background: rgba(0, 0, 0, 0.38);
   overscroll-behavior: contain;
+}
+
+.mobile-action-sheet-layer-anchored {
+  align-items: flex-start;
+  padding: 0 8px 8px;
 }
 
 .mobile-action-sheet {
@@ -3461,8 +3473,8 @@ body {
   flex-wrap: wrap;
   gap: 4px;
   align-items: center;
-  padding: 2px 0;
-  margin-bottom: 2px;
+  padding: 2px 0 0;
+  margin-bottom: 0;
 }
 
 .tag-chip {
@@ -8771,9 +8783,9 @@ button.doc-tree-toggle:focus-visible {
 
   .editor-menu {
     gap: 3px;
-    padding-top: 3px;
-    padding-bottom: 3px;
-    margin-bottom: 6px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    margin-bottom: 4px;
   }
 
   .menu-btn,
@@ -8812,7 +8824,7 @@ button.doc-tree-toggle:focus-visible {
   .tag-bar {
     flex-wrap: nowrap;
     overflow-x: auto;
-    padding-bottom: 3px;
+    padding-bottom: 0;
     scrollbar-width: none;
   }
 
@@ -8827,8 +8839,8 @@ button.doc-tree-toggle:focus-visible {
 
   .editor-menu {
     gap: 2px;
-    margin-bottom: 4px;
-    padding: 3px 0;
+    margin-bottom: 3px;
+    padding: 2px 0;
     position: relative;
     z-index: 30;
     overflow: visible;
@@ -9012,8 +9024,9 @@ button.doc-tree-toggle:focus-visible {
     flex: 1;
     overflow: hidden;
     min-width: 0;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
+    line-height: 1.2;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -9162,7 +9175,7 @@ button.doc-tree-toggle:focus-visible {
   }
 
   .editor-menu {
-    margin-bottom: 2px;
+    margin-bottom: 1px;
   }
 
   .editor-stats {
@@ -11628,6 +11641,17 @@ button.doc-tree-toggle:focus-visible {
     border-radius: 12px;
   }
 
+  /* 新建文档包含多个输入项，键盘收起时不能从视觉视口顶部掉回底部。
+     只固定这一种长表单；确认框等短对话框仍沿用移动端底部布局。 */
+  .doc-create-overlay {
+    align-items: flex-start;
+    padding-top: max(8px, var(--safe-top, 0px));
+  }
+
+  .doc-create-dialog {
+    max-height: calc(100dvh - max(8px, var(--safe-top, 0px)) - 8px);
+  }
+
   .version-content,
   .recycle-content,
   .overdue-items {
@@ -11675,6 +11699,14 @@ button.doc-tree-toggle:focus-visible {
 
   .web-keyboard-open :is(.dialog, .image-dialog, .quick-switcher) {
     max-height: calc(var(--app-viewport-height, 100dvh) - 16px);
+  }
+
+  .web-keyboard-open .doc-create-dialog {
+    max-height: calc(
+      var(--app-viewport-height, 100dvh)
+      - max(8px, var(--safe-top, 0px))
+      - 8px
+    );
   }
 
   .web-keyboard-open .quick-switcher-overlay {

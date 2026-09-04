@@ -1621,7 +1621,7 @@ function App() {
                       noteId={selectedNote.id}
                       focusMode={focusMode}
                       readonly={selectedNote.readonly || syncBusy}
-                      onReadonlyChange={selectedNote.readonly && !syncBusy ? async (readonly) => {
+                      onReadonlyChange={!syncBusy ? async (readonly) => {
                         await updateNote(selectedNote.id, { readonly });
                         setDocTreeKey(k => k + 1);
                         setSidebarRefreshKey(k => k + 1);

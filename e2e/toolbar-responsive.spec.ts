@@ -16,6 +16,36 @@ async function expectNoHorizontalOverflow(page: import("@playwright/test").Page)
 }
 
 test.describe("响应式编辑器工具栏", () => {
+  test("标签输入行与编辑工具栏保持紧凑间距", async ({ page }) => {
+    await page.setViewportSize({ width: 1200, height: 700 });
+    await createBlankNote(page);
+
+    const verticalSpacing = async () => page.locator(".note-editor-sticky").evaluate((element) => {
+      const tagBar = element.querySelector<HTMLElement>(".tag-bar")!;
+      const toolbar = element.querySelector<HTMLElement>(".editor-menu")!;
+      const tagStyle = getComputedStyle(tagBar);
+      const toolbarStyle = getComputedStyle(toolbar);
+      return {
+        before: Number.parseFloat(tagStyle.paddingBottom)
+          + Number.parseFloat(tagStyle.marginBottom)
+          + Number.parseFloat(toolbarStyle.paddingTop),
+        paddingTop: Number.parseFloat(toolbarStyle.paddingTop),
+        paddingBottom: Number.parseFloat(toolbarStyle.paddingBottom),
+        after: Number.parseFloat(toolbarStyle.marginBottom),
+      };
+    });
+
+    expect(await verticalSpacing()).toEqual({ before: 3, paddingTop: 3, paddingBottom: 3, after: 6 });
+    await page.setViewportSize({ width: 390, height: 760 });
+    expect(await verticalSpacing()).toEqual({ before: 2, paddingTop: 2, paddingBottom: 2, after: 3 });
+
+    const historyGap = await page.locator(".toolbar-history-actions").evaluate((element) => {
+      const [undo, redo] = Array.from(element.querySelectorAll("button"));
+      return redo.getBoundingClientRect().left - undo.getBoundingClientRect().right;
+    });
+    expect(historyGap).toBeLessThanOrEqual(0.5);
+  });
+
   test("默认桌面窗口和表格上下文均不产生水平滚动", async ({ page }) => {
     await page.setViewportSize({ width: 1020, height: 640 });
     await createBlankNote(page);
@@ -45,7 +75,17 @@ test.describe("响应式编辑器工具栏", () => {
 
     await page.setViewportSize({ width: 800, height: 540 });
     await expect(toolbar).toHaveClass(/toolbar-minimal/);
-    await expect(page.getByTitle("更多编辑操作")).toBeVisible();
+    const more = page.getByTitle("更多编辑操作");
+    await expect(more).toBeVisible();
+    await more.click();
+    const moreMenu = page.locator(".toolbar-more-list");
+    await expect(moreMenu).toBeVisible();
+    const moreGap = await Promise.all([
+      toolbar.evaluate((element) => element.getBoundingClientRect().bottom),
+      moreMenu.evaluate((element) => element.getBoundingClientRect().top),
+    ]).then(([toolbarBottom, menuTop]) => menuTop - toolbarBottom);
+    expect(moreGap).toBeGreaterThanOrEqual(3);
+    expect(moreGap).toBeLessThanOrEqual(5);
     await expectNoHorizontalOverflow(page);
   });
 
@@ -131,6 +171,11 @@ test.describe("响应式编辑器工具栏", () => {
     expect(Number(savedWidth)).toBeGreaterThan(48);
 
     await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
+    const saveStatusRightGap = await page.locator(".editor-menu").evaluate((toolbar) => {
+      const status = toolbar.querySelector<HTMLElement>(".save-status-saved")!;
+      return toolbar.getBoundingClientRect().right - status.getBoundingClientRect().right;
+    });
+    expect(Math.abs(saveStatusRightGap)).toBeLessThanOrEqual(1);
     await page.reload();
     await expect(page.locator(".ProseMirror table th").first()).toHaveAttribute("colwidth", savedWidth!);
   });

@@ -79,6 +79,7 @@ test.describe("编辑器块级 gutter", () => {
     await unlockButton.click();
     await expect(editor).toHaveAttribute("contenteditable", "true");
     await expect(page.getByRole("status").filter({ hasText: "已设置为可编辑" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "点击设为只读" })).toHaveText("🔓");
   });
 
   test("悬停块编号会在原位置显示块格式", async ({ page }) => {

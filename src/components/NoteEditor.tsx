@@ -691,6 +691,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const [markdownPasteText, setMarkdownPasteText] = useState<string | null>(null);
   const [markdownSelectionNotice, setMarkdownSelectionNotice] = useState(false);
   const [readonlyChangeNotice, setReadonlyChangeNotice] = useState(false);
+  const [readonlyChangeBusy, setReadonlyChangeBusy] = useState(false);
   const [gutterBlockCount, setGutterBlockCount] = useState(0);
   const [currentStatusBlock, setCurrentStatusBlock] = useState(1);
   const [bookmarkCursorPosition, setBookmarkCursorPosition] = useState(1);
@@ -3371,6 +3372,18 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   };
 
   const moreActions = (<>
+    {isMobileToolbarViewport && (<>
+      <button
+        className="menu-dropdown-item"
+        disabled={editor.isActive("codeBlock") || !editor.can().setHardBreak()}
+        onClick={() => {
+          editor.chain().focus().setHardBreak().run();
+          setMoreOpen(false);
+        }}
+        type="button"
+      >↵ 块内换行</button>
+      <div className="menu-dropdown-sep" />
+    </>)}
     <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setMoreOpen(false); }} type="button">M↑ 导出 Markdown</button>
     <div className="menu-dropdown-sep" />
     <button className="menu-dropdown-item" onClick={() => {
@@ -3677,22 +3690,30 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         <div className="note-editor-sticky">
           {/* ── 标题 ── */}
         <div className="note-title-row" ref={titleRef}>
-          {readonly && (onReadonlyChange ? (
+          {onReadonlyChange ? (
             <button
               type="button"
               className="note-readonly-badge note-readonly-action"
+              aria-pressed={readonly}
+              disabled={readonlyChangeBusy}
               onClick={async () => {
-                await onReadonlyChange(false);
-                setReadonlyChangeNotice(true);
+                if (readonlyChangeBusy) return;
+                setReadonlyChangeBusy(true);
+                try {
+                  await onReadonlyChange(!readonly);
+                  setReadonlyChangeNotice(true);
+                } finally {
+                  setReadonlyChangeBusy(false);
+                }
               }}
-              title="点击设为可编辑"
-              aria-label="点击设为可编辑"
+              title={readonly ? "点击设为可编辑" : "点击设为只读"}
+              aria-label={readonly ? "点击设为可编辑" : "点击设为只读"}
             >
-              <span aria-hidden="true">🔒</span>
+              <span aria-hidden="true">{readonly ? "🔒" : "🔓"}</span>
             </button>
-          ) : (
+          ) : readonly ? (
             <span className="note-readonly-badge" title="只读">🔒</span>
-          ))}
+          ) : null}
           <input
             ref={titleInputRef}
             type="text"
@@ -3810,8 +3831,10 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             requestAnimationFrame(() => { toolbarInteractingRef.current = false; });
           }}
         >
-          {btn("↩", () => editor.chain().focus().undo().run(), false, "撤销 (Ctrl+Z)", readonly)}
-          {btn("↪", () => editor.chain().focus().redo().run(), false, "重做 (Ctrl+Y)", readonly)}
+          <span className="toolbar-history-actions">
+            {btn("↩", () => editor.chain().focus().undo().run(), false, "撤销 (Ctrl+Z)", readonly)}
+            {btn("↪", () => editor.chain().focus().redo().run(), false, "重做 (Ctrl+Y)", readonly)}
+          </span>
           <span className="menu-sep" />
           {isNarrow ? (
             <div className="menu-dropdown">
@@ -4304,6 +4327,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
                   title="更多编辑操作"
                   onClose={closeMore}
                   dismissAnchor={moreButtonRef.current}
+                  placementAnchor={toolbarRef.current}
+                  placementGap={4}
                   className="toolbar-more-sheet"
                 >
                   {moreActions}
@@ -4355,7 +4380,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         )}
         {readonlyChangeNotice && (
           <div className="markdown-paste-notice readonly-change-notice" role="status">
-            <span>已设置为可编辑</span>
+            <span>{readonly ? "已设置为只读" : "已设置为可编辑"}</span>
           </div>
         )}
         <div

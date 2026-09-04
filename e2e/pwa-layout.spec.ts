@@ -323,7 +323,13 @@ test.describe("PWA 窄屏应用外壳", () => {
     await restoreEditing.click();
 
     await expect(editor).toHaveAttribute("contenteditable", "true");
-    await expect(restoreEditing).toHaveCount(0);
+    const setReadonly = page.getByRole("button", { name: "点击设为只读" });
+    await expect(setReadonly).toBeVisible();
+    await expect(setReadonly).toHaveText("🔓");
+    await setReadonly.click();
+    await expect(editor).toHaveAttribute("contenteditable", "false");
+    await expect(restoreEditing).toBeVisible();
+    await expect(restoreEditing).toHaveText("🔒");
   });
 
   test("手机端通过块菜单在当前块后插入空白块", async ({ page }) => {
@@ -636,7 +642,10 @@ test.describe("PWA 窄屏应用外壳", () => {
     const focusBar = page.getByLabel("专注模式工具栏");
     await expect(focusBar).toBeVisible();
     await expect(focusBar).toHaveCSS("backdrop-filter", "none");
-    await expect(focusBar.locator(".mobile-focus-title")).toHaveText(title);
+    const focusTitle = focusBar.locator(".mobile-focus-title");
+    await expect(focusTitle).toHaveText(title);
+    await expect(focusTitle).toHaveCSS("font-size", "14px");
+    await expect(focusBar).toHaveCSS("height", "30px");
     await expect(page.locator(".note-title-row")).toBeHidden();
     await expect(page.locator(".editor-menu")).toBeHidden();
 
@@ -848,11 +857,13 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(page.getByRole("button", { name: "关闭更多编辑操作" })).toBeFocused();
     const geometry = await menu.evaluate((element) => {
       const rect = element.getBoundingClientRect();
+      const toolbarRect = document.querySelector(".editor-menu")!.getBoundingClientRect();
       return {
         left: rect.left,
         right: rect.right,
         top: rect.top,
         bottom: rect.bottom,
+        toolbarBottom: toolbarRect.bottom,
         viewportWidth: window.visualViewport?.width ?? window.innerWidth,
         viewportHeight: window.visualViewport?.height ?? window.innerHeight,
       };
@@ -861,7 +872,30 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(geometry.top).toBeGreaterThanOrEqual(0);
     expect(geometry.right).toBeLessThanOrEqual(geometry.viewportWidth);
     expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewportHeight);
+    expect(geometry.top - geometry.toolbarBottom).toBeGreaterThanOrEqual(3);
+    expect(geometry.top - geometry.toolbarBottom).toBeLessThanOrEqual(5);
     await expect(menu.getByRole("button", { name: /导出 Markdown/ })).toBeVisible();
+  });
+
+  test("手机端可从更多菜单在当前块内插入 hard break", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("第一行");
+    await editor.press("End");
+
+    await page.getByTitle("更多编辑操作").click();
+    const menu = page.getByRole("dialog", { name: "更多编辑操作" });
+    const hardBreak = menu.getByRole("button", { name: "↵ 块内换行" });
+    await expect(hardBreak).toBeEnabled();
+    await hardBreak.click();
+    await expect(menu).toHaveCount(0);
+    await page.keyboard.type("第二行");
+
+    const blocks = editor.locator(":scope > *");
+    const currentBlock = blocks.first();
+    await expect(blocks).toHaveCount(1);
+    await expect(currentBlock.locator("br")).toHaveCount(1);
+    await expect(currentBlock).toHaveText("第一行第二行");
   });
 
   test("再次点按更多按钮区域只关闭面板且不会误触导出", async ({ page }) => {
@@ -901,7 +935,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(downloadCount).toBe(0);
   });
 
-  test("虚拟键盘打开时更多菜单停靠在可视区域底部", async ({ page }) => {
+  test("虚拟键盘打开时更多菜单保持在工具栏下方和可视区域内", async ({ page }) => {
     await page.goto("/");
     await page.evaluate(() => {
       document.documentElement.style.setProperty("--app-viewport-height", "460px");
@@ -914,15 +948,19 @@ test.describe("PWA 窄屏应用外壳", () => {
     const geometry = await sheet.evaluate((menu) => {
       const menuRect = menu.getBoundingClientRect();
       const appRect = document.querySelector(".app")!.getBoundingClientRect();
+      const toolbarRect = document.querySelector(".editor-menu")!.getBoundingClientRect();
       return {
         menuTop: menuRect.top,
         menuBottom: menuRect.bottom,
+        toolbarBottom: toolbarRect.bottom,
         viewportTop: appRect.top,
         viewportBottom: appRect.bottom,
       };
     });
     expect(geometry.menuTop).toBeGreaterThanOrEqual(geometry.viewportTop);
     expect(geometry.menuBottom).toBeLessThanOrEqual(geometry.viewportBottom);
+    expect(geometry.menuTop - geometry.toolbarBottom).toBeGreaterThanOrEqual(3);
+    expect(geometry.menuTop - geometry.toolbarBottom).toBeLessThanOrEqual(5);
     await expect(sheet.getByRole("button", { name: /导出 Markdown/ })).toBeVisible();
   });
 
@@ -1041,6 +1079,14 @@ test.describe("PWA 窄屏应用外壳", () => {
       };
     })).toEqual({ top: 70, left: 4, width: 382, height: 330 });
 
+    await expect.poll(async () => {
+      const [overlayRect, dialogRect] = await Promise.all([
+        overlay.evaluate((element) => element.getBoundingClientRect()),
+        dialog.evaluate((element) => element.getBoundingClientRect()),
+      ]);
+      return Math.round(dialogRect.top - overlayRect.top);
+    }).toBe(8);
+
     const visibleBottom = 400;
     expect(await dialog.evaluate((element) => element.getBoundingClientRect().bottom))
       .toBeLessThanOrEqual(visibleBottom);
@@ -1057,6 +1103,16 @@ test.describe("PWA 窄屏应用外壳", () => {
       ]);
       return inputRect.bottom <= bodyRect.bottom - 8 && inputRect.top >= bodyRect.top + 8;
     }).toBe(true);
+
+    // 收起键盘后恢复布局视口尺寸，但新建面板仍锚定可视区域上方。
+    await page.evaluate(() => document.documentElement.classList.remove("web-keyboard-open"));
+    await expect.poll(async () => {
+      const [overlayRect, dialogRect] = await Promise.all([
+        overlay.evaluate((element) => element.getBoundingClientRect()),
+        dialog.evaluate((element) => element.getBoundingClientRect()),
+      ]);
+      return Math.round(dialogRect.top - overlayRect.top);
+    }).toBe(8);
   });
 
   test("快速切换浮层在虚拟键盘打开时停留在可视区域", async ({ page }) => {
