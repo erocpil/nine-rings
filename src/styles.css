@@ -4022,6 +4022,11 @@ body {
   font-size: 14px;
 }
 
+/* 专注阅读时保留待办面板状态，但不显示新增入口；退出后原输入内容仍在。 */
+.app-focus-mode .app-main-todo .todo-input {
+  display: none;
+}
+
 /* ──── Sidebar Hidden ──── */
 
 .sidebar-hidden {
@@ -4130,6 +4135,14 @@ body {
 .app-main-divider:hover::after {
   background: var(--accent);
   opacity: 0.5;
+}
+
+/* splitter 拖动时，阻止 iOS 在手指经过输入框或正文时显示文本选区。 */
+body.app-split-dragging,
+body.app-split-dragging * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
 }
 
 /* 折叠状态：窄条手柄，可向下拖拽展开待办 */

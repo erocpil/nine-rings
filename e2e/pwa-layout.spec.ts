@@ -371,6 +371,54 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(blocks.nth(1)).toHaveText("手机就地插入");
   });
 
+  test("手机向上拖动 splitter 不会选中待办输入框", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("nr:todoSplit", "3"));
+    await page.goto("/");
+
+    const todoInput = page.locator(".todo-input");
+    const divider = page.locator(".app-main-divider");
+    await todoInput.fill("不会因拖动被选中");
+    await expect(todoInput).toBeFocused();
+
+    const dragState = await divider.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const makePointer = (type: string, clientY: number) => new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 73,
+        pointerType: "touch",
+        isPrimary: true,
+        clientX: rect.left + rect.width / 2,
+        clientY,
+      });
+      const startY = rect.top + rect.height / 2;
+      const startAllowed = element.dispatchEvent(makePointer("pointerdown", startY));
+      const input = document.querySelector<HTMLInputElement>(".todo-input")!;
+      const during = {
+        bodyDragging: document.body.classList.contains("app-split-dragging"),
+        inputFocused: document.activeElement === input,
+        inputUserSelect: getComputedStyle(input).webkitUserSelect,
+      };
+      element.dispatchEvent(makePointer("pointermove", startY - 80));
+      element.dispatchEvent(makePointer("pointerup", startY - 80));
+      return {
+        startAllowed,
+        during,
+        bodyDraggingAfterEnd: document.body.classList.contains("app-split-dragging"),
+      };
+    });
+
+    expect(dragState.startAllowed).toBe(false);
+    expect(dragState.during).toEqual({
+      bodyDragging: true,
+      inputFocused: false,
+      inputUserSelect: "none",
+    });
+    expect(dragState.bodyDraggingAfterEnd).toBe(false);
+    await expect.poll(() => page.evaluate(() => Number(localStorage.getItem("nr:todoSplit"))))
+      .toBeLessThan(3);
+  });
+
   test("千块文档仅测量视口附近 gutter 且延迟快照仍会保存", async ({ page }) => {
     test.slow();
     await page.goto("/");
@@ -593,6 +641,25 @@ test.describe("PWA 窄屏应用外壳", () => {
     await focusBar.getByTitle("退出专注模式").click();
     await expect(focusBar).toHaveCount(0);
     await expect(page.locator(".app-header")).toBeVisible();
+  });
+
+  test("专注模式隐藏待办输入框并在退出后恢复", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("nr:todoSplit", "3"));
+    await page.goto("/");
+
+    const todoInput = page.locator(".todo-input");
+    await expect(todoInput).toBeVisible();
+    await todoInput.fill("退出专注后继续输入");
+
+    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
+    await expect(todoInput).toBeHidden();
+    await expect(todoInput).toHaveValue("退出专注后继续输入");
+
+    await page.getByLabel("专注模式工具栏").getByTitle("退出专注模式").click();
+    await expect(page.locator(".app")).not.toHaveClass(/app-focus-mode/);
+    await expect(todoInput).toBeVisible();
+    await expect(todoInput).toHaveValue("退出专注后继续输入");
   });
 
   test("专注模式首个 gutter 加号完整避开固定标题栏并可触摸", async ({ page }) => {

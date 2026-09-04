@@ -866,80 +866,73 @@ function App() {
   const startRatioRef = useRef(0);
   const dragRatioRef = useRef(todoFlex);
 
+  const setSplitDraggingUi = (dragging: boolean) => {
+    document.body.classList.toggle("app-split-dragging", dragging);
+    document.body.style.userSelect = dragging ? "none" : "";
+    document.body.style.webkitUserSelect = dragging ? "none" : "";
+    if (!dragging) return;
+
+    // iOS may otherwise focus the todo input or retain a text selection when the
+    // finger crosses it while dragging the narrow splitter hit area.
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement && activeElement.closest(".app-main-todo")) {
+      activeElement.blur();
+    }
+    window.getSelection()?.removeAllRanges();
+  };
+
   const hideTodos = useCallback(() => {
     setTodoFlex(0);
     localStorage.setItem(SPLIT_KEY, "0");
   }, []);
 
-  const handleSplitMouseDown = (e: React.MouseEvent) => {
+  const handleSplitPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (draggingRef.current || (e.pointerType === "mouse" && e.button !== 0)) return;
     e.preventDefault();
+    e.stopPropagation();
     draggingRef.current = true;
     startYRef.current = e.clientY;
     startRatioRef.current = todoFlex;
     dragRatioRef.current = todoFlex;
     document.body.style.cursor = "row-resize";
-    document.body.style.userSelect = "none";
+    setSplitDraggingUi(true);
+    const pointerId = e.pointerId;
+    const divider = e.currentTarget;
+    try {
+      divider.setPointerCapture(pointerId);
+    } catch {
+      // Synthetic events and older WebViews may not expose an active pointer to capture.
+    }
 
-    const handleMouseMove = (me: MouseEvent) => {
-      if (!draggingRef.current || !splitRef.current?.parentElement) return;
+    const handlePointerMove = (pe: PointerEvent) => {
+      if (!draggingRef.current || pe.pointerId !== pointerId || !splitRef.current?.parentElement) return;
+      if (pe.cancelable) pe.preventDefault();
       const parent = splitRef.current.parentElement;
       const rect = parent.getBoundingClientRect();
-      const delta = me.clientY - startYRef.current;
+      const delta = pe.clientY - startYRef.current;
       const newFlex = Math.max(0, Math.min(10, startRatioRef.current + delta / rect.height * 10));
       dragRatioRef.current = Math.round(newFlex * 10) / 10;
       setTodoFlex(dragRatioRef.current);
       localStorage.setItem(SPLIT_KEY, String(dragRatioRef.current));
     };
 
-    const handleMouseUp = () => {
+    const handlePointerEnd = (pe: PointerEvent) => {
+      if (pe.pointerId !== pointerId) return;
+      if (pe.cancelable) pe.preventDefault();
       draggingRef.current = false;
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("pointermove", handlePointerMove);
+      document.removeEventListener("pointerup", handlePointerEnd);
+      document.removeEventListener("pointercancel", handlePointerEnd);
       document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      // React 可能尚未提交最后一次 mousemove；直接持久化拖动引用，
+      setSplitDraggingUi(false);
+      // React 可能尚未提交最后一次 pointermove；直接持久化拖动引用，
       // 避免 UI 已展开而刷新后又回到折叠状态。
       localStorage.setItem(SPLIT_KEY, String(dragRatioRef.current));
     };
 
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-  };
-
-  const handleSplitTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 0) return;
-    draggingRef.current = true;
-    startYRef.current = e.touches[0].clientY;
-    startRatioRef.current = todoFlex;
-    dragRatioRef.current = todoFlex;
-    document.body.style.userSelect = "none";
-
-    const handleTouchMove = (te: TouchEvent) => {
-      if (!draggingRef.current || !splitRef.current?.parentElement || te.touches.length === 0) return;
-      // splitter 拖动必须独占该手势，否则 iOS 会同时滚动/回弹页面，
-      // 短暂露出 PWA 的 theme-color 背景。
-      if (te.cancelable) te.preventDefault();
-      const parent = splitRef.current.parentElement;
-      const rect = parent.getBoundingClientRect();
-      const delta = te.touches[0].clientY - startYRef.current;
-      const newFlex = Math.max(0, Math.min(10, startRatioRef.current + delta / rect.height * 10));
-      dragRatioRef.current = Math.round(newFlex * 10) / 10;
-      setTodoFlex(dragRatioRef.current);
-      localStorage.setItem(SPLIT_KEY, String(dragRatioRef.current));
-    };
-
-    const handleTouchEnd = () => {
-      draggingRef.current = false;
-      document.removeEventListener("touchmove", handleTouchMove);
-      document.removeEventListener("touchend", handleTouchEnd);
-      document.removeEventListener("touchcancel", handleTouchEnd);
-      document.body.style.userSelect = "";
-      localStorage.setItem(SPLIT_KEY, String(dragRatioRef.current));
-    };
-
-    document.addEventListener("touchmove", handleTouchMove, { passive: false });
-    document.addEventListener("touchend", handleTouchEnd);
-    document.addEventListener("touchcancel", handleTouchEnd);
+    document.addEventListener("pointermove", handlePointerMove, { passive: false });
+    document.addEventListener("pointerup", handlePointerEnd);
+    document.addEventListener("pointercancel", handlePointerEnd);
   };
 
   // ── 侧栏可拖拽分隔条 ──
@@ -1618,8 +1611,7 @@ function App() {
               )}
               <div
                 className={`app-main-divider ${todoFlex === 0 ? "divider-collapsed" : ""}`}
-                onMouseDown={handleSplitMouseDown}
-                onTouchStart={handleSplitTouchStart}
+                onPointerDown={handleSplitPointerDown}
               />
               <div
                 className="app-main-editor"
