@@ -309,7 +309,16 @@ export function Sidebar({
   const openMoveDate = (id: string) => {
     if (disabled) return;
     setMoveNoteId(id);
-    setTimeout(() => moveInputRef.current?.showPicker?.(), 50);
+    window.setTimeout(() => {
+      const input = moveInputRef.current;
+      if (!input) return;
+      input.focus({ preventScroll: true });
+      try {
+        input.showPicker?.();
+      } catch {
+        // iOS 和较旧 WebView 可能不支持脚本打开；输入框仍保持可见可点。
+      }
+    }, 50);
   };
 
   const handleMoveClick = (e: React.MouseEvent, id: string) => {
@@ -665,25 +674,32 @@ export function Sidebar({
         )}
       </MobileActionSheet>
 
-
-      {/* 跨日移动日期选择器 */}
-      {moveNoteId && (
-        <div className="move-date-overlay" onClick={() => setMoveNoteId(null)}>
-          <div className="move-date-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="move-date-title">移至日期</div>
-            <input
-              ref={moveInputRef}
-              type="date"
-              className="move-date-input"
-              onChange={handleMoveDateChange}
-              autoFocus
-            />
-            <button className="btn-cancel" onClick={() => setMoveNoteId(null)}>
+      {/* 跨日移动日期选择器通过 portal 脱离侧栏 overflow，避免触控端被裁切。 */}
+      <MobileActionSheet
+        open={Boolean(moveNoteId)}
+        title="移至日期"
+        onClose={() => setMoveNoteId(null)}
+        className="move-date-sheet"
+      >
+        {moveNoteId && (
+          <div className="move-date-content">
+            <label className="move-date-field">
+              <span>目标日期</span>
+              <input
+                ref={moveInputRef}
+                type="date"
+                className="move-date-input"
+                aria-label="目标日期"
+                onChange={handleMoveDateChange}
+                autoFocus
+              />
+            </label>
+            <button type="button" className="btn btn-secondary" onClick={() => setMoveNoteId(null)}>
               取消
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </MobileActionSheet>
 
       {/* 模板选择器 */}
       {templateOpen && (

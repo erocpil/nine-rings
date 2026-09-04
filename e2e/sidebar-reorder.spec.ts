@@ -62,6 +62,16 @@ test.describe("宽屏触控随笔操作", () => {
     await expect(rename).toBeFocused();
     await rename.fill("触控排序已重命名");
     await rename.press("Enter");
-    await expect(page.locator(".sidebar-item-title").filter({ hasText: "触控排序已重命名" })).toBeVisible();
+    const renamed = page.locator(".sidebar-item").filter({ hasText: "触控排序已重命名" });
+    await expect(renamed.locator(".sidebar-item-title")).toBeVisible();
+
+    await renamed.getByRole("button", { name: /更多随笔操作/ }).click();
+    await page.getByRole("dialog", { name: /随笔：触控排序已重命名/ })
+      .getByRole("button", { name: /移至其他日期/ })
+      .click();
+    const moveDate = page.getByRole("dialog", { name: "移至日期" });
+    await expect(moveDate.getByLabel("目标日期")).toBeVisible();
+    await moveDate.getByRole("button", { name: "取消" }).click();
+    await expect(moveDate).toHaveCount(0);
   });
 });

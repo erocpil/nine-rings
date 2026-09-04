@@ -339,6 +339,10 @@ test.describe("编辑器块级 gutter", () => {
         orderedItemLeft: rect(orderedItem).left,
         unorderedPadding: Number.parseFloat(getComputedStyle(unordered).paddingInlineStart),
         orderedPadding: Number.parseFloat(getComputedStyle(ordered).paddingInlineStart),
+        fontSize: Number.parseFloat(getComputedStyle(ordered).fontSize),
+        orderedOffset: Number.parseFloat(
+          getComputedStyle(ordered).getPropertyValue("--editor-ordered-list-offset"),
+        ),
         orderedMarker: getComputedStyle(orderedItem, "::before").content,
         orderedNativeMarker: getComputedStyle(orderedItem, "::marker").content,
         unorderedBlockNumberCenter: center(unorderedBlockNumber),
@@ -354,8 +358,11 @@ test.describe("编辑器块级 gutter", () => {
       .toBeCloseTo(withoutNumbers.unorderedPadding, 1);
     expect(withoutNumbers.orderedItemLeft - withoutNumbers.orderedLeft)
       .toBeCloseTo(withoutNumbers.orderedPadding, 1);
-    expect(withoutNumbers.orderedPadding).toBeCloseTo(withoutNumbers.unorderedPadding, 1);
-    expect(withoutNumbers.orderedItemLeft).toBeCloseTo(withoutNumbers.unorderedItemLeft, 1);
+    const expectedOrderedOffset = withoutNumbers.fontSize * withoutNumbers.orderedOffset;
+    expect(withoutNumbers.orderedPadding - withoutNumbers.unorderedPadding)
+      .toBeCloseTo(expectedOrderedOffset, 1);
+    expect(withoutNumbers.orderedItemLeft - withoutNumbers.unorderedItemLeft)
+      .toBeCloseTo(expectedOrderedOffset, 1);
     expect(withoutNumbers.orderedMarker).toContain("counter(list-item)");
     expect(withoutNumbers.orderedMarker).not.toContain("•");
     expect(withoutNumbers.orderedNativeMarker).toBe('""');
@@ -376,7 +383,8 @@ test.describe("编辑器块级 gutter", () => {
       .toBeCloseTo(withoutNumbers.unorderedItemLeft - withoutNumbers.unorderedLeft, 1);
     expect(withNumbers.orderedItemLeft - withNumbers.orderedLeft)
       .toBeCloseTo(withoutNumbers.orderedItemLeft - withoutNumbers.orderedLeft, 1);
-    expect(withNumbers.orderedItemLeft).toBeCloseTo(withNumbers.unorderedItemLeft, 1);
+    expect(withNumbers.orderedItemLeft - withNumbers.unorderedItemLeft)
+      .toBeCloseTo(expectedOrderedOffset, 1);
     expect(withNumbers.unorderedLeft - withNumbers.paragraphLeft).toBeCloseTo(0, 1);
     expect(withNumbers.orderedLeft - withNumbers.paragraphLeft).toBeCloseTo(0, 1);
     expect(withNumbers.orderedBlockNumberRight).not.toBeNull();

@@ -8,8 +8,12 @@ test("引用块折叠状态在切换文档后保持", async ({ page }) => {
     await page.getByTitle("从模板新建").click();
     await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
     const titleInput = page.getByRole("textbox", { name: "随心记 — 标题" });
+    await expect(titleInput).toHaveValue("新随笔");
+    await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
     await titleInput.fill(title);
     await expect(titleInput).toHaveValue(title);
+    await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
+    await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText(title);
   };
 
   await createBlankNote("引用折叠文档 A");
@@ -117,7 +121,11 @@ test.describe("手机安装版折叠操作", () => {
     const editor = page.locator(".ProseMirror");
     await editor.fill("只读引用正文");
     await editor.press("Control+Shift+b");
-    await page.locator(".sidebar-item.active").getByTitle("设为只读").click({ force: true });
+    const activeNote = page.locator(".sidebar-item.active");
+    await activeNote.getByRole("button", { name: /更多随笔操作/ }).click();
+    await page.getByRole("dialog", { name: /随笔：/ })
+      .getByRole("button", { name: "🔒 设为只读" })
+      .click();
     await page.setViewportSize({ width: 390, height: 760 });
     await page.locator(".sidebar-overlay.active").evaluate((element) => (element as HTMLElement).click());
     await expect(page.locator(".sidebar-overlay.active")).toHaveCount(0);

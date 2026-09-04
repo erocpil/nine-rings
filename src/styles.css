@@ -1992,6 +1992,34 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+.move-date-content {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px;
+}
+
+.move-date-field {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.move-date-input {
+  width: 100%;
+  min-height: 36px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--ui-radius-medium);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
 .mobile-action-sheet-content .menu-dropdown-item {
   min-height: 44px;
   padding: 9px 12px;
@@ -11627,9 +11655,15 @@ button.doc-tree-toggle:focus-visible {
   }
 
   /* iOS keeps fixed elements in the layout viewport while the keyboard only
-     shrinks/pans the visual viewport. Keep the document form wholly inside
-     that visible rectangle; its body scrolls while header/footer stay fixed. */
-  .web-keyboard-open .doc-create-overlay {
+     shrinks/pans the visual viewport. Keep every input-bearing overlay inside
+     that visible rectangle instead of special-casing only document creation. */
+  .web-keyboard-open :is(
+    .dialog-overlay,
+    .image-dialog-overlay,
+    .quick-switcher-overlay,
+    .settings-overlay,
+    .editor-appearance-overlay
+  ) {
     inset: auto;
     top: var(--app-visual-viewport-offset-top, 0px);
     left: var(--app-visual-viewport-offset-left, 0px);
@@ -11639,7 +11673,22 @@ button.doc-tree-toggle:focus-visible {
     box-sizing: border-box;
   }
 
-  .web-keyboard-open .doc-create-dialog {
+  .web-keyboard-open :is(.dialog, .image-dialog, .quick-switcher) {
     max-height: calc(var(--app-viewport-height, 100dvh) - 16px);
+  }
+
+  .web-keyboard-open .quick-switcher-overlay {
+    padding: 8px;
+  }
+
+  .web-keyboard-open .move-to-dialog {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .web-keyboard-open .move-to-body {
+    min-height: 0;
+    max-height: none;
   }
 }

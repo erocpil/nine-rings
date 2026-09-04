@@ -22,6 +22,9 @@ test("包含段落和代码块的松散有序列表保持连续编号", async ({
     "3. **查询VFIO region并映射BAR资源**",
   ].join("\n");
   const editor = page.locator(".ProseMirror");
+  await expect(page.locator(".note-title")).toHaveValue("有序列表编号测试");
+  await expect(editor).toBeEditable();
+  await editor.click();
   await editor.evaluate((element, text) => {
     const clipboardData = new DataTransfer();
     clipboardData.setData("text/plain", text);
@@ -91,6 +94,8 @@ test("两位数及以上的有序列表编号使用共享左边缘", async ({ pa
   await page.getByTitle("从模板新建").click();
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
   const editor = page.locator(".ProseMirror");
+  await expect(editor).toBeEditable();
+  await editor.click();
   const markdown = Array.from({ length: 12 }, (_, index) => `${index + 1}. 项目 ${index + 1}`).join("\n");
   await editor.evaluate((element, text) => {
     const clipboardData = new DataTransfer();
@@ -128,6 +133,8 @@ test("粘贴 Markdown 时列表 lazy continuation 保留为对齐的续行", asy
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
 
   const editor = page.locator(".ProseMirror");
+  await expect(editor).toBeEditable();
+  await editor.click();
   await editor.evaluate((element) => {
     const clipboardData = new DataTransfer();
     clipboardData.setData("text/plain", "1. aaa\nbbb\n2. ccc\n   ddd");

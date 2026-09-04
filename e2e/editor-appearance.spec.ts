@@ -71,6 +71,9 @@ test("排版设置中的调整即时生效并在重载后保持", async ({ page 
       unorderedIndent: Number.parseFloat(getComputedStyle(topLevelList).paddingInlineStart) / fontSize,
       orderedIndent: Number.parseFloat(getComputedStyle(topLevelOrderedList).paddingInlineStart) / fontSize,
       nestedOrderedIndent: Number.parseFloat(getComputedStyle(nestedOrderedList).paddingInlineStart) / fontSize,
+      orderedOffset: Number.parseFloat(
+        getComputedStyle(topLevelOrderedList).getPropertyValue("--editor-ordered-list-offset"),
+      ),
       unorderedMarker: getComputedStyle(unorderedItem, "::before").content,
       orderedMarker: getComputedStyle(orderedItem, "::before").content,
       orderedNativeMarker: getComputedStyle(orderedItem, "::marker").content,
@@ -81,7 +84,10 @@ test("排版设置中的调整即时生效并在重载后保持", async ({ page 
   expect(previewSpacing.listBottom).toBeCloseTo(0.2, 2);
   expect(previewSpacing.nestedTop).toBe(0);
   expect(previewSpacing.unorderedIndent).toBeCloseTo(1.2, 2);
-  expect(previewSpacing.orderedIndent).toBeCloseTo(previewSpacing.unorderedIndent, 2);
+  expect(previewSpacing.orderedIndent).toBeCloseTo(
+    previewSpacing.unorderedIndent + previewSpacing.orderedOffset,
+    2,
+  );
   expect(previewSpacing.nestedOrderedIndent).toBeCloseTo(previewSpacing.orderedIndent, 2);
   expect(previewSpacing.unorderedMarker).toContain("•");
   expect(previewSpacing.orderedMarker).toContain("counter(list-item)");
