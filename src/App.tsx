@@ -1682,6 +1682,7 @@ function App() {
                       showLineNumbers={config?.editor_show_line_numbers ?? false}
                       showStatusBlockNumber={config?.editor_show_status_block_number ?? true}
                       showStatusBar={config?.editor_show_status_bar ?? true}
+                      readonlyHeadingFoldInFocusMode={config?.editor_readonly_heading_fold ?? true}
                       vimModeEnabled={config?.editor_vim_mode ?? false}
                       defaultCodeBlockWrap={config?.editor_code_wrap_default ?? true}
                       highlightActiveLine={config?.highlight_active_line ?? true}

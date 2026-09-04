@@ -31,6 +31,51 @@ function sanitizeConfigForBackup(config: AppConfig): Record<string, unknown> {
 }
 
 export async function exportData(): Promise<string> {
+  const resolveImageRef = (insert: unknown): string | null => {
+    if (!insert || typeof insert !== "object") return null;
+
+    const directImage = (insert as any).image;
+    if (typeof directImage === "string") return directImage;
+    if (directImage && typeof directImage === "object" && typeof directImage.src === "string") {
+      return directImage.src;
+    }
+
+    const directResizableImage = (insert as any).resizableImage;
+    if (typeof directResizableImage === "string") return directResizableImage;
+    if (directResizableImage && typeof directResizableImage === "object" && typeof directResizableImage.src === "string") {
+      return directResizableImage.src;
+    }
+
+    return null;
+  };
+
+  const replaceImageRef = (insert: unknown, imageRef: string): boolean => {
+    if (!insert || typeof insert !== "object") return false;
+
+    const node: any = insert as any;
+    if (typeof node.image === "string") {
+      node.image = imageRef;
+      return true;
+    }
+
+    if (node.image && typeof node.image === "object" && "src" in node.image) {
+      node.image.src = imageRef;
+      return true;
+    }
+
+    if (typeof node.resizableImage === "string") {
+      node.resizableImage = imageRef;
+      return true;
+    }
+
+    if (node.resizableImage && typeof node.resizableImage === "object" && "src" in node.resizableImage) {
+      node.resizableImage.src = imageRef;
+      return true;
+    }
+
+    return false;
+  };
+
   return withDB(async (db) => {
     const config = await getConfig();
     const tx = db.transaction(["notes", "daily_pages", "images"], "readonly");
@@ -45,13 +90,12 @@ export async function exportData(): Promise<string> {
     const essayCount = noteRecords.filter((n: any) => !n.storagePath).length;
     console.log(`[exportData] 导出 ${noteRecords.length} 篇笔记 (文档 ${docCount} + 随笔 ${essayCount}), ${dailyPages.length} 每日页面`);
 
-    for (const note of noteRecords) {
+      for (const note of noteRecords) {
       const ops = note.content?.ops ?? [];
       for (const op of ops) {
-        if (typeof op.insert !== "object") continue;
-        const img = (op.insert as any)?.resizableImage || (op.insert as any)?.image;
-        if (!img?.src || typeof img.src !== "string" || !img.src.startsWith("nr-image://")) continue;
-        const id = img.src.replace(/^nr-image:\/\//, "");
+        const imageRef = resolveImageRef(op.insert);
+        if (!imageRef || !imageRef.startsWith("nr-image://")) continue;
+        const id = imageRef.replace(/^nr-image:\/\//, "");
         if (images[id]) continue; // already resolved
         const record: any = await new Promise((resolve, reject) => {
           const req = imageStore.get(id);
@@ -65,14 +109,15 @@ export async function exportData(): Promise<string> {
     }
 
     // 替换 delta 中的引用为 base64
-    for (const note of noteRecords) {
+      for (const note of noteRecords) {
       const ops = note.content?.ops ?? [];
       for (const op of ops) {
-        if (typeof op.insert !== "object") continue;
-        const img = (op.insert as any)?.resizableImage || (op.insert as any)?.image;
-        if (!img?.src || !img.src.startsWith("nr-image://")) continue;
-        const id = img.src.replace(/^nr-image:\/\//, "");
-        if (images[id]) img.src = images[id];
+        const imageRef = resolveImageRef(op.insert);
+        if (!imageRef || !imageRef.startsWith("nr-image://")) continue;
+        const id = imageRef.replace(/^nr-image:\/\//, "");
+        const base64Image = images[id];
+        if (!base64Image) continue;
+        replaceImageRef(op.insert, base64Image);
       }
       note.content = { ...note.content, ops };
     }

@@ -139,6 +139,11 @@ AppConfig:
       default: true
       description: 显示编辑器底部状态栏
 
+    editor_readonly_heading_fold:
+      type: boolean
+      default: true
+      description: 只读文档在专注模式下允许双击标题折叠正文
+
     editor_vim_mode:
       type: boolean
       default: false

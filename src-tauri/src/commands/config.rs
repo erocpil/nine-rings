@@ -48,6 +48,8 @@ pub struct AppConfig {
     pub editor_show_status_block_number: bool,
     #[serde(default = "default_true")]
     pub editor_show_status_bar: bool,
+    #[serde(default = "default_true")]
+    pub editor_readonly_heading_fold: bool,
     #[serde(default)]
     pub editor_vim_mode: bool,
     #[serde(default = "default_true")]
@@ -157,6 +159,7 @@ impl Default for AppConfig {
             editor_show_line_numbers: false,
             editor_show_status_block_number: true,
             editor_show_status_bar: true,
+            editor_readonly_heading_fold: true,
             editor_vim_mode: false,
             editor_code_wrap_default: true,
             use_custom_context_menu: true,
@@ -304,6 +307,7 @@ mod tests {
         assert!(config.editor_cjk_spacing);
         assert!(config.editor_show_status_block_number);
         assert!(config.editor_show_status_bar);
+        assert!(config.editor_readonly_heading_fold);
         assert!(config.editor_code_wrap_default);
         assert_eq!(config.user_default_language, "zh-CN");
         assert!(config.user_name.is_empty());

@@ -419,6 +419,7 @@ interface NoteEditorProps {
   showLineNumbers: boolean;
   showStatusBlockNumber: boolean;
   showStatusBar: boolean;
+  readonlyHeadingFoldInFocusMode: boolean;
   vimModeEnabled: boolean;
   defaultCodeBlockWrap: boolean;
   highlightActiveLine: boolean;
@@ -530,7 +531,7 @@ function restoreEditorViewportAnchor(
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps) {
+export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps) {
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -3303,7 +3304,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   };
 
   const handleReadonlyHeadingDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!readonly || !focusMode) return;
+    if (!readonly || !focusMode || !readonlyHeadingFoldInFocusMode || !isTauri()) return;
     if (performance.now() < suppressReadonlyDoubleClickUntilRef.current) {
       event.preventDefault();
       event.stopPropagation();
@@ -3318,6 +3319,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     if (
       !readonly
       || !focusMode
+      || !readonlyHeadingFoldInFocusMode
+      || !isTauri()
       || !event.isPrimary
       || ((event.pointerType === "mouse" || event.pointerType === "pen") && event.button !== 0)
     ) return;
@@ -3352,6 +3355,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     if (
       !readonly
       || !focusMode
+      || !readonlyHeadingFoldInFocusMode
+      || !isTauri()
       || editor.isDestroyed
       || !event.isPrimary
       || !pointer
