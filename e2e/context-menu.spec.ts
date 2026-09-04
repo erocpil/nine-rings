@@ -205,3 +205,55 @@ test.describe("正文右键菜单：菜单命令行为", () => {
     await expect(editor.locator("a")).toHaveText("要链接的文字");
   });
 });
+
+test.describe("触控图片尺寸", () => {
+  test.use({ viewport: { width: 1280, height: 800 }, hasTouch: true });
+
+  test("拖动图片手柄调整尺寸并双击恢复", async ({ page }) => {
+    const editor = await createBlankNote(page);
+    await page.getByTitle("插入图片").click();
+    await page.locator(".image-dialog-input").fill(
+      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='120'%3E%3Crect width='240' height='120' fill='blue'/%3E%3C/svg%3E",
+    );
+    await page.locator(".image-dialog-actions").getByRole("button", { name: "插入" }).click();
+    const image = editor.locator("img").first();
+    await expect(image).toBeVisible();
+    const handle = editor.locator(".resize-handle");
+    await expect(handle).toBeVisible();
+    const box = await handle.boundingBox();
+    if (!box) throw new Error("图片缩放手柄不可见");
+    const startX = box.x + box.width / 2;
+    const pointer = (type: string, clientX: number) => ({
+      bubbles: true,
+      cancelable: true,
+      pointerId: 111,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      clientX,
+      clientY: box.y + box.height / 2,
+    });
+    await handle.dispatchEvent("pointerdown", pointer("pointerdown", startX));
+    await handle.dispatchEvent("pointermove", pointer("pointermove", startX + 90));
+    await expect.poll(() => image.evaluate((element) => Number.parseFloat(element.style.width)))
+      .toBeGreaterThanOrEqual(60);
+    await handle.dispatchEvent("pointerup", pointer("pointerup", startX + 90));
+    await expect.poll(() => image.evaluate((element) => element.style.width)).not.toBe("");
+
+    const imageBox = await image.boundingBox();
+    if (!imageBox) throw new Error("图片不可见");
+    for (const pointerId of [121, 122]) {
+      await image.dispatchEvent("pointerup", {
+        bubbles: true,
+        cancelable: true,
+        pointerId,
+        pointerType: "touch",
+        isPrimary: true,
+        button: 0,
+        clientX: imageBox.x + imageBox.width / 2,
+        clientY: imageBox.y + imageBox.height / 2,
+      });
+    }
+    await expect.poll(() => image.evaluate((element) => element.style.width)).toBe("");
+  });
+});

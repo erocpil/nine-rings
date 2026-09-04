@@ -421,3 +421,52 @@ test("桌面目录可固定到左右两侧并记住选择", async ({ page }) => 
   await page.getByRole("navigation", { name: "文档目录" }).getByTitle("取消固定目录").click();
   await expect(page.locator(".note-editor")).not.toHaveClass(/outline-docked-/);
 });
+
+test.describe("触控目录宽度调整", () => {
+  test.use({ viewport: { width: 1000, height: 760 }, hasTouch: true });
+
+  test("宽屏触控通过 pointer 拖动固定目录且清理选择状态", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await editor.click();
+    await editor.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", "# 触控固定目录\n\n正文");
+      element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    });
+    await page.getByTitle("文档目录").click();
+    const outline = page.getByRole("navigation", { name: "文档目录" });
+    await outline.getByTitle("固定目录到左侧").click();
+    const handle = outline.locator(".document-outline-resize-handle");
+    await expect(handle).toBeVisible();
+
+    const before = await outline.evaluate((element) => element.getBoundingClientRect().width);
+    const state = await handle.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const pointer = (type: string, clientX: number) => new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 101,
+        pointerType: "touch",
+        isPrimary: true,
+        button: 0,
+        clientX,
+        clientY: rect.top + rect.height / 2,
+      });
+      const startX = rect.left + rect.width / 2;
+      const startAllowed = element.dispatchEvent(pointer("pointerdown", startX));
+      const userSelectDuring = document.body.style.webkitUserSelect;
+      element.dispatchEvent(pointer("pointermove", startX + 50));
+      element.dispatchEvent(pointer("pointerup", startX + 50));
+      return {
+        startAllowed,
+        userSelectDuring,
+        userSelectAfter: document.body.style.webkitUserSelect,
+      };
+    });
+
+    expect(state).toEqual({ startAllowed: false, userSelectDuring: "none", userSelectAfter: "" });
+    await expect.poll(() => outline.evaluate((element) => element.getBoundingClientRect().width))
+      .toBeGreaterThan(before + 40);
+  });
+});

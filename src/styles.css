@@ -1113,6 +1113,55 @@ body {
   background: var(--surface);
 }
 
+.sidebar-item-more,
+.todo-more-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.menu-dropdown-danger {
+  color: var(--danger) !important;
+}
+
+/* 输入能力而非窗口宽度决定操作入口。宽屏平板和触屏 Windows 同样不能
+   依赖 hover、双击或原生 HTML5 drag。 */
+@media (hover: none), (pointer: coarse) {
+  .sidebar-item-actions,
+  .sidebar-item-drag {
+    display: none;
+  }
+
+  .todo-indent-btns,
+  .todo-remind-btn,
+  .todo-remove {
+    display: none;
+  }
+}
+
+@media (hover: none), (pointer: coarse), (any-pointer: coarse) {
+  .sidebar-item-more,
+  .todo-more-btn {
+    display: inline-flex;
+  }
+
+  .sidebar-item-more,
+  .todo-more-btn,
+  .doc-tree-node {
+    -webkit-touch-callout: none;
+  }
+}
+
 /* 置顶图标（置顶时始终可见） */
 .sidebar-item-pin.pinned {
   opacity: 1 !important;
@@ -2343,10 +2392,24 @@ body {
   cursor: nwse-resize;
   opacity: 0;
   transition: opacity 0.15s;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .resizable-image-wrapper:hover .resize-handle,
 .resizable-image-wrapper[data-selected="true"] .resize-handle {
   opacity: 1;
+}
+
+@media (hover: none), (pointer: coarse), (any-pointer: coarse) {
+  .resize-handle {
+    width: 28px;
+    height: 28px;
+  }
+
+  .resizable-image-wrapper img {
+    touch-action: manipulation;
+  }
 }
 
 .editor-content {
@@ -3658,6 +3721,9 @@ body {
   background: transparent;
   cursor: col-resize !important;
   touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
   pointer-events: auto;
   display: none;
 }
@@ -3986,7 +4052,7 @@ body {
   display: none !important;
 }
 
-.focus-mode .editor-stats:has(.editor-search-navigation) {
+.focus-mode .editor-stats-has-search-navigation {
   display: flex !important;
 }
 
@@ -4052,6 +4118,10 @@ body {
   flex-shrink: 0;
   position: relative;
   z-index: 10;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
   /* 扩大触控区域：左右各 8px 透明延伸 */
 }
 .sidebar-divider::before {
@@ -6531,6 +6601,10 @@ button.doc-tree-toggle:focus-visible {
   max-height: none;
   padding: 10px 16px 6px;
   overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-block: 10px;
 }
 
 .doc-create-dialog .dialog-field {
@@ -11550,5 +11624,22 @@ button.doc-tree-toggle:focus-visible {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* iOS keeps fixed elements in the layout viewport while the keyboard only
+     shrinks/pans the visual viewport. Keep the document form wholly inside
+     that visible rectangle; its body scrolls while header/footer stay fixed. */
+  .web-keyboard-open .doc-create-overlay {
+    inset: auto;
+    top: var(--app-visual-viewport-offset-top, 0px);
+    left: var(--app-visual-viewport-offset-left, 0px);
+    width: var(--app-viewport-width, 100vw);
+    height: var(--app-viewport-height, 100dvh);
+    min-height: 0;
+    box-sizing: border-box;
+  }
+
+  .web-keyboard-open .doc-create-dialog {
+    max-height: calc(var(--app-viewport-height, 100dvh) - 16px);
   }
 }

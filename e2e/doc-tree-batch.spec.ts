@@ -190,3 +190,47 @@ test("目录汇总为同名文档显示相对子路径", async ({ page }) => {
   await expect(moc.locator(".moc-title-path", { hasText: /^b$/ })).toBeVisible();
   await expect(moc.locator(".moc-title-path", { hasText: /^c$/ })).toBeVisible();
 });
+
+test.describe("触控文档树操作", () => {
+  test.use({ viewport: { width: 900, height: 700 }, hasTouch: true });
+
+  test("长按文档打开操作菜单且不会误跳转", async ({ page }) => {
+    await openDocumentView(page);
+    await createDocument(page, "长按菜单文档", "touch-menu");
+    const target = page.locator(".doc-tree-doc").filter({ hasText: "长按菜单文档" });
+    const box = await target.boundingBox();
+    if (!box) throw new Error("文档树触控目标不可见");
+    const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+    await target.dispatchEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 81,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      clientX: point.x,
+      clientY: point.y,
+    });
+    await page.waitForTimeout(560);
+    const menu = page.locator(".doc-context-menu");
+    await expect(menu).toBeVisible();
+    await target.dispatchEvent("pointerup", {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 81,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      clientX: point.x,
+      clientY: point.y,
+    });
+
+    await menu.getByRole("button", { name: "重命名" }).click();
+    const rename = page.locator(".doc-tree-rename-input");
+    await expect(rename).toBeFocused();
+    await rename.fill("长按菜单已重命名");
+    await rename.press("Enter");
+    await expect(page.locator(".doc-tree-doc").filter({ hasText: "长按菜单已重命名" })).toBeVisible();
+  });
+});

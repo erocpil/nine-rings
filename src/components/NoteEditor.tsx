@@ -1389,6 +1389,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       );
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
+      document.body.style.webkitUserSelect = "";
       setOutlineDockWidth(outlineResizeCurrentWidthRef.current);
       localStorage.setItem(OUTLINE_WIDTH_KEY, String(outlineResizeCurrentWidthRef.current));
       outlineResizePointerIdRef.current = null;
@@ -1404,73 +1405,49 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     }
   }, []);
 
-  const startOutlineResizeMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>, side: "left" | "right") => {
-    if (outlineDock === "floating" || event.button !== 0) return;
+  const startOutlineResizePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>, side: "left" | "right") => {
+    if (outlineDock === "floating" || (event.pointerType === "mouse" && event.button !== 0)) return;
     event.preventDefault();
     event.stopPropagation();
     clearOutlineResize();
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
-    outlineResizePointerIdRef.current = -1;
+    document.body.style.webkitUserSelect = "none";
+    outlineResizePointerIdRef.current = event.pointerId;
     outlineResizeStartXRef.current = event.clientX;
     outlineResizeStartWidthRef.current = outlineDockWidth;
     outlineResizeCurrentWidthRef.current = outlineDockWidth;
-    const move = (moveEvent: MouseEvent) => {
+    const pointerId = event.pointerId;
+    try {
+      event.currentTarget.setPointerCapture(pointerId);
+    } catch {
+      // Synthetic events and older WebViews may not expose an active pointer to capture.
+    }
+    const move = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
+      if (moveEvent.cancelable) moveEvent.preventDefault();
       const delta = moveEvent.clientX - outlineResizeStartXRef.current;
       const next = side === "right"
         ? outlineResizeStartWidthRef.current + delta
         : outlineResizeStartWidthRef.current - delta;
       updateOutlineResizeWidth(clampOutlineDockWidth(next));
     };
-    const stop = () => {
+    const stop = (stopEvent: PointerEvent) => {
+      if (stopEvent.pointerId !== pointerId) return;
+      if (stopEvent.cancelable) stopEvent.preventDefault();
       clearOutlineResize();
     };
     outlineResizeCleanupRef.current = () => {
-      document.removeEventListener("mousemove", move);
-      document.removeEventListener("mouseup", stop);
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", stop);
+      document.removeEventListener("pointercancel", stop);
       document.body.style.userSelect = "";
+      document.body.style.webkitUserSelect = "";
       document.body.style.cursor = "";
     };
-    document.addEventListener("mousemove", move);
-    document.addEventListener("mouseup", stop);
-    move(event.nativeEvent);
-  }, [clearOutlineResize, outlineDock, outlineDockWidth, updateOutlineResizeWidth]);
-
-  const startOutlineResizeTouchStart = useCallback((event: React.TouchEvent<HTMLDivElement>, side: "left" | "right") => {
-    if (outlineDock === "floating") return;
-    if (event.touches.length === 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    clearOutlineResize();
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    outlineResizePointerIdRef.current = -1;
-    outlineResizeStartXRef.current = event.touches[0].clientX;
-    outlineResizeStartWidthRef.current = outlineDockWidth;
-    outlineResizeCurrentWidthRef.current = outlineDockWidth;
-    const move = (moveEvent: TouchEvent) => {
-      moveEvent.preventDefault();
-      if (moveEvent.touches.length === 0) return;
-      const delta = moveEvent.touches[0].clientX - outlineResizeStartXRef.current;
-      const next = side === "right"
-        ? outlineResizeStartWidthRef.current + delta
-        : outlineResizeStartWidthRef.current - delta;
-      updateOutlineResizeWidth(clampOutlineDockWidth(next));
-    };
-    const stop = () => {
-      document.body.style.userSelect = "";
-      clearOutlineResize();
-    };
-    outlineResizeCleanupRef.current = () => {
-      document.removeEventListener("touchmove", move);
-      document.removeEventListener("touchend", stop);
-      document.removeEventListener("touchcancel", stop);
-      document.body.style.userSelect = "";
-      document.body.style.cursor = "";
-    };
-    document.addEventListener("touchmove", move, { passive: false });
-    document.addEventListener("touchend", stop);
-    document.addEventListener("touchcancel", stop);
+    document.addEventListener("pointermove", move, { passive: false });
+    document.addEventListener("pointerup", stop);
+    document.addEventListener("pointercancel", stop);
     move(event.nativeEvent);
   }, [clearOutlineResize, outlineDock, outlineDockWidth, updateOutlineResizeWidth]);
 
@@ -3648,8 +3625,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           {outlineDock !== "floating" && (
             <div
               className={`document-outline-resize-handle ${outlineDock === "left" ? "right" : "left"}`}
-              onMouseDown={(event) => startOutlineResizeMouseDown(event, outlineDock === "left" ? "right" : "left")}
-              onTouchStart={(event) => startOutlineResizeTouchStart(event, outlineDock === "left" ? "right" : "left")}
+              onPointerDown={(event) => startOutlineResizePointerDown(event, outlineDock === "left" ? "right" : "left")}
             />
           )}
           <DocumentOutlineList
@@ -4439,7 +4415,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       </div>
 
       {/* ── 底部信息栏（位置 + 字数 + 版本历史）─ */}
-      {(showStatusBar || searchMatches.length > 0) && <div className={`editor-stats${showStatusBar ? "" : " editor-stats-search-only"}`}>
+      {(showStatusBar || searchMatches.length > 0) && <div className={`editor-stats${showStatusBar ? "" : " editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
         {searchMatches.length > 0 && !editorFindOpen && (
           <span className="editor-search-navigation" role="status" aria-live="polite">
             <span>{activeSearchMatch + 1} / {searchMatches.length}</span>

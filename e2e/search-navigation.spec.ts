@@ -33,6 +33,20 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     await expect(page.locator(".search-match-active")).toHaveCount(1);
   });
 
+  test("专注模式搜索导航使用显式状态类保持可见", async ({ page }) => {
+    await createDocument(page, "专注搜索导航测试");
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("第一处 focus-search-target\n第二处 focus-search-target");
+    await expect(page.locator(".save-status-saved")).toBeVisible();
+    await page.getByTitle("专注模式").click();
+    await page.locator(".search-input").fill("focus-search-target");
+    await page.locator(".search-hit").filter({ hasText: "专注搜索导航测试" }).click();
+
+    const stats = page.locator(".editor-stats-has-search-navigation");
+    await expect(stats).toBeVisible();
+    await expect(stats.locator(".editor-search-navigation")).toContainText("1 / 2");
+  });
+
   test("文档查找首次下一处从当前光标之后开始", async ({ page }) => {
     await createDocument(page, "文档内查找起点测试");
     const editor = page.locator(".ProseMirror");

@@ -70,6 +70,19 @@ interface ContextMenuState {
   title: string;
 }
 
+interface TreeLongPressState {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  timer: number;
+  triggered: boolean;
+  node: PathNode;
+  target: HTMLElement;
+}
+
+const TREE_LONG_PRESS_MS = 520;
+const TREE_LONG_PRESS_MOVE_TOLERANCE = 12;
+
 // ── InlineRename：自管 state，隔离渲染范围，避免光标跳动 ──
 
 function InlineRename({
@@ -126,6 +139,8 @@ function DocTree({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const treeLongPressRef = useRef<TreeLongPressState | null>(null);
+  const suppressTreeClickUntilRef = useRef(0);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renamingFolder, setRenamingFolder] = useState<string | null>(null);  // 正在重命名的 folder path
   const [moveSubject, setMoveSubject] = useState<MoveToSubject | null>(null);
@@ -221,6 +236,11 @@ function DocTree({
     }
   }, [contextMenu]);
 
+  useEffect(() => () => {
+    if (treeLongPressRef.current) window.clearTimeout(treeLongPressRef.current.timer);
+    treeLongPressRef.current = null;
+  }, []);
+
   // 菜单渲染后再按真实尺寸限制到视觉视口内。右键点接近窗口底部或
   // 右侧时向上/向左避让；菜单高于小窗口时由 CSS 在内部滚动。
   useLayoutEffect(() => {
@@ -274,17 +294,80 @@ function DocTree({
     setCollapsed(new Set(getOtherFolderPaths(tree, selectedId, selectedFolderPath ?? null)));
   };
 
-  const handleContextMenu = (e: React.MouseEvent, node: PathNode) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const openContextMenu = (node: PathNode, x: number, y: number) => {
     setContextMenu({
-      x: e.clientX,
-      y: e.clientY,
+      x,
+      y,
       type: node.type,
       noteId: node.noteId,
       path: node.path,
       title: node.name,
     });
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, node: PathNode) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openContextMenu(node, e.clientX, e.clientY);
+  };
+
+  const clearTreeLongPress = () => {
+    if (treeLongPressRef.current) window.clearTimeout(treeLongPressRef.current.timer);
+    treeLongPressRef.current = null;
+  };
+
+  const handleTreePointerDown = (event: React.PointerEvent<HTMLDivElement>, node: PathNode) => {
+    if (event.pointerType === "mouse" || event.button !== 0 || selectMode) return;
+    if ((event.target as HTMLElement).closest("button, input")) return;
+    clearTreeLongPress();
+    const target = event.currentTarget;
+    const pointerId = event.pointerId;
+    const gesture: TreeLongPressState = {
+      pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      timer: 0,
+      triggered: false,
+      node,
+      target,
+    };
+    gesture.timer = window.setTimeout(() => {
+      if (treeLongPressRef.current !== gesture) return;
+      gesture.triggered = true;
+      suppressTreeClickUntilRef.current = Date.now() + 700;
+      window.getSelection()?.removeAllRanges();
+      try {
+        target.setPointerCapture(pointerId);
+      } catch {
+        // Synthetic events and older WebViews may not expose an active pointer to capture.
+      }
+      openContextMenu(node, gesture.startX, gesture.startY);
+    }, TREE_LONG_PRESS_MS);
+    treeLongPressRef.current = gesture;
+  };
+
+  const handleTreePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const gesture = treeLongPressRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId || gesture.triggered) return;
+    if (Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY) > TREE_LONG_PRESS_MOVE_TOLERANCE) {
+      clearTreeLongPress();
+    }
+  };
+
+  const handleTreePointerEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+    const gesture = treeLongPressRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (gesture.triggered) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    clearTreeLongPress();
+  };
+
+  const suppressTreeClickAfterLongPress = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (Date.now() >= suppressTreeClickUntilRef.current) return;
+    event.preventDefault();
+    event.stopPropagation();
   };
 
   const handleRename = (noteId: string) => {
@@ -481,6 +564,11 @@ function DocTree({
             className="doc-tree-node doc-tree-folder"
             style={{ paddingLeft }}
             onContextMenu={(e) => handleContextMenu(e, node)}
+            onPointerDown={(event) => handleTreePointerDown(event, node)}
+            onPointerMove={handleTreePointerMove}
+            onPointerUp={handleTreePointerEnd}
+            onPointerCancel={handleTreePointerEnd}
+            onClickCapture={suppressTreeClickAfterLongPress}
           >
             {hasChildren ? (
               <button
@@ -538,6 +626,11 @@ function DocTree({
         style={{ paddingLeft }}
         onClick={() => handleDocClick(node)}
         onContextMenu={(e) => handleContextMenu(e, node)}
+        onPointerDown={(event) => handleTreePointerDown(event, node)}
+        onPointerMove={handleTreePointerMove}
+        onPointerUp={handleTreePointerEnd}
+        onPointerCancel={handleTreePointerEnd}
+        onClickCapture={suppressTreeClickAfterLongPress}
       >
         {selectMode && node.noteId && (
           <input

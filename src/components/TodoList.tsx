@@ -20,6 +20,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { MobileActionSheet } from "./MobileActionSheet";
 
 // ── 常量 ──
 
@@ -132,6 +133,7 @@ function SortableTodoItem({
   onRemindCancel,
   onIndent,
   onOutdent,
+  onOpenActions,
   canIndent,
   canOutdent,
 }: {
@@ -155,6 +157,7 @@ function SortableTodoItem({
   onRemindCancel: () => void;
   onIndent: () => void;
   onOutdent: () => void;
+  onOpenActions: (todoId: string) => void;
   canIndent: boolean;
   canOutdent: boolean;
 }) {
@@ -240,6 +243,16 @@ function SortableTodoItem({
         </span>
       )}
       <button
+        className="todo-more-btn"
+        type="button"
+        aria-label={`更多待办操作 ${todo.text}`}
+        title="更多操作"
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpenActions(todo.id);
+        }}
+      >⋯</button>
+      <button
         className={`todo-remind-btn ${todo.remind_at ? "active" : ""}`}
         onClick={(e) => {
           e.stopPropagation();
@@ -319,6 +332,7 @@ function TodoLevel({
   onRemindCancel,
   onIndent,
   onOutdent,
+  onOpenActions,
 }: {
   items: Todo[];
   allTodos: Todo[];
@@ -341,6 +355,7 @@ function TodoLevel({
   onRemindCancel: () => void;
   onIndent: (id: string) => void;
   onOutdent: (id: string) => void;
+  onOpenActions: (todoId: string) => void;
 }) {
   return (
     <SortableContext items={items.map((t) => t.id)} strategy={verticalListSortingStrategy}>
@@ -376,6 +391,7 @@ function TodoLevel({
               onRemindCancel={onRemindCancel}
               onIndent={() => onIndent(todo.id)}
               onOutdent={() => onOutdent(todo.id)}
+              onOpenActions={onOpenActions}
               canIndent={canIndent}
               canOutdent={canOutdent}
             />
@@ -402,6 +418,7 @@ function TodoLevel({
                 onRemindCancel={onRemindCancel}
                 onIndent={onIndent}
                 onOutdent={onOutdent}
+                onOpenActions={onOpenActions}
               />
             )}
           </div>
@@ -426,6 +443,7 @@ export function TodoList({ todos, onChange, onOpenOverdue, onHide, disabled }: T
   const [notifPerm, setNotifPerm] = useState<NotificationPermission>("default");
 
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [actionTodoId, setActionTodoId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -744,6 +762,17 @@ export function TodoList({ todos, onChange, onOpenOverdue, onHide, disabled }: T
     }, 300);
   }, [generateExport]);
 
+  const actionTodo = actionTodoId ? todos.find((todo) => todo.id === actionTodoId) ?? null : null;
+  const actionTodoDepth = actionTodo ? getDepth(todos, actionTodo.id) : 0;
+  const actionTodoSiblings = actionTodo ? getChildren(todos, actionTodo.parent_id ?? null) : [];
+  const actionTodoIndex = actionTodo
+    ? actionTodoSiblings.findIndex((todo) => todo.id === actionTodo.id)
+    : -1;
+  const actionTodoCanIndent = Boolean(
+    actionTodo && !actionTodo.done && actionTodoDepth < MAX_DEPTH && actionTodoIndex > 0,
+  );
+  const actionTodoCanOutdent = Boolean(actionTodo?.parent_id);
+
   return (
     <div className="todo-list">
       <h3 className="section-title">
@@ -844,6 +873,7 @@ export function TodoList({ todos, onChange, onOpenOverdue, onHide, disabled }: T
                 onRemindCancel={cancelRemindPicker}
                 onIndent={handleIndent}
                 onOutdent={handleOutdent}
+                onOpenActions={setActionTodoId}
               />
             ) : (
               <div className="todo-items" />
@@ -858,6 +888,63 @@ export function TodoList({ todos, onChange, onOpenOverdue, onHide, disabled }: T
           />
         </>
       )}
+
+      <MobileActionSheet
+        open={Boolean(actionTodo)}
+        title={actionTodo ? `待办：${actionTodo.text}` : "待办操作"}
+        onClose={() => setActionTodoId(null)}
+        className="todo-action-sheet"
+      >
+        {actionTodo && (
+          <>
+            <button
+              type="button"
+              className="menu-dropdown-item"
+              disabled={actionTodo.done || disabled}
+              onClick={() => {
+                setActionTodoId(null);
+                startEdit(actionTodo);
+              }}
+            >✎ 编辑文本</button>
+            <button
+              type="button"
+              className="menu-dropdown-item"
+              disabled={!actionTodoCanIndent || disabled}
+              onClick={() => {
+                setActionTodoId(null);
+                handleIndent(actionTodo.id);
+              }}
+            >→ 缩进为上一项的子任务</button>
+            <button
+              type="button"
+              className="menu-dropdown-item"
+              disabled={!actionTodoCanOutdent || disabled}
+              onClick={() => {
+                setActionTodoId(null);
+                handleOutdent(actionTodo.id);
+              }}
+            >← 减少缩进</button>
+            <button
+              type="button"
+              className="menu-dropdown-item"
+              disabled={disabled}
+              onClick={() => {
+                setActionTodoId(null);
+                openRemindPicker(actionTodo.id);
+              }}
+            >{actionTodo.remind_at ? "🔔 修改提醒" : "🔕 设置提醒"}</button>
+            <button
+              type="button"
+              className="menu-dropdown-item menu-dropdown-danger"
+              disabled={disabled}
+              onClick={() => {
+                setActionTodoId(null);
+                removeTodo(actionTodo.id);
+              }}
+            >🗑 删除</button>
+          </>
+        )}
+      </MobileActionSheet>
 
       {undoTodo && (
         <div className="todo-undo-bar">

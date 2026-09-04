@@ -23,11 +23,13 @@ const DRAG_CLOSE_DISTANCE = 72;
 export function MobileActionSheet({ open, title, onClose, className = "", dismissAnchor, children }: MobileActionSheetProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
   const touchStartYRef = useRef<number | null>(null);
   const touchMovedRef = useRef(false);
   const suppressClickUntilRef = useRef(0);
   const dragOffsetRef = useRef(0);
   const [dragOffset, setDragOffset] = useState(0);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -38,15 +40,24 @@ export function MobileActionSheet({ open, title, onClose, className = "", dismis
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
-      onClose();
+      onCloseRef.current();
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener("keydown", onKeyDown, true);
-      returnFocusRef.current?.focus({ preventScroll: true });
+      const returnTarget = returnFocusRef.current;
+      returnFocusRef.current = null;
+      // An action can open another dialog or an inline editor while the sheet
+      // unmounts. Preserve that newly assigned focus; only restore the trigger
+      // after a passive dismissal whose focus fell back to the document.
+      window.requestAnimationFrame(() => {
+        const active = document.activeElement;
+        if (active && active !== document.body && active !== document.documentElement) return;
+        returnTarget?.focus({ preventScroll: true });
+      });
     };
-  }, [onClose, open]);
+  }, [open]);
 
   if (!open) return null;
 

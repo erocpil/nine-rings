@@ -419,6 +419,80 @@ test.describe("PWA 窄屏应用外壳", () => {
       .toBeLessThan(3);
   });
 
+  test("宽屏触控设备通过待办操作面板编辑和删除", async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 700 });
+    await page.addInitScript(() => localStorage.setItem("nr:todoSplit", "3"));
+    await page.goto("/");
+
+    const todoInput = page.locator(".todo-input");
+    await todoInput.fill("触屏待办操作");
+    await todoInput.press("Enter");
+    const todo = page.locator(".todo-item").filter({ hasText: "触屏待办操作" });
+    const more = todo.getByRole("button", { name: "更多待办操作 触屏待办操作" });
+    await expect(more).toBeVisible();
+    await expect(todo.locator(".todo-remove")).toBeHidden();
+
+    await more.click();
+    const sheet = page.getByRole("dialog", { name: "待办：触屏待办操作" });
+    await expect(sheet).toBeVisible();
+    await sheet.getByRole("button", { name: "✎ 编辑文本" }).click();
+    const editInput = page.locator(".todo-edit-input");
+    await expect(editInput).toBeFocused();
+    await editInput.fill("触屏待办已编辑");
+    await editInput.press("Enter");
+    const editedTodo = page.locator(".todo-item").filter({ hasText: "触屏待办已编辑" });
+    await expect(editedTodo).toBeVisible();
+
+    await editedTodo.getByRole("button", { name: "更多待办操作 触屏待办已编辑" }).click();
+    await page.getByRole("dialog", { name: "待办：触屏待办已编辑" })
+      .getByRole("button", { name: "🗑 删除" })
+      .click();
+    await expect(editedTodo).toHaveCount(0);
+  });
+
+  test("宽屏触控设备拖动侧栏 splitter 不会触发页面选择", async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 700 });
+    await page.addInitScript(() => {
+      localStorage.setItem("nr:sidebarHidden", "false");
+      localStorage.setItem("nr:sidebarW", "240");
+    });
+    await page.goto("/");
+
+    const divider = page.locator(".sidebar-divider");
+    await expect(divider).toBeVisible();
+    const dragState = await divider.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const pointer = (type: string, clientX: number) => new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 91,
+        pointerType: "touch",
+        isPrimary: true,
+        button: 0,
+        clientX,
+        clientY: rect.top + rect.height / 2,
+      });
+      const startX = rect.left + rect.width / 2;
+      const startAllowed = element.dispatchEvent(pointer("pointerdown", startX));
+      const userSelectDuring = document.body.style.webkitUserSelect;
+      element.dispatchEvent(pointer("pointermove", startX + 60));
+      element.dispatchEvent(pointer("pointerup", startX + 60));
+      return {
+        startAllowed,
+        userSelectDuring,
+        userSelectAfter: document.body.style.webkitUserSelect,
+      };
+    });
+
+    expect(dragState).toEqual({
+      startAllowed: false,
+      userSelectDuring: "none",
+      userSelectAfter: "",
+    });
+    await expect.poll(() => page.evaluate(() => Number(localStorage.getItem("nr:sidebarW"))))
+      .toBe(300);
+  });
+
   test("千块文档仅测量视口附近 gutter 且延迟快照仍会保存", async ({ page }) => {
     test.slow();
     await page.goto("/");
@@ -927,6 +1001,54 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(dialog).toHaveCount(0);
     await expect(page.locator(".ProseMirror")).toContainText("会议信息");
     await expect(page.locator(".ProseMirror")).toContainText("行动项");
+  });
+
+  test("新建文档在虚拟键盘打开时完整停留在可视区域", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("nr:sidebarHidden", "true"));
+    await page.goto("/");
+    await page.getByTitle("文档视图").click();
+    await page.locator(".doc-tree-popup-overlay").getByTitle("新建文档").click();
+
+    const overlay = page.locator(".doc-create-overlay");
+    const dialog = page.locator(".doc-create-dialog");
+    const body = dialog.locator(".dialog-body");
+    const footer = dialog.locator(".dialog-footer");
+    await expect(dialog.locator(".dialog-template-chip").first()).toBeVisible();
+
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty("--app-visual-viewport-offset-top", "70px");
+      document.documentElement.style.setProperty("--app-visual-viewport-offset-left", "4px");
+      document.documentElement.style.setProperty("--app-viewport-height", "330px");
+      document.documentElement.style.setProperty("--app-viewport-width", "382px");
+      document.documentElement.classList.add("web-keyboard-open");
+    });
+
+    await expect.poll(() => overlay.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        top: Math.round(rect.top),
+        left: Math.round(rect.left),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      };
+    })).toEqual({ top: 70, left: 4, width: 382, height: 330 });
+
+    const visibleBottom = 400;
+    expect(await dialog.evaluate((element) => element.getBoundingClientRect().bottom))
+      .toBeLessThanOrEqual(visibleBottom);
+    expect(await footer.evaluate((element) => element.getBoundingClientRect().bottom))
+      .toBeLessThanOrEqual(visibleBottom);
+    await expect.poll(() => body.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+
+    const conceptInput = dialog.getByPlaceholder("输入概念名后按 Enter 添加...");
+    await conceptInput.focus();
+    await expect.poll(async () => {
+      const [inputRect, bodyRect] = await Promise.all([
+        conceptInput.evaluate((element) => element.getBoundingClientRect()),
+        body.evaluate((element) => element.getBoundingClientRect()),
+      ]);
+      return inputRect.bottom <= bodyRect.bottom - 8 && inputRect.top >= bodyRect.top + 8;
+    }).toBe(true);
   });
 
   test("离线时明确提示但编辑器保持可用", async ({ page, context }) => {

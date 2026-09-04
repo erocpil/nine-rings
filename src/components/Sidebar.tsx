@@ -4,6 +4,7 @@ import { TagFilter } from "./TagFilter";
 import { api } from "../lib/api";
 import { TemplatePicker } from "./TemplatePicker";
 import type { Template } from "../lib/storage/template-store";
+import { MobileActionSheet } from "./MobileActionSheet";
 
 type SortMode = "manual" | "created" | "updated" | "title";
 const SORT_MODE_KEY = "nr:sortMode";
@@ -86,6 +87,7 @@ export function Sidebar({
   const dragOverIdxRef = useRef<number | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [actionNoteId, setActionNoteId] = useState<string | null>(null);
   const moveInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -235,10 +237,14 @@ export function Sidebar({
 
   // ── Delete (immediate) ──
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
+  const deleteNote = async (id: string) => {
     if (disabled) return;
     await onDelete(id);
+  };
+
+  const handleDelete = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    void deleteNote(id);
   };
 
   // ── Drag & Drop reorder ──
@@ -285,13 +291,30 @@ export function Sidebar({
     _dragIndex = -1;
   };
 
+  const reorderByOffset = (id: string, offset: -1 | 1) => {
+    if (!canReorder) return;
+    const fromIndex = sortedNotes.findIndex((note) => note.id === id);
+    const toIndex = fromIndex + offset;
+    if (fromIndex < 0 || toIndex < 0 || toIndex >= sortedNotes.length) return;
+    // 置顶与普通随笔是两个稳定分组，不能通过顺序值跨越分组边界。
+    if (sortedNotes[fromIndex].pinned !== sortedNotes[toIndex].pinned) return;
+    const reordered = [...sortedNotes];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+    reordered.forEach((note, index) => onReorder(note.id, index));
+  };
+
   // ── Cross-day move ──
 
-  const handleMoveClick = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
+  const openMoveDate = (id: string) => {
     if (disabled) return;
     setMoveNoteId(id);
     setTimeout(() => moveInputRef.current?.showPicker?.(), 50);
+  };
+
+  const handleMoveClick = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    openMoveDate(id);
   };
 
   const handleMoveDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -325,6 +348,23 @@ export function Sidebar({
   };
 
   const isInSelected = (id: string) => isMultiSelect && selectedIds.has(id);
+  const actionNote = actionNoteId ? sortedNotes.find((note) => note.id === actionNoteId) ?? null : null;
+  const actionNoteIndex = actionNote
+    ? sortedNotes.findIndex((note) => note.id === actionNote.id)
+    : -1;
+  const canMoveActionNoteUp = Boolean(
+    canReorder
+    && actionNote
+    && actionNoteIndex > 0
+    && sortedNotes[actionNoteIndex - 1]?.pinned === actionNote.pinned,
+  );
+  const canMoveActionNoteDown = Boolean(
+    canReorder
+    && actionNote
+    && actionNoteIndex >= 0
+    && actionNoteIndex < sortedNotes.length - 1
+    && sortedNotes[actionNoteIndex + 1]?.pinned === actionNote.pinned,
+  );
 
   return (
     <div className="sidebar">
@@ -462,6 +502,19 @@ export function Sidebar({
               </button>
             )}
             {!isMultiSelect && (
+              <button
+                type="button"
+                className="sidebar-item-more"
+                aria-label={`更多随笔操作 ${note.title || "无标题"}`}
+                title="更多操作"
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setActionNoteId(note.id);
+                }}
+              >⋯</button>
+            )}
+            {!isMultiSelect && (
               <div className="sidebar-item-actions">
                 {!note.pinned && (
                   <button
@@ -536,6 +589,81 @@ export function Sidebar({
           </button>
         </div>
       )}
+
+      <MobileActionSheet
+        open={Boolean(actionNote)}
+        title={actionNote ? `随笔：${actionNote.title || "无标题"}` : "随笔操作"}
+        onClose={() => setActionNoteId(null)}
+        className="sidebar-action-sheet"
+      >
+        {actionNote && (
+          <>
+            <button
+              type="button"
+              className="menu-dropdown-item"
+              disabled={disabled}
+              onClick={() => {
+                setActionNoteId(null);
+                startRename(actionNote);
+              }}
+            >✎ 重命名</button>
+            <button
+              type="button"
+              className="menu-dropdown-item"
+              disabled={disabled}
+              onClick={() => {
+                setActionNoteId(null);
+                onTogglePin(actionNote.id, !actionNote.pinned);
+              }}
+            >{actionNote.pinned ? "📌 取消置顶" : "📍 置顶"}</button>
+            <button
+              type="button"
+              className="menu-dropdown-item"
+              disabled={disabled}
+              onClick={() => {
+                setActionNoteId(null);
+                onToggleReadonly(actionNote.id, !actionNote.readonly);
+              }}
+            >{actionNote.readonly ? "🔓 取消只读" : "🔒 设为只读"}</button>
+            <button
+              type="button"
+              className="menu-dropdown-item"
+              disabled={disabled}
+              onClick={() => {
+                setActionNoteId(null);
+                openMoveDate(actionNote.id);
+              }}
+            >📅 移至其他日期</button>
+            <button
+              type="button"
+              className="menu-dropdown-item"
+              disabled={!canMoveActionNoteUp}
+              onClick={() => {
+                setActionNoteId(null);
+                reorderByOffset(actionNote.id, -1);
+              }}
+            >↑ 向上移动</button>
+            <button
+              type="button"
+              className="menu-dropdown-item"
+              disabled={!canMoveActionNoteDown}
+              onClick={() => {
+                setActionNoteId(null);
+                reorderByOffset(actionNote.id, 1);
+              }}
+            >↓ 向下移动</button>
+            <button
+              type="button"
+              className="menu-dropdown-item menu-dropdown-danger"
+              disabled={disabled}
+              onClick={() => {
+                setActionNoteId(null);
+                void deleteNote(actionNote.id);
+              }}
+            >🗑 删除</button>
+          </>
+        )}
+      </MobileActionSheet>
 
 
       {/* 跨日移动日期选择器 */}

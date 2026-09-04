@@ -944,64 +944,61 @@ function App() {
   const sideDragRef = useRef(false);
   const sideStartXRef = useRef(0);
   const sideStartWRef = useRef(0);
+  const sideDragWidthRef = useRef(sidebarWidth);
+  const sideDragCleanupRef = useRef<(() => void) | null>(null);
 
-  const handleSideMouseDown = (e: React.MouseEvent) => {
+  useEffect(() => () => sideDragCleanupRef.current?.(), []);
+
+  const handleSidePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (sideDragRef.current || (e.pointerType === "mouse" && e.button !== 0)) return;
     e.preventDefault();
+    e.stopPropagation();
     sideDragRef.current = true;
     sideStartXRef.current = e.clientX;
     sideStartWRef.current = sidebarWidth;
+    sideDragWidthRef.current = sidebarWidth;
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
+    document.body.style.webkitUserSelect = "none";
+    const pointerId = e.pointerId;
+    const divider = e.currentTarget;
+    try {
+      divider.setPointerCapture(pointerId);
+    } catch {
+      // Synthetic events and older WebViews may not expose an active pointer to capture.
+    }
 
-    const handleMouseMove = (me: MouseEvent) => {
-      if (!sideDragRef.current) return;
-      const delta = me.clientX - sideStartXRef.current;
+    const handlePointerMove = (pe: PointerEvent) => {
+      if (!sideDragRef.current || pe.pointerId !== pointerId) return;
+      if (pe.cancelable) pe.preventDefault();
+      const delta = pe.clientX - sideStartXRef.current;
       const newW = Math.max(0, Math.min(500, sideStartWRef.current + delta));
-      setSidebarWidth(Math.round(newW));
+      sideDragWidthRef.current = Math.round(newW);
+      setSidebarWidth(sideDragWidthRef.current);
     };
 
-    const handleMouseUp = () => {
+    const finishSideDrag = () => {
       sideDragRef.current = false;
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("pointermove", handlePointerMove);
+      document.removeEventListener("pointerup", handlePointerEnd);
+      document.removeEventListener("pointercancel", handlePointerEnd);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      setSidebarWidth((prev) => {
-        localStorage.setItem(SIDEBAR_KEY, String(prev));
-        return prev;
-      });
+      document.body.style.webkitUserSelect = "";
+      localStorage.setItem(SIDEBAR_KEY, String(sideDragWidthRef.current));
+      sideDragCleanupRef.current = null;
     };
 
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-  };
-
-  const handleSideTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 0) return;
-    sideDragRef.current = true;
-    sideStartXRef.current = e.touches[0].clientX;
-    sideStartWRef.current = sidebarWidth;
-
-    const handleTouchMove = (te: TouchEvent) => {
-      if (!sideDragRef.current) return;
-      const delta = te.touches[0].clientX - sideStartXRef.current;
-      const newW = Math.max(0, Math.min(500, sideStartWRef.current + delta));
-      setSidebarWidth(Math.round(newW));
+    const handlePointerEnd = (pe: PointerEvent) => {
+      if (pe.pointerId !== pointerId) return;
+      if (pe.cancelable) pe.preventDefault();
+      finishSideDrag();
     };
 
-    const handleTouchEnd = () => {
-      sideDragRef.current = false;
-      document.removeEventListener("touchmove", handleTouchMove);
-      document.removeEventListener("touchend", handleTouchEnd);
-      document.body.style.userSelect = "";
-      setSidebarWidth((prev) => {
-        localStorage.setItem(SIDEBAR_KEY, String(prev));
-        return prev;
-      });
-    };
-
-    document.addEventListener("touchmove", handleTouchMove, { passive: true });
-    document.addEventListener("touchend", handleTouchEnd);
+    sideDragCleanupRef.current = finishSideDrag;
+    document.addEventListener("pointermove", handlePointerMove, { passive: false });
+    document.addEventListener("pointerup", handlePointerEnd);
+    document.addEventListener("pointercancel", handlePointerEnd);
   };
 
   // 首次访问创建示例笔记
@@ -1547,7 +1544,7 @@ function App() {
           onOpenDate={(date) => { setQuery(""); setDocResults(null); setDate(date); }}
         />
 
-        {!sidebarHidden && <div className="sidebar-divider" onMouseDown={handleSideMouseDown} onTouchStart={handleSideTouchStart} />}
+        {!sidebarHidden && <div className="sidebar-divider" onPointerDown={handleSidePointerDown} />}
 
         <main className="app-main">
           {query || docResults ? (

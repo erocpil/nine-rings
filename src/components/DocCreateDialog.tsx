@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import type { DocType, Note } from "../types/models";
@@ -60,6 +60,33 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [customRootSuggestions, setCustomRootSuggestions] = useState<string[]>([]);
   const titleRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const revealFocusFrameRef = useRef<number | null>(null);
+
+  const revealFocusedControl = useCallback((control?: HTMLElement | null) => {
+    if (revealFocusFrameRef.current !== null) {
+      window.cancelAnimationFrame(revealFocusFrameRef.current);
+    }
+    const target = control ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    revealFocusFrameRef.current = window.requestAnimationFrame(() => {
+      // A second frame lets the Visual Viewport CSS variables resize the dialog
+      // before measuring the focused control.
+      revealFocusFrameRef.current = window.requestAnimationFrame(() => {
+        revealFocusFrameRef.current = null;
+        const body = bodyRef.current;
+        if (!body || !target || !body.contains(target)) return;
+        const region = target.closest<HTMLElement>(".dialog-type-btn, .dialog-template-chip") ?? target;
+        const bodyRect = body.getBoundingClientRect();
+        const targetRect = region.getBoundingClientRect();
+        const margin = 10;
+        if (targetRect.bottom > bodyRect.bottom - margin) {
+          body.scrollTop += targetRect.bottom - bodyRect.bottom + margin;
+        } else if (targetRect.top < bodyRect.top + margin) {
+          body.scrollTop -= bodyRect.top + margin - targetRect.top;
+        }
+      });
+    });
+  }, []);
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -80,6 +107,23 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
       if (blank) setActiveTemplateId(blank.id);
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const revealActiveControl = () => revealFocusedControl();
+    const viewport = window.visualViewport;
+    viewport?.addEventListener("resize", revealActiveControl);
+    viewport?.addEventListener("scroll", revealActiveControl);
+    window.addEventListener("resize", revealActiveControl);
+    return () => {
+      viewport?.removeEventListener("resize", revealActiveControl);
+      viewport?.removeEventListener("scroll", revealActiveControl);
+      window.removeEventListener("resize", revealActiveControl);
+      if (revealFocusFrameRef.current !== null) {
+        window.cancelAnimationFrame(revealFocusFrameRef.current);
+        revealFocusFrameRef.current = null;
+      }
+    };
+  }, [revealFocusedControl]);
 
   /** 选择模板 — 预填表单，用户仍可修改 */
   const handleTemplateSelect = (template: Template | null) => {
@@ -190,7 +234,7 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
   };
 
   return (
-    <div className="dialog-overlay" onClick={onClose}>
+    <div className="dialog-overlay doc-create-overlay" onClick={onClose}>
       <div
         className="dialog doc-create-dialog"
         role="dialog"
@@ -198,13 +242,14 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
         aria-labelledby="doc-create-dialog-title"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
+        onFocusCapture={(event) => revealFocusedControl(event.target as HTMLElement)}
       >
         <div className="dialog-header">
           <h3 id="doc-create-dialog-title">新建文档</h3>
           <button className="btn-icon dialog-close" onClick={onClose} aria-label="关闭新建文档">✕</button>
         </div>
 
-        <div className="dialog-body">
+        <div className="dialog-body" ref={bodyRef}>
           {/* 模板选择 */}
           {templates.length > 0 && (
             <div className="dialog-field">

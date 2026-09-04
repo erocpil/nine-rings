@@ -148,5 +148,7 @@ jobs:
           node-version: '22'
           cache: 'npm'
       - run: npm ci
-      - run: npx playwright install chromium --with-deps
+      - run: npx playwright install chromium webkit --with-deps
       - run: npm run test:e2e
+      - name: Cross-platform touch interaction smoke tests (WebKit)
+        run: npm run test:e2e:cross-platform
