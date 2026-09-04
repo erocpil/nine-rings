@@ -876,19 +876,17 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            {isTauri() && (
-              <Field label="只读文档双击标题折叠" desc="专注模式下，双击/双击标题可折叠该标题正文（桌面端）" visible={settingsPage === "editor"}>
-                <label className="settings-toggle">
-                  <input
-                    type="checkbox"
-                    checked={config.editor_readonly_heading_fold}
-                    onChange={(e) => update({ editor_readonly_heading_fold: e.target.checked })}
-                  />
-                  <span className="toggle-track" />
-                  <span className="toggle-label">{config.editor_readonly_heading_fold ? "开" : "关"}</span>
-                </label>
-              </Field>
-            )}
+            <Field label="只读文档双击标题折叠" desc="专注模式下，双击标题或正文可折叠所属章节（桌面端与手机安装版）" visible={settingsPage === "editor"}>
+              <label className="settings-toggle">
+                <input
+                  type="checkbox"
+                  checked={config.editor_readonly_heading_fold}
+                  onChange={(e) => update({ editor_readonly_heading_fold: e.target.checked })}
+                />
+                <span className="toggle-track" />
+                <span className="toggle-label">{config.editor_readonly_heading_fold ? "开" : "关"}</span>
+              </label>
+            </Field>
 
             <Field label="新代码块默认软换行" desc="仅改变新建代码块的显示方式，不修改代码内容；已有代码块保持各自设置" visible={settingsPage === "editor"}>
               <label className="settings-toggle">

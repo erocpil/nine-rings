@@ -26,8 +26,9 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await expect(page.getByRole("heading", { name: "外观与排版", exact: true })).toBeVisible();
   await page.getByRole("button", { name: /^编辑器设置/ }).click();
   await expect(page.getByRole("heading", { name: "编辑器", exact: true })).toBeVisible();
-  await expect(page.locator(".settings-field")).toHaveCount(7);
+  await expect(page.locator(".settings-field")).toHaveCount(8);
   await expect(page.getByText("状态栏块号", { exact: true })).toBeVisible();
+  await expect(page.getByText("只读文档双击标题折叠", { exact: true })).toBeVisible();
   await expect(page.getByText("新代码块默认软换行", { exact: true })).toBeVisible();
   await expect(page.getByText("Vim 模式（实验性）", { exact: true })).toBeVisible();
   await expect(page.getByText("主题", { exact: true })).toHaveCount(0);
@@ -126,6 +127,29 @@ test("编辑器状态栏紧凑且可以关闭并持久化", async ({ page }) => 
 
   await page.reload();
   await expect(page.locator(".editor-stats")).toHaveCount(0);
+});
+
+test("PWA 可关闭只读专注模式双击折叠并持久化", async ({ page }) => {
+  const openSetting = async () => {
+    await page.getByTitle("设置").click();
+    await page.getByRole("button", { name: /^外观与排版/ }).click();
+    await page.getByRole("button", { name: /^编辑器设置/ }).click();
+    return page.locator(".settings-field").filter({ hasText: "只读文档双击标题折叠" });
+  };
+
+  await page.goto("/");
+  const field = await openSetting();
+  await expect(field).toContainText("手机安装版");
+  const toggle = field.locator('input[type="checkbox"]');
+  await expect(toggle).toBeChecked();
+  await field.locator(".settings-toggle").click();
+  await expect(toggle).not.toBeChecked();
+  await expect(page.getByRole("status").filter({ hasText: "已更新" })).toBeVisible();
+  await page.getByLabel("关闭设置").click();
+
+  await page.reload();
+  const restoredField = await openSetting();
+  await expect(restoredField.locator('input[type="checkbox"]')).not.toBeChecked();
 });
 
 test("新代码块遵循默认软换行设置且说明不修改内容", async ({ page }) => {

@@ -3304,7 +3304,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   };
 
   const handleReadonlyHeadingDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (!readonly || !focusMode || !readonlyHeadingFoldInFocusMode || !isTauri()) return;
+    if (!readonly || !focusMode || !readonlyHeadingFoldInFocusMode) return;
     if (performance.now() < suppressReadonlyDoubleClickUntilRef.current) {
       event.preventDefault();
       event.stopPropagation();
@@ -3320,7 +3320,6 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       !readonly
       || !focusMode
       || !readonlyHeadingFoldInFocusMode
-      || !isTauri()
       || !event.isPrimary
       || ((event.pointerType === "mouse" || event.pointerType === "pen") && event.button !== 0)
     ) return;
@@ -3356,7 +3355,6 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       !readonly
       || !focusMode
       || !readonlyHeadingFoldInFocusMode
-      || !isTauri()
       || editor.isDestroyed
       || !event.isPrimary
       || !pointer

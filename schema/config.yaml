@@ -142,7 +142,7 @@ AppConfig:
     editor_readonly_heading_fold:
       type: boolean
       default: true
-      description: 只读文档在专注模式下允许双击标题折叠正文
+      description: 只读文档在专注模式下允许双击标题或正文折叠所属章节（桌面端与 PWA）
 
     editor_vim_mode:
       type: boolean

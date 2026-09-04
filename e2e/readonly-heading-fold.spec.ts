@@ -175,7 +175,7 @@ test("只读正文双击折叠后所属标题停留在双击位置附近", async
   expect(Math.abs(headingCenterY - doubleClickY)).toBeLessThan(24);
 });
 
-test("手机只读专注模式可通过触摸双击折叠和展开章节", async ({ page }) => {
+test("手机 PWA 只读专注模式可通过触摸双击折叠展开并受开关控制", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
@@ -236,6 +236,21 @@ test("手机只读专注模式可通过触摸双击折叠和展开章节", async
   await expect(editor.getByText("后续标题", { exact: true })).toBeVisible();
 
   await touchDoubleTap(heading);
+  await expect(body).toBeVisible();
+
+  await page.keyboard.press("Alt+,");
+  await expect(page.getByRole("dialog", { name: "设置" })).toBeVisible();
+  await page.getByRole("button", { name: /^外观与排版/ }).click();
+  await page.getByRole("button", { name: /^编辑器设置/ }).click();
+  const foldSetting = page.locator(".settings-field").filter({ hasText: "只读文档双击标题折叠" });
+  const foldToggle = foldSetting.locator('input[type="checkbox"]');
+  await expect(foldToggle).toBeChecked();
+  await foldSetting.locator(".settings-toggle").click();
+  await expect(foldToggle).not.toBeChecked();
+  await expect(page.getByRole("status").filter({ hasText: "已更新" })).toBeVisible();
+  await page.getByLabel("关闭设置").click();
+
+  await touchDoubleTap(body);
   await expect(body).toBeVisible();
 });
 
