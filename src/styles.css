@@ -10908,6 +10908,17 @@ button.doc-tree-toggle:focus-visible {
   padding: 8px;
 }
 
+.version-content,
+.recycle-content,
+.overdue-items,
+.overdue-empty {
+  min-width: 0;
+}
+
+.overdue-header {
+  box-sizing: border-box;
+}
+
 .recycle-footer {
   margin: 0;
   padding: 8px var(--ui-panel-padding);
@@ -11019,7 +11030,9 @@ button.doc-tree-toggle:focus-visible {
   .recycle-btn-restore,
   .recycle-btn-delete,
   .recycle-btn-clean,
-  .search-load-more
+  .search-load-more,
+  .overdue-date,
+  .overdue-delete
 ) {
   min-height: var(--ui-control-height);
   padding: 4px 10px;
@@ -11036,7 +11049,8 @@ button.doc-tree-toggle:focus-visible {
   .version-btn-restore,
   .version-restore-btn,
   .recycle-btn-restore,
-  .search-load-more
+  .search-load-more,
+  .overdue-date
 ):hover {
   border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
   background: var(--active-bg);
@@ -11044,10 +11058,19 @@ button.doc-tree-toggle:focus-visible {
 }
 
 .recycle-btn-delete:hover,
-.recycle-btn-clean:hover {
+.recycle-btn-clean:hover,
+.overdue-delete:hover {
   border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
   background: var(--danger-bg);
   color: var(--danger);
+}
+
+.overdue-checkbox {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 /* Form controls */

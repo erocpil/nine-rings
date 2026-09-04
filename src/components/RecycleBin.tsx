@@ -70,19 +70,22 @@ export function RecycleBin({ open, onClose, onNotesChanged }: RecycleBinProps) {
   if (!open) return null;
 
   return (
-    <div className="confirm-overlay" onClick={onClose}>
+    <div className="dialog-overlay confirm-overlay" onClick={onClose}>
       <div
-        className="recycle-panel"
+        className="dialog recycle-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="recycle-bin-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="recycle-header">
-          <h3>回收站</h3>
-          <button className="recycle-close" onClick={onClose}>
+        <div className="dialog-header recycle-header">
+          <h3 id="recycle-bin-title">回收站</h3>
+          <button className="dialog-close recycle-close" onClick={onClose} aria-label="关闭回收站">
             ✕
           </button>
         </div>
 
-        <div className="recycle-content">
+        <div className="dialog-body recycle-content">
           {loading && <div className="recycle-loading">加载中...</div>}
 
           {!loading && deleted.length === 0 && (
@@ -124,7 +127,7 @@ export function RecycleBin({ open, onClose, onNotesChanged }: RecycleBinProps) {
         </div>
 
         {deleted.length > 0 && (
-          <div className="recycle-footer">
+          <div className="dialog-footer recycle-footer">
             <button
               className="recycle-btn-clean"
               onClick={handleCleanOld}

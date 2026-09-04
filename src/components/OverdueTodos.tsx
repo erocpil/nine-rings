@@ -71,22 +71,31 @@ export function OverdueTodos({ open, disabled, onClose, onOpenDate }: OverdueTod
   if (!open) return null;
 
   return (
-    <div className="overdue-overlay" onClick={onClose}>
-      <section className="overdue-panel" onClick={(event) => event.stopPropagation()}>
-        <header className="overdue-header">
-          <h3>过期待办</h3>
-          <button className="overdue-close" onClick={onClose} title="关闭">✕</button>
+    <div className="dialog-overlay overdue-overlay" onClick={onClose}>
+      <section
+        className="dialog overdue-panel"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="overdue-title"
+      >
+        <header className="dialog-header overdue-header">
+          <h3 id="overdue-title">过期待办</h3>
+          <button className="dialog-close overdue-close" onClick={onClose} title="关闭" aria-label="关闭过期待办">
+            ✕
+          </button>
         </header>
 
         {loading ? (
-          <div className="overdue-empty">加载中…</div>
+          <div className="dialog-body overdue-empty">加载中…</div>
         ) : items.length === 0 ? (
-          <div className="overdue-empty">没有过期待办</div>
+          <div className="dialog-body overdue-empty">没有过期待办</div>
         ) : (
-          <div className="overdue-items">
+          <div className="dialog-body overdue-items">
             {items.map((item) => (
               <div key={`${item.date}-${item.todo.id}`} className="overdue-item">
                 <input
+                  className="overdue-checkbox"
                   type="checkbox"
                   checked={false}
                   disabled={disabled}
@@ -97,14 +106,14 @@ export function OverdueTodos({ open, disabled, onClose, onOpenDate }: OverdueTod
                 />
                 <span className="overdue-text">{item.todo.text}</span>
                 <button
-                  className="overdue-date"
+                  className="settings-sm-btn overdue-date"
                   onClick={() => { onOpenDate(item.date); onClose(); }}
                   title="查看当天待办"
                 >
                   {item.date}
                 </button>
                 <button
-                  className="overdue-delete"
+                  className="settings-sm-btn danger overdue-delete"
                   disabled={disabled}
                   onClick={() => void updateTodo(item, (todos) => {
                     const ids = getDescendantIds(todos, item.todo.id);

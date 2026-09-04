@@ -47,19 +47,22 @@ export function VersionHistory({ open, noteId, onClose, onRestore }: VersionHist
   if (!open) return null;
 
   return (
-    <div className="confirm-overlay" onClick={onClose}>
+    <div className="dialog-overlay confirm-overlay" onClick={onClose}>
       <div
-        className="version-panel"
+        className="dialog version-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="version-history-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="version-header">
-          <h3>版本历史</h3>
-          <button className="version-close" onClick={onClose}>
+        <div className="dialog-header version-header">
+          <h3 id="version-history-title">版本历史</h3>
+          <button className="dialog-close version-close" onClick={onClose} aria-label="关闭版本历史">
             ✕
           </button>
         </div>
 
-        <div className="version-content">
+        <div className="dialog-body version-content">
           {loading && <div className="version-loading">加载中...</div>}
 
           {!loading && versions.length === 0 && (
