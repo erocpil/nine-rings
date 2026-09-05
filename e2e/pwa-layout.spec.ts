@@ -2,10 +2,14 @@ import { expect, test, type Locator } from "@playwright/test";
 
 async function swipeNoteEditor(
   editor: Locator,
-  points: { startX: number; startY: number; endX: number; endY: number },
+  points: {
+    startX: number; startY: number; endX: number; endY: number; durationMs?: number;
+    moves?: { x: number; y: number; cancelable?: boolean }[];
+    cancel?: boolean;
+  },
 ) {
-  await editor.evaluate((element, gesture) => {
-    const touchAt = (clientX: number, clientY: number) => new Touch({
+  return editor.evaluate(async (element, gesture) => {
+    const touchAt = (clientX: number, clientY: number) => ({
       identifier: 41,
       target: element,
       clientX,
@@ -13,18 +17,24 @@ async function swipeNoteEditor(
     });
     const start = touchAt(gesture.startX, gesture.startY);
     const end = touchAt(gesture.endX, gesture.endY);
-    element.dispatchEvent(new TouchEvent("touchstart", {
-      bubbles: true,
-      cancelable: true,
-      touches: [start],
-      changedTouches: [start],
-    }));
-    element.dispatchEvent(new TouchEvent("touchend", {
-      bubbles: true,
-      cancelable: true,
-      touches: [],
-      changedTouches: [end],
-    }));
+    // WebKit 不提供可构造的 Touch；通过同样的事件字段覆盖两种浏览器。
+    const dispatch = (type: string, touches: typeof start[], changedTouches: typeof start[], cancelable = true) => {
+      const event = new Event(type, { bubbles: true, cancelable });
+      Object.defineProperties(event, {
+        touches: { value: touches },
+        changedTouches: { value: changedTouches },
+      });
+      element.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    dispatch("touchstart", [start], [start]);
+    if (gesture.durationMs) await new Promise((resolve) => setTimeout(resolve, gesture.durationMs));
+    const prevented = (gesture.moves ?? [{ x: gesture.endX, y: gesture.endY }]).map((point) => {
+      const touch = touchAt(point.x, point.y);
+      return dispatch("touchmove", [touch], [touch], point.cancelable ?? true);
+    });
+    dispatch(gesture.cancel ? "touchcancel" : "touchend", [], [end]);
+    return prevented;
   }, points);
 }
 
@@ -270,6 +280,155 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(bookmarkPanel).toBeVisible();
   });
 
+  test("左右边缘采用相同的距离方向判定并允许慢划", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    const host = page.locator(".note-editor");
+    const sidebar = page.locator(".app-sidebar");
+    const bookmarks = page.getByRole("navigation", { name: "文档书签" });
+    const cases = [
+      { inset: 1, dx: 80, dy: 0, opens: true },
+      { inset: 29, dx: 80, dy: 0, opens: true },
+      { inset: 30, dx: 80, dy: 0, opens: false },
+      { inset: 40, dx: 80, dy: 0, opens: false },
+      { inset: 24, dx: 60, dy: 0, opens: false },
+      { inset: 24, dx: 61, dy: 0, opens: true },
+      { inset: 24, dx: 100, dy: 80, opens: true },
+      { inset: 24, dx: 80, dy: 100, opens: false },
+      { inset: 24, dx: 80, dy: 0, durationMs: 1100, opens: true },
+    ];
+    for (const side of ["left", "right"]) {
+      for (const sample of cases) {
+        const startX = side === "left" ? sample.inset : 390 - sample.inset;
+        await swipeNoteEditor(host, {
+          startX, startY: 190,
+          endX: startX + (side === "left" ? sample.dx : -sample.dx),
+          endY: 190 + sample.dy,
+          durationMs: sample.durationMs,
+        });
+        if (side === "left") {
+          if (sample.opens) {
+            await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+            await page.locator(".sidebar-overlay.active").click({ position: { x: 350, y: 380 } });
+          }
+          await expect(sidebar).toHaveClass(/sidebar-hidden/);
+        } else {
+          if (sample.opens) {
+            await expect(bookmarks).toBeVisible();
+            await page.locator(".mobile-focus-bar").getByRole("button", { name: "文档书签", exact: true }).click();
+          }
+          await expect(bookmarks).toHaveCount(0);
+        }
+      }
+    }
+  });
+
+  test("边缘滑动提前锁定方向，纵向滚动和取消后不再打开面板", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    const host = page.locator(".note-editor");
+    const sidebar = page.locator(".app-sidebar");
+    const bookmarks = page.getByRole("navigation", { name: "文档书签" });
+    for (const side of ["left", "right"]) {
+      const startX = side === "left" ? 20 : 370;
+      const sign = side === "left" ? 1 : -1;
+      const close = async () => {
+        if (side === "left") {
+          await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+          expect(await swipeNoteEditor(sidebar, {
+            startX: 200, startY: 190, endX: 100, endY: 210,
+          })).toEqual([true]);
+          await expect(sidebar).toHaveClass(/sidebar-hidden/);
+        } else {
+          await expect(bookmarks).toBeVisible();
+          await page.locator(".mobile-focus-bar").getByRole("button", { name: "文档书签", exact: true }).click();
+        }
+      };
+      // 尚未达到打开面板的距离时，就必须阻止竖直漂移；锁定后不换轴。
+      expect(await swipeNoteEditor(host, {
+        startX, startY: 190, endX: startX + sign * 80, endY: 310,
+        moves: [{ x: startX + sign * 8, y: 193 }, { x: startX + sign * 80, y: 310 }],
+      })).toEqual([true, true]);
+      await close();
+      for (const scenario of ["vertical", "cancel", "noncancelable", "short", "reverse"]) {
+        const first = scenario === "vertical" ? { x: startX + sign * 3, y: 200 }
+          : scenario === "reverse" ? { x: startX - sign * 8, y: 193 }
+          : { x: startX + sign * 8, y: 193, cancelable: scenario !== "noncancelable" };
+        const endX = startX + sign * (scenario === "short" ? 30 : 80);
+        const prevented = await swipeNoteEditor(host, {
+          startX, startY: 190, endX, endY: 200,
+          moves: [first, { x: endX, y: 200 }], cancel: scenario === "cancel",
+        });
+        expect(prevented).toEqual(scenario === "cancel" || scenario === "short" ? [true, true] : [false, false]);
+        await expect(sidebar).toHaveClass(/sidebar-hidden/);
+        await expect(bookmarks).toHaveCount(0);
+      }
+    }
+  });
+
+  test("边缘横划不会带动长文滚动，纵划仍能正常阅读", async ({ page, browserName }) => {
+    test.skip(browserName !== "chromium", "真实触摸轨迹使用 Chromium CDP；WebKit 在事件回归中验证取消默认滚动");
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await editor.fill(Array.from({ length: 100 }, (_, i) => `正文第 ${i + 1} 段，用于验证滑动时的位置稳定。`).join("\n\n"));
+    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    await editor.evaluate((element) => { (element as HTMLElement).blur(); window.getSelection()?.removeAllRanges(); });
+    const scroller = page.locator(".note-editor-scroll");
+    const session = await page.context().newCDPSession(page);
+    const swipe = async (x: number, dx: number, dy: number) => {
+      await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: 320 }] });
+      for (let step = 1; step <= 10; step++) {
+        await session.send("Input.dispatchTouchEvent", {
+          type: "touchMove", touchPoints: [{ x: x + dx * step / 10, y: 320 + dy * step / 10 }],
+        });
+      }
+      await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    };
+    for (const side of ["left", "right"]) {
+      await scroller.evaluate((element) => { element.scrollTop = 500; });
+      await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBe(500);
+      await swipe(side === "left" ? 20 : 370, side === "left" ? 100 : -100, -70);
+      if (side === "left") {
+        await expect(page.locator(".app-sidebar")).not.toHaveClass(/sidebar-hidden/);
+        await page.locator(".sidebar-overlay.active").click({ position: { x: 350, y: 380 } });
+      } else {
+        await expect(page.getByRole("navigation", { name: "文档书签" })).toBeVisible();
+        await page.locator(".mobile-focus-bar").getByRole("button", { name: "文档书签", exact: true }).click();
+      }
+      await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBe(500);
+    }
+    await swipe(370, -10, -140);
+    await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(550);
+    await expect(page.getByRole("navigation", { name: "文档书签" })).toHaveCount(0);
+    await session.detach();
+  });
+
+  test("边缘手势不会抢占按钮和已选中的文本", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("需要保留的文本选择");
+    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    const host = page.locator(".note-editor");
+    const button = page.locator(".mobile-focus-bar").getByRole("button", { name: "文档书签", exact: true });
+    for (const startX of [20, 370]) {
+      const points = { startX, startY: 190, endX: startX === 20 ? 100 : 290, endY: 200 };
+      expect(await swipeNoteEditor(button, points)).toEqual([false]);
+      await editor.evaluate((element) => {
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const selection = window.getSelection()!;
+        selection.removeAllRanges();
+        selection.addRange(range);
+      });
+      expect(await swipeNoteEditor(host, points)).toEqual([false]);
+      await editor.evaluate(() => window.getSelection()?.removeAllRanges());
+      await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
+      await expect(page.getByRole("navigation", { name: "文档书签" })).toHaveCount(0);
+    }
+  });
+
   test("移动端块编号使用紧凑且可随位数扩展的 gutter", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("设置").click();
@@ -340,6 +499,57 @@ test.describe("PWA 窄屏应用外壳", () => {
       .evaluate((element) => element.getBoundingClientRect().top);
     expect(Math.abs(contentTopAfterNotice - contentTopWhileNoticeVisible)).toBeLessThanOrEqual(1);
   });
+
+  for (const width of [320, 390, 1280]) {
+    test(`只读切换提示固定在标题行且不遮挡操作按钮（${width}px）`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/");
+      const editor = page.locator(".ProseMirror");
+      await expect(editor).toBeVisible();
+      const titleRow = page.locator(".note-title-row");
+      const title = titleRow.locator(".note-title");
+      await title.fill("用于验证标题区域不被提示挤压的较长文档名称");
+      const before = await titleRow.boundingBox();
+      const titleBefore = await title.boundingBox();
+      await titleRow.getByRole("button", { name: "点击设为只读", exact: true }).click();
+      await expect(editor).toHaveAttribute("contenteditable", "false");
+      await expect(page.locator(".editor-menu")).toBeHidden();
+      const notice = titleRow.getByRole("status");
+      await expect(notice).toHaveText("已设置为只读");
+      await expect(notice).toHaveCSS("pointer-events", "none");
+      const geometry = await titleRow.evaluate((row) => {
+        const field = row.querySelector(".note-title-field")!.getBoundingClientRect();
+        const notice = row.querySelector(".readonly-change-notice")!.getBoundingClientRect();
+        const rect = row.getBoundingClientRect();
+        const buttons = Array.from(row.querySelectorAll("button"), (button) => button.getBoundingClientRect());
+        return {
+          top: notice.top, bottom: notice.bottom, centerY: (notice.top + notice.bottom) / 2,
+          rowTop: rect.top, rowBottom: rect.bottom,
+          contained: notice.left >= field.left && notice.right <= field.right,
+          overlapsButton: buttons.some((button) => notice.left < button.right && notice.right > button.left),
+          clickThrough: document.elementFromPoint((notice.left + notice.right) / 2, (notice.top + notice.bottom) / 2)?.classList.contains("note-title"),
+        };
+      });
+      expect(geometry.top).toBeGreaterThanOrEqual(geometry.rowTop);
+      expect(geometry.bottom).toBeLessThanOrEqual(geometry.rowBottom);
+      expect(geometry.contained).toBe(true);
+      expect(geometry.overlapsButton).toBe(false);
+      expect(geometry.clickThrough).toBe(true);
+      expect((await titleRow.boundingBox())!.height).toBeCloseTo(before!.height, 1);
+      expect((await title.boundingBox())!.width).toBeCloseTo(titleBefore!.width, 1);
+
+      await titleRow.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
+      await expect(editor).toHaveAttribute("contenteditable", "true");
+      await expect(page.locator(".editor-menu")).toBeVisible();
+      await expect(notice).toHaveText("已设置为可编辑");
+      const editableRect = await notice.boundingBox();
+      expect(editableRect!.y + editableRect!.height / 2).toBeCloseTo(geometry.centerY, 1);
+      const contentTop = await page.locator(".editor-content-shell").evaluate((element) => element.getBoundingClientRect().top);
+      await expect(notice).toHaveCount(0, { timeout: 4000 });
+      expect((await titleRow.boundingBox())!.height).toBeCloseTo(before!.height, 1);
+      expect(await page.locator(".editor-content-shell").evaluate((element) => element.getBoundingClientRect().top)).toBeCloseTo(contentTop, 1);
+    });
+  }
 
   test("手机端通过块菜单在当前块后插入空白块", async ({ page }) => {
     await page.goto("/");

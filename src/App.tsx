@@ -12,6 +12,7 @@ import { useDevImport } from "./hooks/useDevImport";
 import { useNotesStore } from "./stores/useNotesStore";
 import { api } from "./lib/api";
 import { localDateKey } from "./lib/local-date";
+import { bindEdgeSwipe, isWithinSwipeEdge } from "./lib/edge-swipe";
 import { useAutoSave } from "./hooks/useAutoSave";
 import { useSettings } from "./hooks/useSettings";
 import DocTree from "./components/DocTree";
@@ -1049,41 +1050,12 @@ function App() {
   });
 
   // ── 移动端滑动手势：左边缘右滑 → 打开侧栏，右滑左 → 关闭侧栏 ──
-  useEffect(() => {
-    let touchStartX = 0;
-    let touchStartY = 0;
-    const EDGE_WIDTH = 30; // 左边缘检测宽度（px）
-    const SWIPE_THRESHOLD = 60; // 最小滑动距离
-
-    const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return;
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-    };
-
-    const onTouchEnd = (e: TouchEvent) => {
-      if (e.changedTouches.length !== 1) return;
-      const dx = e.changedTouches[0].clientX - touchStartX;
-      const dy = e.changedTouches[0].clientY - touchStartY;
-      // 忽略垂直滑动
-      if (Math.abs(dy) > Math.abs(dx)) return;
-
-      if (dx > SWIPE_THRESHOLD && touchStartX < EDGE_WIDTH) {
-        // 左边缘右滑 → 打开侧栏
-        setSidebarHidden(false);
-      } else if (dx < -SWIPE_THRESHOLD) {
-        // 右滑左 → 关闭侧栏
-        setSidebarHidden(true);
-      }
-    };
-
-    window.addEventListener("touchstart", onTouchStart, { passive: true });
-    window.addEventListener("touchend", onTouchEnd, { passive: true });
-    return () => {
-      window.removeEventListener("touchstart", onTouchStart);
-      window.removeEventListener("touchend", onTouchEnd);
-    };
-  }, []);
+  useEffect(() => bindEdgeSwipe(window, (touch) => {
+    if (!sidebarHidden) return { direction: "left", run: () => setSidebarHidden(true) };
+    const viewportLeft = window.visualViewport?.offsetLeft ?? 0;
+    if (!isWithinSwipeEdge(touch.clientX - viewportLeft)) return null;
+    return { direction: "right", run: () => setSidebarHidden(false) };
+  }), [sidebarHidden]);
 
   // ── 开发模式后台导入 ──
   const refreshView = useCallback(() => {
