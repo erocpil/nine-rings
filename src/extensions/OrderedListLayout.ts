@@ -24,7 +24,7 @@ function romanLength(value: number): number {
   return length;
 }
 
-function listStyle(node: ProseMirrorNode): string {
+export function listStyle(node: ProseMirrorNode): string {
   const start = Number.isSafeInteger(node.attrs.start) ? node.attrs.start as number : 1;
   const end = start + node.childCount - 1;
   const digits = Math.max(String(start).length, String(end).length);

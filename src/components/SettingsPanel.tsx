@@ -15,6 +15,7 @@ import type { WebStorageStatus } from "../hooks/useWebPlatform";
 import { useTransientMessage } from "../hooks/useTransientMessage";
 import { collectWebDiagnostics } from "../lib/web-diagnostics";
 import { rebuildWebSearchIndex } from "../lib/web-search-index";
+import { readonlyRenderingEnabled, setReadonlyRenderingEnabled } from "../lib/readonly-rendering";
 import {
   deleteLocalPdf,
   importLocalPdf,
@@ -123,6 +124,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [editorAppearanceOpen, setEditorAppearanceOpen] = useState(false);
   const [editorAppearanceDraft, setEditorAppearanceDraft] = useState<AppConfig | null>(null);
   const [settingsPage, setSettingsPage] = useState<SettingsPage>("root");
+  const [localRendering, setLocalRendering] = useState(readonlyRenderingEnabled);
   const [rebuildingSearchIndex, setRebuildingSearchIndex] = useState(false);
   const [bookmarkNotes, setBookmarkNotes] = useState<Note[]>([]);
   const [bookmarksLoading, setBookmarksLoading] = useState(false);
@@ -1287,6 +1289,16 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             {settingsPage === "sync" && (
               <SettingsSync onBusyChange={onSyncBusy} onPullDone={onPullDone} />
             )}
+
+            <Field label="只读正文局部渲染（实验）" desc="默认关闭，仅本设备生效。只读时按可见区域挂载正文；图片、表格、超大单块及 Vim 模式自动回退。跨全文选择、打印、书签管理请切回完整渲染。" visible={settingsPage === "advanced"}>
+              <label className="settings-toggle">
+                <input type="checkbox" checked={localRendering} onChange={event => {
+                  try { setReadonlyRenderingEnabled(event.target.checked); setLocalRendering(event.target.checked); }
+                  catch { showMessage("无法保存本地实验设置"); }
+                }} />
+                <span className="toggle-track" /><span className="toggle-label">{localRendering ? "开" : "关"}</span>
+              </label>
+            </Field>
 
             {/* ── 回收站自动清理：设置项末尾 ── */}
             <Field label="回收站自动清理" desc="超过此天数的已删除笔记自动清除。0=不自动清理" visible={settingsPage === "advanced"}>

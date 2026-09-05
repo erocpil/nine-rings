@@ -155,3 +155,5 @@ jobs:
         run: npm run test:e2e:cross-platform
       - name: Full folding regression tests (WebKit)
         run: npm run test:e2e:folding:webkit
+      - name: Experimental readonly rendering regression tests (WebKit)
+        run: npx playwright test e2e/readonly-rendering.spec.ts --browser=webkit --workers=1

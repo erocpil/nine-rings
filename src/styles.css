@@ -6512,6 +6512,36 @@ body.app-split-dragging * {
   min-height: 0;
 }
 
+.vr-note .vr-title { display: flex; align-items: center; gap: 6px; padding: 6px; border-bottom: 1px solid var(--border); }
+.vr-title strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vr-note button { color: inherit; background: transparent; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; padding: 3px 6px; }
+.vr-note button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.vr-note .mobile-focus-bar, .vr-note.focus-mode .mobile-focus-bar { display: flex; position: static; width: auto; padding: 4px 8px; flex-shrink: 0; }
+.vr-actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 12px; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.vr-actions span { color: var(--text-secondary); margin-right: auto; }
+.vr-note .vr-scroll { display: block; padding-top: 0; }
+.vr-note .vr-body { flex: none; overflow: visible; padding: 0 10px 0 0; min-height: 0; outline: none; }
+.vr-row { position: relative; display: flow-root; padding-left: calc(var(--editor-gutter-width) + var(--editor-gutter-text-gap, 6px)); }
+/* No EditorView is created on a cold readonly launch, so its injected
+   ProseMirror whitespace/wrapping defaults must be provided explicitly. */
+.vr-note .vr-block { display: flow-root; padding: 0; min-height: 0; white-space: pre-wrap; overflow-wrap: break-word; }
+.vr-gutter { position: absolute; inset: 12px auto auto 0; width: var(--editor-gutter-width); display: flex; align-items: center; gap: 2px; color: var(--text-secondary); user-select: none; font-size: 11px; }
+.vr-gutter button { width: 22px; padding: 4px 0; flex-shrink: 0; border: none; }
+.vr-gutter span { margin-left: auto; }
+.vr-code-toolbar { display: flex; align-items: center; gap: 4px; padding: 4px; font-size: 12px; }
+.vr-code-toolbar span { flex: 1; }
+.vr-status, .vr-notice { padding: 4px 8px; font-size: 12px; color: var(--text-secondary); }
+.vr-panel { position: absolute; right: 8px; top: 76px; width: min(380px, calc(100% - 16px)); max-height: calc(100% - 100px); overflow: auto; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); z-index: 35; box-shadow: 0 8px 24px #0002; }
+.vr-panel-close { float: right; }
+.mobile-document-drawer-panel .vr-panel { position: static; width: auto; max-height: none; flex: 1; min-height: 0; box-shadow: none; }
+.vr-outline-row { display: flex; align-items: center; gap: 4px; margin: 4px 0; }
+.vr-outline-row button:last-child { flex: 1; text-align: left; }
+.vr-bookmark { display: block; width: 100%; text-align: left; margin: 4px 0; }
+@media print {
+  .vr-note .vr-body { display: none; }
+  .vr-note::after { content: "请切换到完整渲染后打印，局部阅读未挂载全文。"; }
+}
+
 .note-editor-scroll {
   flex: 1;
   min-height: 0;

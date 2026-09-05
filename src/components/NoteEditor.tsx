@@ -30,7 +30,7 @@ import {
 
 // ── 自定义字体大小扩展 ──
 
-import { Extension, type Editor } from "@tiptap/core";
+import { Extension, getSchema, type Editor } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
@@ -104,6 +104,8 @@ import {
 } from "../extensions/CollapsibleBlockquote";
 import { StandaloneStrongLabel } from "../extensions/StandaloneStrongLabel";
 import { cacheEditorDocument, getCachedEditorDocument } from "../lib/editor-session-cache";
+import { ReadonlyVirtualNote } from "./ReadonlyVirtualNote";
+import { buildReadonlyDocument, handoffReadingAnchor, takeReadingAnchor, readonlyRenderingEnabled, READONLY_RENDERING_EVENT, READONLY_RENDERING_KEY } from "../lib/readonly-rendering";
 import {
   DocumentBookmarks,
   removeBookmark,
@@ -409,7 +411,7 @@ function clampOutlineDockWidth(width: number): number {
 
 // ══════════════════════════════════════
 
-interface NoteEditorProps {
+export interface NoteEditorProps {
   noteId: string;
   title: string | null;
   content: DeltaOps;
@@ -535,7 +537,47 @@ function restoreEditorViewportAnchor(
 // ── 模块级状态 ──
 let _lastSaveLog = 0;
 
-export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps) {
+let readonlySchema: ReturnType<typeof getSchema> | undefined;
+let readonlyDocumentSequence = 0;
+
+export function NoteEditor(props: NoteEditorProps) {
+  const [experimental, setExperimental] = useState(readonlyRenderingEnabled);
+  const [full, setFull] = useState(false);
+  const previousExport = useRef(props.pdfExportRequestId);
+  const exportRequested = previousExport.current !== props.pdfExportRequestId;
+  useEffect(() => {
+    if (exportRequested) setFull(true);
+    previousExport.current = props.pdfExportRequestId;
+  }, [exportRequested, props.pdfExportRequestId]);
+  useEffect(() => {
+    const sync = (event: Event) => {
+      if (event instanceof StorageEvent && event.key !== READONLY_RENDERING_KEY && event.key !== null) return;
+      setExperimental(readonlyRenderingEnabled()); setFull(false);
+    };
+    window.addEventListener(READONLY_RENDERING_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => { window.removeEventListener(READONLY_RENDERING_EVENT, sync); window.removeEventListener("storage", sync); };
+  }, []);
+  const readingSource = useMemo(() => {
+    if (!experimental || !props.readonly || props.vimModeEnabled || props.pdfExcerptSource || props.epubExcerptSource) return null;
+    // Readonly/metadata saves update updated_at too. They must not remount a
+    // reader with identical text and discard an open panel or native selection.
+    return JSON.stringify(isDelta(props.content) ? { ops: props.content.ops } : props.content);
+  }, [experimental, props.readonly, props.vimModeEnabled, props.pdfExcerptSource, props.epubExcerptSource, props.content]);
+  const readingDocument = useMemo(() => {
+    if (!readingSource) return null;
+    readonlySchema ??= getSchema([
+      StarterKit.configure({ codeBlock: false, blockquote: false }), TextStyle, Color, FontSize,
+      LinkExt, CodeBlockLineNumbers, CollapsibleBlockquote, BlockIndent,
+    ]);
+    const doc = buildReadonlyDocument(JSON.parse(readingSource), readonlySchema);
+    return doc ? { doc, key: ++readonlyDocumentSequence } : null;
+  }, [readingSource]);
+  if (readingDocument && !full && !exportRequested) return <ReadonlyVirtualNote {...props} key={`${props.noteId}:${readingDocument.key}`} doc={readingDocument.doc} onFallback={() => setFull(true)} />;
+  return <FullNoteEditor {...props} initialPdfExportRequest={exportRequested} />;
+}
+
+function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean }) {
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -624,7 +666,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const suppressReadonlyDoubleClickUntilRef = useRef(0);
   const lastOutlineRequestIdRef = useRef(outlineRequestId);
   const lastBookmarkRequestIdRef = useRef(bookmarkRequestId);
-  const lastPdfExportRequestIdRef = useRef(pdfExportRequestId);
+  const lastPdfExportRequestIdRef = useRef(initialPdfExportRequest ? undefined : pdfExportRequestId);
   const outlineBaseLevel = useMemo(
     () => documentOutline.length > 0
       ? Math.min(...documentOutline.map((item) => item.level))
@@ -2127,6 +2169,40 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
 
   // ── 滚动位置记忆（localStorage 持久化，跨刷新保持）──
 
+  const rendererHandoffRef = useRef<ReturnType<typeof takeReadingAnchor>>();
+  useLayoutEffect(() => {
+    if (!editor || !scrollRef.current) return;
+    const root = scrollRef.current;
+    const anchor = takeReadingAnchor(noteId);
+    rendererHandoffRef.current = anchor;
+    if (anchor) {
+      expandHeadingFoldsAt(editor, anchor.position);
+      const node = editor.view.nodeDOM(anchor.position);
+      if (node instanceof HTMLElement) root.scrollTop += node.getBoundingClientRect().top - editorReadingViewport(root).top + anchor.offset;
+    }
+    return () => {
+      if (!readonlyRenderingEnabled() || editor.isDestroyed) return;
+      const visibleAnchor = captureEditorViewportAnchor(editor, root);
+      if (visibleAnchor) {
+        handoffReadingAnchor(noteId, { position: visibleAnchor.position, offset: -visibleAnchor.offsetTop });
+        return;
+      }
+      const top = editorReadingViewport(root).top;
+      let found = false;
+      editor.state.doc.forEach((_node, position) => {
+        if (found) return;
+        const child = editor.view.nodeDOM(position);
+        if (!(child instanceof HTMLElement)) return;
+        const rect = child.getBoundingClientRect();
+        if (rect.height <= 0 || rect.bottom <= top) return;
+        // A NodeView's outer DOM offset is not necessarily pos + 1. Reuse
+        // model positions instead of guessing by subtracting one.
+        handoffReadingAnchor(noteId, { position, offset: top - rect.top });
+        found = true;
+      });
+    };
+  }, [editor, noteId]);
+
   useLayoutEffect(() => {
     if (!editor) return;
     const saved = localStorage.getItem(`selectionPos:${noteId}`);
@@ -2148,6 +2224,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    if (rendererHandoffRef.current) return;
     const saved = localStorage.getItem('scrollPos:' + noteId);
     addLog(`[加载] id=${noteId.slice(0,8)} 恢复位置=${saved ?? '无'}`);
     if (saved === null) {
