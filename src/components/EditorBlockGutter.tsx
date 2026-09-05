@@ -192,7 +192,9 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
       if (hiddenFoldBlockPositions.has(pos)) return null;
       const node = editor.state.doc.nodeAt(pos);
       if (!node) return null;
-      const index = observedIndexes.get(dom) ?? editor.state.doc.resolve(pos).index(0) + 1;
+      // 原生退格可能保留最后一个空段的 DOM、删除它前面的空段。
+      // DOM 身份没有变化不代表块号没变，编号必须取当前文档中的位置。
+      const index = editor.state.doc.resolve(pos).index(0) + 1;
       const selectionPos = editor.state.selection.from;
       return {
         index,
@@ -509,7 +511,12 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
         if (foldVisibilityChanged) publishBlocks();
         scheduleRebuild();
       } else if (transaction.docChanged) {
-        scheduleDocumentMeasure();
+        // 块的增删以编辑器事务为准，不能等 DOM MutationObserver 通知。
+        // 移动输入法可能复用空段 DOM / 延迟通知；仅重测坐标会保留旧索引，
+        // 直到收起键盘触发布局刷新才恢复。普通块内输入仍走节流测量，
+        // 不为每个字符重建整份文档的观察窗口。
+        if (editor.state.doc.childCount !== topLevelBlocks.length) scheduleRebuild();
+        else scheduleDocumentMeasure();
       } else {
         updateActiveBlock();
       }
