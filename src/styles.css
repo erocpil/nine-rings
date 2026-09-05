@@ -4530,6 +4530,13 @@ body.app-split-dragging * {
   -webkit-touch-callout: none !important;
 }
 
+/* splitter 是两个面板的兄弟元素，保持可拖动。面板内显式声明了
+   pointer-events: auto 的块号/+ 等也必须禁用，避免覆盖祖先的继承值。 */
+body.app-split-dragging :is(.app-main-editor, .app-main-todo),
+body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
+  pointer-events: none !important;
+}
+
 /* 折叠状态：窄条手柄，可向下拖拽展开待办 */
 .divider-collapsed {
   height: 10px;

@@ -869,8 +869,18 @@ function App() {
   const dragRatioRef = useRef(todoFlex);
   const splitDragClickGuardRef = useRef(false);
   const splitDragClickGuardTimerRef = useRef<number | null>(null);
+  const splitDragCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
+    const allowNewSplitDragAction = () => {
+      if (draggingRef.current) return;
+      // 新的按下/键盘操作属于用户主动输入，不是上次拖动的兼容 click。
+      splitDragClickGuardRef.current = false;
+      if (splitDragClickGuardTimerRef.current !== null) {
+        window.clearTimeout(splitDragClickGuardTimerRef.current);
+        splitDragClickGuardTimerRef.current = null;
+      }
+    };
     const blockSplitDragClicks = (event: Event) => {
       if (!splitDragClickGuardRef.current) return;
       event.preventDefault();
@@ -878,8 +888,13 @@ function App() {
     };
 
     document.addEventListener("click", blockSplitDragClicks, true);
+    document.addEventListener("pointerdown", allowNewSplitDragAction, true);
+    document.addEventListener("keydown", allowNewSplitDragAction, true);
     return () => {
+      splitDragCleanupRef.current?.();
       document.removeEventListener("click", blockSplitDragClicks, true);
+      document.removeEventListener("pointerdown", allowNewSplitDragAction, true);
+      document.removeEventListener("keydown", allowNewSplitDragAction, true);
       if (splitDragClickGuardTimerRef.current !== null) {
         window.clearTimeout(splitDragClickGuardTimerRef.current);
         splitDragClickGuardTimerRef.current = null;
@@ -901,10 +916,11 @@ function App() {
       if (splitDragClickGuardTimerRef.current !== null) {
         window.clearTimeout(splitDragClickGuardTimerRef.current);
       }
+      // 兼容 click 可能晚于 pointerup；新的主动输入会提前解除防护。
       splitDragClickGuardTimerRef.current = window.setTimeout(() => {
         splitDragClickGuardRef.current = false;
         splitDragClickGuardTimerRef.current = null;
-      }, 120);
+      }, 500);
     }
     if (!dragging) return;
 
@@ -952,13 +968,21 @@ function App() {
       localStorage.setItem(SPLIT_KEY, String(dragRatioRef.current));
     };
 
-    const handlePointerEnd = (pe: PointerEvent) => {
-      if (pe.pointerId !== pointerId) return;
-      if (pe.cancelable) pe.preventDefault();
+    const finishSplitDrag = () => {
+      if (!draggingRef.current) return;
       draggingRef.current = false;
       document.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("pointerup", handlePointerEnd);
       document.removeEventListener("pointercancel", handlePointerEnd);
+      divider.removeEventListener("lostpointercapture", handlePointerEnd);
+      window.removeEventListener("blur", finishSplitDrag);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      splitDragCleanupRef.current = null;
+      try {
+        if (divider.hasPointerCapture(pointerId)) divider.releasePointerCapture(pointerId);
+      } catch {
+        // WebView 可能已经在窗口失焦/元素移除时释放了捕获。
+      }
       document.body.style.cursor = "";
       setSplitDraggingUi(false);
       // React 可能尚未提交最后一次 pointermove；直接持久化拖动引用，
@@ -966,9 +990,22 @@ function App() {
       localStorage.setItem(SPLIT_KEY, String(dragRatioRef.current));
     };
 
+    const handlePointerEnd = (pe: PointerEvent) => {
+      if (pe.pointerId !== pointerId) return;
+      if (pe.cancelable) pe.preventDefault();
+      finishSplitDrag();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") finishSplitDrag();
+    };
+
+    splitDragCleanupRef.current = finishSplitDrag;
     document.addEventListener("pointermove", handlePointerMove, { passive: false });
     document.addEventListener("pointerup", handlePointerEnd);
     document.addEventListener("pointercancel", handlePointerEnd);
+    divider.addEventListener("lostpointercapture", handlePointerEnd);
+    window.addEventListener("blur", finishSplitDrag);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
   };
 
   // ── 侧栏可拖拽分隔条 ──
