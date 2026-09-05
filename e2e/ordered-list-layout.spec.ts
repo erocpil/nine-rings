@@ -6,8 +6,9 @@ async function readGeometry(list: Locator) {
     const markers = items.map((item) => {
       const box = item.getBoundingClientRect();
       const style = getComputedStyle(item, "::before");
-      const left = box.left + Number.parseFloat(style.left);
-      return { left, width: Number.parseFloat(style.width), textLeft: box.left };
+      const right = box.right - Number.parseFloat(style.right);
+      const width = Number.parseFloat(style.width);
+      return { left: right - width, right, width, textLeft: box.left };
     });
     // Read actual line boxes, including a wrapped continuation of the last item.
     const text = items.at(-1)!.querySelector("p")!.firstChild!;
@@ -18,7 +19,8 @@ async function readGeometry(list: Locator) {
       markers,
       lines,
       left: element.getBoundingClientRect().left,
-      minimumGap: Number.parseFloat(getComputedStyle(element).fontSize) * 0.35,
+      gap: Number.parseFloat(getComputedStyle(element).fontSize)
+        * Number.parseFloat(getComputedStyle(element).getPropertyValue("--editor-list-marker-gap")),
       counterReset: getComputedStyle(element).counterReset,
     };
   });
@@ -47,10 +49,11 @@ for (const mobile of [false, true]) {
         const geometry = await readGeometry(list);
         expect(geometry.counterReset).toBe(`editor-list-item ${start - 1}`);
         for (const marker of geometry.markers) {
-          expect(marker.left).toBeCloseTo(geometry.left, 1);
+          expect(marker.left).toBeGreaterThanOrEqual(geometry.left - 1);
+          expect(marker.right).toBeCloseTo(geometry.markers[0].right, 1);
           expect(marker.textLeft).toBeCloseTo(geometry.markers[0].textLeft, 1);
           expect(marker.textLeft - marker.left - marker.width)
-            .toBeGreaterThanOrEqual(geometry.minimumGap - 1);
+            .toBeCloseTo(geometry.gap, 1);
         }
         expect(geometry.lines.length).toBeGreaterThan(1);
         for (const left of geometry.lines) expect(left).toBeCloseTo(geometry.markers[0].textLeft, 1);
@@ -73,11 +76,37 @@ for (const mobile of [false, true]) {
         const after = await readGeometry(list);
         expect(after.markers[0].textLeft).toBeGreaterThan(before.markers[0].textLeft);
         expect(after.markers[1].textLeft - after.markers[1].left - after.markers[1].width)
-          .toBeGreaterThanOrEqual(after.minimumGap - 1);
+          .toBeCloseTo(after.gap, 1);
         await editor.press("Control+z");
         await expect(list.locator(":scope > li")).toHaveCount(1);
         expect((await readGeometry(list)).markers[0].textLeft).toBeCloseTo(before.markers[0].textLeft, 1);
       }
+    });
+
+    test("编号间距可调小到 0.1em，预览和保存后的正文一致", async ({ page }) => {
+      await page.goto("/");
+      const list = page.locator(".ProseMirror > ol").first();
+      const gapEm = (target: Locator) => target.evaluate((element) => {
+        const item = element.querySelector(":scope > li")!;
+        const box = item.getBoundingClientRect();
+        const markerRight = box.right - Number.parseFloat(getComputedStyle(item, "::before").right);
+        return (box.left - markerRight) / Number.parseFloat(getComputedStyle(item).fontSize);
+      });
+      await expect(list).toBeVisible();
+      expect(await gapEm(list)).toBeCloseTo(0.35, 2);
+      await page.getByTitle("设置").click();
+      await page.getByRole("button", { name: /^外观与排版/ }).click();
+      await page.getByRole("button", { name: /打开排版设置/ }).click();
+      const preview = page.getByLabel("编辑器排版预览").locator(":scope > ol");
+      const decrease = page.getByRole("button", { name: "减小标记文字间距" });
+      for (let step = 0; step < 5; step++) await decrease.click();
+      await expect(decrease).toBeDisabled();
+      expect(await gapEm(preview)).toBeCloseTo(0.1, 2);
+      await page.getByRole("button", { name: "应用到编辑器" }).click();
+      expect(await gapEm(list)).toBeCloseTo(0.1, 2);
+      await page.reload();
+      await expect(list).toBeVisible();
+      expect(await gapEm(list)).toBeCloseTo(0.1, 2);
     });
   });
 }

@@ -396,7 +396,7 @@ test.describe("编辑器块级 gutter", () => {
       .toBeLessThanOrEqual(1);
   });
 
-  test("多位有序编号按编号左沿对齐且不侵入块号沟槽", async ({ page }) => {
+  test("多位有序编号按右沿对齐且不侵入块号沟槽", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("随笔").click();
     await page.getByTitle("从模板新建").click();
@@ -432,13 +432,16 @@ test.describe("编辑器块级 gutter", () => {
         const item = items[index];
         const itemBox = item.getBoundingClientRect();
         const style = getComputedStyle(item, "::before");
-        const left = itemBox.left + Number.parseFloat(style.left);
+        const right = itemBox.right - Number.parseFloat(style.right);
+        const left = right - Number.parseFloat(style.width);
         return {
           left,
+          right,
           textAlign: style.textAlign,
           width: Number.parseFloat(style.width),
           gap: itemBox.left - left - Number.parseFloat(style.width),
-          minimumGap: Number.parseFloat(getComputedStyle(item).fontSize) * 0.35,
+          configuredGap: Number.parseFloat(getComputedStyle(item).fontSize)
+            * Number.parseFloat(getComputedStyle(item).getPropertyValue("--editor-list-marker-gap")),
         };
       };
       const blockNumber = document.querySelector<HTMLElement>(
@@ -453,14 +456,14 @@ test.describe("编辑器块级 gutter", () => {
       };
     });
 
-    expect(geometry.marker1.textAlign).toBe("left");
-    expect(geometry.marker1.left).toBeCloseTo(geometry.marker10.left, 1);
-    expect(geometry.marker1.left).toBeCloseTo(geometry.marker100.left, 1);
+    expect(geometry.marker1.textAlign).toBe("right");
+    expect(geometry.marker1.right).toBeCloseTo(geometry.marker10.right, 1);
+    expect(geometry.marker1.right).toBeCloseTo(geometry.marker100.right, 1);
     expect(geometry.marker1.width).toBeGreaterThan(0);
-    expect(geometry.marker100.gap).toBeGreaterThanOrEqual(geometry.marker100.minimumGap - 1);
-    expect(geometry.marker1.left).toBeGreaterThanOrEqual(geometry.listLeft - 1);
+    expect(geometry.marker100.gap).toBeCloseTo(geometry.marker100.configuredGap, 1);
+    expect(geometry.marker100.left).toBeGreaterThanOrEqual(geometry.listLeft - 1);
     expect(geometry.blockNumberRight).not.toBeNull();
-    expect(geometry.blockNumberRight!).toBeLessThanOrEqual(geometry.marker1.left);
+    expect(geometry.blockNumberRight!).toBeLessThanOrEqual(geometry.marker100.left);
   });
 
   test("状态栏块号跟随光标并可独立关闭", async ({ page }) => {

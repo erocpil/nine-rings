@@ -85,7 +85,7 @@ html {
   --editor-list-margin-top: 0.25em;
   --editor-list-margin-bottom: 0.25em;
   --editor-list-indent: 1.25em;
-  --editor-list-marker-gap: 0.2em;
+  --editor-list-marker-gap: 0.35em;
   --editor-ordered-list-offset: 0.5em;
   --editor-blockquote-indent: 12px;
   --editor-search-highlight: #ffd54f;
@@ -5477,7 +5477,7 @@ body.app-split-dragging * {
   --editor-ordered-marker-column: var(--editor-ordered-decimal-column);
   --editor-ordered-content-indent: max(
     calc(var(--editor-list-indent) + var(--editor-ordered-list-offset)),
-    calc(var(--editor-ordered-marker-column) + max(0.35em, var(--editor-list-marker-gap)))
+    calc(var(--editor-ordered-marker-column) + var(--editor-list-marker-gap))
   );
   font-variant-numeric: tabular-nums;
   padding-inline-start: var(--editor-ordered-content-indent);
@@ -5492,13 +5492,13 @@ body.app-split-dragging * {
   --editor-ordered-marker-column: var(--editor-ordered-roman-column);
 }
 
-/* 这条规则必须位于预览通用 marker 规则之后，避免其重新写入 right。
-   marker 盒子的左边沿固定；数字从这里向右排布，而不是以句点为基准向左长。 */
+/* 编号在预留列内右对齐；句点后严格采用用户设置的间距。
+   上方列表缩进保证最长编号仍留在正文区域内，不侵入块号沟槽。 */
 :is(.editor-content, .editor-appearance-preview) ol > li::before {
-  right: auto;
-  left: calc(-1 * var(--editor-ordered-content-indent));
+  right: calc(100% + var(--editor-list-marker-gap));
+  left: auto;
   width: max-content;
-  text-align: left;
+  text-align: right;
   transform: none;
 }
 

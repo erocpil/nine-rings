@@ -89,7 +89,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
                 <AppearanceStepper label="列表层级缩进" value={config.editor_list_indent} minimum={1} maximum={3} step={0.05} unit="em" onChange={(value) => onUpdate({ editor_list_indent: value })} />
               </AppearanceField>
               <AppearanceField label="标记文字间距" desc="同时控制圆点或编号与文字之间的距离">
-                <AppearanceStepper label="标记文字间距" value={config.editor_list_marker_gap} minimum={0.1} maximum={0.8} step={0.1} unit="em" onChange={(value) => onUpdate({ editor_list_marker_gap: value })} />
+                <AppearanceStepper label="标记文字间距" value={config.editor_list_marker_gap} minimum={0.1} maximum={0.8} step={0.05} unit="em" onChange={(value) => onUpdate({ editor_list_marker_gap: value })} />
               </AppearanceField>
               <AppearanceField label="引用块缩进" desc="控制引用竖线与正文的距离">
                 <AppearanceStepper label="引用块缩进" value={config.editor_blockquote_indent} minimum={4} maximum={32} step={2} unit="px" onChange={(value) => onUpdate({ editor_blockquote_indent: value })} />

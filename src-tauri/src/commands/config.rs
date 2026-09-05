@@ -107,7 +107,7 @@ fn default_editor_list_indent() -> f64 {
 }
 
 fn default_editor_list_marker_gap() -> f64 {
-    0.2
+    0.35
 }
 
 fn default_editor_blockquote_indent() -> i32 {
