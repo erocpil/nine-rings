@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { api } from "../lib/api";
-import type { Note } from "../types/models";
+import type { SearchNote } from "../lib/search-index-core";
 
 export interface TodoHit {
   todo: { id: string; text: string; done: boolean };
@@ -8,7 +8,7 @@ export interface TodoHit {
 }
 
 export interface SearchResults {
-  notes: Note[];
+  notes: SearchNote[];
   todos: TodoHit[];
 }
 
@@ -32,7 +32,7 @@ export function useSearch() {
     setSearching(true);
     try {
       const [notes, todoHits] = await Promise.all([
-        api.notes.search(q),
+        api.notes.searchSummaries(q),
         api.daily.searchTodos(q),
       ]);
       if (requestId !== searchRequestRef.current) return;

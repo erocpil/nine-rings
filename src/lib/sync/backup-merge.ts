@@ -5,6 +5,7 @@ type BackupRecord = Record<string, unknown>;
 interface BackupBundle extends Record<string, unknown> {
   notes?: BackupRecord[];
   daily_pages?: BackupRecord[];
+  templates?: BackupRecord[];
 }
 
 export type SyncDocumentKind = "document" | "note";
@@ -59,6 +60,12 @@ function parseBundle(json: string): BackupBundle {
   if (parsed.daily_pages !== undefined && !Array.isArray(parsed.daily_pages)) {
     throw new Error("备份文件 daily_pages 字段格式不正确");
   }
+  const settings = parsed.user_settings as { values?: Record<string, unknown> } | undefined;
+  const legacyTemplates = settings?.values?.["nine-rings:templates"];
+  if (parsed.templates === undefined && legacyTemplates !== undefined) {
+    parsed.templates = typeof legacyTemplates === "string" ? JSON.parse(legacyTemplates) : legacyTemplates as BackupRecord[];
+  }
+  if (parsed.templates !== undefined && !Array.isArray(parsed.templates)) throw new Error("备份模板格式不正确");
   return parsed;
 }
 
@@ -341,10 +348,27 @@ export function buildSafeMergedBackup(localJson: string, remoteJson: string, bas
     }
   }
 
+  const localTemplates = recordsBy(local.templates, "id");
+  const remoteTemplates = recordsBy(remote.templates, "id");
+  const baseTemplates = recordsBy(base?.templates, "id");
+  const mergedTemplates: BackupRecord[] = [];
+  const templateIdentity = (record: BackupRecord) => Object.fromEntries(Object.entries(record).filter(([key]) => !["created_at", "updated_at"].includes(key)));
+  for (const id of new Set([...remoteTemplates.keys(), ...localTemplates.keys()])) {
+    const localTemplate = localTemplates.get(id);
+    const remoteTemplate = remoteTemplates.get(id);
+    const category = classifyRecord(localTemplate, remoteTemplate, baseTemplates.get(id), templateIdentity);
+    if (category === "localOnly" || category === "localChanged") {
+      if (localTemplate) mergedTemplates.push(localTemplate);
+    } else {
+      if (remoteTemplate) mergedTemplates.push(remoteTemplate);
+      if (category === "conflicts" && localTemplate) mergedTemplates.push({ ...localTemplate, id: uuid(), name: `${localTemplate.name ?? "模板"}（本地冲突副本）`, is_builtin: false });
+    }
+  }
   const merged: BackupBundle = {
     ...remote,
     notes: mergedNotes,
     daily_pages: mergedPages,
+    ...(local.templates || remote.templates ? { templates: mergedTemplates } : {}),
   };
   return {
     json: JSON.stringify(merged),

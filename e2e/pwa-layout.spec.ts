@@ -1312,9 +1312,9 @@ test.describe("PWA 窄屏应用外壳", () => {
       insertBox.x + insertBox.width / 2,
       insertBox.y + insertBox.height / 2,
     );
-    await page.keyboard.type("专注模式首块");
-
     await expect(blocks).toHaveCount(initialBlockCount + 1);
+    await expect(editor).toBeFocused();
+    await page.keyboard.type("专注模式首块");
     await expect(blocks.first()).toHaveText("专注模式首块");
   });
 

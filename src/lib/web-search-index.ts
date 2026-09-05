@@ -3,10 +3,11 @@ import type { StorageAdapter } from "./storage/types";
 import { isTauriRuntime } from "./runtime";
 import { subscribeToDataChanges } from "./tab-coordination";
 import { getAdapter } from "./storage";
+import { toSearchNote, type SearchNote } from "./search-index-core";
 
 type WorkerRequest =
-  | { type: "rebuild"; notes: Note[] }
-  | { type: "upsert"; note: Note }
+  | { type: "rebuild"; notes: SearchNote[] }
+  | { type: "upsert"; note: SearchNote }
   | { type: "remove"; noteId: string }
   | { type: "search"; query: string };
 
@@ -56,7 +57,7 @@ function send<T>(message: WorkerRequest): Promise<T> {
 async function ensureReady(adapter: StorageAdapter): Promise<number> {
   if (!ready) {
     ready = adapter.getAllNotes()
-      .then((notes) => send<number>({ type: "rebuild", notes }))
+      .then((notes) => send<number>({ type: "rebuild", notes: notes.map(toSearchNote) }))
       .catch((error) => {
         resetWorker();
         throw error;
@@ -66,19 +67,30 @@ async function ensureReady(adapter: StorageAdapter): Promise<number> {
 }
 
 export async function searchWebNotes(adapter: StorageAdapter, query: string): Promise<Note[]> {
-  if (isTauriRuntime() || typeof Worker === "undefined") return adapter.searchNotes(query);
+  const summaries = await searchWebNoteSummaries(adapter, query);
+  const notes: Note[] = [];
+  // Compatibility for consumers that need full documents, with bounded reads.
+  for (let start = 0; start < summaries.length; start += 32) {
+    const batch = await Promise.all(summaries.slice(start, start + 32).map((item) => adapter.getNote(item.id)));
+    notes.push(...batch.filter((note): note is Note => note !== null));
+  }
+  return notes;
+}
+
+export async function searchWebNoteSummaries(adapter: StorageAdapter, query: string): Promise<SearchNote[]> {
+  if (isTauriRuntime() || typeof Worker === "undefined") return (await adapter.searchNotes(query)).map(toSearchNote);
   try {
     await ensureReady(adapter);
-    return await send<Note[]>({ type: "search", query });
+    return await send<SearchNote[]>({ type: "search", query });
   } catch (error) {
     console.warn("[search-index] 索引不可用，回退到存储搜索:", error);
-    return adapter.searchNotes(query);
+    return (await adapter.searchNotes(query)).map(toSearchNote);
   }
 }
 
 export function updateWebSearchIndex(note: Note): void {
   if (!ready) return;
-  void ready.then(() => send<number>({ type: "upsert", note })).catch(() => resetWorker());
+  void ready.then(() => send<number>({ type: "upsert", note: toSearchNote(note) })).catch(() => resetWorker());
 }
 
 export function removeFromWebSearchIndex(noteId: string): void {

@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
 import type { TodoHit } from "../hooks/useSearch";
-import { extractSnippet } from "../lib/storage/idb-snippet";
+import { snippetParts } from "../lib/storage/idb-snippet";
+import type { SearchNote } from "../lib/search-index-core";
 import type { Note } from "../types/models";
+import { extractPlainText } from "../lib/storage/core";
 
 const PAGE_SIZE = 80;
 
 interface Props {
-  notes: Note[];
+  notes: (SearchNote | Note)[];
   todos: TodoHit[];
   searchTerm: string;
   searching: boolean;
   onClose: () => void;
-  onSelectNote: (note: Note, keepSearch: boolean, searchTerm: string) => void;
+  onSelectNote: (note: SearchNote | Note, keepSearch: boolean, searchTerm: string) => void;
   onSelectTodo: (date: string) => void;
 }
 
@@ -39,7 +41,7 @@ export function SearchResultsPanel({
       </h3>
       {notes.length > 0 && <div className="search-section-label">笔记</div>}
       {visibleNotes.map((note) => {
-        const snippet = extractSnippet((note as Note & { search_text?: string }).search_text ?? "", searchTerm);
+        const snippet = snippetParts((note as SearchNote).search_text ?? ("content" in note ? extractPlainText(note.content) : ""), searchTerm);
         return (
           <button
             type="button"
@@ -50,7 +52,7 @@ export function SearchResultsPanel({
             <span className="search-hit-title">{note.title || "无标题"}</span>
             <span className="search-hit-date">{note.date}</span>
             {note.storagePath && <span className="search-hit-path">{note.storagePath}</span>}
-            {snippet && <span className="search-hit-snippet" dangerouslySetInnerHTML={{ __html: snippet }} />}
+            {snippet.length > 0 && <span className="search-hit-snippet">{snippet.map((part, index) => part.match ? <mark key={index}>{part.text}</mark> : part.text)}</span>}
           </button>
         );
       })}

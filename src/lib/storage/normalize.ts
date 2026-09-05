@@ -137,6 +137,13 @@ export function snakeDailyPageToCamel(row: Record<string, any>): DailyPage {
  */
 export function snakeImportToCamel(raw: Record<string, any>): Record<string, any> {
   const n = { ...raw };
+  if (typeof n.content === "string") n.content = JSON.parse(n.content);
+  for (const key of ["tags", "concepts", "linked_doc_ids", "linkedDocIds"]) {
+    if (typeof n[key] === "string") n[key] = JSON.parse(n[key]);
+  }
+  for (const key of ["pinned", "readonly"]) {
+    if (n[key] !== undefined) n[key] = parseBool(n[key]);
+  }
 
   // storage_path / storagePath
   if (n.storage_path !== undefined) {

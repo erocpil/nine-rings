@@ -57,6 +57,9 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
 
   // 每个笔记的脏数据
   const dirtyRef = useRef<Map<string, PendingChanges>>(new Map());
+  const revisionsRef = useRef(new Map<string, Record<string, number>>());
+  const queuedRef = useRef(new Map<string, Set<PendingChanges>>());
+  const discardedRef = useRef(new WeakSet<PendingChanges>());
   // 串行保存队列
   const queueRef = useRef<Promise<void>>(Promise.resolve());
   // debounce timer
@@ -84,6 +87,9 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
 
   // 标记脏数据 + 触发 debounce
   const markDirtyRaw = useCallback((noteId: string, key: string, value: any) => {
+    const revisions = revisionsRef.current.get(noteId) ?? {};
+    revisions[key] = (revisions[key] ?? 0) + 1;
+    revisionsRef.current.set(noteId, revisions);
     const current = dirtyRef.current.get(noteId) ?? {};
     current[key] = value;
     dirtyRef.current.set(noteId, current);
@@ -121,6 +127,15 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
     const dirty = dirtyRef.current.get(id);
     if (!dirty) return queueRef.current;
 
+    // Freeze readers before the editor can switch/destroy its document.
+    let snapshot: PendingChanges;
+    try { snapshot = materializeAutoSaveChanges(dirty); }
+    catch (error) { setStatus("error"); return Promise.reject(error); }
+    const revisions = { ...revisionsRef.current.get(id) };
+    const queued = queuedRef.current.get(id) ?? new Set<PendingChanges>();
+    queued.add(snapshot);
+    queuedRef.current.set(id, queued);
+
     // 清除该笔记的脏数据
     dirtyRef.current.delete(id);
 
@@ -134,19 +149,28 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
     setStatus("saving");
     const savePromise = queueRef.current.then(async () => {
       try {
-        await onSaveRef.current(id, materializeAutoSaveChanges(dirty));
-        if (noteIdRef.current === id) {
-          setStatus("saved");
+        if (discardedRef.current.has(snapshot)) return;
+        await onSaveRef.current(id, snapshot);
+        if (noteIdRef.current === id && !discardedRef.current.has(snapshot)) {
+          setStatus(dirtyRef.current.has(id) ? "dirty" : queued.size > 1 ? "saving" : "saved");
         }
       } catch (e) {
+        if (discardedRef.current.has(snapshot)) throw e;
         // 保存失败：恢复脏数据（用户新输入优先于本次失败批次）
         const existing = dirtyRef.current.get(id) ?? {};
-        dirtyRef.current.set(id, { ...dirty, ...existing });
+        const currentRevisions = revisionsRef.current.get(id) ?? {};
+        const retry = Object.fromEntries(Object.entries(snapshot).filter(([key]) => currentRevisions[key] === revisions[key]));
+        if (Object.keys(retry).length || Object.keys(existing).length) {
+          dirtyRef.current.set(id, { ...retry, ...existing });
+        }
         if (noteIdRef.current === id) {
           setStatus("error");
         }
         console.error("[useAutoSave] 保存失败:", e);
         throw e;
+      } finally {
+        queued.delete(snapshot);
+        if (!queued.size && queuedRef.current.get(id) === queued) queuedRef.current.delete(id);
       }
     });
 
@@ -166,13 +190,17 @@ export function useAutoSave({ onSave, debounceMs = 600 }: Props): AutoSaveHandle
   const getPendingData = useCallback(() => {
     const noteId = noteIdRef.current;
     if (!noteId) return null;
-    const changes = dirtyRef.current.get(noteId);
-    return changes ? { noteId, changes: materializeAutoSaveChanges(changes) } : null;
+    const changes = Object.assign({}, ...queuedRef.current.get(noteId) ?? [], dirtyRef.current.get(noteId) ?? {});
+    return Object.keys(changes).length ? { noteId, changes: materializeAutoSaveChanges(changes) } : null;
   }, []);
 
   const discardPending = useCallback(() => {
     const noteId = noteIdRef.current;
-    if (noteId) dirtyRef.current.delete(noteId);
+    if (noteId) {
+      dirtyRef.current.delete(noteId);
+      for (const snapshot of queuedRef.current.get(noteId) ?? []) discardedRef.current.add(snapshot);
+      queuedRef.current.delete(noteId);
+    }
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;

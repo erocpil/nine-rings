@@ -128,3 +128,29 @@ export function addFrontendSettingsToBackup(
     .replace(/\n/g, "\n  ");
   return `${prefix}${prefix.endsWith("{") ? "" : ","}\n  "user_settings": ${settings}\n}`;
 }
+
+/** Stage fallible local settings before committing documents; roll back on failure. */
+export async function withFrontendSettings<T>(
+  backup: unknown,
+  commit: (count: number) => Promise<T>,
+  storage: Pick<Storage, "getItem" | "setItem" | "removeItem"> = typeof localStorage !== "undefined"
+    ? localStorage : { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+): Promise<T> {
+  const previous = new Map<string, string | null>();
+  try {
+    const count = restoreFrontendSettings(backup, {
+      setItem(key, value) {
+        if (!previous.has(key)) previous.set(key, storage.getItem(key));
+        storage.setItem(key, value);
+      },
+    });
+    return await commit(count);
+  } catch (error) {
+    for (const [key, value] of previous) {
+      if (storage.getItem(key) === value) continue;
+      if (value === null) storage.removeItem(key);
+      else storage.setItem(key, value);
+    }
+    throw error;
+  }
+}

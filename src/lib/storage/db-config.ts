@@ -29,11 +29,8 @@ export async function getConfig(): Promise<AppConfig> {
 export async function setConfig(partial: Partial<AppConfig>): Promise<AppConfig> {
   const current = await getConfig();
   const merged = { ...current, ...partial };
-  console.log("[setConfig]", JSON.stringify(partial), "→", JSON.stringify({ highlight_active_line: merged.highlight_active_line, editor_show_line_numbers: merged.editor_show_line_numbers }));
-  try {
+  if (typeof localStorage !== "undefined") {
     localStorage.setItem(CONFIG_KEY, JSON.stringify(merged));
-  } catch {
-    // 在非浏览器环境保留内存返回值，不持久化
   }
   return merged;
 }

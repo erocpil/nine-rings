@@ -71,17 +71,38 @@ pub fn import_data(
 ) -> Result<ImportResult, String> {
     let bundle: crate::export::ExportBundle =
         serde_json::from_str(&json).map_err(|e| format!("parse error: {}", e))?;
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    let (n, p) = crate::export::import_bundle(&conn, &bundle, replace.unwrap_or(false))
-        .map_err(|e| e.to_string())?;
-    let mut configs_imported = None;
-    if let Some(raw_config) = bundle.config {
-        let sanitized = sanitize_config_value(raw_config);
-        if let Value::Object(partial) = sanitized {
-            config::set_config(config_state, data_dir, Value::Object(partial))?;
-            configs_imported = Some(1);
-        }
+    if bundle.version != 1 {
+        return Err("不支持的备份版本".into());
     }
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let mut current = config_state.lock().map_err(|e| e.to_string())?;
+    let mut next = serde_json::to_value(&*current).map_err(|e| e.to_string())?;
+    let configs_imported =
+        if let Some(Value::Object(partial)) = bundle.config.clone().map(sanitize_config_value) {
+            for (key, value) in partial {
+                if !value.is_null() {
+                    next[&key] = value;
+                }
+            }
+            Some(1)
+        } else {
+            None
+        };
+    let merged: AppConfig = serde_json::from_value(next).map_err(|e| e.to_string())?;
+    if configs_imported.is_some() {
+        config::write_config(&data_dir.0, &merged)?;
+    }
+    let (n, p) = match crate::export::import_bundle(&conn, &bundle, replace.unwrap_or(false)) {
+        Ok(result) => result,
+        Err(error) => {
+            if configs_imported.is_some() {
+                config::write_config(&data_dir.0, &current)
+                    .map_err(|rollback| format!("导入失败: {error}; 配置恢复失败: {rollback}"))?;
+            }
+            return Err(error.to_string());
+        }
+    };
+    *current = merged;
     Ok(ImportResult {
         notes_imported: n,
         pages_imported: p,

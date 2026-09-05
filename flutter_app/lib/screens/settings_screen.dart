@@ -4,8 +4,10 @@
 /// 与 Web 端 SettingsSync.tsx 对齐。
 
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../providers/note_provider.dart';
 import '../services/github_sync.dart';
 
@@ -100,7 +102,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       next = fn(_cfg);
       _cfg = next;
     });
-    _saveQueue = _saveQueue.then((_) => saveSyncConfig(next)).catchError((error) {
+    _saveQueue = _saveQueue.then((_) => saveSyncConfig(next)).catchError((
+      error,
+    ) {
       if (mounted) _showMessage('保存同步配置失败: $error', error: true);
     });
     _scheduleAutoCheck();
@@ -122,14 +126,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // ── Owner/Repo 合并编辑 ──
 
-  static final _ownerRepoRe =
-      RegExp(r'^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?/[a-zA-Z0-9._-]+$');
+  static final _ownerRepoRe = RegExp(
+    r'^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?/[a-zA-Z0-9._-]+$',
+  );
 
   void _startEditOwnerRepo() {
-    _ownerRepoCtrl.text =
-        (_cfg.owner.isNotEmpty && _cfg.repo.isNotEmpty)
-            ? '${_cfg.owner}/${_cfg.repo}'
-            : (_cfg.owner.isNotEmpty ? _cfg.owner : _cfg.repo);
+    _ownerRepoCtrl.text = (_cfg.owner.isNotEmpty && _cfg.repo.isNotEmpty)
+        ? '${_cfg.owner}/${_cfg.repo}'
+        : (_cfg.owner.isNotEmpty ? _cfg.owner : _cfg.repo);
     setState(() {
       _editOwnerRepo = true;
       _ownerRepoError = null;
@@ -140,19 +144,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final trimmed = _ownerRepoCtrl.text.trim();
     if (!_ownerRepoRe.hasMatch(trimmed)) {
       setState(
-          () => _ownerRepoError = '格式: owner/repo（owner 字母数字 -，repo 字母数字 ._-）');
+        () => _ownerRepoError = '格式: owner/repo（owner 字母数字 -，repo 字母数字 ._-）',
+      );
       return;
     }
     final parts = trimmed.split('/');
-    _update((c) => SyncConfig(
-          token: c.token,
-          owner: parts[0],
-          repo: parts[1],
-          path: c.path,
-          lastSyncAt: c.lastSyncAt,
-          lastPushVersion: c.lastPushVersion,
-          lastPullVersion: c.lastPullVersion,
-        ));
+    _update(
+      (c) => SyncConfig(
+        token: c.token,
+        owner: parts[0],
+        repo: parts[1],
+        path: c.path,
+        lastSyncAt: c.lastSyncAt,
+        lastPushVersion: c.lastPushVersion,
+        lastPullVersion: c.lastPullVersion,
+      ),
+    );
     setState(() {
       _editOwnerRepo = false;
       _ownerRepoError = null;
@@ -219,8 +226,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         content: const Text('从 GitHub 拉取将覆盖本地数据，确认？'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('取消')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('确认拉取', style: TextStyle(color: Colors.red)),
@@ -314,12 +322,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
 
           // ── GitHub 同步 ──
-          Text('GitHub 同步',
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold)),
+          Text(
+            'GitHub 同步',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 4),
           Text(
-            '全量 JSON 快照同步。需要 GitHub Personal Access Token（repo 权限）。',
+            '全量 JSON 快照备份。Token 仅保留当前应用会话，退出后需重新输入。建议使用仅授权备份仓库 Contents 读写的短期 Token。',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -336,15 +347,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               isDense: true,
             ),
             controller: _tokenCtrl,
-            onChanged: (v) => _update((c) => SyncConfig(
-                  token: v,
-                  owner: c.owner,
-                  repo: c.repo,
-                  path: c.path,
-                  lastSyncAt: c.lastSyncAt,
-                  lastPushVersion: c.lastPushVersion,
-                  lastPullVersion: c.lastPullVersion,
-                )),
+            onChanged: (v) => _update(
+              (c) => SyncConfig(
+                token: v,
+                owner: c.owner,
+                repo: c.repo,
+                path: c.path,
+                lastSyncAt: c.lastSyncAt,
+                lastPushVersion: c.lastPushVersion,
+                lastPullVersion: c.lastPullVersion,
+              ),
+            ),
           ),
           const SizedBox(height: 12),
 
@@ -371,9 +384,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Row(
               children: [
                 TextButton(
-                    onPressed: _commitOwnerRepo, child: const Text('确定')),
+                  onPressed: _commitOwnerRepo,
+                  child: const Text('确定'),
+                ),
                 TextButton(
-                    onPressed: _cancelEditOwnerRepo, child: const Text('取消')),
+                  onPressed: _cancelEditOwnerRepo,
+                  child: const Text('取消'),
+                ),
               ],
             ),
           ] else
@@ -403,15 +420,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               isDense: true,
             ),
             controller: _pathCtrl,
-            onChanged: (v) => _update((c) => SyncConfig(
-                  token: c.token,
-                  owner: c.owner,
-                  repo: c.repo,
-                  path: v,
-                  lastSyncAt: c.lastSyncAt,
-                  lastPushVersion: c.lastPushVersion,
-                  lastPullVersion: c.lastPullVersion,
-                )),
+            onChanged: (v) => _update(
+              (c) => SyncConfig(
+                token: c.token,
+                owner: c.owner,
+                repo: c.repo,
+                path: v,
+                lastSyncAt: c.lastSyncAt,
+                lastPushVersion: c.lastPushVersion,
+                lastPullVersion: c.lastPullVersion,
+              ),
+            ),
           ),
           const SizedBox(height: 12),
 
@@ -428,11 +447,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               child: Row(
                 children: [
-                  Text(
-                    _status != null
-                        ? (_status!.ok ? '✅' : '❌')
-                        : '⚠️',
-                  ),
+                  Text(_status != null ? (_status!.ok ? '✅' : '❌') : '⚠️'),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -451,11 +466,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 spacing: 16,
                 children: [
                   if (_cfg.lastPushVersion != null)
-                    Text('上次 Push: ${_fmtVersion(_cfg.lastPushVersion)}',
-                        style: theme.textTheme.bodySmall),
+                    Text(
+                      '上次 Push: ${_fmtVersion(_cfg.lastPushVersion)}',
+                      style: theme.textTheme.bodySmall,
+                    ),
                   if (_cfg.lastPullVersion != null)
-                    Text('上次 Pull: ${_fmtVersion(_cfg.lastPullVersion)}',
-                        style: theme.textTheme.bodySmall),
+                    Text(
+                      '上次 Pull: ${_fmtVersion(_cfg.lastPullVersion)}',
+                      style: theme.textTheme.bodySmall,
+                    ),
                 ],
               ),
             ),
@@ -493,16 +512,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: FilledButton(
-                  onPressed:
-                      _busy || !_cfg.isConfigured ? null : _handlePush,
+                  onPressed: _busy || !_cfg.isConfigured ? null : _handlePush,
                   child: const Text('Push ↑'),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: FilledButton.tonal(
-                  onPressed:
-                      _busy || !_cfg.isConfigured ? null : _handlePull,
+                  onPressed: _busy || !_cfg.isConfigured ? null : _handlePull,
                   style: FilledButton.styleFrom(
                     backgroundColor: Colors.red.withAlpha(30),
                     foregroundColor: Colors.red.shade700,

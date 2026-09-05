@@ -88,7 +88,7 @@ test("有序列表的续行和后续列表项保持同一正文缩进", async ({
   textLefts.forEach((left) => expect(Math.abs(left - textLefts[0])).toBeLessThan(1));
 });
 
-test("两位数及以上的有序列表编号使用共享左边缘", async ({ page }) => {
+test("两位数及以上的有序列表编号右边缘与正文起点对齐且不侵入 gutter", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
@@ -112,15 +112,19 @@ test("两位数及以上的有序列表编号使用共享左边缘", async ({ pa
   const markerStyles = await listItems.evaluateAll((items) => items.map((item) => {
     const style = getComputedStyle(item, "::before");
     return {
-      left: style.left,
-      width: style.width,
+      markerRight: item.getBoundingClientRect().right - parseFloat(style.right),
+      markerLeft: item.getBoundingClientRect().right - parseFloat(style.right) - parseFloat(style.width),
+      textLeft: item.querySelector("p")!.getBoundingClientRect().left,
+      editorLeft: item.closest(".ProseMirror")!.getBoundingClientRect().left,
       textAlign: style.textAlign,
       transform: style.transform,
     };
   }));
-  expect(new Set(markerStyles.map((style) => style.left)).size).toBe(1);
-  expect(new Set(markerStyles.map((style) => style.width)).size).toBe(1);
   markerStyles.forEach((style) => {
+    expect(Math.abs(style.markerRight - markerStyles[0].markerRight)).toBeLessThan(1);
+    expect(Math.abs(style.textLeft - markerStyles[0].textLeft)).toBeLessThan(1);
+    expect(style.markerLeft).toBeGreaterThanOrEqual(style.editorLeft);
+    expect(style.textLeft - style.markerRight).toBeGreaterThan(0);
     expect(style.textAlign).toBe("right");
     expect(style.transform).toBe("none");
   });

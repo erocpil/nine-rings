@@ -5,6 +5,7 @@ async function createDocument(page: Page, title: string) {
   await page.getByTitle("新建文档").click();
   await page.getByPlaceholder("文档标题...").fill(title);
   await page.getByRole("button", { name: "创建", exact: true }).click();
+  await expect(page.locator(".note-title")).toHaveValue(title);
   await expect(page.locator(".ProseMirror")).toBeVisible();
 }
 
@@ -23,7 +24,7 @@ test("快速切换支持最近访问、检索与完整键盘操作", async ({ pa
   await expect(dialog.getByText("Quick Switch Alpha", { exact: true })).toBeVisible();
   await input.press("Enter");
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("Quick Switch Alpha");
+  await expect(page.locator(".note-title")).toHaveValue("Quick Switch Alpha");
 
   await page.keyboard.press("Control+p");
   await expect(dialog.getByText("Quick Switch Alpha", { exact: true })).toBeVisible();

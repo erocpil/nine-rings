@@ -1,30 +1,38 @@
 import type { Note } from "../types/models";
 import { extractPlainText } from "./storage/core";
+import { snippetParts } from "./storage/idb-snippet";
 
 function normalize(value: string): string {
   return value.normalize("NFKC").toLocaleLowerCase().replace(/\s+/g, " ").trim();
 }
 
 interface IndexedNote {
-  note: Note;
+  note: SearchNote;
   title: string;
   text: string;
+}
+
+export type SearchNote = Omit<Note, "content"> & { search_text: string };
+export function toSearchNote(note: Note | SearchNote): SearchNote {
+  const { content, ...metadata } = note as Note;
+  return { ...metadata, search_text: (note as SearchNote).search_text ?? extractPlainText(content) };
 }
 
 /** In-memory index shared by the Web Worker and unit tests. Raw notes remain in IndexedDB. */
 export class NoteSearchIndex {
   private readonly notes = new Map<string, IndexedNote>();
 
-  rebuild(notes: Note[]): void {
+  rebuild(notes: (Note | SearchNote)[]): void {
     this.notes.clear();
     notes.forEach((note) => this.upsert(note));
   }
 
-  upsert(note: Note): void {
+  upsert(input: Note | SearchNote): void {
+    const note = toSearchNote(input);
     const title = normalize(note.title ?? "");
     const text = normalize([
       note.title ?? "",
-      extractPlainText(note.content),
+      note.search_text,
       ...(note.tags ?? []),
       ...(note.concepts ?? []),
       note.storagePath ?? "",
@@ -36,7 +44,7 @@ export class NoteSearchIndex {
     this.notes.delete(id);
   }
 
-  search(query: string): Note[] {
+  search(query: string): SearchNote[] {
     const normalized = normalize(query);
     if (!normalized) return [];
     const terms = normalized.split(" ").filter(Boolean);
@@ -48,7 +56,7 @@ export class NoteSearchIndex {
           || Number(b.note.pinned) - Number(a.note.pinned)
           || b.note.updated_at.localeCompare(a.note.updated_at);
       })
-      .map(({ note }) => note);
+      .map(({ note }) => ({ ...note, search_text: snippetParts(note.search_text, query).map((part) => part.text).join("") }));
   }
 
   get size(): number {

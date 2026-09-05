@@ -39,7 +39,7 @@ test.describe("编辑器块级 gutter", () => {
     await editor.press("Alt+g");
     await jumpInput.fill("99");
     await jumpInput.press("Enter");
-    await expect(page.getByRole("status")).toHaveText("请输入 1–36");
+    await expect(page.getByRole("dialog", { name: "跳转行号" }).getByRole("status")).toHaveText("请输入 1–36");
     await jumpInput.press("Escape");
     await expect(jumpInput).toHaveCount(0);
   });
@@ -171,7 +171,7 @@ test.describe("编辑器块级 gutter", () => {
 
     const editor = page.locator(".ProseMirror");
     await editor.fill("first line");
-    await page.getByRole("button", { name: "⏹", exact: true }).click();
+    await page.getByTitle("代码块 (Ctrl+Alt+C)", { exact: true }).click();
     for (let index = 2; index <= 12; index += 1) {
       await editor.press("End");
       await editor.press("Enter");

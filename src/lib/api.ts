@@ -2,9 +2,10 @@ import type { StorageAdapter, DocSearchQuery } from "./storage/types";
 import { getAdapter } from "./storage";
 import type { AppConfig, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../types/models";
 import { broadcastDataChange } from "./tab-coordination";
-import { invalidateWebSearchIndex, removeFromWebSearchIndex, searchWebNotes, updateWebSearchIndex } from "./web-search-index";
-import { addFrontendSettingsToBackup, restoreFrontendSettings } from "./backup-user-settings";
-import { parseJsonAsync } from "./data-transform-client";
+import { invalidateWebSearchIndex, removeFromWebSearchIndex, searchWebNotes, searchWebNoteSummaries, updateWebSearchIndex } from "./web-search-index";
+import { addFrontendSettingsToBackup, withFrontendSettings } from "./backup-user-settings";
+import { parseJsonAsync, stringifyJsonAsync } from "./data-transform-client";
+import { validateBackup } from "./backup-validation";
 
 /**
  * API 层 — 统一接口，底层自动适配 Tauri IPC / IndexedDB
@@ -64,6 +65,7 @@ export const api = {
 
     search: (query: string) =>
       adapter().then((a) => searchWebNotes(a, query)),
+    searchSummaries: (query: string) => adapter().then((a) => searchWebNoteSummaries(a, query)),
 
     listByTag: (tag: string) =>
       adapter().then((a) => a.getNotesByTag(tag)),
@@ -161,14 +163,22 @@ export const api = {
     data: async () => addFrontendSettingsToBackup(await adapter().then((a) => a.exportData())),
 
     import: async (json: string, mode: "merge" | "replace" = "merge") => {
-      const result = await adapter().then((a) => a.importData(json, mode));
-      try {
-        const bundle = await parseJsonAsync<{ user_settings?: unknown }>(json);
-        const settingsImported = restoreFrontendSettings(bundle.user_settings);
-        if (settingsImported > 0) result.configs_imported = (result.configs_imported ?? 0) + settingsImported;
-      } catch {
-        // 后端已完成格式校验；旧备份没有 user_settings 时保持兼容。
+      const bundle = await parseJsonAsync<unknown>(json);
+      validateBackup(bundle);
+      const settings = bundle.user_settings as { values?: Record<string, unknown> } | undefined;
+      const legacyTemplates = settings?.values?.["nine-rings:templates"];
+      if (bundle.templates === undefined && legacyTemplates !== undefined) {
+        bundle.templates = typeof legacyTemplates === "string" ? JSON.parse(legacyTemplates) : legacyTemplates;
+        validateBackup(bundle);
+        json = await stringifyJsonAsync(bundle);
       }
+      // Templates belong to the adapter transaction, including legacy Web→Tauri imports.
+      if (settings?.values && bundle.templates !== undefined) delete settings.values["nine-rings:templates"];
+      const result = await withFrontendSettings(settings, async (settingsImported) => {
+        const imported = await adapter().then((a) => a.importData(json, mode));
+        if (settingsImported > 0) imported.configs_imported = (imported.configs_imported ?? 0) + settingsImported;
+        return imported;
+      });
       invalidateWebSearchIndex();
       broadcastDataChange({ type: "data-imported" });
       return result;

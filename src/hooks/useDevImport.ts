@@ -13,6 +13,7 @@ import { isTauriRuntime } from "../lib/runtime";
 import type { DeltaOps, DocType } from "../types/models";
 
 interface ImportFile {
+  _importId: string;
   title: string;
   content: DeltaOps;
   tags?: string[];
@@ -38,9 +39,15 @@ export function useDevImport(refresh: () => void) {
 
     console.log(`[dev-import] 已启动 (九环 v${__APP_VERSION__})，每 3 秒轮询 /__import`);
 
+    let polling = false;
     const poll = async () => {
+      if (polling) return;
+      polling = true;
       try {
-        const res = await fetch("/__import");
+        const token = sessionStorage.getItem("nr:devImportToken");
+        if (!token) return;
+        const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+        const res = await fetch("/__import", { headers });
         if (!res.ok) return;
         const data = await res.json();
         const files: ImportFile[] = data?.files;
@@ -50,6 +57,7 @@ export function useDevImport(refresh: () => void) {
 
         const today = localDateKey();
         let count = 0;
+        const ack: string[] = [];
 
         for (const file of files) {
           const title = file.title || "未命名";
@@ -65,15 +73,19 @@ export function useDevImport(refresh: () => void) {
               concepts: file.concepts,
             });
             count++;
+            ack.push(file._importId);
           } catch (e) {
-            console.error(`[dev-import] 创建笔记失败: ${title}`, e);
+            console.error("[dev-import] 创建笔记失败，保留任务等待重试", e);
           }
         }
 
+        if (ack.length) await fetch("/__import", { method: "POST", headers, body: JSON.stringify({ ack }) });
         console.log(`[dev-import] 已导入 ${count}/${files.length} 篇`);
         refreshRef.current();
       } catch {
         // 静默忽略（dev server 未启动时）
+      } finally {
+        polling = false;
       }
     };
 

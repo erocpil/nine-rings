@@ -7,8 +7,8 @@
 ## 快速开始（3 步）
 
 ```
-1. 生成 Token  →  GitHub Settings → Developer settings → Tokens (classic)
-                 勾选 [x] repo，复制 ghp_xxx...
+1. 生成 Token  →  GitHub Settings → Developer settings → Fine-grained tokens
+                 仅选择备份仓库，授予 Contents: Read and write，并设置有效期
 
 2. 创建仓库    →  New repository，设为 Private，不勾选 README
 
@@ -20,22 +20,15 @@
 ## 一、生成 GitHub Token
 
 1. 登录 [GitHub](https://github.com)，点击右上角头像 → **Settings**
-2. 左侧菜单 → **Developer settings** → **Personal access tokens** → **Tokens (classic)**
-3. 点击 **Generate new token (classic)**
-4. 填写：
-   - **Note**：`Nine Rings Backup`
-   - **Expiration**：建议 `No expiration` 或自定义
-   - **Scopes**：勾选 `repo`（核心权限：Contents 读写）
+2. 左侧菜单 → **Developer settings** → **Personal access tokens** → **Fine-grained tokens**
+3. 点击 **Generate new token**，选择备份仓库所属用户或组织
+4. 设置名称和有限有效期（例如 30 天）；**Repository access** 仅选择用于备份的仓库
+5. **Repository permissions → Contents** 选择 **Read and write**；不需要账号级或所有仓库权限
+6. 生成后立即复制并妥善保管令牌；组织仓库可能需要管理员审批
 
-   ```
-   [x] repo
-       [x] repo:status
-       [x] repo_deployment
-       [x] public_repo
-       [x] repo:invoke
-   ```
+优先使用最小仓库范围、有限有效期的令牌，参见 [GitHub 官方令牌指南](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)。仅当 fine-grained 不支持使用场景时考虑 classic，注意其 repo 权限覆盖范围更大。
 
-5. 点击 **Generate token**，**立即复制**（`ghp_xxxx...`）。离开后不可再次查看。
+Web/PWA/Tauri 默认只在当前会话保留 Token。主动勾选“记住 Token”会写入本地存储，并非加密保险箱；不要在共享设备使用。Flutter 当前仅保留进程会话，重启后需重新输入。导出的备份不包含认证令牌。
 
 ---
 
@@ -52,12 +45,16 @@
 
 ## 三、备份操作
 
+下述安全合并与工作区恢复流程适用于 Web/PWA/Tauri。Flutter 已加入旧版本 Push 保护，但 Pull 仍采用原有恢复流程；操作前单独导出本地备份，不要将其视为 Web 的安全双向合并。
+
+PDF/EPUB 原文件及其独立资料库中的批注、书签和阅读状态不在当前 JSON 快照范围内。
+
 ### Push（上传）
 
 点击 **Push ↑** 将本地数据上传到 GitHub。
 
 **流程**：
-1. 导出本地全部笔记、待办、标签、应用设置及最后阅读位置为 JSON
+1. 导出本地全部笔记、待办、模板、标签、应用设置及最后阅读位置为 JSON；Web/Tauri 将正文中的本地图片内嵌到备份，缺失图片会明确报错
 2. 检查远端是否存在本机尚未合并的新版本；存在则停止 Push，要求先安全 Pull；通过检查后上传快照
 3. 更新远端 SHA 用于下次备份
 
@@ -112,8 +109,8 @@ Push/Pull 执行期间：
 
 **黄金规则**：**先 Pull → 编辑 → 再 Push**
 
-- Push 和 Pull 是**全量操作**，后 push 的覆盖先 push 的
-- 两台设备同时编辑 → 只 push 不 pull → 一方数据丢失
+- Push 上传全量快照；发现未合并的远端版本时停止，不直接覆盖 latest 指针
+- 两台设备同时编辑时，先安全 Pull 并处理冲突副本，再 Push；不要为了绕过保护选择全量覆盖
 - 安全流程：每次编辑前先 Pull，编辑完尽快 Push
 
 ---
@@ -126,7 +123,7 @@ Push/Pull 执行期间：
 目标：在家里的电脑上使用九环，数据备份到 GitHub
 
 步骤：
-  1. 生成 Token（权限：repo）
+  1. 生成限备份仓库的 Token（Contents: Read and write）
   2. 创建 Private 仓库 nine-rings-backup
   3. 九环设置 → GitHub 备份 → 填入：
      Token:  ghp_abc123...

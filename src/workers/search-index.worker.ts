@@ -1,9 +1,8 @@
-import type { Note } from "../types/models";
-import { NoteSearchIndex } from "../lib/search-index-core";
+import { NoteSearchIndex, type SearchNote } from "../lib/search-index-core";
 
 type Request =
-  | { id: number; type: "rebuild"; notes: Note[] }
-  | { id: number; type: "upsert"; note: Note }
+  | { id: number; type: "rebuild"; notes: SearchNote[] }
+  | { id: number; type: "upsert"; note: SearchNote }
   | { id: number; type: "remove"; noteId: string }
   | { id: number; type: "search"; query: string };
 

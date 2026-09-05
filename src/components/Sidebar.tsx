@@ -1,5 +1,6 @@
 import { useRef, useState, useEffect, useLayoutEffect } from "react";
-import type { Note } from "../types/models";
+import type { Note as FullNote } from "../types/models";
+type Note = Omit<FullNote, "content">;
 import { TagFilter } from "./TagFilter";
 import { api } from "../lib/api";
 import { TemplatePicker } from "./TemplatePicker";
@@ -59,7 +60,7 @@ interface SidebarProps {
   selectedId: string | null;
   activeTag: string | null;
   onHide: () => void;
-  onSelect: (note: Note) => void;
+  onSelect: (note: FullNote) => void;
   onCreate: () => void;
   onCreateWithTemplate: (template: Template) => void;
   onDelete: (id: string) => Promise<void>;
@@ -161,6 +162,15 @@ export function Sidebar({
   }, [showAll, sortedNotes.length]);
 
   // ── 点击处理：Shift 多选 ──
+  const openRequestRef = useRef(0);
+  useEffect(() => () => { openRequestRef.current++; }, []);
+  const openNote = (note: Note) => {
+    const request = ++openRequestRef.current;
+    if ("content" in note) { onSelect(note as FullNote); return; }
+    void api.notes.get(note.id).then((full) => {
+      if (full && openRequestRef.current === request) onSelect(full);
+    }).catch((error) => console.error("读取搜索结果失败", error));
+  };
   const handleItemClick = (e: React.MouseEvent, note: Note, index: number) => {
     if (editingId) return;
     if (e.shiftKey) {
@@ -189,7 +199,7 @@ export function Sidebar({
       }
       if (newSet.size === 0) {
         lastClickedRef.current = -1;
-        onSelect(note);
+        openNote(note);
       }
       setSelectedIds(newSet);
       e.preventDefault();
@@ -201,7 +211,7 @@ export function Sidebar({
       lastClickedRef.current = -1;
     }
     lastClickedRef.current = index;
-    onSelect(note);
+    openNote(note);
   };
 
   // ── 取消多选 ──

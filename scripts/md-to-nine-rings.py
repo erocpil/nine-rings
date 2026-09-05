@@ -404,7 +404,7 @@ def main():
         req = urllib.request.Request(
             f'http://localhost:{serve_port}/__import',
             data=body,
-            headers={'Content-Type': 'application/json'},
+            headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + os.environ.get('NR_DEV_IMPORT_TOKEN', '')},
             method='POST',
         )
         try:

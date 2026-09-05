@@ -133,7 +133,7 @@ function readBool(raw: string | null, fallback: boolean): boolean {
 }
 
 function loadTokenFromStorage(config: SyncConfig): string {
-  if (isTauriRuntime() || !hasWebStorage()) {
+  if (!hasWebStorage()) {
     return config.token ?? "";
   }
   const { localStorage, sessionStorage } = getWebStorage();
@@ -145,7 +145,7 @@ function loadTokenFromStorage(config: SyncConfig): string {
 }
 
 function saveTokenStorage(token: string, rememberToken: boolean): void {
-  if (isTauriRuntime() || !hasWebStorage()) return;
+  if (!hasWebStorage()) return;
   const { localStorage, sessionStorage } = getWebStorage();
   const trimmed = token.trim();
   safeSet(localStorage, TOKEN_MODE_KEY, rememberToken ? "1" : "0");
@@ -202,7 +202,7 @@ export function loadSyncConfig(): SyncConfig {
       const loaded = { ...parsed, token, rememberToken };
       // 旧版本曾把 Token 直接写入配置 JSON。Web 首次读取时立即迁移到
       // sessionStorage（默认）或独立的持久键，并清除配置中的明文副本。
-      if (!isTauriRuntime() && parsed.token) saveSyncConfig(loaded);
+      if (parsed.token) saveSyncConfig(loaded);
       return loaded;
     }
   } catch {
@@ -213,10 +213,7 @@ export function loadSyncConfig(): SyncConfig {
 
 export function saveSyncConfig(config: SyncConfig): void {
   const { localStorage } = getWebStorage();
-  if (!localStorage || isTauriRuntime() || !hasWebStorage()) {
-    localStorage?.setItem(STORAGE_KEY, JSON.stringify({ ...config, token: config.token }));
-    return;
-  }
+  if (!localStorage || !hasWebStorage()) return;
   const trimmedToken = config.token.trim();
   const rememberToken = Boolean(config.rememberToken);
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...config, token: "", rememberToken }));

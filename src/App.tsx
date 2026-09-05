@@ -1620,7 +1620,12 @@ function App() {
               searchTerm={docResults ? docSearchText : query}
               searching={docSearching}
               onClose={dismissSearchResults}
-              onSelectNote={clearSearchAndSelect}
+              onSelectNote={(summary, keepSearch, term) => {
+                const request = ++searchRequestIdRef.current;
+                void api.notes.get(summary.id).then((note) => {
+                  if (note && searchRequestIdRef.current === request) clearSearchAndSelect(note, keepSearch, term);
+                }).catch((error) => console.error("读取搜索结果失败", error));
+              }}
               onSelectTodo={(date) => { setQuery(""); setDocResults(null); void setDate(date); }}
             />
           ) : selectedConcept && !selectedNote ? (

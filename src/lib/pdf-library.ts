@@ -54,8 +54,18 @@ let openPromise: Promise<IDBDatabase> | null = null;
 
 function openPdfDatabase(): Promise<IDBDatabase> {
   if (openPromise) return openPromise;
-  openPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(PDF_DB_NAME, PDF_DB_VERSION);
+  const attempt = new Promise<IDBDatabase>((resolve, reject) => {
+    let expired = false;
+    const fail = (error: unknown) => {
+      expired = true;
+      clearTimeout(timeout);
+      if (openPromise === attempt) openPromise = null;
+      reject(error);
+    };
+    const timeout = setTimeout(() => fail(new Error("PDF 资料库打开超时，请重试")), 5000);
+    let request: IDBOpenDBRequest;
+    try { request = indexedDB.open(PDF_DB_NAME, PDF_DB_VERSION); }
+    catch (error) { clearTimeout(timeout); reject(error); return; }
     request.onupgradeneeded = () => {
       const database = request.result;
       if (!database.objectStoreNames.contains(PDF_STORE)) {
@@ -70,11 +80,23 @@ function openPdfDatabase(): Promise<IDBDatabase> {
         bookmarks.createIndex(PDF_ID_INDEX, PDF_ID_INDEX, { unique: false });
       }
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("PDF 资料库打开失败"));
-    request.onblocked = () => reject(new Error("PDF 资料库正在被另一个窗口占用"));
+    request.onsuccess = () => {
+      clearTimeout(timeout);
+      if (expired) { request.result.close(); return; }
+      const invalidate = () => {
+        request.result.close();
+        if (openPromise === attempt) openPromise = null;
+      };
+      request.result.onversionchange = invalidate;
+      request.result.onclose = invalidate;
+      resolve(request.result);
+    };
+    request.onerror = () => fail(request.error ?? new Error("PDF 资料库打开失败"));
+    request.onblocked = () => fail(new Error("PDF 资料库正在被另一个窗口占用"));
   });
-  return openPromise;
+  openPromise = attempt;
+  void attempt.catch(() => { if (openPromise === attempt) openPromise = null; });
+  return attempt;
 }
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {

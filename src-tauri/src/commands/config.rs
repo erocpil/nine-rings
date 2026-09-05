@@ -193,11 +193,28 @@ pub fn read_config(app_data_dir: &std::path::Path) -> AppConfig {
 }
 
 /// 写配置文件
-fn write_config(app_data_dir: &std::path::Path, config: &AppConfig) -> Result<(), String> {
+pub(crate) fn write_config(
+    app_data_dir: &std::path::Path,
+    config: &AppConfig,
+) -> Result<(), String> {
     let path = config_path(app_data_dir);
     let json = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
-    std::fs::write(&path, json).map_err(|e| e.to_string())?;
-    Ok(())
+    let temporary = app_data_dir.join(format!("config-{}.tmp", uuid::Uuid::new_v4()));
+    let result = (|| {
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)?;
+        file.write_all(json.as_bytes())?;
+        file.sync_all()?;
+        drop(file);
+        std::fs::rename(&temporary, &path)
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temporary);
+    }
+    result.map_err(|e| e.to_string())
 }
 
 // ── IPC 命令 ──

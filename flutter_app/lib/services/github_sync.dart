@@ -15,8 +15,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+
 import '../models/note.dart';
 
 // ── 类型 ──
@@ -41,26 +43,28 @@ class SyncConfig {
   });
 
   factory SyncConfig.fromJson(Map<String, dynamic> json) => SyncConfig(
-        token: json['token'] as String? ?? '',
-        owner: json['owner'] as String? ?? '',
-        repo: json['repo'] as String? ?? '',
-        path: json['path'] as String? ?? 'nine-rings-backup.json',
-        lastSyncAt: json['lastSyncAt'] as String?,
-        lastPushVersion: json['lastPushVersion'] as String?,
-        lastPullVersion: json['lastPullVersion'] as String?,
-      );
+    token: json['token'] as String? ?? '',
+    owner: json['owner'] as String? ?? '',
+    repo: json['repo'] as String? ?? '',
+    path: json['path'] as String? ?? 'nine-rings-backup.json',
+    lastSyncAt: json['lastSyncAt'] as String?,
+    lastPushVersion: json['lastPushVersion'] as String?,
+    lastPullVersion: json['lastPullVersion'] as String?,
+  );
 
   Map<String, dynamic> toJson() => {
-        'token': token,
-        'owner': owner,
-        'repo': repo,
-        'path': path,
-        'lastSyncAt': lastSyncAt,
-        'lastPushVersion': lastPushVersion,
-        'lastPullVersion': lastPullVersion,
-      };
+    // Credentials are session-only until native secure storage is available.
+    'token': '',
+    'owner': owner,
+    'repo': repo,
+    'path': path,
+    'lastSyncAt': lastSyncAt,
+    'lastPushVersion': lastPushVersion,
+    'lastPullVersion': lastPullVersion,
+  };
 
-  bool get isConfigured => token.isNotEmpty && owner.isNotEmpty && repo.isNotEmpty;
+  bool get isConfigured =>
+      token.isNotEmpty && owner.isNotEmpty && repo.isNotEmpty;
 }
 
 class SyncStatus {
@@ -91,15 +95,24 @@ Future<SyncConfig> loadSyncConfig() async {
   final file = await _configFile();
   if (await file.exists()) {
     final raw = await file.readAsString();
-    _cachedConfig = SyncConfig.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    _cachedConfig = SyncConfig.fromJson(
+      jsonDecode(raw) as Map<String, dynamic>,
+    );
+    await file.writeAsString(jsonEncode(_cachedConfig!.toJson()), flush: true);
     return _cachedConfig!;
   }
   // 兼容旧版本：旧配置曾错误地写入进程工作目录。找到后迁移到应用目录。
   final legacy = File(p.join(Directory.current.path, '$_storageKey.json'));
   if (await legacy.exists()) {
     final raw = await legacy.readAsString();
-    _cachedConfig = SyncConfig.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    _cachedConfig = SyncConfig.fromJson(
+      jsonDecode(raw) as Map<String, dynamic>,
+    );
     await file.writeAsString(jsonEncode(_cachedConfig!.toJson()), flush: true);
+    await legacy.writeAsString(
+      jsonEncode(_cachedConfig!.toJson()),
+      flush: true,
+    );
     return _cachedConfig!;
   }
   _cachedConfig = _defaultConfig();
@@ -115,10 +128,10 @@ Future<void> saveSyncConfig(SyncConfig config) async {
 // ── API 调用 ──
 
 Map<String, String> _authHeader(String token) => {
-      'Authorization': 'Bearer $token',
-      'Accept': 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-    };
+  'Authorization': 'Bearer $token',
+  'Accept': 'application/vnd.github+json',
+  'X-GitHub-Api-Version': '2022-11-28',
+};
 
 Future<HttpClientResponse> _apiRequest({
   required String method,
@@ -130,8 +143,8 @@ Future<HttpClientResponse> _apiRequest({
   final request = method == 'GET'
       ? await _httpClient.getUrl(uri)
       : method == 'PUT'
-          ? await _httpClient.putUrl(uri)
-          : throw ArgumentError.value(method, 'method', '仅支持 GET/PUT');
+      ? await _httpClient.putUrl(uri)
+      : throw ArgumentError.value(method, 'method', '仅支持 GET/PUT');
 
   headers.forEach((k, v) => request.headers.set(k, v));
 
@@ -140,10 +153,23 @@ Future<HttpClientResponse> _apiRequest({
     request.write(body);
   }
 
-  return request.close();
+  return request.close().timeout(
+    const Duration(seconds: 20),
+    onTimeout: () {
+      request.abort();
+      throw const SocketException('GitHub 请求超时，请重试');
+    },
+  );
 }
 
-final HttpClient _httpClient = HttpClient();
+final HttpClient _httpClient = HttpClient()
+  ..connectionTimeout = const Duration(seconds: 20);
+
+bool remoteBackupNeedsMerge(SyncConfig config, String? version) =>
+    version != null &&
+    version.isNotEmpty &&
+    version != config.lastPullVersion &&
+    version != config.lastPushVersion;
 
 /// 获取远端文件内容 + SHA
 Future<({String content, String sha})?> fetchRemote(
@@ -154,15 +180,23 @@ Future<({String content, String sha})?> fetchRemote(
 ) async {
   final url =
       'https://api.github.com/repos/$owner/$repo/contents/${Uri.encodeComponent(path)}';
-  final response =
-      await _apiRequest(method: 'GET', url: url, headers: _authHeader(token));
+  final response = await _apiRequest(
+    method: 'GET',
+    url: url,
+    headers: _authHeader(token),
+  );
 
-  final body = await response.transform(utf8.decoder).join();
+  final body = await response
+      .transform(utf8.decoder)
+      .join()
+      .timeout(const Duration(seconds: 20));
 
   if (response.statusCode == 404) return null;
 
   if (response.statusCode != 200) {
-    throw Exception('GitHub API ${response.statusCode}: ${body.substring(0, body.length.clamp(0, 200))}');
+    throw Exception(
+      'GitHub API ${response.statusCode}: ${body.substring(0, body.length.clamp(0, 200))}',
+    );
   }
 
   final data = jsonDecode(body) as Map<String, dynamic>;
@@ -172,7 +206,8 @@ Future<({String content, String sha})?> fetchRemote(
 
   // 文件 >1MB 时不返回 base64 content，用 Git Blobs API
   final contentBase64 = data['content'] as String?;
-  final hasContent = contentBase64 != null &&
+  final hasContent =
+      contentBase64 != null &&
       contentBase64.isNotEmpty &&
       data['encoding'] == 'base64';
 
@@ -184,9 +219,15 @@ Future<({String content, String sha})?> fetchRemote(
     // 大文件：用 Git Blobs API
     final blobUrl =
         'https://api.github.com/repos/$owner/$repo/git/blobs/${data['sha']}';
-    final blobResponse =
-        await _apiRequest(method: 'GET', url: blobUrl, headers: _authHeader(token));
-    final blobBody = await blobResponse.transform(utf8.decoder).join();
+    final blobResponse = await _apiRequest(
+      method: 'GET',
+      url: blobUrl,
+      headers: _authHeader(token),
+    );
+    final blobBody = await blobResponse
+        .transform(utf8.decoder)
+        .join()
+        .timeout(const Duration(seconds: 20));
     if (blobResponse.statusCode != 200) {
       throw Exception('Git Blobs API ${blobResponse.statusCode}');
     }
@@ -225,11 +266,15 @@ Future<String> putRemote(
     body: jsonEncode(body),
   );
 
-  final responseBody = await response.transform(utf8.decoder).join();
+  final responseBody = await response
+      .transform(utf8.decoder)
+      .join()
+      .timeout(const Duration(seconds: 20));
 
   if (response.statusCode != 200 && response.statusCode != 201) {
     throw Exception(
-        'GitHub PUT ${response.statusCode}: ${responseBody.substring(0, responseBody.length.clamp(0, 200))}');
+      'GitHub PUT ${response.statusCode}: ${responseBody.substring(0, responseBody.length.clamp(0, 200))}',
+    );
   }
 
   final data = jsonDecode(responseBody) as Map<String, dynamic>;
@@ -261,8 +306,11 @@ String _latestPath(String basePath) {
 
 /// 导出全量数据为 JSON 字符串（与 Web 端格式兼容）
 typedef ExportFn = Future<String> Function();
+
 /// 从 JSON 字符串导入全量数据
-typedef ImportFn = Future<({int notesImported, int pagesImported})> Function(String json);
+typedef ImportFn = Future<({int notesImported, int pagesImported})> Function(
+  String json,
+);
 
 // ── 公开 API ──
 
@@ -280,6 +328,15 @@ Future<SyncConfig> pushToGitHub(
     throw Exception('请先配置 GitHub Token、Owner 和 Repo');
   }
 
+  final pointer = await fetchRemote(
+    config.token,
+    config.owner,
+    config.repo,
+    _latestPath(config.path),
+  );
+  if (remoteBackupNeedsMerge(config, pointer?.content.trim())) {
+    throw StateError('远端有尚未合并的版本，请先备份本地数据并 Pull；不会覆盖远端指针');
+  }
   final content = await exportData();
   final version = DateTime.now()
       .toUtc()
@@ -303,13 +360,8 @@ Future<SyncConfig> pushToGitHub(
   );
 
   // 2. 写 latest 指针
-  String? ptrSha;
-  try {
-    final ptr = await fetchRemote(config.token, config.owner, config.repo, ptrPath);
-    ptrSha = ptr?.sha;
-  } catch (_) {
-    // 文件不存在，sha=null 即 create
-  }
+  // Compare-and-swap against the pointer read BEFORE exporting/uploading.
+  final ptrSha = pointer?.sha;
   await putRemote(
     config.token,
     config.owner,
@@ -347,7 +399,12 @@ Future<SyncConfig> pullFromGitHub(
   final ptrPath = _latestPath(config.path);
 
   // 1. 读 latest 指针
-  final ptr = await fetchRemote(config.token, config.owner, config.repo, ptrPath);
+  final ptr = await fetchRemote(
+    config.token,
+    config.owner,
+    config.repo,
+    ptrPath,
+  );
   if (ptr == null) {
     throw Exception('远端仓库中未找到指针文件 $ptrPath');
   }
@@ -358,8 +415,12 @@ Future<SyncConfig> pullFromGitHub(
 
   // 2. 拉对应版本的数据
   final dataPath = _versionedPath(config.path, version);
-  final remote =
-      await fetchRemote(config.token, config.owner, config.repo, dataPath);
+  final remote = await fetchRemote(
+    config.token,
+    config.owner,
+    config.repo,
+    dataPath,
+  );
   if (remote == null) {
     throw Exception('远端仓库中未找到数据文件 $dataPath');
   }
@@ -382,7 +443,8 @@ Future<SyncConfig> pullFromGitHub(
     jsonDecode(remote.content);
   } catch (_) {
     throw Exception(
-        '远端备份文件内容不是有效 JSON（前 100 字符: ${remote.content.substring(0, remote.content.length.clamp(0, 100))}）');
+      '远端备份文件内容不是有效 JSON（前 100 字符: ${remote.content.substring(0, remote.content.length.clamp(0, 100))}）',
+    );
   }
 
   final result = await importData(remote.content);
@@ -410,24 +472,32 @@ Future<SyncStatus> checkStatus(SyncConfig config) async {
     final ptrPath = _latestPath(config.path);
     final url =
         'https://api.github.com/repos/${config.owner}/${config.repo}/contents/${Uri.encodeComponent(ptrPath)}';
-    final response =
-        await _apiRequest(method: 'GET', url: url, headers: _authHeader(config.token));
+    final response = await _apiRequest(
+      method: 'GET',
+      url: url,
+      headers: _authHeader(config.token),
+    );
 
     if (response.statusCode == 404) {
-      await response.drain();
+      await response.drain<void>().timeout(const Duration(seconds: 20));
       return const SyncStatus(ok: true, message: '仓库连接正常，远端暂无备份');
     }
     if (response.statusCode == 401) {
-      await response.drain();
+      await response.drain<void>().timeout(const Duration(seconds: 20));
       return const SyncStatus(ok: false, message: 'Token 无效或无权限');
     }
     if (response.statusCode != 200) {
-      final body = await response.transform(utf8.decoder).join();
+      final body = await response
+          .transform(utf8.decoder)
+          .join()
+          .timeout(const Duration(seconds: 20));
       return SyncStatus(
-          ok: false,
-          message: 'API ${response.statusCode}: ${body.substring(0, body.length.clamp(0, 100))}');
+        ok: false,
+        message:
+            'API ${response.statusCode}: ${body.substring(0, body.length.clamp(0, 100))}',
+      );
     }
-    await response.drain();
+    await response.drain<void>().timeout(const Duration(seconds: 20));
     return const SyncStatus(ok: true, message: '连接正常');
   } catch (e) {
     return SyncStatus(ok: false, message: '连接失败: $e');

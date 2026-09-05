@@ -16,6 +16,8 @@ import type { StorageAdapter, AppConfig } from "./types";
 import { tauriDriver } from "./tauri-driver";
 import { snakeNoteToCamel, snakeDailyPageToCamel } from "./normalize";
 import { tauriTemplates } from "./template-tauri";
+import { resolveImageRefs } from "./db-images";
+import { validateBackup } from "../backup-validation";
 
 // ── 旧 invoke 响应规范化 ──
 
@@ -76,12 +78,28 @@ export const tauriAdapter: StorageAdapter = {
   getAllDailyPages: () => tauriDriver.getAllDailyPages(),
 
   // ── Export / Import ──
-  exportData: () => invoke<string>("export_data"),
-  importData: (json, mode = "merge") =>
-    invoke<{ notes_imported: number; pages_imported: number }>("import_data", {
-      json,
+  exportData: async () => {
+    const data = JSON.parse(await invoke<string>("export_data"));
+    data.notes = await resolveImageRefs(data.notes);
+    return JSON.stringify(data);
+  },
+  importData: (json, mode = "merge") => {
+    const data = JSON.parse(json);
+    validateBackup(data);
+    // Compatibility for legacy SQLite-shaped JSON fields; shared validation
+    // runs before invoking Rust, whose serde model also enforces field types.
+    for (const note of data.notes) {
+      for (const key of ["content", "tags", "concepts", "linked_doc_ids", "linkedDocIds"]) {
+        if (typeof note[key] === "string") note[key] = JSON.parse(note[key]);
+      }
+      for (const key of ["tags", "concepts", "linked_doc_ids"]) if (note[key] === null) note[key] = [];
+      if (note.linkedDocIds === null) note.linkedDocIds = [];
+    }
+    return invoke<{ notes_imported: number; pages_imported: number }>("import_data", {
+      json: JSON.stringify(data),
       replace: mode === "replace",
-    }),
+    });
+  },
   exportNoteMarkdown: (noteId) => invoke<string>("export_note_markdown", { noteId }),
 
   // ── Trash ──

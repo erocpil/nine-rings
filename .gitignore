@@ -54,3 +54,4 @@ flutter_app/pubspec.lock
 test-results/
 playwright-report/
 coverage/
+/.nine-rings-import-queue.json*

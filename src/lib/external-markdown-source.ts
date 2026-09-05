@@ -148,6 +148,7 @@ export async function downloadExternalMarkdown(
   const abortFromCaller = () => controller.abort(options.signal?.reason);
   options.signal?.addEventListener("abort", abortFromCaller, { once: true });
   try {
+    if (options.signal?.aborted) { abortFromCaller(); throw new Error("已取消获取远端文档"); }
     const response = await (options.fetchImpl ?? fetch)(normalized.requestUrl, {
       method: "GET",
       headers: { Accept: "text/markdown, text/plain;q=0.9, application/octet-stream;q=0.7" },
@@ -167,10 +168,24 @@ export async function downloadExternalMarkdown(
     if (Number.isFinite(declaredSize) && declaredSize > maxBytes) {
       throw new Error(`文档超过 ${Math.floor(maxBytes / 1024 / 1024)} MiB 上限`);
     }
-    const buffer = await response.arrayBuffer();
-    if (buffer.byteLength > maxBytes) {
-      throw new Error(`文档超过 ${Math.floor(maxBytes / 1024 / 1024)} MiB 上限`);
-    }
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    const reader = response.body?.getReader();
+    try {
+      if (reader) while (true) {
+        const { done, value: chunk } = await reader.read();
+        if (done) break;
+        size += chunk.byteLength;
+        if (size > maxBytes) {
+          await reader.cancel().catch(() => {});
+          throw new Error(`文档超过 ${Math.floor(maxBytes / 1024 / 1024)} MiB 上限`);
+        }
+        chunks.push(chunk);
+      }
+    } finally { reader?.releaseLock(); }
+    const buffer = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { buffer.set(chunk, offset); offset += chunk.byteLength; }
     const source = new TextDecoder("utf-8").decode(buffer).replace(/^\uFEFF/, "");
     return {
       ...normalized,
@@ -192,6 +207,8 @@ export async function downloadExternalMarkdown(
     throw error;
   } finally {
     clearTimeout(timeout);
+    // Stop the network body also when headers/redirect validation rejected it.
+    controller.abort();
     options.signal?.removeEventListener("abort", abortFromCaller);
   }
 }

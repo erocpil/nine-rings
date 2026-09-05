@@ -12,20 +12,27 @@ const DB_NAME = "nine_rings";
 // ── 数据库初始化 ──
 
 let _dbOpenPromise: Promise<IDBDatabase> | null = null;
-let _dbOpenError: Error | null = null;
 
 function openDB(): Promise<IDBDatabase> {
-  if (_dbOpenError) return Promise.reject(_dbOpenError);
   if (_dbOpenPromise) return _dbOpenPromise;
 
-  _dbOpenPromise = new Promise((resolve, reject) => {
+  const attempt = new Promise<IDBDatabase>((resolve, reject) => {
+    let expired = false;
     // 5 秒超时保护：Chrome 移动端 IndexedDB 偶发 hang
     const timeout = setTimeout(() => {
-      _dbOpenError = new Error("IndexedDB open timeout");
-      reject(_dbOpenError);
+      expired = true;
+      _dbOpenPromise = null;
+      reject(new Error("IndexedDB open timeout"));
     }, 5000);
 
-    const req = indexedDB.open(DB_NAME, IDB_DATABASE_VERSION);
+    let req: IDBOpenDBRequest;
+    try {
+      req = indexedDB.open(DB_NAME, IDB_DATABASE_VERSION);
+    } catch (error) {
+      clearTimeout(timeout);
+      reject(error);
+      return;
+    }
     req.onupgradeneeded = () => {
       const db = req.result;
       const tx = req.transaction!;
@@ -42,28 +49,90 @@ function openDB(): Promise<IDBDatabase> {
     };
     req.onsuccess = () => {
       clearTimeout(timeout);
+      if (expired) {
+        req.result.close();
+        return;
+      }
+      const invalidate = () => {
+        req.result.close();
+        if (_dbOpenPromise === attempt) _dbOpenPromise = null;
+      };
+      req.result.onversionchange = invalidate;
+      req.result.onclose = invalidate;
       resolve(req.result);
     };
     req.onerror = () => {
       clearTimeout(timeout);
-      _dbOpenError = req.error || new Error("IndexedDB open failed");
-      reject(_dbOpenError);
+      if (_dbOpenPromise === attempt) _dbOpenPromise = null;
+      reject(req.error || new Error("IndexedDB open failed"));
     };
     req.onblocked = () => {
       console.warn("[IDB] blocked — another connection is open");
     };
   });
 
-  return _dbOpenPromise;
+  _dbOpenPromise = attempt;
+  void attempt.catch(() => {
+    if (_dbOpenPromise === attempt) _dbOpenPromise = null;
+  });
+  return attempt;
 }
 
-export async function withDB<T>(fn: (db: IDBDatabase) => Promise<T>): Promise<T> {
+export function transactionDone(tx: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    tx.addEventListener("complete", () => resolve(), { once: true });
+    tx.addEventListener(
+      "abort",
+      () => reject(tx.error ?? new Error("数据库事务已取消")),
+      { once: true },
+    );
+  });
+}
+
+export async function withDB<T>(
+  fn: (db: IDBDatabase) => Promise<T>,
+): Promise<T> {
   const db = await openDB();
-  // SPA: 保持连接打开，不 close()，避免 Safari 报 "connection is closing"
-  return fn(db);
+  // Track transactions per operation, never mutate the shared connection. Request
+  // success is not commit success. Keep request helpers usable inside transactions.
+  const writes: { tx: IDBTransaction; done: Promise<void> }[] = [];
+  const scoped = new Proxy(db, {
+    get(target, key) {
+      if (key === "transaction")
+        return (...args: Parameters<IDBDatabase["transaction"]>) => {
+          const tx = target.transaction(...args);
+          if (tx.mode === "readwrite") {
+            const done = transactionDone(tx);
+            void done.catch(() => {});
+            writes.push({ tx, done });
+          }
+          return tx;
+        };
+      const value = Reflect.get(target, key, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  try {
+    const result = await fn(scoped);
+    await Promise.all(writes.map(({ done }) => done));
+    return result;
+  } catch (error) {
+    for (const { tx } of writes) {
+      try {
+        tx.abort();
+      } catch {
+        /* already finished */
+      }
+    }
+    await Promise.allSettled(writes.map(({ done }) => done));
+    throw error;
+  }
 }
 
-export function getOne<T>(store: IDBObjectStore, key: IDBValidKey): Promise<T | null> {
+export function getOne<T>(
+  store: IDBObjectStore,
+  key: IDBValidKey,
+): Promise<T | null> {
   return new Promise((resolve, reject) => {
     const req = store.get(key);
     req.onsuccess = () => resolve(req.result ?? null);
@@ -71,7 +140,11 @@ export function getOne<T>(store: IDBObjectStore, key: IDBValidKey): Promise<T | 
   });
 }
 
-export function getAll<T>(store: IDBObjectStore, query?: IDBValidKey | IDBKeyRange, count?: number): Promise<T[]> {
+export function getAll<T>(
+  store: IDBObjectStore,
+  query?: IDBValidKey | IDBKeyRange,
+  count?: number,
+): Promise<T[]> {
   return new Promise((resolve, reject) => {
     const req = store.getAll(query, count);
     req.onsuccess = () => resolve(req.result);
@@ -79,7 +152,11 @@ export function getAll<T>(store: IDBObjectStore, query?: IDBValidKey | IDBKeyRan
   });
 }
 
-export function getAllFromIndex<T>(index: IDBIndex, range?: IDBValidKey | IDBKeyRange, count?: number): Promise<T[]> {
+export function getAllFromIndex<T>(
+  index: IDBIndex,
+  range?: IDBValidKey | IDBKeyRange,
+  count?: number,
+): Promise<T[]> {
   return new Promise((resolve, reject) => {
     const req = index.getAll(range, count);
     req.onsuccess = () => resolve(req.result);
@@ -107,7 +184,10 @@ export function abortTransaction(tx: IDBTransaction): Promise<void> {
   });
 }
 
-export function delRecord(store: IDBObjectStore, key: IDBValidKey): Promise<void> {
+export function delRecord(
+  store: IDBObjectStore,
+  key: IDBValidKey,
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const req = store.delete(key);
     req.onsuccess = () => resolve();
