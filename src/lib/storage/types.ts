@@ -1,4 +1,5 @@
 import type { Note, DailyPage, NoteVersion, CreateNoteInput, UpdateNoteInput, UpdateTodosInput, PathNode, DocType } from "../../types/models";
+import type { TemplateStorage } from "./template-service";
 
 // ── 配置类型（与 schema/config.yaml 对齐）──
 
@@ -84,7 +85,7 @@ export const DEFAULT_CONFIG: AppConfig = {
 };
 
 /** StorageAdapter — 抽象存储后端 */
-export interface StorageAdapter {
+export interface StorageAdapter extends TemplateStorage {
   // ── Notes ──
   getNotesByDate(date: string): Promise<Note[]>;
   getNote(id: string): Promise<Note | null>;

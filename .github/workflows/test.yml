@@ -50,6 +50,7 @@ jobs:
               - 'src-tauri/src/**'
               - 'src/lib/storage/tauri.ts'
               - 'src/lib/storage/tauri-driver.ts'
+              - 'src/lib/storage/template-tauri.ts'
               - 'scripts/check-ipc-contract.py'
 
   frontend:
@@ -152,3 +153,5 @@ jobs:
       - run: npm run test:e2e
       - name: Cross-platform touch interaction smoke tests (WebKit)
         run: npm run test:e2e:cross-platform
+      - name: Full folding regression tests (WebKit)
+        run: npm run test:e2e:folding:webkit

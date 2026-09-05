@@ -3,6 +3,7 @@ import { tauriAdapter } from "../src/lib/storage/tauri";
 import type { StorageAdapter } from "../src/lib/storage/types";
 
 const requiredMethods: Array<keyof StorageAdapter> = [
+  "listTemplates", "createTemplate", "updateTemplate", "deleteTemplate", "seedBuiltinTemplates",
   "getNotesByDate", "getNote", "getAllNotes", "createNote", "upsertNote", "updateNote",
   "updateNoteOrder", "deleteNote", "searchNotes", "getNotesByTag", "getRecentDates",
   "getAllTags", "getDailyPage", "updateTodos", "getAllDailyPages", "exportData", "importData",

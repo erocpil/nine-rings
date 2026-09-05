@@ -24,6 +24,7 @@ import { saveVersionSnapshot, createNoteCheckpoint, getNoteVersions, restoreNote
 import { exportData, importData, exportNoteMarkdown } from "./db-export-import";
 import { getConfig, setConfig } from "./db-config";
 import { localDateKey } from "../local-date";
+import { localTemplates } from "./template-local";
 export { extractSnippet } from "./idb-snippet";
 
 // ── 工具函数 ──
@@ -57,6 +58,7 @@ async function filterInChunks<T>(records: T[], predicate: (record: T) => boolean
 // ── 适配器实现 ──
 
 export const idbAdapter: StorageAdapter = {
+  ...localTemplates,
   // ══════ Notes ══════
 
   async getNotesByDate(date: string): Promise<Note[]> {

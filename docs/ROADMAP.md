@@ -1,6 +1,6 @@
 # Nine Rings 优化路线图
 
-> 最后更新：2026-08-22 · 当前功能状态的唯一入口；Web 专项见 [Web / PWA 优化计划](web-optimization-plan.md)，长期研究见 [未来演进方向](future-evolution.md)
+> 最后复核：2026-09-05（实现与真机验收分开记录） · 当前功能状态的唯一入口；Web 专项见 [Web / PWA 优化计划](web-optimization-plan.md)，长期研究见 [未来演进方向](future-evolution.md)
 
 ---
 
@@ -27,7 +27,7 @@
 |------|------|------|
 | **Zettelkasten 双向链接** | `[[` 触发自动补全下拉 + 选中替换为链接；属性面板反向链接 | ✅ 已实现 |
 | **文档/笔记统一** | 每日随笔自动镜像为 `daily/` DocNode，统一在文档树浏览 | ⚠️ `daily/` 节点已显示，`DailyPage` 表未合并到 `Note`+`storagePath` |
-| **模板系统** | 可预设日记模板（日报/周报格式），新建时套用 | ✅ 基础版已实现（8 内置模板 + localStorage CRUD），自定义模板待做 |
+| **模板系统** | 可预设日记模板（日报/周报格式），新建时套用 | ✅ 8 内置模板及自定义模板 CRUD 接口已实现；两端统一经 StorageAdapter；自定义模板管理界面待做 |
 | **导出 PDF** | 属性面板中生成带元信息的打印文档；保留标题层级供 PDF 引擎生成查看器侧栏的可点击书签大纲，不在正文插入目录页；Tauri 不依赖弹窗，iOS 可从打印预览分享到“文件”；导出时展开折叠正文并排除编辑器控件 | ✅ 已实现 |
 | **随笔→文档移动** | 支持文档和目录在树中移动，并保留版本与更新时间语义 | ✅ 已实现 |
 | **概念聚合页** | 点击概念标签 → 跨目录列出所有关联文档（MOC） | ✅ 已实现 |
@@ -39,24 +39,27 @@
 
 | 项目 | 说明 | 状态 |
 |------|------|------|
-| **PWA 离线缓存** | 已有基础 SW；正在改为构建期 precache、安全更新提示和离线升级 E2E | ⚠️ 可靠性改造中（见 [Web / PWA 优化计划](web-optimization-plan.md)） |
-| **GitHub 备份** | 多设备 IndexedDB ↔ GitHub（全量 JSON 快照，含非敏感用户设置并排除 Token） | ✅ GitHub V1 已实现（[使用说明](github-backup.md)） |
+| **PWA 离线缓存** | 构建期 precache、安全更新提示和离线升级 E2E | ✅ 已完成本阶段（见 [Web / PWA 优化计划](web-optimization-plan.md)） |
+| **GitHub 备份** | 全量 JSON 快照、按 UUID/基线比较、安全合并与显式覆盖；含非敏感设置，排除 Token | ✅ 已实现，非实时同步/正文级自动合并（[使用说明](github-backup.md)） |
 | **Flutter 移动端** | Android APK 已构建（145MB debug），启动崩溃已修复（`initializeDateFormatting`）；P.A.R.A./Zettelkasten/Markdown 导入待实现 | ⚠️ APK 已构建，功能待对齐 |
 | **Tauri 桌面端** | 系统托盘（左键显示/隐藏，右键菜单）、全局热键（Rust 系统级注册）、frameless 窗口、Quick Capture 独立窗口、logo 替换 | ✅ 已实现 |
 | **协作编辑** | CRDT / Yjs 多人实时协作 | ⬜ 待做 |
 | **日历月视图** | 日期选择器显示笔记密度（热力图） | ⬜ 待做 |
 | **笔记间快速切换** | Ctrl+Tab / Ctrl+Shift+Tab 切换相邻笔记 | ⬜ 待做 |
-| **批量操作** | 多选笔记批量加标签、归档、删除 | ⬜ 待做 |
-| **笔记锁定/加密** | 单篇或全应用加密 | ⬜ 待做 |
+| **批量操作** | 文档树多选删除、只读切换、移动 | ✅ 基础操作已实现；批量加标签待做，移动到 archives 可用于归档 |
+| **笔记锁定/加密** | 只读防误编辑与内容加密是不同能力 | ✅ 只读切换已实现；内容加密待做 |
 
 ## P1 — 当前工程收敛
 
 | 项目 | 当前状态 | 下一验收点 |
 |------|----------|------------|
 | **运行时与更新类型** | ✅ 已建立统一 Tauri runtime 边界，移除 `UpdateNoteInput.id` 冗余并收敛主更新链路 | 继续清理编辑器扩展和数据库 mapper 外的类型逃逸 |
-| **大模块拆分** | ⚠️ 已抽离跨日/时钟 Hook、键盘快捷键/窗口事件 Hook，搜索片段已有独立模块 | 继续拆 `idb.ts` 的图片/版本/导入导出，以及 Quick Capture 事件 |
+| **大模块拆分** | ⚠️ 已抽离跨日/时钟 Hook、键盘快捷键/窗口事件 Hook，搜索片段已有独立模块 | `db-images`、`db-versions`、`db-export-import` 已抽离；继续按职责拆 NoteEditor、App 与 CSS |
 | **前端质量门禁** | ✅ ESLint、类型检查、渐进式 Prettier、Vitest 覆盖率和依赖审计已接入 CI | 逐目录扩大 Prettier 与覆盖率范围 |
 | **跨端质量门禁** | ✅ Rust test/fmt/Clippy 与 Flutter 变更格式、全量 analyze/test 已接入 CI | 增加 Windows 安装后启动冒烟测试；目前已校验 MSI/NSIS 产物完整性 |
+| **折叠回归门禁** | ✅ WebKit 独立运行完整标题/尾部/只读/触摸折叠用例，不受触控 smoke 的 grep 限制 | iPhone PWA、Windows Tauri 真机验收由用户执行 |
+| **模板存储契约** | ✅ StorageAdapter 五个模板方法、共享业务规则与两端契约测试 | 保留现有 SQLite/localStorage 数据，不引入存储迁移 |
+| **正文局部渲染** | 本轮进行现状测量和方案评估，不实施正文虚拟化 | 见[大文件正文渲染评估](editor-rendering-assessment.md) |
 
 路线图只记录当前实现状态和已决定的近期工作。探索性方法论、AI、商业化和长期平台取舍不在此处重复维护。
 

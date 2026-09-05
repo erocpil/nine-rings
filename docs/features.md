@@ -1,7 +1,7 @@
 # Nine Rings（九环）功能规格
 
 > 版本：持续更新（复核至 2026-08-26）
-> 最后更新：2026-08-26
+> 最后更新：2026-09-05（模板接口、备份恢复与已实现状态校正）
 >
 > 本文档列出主要功能域，并覆盖数据模型、输入/输出、接口规格、行为约定、边界条件及跨端差异。
 
@@ -19,7 +19,7 @@
 | 6 | 文档系统 (P.A.R.A.) | `api.docs.*` | `StorageAdapter` + `core.ts` |
 | 7 | 导出 / 导入 | `api.export.*` | `StorageAdapter` |
 | 8 | GitHub 备份 | `SettingsSync` → `github.ts` | 前端独立 |
-| 9 | 模板系统 | `template-store.ts` | SQLite (Tauri) / localStorage (Web) |
+| 9 | 模板系统 | `template-store.ts` → `StorageAdapter` | SQLite (Tauri) / localStorage (Web) |
 | 10 | PDF 阅读与批注 | `pdf-library.ts` / `PdfReader.tsx` | IndexedDB + PDF.js / pdf-lib |
 
 ---
@@ -289,7 +289,7 @@ daily/         ← 虚拟：所有随笔（storagePath = NULL）
 | 重命名 | InlineRename → `updateNote(id, {title})` |
 | 删除 | 单个 → `deleteNote(id)`；文件夹 → `batchDelete(ids)` |
 | 只读切换 | `batchSetReadonly(ids, readonly)` |
-| 移动（拖拽） | 不支持（TODO） |
+| 移动 | 已支持文档/目录移动及多选批量移动，见文档树操作菜单 |
 
 ---
 
@@ -334,56 +334,13 @@ daily/         ← 虚拟：所有随笔（storagePath = NULL）
 
 ## 8. GitHub 备份
 
-### 数据流
+采用全量 JSON 快照；Web 与 Tauri 共用前端备份逻辑，通过 `api.export.*` 接入各自存储。详细操作和数据边界见 [GitHub 备份](github-backup.md)。
 
-```
-Push: 本地 IndexedDB → exportFullDB() → JSON → PUT /repos/{owner}/{repo}/contents/{path}
-Pull: GET → base64 解码 → JSON → importFullDB() → IndexedDB
-```
-
-### 配置
-
-```typescript
-interface SyncConfig {
-  token: string;       // GitHub PAT (repo 权限)
-  owner: string;
-  repo: string;
-  path: string;        // 默认 "nine-rings-backup.json"
-  lastSyncAt: string | null;
-  remoteSha: string | null;
-}
-```
-
-配置持久化到 `localStorage("nr:github-sync")`。
-
-### Push 步骤
-
-```
-1. 调用 api.export.data() → JSON 字符串
-2. GET /repos/{owner}/{repo}/contents/{path} → 获取当前 SHA
-3. PUT /repos/{owner}/{repo}/contents/{path}
-   body: {message, content: base64(json), sha}
-   >1MB: 走 Git Blobs API
-4. 更新 localStorage 中的 lastSyncAt / remoteSha
-```
-
-### Pull 步骤
-
-```
-1. GET /repos/{owner}/{repo}/contents/{path} → base64 内容
-   >1MB: 用 Git Blobs API
-2. UTF-8 对称解码（atob → escape → decodeURIComponent）
-3. JSON.parse 验证
-4. api.export.import(json) → 去重写入本地
-5. window.location.reload()（2 秒延迟）
-```
-
-### 注意事项
-
-- **Web 端和 Tauri 端共用同一个 `github.ts` 模块**，StorageAdapter 中不再保留无效同步接口。
-- Push 前会做确认对话框
-- Pull 前会做覆盖确认对话框
-- 连接测试：`GET /repos/{owner}/{repo}` 验证 token/仓库可用性
+- Push：导出本地快照，检查远端是否存在本机尚未合并的版本，再上传；有新版本则要求先 Pull。
+- Pull：先按文档 UUID 比较本地、远端和同步基线，展示差异，不自动修改数据。
+- 默认安全合并：保留本地独有文档，不传播删除；双方冲突保留副本，同名但 UUID 不同的文档不按标题去重。
+- 显式全量覆盖：确认后远端没有的本地内容会被移除，界面列出风险。
+- 成功恢复后重载工作区；导入失败有本地恢复点保护。不是实时同步，也不自动合并同一正文中的段落修改。
 
 ---
 
@@ -397,7 +354,7 @@ Table: templates
   name            TEXT NOT NULL
   description     TEXT
   is_builtin      INTEGER   # 1=内置不可删除
-  title_template  TEXT       # 标题模板，支持占位符
+  title_template  TEXT       # 默认标题，按字面应用
   tags            TEXT       # JSON 数组
   storage_path    TEXT
   doc_type        TEXT
@@ -416,33 +373,25 @@ Table: templates
 ### 接口规格
 
 ```typescript
-// template-store.ts（Tauri 走 db_query；Web 走 localStorage fallback）
+// template-store.ts → getAdapter() → StorageAdapter（以下均为异步方法）
 
 listTemplates() → Template[]
 createTemplate(input: TemplateInput) → Template
-updateTemplate(id, input: TemplateInput) → Template
+updateTemplate(id, input: Partial<TemplateInput>) → void
 deleteTemplate(id) → void  // 拒绝 is_builtin=1
-seedBuiltinTemplates() → void  // 幂等：已存在则跳过
+seedBuiltinTemplates() → void  // 仅补缺失内置模板/校正排序，保留用户修改
 ```
 
 ### 8 个内置模板
 
-| 名称 | 模板内容 |
-|------|---------|
-| 会议记录 | `# 会议：{{title}}\n\n**日期**：{{date}}\n**参与人**：\n\n## 议题\n\n## 决议\n\n## 行动项` |
-| 读书笔记 | `# {{title}}\n\n**作者**：\n**日期**：{{date}}\n\n## 概要\n\n## 要点\n\n## 摘录\n\n## 思考` |
-| 项目日志 | `# {{title}}\n\n**日期**：{{date}}\n**状态**：\n\n## 进展\n\n## 阻塞\n\n## 下一步` |
-| 周报 | `# 周报 {{week}}\n\n**日期**：{{date}}\n\n## 本周完成\n\n## 下周计划\n\n## 问题与风险` |
-| 教程 | （Diátaxis tutorial） |
-| 解释 | （Diátaxis explanation） |
-| 指南 | （Diátaxis how-to） |
-| 参考 | （Diátaxis reference） |
+当前为：空白笔记、灵感记录、待办清单、读书笔记、知识卡片、会议纪要、项目日志、项目周报。空白模板不生成正文，其余通过 `template-content.ts` 生成对应结构；元数据定义见 `template-model.ts`。
 
 ### 配置
 
 - `TemplatePicker` 弹出层展示模板列表（名称 + 描述），点击选择后走 `onCreateWithTemplate(template)` → 预填标题/路径/类型/标签
 - 内置模板可修改但不可删除（`delete_template` 拒绝 `is_builtin=1`）
-- 模板存储在 SQLite 专用表中（Tauri）；Web 端使用 localStorage fallback 的等价实现
+- 两端共享 `template-service.ts`：内置模板优先，其后按 sort_order、创建时间、ID 稳定排序；更新/删除不存在的 ID 均报错，undefined 保留原值、null 清空可空字段。存储位置和旧数据格式不变。
+- 自定义模板 CRUD 接口存在；完整管理界面尚未提供。
 
 ---
 
@@ -537,13 +486,13 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 
 ---
 
-## Tauri 与 Web 差异对照表（复核至 2026-08-26）
+## Tauri 与 Web 差异对照表（模板复核至 2026-09-05）
 
 | 功能 | Tauri | Web | 差异说明 |
 |------|-------|-----|---------|
 | 笔记 CRUD (5 个核心操作) | `tauriDriver` → Op → SQL | `idb.ts` 直接操作 IndexedDB | ✅ 功能等价 |
 | 路径树构建 | `buildDocTree()` (core.ts) | `buildDocTree()` (core.ts) | ✅ 已统一，两端共用 |
-| 模板系统 | SQLite `templates` 表 + `delete_template` 命令 | localStorage fallback | ✅ 功能可用；实现方式不同（见下方架构差异） |
+| 模板系统 | StorageAdapter → SQLite | StorageAdapter → 原 localStorage 键 | ✅ 业务规则与契约统一；底层引擎不同 |
 | GitHub 备份 | `github.ts` + `api.export.*` | `github.ts` + `api.export.*` | ✅ 功能等价 |
 | 全文搜索 | SQLite FTS5 | JS `indexOf` | ✅ 功能等价（精度不同） |
 | 版本历史 | ✅ checkpoint 已恢复 | ✅ `idb.ts` 完整实现 | ✅ 两端一致 |
@@ -557,9 +506,9 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 
 历史上的 P0/P1 差异（模板 Web 不可用、路径树两套实现、版本历史不一致）均已解决。
 
-### 遗留架构差异（非功能缺失，待收敛）
+### 有意保留的架构差异
 
-1. **模板系统实现方式不同**：Tauri 走 `template-store.ts`（`db_query`），Web 走 localStorage fallback，均绕过统一 `StorageAdapter` 接口。功能两端可用，但实现未收敛到同一抽象层。
+1. **模板底层引擎不同**：接口和业务规则已经统一；SQLite 与 localStorage 各自保存原有数据，不通过本次重构隐式迁移或清空。
 
 ---
 

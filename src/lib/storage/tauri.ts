@@ -15,6 +15,7 @@ import type { Note, DailyPage } from "../../types/models";
 import type { StorageAdapter, AppConfig } from "./types";
 import { tauriDriver } from "./tauri-driver";
 import { snakeNoteToCamel, snakeDailyPageToCamel } from "./normalize";
+import { tauriTemplates } from "./template-tauri";
 
 // ── 旧 invoke 响应规范化 ──
 
@@ -42,6 +43,7 @@ async function invokeDailyPage(cmd: string, args: Record<string, unknown> = {}):
 
 /** TauriAdapter — 通过 IPC invoke 调 Rust 后端 */
 export const tauriAdapter: StorageAdapter = {
+  ...tauriTemplates,
   // ══════ Notes（已迁移到 tauriDriver）══════
 
   getNotesByDate: (date) => tauriDriver.getNotesByDate(date),

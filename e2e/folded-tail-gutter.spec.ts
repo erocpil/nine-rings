@@ -39,6 +39,12 @@ for (const staleIntersection of [false, true]) {
     await page.getByTitle("随笔").click();
     await page.getByTitle("从模板新建").click();
     await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await expect(
+      page.getByRole("textbox", { name: "随心记 — 标题" }),
+    ).toHaveValue("新随笔");
+    await expect(
+      page.locator(".sidebar-item.active .sidebar-item-title"),
+    ).toHaveText("新随笔");
     const editor = page.locator(".ProseMirror");
     // 和实际故障相同：相邻可见标题的原始块号相隔数十块，而非每章只有几段。
     const headings = [
@@ -100,16 +106,27 @@ for (const staleIntersection of [false, true]) {
         await expect(
           page.locator(`.editor-block-number[data-block-index="${index}"]`),
         ).toBeVisible();
-        const headingRect = await heading.boundingBox();
-        const foldRect = await fold.boundingBox();
-        expect(
-          Math.abs(
-            foldRect!.y +
-              foldRect!.height / 2 -
-              headingRect!.y -
-              headingRect!.height / 2,
-          ),
-        ).toBeLessThan(3);
+        // 同一帧读取两个矩形，避免浏览器滚动锚定恰好发生在两次 RPC 之间。
+        await expect
+          .poll(
+            () =>
+              heading.evaluate((element, blockIndex) => {
+                const button = document.querySelector(
+                  `[aria-label$="第 ${blockIndex} 块章节"]`,
+                );
+                if (!button) return Infinity;
+                const headingRect = element.getBoundingClientRect();
+                const foldRect = button.getBoundingClientRect();
+                return Math.abs(
+                  foldRect.y +
+                    foldRect.height / 2 -
+                    headingRect.y -
+                    headingRect.height / 2,
+                );
+              }, index),
+            { timeout: 1000 },
+          )
+          .toBeLessThan(3);
       }
       await expect(
         page.locator('.editor-block-number[data-block-index="299"]'),
@@ -157,6 +174,12 @@ test("命中测试落空时仍定位真实可视块而不是光标所在块", as
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  await expect(
+    page.getByRole("textbox", { name: "随心记 — 标题" }),
+  ).toHaveValue("新随笔");
+  await expect(
+    page.locator(".sidebar-item.active .sidebar-item-title"),
+  ).toHaveText("新随笔");
   const editor = page.locator(".ProseMirror");
   await editor.evaluate((element) => {
     const clipboardData = new DataTransfer();

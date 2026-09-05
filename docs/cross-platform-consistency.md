@@ -61,8 +61,8 @@
   5. 确保两端通过相同测试
 ```
 
-**反模式**（当前问题）：
-- 模板系统在 Tauri 端走 `template-store.ts`（`db_query`），Web 端走 localStorage fallback，未经过统一 `StorageAdapter` 接口（两端各自实现，待收敛）
+**已消除的反模式**（2026-09-05）：
+- 模板兼容入口 `template-store.ts` 统一经 `getAdapter()`；五个持久化方法属于 `StorageAdapter`，默认值、排序、空值更新、内置保护及播种集中到 `template-service.ts`。SQLite 与 localStorage 仅保留底层读写差异。
 
 ### 原则 3：对拍测试作为门禁
 
@@ -90,7 +90,7 @@ tests/
 
 ---
 
-## 3. 差异清单（复核至 2026-08-14）
+## 3. 差异清单（模板与测试入口复核至 2026-09-05）
 
 以下历史**功能缺失**差异均已解决，用户可用的功能两端等价：
 
@@ -102,9 +102,13 @@ tests/
 | 4 | `extractPlainText` 三处重复 | P2 | 已收归 `core.ts`，两端统一引用 |
 | 5 | `syncPush`/`syncPull` 空桩 | P2 | 已删除；GitHub 全量快照是唯一备份入口 |
 
-### 遗留架构差异（非功能缺失，待收敛）
+### 有意保留的存储引擎差异
 
-模板系统实现方式不同：Tauri 走 `template-store.ts`（`db_query`），Web 走 localStorage fallback，均绕过统一 `StorageAdapter` 接口（见原则 2 反模式）。功能两端可用，但实现未收敛到同一抽象层。
+模板均已纳入 `StorageAdapter`：Tauri 通过 `template-tauri.ts` 使用现有 SQLite 表和 IPC；Web 通过 `template-local.ts` 使用原 `nine-rings:templates` 键。共享业务规则不再分叉。Web 更换为 IndexedDB 属于独立数据迁移项目，本轮未实施。
+
+`tests/template-adapter-contract.test.ts` 用相同输入调用真实两个 adapter；Tauri IPC 使用受控替身检查 Op/JSON/布尔编码，不替代 SQLite 执行测试或真机验收。
+
+共享调用队列只串行化同一 adapter 的请求，不承诺跨窗口事务隔离；localStorage 迁移及更强的跨窗口写入协调仍是独立事项。
 
 ---
 
@@ -153,7 +157,7 @@ cd src-tauri && cargo test
 npm test
 ```
 
-（需在 `package.json` 中配置 `"test": "..."` 脚本）
+当前 `npm test` 已包含适配器接口检查及模板业务契约测试。`npm run test:e2e:folding:webkit` 在 CI 中独立运行完整折叠回归，覆盖稀疏标题、末尾留白、延迟观察器回调及触摸折叠。
 
 ---
 

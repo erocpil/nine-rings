@@ -1,8 +1,7 @@
 /**
- * template-store.test.ts — 模板 CRUD 单元测试（Web localStorage 路径全覆盖）
+ * template-store.test.ts — 兼容入口到 StorageAdapter 的 Web 模板回归。
  *
- * detectRuntime() 在 Node 环境下 try-import("@tauri-apps/api/core") 会失败，
- * 自动落入 "web" 分支，因此无需 mock IPC 层即可测试全部五操作 + 边界情况。
+ * Node 无 Tauri 运行时标记，存储工厂选择 Web adapter；无需 IPC mock。
  */
 
 import { templateStore } from "../src/lib/storage/template-store";

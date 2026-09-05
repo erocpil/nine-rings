@@ -5,6 +5,9 @@ test("标题章节可按层级折叠，并从目录统一展开", async ({ page 
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("新随笔");
+  await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
+  await expect(page.locator(".ProseMirror")).toHaveText("");
   const editor = page.locator(".ProseMirror");
   await editor.click();
   await editor.evaluate((element) => {
@@ -60,6 +63,9 @@ test("全部折叠在只有一个 H1 时保留 H2 总览", async ({ page }) => {
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("新随笔");
+  await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
+  await expect(page.locator(".ProseMirror")).toHaveText("");
   const editor = page.locator(".ProseMirror");
   await editor.click();
   await editor.evaluate((element) => {
@@ -87,6 +93,9 @@ test("目录全部折叠再全部展开后保持正文可视位置", async ({ pa
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("新随笔");
+  await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
+  await expect(page.locator(".ProseMirror")).toHaveText("");
 
   const editor = page.locator(".ProseMirror");
   const markdown = Array.from({ length: 6 }, (_, section) => [
@@ -122,6 +131,9 @@ test("全部折叠后文档尾部的标题三角在小幅滚动中保持显示",
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("新随笔");
+  await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
+  await expect(page.locator(".ProseMirror")).toHaveText("");
 
   const editor = page.locator(".ProseMirror");
   const markdown = Array.from({ length: 40 }, (_, index) => (
@@ -231,6 +243,10 @@ test("手机端尾部逐节折叠不发布观察器中的陈旧块号", async ({
   });
   for (const { headingIndex } of [...tailBlocks].reverse()) {
     const blockIndex = headingIndex;
+    // 控件按视口窗口化；先把要点击的章节带入视口，不能要求屏幕外
+    // 且超出预读边界的三角始终挂载。折叠后再断言末尾三节共同可见。
+    await editor.locator(":scope > *").nth(blockIndex - 1)
+      .evaluate((element) => element.scrollIntoView({ block: "center" }));
     const fold = page.getByRole("button", { name: `折叠第 ${blockIndex} 块章节` });
     await expect(fold).toBeAttached();
     await fold.dispatchEvent("click");
@@ -347,6 +363,9 @@ test("千块文档全部展开后滚动不再逐块同步测量", async ({ page 
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("新随笔");
+  await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
+  await expect(page.locator(".ProseMirror")).toHaveText("");
 
   const editor = page.locator(".ProseMirror");
   const markdown = Array.from({ length: 50 }, (_, section) => [

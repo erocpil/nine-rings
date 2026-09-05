@@ -19,6 +19,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 TAURI_TS = os.path.join(PROJECT_ROOT, "src", "lib", "storage", "tauri.ts")
 TAURI_DRIVER_TS = os.path.join(PROJECT_ROOT, "src", "lib", "storage", "tauri-driver.ts")
+TEMPLATE_TAURI_TS = os.path.join(PROJECT_ROOT, "src", "lib", "storage", "template-tauri.ts")
 LIB_RS = os.path.join(PROJECT_ROOT, "src-tauri", "src", "lib.rs")
 COMMANDS_DIR = os.path.join(PROJECT_ROOT, "src-tauri", "src", "commands")
 
@@ -30,7 +31,7 @@ def extract_invoke_commands(filepath: str) -> list[tuple[str, int, str]]:
     with open(filepath) as f:
         for i, line in enumerate(f, 1):
             # match invoke<...>("command_name", ...) or invoke("command_name", ...)
-            m = re.search(r'invoke(?:<[^>]*>)?\("([^"]+)"', line)
+            m = re.search(r'invoke(?:<.+>)?\("([^"]+)"', line)
             if m:
                 cmd = m.group(1)
                 commands.append((cmd, i, line.strip()))
@@ -84,12 +85,12 @@ def main():
     # 4.1 提取前端 invoke 调用
     tauri_invokes = extract_invoke_commands(TAURI_TS)
     driver_invokes = extract_invoke_commands(TAURI_DRIVER_TS)
+    template_invokes = extract_invoke_commands(TEMPLATE_TAURI_TS)
 
     # 4.2 提取后端注册列表
     registered = extract_registered_commands(LIB_RS)
 
     # 4.3 检查每个 invoke 命令是否注册
-    all_invokes = tauri_invokes + driver_invokes
     unregistered: list[tuple[str, int, str, str]] = []  # (cmd, line, file, line_content)
 
     for cmd, line, raw in tauri_invokes:
@@ -99,8 +100,12 @@ def main():
     for cmd, line, raw in driver_invokes:
         if cmd not in registered:
             unregistered.append((cmd, line, "tauri-driver.ts", raw))
+    for cmd, line, raw in template_invokes:
+        if cmd not in registered:
+            unregistered.append((cmd, line, "template-tauri.ts", raw))
 
     print(f"\n前端 invoke 调用: {len(tauri_invokes)} (tauri.ts) + {len(driver_invokes)} (tauri-driver.ts)")
+    print(f"模板 invoke 调用: {len(template_invokes)} (template-tauri.ts)")
     print(f"lib.rs 注册命令:  {len(registered)}")
 
     # 4.4 检查注册命令是否有 Rust 实现
