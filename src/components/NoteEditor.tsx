@@ -46,7 +46,7 @@ import { EditorBlockGutter } from "./EditorBlockGutter";
 import { DocumentOutlineList, type VisibleOutlineEntry } from "./DocumentOutlineList";
 import { MobileActionSheet } from "./MobileActionSheet";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
-import { DocumentPanelDrawer } from "./DocumentPanelDrawer";
+import { DocumentPanelDrawer, type DocumentPanelPresentation } from "./DocumentPanelDrawer";
 import { storeImage } from "../lib/storage/db-images";
 import { api } from "../lib/api";
 import { looksLikeMarkdown, mdToDelta } from "../lib/md-parser";
@@ -572,6 +572,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   const [outlineDock, setOutlineDock] = useState<"floating" | "left" | "right">(getSavedOutlineDock);
   const [outlineDockWidth, setOutlineDockWidth] = useState(getSavedOutlineDockWidth);
   const [bookmarkOpen, setBookmarkOpen] = useState(false);
+  const [panelPresentation, setPanelPresentation] = useState<DocumentPanelPresentation>("popover");
   const [bookmarks, setBookmarks] = useState<DocumentBookmark[]>(bookmarksRef.current);
   const [bookmarkJumpBlockIndex, setBookmarkJumpBlockIndex] = useState<number | null>(null);
   const [openBookmarkActionsId, setOpenBookmarkActionsId] = useState<string | null>(null);
@@ -1257,8 +1258,9 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     () => onOutlineAvailabilityChange?.(false)
   ), [onOutlineAvailabilityChange]);
 
-  const openDocumentOutline = useCallback(() => {
+  const openDocumentOutline = useCallback((presentation: DocumentPanelPresentation = "popover") => {
     if (!editor || editor.isDestroyed || documentOutline.length === 0) return;
+    setPanelPresentation(presentation);
     setActiveOutlineIndex(documentOutlineIndexAtPosition(
       documentOutline,
       editor.state.selection.from,
@@ -1267,6 +1269,17 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     setBookmarkOpen(false);
     setOutlineOpen(true);
   }, [documentOutline, editor]);
+
+  const openDocumentBookmarks = useCallback((presentation: DocumentPanelPresentation = "popover") => {
+    setPanelPresentation(presentation);
+    setOutlineOpen(false);
+    setBookmarkOpen(true);
+  }, []);
+
+  const toggleDocumentBookmarks = useCallback(() => {
+    if (bookmarkOpen) setBookmarkOpen(false);
+    else openDocumentBookmarks();
+  }, [bookmarkOpen, openDocumentBookmarks]);
 
   useEffect(() => {
     const host = noteEditorRef.current;
@@ -1286,15 +1299,14 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         run: () => {
           setFocusToolbarExpanded(false);
           if (target === "bookmark") {
-            setOutlineOpen(false);
-            setBookmarkOpen(true);
+            openDocumentBookmarks("drawer");
           } else {
-            openDocumentOutline();
+            openDocumentOutline("drawer");
           }
         },
       };
     });
-  }, [focusMode, isMobileToolbarViewport, openDocumentOutline]);
+  }, [focusMode, isMobileToolbarViewport, openDocumentOutline, openDocumentBookmarks]);
 
   const toggleDocumentOutline = useCallback(() => {
     if (outlineOpen) {
@@ -1447,7 +1459,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       if (secondFrame) window.cancelAnimationFrame(secondFrame);
       observer?.disconnect();
     };
-  }, [activeOutlineIndex, documentOutline.length, headingFoldRevision, outlineCollapsedHeadingKeys, outlineOpen]);
+  }, [activeOutlineIndex, documentOutline.length, headingFoldRevision, outlineCollapsedHeadingKeys, outlineOpen, panelPresentation]);
 
   const scrollOutlineTo = useCallback((target: "top" | "middle" | "bottom") => {
     const list = outlineListRef.current;
@@ -1588,9 +1600,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
   useEffect(() => {
     if (bookmarkRequestId === undefined || bookmarkRequestId === lastBookmarkRequestIdRef.current) return;
     lastBookmarkRequestIdRef.current = bookmarkRequestId;
-    setOutlineOpen(false);
-    setBookmarkOpen((open) => !open);
-  }, [bookmarkRequestId]);
+    toggleDocumentBookmarks();
+  }, [bookmarkRequestId, toggleDocumentBookmarks]);
 
   // 当 readonly 变化时同步编辑器状态
   useEffect(() => {
@@ -3338,7 +3349,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       setMoreOpen(false);
     }} type="button">{currentBookmark ? "取消当前位置书签" : "添加当前位置书签"} <span>Ctrl+Shift+M</span></button>
     <button className="menu-dropdown-item" onClick={() => {
-      setBookmarkOpen(true);
+      openDocumentBookmarks();
       setMoreOpen(false);
     }} type="button">书签列表{bookmarks.length > 0 ? `（${bookmarks.length}）` : ""}</button>
     <div className="menu-dropdown-sep" />
@@ -3429,8 +3440,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             onClick={(event) => {
               event.stopPropagation();
               setFocusToolbarExpanded(false);
-              setOutlineOpen(false);
-              setBookmarkOpen((open) => !open);
+              toggleDocumentBookmarks();
             }}
             title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
             aria-label={bookmarks.length > 0 ? `文档书签，共 ${bookmarks.length} 项` : "文档书签"}
@@ -3524,11 +3534,12 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       )}
       <DocumentPanelDrawer
         enabled={focusMode && isMobileToolbarViewport}
+        presentation={panelPresentation}
         panel={bookmarkOpen ? "bookmark" : outlineOpen && documentOutline.length > 0 ? "outline" : null}
         hasOutline={documentOutline.length > 0}
         onSelect={(panel) => {
-          if (panel === "outline") openDocumentOutline();
-          else { setOutlineOpen(false); setBookmarkOpen(true); }
+          if (panel === "outline") openDocumentOutline("drawer");
+          else openDocumentBookmarks("drawer");
         }}
         onClose={() => { setOutlineOpen(false); setBookmarkOpen(false); }}
       >
@@ -3717,8 +3728,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             className={`focus-btn document-bookmark-toggle ${bookmarkOpen ? "active" : ""}`}
             onClick={(event) => {
               event.stopPropagation();
-              setOutlineOpen(false);
-              setBookmarkOpen((open) => !open);
+              toggleDocumentBookmarks();
             }}
             title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
             aria-label="文档书签"
@@ -4512,7 +4522,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           {bookmarks.length > 0 && (
             <button
               className="editor-context-item"
-              onClick={() => { setBookmarkOpen(true); setContextMenu(null); }}
+              onClick={() => { openDocumentBookmarks(); setContextMenu(null); }}
             >打开书签列表 <span>{bookmarks.length}</span></button>
           )}
           <div className="editor-context-sep" />

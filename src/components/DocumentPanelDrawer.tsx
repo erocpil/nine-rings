@@ -3,17 +3,19 @@ import { createPortal } from "react-dom";
 import { bindEdgeSwipe } from "../lib/edge-swipe";
 
 type Panel = "outline" | "bookmark";
+export type DocumentPanelPresentation = "popover" | "drawer";
 
-/** 手机专注模式的阅读侧栏；普通模式仍使用原来的就地浮层。 */
-export function DocumentPanelDrawer({ enabled, panel, hasOutline, onSelect, onClose, children }: {
+/** 点击入口使用浮层，手机专注模式的边缘手势使用阅读侧栏。 */
+export function DocumentPanelDrawer({ enabled, presentation, panel, hasOutline, onSelect, onClose, children }: {
   enabled: boolean;
+  presentation: DocumentPanelPresentation;
   panel: Panel | null;
   hasOutline: boolean;
   onSelect: (panel: Panel) => void;
   onClose: () => void;
   children: ReactNode;
 }) {
-  const open = enabled && panel !== null;
+  const open = enabled && presentation === "drawer" && panel !== null;
   const drawerRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -73,7 +75,8 @@ export function DocumentPanelDrawer({ enabled, panel, hasOutline, onSelect, onCl
   }, [open]);
 
   if (!enabled) return <>{children}</>;
-  return createPortal(
+  // 浮层打开时也保留收起的侧栏外壳，确保首次边缘滑动有完整入场动画。
+  return <>{presentation === "popover" && children}{createPortal(
     <div className={`mobile-document-drawer${open ? " is-open" : ""}`} onClick={(event) => event.stopPropagation()}>
       <div ref={backdropRef} className="mobile-document-drawer-backdrop" aria-hidden="true" onClick={onClose} />
       <div ref={drawerRef} className="mobile-document-drawer-panel" role="dialog" aria-modal={open || undefined}
@@ -83,8 +86,8 @@ export function DocumentPanelDrawer({ enabled, panel, hasOutline, onSelect, onCl
           <button type="button" aria-label="切换到书签" aria-pressed={panel === "bookmark"} onClick={() => onSelect("bookmark")}>书签</button>
           <button ref={closeRef} type="button" className="mobile-document-drawer-close" aria-label="关闭阅读侧栏" onClick={onClose}>×</button>
         </div>
-        {open ? children : exiting ? lastContent.current : null}
+        {open ? children : exiting && presentation === "drawer" ? lastContent.current : null}
       </div>
     </div>, document.body,
-  );
+  )}</>;
 }
