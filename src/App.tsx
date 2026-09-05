@@ -483,7 +483,6 @@ function App() {
   }, [closeSidebarOnNarrowScreen, currentDate, handleSelectNote, setDate, setQuery]);
   const [docCreateOpen, setDocCreateOpen] = useState(false);
   const [docTreeKey, setDocTreeKey] = useState(0);
-  const [docTreeOpenNonce, setDocTreeOpenNonce] = useState(0);
   const [docTreeCollapsed, setDocTreeCollapsed] = useState<Set<string>>(() => {
     try {
       const raw = localStorage.getItem(DOC_TREE_COLLAPSED_KEY);
@@ -538,13 +537,6 @@ function App() {
       }
       for (const path of getPathAncestors(targetPath)) next.delete(path);
       return next;
-    });
-  }, []);
-
-  const scheduleDocTreeRefreshOnOpen = useCallback(() => {
-    requestAnimationFrame(() => {
-      setDocTreeOpenNonce((nonce) => nonce + 1);
-      setDocTreeKey((key) => key + 1);
     });
   }, []);
 
@@ -1101,9 +1093,8 @@ function App() {
     if (!sidebarHidden || !mobileDrawerViewport) return null;
     return () => {
       setSidebarHidden(false);
-      scheduleDocTreeRefreshOnOpen();
     };
-  }), [mobileDrawerViewport, sidebarHidden, scheduleDocTreeRefreshOnOpen]);
+  }), [mobileDrawerViewport, sidebarHidden]);
 
   // ── 开发模式后台导入 ──
   const refreshView = useCallback(() => {
@@ -1159,8 +1150,8 @@ function App() {
         setSidebarTab("tree");
         localStorage.setItem(TAB_KEY, "tree");
       }
+      // 再次搜索当前文档也要展开其路径，但无需重新加载或重建整棵树。
       revealDocTreePath(note.storagePath);
-      scheduleDocTreeRefreshOnOpen();
     }
     handleSelectNote(note);
     setDate(note.date);
@@ -1168,7 +1159,6 @@ function App() {
     setQuery,
     handleSelectNote,
     revealDocTreePath,
-    scheduleDocTreeRefreshOnOpen,
     sidebarTab,
     setDate,
   ]);
@@ -1527,7 +1517,6 @@ function App() {
             />
           ) : (
             <DocTree
-              key={docTreeOpenNonce}
               collapsed={docTreeCollapsed}
               setCollapsed={setDocTreeCollapsed}
               disabled={syncBusy}

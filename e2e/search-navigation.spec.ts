@@ -179,10 +179,48 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     const afterSidebar = await selectionTop();
     expect(Math.abs((afterSidebar ?? 0) - (beforeSidebar ?? 0))).toBeLessThanOrEqual(4);
 
-    const beforeWindow = await selectionTop();
-    await page.setViewportSize({ width: 1540, height: 800 });
-    await page.waitForTimeout(100);
-    const afterWindow = await selectionTop();
-    expect(Math.abs((afterWindow ?? 0) - (beforeWindow ?? 0))).toBeLessThanOrEqual(4);
+    // 焦点留在布局按钮时，连续重排也必须延续刚才的正文光标锚点。
+    for (const width of [1540, 1100, 1540]) {
+      const beforeWindow = await selectionTop();
+      await page.setViewportSize({ width, height: 800 });
+      await page.waitForTimeout(100);
+      const afterWindow = await selectionTop();
+      expect(Math.abs((afterWindow ?? 0) - (beforeWindow ?? 0))).toBeLessThanOrEqual(4);
+      // 超过滚动静止计时器，确保不会二次漂移或在下轮丢失锚点。
+      await page.waitForTimeout(200);
+      expect(Math.abs((await selectionTop() ?? 0) - (beforeWindow ?? 0))).toBeLessThanOrEqual(4);
+    }
+  });
+
+  test("布局按钮失焦后滚到其它段落，窗口变宽保持阅读位置而不追随旧光标", async ({ page }) => {
+    await createDocument(page, "编辑转阅读锚点测试");
+    const editor = page.locator(".ProseMirror");
+    await editor.fill(Array.from({ length: 48 }, (_, index) =>
+      `第 ${index + 1} 段 ${"用于测试阅读位置的长文本 ".repeat(7)}`,
+    ).join("\n"));
+    const caretParagraph = editor.locator(":scope > p").nth(17);
+    await caretParagraph.scrollIntoViewIfNeeded();
+    await caretParagraph.click();
+    await page.getByTitle("隐藏侧栏").click();
+    await page.waitForTimeout(200);
+
+    const readingParagraph = editor.locator(":scope > p").nth(35);
+    await readingParagraph.evaluate((element) => {
+      const root = document.querySelector<HTMLElement>(".note-editor-scroll")!;
+      const sticky = root.querySelector<HTMLElement>(":scope > .note-editor-sticky")!;
+      const top = Math.max(root.getBoundingClientRect().top, sticky.getBoundingClientRect().bottom);
+      root.scrollTop += element.getBoundingClientRect().top - top + 6;
+    });
+    await page.waitForTimeout(200);
+    const before = (await readingParagraph.boundingBox())!.y;
+    const rootTop = (await page.locator(".note-editor-scroll").boundingBox())!.y;
+    const caretRect = (await caretParagraph.boundingBox())!;
+    expect(caretRect.y + caretRect.height).toBeLessThan(rootTop);
+
+    for (const width of [1540, 1100]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.waitForTimeout(200);
+      expect(Math.abs((await readingParagraph.boundingBox())!.y - before)).toBeLessThanOrEqual(4);
+    }
   });
 });

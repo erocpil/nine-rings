@@ -1923,8 +1923,8 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
     onSearchTargetConsumed?.(searchTarget.requestId);
   }, [editor, noteId, onSearchTargetConsumed, revealSearchMatch, searchTarget, title]);
 
-  // 宽度变化会让软换行重排。编辑且光标可见时锚定光标；只读、失焦或
-  // 光标不在视口内时锚定顶部第一个可见块，避免横竖屏切换跳到旧选区。
+  // 宽度变化会让软换行重排。编辑且光标可见时锚定光标；布局按钮暂时
+  // 获得焦点时延续该锚点。只读或光标移出视口后改用顶部第一个可见块。
   useEffect(() => {
     if (!editor) return;
     const root = scrollRef.current;
@@ -1961,8 +1961,21 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
       const viewport = editorReadingViewport(root);
       const pos = Math.min(editor.state.selection.head, editor.state.doc.content.size);
       const coords = editor.view.coordsAtPos(pos);
+      const selection = root.ownerDocument.getSelection();
+      const activeElement = root.ownerDocument.activeElement;
+      const editingElsewhere = activeElement instanceof HTMLElement
+        && !editor.view.dom.contains(activeElement)
+        && (activeElement.matches("input, textarea, select") || activeElement.isContentEditable);
+      // 点击侧栏/布局按钮会 blur，但正文的 DOM 选区仍属于刚才的编辑位置。
+      // 若因此换成段落锚点，下一次变宽时段落间软换行的变化会推走光标。
+      // 只延续已有的光标锚点，避免在阅读滚动后重新追踪留在远处的旧选区。
+      const retainedCaret = anchor?.kind === "caret"
+        && anchor.pos === pos
+        && !editingElsewhere
+        && selection?.anchorNode && editor.view.dom.contains(selection.anchorNode)
+        && selection.focusNode && editor.view.dom.contains(selection.focusNode);
       const caretVisible = !readonly
-        && editor.isFocused
+        && (editor.isFocused || retainedCaret)
         && coords.bottom >= viewport.top
         && coords.top <= viewport.bottom;
       if (caretVisible) {

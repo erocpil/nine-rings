@@ -1792,6 +1792,86 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(rect).toEqual({ top: 120, left: 4, width: 382, height: 430, bottom: 550 });
   });
 
+  test("搜索收起虚拟键盘后左右侧栏与遮罩恢复整屏高度", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("显示侧栏").click();
+    await page.getByTitle("新建文档").click();
+    await page.getByPlaceholder("文档标题...").fill("搜索后侧栏布局");
+    await page.getByRole("button", { name: "创建", exact: true }).click();
+    await expect(page.locator(".note-title")).toHaveValue("搜索后侧栏布局");
+    if (!await page.locator(".app-sidebar").evaluate((element) => element.classList.contains("sidebar-hidden"))) {
+      await page.getByTitle("隐藏侧栏").click();
+    }
+    const editor = page.locator(".ProseMirror");
+    await editor.fill(Array.from({ length: 24 }, (_, i) => i === 18 ? "夜色中的搜索目标" : `正文第 ${i + 1} 段`).join("\n"));
+    await expect(page.locator(".save-status-saved")).toBeVisible();
+    await page.getByTitle("点击设为只读").click();
+    await page.getByTitle("搜索", { exact: true }).click();
+    await page.locator(".search-input").fill("色");
+
+    // 模拟键盘的真实 viewport resize 链路，而非直接写应用 CSS 状态。
+    await page.evaluate(() => {
+      Object.defineProperty(window.visualViewport!, "height", { configurable: true, value: 430 });
+      window.visualViewport!.dispatchEvent(new Event("resize"));
+    });
+    await expect(page.locator("html")).toHaveClass(/web-keyboard-open/);
+    await expect(page.locator(".app")).toHaveCSS("height", "430px");
+    await page.locator(".search-hit").filter({ hasText: "搜索后侧栏布局" }).click();
+    await expect(page.locator(".search-match-active")).toHaveText("色");
+    await page.evaluate(() => {
+      Reflect.deleteProperty(window.visualViewport!, "height");
+      window.visualViewport!.dispatchEvent(new Event("resize"));
+    });
+    await expect(page.locator("html")).not.toHaveClass(/web-keyboard-open/);
+    const host = page.locator(".note-editor");
+    await swipeNoteEditor(host, { startX: 8, startY: 400, endX: 108, endY: 405 });
+    const sidebar = page.getByRole("dialog", { name: "文档侧栏" });
+    await expect(sidebar).toBeVisible();
+    await expect(sidebar.locator(".doc-tree-selected")).toContainText("搜索后侧栏布局");
+    for (const selector of [".app-sidebar", ".sidebar-overlay"]) {
+      await expect(page.locator(selector)).toHaveCSS("height", "760px");
+    }
+    // 底部也必须命中遮罩，不能点穿到正文。
+    expect(await page.evaluate(() => document.elementFromPoint(375, 730)?.classList.contains("sidebar-overlay"))).toBe(true);
+    await page.locator(".sidebar-overlay").click({ position: { x: 375, y: 730 } });
+    await expect(sidebar).toBeHidden();
+    await expect(page.locator(".search-match-active")).toHaveText("色");
+
+    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    await swipeNoteEditor(host, { startX: 382, startY: 190, endX: 282, endY: 195 });
+    await expect(page.getByRole("dialog", { name: "阅读侧栏" })).toBeVisible();
+    await expect(page.locator(".mobile-document-drawer")).toHaveCSS("height", "760px");
+    expect(await page.evaluate(() => document.elementFromPoint(8, 730)?.classList.contains("mobile-document-drawer-backdrop"))).toBe(true);
+  });
+
+  test("键盘打开后旋转时侧栏不保留旧方向的宽高", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("显示侧栏").click();
+    for (const next of [{ width: 760, height: 390 }, { width: 390, height: 760 }]) {
+      const keyboardHeight = await page.evaluate(() => {
+        const height = window.innerHeight - 230;
+        for (const [name, value] of Object.entries({ width: window.innerWidth, height })) {
+          Object.defineProperty(window.visualViewport!, name, { configurable: true, value });
+        }
+        window.visualViewport!.dispatchEvent(new Event("resize"));
+        return height;
+      });
+      await expect(page.locator("html")).toHaveClass(/web-keyboard-open/);
+      await expect(page.locator(".app-sidebar")).toHaveCSS("height", `${keyboardHeight}px`);
+      // 布局视口先旋转，Visual Viewport 暂留原方向的键盘尺寸。
+      await page.setViewportSize(next);
+      await expect(page.locator("html")).not.toHaveClass(/web-keyboard-open/);
+      await expect(page.locator(".app-sidebar")).toHaveCSS("height", `${next.height}px`);
+      await expect(page.locator(".sidebar-overlay")).toHaveCSS("height", `${next.height}px`);
+      await expect(page.locator(".sidebar-overlay")).toHaveCSS("width", `${next.width}px`);
+      await page.evaluate(() => {
+        Reflect.deleteProperty(window.visualViewport!, "width");
+        Reflect.deleteProperty(window.visualViewport!, "height");
+        window.visualViewport!.dispatchEvent(new Event("resize"));
+      });
+    }
+  });
+
   test("横竖屏切换时忽略滞后的 Visual Viewport 尺寸", async ({ page }) => {
     await page.goto("/");
     await page.evaluate(() => {
@@ -1864,14 +1944,18 @@ test.describe("PWA 窄屏应用外壳", () => {
       const caret = selection.getRangeAt(0).getBoundingClientRect();
       return {
         fontSize: getComputedStyle(editorElement).fontSize,
-        textSizeAdjust: getComputedStyle(document.documentElement).webkitTextSizeAdjust,
+        textSizeAdjust: getComputedStyle(document.documentElement).getPropertyValue("text-size-adjust")
+          || getComputedStyle(document.documentElement).getPropertyValue("-webkit-text-size-adjust"),
+        textSizeAdjustSupported: CSS.supports("text-size-adjust", "100%") || CSS.supports("-webkit-text-size-adjust", "100%"),
         ratio: (caret.top - root.top) / root.height,
         visible: caret.bottom >= root.top + 8 && caret.top <= root.bottom - 20,
       };
     });
 
     const portraitBefore = await readCaretLayout();
-    expect(portraitBefore.textSizeAdjust).toBe("100%");
+    // 桌面 WebKit 构建可能不提供移动端字体自动放大属性；仍检查实际字体
+    // 大小和横竖屏定位，有该能力的浏览器再验证禁用自动放大的样式。
+    if (portraitBefore.textSizeAdjustSupported) expect(portraitBefore.textSizeAdjust).toBe("100%");
 
     await page.setViewportSize({ width: 760, height: 390 });
     await expect.poll(async () => (await readCaretLayout()).visible).toBe(true);

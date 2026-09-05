@@ -45,6 +45,13 @@ export function storagePressure(status: WebStorageStatus): number | null {
   return status.usage / status.quota;
 }
 
+function clearKeyboardViewportSize() {
+  // 清除行内覆盖，恢复 :root 的 100dvh / 100vw；左右抽屉也共用这两个变量。
+  const style = document.documentElement.style;
+  style.removeProperty("--app-viewport-height");
+  style.removeProperty("--app-viewport-width");
+}
+
 function syncViewportCSS() {
   const viewport = typeof window.visualViewport === "undefined" ? null : window.visualViewport;
   const viewportWidth = viewport?.width ?? window.innerWidth;
@@ -85,6 +92,10 @@ function syncViewportCSS() {
   if (keyboardOpen) {
     setPixels("--app-viewport-height", status.viewportHeight);
     setPixels("--app-viewport-width", status.viewportWidth);
+  } else {
+    // 只停止写入会留下上一次键盘打开时的像素高度：应用外壳已恢复，
+    // 抽屉和遮罩却仍被截成半屏。关闭时交还 CSS，避免持续写入触发重排。
+    clearKeyboardViewportSize();
   }
   setPixels("--app-keyboard-height", status.keyboardHeight);
   setPixels("--app-visual-viewport-bottom-inset", status.viewportBottomInset);
@@ -118,6 +129,7 @@ export function useWebPlatform() {
       // 旋转开始便退出键盘布局；应用外壳由 CSS 视口立即接管。随后一次
       // rAF 及真实 resize 事件只更新键盘/偏移信息，不再连续强制重排。
       document.documentElement.classList.remove("web-keyboard-open");
+      clearKeyboardViewportSize();
       scheduleViewportSync();
     };
     const viewport = window.visualViewport;
