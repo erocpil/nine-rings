@@ -483,6 +483,7 @@ function App() {
   }, [closeSidebarOnNarrowScreen, currentDate, handleSelectNote, setDate, setQuery]);
   const [docCreateOpen, setDocCreateOpen] = useState(false);
   const [docTreeKey, setDocTreeKey] = useState(0);
+  const [docTreeOpenNonce, setDocTreeOpenNonce] = useState(0);
   const [docTreeCollapsed, setDocTreeCollapsed] = useState<Set<string>>(() => {
     try {
       const raw = localStorage.getItem(DOC_TREE_COLLAPSED_KEY);
@@ -537,6 +538,13 @@ function App() {
       }
       for (const path of getPathAncestors(targetPath)) next.delete(path);
       return next;
+    });
+  }, []);
+
+  const scheduleDocTreeRefreshOnOpen = useCallback(() => {
+    requestAnimationFrame(() => {
+      setDocTreeOpenNonce((nonce) => nonce + 1);
+      setDocTreeKey((key) => key + 1);
     });
   }, []);
 
@@ -867,11 +875,45 @@ function App() {
   const startYRef = useRef(0);
   const startRatioRef = useRef(0);
   const dragRatioRef = useRef(todoFlex);
+  const splitDragClickGuardRef = useRef(false);
+  const splitDragClickGuardTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const blockSplitDragClicks = (event: Event) => {
+      if (!splitDragClickGuardRef.current) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+
+    document.addEventListener("click", blockSplitDragClicks, true);
+    return () => {
+      document.removeEventListener("click", blockSplitDragClicks, true);
+      if (splitDragClickGuardTimerRef.current !== null) {
+        window.clearTimeout(splitDragClickGuardTimerRef.current);
+        splitDragClickGuardTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const setSplitDraggingUi = (dragging: boolean) => {
     document.body.classList.toggle("app-split-dragging", dragging);
     document.body.style.userSelect = dragging ? "none" : "";
     document.body.style.webkitUserSelect = dragging ? "none" : "";
+    if (draggingRef.current || dragging) {
+      splitDragClickGuardRef.current = true;
+      if (splitDragClickGuardTimerRef.current !== null) {
+        window.clearTimeout(splitDragClickGuardTimerRef.current);
+        splitDragClickGuardTimerRef.current = null;
+      }
+    } else {
+      if (splitDragClickGuardTimerRef.current !== null) {
+        window.clearTimeout(splitDragClickGuardTimerRef.current);
+      }
+      splitDragClickGuardTimerRef.current = window.setTimeout(() => {
+        splitDragClickGuardRef.current = false;
+        splitDragClickGuardTimerRef.current = null;
+      }, 120);
+    }
     if (!dragging) return;
 
     // iOS may otherwise focus the todo input or retain a text selection when the
@@ -1057,8 +1099,11 @@ function App() {
   useEdgeDrawer(mobileDrawerViewport && !sidebarHidden, "left", sidebarPanelRef, sidebarBackdropRef, () => setSidebarHidden(true));
   useEffect(() => bindViewportEdgeSwipe("left", () => {
     if (!sidebarHidden || !mobileDrawerViewport) return null;
-    return () => setSidebarHidden(false);
-  }), [sidebarHidden, mobileDrawerViewport]);
+    return () => {
+      setSidebarHidden(false);
+      scheduleDocTreeRefreshOnOpen();
+    };
+  }), [mobileDrawerViewport, sidebarHidden, scheduleDocTreeRefreshOnOpen]);
 
   // ── 开发模式后台导入 ──
   const refreshView = useCallback(() => {
@@ -1109,9 +1154,24 @@ function App() {
       setDocResults(null);    // 清除文档搜索
       setDocSearchText("");
     }
+    if (note.storagePath) {
+      if (sidebarTab !== "tree") {
+        setSidebarTab("tree");
+        localStorage.setItem(TAB_KEY, "tree");
+      }
+      revealDocTreePath(note.storagePath);
+      scheduleDocTreeRefreshOnOpen();
+    }
     handleSelectNote(note);
     setDate(note.date);
-  }, [setQuery, handleSelectNote, setDate]);
+  }, [
+    setQuery,
+    handleSelectNote,
+    revealDocTreePath,
+    scheduleDocTreeRefreshOnOpen,
+    sidebarTab,
+    setDate,
+  ]);
 
   const handleSearchTargetConsumed = useCallback((requestId: number) => {
     setEditorSearchTarget((current) => current?.requestId === requestId ? null : current);
@@ -1467,6 +1527,7 @@ function App() {
             />
           ) : (
             <DocTree
+              key={docTreeOpenNonce}
               collapsed={docTreeCollapsed}
               setCollapsed={setDocTreeCollapsed}
               disabled={syncBusy}
