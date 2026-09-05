@@ -14,6 +14,7 @@ type SwipeAction = { direction: "left" | "right"; run: () => void };
 export function bindEdgeSwipe(
   host: HTMLElement | Window,
   resolve: (touch: Touch) => SwipeAction | null,
+  options: { withinPanel?: boolean; swipeButtonSelector?: string } = {},
 ): () => void {
   let gesture: { id: number; x: number; y: number; locked: boolean; action: SwipeAction } | null = null;
   const cancel = () => { gesture = null; };
@@ -23,7 +24,9 @@ export function bindEdgeSwipe(
     if (event.defaultPrevented || event.touches.length !== 1) return;
     const target = event.target;
     if (target instanceof Element) {
-      if (target.closest("button, a, input, textarea, select, [role='slider'], .document-outline-panel, .document-bookmark-panel, .editor-menu")) return;
+      if (target.closest("input, textarea, select, [role='slider'], .editor-menu")) return;
+      if (!options.withinPanel && target.closest(".document-outline-panel, .document-bookmark-panel")) return;
+      if (target.closest("button, a") && !(options.swipeButtonSelector && target.closest(options.swipeButtonSelector))) return;
       const selection = target.ownerDocument.getSelection();
       if (selection && !selection.isCollapsed) return;
     }

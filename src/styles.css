@@ -2536,6 +2536,97 @@ body {
   text-overflow: ellipsis;
 }
 
+/* 与左侧文档树保持相同的宽度、遮罩浓度和进出速度。使用 portal 避免编辑器裁切。 */
+.mobile-document-drawer {
+  position: fixed;
+  top: var(--app-visual-viewport-offset-top, 0px);
+  left: var(--app-visual-viewport-offset-left, 0px);
+  width: var(--app-viewport-width, 100vw);
+  height: var(--app-viewport-height, 100dvh);
+  z-index: 100;
+  pointer-events: none;
+}
+
+.mobile-document-drawer-backdrop {
+  position: absolute;
+  inset: 0 0 var(--safe-bottom);
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.mobile-document-drawer-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: var(--safe-bottom);
+  width: 280px;
+  max-width: 85vw;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--safe-top);
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.12);
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform 0.25s ease, visibility 0s linear 0.25s;
+}
+
+.mobile-document-drawer.is-open {
+  pointer-events: auto;
+}
+
+.mobile-document-drawer.is-open .mobile-document-drawer-backdrop { opacity: 1; }
+.mobile-document-drawer.is-open .mobile-document-drawer-panel {
+  transform: translateX(0);
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.mobile-document-drawer .document-outline-panel,
+.mobile-document-drawer .document-bookmark-panel {
+  position: static;
+  width: 100% !important;
+  max-height: none;
+  min-height: 0;
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.mobile-document-drawer .document-outline-list,
+.mobile-document-drawer .document-bookmark-list {
+  flex: 1;
+  overscroll-behavior: contain;
+}
+
+.mobile-document-drawer-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mobile-document-drawer-header button {
+  min-height: 36px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+}
+.mobile-document-drawer-header button[aria-pressed="true"] { background: var(--active-bg); color: var(--accent); }
+.mobile-document-drawer-header button:disabled { opacity: 0.45; }
+.mobile-document-drawer-header .mobile-document-drawer-close { margin-left: auto; font-size: 22px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-document-drawer .mobile-document-drawer-panel,
+  .mobile-document-drawer .mobile-document-drawer-backdrop { transition: none; }
+}
+
 /* ──── Empty State ──── */
 
 .empty-state {
@@ -9051,7 +9142,9 @@ button.doc-tree-toggle:focus-visible {
   }
 
   .document-outline-panel,
-  .focus-mode .document-outline-panel {
+  .focus-mode .document-outline-panel,
+  .document-bookmark-panel,
+  .focus-mode .document-bookmark-panel {
     right: 8px;
     left: auto;
     width: min(420px, calc(100vw - 16px));
@@ -9070,19 +9163,11 @@ button.doc-tree-toggle:focus-visible {
     display: none;
   }
 
-  .focus-mode .document-outline-panel {
-    position: fixed;
-    top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 32px);
-    max-height: min(58dvh, calc(100dvh - var(--safe-top) - var(--safe-bottom) - 52px));
-  }
-
-  .document-bookmark-panel,
+  /* 普通模式共用编辑器内的定位；只有专注模式才固定在屏幕标题栏下。 */
+  .focus-mode .document-outline-panel,
   .focus-mode .document-bookmark-panel {
     position: fixed;
     top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 32px);
-    right: 8px;
-    left: auto;
-    width: min(420px, calc(100vw - 16px));
     max-height: min(58dvh, calc(100dvh - var(--safe-top) - var(--safe-bottom) - 52px));
   }
 

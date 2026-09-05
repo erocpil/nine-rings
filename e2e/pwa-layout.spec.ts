@@ -156,7 +156,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(Math.max(...compactGeometry.gaps)).toBeLessThanOrEqual(28);
   });
 
-  test("专注与普通模式目录同宽且长标题最多显示两行", async ({ page }) => {
+  test("手机目录长标题最多显示两行，专注侧栏采用文档树宽度", async ({ page }) => {
     await page.goto("/");
     const editor = page.locator(".ProseMirror");
     const longTitle = "这是一个用于验证手机目录能够尽量完整显示内容而不会过早截断的很长章节标题并继续补充足够多的文字验证第二行显示效果";
@@ -189,13 +189,17 @@ test.describe("PWA 窄屏应用外壳", () => {
         width: panel.getBoundingClientRect().width,
         itemHeight: item.getBoundingClientRect().height,
         textWidth: text.getBoundingClientRect().width,
+        textHeight: text.getBoundingClientRect().height,
+        lineHeight: Number.parseFloat(getComputedStyle(text).lineHeight),
         textScrollWidth: text.scrollWidth,
         whiteSpace: getComputedStyle(text).whiteSpace,
         lineClamp: getComputedStyle(text).webkitLineClamp,
       };
     });
     expect(normalGeometry.width).toBeGreaterThanOrEqual(370);
-    expect(normalGeometry.itemHeight, JSON.stringify(normalGeometry)).toBeGreaterThan(38);
+    // WebKit 的行高取整可能让两行条目恰好为 38px，按实际文字行高验证换行。
+    expect(normalGeometry.textHeight).toBeGreaterThan(normalGeometry.lineHeight * 1.5);
+    expect(normalGeometry.textHeight).toBeLessThanOrEqual(normalGeometry.lineHeight * 2 + 1);
     const shortItemHeight = await outline.locator('.document-outline-item[title="短章节 1"]')
       .evaluate((item) => item.getBoundingClientRect().height);
     expect(shortItemHeight).toBeLessThanOrEqual(27);
@@ -205,7 +209,8 @@ test.describe("PWA 窄屏应用外壳", () => {
     const focusOutlineButton = page.getByLabel("专注模式工具栏").getByTitle("文档目录");
     await focusOutlineButton.click();
     const focusWidth = await outline.evaluate((panel) => panel.getBoundingClientRect().width);
-    expect(focusWidth).toBeCloseTo(normalGeometry.width, 1);
+    expect(focusWidth).toBeLessThanOrEqual(280);
+    expect(focusWidth).toBeLessThan(normalGeometry.width);
   });
 
   test("普通模式目录与书签按钮等高且垂直对齐", async ({ page }) => {
@@ -230,6 +235,168 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(geometry.outline.height).toBeCloseTo(geometry.bookmark.height, 1);
     expect(geometry.outline.top).toBeCloseTo(geometry.bookmark.top, 1);
     expect(geometry.outline.bottom).toBeCloseTo(geometry.bookmark.bottom, 1);
+  });
+
+  for (const width of [320, 390, 1280]) {
+    test(`非专注模式书签与目录弹层位置一致（${width}px）`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/");
+      const editor = page.locator(".ProseMirror");
+      await editor.fill("# 弹层位置测试\n\n正文");
+      const titleRow = page.locator(".note-title-row");
+      const outlineButton = titleRow.getByRole("button", { name: "文档目录", exact: true });
+      const bookmarkButton = titleRow.getByRole("button", { name: "文档书签", exact: true });
+      const outline = page.getByRole("navigation", { name: "文档目录" });
+      const bookmark = page.getByRole("navigation", { name: "文档书签" });
+      const checkPosition = async () => {
+        await outlineButton.click();
+        await expect(outline).toBeVisible();
+        const outlineRect = await outline.boundingBox();
+        await bookmarkButton.click();
+        await expect(outline).toHaveCount(0);
+        await expect(bookmark).toBeVisible();
+        await expect(bookmark).toHaveCSS("position", "absolute");
+        const bookmarkRect = await bookmark.boundingBox();
+        expect(bookmarkRect!.y).toBeCloseTo(outlineRect!.y, 1);
+        expect(bookmarkRect!.x + bookmarkRect!.width).toBeCloseTo(outlineRect!.x + outlineRect!.width, 1);
+        if (width <= 768) expect(bookmarkRect!.x).toBeCloseTo(outlineRect!.x, 1);
+        await bookmarkButton.click();
+      };
+      await checkPosition();
+      await titleRow.getByRole("button", { name: "点击设为只读", exact: true }).click();
+      await expect(editor).toHaveAttribute("contenteditable", "false");
+      await checkPosition();
+      // 可视区域缩小后仍以文档区定位，而不是意外跑到屏幕顶部。
+      await page.setViewportSize({ width, height: 480 });
+      await checkPosition();
+      if (width <= 768) {
+        await titleRow.getByTitle("专注模式").click();
+        const bar = page.getByLabel("专注模式工具栏");
+        await bar.getByRole("button", { name: "文档目录", exact: true }).click();
+        await expect(page.locator(".mobile-document-drawer-panel")).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+        const focusOutlineRect = await outline.boundingBox();
+        await page.getByRole("button", { name: "切换到书签", exact: true }).click();
+        await expect(bookmark).toHaveCSS("position", "static");
+        const focusBookmarkRect = await bookmark.boundingBox();
+        expect(focusBookmarkRect!.y).toBeCloseTo(focusOutlineRect!.y, 1);
+        expect(focusBookmarkRect!.x).toBeCloseTo(focusOutlineRect!.x, 1);
+      }
+    });
+  }
+
+  test("手机阅读侧栏与文档树同宽同速，支持遮罩、右划和 Escape 收起", async ({ page }, testInfo) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("");
+    await editor.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", Array.from({ length: 35 }, (_, i) => `## 第 ${i + 1} 章\n\n正文`).join("\n\n"));
+      element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    });
+    await expect(editor.locator("h1, h2, h3").filter({ hasText: /^第 \d+ 章$/ })).toHaveCount(35);
+    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    const drawer = page.getByRole("dialog", { name: "阅读侧栏" });
+    const host = page.locator(".note-editor");
+    const drawerElement = page.locator(".mobile-document-drawer-panel");
+    const backdrop = page.locator(".mobile-document-drawer-backdrop");
+    const open = async (y: number) => {
+      await swipeNoteEditor(host, { startX: 370, startY: y, endX: 270, endY: y + 20 });
+      await expect(drawer).toBeVisible();
+      await expect(drawerElement).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+    };
+    await open(570);
+    const geometry = await page.evaluate(() => {
+      const left = document.querySelector(".app-sidebar")!;
+      const right = document.querySelector(".mobile-document-drawer-panel")!;
+      const leftRect = left.getBoundingClientRect();
+      const rightRect = right.getBoundingClientRect();
+      return {
+        leftWidth: leftRect.width, rightWidth: rightRect.width,
+        leftHeight: leftRect.height, rightHeight: rightRect.height,
+        leftSpeed: getComputedStyle(left).transitionDuration.split(",")[0],
+        rightSpeed: getComputedStyle(right).transitionDuration.split(",")[0],
+        shade: getComputedStyle(document.querySelector(".mobile-document-drawer-backdrop")!).backgroundColor,
+        leftShade: getComputedStyle(document.querySelector(".sidebar-overlay")!).backgroundColor,
+      };
+    });
+    expect(geometry.rightWidth).toBeCloseTo(geometry.leftWidth, 1);
+    expect(geometry.rightHeight).toBeCloseTo(geometry.leftHeight, 1);
+    expect(geometry.rightSpeed).toBe(geometry.leftSpeed);
+    expect(geometry.shade).toBe(geometry.leftShade);
+    await page.screenshot({ path: testInfo.outputPath("reading-drawer.png") });
+    const outline = drawer.getByRole("navigation", { name: "文档目录" });
+    expect(await swipeNoteEditor(outline, { startX: 200, startY: 300, endX: 210, endY: 200 })).toEqual([false]);
+    await expect(drawer).toBeVisible();
+    // 点击目录条目仍能跳转并收起。
+    await outline.locator(".document-outline-link").first().click();
+    await expect(drawer).toHaveCount(0);
+    await open(570);
+    // 从条目文字上右划，只收起侧栏，不误触跳转。
+    expect(await swipeNoteEditor(drawer.locator(".document-outline-link").first(), {
+      startX: 200, startY: 100, endX: 290, endY: 120,
+    })).toEqual([true]);
+    await expect(drawer).toHaveCount(0);
+    await expect(drawerElement).toHaveCSS("visibility", "hidden");
+    await open(190);
+    await expect(drawer.getByRole("navigation", { name: "文档书签" })).toBeVisible();
+    await drawer.getByRole("button", { name: "切换到目录" }).click();
+    await expect(drawer.getByRole("navigation", { name: "文档目录" })).toBeVisible();
+    await expect(drawer.getByRole("navigation", { name: "文档书签" })).toHaveCount(0);
+    await backdrop.click({ position: { x: 30, y: 380 } });
+    await expect(drawer).toHaveCount(0);
+    await open(190);
+    await page.keyboard.press("Escape");
+    await expect(drawer).toHaveCount(0);
+  });
+
+  test("阅读侧栏连续触摸可滚动目录、右划关闭且保留书签行操作", async ({ page, browserName }) => {
+    test.skip(browserName !== "chromium", "连续原生触摸轨迹使用 CDP，WebKit 验证事件和布局回归");
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await editor.fill("");
+    await editor.evaluate((element) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", Array.from({ length: 60 }, (_, i) => `## 标题 ${i + 1}\n\n正文`).join("\n\n"));
+      element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    });
+    await editor.press("Control+Home");
+    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    const body = page.locator(".note-editor-scroll");
+    await body.evaluate((element) => { element.scrollTop = 500; });
+    const bar = page.getByLabel("专注模式工具栏");
+    const drawer = page.getByRole("dialog", { name: "阅读侧栏" });
+    await bar.getByRole("button", { name: "文档目录", exact: true }).click();
+    await expect(drawer).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+    const list = drawer.locator(".document-outline-list");
+    await list.evaluate((element) => { element.scrollTop = 0; });
+    const session = await page.context().newCDPSession(page);
+    const swipe = async (x: number, y: number, dx: number, dy: number) => {
+      await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+      for (let step = 1; step <= 10; step++) {
+        await session.send("Input.dispatchTouchEvent", {
+          type: "touchMove", touchPoints: [{ x: x + dx * step / 10, y: y + dy * step / 10 }],
+        });
+      }
+      await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    };
+    await swipe(250, 500, -5, -200);
+    await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBeGreaterThan(100);
+    expect(await body.evaluate((element) => element.scrollTop)).toBe(500);
+    await swipe(190, 300, 100, 12);
+    await expect(drawer).toHaveCount(0);
+    expect(await body.evaluate((element) => element.scrollTop)).toBe(500);
+    await bar.getByRole("button", { name: "文档书签", exact: true }).click();
+    await drawer.getByRole("button", { name: "添加当前位置书签", exact: true }).click();
+    const row = drawer.locator(".document-bookmark-item");
+    const rect = (await row.boundingBox())!;
+    await swipe(rect.x + rect.width - 20, rect.y + rect.height / 2, -100, 0);
+    await expect(row).toHaveClass(/swipe-open/);
+    await swipe(rect.x + 20, rect.y + rect.height / 2, 100, 0);
+    await expect(row).not.toHaveClass(/swipe-open/);
+    await expect(drawer).toBeVisible();
+    await swipe(rect.x + 20, rect.y + rect.height / 2, 100, 0);
+    await expect(drawer).toHaveCount(0);
+    await session.detach();
   });
 
   test("专注模式右侧近边缘左划按上下区域打开书签和目录", async ({ page }) => {
@@ -316,7 +483,7 @@ test.describe("PWA 窄屏应用外壳", () => {
         } else {
           if (sample.opens) {
             await expect(bookmarks).toBeVisible();
-            await page.locator(".mobile-focus-bar").getByRole("button", { name: "文档书签", exact: true }).click();
+            await page.getByRole("button", { name: "关闭阅读侧栏" }).click();
           }
           await expect(bookmarks).toHaveCount(0);
         }
@@ -343,7 +510,7 @@ test.describe("PWA 窄屏应用外壳", () => {
           await expect(sidebar).toHaveClass(/sidebar-hidden/);
         } else {
           await expect(bookmarks).toBeVisible();
-          await page.locator(".mobile-focus-bar").getByRole("button", { name: "文档书签", exact: true }).click();
+          await page.getByRole("button", { name: "关闭阅读侧栏" }).click();
         }
       };
       // 尚未达到打开面板的距离时，就必须阻止竖直漂移；锁定后不换轴。
@@ -395,7 +562,7 @@ test.describe("PWA 窄屏应用外壳", () => {
         await page.locator(".sidebar-overlay.active").click({ position: { x: 350, y: 380 } });
       } else {
         await expect(page.getByRole("navigation", { name: "文档书签" })).toBeVisible();
-        await page.locator(".mobile-focus-bar").getByRole("button", { name: "文档书签", exact: true }).click();
+        await page.getByRole("button", { name: "关闭阅读侧栏" }).click();
       }
       await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBe(500);
     }
@@ -907,13 +1074,13 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(await focusBookmarkButton.boundingBox()).toEqual(bookmarkBefore);
     expect(await focusBar.boundingBox()).toEqual(barBefore);
     await expect(focusOutlineButton).toBeVisible();
-    await focusOutlineButton.click();
+    await page.getByRole("button", { name: "切换到目录", exact: true }).click();
     await expect(bookmarkPanel).toHaveCount(0);
     const outline = page.getByRole("navigation", { name: "文档目录" });
     await expect(outline).toBeVisible();
-    const outlineGeometry = await page.locator(".note-editor").evaluate((element) => {
-      const focusBarRect = element.querySelector(".mobile-focus-bar")!.getBoundingClientRect();
-      const outlineRect = element.querySelector(".document-outline-panel")!.getBoundingClientRect();
+    const outlineGeometry = await page.evaluate(() => {
+      const focusBarRect = document.querySelector(".mobile-focus-bar")!.getBoundingClientRect();
+      const outlineRect = document.querySelector(".mobile-document-drawer .document-outline-panel")!.getBoundingClientRect();
       return {
         focusBarBottom: focusBarRect.bottom,
         outlineTop: outlineRect.top,
@@ -925,7 +1092,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(outlineGeometry.outlineTop).toBeGreaterThanOrEqual(outlineGeometry.focusBarBottom);
     expect(outlineGeometry.outlineLeft).toBeGreaterThanOrEqual(0);
     expect(outlineGeometry.outlineRight).toBeLessThanOrEqual(outlineGeometry.viewportWidth);
-    await focusOutlineButton.click();
+    await page.getByRole("button", { name: "关闭阅读侧栏" }).click();
     await expect(outline).toHaveCount(0);
 
     await focusBar.getByTitle("更多编辑工具").click();

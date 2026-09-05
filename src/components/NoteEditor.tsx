@@ -46,6 +46,7 @@ import { EditorBlockGutter } from "./EditorBlockGutter";
 import { DocumentOutlineList, type VisibleOutlineEntry } from "./DocumentOutlineList";
 import { MobileActionSheet } from "./MobileActionSheet";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
+import { DocumentPanelDrawer } from "./DocumentPanelDrawer";
 import { storeImage } from "../lib/storage/db-images";
 import { api } from "../lib/api";
 import { looksLikeMarkdown, mdToDelta } from "../lib/md-parser";
@@ -1747,7 +1748,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
     const position = Math.min(item.pos + 1, editor.state.doc.content.size);
     editor.commands.setTextSelection(position);
     editor.view.focus();
-    if (outlineDock === "floating") setOutlineOpen(false);
+    if (outlineDock === "floating" || isMobileToolbarViewport) setOutlineOpen(false);
     requestAnimationFrame(() => {
       const root = scrollRef.current;
       if (!root || editor.isDestroyed) return;
@@ -1758,7 +1759,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       const nextTop = root.scrollTop + coords.top - Math.max(rootRect.top, stickyBottom) - 12;
       root.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
     });
-  }, [editor, outlineDock, scrollRef]);
+  }, [editor, outlineDock, scrollRef, isMobileToolbarViewport]);
 
   // 拦截 WebView 原生 Cmd+F，并为 Windows 提供 Alt+F。Ctrl+F 不再
   // 触发搜索：Vim 模式用它向下翻页，非 Vim 模式也不唤起 WebView 查找框。
@@ -3521,6 +3522,16 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           <button type="button" onClick={() => { closeLineJump(); editor.commands.focus(); }} title="关闭跳转" aria-label="关闭跳转">×</button>
         </div>
       )}
+      <DocumentPanelDrawer
+        enabled={focusMode && isMobileToolbarViewport}
+        panel={bookmarkOpen ? "bookmark" : outlineOpen && documentOutline.length > 0 ? "outline" : null}
+        hasOutline={documentOutline.length > 0}
+        onSelect={(panel) => {
+          if (panel === "outline") openDocumentOutline();
+          else { setOutlineOpen(false); setBookmarkOpen(true); }
+        }}
+        onClose={() => { setOutlineOpen(false); setBookmarkOpen(false); }}
+      >
       {outlineOpen && documentOutline.length > 0 && (
         <nav
           className="document-outline-panel"
@@ -3630,6 +3641,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
           >{currentBookmark ? "取消当前位置书签" : "添加当前位置书签"}</button>
         </nav>
       )}
+      </DocumentPanelDrawer>
       {/* ── 标题 + 标签 + 工具栏 + 编辑器（滚动区域）── */}
       <div className="note-editor-scroll" ref={scrollRef}>
         <div className="note-editor-sticky">
