@@ -45,6 +45,7 @@ import {
 import { EditorBlockGutter } from "./EditorBlockGutter";
 import { DocumentOutlineList, type VisibleOutlineEntry } from "./DocumentOutlineList";
 import { MobileActionSheet } from "./MobileActionSheet";
+import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
 import { storeImage } from "../lib/storage/db-images";
 import { api } from "../lib/api";
 import { looksLikeMarkdown, mdToDelta } from "../lib/md-parser";
@@ -3449,18 +3450,17 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
       }}
     >
       {focusMode && (
-        <div className="mobile-focus-bar" aria-label="专注模式工具栏">
-          <span className="mobile-focus-title" title={localTitle || "无标题"}>{localTitle || "无标题"}</span>
+        <FocusModeBar key={noteId} title={localTitle || "无标题"}>
           {pdfExcerptSource && onOpenPdfExcerpt && (
             <button
               type="button"
               onClick={() => onOpenPdfExcerpt(pdfExcerptSource)}
               title={`返回 ${pdfExcerptSource.pdfName} 第 ${pdfExcerptSource.page} 页`}
               aria-label={`返回 PDF 第 ${pdfExcerptSource.page} 页`}
-            >📄 {pdfExcerptSource.page}</button>
+            ><FocusModeIcon name="pdf" /><span className="focus-source-position" aria-hidden="true">{pdfExcerptSource.page}</span></button>
           )}
           {epubExcerptSource && onOpenEpubExcerpt && (
-            <button type="button" onClick={() => onOpenEpubExcerpt(epubExcerptSource)} title={`返回 ${epubExcerptSource.epubName} · ${epubExcerptSource.chapterTitle}`} aria-label={`返回 EPUB 第 ${epubExcerptSource.chapter} 章`}>📖 {epubExcerptSource.chapter}</button>
+            <button type="button" onClick={() => onOpenEpubExcerpt(epubExcerptSource)} title={`返回 ${epubExcerptSource.epubName} · ${epubExcerptSource.chapterTitle}`} aria-label={`返回 EPUB 第 ${epubExcerptSource.chapter} 章`}><FocusModeIcon name="epub" /><span className="focus-source-position" aria-hidden="true">{epubExcerptSource.chapter}</span></button>
           )}
           {documentOutline.length > 0 && (
             <button
@@ -3474,7 +3474,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
               }}
               title="文档目录"
               aria-label="文档目录"
-            >📑</button>
+            ><FocusModeIcon name="outline" /></button>
           )}
           <button
             type="button"
@@ -3488,7 +3488,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             }}
             title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
             aria-label={bookmarks.length > 0 ? `文档书签，共 ${bookmarks.length} 项` : "文档书签"}
-          >🔖{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button>
+          ><FocusModeIcon name="bookmark" />{bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}</button>
           {!readonly && (
             <button
               type="button"
@@ -3501,7 +3501,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
               }}
               title="更多编辑工具"
               aria-label="更多编辑工具"
-            >🛠️</button>
+            ><FocusModeIcon name="tools" /></button>
           )}
           <button
             type="button"
@@ -3513,8 +3513,8 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
             }}
             title="退出专注模式"
             aria-label="退出专注模式"
-          >🚪</button>
-        </div>
+          ><FocusModeIcon name="exit" /></button>
+        </FocusModeBar>
       )}
       {editorFindOpen && (
         <div className="editor-find-bar" role="search" onClick={(event) => event.stopPropagation()}>

@@ -42,25 +42,25 @@ test("引用块折叠状态在切换文档后保持", async ({ page }) => {
 async function longPress(button: Locator) {
   await button.evaluate(async (element) => {
     const rect = element.getBoundingClientRect();
-    const touch = new Touch({
+    const touch = {
       identifier: 77,
       target: element,
       clientX: rect.left + rect.width / 2,
       clientY: rect.top + rect.height / 2,
-    });
-    element.dispatchEvent(new TouchEvent("touchstart", {
-      bubbles: true,
-      cancelable: true,
-      touches: [touch],
-      changedTouches: [touch],
-    }));
+    };
+    // WebKit exposes Touch but doesn't allow constructing it. The long-press
+    // helper only needs the touch lists consumed by the handlers below.
+    const dispatchTouch = (type: string, touches: typeof touch[]) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(event, {
+        touches: { value: touches },
+        changedTouches: { value: [touch] },
+      });
+      element.dispatchEvent(event);
+    };
+    dispatchTouch("touchstart", [touch]);
     await new Promise((resolve) => window.setTimeout(resolve, 600));
-    element.dispatchEvent(new TouchEvent("touchend", {
-      bubbles: true,
-      cancelable: true,
-      touches: [],
-      changedTouches: [touch],
-    }));
+    dispatchTouch("touchend", []);
   });
 }
 
@@ -93,6 +93,25 @@ test.describe("手机安装版折叠操作", () => {
     const quote = editor.locator("blockquote");
     await quote.getByRole("button", { name: "折叠引用块" }).tap();
     await expect(quote).toHaveAttribute("data-collapsed", "true");
+    const feedback = await quote.getByRole("button", { name: "展开引用块" }).evaluate((button) => {
+      const hitArea = button.getBoundingClientRect();
+      const icon = button.querySelector(".blockquote-fold-icon")!.getBoundingClientRect();
+      return {
+        hitWidth: hitArea.width,
+        iconWidth: icon.width,
+        iconHeight: icon.height,
+        right: hitArea.right,
+        quoteRight: button.closest("blockquote")!.getBoundingClientRect().right,
+        outline: getComputedStyle(button).outlineStyle,
+        border: getComputedStyle(button).borderTopWidth,
+      };
+    });
+    expect(feedback.hitWidth).toBe(36);
+    expect(feedback.iconWidth).toBe(22);
+    expect(feedback.iconHeight).toBe(22);
+    expect(feedback.right).toBeLessThanOrEqual(feedback.quoteRight);
+    expect(feedback.outline).toBe("none");
+    expect(feedback.border).toBe("0px");
     await quote.getByRole("button", { name: "展开引用块" }).tap();
     await expect(quote).toHaveAttribute("data-collapsed", "false");
 

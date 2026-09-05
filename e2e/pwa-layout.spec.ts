@@ -644,7 +644,8 @@ test.describe("PWA 窄屏应用外壳", () => {
 
   test("专注模式保留极简标题栏并可按需展开编辑工具", async ({ page }) => {
     await page.goto("/");
-    const title = await page.locator(".note-title").inputValue();
+    const title = "阅读与思考：在专注模式中查看这份较长的文档标题";
+    await page.locator(".note-title").fill(title);
     await page.getByTitle("专注模式").click();
 
     await expect(page.locator(".app-header")).toBeHidden();
@@ -671,17 +672,30 @@ test.describe("PWA 窄屏应用外壳", () => {
     const focusBookmarkButton = focusBar.getByLabel(/文档书签/);
     const focusMoreButton = focusBar.getByTitle("更多编辑工具");
     const focusExitButton = focusBar.getByTitle("退出专注模式");
-    await expect(focusOutlineButton).toHaveText("📑");
-    await expect(focusBookmarkButton).toContainText("🔖");
-    await expect(focusMoreButton).toHaveText("🛠️");
-    await expect(focusExitButton).toHaveText("🚪");
+    for (const button of [focusOutlineButton, focusBookmarkButton, focusMoreButton, focusExitButton]) {
+      await expect(button.locator("svg")).toBeVisible();
+    }
+    const barBefore = await focusBar.boundingBox();
+    const bookmarkBefore = await focusBookmarkButton.boundingBox();
+    await focusTitle.tap();
+    await expect(page.getByRole("tooltip")).toHaveText(title);
+    expect(await focusBar.boundingBox()).toEqual(barBefore);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await expect(focusTitle).toBeFocused();
+    await focusTitle.tap();
     const focusButtonOrder = await focusBar.locator("button").evaluateAll((buttons) =>
       buttons.map((button) => button.getAttribute("title")),
     );
     expect(focusButtonOrder.indexOf("更多编辑工具")).toBeLessThan(focusButtonOrder.indexOf("退出专注模式"));
     await focusBookmarkButton.click();
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
     const bookmarkPanel = page.getByRole("navigation", { name: "文档书签" });
     await expect(bookmarkPanel).toBeVisible();
+    await bookmarkPanel.getByRole("button", { name: "添加当前位置书签", exact: true }).click();
+    await expect(focusBookmarkButton.locator(".focus-bookmark-count")).toHaveText("1");
+    expect(await focusBookmarkButton.boundingBox()).toEqual(bookmarkBefore);
+    expect(await focusBar.boundingBox()).toEqual(barBefore);
     await expect(focusOutlineButton).toBeVisible();
     await focusOutlineButton.click();
     await expect(bookmarkPanel).toHaveCount(0);

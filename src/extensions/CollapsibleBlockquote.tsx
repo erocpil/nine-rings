@@ -92,7 +92,7 @@ function CollapsibleBlockquoteView({ node, editor, getPos }: NodeViewProps) {
           aria-label={collapsed ? "展开引用块" : "折叠引用块"}
           aria-expanded={!collapsed}
           title={collapsed ? "展开引用块" : "折叠引用块"}
-        >{collapsed ? "▶" : "▼"}</button>
+        ><span className="blockquote-fold-icon" aria-hidden="true">{collapsed ? "▶" : "▼"}</span></button>
       </div>
       <NodeViewContent className="blockquote-content" />
     </NodeViewWrapper>

@@ -3460,6 +3460,20 @@ body {
   border-color: var(--accent);
 }
 
+.app-focus-mode .header-sticky-title {
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+.app-focus-mode .header-focus-btn {
+  border-color: transparent;
+  border-radius: 6px;
+}
+
+.app-focus-mode .header-focus-btn.active {
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+}
+
 .header-spacer {
   flex: 1;
 }
@@ -8313,20 +8327,44 @@ button.doc-tree-toggle:focus-visible {
 
 .blockquote-toolbar button {
   width: 22px;
-  height: 20px;
+  height: 22px;
   padding: 0;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 3px;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
+  display: grid;
+  place-items: center;
+  outline: none;
+  box-shadow: none;
+  -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none;
   user-select: none;
 }
 
-.blockquote-toolbar button:hover:not(:disabled) {
-  border-color: var(--border);
+.blockquote-fold-icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  font: 10px/1 var(--font);
+}
+
+.blockquote-toolbar button:active .blockquote-fold-icon,
+.blockquote-toolbar button:focus-visible .blockquote-fold-icon {
+  border-color: var(--accent);
+  background: var(--surface);
   color: var(--accent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .blockquote-toolbar button:hover .blockquote-fold-icon {
+    border-color: var(--border);
+    color: var(--accent);
+  }
 }
 
 .blockquote-wrap[data-collapsed="true"] .blockquote-content {
@@ -8346,7 +8384,7 @@ button.doc-tree-toggle:focus-visible {
   .blockquote-toolbar button {
     width: 36px;
     height: 36px;
-    margin: -4px -6px -4px 0;
+    margin: -4px 0;
     touch-action: manipulation;
   }
 
@@ -8992,7 +9030,8 @@ button.doc-tree-toggle:focus-visible {
     gap: 4px;
     height: 30px;
     padding: 1px 6px;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--text) 3%, transparent);
     /* 固定毛玻璃层会让 iOS 在长页面滚动时持续重合成并加剧棋盘式补绘。 */
     background: var(--bg);
   }
@@ -9076,8 +9115,24 @@ button.doc-tree-toggle:focus-visible {
     max-height: min(58dvh, calc(var(--app-viewport-height, 100dvh) - var(--safe-top) - var(--safe-bottom) - 52px));
   }
 
-  .mobile-focus-title {
+  .mobile-focus-title-wrap {
     flex: 1;
+    min-width: 0;
+  }
+
+  .mobile-focus-title {
+    display: block;
+    width: 100%;
+    height: 26px;
+    padding: 0 2px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    text-align: start;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
     overflow: hidden;
     min-width: 0;
     font-size: 16px;
@@ -9085,28 +9140,74 @@ button.doc-tree-toggle:focus-visible {
     line-height: 1.2;
     text-overflow: ellipsis;
     white-space: nowrap;
+    letter-spacing: -0.01em;
   }
 
-  .mobile-focus-bar button {
-    min-width: 42px;
-    height: 26px;
-    padding: 2px 7px;
+  .mobile-focus-full-title {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    padding: 12px 14px;
     border: 1px solid var(--border);
-    border-radius: 5px;
-    background: var(--surface);
+    border-radius: 9px;
+    background: var(--bg);
+    color: var(--text);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--text) 10%, transparent);
+    font-size: 16px;
+    line-height: 1.5;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+    max-height: min(40dvh, 240px);
+    overflow-y: auto;
+  }
+
+  .mobile-focus-bar > button {
+    position: relative;
+    flex: 0 0 42px;
+    width: 42px;
+    min-width: 0;
+    height: 26px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
     color: var(--text-secondary);
     font-size: 11px;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
-  .mobile-focus-bar button:active,
-  .mobile-focus-bar button.active,
-  .mobile-focus-bar button[aria-expanded="true"] {
-    border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
-    background: color-mix(in srgb, var(--accent) 18%, var(--surface));
-    box-shadow:
-      inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent),
-      0 2px 6px color-mix(in srgb, var(--accent) 18%, transparent);
-    color: var(--text);
+  .focus-mode-icon {
+    width: 17px;
+    height: 17px;
+  }
+
+  .focus-bookmark-count,
+  .focus-source-position {
+    position: absolute;
+    top: 0;
+    right: 0;
+    min-width: 12px;
+    padding: 0 2px;
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--text-secondary);
+    font: 9px/12px var(--font);
+    font-variant-numeric: tabular-nums;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-focus-bar > button:active,
+  .mobile-focus-bar > button.active,
+  .mobile-focus-bar > button[aria-expanded="true"] {
+    background: color-mix(in srgb, var(--accent) 11%, var(--bg));
+    color: var(--accent);
   }
 
   .focus-mode .note-editor-scroll {
