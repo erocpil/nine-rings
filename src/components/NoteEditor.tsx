@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import type { ReactNode } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { OrderedListLayout } from "../extensions/OrderedListLayout";
 import Placeholder from "@tiptap/extension-placeholder";
 import TextStyle from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
@@ -897,6 +898,7 @@ export function NoteEditor({ noteId, title, content, contentVersion = "", pdfDoc
         codeBlock: false,
         blockquote: false,
       }),
+      OrderedListLayout,
       // 仅使用扩展的 is-editor-empty class 识别空段落；不在 gutter
       // 内显示文字，避免与行号和行间插入按钮争用伪元素。
       Placeholder.configure({ placeholder: "" }),

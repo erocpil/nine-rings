@@ -90,7 +90,7 @@ test("排版设置中的调整即时生效并在重载后保持", async ({ page 
   );
   expect(previewSpacing.nestedOrderedIndent).toBeCloseTo(previewSpacing.orderedIndent, 2);
   expect(previewSpacing.unorderedMarker).toContain("•");
-  expect(previewSpacing.orderedMarker).toContain("counter(list-item)");
+  expect(previewSpacing.orderedMarker).toContain("counter(editor-list-item)");
   expect(previewSpacing.orderedMarker).not.toContain("•");
   expect(previewSpacing.orderedNativeMarker).toBe('""');
 

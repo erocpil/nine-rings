@@ -4612,15 +4612,6 @@ body.app-split-dragging * {
   padding-inline-start: var(--editor-list-indent);
 }
 
-.editor-content ol {
-  --editor-ordered-content-indent: calc(
-    var(--editor-list-indent) + var(--editor-ordered-list-offset) +
-      var(--editor-ordered-marker-extra, 0ch)
-  );
-  padding-inline-start: var(--editor-ordered-content-indent);
-  counter-reset: list-item;
-}
-
 .editor-content ul,
 .editor-content ol {
   margin: 4px 0;
@@ -4655,7 +4646,7 @@ body.app-split-dragging * {
 }
 
 .editor-content ol > li {
-  counter-increment: list-item;
+  counter-increment: editor-list-item;
 }
 
 .editor-content :is(ul, ol) > li::before {
@@ -4670,23 +4661,8 @@ body.app-split-dragging * {
 }
 
 .editor-content ol > li::before {
-  content: counter(list-item) ".";
+  content: counter(editor-list-item) ".";
   font-variant-numeric: tabular-nums;
-}
-
-/* `outside` marker 的成熟布局由列表容器预留标记空间。编号左边沿固定，
-   位数增加时向正文方向增长；达到三/四位数时同步拓宽正文缩进，避免标记
-   反向侵入块号沟槽。 */
-:is(.editor-content, .editor-appearance-preview) ol {
-  --editor-ordered-marker-extra: 0ch;
-}
-
-:is(.editor-content, .editor-appearance-preview) ol:has(> li:nth-child(100)) {
-  --editor-ordered-marker-extra: 1ch;
-}
-
-:is(.editor-content, .editor-appearance-preview) ol:has(> li:nth-child(1000)) {
-  --editor-ordered-marker-extra: 2ch;
 }
 
 .editor-content li > ul,
@@ -4711,11 +4687,11 @@ body.app-split-dragging * {
 }
 
 .editor-content li > ol > li::before {
-  content: counter(list-item, lower-alpha) ".";
+  content: counter(editor-list-item, lower-alpha) ".";
 }
 
 .editor-content li li > ol > li::before {
-  content: counter(list-item, lower-roman) ".";
+  content: counter(editor-list-item, lower-roman) ".";
 }
 
 /* ── Markdown / TipTap 表格 ── */
@@ -5445,12 +5421,11 @@ body.app-split-dragging * {
 
 .editor-appearance-preview ol {
   margin: 0;
-  --editor-ordered-content-indent: calc(
-    var(--editor-list-indent) + var(--editor-ordered-list-offset) +
-      var(--editor-ordered-marker-extra, 0ch)
-  );
-  padding-inline-start: var(--editor-ordered-content-indent);
   list-style: none;
+}
+
+.editor-appearance-preview ol > li {
+  counter-increment: editor-list-item;
 }
 
 .editor-appearance-preview :is(ul, ol) > li {
@@ -5480,16 +5455,41 @@ body.app-split-dragging * {
 }
 
 .editor-appearance-preview ol > li::before {
-  content: counter(list-item) ".";
+  content: counter(editor-list-item) ".";
   font-variant-numeric: tabular-nums;
 }
 
 .editor-appearance-preview li > ol > li::before {
-  content: counter(list-item, lower-alpha) ".";
+  content: counter(editor-list-item, lower-alpha) ".";
 }
 
 .editor-appearance-preview li li > ol > li::before {
-  content: counter(list-item, lower-roman) ".";
+  content: counter(editor-list-item, lower-roman) ".";
+}
+
+/* 列表级列宽来自起始编号和项目数。每个嵌套列表重新初始化变量，
+   自定义缩进再小也必须容纳最宽编号及间距。预览使用单项列表的默认宽度。 */
+:is(.editor-content, .editor-appearance-preview) ol {
+  --editor-ordered-decimal-column: 2ch;
+  --editor-ordered-alpha-column: 2ch;
+  --editor-ordered-roman-column: 2ch;
+  --editor-ordered-counter-start: 0;
+  --editor-ordered-marker-column: var(--editor-ordered-decimal-column);
+  --editor-ordered-content-indent: max(
+    calc(var(--editor-list-indent) + var(--editor-ordered-list-offset)),
+    calc(var(--editor-ordered-marker-column) + max(0.35em, var(--editor-list-marker-gap)))
+  );
+  font-variant-numeric: tabular-nums;
+  padding-inline-start: var(--editor-ordered-content-indent);
+  counter-reset: editor-list-item var(--editor-ordered-counter-start);
+}
+
+:is(.editor-content, .editor-appearance-preview) li > ol {
+  --editor-ordered-marker-column: var(--editor-ordered-alpha-column);
+}
+
+:is(.editor-content, .editor-appearance-preview) li li > ol {
+  --editor-ordered-marker-column: var(--editor-ordered-roman-column);
 }
 
 /* 这条规则必须位于预览通用 marker 规则之后，避免其重新写入 right。

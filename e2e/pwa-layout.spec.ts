@@ -92,7 +92,7 @@ test.describe("PWA 窄屏应用外壳", () => {
       1,
     );
     expect(listGeometry.orderedPadding).toBeGreaterThan(listGeometry.unorderedPadding);
-    expect(listGeometry.orderedMarker).toContain("counter(list-item)");
+    expect(listGeometry.orderedMarker).toContain("counter(editor-list-item)");
     expect(listGeometry.orderedMarker).not.toContain("•");
   });
 

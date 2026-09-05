@@ -364,7 +364,7 @@ test.describe("编辑器块级 gutter", () => {
       .toBeCloseTo(expectedOrderedOffset, 1);
     expect(withoutNumbers.orderedItemLeft - withoutNumbers.unorderedItemLeft)
       .toBeCloseTo(expectedOrderedOffset, 1);
-    expect(withoutNumbers.orderedMarker).toContain("counter(list-item)");
+    expect(withoutNumbers.orderedMarker).toContain("counter(editor-list-item)");
     expect(withoutNumbers.orderedMarker).not.toContain("•");
     expect(withoutNumbers.orderedNativeMarker).toBe('""');
 
@@ -437,6 +437,8 @@ test.describe("编辑器块级 gutter", () => {
           left,
           textAlign: style.textAlign,
           width: Number.parseFloat(style.width),
+          gap: itemBox.left - left - Number.parseFloat(style.width),
+          minimumGap: Number.parseFloat(getComputedStyle(item).fontSize) * 0.35,
         };
       };
       const blockNumber = document.querySelector<HTMLElement>(
@@ -448,8 +450,6 @@ test.describe("编辑器块级 gutter", () => {
         marker1: marker(0),
         marker10: marker(9),
         marker100: marker(99),
-        markerExtra: getComputedStyle(list)
-          .getPropertyValue("--editor-ordered-marker-extra").trim(),
       };
     });
 
@@ -457,7 +457,7 @@ test.describe("编辑器块级 gutter", () => {
     expect(geometry.marker1.left).toBeCloseTo(geometry.marker10.left, 1);
     expect(geometry.marker1.left).toBeCloseTo(geometry.marker100.left, 1);
     expect(geometry.marker1.width).toBeGreaterThan(0);
-    expect(geometry.markerExtra).toBe("1ch");
+    expect(geometry.marker100.gap).toBeGreaterThanOrEqual(geometry.marker100.minimumGap - 1);
     expect(geometry.marker1.left).toBeGreaterThanOrEqual(geometry.listLeft - 1);
     expect(geometry.blockNumberRight).not.toBeNull();
     expect(geometry.blockNumberRight!).toBeLessThanOrEqual(geometry.marker1.left);

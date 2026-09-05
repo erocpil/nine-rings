@@ -632,7 +632,7 @@ test.describe("编辑器复制粘贴", () => {
     )).toContain("▪");
     await expect.poll(() => childList.locator(":scope > li").first().evaluate(
       (element) => getComputedStyle(element, "::before").content,
-    )).toContain("counter(list-item, lower-alpha)");
+    )).toContain("counter(editor-list-item, lower-alpha)");
     await expect.poll(() => childList.locator(":scope > li").first().evaluate(
       (element) => getComputedStyle(element, "::before").content,
     )).not.toContain("•");
