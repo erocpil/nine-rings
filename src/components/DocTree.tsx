@@ -675,6 +675,22 @@ function DocTree({
 
   const toolbar = (
     <div className="doc-tree-toolbar">
+      <button
+        type="button"
+        className="btn-icon doc-tree-batch-btn doc-tree-select-toggle"
+        title={selectMode ? "取消选择" : "批量选择"}
+        aria-label={selectMode ? "取消选择" : "批量选择"}
+        aria-pressed={selectMode}
+        disabled={batchBusy}
+        onClick={() => {
+          if (batchBusy) return;
+          if (selectMode) clearSelection();
+          else setSelectMode(true);
+        }}
+      >
+        {selectMode ? "✕" : "☐"}
+      </button>
+      <div className="doc-tree-toolbar-actions">
         <button
           className="btn-icon doc-tree-batch-btn"
           onClick={collapseAll}
@@ -742,14 +758,6 @@ function DocTree({
             >
               🔓
             </button>
-            <button
-              className="btn-icon doc-tree-batch-btn"
-              onClick={clearSelection}
-              title="取消选择"
-              disabled={batchBusy}
-            >
-              ✕
-            </button>
           </>
         ) : (
           <>
@@ -761,18 +769,12 @@ function DocTree({
             >
               ✎
             </button>
-            <button
-              className="btn-icon doc-tree-batch-btn"
-              onClick={() => setSelectMode(true)}
-              title="批量选择"
-            >
-              ☐
-            </button>
             <button className="btn-icon doc-tree-add" onClick={disabled ? undefined : onCreate} disabled={disabled} title="新建文档">
               +
             </button>
           </>
         )}
+      </div>
     </div>
   );
 

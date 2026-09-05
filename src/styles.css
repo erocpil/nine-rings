@@ -6731,23 +6731,46 @@ body.app-split-dragging * {
 }
 
 .sidebar-tab-spacer {
-  flex: 1;
+  flex: 0;
 }
 
 .doc-tree-toolbar-host {
   display: flex;
+  flex: 1;
   align-items: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Keep the mode switch outside scrolling actions, even in a narrow drawer. */
+.doc-tree-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex: 1;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
-.doc-tree-toolbar-host::-webkit-scrollbar {
+.doc-tree-toolbar-actions::-webkit-scrollbar {
   display: none;
+}
+
+.doc-tree-toolbar-actions > button,
+.doc-tree-select-toggle {
+  flex-shrink: 0;
+}
+
+.doc-tree-select-toggle[aria-pressed="true"] {
+  background: var(--active-bg);
+  color: var(--accent);
 }
 
 .doc-tree-toolbar {
   display: flex;
+  width: 100%;
+  min-width: 0;
   align-items: center;
   gap: 1px;
 }

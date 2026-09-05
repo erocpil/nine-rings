@@ -100,6 +100,73 @@ test("文档树支持批量取消只读并移动到新目录", async ({ page }) 
   }
 });
 
+test.describe("多选入口始终可切换", () => {
+  test.use({ hasTouch: true });
+  test("手机文档弹层也能在原位取消多选", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 760 });
+    await page.goto("/");
+    await page.getByTitle("文档视图", { exact: true }).click();
+    const popup = page.locator(".doc-tree-popup-overlay");
+    const toggle = popup.locator(".doc-tree-select-toggle");
+    await expect(toggle).toBeVisible();
+    // Compare fixed coordinates only after the popup's entrance slide settles.
+    await toggle.click({ trial: true });
+    const initial = (await toggle.boundingBox())!;
+    await page.touchscreen.tap(initial.x + initial.width / 2, initial.y + initial.height / 2);
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await popup.locator(".doc-tree-toolbar-actions").evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+    const active = (await toggle.boundingBox())!;
+    expect(active.x).toBeCloseTo(initial.x, 1);
+    expect(active.y).toBeCloseTo(initial.y, 1);
+    await page.touchscreen.tap(initial.x + initial.width / 2, initial.y + initial.height / 2);
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await expect(popup.locator(".doc-tree-checkbox")).toHaveCount(0);
+  });
+  for (const width of [1280, 390, 320]) {
+    test(`同位置再次点击退出多选并清空勾选（${width}px）`, async ({ page }) => {
+      await openDocumentView(page);
+      await seedViewportDocuments(page);
+      await page.setViewportSize({ width, height: 760 });
+      const toggle = page.locator(".doc-tree-select-toggle");
+      await expect(toggle).toBeVisible();
+      const initial = (await toggle.boundingBox())!;
+      const tapSamePoint = () => width <= 768
+        ? page.touchscreen.tap(initial.x + initial.width / 2, initial.y + initial.height / 2)
+        : page.mouse.click(initial.x + initial.width / 2, initial.y + initial.height / 2);
+
+      await tapSamePoint();
+      await expect(toggle).toHaveAttribute("aria-pressed", "true");
+      await expect(toggle).toHaveAttribute("title", "取消选择");
+      const active = (await toggle.boundingBox())!;
+      expect(active.x).toBeCloseTo(initial.x, 1);
+      expect(active.y).toBeCloseTo(initial.y, 1);
+      // Even an empty selection must be cancellable from the same screen point.
+      await tapSamePoint();
+      await expect(toggle).toHaveAttribute("aria-pressed", "false");
+      await expect(page.locator(".doc-tree-checkbox")).toHaveCount(0);
+
+      await tapSamePoint();
+      await page.locator(".doc-tree-doc").filter({ hasText: "视口文档 00" }).click();
+      await expect(page.locator(".doc-tree-checkbox:checked")).toHaveCount(1);
+      await page.locator(".doc-tree-toolbar-actions").evaluate((element) => { element.scrollLeft = element.scrollWidth; });
+      const hit = await toggle.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        const target = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        return target === element || element.contains(target);
+      });
+      expect(hit).toBe(true);
+      await tapSamePoint();
+      await expect(toggle).toHaveAttribute("aria-pressed", "false");
+      await expect(page.locator(".doc-tree-checkbox")).toHaveCount(0);
+      await tapSamePoint();
+      await expect(page.locator(".doc-tree-checkbox:checked")).toHaveCount(0);
+      await tapSamePoint();
+      await page.locator(".doc-tree-doc").filter({ hasText: "视口文档 00" }).click();
+      await expect(page.locator(".note-title")).toHaveValue("视口文档 00");
+    });
+  }
+});
+
 test("文档可从树顶部重命名且标题框修改会立即同步到树", async ({ page }) => {
   await openDocumentView(page);
   await createDocument(page, "重命名前", "rename-entry");
