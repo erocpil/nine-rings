@@ -16,6 +16,27 @@ async function expectNoHorizontalOverflow(page: import("@playwright/test").Page)
 }
 
 test.describe("响应式编辑器工具栏", () => {
+  test("线条图标工具栏保留可访问名称与撤销重做状态", async ({ page }) => {
+    await createBlankNote(page);
+    await page.setViewportSize({ width: 390, height: 760 });
+    await page.locator(".sidebar-tab-hide").click();
+    const undo = page.getByRole("button", { name: "撤销 (Ctrl+Z)", exact: true });
+    const redo = page.getByRole("button", { name: "重做 (Ctrl+Y)", exact: true });
+    await expect(undo.locator("svg")).toHaveCount(1);
+    await expect(redo.locator("svg")).toHaveCount(1);
+    await expect(undo).toBeDisabled();
+    await expect(redo).toBeDisabled();
+    await page.locator(".ProseMirror").fill("撤销重做验证");
+    await expect(undo).toBeEnabled();
+    await undo.click();
+    await expect(page.locator(".ProseMirror")).toHaveText("");
+    await expect(redo).toBeEnabled();
+    await redo.click();
+    await expect(page.locator(".ProseMirror")).toHaveText("撤销重做验证");
+    await page.getByTitle("样式", { exact: true }).click();
+    await expect(page.getByTitle("样式", { exact: true })).toHaveAttribute("aria-expanded", "true");
+    await expectNoHorizontalOverflow(page);
+  });
   test("标签输入行与编辑工具栏保持紧凑间距", async ({ page }) => {
     await page.setViewportSize({ width: 1200, height: 700 });
     await createBlankNote(page);

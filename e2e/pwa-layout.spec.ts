@@ -642,6 +642,62 @@ test.describe("PWA 窄屏应用外壳", () => {
     }
   });
 
+  test("左右边缘从编辑器外起划也一致，遮罩支持反向关闭并阻止竖向滚动", async ({ page }) => {
+    await page.goto("/");
+    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    // The app shell, unlike the old right-side listener, is not inside NoteEditor.
+    const host = page.locator(".app-main");
+    for (const side of ["left", "right"] as const) {
+      const panel = side === "left" ? page.getByRole("dialog", { name: "文档侧栏" }) : page.getByRole("dialog", { name: "阅读侧栏" });
+      const backdrop = page.locator(side === "left" ? ".sidebar-overlay.active" : ".mobile-document-drawer-backdrop");
+      await swipeNoteEditor(host, {
+        startX: side === "left" ? 20 : 370, startY: 190,
+        endX: side === "left" ? 100 : 290, endY: 200,
+      });
+      await expect(panel).toBeVisible();
+      await expect(panel.locator("[data-drawer-close]")).toBeFocused();
+      const x = side === "left" ? 350 : 40;
+      expect(await swipeNoteEditor(backdrop, { startX: x, startY: 380, endX: x, endY: 280 })).toEqual([true]);
+      await expect(panel).toBeVisible();
+      expect(await swipeNoteEditor(backdrop, { startX: x, startY: 380, endX: x + (side === "left" ? -90 : 90), endY: 390 })).toEqual([true]);
+      await expect(panel).toHaveCount(0);
+    }
+  });
+
+  test("左右侧栏使用同一可视视口坐标和减少动画设置", async ({ page }) => {
+    await page.goto("/");
+    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    await page.evaluate(() => {
+      const viewport = window.visualViewport!;
+      for (const [name, value] of Object.entries({ offsetLeft: 25, offsetTop: 20, width: 340, height: 600 })) {
+        Object.defineProperty(viewport, name, { configurable: true, value });
+      }
+      const style = document.documentElement.style;
+      style.setProperty("--app-visual-viewport-offset-left", "25px");
+      style.setProperty("--app-visual-viewport-offset-top", "20px");
+      style.setProperty("--app-viewport-width", "340px");
+      style.setProperty("--app-viewport-height", "600px");
+    });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const host = page.locator(".app-main");
+    await swipeNoteEditor(host, { startX: 26, startY: 330, endX: 110, endY: 335 });
+    const left = page.getByRole("dialog", { name: "文档侧栏" });
+    await expect(left).toBeVisible();
+    const leftRect = await left.boundingBox();
+    expect(await left.evaluate((element) => parseFloat(getComputedStyle(element).transitionDuration))).toBeLessThan(0.001);
+    await page.keyboard.press("Escape");
+    await swipeNoteEditor(host, { startX: 364, startY: 330, endX: 280, endY: 335 });
+    const right = page.getByRole("dialog", { name: "阅读侧栏" });
+    await expect(right.getByRole("navigation", { name: "文档目录" })).toBeVisible();
+    expect(await right.evaluate((element) => parseFloat(getComputedStyle(element).transitionDuration))).toBeLessThan(0.001);
+    const rightRect = await right.boundingBox();
+    expect(rightRect!.y).toBe(leftRect!.y);
+    expect(rightRect!.height).toBe(leftRect!.height);
+    expect(rightRect!.width).toBe(leftRect!.width);
+    expect(leftRect!.x).toBe(25);
+    expect(rightRect!.x + rightRect!.width).toBe(365);
+  });
+
   test("移动端块编号使用紧凑且可随位数扩展的 gutter", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("设置").click();
@@ -817,6 +873,26 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(blocks.nth(1)).toHaveText("手机就地插入");
   });
 
+  test("待办输入框与 splitter 留出间距且输入框底部可点按", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("nr:todoSplit", "3"));
+    await page.goto("/");
+    for (const viewport of [{ width: 390, height: 760 }, { width: 1200, height: 800 }]) {
+      await page.setViewportSize(viewport);
+      const input = page.locator(".todo-input");
+      await expect(input).toBeVisible();
+      const geometry = await input.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        const divider = document.querySelector<HTMLElement>(".app-main-divider")!.getBoundingClientRect();
+        return {
+          gap: divider.top - rect.bottom,
+          bottomIsInteractive: document.elementFromPoint(rect.left + rect.width / 2, rect.bottom - 1) === element,
+        };
+      });
+      expect(geometry.gap).toBeGreaterThanOrEqual(12);
+      expect(geometry.bottomIsInteractive).toBe(true);
+    }
+  });
+
   test("手机向上拖动 splitter 不会选中待办输入框", async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem("nr:todoSplit", "3"));
     await page.goto("/");
@@ -950,6 +1026,13 @@ test.describe("PWA 窄屏应用外壳", () => {
     // 永久保留 DOM。
     expect(await page.locator(".editor-block-gutter .editor-heading-fold").count()).toBeLessThanOrEqual(1);
     const paragraphGeometryReads = await page.evaluate(async () => {
+      const scrollRoot = document.querySelector<HTMLElement>(".note-editor-scroll")!;
+      const editor = document.querySelector<HTMLElement>(".ProseMirror")!;
+      const lineHeight = parseFloat(getComputedStyle(editor).lineHeight);
+      // Tail-fold recovery remeasures the observed candidate window, including
+      // 20 preloaded blocks on each side, not only the current IO intersections.
+      // Bound work by viewport size rather than an obsolete fixed 20-read cap.
+      const budget = Math.ceil(scrollRoot.clientHeight / lineHeight) + 2 * 20 + 4;
       const original = HTMLElement.prototype.getBoundingClientRect;
       let reads = 0;
       HTMLElement.prototype.getBoundingClientRect = function measuredRect() {
@@ -959,12 +1042,12 @@ test.describe("PWA 窄屏应用外壳", () => {
       try {
         window.dispatchEvent(new Event("resize"));
         await new Promise((resolve) => window.setTimeout(resolve, 180));
-        return reads;
+        return { reads, budget };
       } finally {
         HTMLElement.prototype.getBoundingClientRect = original;
       }
     });
-    expect(paragraphGeometryReads).toBeLessThan(20);
+    expect(paragraphGeometryReads.reads).toBeLessThanOrEqual(paragraphGeometryReads.budget);
 
     const scrollWork = await page.evaluate(async () => {
       const root = document.querySelector<HTMLElement>(".note-editor-scroll")!;
@@ -998,8 +1081,10 @@ test.describe("PWA 窄屏应用外壳", () => {
         Storage.prototype.setItem = originalSetItem;
       }
     });
-    // 每段连续滚动允许起始锚点做一次常数级测量；不能随绘制帧增长。
-    expect(scrollWork.paragraphRectsDuringScroll).toBeLessThanOrEqual(6);
+    // 起始锚点为常数级测量；划过文末留白时，尾部折叠修复还允许一次
+    // 二分查找恢复窗口（基线版本同样会发生），预算不随滚动帧数增长。
+    const blankTailSearchBudget = Math.ceil(Math.log2(1200));
+    expect(scrollWork.paragraphRectsDuringScroll).toBeLessThanOrEqual(6 + blankTailSearchBudget);
     expect(scrollWork.paragraphRects).toBeLessThan(20);
     expect(scrollWork.positionWrites).toBeLessThanOrEqual(2);
 
@@ -1321,6 +1406,9 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(geometry.top - geometry.toolbarBottom).toBeGreaterThanOrEqual(3);
     expect(geometry.top - geometry.toolbarBottom).toBeLessThanOrEqual(5);
     await expect(menu.getByRole("button", { name: /导出 Markdown/ })).toBeVisible();
+    expect(await menu.locator(".mobile-action-sheet-content").evaluate((content) =>
+      content.scrollHeight - content.clientHeight)).toBeLessThanOrEqual(2);
+    await expect(menu.locator(".mobile-action-sheet-scroll-hint")).toHaveCount(0);
   });
 
   test("手机端可从更多菜单在当前块内插入 hard break", async ({ page }) => {
@@ -1370,25 +1458,20 @@ test.describe("PWA 窄屏应用外壳", () => {
 
     await trigger.click();
     await expect(sheet).toBeVisible();
-    await sheet.locator(".mobile-action-sheet-header").evaluate((header) => {
-      const rect = header.getBoundingClientRect();
-      const touchAt = (clientY: number) => new Touch({
-        identifier: 1,
-        target: header,
-        clientX: rect.left + rect.width / 2,
-        clientY,
-      });
-      const start = touchAt(rect.top + 10);
-      const end = touchAt(rect.top + 100);
-      header.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true, touches: [start] }));
-      header.dispatchEvent(new TouchEvent("touchmove", { bubbles: true, cancelable: true, touches: [end] }));
-      header.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true, touches: [] }));
+    const header = sheet.locator(".mobile-action-sheet-header");
+    const headerBox = await header.boundingBox();
+    if (!headerBox) throw new Error("更多面板标题不可见");
+    await swipeNoteEditor(header, {
+      startX: headerBox.x + headerBox.width / 2,
+      startY: headerBox.y + 10,
+      endX: headerBox.x + headerBox.width / 2,
+      endY: headerBox.y + 100,
     });
     await expect(sheet).toBeHidden();
     expect(downloadCount).toBe(0);
   });
 
-  test("虚拟键盘打开时更多菜单保持在工具栏下方和可视区域内", async ({ page }) => {
+  test("虚拟键盘打开时更多菜单上移以完整展示操作", async ({ page }) => {
     await page.goto("/");
     await page.evaluate(() => {
       document.documentElement.style.setProperty("--app-viewport-height", "460px");
@@ -1412,14 +1495,77 @@ test.describe("PWA 窄屏应用外壳", () => {
     });
     expect(geometry.menuTop).toBeGreaterThanOrEqual(geometry.viewportTop);
     expect(geometry.menuBottom).toBeLessThanOrEqual(geometry.viewportBottom);
-    expect(geometry.menuTop - geometry.toolbarBottom).toBeGreaterThanOrEqual(3);
-    expect(geometry.menuTop - geometry.toolbarBottom).toBeLessThanOrEqual(5);
+    expect(geometry.menuTop).toBeLessThan(geometry.toolbarBottom);
     await expect(sheet.getByRole("button", { name: /导出 Markdown/ })).toBeVisible();
     const lastAction = sheet.getByRole("button", { name: "放大编辑器字号" });
-    await expect(sheet.locator(".mobile-action-sheet-scroll-hint")).toBeVisible();
-    await lastAction.scrollIntoViewIfNeeded();
     await expect(lastAction).toBeVisible();
+    expect(await sheet.locator(".mobile-action-sheet-content").evaluate((content) =>
+      content.scrollHeight - content.clientHeight)).toBeLessThanOrEqual(2);
     await expect(sheet.locator(".mobile-action-sheet-scroll-hint")).toHaveCount(0);
+  });
+
+  test("更多弹层触摸由面板处理，滑动不会被工具栏提前转为点击", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("更多编辑操作").click();
+    const sheet = page.getByRole("dialog", { name: "更多编辑操作" });
+    const action = sheet.getByRole("button", { name: "放大编辑器字号" });
+    const result = await action.evaluate((button) => {
+      let clicks = 0;
+      button.addEventListener("click", () => { clicks += 1; });
+      const dispatch = (type: string, y: number) => {
+        const touch = { identifier: 17, target: button, clientX: 100, clientY: y };
+        const event = new Event(type, { bubbles: true, cancelable: true });
+        Object.defineProperties(event, {
+          touches: { value: type === "touchend" ? [] : [touch] },
+          changedTouches: { value: [touch] },
+        });
+        button.dispatchEvent(event);
+        return event.defaultPrevented;
+      };
+      const startPrevented = dispatch("touchstart", 300);
+      dispatch("touchmove", 250);
+      dispatch("touchend", 250);
+      const prematureClicks = clicks;
+      // WebKit may emit a compatibility click after a scroll. The sheet must swallow it.
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      return { startPrevented, prematureClicks, clicks };
+    });
+    expect(result).toEqual({ startPrevented: false, prematureClicks: 0, clicks: 0 });
+    await expect(sheet).toBeVisible();
+    await page.waitForTimeout(500);
+    const before = await page.locator(".ProseMirror").evaluate((editor) => parseFloat(getComputedStyle(editor).fontSize));
+    await action.tap();
+    await expect.poll(() => page.locator(".ProseMirror").evaluate((editor) => parseFloat(getComputedStyle(editor).fontSize)))
+      .toBe(before + 1);
+  });
+
+  test("更多菜单在窄屏和横屏优先完整显示，极小视口仍可滚动", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTitle("更多编辑操作").click();
+    const sheet = page.getByRole("dialog", { name: "更多编辑操作" });
+    for (const viewport of [
+      { width: 320, height: 568 },
+      { width: 760, height: 390 },
+      { width: 390, height: 760 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await expect.poll(() => sheet.locator(".mobile-action-sheet-content").evaluate((content) =>
+        content.scrollHeight - content.clientHeight)).toBeLessThanOrEqual(2);
+      const bounds = await sheet.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return { top: rect.top, bottom: rect.bottom, width: element.clientWidth, scrollWidth: element.scrollWidth };
+      });
+      expect(bounds.top).toBeGreaterThanOrEqual(0);
+      expect(bounds.bottom).toBeLessThanOrEqual(viewport.height);
+      expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.width);
+    }
+    await page.setViewportSize({ width: 390, height: 280 });
+    await expect(sheet.locator(".mobile-action-sheet-scroll-hint")).toBeVisible();
+    const lastAction = sheet.getByRole("button", { name: "放大编辑器字号" });
+    await lastAction.scrollIntoViewIfNeeded();
+    await expect(sheet.locator(".mobile-action-sheet-scroll-hint")).toHaveCount(0);
+    const rect = await lastAction.boundingBox();
+    expect(rect!.y + rect!.height).toBeLessThanOrEqual(280);
   });
 
   test("选择文字后工具栏保留选区并能应用格式", async ({ page }) => {

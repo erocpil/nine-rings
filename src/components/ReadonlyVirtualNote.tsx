@@ -31,7 +31,8 @@ import { listStyle } from "../extensions/OrderedListLayout";
 import { clipboardSliceToPlainText } from "../lib/clipboard-plain-text";
 import { copyToClipboard } from "../lib/clipboard";
 import { editorGutterWidth } from "../lib/editor-gutter";
-import { bindEdgeSwipe, isWithinSwipeEdge } from "../lib/edge-swipe";
+import { bindViewportEdgeSwipe, swipeViewport } from "../lib/edge-swipe";
+import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { isDocumentFindKeyEvent } from "../lib/shortcuts";
 
 type BlockState = { collapsed?: boolean; wrap?: boolean };
@@ -612,24 +613,16 @@ export function ReadonlyVirtualNote(
     if (found[0]) jump(found[0].from, 0, found[0]);
     onSearchTargetConsumed?.(target.requestId);
   }, [searchTarget, onSearchTargetConsumed, doc, noteId, jump, openPanel]);
+  const mobileDrawerViewport = useMobileViewport();
   useEffect(
     () =>
-      bindEdgeSwipe(rootRef.current!, (touch) => {
-        if (
-          !props.focusMode ||
-          !isWithinSwipeEdge(window.innerWidth - touch.clientX)
-        )
-          return null;
-        return {
-          direction: "left",
-          run: () =>
-            openPanel(
-              touch.clientY < window.innerHeight / 2 ? "bookmarks" : "outline",
-              true,
-            ),
-        };
+      bindViewportEdgeSwipe("right", (touch) => {
+        if (!props.focusMode || !mobileDrawerViewport) return null;
+        const target = touch.clientY < swipeViewport().middleY ? "bookmarks" : "outline";
+        if (target === "outline" && sections.length === 0) return null;
+        return () => openPanel(target, true);
       }),
-    [props.focusMode, openPanel],
+    [props.focusMode, mobileDrawerViewport, sections.length, openPanel],
   );
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -754,7 +747,7 @@ export function ReadonlyVirtualNote(
         </div>
       )}
       <DocumentPanelDrawer
-        enabled
+        enabled={!!props.focusMode && mobileDrawerViewport}
         presentation={presentation}
         panel={
           panel === "outline"
@@ -827,6 +820,7 @@ export function ReadonlyVirtualNote(
                     </button>
                     <button
                       type="button"
+                      data-drawer-swipe-item
                       onClick={() => {
                         jump(section.pos);
                         setPanel(null);
@@ -846,6 +840,7 @@ export function ReadonlyVirtualNote(
                   <button
                     type="button"
                     className="vr-bookmark"
+                    data-drawer-swipe-item
                     key={bookmark.id}
                     onClick={() => {
                       jump(bookmark.position);

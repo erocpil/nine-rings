@@ -12,7 +12,8 @@ import { useDevImport } from "./hooks/useDevImport";
 import { useNotesStore } from "./stores/useNotesStore";
 import { api } from "./lib/api";
 import { localDateKey } from "./lib/local-date";
-import { bindEdgeSwipe, isWithinSwipeEdge } from "./lib/edge-swipe";
+import { bindViewportEdgeSwipe } from "./lib/edge-swipe";
+import { useEdgeDrawer, useMobileViewport } from "./hooks/useEdgeDrawer";
 import { useAutoSave } from "./hooks/useAutoSave";
 import { useSettings } from "./hooks/useSettings";
 import DocTree from "./components/DocTree";
@@ -1049,13 +1050,15 @@ function App() {
     hotkeys: config?.hotkeys,
   });
 
-  // ── 移动端滑动手势：左边缘右滑 → 打开侧栏，右滑左 → 关闭侧栏 ──
-  useEffect(() => bindEdgeSwipe(window, (touch) => {
-    if (!sidebarHidden) return { direction: "left", run: () => setSidebarHidden(true) };
-    const viewportLeft = window.visualViewport?.offsetLeft ?? 0;
-    if (!isWithinSwipeEdge(touch.clientX - viewportLeft)) return null;
-    return { direction: "right", run: () => setSidebarHidden(false) };
-  }), [sidebarHidden]);
+  // ── 移动端滑动手势：左边缘右滑打开；侧栏或遮罩内左滑关闭 ──
+  const sidebarPanelRef = useRef<HTMLElement>(null);
+  const sidebarBackdropRef = useRef<HTMLDivElement>(null);
+  const mobileDrawerViewport = useMobileViewport();
+  useEdgeDrawer(mobileDrawerViewport && !sidebarHidden, "left", sidebarPanelRef, sidebarBackdropRef, () => setSidebarHidden(true));
+  useEffect(() => bindViewportEdgeSwipe("left", () => {
+    if (!sidebarHidden || !mobileDrawerViewport) return null;
+    return () => setSidebarHidden(false);
+  }), [sidebarHidden, mobileDrawerViewport]);
 
   // ── 开发模式后台导入 ──
   const refreshView = useCallback(() => {
@@ -1371,7 +1374,11 @@ function App() {
       )}
 
       <div className="app-body">
-        <aside className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}>
+        <aside ref={sidebarPanelRef} className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}
+          role={mobileDrawerViewport ? "dialog" : undefined} aria-label={mobileDrawerViewport ? "文档侧栏" : undefined}
+          aria-modal={mobileDrawerViewport && !sidebarHidden || undefined}
+          aria-hidden={mobileDrawerViewport && sidebarHidden || undefined}
+          {...(mobileDrawerViewport && sidebarHidden ? { inert: "" } : {})}>
           <div className="sidebar-tabs">
             <button
               className="sidebar-tab sidebar-view-switch"
@@ -1387,7 +1394,7 @@ function App() {
             </button>
             <span className="sidebar-tab-spacer" />
             <div className="doc-tree-toolbar-host" ref={setDocTreeToolbarHost} />
-            <button className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏">
+            <button data-drawer-close className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏">
               ◀
             </button>
           </div>
@@ -1864,6 +1871,7 @@ function App() {
 
       {/* 移动端：侧栏遮罩层（点击关闭侧栏） */}
       <div
+        ref={sidebarBackdropRef}
         className={`sidebar-overlay${!sidebarHidden ? " active" : ""}`}
         onClick={() => setSidebarHidden(true)}
       />

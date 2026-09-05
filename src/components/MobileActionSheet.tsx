@@ -9,6 +9,8 @@ interface MobileActionSheetProps {
   dismissAnchor?: HTMLElement | null;
   placementAnchor?: HTMLElement | null;
   placementGap?: number;
+  /** Prefer showing every action over preserving the anchor when space is tight. */
+  fitContent?: boolean;
   children: ReactNode;
 }
 
@@ -30,6 +32,7 @@ export function MobileActionSheet({
   dismissAnchor,
   placementAnchor,
   placementGap = 4,
+  fitContent = false,
   children,
 }: MobileActionSheetProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -55,13 +58,19 @@ export function MobileActionSheet({
       const anchorRect = placementAnchor.getBoundingClientRect();
       const viewport = window.visualViewport;
       const appRect = placementAnchor.closest<HTMLElement>(".app")?.getBoundingClientRect();
-      const viewportTop = appRect?.top ?? viewport?.offsetTop ?? 0;
-      const viewportBottom = appRect?.bottom
-        ?? viewportTop + (viewport?.height ?? window.innerHeight);
-      const top = Math.max(viewportTop, anchorRect.bottom + placementGap);
+      const viewportTop = Math.max(appRect?.top ?? 0, viewport?.offsetTop ?? 0);
+      const viewportBottom = Math.min(appRect?.bottom ?? Infinity,
+        (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight));
+      const content = contentRef.current;
+      const header = content?.previousElementSibling as HTMLElement | null;
+      const naturalHeight = (content?.scrollHeight ?? 0) + (header?.offsetHeight ?? 0) + 2;
+      const preferredTop = Math.max(viewportTop, anchorRect.bottom + placementGap);
+      const top = fitContent
+        ? Math.max(viewportTop + 8, Math.min(preferredTop, viewportBottom - 8 - naturalHeight))
+        : preferredTop;
       setAnchorPlacement({
         top: Math.round(top),
-        maxHeight: Math.max(80, Math.floor(viewportBottom - top - 8)),
+        maxHeight: Math.max(0, Math.floor(viewportBottom - top - 8)),
       });
     };
 
@@ -70,6 +79,7 @@ export function MobileActionSheet({
       ? null
       : new ResizeObserver(updatePlacement);
     observer?.observe(placementAnchor);
+    if (fitContent && contentRef.current) observer?.observe(contentRef.current);
     window.addEventListener("resize", updatePlacement);
     window.addEventListener("scroll", updatePlacement, true);
     window.visualViewport?.addEventListener("resize", updatePlacement);
@@ -81,7 +91,7 @@ export function MobileActionSheet({
       window.visualViewport?.removeEventListener("resize", updatePlacement);
       window.visualViewport?.removeEventListener("scroll", updatePlacement);
     };
-  }, [open, placementAnchor, placementGap]);
+  }, [open, placementAnchor, placementGap, fitContent]);
 
   useEffect(() => {
     if (!open) return;
@@ -188,7 +198,9 @@ export function MobileActionSheet({
         }}
         onClick={(event) => event.stopPropagation()}
         onClickCapture={(event) => {
-          const anchorRect = dismissAnchor?.getBoundingClientRect();
+          // A fitted sheet may cover the trigger. Its actions must remain
+          // tappable there; the backdrop already handles an uncovered trigger.
+          const anchorRect = fitContent ? null : dismissAnchor?.getBoundingClientRect();
           if (
             anchorRect
             && event.clientX >= anchorRect.left

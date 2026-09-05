@@ -1558,7 +1558,7 @@ body {
   min-width: 0;
   gap: 4px;
   padding: 3px 0;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
   margin-bottom: 6px;
   align-items: center;
   white-space: nowrap;
@@ -1590,10 +1590,60 @@ body {
 .toolbar-history-actions {
   display: inline-flex;
   gap: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
 }
 
 .toolbar-history-icon {
-  display: inline-block;
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.toolbar-icon {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  vertical-align: middle;
+}
+
+.editor-menu .menu-btn {
+  border-radius: 8px;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.editor-menu > .menu-dropdown > .menu-btn {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.editor-menu .menu-btn.active,
+.editor-menu .menu-btn[aria-expanded="true"] {
+  background: var(--active-bg);
+  color: var(--accent);
+  border-color: transparent;
+}
+
+.editor-menu .menu-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.editor-menu .menu-sep {
+  opacity: 0.45;
+}
+
+.save-status .toolbar-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.toolbar-status-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .toolbar-history-icon-undo {
@@ -1614,6 +1664,19 @@ body {
 
 .toolbar-full .menu-dropdown-list {
   max-height: min(75vh, 460px);
+}
+
+/* Desktop icon groups stay on one line, including contextual table actions. */
+.editor-menu.toolbar-full {
+  gap: 2px;
+}
+
+.toolbar-full .menu-btn {
+  padding-inline: 3px;
+}
+
+.toolbar-full .menu-sep {
+  margin-inline: 1px;
 }
 
 .toolbar-table-menu,
@@ -1812,7 +1875,7 @@ body {
 
 /* 触屏浏览器会在菜单关闭后保留最后一个按钮的 :hover，造成灰色状态残留。 */
 @media (hover: none) {
-  .menu-btn:hover:not(.active) {
+  .menu-btn:hover:not(.active):not([aria-expanded="true"]) {
     background: none;
     border-color: transparent;
     box-shadow: none;
@@ -1968,6 +2031,7 @@ body {
 
 .mobile-action-sheet-header {
   position: relative;
+  flex-shrink: 0;
   display: grid;
   grid-template-columns: 36px 1fr 36px;
   align-items: center;
@@ -2071,6 +2135,41 @@ body {
   min-height: 44px;
   box-sizing: border-box;
   font-size: 14px;
+}
+
+/* Keep the complete mobile toolbar menu visible without shrinking tap targets. */
+.toolbar-more-sheet .mobile-action-sheet-content {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.toolbar-more-sheet .menu-dropdown-sep,
+.toolbar-more-sheet .toolbar-more-shortcut {
+  display: none;
+}
+
+.toolbar-more-sheet .menu-dropdown-item,
+.toolbar-more-sheet .menu-dropdown-control {
+  min-width: 0;
+  padding: 8px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.toolbar-more-sheet .menu-dropdown-control {
+  gap: 4px;
+}
+
+.toolbar-more-sheet .menu-dropdown-control select,
+.toolbar-more-sheet .menu-dropdown-control input {
+  max-width: 76px;
+  min-height: 44px;
+}
+
+.toolbar-more-sheet .toolbar-more-clear-color {
+  grid-column: 1 / -1;
 }
 
 .menu-dropdown-sep {
@@ -2561,7 +2660,7 @@ body {
   right: 0;
   bottom: var(--safe-bottom);
   width: 280px;
-  max-width: 85vw;
+  max-width: calc(var(--app-viewport-width, 100vw) * 0.85);
   display: flex;
   flex-direction: column;
   padding-top: var(--safe-top);
@@ -2625,6 +2724,11 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .mobile-document-drawer .mobile-document-drawer-panel,
   .mobile-document-drawer .mobile-document-drawer-backdrop { transition: none; }
+}
+
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+  .app .app-sidebar,
+  .app .sidebar-overlay { transition: none; }
 }
 
 /* ──── Empty State ──── */
@@ -4393,6 +4497,12 @@ body {
   -webkit-user-select: none;
   -webkit-touch-callout: none;
 }
+
+/* Keep the todo input clear of the splitter's expanded touch target. */
+.app:not(.app-focus-mode) .app-main-divider:not(.divider-collapsed) {
+  margin-top: 12px;
+}
+
 .app-main-divider::before {
   content: "";
   position: absolute;
@@ -8867,31 +8977,37 @@ button.doc-tree-toggle:focus-visible {
   .app-sidebar {
     position: fixed;
     top: var(--app-visual-viewport-offset-top, 0px);
-    left: 0;
-    bottom: var(--safe-bottom);
+    left: var(--app-visual-viewport-offset-left, 0px);
+    bottom: auto;
+    height: calc(var(--app-viewport-height, 100dvh) - var(--safe-bottom));
     z-index: 100;
     width: 280px !important;
-    max-width: 85vw;
+    max-width: calc(var(--app-viewport-width, 100vw) * 0.85);
     background: var(--bg);
     border-right: 1px solid var(--border);
     transform: translateX(-100%);
-    transition: transform 0.25s ease;
+    visibility: hidden;
+    transition: transform 0.25s ease, visibility 0s linear 0.25s;
     box-shadow: 4px 0 12px rgba(0, 0, 0, 0.12);
     padding-top: var(--safe-top);
   }
 
   .app-sidebar:not(.sidebar-hidden) {
     transform: translateX(0);
+    visibility: visible;
+    transition-delay: 0s;
   }
 
   /* 侧栏遮罩 */
   .sidebar-overlay {
     display: block;
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: var(--safe-bottom);
+    top: var(--app-visual-viewport-offset-top, 0px);
+    left: var(--app-visual-viewport-offset-left, 0px);
+    right: auto;
+    bottom: auto;
+    width: var(--app-viewport-width, 100vw);
+    height: calc(var(--app-viewport-height, 100dvh) - var(--safe-bottom));
     background: rgba(0, 0, 0, 0.35);
     z-index: 99;
     opacity: 0;
@@ -9430,7 +9546,12 @@ button.doc-tree-toggle:focus-visible {
   }
 
   .sidebar-tab-hide {
-    display: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    min-height: 36px;
+    opacity: 0.7;
   }
 
   .sidebar-view-switch-label {

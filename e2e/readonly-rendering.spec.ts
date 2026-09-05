@@ -52,6 +52,48 @@ async function enable(page: Page) {
   await expect(page.locator("[data-virtual-reader]")).toBeVisible();
 }
 
+test("局部阅读沿用可视视口手势，目录和书签文字上右划只关闭侧栏", async ({ page }) => {
+  test.setTimeout(60000);
+  await createLongNote(page, 90);
+  await page.getByRole("button", { name: "文档书签", exact: true }).click();
+  await page.getByRole("button", { name: "添加当前位置书签", exact: true }).click();
+  await enable(page);
+  await page.setViewportSize({ width: 390, height: 760 });
+  await page.locator(".sidebar-tab-hide").click();
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
+  await page.evaluate(() => {
+    for (const [name, value] of Object.entries({ offsetLeft: 10, offsetTop: 20, width: 350, height: 500 })) {
+      Object.defineProperty(window.visualViewport!, name, { configurable: true, value });
+    }
+  });
+  const swipe = async (locator: import("@playwright/test").Locator, x: number, y: number, dx: number) => locator.evaluate((element, points) => {
+    const dispatch = (type: string, clientX: number) => {
+      const touch = { identifier: 18, target: element, clientX, clientY: points.y };
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(event, {
+        touches: { value: type === "touchend" ? [] : [touch] },
+        changedTouches: { value: [touch] },
+      });
+      element.dispatchEvent(event);
+    };
+    dispatch("touchstart", points.x);
+    dispatch("touchmove", points.x + points.dx);
+    dispatch("touchend", points.x + points.dx);
+  }, { x, y, dx });
+  // y=300 is in the lower half of the visual viewport, but upper half of innerHeight.
+  const drawer = page.getByRole("dialog", { name: "阅读侧栏" });
+  for (const y of [300, 190]) {
+    await swipe(page.locator(".app-main"), 345, y, -90);
+    await expect(drawer).toBeVisible();
+    const item = drawer.locator(y === 300 ? ".vr-outline-row [data-drawer-swipe-item]" : ".vr-bookmark").first();
+    await expect(item).toBeVisible();
+    const position = await page.locator(".vr-scroll").evaluate((element) => element.scrollTop);
+    await swipe(item, 190, 190, 90);
+    await expect(drawer).toHaveCount(0);
+    expect(await page.locator(".vr-scroll").evaluate((element) => element.scrollTop)).toBe(position);
+  }
+});
+
 test("局部阅读默认关闭，1500 块搜索与折叠末章，再回退完整编辑器", async ({
   page,
 }) => {

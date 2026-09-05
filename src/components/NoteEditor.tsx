@@ -45,6 +45,7 @@ import {
 import { EditorBlockGutter } from "./EditorBlockGutter";
 import { DocumentOutlineList, type VisibleOutlineEntry } from "./DocumentOutlineList";
 import { MobileActionSheet } from "./MobileActionSheet";
+import { ToolbarIcon } from "./ToolbarIcon";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
 import { DocumentPanelDrawer, type DocumentPanelPresentation } from "./DocumentPanelDrawer";
 import { storeImage } from "../lib/storage/db-images";
@@ -62,7 +63,7 @@ import { exportMarkdownWithDialog, isTauri } from "../lib/tauri-desktop";
 import { exportDocumentAsPdf, type PdfDocumentInfo } from "../lib/pdf-export";
 import { FULLSCREEN_WILL_CHANGE_EVENT } from "../lib/fullscreen";
 import { editorGutterWidth } from "../lib/editor-gutter";
-import { bindEdgeSwipe, isWithinSwipeEdge } from "../lib/edge-swipe";
+import { bindViewportEdgeSwipe, swipeViewport } from "../lib/edge-swipe";
 import { clipboardSliceToPlainText } from "../lib/clipboard-plain-text";
 import { exitCurrentStructuredBlock, StructuredBlockExit } from "../extensions/StructuredBlockExit";
 import {
@@ -1324,31 +1325,21 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
   }, [bookmarkOpen, openDocumentBookmarks]);
 
   useEffect(() => {
-    const host = noteEditorRef.current;
-    if (!host || !focusMode || !isMobileToolbarViewport) return;
+    if (!focusMode || !isMobileToolbarViewport) return;
 
-    return bindEdgeSwipe(host, (touch) => {
-      const viewport = window.visualViewport;
-      const viewportLeft = viewport?.offsetLeft ?? 0;
-      const viewportTop = viewport?.offsetTop ?? 0;
-      const viewportWidth = viewport?.width ?? window.innerWidth;
-      const viewportHeight = viewport?.height ?? window.innerHeight;
-      const distanceFromRight = viewportLeft + viewportWidth - touch.clientX;
-      if (!isWithinSwipeEdge(distanceFromRight)) return null;
-      const target = touch.clientY < viewportTop + viewportHeight / 2 ? "bookmark" : "outline";
-      return {
-        direction: "left",
-        run: () => {
-          setFocusToolbarExpanded(false);
-          if (target === "bookmark") {
-            openDocumentBookmarks("drawer");
-          } else {
-            openDocumentOutline("drawer");
-          }
-        },
+    return bindViewportEdgeSwipe("right", (touch) => {
+      const target = touch.clientY < swipeViewport().middleY ? "bookmark" : "outline";
+      if (target === "outline" && documentOutline.length === 0) return null;
+      return () => {
+        setFocusToolbarExpanded(false);
+        if (target === "bookmark") {
+          openDocumentBookmarks("drawer");
+        } else {
+          openDocumentOutline("drawer");
+        }
       };
     });
-  }, [focusMode, isMobileToolbarViewport, openDocumentOutline, openDocumentBookmarks]);
+  }, [focusMode, isMobileToolbarViewport, documentOutline.length, openDocumentOutline, openDocumentBookmarks]);
 
   const toggleDocumentOutline = useCallback(() => {
     if (outlineOpen) {
@@ -3085,6 +3076,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
       onClick={disabled ? undefined : action}
       type="button"
       title={title}
+      aria-label={title}
       disabled={disabled}
     >
       {label}
@@ -3424,7 +3416,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
     <button className="menu-dropdown-item" onClick={() => {
       toggleCurrentBookmark();
       setMoreOpen(false);
-    }} type="button">{currentBookmark ? "取消当前位置书签" : "添加当前位置书签"} <span>Ctrl+Shift+M</span></button>
+    }} type="button">{currentBookmark ? "取消当前位置书签" : "添加当前位置书签"} <span className="toolbar-more-shortcut">Ctrl+Shift+M</span></button>
     <button className="menu-dropdown-item" onClick={() => {
       openDocumentBookmarks();
       setMoreOpen(false);
@@ -3457,7 +3449,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
         onChange={(event) => editor.chain().focus().setColor(event.target.value).run()}
       />
     </label>
-    <button className="menu-dropdown-item" onClick={() => editor.chain().focus().unsetColor().run()} type="button">清除文字颜色</button>
+    <button className="menu-dropdown-item toolbar-more-clear-color" onClick={() => editor.chain().focus().unsetColor().run()} type="button">清除文字颜色</button>
     <div className="menu-dropdown-sep" />
     <button className="menu-dropdown-item" disabled={editorFontSize <= 12} onClick={() => onEditorFontSizeChange(Math.max(12, editorFontSize - 1))} type="button">缩小编辑器字号</button>
     <button className="menu-dropdown-item" disabled={editorFontSize >= 32} onClick={() => onEditorFontSizeChange(Math.min(32, editorFontSize + 1))} type="button">放大编辑器字号</button>
@@ -3849,6 +3841,9 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
           ref={toolbarRef}
           className={`editor-menu ${isNarrow ? "toolbar-compact" : "toolbar-full"} ${isMinimalToolbar ? "toolbar-minimal" : ""}`}
           onPointerDownCapture={(event) => {
+            // Portaled sheets own native touch/scroll handling. React still
+            // propagates their events through this toolbar's component tree.
+            if (!event.currentTarget.contains(event.target as Node)) return;
             if (!(event.target instanceof Element) || !event.target.closest("button")) return;
             toolbarInteractingRef.current = true;
             // The first tap may move DOM focus away from the editor. Keep the last non-empty
@@ -3857,6 +3852,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
             if (event.pointerType === "touch") dismissNativeSelectionMenu();
           }}
           onTouchStartCapture={(event) => {
+            if (!event.currentTarget.contains(event.target as Node)) return;
             if (!(event.target instanceof Element) || !event.target.closest("button")) return;
             toolbarInteractingRef.current = true;
             rememberToolbarSelection();
@@ -3864,6 +3860,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
             event.preventDefault();
           }}
           onTouchEndCapture={(event) => {
+            if (!event.currentTarget.contains(event.target as Node)) return;
             if (!(event.target instanceof Element)) return;
             const button = event.target.closest<HTMLButtonElement>("button");
             if (!button) return;
@@ -3883,8 +3880,8 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
           }}
         >
           <span className="toolbar-history-actions">
-            {btn(<span className="toolbar-history-icon toolbar-history-icon-undo">↩</span>, () => editor.chain().focus().undo().run(), false, "撤销 (Ctrl+Z)", readonly)}
-            {btn(<span className="toolbar-history-icon toolbar-history-icon-redo">↪</span>, () => editor.chain().focus().redo().run(), false, "重做 (Ctrl+Y)", readonly)}
+            {btn(<span className="toolbar-history-icon toolbar-history-icon-undo"><ToolbarIcon name="undo" /></span>, () => editor.chain().focus().undo().run(), false, "撤销 (Ctrl+Z)", readonly || !editor.can().undo())}
+            {btn(<span className="toolbar-history-icon toolbar-history-icon-redo"><ToolbarIcon name="redo" /></span>, () => editor.chain().focus().redo().run(), false, "重做 (Ctrl+Y)", readonly || !editor.can().redo())}
           </span>
           <span className="menu-sep" />
           {isNarrow ? (
@@ -3894,6 +3891,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
                 onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("style", styleOpen); }}
                 type="button"
                 title="样式"
+                aria-expanded={styleOpen}
               >
                 {editor.isActive("bold") ? "B" :
                  editor.isActive("italic") ? "I" :
@@ -3932,6 +3930,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
                 onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("heading", headingOpen); }}
                 type="button"
                 title="标题"
+                aria-expanded={headingOpen}
               >
                 {editor.isActive("heading", { level: 1 }) ? "H1" :
                  editor.isActive("heading", { level: 2 }) ? "H2" :
@@ -3989,6 +3988,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
                 onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("block", blockOpen); }}
                 type="button"
                 title="块"
+                aria-expanded={blockOpen}
               >块 ▾</button>
               {blockOpen && (
                 <div className="menu-dropdown-list">
@@ -4070,13 +4070,13 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
               )}
             </div>
           ) : (<>
-          {btn("❝", () => editor.chain().focus().toggleBlockquote().run(), editor.isActive("blockquote"), "引用 (Ctrl+Shift+B)", readonly)}
-          {btn("•", () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"), "无序列表 (Ctrl+Shift+8)", readonly)}
-          {btn("1.", () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"), "有序列表 (Ctrl+Shift+7)", readonly)}
-          {btn("→", () => changeSelectedBlockIndent(1), false, "增加块缩进 (Tab)", readonly || editor.isActive("table"))}
-          {btn("←", () => changeSelectedBlockIndent(-1), false, "减少块缩进 (Shift+Tab)", readonly || editor.isActive("table"))}
-          {btn("⏹", handleToggleCodeBlock, editor.isActive("codeBlock"), "代码块 (Ctrl+Alt+C)", readonly)}
-          {btn("▦", () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), editor.isActive("table"), "插入 3×3 表格", readonly || editor.isActive("table"))}
+          {btn(<ToolbarIcon name="quote" />, () => editor.chain().focus().toggleBlockquote().run(), editor.isActive("blockquote"), "引用 (Ctrl+Shift+B)", readonly)}
+          {btn(<ToolbarIcon name="bullet" />, () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"), "无序列表 (Ctrl+Shift+8)", readonly)}
+          {btn(<ToolbarIcon name="ordered" />, () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"), "有序列表 (Ctrl+Shift+7)", readonly)}
+          {btn(<ToolbarIcon name="indent" />, () => changeSelectedBlockIndent(1), false, "增加块缩进 (Tab)", readonly || editor.isActive("table"))}
+          {btn(<ToolbarIcon name="outdent" />, () => changeSelectedBlockIndent(-1), false, "减少块缩进 (Shift+Tab)", readonly || editor.isActive("table"))}
+          {btn(<ToolbarIcon name="code" />, handleToggleCodeBlock, editor.isActive("codeBlock"), "代码块 (Ctrl+Alt+C)", readonly)}
+          {btn(<ToolbarIcon name="table" />, () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), editor.isActive("table"), "插入 3×3 表格", readonly || editor.isActive("table"))}
           {btn("M↓", convertSelectionFromMarkdown, false, "转换所选 Markdown", readonly || !hasSelection())}
           <button
             className={`menu-btn ${showCodeLineNumbers ? "active" : ""}`}
@@ -4150,9 +4150,9 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
               )}
             </div>
           ) : (<>
-          {btn("📋", handleCopy, false, "复制 (Ctrl+C)", readonly)}
-          {btn("✂", handleCut, false, "剪切 (Ctrl+X)", readonly)}
-          {btn("📝", handleClipboardPaste, false, "粘贴 (Ctrl+V)", readonly)}
+          {btn(<ToolbarIcon name="copy" />, handleCopy, false, "复制 (Ctrl+C)", readonly)}
+          {btn(<ToolbarIcon name="cut" />, handleCut, false, "剪切 (Ctrl+X)", readonly)}
+          {btn(<ToolbarIcon name="paste" />, handleClipboardPaste, false, "粘贴 (Ctrl+V)", readonly)}
           {btn("M↑", () => { void handleExportMarkdown(); }, false, "导出 Markdown", false)}
           </>)}
           <span className="menu-sep" />
@@ -4171,8 +4171,10 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
                 }}
                 type="button"
                 title="超链接"
+                aria-label="超链接"
+                aria-expanded={linkOpen}
                 disabled={readonly}
-              >🔗</button>
+              ><ToolbarIcon name="link" /></button>
               {linkOpen && (
                 <div className="menu-dropdown-list">
                   <div style={{ padding: "6px 8px", display: "flex", gap: 4, alignItems: "center" }}>
@@ -4226,8 +4228,10 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
                 }}
                 type="button"
                 title={editor.isActive("link") ? "编辑/移除链接" : "添加超链接 (Ctrl+K)"}
+                aria-label={editor.isActive("link") ? "编辑/移除链接" : "添加超链接 (Ctrl+K)"}
+                aria-expanded={linkOpen}
                 disabled={readonly}
-              >🔗</button>
+              ><ToolbarIcon name="link" /></button>
               {linkOpen && (
                 <div className="menu-dropdown-list" style={{ minWidth: 260 }}>
                   <div style={{ padding: "6px 8px", display: "flex", gap: 4, alignItems: "center" }}>
@@ -4356,7 +4360,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
             title="插入图片"
             disabled={readonly}
           >
-            🖼
+            <ToolbarIcon name="image" />
           </button>
           <span className="menu-sep" />
           {btn("A⁻", () => onEditorFontSizeChange(Math.max(12, editorFontSize - 1)), false, "缩小字号", editorFontSize <= 12)}
@@ -4371,6 +4375,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
                 onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("more", moreOpen); }}
                 type="button"
                 title="更多编辑操作"
+                aria-expanded={moreOpen}
               >更多 ⋯</button>
               {moreOpen && (isMobileToolbarViewport ? (
                 <MobileActionSheet
@@ -4380,6 +4385,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
                   dismissAnchor={moreButtonRef.current}
                   placementAnchor={toolbarRef.current}
                   placementGap={4}
+                  fitContent
                   className="toolbar-more-sheet"
                 >
                   {moreActions}
@@ -4392,15 +4398,16 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
             </div>
           )}
           {saveStatus && saveStatus !== "clean" && (
-            <span className={`save-status save-status-${saveStatus}`} title={
+            <span role="status" className={`save-status save-status-${saveStatus}`} title={
               saveStatus === "dirty" ? "未保存" :
               saveStatus === "saving" ? "保存中..." :
               saveStatus === "saved" ? "已保存" :
               saveStatus === "error" ? "保存失败" : ""
             }>
-              {saveStatus === "saving" ? "⏳" :
-               saveStatus === "saved" ? "✓" :
-               saveStatus === "error" ? "⚠" : "●"}
+              <span className="toolbar-status-label">{saveStatus === "saving" ? "保存中" : saveStatus === "saved" ? "已保存" : saveStatus === "error" ? "保存失败" : "未保存"}</span>
+              {saveStatus === "saving" ? <ToolbarIcon name="saving" /> :
+               saveStatus === "saved" ? <ToolbarIcon name="check" /> :
+               saveStatus === "error" ? <ToolbarIcon name="warning" /> : "●"}
             </span>
           )}
         </div>

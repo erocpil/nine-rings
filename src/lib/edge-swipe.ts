@@ -10,6 +10,25 @@ export function horizontalSwipeDirection(dx: number, dy: number): "left" | "righ
 
 type SwipeAction = { direction: "left" | "right"; run: () => void };
 
+/** All readers use the visible viewport, including zoom/keyboard offsets. */
+export function swipeViewport() {
+  const viewport = window.visualViewport;
+  const left = viewport?.offsetLeft ?? 0;
+  const top = viewport?.offsetTop ?? 0;
+  const width = viewport?.width ?? window.innerWidth;
+  const height = viewport?.height ?? window.innerHeight;
+  return { left, top, right: left + width, bottom: top + height, middleY: top + height / 2 };
+}
+
+export function bindViewportEdgeSwipe(side: "left" | "right", resolve: (touch: Touch) => (() => void) | null) {
+  return bindEdgeSwipe(window, (touch) => {
+    const viewport = swipeViewport();
+    if (!isWithinSwipeEdge(side === "left" ? touch.clientX - viewport.left : viewport.right - touch.clientX)) return null;
+    const run = resolve(touch);
+    return run ? { direction: side === "left" ? "right" : "left", run } : null;
+  });
+}
+
 /** 在第一个有位移的 touchmove 决定归属，不能等到 60px 才拦截原生滚动。 */
 export function bindEdgeSwipe(
   host: HTMLElement | Window,
@@ -25,7 +44,7 @@ export function bindEdgeSwipe(
     const target = event.target;
     if (target instanceof Element) {
       if (target.closest("input, textarea, select, [role='slider'], .editor-menu")) return;
-      if (!options.withinPanel && target.closest(".document-outline-panel, .document-bookmark-panel")) return;
+      if (!options.withinPanel && target.closest(".document-outline-panel, .document-bookmark-panel, .mobile-document-drawer, .mobile-action-sheet-layer, .app-sidebar, .sidebar-overlay.active, [role='dialog'], .dialog-overlay")) return;
       if (target.closest("button, a") && !(options.swipeButtonSelector && target.closest(options.swipeButtonSelector))) return;
       const selection = target.ownerDocument.getSelection();
       if (selection && !selection.isCollapsed) return;
