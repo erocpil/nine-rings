@@ -157,6 +157,9 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
     let foldedHeadingPositions = getCollapsedHeadingPositions(editor);
     let hiddenFoldBlockPositions = getHiddenHeadingFoldBlockPositions(editor);
     let topLevelBlocks: Array<{ pos: number; index: number; heading: boolean }> = [];
+    // 窗口和预读按折叠后的布局顺序计算；原始 index 只用于显示块号。
+    let layoutBlocks: typeof topLevelBlocks = [];
+    const layoutIndexByPosition = new Map<number, number>();
     const observedIndexes = new Map<HTMLElement, number>();
     const measuredBlocks = new Map<HTMLElement, GutterBlock>();
 
@@ -221,7 +224,10 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
       hiddenFoldBlockPositions = getHiddenHeadingFoldBlockPositions(editor);
       const rootTop = root.getBoundingClientRect().top;
       const editorLineHeight = Number.parseFloat(getComputedStyle(editor.view.dom).lineHeight) || 24;
-      for (const dom of [...measuredBlocks.keys()]) {
+      // 收缩后的 scrollTop 钳制可能发生在首轮重建之后，先复核窗口，
+      // 再测量候选集合（包括被延迟 IO 回调移除过的标记）。
+      refreshObservedWindow();
+      for (const dom of observedIndexes.keys()) {
         const measured = measureBlock(dom, dom.getBoundingClientRect(), rootTop, editorLineHeight);
         if (measured) measuredBlocks.set(dom, measured);
         else measuredBlocks.delete(dom);
@@ -251,6 +257,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
         let changed = false;
         let rootTop = 0;
         let editorLineHeight = 0;
+        let viewport: DOMRect | undefined;
         const ensureMetrics = () => {
           if (editorLineHeight > 0) return;
           rootTop = root.getBoundingClientRect().top;
@@ -260,19 +267,23 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
           const dom = entry.target;
           if (!(dom instanceof HTMLElement)) continue;
           if (!observedIndexes.has(dom)) continue;
-          if (!entry.isIntersecting) {
+          const blockIndex = observedIndexes.get(dom);
+          const heading = blockIndex !== undefined && topLevelBlocks[blockIndex - 1]?.heading;
+          // 正文沿用 IO 矩形，保留大文件性能；标题使用当前布局，避免
+          // 延迟批次把折叠三角重新放到旧坐标。
+          const rect = heading ? dom.getBoundingClientRect() : entry.boundingClientRect;
+          // 同一代 IO 的 false 回调也可能来自折叠前；标题是否离开视口
+          // 必须以当前布局为准，不能先删除再等待下一次滚动恢复。
+          if (heading) viewport ??= scrollRoot.getBoundingClientRect();
+          const intersects = heading && viewport
+            ? rect.height > 0 && rect.bottom >= viewport.top - intersectionRootMargin
+              && rect.top <= viewport.bottom + intersectionRootMargin
+            : entry.isIntersecting;
+          if (!intersects) {
             changed = measuredBlocks.delete(dom) || changed;
             continue;
           }
           ensureMetrics();
-          // 正文沿用观察器的现成矩形，避免千块文档滚动时逐块强制布局。
-          // 标题数量通常很少，且它们承载 gutter 三角；iOS WebKit 在章节
-          // 展开后可能延迟送达折叠前坐标，必须读取标题当前矩形，不能让
-          // 陈旧批次把三角重新发布到旧位置，等待滚动才自行纠正。
-          const blockIndex = observedIndexes.get(dom);
-          const rect = blockIndex !== undefined && topLevelBlocks[blockIndex - 1]?.heading
-            ? dom.getBoundingClientRect()
-            : entry.boundingClientRect;
           const measured = measureBlock(dom, rect, rootTop, editorLineHeight);
           if (!measured) {
             changed = measuredBlocks.delete(dom) || changed;
@@ -292,11 +303,11 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
     };
 
     const viewportBlockRange = (): { start: number; end: number } => {
-      const count = topLevelBlocks.length;
+      const count = layoutBlocks.length;
       if (count === 0) return { start: 0, end: -1 };
       const fallbackIndex = Math.max(0, Math.min(
         count - 1,
-        editor.state.selection.$from.index(0),
+        layoutIndexByPosition.get(topLevelBlocks[editor.state.selection.$from.index(0)]?.pos) ?? 0,
       ));
       try {
         const viewport = scrollRoot.getBoundingClientRect();
@@ -307,7 +318,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
         ));
         const top = Math.max(viewport.top + 1, editorRect.top + 1);
         const bottom = Math.min(viewport.bottom - 1, editorRect.bottom - 1);
-        const indexAt = (vertical: number, fallback: number, direction: 1 | -1) => {
+        const indexAt = (vertical: number, direction: 1 | -1): number | undefined => {
           // posAtCoords 会让 ProseMirror 读取候选文本块的几何；连续滚动时
           // WebKit 因此可能每帧强制布局。浏览器已经为命中测试维护了结果，
           // elementsFromPoint 再向上找到编辑器顶层块即可得到同一位置。
@@ -323,17 +334,46 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
               if (!(target instanceof HTMLElement) || target.parentElement !== editor.view.dom) continue;
               try {
                 const position = positionForDom(target);
-                return Math.max(0, Math.min(count - 1, editor.state.doc.resolve(position).index(0)));
+                const index = layoutIndexByPosition.get(position);
+                if (index !== undefined) return index;
               } catch {
                 // Try the next hit/probe.
               }
             }
           }
-          return fallback;
+          return undefined;
         };
         if (bottom <= top) return { start: fallbackIndex, end: fallbackIndex };
-        const first = indexAt(top, fallbackIndex, 1);
-        const last = indexAt(bottom, first, -1);
+        let first = indexAt(top, 1);
+        let last = indexAt(bottom, -1);
+        if (first === undefined || last === undefined) {
+          // 尾部留白、段间距或覆盖层可让命中测试完全落空。对折叠后
+          // 有序的布局块二分定位边界，不把末块错误地退回首块，也不在
+          // 每次滚动时扫描全文 DOM。仅回退路径读取 O(log n) 个矩形。
+          const rects = new Map<number, DOMRect>();
+          const rectAt = (index: number) => {
+            let rect = rects.get(index);
+            if (!rect) {
+              const dom = editor.view.nodeDOM(layoutBlocks[index].pos);
+              if (!(dom instanceof HTMLElement)) throw new Error("Missing layout block");
+              rect = dom.getBoundingClientRect();
+              rects.set(index, rect);
+            }
+            return rect;
+          };
+          const lowerBound = (after: (rect: DOMRect) => boolean) => {
+            let low = 0;
+            let high = count;
+            while (low < high) {
+              const middle = (low + high) >>> 1;
+              if (after(rectAt(middle))) high = middle;
+              else low = middle + 1;
+            }
+            return low;
+          };
+          first ??= Math.min(count - 1, lowerBound((rect) => rect.bottom >= top));
+          last ??= Math.max(0, lowerBound((rect) => rect.top > bottom) - 1);
+        }
         return { start: Math.min(first, last), end: Math.max(first, last) };
       } catch {
         return { start: fallbackIndex, end: fallbackIndex };
@@ -349,7 +389,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
       // 随全文长度增长，并在 WebKitGTK 中造成明显假死。
       const overscan = compact ? 20 : 48;
       const start = Math.max(0, visible.start - overscan);
-      const end = Math.min(topLevelBlocks.length - 1, visible.end + overscan);
+      const end = Math.min(layoutBlocks.length - 1, visible.end + overscan);
       if (!force && start === observedWindow.start && end === observedWindow.end) return;
       observedWindow = { start, end };
       const nextObservedIndexes = new Map<HTMLElement, number>();
@@ -362,7 +402,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
         ? Number.parseFloat(getComputedStyle(editor.view.dom).lineHeight) || 24
         : 0;
       for (let blockIndex = start; blockIndex <= end; blockIndex += 1) {
-        const block = topLevelBlocks[blockIndex];
+        const block = layoutBlocks[blockIndex];
         if (!block
           || hiddenFoldBlockPositions.has(block.pos)
           || (!needsAllBlocks && !block.heading)) continue;
@@ -406,6 +446,9 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
       editor.state.doc.forEach((node, pos, index) => {
         topLevelBlocks.push({ pos, index: index + 1, heading: node.type.name === "heading" });
       });
+      layoutBlocks = topLevelBlocks.filter((block) => !hiddenFoldBlockPositions.has(block.pos));
+      layoutIndexByPosition.clear();
+      layoutBlocks.forEach((block, index) => layoutIndexByPosition.set(block.pos, index));
       onBlockCountChange?.(editor.state.doc.childCount);
       refreshObservedWindow(true);
       // iOS WebKit 在文档尾部收缩、scrollTop 被浏览器自动钳制时，首帧可能
