@@ -143,7 +143,8 @@ export function Sidebar({
     setAllNotes((current) => current.map((note) => currentById.get(note.id) ?? note));
   }, [notes, showAll]);
 
-  const displayNotes = showAll ? allNotes : notes;
+  const sourceNotes = showAll ? allNotes : notes;
+  const displayNotes = activeTag ? sourceNotes.filter((note) => note.tags.includes(activeTag)) : sourceNotes;
   const sortedNotes = applySort(displayNotes, sortMode);
 
   useEffect(() => {
@@ -172,6 +173,9 @@ export function Sidebar({
     }).catch((error) => console.error("读取搜索结果失败", error));
   };
   const handleItemClick = (e: React.MouseEvent, note: Note, index: number) => {
+    // Row navigation runs on mousedown, before child buttons receive click.
+    // A row action must not first select its note (and dismiss the mobile drawer).
+    if (e.target instanceof Element && e.target.closest("button, input, select, textarea, a")) return;
     if (editingId) return;
     if (e.shiftKey) {
       const last = lastClickedRef.current;

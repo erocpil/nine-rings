@@ -3856,7 +3856,9 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
             // Portaled sheets own native touch/scroll handling. React still
             // propagates their events through this toolbar's component tree.
             if (!event.currentTarget.contains(event.target as Node)) return;
-            if (!(event.target instanceof Element) || !event.target.closest("button")) return;
+            if (!(event.target instanceof Element)) return;
+            const button = event.target.closest<HTMLButtonElement>("button");
+            if (!button || button.disabled) return;
             toolbarInteractingRef.current = true;
             // The first tap may move DOM focus away from the editor. Keep the last non-empty
             // selection across opening a dropdown and tapping one of its commands.
@@ -3865,7 +3867,9 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
           }}
           onTouchStartCapture={(event) => {
             if (!event.currentTarget.contains(event.target as Node)) return;
-            if (!(event.target instanceof Element) || !event.target.closest("button")) return;
+            if (!(event.target instanceof Element)) return;
+            const button = event.target.closest<HTMLButtonElement>("button");
+            if (!button || button.disabled) return;
             toolbarInteractingRef.current = true;
             rememberToolbarSelection();
             dismissNativeSelectionMenu();
@@ -3875,10 +3879,12 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
             if (!event.currentTarget.contains(event.target as Node)) return;
             if (!(event.target instanceof Element)) return;
             const button = event.target.closest<HTMLButtonElement>("button");
-            if (!button) return;
+            if (!button || button.disabled) return;
             event.preventDefault();
             button.click();
           }}
+          onPointerCancelCapture={() => { toolbarInteractingRef.current = false; }}
+          onTouchCancelCapture={() => { toolbarInteractingRef.current = false; }}
           onClickCapture={(event) => {
             if (!(event.target instanceof Element) || !event.target.closest("button")) return;
             const cellSelection = toolbarCellSelectionRef.current;

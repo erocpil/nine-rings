@@ -339,6 +339,7 @@ function App() {
 
   const handleDocSearch = useCallback(async (q: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => {
     const requestId = ++docSearchRequestIdRef.current;
+    clearSearch();
     if (!q.text && !q.storagePath && !q.docType && !q.concept) {
       setDocResults(null);
       setDocSearchText("");
@@ -353,6 +354,13 @@ function App() {
       // 用户刚修改正文就重新搜索时读到旧的 search_text。
       await flushAutoSave();
       if (requestId !== docSearchRequestIdRef.current) return;
+      // The shared search entry searches essays, documents and todos by default.
+      // Only explicit document filters should restrict results to documents.
+      if (!q.storagePath && !q.docType && !q.concept) {
+        await search(q.text);
+        if (requestId === docSearchRequestIdRef.current) setDocResults(null);
+        return;
+      }
       const notes = await api.docs.search({
         text: q.text || undefined,
         storagePath: q.storagePath,
@@ -372,7 +380,7 @@ function App() {
         setDocSearching(false);
       }
     }
-  }, [flushAutoSave]);
+  }, [clearSearch, flushAutoSave, search]);
 
   const [recycleOpen, setRecycleOpen] = useState(false);
   const [pdfReaderDocumentId, setPdfReaderDocumentId] = useState<string | null>(null);

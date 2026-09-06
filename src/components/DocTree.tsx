@@ -673,6 +673,7 @@ function DocTree({
     );
   }
 
+  const selectedDocument = tree.find((node) => node.type === "document" && node.noteId === selectedId);
   const toolbar = (
     <div className="doc-tree-toolbar">
       <button
@@ -702,7 +703,7 @@ function DocTree({
           className="btn-icon doc-tree-batch-btn"
           onClick={collapseOthers}
           title="折叠其它目录（保留当前文档所在目录）"
-          disabled={!selectedId && !selectedFolderPath}
+          disabled={!selectedDocument && !selectedFolderPath}
         >
           📂
         </button>
@@ -763,9 +764,9 @@ function DocTree({
           <>
             <button
               className="btn-icon doc-tree-batch-btn"
-              onClick={() => selectedId && handleRename(selectedId)}
+              onClick={() => selectedDocument?.noteId && handleRename(selectedDocument.noteId)}
               title="重命名当前文档"
-              disabled={disabled || !selectedId}
+              disabled={disabled || !selectedDocument || !onRename}
             >
               ✎
             </button>

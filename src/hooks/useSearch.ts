@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { api } from "../lib/api";
-import type { SearchNote } from "../lib/search-index-core";
+import { toSearchNote, type SearchNote } from "../lib/search-index-core";
 
 export interface TodoHit {
   todo: { id: string; text: string; done: boolean };
@@ -31,12 +31,17 @@ export function useSearch() {
     }
     setSearching(true);
     try {
-      const [notes, todoHits] = await Promise.all([
+      const [notes, documents, todoHits] = await Promise.all([
         api.notes.searchSummaries(q),
+        api.docs.search({ text: q }),
         api.daily.searchTodos(q),
       ]);
       if (requestId !== searchRequestRef.current) return;
-      setResults({ notes, todos: todoHits });
+      // The Web index starts with essays; native search may already include docs.
+      // Merge by ID so the shared entry returns both without duplicate results.
+      const uniqueNotes = new Map(notes.map((note) => [note.id, note]));
+      for (const document of documents) uniqueNotes.set(document.id, toSearchNote(document));
+      setResults({ notes: [...uniqueNotes.values()], todos: todoHits });
     } catch (error) {
       if (requestId !== searchRequestRef.current) return;
       console.error("搜索失败:", error);
