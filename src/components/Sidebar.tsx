@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { TemplatePicker } from "./TemplatePicker";
 import type { Template } from "../lib/storage/template-store";
 import { MobileActionSheet } from "./MobileActionSheet";
+import { useTransientMessage } from "../hooks/useTransientMessage";
 
 type SortMode = "manual" | "created" | "updated" | "title";
 const SORT_MODE_KEY = "nr:sortMode";
@@ -65,8 +66,8 @@ interface SidebarProps {
   onCreateWithTemplate: (template: Template) => void;
   onDelete: (id: string) => Promise<void>;
   onBatchDelete: (ids: string[]) => Promise<void>;
-  onReorder: (id: string, sortOrder: number) => void;
-  onMoveToDate: (id: string, date: string) => void;
+  onReorder: (orderedIds: string[]) => Promise<void>;
+  onMoveToDate: (id: string, date: string) => Promise<void>;
   onTagSelect: (tag: string | null) => void;
   onTogglePin: (id: string, pinned: boolean) => void;
   onRename: (id: string, title: string) => void;
@@ -84,12 +85,16 @@ export function Sidebar({
   onTagSelect, onTogglePin, onRename, onToggleReadonly, sidebarRefreshKey, disabled,
 }: SidebarProps) {
   const [moveNoteId, setMoveNoteId] = useState<string | null>(null);
+  const [moveDate, setMoveDate] = useState("");
+  const [moveError, setMoveError] = useState<string | null>(null);
+  const [moveBusy, setMoveBusy] = useState(false);
+  const [reorderBusy, setReorderBusy] = useState(false);
+  const { message, showMessage } = useTransientMessage();
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragOverIdxRef = useRef<number | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [actionNoteId, setActionNoteId] = useState<string | null>(null);
-  const moveInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const restoredScrollModeRef = useRef<string | null>(null);
@@ -263,7 +268,24 @@ export function Sidebar({
 
   // ── Drag & Drop reorder ──
 
-  const canReorder = sortMode === "manual" && !showAll && !isMultiSelect && !disabled;
+  const canReorder = sortMode === "manual" && !activeTag && !isMultiSelect && !disabled && !reorderBusy;
+
+  const saveOrder = async (ids: string[]) => {
+    if (!canReorder) return;
+    setReorderBusy(true);
+    try {
+      await onReorder(ids);
+      const orderById = new Map(ids.map((id, index) => [id, index]));
+      setAllNotes((current) => current.map((note) => orderById.has(note.id)
+        ? { ...note, sort_order: orderById.get(note.id)! }
+        : note));
+      showMessage("顺序已保存");
+    } catch (error) {
+      showMessage(`调整顺序失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setReorderBusy(false);
+    }
+  };
 
   const handleDragStart = (event: React.DragEvent, id: string, index: number) => {
     if (!canReorder) {
@@ -298,9 +320,7 @@ export function Sidebar({
     const arr = sortedNotes.map((n) => n.id);
     const [moved] = arr.splice(_dragIndex, 1);
     arr.splice(targetIdx, 0, moved);
-    arr.forEach((id, i) => {
-      onReorder(id, i);
-    });
+    void saveOrder(arr);
     _dragId = null;
     _dragIndex = -1;
   };
@@ -315,24 +335,16 @@ export function Sidebar({
     const reordered = [...sortedNotes];
     const [moved] = reordered.splice(fromIndex, 1);
     reordered.splice(toIndex, 0, moved);
-    reordered.forEach((note, index) => onReorder(note.id, index));
+    void saveOrder(reordered.map((note) => note.id));
   };
 
   // ── Cross-day move ──
 
   const openMoveDate = (id: string) => {
     if (disabled) return;
+    setMoveDate(sortedNotes.find((note) => note.id === id)?.date ?? "");
+    setMoveError(null);
     setMoveNoteId(id);
-    window.setTimeout(() => {
-      const input = moveInputRef.current;
-      if (!input) return;
-      input.focus({ preventScroll: true });
-      try {
-        input.showPicker?.();
-      } catch {
-        // iOS 和较旧 WebView 可能不支持脚本打开；输入框仍保持可见可点。
-      }
-    }, 50);
   };
 
   const handleMoveClick = (e: React.MouseEvent, id: string) => {
@@ -340,10 +352,20 @@ export function Sidebar({
     openMoveDate(id);
   };
 
-  const handleMoveDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!moveNoteId) return;
-    onMoveToDate(moveNoteId, e.target.value);
-    setMoveNoteId(null);
+  const submitMoveDate = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!moveNoteId || !moveDate || moveBusy || disabled) return;
+    setMoveBusy(true);
+    setMoveError(null);
+    try {
+      await onMoveToDate(moveNoteId, moveDate);
+      setMoveNoteId(null);
+      showMessage(`已移至 ${moveDate}；全部随笔中仍会保留显示`);
+    } catch (error) {
+      setMoveError(`移动失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setMoveBusy(false);
+    }
   };
 
   // ── Rename ──
@@ -439,6 +461,7 @@ export function Sidebar({
         </div>
       </div>
       <TagFilter activeTag={activeTag} onTagSelect={onTagSelect} refreshKey={sidebarRefreshKey} />
+      {message && <div className="sidebar-action-message" role="status">{message}</div>}
       {isMultiSelect && (
         <div className="sidebar-multi-info">
           已选 {selectedIds.size} 篇
@@ -505,6 +528,7 @@ export function Sidebar({
                 </div>
               )}
               <div className="sidebar-item-time">
+                {showAll && `${note.date} · `}
                 {new Date(note.created_at).toLocaleTimeString("zh-CN", {
                   hour: "2-digit",
                   minute: "2-digit",
@@ -581,8 +605,8 @@ export function Sidebar({
             )}
           </div>
         ))}
-        {notes.length === 0 && (
-          <div className="sidebar-empty">今天还没有笔记</div>
+        {sortedNotes.length === 0 && (
+          <div className="sidebar-empty">{activeTag ? "没有符合标签的随笔" : showAll ? "还没有随笔" : "今天还没有笔记"}</div>
         )}
       </div>
 
@@ -675,6 +699,15 @@ export function Sidebar({
                 reorderByOffset(actionNote.id, 1);
               }}
             >↓ 向下移动</button>
+            {(!canMoveActionNoteUp || !canMoveActionNoteDown) && (
+              <p className="sidebar-action-hint">
+                {sortMode !== "manual" ? "切换到手动排序后可调整顺序。"
+                  : activeTag ? "清除标签筛选后可调整顺序。"
+                  : reorderBusy ? "正在保存顺序…"
+                  : disabled ? "当前操作已暂时锁定。"
+                  : "已到列表或置顶分组边界，无法继续向该方向移动。"}
+              </p>
+            )}
             <button
               type="button"
               className="menu-dropdown-item menu-dropdown-danger"
@@ -692,26 +725,31 @@ export function Sidebar({
       <MobileActionSheet
         open={Boolean(moveNoteId)}
         title="移至日期"
-        onClose={() => setMoveNoteId(null)}
+        onClose={() => { if (!moveBusy) setMoveNoteId(null); }}
         className="move-date-sheet"
       >
         {moveNoteId && (
-          <div className="move-date-content">
+          <form className="move-date-content" onSubmit={(event) => void submitMoveDate(event)}>
             <label className="move-date-field">
               <span>目标日期</span>
               <input
-                ref={moveInputRef}
                 type="date"
                 className="move-date-input"
                 aria-label="目标日期"
-                onChange={handleMoveDateChange}
-                autoFocus
+                value={moveDate}
+                onChange={(event) => setMoveDate(event.target.value)}
+                required
+                disabled={moveBusy || disabled}
               />
             </label>
-            <button type="button" className="btn btn-secondary" onClick={() => setMoveNoteId(null)}>
+            {moveError && <p className="move-date-error" role="alert">{moveError}</p>}
+            <button type="button" className="btn btn-secondary" disabled={moveBusy} onClick={() => setMoveNoteId(null)}>
               取消
             </button>
-          </div>
+            <button type="submit" className="btn btn-primary" disabled={!moveDate || moveBusy || disabled}>
+              {moveBusy ? "移动中…" : "移动"}
+            </button>
+          </form>
         )}
       </MobileActionSheet>
 

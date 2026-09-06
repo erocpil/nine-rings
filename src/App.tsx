@@ -1543,16 +1543,20 @@ function App() {
               }}
               onDelete={handleDeleteWithUndo}
               onBatchDelete={handleBatchDeleteWithUndo}
-              onReorder={async (id, sortOrder) => {
-                await api.notes.updateOrder(id, sortOrder);
-                // Refresh current date to reflect new order
-                await setDate(currentDate);
+              onReorder={async (orderedIds) => {
+                await flushAutoSave();
+                const results = await Promise.allSettled(orderedIds.map((id, index) => api.notes.updateOrder(id, index)));
+                const failures = results.filter((result) => result.status === "rejected");
+                const updatedNotes = await api.notes.listByDate(currentDate);
+                if (useNotesStore.getState().currentDate === currentDate) useNotesStore.setState({ notes: updatedNotes });
                 refreshNoteViews();
+                if (failures.length) throw new Error(`${failures.length} 篇随笔未保存，请重试`);
               }}
               onMoveToDate={async (id, date) => {
-                await api.notes.update(id, { date });
-                // Refresh current date to reflect removal
-                await setDate(currentDate);
+                await flushAutoSave();
+                await updateNote(id, { date });
+                const updatedNotes = await api.notes.listByDate(currentDate);
+                if (useNotesStore.getState().currentDate === currentDate) useNotesStore.setState({ notes: updatedNotes });
                 refreshNoteViews();
               }}
               onToggleReadonly={async (id, readonly) => {

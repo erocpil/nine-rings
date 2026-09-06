@@ -41,6 +41,121 @@ async function seedViews(page: Page, view: "daily" | "tree" = "daily") {
   return ids;
 }
 
+test.describe("全部随笔菜单的实际移动", () => {
+  test.use({ viewport: { width: 390, height: 850 }, hasTouch: true });
+
+  test("跨日期上下移动落盘，不改变日期或当前笔记，空当日不显示错误空态", async ({ page }) => {
+    const ids = await seedViews(page);
+    await page.evaluate(async ([first, second]) => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api } = await load("/src/lib/api.ts");
+      await api.notes.update(first, { pinned: false, date: "2001-01-01" });
+      await api.notes.update(second, { date: "2001-01-02" });
+      localStorage.setItem("nr:sidebarShowAll", "true");
+    }, ids);
+    await page.reload();
+    if (await page.getByTitle("显示侧栏", { exact: true }).isVisible()) await page.getByTitle("显示侧栏", { exact: true }).tap();
+    await expect(page.getByTitle("返回当日随笔")).toBeVisible();
+    const item = page.locator(".sidebar-item").filter({ hasText: "按钮随笔乙" });
+    await expect(item).toBeVisible();
+    const selectedTitle = await page.getByPlaceholder("随心记 — 标题").inputValue();
+    // The all-notes cache remains populated even when the current day is empty.
+    await page.evaluate(async () => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { useNotesStore } = await load("/src/stores/useNotesStore.ts");
+      useNotesStore.setState({ notes: [] });
+    });
+    await expect(page.locator(".sidebar-empty")).toHaveCount(0);
+    const titles = () => page.locator(".sidebar-item-title").allTextContents();
+    const original = await titles();
+    await item.getByRole("button", { name: /更多随笔操作/ }).tap();
+    const sheet = page.getByRole("dialog", { name: "随笔：按钮随笔乙", exact: true });
+    await expect(sheet.getByRole("button", { name: "↑ 向上移动", exact: true })).toBeEnabled();
+    await sheet.getByRole("button", { name: "↑ 向上移动", exact: true }).tap();
+    await expect(page.getByRole("status").filter({ hasText: "顺序已保存" })).toBeVisible();
+    const expected = [...original];
+    const index = expected.indexOf("按钮随笔乙");
+    [expected[index - 1], expected[index]] = [expected[index], expected[index - 1]];
+    await expect.poll(titles).toEqual(expected);
+    await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue(selectedTitle);
+    await page.reload();
+    if (await page.getByTitle("显示侧栏", { exact: true }).isVisible()) await page.getByTitle("显示侧栏", { exact: true }).tap();
+    await expect.poll(titles).toEqual(expected);
+    await item.getByRole("button", { name: /更多随笔操作/ }).tap();
+    await sheet.getByRole("button", { name: "↓ 向下移动", exact: true }).tap();
+    await expect.poll(titles).toEqual(original);
+    const dates = await page.evaluate(async ([first, second]) => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api } = await load("/src/lib/api.ts");
+      return [(await api.notes.get(first)).date, (await api.notes.get(second)).date];
+    }, ids);
+    expect(dates).toEqual(["2001-01-01", "2001-01-02"]);
+  });
+
+  test("移至日期需确认，失败可重试，成功后刷新仍保留目标日期", async ({ page }) => {
+    const ids = await seedViews(page);
+    await page.getByTitle("查看全部随笔").tap();
+    const item = page.locator(".sidebar-item").filter({ hasText: "按钮随笔乙" });
+    await item.getByRole("button", { name: /更多随笔操作/ }).tap();
+    await page.getByRole("dialog", { name: "随笔：按钮随笔乙", exact: true }).getByRole("button", { name: /移至其他日期/ }).tap();
+    const dialog = page.getByRole("dialog", { name: "移至日期", exact: true });
+    const date = dialog.getByLabel("目标日期");
+    const original = await date.inputValue();
+    await date.fill("");
+    await expect(dialog.getByRole("button", { name: "移动", exact: true })).toBeDisabled();
+    await date.fill("2001-02-03");
+    const readDate = () => page.evaluate(async (id) => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api } = await load("/src/lib/api.ts");
+      return (await api.notes.get(id)).date;
+    }, ids[1]);
+    expect(await readDate()).toBe(original);
+    await page.evaluate(async () => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api } = await load("/src/lib/api.ts");
+      const update = api.notes.update;
+      api.notes.update = async (...args: Parameters<typeof update>) => {
+        if (args[1].date) { api.notes.update = update; throw new Error("测试日期写入失败"); }
+        return update(...args);
+      };
+    });
+    await dialog.getByRole("button", { name: "移动", exact: true }).tap();
+    await expect(dialog.getByRole("alert")).toContainText("测试日期写入失败");
+    expect(await readDate()).toBe(original);
+    await dialog.getByRole("button", { name: "移动", exact: true }).tap();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole("status").filter({ hasText: "已移至 2001-02-03" })).toBeVisible();
+    await expect(item).toBeVisible();
+    await expect.poll(readDate).toBe("2001-02-03");
+    await expect(item.locator(".sidebar-item-time")).toContainText("2001-02-03");
+    await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("按钮随笔乙");
+    await page.reload();
+    await expect.poll(readDate).toBe("2001-02-03");
+  });
+
+  test("边界与非手动排序明确提示，取消日期选择不移动", async ({ page }) => {
+    await seedViews(page);
+    await page.getByTitle("查看全部随笔").tap();
+    const item = page.locator(".sidebar-item").filter({ hasText: "按钮随笔甲" });
+    const sheet = page.getByRole("dialog", { name: "随笔：按钮随笔甲", exact: true });
+    await item.getByRole("button", { name: /更多随笔操作/ }).tap();
+    await expect(sheet.getByRole("button", { name: "↑ 向上移动", exact: true })).toBeDisabled();
+    await expect(sheet.locator(".sidebar-action-hint")).toContainText("边界");
+    await sheet.getByRole("button", { name: /移至其他日期/ }).tap();
+    const dialog = page.getByRole("dialog", { name: "移至日期", exact: true });
+    const oldDate = await dialog.getByLabel("目标日期").inputValue();
+    await dialog.getByLabel("目标日期").fill("2001-02-03");
+    await dialog.getByRole("button", { name: "取消", exact: true }).tap();
+    await expect(item.locator(".sidebar-item-time")).toContainText(oldDate);
+    await page.getByTitle("排序方式").tap();
+    await page.getByRole("button", { name: "创建时间", exact: true }).tap();
+    await item.getByRole("button", { name: /更多随笔操作/ }).tap();
+    await expect(sheet.getByRole("button", { name: "↑ 向上移动", exact: true })).toBeDisabled();
+    await expect(sheet.getByRole("button", { name: "↓ 向下移动", exact: true })).toBeDisabled();
+    await expect(sheet.locator(".sidebar-action-hint")).toContainText("切换到手动排序");
+  });
+});
+
 for (const width of [1280, 390]) {
   test.describe(`视图按钮 ${width}px`, () => {
     test.use({ viewport: { width, height: 800 }, hasTouch: width < 768 });
