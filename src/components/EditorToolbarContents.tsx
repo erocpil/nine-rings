@@ -1,5 +1,6 @@
 import React, { type ReactNode, type RefObject } from "react";
 import type { Editor } from "@tiptap/core";
+import type { EditorToolbarMenu } from "../hooks/useEditorToolbarMenus";
 import { exitCurrentStructuredBlock } from "../extensions/StructuredBlockExit";
 import { MobileActionSheet } from "./MobileActionSheet";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -41,7 +42,7 @@ export interface EditorToolbarProps {
     linkUrl: string;
     setLinkUrl: (url: string) => void;
     closeMore: () => void;
-    toggleMobileToolbarMenu: (menu: "style" | "heading" | "block" | "table" | "clip" | "link" | "size" | "color" | "more", isOpen: boolean) => void;
+    toggleMobileToolbarMenu: (menu: EditorToolbarMenu, isOpen: boolean) => void;
   };
   actions: {
     runToolbarFormat: (format: "bold" | "italic" | "strike") => void;

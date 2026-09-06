@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEditorToolbarMenus } from "../hooks/useEditorToolbarMenus";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { OrderedListLayout } from "../extensions/OrderedListLayout";
@@ -664,13 +665,19 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
       : 1,
     [documentOutline],
   );
-  const [colorOpen, setColorOpen] = useState(false);
-  const [sizeOpen, setSizeOpen] = useState(false);
+  const {
+    colorOpen, setColorOpen, sizeOpen, setSizeOpen,
+    headingOpen, setHeadingOpen, headingPage, setHeadingPage,
+    blockOpen, setBlockOpen, styleOpen, setStyleOpen,
+    clipOpen, setClipOpen, tableOpen, setTableOpen,
+    moreOpen, setMoreOpen, closeMore, linkOpen, setLinkOpen, linkUrl, setLinkUrl,
+    closeToolbarDropdowns, toggleMobileToolbarMenu,
+  } = useEditorToolbarMenus();
   const [imageDialog, setImageDialog] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
   const [tagInput, setTagInput] = useState("");
   const scrollPositionRef = useRef<HTMLSpanElement>(null);
-  const [headingOpen, setHeadingOpen] = useState(false);
+
   // 受控标题：本地状态 + 从 prop 同步（支持外部重命名如 DocTree 右键改名）
   const [localTitle, setLocalTitle] = useState(title ?? "");
   const prevTitleRef = useRef(title);
@@ -680,27 +687,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
       setLocalTitle(title ?? "");
     }
   }, [title]);
-  const [headingPage, setHeadingPage] = useState(0); // 0=H3-5（默认）, 1=H1-2/6
-  const [blockOpen, setBlockOpen] = useState(false);
-  const [styleOpen, setStyleOpen] = useState(false);
-  const [clipOpen, setClipOpen] = useState(false);
-  const [tableOpen, setTableOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
-  const closeMore = useCallback(() => setMoreOpen(false), []);
   const [focusToolbarExpanded, setFocusToolbarExpanded] = useState(false);
-  const [linkOpen, setLinkOpen] = useState(false);
-  const [linkUrl, setLinkUrl] = useState("");
-  const closeToolbarDropdowns = useCallback(() => {
-    setSizeOpen(false);
-    setColorOpen(false);
-    setHeadingOpen(false);
-    setBlockOpen(false);
-    setStyleOpen(false);
-    setClipOpen(false);
-    setLinkOpen(false);
-    setTableOpen(false);
-    setMoreOpen(false);
-  }, []);
   const dismissNativeSelectionMenu = useCallback(() => {
     const selection = window.getSelection();
     // iOS 没有供网页主动关闭/重新打开编辑菜单的 API。清除当前 DOM Range
@@ -840,21 +827,13 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
   useEffect(() => {
     if (!sizeOpen && !colorOpen && !headingOpen && !blockOpen && !styleOpen && !clipOpen && !linkOpen && !tableOpen && !moreOpen && !outlineOpen && !bookmarkOpen) return;
     const handler = () => {
-      setSizeOpen(false);
-      setColorOpen(false);
-      setHeadingOpen(false);
-      setBlockOpen(false);
-      setStyleOpen(false);
-      setClipOpen(false);
-      setLinkOpen(false);
-      setTableOpen(false);
-      setMoreOpen(false);
+      closeToolbarDropdowns();
       if (outlineDock === "floating") setOutlineOpen(false);
       setBookmarkOpen(false);
     };
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
-  }, [sizeOpen, colorOpen, headingOpen, blockOpen, styleOpen, clipOpen, linkOpen, tableOpen, moreOpen, outlineOpen, outlineDock, bookmarkOpen]);
+  }, [sizeOpen, colorOpen, headingOpen, blockOpen, styleOpen, clipOpen, linkOpen, tableOpen, moreOpen, outlineOpen, outlineDock, bookmarkOpen, closeToolbarDropdowns]);
 
   // 关闭编辑器右键菜单（点击外部 / Escape / 滚动 / 失焦）
   useEffect(() => {
@@ -2159,7 +2138,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
       };
       if (scan(json)) setHeadingPage(1);
     } catch { /* ignore */ }
-  }, [headingOpen, editor]);
+  }, [headingOpen, editor, setHeadingPage]);
 
   // ── 滚动位置记忆（localStorage 持久化，跨刷新保持）──
 
@@ -2860,30 +2839,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
     else chain.toggleStrike().run();
   };
 
-  const toggleMobileToolbarMenu = (
-    menu: "style" | "heading" | "block" | "table" | "clip" | "link" | "size" | "color" | "more",
-    isOpen: boolean,
-  ) => {
-    setStyleOpen(false);
-    setHeadingOpen(false);
-    setBlockOpen(false);
-    setTableOpen(false);
-    setClipOpen(false);
-    setLinkOpen(false);
-    setSizeOpen(false);
-    setColorOpen(false);
-    setMoreOpen(false);
-    if (isOpen) return;
-    if (menu === "style") setStyleOpen(true);
-    else if (menu === "heading") setHeadingOpen(true);
-    else if (menu === "block") setBlockOpen(true);
-    else if (menu === "table") setTableOpen(true);
-    else if (menu === "clip") setClipOpen(true);
-    else if (menu === "link") setLinkOpen(true);
-    else if (menu === "size") setSizeOpen(true);
-    else if (menu === "color") setColorOpen(true);
-    else setMoreOpen(true);
-  };
+
 
   const totalBlocks = gutterBlockCount || editor.state.doc.childCount;
 

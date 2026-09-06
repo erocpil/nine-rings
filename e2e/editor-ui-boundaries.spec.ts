@@ -32,6 +32,33 @@ async function selectLine(page: Page, text: string) {
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe(text);
 }
 
+test("手机工具栏菜单互斥、重复点击与外部关闭，标题分页保留", async ({ page }) => {
+  await seedNotes(page);
+  await page.setViewportSize({ width: 390, height: 850 });
+  await page.locator(".sidebar-tab-hide").click();
+  const dropdowns = page.locator(".editor-menu .menu-dropdown-list");
+  for (const title of ["样式", "标题", "块"]) {
+    await page.getByTitle(title, { exact: true }).click();
+    await expect(dropdowns).toHaveCount(1);
+  }
+  await page.getByTitle("块", { exact: true }).click();
+  await expect(dropdowns).toHaveCount(0);
+  await page.getByTitle("标题", { exact: true }).click();
+  await page.getByRole("button", { name: "▶ H1–2 H6", exact: true }).click();
+  await page.locator(".ProseMirror").click();
+  await expect(dropdowns).toHaveCount(0);
+  await page.getByTitle("标题", { exact: true }).click();
+  await expect(page.getByRole("button", { name: "◀ H3–H5", exact: true })).toBeVisible();
+  await page.getByTitle("更多编辑操作").click();
+  await expect(dropdowns).toHaveCount(0);
+  const more = page.getByRole("dialog", { name: "更多编辑操作", exact: true });
+  await expect(more).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(more).toHaveCount(0);
+  await page.getByTitle("样式", { exact: true }).click();
+  await expect(dropdowns).toHaveCount(1);
+});
+
 test("切换工具栏布局和插入弹层不重建正文，选区格式与撤销历史保留", async ({ page }) => {
   await seedNotes(page);
   const editor = page.locator(".ProseMirror");
