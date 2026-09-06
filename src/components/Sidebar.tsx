@@ -66,6 +66,7 @@ interface SidebarProps {
   onCreateWithTemplate: (template: Template) => void;
   onDelete: (id: string) => Promise<void>;
   onBatchDelete: (ids: string[]) => Promise<void>;
+  onBatchSetReadonly: (ids: string[], readonly: boolean) => Promise<void>;
   onReorder: (orderedIds: string[]) => Promise<void>;
   onMoveToDate: (id: string, date: string) => Promise<void>;
   onTagSelect: (tag: string | null) => void;
@@ -81,7 +82,7 @@ let _dragIndex: number = -1;
 
 export function Sidebar({
   notes, selectedId, activeTag, onHide, onSelect, onCreate, onCreateWithTemplate,
-  onDelete, onBatchDelete, onReorder, onMoveToDate,
+  onDelete, onBatchDelete, onBatchSetReadonly, onReorder, onMoveToDate,
   onTagSelect, onTogglePin, onRename, onToggleReadonly, sidebarRefreshKey, disabled,
 }: SidebarProps) {
   const [moveNoteId, setMoveNoteId] = useState<string | null>(null);
@@ -247,11 +248,14 @@ export function Sidebar({
     if (disabled || batchBusy) return;
     setBatchBusy(true);
     try {
-      await api.recycle.batch.setReadonly([...selectedIds], ro);
+      await onBatchSetReadonly([...selectedIds], ro);
       clearSelection();
-      window.location.reload();
-    } catch { /* noop */ }
-    setBatchBusy(false);
+      showMessage(ro ? "已设为只读" : "已设为可编辑");
+    } catch (error) {
+      showMessage(`批量设置失败：${error instanceof Error ? error.message : String(error)}`, "error");
+    } finally {
+      setBatchBusy(false);
+    }
   };
 
   // ── Delete (immediate) ──

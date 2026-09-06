@@ -1,53 +1,67 @@
-import { useCallback, useEffect, useState } from "react";
-import type { NoteVersion } from "../types/models";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { Note, NoteVersion } from "../types/models";
 import { api } from "../lib/api";
 
 interface VersionHistoryProps {
   open: boolean;
   noteId: string | null;
   onClose: () => void;
-  onRestore: () => void;
+  onBeforeRestore: () => Promise<void>;
+  onRestore: (note: Note) => void;
 }
 
-export function VersionHistory({ open, noteId, onClose, onRestore }: VersionHistoryProps) {
+export function VersionHistory({ open, noteId, onClose, onBeforeRestore, onRestore }: VersionHistoryProps) {
   const [versions, setVersions] = useState<NoteVersion[]>([]);
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState<string | null>(null);
+  const restoringRef = useRef(false);
+  const requestRef = useRef(0);
+  const [error, setError] = useState<string | null>(null);
 
   const loadVersions = useCallback(async () => {
     if (!noteId) return;
+    const request = ++requestRef.current;
     setLoading(true);
+    setVersions([]);
+    setError(null);
     try {
       const list = await api.versions.list(noteId);
-      setVersions(list);
+      if (request === requestRef.current) setVersions(list);
     } catch (e) {
-      console.error("加载版本历史失败", e);
+      if (request === requestRef.current) setError(`加载版本历史失败：${String(e)}`);
     } finally {
-      setLoading(false);
+      if (request === requestRef.current) setLoading(false);
     }
   }, [noteId]);
 
   useEffect(() => {
+    const requests = requestRef;
     if (open && noteId) loadVersions();
+    return () => { requests.current++; };
   }, [open, noteId, loadVersions]);
 
   const handleRestore = async (versionId: string) => {
+    if (restoringRef.current || !window.confirm("恢复此历史版本？将用历史数据替换这篇笔记的标题、正文等内容。恢复前会先保存当前编辑，并保留当前版本供再次恢复。")) return;
+    restoringRef.current = true;
     setRestoring(versionId);
+    setError(null);
     try {
-      await api.versions.restore(versionId);
-      onRestore();
+      await onBeforeRestore();
+      const note = await api.versions.restore(versionId);
+      onRestore(note);
       onClose();
     } catch (e) {
-      console.error("恢复版本失败", e);
+      setError(`恢复版本失败，请重试：${String(e)}`);
     } finally {
       setRestoring(null);
+      restoringRef.current = false;
     }
   };
 
   if (!open) return null;
 
   return (
-    <div className="dialog-overlay confirm-overlay" onClick={onClose}>
+    <div className="dialog-overlay confirm-overlay" onClick={() => { if (!restoringRef.current) onClose(); }}>
       <div
         className="dialog version-panel"
         role="dialog"
@@ -57,15 +71,16 @@ export function VersionHistory({ open, noteId, onClose, onRestore }: VersionHist
       >
         <div className="dialog-header version-header">
           <h3 id="version-history-title">版本历史</h3>
-          <button className="dialog-close version-close" onClick={onClose} aria-label="关闭版本历史">
+          <button className="dialog-close version-close" disabled={restoring !== null} onClick={onClose} aria-label="关闭版本历史">
             ✕
           </button>
         </div>
 
         <div className="dialog-body version-content">
+          {error && <div className="dialog-action-error" role="alert">{error} <button disabled={restoring !== null} onClick={loadVersions}>重新加载</button></div>}
           {loading && <div className="version-loading">加载中...</div>}
 
-          {!loading && versions.length === 0 && (
+          {!loading && !error && versions.length === 0 && (
             <div className="version-empty">暂无历史版本</div>
           )}
 
@@ -94,7 +109,7 @@ export function VersionHistory({ open, noteId, onClose, onRestore }: VersionHist
               </div>
               <button
                 className="version-btn-restore"
-                disabled={restoring === v.id}
+                disabled={restoring !== null || loading}
                 onClick={() => handleRestore(v.id)}
               >
                 {restoring === v.id ? "恢复中..." : "恢复"}

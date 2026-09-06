@@ -122,20 +122,32 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
   }), [cfg.token, cfg.owner, cfg.repo, cfg.path, cfg.lastSyncAt]);
   // Share the request across Strict Mode's effect replay, not its stale subscription.
   const checkRef = useRef<{ config: SyncConnectionConfig; promise: Promise<SyncStatus> } | null>(null);
+  const checkRequestRef = useRef(0);
+  const [autoChecking, setAutoChecking] = useState(false);
+  useEffect(() => { clearMessage(); }, [cfg.token, cfg.owner, cfg.repo, cfg.path, clearMessage]);
 
   // 自动检测连接状态
   useEffect(() => {
+    const request = ++checkRequestRef.current;
     if (!connectionConfig.token || !connectionConfig.owner || !connectionConfig.repo) {
       checkRef.current = null;
       setStatus(null);
+      setAutoChecking(false);
       return;
     }
     let cancelled = false;
     setStatus(null);
+    setAutoChecking(true);
     if (checkRef.current?.config !== connectionConfig) {
       checkRef.current = { config: connectionConfig, promise: checkStatus(connectionConfig) };
     }
-    void checkRef.current.promise.then((result) => { if (!cancelled) setStatus(result); });
+    void checkRef.current.promise.then((result) => {
+      if (!cancelled && request === checkRequestRef.current) setStatus(result);
+    }).catch((error) => {
+      if (!cancelled && request === checkRequestRef.current) setStatus({ ok: false, message: `连接检查失败：${String(error)}` });
+    }).finally(() => {
+      if (!cancelled && request === checkRequestRef.current) setAutoChecking(false);
+    });
     return () => { cancelled = true; };
   }, [connectionConfig]);
 
@@ -203,18 +215,19 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
   // ── GitHub 备份操作 ──
 
   const handleCheck = useCallback(async () => {
+    const request = ++checkRequestRef.current;
+    setAutoChecking(false);
     setBusyOperation("check");
     clearMessage();
     try {
       const s = await checkStatus(cfg);
-      setStatus(s);
-      showMessage(s.message, s.ok ? "success" : "error");
+      if (request === checkRequestRef.current) setStatus(s);
     } catch (e) {
-      showMessage(`错误: ${(e as Error).message}`, "error");
+      if (request === checkRequestRef.current) setStatus({ ok: false, message: `连接检查失败：${String(e)}` });
     } finally {
       setBusyOperation(null);
     }
-  }, [cfg, clearMessage, showMessage]);
+  }, [cfg, clearMessage]);
 
   const handlePush = useCallback(async () => {
     setBusyOperation("push");
@@ -325,20 +338,25 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
         </button>
       </div>
 
-      {/* 备份中横幅 */}
-      {busy && (
-        <div className="sync-banner">
-          <div className="sync-banner-spinner" />
-          <span>{BUSY_MESSAGES[busyOperation]}</span>
-        </div>
-      )}
-
-      {/* 状态 */}
-      {status && (
-        <div className={`sync-status ${status.ok ? "sync-ok" : "sync-err"}`}>
-          {status.ok ? "✅" : "❌"} {status.message}
-        </div>
-      )}
+      {/* 同一反馈区：进行中 > 操作结果 > 连接状态，避免重复及冲突提示。 */}
+      <div className="sync-feedback" aria-live="polite" aria-atomic="true">
+        {busy ? (
+          <div className="sync-banner">
+            <div className="sync-banner-spinner" />
+            <span>{BUSY_MESSAGES[busyOperation]}</span>
+          </div>
+        ) : message ? (
+          <div className={`sync-toast ${messageType}`} role="status">
+            {messageType === "success" ? "✓ " : messageType === "error" ? "✗ " : ""}{message}
+          </div>
+        ) : autoChecking ? (
+          <div className="sync-status" role="status">正在检查 GitHub 连接…</div>
+        ) : status ? (
+          <div className={`sync-status ${status.ok ? "sync-ok" : "sync-err"}`}>
+            {status.ok ? "✅" : "❌"} {status.message}
+          </div>
+        ) : null}
+      </div>
 
       {/* 版本信息 */}
       {(cfg.lastPushVersion || cfg.lastPullVersion) && (
@@ -350,13 +368,6 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
           {cfg.lastPullVersion && (
             <span>上次 Pull: {fmtVersion(cfg.lastPullVersion)}</span>
           )}
-        </div>
-      )}
-
-      {message && (
-        <div className={`sync-toast ${messageType}`} role="status" aria-live="polite">
-          {messageType === "success" ? "✓ " : messageType === "error" ? "✗ " : ""}
-          {message}
         </div>
       )}
 
@@ -466,8 +477,9 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
       <div className="sync-config-section">
         <h4>连接设置</h4>
         <p className="settings-hint">
-          全量 JSON 快照包含书签、应用配置及非敏感用户设置；Token 不进入备份。需要 GitHub Personal Access Token（repo 权限）。
+          全量 JSON 快照包含随笔/文档及其正文书签、待办、模板、应用配置及非敏感用户设置；Token 不进入备份。需要 GitHub Personal Access Token（repo 权限）。
         </p>
+        <p className="settings-hint">备份范围提醒：PDF/EPUB 原文件及其资料库中的批注、书签和阅读位置暂不包含在此 JSON 备份中。</p>
 
         <label className="settings-label">
           Owner / Repo

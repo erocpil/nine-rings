@@ -6111,6 +6111,23 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   font-size: 12px;
 }
 
+.dialog-action-error {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  color: var(--danger);
+  background: var(--danger-bg);
+  overflow-wrap: anywhere;
+}
+
+.sync-feedback > :is(.sync-status, .sync-toast, .sync-banner) {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .sync-ok { background: rgba(26, 127, 55, 0.08); color: var(--success); }
 .sync-err { background: rgba(207, 34, 46, 0.08); color: var(--danger); }
 

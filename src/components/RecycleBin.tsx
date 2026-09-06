@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Note } from "../types/models";
 import { api } from "../lib/api";
 
@@ -11,66 +11,79 @@ interface RecycleBinProps {
 export function RecycleBin({ open, onClose, onNotesChanged }: RecycleBinProps) {
   const [deleted, setDeleted] = useState<Note[]>([]);
   const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const loadRequest = useRef(0);
 
   const loadDeleted = useCallback(async () => {
+    const request = ++loadRequest.current;
     setLoading(true);
+    setError(null);
     try {
       const list = await api.recycle.list();
-      setDeleted(list);
+      if (request === loadRequest.current) setDeleted(list);
     } catch (e) {
-      console.error("加载回收站失败", e);
+      if (request === loadRequest.current) setError(`加载回收站失败：${String(e)}`);
     } finally {
-      setLoading(false);
+      if (request === loadRequest.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (open) loadDeleted();
+    const requests = loadRequest;
+    if (open) { setNotice(null); void loadDeleted(); }
+    return () => { requests.current++; };
   }, [open, loadDeleted]);
 
+  const runOperation = async (operation: () => Promise<void>) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try { await operation(); }
+    catch (e) { setError(`操作失败，请重试：${String(e)}`); }
+    finally { busyRef.current = false; setBusy(false); }
+  };
+
   const handleRestore = async (id: string) => {
-    try {
+    await runOperation(async () => {
       await api.recycle.restore(id);
       setDeleted((prev) => prev.filter((n) => n.id !== id));
       onNotesChanged?.();
-    } catch (e) {
-      console.error("恢复失败", e);
-    }
+      setNotice("已恢复");
+    });
   };
 
   const handlePermanentDelete = async (id: string) => {
-    try {
+    if (busyRef.current || !window.confirm(`永久删除“${deleted.find((note) => note.id === id)?.title || "无标题"}”？此操作无法从回收站恢复。`)) return;
+    await runOperation(async () => {
       await api.recycle.permanentlyDelete(id);
       setDeleted((prev) => prev.filter((n) => n.id !== id));
       onNotesChanged?.();
-    } catch (e) {
-      console.error("永久删除失败", e);
-    }
+      setNotice("已永久删除，无法从回收站恢复");
+    });
   };
 
   const handleCleanOld = async () => {
     const days = 30; // 删除超过30天的
-    try {
+    if (busyRef.current || !window.confirm("永久清理所有删除时间超过 30 天的记录？此操作无法从回收站恢复。")) return;
+    await runOperation(async () => {
       const count = await api.recycle.cleanOld(days);
       if (count > 0) {
-        setDeleted((prev) =>
-          prev.filter(
-            (n) =>
-              Date.now() - new Date(n.deleted_at ?? n.updated_at).getTime() <
-              days * 86400000
-          )
-        );
+        await loadDeleted();
         onNotesChanged?.();
       }
-    } catch (e) {
-      console.error("清理失败", e);
-    }
+      setNotice(count > 0 ? `已永久清理 ${count} 条记录，无法从回收站恢复` : "没有需要清理的记录");
+    });
   };
 
   if (!open) return null;
 
   return (
-    <div className="dialog-overlay confirm-overlay" onClick={onClose}>
+    <div className="dialog-overlay confirm-overlay" onClick={() => { if (!busyRef.current) onClose(); }}>
       <div
         className="dialog recycle-panel"
         role="dialog"
@@ -80,15 +93,18 @@ export function RecycleBin({ open, onClose, onNotesChanged }: RecycleBinProps) {
       >
         <div className="dialog-header recycle-header">
           <h3 id="recycle-bin-title">回收站</h3>
-          <button className="dialog-close recycle-close" onClick={onClose} aria-label="关闭回收站">
+          <button className="dialog-close recycle-close" disabled={busy} onClick={onClose} aria-label="关闭回收站">
             ✕
           </button>
         </div>
 
         <div className="dialog-body recycle-content">
+          {error && <div className="dialog-action-error" role="alert">{error} <button disabled={busy} onClick={loadDeleted}>重新加载</button></div>}
+          {notice && <div role="status">{notice}</div>}
+          {busy && <div role="status">正在处理…</div>}
           {loading && <div className="recycle-loading">加载中...</div>}
 
-          {!loading && deleted.length === 0 && (
+          {!loading && !error && deleted.length === 0 && (
             <div className="recycle-empty">回收站是空的</div>
           )}
 
@@ -111,12 +127,14 @@ export function RecycleBin({ open, onClose, onNotesChanged }: RecycleBinProps) {
               <div className="recycle-item-actions">
                 <button
                   className="recycle-btn-restore"
+                  disabled={busy || loading}
                   onClick={() => handleRestore(note.id)}
                 >
                   恢复
                 </button>
                 <button
                   className="recycle-btn-delete"
+                  disabled={busy || loading}
                   onClick={() => handlePermanentDelete(note.id)}
                 >
                   永久删除
@@ -130,6 +148,7 @@ export function RecycleBin({ open, onClose, onNotesChanged }: RecycleBinProps) {
           <div className="dialog-footer recycle-footer">
             <button
               className="recycle-btn-clean"
+              disabled={busy || loading}
               onClick={handleCleanOld}
             >
               清理 30 天前的记录

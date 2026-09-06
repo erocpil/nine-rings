@@ -654,10 +654,13 @@ function App() {
     await api.recycle.batch.setReadonly(uniqueIds, readonly);
     if (currentSelected && uniqueIds.includes(currentSelected.id)) {
       const updated = await api.notes.get(currentSelected.id);
-      if (updated) selectNote(updated);
+      if (updated && useNotesStore.getState().selectedNote?.id === currentSelected.id) selectNote(updated);
     }
-    setDocTreeKey((key) => key + 1);
-  }, [flushAutoSave, selectNote]);
+    const date = useNotesStore.getState().currentDate;
+    const updatedNotes = await api.notes.listByDate(date);
+    if (useNotesStore.getState().currentDate === date) useNotesStore.setState({ notes: updatedNotes });
+    refreshNoteViews();
+  }, [flushAutoSave, refreshNoteViews, selectNote]);
 
   const showUndo = useCallback((nextUndo: UndoState) => {
     if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current);
@@ -1543,6 +1546,7 @@ function App() {
               }}
               onDelete={handleDeleteWithUndo}
               onBatchDelete={handleBatchDeleteWithUndo}
+              onBatchSetReadonly={handleBatchSetReadonly}
               onReorder={async (orderedIds) => {
                 await flushAutoSave();
                 const results = await Promise.allSettled(orderedIds.map((id, index) => api.notes.updateOrder(id, index)));
@@ -1890,6 +1894,7 @@ function App() {
             </div>
             <div className="doc-tree-popup-body">
               <DocTree
+                disabled={syncBusy}
                 collapsed={docTreeCollapsed}
                 setCollapsed={setDocTreeCollapsed}
                 toolbarHost={popupDocTreeToolbarHost}
@@ -1952,9 +1957,14 @@ function App() {
         <VersionHistory
           open={versionOpen}
           noteId={selectedNote?.id ?? null}
+          onBeforeRestore={flushAutoSave}
           onClose={() => setVersionOpen(false)}
-          onRestore={() => {
-            void setDate(currentDate);
+          onRestore={(restored) => {
+            if (useNotesStore.getState().selectedNote?.id === restored.id) {
+              selectNote(restored);
+              setExternalReloadKey((key) => key + 1);
+            }
+            useNotesStore.setState((state) => ({ notes: state.notes.map((note) => note.id === restored.id ? restored : note) }));
             refreshNoteViews();
           }}
         />

@@ -40,11 +40,13 @@ test("自动保存回调跨渲染稳定且定时保存调用最新处理器", as
   expect(result.pending).toBeNull();
 });
 
-test("StrictMode 连接检查更换 Token 后重新请求并丢弃旧响应", async ({ page }) => {
+test("StrictMode 连接检查更换 Token 后重新请求并丢弃旧响应", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 850 });
   let releaseOld!: () => void;
   const blocked = new Promise<void>((resolve) => { releaseOld = resolve; });
   let oldRequests = 0;
   let newRequests = 0;
+  let failConnection = false;
   await page.route("https://api.github.com/**", async (route) => {
     const token = route.request().headers().authorization;
     if (token === "Bearer old-test-token") {
@@ -54,6 +56,7 @@ test("StrictMode 连接检查更换 Token 后重新请求并丢弃旧响应", as
       return;
     }
     newRequests++;
+    if (failConnection) { await route.fulfill({ status: 401, body: "" }); return; }
     if (route.request().url().includes("/contents/")) await route.fulfill({ status: 404, body: "" });
     else await route.fulfill({ status: 200, json: { permissions: { push: true } } });
   });
@@ -85,6 +88,18 @@ test("StrictMode 连接检查更换 Token 后重新请求并丢弃旧响应", as
     await oldResponse;
     await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     await expect(harness.locator(".sync-status")).toContainText("仓库连接正常，远端暂无备份");
+    await harness.getByRole("button", { name: "测试连接", exact: true }).click();
+    await expect(harness.locator(".sync-feedback .sync-status")).toContainText("仓库连接正常");
+    await expect(harness.locator(".sync-toast")).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath("sync-unified-status.png") });
+    failConnection = true;
+    await harness.getByRole("button", { name: "测试连接", exact: true }).click();
+    await expect(harness.locator(".sync-feedback .sync-err")).toBeVisible();
+    await expect(harness.locator(".sync-status")).toHaveCount(1);
+    await expect(harness.locator(".sync-toast")).toHaveCount(0);
+    await harness.getByRole("button", { name: "Push ↑", exact: true }).click();
+    await expect(harness.locator(".sync-feedback .sync-toast.error")).toContainText("推送失败");
+    await expect(harness.locator(".sync-status")).toHaveCount(0);
     await harness.getByPlaceholder("ghp_...").fill("");
     await expect(harness.locator(".sync-status")).toHaveCount(0);
   } finally { releaseOld(); }

@@ -137,6 +137,13 @@ function DocTree({
   const treeScrollRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const selectionRequestRef = useRef(0);
+  const [selectionError, setSelectionError] = useState<string | null>(null);
+  useEffect(() => {
+    const requests = selectionRequestRef;
+    requests.current++;
+    return () => { requests.current++; };
+  }, [disabled, selectedId, selectedFolderPath]);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const treeLongPressRef = useRef<TreeLongPressState | null>(null);
@@ -272,13 +279,21 @@ function DocTree({
   };
 
   const handleDocClick = async (node: PathNode) => {
-    if (!node.noteId) return;
+    if (disabled || !node.noteId) return;
+    const request = ++selectionRequestRef.current;
+    setSelectionError(null);
     if (selectMode) {
       toggleSelectId(node.noteId);
       return;
     }
-    const note = await api.notes.get(node.noteId);
-    if (note) onSelect(note);
+    try {
+      const note = await api.notes.get(node.noteId);
+      if (request !== selectionRequestRef.current) return;
+      if (note) onSelect(note);
+      else setSelectionError("文档不存在或已删除，请刷新文档树");
+    } catch (error) {
+      if (request === selectionRequestRef.current) setSelectionError(`打开文档失败，请再次点击重试：${String(error)}`);
+    }
   };
 
   const collapseAll = () => {
@@ -597,7 +612,12 @@ function DocTree({
                 <span
                   className="doc-tree-name"
                   title={node.name}
-                  onClick={() => onFolderSelect?.(node.path)}
+                  onClick={() => {
+                    if (disabled) return;
+                    selectionRequestRef.current++;
+                    setSelectionError(null);
+                    onFolderSelect?.(node.path);
+                  }}
                 >
                   {node.name}
                 </span>
@@ -781,6 +801,7 @@ function DocTree({
 
   return (
     <>
+      {selectionError && <div role="alert" className="doc-tree-error-detail">{selectionError}</div>}
       {toolbarHost === undefined
         ? <div className="doc-tree-toolbar-inline">{toolbar}</div>
         : toolbarHost
