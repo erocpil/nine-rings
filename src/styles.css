@@ -4742,6 +4742,12 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   text-align: center;
   cursor: pointer;
   pointer-events: auto;
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
   transition: opacity 0.15s, color 0.15s, border-color 0.15s;
 }
 
@@ -4750,12 +4756,22 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   width: 14px;
 }
 
-.editor-block-insert:hover,
+.editor-block-insert:active,
 .editor-block-insert:focus-visible {
   border-color: var(--border);
   color: var(--accent);
   opacity: 1;
   outline: none;
+}
+
+/* Touch browsers may retain :hover after inserting/repositioning the button.
+   Use our bounded press feedback, not WebKit's native tap-highlight overlay. */
+@media (hover: hover) and (pointer: fine) {
+  .editor-block-insert:hover {
+    border-color: var(--border);
+    color: var(--accent);
+    opacity: 1;
+  }
 }
 
 .editor-heading-fold {
@@ -8450,8 +8466,9 @@ button.doc-tree-toggle:focus-visible {
 }
 
 .code-block-title:disabled {
-  /* 只读时保留原有 flex 占位，避免右侧操作按钮发生位移。 */
-  visibility: hidden;
+  /* 简介是文档内容：只读只禁止修改，不隐藏；避免 Safari 淡化禁用输入的文字。 */
+  opacity: 1;
+  -webkit-text-fill-color: var(--text-secondary);
 }
 
 .code-block-actions {
@@ -9242,7 +9259,8 @@ button.doc-tree-toggle:focus-visible {
     margin-top: 16px;
   }
 
-  .editor-block-insert {
+  .editor-block-insert,
+  .show-line-numbers .editor-block-insert {
     left: 0;
     width: 22px;
     height: 24px;

@@ -38,7 +38,7 @@ export async function resolveImageRefs<T>(value: T): Promise<T> {
   const copy = structuredClone(value);
   const locations = new Map<
     string,
-    { object: Record<string, any>; key: string }[]
+    { object: Record<string, unknown>; key: string }[]
   >();
   function visit(node: unknown): void {
     if (!node || typeof node !== "object") return;
@@ -49,7 +49,7 @@ export async function resolveImageRefs<T>(value: T): Promise<T> {
         child.startsWith("nr-image://")
       ) {
         const items = locations.get(child) ?? [];
-        items.push({ object: node as Record<string, any>, key });
+        items.push({ object: node as Record<string, unknown>, key });
         locations.set(child, items);
       } else visit(child);
     }

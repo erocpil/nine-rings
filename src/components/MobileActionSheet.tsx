@@ -149,6 +149,9 @@ export function MobileActionSheet({
 
   const onTouchStartCapture = (event: TouchEvent<HTMLDivElement>) => {
     if (event.touches.length !== 1) return;
+    // A fresh gesture is intentional input, not the previous scroll's click.
+    // Keep the fallback for WebViews that do not emit Pointer Events.
+    suppressClickUntilRef.current = 0;
     touchStartYRef.current = event.touches[0].clientY;
     touchMovedRef.current = false;
   };
@@ -197,6 +200,10 @@ export function MobileActionSheet({
             : {}),
         }}
         onClick={(event) => event.stopPropagation()}
+        onPointerDownCapture={() => { suppressClickUntilRef.current = 0; }}
+        onKeyDownCapture={(event) => {
+          if (event.key === "Enter" || event.key === " ") suppressClickUntilRef.current = 0;
+        }}
         onClickCapture={(event) => {
           // A fitted sheet may cover the trigger. Its actions must remain
           // tappable there; the backdrop already handles an uncovered trigger.

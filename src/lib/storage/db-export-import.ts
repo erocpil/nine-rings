@@ -1,15 +1,22 @@
 import { withDB, getAll, getOne } from "./db";
-import { noteFromDB, noteToDB, now } from "./core";
+import { noteFromDB, noteToDB, now, type StoredNote } from "./core";
 import { snakeImportToCamel } from "./normalize";
 import { noteToMarkdown } from "../markdown-serializer";
 import { parseJsonAsync, stringifyJsonAsync } from "../data-transform-client";
 import { getConfig, setConfig } from "./db-config";
-import { validateBackup } from "../backup-validation";
+import { validateBackup, type ValidatedTemplate } from "../backup-validation";
 import { resolveImageRefs } from "./db-images";
 import { localTemplates } from "./template-local";
 import type { AppConfig } from "./types";
+import type { DailyPage } from "../../types/models";
+import type { Template } from "./template-model";
 
-function sanitize(value: unknown): any {
+type StoredDailyPage = Omit<DailyPage, "todos" | "todo_carryover"> & {
+  todos: DailyPage["todos"] | string;
+  todo_carryover: number | boolean;
+};
+
+function sanitize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sanitize);
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(
@@ -29,8 +36,8 @@ export async function exportData(): Promise<string> {
   const snapshot = await withDB(async (db) => {
     const tx = db.transaction(["notes", "daily_pages"], "readonly");
     const [notes, pages] = await Promise.all([
-      getAll<any>(tx.objectStore("notes")),
-      getAll<any>(tx.objectStore("daily_pages")),
+      getAll<StoredNote>(tx.objectStore("notes")),
+      getAll<StoredDailyPage>(tx.objectStore("daily_pages")),
     ]);
     return { notes: notes.filter((n) => !n.deleted_at).map(noteFromDB), pages };
   });
@@ -64,7 +71,7 @@ export async function importData(
   // Normalize and serialize before opening any write transaction.
   const notes = data.notes
     .map(snakeImportToCamel)
-    .map((n) => noteToDB(n as any));
+    .map(noteToDB);
   const pages = (data.daily_pages ?? []).map((p) => ({
     ...p,
     todos:
@@ -83,7 +90,7 @@ export async function importData(
     if (data.templates && storage) {
       const existing =
         mode === "replace" ? [] : await localTemplates.listTemplates();
-      const merged = new Map(existing.map((t) => [t.id, t]));
+      const merged = new Map<string, Template | ValidatedTemplate>(existing.map((t) => [t.id, t]));
       for (const t of data.templates) merged.set(t.id, t);
       storage.setItem(
         "nine-rings:templates",
@@ -123,7 +130,7 @@ export async function importData(
 
 export async function exportNoteMarkdown(noteId: string): Promise<string> {
   return withDB(async (db) => {
-    const note = await getOne<any>(
+    const note = await getOne<StoredNote>(
       db.transaction("notes", "readonly").objectStore("notes"),
       noteId,
     );

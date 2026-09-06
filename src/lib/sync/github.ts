@@ -316,27 +316,27 @@ async function fetchRemote(token: string, owner: string, repo: string, path: str
     throw new Error("GitHub API 返回空响应体（可能是代理截断或网络问题）");
   }
 
-  let data: any;
+  let data: unknown;
   try {
     data = JSON.parse(text);
   } catch {
     throw new Error(`GitHub API 返回非 JSON 内容: ${text.slice(0, 200)}`);
   }
 
-  if (data.sha == null) {
-    throw new Error(`GitHub API 返回数据缺少 sha 字段: ${JSON.stringify(Object.keys(data))}`);
+  if (!isRecord(data) || typeof data.sha !== "string" || !data.sha) {
+    throw new Error("GitHub API 返回数据缺少有效 sha 字段");
   }
 
   // GitHub Contents API: 文件 >1MB 时不返回 base64 content
-  const hasContent = data.content && data.content.length > 0 && data.encoding === "base64";
-  console.log(`[fetchRemote] encoding=${data.encoding} contentLen=${data.content?.length ?? 0} size=${data.size}`);
+  const content = typeof data.content === "string" ? data.content : "";
+  const hasContent = content.length > 0 && data.encoding === "base64";
 
   let decodedContent: string;
 
   if (hasContent) {
     // Push 侧用 btoa(unescape(encodeURIComponent(str))) 编码 UTF-8
     // Pull 侧必须对称解码: atob → escape → decodeURIComponent
-    const binaryStr = atob(data.content);
+    const binaryStr = atob(content);
     decodedContent = decodeURIComponent(escape(binaryStr));
   } else {
     // 大文件：用 Git Blobs API 拉取（无大小限制 + CORS 友好）
@@ -346,8 +346,8 @@ async function fetchRemote(token: string, owner: string, repo: string, path: str
     if (!blobRes.ok) {
       throw new Error(`Git Blobs API ${blobRes.status}`);
     }
-    const blobData = await blobRes.json();
-    if (!blobData.content || blobData.encoding !== "base64") {
+    const blobData: unknown = await blobRes.json();
+    if (!isRecord(blobData) || typeof blobData.content !== "string" || !blobData.content || blobData.encoding !== "base64") {
       throw new Error("Git Blobs API 返回非 base64 内容");
     }
     const binaryStr = atob(blobData.content);
@@ -471,18 +471,46 @@ async function fetchBaseSnapshot(
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+interface BackupLogNote {
+  id: string;
+  title: string;
+  date: string;
+  storagePath: string;
+  docType: string;
+  tags: string[];
+  concepts: string[];
+}
+const logString = (value: unknown, fallback = "") => typeof value === "string" ? value : fallback;
+const logStrings = (value: unknown): string[] => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+
+/** Diagnostics only project known display fields, never trust remote JSON as Note. */
+function backupLogNote(value: unknown): BackupLogNote | null {
+  if (!isRecord(value)) return null;
+  return {
+    id: logString(value.id, "?"), title: logString(value.title, "无标题"), date: logString(value.date),
+    storagePath: logString(value.storagePath ?? value.storage_path),
+    docType: logString(value.docType ?? value.doc_type),
+    tags: logStrings(value.tags), concepts: logStrings(value.concepts),
+  };
+}
+
 /** 树形 dump 导出数据摘要 + P.A.R.A. 文档树 */
 function dumpBundle(label: string, json: string): void {
-  let data: any;
+  let data: unknown;
   try { data = JSON.parse(json); } catch { addLog(`[Sync] ${label}: <非 JSON> ${json.slice(0, 80)}`); return; }
 
-  const notes: any[] = data.notes ?? [];
-  const pages: any[] = data.daily_pages ?? [];
+  if (!isRecord(data)) { addLog(`[Sync] ${label}: <无效备份对象>`); return; }
+  const notes = Array.isArray(data.notes) ? data.notes.map(backupLogNote).filter((note): note is BackupLogNote => note !== null) : [];
+  const pages = Array.isArray(data.daily_pages) ? data.daily_pages.filter(isRecord) : [];
   const sizeKB = (new TextEncoder().encode(json).length / 1024).toFixed(1);
 
   // 分类统计
-  const docNotes  = notes.filter((n: any) => n.storagePath);
-  const essays    = notes.filter((n: any) => !n.storagePath);
+  const docNotes  = notes.filter((n) => n.storagePath);
+  const essays    = notes.filter((n) => !n.storagePath);
   const typeCount: Record<string, number> = {};
   for (const n of docNotes) {
     const dt = n.docType ?? "未设置";
@@ -490,7 +518,7 @@ function dumpBundle(label: string, json: string): void {
   }
 
   addLog(`[Sync] ${label}`);
-  addLog(`[Sync] ├─ 大小: ${sizeKB} KB  |  版本: ${data.version ?? "?"}  |  导出: ${(data.exported_at ?? "").slice(0, 19)}`);
+  addLog(`[Sync] ├─ 大小: ${sizeKB} KB  |  版本: ${data.version ?? "?"}  |  导出: ${logString(data.exported_at).slice(0, 19)}`);
   addLog(`[Sync] ├─ 笔记: ${notes.length} 篇  (文档 ${docNotes.length} + 随笔 ${essays.length})`);
   if (docNotes.length > 0) {
     const typeStr = Object.entries(typeCount).map(([k, v]) => `${k}:${v}`).join("  ");
@@ -507,7 +535,7 @@ function dumpBundle(label: string, json: string): void {
   if (essays.length > 0) {
     addLog(`[Sync] ├─ 📄 随笔 (${essays.length} 篇):`);
     const showEssays = essays.slice(0, 15);
-    showEssays.forEach((n: any, i: number) => {
+    showEssays.forEach((n, i) => {
       const isLast = i === showEssays.length - 1;
       const prefix = isLast ? "└" : "├";
       const date = (n.date ?? "").slice(0, 10);
@@ -530,9 +558,9 @@ function dumpBundle(label: string, json: string): void {
 }
 
 /** 按 storagePath 分组 dump P.A.R.A. 文档树 */
-function dumpDocTree(docNotes: any[]): void {
+function dumpDocTree(docNotes: BackupLogNote[]): void {
   // 构建前缀树
-  const tree = new Map<string, { folders: Set<string>; docs: any[] }>();
+  const tree = new Map<string, { folders: Set<string>; docs: BackupLogNote[] }>();
   for (const n of docNotes) {
     const root = n.storagePath.split("/")[0] || "(root)";
     if (!tree.has(root)) tree.set(root, { folders: new Set(), docs: [] });
@@ -558,7 +586,7 @@ function dumpDocTree(docNotes: any[]): void {
       const isLastF = fi === sortedFolders.length - 1;
       const fpfx = isLastRoot ? (isLastF ? " " : "│") : "│";
       const fpfx2 = isLastF ? "└" : "├";
-      const subDocs = entry.docs.filter((n: any) =>
+      const subDocs = entry.docs.filter((n) =>
         n.storagePath === folder || n.storagePath.startsWith(folder + "/")
       ).length;
       const folderName = folder.split("/").pop()!;
@@ -566,8 +594,8 @@ function dumpDocTree(docNotes: any[]): void {
     });
 
     // 根级文档（storagePath 恰好等于 root）
-    const rootDocs = entry.docs.filter((n: any) => n.storagePath === root);
-    rootDocs.forEach((n: any, di: number) => {
+    const rootDocs = entry.docs.filter((n) => n.storagePath === root);
+    rootDocs.forEach((n, di) => {
       const isLastD = di === rootDocs.length - 1 && sortedFolders.length === 0;
       const dpfx = isLastRoot ? (isLastD ? " " : "│") : "│";
       const dpfx2 = isLastD ? "└" : "├";
@@ -798,7 +826,9 @@ export async function previewPullFromGitHub(config: SyncConfig): Promise<PullPre
  * 检查连接状态：能否访问仓库，远端是否有备份
  * 仅做元数据检测（HTTP status），不下载文件内容
  */
-export async function checkStatus(config: SyncConfig): Promise<SyncStatus> {
+export type SyncConnectionConfig = Pick<SyncConfig, "token" | "owner" | "repo" | "path" | "lastSyncAt">;
+
+export async function checkStatus(config: SyncConnectionConfig): Promise<SyncStatus> {
   if (!config.token || !config.owner || !config.repo) {
     return { ok: false, message: "未配置" };
   }

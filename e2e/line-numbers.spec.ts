@@ -248,6 +248,8 @@ test.describe("编辑器块级 gutter", () => {
     await expect(editor.locator(":scope > p")).toHaveCount(2);
 
     await page.getByRole("button", { name: "在第 1 块后插入段落" }).click();
+    // Tiptap restores DOM focus on the next animation frame on desktop.
+    await expect(editor).toBeFocused();
     await page.keyboard.type("插入块");
     await expect(editor.locator(":scope > p")).toHaveCount(3);
     await expect(editor.locator(":scope > p").nth(1)).toHaveText("插入块");

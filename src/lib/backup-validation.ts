@@ -1,12 +1,23 @@
+export type BackupRecord = Record<string, unknown>;
+export type ValidatedTemplate = BackupRecord & {
+  id: string;
+  name: string;
+  tags: unknown[];
+  concepts: unknown[];
+};
+/** Only fields checked below are narrowed; legacy/extension fields remain unknown. */
+export interface ValidatedBackup extends BackupRecord {
+  notes: (BackupRecord & { id: string })[];
+  daily_pages?: (BackupRecord & { date: string })[];
+  templates?: ValidatedTemplate[];
+  config?: BackupRecord | null;
+}
+
 /** Validate all input before starting destructive storage work. */
-export function validateBackup(value: unknown): asserts value is Record<
-  string,
-  any
-> & {
-  notes: any[];
-  daily_pages?: any[];
-} {
-  const object = (v: unknown): v is Record<string, any> =>
+export function validateBackup(
+  value: unknown,
+): asserts value is ValidatedBackup {
+  const object = (v: unknown): v is BackupRecord =>
     !!v && typeof v === "object" && !Array.isArray(v);
   const safe = (v: unknown, depth = 0): void => {
     if (depth > 100) throw new Error("备份数据嵌套过深");
@@ -22,7 +33,10 @@ export function validateBackup(value: unknown): asserts value is Record<
     throw new Error("备份必须包含 notes 数组");
   if (value.version !== undefined && value.version !== 1)
     throw new Error("不支持的备份版本");
-  const unique = (items: unknown[], key: string) => {
+  function unique<K extends string>(
+    items: unknown[],
+    key: K,
+  ): asserts items is (BackupRecord & Record<K, string>)[] {
     const ids = new Set<string>();
     for (const item of items) {
       if (
@@ -34,7 +48,7 @@ export function validateBackup(value: unknown): asserts value is Record<
         throw new Error("备份标识缺失或重复");
       ids.add(item[key]);
     }
-  };
+  }
   unique(value.notes, "id");
   for (const note of value.notes) {
     for (const key of [

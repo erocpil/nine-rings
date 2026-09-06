@@ -8,7 +8,7 @@
  * 平等 import，不会出现 driver 之间互相依赖的问题。
  */
 
-import type { PathNode, DocType, Note, CreateNoteInput } from "../../types/models";
+import type { PathNode, DocType, Note, CreateNoteInput, DeltaOps } from "../../types/models";
 import { getTableEmbed } from "../table-embed";
 
 /** Extract searchable text from Delta strings and supported structured embeds. */
@@ -245,7 +245,28 @@ export function blobToBase64(blob: Blob): Promise<string> {
 // ── IndexedDB DB shape ↔ Note 领域模型转换（纯函数，无 IndexedDB 依赖）──
 
 /** Note → IDB 存储格式（snake_case + JSON 序列化 + search_text 预计算） */
-export function noteToDB(n: Note): any {
+export interface StoredNote extends Omit<Note, "content" | "tags" | "concepts" | "linkedDocIds" | "pinned" | "readonly"> {
+  content: DeltaOps | string;
+  tags: string[] | string;
+  concepts?: string[] | string | null;
+  linkedDocIds?: string[] | string | null;
+  pinned: number | boolean;
+  readonly: number | boolean;
+  search_text?: string;
+}
+
+/** Serialization also accepts validated legacy backup records without pretending
+ * their optional/extension fields already form a complete application Note. */
+export type SerializedNote<T> = Omit<T, "tags" | "concepts" | "linkedDocIds" | "pinned" | "readonly" | "search_text"> & {
+  tags: string | undefined;
+  concepts: string | undefined;
+  linkedDocIds: string | undefined;
+  pinned: 0 | 1;
+  readonly: 0 | 1;
+  search_text: string;
+};
+
+export function noteToDB<T extends { content?: unknown; tags?: unknown; concepts?: unknown; linkedDocIds?: unknown; pinned?: unknown; readonly?: unknown }>(n: T): SerializedNote<T> {
   return {
     ...n,
     content: n.content, // stored as DeltaOps (object)
@@ -259,7 +280,7 @@ export function noteToDB(n: Note): any {
 }
 
 /** IDB 存储格式 → Note（解析 JSON 序列化字段） */
-export function noteFromDB(d: any): Note {
+export function noteFromDB(d: StoredNote): Note {
   return {
     ...d,
     tags: typeof d.tags === "string" ? JSON.parse(d.tags) : d.tags,

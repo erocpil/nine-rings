@@ -236,6 +236,7 @@ function App() {
     },
   });
   const flushAutoSave = autoSave.flush;
+  const { getPendingData, discardPending, setNoteId: setAutoSaveNoteId } = autoSave;
   const applyWebUpdate = useCallback(() => {
     void flushAutoSave()
       .then(webPlatform.applyUpdate)
@@ -245,7 +246,7 @@ function App() {
   const exportEmergencyBackup = useCallback(async () => {
     try {
       const json = await api.export.data();
-      const pending = autoSave.getPendingData();
+      const pending = getPendingData();
       let backup = json;
       if (pending) {
         const parsed = JSON.parse(json) as { notes?: Array<Record<string, unknown>> };
@@ -263,13 +264,13 @@ function App() {
     } catch (backupError) {
       console.error("[Recovery] 紧急导出失败:", backupError);
     }
-  }, [autoSave.getPendingData]);
+  }, [getPendingData]);
 
   const retryFailedSave = useCallback(() => {
-    void autoSave.flush()
+    void flushAutoSave()
       .then(() => useNotesStore.getState().clearError())
       .catch((saveError) => console.error("[Recovery] 重试保存失败:", saveError));
-  }, [autoSave.flush]);
+  }, [flushAutoSave]);
 
   useEffect(() => subscribeToDataChanges((event) => {
     const current = useNotesStore.getState().selectedNote;
@@ -292,7 +293,7 @@ function App() {
   const loadExternalNote = useCallback(async () => {
     const noteId = useNotesStore.getState().selectedNote?.id;
     if (!noteId) return;
-    autoSave.discardPending();
+    discardPending();
     const note = await api.notes.get(noteId);
     setExternalNoteConflict(false);
     if (note) {
@@ -302,12 +303,12 @@ function App() {
       selectNote(null);
       void setDate(currentDate);
     }
-  }, [autoSave.discardPending, currentDate, selectNote, setDate]);
+  }, [discardPending, currentDate, selectNote, setDate]);
 
   const keepLocalNote = useCallback(() => {
     setExternalNoteConflict(false);
-    void autoSave.flush().catch((saveError) => console.error("[Tabs] 覆盖外部版本失败:", saveError));
-  }, [autoSave.flush]);
+    void flushAutoSave().catch((saveError) => console.error("[Tabs] 覆盖外部版本失败:", saveError));
+  }, [flushAutoSave]);
 
   const handleSelectNote = useCallback((note: Note | null) => {
     if (note) {
@@ -326,7 +327,7 @@ function App() {
     if (oldId === nextId) return;
     previousNoteIdRef.current = nextId;
 
-    void autoSave.setNoteId(nextId)
+    void setAutoSaveNoteId(nextId)
       .then(async () => {
         if (oldId) await api.versions.checkpoint(oldId);
       })
@@ -334,7 +335,7 @@ function App() {
         // updateNote 已同步写入全局错误栏；这里阻止失败保存继续生成旧 checkpoint。
         console.error("[App] 切换笔记前保存失败，已跳过 checkpoint:", error);
       });
-  }, [selectedNote?.id, autoSave.setNoteId]);
+  }, [selectedNote?.id, setAutoSaveNoteId]);
 
   const handleDocSearch = useCallback(async (q: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => {
     const requestId = ++docSearchRequestIdRef.current;

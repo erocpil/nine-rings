@@ -73,14 +73,14 @@ test("自动保存入队时固定正文快照，不读到切换后的文档", as
     const { createRoot } = (await load("/node_modules/.vite/deps/react-dom_client.js")).default;
     const { flushSync } = (await load("/node_modules/.vite/deps/react-dom.js")).default;
     const { useAutoSave } = await load("/src/hooks/useAutoSave.ts");
-    let api: any; const writes: unknown[] = []; let content = "old document";
+    let api: any; const writes: unknown[] = []; let content = { ops: [{ insert: "old document" }] };
     function Harness() { api = useAutoSave({ onSave: async (id: string, changes: unknown) => { writes.push({ id, changes }); } }); return null; }
     const host = document.createElement("div"); document.body.append(host);
     const root = createRoot(host); flushSync(() => root.render(React.createElement(Harness)));
     await api.setNoteId("old"); api.markContentDirty(() => content);
-    const flushing = api.setNoteId("new"); content = "new document";
+    const flushing = api.setNoteId("new"); content = { ops: [{ insert: "new document" }] };
     await flushing;
     root.unmount(); host.remove(); return writes;
   });
-  expect(writes).toEqual([{ id: "old", changes: { content: "old document" } }]);
+  expect(writes).toEqual([{ id: "old", changes: { content: { ops: [{ insert: "old document" }] } } }]);
 });

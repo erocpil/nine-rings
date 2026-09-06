@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 test.use({ actionTimeout: 10000 });
 
-async function createLongNote(page: Page, count = 1500) {
+async function createLongNote(page: Page, count = 1500, codeDescription?: string) {
   await page.goto("/");
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
@@ -32,6 +32,9 @@ async function createLongNote(page: Page, count = 1500) {
       }),
     );
   }, text);
+  if (codeDescription !== undefined) {
+    await page.getByLabel("代码简介").fill(codeDescription);
+  }
   await expect(page.locator(".save-status-saved")).toBeVisible({
     timeout: 15000,
   });
@@ -51,6 +54,25 @@ async function enable(page: Page) {
   });
   await expect(page.locator("[data-virtual-reader]")).toBeVisible();
 }
+
+test("代码简介在完整只读与局部阅读渲染之间切换时保留", async ({ page }) => {
+  const description = "初始化和资源释放的示例说明";
+  await createLongNote(page, 90, description);
+  await expect(page.getByLabel("代码简介")).toBeVisible();
+  await expect(page.getByLabel("代码简介")).toHaveValue(description);
+  await enable(page);
+  const codeBlock = page.locator("[data-virtual-reader] .code-block-wrap").first();
+  await expect(codeBlock.locator(".vr-code-toolbar span")).toHaveText(description);
+  await codeBlock.getByRole("button", { name: "折叠代码块" }).click();
+  await expect(codeBlock.locator(".vr-code-toolbar span")).toBeVisible();
+  await page.evaluate(() => {
+    localStorage.setItem("nr:experimentalReadonlyRendering", "false");
+    window.dispatchEvent(new Event("nine-rings:readonly-rendering-change"));
+  });
+  await expect(page.locator("[data-virtual-reader]")).toHaveCount(0);
+  await expect(page.getByLabel("代码简介")).toBeVisible();
+  await expect(page.getByLabel("代码简介")).toHaveValue(description);
+});
 
 test("局部阅读沿用可视视口手势，目录和书签文字上右划只关闭侧栏", async ({ page }) => {
   test.setTimeout(60000);

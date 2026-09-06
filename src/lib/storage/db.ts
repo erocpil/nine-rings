@@ -164,7 +164,7 @@ export function getAllFromIndex<T>(
   });
 }
 
-export function putRecord(store: IDBObjectStore, value: any): Promise<void> {
+export function putRecord(store: IDBObjectStore, value: unknown): Promise<void> {
   return new Promise((resolve, reject) => {
     const req = store.put(value);
     req.onsuccess = () => resolve();

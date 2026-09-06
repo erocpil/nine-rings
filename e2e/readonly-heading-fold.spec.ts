@@ -30,7 +30,7 @@ test("只读文档拒绝 Windows WebView2 式粘贴事件", async ({ page }) => 
   await expect(editor.getByRole("heading", { name: "不应粘贴的标题" })).toHaveCount(0);
 });
 
-test("只读文档隐藏代码语法选项并保留查看操作", async ({ page }) => {
+test("只读文档显示已保存代码简介，隐藏语法选项并保留查看操作", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
@@ -57,14 +57,18 @@ test("只读文档隐藏代码语法选项并保留查看操作", async ({ page 
   await expect(codeTitle).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await codeTitle.focus();
   await expect(codeTitle).toHaveCSS("border-top-color", "rgba(0, 0, 0, 0)");
+  const description = "连接初始化与收发流程说明";
+  await codeTitle.fill(description);
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
 
   await page.locator(".sidebar-item.active").getByTitle("设为只读")
     .evaluate((button: HTMLButtonElement) => button.click());
   await expect(editor).toHaveAttribute("contenteditable", "false");
   await expect(codeBlock.getByLabel("代码语言")).toHaveCount(0);
-  await expect(codeTitle).toBeHidden();
-  await expect(codeTitle).toHaveCSS("visibility", "hidden");
+  await expect(codeTitle).toBeVisible();
+  await expect(codeTitle).toHaveValue(description);
+  await expect(codeTitle).toBeDisabled();
+  await expect(codeTitle).toHaveCSS("opacity", "1");
   expect(await codeTitle.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(0);
 
   const collapseButton = codeBlock.getByRole("button", { name: "折叠代码块" });
@@ -75,6 +79,8 @@ test("只读文档隐藏代码语法选项并保留查看操作", async ({ page 
   await expect(copyButton).toBeEnabled();
   await collapseButton.click();
   await expect(codeBlock).toHaveAttribute("data-collapsed", "true");
+  await expect(codeTitle).toBeVisible();
+  await expect(codeTitle).toHaveValue(description);
   await codeBlock.getByRole("button", { name: "展开代码块" }).click();
   await wrapButton.click();
   await expect(codeBlock).toHaveAttribute("data-code-wrap", "false");
@@ -83,10 +89,26 @@ test("只读文档隐藏代码语法选项并保留查看操作", async ({ page 
   await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 100 } });
   await page.locator(".note-title-row").getByTitle("专注模式").click();
   await expect(page.getByLabel("专注模式工具栏")).toBeVisible();
+  await expect(codeTitle).toBeVisible();
+  await expect(codeTitle).toHaveValue(description);
   await expect(codeBlock.getByLabel("代码语言")).toHaveCount(0);
   await expect(codeBlock.getByRole("button", { name: "折叠代码块" })).toBeEnabled();
   await expect(codeBlock.getByRole("button", { name: "开启代码软换行" })).toBeEnabled();
   await expect(codeBlock.getByRole("button", { name: "复制代码" })).toBeEnabled();
+  await page.reload();
+  await expect(editor).toHaveAttribute("contenteditable", "false");
+  await expect(codeTitle).toBeVisible();
+  await expect(codeTitle).toHaveValue(description);
+  await expect(codeTitle).toBeDisabled();
+  await page.getByRole("button", { name: "退出专注模式", exact: true }).click();
+  await page.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
+  await expect(codeTitle).toBeEnabled();
+  await expect(codeTitle).toHaveValue(description);
+  await codeTitle.fill("补充后的说明");
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  await expect(codeTitle).toBeVisible();
+  await expect(codeTitle).toHaveValue("补充后的说明");
+  await expect(codeTitle).toBeDisabled();
 });
 
 test("只有只读专注模式双击标题或正文才切换所属标题章节", async ({ page }) => {

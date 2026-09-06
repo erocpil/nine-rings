@@ -2375,7 +2375,6 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
     }
   };
 
-  const URL_RE = /^https?:\/\/\S+$/;
 
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
@@ -2402,7 +2401,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
 
       // ── URL 粘贴：自动抓标题 ──
       const plainText = rawPlainText.trim();
-      if (plainText && URL_RE.test(plainText)) {
+      if (plainText && /^https?:\/\/\S+$/.test(plainText)) {
         e.preventDefault();
         // 先插入 URL
         editor.chain().focus().insertContent(plainText).run();

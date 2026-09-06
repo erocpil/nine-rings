@@ -158,7 +158,7 @@ jobs:
       - name: Mobile block gutter editing regression tests (WebKit)
         run: npx playwright test e2e/block-gutter-edit.spec.ts --browser=webkit --workers=1
       - name: Data safety regression tests (WebKit)
-        run: npx playwright test e2e/data-safety.spec.ts --browser=webkit --workers=1
+        run: npx playwright test e2e/data-safety.spec.ts e2e/hook-lifecycle.spec.ts --browser=webkit --workers=1
       - name: Mobile drag and keyboard recovery regression tests (WebKit)
         run: npx playwright test e2e/mobile-interaction-recovery.spec.ts --browser=webkit --workers=1
       - name: Experimental readonly rendering regression tests (WebKit)

@@ -536,6 +536,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   useEffect(() => {
     let cancelled = false;
     let loadedDocument: PDFDocumentProxy | null = null;
+    const renderTasks = renderTaskRefs.current;
+    const textLayers = textLayerRefs.current;
     const documentGeneration = documentRenderGenerationRef.current + 1;
     documentRenderGenerationRef.current = documentGeneration;
     const open = async () => {
@@ -554,8 +556,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       }
       zoomAnchorRef.current = null;
       pendingZoomCommitRef.current = null;
-      renderTaskRefs.current.forEach((task) => task.cancel());
-      textLayerRefs.current.forEach((textLayer) => textLayer.cancel());
+      renderTasks.forEach((task) => task.cancel());
+      textLayers.forEach((textLayer) => textLayer.cancel());
       setSearchMatches([]);
       setActiveSearchIndex(-1);
       setHighlights([]);
@@ -622,8 +624,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       if (documentRenderGenerationRef.current === documentGeneration) {
         documentRenderGenerationRef.current += 1;
       }
-      renderTaskRefs.current.forEach((task) => task.cancel());
-      textLayerRefs.current.forEach((textLayer) => textLayer.cancel());
+      renderTasks.forEach((task) => task.cancel());
+      textLayers.forEach((textLayer) => textLayer.cancel());
       if (zoomPreviewFrameRef.current !== null) window.cancelAnimationFrame(zoomPreviewFrameRef.current);
       void loadedDocument?.destroy();
     };

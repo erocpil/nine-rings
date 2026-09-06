@@ -60,7 +60,7 @@ export interface SnakeDailyPageRow {
 // 核心规范化函数
 // ═══════════════════════════════════════════════════════════════════
 
-function parseBool(v: number | boolean | string | undefined | null): boolean {
+function parseBool(v: unknown): boolean {
   if (v === undefined || v === null) return false;
   if (typeof v === "boolean") return v;
   if (typeof v === "number") return v !== 0;
@@ -135,7 +135,7 @@ export function snakeDailyPageToCamel(row: Record<string, any>): DailyPage {
  *
  * 策略：优先保留 camelCase；若仅存在 snake_case 则转换为 camelCase。
  */
-export function snakeImportToCamel(raw: Record<string, any>): Record<string, any> {
+export function snakeImportToCamel(raw: Record<string, unknown>): Record<string, unknown> {
   const n = { ...raw };
   if (typeof n.content === "string") n.content = JSON.parse(n.content);
   for (const key of ["tags", "concepts", "linked_doc_ids", "linkedDocIds"]) {

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   loadSyncConfig,
   saveSyncConfig,
@@ -8,6 +8,7 @@ import {
   checkStatus,
   type SyncConfig,
   type SyncStatus,
+  type SyncConnectionConfig,
   type PullPrecheck,
   type PullMode,
 } from "../lib/sync/github";
@@ -116,20 +117,27 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     setMessageType("");
   }, [clearTransientMessage]);
 
-  // 防止 Strict Mode 重复触发
-  const checkRef = useRef("");
+  const connectionConfig = useMemo(() => ({
+    token: cfg.token, owner: cfg.owner, repo: cfg.repo, path: cfg.path, lastSyncAt: cfg.lastSyncAt,
+  }), [cfg.token, cfg.owner, cfg.repo, cfg.path, cfg.lastSyncAt]);
+  // Share the request across Strict Mode's effect replay, not its stale subscription.
+  const checkRef = useRef<{ config: SyncConnectionConfig; promise: Promise<SyncStatus> } | null>(null);
 
   // 自动检测连接状态
   useEffect(() => {
-    if (!cfg.token || !cfg.owner || !cfg.repo) {
+    if (!connectionConfig.token || !connectionConfig.owner || !connectionConfig.repo) {
+      checkRef.current = null;
       setStatus(null);
       return;
     }
-    const key = `${cfg.owner}/${cfg.repo}/${cfg.path}`;
-    if (key === checkRef.current) return;
-    checkRef.current = key;
-    checkStatus(cfg).then(setStatus);
-  }, [cfg.token, cfg.owner, cfg.repo, cfg.path]);
+    let cancelled = false;
+    setStatus(null);
+    if (checkRef.current?.config !== connectionConfig) {
+      checkRef.current = { config: connectionConfig, promise: checkStatus(connectionConfig) };
+    }
+    void checkRef.current.promise.then((result) => { if (!cancelled) setStatus(result); });
+    return () => { cancelled = true; };
+  }, [connectionConfig]);
 
   // busy 变化时通知父组件
   useEffect(() => {

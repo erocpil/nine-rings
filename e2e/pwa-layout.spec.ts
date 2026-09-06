@@ -1509,6 +1509,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await page.getByTitle("更多编辑操作").click();
     const sheet = page.getByRole("dialog", { name: "更多编辑操作" });
     const action = sheet.getByRole("button", { name: "放大编辑器字号" });
+    await page.clock.setFixedTime(new Date());
     const result = await action.evaluate((button) => {
       let clicks = 0;
       button.addEventListener("click", () => { clicks += 1; });
@@ -1532,7 +1533,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     });
     expect(result).toEqual({ startPrevented: false, prematureClicks: 0, clicks: 0 });
     await expect(sheet).toBeVisible();
-    await page.waitForTimeout(500);
+    // A deliberate new tap must work immediately, without waiting out the guard.
     const before = await page.locator(".ProseMirror").evaluate((editor) => parseFloat(getComputedStyle(editor).fontSize));
     await action.tap();
     await expect.poll(() => page.locator(".ProseMirror").evaluate((editor) => parseFloat(getComputedStyle(editor).fontSize)))

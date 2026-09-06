@@ -1,6 +1,6 @@
 import type { StorageAdapter, DocSearchQuery } from "./storage/types";
 import { getAdapter } from "./storage";
-import type { AppConfig, CreateNoteInput, UpdateNoteInput, UpdateTodosInput } from "../types/models";
+import type { AppConfig, CreateNoteInput, UpdateNoteInput, UpdateTodosInput, Todo } from "../types/models";
 import { broadcastDataChange } from "./tab-coordination";
 import { invalidateWebSearchIndex, removeFromWebSearchIndex, searchWebNotes, searchWebNoteSummaries, updateWebSearchIndex } from "./web-search-index";
 import { addFrontendSettingsToBackup, withFrontendSettings } from "./backup-user-settings";
@@ -137,7 +137,7 @@ export const api = {
       if (!query.trim()) return [];
       const q = query.trim().toLowerCase();
       const pages = await adapter().then((a) => a.getAllDailyPages());
-      const results: { todo: any; date: string }[] = [];
+      const results: { todo: Todo; date: string }[] = [];
       for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
         const p = pages[pageIndex];
         if (!Array.isArray(p.todos)) continue;

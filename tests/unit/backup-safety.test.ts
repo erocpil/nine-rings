@@ -13,7 +13,11 @@ import {
 } from "../../src/lib/storage/idb-snippet";
 import { downloadExternalMarkdown } from "../../src/lib/external-markdown-source";
 import { NoteSearchIndex } from "../../src/lib/search-index-core";
-import { loadSyncConfig, saveSyncConfig } from "../../src/lib/sync/github";
+import {
+  loadSyncConfig,
+  saveSyncConfig,
+  pushToGitHub,
+} from "../../src/lib/sync/github";
 import { buildSafeMergedBackup } from "../../src/lib/sync/backup-merge";
 import {
   listLocalPdfs,
@@ -51,6 +55,25 @@ beforeEach(async () => {
 });
 
 describe("backup failure boundaries", () => {
+  it.each([null, [], {}, { sha: 42 }, { sha: "" }])(
+    "rejects an invalid remote pointer envelope before uploading: %j",
+    async (value) => {
+      const fetch = vi.fn(
+        async () => new Response(JSON.stringify(value), { status: 200 }),
+      );
+      vi.stubGlobal("fetch", fetch);
+      await expect(
+        pushToGitHub({
+          ...loadSyncConfig(),
+          token: "dummy",
+          owner: "owner",
+          repo: "repo",
+        }),
+      ).rejects.toThrow("有效 sha");
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(fetch.mock.calls[0]).toBeDefined();
+    },
+  );
   it("keeps both template versions in a conflict and does not propagate deletion", () => {
     const template = {
       id: "t",

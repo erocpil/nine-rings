@@ -97,7 +97,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
   const virtualized = entries.length > VIRTUALIZE_AFTER;
   const [windowRange, setWindowRange] = useState(() => initialWindow(entries, activeOutlineIndex));
   const [listWidth, setListWidth] = useState(DEFAULT_LIST_WIDTH);
-  const [heightRevision, setHeightRevision] = useState(0);
+  const [measuredHeights, setMeasuredHeights] = useState<ReadonlyMap<string, number>>(() => new Map());
   const frameRef = useRef(0);
   const listWidthRef = useRef(DEFAULT_LIST_WIDTH);
   const measuredHeightsRef = useRef(new Map<string, number>());
@@ -108,14 +108,14 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
     const heights: number[] = [];
     let totalHeight = 0;
     for (const entry of entries) {
-      const height = measuredHeightsRef.current.get(entryKey(entry))
+      const height = measuredHeights.get(entryKey(entry))
         ?? estimatedRowHeight(entry, outlineBaseLevel, listWidth);
       tops.push(totalHeight);
       heights.push(height);
       totalHeight += height;
     }
     return { tops, heights, totalHeight };
-  }, [entries, heightRevision, listWidth, outlineBaseLevel]);
+  }, [entries, measuredHeights, listWidth, outlineBaseLevel]);
   const rowLayoutRef = useRef(rowLayout);
   rowLayoutRef.current = rowLayout;
 
@@ -152,7 +152,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
       frameRef.current = 0;
     };
-  }, [activeOutlineIndex, entries.length, heightRevision, listWidth, updateWindow, virtualized]);
+  }, [activeOutlineIndex, entries.length, measuredHeights, listWidth, updateWindow, virtualized]);
 
   useLayoutEffect(() => {
     const list = listRef.current;
@@ -162,6 +162,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
       if (width <= 0 || Math.abs(listWidthRef.current - width) < 1) return;
       listWidthRef.current = width;
       measuredHeightsRef.current.clear();
+      setMeasuredHeights(new Map());
       setListWidth(width);
     };
     updateWidth();
@@ -205,7 +206,8 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
       }
       if (!changed) return;
       if (heightDeltaAboveViewport !== 0) list.scrollTop += heightDeltaAboveViewport;
-      setHeightRevision((revision) => revision + 1);
+      // Publish the measured data itself so memoized layout has an explicit dependency.
+      setMeasuredHeights(new Map(measuredHeightsRef.current));
     });
     rowObserverRef.current = observer;
     return () => {
@@ -221,7 +223,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
     if (!observer || !list) return;
     observer.disconnect();
     list.querySelectorAll<HTMLElement>(".document-outline-item").forEach((row) => observer.observe(row));
-  }, [heightRevision, listRef, virtualized, windowRange.end, windowRange.start]);
+  }, [measuredHeights, listRef, virtualized, windowRange.end, windowRange.start]);
 
   const renderEntry = (entry: VisibleOutlineEntry, visibleIndex: number) => {
     const { item, index, folded } = entry;
