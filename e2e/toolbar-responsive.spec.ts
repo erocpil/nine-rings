@@ -5,6 +5,11 @@ async function createBlankNote(page: import("@playwright/test").Page) {
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  // The prior editor can remain mounted while the new note is loading. Wait
+  // for the blank session before measuring styles or dispatching a paste.
+  await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("新随笔");
+  await expect(page.locator(".ProseMirror")).toHaveText("");
+  await expect(page.locator(".ProseMirror")).toHaveAttribute("contenteditable", "true");
 }
 
 async function expectNoHorizontalOverflow(page: import("@playwright/test").Page) {
@@ -56,9 +61,9 @@ test.describe("响应式编辑器工具栏", () => {
       };
     });
 
-    expect(await verticalSpacing()).toEqual({ before: 3, paddingTop: 3, paddingBottom: 3, after: 6 });
+    await expect.poll(verticalSpacing).toEqual({ before: 3, paddingTop: 3, paddingBottom: 3, after: 6 });
     await page.setViewportSize({ width: 390, height: 760 });
-    expect(await verticalSpacing()).toEqual({ before: 2, paddingTop: 2, paddingBottom: 2, after: 3 });
+    await expect.poll(verticalSpacing).toEqual({ before: 2, paddingTop: 2, paddingBottom: 2, after: 3 });
 
     const historyGap = await page.locator(".toolbar-history-actions").evaluate((element) => {
       const [undo, redo] = Array.from(element.querySelectorAll("button"));

@@ -18,6 +18,8 @@ async function createBlankNote(page: Page): Promise<Locator> {
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
   const editor = page.locator(".ProseMirror");
   await expect(editor).toBeVisible();
+  await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("新随笔");
+  await expect(editor).toHaveText("");
   return editor;
 }
 
@@ -154,7 +156,15 @@ test.describe("正文右键菜单：菜单命令行为", () => {
     await item(page, "全选").click();
 
     await expect
-      .poll(() => editor.evaluate(() => window.getSelection()?.toString() ?? ""))
+      // WebKit's Selection.toString() includes visual block separators. Range
+      // text checks the actual selected contents, without trimming user text.
+      .poll(() => editor.evaluate((element) => {
+        const selection = window.getSelection();
+        if (!selection?.rangeCount) return "";
+        const range = selection.getRangeAt(0);
+        if (!element.contains(range.startContainer) || !element.contains(range.endContainer)) return "";
+        return range.toString();
+      }))
       .toBe("要全选的文本");
   });
 

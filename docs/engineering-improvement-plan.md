@@ -958,7 +958,7 @@ vite --host 0.0.0.0
 
 **目标**：完成已经开始但尚未完成的大文件拆分，并消除掩盖契约问题的类型逃逸。
 
-当前复核基线：
+早期复核基线（历史数据，不代表当前代码）：
 
 - `App.tsx` 约 1058 行（已提取跨日/时钟与快捷键/窗口事件 Hook）。
 - `idb.ts` 约 1149 行。
@@ -967,8 +967,9 @@ vite --host 0.0.0.0
 任务：
 
 - [x] 已从 `App.tsx` 提取跨日检测与时钟 Hook，以及键盘快捷键与窗口事件 Hook。
-- [ ] Quick Capture 事件监听继续按行为测试逐项迁移。
-- [ ] 从 `idb.ts` 依次提取 import/export、version、images 和 config。
+- [x] Quick Capture 事件监听已抽离至 `useQuickCaptureListener`。
+- [x] 存储层 import/export、version、images 和 config 已抽离为独立模块。
+- [x] 编辑器工具栏展示、右键菜单和链接/图片对话框已抽离；主体 4,800 → 4,013 行（2026-09-07）。会话与锚点尚未拆分，详见[当前分批进度](editor-module-split.md)。
 - [ ] 每次只移动一个职责，禁止同时改变业务行为。
 - [x] 为 Tauri 环境检测建立统一 runtime 模块和 `Window` 边界，移除相关重复 `@ts-ignore`。
 - [ ] 已修正 `UpdateNoteInput` 和开发导入模型；搜索结果模型与编辑器扩展类型仍待收敛。

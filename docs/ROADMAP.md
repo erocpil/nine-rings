@@ -54,7 +54,7 @@
 | 项目 | 当前状态 | 下一验收点 |
 |------|----------|------------|
 | **运行时与更新类型** | ✅ 已建立统一 Tauri runtime 边界，移除 `UpdateNoteInput.id` 冗余并收敛主更新链路 | 继续清理编辑器扩展和数据库 mapper 外的类型逃逸 |
-| **大模块拆分** | ⚠️ 已抽离跨日/时钟 Hook、键盘快捷键/窗口事件 Hook，搜索片段已有独立模块 | `db-images`、`db-versions`、`db-export-import` 已抽离；继续按职责拆 NoteEditor、App 与 CSS |
+| **大模块拆分** | ⚠️ 存储子模块、App 多项 Hook/搜索面板已抽离；编辑器工具栏、右键菜单和插入对话框已独立，主体 4,800 → 4,013 行 | 继续拆会话、锚点与协调逻辑；App、SettingsPanel、CSS 仍待继续（[分批进度](editor-module-split.md)） |
 | **前端质量门禁** | ✅ ESLint、类型检查、渐进式 Prettier、Vitest 覆盖率和依赖审计已接入 CI | 逐目录扩大 Prettier 与覆盖率范围 |
 | **跨端质量门禁** | ✅ Rust test/fmt/Clippy 与 Flutter 变更格式、全量 analyze/test 已接入 CI | 增加 Windows 安装后启动冒烟测试；目前已校验 MSI/NSIS 产物完整性 |
 | **折叠回归门禁** | ✅ WebKit 独立运行完整标题/尾部/只读/触摸折叠用例，不受触控 smoke 的 grep 限制 | iPhone PWA、Windows Tauri 真机验收由用户执行 |
