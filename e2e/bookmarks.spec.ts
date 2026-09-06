@@ -1,5 +1,78 @@
 import { expect, test } from "@playwright/test";
 
+for (const width of [1280, 390]) {
+  for (const readonly of [false, true]) {
+    test.describe(`书签当前项 ${width}px ${readonly ? "只读" : "编辑"}`, () => {
+      test.use({ viewport: { width, height: 850 }, hasTouch: width === 390 });
+      test("紧凑行高与当前项提示跟随光标、跳转和取消书签", async ({ page }, testInfo) => {
+        await page.goto("/");
+        const editor = page.locator(".ProseMirror");
+        await expect(editor).toBeVisible();
+        // Use persisted bookmarks so this layout test does not race the welcome
+        // note's startup restoration or the save debounce when toggling readonly.
+        await page.evaluate(async (isReadonly) => {
+          const load = (path: string) => import(/* @vite-ignore */ path);
+          const { api } = await load("/src/lib/api.ts");
+          const { useNotesStore } = await load("/src/stores/useNotesStore.ts");
+          const note = await api.notes.create({
+            title: "书签布局验证", date: "2026-09-06", storagePath: "projects/bookmark-layout",
+            content: { ops: ["首条书签", "普通正文", "第二条书签"].flatMap((text) => [{ insert: text }, { insert: "\n" }]), metadata: { bookmarks: [
+              { id: "first", position: 1, preview: "首条书签", createdAt: "2026-09-06T00:00:00Z" },
+              { id: "second", position: 13, preview: "第二条书签", createdAt: "2026-09-06T00:00:00Z" },
+            ] } },
+          });
+          const selectedNote = isReadonly ? await api.notes.update(note.id, { readonly: true }) : note;
+          useNotesStore.getState().selectNote(selectedNote);
+        }, readonly);
+        await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("书签布局验证");
+        await editor.getByText("第二条书签", { exact: true }).click();
+        if (readonly) {
+          await expect(page.getByTitle("点击设为可编辑", { exact: true })).toBeVisible();
+          await expect.poll(() => editor.evaluate((element) => (element as HTMLElement).isContentEditable)).toBe(false);
+        }
+        const toggle = page.getByRole("button", { name: "文档书签", exact: true });
+        await toggle.click();
+        const panel = page.getByRole("navigation", { name: "文档书签", exact: true });
+        const rows = panel.locator(".document-bookmark-item");
+        const active = panel.locator('.document-bookmark-jump[aria-current="location"]');
+        await expect(rows).toHaveCount(2);
+        await expect(active).toHaveCount(1);
+        await expect(active).toContainText("第二条书签");
+        await expect(active.locator(".document-bookmark-index")).toHaveText("3");
+        await expect(active.locator(".document-bookmark-index")).toHaveCSS("font-weight", "700");
+        await expect(panel.getByRole("button", { name: "取消当前位置书签", exact: true })).toBeVisible();
+        const currentBackground = await active.evaluate((element) => getComputedStyle(element).backgroundColor);
+        expect(currentBackground).not.toBe(await rows.first().locator(".document-bookmark-jump").evaluate((element) => getComputedStyle(element).backgroundColor));
+        if (width === 390) {
+          await expect(rows.first()).toHaveCSS("height", "44px");
+          await expect(rows.last()).toHaveCSS("height", "44px");
+          await expect(active).toHaveCSS("font-size", "15px");
+          await expect(active.locator(".document-bookmark-index")).toHaveCSS("font-size", "13px");
+          const [first, second] = await rows.evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().top));
+          expect(second - first).toBeCloseTo(44, 1);
+          await page.screenshot({ path: testInfo.outputPath("bookmark-current.png") });
+        }
+        await rows.first().locator(".document-bookmark-jump").click();
+        await expect(panel).toHaveCount(0);
+        await toggle.click();
+        await expect(active).toContainText("首条书签");
+        await toggle.click();
+        await editor.getByText("普通正文", { exact: true }).click();
+        await toggle.click();
+        await expect(active).toHaveCount(0);
+        await expect(panel.getByRole("button", { name: "添加当前位置书签", exact: true })).toBeVisible();
+        await rows.last().locator(".document-bookmark-jump").click();
+        await toggle.click();
+        await expect(active).toContainText("第二条书签");
+        await panel.getByRole("button", { name: "取消当前位置书签", exact: true }).click();
+        await expect(rows).toHaveCount(1);
+        await expect(active).toHaveCount(0);
+        await expect(panel.getByRole("button", { name: "添加当前位置书签", exact: true })).toBeVisible();
+      });
+    });
+  }
+}
+
 async function createBlankNote(page: import("@playwright/test").Page) {
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
@@ -228,6 +301,8 @@ test.describe("移动端书签操作", () => {
         heights: [rename.height, remove.height],
         gap: remove.left - rename.right,
         actionsRevealed: content.right <= rename.left + 0.5 && remove.right <= row.right + 0.5,
+        verticallyContained: rename.top >= row.top - 0.5 && remove.top >= row.top - 0.5
+          && rename.bottom <= row.bottom + 0.5 && remove.bottom <= row.bottom + 0.5,
       };
     });
     await expect.poll(async () => (await readGeometry()).actionsRevealed).toBe(true);
@@ -236,5 +311,6 @@ test.describe("移动端书签操作", () => {
     expect(Math.min(...geometry.heights)).toBeGreaterThanOrEqual(44);
     expect(geometry.gap).toBeGreaterThanOrEqual(8);
     expect(geometry.actionsRevealed).toBe(true);
+    expect(geometry.verticallyContained).toBe(true);
   });
 });

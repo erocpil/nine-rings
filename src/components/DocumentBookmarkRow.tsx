@@ -8,6 +8,7 @@ const SWIPE_DECISION_DISTANCE = 10;
 interface Props {
   bookmark: DocumentBookmark;
   blockNumber: number;
+  current: boolean;
   mobile: boolean;
   open: boolean;
   onOpenChange: (bookmarkId: string | null) => void;
@@ -28,6 +29,7 @@ interface SwipeGesture {
 export function DocumentBookmarkRow({
   bookmark,
   blockNumber,
+  current,
   mobile,
   open,
   onOpenChange,
@@ -95,7 +97,7 @@ export function DocumentBookmarkRow({
 
   return (
     <div
-      className={`document-bookmark-item${open ? " swipe-open" : ""}${dragOffset !== null ? " swiping" : ""}`}
+      className={`document-bookmark-item${current ? " is-current" : ""}${open ? " swipe-open" : ""}${dragOffset !== null ? " swiping" : ""}`}
       style={{ "--bookmark-swipe-offset": `${offset}px` } as CSSProperties}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -105,6 +107,7 @@ export function DocumentBookmarkRow({
       <button
         className="document-bookmark-jump"
         type="button"
+        aria-current={current ? "location" : undefined}
         onClick={() => {
           if (Date.now() < suppressClickUntilRef.current) return;
           if (open) {
@@ -115,7 +118,7 @@ export function DocumentBookmarkRow({
         }}
         title={bookmark.preview}
       >
-        <span className="document-bookmark-index" title={`第 ${blockNumber} 块`}>
+        <span className="document-bookmark-index" title={`第 ${blockNumber} 块${current ? "（当前书签）" : ""}`}>
           {blockNumber}
         </span>
         <span>{label}</span>

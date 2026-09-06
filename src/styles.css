@@ -4248,6 +4248,19 @@ body {
   padding: 7px 6px;
   color: var(--text) !important;
   text-align: start;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.document-bookmark-item.is-current .document-bookmark-jump {
+  /* Keep the swipe foreground opaque so hidden actions do not show through. */
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+  box-shadow: inset 3px 0 var(--accent);
+}
+
+.document-bookmark-item.is-current .document-bookmark-index {
+  font-weight: 700;
 }
 
 .document-bookmark-jump span:last-child {
@@ -4260,7 +4273,7 @@ body {
 .document-bookmark-index {
   flex: 0 0 32px;
   color: var(--accent);
-  font: 11px/1.2 var(--font-mono);
+  font: 12px/1.2 var(--font-mono);
   text-align: center;
 }
 
@@ -9377,12 +9390,12 @@ button.doc-tree-toggle:focus-visible {
     right: 0;
     z-index: 0;
     gap: 8px;
-    padding: 4px;
+    padding: 0 4px;
   }
 
   .document-bookmark-item {
     position: relative;
-    min-height: 52px;
+    min-height: 44px;
     overflow: hidden;
     gap: 0;
   }
@@ -9391,7 +9404,8 @@ button.doc-tree-toggle:focus-visible {
     z-index: 1;
     flex: none !important;
     width: 100%;
-    min-height: 52px;
+    min-height: 44px;
+    font-size: 15px;
     background: var(--bg);
     touch-action: pan-y;
     transform: translateX(var(--bookmark-swipe-offset, 0));
@@ -9401,6 +9415,10 @@ button.doc-tree-toggle:focus-visible {
 
   .document-bookmark-item.swiping .document-bookmark-jump {
     transition: none;
+  }
+
+  .document-bookmark-index {
+    font-size: 13px;
   }
 
   .document-bookmark-action {

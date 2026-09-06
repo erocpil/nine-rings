@@ -3717,6 +3717,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
                 key={bookmark.id}
                 bookmark={bookmark}
                 blockNumber={bookmarkBlockNumber(bookmark)}
+                current={currentBookmark?.id === bookmark.id}
                 mobile={isMobileToolbarViewport}
                 open={openBookmarkActionsId === bookmark.id}
                 onOpenChange={setOpenBookmarkActionsId}
