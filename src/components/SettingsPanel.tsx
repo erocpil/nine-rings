@@ -10,6 +10,7 @@ import { exportLocalJsonBackup } from "../lib/local-backup-export";
 import SettingsSync from "./SettingsSync";
 import { withTimeout } from "../lib/async";
 import { EditorAppearancePanel } from "./EditorAppearancePanel";
+import { ReaderDataBackupPanel } from "./ReaderDataBackupPanel";
 import { isDocumentFindShortcut, isEditorLineJumpShortcut } from "../lib/shortcuts";
 import type { WebStorageStatus } from "../hooks/useWebPlatform";
 import { useTransientMessage } from "../hooks/useTransientMessage";
@@ -163,6 +164,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [epubImporting, setEpubImporting] = useState(false);
   const [epubCoverUrls, setEpubCoverUrls] = useState<Record<string, string>>({});
   const [libraryFormat, setLibraryFormat] = useState<"all" | "pdf" | "epub">("all");
+  const [readerBackupTarget, setReaderBackupTarget] = useState<{ format: "pdf" | "epub"; id: string; title: string } | null>(null);
+  const [readerBackupBusy, setReaderBackupBusy] = useState(false);
   const [libraryView, setLibraryView] = useState<"shelf" | "list">(() => {
     try { return localStorage.getItem("nine-rings-reader-library-view") === "list" ? "list" : "shelf"; }
     catch { return "shelf"; }
@@ -646,14 +649,14 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   if (!open) return null;
 
   return (
-    <div className="settings-overlay" onClick={onClose}>
+    <div className="settings-overlay" onClick={() => { if (!readerBackupBusy) onClose(); }}>
       <div
         className="settings-panel"
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-dialog-title"
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(event) => { if (event.key === "Escape") onClose(); }}
+        onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); if (!readerBackupBusy) onClose(); } }}
       >
         <div className="settings-header">
           <div className="settings-header-main">
@@ -661,6 +664,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               <button
                 className="settings-back"
                 type="button"
+                disabled={readerBackupBusy}
                 onClick={() => setSettingsPage(
                   settingsPage === "editor"
                     ? "appearance"
@@ -682,7 +686,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             )}
             <h2 id="settings-dialog-title">{SETTINGS_PAGE_TITLES[settingsPage]}</h2>
           </div>
-          <button ref={closeButtonRef} className="settings-close" onClick={onClose} aria-label="关闭设置">✕</button>
+          <button ref={closeButtonRef} className="settings-close" disabled={readerBackupBusy} onClick={onClose} aria-label="关闭设置">✕</button>
         </div>
 
         {loading ? (
@@ -1091,11 +1095,17 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               )}
             </SettingsSection>
 
-            <SettingsSection title="本地阅读资料库" desc="PDF 与无 DRM 的 EPUB 保存在当前设备，不包含在 JSON 或 GitHub 备份中" visible={settingsPage === "library"}>
+            <SettingsSection title="本地阅读资料库" desc="原文件保存在当前设备；每本书可单独备份阅读数据，尚未纳入全量 JSON 或 GitHub 备份" visible={settingsPage === "library"}>
+              {readerBackupTarget && <ReaderDataBackupPanel
+                key={`${readerBackupTarget.format}-${readerBackupTarget.id}`}
+                format={readerBackupTarget.format} documentId={readerBackupTarget.id} title={readerBackupTarget.title}
+                onClose={() => setReaderBackupTarget(null)} onBusyChange={setReaderBackupBusy}
+                onRestored={() => { void refreshPdfLibrary(); void refreshEpubLibrary(); }}
+              />}
               <div className="reader-library-toolbar">
                 <div className="settings-button-row reader-library-imports">
-                  <button className="settings-btn-primary" type="button" onClick={() => pdfInputRef.current?.click()} disabled={pdfImporting}>{pdfImporting ? "正在导入 PDF…" : "导入 PDF"}</button>
-                  <button className="settings-btn-primary" type="button" onClick={() => epubInputRef.current?.click()} disabled={epubImporting}>{epubImporting ? "正在导入 EPUB…" : "导入 EPUB"}</button>
+                  <button className="settings-btn-primary" type="button" onClick={() => pdfInputRef.current?.click()} disabled={pdfImporting || readerBackupBusy}>{pdfImporting ? "正在导入 PDF…" : "导入 PDF"}</button>
+                  <button className="settings-btn-primary" type="button" onClick={() => epubInputRef.current?.click()} disabled={epubImporting || readerBackupBusy}>{epubImporting ? "正在导入 EPUB…" : "导入 EPUB"}</button>
                   <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" style={{ display: "none" }} onChange={handlePdfImport} />
                   <input ref={epubInputRef} type="file" accept="application/epub+zip,.epub" style={{ display: "none" }} onChange={handleEpubImport} />
                 </div>
@@ -1118,8 +1128,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                       const progressText = isPdf
                         ? (item.entry.pageCount ? `第 ${item.entry.page}/${item.entry.pageCount} 页` : "尚未记录页数")
                         : (item.entry.chapterCount ? `第 ${item.entry.chapter + 1}/${item.entry.chapterCount} 章` : "尚未记录章节");
-                      return <article className="reader-library-item" data-format={item.format} key={`${item.format}-${item.entry.id}`}>
-                        <button type="button" className="reader-library-open" onClick={() => isPdf ? onOpenPdf?.(item.entry.id) : onOpenEpub?.(item.entry.id)} title={`打开 ${title}`} aria-label={`打开 ${title}`}>
+                      return <article className="reader-library-item" data-format={item.format} data-document-id={item.entry.id} key={`${item.format}-${item.entry.id}`}>
+                        <button type="button" className="reader-library-open" disabled={readerBackupBusy} onClick={() => isPdf ? onOpenPdf?.(item.entry.id) : onOpenEpub?.(item.entry.id)} title={`打开 ${title}`} aria-label={`打开 ${title}`}>
                           <span className="reader-library-cover">
                             {!isPdf && epubCoverUrls[item.entry.id] ? <img src={epubCoverUrls[item.entry.id]} alt="" /> : <span aria-hidden="true">{isPdf ? "PDF" : "📖"}</span>}
                             <em>{item.format.toUpperCase()}</em>
@@ -1131,7 +1141,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                             <small>最近阅读 {formatLibraryDate(item.entry.lastOpenedAt)}</small>
                           </span>
                         </button>
-                        <button type="button" className="reader-library-delete" onClick={() => isPdf ? void handlePdfDelete(item.entry) : void handleEpubDelete(item.entry)} aria-label={`删除 ${title}`} title={`删除本地 ${item.format.toUpperCase()}`}>×</button>
+                        <button type="button" className="reader-library-backup" disabled={readerBackupBusy} onClick={() => setReaderBackupTarget({ format: item.format, id: item.entry.id, title })} aria-label={`阅读数据备份 ${title}`}>阅读备份</button>
+                        <button type="button" className="reader-library-delete" disabled={readerBackupBusy} onClick={() => isPdf ? void handlePdfDelete(item.entry) : void handleEpubDelete(item.entry)} aria-label={`删除 ${title}`} title={`删除本地 ${item.format.toUpperCase()}`}>×</button>
                       </article>;
                     })}
                   </div>}

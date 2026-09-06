@@ -1,4 +1,6 @@
 import { unzip, unzipSync, type Unzipped } from "fflate";
+import { canonicalReadingItem, readReadingSnapshot, restoreReadingSnapshot } from "./reading-backup-store";
+import { fingerprintReadingFile, validateReadingBackup, type EpubReadingBackup } from "./reading-backup-format";
 
 const EPUB_DB_NAME = "nine_rings_epub_library";
 const EPUB_DB_VERSION = 2;
@@ -549,4 +551,45 @@ export async function resetEpubLibraryConnectionForTests(): Promise<void> {
   const database = await openPromise?.catch(() => null);
   database?.close();
   openPromise = null;
+}
+
+const EPUB_READING_STORES = { entry: EPUB_STORE, highlights: EPUB_HIGHLIGHT_STORE, bookmarks: EPUB_BOOKMARK_STORE, owner: "epubId" as const };
+
+export async function readLocalEpubReadingSnapshot(id: string) {
+  return readReadingSnapshot<StoredEpubRecord, LocalEpubHighlight, LocalEpubBookmark>(await openEpubDatabase(), EPUB_READING_STORES, id);
+}
+
+export async function restoreLocalEpubReadingBackup(id: string, backup: EpubReadingBackup, restoreProgress: boolean) {
+  validateReadingBackup(backup);
+  if (backup.format !== "epub") throw new Error("备份不是 EPUB 阅读数据");
+  const snapshot = await readLocalEpubReadingSnapshot(id);
+  if (snapshot.entry.size !== backup.file.size || await fingerprintReadingFile(snapshot.entry.blob) !== backup.file.fingerprint) throw new Error("原文件内容不一致，不能恢复这份阅读备份");
+  if (snapshot.entry.chapterCount !== backup.progress.chapterCount) throw new Error("章节结构不一致，不能恢复");
+  let lineMergesAdded = 0;
+  const result = await restoreReadingSnapshot<StoredEpubRecord, LocalEpubHighlight, LocalEpubBookmark>(
+    await openEpubDatabase(), EPUB_READING_STORES, snapshot.entry, backup.highlights, backup.bookmarks,
+    (current) => {
+      const merges = [...(current.manualLineMerges ?? [])];
+      const signature = ({ id: _id, ...item }: LocalEpubLineMerge) => canonicalReadingItem(item);
+      const signatures = new Set(merges.map(signature));
+      const ids = new Set(merges.map((merge) => merge.id));
+      for (const item of backup.manualLineMerges) {
+        if (signatures.has(signature(item))) continue;
+        let id = item.id;
+        let suffix = 0;
+        while (ids.has(id)) id = `${item.id}-restored-${++suffix}`;
+        merges.push({ ...item, id }); ids.add(id); signatures.add(signature(item)); lineMergesAdded++;
+      }
+      const updated = lineMergesAdded ? { ...current, manualLineMerges: merges } : current;
+      if (!restoreProgress) return updated;
+      const progress = backup.progress;
+      return {
+        ...updated, chapter: progress.chapter, location: progress.location,
+        scrollProgress: progress.scrollProgress, chapterProgress: progress.chapterProgress,
+        fontSize: progress.fontSize, theme: progress.theme, themeBackgrounds: progress.themeBackgrounds,
+        smartLineMerge: progress.smartLineMerge, lastOpenedAt: new Date().toISOString(),
+      };
+    },
+  );
+  return { ...result, lineMergesAdded };
 }

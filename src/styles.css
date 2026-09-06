@@ -10458,6 +10458,20 @@ button.doc-tree-toggle:focus-visible {
   margin-top: 12px;
 }
 
+.reader-backup-panel {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 12px;
+  overflow-wrap: anywhere;
+}
+.reader-backup-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.reader-backup-heading button { min-width: 44px; min-height: 44px; border: 0; border-radius: var(--radius); background: transparent; color: var(--text-secondary); font-size: 20px; }
+.reader-backup-preview { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
+.reader-backup-progress { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0; }
+.reader-library-backup { margin: 4px 8px 8px; padding: 5px 10px; min-height: 44px; border: 1px solid var(--border); border-radius: var(--radius); background: transparent; color: var(--accent); font-size: 12px; }
+
 .reader-library-shelf {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 }

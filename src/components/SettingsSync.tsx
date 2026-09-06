@@ -479,7 +479,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
         <p className="settings-hint">
           全量 JSON 快照包含随笔/文档及其正文书签、待办、模板、应用配置及非敏感用户设置；Token 不进入备份。需要 GitHub Personal Access Token（repo 权限）。
         </p>
-        <p className="settings-hint">备份范围提醒：PDF/EPUB 原文件及其资料库中的批注、书签和阅读位置暂不包含在此 JSON 备份中。</p>
+        <p className="settings-hint">备份范围提醒：PDF/EPUB 原文件及其阅读数据暂不包含在此 JSON 备份中。可在“阅读资料库”逐本导出阅读数据备份，原文件请另行保留。</p>
 
         <label className="settings-label">
           Owner / Repo

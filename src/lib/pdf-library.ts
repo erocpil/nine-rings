@@ -1,3 +1,6 @@
+import { readReadingSnapshot, restoreReadingSnapshot } from "./reading-backup-store";
+import { fingerprintReadingFile, validateReadingBackup, type PdfReadingBackup } from "./reading-backup-format";
+
 const PDF_DB_NAME = "nine_rings_pdf_library";
 const PDF_DB_VERSION = 2;
 const PDF_STORE = "documents";
@@ -360,6 +363,28 @@ export async function deleteLocalPdf(id: string): Promise<void> {
     keys.forEach((key) => store.delete(key));
   }
   await done;
+}
+
+const PDF_READING_STORES = { entry: PDF_STORE, highlights: PDF_HIGHLIGHT_STORE, bookmarks: PDF_BOOKMARK_STORE, owner: "pdfId" as const };
+
+export async function readLocalPdfReadingSnapshot(id: string) {
+  return readReadingSnapshot<StoredPdfRecord, LocalPdfHighlight, LocalPdfBookmark>(await openPdfDatabase(), PDF_READING_STORES, id);
+}
+
+export async function restoreLocalPdfReadingBackup(id: string, backup: PdfReadingBackup, restoreProgress: boolean) {
+  validateReadingBackup(backup);
+  if (backup.format !== "pdf") throw new Error("备份不是 PDF 阅读数据");
+  const snapshot = await readLocalPdfReadingSnapshot(id);
+  if (snapshot.entry.size !== backup.file.size || await fingerprintReadingFile(snapshot.entry.blob) !== backup.file.fingerprint) throw new Error("原文件内容不一致，不能恢复这份阅读备份");
+  return restoreReadingSnapshot<StoredPdfRecord, LocalPdfHighlight, LocalPdfBookmark>(
+    await openPdfDatabase(), PDF_READING_STORES, snapshot.entry, backup.highlights, backup.bookmarks,
+    (current) => restoreProgress ? {
+      ...current, page: backup.progress.page, zoom: backup.progress.zoom,
+      fitWidth: backup.progress.fitWidth, fitHeight: backup.progress.fitHeight,
+      viewMode: backup.progress.viewMode, pageCount: backup.progress.pageCount ?? current.pageCount,
+      lastOpenedAt: new Date().toISOString(),
+    } : current,
+  );
 }
 
 /** 仅供测试关闭连接并允许重新初始化 fake-indexeddb。 */
