@@ -11,6 +11,7 @@
 
 import { addLog } from "../debugLog";
 import { isTauriRuntime } from "../runtime";
+import { withBackupRestore, type RestoreContext } from "../backup-restore-coordination";
 import {
   buildSafeMergedBackup,
   compareBackupSnapshots,
@@ -418,18 +419,18 @@ async function exportFullDB(): Promise<string> {
 }
 
 /** 从 JSON 字符串导入全量数据 */
-async function importFullDB(json: string): Promise<void> {
+async function importFullDB(json: string, context: RestoreContext): Promise<void> {
   const { api } = await import("../api");
   console.log("[importFullDB] 开始导入, json 长度:", json.length);
-  const result = await api.export.import(json, "replace");
+  const result = await api.export.import(json, "replace", context);
   console.log("[importFullDB] 导入完成:", result);
 }
 
 /** 安全合并只 upsert 合并结果，不清空本地独有记录和版本历史。 */
-async function importMergedDB(json: string): Promise<void> {
+async function importMergedDB(json: string, context: RestoreContext): Promise<void> {
   const { api } = await import("../api");
   console.log("[importMergedDB] 开始安全合并, json 长度:", json.length);
-  const result = await api.export.import(json, "merge");
+  const result = await api.export.import(json, "merge", context);
   console.log("[importMergedDB] 合并完成:", result);
 }
 
@@ -690,6 +691,10 @@ export async function pullFromGitHub(config: SyncConfig, options: PullOptions = 
   if (!config.token || !config.owner || !config.repo) {
     throw new Error("请先配置 GitHub Token、Owner 和 Repo");
   }
+  return withBackupRestore("github", options.mode === "replace" ? "replace" : "merge", (context) => pullWithRestoreLock(config, options, context));
+}
+
+async function pullWithRestoreLock(config: SyncConfig, options: PullOptions, context: RestoreContext): Promise<SyncConfig> {
 
   addLog("[Sync] ═══ Pull ← GitHub ═══");
   const restorePoint = await exportFullDB();
@@ -723,19 +728,12 @@ export async function pullFromGitHub(config: SyncConfig, options: PullOptions = 
 
   // 防御：验证拉取到的内容是有效 JSON
   if (!remote.content || !remote.content.trim()) {
-    addLog("[Sync] 远端文件为空 — 跳过导入");
-    const updated = {
-      ...config,
-      lastSyncAt: new Date().toISOString(),
-      lastPullVersion: version,
-    };
-    saveSyncConfig(updated);
-    return updated;
+    throw new Error("远端备份文件为空，未修改本地数据；请检查备份版本后重试");
   }
   try {
     JSON.parse(remote.content);
   } catch {
-    throw new Error(`远端备份文件内容不是有效 JSON（前 100 字符: ${remote.content.slice(0, 100)}）`);
+    throw new Error("远端备份文件内容不是有效 JSON，未修改本地数据");
   }
 
   dumpBundle("拉取远端数据", remote.content);
@@ -750,17 +748,22 @@ export async function pullFromGitHub(config: SyncConfig, options: PullOptions = 
         + `导入远端独有 ${merged.comparison.remoteOnly.length}，`
         + `冲突副本 ${merged.conflictCopies}`,
       );
-      await importMergedDB(merged.json);
+      await importMergedDB(merged.json, context);
     } else {
-      await importFullDB(remote.content);
+      await importFullDB(remote.content, context);
     }
   } catch (e) {
+    // Validation/staging failures before mutation do not need a snapshot replay.
+    // Nor may post-commit journal/notification errors undo a successful import.
+    if (!context.mutationStarted) throw e;
+    if (context.dataCommitted) throw new Error("数据已导入，但恢复收尾失败。请先导出并检查本地数据，勿直接重复 Pull。");
+    context.setPhase("rolling-back");
     addLog(`[Sync] 导入失败，尝试恢复拉取前快照: ${(e as Error).message}`);
     try {
       // 安全合并失败时避免用 replace 清空本地版本历史；两端的记录写入
       // 本身都在事务中，merge 恢复足以还原已有记录与配置。
-      if (mode === "safe-merge") await importMergedDB(restorePoint);
-      else await importFullDB(restorePoint);
+      if (mode === "safe-merge") await importMergedDB(restorePoint, context);
+      else await importFullDB(restorePoint, context);
       addLog("[Sync] 已恢复拉取前本地快照");
     } catch (restoreError) {
       addLog(`[Sync] 恢复快照失败: ${(restoreError as Error).message}`);

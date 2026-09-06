@@ -31,6 +31,7 @@ import { isPathUnder } from "./lib/storage/core";
 import { getPathAncestors } from "./lib/move-to";
 import { useWebPlatform } from "./hooks/useWebPlatform";
 import { WebStatusBanner } from "./components/WebStatusBanner";
+import { BackupRestoreStatus } from "./components/BackupRestoreStatus";
 import { SearchResultsPanel } from "./components/SearchResultsPanel";
 import { subscribeToDataChanges } from "./lib/tab-coordination";
 import { readRecentNoteIds, rememberRecentNote } from "./lib/quick-switcher";
@@ -1471,6 +1472,8 @@ function App() {
           <button type="button" onClick={keepLocalNote}>保留本页并覆盖</button>
         </div>
       )}
+
+      <BackupRestoreStatus compact onOpenSettings={() => setSettingsOpen(true)} />
 
       <div className="app-body">
         <aside ref={sidebarPanelRef} className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}

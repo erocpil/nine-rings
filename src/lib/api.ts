@@ -6,6 +6,7 @@ import { invalidateWebSearchIndex, removeFromWebSearchIndex, searchWebNotes, sea
 import { addFrontendSettingsToBackup, withFrontendSettings } from "./backup-user-settings";
 import { parseJsonAsync, stringifyJsonAsync } from "./data-transform-client";
 import { validateBackup } from "./backup-validation";
+import { assertRestoreContext, withBackupRestore, type RestoreContext } from "./backup-restore-coordination";
 
 /**
  * API 层 — 统一接口，底层自动适配 Tauri IPC / IndexedDB
@@ -162,7 +163,7 @@ export const api = {
   export: {
     data: async () => addFrontendSettingsToBackup(await adapter().then((a) => a.exportData())),
 
-    import: async (json: string, mode: "merge" | "replace" = "merge") => {
+    import: async (json: string, mode: "merge" | "replace" = "merge", context?: RestoreContext) => {
       const bundle = await parseJsonAsync<unknown>(json);
       validateBackup(bundle);
       const settings = bundle.user_settings as { values?: Record<string, unknown> } | undefined;
@@ -174,14 +175,20 @@ export const api = {
       }
       // Templates belong to the adapter transaction, including legacy Web→Tauri imports.
       if (settings?.values && bundle.templates !== undefined) delete settings.values["nine-rings:templates"];
-      const result = await withFrontendSettings(settings, async (settingsImported) => {
-        const imported = await adapter().then((a) => a.importData(json, mode));
-        if (settingsImported > 0) imported.configs_imported = (imported.configs_imported ?? 0) + settingsImported;
-        return imported;
-      });
-      invalidateWebSearchIndex();
-      broadcastDataChange({ type: "data-imported" });
-      return result;
+      const commit = async (operation: RestoreContext) => {
+        assertRestoreContext(operation);
+        operation.setPhase("applying");
+        const result = await withFrontendSettings(settings, async (settingsImported) => {
+          const imported = await adapter().then((a) => a.importData(json, mode));
+          if (settingsImported > 0) imported.configs_imported = (imported.configs_imported ?? 0) + settingsImported;
+          return imported;
+        });
+        operation.markDataCommitted();
+        invalidateWebSearchIndex();
+        broadcastDataChange({ type: "data-imported" });
+        return result;
+      };
+      return context ? commit(context) : withBackupRestore("file", mode, commit);
     },
 
     noteMarkdown: (noteId: string) =>

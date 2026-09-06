@@ -6120,6 +6120,16 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   overflow-wrap: anywhere;
 }
 
+.backup-restore-status {
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.backup-restore-status small { display: block; margin-top: 6px; color: var(--text-secondary); }
+
 .sync-feedback > :is(.sync-status, .sync-toast, .sync-banner) {
   margin: 8px 0 0;
   padding: 8px 10px;

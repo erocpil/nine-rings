@@ -11,6 +11,7 @@ import SettingsSync from "./SettingsSync";
 import { withTimeout } from "../lib/async";
 import { EditorAppearancePanel } from "./EditorAppearancePanel";
 import { ReaderDataBackupPanel } from "./ReaderDataBackupPanel";
+import { BackupRestoreStatus } from "./BackupRestoreStatus";
 import { isDocumentFindShortcut, isEditorLineJumpShortcut } from "../lib/shortcuts";
 import type { WebStorageStatus } from "../hooks/useWebPlatform";
 import { useTransientMessage } from "../hooks/useTransientMessage";
@@ -1171,6 +1172,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </SettingsSection>
             )}
             <SettingsSection title="数据导出 / 导入" desc="全量 JSON 包含笔记、待办、书签、应用配置及非敏感用户设置；Token、密码等凭据不导出" visible={settingsPage === "data"}>
+              <BackupRestoreStatus />
+              <p className="settings-hint">恢复前请关闭其他编辑窗口；恢复锁只防止多个恢复同时执行，不隔离普通编辑。中断后请先导出本地数据并检查，再决定是否重新导入。</p>
               <div className="settings-button-row">
                 <button className="settings-btn-primary" onClick={handleExport}>
                   导出数据

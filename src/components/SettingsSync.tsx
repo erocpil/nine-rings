@@ -14,6 +14,7 @@ import {
 } from "../lib/sync/github";
 import { useTransientMessage } from "../hooks/useTransientMessage";
 import { exportLocalJsonBackup } from "../lib/local-backup-export";
+import { BackupRestoreStatus } from "./BackupRestoreStatus";
 
 interface Props {
   /** 备份进行中回调 — 父组件用来 freeze 编辑区 */
@@ -359,6 +360,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
       </div>
 
       {/* 版本信息 */}
+      <BackupRestoreStatus />
       {(cfg.lastPushVersion || cfg.lastPullVersion) && (
         <div className="sync-versions">
           {cfg.lastPushVersion && (
@@ -447,7 +449,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
 
           <div className="sync-merge-explanation">
             安全合并不会按标题去重，也不会传播删除操作；同名但 UUID 不同的文档会同时保留。
-            导入失败时会尝试恢复拉取前快照。
+            写入前失败不会回写快照；写入中失败会尝试恢复拉取前快照，之后需检查结果。已提交数据后的收尾失败不会回滚已导入的数据。
           </div>
           <div className="settings-row sync-preview-actions">
             <button className="settings-btn settings-btn-primary" onClick={() => void handlePull("safe-merge")} disabled={busy}>
@@ -472,6 +474,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
       <p className="settings-hint">
         Pull 会先按文档 UUID 比较本地、远端和上次同步基线，不会自动修改数据；默认使用保留本地独有内容的安全合并。
         Push 若发现远端存在本机尚未合并的新版本会停止上传，需先安全 Pull，避免旧设备覆盖远端新增内容。
+        恢复前请关闭其他编辑窗口；恢复锁只防止多个恢复同时执行，不隔离普通编辑。
       </p>
 
       <div className="sync-config-section">
