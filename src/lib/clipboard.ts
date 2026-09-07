@@ -4,7 +4,7 @@
  * 优先使用 navigator.clipboard API（需要安全上下文：HTTPS 或 localhost），
  * 失败时降级为 textarea + execCommand('copy') 方案（兼容纯 HTTP 访问）。
  */
-export async function copyToClipboard(text: string): Promise<void> {
+export async function copyToClipboard(text: string, options: { reportFailure?: boolean } = {}): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
     return;
@@ -12,6 +12,7 @@ export async function copyToClipboard(text: string): Promise<void> {
     // 非安全上下文（HTTP）或权限拒绝 — 降级
   }
 
+  const previousFocus = document.activeElement;
   const textarea = document.createElement("textarea");
   textarea.value = text;
   textarea.style.position = "fixed";
@@ -22,10 +23,12 @@ export async function copyToClipboard(text: string): Promise<void> {
   try {
     textarea.select();
     textarea.setSelectionRange(0, text.length);
-    document.execCommand("copy");
-  } catch {
-    // 最终兜底：静默失败
+    const copied = document.execCommand("copy");
+    if (!copied && options.reportFailure) throw new Error("复制失败");
+  } catch (error) {
+    if (options.reportFailure) throw error;
   } finally {
     document.body.removeChild(textarea);
+    if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
   }
 }

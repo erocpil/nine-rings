@@ -55,19 +55,19 @@ test("永久删除需确认，失败可重试，处理中禁止其它操作", as
   await mountDialog(page, "recycle");
   const panel = page.getByRole("dialog", { name: "回收站", exact: true });
   const remove = panel.getByRole("button", { name: "永久删除", exact: true });
-  page.once("dialog", (dialog) => dialog.dismiss());
   await remove.click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: "取消", exact: true }).click();
   expect(await page.evaluate(() => (window as any).actionTest.calls)).toBe(0);
-  page.once("dialog", (dialog) => dialog.dismiss());
   await panel.getByRole("button", { name: "清理 30 天前的记录", exact: true }).click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: "取消", exact: true }).click();
   await expect(panel.locator(".recycle-item")).toHaveCount(1);
-  page.once("dialog", (dialog) => dialog.accept());
   await remove.click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: /永久删除|永久清理|恢复此版本/, exact: true }).click();
   await expect(panel.getByRole("alert")).toContainText("模拟删除失败");
   await expect(remove).toBeEnabled();
   await page.evaluate(() => { (window as any).actionTest.fail = false; });
-  page.once("dialog", (dialog) => dialog.accept());
   await remove.click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: /永久删除|永久清理|恢复此版本/, exact: true }).click();
   await expect(remove).toBeDisabled();
   await expect(panel.getByRole("button", { name: "恢复", exact: true })).toBeDisabled();
   await expect(panel.getByLabel("关闭回收站")).toBeDisabled();
@@ -76,21 +76,81 @@ test("永久删除需确认，失败可重试，处理中禁止其它操作", as
   await expect(panel.getByRole("status")).toContainText("已永久删除");
 });
 
+for (const width of [1280, 390]) {
+  test(`统一确认框支持键盘取消并隔离背景（${width}px）`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 760 });
+    await mountDialog(page, "recycle");
+    const panel = page.getByRole("dialog", { name: "回收站", exact: true });
+    const remove = panel.getByRole("button", { name: "永久删除", exact: true });
+    await remove.click();
+    const confirm = page.getByRole("dialog", { name: "永久删除文档", exact: true });
+    const cancel = confirm.getByRole("button", { name: "取消", exact: true });
+    const accept = confirm.getByRole("button", { name: "永久删除", exact: true });
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(accept).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(accept).toBeFocused();
+    await expect(confirm).toContainText("无法从回收站恢复");
+    const box = await confirm.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+    await page.screenshot({ path: `/tmp/nine-rings-confirm-${width}.png` });
+    const lightSurface = await confirm.evaluate((element) => getComputedStyle(element).backgroundColor);
+    await page.evaluate(async () => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { applyTheme } = await load("/src/lib/theme.ts");
+      applyTheme("dark");
+    });
+    await expect.poll(() => confirm.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(lightSurface);
+    await page.screenshot({ path: `/tmp/nine-rings-confirm-${width}-dark.png` });
+    await page.keyboard.press("Escape");
+    await expect(confirm).toHaveCount(0);
+    await expect(panel).toBeVisible();
+    await expect(remove).toBeFocused();
+    await expect(panel.locator(".recycle-item")).toHaveCount(1);
+  });
+}
+
+test("错误详情可完整复制，剪贴板失败不误报成功", async ({ page }) => {
+  await mountDialog(page, "recycle");
+  const panel = page.getByRole("dialog", { name: "回收站", exact: true });
+  await panel.getByRole("button", { name: "永久删除", exact: true }).click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: "永久删除", exact: true }).click();
+  const message = panel.getByRole("alert");
+  await expect(message).toContainText("模拟删除失败");
+  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText: async (text: string) => { document.body.dataset.copiedError = text; } },
+  }));
+  await panel.getByRole("button", { name: "复制详情" }).click();
+  await expect(panel.getByText("已复制详情", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.body.dataset.copiedError)).toBe(await message.textContent());
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new Error("denied"); } } });
+    document.execCommand = () => false;
+  });
+  await panel.getByRole("button", { name: "复制详情" }).click();
+  await expect(panel.getByText("复制失败，请手动选择并复制上方详情")).toBeVisible();
+});
+
 test("版本恢复先保存，失败不恢复，并发恢复受阻且保留最新编辑快照", async ({ page }) => {
   const id = await mountDialog(page, "versions");
   const panel = page.getByRole("dialog", { name: "版本历史", exact: true });
   const restores = panel.locator(".version-btn-restore");
   await expect(restores).toHaveCount(2);
-  page.once("dialog", (dialog) => dialog.dismiss());
   await restores.last().click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: "取消", exact: true }).click();
   expect(await page.evaluate(() => (window as any).actionTest.calls)).toBe(0);
-  page.once("dialog", (dialog) => dialog.accept());
   await restores.last().click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: /永久删除|永久清理|恢复此版本/, exact: true }).click();
   await expect(panel.getByRole("alert")).toContainText("模拟保存失败");
   expect(await page.evaluate(() => (window as any).actionTest.calls)).toBe(0);
   await page.evaluate(() => { (window as any).actionTest.fail = false; });
-  page.once("dialog", (dialog) => dialog.accept());
   await restores.last().click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: /永久删除|永久清理|恢复此版本/, exact: true }).click();
   await expect(restores.first()).toBeDisabled();
   await expect(restores.last()).toBeDisabled();
   await expect(panel.getByLabel("关闭版本历史")).toBeDisabled();
@@ -175,8 +235,8 @@ test("工作区恢复历史版本直接刷新当前文档，不切换随笔且�
   await editor.fill("恢复前的未保存正文");
   await page.getByTitle("版本历史", { exact: true }).click();
   const panel = page.getByRole("dialog", { name: "版本历史", exact: true });
-  page.once("dialog", (dialog) => dialog.accept());
   await panel.getByRole("button", { name: "恢复", exact: true }).first().click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: /永久删除|永久清理|恢复此版本/, exact: true }).click();
   await expect(panel).toHaveCount(0);
   await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("可靠乙");
   await expect(editor).toHaveText("可靠乙");

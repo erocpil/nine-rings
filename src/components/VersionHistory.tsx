@@ -1,3 +1,5 @@
+import { OperationError } from "./OperationError";
+import { useConfirmation } from "./ConfirmationDialog";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Note, NoteVersion } from "../types/models";
 import { api } from "../lib/api";
@@ -11,6 +13,7 @@ interface VersionHistoryProps {
 }
 
 export function VersionHistory({ open, noteId, onClose, onBeforeRestore, onRestore }: VersionHistoryProps) {
+  const { confirm, confirmationDialog } = useConfirmation(open, noteId);
   const [versions, setVersions] = useState<NoteVersion[]>([]);
   const [loading, setLoading] = useState(false);
   const [restoring, setRestoring] = useState<string | null>(null);
@@ -41,7 +44,7 @@ export function VersionHistory({ open, noteId, onClose, onBeforeRestore, onResto
   }, [open, noteId, loadVersions]);
 
   const handleRestore = async (versionId: string) => {
-    if (restoringRef.current || !window.confirm("恢复此历史版本？将用历史数据替换这篇笔记的标题、正文等内容。恢复前会先保存当前编辑，并保留当前版本供再次恢复。")) return;
+    if (restoringRef.current || !await confirm({ title: "恢复历史版本", description: "将用历史数据替换这篇笔记的标题、正文等内容。恢复前会先保存当前编辑，并保留当前版本供再次恢复。", confirmLabel: "恢复此版本" })) return;
     restoringRef.current = true;
     setRestoring(versionId);
     setError(null);
@@ -62,6 +65,7 @@ export function VersionHistory({ open, noteId, onClose, onBeforeRestore, onResto
 
   return (
     <div className="dialog-overlay confirm-overlay" onClick={() => { if (!restoringRef.current) onClose(); }}>
+      {confirmationDialog}
       <div
         className="dialog version-panel"
         role="dialog"
@@ -77,7 +81,7 @@ export function VersionHistory({ open, noteId, onClose, onBeforeRestore, onResto
         </div>
 
         <div className="dialog-body version-content">
-          {error && <div className="dialog-action-error" role="alert">{error} <button disabled={restoring !== null} onClick={loadVersions}>重新加载</button></div>}
+          {error && <OperationError key={error} message={error} disabled={restoring !== null} onRetry={loadVersions} />}
           {loading && <div className="version-loading">加载中...</div>}
 
           {!loading && !error && versions.length === 0 && (

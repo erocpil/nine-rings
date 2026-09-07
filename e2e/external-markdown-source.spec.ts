@@ -39,8 +39,9 @@ test("属性页可预览、版本化更新并解除外部 Markdown 来源", asyn
   await expect(properties.locator(".prop-source-preview")).toContainText("远端导入正文");
   await expect(properties.locator(".prop-source-preview")).toContainText("7 行");
 
-  page.once("dialog", (dialog) => dialog.accept());
   await properties.getByRole("button", { name: "更新本地内容" }).click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: "替换本地正文", exact: true }).click();
+  await expect(properties.locator(".prop-source-message")).toContainText("已更新本地正文并保存来源信息");
   const persistedOps = await page.evaluate(() => new Promise<unknown[]>((resolve, reject) => {
     const request = indexedDB.open("nine_rings");
     request.onerror = () => reject(request.error);
@@ -84,8 +85,8 @@ test("属性页可预览、版本化更新并解除外部 Markdown 来源", asyn
   await expect(properties.locator(".prop-source-warning")).toContainText("本地正文在上次同步后已修改");
   await expect(properties.getByRole("button", { name: "恢复远端内容" })).toBeVisible();
 
-  page.once("dialog", (dialog) => dialog.accept());
   await properties.getByRole("button", { name: "解除关联" }).click();
+  await page.locator(".ui-confirm-dialog").getByRole("button", { name: "解除关联", exact: true }).click();
   await expect(properties.locator(".prop-source-status")).toHaveCount(0);
   await expect(editor).toContainText("同步后的本地修改");
 });

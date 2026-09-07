@@ -1,3 +1,5 @@
+import { OperationError } from "./OperationError";
+import { useConfirmation } from "./ConfirmationDialog";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Note } from "../types/models";
 import { api } from "../lib/api";
@@ -9,6 +11,7 @@ interface RecycleBinProps {
 }
 
 export function RecycleBin({ open, onClose, onNotesChanged }: RecycleBinProps) {
+  const { confirm, confirmationDialog } = useConfirmation(open);
   const [deleted, setDeleted] = useState<Note[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -58,7 +61,7 @@ export function RecycleBin({ open, onClose, onNotesChanged }: RecycleBinProps) {
   };
 
   const handlePermanentDelete = async (id: string) => {
-    if (busyRef.current || !window.confirm(`永久删除“${deleted.find((note) => note.id === id)?.title || "无标题"}”？此操作无法从回收站恢复。`)) return;
+    if (busyRef.current || !await confirm({ title: "永久删除文档", description: `将永久删除“${deleted.find((note) => note.id === id)?.title || "无标题"}”。此操作无法从回收站恢复。`, confirmLabel: "永久删除", danger: true })) return;
     await runOperation(async () => {
       await api.recycle.permanentlyDelete(id);
       setDeleted((prev) => prev.filter((n) => n.id !== id));
@@ -69,7 +72,7 @@ export function RecycleBin({ open, onClose, onNotesChanged }: RecycleBinProps) {
 
   const handleCleanOld = async () => {
     const days = 30; // 删除超过30天的
-    if (busyRef.current || !window.confirm("永久清理所有删除时间超过 30 天的记录？此操作无法从回收站恢复。")) return;
+    if (busyRef.current || !await confirm({ title: "清理回收站", description: "将永久清理所有删除时间超过 30 天的记录。此操作无法从回收站恢复。", confirmLabel: "永久清理", danger: true })) return;
     await runOperation(async () => {
       const count = await api.recycle.cleanOld(days);
       if (count > 0) {
@@ -84,6 +87,7 @@ export function RecycleBin({ open, onClose, onNotesChanged }: RecycleBinProps) {
 
   return (
     <div className="dialog-overlay confirm-overlay" onClick={() => { if (!busyRef.current) onClose(); }}>
+      {confirmationDialog}
       <div
         className="dialog recycle-panel"
         role="dialog"
@@ -99,7 +103,7 @@ export function RecycleBin({ open, onClose, onNotesChanged }: RecycleBinProps) {
         </div>
 
         <div className="dialog-body recycle-content">
-          {error && <div className="dialog-action-error" role="alert">{error} <button disabled={busy} onClick={loadDeleted}>重新加载</button></div>}
+          {error && <OperationError key={error} message={error} disabled={busy} onRetry={loadDeleted} />}
           {notice && <div role="status">{notice}</div>}
           {busy && <div role="status">正在处理…</div>}
           {loading && <div className="recycle-loading">加载中...</div>}

@@ -1,3 +1,4 @@
+import { useConfirmation } from "./ConfirmationDialog";
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { AppConfig, DeltaOps, DocumentMetadata, ExternalMarkdownSource, Note, DocType } from "../types/models";
 import { api } from "../lib/api";
@@ -67,6 +68,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
   const [userConfig, setUserConfig] = useState<AppConfig | null>(null);
   const [metadataDraft, setMetadataDraft] = useState<DocumentMetadata>(() => note.content.metadata ?? {});
   const [metadataSaving, setMetadataSaving] = useState(false);
+  const { confirm, confirmationDialog } = useConfirmation(true, note.id);
   const { message: metadataMessage, showMessage: showMetadataMessage, clearMessage: clearMetadataMessage } = useTransientMessage();
   const externalSource = note.content.metadata?.externalSource;
   const [sourceUrl, setSourceUrl] = useState(externalSource?.url ?? "");
@@ -196,7 +198,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
     const warning = sourcePreview.localModified
       ? "本地正文在上次同步后已修改。继续会用远端内容覆盖本地正文，但可从版本历史恢复。确认继续？"
       : "将用预览中的远端 Markdown 替换本地正文，并在更新前创建版本。确认继续？";
-    if (!window.confirm(warning)) return;
+    if (!await confirm({ title: "更新外部 Markdown", description: warning, confirmLabel: "替换本地正文", danger: sourcePreview.localModified })) return;
     setSourceBusy("apply");
     clearSourceMessage();
     try {
@@ -212,7 +214,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
 
   const detachExternalSource = async () => {
     if (!externalSource || sourceBusy || externalSourceActionsDisabled) return;
-    if (!window.confirm("解除外部来源关联？当前本地正文会保留。")) return;
+    if (!await confirm({ title: "解除外部来源关联", description: "解除后将不再从此来源更新。当前本地正文会保留。", confirmLabel: "解除关联" })) return;
     setSourceBusy("detach");
     clearSourceMessage();
     try {
@@ -342,6 +344,7 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
   return (
     <>
     <div className="properties-panel">
+      {confirmationDialog}
       <div className="properties-header">
         <span className="properties-title">属性</span>
         <button className="btn-icon properties-close" onClick={onClose} title="关闭属性面板">✕</button>

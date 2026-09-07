@@ -1,3 +1,5 @@
+import { OperationError } from "./OperationError";
+import { useConfirmation } from "./ConfirmationDialog";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   loadSyncConfig,
@@ -95,6 +97,7 @@ function SyncDocumentList({
 }
 
 export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
+  const { confirm, confirmationDialog } = useConfirmation();
   const [cfg, setCfg] = useState<SyncConfig>(loadSyncConfig);
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [busyOperation, setBusyOperation] = useState<BusyOperation | null>(null);
@@ -112,7 +115,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
 
   const showMessage = useCallback((msg: string, type: "success" | "error") => {
     setMessageType(type);
-    showTransientMessage(msg, { severity: type });
+    showTransientMessage(msg, { severity: type, ...(type === "error" ? { durationMs: 0 } : {}) });
   }, [showTransientMessage]);
   const clearMessage = useCallback(() => {
     clearTransientMessage();
@@ -172,15 +175,13 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     });
   }, []);
 
-  const handleRememberTokenChange = useCallback((rememberToken: boolean) => {
+  const handleRememberTokenChange = useCallback(async (rememberToken: boolean) => {
     if (rememberToken) {
-      const accepted = window.confirm(
-        "持久保存会把 GitHub Token 写入此浏览器的本地存储。任何能访问本机浏览器数据或在本站执行的脚本都可能读取它。确认仍要保存？",
-      );
+      const accepted = await confirm({ title: "在此设备保存 Token", description: "持久保存会把 GitHub Token 写入此浏览器的本地存储。任何能访问本机浏览器数据或在本站执行的脚本都可能读取它。", confirmLabel: "仍然保存" });
       if (!accepted) return;
     }
     update({ rememberToken });
-  }, [update]);
+  }, [update, confirm]);
 
   // ── Owner/Repo 合并编辑 ──
 
@@ -271,7 +272,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
         overwritten > 0 ? `${overwritten} 篇本地修改或冲突文档将被远端版本覆盖。` : "",
         "该操作不会按标题合并；建议先导出本地 JSON。确认仍要继续？",
       ].filter(Boolean).join("\n");
-      if (!confirm(warning)) return;
+      if (!await confirm({ title: "覆盖本地数据库", description: warning, confirmLabel: "覆盖本地数据", danger: true })) return;
     }
     setBusyOperation(mode === "safe-merge" ? "pull-merge" : "pull-replace");
     clearMessage();
@@ -299,7 +300,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     } finally {
       setBusyOperation(null);
     }
-  }, [cfg, clearMessage, onPullDone, pullPrecheck, showMessage]);
+  }, [cfg, clearMessage, onPullDone, pullPrecheck, showMessage, confirm]);
 
   const handleLocalExport = useCallback(async () => {
     setExportingLocal(true);
@@ -325,6 +326,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
 
   return (
     <div className="settings-section sync-settings-section">
+      {confirmationDialog}
       <h3>GitHub 备份</h3>
 
       {/* 高频操作置顶，打开页面后无需越过低频配置即可执行。 */}
@@ -347,6 +349,8 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
             <div className="sync-banner-spinner" />
             <span>{BUSY_MESSAGES[busyOperation]}</span>
           </div>
+        ) : message && messageType === "error" ? (
+          <OperationError key={message} message={message} />
         ) : message ? (
           <div className={`sync-toast ${messageType}`} role="status">
             {messageType === "success" ? "✓ " : messageType === "error" ? "✗ " : ""}{message}
