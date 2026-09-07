@@ -5,10 +5,15 @@ const QuickCapture = lazy(() => import("./components/QuickCapture"));
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { getAdapter } from "./lib/storage";
 import "./styles.css";
+import { recordReaderDiagnostic } from "./lib/reader-diagnostics";
 
 // 根据 URL 参数判断窗口类型：?win=qc → Quick Capture，否则主窗口
 const params = new URLSearchParams(window.location.search);
 const isQuickCapture = params.get("win") === "qc";
+if (!isQuickCapture) {
+  recordReaderDiagnostic("boot");
+  window.addEventListener("pagehide", () => recordReaderDiagnostic("pagehide"));
+}
 
 // 不等待 React effects 才请求 Web IndexedDB / Tauri 存储实现。动态导入在
 // 应用外壳渲染时并行进行，可缩短随后读取上次文档的关键路径。

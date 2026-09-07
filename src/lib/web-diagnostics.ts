@@ -1,6 +1,7 @@
 import type { WebStorageStatus } from "../hooks/useWebPlatform";
 import { api } from "./api";
 import { parseJsonAsync } from "./data-transform-client";
+import { readReaderDiagnostics } from "./reader-diagnostics";
 
 interface BackupShape {
   notes?: Array<{ storagePath?: unknown; content?: unknown }>;
@@ -35,6 +36,7 @@ export async function collectWebDiagnostics(storage: WebStorageStatus): Promise<
   const standalone = window.matchMedia?.("(display-mode: standalone)").matches ?? false;
   return {
     reportVersion: 1,
+    readerEvents: readReaderDiagnostics(),
     generatedAt: new Date().toISOString(),
     privacy: "Counts and runtime metadata only. Note content, titles, tags, IDs and credentials are excluded.",
     app: {

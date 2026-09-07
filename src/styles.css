@@ -10103,12 +10103,13 @@ button.doc-tree-toggle:focus-visible {
 
 .pdf-page-viewport-vertical .pdf-page-surface {
   margin-block: 8px;
+  /* Keep geometry while a placeholder becomes a mounted, not-yet-rendered
+     canvas. Otherwise its default 150px height moves the visible page. */
+  width: 100%;
+  aspect-ratio: var(--pdf-page-aspect-ratio, 0.7071);
 }
 
 .pdf-page-viewport-vertical .pdf-page-placeholder {
-  width: 100%;
-  max-width: 100%;
-  aspect-ratio: var(--pdf-page-aspect-ratio, 0.7071);
   contain: layout paint;
 }
 
@@ -10120,6 +10121,18 @@ button.doc-tree-toggle:focus-visible {
   display: block;
   pointer-events: none;
 }
+
+.pdf-page-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+  user-select: none;
+}
+.pdf-page-viewport-vertical .pdf-page-surface canvas { position: absolute; top: 0; left: 0; }
+.pdf-page-surface canvas:not([data-pdf-ready="true"]) { opacity: 0; }
 
 .pdf-text-layer {
   position: absolute;

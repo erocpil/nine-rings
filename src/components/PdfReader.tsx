@@ -1,5 +1,7 @@
 import { ReaderToolbar, type ReaderToolPanel } from "./ReaderToolbar";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { recordReaderDiagnostic } from "../lib/reader-diagnostics";
+import { PdfPageCache } from "../lib/pdf-page-cache";
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getDocument,
@@ -7,6 +9,8 @@ import {
   PasswordResponses,
   TextLayer,
   type PDFDocumentProxy,
+  type PDFDocumentLoadingTask,
+  type PDFPageProxy,
   type RenderTask,
 } from "pdfjs-dist";
 import type { TextContent } from "pdfjs-dist/types/src/display/api";
@@ -185,6 +189,31 @@ interface PdfAnnotationManipulation {
 export function PdfReader({ documentId, onClose, onFullscreenChange, initialHighlightId, initialTargetRange, onCreateExcerpt }: Props) {
   const readerRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef(new Map<number, HTMLCanvasElement>());
+  const bitmapCacheRef = useRef(new PdfPageCache());
+  const thumbnailCacheRef = useRef(new Map<number, string>());
+  const [thumbnails, setThumbnails] = useState<Record<number, string>>({});
+  const [fastScrolling, setFastScrolling] = useState(false);
+  const rememberThumbnail = useCallback((pageNumber: number, canvas: HTMLCanvasElement) => {
+    const preview = document.createElement("canvas");
+    const scale = Math.min(192 / canvas.width, 256 / canvas.height, 1);
+    preview.width = Math.max(1, Math.round(canvas.width * scale));
+    preview.height = Math.max(1, Math.round(canvas.height * scale));
+    try {
+      const context = preview.getContext("2d");
+      if (!context) return;
+      context.drawImage(canvas, 0, 0, preview.width, preview.height);
+      const cache = thumbnailCacheRef.current;
+      cache.delete(pageNumber);
+      cache.set(pageNumber, preview.toDataURL("image/jpeg", 0.75));
+      while (cache.size > 64 || [...cache.values()].reduce((sum, url) => sum + url.length, 0) > 2_000_000) {
+        const oldest = cache.keys().next().value;
+        if (oldest === undefined) break;
+        cache.delete(oldest);
+      }
+      setThumbnails(Object.fromEntries(cache));
+    } catch { /* Preview encoding failure must not hide a valid PDF page. */ }
+    finally { preview.width = preview.height = 0; }
+  }, []);
   const pageSurfaceRefs = useRef(new Map<number, HTMLDivElement>());
   const textLayerElementRefs = useRef(new Map<number, HTMLDivElement>());
   const canvasRefCallbacks = useRef(new Map<number, (node: HTMLCanvasElement | null) => void>());
@@ -197,11 +226,22 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const textContentCacheRef = useRef(new Map<number, TextContent>());
   const renderTaskRefs = useRef(new Map<number, RenderTask>());
   const pageRenderPipelineRefs = useRef(new Map<number, Promise<void>>());
+  const pageResourceRefs = useRef(new Map<number, PDFPageProxy>());
   const globalPageRenderQueueRef = useRef<Promise<void>>(Promise.resolve());
   const pageRequestedSignatureRefs = useRef(new Map<number, string>());
+  const pageRequestOwnerRefs = useRef(new Map<number, symbol>());
   const pageRenderVersionRefs = useRef(new Map<number, number>());
   const documentRenderGenerationRef = useRef(0);
   const textCacheRef = useRef(new Map<number, PageTextCache>());
+  const releaseOffscreenPage = useCallback((pageNumber: number) => {
+    if (canvasRefs.current.has(pageNumber) || pageRenderPipelineRefs.current.has(pageNumber)) return;
+    const resource = pageResourceRefs.current.get(pageNumber);
+    if (!resource) return;
+    // PDF.js defers cleanup itself when an operator list is still arriving.
+    resource.cleanup();
+    pageResourceRefs.current.delete(pageNumber);
+    textContentCacheRef.current.delete(pageNumber);
+  }, []);
   const touchGestureRef = useRef<TouchGesture | null>(null);
   const pinchGestureRef = useRef<PinchGesture | null>(null);
   const pendingZoomCommitRef = useRef<{ pageNumber: number; surface: HTMLDivElement } | null>(null);
@@ -343,6 +383,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       }
     };
     document.addEventListener("selectionchange", updateSelection);
+    updateSelection();
     return () => document.removeEventListener("selectionchange", updateSelection);
   }, [textLayerRevision]);
 
@@ -494,6 +535,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   }, [applyFullscreenState, enterImmersiveFallback, exitFullscreen, fullscreen, showActionNotice]);
 
   const closeReader = useCallback(async () => {
+    recordReaderDiagnostic("close-request");
     try {
       if (fullscreen) await exitFullscreen();
     } catch (reason) {
@@ -540,16 +582,26 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   useEffect(() => {
     let cancelled = false;
     let loadedDocument: PDFDocumentProxy | null = null;
+    let loadingTask: PDFDocumentLoadingTask | null = null;
+    recordReaderDiagnostic("open");
     const renderTasks = renderTaskRefs.current;
     const textLayers = textLayerRefs.current;
+    const bitmapCache = bitmapCacheRef.current;
     const documentGeneration = documentRenderGenerationRef.current + 1;
     documentRenderGenerationRef.current = documentGeneration;
     const open = async () => {
       setLoading(true);
       setError(null);
       setPdf(null);
+      bitmapCache.clear();
+      thumbnailCacheRef.current.clear();
+      setThumbnails({});
       viewportRef.current?.style.removeProperty("--pdf-page-aspect-ratio");
+      canvasRefs.current.forEach((canvas) => { canvas.width = canvas.height = 0; });
       canvasRefs.current.clear();
+      pageResourceRefs.current.clear();
+      pageRequestOwnerRefs.current.clear();
+      pageRequestedSignatureRefs.current.clear();
       pageSurfaceRefs.current.clear();
       textLayerElementRefs.current.clear();
       textCacheRef.current.clear();
@@ -586,14 +638,14 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       if (cancelled || documentRenderGenerationRef.current !== documentGeneration) return;
       setHighlights(storedHighlights);
       setBookmarks(storedBookmarks);
-      const loadingTask = getDocument({ data });
+      loadingTask = getDocument({ data });
       loadingTask.onPassword = (updatePassword: (password: string) => void, reason: number) => {
         const promptText = reason === PasswordResponses.INCORRECT_PASSWORD
           ? "密码不正确，请重新输入 PDF 密码"
           : "此 PDF 受密码保护，请输入密码";
         const password = window.prompt(promptText);
         if (password === null) {
-          void loadingTask.destroy();
+          void loadingTask?.destroy().catch(() => {});
           return;
         }
         updatePassword(password);
@@ -625,13 +677,16 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => {
       cancelled = true;
+      bitmapCache.clear();
       if (documentRenderGenerationRef.current === documentGeneration) {
         documentRenderGenerationRef.current += 1;
       }
       renderTasks.forEach((task) => task.cancel());
       textLayers.forEach((textLayer) => textLayer.cancel());
       if (zoomPreviewFrameRef.current !== null) window.cancelAnimationFrame(zoomPreviewFrameRef.current);
-      void loadedDocument?.destroy();
+      // The worker exists before loadingTask.promise resolves. Closing a large
+      // file during parsing must release it too, not only a loaded document.
+      void loadingTask?.destroy().catch(() => {});
     };
   }, [documentId, initialHighlightId, initialTargetRange]);
 
@@ -648,6 +703,27 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || viewMode !== "vertical") { setFastScrolling(false); return; }
+    let lastTop = viewport.scrollTop;
+    let lastTime = performance.now();
+    let timer = 0;
+    const scroll = () => {
+      const now = performance.now();
+      const speed = Math.abs(viewport.scrollTop - lastTop) / Math.max(16, now - lastTime);
+      lastTop = viewport.scrollTop;
+      lastTime = now;
+      // Selection and annotation take precedence over lower-quality previews.
+      const selection = window.getSelection();
+      setFastScrolling(!annotationTool && (!selection || selection.isCollapsed) && speed > 0.8);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setFastScrolling(false), 200);
+    };
+    viewport.addEventListener("scroll", scroll, { passive: true });
+    return () => { viewport.removeEventListener("scroll", scroll); window.clearTimeout(timer); };
+  }, [viewMode, annotationTool]);
+
   const renderedPages = useMemo(() => {
     if (!pdf) return [];
     if (viewMode === "horizontal") return [clampPage(page, pdf.numPages)];
@@ -656,8 +732,11 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     pages.add(currentPage);
     if (currentPage > 1) pages.add(currentPage - 1);
     if (currentPage < pdf.numPages) pages.add(currentPage + 1);
-    return [...pages].filter((pageNumber) => pageNumber >= 1 && pageNumber <= pdf.numPages).sort((a, b) => a - b);
-  }, [page, pdf, viewMode, visibleVerticalPages]);
+    const valid = [...pages].filter((pageNumber) => pageNumber >= 1 && pageNumber <= pdf.numPages);
+    const limit = viewportWidth <= 768 ? 4 : 14;
+    return valid.sort((a, b) => Math.abs(a - currentPage) - Math.abs(b - currentPage))
+      .slice(0, limit).sort((a, b) => a - b);
+  }, [page, pdf, viewMode, visibleVerticalPages, viewportWidth]);
 
   const allPdfPages = useMemo(
     () => pdf ? Array.from({ length: pdf.numPages }, (_, index) => index + 1) : [],
@@ -671,12 +750,29 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     callback = (node) => {
       if (node) {
         canvasRefs.current.set(pageNumber, node);
+        const cached = bitmapCacheRef.current.peek(pageNumber);
+        if (cached) {
+          node.width = cached.canvas.width;
+          node.height = cached.canvas.height;
+          node.style.width = cached.width;
+          node.style.height = cached.height;
+          node.getContext("2d")?.drawImage(cached.canvas, 0, 0);
+          node.dataset.pdfReady = "true";
+        }
         return;
+      }
+      const previousCanvas = canvasRefs.current.get(pageNumber);
+      if (previousCanvas) {
+        const signature = previousCanvas.dataset.pdfRenderSignature;
+        if (signature && !signature.endsWith(":preview")) {
+          bitmapCacheRef.current.put(pageNumber, { canvas: previousCanvas, signature, width: previousCanvas.style.width, height: previousCanvas.style.height });
+        } else { previousCanvas.width = previousCanvas.height = 0; }
       }
       canvasRefs.current.delete(pageNumber);
       renderTaskRefs.current.get(pageNumber)?.cancel();
       pageRenderVersionRefs.current.set(pageNumber, (pageRenderVersionRefs.current.get(pageNumber) ?? 0) + 1);
       pageRequestedSignatureRefs.current.delete(pageNumber);
+      releaseOffscreenPage(pageNumber);
       const pendingPinch = pendingZoomCommitRef.current;
       if (pendingPinch?.pageNumber === pageNumber) {
         pendingPinch.surface.style.transform = "";
@@ -687,7 +783,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     };
     canvasRefCallbacks.current.set(pageNumber, callback);
     return callback;
-  }, []);
+  }, [releaseOffscreenPage]);
 
   const pageSurfaceRefForPage = useCallback((pageNumber: number) => {
     let callback = pageSurfaceRefCallbacks.current.get(pageNumber);
@@ -777,12 +873,19 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   useEffect(() => {
     if (!pdf || !renderedPages.length || viewportWidth <= 0 || viewportHeight <= 0) return;
     let cancelled = false;
+    const requestOwner = Symbol("pdf-render-batch");
+    const requestOwners = pageRequestOwnerRefs.current;
+    const requestedSignatures = pageRequestedSignatureRefs.current;
+    const renderTasks = renderTaskRefs.current;
+    const textLayers = textLayerRefs.current;
     const documentGeneration = documentRenderGenerationRef.current;
     const currentPages = [...renderedPages];
     // 适宽/适高时实际比例只由视口决定。此时 setZoom 只用于记录计算结果，
     // 不应改变渲染签名，否则会紧接着重复渲染同一尺寸。
     const scaleSignature = fitWidth ? "fit-width" : fitHeight ? "fit-height" : zoom;
-    const renderSignature = [documentGeneration, viewportWidth, viewportHeight, scaleSignature].join(":");
+    const fullSignature = [documentGeneration, viewportWidth, viewportHeight, scaleSignature].join(":");
+    const previewOnly = fastScrolling && !annotationTool && viewMode === "vertical";
+    const renderSignature = fullSignature + (previewOnly ? ":preview" : "");
     const pendingZoomAnchor = zoomAnchorRef.current;
     const zoomAnchor = pendingZoomAnchor
       && pendingZoomAnchor.fitWidth === fitWidth
@@ -791,20 +894,25 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       ? pendingZoomAnchor
       : null;
     const pagesToRender = currentPages.filter(
-      (pageNumber) => canvasRefs.current.get(pageNumber)?.dataset.pdfRenderSignature !== renderSignature
-        && pageRequestedSignatureRefs.current.get(pageNumber) !== renderSignature,
+      (pageNumber) => {
+        const signature = canvasRefs.current.get(pageNumber)?.dataset.pdfRenderSignature;
+        const cachedSignature = previewOnly ? bitmapCacheRef.current.peek(pageNumber)?.signature : undefined;
+        return signature !== renderSignature && !(previewOnly && (signature === fullSignature || cachedSignature === fullSignature));
+      },
     );
-    if (pagesToRender.length === 0) return;
+    if (pagesToRender.length === 0) { setRendering(false); return; }
     pagesToRender.forEach((pageNumber) => {
       const previousSignature = pageRequestedSignatureRefs.current.get(pageNumber);
       if (previousSignature && previousSignature !== renderSignature) {
         renderTaskRefs.current.get(pageNumber)?.cancel();
       }
       pageRequestedSignatureRefs.current.set(pageNumber, renderSignature);
+      pageRequestOwnerRefs.current.set(pageNumber, requestOwner);
     });
     setRendering(true);
 
     const render = async () => {
+      if (cancelled) return;
       const surfacePadding = 24;
       const availableWidth = Math.max(160, viewportWidth - surfacePadding);
       const availableHeight = Math.max(120, viewportHeight - surfacePadding);
@@ -822,12 +930,15 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         pageRenderVersionRefs.current.set(pageNumber, renderVersion);
         const previousPipeline = pageRenderPipelineRefs.current.get(pageNumber) ?? Promise.resolve();
         const pipeline = previousPipeline.catch(() => {}).then(async () => {
+          if (cancelled) return;
           const canvas = canvasRefs.current.get(pageNumber);
           const surface = pageSurfaceRefs.current.get(pageNumber);
           const textLayerElement = textLayerElementRefs.current.get(pageNumber);
           if (!canvas || !surface || !textLayerElement) return;
 
-          const isStale = () => documentRenderGenerationRef.current !== documentGeneration
+          const isStale = () => cancelled
+            || pageRequestOwnerRefs.current.get(pageNumber) !== requestOwner
+            || documentRenderGenerationRef.current !== documentGeneration
             || pageRenderVersionRefs.current.get(pageNumber) !== renderVersion
             || pageRequestedSignatureRefs.current.get(pageNumber) !== renderSignature
             || canvasRefs.current.get(pageNumber) !== canvas
@@ -854,6 +965,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           }
 
           const pdfPage = await pdf.getPage(pageNumber);
+          if (documentRenderGenerationRef.current === documentGeneration) {
+            pageResourceRefs.current.set(pageNumber, pdfPage);
+          }
           if (isStale()) return;
 
           const baseViewport = pdfPage.getViewport({ scale: 1 });
@@ -869,118 +983,156 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
               ? clampZoom(availableWidth / baseViewport.width)
               : clampZoom(zoom);
           const displayViewport = pdfPage.getViewport({ scale: displayScale });
-          const mobileViewport = window.matchMedia("(max-width: 768px)").matches;
-          const outputPixelBudget = mobileViewport ? 4_000_000 : 20_000_000;
+          const mobileViewport = viewportWidth <= 768;
+          // Up to four mobile page canvases and one staging canvas at 2 MP
+          // each: at most ~40 MB of RGBA output buffers, excluding PDF internals.
+          const outputPixelBudget = mobileViewport ? 2_000_000 : 20_000_000;
           const pixelBudgetScale = Math.sqrt(outputPixelBudget / Math.max(1, displayViewport.width * displayViewport.height));
-          const outputScale = Math.min(window.devicePixelRatio || 1, mobileViewport ? 1.6 : 2.5, pixelBudgetScale);
+          const outputScale = previewOnly
+            ? Math.min(192 / displayViewport.width, 256 / displayViewport.height, 1)
+            : Math.min(window.devicePixelRatio || 1, mobileViewport ? 1.6 : 2.5, pixelBudgetScale);
 
           const stagedCanvas = document.createElement("canvas");
-          const context = stagedCanvas.getContext("2d", { alpha: false });
-          if (!context) throw new Error("当前环境不支持 Canvas PDF 渲染");
-
-          stagedCanvas.width = Math.max(1, Math.floor(displayViewport.width * outputScale));
-          stagedCanvas.height = Math.max(1, Math.floor(displayViewport.height * outputScale));
-          surface.style.width = `${Math.floor(displayViewport.width)}px`;
-          surface.style.height = `${Math.floor(displayViewport.height)}px`;
-          surface.style.setProperty("--scale-factor", String(displayScale));
-          surface.dataset.pdfPage = String(pageNumber);
-          const pendingPinch = pendingZoomCommitRef.current;
-          if (pendingPinch?.pageNumber === pageNumber && pendingPinch.surface === surface) {
-            canvas.style.width = `${Math.floor(displayViewport.width)}px`;
-            canvas.style.height = `${Math.floor(displayViewport.height)}px`;
-            surface.style.transform = "";
-            surface.style.transformOrigin = "";
-            surface.style.willChange = "";
-            pendingZoomCommitRef.current = null;
-          }
-          if (zoomAnchor && zoomAnchorRef.current === zoomAnchor) {
-            window.requestAnimationFrame(() => {
-              const scrollViewport = viewportRef.current;
-              const anchorSurface = pageSurfaceRefs.current.get(zoomAnchor.pageNumber);
-              if (!scrollViewport || !anchorSurface || zoomAnchorRef.current !== zoomAnchor) return;
-              restorePdfZoomAnchor(scrollViewport, anchorSurface, zoomAnchor);
-            });
-          }
-          textLayerElement.replaceChildren();
-          textLayerElement.style.width = `${Math.floor(displayViewport.width)}px`;
-          textLayerElement.style.height = `${Math.floor(displayViewport.height)}px`;
-          textLayerElement.dataset.pdfPage = String(pageNumber);
-
-          let textContent = textContentCacheRef.current.get(pageNumber);
-          if (textContent) {
-            textContentCacheRef.current.delete(pageNumber);
-            textContentCacheRef.current.set(pageNumber, textContent);
-          } else {
-            textContent = await pdfPage.getTextContent();
-            textContentCacheRef.current.set(pageNumber, textContent);
-            while (textContentCacheRef.current.size > 12) {
-              const oldestPage = textContentCacheRef.current.keys().next().value;
-              if (oldestPage === undefined) break;
-              textContentCacheRef.current.delete(oldestPage);
-            }
-          }
-          if (isStale()) return;
-          textCacheRef.current.set(
-            pageNumber,
-            pageTextCache(textContent.items.map((item) => ("str" in item ? item.str : ""))),
-          );
-          const textLayer = new TextLayer({
-            textContentSource: textContent,
-            container: textLayerElement,
-            viewport: displayViewport,
-          });
-          if (isStale()) return;
-          textLayerRefs.current.set(pageNumber, textLayer);
-          const renderTask = pdfPage.render({
-            canvasContext: context,
-            viewport: displayViewport,
-            transform: outputScale === 1 ? undefined : [outputScale, 0, 0, outputScale, 0, 0],
-            background: "rgb(255,255,255)",
-          });
-          renderTaskRefs.current.set(pageNumber, renderTask);
-
-          let completed = false;
           try {
-            await Promise.all([renderTask.promise, textLayer.render()]);
-            if (isStale()) return;
-            canvas.width = stagedCanvas.width;
-            canvas.height = stagedCanvas.height;
-            canvas.style.width = `${Math.floor(displayViewport.width)}px`;
-            canvas.style.height = `${Math.floor(displayViewport.height)}px`;
-            const visibleContext = canvas.getContext("2d", { alpha: false });
-            if (!visibleContext) throw new Error("当前环境不支持 Canvas PDF 渲染");
-            visibleContext.drawImage(stagedCanvas, 0, 0);
-            canvas.dataset.pdfRenderSignature = renderSignature;
-            completed = true;
-          } finally {
-            if (renderTaskRefs.current.get(pageNumber) === renderTask) renderTaskRefs.current.delete(pageNumber);
-            if (!completed && textLayerRefs.current.get(pageNumber) === textLayer) {
-              textLayerRefs.current.delete(pageNumber);
-            }
-          }
-          if (!isStale()) setTextLayerRevision((revision) => revision + 1);
+            const context = stagedCanvas.getContext("2d", { alpha: false });
+            if (!context) throw new Error("当前环境不支持 Canvas PDF 渲染");
 
-          if (!isStale() && zoomAnchor && zoomAnchorRef.current === zoomAnchor) {
-            window.requestAnimationFrame(() => {
-              const scrollViewport = viewportRef.current;
-              const anchorSurface = pageSurfaceRefs.current.get(zoomAnchor.pageNumber);
-              if (!scrollViewport || !anchorSurface || zoomAnchorRef.current !== zoomAnchor) return;
-              restorePdfZoomAnchor(scrollViewport, anchorSurface, zoomAnchor);
+            stagedCanvas.width = Math.max(1, Math.floor(displayViewport.width * outputScale));
+            stagedCanvas.height = Math.max(1, Math.floor(displayViewport.height * outputScale));
+            surface.style.width = `${Math.floor(displayViewport.width)}px`;
+            surface.style.height = `${Math.floor(displayViewport.height)}px`;
+            surface.style.setProperty("--scale-factor", String(displayScale));
+            surface.dataset.pdfPage = String(pageNumber);
+            const pendingPinch = pendingZoomCommitRef.current;
+            if (pendingPinch?.pageNumber === pageNumber && pendingPinch.surface === surface) {
+              canvas.style.width = `${Math.floor(displayViewport.width)}px`;
+              canvas.style.height = `${Math.floor(displayViewport.height)}px`;
+              surface.style.transform = "";
+              surface.style.transformOrigin = "";
+              surface.style.willChange = "";
+              pendingZoomCommitRef.current = null;
+            }
+            if (zoomAnchor && zoomAnchorRef.current === zoomAnchor) {
+              window.requestAnimationFrame(() => {
+                const scrollViewport = viewportRef.current;
+                const anchorSurface = pageSurfaceRefs.current.get(zoomAnchor.pageNumber);
+                if (!scrollViewport || !anchorSurface || zoomAnchorRef.current !== zoomAnchor) return;
+                restorePdfZoomAnchor(scrollViewport, anchorSurface, zoomAnchor);
+              });
+            }
+            textLayerElement.replaceChildren();
+            textLayerElement.style.width = `${Math.floor(displayViewport.width)}px`;
+            textLayerElement.style.height = `${Math.floor(displayViewport.height)}px`;
+            textLayerElement.dataset.pdfPage = String(pageNumber);
+
+            let textLayer: TextLayer | null = null;
+            if (!previewOnly) {
+              let textContent = textContentCacheRef.current.get(pageNumber);
+              if (textContent) {
+                textContentCacheRef.current.delete(pageNumber);
+                textContentCacheRef.current.set(pageNumber, textContent);
+              } else {
+                textContent = await pdfPage.getTextContent();
+                textContentCacheRef.current.set(pageNumber, textContent);
+                while (textContentCacheRef.current.size > 12) {
+                  const oldestPage = textContentCacheRef.current.keys().next().value;
+                  if (oldestPage === undefined) break;
+                  textContentCacheRef.current.delete(oldestPage);
+                }
+              }
+              if (isStale()) return;
+              textCacheRef.current.set(
+                pageNumber,
+                pageTextCache(textContent.items.map((item) => ("str" in item ? item.str : ""))),
+              );
+              textLayer = new TextLayer({
+                textContentSource: textContent,
+                container: textLayerElement,
+                viewport: displayViewport,
+              });
+              if (isStale()) return;
+              textLayerRefs.current.set(pageNumber, textLayer);
+            }
+            const cached = !previewOnly ? bitmapCacheRef.current.take(pageNumber, fullSignature) : undefined;
+            if (cached) {
+              stagedCanvas.width = cached.canvas.width;
+              stagedCanvas.height = cached.canvas.height;
+              context.drawImage(cached.canvas, 0, 0);
+              cached.canvas.width = cached.canvas.height = 0;
+            }
+            const renderTask = cached ? null : pdfPage.render({
+              canvasContext: context,
+              viewport: displayViewport,
+              transform: outputScale === 1 ? undefined : [outputScale, 0, 0, outputScale, 0, 0],
+              background: "rgb(255,255,255)",
             });
+            if (renderTask) renderTaskRefs.current.set(pageNumber, renderTask);
+
+            let completed = false;
+            try {
+              await Promise.all([renderTask?.promise, textLayer?.render()]);
+              if (isStale()) return;
+              canvas.width = stagedCanvas.width;
+              canvas.height = stagedCanvas.height;
+              canvas.style.width = `${Math.floor(displayViewport.width)}px`;
+              canvas.style.height = `${Math.floor(displayViewport.height)}px`;
+              const visibleContext = canvas.getContext("2d", { alpha: false });
+              if (!visibleContext) throw new Error("当前环境不支持 Canvas PDF 渲染");
+              visibleContext.drawImage(stagedCanvas, 0, 0);
+              canvas.dataset.pdfRenderSignature = renderSignature;
+              canvas.dataset.pdfReady = "true";
+              canvas.dataset.pdfRenderSource = cached ? "cache" : previewOnly ? "preview" : "render";
+              rememberThumbnail(pageNumber, stagedCanvas);
+              completed = true;
+            } finally {
+              if (!completed) {
+                renderTask?.cancel();
+                textLayer?.cancel();
+                await renderTask?.promise.catch(() => {});
+              }
+              if (renderTaskRefs.current.get(pageNumber) === renderTask) renderTaskRefs.current.delete(pageNumber);
+              if (!completed && textLayerRefs.current.get(pageNumber) === textLayer) {
+                textLayerRefs.current.delete(pageNumber);
+              }
+            }
+            if (!isStale()) setTextLayerRevision((revision) => revision + 1);
+
+            if (!isStale() && zoomAnchor && zoomAnchorRef.current === zoomAnchor) {
+              window.requestAnimationFrame(() => {
+                const scrollViewport = viewportRef.current;
+                const anchorSurface = pageSurfaceRefs.current.get(zoomAnchor.pageNumber);
+                if (!scrollViewport || !anchorSurface || zoomAnchorRef.current !== zoomAnchor) return;
+                restorePdfZoomAnchor(scrollViewport, anchorSurface, zoomAnchor);
+              });
+            }
+            if (!isStale() && (fitWidth || fitHeight) && pageNumber === page) setZoom(displayScale);
+          } finally {
+            stagedCanvas.width = stagedCanvas.height = 0;
           }
-          if (!isStale() && (fitWidth || fitHeight) && pageNumber === page) setZoom(displayScale);
         });
         pageRenderPipelineRefs.current.set(pageNumber, pipeline);
         void pipeline.finally(() => {
           if (pageRenderPipelineRefs.current.get(pageNumber) === pipeline) pageRenderPipelineRefs.current.delete(pageNumber);
-          if (pageRequestedSignatureRefs.current.get(pageNumber) === renderSignature) {
+          if (documentRenderGenerationRef.current === documentGeneration) releaseOffscreenPage(pageNumber);
+          if (pageRequestOwnerRefs.current.get(pageNumber) === requestOwner) {
             pageRequestedSignatureRefs.current.delete(pageNumber);
+            pageRequestOwnerRefs.current.delete(pageNumber);
           }
         }).catch(() => {});
         return pipeline;
       };
 
       for (const pageNumber of orderedPages) {
+        if (cancelled) break;
+        if (!previewOnly && renderDistance(pageNumber) > 0) {
+          // Neighbor prefetch yields to input/visible-page work; never rasterize
+          // the entire document on open.
+          await new Promise<void>((resolve) => {
+            if (window.requestIdleCallback) window.requestIdleCallback(() => resolve(), { timeout: 120 });
+            else window.setTimeout(resolve, 40);
+          });
+          if (cancelled) break;
+        }
         try {
           await renderPage(pageNumber);
         } catch (reason) {
@@ -1003,22 +1155,31 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     void queuedRender
       .catch((reason) => {
         if (!cancelled && (reason as { name?: string })?.name !== "RenderingCancelledException") {
+          recordReaderDiagnostic("render-error");
           setError(pdfErrorMessage(reason));
         }
       })
       .finally(() => {
         pagesToRender.forEach((pageNumber) => {
-          if (pageRequestedSignatureRefs.current.get(pageNumber) === renderSignature) {
+          if (pageRequestOwnerRefs.current.get(pageNumber) === requestOwner) {
             pageRequestedSignatureRefs.current.delete(pageNumber);
+            pageRequestOwnerRefs.current.delete(pageNumber);
           }
         });
-        setRendering(false);
+        if (!cancelled) setRendering(false);
       });
 
     return () => {
       cancelled = true;
+      pagesToRender.forEach((pageNumber) => {
+        if (requestOwners.get(pageNumber) !== requestOwner) return;
+        renderTasks.get(pageNumber)?.cancel();
+        textLayers.get(pageNumber)?.cancel();
+        requestedSignatures.delete(pageNumber);
+        requestOwners.delete(pageNumber);
+      });
     };
-  }, [fitHeight, fitWidth, page, pdf, renderedPages, viewMode, viewportHeight, viewportWidth, zoom]);
+  }, [fitHeight, fitWidth, page, pdf, renderedPages, viewMode, viewportHeight, viewportWidth, zoom, releaseOffscreenPage, fastScrolling, annotationTool, rememberThumbnail]);
 
   useEffect(() => {
     if (!pdf || !entry) return;
@@ -1891,6 +2052,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       ref={readerRef}
       className={`pdf-reader ${fullscreen ? "pdf-reader-fullscreen" : ""} ${immersiveFallback ? "pdf-reader-immersive" : ""} ${fullscreen && !fullscreenControlsVisible ? "pdf-fullscreen-controls-hidden" : ""}`}
       aria-label="PDF 阅读器"
+      data-pdf-scroll-quality={fastScrolling ? "preview" : "full"}
     >
       <ReaderToolbar
         format="PDF" title={entry?.name ?? "PDF 阅读器"} onClose={() => void closeReader()}
@@ -2157,6 +2319,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
               data-pdf-mode={viewMode}
               ref={pageSurfaceRefForPage(pageNumber)}
             >
+              {thumbnails[pageNumber] && <img className="pdf-page-preview" src={thumbnails[pageNumber]} alt="" aria-hidden="true" draggable={false} />}
               {renderedPages.includes(pageNumber) && (
                 <>
                   <canvas ref={canvasRefForPage(pageNumber)} />
