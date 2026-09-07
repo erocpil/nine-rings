@@ -11,6 +11,7 @@
 
 import { addLog } from "../debugLog";
 import { isTauriRuntime } from "../runtime";
+import { validateBackup } from "../backup-validation";
 import { withBackupRestore, type RestoreContext } from "../backup-restore-coordination";
 import {
   buildSafeMergedBackup,
@@ -189,6 +190,33 @@ export interface PullPrecheck {
   comparison: BackupComparison;
   /** 用于三方比较的上次 Push/Pull 快照；null 表示只能保守识别冲突。 */
   baseVersion: string | null;
+}
+
+export function formatBackupDevice(device?: SyncSnapshotSummary["backupDevice"]): string {
+  const name = device?.name?.trim()
+    || [device?.runtime?.trim(), device?.platform?.trim()].filter(Boolean).join(" / ");
+  const id = device?.id?.trim();
+  return [name, id ? `设备ID ${id.slice(0, 8)}` : ""].filter(Boolean).join(" · ")
+    || "未知设备（备份未记录设备信息）";
+}
+
+function backupError(reason: unknown, context: string): Error {
+  return new Error(`${reason instanceof Error ? reason.message : String(reason)}\n${context}`);
+}
+
+function validateRemoteBackup(json: string, version: string): void {
+  try {
+    if (!json.trim()) throw new Error("远端备份文件为空，未修改本地数据");
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      throw new Error("远端备份文件内容不是有效 JSON，未修改本地数据");
+    }
+    validateBackup(parsed);
+  } catch (reason) {
+    throw backupError(reason, `远端版本：${version}\n远端备份来源：${formatBackupDevice(summarizeBackup(json).backupDevice)}`);
+  }
 }
 
 export type PullMode = "safe-merge" | "replace";
@@ -726,7 +754,9 @@ export async function pullFromGitHub(config: SyncConfig, options: PullOptions = 
 async function pullWithRestoreLock(config: SyncConfig, options: PullOptions, context: RestoreContext): Promise<SyncConfig> {
 
   addLog("[Sync] ═══ Pull ← GitHub ═══");
-  const restorePoint = await exportFullDB();
+  const restorePoint = await exportFullDB().catch((reason: unknown) => {
+    throw backupError(reason, "失败阶段：本机导出恢复快照");
+  });
 
   const ptrPath = latestPath(config.path);
 
@@ -741,7 +771,7 @@ async function pullWithRestoreLock(config: SyncConfig, options: PullOptions, con
     throw new Error("latest 指针文件为空");
   }
   if (options.expectedVersion && version !== options.expectedVersion) {
-    throw new Error(`远端备份已从 ${options.expectedVersion} 更新为 ${version}，请重新预检后再导入`);
+    throw new Error(`远端备份已从 ${options.expectedVersion} 更新为 ${version}，请重新预检后再导入\n新版本来源设备尚未读取，请以重新预检的结果为准`);
   }
   addLog(`[Sync] latest → 版本 ${version}`);
 
@@ -755,16 +785,7 @@ async function pullWithRestoreLock(config: SyncConfig, options: PullOptions, con
 
   addLog(`[Sync] 远端 SHA: ${remote.sha.slice(0, 7)}  |  大小: ${(new TextEncoder().encode(remote.content).length / 1024).toFixed(1)} KB`);
 
-  // 防御：验证拉取到的内容是有效 JSON
-  if (!remote.content || !remote.content.trim()) {
-    throw new Error("远端备份文件为空，未修改本地数据；请检查备份版本后重试");
-  }
-  try {
-    JSON.parse(remote.content);
-  } catch {
-    throw new Error("远端备份文件内容不是有效 JSON，未修改本地数据");
-  }
-
+  validateRemoteBackup(remote.content, version);
   dumpBundle("拉取远端数据", remote.content);
 
   const mode = options.mode ?? "safe-merge";
@@ -784,7 +805,7 @@ async function pullWithRestoreLock(config: SyncConfig, options: PullOptions, con
   } catch (e) {
     // Validation/staging failures before mutation do not need a snapshot replay.
     // Nor may post-commit journal/notification errors undo a successful import.
-    if (!context.mutationStarted) throw e;
+    if (!context.mutationStarted) throw backupError(e, `远端版本：${version}\n远端备份来源：${formatBackupDevice(summarizeBackup(remote.content).backupDevice)}`);
     if (context.dataCommitted) throw new Error("数据已导入，但恢复收尾失败。请先导出并检查本地数据，勿直接重复 Pull。");
     context.setPhase("rolling-back");
     addLog(`[Sync] 导入失败，尝试恢复拉取前快照: ${(e as Error).message}`);
@@ -821,7 +842,9 @@ export async function previewPullFromGitHub(config: SyncConfig): Promise<PullPre
   }
   const ptrPath = latestPath(config.path);
   const [localSnapshot, ptr] = await Promise.all([
-    exportFullDB(),
+    exportFullDB().catch((reason: unknown) => {
+      throw backupError(reason, "失败阶段：本机导出预检快照");
+    }),
     fetchRemote(config.token, config.owner, config.repo, ptrPath),
   ]);
   if (!ptr) {
@@ -838,8 +861,14 @@ export async function previewPullFromGitHub(config: SyncConfig): Promise<PullPre
   }
   const local = summarizeBackup(localSnapshot);
   const remoteSummary = summarizeBackup(remote.content);
+  validateRemoteBackup(remote.content, version);
   const base = await fetchBaseSnapshot(config, version, remote.content);
-  const comparison = compareBackupSnapshots(localSnapshot, remote.content, base.content);
+  let comparison: BackupComparison;
+  try {
+    comparison = compareBackupSnapshots(localSnapshot, remote.content, base.content);
+  } catch (reason) {
+    throw backupError(reason, `失败阶段：快照比较\n本地快照来源：${formatBackupDevice(local.backupDevice)}\n远端版本：${version}\n远端备份来源：${formatBackupDevice(remoteSummary.backupDevice)}`);
+  }
   return {
     local,
     remote: {

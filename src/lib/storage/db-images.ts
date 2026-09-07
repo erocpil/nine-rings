@@ -3,12 +3,6 @@ import { withDB, getOne, putRecord } from "./db";
 import { isTauriRuntime } from "../runtime";
 import { getOrCreateDeviceId } from "../backup-user-settings";
 
-type ReadStorage = Pick<Storage, "getItem" | "setItem">;
-
-const deviceStorage: ReadStorage | null = typeof localStorage === "undefined"
-  ? null
-  : localStorage;
-
 export async function storeImage(blob: Blob): Promise<string> {
   const id = uuid();
   await withDB(async (db) =>
@@ -75,7 +69,12 @@ function formatDeviceLabel(): string {
   const platform =
     typeof navigator === "undefined" ? "未知平台" : navigator.platform || "未知平台";
   const mode = isTauriRuntime() ? "Tauri" : "Web";
-  const id = deviceStorage ? getOrCreateDeviceId(deviceStorage).slice(0, 8) : "无本地存储";
+  let id = "设备ID不可用";
+  try {
+    if (typeof localStorage !== "undefined") id = getOrCreateDeviceId(localStorage).slice(0, 8);
+  } catch {
+    // Storage access can be disabled; keep the image diagnostic available.
+  }
   return `${mode} / ${platform} (${id})`;
 }
 

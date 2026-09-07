@@ -5,6 +5,7 @@ import {
   pushToGitHub,
   pullFromGitHub,
   previewPullFromGitHub,
+  formatBackupDevice,
   checkStatus,
   type SyncConfig,
   type SyncStatus,
@@ -238,7 +239,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
       setCfg(updated);
       showMessage(`已推送 (${new Date().toLocaleTimeString()})`, "success");
     } catch (e) {
-      showMessage(`推送失败: ${(e as Error).message}`, "error");
+      showMessage(`推送失败：${(e as Error).message}`, "error");
     } finally {
       setBusyOperation(null);
     }
@@ -251,12 +252,9 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     try {
       const pre = await previewPullFromGitHub(cfg);
       setPullPrecheck(pre);
-      const remoteDevice = pre.remote.backupDevice;
-      const deviceLabel = remoteDevice?.name ? `（来源：${remoteDevice.name}` : "";
-      const suffix = remoteDevice?.id ? `${deviceLabel} · 设备ID ${remoteDevice.id.slice(0, 8)})` : deviceLabel ? ")" : "";
-      showMessage(`预检完成：远端版本 ${pre.remote.version.slice(0, 15)}${suffix}`, "success");
+      showMessage(`预检完成：远端版本 ${pre.remote.version.slice(0, 15)}\n远端备份来源：${formatBackupDevice(pre.remote.backupDevice)}`, "success");
     } catch (e) {
-      showMessage(`预检失败: ${(e as Error).message}`, "error");
+      showMessage(`预检失败：${(e as Error).message}`, "error");
     } finally {
       setBusyOperation(null);
     }
@@ -297,7 +295,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
       onPullDone?.();
       setPullPrecheck(null);
     } catch (e) {
-      showMessage(`拉取失败: ${(e as Error).message}`, "error");
+      showMessage(`拉取失败：${(e as Error).message}`, "error");
     } finally {
       setBusyOperation(null);
     }
@@ -315,7 +313,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
         );
       }
     } catch (error) {
-      showMessage(`本地备份导出失败: ${error instanceof Error ? error.message : String(error)}`, "error");
+      showMessage(`本地备份导出失败：${error instanceof Error ? error.message : String(error)}`, "error");
     } finally {
       setExportingLocal(false);
     }
@@ -378,6 +376,9 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
 
       {pullPrecheck && (
         <div className="sync-preview">
+          <div className="settings-hint" style={{ marginBottom: 8 }}>
+            远端备份来源：{formatBackupDevice(pullPrecheck.remote.backupDevice)}
+          </div>
           <p className="sync-preview-title">Pull 文档级预检</p>
           <div className="sync-versions" style={{ marginBottom: 8 }}>
             <span>

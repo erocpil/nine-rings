@@ -17,6 +17,8 @@ import {
   loadSyncConfig,
   saveSyncConfig,
   pushToGitHub,
+  previewPullFromGitHub,
+  formatBackupDevice,
 } from "../../src/lib/sync/github";
 import { buildSafeMergedBackup } from "../../src/lib/sync/backup-merge";
 import {
@@ -55,6 +57,30 @@ beforeEach(async () => {
 });
 
 describe("backup failure boundaries", () => {
+  it("identifies the remote device when precheck rejects an invalid backup", async () => {
+    const payloads = ["20260907T120000", JSON.stringify({
+      notes: "invalid",
+      backup_metadata: { device: { name: "Windows", id: "12345678-abcd" } },
+    })];
+    const fetch = vi.fn(async () => new Response(JSON.stringify({
+      sha: "abc123", encoding: "base64", content: btoa(payloads.shift()!),
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(previewPullFromGitHub({
+      ...loadSyncConfig(), token: "dummy", owner: "owner", repo: "repo",
+    })).rejects.toThrow(/notes 数组\n远端版本：20260907T120000\n远端备份来源：Windows · 设备ID 12345678/);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(await idbAdapter.getAllNotes()).toEqual([]);
+  });
+
+  it.each([
+    [undefined, "未知设备（备份未记录设备信息）"],
+    [{ name: "Phone" }, "Phone"],
+    [{ id: "12345678-abcd" }, "设备ID 12345678"],
+    [{ name: " ", runtime: "tauri", platform: "Windows" }, "tauri / Windows"],
+  ])("formats partial device metadata without broken labels", (device, label) => {
+    expect(formatBackupDevice(device)).toBe(label);
+  });
   it.each([null, [], {}, { sha: 42 }, { sha: "" }])(
     "rejects an invalid remote pointer envelope before uploading: %j",
     async (value) => {
@@ -317,6 +343,7 @@ describe("backup failure boundaries", () => {
     );
   });
   it("reports missing image references with document context", async () => {
+    localStorage.setItem("nr:backup-device-id", "local123-test");
     await withDB(async (db) => {
       db.transaction("images", "readwrite").objectStore("images").clear();
     });
@@ -334,7 +361,7 @@ describe("backup failure boundaries", () => {
       updated_at: "2026-09-06",
     };
     await expect(resolveImageRefs([noteWithImage] as const)).rejects.toThrow(
-      /带图文档|areas\/private|doc-1/,
+      /local123[\s\S]*带图文档[\s\S]*areas\/private[\s\S]*doc-1/,
     );
   });
   it("round-trips explicit templates in a fresh frontend store", async () => {
