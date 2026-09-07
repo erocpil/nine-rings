@@ -1,3 +1,5 @@
+import { isTauriRuntime } from "./runtime";
+
 const BACKED_UP_LOCAL_SETTINGS = [
   "nine-rings:templates",
   "nr:github-sync",
@@ -20,21 +22,94 @@ const BACKED_UP_LOCAL_SETTINGS = [
 ] as const;
 
 const DOCUMENT_POSITION_PREFIXES = ["selectionPos:", "scrollPos:"] as const;
+const BACKUP_DEVICE_ID_KEY = "nr:backup-device-id";
 
 export interface FrontendSettingsBackup {
   version: 1;
   values: Record<string, unknown>;
 }
 
-type SettingsReadStorage = Pick<Storage, "getItem">;
+export interface BackupMetadata {
+  version: 1;
+  exportedAt: string;
+  device: {
+    id: string;
+    name: string;
+    runtime: "web" | "tauri";
+    platform: string;
+    userAgent?: string;
+  };
+}
+
+type SettingsReadStorage = Pick<Storage, "getItem" | "setItem">;
 type SettingsWriteStorage = Pick<Storage, "setItem">;
 
 function defaultReadStorage(): SettingsReadStorage {
-  return typeof localStorage !== "undefined" ? localStorage : { getItem: () => null };
+  return typeof localStorage !== "undefined"
+    ? localStorage
+    : { getItem: () => null, setItem: () => undefined };
 }
 
 function defaultWriteStorage(): SettingsWriteStorage {
   return typeof localStorage !== "undefined" ? localStorage : { setItem: () => undefined };
+}
+
+function readStoredValue(storage: Pick<Storage, "getItem">, key: string): string | null {
+  try {
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredValue(
+  storage: Pick<Storage, "setItem">,
+  key: string,
+  value: string,
+): void {
+  try {
+    storage.setItem(key, value);
+  } catch {
+    // ignore
+  }
+}
+
+function newDeviceId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  const random = Math.random().toString(36).slice(2, 10);
+  return `dev-${Date.now().toString(36)}-${random}`;
+}
+
+function getOrCreateDeviceId(
+  storage: Pick<Storage, "getItem" | "setItem">,
+): string {
+  const existing = readStoredValue(storage, BACKUP_DEVICE_ID_KEY);
+  if (existing) return existing;
+  const created = newDeviceId();
+  writeStoredValue(storage, BACKUP_DEVICE_ID_KEY, created);
+  return created;
+}
+
+function collectBackupMetadata(storage: SettingsReadStorage = defaultReadStorage()): BackupMetadata {
+  const runtime = isTauriRuntime() ? "tauri" : "web";
+  const platform =
+    typeof navigator === "undefined" ? "未知平台" : navigator.platform || "未知平台";
+  const label = `${runtime} / ${platform}`;
+  const userAgent =
+    typeof navigator === "undefined" ? undefined : navigator.userAgent;
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    device: {
+      id: getOrCreateDeviceId(storage),
+      name: label,
+      runtime,
+      platform,
+      userAgent: userAgent ? userAgent.slice(0, 200) : undefined,
+    },
+  };
 }
 
 function sensitiveKey(key: string): boolean {
@@ -121,12 +196,13 @@ export function addFrontendSettingsToBackup(
   json: string,
   storage: SettingsReadStorage = defaultReadStorage(),
 ): string {
-  const trimmed = json.trimEnd();
-  if (!trimmed.endsWith("}")) throw new Error("Backup root must be a JSON object");
-  const prefix = trimmed.slice(0, -1).trimEnd();
-  const settings = JSON.stringify(collectFrontendSettings(storage), null, 2)
-    .replace(/\n/g, "\n  ");
-  return `${prefix}${prefix.endsWith("{") ? "" : ","}\n  "user_settings": ${settings}\n}`;
+  const parsed = JSON.parse(json) as Record<string, unknown>;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Backup root must be a JSON object");
+  }
+  parsed.user_settings = collectFrontendSettings(storage);
+  parsed.backup_metadata = collectBackupMetadata(storage);
+  return JSON.stringify(parsed, null, 2);
 }
 
 /** Stage fallible local settings before committing documents; roll back on failure. */

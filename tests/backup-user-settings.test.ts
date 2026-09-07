@@ -50,6 +50,12 @@ assert(!JSON.stringify(malformed).includes("ghp_must_not_be_exported"), "malform
 
 const bundle = addFrontendSettingsToBackup(JSON.stringify({ version: 1, notes: [] }), source);
 assert(JSON.parse(bundle).user_settings?.version === 1, "frontend settings envelope is attached");
+const parsedBundle = JSON.parse(bundle);
+const metadata = parsedBundle.backup_metadata;
+assert(typeof metadata?.version === "number" && metadata.version === 1, "backup metadata version exists");
+assert(typeof metadata?.device?.id === "string", "backup metadata includes persistent device id");
+assert(typeof metadata?.device?.name === "string", "backup metadata includes device name");
+assert(typeof source.value("nr:backup-device-id") === "string", "device id is persisted locally");
 
 const target = memoryStorage();
 const restored = restoreFrontendSettings(collected, target);
