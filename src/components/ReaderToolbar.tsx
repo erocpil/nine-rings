@@ -3,7 +3,7 @@ import { ToolbarIcon } from "./ToolbarIcon";
 import { useReaderSwipeClickGuard } from "../hooks/useReaderSwipeClickGuard";
 import "./ReaderToolbar.css";
 
-export type ReaderToolPanel = "search" | "appearance" | "annotations" | null;
+export type ReaderToolPanel = "search" | "appearance" | "annotations" | "bookmarks" | null;
 
 interface Props {
   format: "PDF" | "EPUB";
@@ -14,6 +14,7 @@ interface Props {
   focusAction: ReactNode;
   appearance: ReactNode;
   annotations?: ReactNode;
+  bookmarks?: ReactNode;
   search: ReactNode;
   activePanel: ReaderToolPanel;
   onPanelChange: (panel: ReaderToolPanel) => void;
@@ -25,7 +26,7 @@ interface Props {
  * overlay (never resize) the page viewport, and never own reading state. */
 export function ReaderToolbar({
   format, title, onClose, navigation, libraryActions, focusAction,
-  appearance, annotations, search, activePanel, onPanelChange, notice, activeTool,
+  appearance, annotations, bookmarks, search, activePanel, onPanelChange, notice, activeTool,
 }: Props) {
   const rootRef = useRef<HTMLElement>(null);
   useReaderSwipeClickGuard(rootRef);
@@ -36,6 +37,7 @@ export function ReaderToolbar({
     { key: "search", label: "搜索", content: search },
     { key: "appearance", label: "阅读设置", content: appearance },
     ...(annotations ? [{ key: "annotations" as const, label: "批注工具", content: annotations }] : []),
+    ...(bookmarks ? [{ key: "bookmarks" as const, label: "书签", content: bookmarks }] : []),
   ];
 
   useLayoutEffect(() => {
@@ -79,7 +81,7 @@ export function ReaderToolbar({
     <div className="reader-toolbar-controls">
       <div className="reader-navigation" onClick={() => onPanelChange(null)}>{navigation}</div>
       <div className="reader-panel-triggers">
-        {panels.map(({ key, label }) => <button
+        {panels.filter(({ key }) => key !== "bookmarks").map(({ key, label }) => <button
           key={key} type="button" data-reader-trigger={key}
           className={activePanel === key ? "active" : undefined}
           aria-label={`${format} ${label}`} title={`${format} ${label}`}
@@ -103,6 +105,7 @@ export function ReaderToolbar({
     {panels.map(({ key, label, content }) => <section
       key={key} id={`${panelId}-${key}`} data-reader-panel={key}
       className="reader-tool-panel" hidden={activePanel !== key}
+      role={key === "bookmarks" ? "dialog" : undefined}
       aria-label={`${format} ${label}`}
     >
       <div className="reader-tool-panel-heading"><strong>{label}</strong><button type="button" aria-label={`关闭 ${format} ${label}`} onClick={() => {
