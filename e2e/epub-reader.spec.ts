@@ -155,6 +155,16 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await epubNote.blur();
   await page.getByRole("button", { name: "完成", exact: true }).click();
 
+  await page.getByRole("button", { name: "EPUB 高亮与备注", exact: true }).click();
+  const highlightsPanel = page.getByRole("region", { name: "EPUB 高亮与备注", exact: true });
+  await expect(highlightsPanel.locator(".epub-reading-list-title")).toContainText("阅读进度应当保存到这里");
+  await expect(highlightsPanel.locator(".epub-reading-list-note")).toHaveText("这是 EPUB 备注");
+  await expect(toc.locator(".epub-annotation-item")).toHaveCount(0);
+  await highlightsPanel.locator(".epub-reading-list-link").click();
+  await expect(highlightsPanel).toBeHidden();
+  await expect(epubNote).toHaveValue("这是 EPUB 备注");
+  await page.getByRole("button", { name: "完成", exact: true }).click();
+
   await page.getByRole("button", { name: "打开 EPUB 书签" }).click();
   let bookmarkDialog = page.getByRole("dialog", { name: "EPUB 书签" });
   await expect(bookmarkDialog).toBeVisible();
@@ -208,7 +218,9 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await page.getByRole("button", { name: "打开 EPUB 书签" }).click();
   bookmarkDialog = page.getByRole("dialog", { name: "EPUB 书签" });
   await expect(bookmarkDialog.getByRole("button", { name: "取消本章书签" })).toBeVisible();
-  await expect(bookmarkDialog.locator(".epub-annotation-item > button:first-child")).toHaveText(/继续阅读 · \d+%/);
+  await expect(bookmarkDialog.locator(".epub-reading-list-title")).toHaveText("继续阅读");
+  await expect(bookmarkDialog.locator(".epub-reading-list-meta")).toContainText(/第 2 章 · 章内 \d+%/);
+  await expect(bookmarkDialog.locator(".epub-reading-current-label")).toHaveText("当前章");
   await expect(bookmarkDialog.getByRole("button", { name: /删除书签 继续阅读 · \d+%/ })).toBeVisible();
   await bookmarkDialog.getByRole("button", { name: "关闭 EPUB 书签" }).click();
   await chapterFrame.locator("mark.epub-highlight-target").click();

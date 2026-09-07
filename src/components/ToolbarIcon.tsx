@@ -2,6 +2,11 @@ import type { ReactNode } from "react";
 
 const paths = {
   chevronLeft: <path d="m14 6-6 6 6 6" />,
+  chevronRight: <path d="m10 6 6 6-6 6" />,
+  pageTop: <path d="M4 4h16M12 20V8m-5 5 5-5 5 5" />,
+  pageBottom: <path d="M4 20h16M12 4v12m-5-5 5 5 5-5" />,
+  expand: <path d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6" />,
+  compress: <path d="M3 9h6V3m6 0v6h6M9 21v-6H3m12 6v-6h6" />,
   plus: <path d="M12 5v14M5 12h14" />,
   close: <path d="m6 6 12 12M6 18 18 6" />,
   select: <rect x="4" y="4" width="16" height="16" rx="2" />,

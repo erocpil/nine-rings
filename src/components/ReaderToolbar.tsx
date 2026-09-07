@@ -36,7 +36,7 @@ export function ReaderToolbar({
   const panels: { key: Exclude<ReaderToolPanel, null>; label: string; content: ReactNode }[] = [
     { key: "search", label: "搜索", content: search },
     { key: "appearance", label: "阅读设置", content: appearance },
-    ...(annotations ? [{ key: "annotations" as const, label: "批注工具", content: annotations }] : []),
+    ...(annotations ? [{ key: "annotations" as const, label: format === "EPUB" ? "高亮与备注" : "批注工具", content: annotations }] : []),
     ...(bookmarks ? [{ key: "bookmarks" as const, label: "书签", content: bookmarks }] : []),
   ];
 

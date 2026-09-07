@@ -90,6 +90,65 @@
   pointer-events: none;
 }
 .reader-panel-notice { margin-top: 10px; font-size: 12px; color: var(--text-secondary); }
+.reader-toolbar .epub-reading-list-item {
+  align-items: stretch;
+  gap: 4px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.reader-toolbar .epub-reading-list-item.is-current {
+  border-color: var(--accent);
+  background: var(--active-bg);
+}
+.reader-toolbar .epub-reading-list-item > .epub-reading-list-link {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  min-width: 0;
+  height: auto;
+  padding: 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  white-space: normal;
+}
+.epub-reading-list-title, .epub-reading-list-note {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+.epub-reading-list-title { font-weight: 500; }
+.epub-reading-list-meta, .epub-reading-list-note, .epub-reading-list-empty {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.epub-reading-current-label { margin-left: 8px; color: var(--accent); }
+.reader-toolbar .epub-reading-list-delete {
+  flex: 0 0 40px;
+  height: auto;
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+}
+.reader-toolbar .epub-reading-list-delete:hover { color: var(--danger); background: var(--hover); }
+@media (pointer: coarse) {
+  .reader-toolbar .epub-reading-list-delete { flex-basis: 44px; min-height: 44px; }
+  .epub-outline-actions button { min-height: 44px; }
+}
+@media (max-width: 380px) {
+  .epub-reader-toolbar .reader-toolbar-controls { flex-wrap: wrap; justify-content: flex-end; }
+  .epub-reader-toolbar .reader-navigation { margin-right: auto; }
+}
 .reader-active-tool { display: flex; gap: 12px; align-items: center; color: var(--accent); }
 .reader-toolbar .reader-active-tool button { height: 28px; min-height: 28px; }
 

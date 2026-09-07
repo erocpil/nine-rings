@@ -44,8 +44,11 @@ for (const format of ["PDF", "EPUB"] as const) {
       expect(box!.x).toBeGreaterThanOrEqual(0);
       expect(box!.x + box!.width).toBeLessThanOrEqual(width);
       expect(box!.y + box!.height).toBeLessThanOrEqual(800);
-      // At normal phone height every setting is visible without a swipe.
-      expect(await settings.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);
+      // Width preferences add a section: vertical scrolling is intentional,
+      // but all controls must remain reachable without horizontal overflow.
+      expect(await settings.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+      await settings.getByRole("button").last().scrollIntoViewIfNeeded();
+      await expect(settings.getByRole("button").last()).toBeInViewport();
       expect(await viewport.boundingBox()).toEqual(before);
       if (width === 390) await page.screenshot({ path: testInfo.outputPath(`${format}-settings.png`) });
       await page.getByRole("button", { name: `${format} 搜索`, exact: true }).click();

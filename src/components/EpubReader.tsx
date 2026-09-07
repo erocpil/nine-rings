@@ -1223,31 +1223,54 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
         activePanel={toolsPanel} onPanelChange={setToolsPanel}
         libraryActions={<><button type="button" className={tocOpen ? "active" : ""} onClick={() => setTocOpen((open) => !open)} aria-label="EPUB 目录">目录</button>
         <button type="button" data-reader-trigger="bookmarks" className={toolsPanel === "bookmarks" ? "active" : ""} aria-expanded={toolsPanel === "bookmarks"} onClick={(event) => { event.stopPropagation(); setToolsPanel((panel) => panel === "bookmarks" ? null : "bookmarks"); }} aria-label="打开 EPUB 书签"><ToolbarIcon name="bookmark" />书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button></>}
-        focusAction={<button type="button" onClick={() => void toggleFullscreen()} aria-label={fullscreen ? "退出 EPUB 专注模式" : "进入 EPUB 专注模式"}>⛶</button>}
+        focusAction={<button type="button" onClick={() => void toggleFullscreen()} aria-label={fullscreen ? "退出 EPUB 专注模式" : "进入 EPUB 专注模式"}><ToolbarIcon name={fullscreen ? "compress" : "expand"} /></button>}
         navigation={<div className="pdf-page-controls epub-chapter-controls">
-          <button type="button" onClick={() => scrollChapterToEdge("start")} disabled={!book} aria-label="回到本章顶部" title="回到本章顶部">⤒</button>
-          <button type="button" onClick={() => changeChapter(chapter - 1)} aria-label="上一章" disabled={!book || chapter <= 0}>‹</button>
+          <button type="button" onClick={() => scrollChapterToEdge("start")} disabled={!book} aria-label="回到本章顶部" title="回到本章顶部"><ToolbarIcon name="pageTop" /></button>
+          <button type="button" onClick={() => changeChapter(chapter - 1)} aria-label="上一章" disabled={!book || chapter <= 0}><ToolbarIcon name="chevronLeft" /></button>
           <span>{book ? `${chapter + 1}/${book.chapters.length}` : "–/–"}</span>
-          <button type="button" onClick={() => changeChapter(chapter + 1)} aria-label="下一章" disabled={!book || chapter >= book.chapters.length - 1}>›</button>
-          <button type="button" onClick={() => scrollChapterToEdge("end")} disabled={!book} aria-label="跳到本章末尾" title="跳到本章末尾">⤓</button>
+          <button type="button" onClick={() => changeChapter(chapter + 1)} aria-label="下一章" disabled={!book || chapter >= book.chapters.length - 1}><ToolbarIcon name="chevronRight" /></button>
+          <button type="button" onClick={() => scrollChapterToEdge("end")} disabled={!book} aria-label="跳到本章末尾" title="跳到本章末尾"><ToolbarIcon name="pageBottom" /></button>
         </div>}
         bookmarks={book ? <>
           <button type="button" className="epub-bookmark-current" onClick={() => void toggleBookmark()}>
             {currentBookmark ? "取消本章书签" : "添加当前位置书签"}
           </button>
           <div className="epub-bookmark-list">
-            {bookmarks.length === 0 && <p>还没有书签</p>}
+            {bookmarks.length === 0 && <p>还没有书签，可添加当前位置，方便下次继续阅读。</p>}
             {bookmarks.map((bookmark) => (
-              <div className="epub-annotation-item" key={bookmark.id}>
-                <button type="button" onClick={() => {
+              <div className={`epub-annotation-item epub-reading-list-item${bookmark.chapter === chapter ? " is-current" : ""}`} key={bookmark.id}>
+                <button type="button" className="epub-reading-list-link" onClick={() => {
                   goToChapter(bookmark.chapter, { scrollProgress: bookmark.scrollProgress });
                   if (window.matchMedia("(max-width: 768px)").matches) setToolsPanel(null);
-                }}>{bookmark.label}</button>
-                <button type="button" aria-label={`删除书签 ${bookmark.label}`} onClick={() => void deleteLocalEpubBookmark(bookmark.id).then(() => setBookmarks((current) => current.filter((item) => item.id !== bookmark.id)))}>×</button>
+                }}>
+                  <span className="epub-reading-list-title">{bookmark.label === `${book.chapters[bookmark.chapter]?.title} · ${Math.round(bookmark.scrollProgress * 100)}%` ? book.chapters[bookmark.chapter]?.title ?? bookmark.label : bookmark.label}</span>
+                  <span className="epub-reading-list-meta">第 {bookmark.chapter + 1} 章 · 章内 {Math.round(bookmark.scrollProgress * 100)}%{bookmark.chapter === chapter && <span className="epub-reading-current-label">当前章</span>}</span>
+                </button>
+                <button type="button" className="epub-reading-list-delete" aria-label={`删除书签 ${bookmark.label}`} onClick={() => void deleteLocalEpubBookmark(bookmark.id).then(() => setBookmarks((current) => current.filter((item) => item.id !== bookmark.id)))}><ToolbarIcon name="trash" /></button>
               </div>
             ))}
           </div>
         </> : undefined}
+        annotations={book ? <div className="epub-highlight-list">
+          {highlights.length === 0 && <p className="epub-reading-list-empty">还没有高亮，选中正文文字后可添加高亮和备注。</p>}
+          {highlights.map((highlight) => {
+            const targetChapter = book.chapters.findIndex((item) => item.path === highlight.anchor.chapterPath);
+            return <div className="epub-annotation-item epub-reading-list-item" key={highlight.id}>
+              <button type="button" className="epub-reading-list-link" disabled={targetChapter < 0} onClick={() => {
+                pendingTargetScrollRef.current = "highlight";
+                goToChapter(targetChapter);
+                setTargetHighlightId(highlight.id);
+                setToolsPanel(null);
+                setAnnotationOpen(true);
+              }}>
+                <span className="epub-reading-list-title">{highlight.anchor.exact}</span>
+                <span className="epub-reading-list-meta">{targetChapter >= 0 ? `第 ${targetChapter + 1} 章 · ${book.chapters[targetChapter].title}` : "原章节不可用"}</span>
+                {highlight.note && <span className="epub-reading-list-note">{highlight.note}</span>}
+              </button>
+              <button type="button" className="epub-reading-list-delete" aria-label={`删除高亮 ${highlight.anchor.exact}`} onClick={() => void deleteLocalEpubHighlight(highlight.id).then(() => setHighlights((current) => current.filter((item) => item.id !== highlight.id)))}><ToolbarIcon name="trash" /></button>
+            </div>;
+          })}
+        </div> : undefined}
         appearance={<>
           <div className="reader-tool-section"><p>文字大小</p><div className="epub-font-controls" aria-label="EPUB 字号">
           <button type="button" onClick={() => setFontSize((size) => Math.max(70, size - 10))} disabled={fontSize <= 70}>A−</button>
@@ -1291,38 +1314,14 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
           <aside className="pdf-outline epub-outline" aria-label="EPUB 目录">
             <div className="pdf-outline-heading">
               <strong>目录</strong>
-              <div className="epub-outline-actions">
-                <span>{progress}%</span>
-                <button type="button" aria-label="展开全部 EPUB 目录" onClick={() => setCollapsedTocItems(new Set())}>＋</button>
-                <button type="button" aria-label="折叠全部 EPUB 目录" onClick={() => setCollapsedTocItems(new Set(collapsibleTocItems))}>−</button>
-              </div>
+              <span className="epub-outline-progress">第 {chapter + 1} / {book.chapters.length} 章</span>
+            </div>
+            <div className="epub-outline-actions">
+              <button type="button" aria-label="展开全部 EPUB 目录" disabled={collapsibleTocItems.size === 0} onClick={() => setCollapsedTocItems(new Set())}>全部展开</button>
+              <button type="button" aria-label="折叠全部 EPUB 目录" disabled={collapsibleTocItems.size === 0} onClick={() => setCollapsedTocItems(new Set(collapsibleTocItems))}>全部折叠</button>
             </div>
             <div className="pdf-outline-list">
               {renderTocItems(tocTree)}
-              {(highlights.length > 0 || bookmarks.length > 0) && <div className="epub-annotation-directory">
-                <h4>高亮与备注</h4>
-                {highlights.map((highlight) => (
-                  <div className="epub-annotation-item" key={highlight.id}>
-                    <button type="button" onClick={() => {
-                      const targetChapter = book.chapters.findIndex((item) => item.path === highlight.anchor.chapterPath);
-                      if (targetChapter >= 0) {
-                        pendingTargetScrollRef.current = "highlight";
-                        goToChapter(targetChapter);
-                        setTargetHighlightId(highlight.id);
-                      }
-                      setAnnotationOpen(true);
-                    }}>{highlight.anchor.exact}</button>
-                    <button type="button" aria-label={`删除高亮 ${highlight.anchor.exact}`} onClick={() => void deleteLocalEpubHighlight(highlight.id).then(() => setHighlights((current) => current.filter((item) => item.id !== highlight.id)))}>×</button>
-                  </div>
-                ))}
-                <h4>书签</h4>
-                {bookmarks.map((bookmark) => (
-                  <div className="epub-annotation-item" key={bookmark.id}>
-                    <button type="button" onClick={() => goToChapter(bookmark.chapter, { scrollProgress: bookmark.scrollProgress })}>{bookmark.label}</button>
-                    <button type="button" aria-label={`删除书签 ${bookmark.label}`} onClick={() => void deleteLocalEpubBookmark(bookmark.id).then(() => setBookmarks((current) => current.filter((item) => item.id !== bookmark.id)))}>×</button>
-                  </div>
-                ))}
-              </div>}
             </div>
           </aside>
         )}
