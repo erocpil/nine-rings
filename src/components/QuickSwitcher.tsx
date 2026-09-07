@@ -118,7 +118,9 @@ export default function QuickSwitcher({ open, activeNoteId, onClose, onSelect }:
             aria-controls="quick-switcher-results"
             aria-activedescendant={!loading && !failed && results[activeIndex] ? `quick-switcher-${results[activeIndex].id}` : undefined}
           />
-          <kbd>Esc</kbd>
+          <button type="button" className="quick-switcher-close" onClick={onClose} aria-label="关闭快速切换" title="关闭（Esc）">
+            <span>关闭</span><kbd aria-hidden="true">Esc</kbd>
+          </button>
         </div>
         <div className="quick-switcher-caption">
           <span>{query.trim() ? `匹配结果 · ${results.length}` : "最近访问"}</span>

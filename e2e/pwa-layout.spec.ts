@@ -1791,6 +1791,15 @@ test.describe("PWA 窄屏应用外壳", () => {
     })).toEqual({ top: 70, left: 4, width: 382, height: 330 });
     expect(await dialog.evaluate((element) => element.getBoundingClientRect().bottom))
       .toBeLessThanOrEqual(400);
+    const close = dialog.getByRole("button", { name: "关闭快速切换" });
+    await expect(close).toBeVisible();
+    const bounds = (await close.boundingBox())!;
+    expect(bounds.width).toBeGreaterThanOrEqual(44);
+    expect(bounds.height).toBeGreaterThanOrEqual(44);
+    expect(bounds.y).toBeGreaterThanOrEqual(70);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(400);
+    await close.tap();
+    await expect(dialog).toHaveCount(0);
   });
 
   test("离线时明确提示但编辑器保持可用", async ({ page, context }) => {
