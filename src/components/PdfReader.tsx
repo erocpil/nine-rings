@@ -2,7 +2,7 @@ import { ReaderToolbar, type ReaderToolPanel } from "./ReaderToolbar";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { recordReaderDiagnostic } from "../lib/reader-diagnostics";
 import { PdfPageCache } from "../lib/pdf-page-cache";
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   getDocument,
   GlobalWorkerOptions,
@@ -132,7 +132,8 @@ function restorePdfZoomAnchor(viewport: HTMLElement, surface: HTMLElement, ancho
   const surfaceBounds = surface.getBoundingClientRect();
   const currentX = surfaceBounds.left + anchor.x * surfaceBounds.width;
   const currentY = surfaceBounds.top + anchor.y * surfaceBounds.height;
-  viewport.scrollLeft += currentX - (viewportBounds.left + anchor.viewportX);
+  if (surfaceBounds.width <= viewport.clientWidth - 24) viewport.scrollLeft = 0;
+  else viewport.scrollLeft += currentX - (viewportBounds.left + anchor.viewportX);
   viewport.scrollTop += currentY - (viewportBounds.top + anchor.viewportY);
 }
 
@@ -215,6 +216,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     finally { preview.width = preview.height = 0; }
   }, []);
   const pageSurfaceRefs = useRef(new Map<number, HTMLDivElement>());
+  const pageSizesRef = useRef(new Map<number, { width: number; height: number }>());
+  const [pageSizeRevision, setPageSizeRevision] = useState(0);
   const textLayerElementRefs = useRef(new Map<number, HTMLDivElement>());
   const canvasRefCallbacks = useRef(new Map<number, (node: HTMLCanvasElement | null) => void>());
   const pageSurfaceRefCallbacks = useRef(new Map<number, (node: HTMLDivElement | null) => void>());
@@ -603,6 +606,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       pageRequestOwnerRefs.current.clear();
       pageRequestedSignatureRefs.current.clear();
       pageSurfaceRefs.current.clear();
+      pageSizesRef.current.clear();
       textLayerElementRefs.current.clear();
       textCacheRef.current.clear();
       textContentCacheRef.current.clear();
@@ -744,6 +748,27 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   );
   const displayedPages = viewMode === "vertical" ? allPdfPages : renderedPages;
 
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!pdf || !viewport || viewportWidth <= 0 || viewportHeight <= 0) return;
+    const fallback = pageSizesRef.current.values().next().value ?? { width: 600, height: 800 };
+    // Layout belongs to the zoom state, not to the completion order of raster
+    // jobs. Update even offscreen/cached pages before the browser paints.
+    pageSurfaceRefs.current.forEach((surface, pageNumber) => {
+      const size = pageSizesRef.current.get(pageNumber) ?? fallback;
+      const scale = fitHeight ? clampZoom(Math.max(120, viewportHeight - 24) / size.height)
+        : fitWidth ? clampZoom(Math.max(160, viewportWidth - 24) / size.width) : clampZoom(zoom);
+      surface.style.width = `${Math.floor(size.width * scale)}px`;
+      surface.style.height = `${Math.floor(size.height * scale)}px`;
+      const canvas = canvasRefs.current.get(pageNumber);
+      if (canvas) { canvas.style.width = "100%"; canvas.style.height = "100%"; }
+    });
+    const current = pageSurfaceRefs.current.get(page);
+    const fits = !!current && parseFloat(current.style.width) <= viewportWidth - 24;
+    viewport.classList.toggle("pdf-page-fits-width", fits);
+    if (fits) viewport.scrollLeft = 0;
+  }, [pdf, displayedPages, page, pageSizeRevision, viewportWidth, viewportHeight, fitWidth, fitHeight, zoom]);
+
   const canvasRefForPage = useCallback((pageNumber: number) => {
     let callback = canvasRefCallbacks.current.get(pageNumber);
     if (callback) return callback;
@@ -754,8 +779,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         if (cached) {
           node.width = cached.canvas.width;
           node.height = cached.canvas.height;
-          node.style.width = cached.width;
-          node.style.height = cached.height;
+          node.style.width = "100%";
+          node.style.height = "100%";
           node.getContext("2d")?.drawImage(cached.canvas, 0, 0);
           node.dataset.pdfReady = "true";
         }
@@ -971,6 +996,11 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           if (isStale()) return;
 
           const baseViewport = pdfPage.getViewport({ scale: 1 });
+          const knownSize = pageSizesRef.current.get(pageNumber);
+          if (knownSize?.width !== baseViewport.width || knownSize?.height !== baseViewport.height) {
+            pageSizesRef.current.set(pageNumber, { width: baseViewport.width, height: baseViewport.height });
+            setPageSizeRevision((revision) => revision + 1);
+          }
           if (viewMode === "vertical" && baseViewport.height > 0) {
             const viewportElement = viewportRef.current;
             if (viewportElement && !viewportElement.style.getPropertyValue("--pdf-page-aspect-ratio")) {

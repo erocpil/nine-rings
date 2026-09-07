@@ -106,6 +106,75 @@ test("PDF 快速往返滚动后只提交当前页，离屏画布释放", async (
   await expect(target.locator(".pdf-text-layer")).toContainText(
     "Unique page 20",
   );
+
+  // Old offscreen widths must not leave a horizontal scroll range after zooming out.
+  await page.getByRole("button", { name: "PDF 阅读设置", exact: true }).click();
+  for (let i = 0; i < 4; i++)
+    await page.getByRole("button", { name: "放大 PDF" }).click();
+  await expect
+    .poll(() =>
+      viewport.evaluate((element) => element.scrollWidth - element.clientWidth),
+    )
+    .toBeGreaterThan(1);
+  await viewport.evaluate((element) => {
+    element.scrollLeft = 80;
+  });
+  expect(
+    await viewport.evaluate((element) => element.scrollLeft),
+  ).toBeGreaterThan(0);
+  await page
+    .getByRole("button", { name: "关闭 PDF 阅读设置", exact: true })
+    .click();
+  await page
+    .locator('.pdf-page-surface[data-pdf-page="30"]')
+    .evaluate((element) => element.scrollIntoView({ block: "start" }));
+  await expect(
+    page.locator('.pdf-page-surface[data-pdf-page="30"] .pdf-text-layer'),
+  ).toContainText("Unique page 30");
+  await page.getByRole("button", { name: "PDF 阅读设置", exact: true }).click();
+  for (let i = 0; i < 8; i++)
+    await page.getByRole("button", { name: "缩小 PDF" }).click();
+  await page
+    .getByRole("button", { name: "关闭 PDF 阅读设置", exact: true })
+    .click();
+  await expect
+    .poll(() =>
+      viewport.evaluate((element) => element.scrollWidth - element.clientWidth),
+    )
+    .toBeLessThanOrEqual(1);
+  await viewport.evaluate((element) => {
+    element.scrollLeft = 150;
+  });
+  expect(await viewport.evaluate((element) => element.scrollLeft)).toBe(0);
+  await viewport.evaluate((element) => {
+    element.scrollLeft = -150;
+    element.scrollTop += 80;
+  });
+  expect(await viewport.evaluate((element) => element.scrollLeft)).toBe(0);
+  await expect
+    .poll(() =>
+      viewport.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        const visible = [
+          ...element.querySelectorAll<HTMLElement>(".pdf-page-surface"),
+        ]
+          .map((surface) => surface.getBoundingClientRect())
+          .filter(
+            (rect) => rect.bottom > bounds.top && rect.top < bounds.bottom,
+          );
+        return (
+          visible.length > 0 &&
+          visible.every(
+            (rect) =>
+              Math.abs(
+                rect.left + rect.right - 2 * bounds.left - element.clientWidth,
+              ) <= 1,
+          )
+        );
+      }),
+    )
+    .toBe(true);
+  await page.screenshot({ path: "/tmp/pdf-small-page-centered.png" });
   await page
     .getByRole("button", { name: "关闭 PDF 阅读器", exact: true })
     .tap();

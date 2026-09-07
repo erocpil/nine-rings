@@ -10114,6 +10114,10 @@ button.doc-tree-toggle:focus-visible {
   scrollbar-gutter: stable;
 }
 
+/* A page narrower than the viewport has no useful horizontal pan range. */
+.pdf-page-viewport.pdf-page-fits-width { overflow-x: hidden; }
+.pdf-page-fits-width .pdf-page-surface { touch-action: pan-y; }
+
 .pdf-page-surface {
   position: relative;
   flex: none;
