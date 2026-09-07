@@ -2801,7 +2801,7 @@ body {
   border-radius: var(--radius);
 }
 
-.search-hit > span:not(.search-hit-title) {
+.search-hit > .search-hit-date {
   display: block;
 }
 
@@ -12307,6 +12307,99 @@ button.doc-tree-toggle:focus-visible {
     min-height: 0;
     max-height: none;
   }
+}
+
+/* Shared list hierarchy and location previews. */
+.ui-list-content {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ui-list-content .ui-list-title,
+.ui-list-content .ui-list-path,
+.ui-list-preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.ui-list-content .ui-list-title {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.ui-list-content .ui-list-path {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ui-list-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.ui-list-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 14px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.ui-list-state strong { font-weight: 500; color: var(--text); }
+.ui-list-state-error > .toolbar-icon { color: var(--danger); }
+.ui-list-state .toolbar-icon,
+.quick-switcher-kind .toolbar-icon,
+.move-to-folder-icon .toolbar-icon { width: 18px; height: 18px; flex: none; }
+.quick-switcher-kind { align-self: flex-start; }
+.quick-switcher-current { flex: none; }
+
+:is(.search-hit, .quick-switcher-item, .move-to-folder-option, .dialog-template-chip, .dialog-suggestion):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.dialog-input[aria-invalid="true"] { border-color: var(--danger); }
+.dialog-type-btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dialog-suggestion { display: block; width: 100%; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
+.ui-field-error { color: var(--danger); font-size: 12px; overflow-wrap: anywhere; }
+
+.ui-path-preview {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+  gap: 4px 8px;
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.ui-path-preview > span { display: block; }
+.ui-path-preview code {
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--ui-radius-small);
+  background: var(--bg);
+  color: var(--text-secondary);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* 触屏浏览器会把一次轻触保留为 :hover；设置页又会在导航时

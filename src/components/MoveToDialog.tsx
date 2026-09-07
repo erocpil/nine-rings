@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../lib/api";
+import { ListState, PathPreview } from "./ListPresentation";
+import { OperationError } from "./OperationError";
+import { ToolbarIcon } from "./ToolbarIcon";
 import {
   collectMoveFolderPaths,
   resolveMoveTarget,
@@ -35,6 +38,8 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
   ));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [reload, setReload] = useState(0);
+  const savingRef = useRef(false);
 
   useEffect(() => {
     searchRef.current?.focus();
@@ -63,7 +68,7 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
         if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, [folderPaths]);
+  }, [folderPaths, reload]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -119,10 +124,12 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
   };
 
   const submit = async () => {
-    if (!resolved.targetPath || resolved.error || saving) {
+    if (savingRef.current) return;
+    if (!resolved.targetPath || resolved.error) {
       setError(resolved.error ?? "请选择目标目录");
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     setError(null);
     try {
@@ -131,6 +138,8 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
       setSaving(false);
+    } finally {
+      savingRef.current = false;
     }
   };
 
@@ -192,11 +201,11 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
               );
             })()}
             {loading ? (
-              <div className="move-to-list-message">正在加载目录…</div>
+              <ListState kind="loading" title="正在加载目录…" />
             ) : loadError ? (
-              <div className="move-to-list-message error">目录加载失败：{loadError}</div>
+              <ListState kind="error" title="目录加载失败" detail={loadError} onRetry={() => { setReload((value) => value + 1); searchRef.current?.focus(); }} />
             ) : visibleFolders.length === 0 ? (
-              <div className="move-to-list-message">没有匹配的目录</div>
+              <ListState kind="empty" title="没有匹配的目录" detail="可在下方直接输入新目录" />
             ) : visibleFolders.map((path) => {
               const state = candidateState(path);
               const depth = path.split("/").length - 1;
@@ -210,9 +219,9 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
                   disabled={state.disabled}
                   onClick={() => { setDestination(path); setError(null); }}
                 >
-                  <span className="move-to-folder-indent" style={{ width: `${depth * 12}px` }} />
-                  <span className="move-to-folder-icon">📁</span>
-                  <span className="move-to-folder-path">{path}</span>
+                  <span className="move-to-folder-indent" style={{ width: `${Math.min(depth, 4) * 8}px` }} />
+                  <span className="move-to-folder-icon"><ToolbarIcon name="folder" /></span>
+                  <span className="move-to-folder-path" title={path}>{path}</span>
                   {state.reason && <span className="move-to-folder-state">{state.reason}</span>}
                 </button>
               );
@@ -239,20 +248,16 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
               }}
               placeholder={subject.kind === "folder" ? "留空表示文档根目录" : "例如 archives/old"}
               aria-invalid={!!(error || resolved.error)}
+              aria-describedby={resolved.error ? "move-to-path-error" : undefined}
             />
           </label>
           {!error && resolved.error && (
-            <div className="move-to-validation" role="status">{resolved.error}</div>
+            <div className="move-to-validation ui-field-error" id="move-to-path-error" role="status">{resolved.error}</div>
           )}
 
-          <div className="move-to-preview">
-            <span>预览</span>
-            <code>{sourcePath}</code>
-            <span>→</span>
-            <code>{resolved.targetPath || "请选择目标"}</code>
-          </div>
+          <PathPreview className="move-to-preview" source={sourcePath} target={resolved.targetPath} />
           {willMerge && <div className="move-to-warning">目标目录已存在，移动后将合并目录内容。</div>}
-          {error && <div className="move-to-error" role="alert">移动失败：{error}</div>}
+          {error && <OperationError key={error} message={`移动失败：${error}`} />}
         </div>
 
         <div className="dialog-footer">

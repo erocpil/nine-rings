@@ -6,6 +6,8 @@ import {
   readRecentNoteIds,
 } from "../lib/quick-switcher";
 import type { Note } from "../types/models";
+import { DocumentListContent, ListState } from "./ListPresentation";
+import { ToolbarIcon } from "./ToolbarIcon";
 
 interface QuickSwitcherProps {
   open: boolean;
@@ -24,8 +26,10 @@ export default function QuickSwitcher({ open, activeNoteId, onClose, onSelect }:
   const [activeIndex, setActiveIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [reload, setReload] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -49,7 +53,7 @@ export default function QuickSwitcher({ open, activeNoteId, onClose, onSelect }:
       .catch(() => { if (!cancelled) setFailed(true); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [open]);
+  }, [open, reload]);
 
   const results = useMemo(
     () => filterQuickSwitcherNotes(notes, query).slice(0, query.trim() ? 50 : 12),
@@ -104,10 +108,15 @@ export default function QuickSwitcher({ open, activeNoteId, onClose, onSelect }:
         <div className="quick-switcher-search">
           <span aria-hidden="true">⌕</span>
           <input
+            ref={inputRef}
+            role="combobox"
+            aria-expanded="true"
+            aria-autocomplete="list"
             autoFocus
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
+              if (loading || failed) return;
               if (event.key === "ArrowDown" && results.length > 0) {
                 event.preventDefault();
                 setActiveIndex((index) => (index + 1) % results.length);
@@ -122,7 +131,7 @@ export default function QuickSwitcher({ open, activeNoteId, onClose, onSelect }:
             placeholder="按标题、路径、标签或概念查找…"
             aria-label="查找并切换笔记"
             aria-controls="quick-switcher-results"
-            aria-activedescendant={results[activeIndex] ? `quick-switcher-${results[activeIndex].id}` : undefined}
+            aria-activedescendant={!loading && !failed && results[activeIndex] ? `quick-switcher-${results[activeIndex].id}` : undefined}
           />
           <kbd>Esc</kbd>
         </div>
@@ -131,10 +140,10 @@ export default function QuickSwitcher({ open, activeNoteId, onClose, onSelect }:
           <span>↑↓ 选择 · ↵ 打开</span>
         </div>
         <div id="quick-switcher-results" className="quick-switcher-results" ref={listRef} role="listbox">
-          {loading && <div className="quick-switcher-empty">正在载入笔记…</div>}
-          {!loading && failed && <div className="quick-switcher-empty">载入失败，请稍后重试</div>}
+          {loading && <ListState kind="loading" title="正在载入笔记…" />}
+          {!loading && failed && <ListState kind="error" title="载入失败" detail="请检查本地存储状态后重试" onRetry={() => { setReload((value) => value + 1); inputRef.current?.focus(); }} />}
           {!loading && !failed && results.length === 0 && (
-            <div className="quick-switcher-empty">没有找到匹配的笔记</div>
+            <ListState kind="empty" title="没有找到匹配的笔记" detail="试试标题、路径、标签或概念关键词" />
           )}
           {!loading && !failed && results.map((note, index) => (
             <button
@@ -148,14 +157,9 @@ export default function QuickSwitcher({ open, activeNoteId, onClose, onSelect }:
               onMouseEnter={() => setActiveIndex(index)}
               onClick={() => choose(note)}
             >
-              <span className="quick-switcher-kind" aria-hidden="true">{note.storagePath ? "▤" : "✎"}</span>
-              <span className="quick-switcher-item-main">
-                <span className="quick-switcher-title">{note.title?.trim() || "无标题"}</span>
-                <span className="quick-switcher-meta">
-                  {noteKind(note)} · {note.storagePath || note.date}
-                  {note.tags.length > 0 ? ` · #${note.tags.slice(0, 2).join(" #")}` : ""}
-                </span>
-              </span>
+              <span className="quick-switcher-kind" aria-hidden="true"><ToolbarIcon name={note.storagePath ? "document" : "note"} /></span>
+              <DocumentListContent variant="quick-switcher" title={note.title?.trim() || "无标题"} path={note.storagePath}
+                metadata={`${noteKind(note)} · ${note.date}${note.tags.length > 0 ? ` · #${note.tags.slice(0, 2).join(" #")}` : ""}`} />
               {note.id === activeNoteId && <span className="quick-switcher-current">当前</span>}
             </button>
           ))}

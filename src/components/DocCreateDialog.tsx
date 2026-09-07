@@ -3,7 +3,9 @@ import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import type { DocType, Note } from "../types/models";
 import { applyTemplateMetadata, templateStore, type Template } from "../lib/storage/template-store";
-import { buildDocumentStoragePath, splitSuggestedDocPath } from "../lib/storage/core";
+import { buildDocumentStoragePath, normalizeStoragePath, splitSuggestedDocPath } from "../lib/storage/core";
+import { PathPreview } from "./ListPresentation";
+import { OperationError } from "./OperationError";
 
 interface DocCreateDialogProps {
   onClose: () => void;
@@ -56,6 +58,8 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
   const [existingConcepts, setExistingConcepts] = useState<string[]>([]);
   const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [error, setError] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [customRootSuggestions, setCustomRootSuggestions] = useState<string[]>([]);
@@ -90,7 +94,7 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
 
   useEffect(() => {
     titleRef.current?.focus();
-    api.docs.allConcepts().then(setExistingConcepts);
+    api.docs.allConcepts().then(setExistingConcepts).catch(() => {});
     api.docs.tree().then((tree) => {
       const roots = tree
         .filter((node) => node.type === "folder" && !node.path.includes("/") && node.path !== "daily")
@@ -202,11 +206,17 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
     );
   };
 
+  const storagePath = buildStoragePath();
+  let pathError = "";
+  try { normalizeStoragePath(storagePath); }
+  catch (reason) { pathError = reason instanceof Error ? reason.message : String(reason); }
+
   const handleSubmit = async () => {
-    if (!title.trim()) return;
+    if (!title.trim() || pathError || savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
+    setError(null);
     try {
-      const storagePath = buildStoragePath();
       const today = localDateKey();
       const selectedTemplate = templates.find((template) => template.id === activeTemplateId);
       const defaults = selectedTemplate ? await templateStore.applyTemplate(selectedTemplate) : null;
@@ -224,24 +234,27 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
 
       onCreated(note);
     } catch (e) {
-      console.error("Failed to create document:", e);
+      setError(`创建失败：${e instanceof Error ? e.message : String(e)}`);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.defaultPrevented || e.nativeEvent.isComposing) return;
+    if (e.key === "Enter" && !e.shiftKey && e.target instanceof HTMLInputElement && e.target.type !== "radio") {
       e.preventDefault();
       handleSubmit();
     }
     if (e.key === "Escape") {
-      onClose();
+      e.stopPropagation();
+      if (!savingRef.current) onClose();
     }
   };
 
   return (
-    <div className="dialog-overlay doc-create-overlay" onClick={onClose}>
+    <div className="dialog-overlay doc-create-overlay" onClick={() => { if (!savingRef.current) onClose(); }}>
       <div
         className="dialog doc-create-dialog"
         role="dialog"
@@ -253,7 +266,7 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
       >
         <div className="dialog-header">
           <h3 id="doc-create-dialog-title">新建文档</h3>
-          <button className="btn-icon dialog-close" onClick={onClose} aria-label="关闭新建文档">✕</button>
+          <button className="btn-icon dialog-close" onClick={onClose} disabled={saving} aria-label="关闭新建文档">✕</button>
         </div>
 
         <div className="dialog-body" ref={bodyRef}>
@@ -266,6 +279,7 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
                   <button
                     key={t.id}
                     className={`dialog-template-chip ${activeTemplateId === t.id ? "active" : ""}`}
+                    aria-pressed={activeTemplateId === t.id}
                     onClick={() => handleTemplateSelect(t)}
                     type="button"
                   >
@@ -294,18 +308,20 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
               type="text"
               className="dialog-input"
               placeholder="文档标题..."
+              required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
           </label>
 
           {/* 目录（P.A.R.A. 生命周期） */}
-          <label className="dialog-field">
+          <div className="dialog-field">
             <span className="dialog-label">位置 <span className="dialog-hint">（仅决定存放，可更改）</span></span>
             <div className="dialog-path-row">
               <select
                 className={`dialog-select ${showSuggestion ? "suggested" : ""}`}
                 value={rootPath}
+                aria-label="顶级目录"
                 onChange={(e) => handleRootPathChange(e.target.value)}
                 title={PATH_OPTIONS.find((option) => option.value === rootPath)?.desc}
               >
@@ -322,6 +338,9 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
                   type="text"
                   className="dialog-input dialog-path-input"
                   placeholder="目录路径 (如 private/network)"
+                  aria-label="自定义目录"
+                  aria-invalid={!!pathError}
+                  aria-describedby={pathError ? "doc-create-path-error" : undefined}
                   value={customRootPath}
                   list="custom-root-paths"
                   onChange={(e) => {
@@ -338,17 +357,19 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
                 type="text"
                 className={`dialog-input dialog-path-input ${showSuggestion ? "suggested" : ""}`}
                 placeholder="子路径 (如 nine-rings)"
+                aria-label="子路径"
+                aria-invalid={!!pathError}
+                aria-describedby={pathError ? "doc-create-path-error" : undefined}
                 value={subPath}
                 onChange={(e) => handleSubPathChange(e.target.value)}
               />
             </div>
-            <div className="dialog-path-preview">
-              预览: <code>{buildStoragePath()}</code>
-            </div>
-          </label>
+            <PathPreview className="dialog-path-preview" target={storagePath} />
+            {pathError && <span className="ui-field-error" id="doc-create-path-error" role="status">{pathError}</span>}
+          </div>
 
           {/* 类型（Diátaxis） */}
-          <label className="dialog-field">
+          <div className="dialog-field">
             <span className="dialog-label">类型</span>
             <div className="dialog-type-grid" role="radiogroup" aria-label="文档类型">
               {DOC_TYPE_OPTIONS.map((o) => (
@@ -369,7 +390,7 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
                 </label>
               ))}
             </div>
-          </label>
+          </div>
 
           {/* 概念标签（Zettelkasten） */}
           <label className="dialog-field">
@@ -391,13 +412,14 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
               {filteredSuggestions.length > 0 && (
                 <div className="dialog-suggestions">
                   {filteredSuggestions.map((s) => (
-                    <div
+                    <button
                       key={s}
+                      type="button"
                       className="dialog-suggestion"
                       onClick={() => addConcept(s)}
                     >
                       {s}
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -407,20 +429,21 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
                 {concepts.map((c) => (
                   <span key={c} className="dialog-tag">
                     {c}
-                    <button className="dialog-tag-remove" onClick={() => removeConcept(c)} type="button">✕</button>
+                    <button className="dialog-tag-remove" aria-label={`移除概念 ${c}`} onClick={() => removeConcept(c)} type="button">✕</button>
                   </span>
                 ))}
               </div>
             )}
           </label>
+          {error && <OperationError key={error} message={error} />}
         </div>
 
         <div className="dialog-footer">
-          <button className="btn btn-secondary" onClick={onClose}>取消</button>
+          <button className="btn btn-secondary" onClick={onClose} disabled={saving}>取消</button>
           <button
             className="btn btn-primary"
             onClick={handleSubmit}
-            disabled={!title.trim() || !buildStoragePath() || saving}
+            disabled={!title.trim() || !!pathError || saving}
           >
             {saving ? "创建中..." : "创建"}
           </button>

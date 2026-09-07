@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 
 const paths = {
+  folder: <path d="M3 7V4h6l3 3h9v13H3Z" />,
+  document: <><path d="M5 3h9l5 5v13H5ZM14 3v6h5M8 13h8M8 17h6" /></>,
+  note: <><path d="M4 4h16v16H4ZM8 8h8M8 12h8M8 16h5" /></>,
   search: <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></>,
   bookmark: <path d="M6 3h12v18l-6-4-6 4Z" />,
   sliders: <><path d="M4 7h16M4 17h16" /><circle cx="9" cy="7" r="2" /><circle cx="15" cy="17" r="2" /></>,

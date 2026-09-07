@@ -4,6 +4,7 @@ import { snippetParts } from "../lib/storage/idb-snippet";
 import type { SearchNote } from "../lib/search-index-core";
 import type { Note } from "../types/models";
 import { extractPlainText } from "../lib/storage/core";
+import { DocumentListContent, ListState } from "./ListPresentation";
 
 const PAGE_SIZE = 80;
 
@@ -39,6 +40,7 @@ export function SearchResultsPanel({
         <span>{searching ? "搜索中…" : `搜索结果（${total}）`}</span>
         <button type="button" onClick={onClose} aria-label="关闭搜索结果" title="关闭搜索结果">×</button>
       </h3>
+      {total === 0 && <ListState kind={searching ? "loading" : "empty"} title={searching ? "正在搜索…" : "没有匹配的结果"} detail={searching ? "正在查找文档与待办" : "试试更短的关键词，或调整筛选条件"} />}
       {notes.length > 0 && <div className="search-section-label">笔记</div>}
       {visibleNotes.map((note) => {
         const snippet = snippetParts((note as SearchNote).search_text ?? ("content" in note ? extractPlainText(note.content) : ""), searchTerm);
@@ -49,10 +51,9 @@ export function SearchResultsPanel({
             className="search-hit"
             onClick={(event) => onSelectNote(note, event.ctrlKey || event.metaKey, searchTerm)}
           >
-            <span className="search-hit-title">{note.title || "无标题"}</span>
-            <span className="search-hit-date">{note.date}</span>
-            {note.storagePath && <span className="search-hit-path">{note.storagePath}</span>}
-            {snippet.length > 0 && <span className="search-hit-snippet">{snippet.map((part, index) => part.match ? <mark key={index}>{part.text}</mark> : part.text)}</span>}
+            <DocumentListContent variant="search-hit" title={note.title || "无标题"}
+              path={note.storagePath} metadata={`${note.storagePath ? "文档" : "随笔"} · ${note.date}`}
+              preview={snippet.length > 0 ? snippet.map((part, index) => part.match ? <mark key={index}>{part.text}</mark> : part.text) : undefined} />
           </button>
         );
       })}
