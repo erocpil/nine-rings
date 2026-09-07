@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { ListState, PathPreview } from "./ListPresentation";
 import { OperationError } from "./OperationError";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import {
   collectMoveFolderPaths,
   resolveMoveTarget,
@@ -25,6 +26,8 @@ function destinationLabel(subject: MoveToSubject): string {
 
 export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDialogProps) {
   const searchRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef, true, searchRef);
   const [loadedPaths, setLoadedPaths] = useState<string[]>(folderPaths ?? []);
   const [loading, setLoading] = useState(folderPaths === undefined);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -40,10 +43,6 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
   const [saving, setSaving] = useState(false);
   const [reload, setReload] = useState(0);
   const savingRef = useRef(false);
-
-  useEffect(() => {
-    searchRef.current?.focus();
-  }, []);
 
   useEffect(() => {
     if (folderPaths !== undefined) {
@@ -74,6 +73,7 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !saving) {
         event.preventDefault();
+        event.stopPropagation();
         onClose();
       }
     };
@@ -146,7 +146,8 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
   const dialog = (
     <div className="dialog-overlay move-to-overlay" onMouseDown={() => { if (!saving) onClose(); }}>
       <div
-        className="dialog move-to-dialog"
+        className="dialog move-to-dialog ui-form-dialog"
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="move-to-title"

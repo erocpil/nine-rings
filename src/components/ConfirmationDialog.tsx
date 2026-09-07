@@ -32,6 +32,7 @@ function ConfirmationDialog({ options, onResult }: {
     <dialog
       ref={dialogRef}
       className="ui-confirm-dialog"
+      role="dialog"
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       onCancel={(event) => { event.preventDefault(); onResult(false); }}

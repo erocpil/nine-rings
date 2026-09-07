@@ -6,6 +6,7 @@ import { applyTemplateMetadata, templateStore, type Template } from "../lib/stor
 import { buildDocumentStoragePath, normalizeStoragePath, splitSuggestedDocPath } from "../lib/storage/core";
 import { PathPreview } from "./ListPresentation";
 import { OperationError } from "./OperationError";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 
 interface DocCreateDialogProps {
   onClose: () => void;
@@ -64,6 +65,8 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [customRootSuggestions, setCustomRootSuggestions] = useState<string[]>([]);
   const titleRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef, true, titleRef);
   const bodyRef = useRef<HTMLDivElement>(null);
   const revealFocusFrameRef = useRef<number | null>(null);
 
@@ -93,7 +96,6 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
   }, []);
 
   useEffect(() => {
-    titleRef.current?.focus();
     api.docs.allConcepts().then(setExistingConcepts).catch(() => {});
     api.docs.tree().then((tree) => {
       const roots = tree
@@ -256,7 +258,8 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
   return (
     <div className="dialog-overlay doc-create-overlay" onClick={() => { if (!savingRef.current) onClose(); }}>
       <div
-        className="dialog doc-create-dialog"
+        className="dialog doc-create-dialog ui-form-dialog"
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="doc-create-dialog-title"

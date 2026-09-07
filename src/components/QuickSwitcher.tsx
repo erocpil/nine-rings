@@ -8,6 +8,7 @@ import {
 import type { Note } from "../types/models";
 import { DocumentListContent, ListState } from "./ListPresentation";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 
 interface QuickSwitcherProps {
   open: boolean;
@@ -31,11 +32,7 @@ export default function QuickSwitcher({ open, activeNoteId, onClose, onSelect }:
   const dialogRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    return () => { window.setTimeout(() => previousFocus?.focus(), 0); };
-  }, [open]);
+  useDialogFocus(dialogRef, open, inputRef);
 
   useEffect(() => {
     if (!open) return;
@@ -88,20 +85,9 @@ export default function QuickSwitcher({ open, activeNoteId, onClose, onSelect }:
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             event.preventDefault();
+            event.stopPropagation();
             onClose();
             return;
-          }
-          if (event.key !== "Tab") return;
-          const focusable = dialogRef.current?.querySelectorAll<HTMLElement>("input, button:not([disabled])");
-          if (!focusable || focusable.length === 0) return;
-          const first = focusable[0];
-          const last = focusable[focusable.length - 1];
-          if (event.shiftKey && document.activeElement === first) {
-            event.preventDefault();
-            last.focus();
-          } else if (!event.shiftKey && document.activeElement === last) {
-            event.preventDefault();
-            first.focus();
           }
         }}
       >
@@ -112,7 +98,6 @@ export default function QuickSwitcher({ open, activeNoteId, onClose, onSelect }:
             role="combobox"
             aria-expanded="true"
             aria-autocomplete="list"
-            autoFocus
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
