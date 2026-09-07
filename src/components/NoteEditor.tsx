@@ -31,7 +31,7 @@ import {
 // ── 自定义字体大小扩展 ──
 
 import { Extension, getSchema, type Editor } from "@tiptap/core";
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import { DOMSerializer, type Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { CellSelection, deleteCellSelection, TableMap } from "@tiptap/pm/tables";
@@ -2368,6 +2368,13 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
         return;
       }
 
+      const rawHtml = e.clipboardData.getData("text/html")?.trim();
+      if (rawHtml) {
+        e.preventDefault();
+        editor.chain().focus().insertContent(normalizePastedHTML(rawHtml)).run();
+        return;
+      }
+
       // ── URL 粘贴：自动抓标题 ──
       const plainText = rawPlainText.trim();
       if (plainText && /^https?:\/\/\S+$/.test(plainText)) {
@@ -2411,8 +2418,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
       }
 
       // 浏览器和聊天应用复制 Markdown 时通常会同时提供 text/html。
-      // 高置信 Markdown 应优先按源码解析；普通富文本（包括 HTML 表格）
-      // 因 looksLikeMarkdown 为 false，仍交给编辑器保留原格式。
+      // 优先使用 HTML 数据，避免把富文本再次退回到 Markdown 解析。
       if (plainText && looksLikeMarkdown(plainText)) {
         e.preventDefault();
         const parsed = deltaToProseMirror(mdToDelta(plainText));
@@ -2847,22 +2853,58 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
   const handleCopy = async () => {
     const { from, to } = editor.state.selection;
     if (from === to) return;
-    const text = clipboardSliceToPlainText(editor.state.selection.content());
-    await copyToClipboard(text);
+    const slice = editor.state.selection.content();
+    const text = clipboardSliceToPlainText(slice);
+    const fragment = DOMSerializer.fromSchema(editor.schema).serializeFragment(slice.content);
+    const htmlContainer = document.createElement("div");
+    htmlContainer.appendChild(fragment);
+
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([text], { type: "text/plain" }),
+          "text/html": new Blob([htmlContainer.innerHTML], { type: "text/html" }),
+        }),
+      ]);
+    } catch {
+      await copyToClipboard(text);
+    }
     editor.commands.focus();
   };
   const handleCut = async () => {
     const { from, to } = editor.state.selection;
     if (from === to) return;
-    const text = clipboardSliceToPlainText(editor.state.selection.content());
-    await copyToClipboard(text);
+    const slice = editor.state.selection.content();
+    const text = clipboardSliceToPlainText(slice);
+    const fragment = DOMSerializer.fromSchema(editor.schema).serializeFragment(slice.content);
+    const htmlContainer = document.createElement("div");
+    htmlContainer.appendChild(fragment);
+
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([text], { type: "text/plain" }),
+          "text/html": new Blob([htmlContainer.innerHTML], { type: "text/html" }),
+        }),
+      ]);
+    } catch {
+      await copyToClipboard(text);
+    }
     editor.chain().focus().deleteSelection().run();
   };
   const handleClipboardPaste = async () => {
     try {
-      // 与原生 Ctrl+V 保持一致：代码编辑器复制 Markdown 时通常同时提供
-      // text/plain 和 text/html，必须先判断源码，否则列表会被当成普通 HTML 文本。
       const items = await navigator.clipboard.read();
+      for (const item of items) {
+        if (item.types.includes("text/html")) {
+          const blob = await item.getType("text/html");
+          const html = await blob.text();
+          if (!html) continue;
+          editor.chain().focus().insertContent(normalizeSingleParagraphHTML(html)).run();
+          return;
+        }
+      }
+
       for (const item of items) {
         if (item.types.includes("text/plain")) {
           const blob = await item.getType("text/plain");
@@ -2878,14 +2920,6 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
             setMarkdownPasteText(plainText);
             return;
           }
-        }
-      }
-      for (const item of items) {
-        if (item.types.includes("text/html")) {
-          const blob = await item.getType("text/html");
-          const html = await blob.text();
-          editor.chain().focus().insertContent(normalizeSingleParagraphHTML(html)).run();
-          return;
         }
       }
       // 回退：普通纯文本，去除首尾空白以防空段落
