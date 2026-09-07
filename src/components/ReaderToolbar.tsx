@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from "react";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { useReaderSwipeClickGuard } from "../hooks/useReaderSwipeClickGuard";
 import "./ReaderToolbar.css";
 
 export type ReaderToolPanel = "search" | "appearance" | "annotations" | null;
@@ -27,6 +28,7 @@ export function ReaderToolbar({
   appearance, annotations, search, activePanel, onPanelChange, notice, activeTool,
 }: Props) {
   const rootRef = useRef<HTMLElement>(null);
+  useReaderSwipeClickGuard(rootRef);
   const panelId = useId();
   const changeRef = useRef(onPanelChange);
   changeRef.current = onPanelChange;

@@ -1,6 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNotes } from "./hooks/useNotes";
 import { DatePicker } from "./components/DatePicker";
+import { ToolbarIcon } from "./components/ToolbarIcon";
 import { OverdueTodos } from "./components/OverdueTodos";
 import { Sidebar } from "./components/Sidebar";
 import { SearchBar } from "./components/SearchBar";
@@ -1489,15 +1490,15 @@ function App() {
               aria-label={sidebarTab === 'daily' ? '切换到文档' : '切换到随笔'}
               data-target-view={sidebarTab === 'daily' ? 'tree' : 'daily'}
             >
-              <span aria-hidden="true">{sidebarTab === 'daily' ? '✏️' : '📂'}</span>
+              <ToolbarIcon name={sidebarTab === 'daily' ? 'note' : 'folder'} />
               <span className="sidebar-view-switch-label">
                 {sidebarTab === 'daily' ? '随笔' : '文档'}
               </span>
             </button>
             <span className="sidebar-tab-spacer" />
             <div className="doc-tree-toolbar-host" ref={setDocTreeToolbarHost} />
-            <button data-drawer-close className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏">
-              ◀
+            <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏" aria-label="隐藏侧栏">
+              <ToolbarIcon name="chevronLeft" />
             </button>
           </div>
 
@@ -1893,7 +1894,7 @@ function App() {
                 className="doc-tree-toolbar-host doc-tree-popup-toolbar-host"
                 ref={setPopupDocTreeToolbarHost}
               />
-              <button className="settings-close" onClick={() => setDocTreePopupOpen(false)}>✕</button>
+              <button className="settings-close" aria-label="关闭文档视图" onClick={() => setDocTreePopupOpen(false)}><ToolbarIcon name="close" /></button>
             </div>
             <div className="doc-tree-popup-body">
               <DocTree

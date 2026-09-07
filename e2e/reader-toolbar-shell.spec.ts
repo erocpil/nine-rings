@@ -50,6 +50,35 @@ for (const format of ["PDF", "EPUB"] as const) {
     await search.tap();
     await expect(settings).toHaveAttribute("aria-expanded", "false");
     await expect(host.getByLabel("测试查询")).toBeFocused();
+    // Safari may emit a delayed click at the release position after a swipe.
+    // Exercise retargeting from page content to the reader's return button.
+    for (const cancel of [false, true]) {
+      await body.evaluate((element, cancel) => {
+        const dispatch = (type: string, y: number, ended = false) => {
+          const touch = { identifier: 7, clientX: 24, clientY: y, target: element };
+          const event = new Event(type, { bubbles: true, cancelable: true });
+          Object.defineProperties(event, {
+            touches: { value: ended ? [] : [touch] },
+            changedTouches: { value: [touch] },
+          });
+          element.dispatchEvent(event);
+        };
+        dispatch("touchstart", 600);
+        dispatch("touchmove", 100);
+        // Returning near the start must not erase the fact that a scroll occurred.
+        dispatch(cancel ? "touchcancel" : "touchend", 598, true);
+        element.closest(".pdf-reader")!.querySelector(".pdf-reader-close")!
+          .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, detail: 1 }));
+      }, cancel);
+      expect(await page.evaluate(() => document.body.dataset.readerClosed)).toBeUndefined();
+    }
+    // A fresh tap is intentional even inside the suppression interval.
+    await host.getByRole("button", { name: `关闭 ${format} 阅读器`, exact: true }).tap();
+    expect(await page.evaluate(() => document.body.dataset.readerClosed)).toBe("true");
+    await page.evaluate(() => { delete document.body.dataset.readerClosed; });
+    await host.getByRole("button", { name: `关闭 ${format} 阅读器`, exact: true }).press("Enter");
+    expect(await page.evaluate(() => document.body.dataset.readerClosed)).toBe("true");
+    await page.evaluate(() => { delete document.body.dataset.readerClosed; });
     await host.getByLabel("测试查询").fill("保留查询");
     await page.setViewportSize({ width: 390, height: 360 });
     const searchPanel = host.getByRole("region", { name: `${format} 搜索`, exact: true });

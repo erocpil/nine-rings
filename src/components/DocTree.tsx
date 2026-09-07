@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { withTimeout } from "../lib/async";
 import { getOtherFolderPaths, getVisibleDocumentTreeNodes } from "../lib/doc-tree-collapse";
 import MoveToDialog from "./MoveToDialog";
+import { ToolbarIcon } from "./ToolbarIcon";
 import {
   getDocumentFolderPath,
   type MoveToSubject,
@@ -696,28 +697,13 @@ function DocTree({
   const selectedDocument = tree.find((node) => node.type === "document" && node.noteId === selectedId);
   const toolbar = (
     <div className="doc-tree-toolbar">
-      <button
-        type="button"
-        className="btn-icon doc-tree-batch-btn doc-tree-select-toggle"
-        title={selectMode ? "取消选择" : "批量选择"}
-        aria-label={selectMode ? "取消选择" : "批量选择"}
-        aria-pressed={selectMode}
-        disabled={batchBusy}
-        onClick={() => {
-          if (batchBusy) return;
-          if (selectMode) clearSelection();
-          else setSelectMode(true);
-        }}
-      >
-        {selectMode ? "✕" : "☐"}
-      </button>
       <div className="doc-tree-toolbar-actions">
         <button
           className="btn-icon doc-tree-batch-btn"
           onClick={collapseAll}
           title="折叠所有目录"
         >
-          📁
+          <ToolbarIcon name="folderCollapse" />
         </button>
         <button
           className="btn-icon doc-tree-batch-btn"
@@ -725,14 +711,15 @@ function DocTree({
           title="折叠其它目录（保留当前文档所在目录）"
           disabled={!selectedDocument && !selectedFolderPath}
         >
-          📂
+          <ToolbarIcon name="folderKeep" />
         </button>
         <button
           className={`btn-icon doc-tree-batch-btn ${propertiesAutoShow ? "" : "doc-tree-btn-off"}`}
           onClick={onTogglePropertiesAuto}
           title={propertiesAutoShow ? "隐藏属性面板" : "显示属性面板"}
+          aria-pressed={propertiesAutoShow}
         >
-          {propertiesAutoShow ? "⊟" : "⊞"}
+          <ToolbarIcon name="panel" />
         </button>
         {selectMode ? (
           <>
@@ -746,7 +733,7 @@ function DocTree({
               title="批量移动"
               disabled={disabled || batchBusy || selectedIds.size === 0}
             >
-              ↗
+              <ToolbarIcon name="move" />
             </button>
             <button
               className="btn-icon doc-tree-batch-btn"
@@ -761,7 +748,7 @@ function DocTree({
               title="批量删除"
               disabled={disabled || batchBusy || selectedIds.size === 0}
             >
-              🗑
+              <ToolbarIcon name="trash" />
             </button>
             <button
               className="btn-icon doc-tree-batch-btn"
@@ -769,7 +756,7 @@ function DocTree({
               title="批量设为只读"
               disabled={disabled || batchBusy || selectedIds.size === 0}
             >
-              🔒
+              <ToolbarIcon name="lock" />
             </button>
             <button
               className="btn-icon doc-tree-batch-btn"
@@ -777,7 +764,7 @@ function DocTree({
               title="批量取消只读"
               disabled={disabled || batchBusy || selectedIds.size === 0}
             >
-              🔓
+              <ToolbarIcon name="unlock" />
             </button>
           </>
         ) : (
@@ -788,14 +775,29 @@ function DocTree({
               title="重命名当前文档"
               disabled={disabled || !selectedDocument || !onRename}
             >
-              ✎
+              <ToolbarIcon name="rename" />
             </button>
             <button className="btn-icon doc-tree-add" onClick={disabled ? undefined : onCreate} disabled={disabled} title="新建文档">
-              +
+              <ToolbarIcon name="plus" />
             </button>
           </>
         )}
       </div>
+      <button
+        type="button"
+        className="btn-icon doc-tree-batch-btn doc-tree-select-toggle"
+        title={selectMode ? "取消选择" : "批量选择"}
+        aria-label={selectMode ? "取消选择" : "批量选择"}
+        aria-pressed={selectMode}
+        disabled={batchBusy}
+        onClick={() => {
+          if (batchBusy) return;
+          if (selectMode) clearSelection();
+          else setSelectMode(true);
+        }}
+      >
+        <ToolbarIcon name={selectMode ? "close" : "select"} />
+      </button>
     </div>
   );
 

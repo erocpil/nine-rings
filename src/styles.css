@@ -6780,6 +6780,7 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 .doc-tree-toolbar-host {
   display: flex;
   flex: 1;
+  justify-content: flex-end;
   align-items: center;
   min-width: 0;
   overflow: hidden;
@@ -6790,7 +6791,7 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   display: flex;
   align-items: center;
   gap: 1px;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
@@ -6812,11 +6813,16 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 
 .doc-tree-toolbar {
   display: flex;
-  width: 100%;
+  width: max-content;
+  max-width: 100%;
+  margin-left: auto;
   min-width: 0;
   align-items: center;
   gap: 1px;
 }
+
+.doc-tree-toolbar .toolbar-icon { width: 16px; height: 16px; }
+.doc-tree-toolbar button[aria-pressed="true"] { color: var(--accent); background: var(--active-bg); }
 
 .sidebar-tabs .doc-tree-batch-btn,
 .sidebar-tabs .doc-tree-add {
@@ -6838,13 +6844,33 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 }
 
 .sidebar-tab-hide {
+  position: relative;
   flex-shrink: 0;
-  font-size: 11px !important;
-  padding: 2px 4px !important;
-  opacity: 0.4;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
 }
-.sidebar-tab-hide:hover {
-  opacity: 0.8;
+.sidebar-tab-hide .toolbar-icon { width: 18px; height: 18px; }
+.sidebar-tab-hide::before {
+  content: "";
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  pointer-events: none;
+}
+.sidebar-tab-hide:focus-visible { outline: none; }
+.sidebar-tab-hide:focus-visible::before {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+}
+@media (hover: hover) and (pointer: fine) {
+  .sidebar-tab-hide:hover::before { background: var(--hover-bg); }
+}
+@media (pointer: coarse) {
+  .sidebar-tab-hide { min-width: 44px; min-height: 44px; }
 }
 
 /* ──── DocTree ──── */
@@ -9591,9 +9617,8 @@ button.doc-tree-toggle:focus-visible {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 36px;
-    min-height: 36px;
-    opacity: 0.7;
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .sidebar-view-switch-label {

@@ -1,6 +1,18 @@
 import type { ReactNode } from "react";
 
 const paths = {
+  chevronLeft: <path d="m14 6-6 6 6 6" />,
+  plus: <path d="M12 5v14M5 12h14" />,
+  close: <path d="m6 6 12 12M6 18 18 6" />,
+  select: <rect x="4" y="4" width="16" height="16" rx="2" />,
+  folderCollapse: <><path d="M3 7V4h6l3 3h9v13H3ZM8 13h8" /></>,
+  folderKeep: <><path d="M3 7V4h6l3 3h9v13H3Zm6 9 3-3 3 3" /></>,
+  panel: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M15 4v16" /></>,
+  rename: <><path d="m14 4 6 6M4 20l5-1L21 7l-4-4L5 15ZM13 21h8" /></>,
+  move: <path d="M13 4h7v7m0-7L9 15M10 5H4v15h15v-6" />,
+  trash: <><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" /></>,
+  lock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V6a4 4 0 0 1 8 0v4M12 14v3" /></>,
+  unlock: <><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V6a4 4 0 0 1 8 0M12 14v3" /></>,
   folder: <path d="M3 7V4h6l3 3h9v13H3Z" />,
   document: <><path d="M5 3h9l5 5v13H5ZM14 3v6h5M8 13h8M8 17h6" /></>,
   note: <><path d="M4 4h16v16H4ZM8 8h8M8 12h8M8 16h5" /></>,

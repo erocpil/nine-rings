@@ -41,6 +41,51 @@ async function swipeNoteEditor(
 test.describe("PWA 窄屏应用外壳", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
+  test("文档工具栏右对齐且抽屉收起按钮使用紧凑线框图标", async ({ page }, testInfo) => {
+    await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+    await page.getByTitle("文档视图").click();
+    const popup = page.locator(".doc-tree-popup-overlay");
+    await expect(popup.locator(".doc-tree-toolbar")).toBeVisible();
+    const checkToolbar = async (scope: Locator) => {
+      const toolbar = scope.locator(".doc-tree-toolbar");
+      const buttons = toolbar.locator("button");
+      expect(await toolbar.locator("button > svg.toolbar-icon").count()).toBe(await buttons.count());
+      const geometry = await toolbar.evaluate((el) => ({
+        right: el.getBoundingClientRect().right,
+        parentRight: el.parentElement!.getBoundingClientRect().right,
+      }));
+      expect(Math.abs(geometry.parentRight - geometry.right)).toBeLessThanOrEqual(1);
+    };
+    await checkToolbar(popup);
+    await popup.getByRole("button", { name: "关闭文档视图", exact: true }).click();
+    await expect(popup).toHaveCount(0);
+    await swipeNoteEditor(page.locator(".note-editor"), { startX: 20, startY: 380, endX: 110, endY: 380 });
+    const drawer = page.getByRole("dialog", { name: "文档侧栏" });
+    await expect(drawer).toBeVisible();
+    await expect(drawer).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
+    const switcher = drawer.getByTitle("切换到文档");
+    if (await switcher.count()) await switcher.click();
+    await checkToolbar(drawer);
+    const close = drawer.getByRole("button", { name: "隐藏侧栏", exact: true });
+    await expect(close.locator("svg")).toBeVisible();
+    const size = await close.boundingBox();
+    expect(size!.width).toBeGreaterThanOrEqual(44);
+    expect(size!.height).toBeGreaterThanOrEqual(44);
+    await close.focus();
+    await expect(close).toHaveCSS("outline-style", "none");
+    expect(await close.evaluate((el) => getComputedStyle(el, "::before").width)).toBe("26px");
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate(async (theme) => {
+        const load = (path: string) => import(/* @vite-ignore */ path);
+        (await load("/src/lib/theme.ts")).applyTheme(theme);
+      }, theme);
+      await page.screenshot({ path: testInfo.outputPath(`document-toolbar-${theme}.png`) });
+    }
+    await close.tap();
+    await expect(drawer).toHaveCount(0);
+  });
+
   test("使用顶部入口导航且移动编辑器保持简洁", async ({ page }) => {
     await page.goto("/");
 
