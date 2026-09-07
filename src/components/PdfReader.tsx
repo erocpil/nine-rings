@@ -1,6 +1,7 @@
 import { ReaderToolbar, type ReaderToolPanel } from "./ReaderToolbar";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { recordReaderDiagnostic } from "../lib/reader-diagnostics";
+import { lockedPdfScale, normalizePdfWidth } from "../lib/reader-width";
 import { PdfPageCache } from "../lib/pdf-page-cache";
 import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
@@ -256,6 +257,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const searchRequestRef = useRef(0);
   const saveTimerRef = useRef<number | null>(null);
   const latestProgressRef = useRef<{
+    lockedWidthRatio: number | null;
     id: string;
     page: number;
     zoom: number;
@@ -269,7 +271,12 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const [page, setPage] = useState(1);
   const [pageInput, setPageInput] = useState("1");
   const [zoom, setZoom] = useState(1);
-  const [fitWidth, setFitWidth] = useState(true);
+  const [lockedWidthRatio, setLockedWidthRatio] = useState<number | null>(null);
+  const [fitWidth, setFitWidthValue] = useState(true);
+  const setFitWidth = useCallback((value: boolean) => {
+    setLockedWidthRatio(null);
+    setFitWidthValue(value);
+  }, []);
   const [fitHeight, setFitHeight] = useState(false);
   const [viewMode, setViewMode] = useState<PdfViewMode>("horizontal");
   const [visibleVerticalPages, setVisibleVerticalPages] = useState<Set<number>>(() => new Set([1]));
@@ -631,6 +638,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       setPageInput(String(Math.max(1, stored.entry.page)));
       setZoom(stored.entry.zoom || 1);
       setFitWidth(stored.entry.fitWidth !== false);
+      setLockedWidthRatio(normalizePdfWidth(stored.entry.lockedWidthRatio));
       setFitHeight(Boolean(stored.entry.fitHeight));
       setViewMode(stored.entry.viewMode === "vertical" ? "vertical" : "horizontal");
 
@@ -692,7 +700,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       // file during parsing must release it too, not only a loaded document.
       void loadingTask?.destroy().catch(() => {});
     };
-  }, [documentId, initialHighlightId, initialTargetRange]);
+  }, [documentId, initialHighlightId, initialTargetRange, setFitWidth]);
 
   useEffect(() => {
     const element = viewportRef.current;
@@ -756,7 +764,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     // jobs. Update even offscreen/cached pages before the browser paints.
     pageSurfaceRefs.current.forEach((surface, pageNumber) => {
       const size = pageSizesRef.current.get(pageNumber) ?? fallback;
-      const scale = fitHeight ? clampZoom(Math.max(120, viewportHeight - 24) / size.height)
+      const scale = lockedWidthRatio !== null ? lockedPdfScale(lockedWidthRatio, viewportWidth, size.width) : fitHeight ? clampZoom(Math.max(120, viewportHeight - 24) / size.height)
         : fitWidth ? clampZoom(Math.max(160, viewportWidth - 24) / size.width) : clampZoom(zoom);
       surface.style.width = `${Math.floor(size.width * scale)}px`;
       surface.style.height = `${Math.floor(size.height * scale)}px`;
@@ -767,7 +775,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     const fits = !!current && parseFloat(current.style.width) <= viewportWidth - 24;
     viewport.classList.toggle("pdf-page-fits-width", fits);
     if (fits) viewport.scrollLeft = 0;
-  }, [pdf, displayedPages, page, pageSizeRevision, viewportWidth, viewportHeight, fitWidth, fitHeight, zoom]);
+  }, [pdf, displayedPages, page, pageSizeRevision, viewportWidth, viewportHeight, fitWidth, fitHeight, zoom, lockedWidthRatio]);
 
   const canvasRefForPage = useCallback((pageNumber: number) => {
     let callback = canvasRefCallbacks.current.get(pageNumber);
@@ -907,7 +915,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     const currentPages = [...renderedPages];
     // 适宽/适高时实际比例只由视口决定。此时 setZoom 只用于记录计算结果，
     // 不应改变渲染签名，否则会紧接着重复渲染同一尺寸。
-    const scaleSignature = fitWidth ? "fit-width" : fitHeight ? "fit-height" : zoom;
+    const scaleSignature = lockedWidthRatio !== null ? `locked-width-${lockedWidthRatio}` : fitWidth ? "fit-width" : fitHeight ? "fit-height" : zoom;
     const fullSignature = [documentGeneration, viewportWidth, viewportHeight, scaleSignature].join(":");
     const previewOnly = fastScrolling && !annotationTool && viewMode === "vertical";
     const renderSignature = fullSignature + (previewOnly ? ":preview" : "");
@@ -1007,7 +1015,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
               viewportElement.style.setProperty("--pdf-page-aspect-ratio", String(baseViewport.width / baseViewport.height));
             }
           }
-          const displayScale = fitHeight
+          const displayScale = lockedWidthRatio !== null ? lockedPdfScale(lockedWidthRatio, viewportWidth, baseViewport.width) : fitHeight
             ? clampZoom(availableHeight / baseViewport.height)
             : fitWidth
               ? clampZoom(availableWidth / baseViewport.width)
@@ -1135,7 +1143,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
                 restorePdfZoomAnchor(scrollViewport, anchorSurface, zoomAnchor);
               });
             }
-            if (!isStale() && (fitWidth || fitHeight) && pageNumber === page) setZoom(displayScale);
+            if (!isStale() && (fitWidth || fitHeight || lockedWidthRatio !== null) && pageNumber === page) setZoom(clampZoom(displayScale));
           } finally {
             stagedCanvas.width = stagedCanvas.height = 0;
           }
@@ -1209,11 +1217,12 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         requestOwners.delete(pageNumber);
       });
     };
-  }, [fitHeight, fitWidth, page, pdf, renderedPages, viewMode, viewportHeight, viewportWidth, zoom, releaseOffscreenPage, fastScrolling, annotationTool, rememberThumbnail]);
+  }, [fitHeight, fitWidth, page, pdf, renderedPages, viewMode, viewportHeight, viewportWidth, zoom, releaseOffscreenPage, fastScrolling, annotationTool, rememberThumbnail, lockedWidthRatio]);
 
   useEffect(() => {
     if (!pdf || !entry) return;
     latestProgressRef.current = {
+      lockedWidthRatio,
       id: entry.id,
       page,
       zoom,
@@ -1225,6 +1234,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = window.setTimeout(() => {
       void updateLocalPdfProgress(entry.id, {
+        lockedWidthRatio,
         page,
         zoom,
         fitWidth,
@@ -1235,7 +1245,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         .catch((reason) => console.warn("[PDF] 保存阅读进度失败:", reason));
       saveTimerRef.current = null;
     }, 400);
-  }, [entry, fitHeight, fitWidth, page, pdf, viewMode, zoom]);
+  }, [entry, fitHeight, fitWidth, page, pdf, viewMode, zoom, lockedWidthRatio]);
 
   useEffect(() => () => {
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
@@ -1291,7 +1301,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [closeReader, exitFullscreen, fullscreen, pdf]);
+  }, [closeReader, exitFullscreen, fullscreen, pdf, setFitWidth]);
 
   useEffect(() => {
     if (!pdf || rendering || page >= pdf.numPages) return;
@@ -1763,6 +1773,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   }, [activeSearchIndex, completedSearchQuery, documentId, highlights, initialTargetRange, searchMatches, showHighlights, targetHighlightId, textLayerRevision]);
 
   const handlePageDoubleClick = useCallback((event: React.MouseEvent<HTMLElement>) => {
+    if (lockedWidthRatio !== null) { event.preventDefault(); return; }
     const target = event.target instanceof Element ? event.target : null;
     const surface = target?.closest<HTMLDivElement>(".pdf-page-surface");
     const viewport = viewportRef.current;
@@ -1809,10 +1820,11 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         if (!nextFitWidth) setZoom(nextZoom);
       });
     });
-  }, [fitWidth, page, zoom]);
+  }, [fitWidth, page, zoom, lockedWidthRatio, setFitWidth]);
 
   const handleTouchStart = useCallback((event: React.TouchEvent<HTMLElement>) => {
     if (event.touches.length === 2) {
+      if (lockedWidthRatio !== null) { event.preventDefault(); touchGestureRef.current = null; return; }
       annotationDraftRef.current = null;
       setAnnotationDraft(null);
       const first = event.touches[0];
@@ -1858,7 +1870,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       atLeft: viewMode === "horizontal" ? !viewport || viewport.scrollLeft <= 2 : false,
       atRight: viewMode === "horizontal" ? !viewport || viewport.scrollLeft >= maxScroll - 2 : false,
     };
-  }, [page, viewMode, zoom]);
+  }, [page, viewMode, zoom, lockedWidthRatio]);
 
   const handleTouchMove = useCallback((event: React.TouchEvent<HTMLElement>) => {
     const pinch = pinchGestureRef.current;
@@ -1912,7 +1924,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     setFitHeight(false);
     setZoom(pinch.targetZoom);
     return true;
-  }, []);
+  }, [setFitWidth]);
 
   const handleTouchEnd = useCallback((event: React.TouchEvent<HTMLElement>) => {
     if (pinchGestureRef.current && event.touches.length < 2) {
@@ -2131,6 +2143,16 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           <button type="button" className={fitWidth ? "active" : undefined} onClick={() => { setFitWidth(true); setFitHeight(false); }}>适宽</button>
           <button type="button" aria-label="放大 PDF" onClick={() => { setFitWidth(false); setFitHeight(false); setZoom((value) => Math.min(4, value + 0.15)); }}>＋</button>
           <button type="button" className={fitHeight ? "active" : undefined} onClick={() => { setFitHeight(true); setFitWidth(false); }}>适高</button></div></div>
+          <div className="reader-tool-section"><p>阅读宽度</p><div className="pdf-view-mode-controls">
+          <button type="button" aria-pressed={lockedWidthRatio !== null} disabled={!pdf || rendering} onClick={() => {
+            zoomAnchorRef.current = null;
+            if (lockedWidthRatio !== null) { setLockedWidthRatio(null); return; }
+            const surface = pageSurfaceRefs.current.get(page);
+            if (!surface || viewportWidth <= 0) return;
+            const ratio = normalizePdfWidth(surface.getBoundingClientRect().width / Math.max(160, viewportWidth - 24));
+            setFitWidth(false); setFitHeight(false); setLockedWidthRatio(ratio);
+          }}>{lockedWidthRatio !== null ? "解锁宽度" : "锁定当前宽度"}</button>
+          </div><p>{lockedWidthRatio !== null ? "宽度已锁定，翻页与旋转屏幕保持相同比例。点击缩放或适宽可解除。" : "手动缩放后可锁定宽度，每份 PDF 单独记住。"}</p></div>
           <div className="reader-tool-section"><p>翻页方式</p><div className="pdf-view-mode-controls">
           <button type="button" className={viewMode === "horizontal" ? "active" : undefined} onClick={() => setViewMode("horizontal")}>横向</button>
           <button type="button" className={viewMode === "vertical" ? "active" : undefined} onClick={() => {

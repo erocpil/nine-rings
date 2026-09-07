@@ -9,19 +9,19 @@ export async function exportReadingBackup(format: "pdf" | "epub", id: string): P
   const base = { kind: "nine-rings-reading-data" as const, version: 1 as const, exportedAt: new Date().toISOString() };
   if (format === "pdf") {
     const { entry, highlights, bookmarks } = await readLocalPdfReadingSnapshot(id);
-    const { page, zoom, fitWidth, fitHeight, viewMode, pageCount } = entry;
+    const { page, zoom, fitWidth, fitHeight, viewMode, pageCount, lockedWidthRatio } = entry;
     backup = {
       ...base, format,
       file: { name: entry.name, size: entry.size, algorithm: "sha256-chunks-v1", fingerprint: await fingerprintReadingFile(entry.blob) },
-      progress: { page, zoom, fitWidth, fitHeight, viewMode, pageCount }, highlights, bookmarks,
+      progress: { page, zoom, fitWidth, fitHeight, viewMode, pageCount, lockedWidthRatio }, highlights, bookmarks,
     };
   } else {
     const { entry, highlights, bookmarks } = await readLocalEpubReadingSnapshot(id);
-    const { chapter, chapterCount, location, scrollProgress, chapterProgress, fontSize, theme, themeBackgrounds, smartLineMerge } = entry;
+    const { chapter, chapterCount, location, scrollProgress, chapterProgress, fontSize, theme, themeBackgrounds, smartLineMerge, contentWidth } = entry;
     backup = {
       ...base, format,
       file: { name: entry.name, size: entry.size, algorithm: "sha256-chunks-v1", fingerprint: await fingerprintReadingFile(entry.blob) },
-      progress: { chapter, chapterCount, location, scrollProgress, chapterProgress, fontSize, theme, themeBackgrounds, smartLineMerge },
+      progress: { chapter, chapterCount, location, scrollProgress, chapterProgress, fontSize, theme, themeBackgrounds, smartLineMerge, contentWidth },
       highlights, bookmarks, manualLineMerges: entry.manualLineMerges ?? [],
     };
   }

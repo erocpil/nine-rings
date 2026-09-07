@@ -1,3 +1,4 @@
+import { normalizeEpubWidth } from "./reader-width";
 import { unzip, unzipSync, type Unzipped } from "fflate";
 import { canonicalReadingItem, readReadingSnapshot, restoreReadingSnapshot } from "./reading-backup-store";
 import { fingerprintReadingFile, validateReadingBackup, type EpubReadingBackup } from "./reading-backup-format";
@@ -27,6 +28,7 @@ export interface LocalEpubEntry {
   location?: string;
   scrollProgress?: number;
   chapterProgress?: Record<string, number>;
+  contentWidth?: number;
   fontSize: number;
   theme: "light" | "sepia" | "dark";
   themeBackgrounds?: Partial<Record<"light" | "sepia" | "dark", string>>;
@@ -508,7 +510,7 @@ export async function deleteLocalEpubBookmark(id: string): Promise<void> {
 
 export async function updateLocalEpubProgress(
   id: string,
-  progress: Pick<LocalEpubEntry, "chapter" | "fontSize" | "theme" | "themeBackgrounds" | "smartLineMerge" | "manualLineMerges"> & { location?: string; scrollProgress?: number; chapterProgress?: Record<string, number> },
+  progress: Pick<LocalEpubEntry, "chapter" | "fontSize" | "theme" | "themeBackgrounds" | "smartLineMerge" | "manualLineMerges"> & { contentWidth?: number; location?: string; scrollProgress?: number; chapterProgress?: Record<string, number> },
 ): Promise<void> {
   const database = await openEpubDatabase();
   const transaction = database.transaction(EPUB_STORE, "readwrite");
@@ -524,6 +526,7 @@ export async function updateLocalEpubProgress(
     chapterProgress: Object.fromEntries(Object.entries(progress.chapterProgress ?? {})
       .filter(([path, value]) => Boolean(path) && Number.isFinite(value))
       .map(([path, value]) => [path, Math.max(0, Math.min(1, value))])),
+    contentWidth: normalizeEpubWidth(progress.contentWidth ?? record.contentWidth),
     fontSize: Math.max(70, Math.min(180, Math.round(progress.fontSize))),
     theme: progress.theme,
     themeBackgrounds: progress.themeBackgrounds,
@@ -586,6 +589,7 @@ export async function restoreLocalEpubReadingBackup(id: string, backup: EpubRead
       return {
         ...updated, chapter: progress.chapter, location: progress.location,
         scrollProgress: progress.scrollProgress, chapterProgress: progress.chapterProgress,
+        contentWidth: normalizeEpubWidth(progress.contentWidth),
         fontSize: progress.fontSize, theme: progress.theme, themeBackgrounds: progress.themeBackgrounds,
         smartLineMerge: progress.smartLineMerge, lastOpenedAt: new Date().toISOString(),
       };

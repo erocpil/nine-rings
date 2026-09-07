@@ -1,3 +1,4 @@
+import { normalizePdfWidth } from "./reader-width";
 import { readReadingSnapshot, restoreReadingSnapshot } from "./reading-backup-store";
 import { fingerprintReadingFile, validateReadingBackup, type PdfReadingBackup } from "./reading-backup-format";
 
@@ -18,6 +19,7 @@ export interface LocalPdfEntry {
   lastOpenedAt: string;
   page: number;
   zoom: number;
+  lockedWidthRatio?: number | null;
   fitWidth?: boolean;
   fitHeight?: boolean;
   viewMode?: "horizontal" | "vertical";
@@ -127,6 +129,7 @@ function publicEntry(record: StoredPdfRecord): LocalPdfEntry {
     lastOpenedAt: record.lastOpenedAt,
     page: record.page,
     zoom: record.zoom,
+    lockedWidthRatio: record.lockedWidthRatio,
     fitWidth: record.fitWidth,
     fitHeight: record.fitHeight,
     viewMode: record.viewMode,
@@ -201,6 +204,7 @@ export async function getLocalPdf(id: string): Promise<{ entry: LocalPdfEntry; b
 export async function updateLocalPdfProgress(
   id: string,
   progress: Pick<LocalPdfEntry, "page" | "zoom"> & {
+    lockedWidthRatio?: number | null;
     fitWidth?: boolean;
     fitHeight?: boolean;
     viewMode?: "horizontal" | "vertical";
@@ -220,6 +224,7 @@ export async function updateLocalPdfProgress(
     ...record,
     page: Math.max(1, Math.round(progress.page)),
     zoom: Math.max(0.25, Math.min(4, progress.zoom)),
+    lockedWidthRatio: progress.lockedWidthRatio === undefined ? record.lockedWidthRatio : normalizePdfWidth(progress.lockedWidthRatio),
     fitWidth: progress.fitWidth ?? record.fitWidth,
     fitHeight: progress.fitHeight ?? record.fitHeight,
     viewMode: progress.viewMode ?? record.viewMode,
@@ -380,6 +385,7 @@ export async function restoreLocalPdfReadingBackup(id: string, backup: PdfReadin
     await openPdfDatabase(), PDF_READING_STORES, snapshot.entry, backup.highlights, backup.bookmarks,
     (current) => restoreProgress ? {
       ...current, page: backup.progress.page, zoom: backup.progress.zoom,
+      lockedWidthRatio: normalizePdfWidth(backup.progress.lockedWidthRatio),
       fitWidth: backup.progress.fitWidth, fitHeight: backup.progress.fitHeight,
       viewMode: backup.progress.viewMode, pageCount: backup.progress.pageCount ?? current.pageCount,
       lastOpenedAt: new Date().toISOString(),

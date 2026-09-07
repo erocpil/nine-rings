@@ -1,4 +1,5 @@
 import { ReaderToolbar, type ReaderToolPanel } from "./ReaderToolbar";
+import { normalizeEpubWidth } from "../lib/reader-width";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -334,6 +335,7 @@ function safeChapterDocument(
   chapterPath: string,
   resourceUrl: (path: string) => string | null,
   fontSize: number,
+  contentWidth: number,
   theme: LocalEpubEntry["theme"],
   customBackground?: string,
   smartLineMerge = false,
@@ -403,7 +405,7 @@ function safeChapterDocument(
   style.textContent = `
     :root { color-scheme: ${theme === "dark" ? "dark" : "light"}; }
     html { background: ${palette.background}; color: ${palette.text}; font-size: ${fontSize}%; touch-action: pan-y; overscroll-behavior-x: none; }
-    body { box-sizing: border-box; max-width: 48rem; min-height: 100vh; margin: 0 auto; padding: 2rem clamp(1.1rem, 5vw, 3rem) 5rem; font-family: ui-serif, Georgia, "Noto Serif CJK SC", serif; line-height: 1.75; overflow-wrap: anywhere; touch-action: pan-y; }
+    body { box-sizing: border-box; width: ${contentWidth}%; max-width: 48rem; min-height: 100vh; margin: 0 auto; padding: 2rem clamp(1.1rem, 5vw, 3rem) 5rem; font-family: ui-serif, Georgia, "Noto Serif CJK SC", serif; line-height: 1.75; overflow-wrap: anywhere; touch-action: pan-y; }
     img, svg, video { max-width: 100% !important; height: auto !important; }
     table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
     a { color: ${palette.link}; }
@@ -444,6 +446,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const [book, setBook] = useState<ParsedEpub | null>(null);
   const [chapter, setChapter] = useState(0);
   const [fragment, setFragment] = useState<string | undefined>();
+  const [contentWidth, setContentWidth] = useState(100);
   const [fontSize, setFontSize] = useState(100);
   const [theme, setTheme] = useState<LocalEpubEntry["theme"]>("light");
   const [themeBackgrounds, setThemeBackgrounds] = useState<NonNullable<LocalEpubEntry["themeBackgrounds"]>>({});
@@ -537,6 +540,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       const savedLocation = stored.entry.location?.split("#", 2);
       setFragment(savedLocation?.[0] === parsed.chapters[savedChapter].path ? savedLocation[1] : undefined);
       setFontSize(stored.entry.fontSize || 100);
+      setContentWidth(normalizeEpubWidth(stored.entry.contentWidth));
       setTheme(stored.entry.theme || "light");
       setThemeBackgrounds(stored.entry.themeBackgrounds ?? {});
       setSmartLineMerge(Boolean(stored.entry.smartLineMerge));
@@ -564,11 +568,11 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const chapterResult = useMemo(() => {
     if (!book || !registryRef.current) return { html: "", error: null as string | null };
     try {
-      return { html: safeChapterDocument(book, book.chapters[chapter].path, registryRef.current.resourceUrl, fontSize, theme, themeBackgrounds[theme], smartLineMerge, manualLineMerges), error: null };
+      return { html: safeChapterDocument(book, book.chapters[chapter].path, registryRef.current.resourceUrl, fontSize, contentWidth, theme, themeBackgrounds[theme], smartLineMerge, manualLineMerges), error: null };
     } catch (reason) {
       return { html: "", error: reason instanceof Error ? reason.message : String(reason) };
     }
-  }, [book, chapter, fontSize, manualLineMerges, smartLineMerge, theme, themeBackgrounds]);
+  }, [book, chapter, contentWidth, fontSize, manualLineMerges, smartLineMerge, theme, themeBackgrounds]);
   const displayError = error ?? chapterResult.error;
 
   const tocTree = useMemo<EpubTocItem[]>(() => book
@@ -717,6 +721,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     await updateLocalEpubProgress(entry.id, {
       chapter,
       location: `${current.path}${fragment ? `#${fragment}` : ""}`,
+      contentWidth,
       fontSize,
       theme,
       themeBackgrounds,
@@ -725,7 +730,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       scrollProgress: boundedProgress,
       chapterProgress: { ...chapterProgressRef.current },
     });
-  }, [book, chapter, entry, fontSize, fragment, manualLineMerges, scrollProgress, smartLineMerge, theme, themeBackgrounds]);
+  }, [book, chapter, entry, contentWidth, fontSize, fragment, manualLineMerges, scrollProgress, smartLineMerge, theme, themeBackgrounds]);
 
   useEffect(() => {
     void persistProgress().catch((reason) => console.warn("[EPUB] 保存阅读进度失败:", reason));
@@ -1236,6 +1241,11 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
           <span>{fontSize}%</span>
           <button type="button" onClick={() => setFontSize((size) => Math.min(180, size + 10))} disabled={fontSize >= 180}>A＋</button>
         </div></div>
+          <div className="reader-tool-section"><p>正文宽度</p><div className="epub-width-controls">
+          <input type="range" aria-label="EPUB 正文宽度" min="60" max="100" step="5" value={contentWidth} onChange={(event) => setContentWidth(normalizeEpubWidth(Number(event.target.value)))} />
+          <span>{contentWidth}%</span>
+          <button type="button" onClick={() => setContentWidth(100)} disabled={contentWidth === 100}>恢复默认宽度</button>
+          </div><p>每本书单独记住，换章保持宽度，不改变字号。</p></div>
           <div className="reader-tool-section"><p>背景主题</p><div className="epub-theme-controls" aria-label="EPUB 主题">
           {(["light", "sepia", "dark"] as const).map((value) => (
             <button key={value} type="button" className={theme === value ? "active" : ""} aria-pressed={theme === value} onPointerDown={() => startThemeLongPress(value)} onPointerUp={endThemeLongPress} onPointerCancel={endThemeLongPress} onPointerLeave={endThemeLongPress} onContextMenu={(event) => event.preventDefault()} onClick={() => {

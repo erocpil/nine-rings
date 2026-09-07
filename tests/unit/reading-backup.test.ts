@@ -61,7 +61,12 @@ afterEach(() => {
 
 async function seedPdf() {
   const entry = await importLocalPdf(file());
-  await updateLocalPdfProgress(entry.id, { page: 4, zoom: 1.5, pageCount: 10 });
+  await updateLocalPdfProgress(entry.id, {
+    page: 4,
+    zoom: 1.5,
+    pageCount: 10,
+    lockedWidthRatio: 0.85,
+  });
   await addLocalPdfHighlight({
     pdfId: entry.id,
     page: 4,
@@ -96,6 +101,13 @@ describe("单书阅读备份", () => {
     expect((await getLocalPdf(target.id))?.entry.page).toBe(4);
     expect((await getLocalPdf(target.id))?.entry.name).toBe("renamed.pdf");
     expect((await getLocalPdf(target.id))?.entry.zoom).toBe(1.5);
+    expect((await getLocalPdf(target.id))?.entry.lockedWidthRatio).toBe(0.85);
+    await updateLocalPdfProgress(target.id, {
+      page: 4,
+      zoom: 1,
+      lockedWidthRatio: null,
+    });
+    expect((await getLocalPdf(target.id))?.entry.lockedWidthRatio).toBeNull();
   });
 
   it("内容变化但名称和大小相同也拒绝，原书签和进度不变", async () => {
@@ -276,6 +288,7 @@ describe("单书阅读备份", () => {
       };
     });
     await updateLocalEpubProgress("source", {
+      contentWidth: 80,
       chapter: 1,
       location: "chapter2.xhtml#anchor",
       scrollProgress: 0.6,
@@ -319,6 +332,7 @@ describe("单书阅读备份", () => {
       lineMergesAdded: 1,
     });
     expect((await getLocalEpub("target"))?.entry).toMatchObject({
+      contentWidth: 80,
       chapter: 1,
       scrollProgress: 0.6,
       fontSize: 120,

@@ -2,8 +2,8 @@ import type { LocalPdfEntry, LocalPdfHighlight, LocalPdfBookmark } from "./pdf-l
 import type { LocalEpubEntry, LocalEpubHighlight, LocalEpubBookmark, LocalEpubLineMerge } from "./epub-library";
 
 export const MAX_READING_BACKUP_BYTES = 20 * 1024 * 1024;
-export type PdfReadingProgress = Pick<LocalPdfEntry, "page" | "zoom" | "fitWidth" | "fitHeight" | "viewMode" | "pageCount">;
-export type EpubReadingProgress = Pick<LocalEpubEntry, "chapter" | "chapterCount" | "location" | "scrollProgress" | "chapterProgress" | "fontSize" | "theme" | "themeBackgrounds" | "smartLineMerge">;
+export type PdfReadingProgress = Pick<LocalPdfEntry, "page" | "zoom" | "fitWidth" | "fitHeight" | "viewMode" | "pageCount" | "lockedWidthRatio">;
+export type EpubReadingProgress = Pick<LocalEpubEntry, "chapter" | "chapterCount" | "location" | "scrollProgress" | "chapterProgress" | "fontSize" | "theme" | "themeBackgrounds" | "smartLineMerge" | "contentWidth">;
 interface BaseBackup {
   kind: "nine-rings-reading-data";
   version: 1;
@@ -87,6 +87,7 @@ export function validateReadingBackup(value: unknown): asserts value is ReadingB
     optional(progress, "pageCount", (v) => number(v, 1, 1_000_000, true));
     if (typeof progress.pageCount === "number" && (progress.page as number) > progress.pageCount) invalid();
     optional(progress, "fitWidth", boolean); optional(progress, "fitHeight", boolean);
+    optional(progress, "lockedWidthRatio", (v) => { if (v !== null) number(v, 0.1, 10); });
     optional(progress, "viewMode", (v) => { if (v !== "horizontal" && v !== "vertical") invalid(); });
     for (const item of [...highlights, ...bookmarks]) {
       id(item.pdfId); number(item.page, 1, Number(progress.pageCount) || 1_000_000, true);
@@ -111,6 +112,7 @@ export function validateReadingBackup(value: unknown): asserts value is ReadingB
     number(progress.chapterCount, 1, 10_000, true);
     number(progress.chapter, 0, (progress.chapterCount as number) - 1, true);
     number(progress.fontSize, 70, 180);
+    optional(progress, "contentWidth", (v) => number(v, 60, 100));
     if (!["light", "sepia", "dark"].includes(String(progress.theme))) invalid();
     optional(progress, "location", (v) => text(v, 4096));
     optional(progress, "scrollProgress", fraction);
