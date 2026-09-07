@@ -251,7 +251,10 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     try {
       const pre = await previewPullFromGitHub(cfg);
       setPullPrecheck(pre);
-      showMessage(`预检完成：远端版本 ${pre.remote.version.slice(0, 15)}`, "success");
+      const remoteDevice = pre.remote.backupDevice;
+      const deviceLabel = remoteDevice?.name ? `（来源：${remoteDevice.name}` : "";
+      const suffix = remoteDevice?.id ? `${deviceLabel} · 设备ID ${remoteDevice.id.slice(0, 8)})` : deviceLabel ? ")" : "";
+      showMessage(`预检完成：远端版本 ${pre.remote.version.slice(0, 15)}${suffix}`, "success");
     } catch (e) {
       showMessage(`预检失败: ${(e as Error).message}`, "error");
     } finally {

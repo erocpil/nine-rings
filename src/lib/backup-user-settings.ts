@@ -22,7 +22,7 @@ const BACKED_UP_LOCAL_SETTINGS = [
 ] as const;
 
 const DOCUMENT_POSITION_PREFIXES = ["selectionPos:", "scrollPos:"] as const;
-const BACKUP_DEVICE_ID_KEY = "nr:backup-device-id";
+export const BACKUP_DEVICE_ID_KEY = "nr:backup-device-id";
 
 export interface FrontendSettingsBackup {
   version: 1;
@@ -82,7 +82,7 @@ function newDeviceId(): string {
   return `dev-${Date.now().toString(36)}-${random}`;
 }
 
-function getOrCreateDeviceId(
+export function getOrCreateDeviceId(
   storage: Pick<Storage, "getItem" | "setItem">,
 ): string {
   const existing = readStoredValue(storage, BACKUP_DEVICE_ID_KEY);

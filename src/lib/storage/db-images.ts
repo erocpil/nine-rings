@@ -1,6 +1,13 @@
 import { uuid, now, blobToBase64 } from "./core";
 import { withDB, getOne, putRecord } from "./db";
 import { isTauriRuntime } from "../runtime";
+import { getOrCreateDeviceId } from "../backup-user-settings";
+
+type ReadStorage = Pick<Storage, "getItem" | "setItem">;
+
+const deviceStorage: ReadStorage | null = typeof localStorage === "undefined"
+  ? null
+  : localStorage;
 
 export async function storeImage(blob: Blob): Promise<string> {
   const id = uuid();
@@ -68,7 +75,8 @@ function formatDeviceLabel(): string {
   const platform =
     typeof navigator === "undefined" ? "未知平台" : navigator.platform || "未知平台";
   const mode = isTauriRuntime() ? "Tauri" : "Web";
-  return `${mode} / ${platform}`;
+  const id = deviceStorage ? getOrCreateDeviceId(deviceStorage).slice(0, 8) : "无本地存储";
+  return `${mode} / ${platform} (${id})`;
 }
 
 function buildMissingImageError(

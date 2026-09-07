@@ -170,6 +170,12 @@ export interface SyncSnapshotSummary {
   noteCount: number;
   pageCount: number;
   size: number;
+  backupDevice?: {
+    id?: string;
+    name?: string;
+    runtime?: string;
+    platform?: string;
+  };
 }
 
 export interface PullPrecheck {
@@ -228,13 +234,30 @@ function summarizeBackup(json: string): SyncSnapshotSummary {
       exported_at?: string;
       notes?: unknown[];
       daily_pages?: unknown[];
+      backup_metadata?: {
+        device?: {
+          id?: string;
+          name?: string;
+          runtime?: string;
+          platform?: string;
+        };
+      };
     };
+    const metadata = data.backup_metadata?.device;
     return {
       version: data.version ?? null,
       exportedAt: data.exported_at ?? null,
       noteCount: Array.isArray(data.notes) ? data.notes.length : 0,
       pageCount: Array.isArray(data.daily_pages) ? data.daily_pages.length : 0,
       size: new TextEncoder().encode(json).length,
+      backupDevice: metadata
+        ? {
+          id: typeof metadata.id === "string" ? metadata.id : undefined,
+          name: typeof metadata.name === "string" ? metadata.name : undefined,
+          runtime: typeof metadata.runtime === "string" ? metadata.runtime : undefined,
+          platform: typeof metadata.platform === "string" ? metadata.platform : undefined,
+        }
+        : undefined,
     };
   } catch {
     return {
@@ -243,6 +266,7 @@ function summarizeBackup(json: string): SyncSnapshotSummary {
       noteCount: 0,
       pageCount: 0,
       size: new TextEncoder().encode(json).length,
+      backupDevice: undefined,
     };
   }
 }
@@ -519,7 +543,12 @@ function dumpBundle(label: string, json: string): void {
   }
 
   addLog(`[Sync] ${label}`);
-  addLog(`[Sync] ├─ 大小: ${sizeKB} KB  |  版本: ${data.version ?? "?"}  |  导出: ${logString(data.exported_at).slice(0, 19)}`);
+  const metadata = isRecord(data.backup_metadata) ? data.backup_metadata : null;
+  const source = isRecord(metadata?.device) ? metadata.device : null;
+  const sourceLabel = source
+    ? `${logString(source.name, "未知设备")} (ID: ${logString(source.id, "none")})`
+    : "未携带备份元数据";
+  addLog(`[Sync] ├─ 大小: ${sizeKB} KB  |  版本: ${data.version ?? "?"}  |  导出: ${logString(data.exported_at).slice(0, 19)}  |  来源: ${sourceLabel}`);
   addLog(`[Sync] ├─ 笔记: ${notes.length} 篇  (文档 ${docNotes.length} + 随笔 ${essays.length})`);
   if (docNotes.length > 0) {
     const typeStr = Object.entries(typeCount).map(([k, v]) => `${k}:${v}`).join("  ");
