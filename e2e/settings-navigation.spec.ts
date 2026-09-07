@@ -378,17 +378,43 @@ test("Web/PWA 从 GitHub Pull 后自动应用设置并恢复最后文档位置",
   await page.getByRole("button", { name: "Pull ↓" }).click();
   await expect(page.getByText("Pull 文档级预检")).toBeVisible();
   await expect(page.getByLabel("Pull 文档差异摘要")).toContainText("远端独有");
-  const replaceButton = page.getByRole("button", { name: /删除本地独有 \d+ 篇并全量覆盖/ });
+  const replaceButton = page.getByRole("button", { name: "全量覆盖本地", exact: true });
   await expect(replaceButton).toBeVisible();
+  await expect(replaceButton).toHaveAccessibleDescription(/将删除本地独有的 \d+ 篇文档，并清空版本历史/);
+  const originalViewport = page.viewportSize();
+  for (const width of [320, 390, 820]) {
+    await page.setViewportSize({ width, height: 900 });
+    const actions = page.locator(".sync-preview-actions");
+    await actions.scrollIntoViewIfNeeded();
+    const bounds = await actions.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      const buttons = [...element.querySelectorAll("button")].map(button => {
+        const r = button.getBoundingClientRect();
+        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+      });
+      return { left: rect.left, right: rect.right, buttons };
+    });
+    const [merge, cancel, backup, replace] = bounds.buttons;
+    expect(Math.abs(merge.top - cancel.top)).toBeLessThan(1);
+    expect(backup.top).toBeGreaterThanOrEqual(merge.bottom);
+    expect(replace.top).toBeGreaterThan(backup.bottom);
+    for (const button of bounds.buttons) {
+      expect(button.left).toBeGreaterThanOrEqual(bounds.left - 1);
+      expect(button.right).toBeLessThanOrEqual(bounds.right + 1);
+    }
+    expect(Math.abs(merge.left - backup.left)).toBeLessThan(1);
+    expect(Math.abs(merge.left - replace.left)).toBeLessThan(1);
+    await actions.screenshot({ path: `/tmp/sync-merge-actions-${width}.png` });
+  }
+  if (originalViewport) await page.setViewportSize(originalViewport);
   await expect(page.getByRole("button", { name: "先导出本地 JSON" })).toBeVisible();
-  const replaceWarning = page.waitForEvent("dialog").then(async (dialog) => {
-    expect(dialog.message()).toContain("本地独有");
-    expect(dialog.message()).toContain("将被删除");
-    expect(dialog.message()).toContain("不会按标题合并");
-    await dialog.dismiss();
-  });
   await replaceButton.click();
-  await replaceWarning;
+  const replaceWarning = page.getByRole("dialog", { name: "覆盖本地数据库", exact: true });
+  await expect(replaceWarning).toContainText("本地独有");
+  await expect(replaceWarning).toContainText("将被删除");
+  await expect(replaceWarning).toContainText("不会按标题合并");
+  await replaceWarning.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(replaceWarning).toBeHidden();
 
   const reloadPromise = page.waitForEvent("load");
   await page.getByRole("button", { name: "安全合并（推荐）" }).click();

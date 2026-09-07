@@ -459,23 +459,33 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
             安全合并不会按标题去重，也不会传播删除操作；同名但 UUID 不同的文档会同时保留。
             写入前失败不会回写快照；写入中失败会尝试恢复拉取前快照，之后需检查结果。已提交数据后的收尾失败不会回滚已导入的数据。
           </div>
-          <div className="settings-row sync-preview-actions">
-            <button className="settings-btn settings-btn-primary" onClick={() => void handlePull("safe-merge")} disabled={busy}>
-              安全合并（推荐）
-            </button>
-            <button className="settings-btn" onClick={() => setPullPrecheck(null)} disabled={busy}>
-              取消
-            </button>
-            <button className="settings-btn" onClick={() => void handleLocalExport()} disabled={busy || exportingLocal}>
-              {exportingLocal ? "正在导出…" : "先导出本地 JSON"}
-            </button>
-            <button className="settings-btn settings-btn-danger sync-replace-button" onClick={() => void handlePull("replace")} disabled={busy}>
-              {pullPrecheck.comparison.localOnly.length > 0
-                ? `删除本地独有 ${pullPrecheck.comparison.localOnly.length} 篇并全量覆盖`
-                : "清空版本历史并全量覆盖"}
-            </button>
+          <div className="sync-preview-actions">
+            <div className="sync-preview-primary-actions" role="group" aria-label="推荐同步操作">
+              <button className="settings-btn settings-btn-primary" onClick={() => void handlePull("safe-merge")} disabled={busy}>
+                安全合并（推荐）
+              </button>
+              <button className="settings-btn" onClick={() => setPullPrecheck(null)} disabled={busy}>
+                取消
+              </button>
+            </div>
+            <div className="sync-preview-backup-actions">
+              <button className="settings-btn" onClick={() => void handleLocalExport()} disabled={busy || exportingLocal}>
+                {exportingLocal ? "正在导出…" : "先导出本地 JSON"}
+              </button>
+            </div>
+            <div className="sync-preview-danger-actions" role="group" aria-label="危险操作">
+              <p className="sync-preview-danger-title">全量覆盖（危险操作）</p>
+              <p className="settings-hint" id="sync-replace-warning">
+                {pullPrecheck.comparison.localOnly.length > 0
+                  ? `将删除本地独有的 ${pullPrecheck.comparison.localOnly.length} 篇文档，并清空版本历史。建议先导出本地 JSON。`
+                  : "将清空版本历史，用远端数据全量覆盖本地。建议先导出本地 JSON。"}
+              </p>
+              <button className="settings-btn settings-btn-danger" aria-describedby="sync-replace-warning" onClick={() => void handlePull("replace")} disabled={busy}>
+                全量覆盖本地
+              </button>
+            </div>
           </div>
-          <div className="settings-hint">远端文件: {pullPrecheck.remote.path}</div>
+          <div className="settings-hint sync-preview-source">远端文件: {pullPrecheck.remote.path}</div>
         </div>
       )}
 

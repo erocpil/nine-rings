@@ -6285,13 +6285,47 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 }
 
 .sync-preview-actions {
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  display: grid;
+  gap: 12px;
+  margin: 12px 0;
 }
 
-.sync-replace-button {
-  margin-left: auto;
+.sync-preview-primary-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(72px, auto);
+  max-width: 360px;
+  align-items: center;
+  gap: 8px;
+}
+
+.sync-preview-actions .settings-btn {
+  min-height: 40px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+.sync-preview-danger-actions {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.sync-preview-danger-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.sync-preview-danger-actions .settings-hint {
+  margin: 0;
+}
+
+.sync-preview-source {
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 768px) {
@@ -6299,13 +6333,13 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .sync-preview-actions > button {
-    flex: 1 1 auto;
+  .sync-preview-primary-actions {
+    max-width: none;
   }
 
-  .sync-replace-button {
-    flex-basis: 100% !important;
-    margin-left: 0;
+  .sync-preview-backup-actions > button,
+  .sync-preview-danger-actions > button {
+    width: 100%;
   }
 }
 @keyframes toastIn {
