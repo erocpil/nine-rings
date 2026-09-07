@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mergeAttributes } from "@tiptap/core";
-import { withDB, getAll, getOne } from "../../src/lib/storage/db";
+import { withDB, getAll } from "../../src/lib/storage/db";
 import { idbAdapter } from "../../src/lib/storage/idb";
 import { importData, exportData } from "../../src/lib/storage/db-export-import";
 import { storeImage, resolveImageRefs } from "../../src/lib/storage/db-images";
@@ -58,17 +58,35 @@ beforeEach(async () => {
 
 describe("backup failure boundaries", () => {
   it("identifies the remote device when precheck rejects an invalid backup", async () => {
-    const payloads = ["20260907T120000", JSON.stringify({
-      notes: "invalid",
-      backup_metadata: { device: { name: "Windows", id: "12345678-abcd" } },
-    })];
-    const fetch = vi.fn(async () => new Response(JSON.stringify({
-      sha: "abc123", encoding: "base64", content: btoa(payloads.shift()!),
-    }), { status: 200 }));
+    const payloads = [
+      "20260907T120000",
+      JSON.stringify({
+        notes: "invalid",
+        backup_metadata: { device: { name: "Windows", id: "12345678-abcd" } },
+      }),
+    ];
+    const fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            sha: "abc123",
+            encoding: "base64",
+            content: btoa(payloads.shift()!),
+          }),
+          { status: 200 },
+        ),
+    );
     vi.stubGlobal("fetch", fetch);
-    await expect(previewPullFromGitHub({
-      ...loadSyncConfig(), token: "dummy", owner: "owner", repo: "repo",
-    })).rejects.toThrow(/notes 数组\n远端版本：20260907T120000\n远端备份来源：Windows · 设备ID 12345678/);
+    await expect(
+      previewPullFromGitHub({
+        ...loadSyncConfig(),
+        token: "dummy",
+        owner: "owner",
+        repo: "repo",
+      }),
+    ).rejects.toThrow(
+      /notes 数组\n远端版本：20260907T120000\n远端备份来源：Windows · 设备ID 12345678/,
+    );
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(await idbAdapter.getAllNotes()).toEqual([]);
   });
@@ -78,9 +96,12 @@ describe("backup failure boundaries", () => {
     [{ name: "Phone" }, "Phone"],
     [{ id: "12345678-abcd" }, "设备ID 12345678"],
     [{ name: " ", runtime: "tauri", platform: "Windows" }, "tauri / Windows"],
-  ])("formats partial device metadata without broken labels", (device, label) => {
-    expect(formatBackupDevice(device)).toBe(label);
-  });
+  ])(
+    "formats partial device metadata without broken labels",
+    (device, label) => {
+      expect(formatBackupDevice(device)).toBe(label);
+    },
+  );
   it.each([null, [], {}, { sha: 42 }, { sha: "" }])(
     "rejects an invalid remote pointer envelope before uploading: %j",
     async (value) => {
@@ -110,7 +131,7 @@ describe("backup failure boundaries", () => {
     };
     const bundle = (templates: unknown[]) =>
       JSON.stringify({ version: 1, notes: [], templates });
-    const result = JSON.parse(
+    const result: { templates: (typeof template)[] } = JSON.parse(
       buildSafeMergedBackup(
         bundle([
           { ...template, name: "local" },
@@ -121,13 +142,13 @@ describe("backup failure boundaries", () => {
       ).json,
     );
     expect(result.templates).toHaveLength(3);
-    expect(result.templates.find((t: any) => t.id === "t").name).toBe("remote");
+    expect(result.templates.find((t) => t.id === "t")?.name).toBe("remote");
     expect(
       result.templates.some(
-        (t: any) => t.name.includes("local") && !t.is_builtin && t.id !== "t",
+        (t) => t.name.includes("local") && !t.is_builtin && t.id !== "t",
       ),
     ).toBe(true);
-    expect(result.templates.some((t: any) => t.id === "only-local")).toBe(true);
+    expect(result.templates.some((t) => t.id === "only-local")).toBe(true);
     const legacy = JSON.stringify({
       notes: [],
       user_settings: {
@@ -136,10 +157,10 @@ describe("backup failure boundaries", () => {
         },
       },
     });
-    const migrated = JSON.parse(
+    const migrated: { templates: (typeof template)[] } = JSON.parse(
       buildSafeMergedBackup(bundle([template]), legacy).json,
     );
-    expect(migrated.templates.map((t: any) => t.id).sort()).toEqual([
+    expect(migrated.templates.map((t) => t.id).sort()).toEqual([
       "legacy-remote",
       "t",
     ]);
@@ -240,7 +261,7 @@ describe("backup failure boundaries", () => {
     };
     try {
       await expect(
-        idbAdapter.createNote({ title: "aborted" }),
+        idbAdapter.createNote({ date: "2026-09-06", title: "aborted" }),
       ).rejects.toThrow();
       await expect(
         importData(
@@ -352,7 +373,15 @@ describe("backup failure boundaries", () => {
       title: "带图文档",
       date: "2026-09-06",
       storagePath: "areas/private",
-      content: { ops: [{ insert: { image: "nr-image://9f7a9c2d-0000-4e55-bf1b-111111111111" } }] },
+      content: {
+        ops: [
+          {
+            insert: {
+              image: "nr-image://9f7a9c2d-0000-4e55-bf1b-111111111111",
+            },
+          },
+        ],
+      },
       tags: [],
       pinned: false,
       readonly: false,
@@ -405,7 +434,7 @@ describe("backup failure boundaries", () => {
     await withDB(async (db) => {
       db.onversionchange?.call(db, new IDBVersionChangeEvent("versionchange"));
     });
-    await idbAdapter.createNote({ title: "reopened" });
+    await idbAdapter.createNote({ date: "2026-09-06", title: "reopened" });
     expect((await idbAdapter.getAllNotes()).length).toBe(1);
   });
 });

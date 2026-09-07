@@ -4,13 +4,14 @@
  * 用法：npx tsx tests/md-parser.test.ts
  */
 
+import { getTableEmbed } from "../src/lib/table-embed";
 import { mdToDelta, extractTitle, looksLikeMarkdown } from "../src/lib/md-parser";
 import { deltaToProseMirror } from "../src/lib/delta-converter";
 
 let passed = 0;
 let failed = 0;
 
-function assert(condition: boolean, msg: string): void {
+function assert(condition: boolean | undefined, msg: string): void {
   if (condition) { passed++; return; }
   console.error(`  FAIL: ${msg}`);
   failed++;
@@ -34,8 +35,8 @@ function assert(condition: boolean, msg: string): void {
   console.log("\n── Plain text ──");
 
   const result = mdToDelta("Hello world");
-  const textOps = result.ops.filter((o: any) => typeof o.insert === "string" && o.insert !== "\n");
-  assert(textOps.some((o: any) => o.insert.includes("Hello world")), "plain text preserved");
+  const textOps = result.ops.filter((o) => typeof o.insert === "string" && o.insert !== "\n");
+  assert(textOps.some((o) => typeof o.insert === "string" && o.insert.includes("Hello world")), "plain text preserved");
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -46,19 +47,19 @@ function assert(condition: boolean, msg: string): void {
 
   const h1 = mdToDelta("# Hello");
   // 格式：[{insert:"Hello"}, {insert:"\n", attributes:{header:1}}]
-  const h1Text = h1.ops.find((o: any) => typeof o.insert === "string" && o.insert !== "\n");
-  const h1Newline = h1.ops.find((o: any) => o.attributes?.header === 1);
+  const h1Text = h1.ops.find((o) => typeof o.insert === "string" && o.insert !== "\n");
+  const h1Newline = h1.ops.find((o) => o.attributes?.header === 1);
   assert(h1Text?.insert === "Hello", "H1 text correct");
   assert(h1Newline?.attributes?.header === 1, "H1 newline has header=1");
 
   const h2 = mdToDelta("## Subtitle");
-  const h2Text = h2.ops.find((o: any) => typeof o.insert === "string" && o.insert !== "\n");
-  const h2Newline = h2.ops.find((o: any) => o.attributes?.header === 2);
+  const h2Text = h2.ops.find((o) => typeof o.insert === "string" && o.insert !== "\n");
+  const h2Newline = h2.ops.find((o) => o.attributes?.header === 2);
   assert(h2Text?.insert === "Subtitle", "H2 text correct");
   assert(h2Newline?.attributes?.header === 2, "H2 newline has header=2");
 
   const h3 = mdToDelta("### Deep");
-  const h3Newline = h3.ops.find((o: any) => o.attributes?.header === 3);
+  const h3Newline = h3.ops.find((o) => o.attributes?.header === 3);
   assert(!!h3Newline, "H3 detected");
 }
 
@@ -69,7 +70,7 @@ function assert(condition: boolean, msg: string): void {
   console.log("\n── Bold ──");
 
   const result = mdToDelta("Hello **world**.");
-  const boldOps = result.ops.filter((o: any) => o.attributes?.bold);
+  const boldOps = result.ops.filter((o) => o.attributes?.bold);
   assert(boldOps.length >= 1, "bold op exists");
   assert(boldOps[0].insert === "world", "bold text correct");
 }
@@ -81,7 +82,7 @@ function assert(condition: boolean, msg: string): void {
   console.log("\n── Italic ──");
 
   const result = mdToDelta("Hello *world*.");
-  const italicOps = result.ops.filter((o: any) => o.attributes?.italic);
+  const italicOps = result.ops.filter((o) => o.attributes?.italic);
   assert(italicOps.length >= 1, "italic op exists");
   assert(italicOps[0].insert === "world", "italic text correct");
 }
@@ -93,7 +94,7 @@ function assert(condition: boolean, msg: string): void {
   console.log("\n── Inline code ──");
 
   const result = mdToDelta("Use `const` keyword.");
-  const codeOps = result.ops.filter((o: any) => o.attributes?.code);
+  const codeOps = result.ops.filter((o) => o.attributes?.code);
   assert(codeOps.length >= 1, "inline code op exists");
   assert(codeOps[0].insert === "const", "code text correct");
 }
@@ -106,8 +107,8 @@ function assert(condition: boolean, msg: string): void {
 
   const result = mdToDelta("```\nconst x = 1;\n```");
   // 格式：[{insert:"const x = 1;"}, {insert:"\n", attributes:{"code-block":true}}]
-  const codeText = result.ops.find((o: any) => typeof o.insert === "string" && o.insert !== "\n" && !o.attributes);
-  const codeNewline = result.ops.find((o: any) => o.attributes?.["code-block"]);
+  const codeText = result.ops.find((o) => typeof o.insert === "string" && o.insert !== "\n" && !o.attributes);
+  const codeNewline = result.ops.find((o) => o.attributes?.["code-block"]);
   assert(codeText?.insert === "const x = 1;", "code block text correct");
   assert(codeNewline?.attributes?.["code-block"] === true, "code block newline has code-block=true");
 }
@@ -119,7 +120,7 @@ function assert(condition: boolean, msg: string): void {
   console.log("\n── Code block with language ──");
 
   const result = mdToDelta("```typescript\nconst x = 1;\n```");
-  const codeBlockOps = result.ops.filter((o: any) => o.attributes?.["code-block"]);
+  const codeBlockOps = result.ops.filter((o) => o.attributes?.["code-block"]);
   assert(codeBlockOps.length >= 1, "code block with lang exists");
   assert(codeBlockOps[0].attributes?.language === "typescript", "code fence language is preserved");
 }
@@ -132,11 +133,11 @@ function assert(condition: boolean, msg: string): void {
 
   const result = mdToDelta("- Item 1\n- Item 2");
   // 格式：[{insert:"Item 1"}, {insert:"\n", attributes:{list:"bullet"}}, {insert:"Item 2"}, {insert:"\n", attributes:{list:"bullet"}}]
-  const listNewlines = result.ops.filter((o: any) => o.attributes?.list === "bullet");
+  const listNewlines = result.ops.filter((o) => o.attributes?.list === "bullet");
   assert(listNewlines.length === 2, "2 bullet list newline ops");
-  const itemTexts = result.ops.filter((o: any) => typeof o.insert === "string" && o.insert !== "\n" && !o.attributes);
-  assert(itemTexts.some((o: any) => o.insert === "Item 1"), "Item 1 text found");
-  assert(itemTexts.some((o: any) => o.insert === "Item 2"), "Item 2 text found");
+  const itemTexts = result.ops.filter((o) => typeof o.insert === "string" && o.insert !== "\n" && !o.attributes);
+  assert(itemTexts.some((o) => o.insert === "Item 1"), "Item 1 text found");
+  assert(itemTexts.some((o) => o.insert === "Item 2"), "Item 2 text found");
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -146,27 +147,27 @@ function assert(condition: boolean, msg: string): void {
   console.log("\n── Ordered list ──");
 
   const result = mdToDelta("1. First\n2. Second");
-  const listNewlines = result.ops.filter((o: any) => o.attributes?.list === "ordered");
+  const listNewlines = result.ops.filter((o) => o.attributes?.list === "ordered");
   assert(listNewlines.length === 2, "2 ordered list newline ops");
   assert(listNewlines[0].attributes?.listStart === 1, "first ordered marker is preserved");
   assert(listNewlines[1].attributes?.listStart === 2, "second ordered marker is preserved");
-  assert(result.ops.some((o: any) => o.insert === "First"), "First text found");
+  assert(result.ops.some((o) => o.insert === "First"), "First text found");
 }
 
 {
   console.log("\n── Ordered list lazy continuation ──");
   const result = mdToDelta("1. aaa\nbbb\n2. ccc\n   ddd");
-  const listLines = result.ops.filter((op: any) => op.attributes?.list === "ordered");
-  const hardBreaks = result.ops.filter((op: any) => typeof op.insert === "string" && op.insert.startsWith("\n") && op.insert.length > 1);
+  const listLines = result.ops.filter((op) => op.attributes?.list === "ordered");
+  const hardBreaks = result.ops.filter((op) => typeof op.insert === "string" && op.insert.startsWith("\n") && op.insert.length > 1);
   assert(listLines.length === 2, "continuation lines do not create extra list items");
   assert(hardBreaks.length === 2, "source continuation lines are preserved as hard breaks");
 
   const pm = deltaToProseMirror(result);
   const items = pm.content
-    .filter((node: any) => node.type === "orderedList")
-    .flatMap((list: any) => list.content ?? []);
+    .filter((node) => node.type === "orderedList")
+    .flatMap((list) => list.content ?? []);
   assert(items.length === 2, "two ordered list items are rendered");
-  assert(items.every((item: any) => item.content?.[0]?.content?.some((node: any) => node.type === "hardBreak")),
+  assert(items.every((item) => item.content?.[0]?.content?.some((node) => node.type === "hardBreak")),
     "each rendered list item preserves its continuation line");
 }
 
@@ -187,12 +188,12 @@ function assert(condition: boolean, msg: string): void {
     "",
     "3. Third",
   ].join("\n"));
-  const listLines = result.ops.filter((op: any) => op.attributes?.list === "ordered");
-  assert(JSON.stringify(listLines.map((op: any) => op.attributes.listStart)) === "[1,2,3]",
+  const listLines = result.ops.filter((op) => op.attributes?.list === "ordered");
+  assert(JSON.stringify(listLines.map((op) => op.attributes?.listStart)) === "[1,2,3]",
     "loose ordered list markers are preserved");
 
   const pm = deltaToProseMirror(result);
-  const orderedLists = pm.content.filter((node: any) => node.type === "orderedList");
+  const orderedLists = pm.content.filter((node) => node.type === "orderedList");
   assert(orderedLists.length === 3, "loose items rebuild as three ordered list nodes");
   assert((orderedLists[0].attrs?.start ?? 1) === 1, "first node starts at 1");
   assert(orderedLists[1].attrs?.start === 2, "second node starts at 2");
@@ -206,7 +207,7 @@ function assert(condition: boolean, msg: string): void {
   console.log("\n── Blockquote ──");
 
   const result = mdToDelta("> This is a quote");
-  const quoteOps = result.ops.filter((o: any) => o.attributes?.blockquote);
+  const quoteOps = result.ops.filter((o) => o.attributes?.blockquote);
   assert(quoteOps.length >= 1, "blockquote op exists");
 }
 
@@ -217,9 +218,9 @@ function assert(condition: boolean, msg: string): void {
   console.log("\n── Link ──");
 
   const result = mdToDelta("[Click here](https://example.com)");
-  const linkOps = result.ops.filter((o: any) => o.attributes?.link);
+  const linkOps = result.ops.filter((o) => o.attributes?.link);
   assert(linkOps.length >= 1, "link op exists");
-  assert(linkOps[0].attributes.link === "https://example.com", "link href correct");
+  assert(linkOps[0].attributes?.link === "https://example.com", "link href correct");
   assert(linkOps[0].insert === "Click here", "link text correct");
 }
 
@@ -230,7 +231,7 @@ function assert(condition: boolean, msg: string): void {
   console.log("\n── Horizontal rule ──");
 
   const result = mdToDelta("---");
-  assert(result.ops.some((op: any) => op.insert?.hr), "hr generates horizontal-rule embed");
+  assert(result.ops.some((op) => typeof op.insert === "object" && "hr" in op.insert && op.insert.hr), "hr generates horizontal-rule embed");
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -261,15 +262,15 @@ function assert(condition: boolean, msg: string): void {
   assert(pm.content.length === 7, "wrapped source produces 7 intended top-level blocks");
   assert(pm.content[1]?.type === "blockquote", "quote remains a blockquote");
   assert(
-    pm.content[1]?.content?.[0]?.content?.[0]?.text.includes("不需要硬编项目经历。"),
+    pm.content[1]?.content?.[0]?.content?.[0]?.text?.includes("不需要硬编项目经历。"),
     "unmarked quote continuation stays in the quote",
   );
   assert(pm.content[2]?.type === "horizontalRule", "divider remains a horizontal rule");
-  assert(pm.content[5]?.content?.map((node: any) => node.text).join("") === "概念",
+  assert(pm.content[5]?.content?.map((node) => node.text).join("") === "概念",
     "standalone bold label remains its own paragraph");
-  assert(pm.content[5]?.content?.[0]?.marks?.some((mark: any) => mark.type === "bold"),
+  assert(pm.content[5]?.content?.[0]?.marks?.some((mark) => mark.type === "bold"),
     "standalone label remains bold");
-  assert(pm.content[6]?.content?.map((node: any) => node.text).join("").includes("上下文切换开销。"),
+  assert(pm.content[6]?.content?.map((node) => node.text).join("").includes("上下文切换开销。"),
     "wrapped body stays in one paragraph");
 
   const pastedQuote = deltaToProseMirror(mdToDelta("> 第一段\n>\n> 第二段"));
@@ -306,18 +307,18 @@ function assert(condition: boolean, msg: string): void {
 | DPDK框架 | 1.1～1.6 | EAL初始化 |
 | Flow Director | 1.7 | queue级资源隔离 |`;
   const delta = mdToDelta(md);
-  const table = (delta.ops.find((op: any) => typeof op.insert === "object")?.insert as any)?.table;
+  const table = getTableEmbed(delta.ops.find((op) => typeof op.insert === "object")?.insert);
   const pm = deltaToProseMirror(delta);
 
   assert(table?.version === 1, "table is stored as a versioned embed");
   assert(table?.rows?.length === 3 && table?.columns?.length === 3, "table dimensions are preserved");
-  assert(table?.rows?.[0]?.cells?.every((cell: any) => cell.header), "first row is a header row");
+  assert(table?.rows?.[0]?.cells?.every((cell) => cell.header), "first row is a header row");
   assert(pm.content.length === 2 && pm.content[1]?.type === "table", "table becomes a ProseMirror table node");
   assert(pm.content[1]?.content?.[2]?.content?.[0]?.content?.[0]?.content?.[0]?.text === "Flow Director",
     "table data cell text is preserved");
 
   const escaped = mdToDelta("| Code | Pipe |\n| :--- | ---: |\n| `a | b` | escaped \\| pipe |");
-  const escapedTable = (escaped.ops[0].insert as any).table;
+  const escapedTable = getTableEmbed(escaped.ops[0].insert)!;
   assert(escapedTable.columns[0].align === "left" && escapedTable.columns[1].align === "right",
     "column alignment is parsed");
   assert(escapedTable.rows[1].cells[0].content.ops[0].attributes?.code === true,
@@ -348,14 +349,14 @@ This is a **bold** and *italic* text with \`code\`.
 
   assert(result.ops.length > 0, "mixed syntax produces ops");
 
-  const hasH1 = result.ops.some((o: any) => o.attributes?.header === 1);
-  const hasH2 = result.ops.some((o: any) => o.attributes?.header === 2);
-  const hasBold = result.ops.some((o: any) => o.attributes?.bold);
-  const hasItalic = result.ops.some((o: any) => o.attributes?.italic);
-  const hasCode = result.ops.some((o: any) => o.attributes?.code);
-  const hasList = result.ops.some((o: any) => o.attributes?.list === "bullet");
-  const hasQuote = result.ops.some((o: any) => o.attributes?.blockquote);
-  const hasLink = result.ops.some((o: any) => o.attributes?.link);
+  const hasH1 = result.ops.some((o) => o.attributes?.header === 1);
+  const hasH2 = result.ops.some((o) => o.attributes?.header === 2);
+  const hasBold = result.ops.some((o) => o.attributes?.bold);
+  const hasItalic = result.ops.some((o) => o.attributes?.italic);
+  const hasCode = result.ops.some((o) => o.attributes?.code);
+  const hasList = result.ops.some((o) => o.attributes?.list === "bullet");
+  const hasQuote = result.ops.some((o) => o.attributes?.blockquote);
+  const hasLink = result.ops.some((o) => o.attributes?.link);
 
   assert(hasH1, "H1 detected");
   assert(hasH2, "H2 detected");
@@ -374,13 +375,12 @@ This is a **bold** and *italic* text with \`code\`.
   console.log("\n── extractTitle ──");
 
   // extractTitle 只对 '# ' 开头的行有效
-  assert(extractTitle("# My Title") === "My Title", "H1 → title");
+  assert(extractTitle("# My Title", "fallback") === "My Title", "H1 → title");
 
   // H2 不提取（实际实现只匹配 '# '）
-  const h2Result = extractTitle("## Subtitle\n\nContent");
+  const h2Result = extractTitle("## Subtitle\n\nContent", "fallback");
   // 行为取决于实现：可能返回 undefined 或内容
-  assert(h2Result === undefined || typeof h2Result === "string",
-    "H2 extractTitle returns undefined or string");
+  assert(h2Result === "fallback", "H2 extractTitle returns the fallback title");
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -399,7 +399,7 @@ This is a **bold** and *italic* text with \`code\`.
 
   // null（注意：md-parser 不支持 null，需外部保护）
   try {
-    mdToDelta(null as any);
+    mdToDelta(null as unknown as string);
     assert(true, "null input handled (or throws expectedly)");
   } catch {
     assert(true, "null input throws (expected — caller should guard)");
@@ -436,7 +436,7 @@ This is a **bold** and *italic* text with \`code\`.
     "    - Grandchild\r\n" +
     "- Sibling",
   );
-  const listLines = delta.ops.filter((op: any) => op.attributes?.list);
+  const listLines = delta.ops.filter((op) => op.attributes?.list);
   assert(listLines.length === 4, "all Markdown list items are parsed");
   assert(listLines[0].attributes?.indent === undefined, "root Markdown item has no indent");
   assert(listLines[1].attributes?.list === "ordered" && listLines[1].attributes?.indent === 1,
@@ -446,12 +446,12 @@ This is a **bold** and *italic* text with \`code\`.
 
   const pm = deltaToProseMirror(delta);
   const rootList = pm.content[0];
-  const childList = rootList.content[0].content[1];
-  const grandchildList = childList.content[0].content[1];
-  assert(rootList.type === "bulletList" && rootList.content.length === 2,
+  const childList = rootList.content?.[0]?.content?.[1];
+  const grandchildList = childList?.content?.[0]?.content?.[1];
+  assert(rootList.type === "bulletList" && rootList.content?.length === 2,
     "root Markdown list is rebuilt with sibling");
-  assert(childList.type === "orderedList", "mixed ordered child list is rebuilt");
-  assert(grandchildList.type === "bulletList", "third-level bullet list is rebuilt");
+  assert(childList?.type === "orderedList", "mixed ordered child list is rebuilt");
+  assert(grandchildList?.type === "bulletList", "third-level bullet list is rebuilt");
 }
 
 // ═══════════════════════════════════════════════════════════════════

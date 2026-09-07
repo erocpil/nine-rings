@@ -1,8 +1,13 @@
 // ── db-versions.ts：IndexedDB 版本历史存储 ──
 
 import type { Note, NoteVersion } from "../../types/models";
-import { uuid, now, extractPlainText, noteFromDB } from "./core";
+import { uuid, now, extractPlainText, noteFromDB, type StoredNote } from "./core";
 import { withDB, getOne, getAll, getAllFromIndex, putRecord, delRecord } from "./db";
+
+type StoredVersion = Omit<NoteVersion, "content" | "tags"> & {
+  content: NoteVersion["content"] | string;
+  tags: NoteVersion["tags"] | string;
+};
 
 /** 保存笔记当前内容为版本快照，并裁剪至每笔记最多 30 个版本 */
 export async function saveVersionSnapshot(store: IDBObjectStore, note: Note): Promise<void> {
@@ -19,7 +24,7 @@ export async function saveVersionSnapshot(store: IDBObjectStore, note: Note): Pr
   await putRecord(store, ver);
 
   // Keep max 30 versions per note
-  const allVersions = await getAllFromIndex<any>(store.index("note_id"), note.id);
+  const allVersions = await getAllFromIndex<StoredVersion>(store.index("note_id"), note.id);
   if (allVersions.length > 30) {
     allVersions.sort((a, b) => a.saved_at.localeCompare(b.saved_at));
     const excess = allVersions.slice(0, allVersions.length - 30);
@@ -36,14 +41,14 @@ export async function createNoteCheckpoint(noteId: string): Promise<void> {
     const noteStore = tx.objectStore("notes");
     const verStore = tx.objectStore("note_versions");
 
-    const existing = await getOne<any>(noteStore, noteId);
+    const existing = await getOne<StoredNote>(noteStore, noteId);
     if (!existing) throw new Error(`Note ${noteId} not found`);
 
     // 去重：如果内容与最新版本相同，不创建 checkpoint
-    const allVersions = await getAll<any>(verStore);
+    const allVersions = await getAll<StoredVersion>(verStore);
     const noteVersions = allVersions
-      .filter((v: any) => v.note_id === noteId)
-      .sort((a: any, b: any) => (b.saved_at ?? "").localeCompare(a.saved_at ?? ""));
+      .filter((v) => v.note_id === noteId)
+      .sort((a, b) => (b.saved_at ?? "").localeCompare(a.saved_at ?? ""));
     if (noteVersions.length > 0) {
       const latest = noteVersions[0];
       const latestContent = typeof latest.content === "string"
@@ -60,7 +65,7 @@ export async function createNoteCheckpoint(noteId: string): Promise<void> {
 export async function getNoteVersions(noteId: string): Promise<NoteVersion[]> {
   return withDB(async (db) => {
     const index = db.transaction("note_versions", "readonly").objectStore("note_versions").index("note_id");
-    const all = await getAllFromIndex<any>(index, noteId);
+    const all = await getAllFromIndex<StoredVersion>(index, noteId);
     return all.sort((a, b) => b.saved_at.localeCompare(a.saved_at)).map((v) => ({
       ...v,
       content: typeof v.content === "string" ? JSON.parse(v.content) : v.content,
@@ -73,18 +78,18 @@ export async function restoreNoteVersion(versionId: string): Promise<Note> {
   return withDB(async (db) => {
     const tx = db.transaction(["notes", "note_versions"], "readwrite");
     const verStore = tx.objectStore("note_versions");
-    const version = await getOne<any>(verStore, versionId);
+    const version = await getOne<StoredVersion>(verStore, versionId);
     if (!version) throw new Error(`Version ${versionId} not found`);
 
     const noteStore = tx.objectStore("notes");
-    const existing = await getOne<any>(noteStore, version.note_id);
+    const existing = await getOne<StoredNote>(noteStore, version.note_id);
     if (!existing) throw new Error(`Note ${version.note_id} not found`);
 
     // Save current as version first
     await saveVersionSnapshot(verStore, noteFromDB(existing));
 
     // Restore
-    const restored: any = {
+    const restored: StoredNote = {
       ...existing,
       title: version.title ?? existing.title,
       content: typeof version.content === "string" ? JSON.parse(version.content) : version.content,

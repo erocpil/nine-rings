@@ -148,8 +148,8 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
       <select
         value={editor.getAttributes("textStyle").fontSize || ""}
         onChange={(event) => {
-          if (event.target.value) (editor.chain() as any).focus().setFontSize(event.target.value).run();
-          else (editor.chain() as any).focus().unsetFontSize().run();
+          if (event.target.value) editor.chain().focus().setFontSize(event.target.value).run();
+          else editor.chain().focus().unsetFontSize().run();
         }}
       >
         <option value="">默认</option>
@@ -237,7 +237,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
               <button
                 key={lvl}
                 className={`menu-dropdown-item ${editor.isActive("heading", { level: lvl }) ? "active" : ""}`}
-                onClick={() => { editor.chain().focus().toggleHeading({ level: lvl as any }).run(); setHeadingOpen(false); }}
+                onClick={() => { editor.chain().focus().toggleHeading({ level: lvl as 1 | 2 | 3 | 4 | 5 | 6 }).run(); setHeadingOpen(false); }}
                 type="button"
               >H{lvl} — {["","大标题","中标题","小标题","子标题","细标题","微标题"][lvl]}</button>
             ))}
@@ -262,7 +262,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     ) : (<>
     {(headingPage === 0 ? [3, 4, 5] : [1, 2, 6]).map((lvl) => (
       <React.Fragment key={lvl}>
-        {btn(`H${lvl}`, () => editor.chain().focus().toggleHeading({ level: lvl as any }).run(), editor.isActive("heading", { level: lvl }), `标题 ${lvl}`, readonly)}
+        {btn(`H${lvl}`, () => editor.chain().focus().toggleHeading({ level: lvl as 1 | 2 | 3 | 4 | 5 | 6 }).run(), editor.isActive("heading", { level: lvl }), `标题 ${lvl}`, readonly)}
       </React.Fragment>
     ))}
     <button
@@ -576,7 +576,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
               key={s}
               className={`menu-dropdown-item ${editor.getAttributes("textStyle").fontSize === String(s) ? "active" : ""}`}
               onClick={() => {
-                (editor.chain() as any).focus().setFontSize(String(s)).run();
+                editor.chain().focus().setFontSize(String(s)).run();
                 setSizeOpen(false);
               }}
               type="button"
@@ -588,7 +588,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
           <button
             className="menu-dropdown-item"
             onClick={() => {
-              (editor.chain() as any).focus().unsetFontSize().run();
+              editor.chain().focus().unsetFontSize().run();
               setSizeOpen(false);
             }}
             type="button"

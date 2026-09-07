@@ -17,8 +17,16 @@
 
 import type { Note, CreateNoteInput, PathNode, DocType } from "../../types/models";
 import type { Op, SelectOp, InsertOp, UpdateOp, DeleteOp } from "./ops";
-import { buildDocTree, extractPlainText, type FlatDocRecord, type FlatDailyRecord } from "./core";
+import { noteToDB, noteFromDB, type StoredNote, buildDocTree, extractPlainText, type FlatDocRecord, type FlatDailyRecord } from "./core";
 import { localDateKey } from "../local-date";
+
+// IDB can store structured note content directly; SQL mutation values stay scalar.
+type IdbInsertOp = Omit<InsertOp, "values"> & {
+  values: Record<string, InsertOp["values"][string] | Note["content"]>;
+};
+type IdbUpdateOp = Omit<UpdateOp, "set"> & {
+  set: Record<string, UpdateOp["set"][string] | Note["content"]>;
+};
 
 // ═══════════════════════════════════════════════════════════════════
 // Op column name → IndexedDB field name 映射
@@ -58,36 +66,11 @@ function uuid(): string {
   });
 }
 
-/** Note → IDB 存储格式（与 idb.ts noteToDB 一致） */
-function noteToDB(n: Record<string, any>): Record<string, any> {
-  const record: Record<string, any> = { ...n };
-  if (n.tags !== undefined) record.tags = JSON.stringify(n.tags);
-  if (n.concepts !== undefined) record.concepts = n.concepts ? JSON.stringify(n.concepts) : undefined;
-  if (n.linkedDocIds !== undefined) record.linkedDocIds = n.linkedDocIds ? JSON.stringify(n.linkedDocIds) : undefined;
-  if (n.pinned !== undefined) record.pinned = n.pinned ? 1 : 0;
-  if (n.readonly !== undefined) record.readonly = n.readonly ? 1 : 0;
-  if (n.content !== undefined) record.search_text = extractPlainText(n.content);
-  return record;
-}
-
-/** IDB 存储格式 → Note（与 idb.ts noteFromDB 一致） */
-function noteFromDB(d: any): Note {
-  return {
-    ...d,
-    tags: typeof d.tags === "string" ? JSON.parse(d.tags) : d.tags,
-    concepts: typeof d.concepts === "string" ? JSON.parse(d.concepts) : d.concepts ?? undefined,
-    linkedDocIds: typeof d.linkedDocIds === "string" ? JSON.parse(d.linkedDocIds) : d.linkedDocIds ?? undefined,
-    pinned: d.pinned === 1 || d.pinned === true,
-    readonly: d.readonly === 1 || d.readonly === true,
-    content: typeof d.content === "string" ? JSON.parse(d.content) : d.content,
-  };
-}
-
 // ═══════════════════════════════════════════════════════════════════
 // Where 子句求值（IDB 端，JS 内存过滤）
 // ═══════════════════════════════════════════════════════════════════
 
-function matchWhere(record: Record<string, any>, col: string, op: string, val: any, not?: boolean): boolean {
+function matchWhere(record: Record<string, unknown>, col: string, op: string, val: unknown, not?: boolean): boolean {
   const field = idbField(col);
   const recordVal = record[field];
 
@@ -106,13 +89,16 @@ function matchWhere(record: Record<string, any>, col: string, op: string, val: a
 
   // Normal comparison
   let result: boolean;
+  const comparable = (v: unknown): v is string | number | boolean =>
+    typeof v === "string" || typeof v === "number" || typeof v === "boolean";
+  if (["<", ">", "<=", ">="].includes(op) && (!comparable(recordVal) || !comparable(val))) return false;
   switch (op) {
     case "=":  result = recordVal === val; break;
     case "!=": result = recordVal !== val; break;
-    case "<":  result = recordVal < val; break;
-    case ">":  result = recordVal > val; break;
-    case "<=": result = recordVal <= val; break;
-    case ">=": result = recordVal >= val; break;
+    case "<":  result = comparable(recordVal) && comparable(val) && recordVal < val; break;
+    case ">":  result = comparable(recordVal) && comparable(val) && recordVal > val; break;
+    case "<=": result = comparable(recordVal) && comparable(val) && recordVal <= val; break;
+    case ">=": result = comparable(recordVal) && comparable(val) && recordVal >= val; break;
     case "LIKE": {
       // LIKE in IDB: simple substring match (not full SQL LIKE)
       if (typeof recordVal !== "string" || typeof val !== "string") return false;
@@ -124,7 +110,7 @@ function matchWhere(record: Record<string, any>, col: string, op: string, val: a
   return not ? !result : result;
 }
 
-function checkAllWhere(record: Record<string, any>, where: SelectOp["where"]): boolean {
+function checkAllWhere(record: Record<string, unknown>, where: SelectOp["where"]): boolean {
   if (!where || where.length === 0) return true;
   return where.every((w) => matchWhere(record, w.col, w.op, w.val, w.not));
 }
@@ -141,11 +127,11 @@ function checkAllWhere(record: Record<string, any>, where: SelectOp["where"]): b
  * - 否则 scan all + 内存过滤。
  * - 自动过滤 deleted_at（除非 includeDeleted=true）。
  */
-async function compileSelect(db: IDBDatabase, op: SelectOp): Promise<Record<string, any>[]> {
+async function compileSelect<T = StoredNote>(db: IDBDatabase, op: SelectOp): Promise<T[]> {
   const tx = db.transaction(op.table, "readonly");
   const store = tx.objectStore(op.table);
 
-  let records: Record<string, any>[];
+  let records: Record<string, unknown>[];
 
   // ── 尝试走索引 ──
   const eqWhere = (op.where ?? []).filter(
@@ -159,14 +145,14 @@ async function compileSelect(db: IDBDatabase, op: SelectOp): Promise<Record<stri
   if (indexMatch && (op.where ?? []).length === 1) {
     // 单条件等值索引查询
     const index = store.index(indexMatch.col);
-    records = await new Promise<Record<string, any>[]>((resolve, reject) => {
+    records = await new Promise<Record<string, unknown>[]>((resolve, reject) => {
       const req = index.getAll(indexMatch.val as IDBValidKey);
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
   } else if (eqWhere.length === 1 && eqWhere[0].col === "id") {
     // 主键查询
-    const record = await new Promise<Record<string, any> | undefined>((resolve, reject) => {
+    const record = await new Promise<Record<string, unknown> | undefined>((resolve, reject) => {
       const req = store.get(eqWhere[0].val as IDBValidKey);
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
@@ -174,7 +160,7 @@ async function compileSelect(db: IDBDatabase, op: SelectOp): Promise<Record<stri
     records = record ? [record] : [];
   } else {
     // Scan all
-    records = await new Promise<Record<string, any>[]>((resolve, reject) => {
+    records = await new Promise<Record<string, unknown>[]>((resolve, reject) => {
       const req = store.getAll();
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
@@ -203,7 +189,9 @@ async function compileSelect(db: IDBDatabase, op: SelectOp): Promise<Record<stri
         const av = a[field];
         const bv = b[field];
         if (av === bv) continue;
-        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+        const comparable = (v: unknown): v is string | number | boolean =>
+          typeof v === "string" || typeof v === "number" || typeof v === "boolean";
+        const cmp = comparable(av) && comparable(bv) ? (av < bv ? -1 : av > bv ? 1 : 0) : 0;
         return o.desc ? -cmp : cmp;
       }
       return 0;
@@ -214,19 +202,19 @@ async function compileSelect(db: IDBDatabase, op: SelectOp): Promise<Record<stri
   if (op.offset) records = records.slice(op.offset);
   if (op.limit) records = records.slice(0, op.limit);
 
-  return records;
+  return records as T[];
 }
 
 /**
  * 执行 InsertOp。过滤 undefined 的列，映射 Op 列名 → IDB 字段名，
  * 写入 IDB。
  */
-async function compileInsert(db: IDBDatabase, op: InsertOp): Promise<void> {
+async function compileInsert(db: IDBDatabase, op: IdbInsertOp): Promise<void> {
   const tx = db.transaction(op.table, "readwrite");
   const store = tx.objectStore(op.table);
 
   // 过滤 undefined，映射列名
-  const record: Record<string, any> = {};
+  const record: Record<string, unknown> = {};
   for (const [col, val] of Object.entries(op.values)) {
     if (val === undefined) continue;
     record[idbField(col)] = val;
@@ -246,7 +234,7 @@ async function compileInsert(db: IDBDatabase, op: InsertOp): Promise<void> {
  * 3. merge set 字段（仅非 undefined）
  * 4. put 回 IDB
  */
-async function compileUpdate(db: IDBDatabase, op: UpdateOp): Promise<void> {
+async function compileUpdate(db: IDBDatabase, op: IdbUpdateOp): Promise<void> {
   // 必须包含 id = val 条件（IDB 只能通过主键定位记录）
   const idWhere = op.where.find((w) => w.col === "id" && w.op === "=");
   if (!idWhere) {
@@ -256,7 +244,7 @@ async function compileUpdate(db: IDBDatabase, op: UpdateOp): Promise<void> {
   const tx = db.transaction(op.table, "readwrite");
   const store = tx.objectStore(op.table);
 
-  const existing = await new Promise<Record<string, any> | undefined>((resolve, reject) => {
+  const existing = await new Promise<Record<string, unknown> | undefined>((resolve, reject) => {
     const req = store.get(idWhere.val as IDBValidKey);
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -298,7 +286,7 @@ async function compileDelete(db: IDBDatabase, op: DeleteOp): Promise<void> {
 
   const tx = db.transaction(op.table, "readwrite");
   const store = tx.objectStore(op.table);
-  const existing = await new Promise<Record<string, any> | undefined>((resolve, reject) => {
+  const existing = await new Promise<Record<string, unknown> | undefined>((resolve, reject) => {
     const req = store.get(idWhere.val as IDBValidKey);
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -313,9 +301,12 @@ async function compileDelete(db: IDBDatabase, op: DeleteOp): Promise<void> {
 }
 
 /** Op 顶层分发（Phase 2/3 统一入口） */
-export async function executeOp(db: IDBDatabase, op: Op): Promise<any> {
+export function executeOp(db: IDBDatabase, op: SelectOp): Promise<Record<string, unknown>[]>;
+export function executeOp(db: IDBDatabase, op: Exclude<Op, SelectOp>): Promise<void>;
+export function executeOp(db: IDBDatabase, op: Op): Promise<Record<string, unknown>[] | void>;
+export async function executeOp(db: IDBDatabase, op: Op): Promise<Record<string, unknown>[] | void> {
   switch (op.type) {
-    case "select": return compileSelect(db, op);
+    case "select": return compileSelect<Record<string, unknown>>(db, op);
     case "insert": return compileInsert(db, op);
     case "update": return compileUpdate(db, op);
     case "delete": return compileDelete(db, op);
@@ -373,11 +364,11 @@ export const idbDriver = {
       docType: data.docType,
       concepts: data.concepts,
       linkedDocIds: data.linkedDocIds,
-    } as any;
+    };
 
-    const dbRecord = noteToDB(note as any);
+    const dbRecord = noteToDB(note);
 
-    const op: InsertOp = {
+    const op: IdbInsertOp = {
       type: "insert",
       table: "notes",
       values: {
@@ -408,7 +399,7 @@ export const idbDriver = {
     id: string,
     data: {
       title?: string | null;
-      content?: any;
+      content?: Note["content"];
       tags?: string[];
       pinned?: boolean;
       readonly?: boolean;
@@ -420,7 +411,7 @@ export const idbDriver = {
     },
   ): Promise<Note> {
     // 提取变更字段，映射到 Op 列名
-    const set: Record<string, any> = {};
+    const set: IdbUpdateOp["set"] = {};
     if (data.title !== undefined) set.title = data.title;
     if (data.content !== undefined) {
       set.content = data.content;
@@ -436,7 +427,7 @@ export const idbDriver = {
     if (data.linkedDocIds !== undefined) set.linked_doc_ids = data.linkedDocIds ? JSON.stringify(data.linkedDocIds) : undefined;
     set.updated_at = now();
 
-    const op: UpdateOp = {
+    const op: IdbUpdateOp = {
       type: "update",
       table: "notes",
       set,
@@ -510,7 +501,7 @@ export const idbDriver = {
     const docs: FlatDocRecord[] = docRecords.map((r) => ({
       id: r.id,
       title: r.title,
-      storage_path: r.storagePath,   // IDB 字段 → Op 字段
+      storage_path: r.storagePath ?? "",   // IDB 字段 → Op 字段
       doc_type: r.docType,
       updated_at: r.updated_at,
       readonly: r.readonly === 1 || r.readonly === true,

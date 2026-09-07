@@ -5,7 +5,7 @@
  */
 
 import { templateStore } from "../src/lib/storage/template-store";
-import type { Template, TemplateInput } from "../src/lib/storage/template-store";
+import type { Template } from "../src/lib/storage/template-store";
 
 // ═══════════════════════════════════════════════════════════════════
 // localStorage polyfill（Node 环境无原生 localStorage）
@@ -13,7 +13,7 @@ import type { Template, TemplateInput } from "../src/lib/storage/template-store"
 
 const _store = new Map<string, string>();
 
-(globalThis as any).localStorage = {
+globalThis.localStorage = {
   getItem(key: string): string | null {
     return _store.get(key) ?? null;
   },

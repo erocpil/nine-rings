@@ -23,7 +23,7 @@ import {
   type FlatDocRecord,
   type FlatDailyRecord,
 } from "./core";
-import { snakeNoteToCamel, snakeVersionToCamel, snakeDailyPageToCamel } from "./normalize";
+import { type SnakeNoteRow, type SnakeVersionRow, type SnakeDailyPageRow, normalizeDocType, snakeNoteToCamel, snakeVersionToCamel, snakeDailyPageToCamel } from "./normalize";
 import { localDateKey } from "../local-date";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -31,7 +31,7 @@ import { localDateKey } from "../local-date";
 // ═══════════════════════════════════════════════════════════════════
 
 // 延迟加载，避免非 Tauri 环境直接 import 时炸模块
-let _invokeModule: { invoke: (cmd: string, args: Record<string, unknown>) => Promise<any> } | null = null;
+let _invokeModule: Pick<typeof import("@tauri-apps/api/core"), "invoke"> | null = null;
 
 async function getInvoke() {
   if (!_invokeModule) {
@@ -67,7 +67,7 @@ function uuid(): string {
 // 工具函数
 // ═══════════════════════════════════════════════════════════════════
 
-async function dbQuery(op: SelectOp): Promise<Record<string, any>[]> {
+async function dbQuery<T = SnakeNoteRow>(op: SelectOp): Promise<T[]> {
   const invoke = await getInvoke();
   return invoke("db_query", { opJson: JSON.stringify(op) });
 }
@@ -128,7 +128,7 @@ export const tauriDriver = {
       docType: data.docType,
       concepts: data.concepts,
       linkedDocIds: data.linkedDocIds,
-    } as any;
+    };
 
     // Op 使用 snake_case 列名，与 SQLite schema 对齐
     const op: InsertOp = {
@@ -159,7 +159,7 @@ export const tauriDriver = {
   // ── updateNote ──
   async updateNote(id: string, data: {
     title?: string | null;
-    content?: any;
+    content?: Note["content"];
     date?: string;
     tags?: string[];
     pinned?: boolean;
@@ -170,7 +170,7 @@ export const tauriDriver = {
     concepts?: string[];
     linkedDocIds?: string[];
   }): Promise<Note> {
-    const set: Record<string, any> = {};
+    const set: UpdateOp["set"] = {};
     if (data.title !== undefined) set.title = data.title;
     if (data.date !== undefined) set.date = data.date;
     if (data.content !== undefined) {
@@ -268,8 +268,8 @@ export const tauriDriver = {
     const docs: FlatDocRecord[] = docRows.map((r) => ({
       id: r.id,
       title: r.title,
-      storage_path: r.storage_path,   // SQL 列名就是 snake_case，直接对齐
-      doc_type: r.doc_type,
+      storage_path: r.storage_path ?? "",   // SQL 列名就是 snake_case，直接对齐
+      doc_type: normalizeDocType(r.doc_type),
       updated_at: r.updated_at,
       readonly: r.readonly === 1 || r.readonly === true,
     }));
@@ -332,7 +332,7 @@ export const tauriDriver = {
     await dbTransaction(docs.map((row) => ({
       type: "update" as const,
       table: "notes" as const,
-      set: { storage_path: row.storage_path === source ? target : target + row.storage_path.slice(source.length) },
+      set: { storage_path: row.storage_path === source ? target : target + (row.storage_path ?? "").slice(source.length) },
       where: [{ col: "id" as const, op: "=" as const, val: row.id }, { col: "deleted_at" as const, op: "IS" as const, val: null }],
     })));
     return docs.length;
@@ -364,9 +364,9 @@ export const tauriDriver = {
   // ── upsertNote：专用 Rust 命令（BEGIN IMMEDIATE 事务内查重+写，消除 TOCTOU）──
   async upsertNote(data: CreateNoteInput): Promise<Note> {
     // 导入路径可能透传 id / created_at / updated_at（保留跨设备 UUID 与历史时间）
-    const d = data as any;
+    const d = data as CreateNoteInput & Partial<Pick<Note, "id" | "created_at" | "updated_at" | "readonly" | "sort_order">>;
     const invoke = await getInvoke();
-    const raw = await invoke("upsert_note", {
+    const raw = await invoke<SnakeNoteRow>("upsert_note", {
       data: {
         date: data.date,
         title: data.title ?? null,
@@ -419,7 +419,7 @@ export const tauriDriver = {
       columns: ["date", "todos", "todo_carryover", "updated_at"],
       orderBy: [{ col: "date", desc: true }],
     };
-    const rows = await dbQuery(op);
+    const rows = await dbQuery<SnakeDailyPageRow>(op);
     return rows.map(snakeDailyPageToCamel);
   },
 
@@ -455,7 +455,7 @@ export const tauriDriver = {
       where: [{ col: "note_id", op: "=", val: noteId }],
       orderBy: [{ col: "saved_at", desc: true }],
     };
-    const rows = await dbQuery(op);
+    const rows = await dbQuery<SnakeVersionRow>(op);
     return rows.map(snakeVersionToCamel);
   },
 
@@ -469,7 +469,7 @@ export const tauriDriver = {
       where: [{ col: "id", op: "=", val: versionId }],
       limit: 1,
     };
-    const verRows = await dbQuery(verOp);
+    const verRows = await dbQuery<SnakeVersionRow>(verOp);
     if (verRows.length === 0) throw new Error(`Version ${versionId} not found`);
     const ver = verRows[0];
     const content = typeof ver.content === "string" ? JSON.parse(ver.content) : ver.content;
@@ -535,7 +535,7 @@ export const tauriDriver = {
       orderBy: [{ col: "saved_at", desc: true }],
       limit: 1,
     };
-    const lastRows = await dbQuery(lastVerOp);
+    const lastRows = await dbQuery<SnakeVersionRow>(lastVerOp);
     const curContent = typeof note.content === "string" ? note.content : JSON.stringify(note.content);
     const curTags = typeof note.tags === "string" ? note.tags : JSON.stringify(note.tags ?? []);
     if (lastRows.length > 0) {
@@ -543,10 +543,10 @@ export const tauriDriver = {
       const lastContent = typeof last.content === "string" ? last.content : "";
       const lastTitle = last.title ?? null;
       const lastTags = typeof last.tags === "string" ? last.tags : "[]";
-      const lastPinned = last.pinned === 1 || last.pinned === true || last.pinned === "1";
+      const lastPinned = last.pinned === 1 || last.pinned === true || String(last.pinned) === "1";
       const lastSort = last.sort_order ?? 0;
       const curTitle = note.title ?? null;
-      const curPinned = note.pinned === 1 || note.pinned === true || note.pinned === "1";
+      const curPinned = note.pinned === 1 || note.pinned === true || String(note.pinned) === "1";
       const curSort = note.sort_order ?? 0;
       if (
         lastContent === curContent &&

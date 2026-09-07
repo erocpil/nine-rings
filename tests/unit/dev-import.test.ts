@@ -1,10 +1,16 @@
 import { EventEmitter } from "node:events";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import importPlugin from "../../plugins/vite-import-plugin";
-import { resolveConfig, isFileServingAllowed } from "vite";
+import {
+  resolveConfig,
+  isFileServingAllowed,
+  type Connect,
+  type ViteDevServer,
+} from "vite";
 
 const roots: string[] = [];
 const token = "temporary-test-token-0123456789abcdef";
@@ -17,22 +23,31 @@ function server(enabled = true) {
   vi.stubEnv("NR_DEV_IMPORT_TOKEN", enabled ? token : "");
   const root = mkdtempSync(join(tmpdir(), "nr-import-test-"));
   roots.push(root);
-  let middleware: any;
-  const configure = importPlugin().configureServer as (server: any) => void;
+  let middleware: Connect.NextHandleFunction = () => {
+    throw new Error("Middleware was not registered");
+  };
+  const configure = importPlugin().configureServer;
+  if (typeof configure !== "function")
+    throw new Error("Missing configureServer hook");
   configure({
     config: { root },
     middlewares: {
-      use(_path: string, callback: any) {
+      use(_path: string, callback: Connect.NextHandleFunction) {
         middleware = callback;
       },
     },
-  });
+  } as unknown as ViteDevServer);
   return (method: string, body?: unknown, auth = "Bearer " + token) => {
     const request = Object.assign(new EventEmitter(), {
       method,
       headers: { authorization: auth },
     });
-    let result: { status: number; body: any } | undefined;
+    let result:
+      | {
+          status: number;
+          body: { files: { title: string; _importId: string }[] };
+        }
+      | undefined;
     const response = {
       statusCode: 200,
       setHeader() {},
@@ -40,7 +55,11 @@ function server(enabled = true) {
         result = { status: response.statusCode, body: JSON.parse(value) };
       },
     };
-    middleware(request, response);
+    middleware(
+      request as IncomingMessage,
+      response as unknown as ServerResponse,
+      () => {},
+    );
     if (body !== undefined) {
       const bytes = Buffer.from(
         typeof body === "string" ? body : JSON.stringify(body),

@@ -14,7 +14,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Note, DailyPage } from "../../types/models";
 import type { StorageAdapter, AppConfig } from "./types";
 import { tauriDriver } from "./tauri-driver";
-import { snakeNoteToCamel, snakeDailyPageToCamel } from "./normalize";
+import { type SnakeNoteRow, type SnakeDailyPageRow, snakeNoteToCamel, snakeDailyPageToCamel } from "./normalize";
 import { tauriTemplates } from "./template-tauri";
 import { resolveImageRefs } from "./db-images";
 import { validateBackup } from "../backup-validation";
@@ -23,23 +23,23 @@ import { validateBackup } from "../backup-validation";
 
 /** 包装 invoke，将 Rust snake_case 响应规范化为 TS camelCase */
 async function invokeNote(cmd: string, args: Record<string, unknown> = {}): Promise<Note> {
-  const raw = await invoke<any>(cmd, args);
+  const raw = await invoke<SnakeNoteRow>(cmd, args);
   return snakeNoteToCamel(raw);
 }
 
 async function invokeNoteNullable(cmd: string, args: Record<string, unknown> = {}): Promise<Note | null> {
-  const raw = await invoke<any>(cmd, args);
+  const raw = await invoke<SnakeNoteRow | null>(cmd, args);
   if (raw === null || raw === undefined) return null;
   return snakeNoteToCamel(raw);
 }
 
 async function invokeNotes(cmd: string, args: Record<string, unknown> = {}): Promise<Note[]> {
-  const raw = await invoke<any[]>(cmd, args);
+  const raw = await invoke<SnakeNoteRow[]>(cmd, args);
   return raw.map(snakeNoteToCamel);
 }
 
 async function invokeDailyPage(cmd: string, args: Record<string, unknown> = {}): Promise<DailyPage> {
-  const raw = await invoke<any>(cmd, args);
+  const raw = await invoke<SnakeDailyPageRow>(cmd, args);
   return snakeDailyPageToCamel(raw);
 }
 

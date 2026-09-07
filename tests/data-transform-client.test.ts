@@ -19,7 +19,7 @@ class FakeDataTransformWorker {
   onmessage: ((event: MessageEvent) => void) | null = null;
   onerror: ((event: ErrorEvent) => void) | null = null;
 
-  constructor(_url: URL, _options: WorkerOptions) {
+  constructor() {
     workerCreated += 1;
   }
 

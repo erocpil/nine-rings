@@ -25,7 +25,7 @@ snapshot.content?.();
 
 declare const raw: unknown;
 // @ts-expect-error No fields may be read before runtime validation.
-raw.notes;
+void raw.notes;
 validateBackup(raw);
 raw.notes[0].id.toUpperCase();
 // @ts-expect-error Extension fields are still unknown after envelope validation.

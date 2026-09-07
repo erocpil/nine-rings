@@ -7,6 +7,9 @@
  * Web 端读写时做转换。
  */
 
+import type { JSONContent } from "@tiptap/core";
+import type { DeltaOp, DeltaOps } from "../types/models";
+
 import { getTableEmbed, normalizeTableAlignment, normalizeTableColumnWidth, type TableEmbed } from "./table-embed";
 import { markdownTableToEmbed } from "./md-parser";
 
@@ -37,7 +40,7 @@ export function namedToPx(name: string): number {
 // ── Mark 转换映射 ──
 
 /** ProseMirror mark → Delta attribute (含字体大小映射) */
-function pmMarkToAttr(mark: any): Record<string, any> | null {
+function pmMarkToAttr(mark: NonNullable<JSONContent["marks"]>[number]): Record<string, unknown> | null {
   switch (mark.type) {
     case "bold":      return { bold: true };
     case "italic":    return { italic: true };
@@ -45,7 +48,7 @@ function pmMarkToAttr(mark: any): Record<string, any> | null {
     case "code":      return { code: true };
     case "link":      return { link: mark.attrs?.href ?? "" };
     case "textStyle": {
-      const attrs: Record<string, any> = {};
+      const attrs: Record<string, unknown> = {};
       if (mark.attrs?.fontSize) {
         attrs.size = pxToNamed(Number(mark.attrs.fontSize));
       }
@@ -60,9 +63,9 @@ function pmMarkToAttr(mark: any): Record<string, any> | null {
 }
 
 /** Delta attribute → ProseMirror mark data（含字体大小反向映射） */
-function deltaAttrToMarks(attrs: Record<string, any> | undefined): any[] {
+function deltaAttrToMarks(attrs: Record<string, unknown> | undefined): NonNullable<JSONContent["marks"]> {
   if (!attrs) return [];
-  const marks: any[] = [];
+  const marks: NonNullable<JSONContent["marks"]> = [];
   if (attrs.bold)      marks.push({ type: "bold" });
   if (attrs.italic)    marks.push({ type: "italic" });
   if (attrs.strike)    marks.push({ type: "strike" });
@@ -70,7 +73,7 @@ function deltaAttrToMarks(attrs: Record<string, any> | undefined): any[] {
   if (attrs.link)      marks.push({ type: "link", attrs: { href: attrs.link } });
   if (attrs.color)     marks.push({ type: "textStyle", attrs: { color: attrs.color } });
   if (attrs.size) {
-    const px = namedToPx(attrs.size);
+    const px = namedToPx(String(attrs.size));
     marks.push({ type: "textStyle", attrs: { fontSize: String(px) } });
   }
   return marks;
@@ -78,8 +81,8 @@ function deltaAttrToMarks(attrs: Record<string, any> | undefined): any[] {
 
 // ── ProseMirror → Quill Delta ──
 
-export function proseMirrorToDelta(pmJson: any): any {
-  const ops: any[] = [];
+export function proseMirrorToDelta(pmJson: JSONContent | null | undefined): DeltaOps {
+  const ops: DeltaOp[] = [];
   const content = pmJson?.content ?? [];
   const indentAttrs = (node: { attrs?: Record<string, unknown> }) => {
     const indent = Math.max(0, Math.min(8, Math.floor(Number(node.attrs?.indent) || 0)));
@@ -159,12 +162,12 @@ export function proseMirrorToDelta(pmJson: any): any {
   return { ops };
 }
 
-function tableNodeToEmbed(tableNode: any): TableEmbed {
-  const rows = (tableNode.content ?? []).map((row: any) => ({
-    cells: (row.content ?? []).map((cell: any) => {
-      const cellOps: any[] = [];
+function tableNodeToEmbed(tableNode: JSONContent): TableEmbed {
+  const rows = (tableNode.content ?? []).map((row) => ({
+    cells: (row.content ?? []).map((cell) => {
+      const cellOps: DeltaOp[] = [];
       const blocks = cell.content ?? [];
-      blocks.forEach((block: any, index: number) => {
+      blocks.forEach((block, index) => {
         if (index > 0) cellOps.push({ insert: "\n" });
         extractInlineOps(block, cellOps);
       });
@@ -174,7 +177,7 @@ function tableNodeToEmbed(tableNode: any): TableEmbed {
       };
     }),
   }));
-  const columnCount = Math.max(0, ...rows.map((row: any) => row.cells.length));
+  const columnCount = Math.max(0, ...rows.map((row) => row.cells.length));
   const columns = Array.from({ length: columnCount }, (_, column) => {
     let width: number | null = null;
     for (const row of tableNode.content ?? []) {
@@ -192,7 +195,7 @@ function tableNodeToEmbed(tableNode: any): TableEmbed {
  * Quill 用换行属性表示列表项，并用 indent 表示嵌套深度。按文档顺序
  * 递归输出，避免 TipTap 中可正常显示的子列表在保存时被跳过。
  */
-function appendListOps(listNode: any, ops: any[], depth: number): void {
+function appendListOps(listNode: JSONContent, ops: DeltaOp[], depth: number): void {
   const list = listNode.type === "orderedList" ? "ordered" : "bullet";
   const orderedStart = list === "ordered"
     ? Math.max(1, Math.floor(Number(listNode.attrs?.start) || 1))
@@ -240,20 +243,20 @@ function appendListOps(listNode: any, ops: any[], depth: number): void {
 }
 
 function extractInlineOps(
-  node: any,
-  ops: any[],
-  inheritAttrs?: Record<string, any>,
+  node: JSONContent,
+  ops: DeltaOp[],
+  inheritAttrs?: Record<string, unknown>,
 ): void {
   const inlineContent = node.content ?? [];
   for (const inline of inlineContent) {
     if (inline.type === "text") {
-      const attrs: Record<string, any> = { ...inheritAttrs };
+      const attrs: Record<string, unknown> = { ...inheritAttrs };
       for (const mark of inline.marks ?? []) {
         const attr = pmMarkToAttr(mark);
         if (attr) Object.assign(attrs, attr);
       }
       ops.push({
-        insert: inline.text,
+        insert: inline.text ?? "",
         ...(Object.keys(attrs).length > 0 ? { attributes: attrs } : {}),
       });
     } else if (inline.type === "hardBreak") {
@@ -271,12 +274,13 @@ function extractInlineOps(
 
 // ── Quill Delta → ProseMirror ──
 
-export function deltaToProseMirror(deltaData: any): any {
+export function deltaToProseMirror(value: unknown): JSONContent & { content: JSONContent[] } {
   // 兼容两种入参：{ops: [...]} 或 {delta: {ops: [...]}}
-  const ops: any[] = migrateLegacyMarkdownTables(deltaData?.ops ?? deltaData?.delta?.ops ?? []);
+  const deltaData = value as { ops?: DeltaOp[]; delta?: DeltaOps } | null | undefined;
+  const ops: DeltaOp[] = migrateLegacyMarkdownTables(deltaData?.ops ?? deltaData?.delta?.ops ?? []);
 
-  const doc: any[] = [];
-  let currentParagraph: any = { type: "paragraph", content: [] };
+  const doc: JSONContent[] = [];
+  let currentParagraph: JSONContent & { content: JSONContent[] } = { type: "paragraph", content: [] };
   let isImageBlock = false;
   // Quill 用紧随 embed 的换行标记块结束。它不是编辑器中的空段落，
   // 否则水平分割线在保存并重新加载后会凭空多出一行。
@@ -286,7 +290,7 @@ export function deltaToProseMirror(deltaData: any): any {
     type: "bulletList" | "orderedList";
     indent: number;
     start?: number;
-    paragraph: any;
+    paragraph: JSONContent;
   }> = [];
 
   function flushParagraph() {
@@ -310,14 +314,14 @@ export function deltaToProseMirror(deltaData: any): any {
     });
 
     let index = 0;
-    const parseList = (depth: number, type: "bulletList" | "orderedList"): any => {
+    const parseList = (depth: number, type: "bulletList" | "orderedList"): JSONContent => {
       const start = type === "orderedList"
         ? Math.max(1, Math.floor(Number(normalized[index]?.start) || 1))
         : undefined;
       const list = {
         type,
         ...(start !== undefined && start !== 1 ? { attrs: { start } } : {}),
-        content: [] as any[],
+        content: [] as JSONContent[],
       };
 
       while (index < normalized.length) {
@@ -420,7 +424,7 @@ export function deltaToProseMirror(deltaData: any): any {
             && Math.max(0, Math.floor(Number(previous.attrs?.indent) || 0)) === blockIndent
             && Boolean(previous.attrs?.collapsed) === (attrs["blockquote-collapsed"] === true);
           if (sameQuote) {
-            previous.content.push(paragraph);
+            (previous.content ??= []).push(paragraph);
           } else {
             doc.push({
             type: "blockquote",
@@ -499,8 +503,8 @@ export function deltaToProseMirror(deltaData: any): any {
 }
 
 /** 将旧版本保存成 `| ... |` 普通段落的表格安全升级为 table embed。 */
-function migrateLegacyMarkdownTables(sourceOps: any[]): any[] {
-  const result: any[] = [];
+function migrateLegacyMarkdownTables(sourceOps: DeltaOp[]): DeltaOp[] {
+  const result: DeltaOp[] = [];
   const readLine = (start: number): { text: string; end: number } | null => {
     let text = "";
     let index = start;
@@ -547,7 +551,7 @@ function migrateLegacyMarkdownTables(sourceOps: any[]): any[] {
   return result;
 }
 
-function tableEmbedToProseMirror(table: TableEmbed): any {
+function tableEmbedToProseMirror(table: TableEmbed): JSONContent {
   const columnCount = Math.max(
     1,
     table.columns.length,
@@ -575,8 +579,8 @@ function tableEmbedToProseMirror(table: TableEmbed): any {
   return { type: "table", content: rows };
 }
 
-function inlineDeltaToProseMirror(ops: any[]): any[] {
-  const content: any[] = [];
+function inlineDeltaToProseMirror(ops: DeltaOp[]): JSONContent[] {
+  const content: JSONContent[] = [];
   for (const op of ops) {
     if (typeof op?.insert !== "string") continue;
     const marks = deltaAttrToMarks(op.attributes);
@@ -592,12 +596,14 @@ function inlineDeltaToProseMirror(ops: any[]): any[] {
 // ── 格式检测 ──
 
 /** 判断一个 content 值是 ProseMirror 格式还是 Delta 格式 */
-export function isProseMirror(content: any): boolean {
+export function isProseMirror(content: unknown): content is JSONContent & { type: string; content: JSONContent[] } {
   if (!content || typeof content !== "object") return false;
-  return content.type === "doc" && Array.isArray(content.content);
+  return "type" in content && content.type === "doc" && "content" in content && Array.isArray(content.content);
 }
 
-export function isDelta(content: any): boolean {
+export function isDelta(content: unknown): boolean {
   if (!content || typeof content !== "object") return false;
-  return Array.isArray(content.ops) || content?.delta?.ops;
+  return "ops" in content && Array.isArray(content.ops)
+    || "delta" in content && !!content.delta && typeof content.delta === "object"
+      && "ops" in content.delta && Array.isArray(content.delta.ops);
 }

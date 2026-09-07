@@ -21,7 +21,7 @@ function assert(condition: boolean, msg: string): void {
   failed++;
 }
 
-function deepEqual(a: any, b: any): boolean {
+function deepEqual(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 

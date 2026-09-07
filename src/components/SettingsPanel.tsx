@@ -394,7 +394,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     }, 120);
   };
 
-  const chk = (key: keyof AppConfig, _val: any) => saving === key ? "saving" : "";
+  const chk = (key: keyof AppConfig, _val: unknown) => saving === key ? "saving" : "";
 
   // ── 标签操作 ──
   const handleRename = async () => {

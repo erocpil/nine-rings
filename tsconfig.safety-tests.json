@@ -1,4 +1,16 @@
 {
   "extends": "./tsconfig.json",
-  "include": ["tests/typecheck/safety-contracts.ts"]
+  "include": [
+    "src/vite-env.d.ts",
+    "tests/typecheck/safety-contracts.ts",
+    "tests/core.test.ts",
+    "tests/data-transform-client.test.ts",
+    "tests/delta-converter.test.ts",
+    "tests/fixtures/export-v1.test.ts",
+    "tests/idb-adapter.test.ts",
+    "tests/md-parser.test.ts",
+    "tests/template-store.test.ts",
+    "tests/unit/backup-safety.test.ts",
+    "tests/unit/dev-import.test.ts"
+  ]
 }

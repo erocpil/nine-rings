@@ -68,7 +68,7 @@ async function deleteDB(): Promise<void> {
 }
 
 /** 标准化 Note 用于比较（去除不可比较字段） */
-function normalizeNote(n: Note): Record<string, any> {
+function normalizeNote(n: Note) {
   return {
     id: n.id,
     date: n.date,
@@ -86,7 +86,7 @@ function normalizeNote(n: Note): Record<string, any> {
   };
 }
 
-function normalizeTree(node: PathNode): Record<string, any> {
+function normalizeTree(node: PathNode) {
   return {
     path: node.path,
     name: node.name,
@@ -102,7 +102,7 @@ function assert(condition: boolean, msg: string): void {
   if (!condition) throw new Error(`FAIL: ${msg}`);
 }
 
-function deepEqual(a: any, b: any): boolean {
+function deepEqual(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
@@ -168,11 +168,11 @@ async function runTests() {
 
     // 旧实现读取
     const oldNotes = await idbAdapter.getNotesByDate("2026-07-15");
-    const oldNormalized = oldNotes.map(normalizeNote).sort((a, b) => a.title.localeCompare(b.title));
+    const oldNormalized = oldNotes.map(normalizeNote).sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""));
 
     // 新实现读取
     const newNotes = await idbDriver.getNotesByDate(ctx, "2026-07-15");
-    const newNormalized = newNotes.map(normalizeNote).sort((a, b) => a.title.localeCompare(b.title));
+    const newNormalized = newNotes.map(normalizeNote).sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""));
 
     assert(
       oldNormalized.length === newNormalized.length,

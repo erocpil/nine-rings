@@ -4,6 +4,7 @@
  * 用法：npx tsx tests/delta-converter.test.ts
  */
 
+import { getTableEmbed } from "../src/lib/table-embed";
 import { deltaToProseMirror, proseMirrorToDelta, pxToNamed, namedToPx } from "../src/lib/delta-converter";
 import { deltaToMarkdown } from "../src/lib/markdown-serializer";
 import { extractPlainText } from "../src/lib/storage/core";
@@ -40,7 +41,7 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Plain paragraph ──");
-  const pm: any = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hello world" }] }] };
+  const pm = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hello world" }] }] };
   const delta = proseMirrorToDelta(pm);
   assert(delta.ops.length === 2, "plain text → 2 ops");
   assert(delta.ops[0].insert === "Hello world", "first op is Hello world");
@@ -52,20 +53,20 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Hard break round-trip ──");
-  const pm: any = { type: "doc", content: [{ type: "paragraph", content: [
+  const pm = { type: "doc", content: [{ type: "paragraph", content: [
     { type: "text", text: "第一行" },
     { type: "hardBreak" },
     { type: "text", text: "第二行" },
   ] }] };
   const delta = proseMirrorToDelta(pm);
-  const hardBreak = delta.ops.find((op: any) => op.attributes?.["hard-break"] === true);
+  const hardBreak = delta.ops.find((op) => op.attributes?.["hard-break"] === true);
   assert(hardBreak?.insert === "\n", "hard break uses an explicit Delta attribute");
   assert(JSON.stringify(deltaToProseMirror(delta)) === JSON.stringify(pm),
     "hard break survives save and reload without becoming a new paragraph");
   assert(deltaToMarkdown(delta) === "第一行  \n第二行", "hard break exports as a Markdown hard line break");
   assert(extractPlainText(delta) === "第一行\n第二行", "hard break remains searchable as one line boundary");
 
-  const listWithBreaks: any = { type: "doc", content: [{ type: "orderedList", content: [
+  const listWithBreaks = { type: "doc", content: [{ type: "orderedList", content: [
     { type: "listItem", content: [{ type: "paragraph", content: [
       { type: "text", text: "第一项第一行" },
       { type: "hardBreak" },
@@ -86,7 +87,7 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Bold and italic ──");
-  const pm: any = { type: "doc", content: [{ type: "paragraph", content: [
+  const pm = { type: "doc", content: [{ type: "paragraph", content: [
     { type: "text", text: "Hello ", marks: [{ type: "bold" }] },
     { type: "text", text: "world", marks: [{ type: "italic" }] },
   ]}] };
@@ -101,7 +102,7 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Links ──");
-  const pm: any = { type: "doc", content: [{ type: "paragraph", content: [
+  const pm = { type: "doc", content: [{ type: "paragraph", content: [
     { type: "text", text: "Click here", marks: [{ type: "link", attrs: { href: "https://example.com" } }] },
   ]}] };
   const delta = proseMirrorToDelta(pm);
@@ -113,15 +114,15 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Headings ──");
-  const pm: any = { type: "doc", content: [
+  const pm = { type: "doc", content: [
     { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "Title" }] },
     { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Sub" }] },
   ]};
   const delta = proseMirrorToDelta(pm);
-  const headerOps = delta.ops.filter((o: any) => o.attributes?.header);
+  const headerOps = delta.ops.filter((o) => o.attributes?.header);
   assert(headerOps.length === 2, "2 heading newline ops");
-  assert(headerOps[0].attributes.header === 1, "H1");
-  assert(headerOps[1].attributes.header === 2, "H2");
+  assert(headerOps[0].attributes?.header === 1, "H1");
+  assert(headerOps[1].attributes?.header === 2, "H2");
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -129,11 +130,11 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Code block ──");
-  const pm: any = { type: "doc", content: [{ type: "codeBlock", attrs: { language: "typescript", title: "示例代码", wrap: false, collapsed: true }, content: [{ type: "text", text: "const x = 1;" }] }] };
+  const pm = { type: "doc", content: [{ type: "codeBlock", attrs: { language: "typescript", title: "示例代码", wrap: false, collapsed: true }, content: [{ type: "text", text: "const x = 1;" }] }] };
   const delta = proseMirrorToDelta(pm);
   // 格式：[{insert:"const x = 1;"}, {insert:"\n", attributes:{"code-block":true}}]
-  const codeText = delta.ops.find((o: any) => typeof o.insert === "string" && o.insert !== "\n" && !o.attributes);
-  const codeNl = delta.ops.find((o: any) => o.attributes?.["code-block"]);
+  const codeText = delta.ops.find((o) => typeof o.insert === "string" && o.insert !== "\n" && !o.attributes);
+  const codeNl = delta.ops.find((o) => o.attributes?.["code-block"]);
   assert(codeText?.insert === "const x = 1;", "code block text correct");
   assert(codeNl?.attributes?.["code-block"] === true, "code block newline has code-block=true");
   assert(codeNl?.attributes?.["code-title"] === "示例代码", "code block title stored");
@@ -149,11 +150,11 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Blockquote ──");
-  const pm: any = { type: "doc", content: [{ type: "blockquote", attrs: { collapsed: true }, content: [{ type: "paragraph", content: [{ type: "text", text: "Quote me" }] }] }] };
+  const pm = { type: "doc", content: [{ type: "blockquote", attrs: { collapsed: true }, content: [{ type: "paragraph", content: [{ type: "text", text: "Quote me" }] }] }] };
   const delta = proseMirrorToDelta(pm);
-  const quoteOp = delta.ops.find((o: any) => o.attributes?.blockquote);
+  const quoteOp = delta.ops.find((o) => o.attributes?.blockquote);
   assert(!!quoteOp, "blockquote op exists");
-  assert(quoteOp.attributes["blockquote-collapsed"] === true, "blockquote collapsed state stored");
+  assert(quoteOp?.attributes?.["blockquote-collapsed"] === true, "blockquote collapsed state stored");
   assert(deltaToProseMirror(delta).content[0]?.attrs?.collapsed === true,
     "blockquote collapsed state survives save and reload");
 
@@ -167,7 +168,7 @@ function assert(condition: boolean, msg: string): void {
   }] };
   const multiParagraphDelta = proseMirrorToDelta(multiParagraph);
   const restoredMultiParagraph = deltaToProseMirror(multiParagraphDelta);
-  assert(multiParagraphDelta.ops.filter((op: any) => op.attributes?.blockquote).length === 3,
+  assert(multiParagraphDelta.ops.filter((op) => op.attributes?.blockquote).length === 3,
     "blockquote paragraphs are stored as three quoted Delta lines");
   assert(restoredMultiParagraph.content.length === 1 && restoredMultiParagraph.content[0]?.type === "blockquote",
     "adjacent quoted Delta lines restore as one blockquote");
@@ -184,16 +185,16 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Bullet list ──");
-  const pm: any = { type: "doc", content: [{ type: "bulletList", content: [
+  const pm = { type: "doc", content: [{ type: "bulletList", content: [
     { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Item 1" }] }] },
     { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Item 2" }] }] },
   ]}] };
   const delta = proseMirrorToDelta(pm);
   // 格式：[{insert:"Item 1"}, {insert:"\n", attributes:{list:"bullet"}}, {insert:"Item 2"}, {insert:"\n", attributes:{list:"bullet"}}]
-  const bulletNls = delta.ops.filter((o: any) => o.attributes?.list === "bullet");
+  const bulletNls = delta.ops.filter((o) => o.attributes?.list === "bullet");
   assert(bulletNls.length === 2, "2 bullet list newline ops");
-  assert(delta.ops.some((o: any) => o.insert === "Item 1"), "Item 1 text found");
-  assert(delta.ops.some((o: any) => o.insert === "Item 2"), "Item 2 text found");
+  assert(delta.ops.some((o) => o.insert === "Item 1"), "Item 1 text found");
+  assert(delta.ops.some((o) => o.insert === "Item 2"), "Item 2 text found");
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -201,24 +202,24 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Ordered list ──");
-  const pm: any = { type: "doc", content: [{ type: "orderedList", content: [
+  const pm = { type: "doc", content: [{ type: "orderedList", content: [
     { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "First" }] }] },
   ]}] };
   const delta = proseMirrorToDelta(pm);
-  const orderedNl = delta.ops.find((o: any) => o.attributes?.list === "ordered");
+  const orderedNl = delta.ops.find((o) => o.attributes?.list === "ordered");
   assert(!!orderedNl, "ordered list newline op exists");
-  assert(orderedNl.attributes.listStart === 1, "ordered list start is stored in Delta");
+  assert(orderedNl?.attributes?.listStart === 1, "ordered list start is stored in Delta");
 }
 
 {
   console.log("\n── Ordered list custom start ──");
-  const pm: any = { type: "doc", content: [{ type: "orderedList", attrs: { start: 4 }, content: [
+  const pm = { type: "doc", content: [{ type: "orderedList", attrs: { start: 4 }, content: [
     { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Fourth" }] }] },
     { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Fifth" }] }] },
   ] }] };
   const delta = proseMirrorToDelta(pm);
-  const starts = delta.ops.filter((op: any) => op.attributes?.list === "ordered")
-    .map((op: any) => op.attributes.listStart);
+  const starts = delta.ops.filter((op) => op.attributes?.list === "ordered")
+    .map((op) => op.attributes?.listStart);
   assert(JSON.stringify(starts) === "[4,5]", "ordered item numbers survive PM to Delta");
   assert(JSON.stringify(deltaToProseMirror(delta)) === JSON.stringify(pm),
     "custom ordered list start survives save and reload");
@@ -231,7 +232,7 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Horizontal rule ──");
-  const pm: any = { type: "doc", content: [{ type: "horizontalRule" }] };
+  const pm = { type: "doc", content: [{ type: "horizontalRule" }] };
   const delta = proseMirrorToDelta(pm);
   assert(delta.ops.length >= 1, "horizontal rule generates ops");
 
@@ -268,7 +269,7 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Table ──");
-  const pm: any = { type: "doc", content: [{ type: "table", content: [
+  const pm = { type: "doc", content: [{ type: "table", content: [
     { type: "tableRow", content: [
       { type: "tableHeader", attrs: { textAlign: "left", colwidth: [180] }, content: [{ type: "paragraph", content: [{ type: "text", text: "Name", marks: [{ type: "bold" }] }] }] },
       { type: "tableHeader", attrs: { textAlign: "right", colwidth: [240] }, content: [{ type: "paragraph", content: [{ type: "text", text: "Value" }] }] },
@@ -279,7 +280,7 @@ function assert(condition: boolean, msg: string): void {
     ] },
   ] }] };
   const delta = proseMirrorToDelta(pm);
-  const table = delta.ops[0]?.insert?.table;
+  const table = getTableEmbed(delta.ops[0]?.insert);
   const restored = deltaToProseMirror(delta);
   assert(table?.version === 1 && table?.rows?.length === 2, "table serializes to a versioned embed");
   assert(table?.columns?.[0]?.width === 180 && table?.columns?.[1]?.width === 240,
@@ -308,7 +309,7 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Multiple marks ──");
-  const pm: any = { type: "doc", content: [{ type: "paragraph", content: [
+  const pm = { type: "doc", content: [{ type: "paragraph", content: [
     { type: "text", text: "Bold Italic", marks: [{ type: "bold" }, { type: "italic" }] },
   ]}] };
   const delta = proseMirrorToDelta(pm);
@@ -321,13 +322,13 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Strike + inline code ──");
-  const pm: any = { type: "doc", content: [{ type: "paragraph", content: [
+  const pm = { type: "doc", content: [{ type: "paragraph", content: [
     { type: "text", text: "struck", marks: [{ type: "strike" }] },
     { type: "text", text: "code", marks: [{ type: "code" }] },
   ]}] };
   const delta = proseMirrorToDelta(pm);
-  const strikeOp = delta.ops.find((o: any) => o.insert === "struck");
-  const codeOp = delta.ops.find((o: any) => o.insert === "code");
+  const strikeOp = delta.ops.find((o) => o.insert === "struck");
+  const codeOp = delta.ops.find((o) => o.insert === "code");
   assert(strikeOp?.attributes?.strike === true, "strike mark");
   assert(codeOp?.attributes?.code === true, "code mark");
 }
@@ -337,18 +338,18 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Generic block indentation ──");
-  const pm: any = { type: "doc", content: [
+  const pm = { type: "doc", content: [
     { type: "paragraph", attrs: { indent: 1 }, content: [{ type: "text", text: "Indented" }] },
     { type: "heading", attrs: { level: 3, indent: 2 }, content: [{ type: "text", text: "Heading" }] },
     { type: "blockquote", attrs: { indent: 1 }, content: [{ type: "paragraph", content: [{ type: "text", text: "Quote" }] }] },
     { type: "codeBlock", attrs: { language: "ts", indent: 2 }, content: [{ type: "text", text: "code" }] },
   ] };
   const delta = proseMirrorToDelta(pm);
-  assert(delta.ops.filter((op: any) => op.insert === "\n").every((op: any) => op.attributes?.indent > 0),
+  assert(delta.ops.filter((op) => op.insert === "\n").every((op) => Number(op.attributes?.indent) > 0),
     "generic block indent is stored on Delta newlines");
   const restored = deltaToProseMirror(delta);
-  assert(restored.content.map((node: any) => node.attrs?.indent ?? 0).join(",") === "1,2,1,2" &&
-    restored.content.map((node: any) => node.textContent ?? node.content?.[0]?.content?.[0]?.text ?? node.content?.[0]?.text ?? "").join(",") === "Indented,Heading,Quote,code",
+  assert(restored.content.map((node) => node.attrs?.indent ?? 0).join(",") === "1,2,1,2" &&
+    restored.content.map((node) => node.textContent ?? node.content?.[0]?.content?.[0]?.text ?? node.content?.[0]?.text ?? "").join(",") === "Indented,Heading,Quote,code",
     "generic block indentation survives save and reload");
 }
 
@@ -357,7 +358,7 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 {
   console.log("\n── Nested mixed lists ──");
-  const pm: any = { type: "doc", content: [{ type: "bulletList", content: [
+  const pm = { type: "doc", content: [{ type: "bulletList", content: [
     { type: "listItem", content: [
       { type: "paragraph", content: [{ type: "text", text: "Parent" }] },
       { type: "orderedList", content: [
@@ -377,12 +378,12 @@ function assert(condition: boolean, msg: string): void {
   ] }] };
 
   const delta = proseMirrorToDelta(pm);
-  const listLines = delta.ops.filter((op: any) => op.attributes?.list);
+  const listLines = delta.ops.filter((op) => op.attributes?.list);
   assert(listLines.length === 4, "all nested list items are preserved");
-  assert(listLines[0].attributes.indent === undefined, "root item has no indent");
-  assert(listLines[1].attributes.list === "ordered" && listLines[1].attributes.indent === 1,
+  assert(listLines[0].attributes?.indent === undefined, "root item has no indent");
+  assert(listLines[1].attributes?.list === "ordered" && listLines[1].attributes?.indent === 1,
     "ordered child has indent 1");
-  assert(listLines[2].attributes.list === "bullet" && listLines[2].attributes.indent === 2,
+  assert(listLines[2].attributes?.list === "bullet" && listLines[2].attributes?.indent === 2,
     "bullet grandchild has indent 2");
   assert(JSON.stringify(deltaToProseMirror(delta)) === JSON.stringify(pm),
     "nested mixed list survives save and reload");

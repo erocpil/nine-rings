@@ -50,11 +50,11 @@ export function buildReadonlyDocument(
         ? deltaToProseMirror(content)
         : null;
     const supported = (node: {
-      type: string;
+      type?: string;
       content?: (typeof node)[];
       marks?: { type: string; attrs?: { href?: unknown } }[];
     }): boolean =>
-      supportedNodes.has(node.type) &&
+      typeof node.type === "string" && supportedNodes.has(node.type) &&
       (node.marks ?? []).every(
         (mark) =>
           supportedMarks.has(mark.type) &&

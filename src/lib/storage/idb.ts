@@ -16,6 +16,7 @@ import {
   noteToDB,
   noteFromDB,
   upsertMatchKey,
+  type StoredNote,
   type FlatDocRecord,
   type FlatDailyRecord,
 } from "./core";
@@ -34,6 +35,11 @@ function today(): string {
 }
 
 const SEARCH_SCAN_CHUNK_SIZE = 250;
+
+type StoredDailyPage = Omit<DailyPage, "todos" | "todo_carryover"> & {
+  todos: string | Todo[];
+  todo_carryover: number | boolean;
+};
 
 interface MovableStoredNote extends Record<string, unknown> {
   deleted_at?: string;
@@ -64,7 +70,7 @@ export const idbAdapter: StorageAdapter = {
   async getNotesByDate(date: string): Promise<Note[]> {
     return withDB(async (db) => {
       const index = db.transaction("notes", "readonly").objectStore("notes").index("date");
-      const all = await getAllFromIndex<any>(index, date);
+      const all = await getAllFromIndex<StoredNote>(index, date);
       return all.filter((n) => !n.deleted_at).sort(sortNotes).map(noteFromDB);
     });
   },
@@ -72,7 +78,7 @@ export const idbAdapter: StorageAdapter = {
   async getNote(id: string): Promise<Note | null> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
-      const note = await getOne<any>(store, id);
+      const note = await getOne<StoredNote>(store, id);
       if (!note || note.deleted_at) return null;
       return noteFromDB(note);
     });
@@ -120,26 +126,26 @@ export const idbAdapter: StorageAdapter = {
       if (matchKey?.kind === "document") {
         // 文档：按 storagePath + title 匹配（同一目录允许多篇不同标题文档）
         const index = noteStore.index("storagePath");
-        const rows = await getAllFromIndex<any>(index, matchKey.storagePath);
+        const rows = await getAllFromIndex<StoredNote>(index, matchKey.storagePath);
         const candidates = rows
-          .filter((n: any) => !n.deleted_at && n.title === matchKey.title)
-          .sort((a: any, b: any) =>
+          .filter((n) => !n.deleted_at && n.title === matchKey.title)
+          .sort((a, b) =>
             (b.updated_at ?? "").localeCompare(a.updated_at ?? "") ||
             (a.id ?? "").localeCompare(b.id ?? ""),
           );
         existing = candidates[0] ? noteFromDB(candidates[0]) : null;
       } else if (matchKey?.kind === "daily") {
         // 随笔：按 title + date 匹配（仅非文档笔记，storagePath 为空）
-        const all = await getAll<any>(noteStore);
+        const all = await getAll<StoredNote>(noteStore);
         const candidates = all
           .filter(
-            (n: any) =>
+            (n) =>
               !n.deleted_at &&
               !n.storagePath &&
               n.title === matchKey.title &&
               n.date === matchKey.date,
           )
-          .sort((a: any, b: any) =>
+          .sort((a, b) =>
             (b.updated_at ?? "").localeCompare(a.updated_at ?? "") ||
             (a.id ?? "").localeCompare(b.id ?? ""),
           );
@@ -179,10 +185,10 @@ export const idbAdapter: StorageAdapter = {
       const tx = db.transaction(["notes"], "readwrite");
       const noteStore = tx.objectStore("notes");
 
-      const existing = await getOne<any>(noteStore, id);
+      const existing = await getOne<StoredNote>(noteStore, id);
       if (!existing) throw new Error(`Note ${id} not found`);
 
-      const updated: any = {
+      const updated: StoredNote = {
         ...existing,
         ...data,
         updated_at: now(),
@@ -203,7 +209,7 @@ export const idbAdapter: StorageAdapter = {
     return withDB(async (db) => {
       const tx = db.transaction("notes", "readwrite");
       const store = tx.objectStore("notes");
-      const existing = await getOne<any>(store, id);
+      const existing = await getOne<StoredNote>(store, id);
       if (!existing) throw new Error(`Note ${id} not found`);
       existing.sort_order = sort_order;
       existing.updated_at = now();
@@ -215,7 +221,7 @@ export const idbAdapter: StorageAdapter = {
   async deleteNote(id: string): Promise<void> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readwrite").objectStore("notes");
-      const existing = await getOne<any>(store, id);
+      const existing = await getOne<StoredNote>(store, id);
       if (!existing) return;
       existing.deleted_at = now();
       existing.updated_at = now();
@@ -228,13 +234,13 @@ export const idbAdapter: StorageAdapter = {
     const like = query.trim().toLowerCase();
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
-      const all = await getAll<any>(store);
+      const all = await getAll<StoredNote>(store);
       const matches = await filterInChunks(
         all,
         (n) => !n.deleted_at && (n.search_text ?? "").toLowerCase().includes(like),
       );
       return matches
-        .sort((a, b) => (b.pinned ?? 0) - (a.pinned ?? 0) || b.updated_at.localeCompare(a.updated_at))
+        .sort((a, b) => Number(b.pinned ?? 0) - Number(a.pinned ?? 0) || b.updated_at.localeCompare(a.updated_at))
         .map(noteFromDB);
     });
   },
@@ -242,7 +248,7 @@ export const idbAdapter: StorageAdapter = {
   async getNotesByTag(tag: string): Promise<Note[]> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
-      const all = await getAll<any>(store);
+      const all = await getAll<StoredNote>(store);
       return all
         .filter((n) => !n.deleted_at)
         .filter((n) => {
@@ -261,7 +267,7 @@ export const idbAdapter: StorageAdapter = {
   async getRecentDates(): Promise<string[]> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
-      const all = await getAll<any>(store);
+      const all = await getAll<StoredNote>(store);
       const dates = new Set(
         all.filter((n) => !n.deleted_at).map((n) => n.date)
       );
@@ -274,7 +280,7 @@ export const idbAdapter: StorageAdapter = {
   async getAllTags(): Promise<string[]> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
-      const all = await getAll<any>(store);
+      const all = await getAll<StoredNote>(store);
       const tags = new Set<string>();
       for (const n of all) {
         if (n.deleted_at) continue;
@@ -292,21 +298,21 @@ export const idbAdapter: StorageAdapter = {
   async getDailyPage(date: string, carryoverDefault = false): Promise<DailyPage> {
     return withDB(async (db) => {
       const store = db.transaction("daily_pages", "readwrite").objectStore("daily_pages");
-      let page = await getOne<any>(store, date);
+      let page = await getOne<StoredDailyPage>(store, date);
       if (!page) {
         // Try carryover from yesterday (local date arithmetic, not UTC)
         const d = new Date(date + "T00:00:00");
         d.setDate(d.getDate() - 1);
         const yesterday = localDateKey(d);
-        const yPage = await getOne<any>(store, yesterday);
+        const yPage = await getOne<StoredDailyPage>(store, yesterday);
         let carryoverTodos: Todo[] = [];
         let carryoverEnabled = carryoverDefault;
         if (yPage && yPage.todo_carryover) {
           carryoverEnabled = true;
           const todos: Todo[] = typeof yPage.todos === "string" ? JSON.parse(yPage.todos) : yPage.todos;
           carryoverTodos = todos
-            .filter((t: any) => !(t.done === 1 || t.done === true))
-            .map((t: any) => ({ ...t, id: uuid() }));
+            .filter((t) => !(Number(t.done) === 1))
+            .map((t) => ({ ...t, id: uuid() }));
         }
         page = {
           date,
@@ -328,8 +334,8 @@ export const idbAdapter: StorageAdapter = {
   async getAllDailyPages(): Promise<DailyPage[]> {
     return withDB(async (db) => {
       const store = db.transaction("daily_pages", "readonly").objectStore("daily_pages");
-      const all = await getAll<any>(store);
-      return all.map((p: any) => ({
+      const all = await getAll<StoredDailyPage>(store);
+      return all.map((p) => ({
         date: p.date,
         todos: typeof p.todos === "string" ? JSON.parse(p.todos) : p.todos,
         todo_carryover: p.todo_carryover === 1 || p.todo_carryover === true,
@@ -341,7 +347,7 @@ export const idbAdapter: StorageAdapter = {
   async updateTodos(data: UpdateTodosInput): Promise<DailyPage> {
     return withDB(async (db) => {
       const store = db.transaction("daily_pages", "readwrite").objectStore("daily_pages");
-      const page: any = {
+      const page: StoredDailyPage = {
         date: data.date,
         todos: JSON.stringify(data.todos),
         todo_carryover: data.todo_carryover ? 1 : 0,
@@ -366,10 +372,10 @@ export const idbAdapter: StorageAdapter = {
   async getDeletedNotes(): Promise<Note[]> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
-      const all = await getAll<any>(store);
+      const all = await getAll<StoredNote>(store);
       return all
         .filter((n) => n.deleted_at)
-        .sort((a, b) => b.deleted_at.localeCompare(a.deleted_at))
+        .sort((a, b) => (b.deleted_at ?? "").localeCompare(a.deleted_at ?? ""))
         .map(noteFromDB);
     });
   },
@@ -377,7 +383,7 @@ export const idbAdapter: StorageAdapter = {
   async restoreNote(id: string): Promise<void> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readwrite").objectStore("notes");
-      const existing = await getOne<any>(store, id);
+      const existing = await getOne<StoredNote>(store, id);
       if (!existing) return;
       delete existing.deleted_at;
       existing.updated_at = now();
@@ -392,7 +398,7 @@ export const idbAdapter: StorageAdapter = {
 
       // Delete all versions for this note
       const verIndex = tx.objectStore("note_versions").index("note_id");
-      const versions = await getAllFromIndex<any>(verIndex, id);
+      const versions = await getAllFromIndex<{ id: string }>(verIndex, id);
       for (const v of versions) {
         await delRecord(tx.objectStore("note_versions"), v.id);
       }
@@ -406,11 +412,11 @@ export const idbAdapter: StorageAdapter = {
       const store = tx.objectStore("notes");
       const versionStore = tx.objectStore("note_versions");
       const versionIndex = versionStore.index("note_id");
-      const all = await getAll<any>(store);
+      const all = await getAll<StoredNote>(store);
       let cleaned = 0;
       for (const n of all) {
         if (n.deleted_at && n.deleted_at < cutoff) {
-          const versions = await getAllFromIndex<any>(versionIndex, n.id);
+          const versions = await getAllFromIndex<{ id: string }>(versionIndex, n.id);
           for (const version of versions) await delRecord(versionStore, version.id);
           await delRecord(store, n.id);
           cleaned++;
@@ -427,7 +433,7 @@ export const idbAdapter: StorageAdapter = {
       const store = db.transaction("notes", "readwrite").objectStore("notes");
       const nowStr = now();
       for (const id of ids) {
-        const existing = await getOne<any>(store, id);
+        const existing = await getOne<StoredNote>(store, id);
         if (!existing) continue;
         existing.deleted_at = nowStr;
         existing.updated_at = nowStr;
@@ -441,7 +447,7 @@ export const idbAdapter: StorageAdapter = {
       const store = db.transaction("notes", "readwrite").objectStore("notes");
       const val = readonly ? 1 : 0;
       for (const id of ids) {
-        const existing = await getOne<any>(store, id);
+        const existing = await getOne<StoredNote>(store, id);
         if (!existing) continue;
         existing.readonly = val;
         existing.updated_at = now();
@@ -462,7 +468,7 @@ export const idbAdapter: StorageAdapter = {
   async getPathTree(includeDaily = true): Promise<PathNode[]> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
-      const all = await getAll<any>(store);
+      const all = await getAll<StoredNote>(store);
       const notes = all.filter((n) => !n.deleted_at).map(noteFromDB);
 
       // 映射为 core.ts 的输入类型（snake_case）
@@ -495,7 +501,7 @@ export const idbAdapter: StorageAdapter = {
   async getNotesByPath(pathPrefix: string): Promise<Note[]> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
-      const all = await getAll<any>(store);
+      const all = await getAll<StoredNote>(store);
       const notes = all.filter((n) => !n.deleted_at).map(noteFromDB);
 
       // daily/ 前缀 → 返回对应日期的每日随笔（无 storagePath）
@@ -527,7 +533,7 @@ export const idbAdapter: StorageAdapter = {
       const tx = db.transaction("notes", "readwrite");
       try {
         const store = tx.objectStore("notes");
-        const note = await getOne<any>(store, noteId);
+        const note = await getOne<MovableStoredNote>(store, noteId);
         if (!note || note.deleted_at || !(note.storagePath ?? note.storage_path)) {
           throw new Error("只能移动未删除的普通文档");
         }
@@ -569,7 +575,7 @@ export const idbAdapter: StorageAdapter = {
       const tx = db.transaction("notes", "readwrite");
       try {
         const store = tx.objectStore("notes");
-        const all = await getAll<any>(store);
+        const all = await getAll<MovableStoredNote>(store);
         const docs = all.filter((n) => {
           const path = n.storagePath ?? n.storage_path;
           return !n.deleted_at && path && isPathUnder(path, source);
@@ -577,6 +583,7 @@ export const idbAdapter: StorageAdapter = {
         if (docs.length === 0) throw new Error("源目录不存在或没有可移动文档");
         for (const note of docs) {
           const path = note.storagePath ?? note.storage_path;
+          if (!path) continue;
           note.storagePath = path === source ? target : target + path.slice(source.length);
           delete note.storage_path;
           await putRecord(store, note);
@@ -592,7 +599,7 @@ export const idbAdapter: StorageAdapter = {
   async searchDocs(query: DocSearchQuery): Promise<Note[]> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
-      const all = await getAll<any>(store);
+      const all = await getAll<StoredNote>(store);
       const matches = await filterInChunks(all, (n) => {
         // 文档搜索：仅返回 storagePath 非空的文档（随笔走 getAllNotes / searchNotes）
         if (n.deleted_at || !n.storagePath) return false;
@@ -621,10 +628,10 @@ export const idbAdapter: StorageAdapter = {
   async getAllNotes(): Promise<Note[]> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
-      const all = await getAll<any>(store);
+      const all = await getAll<StoredNote>(store);
       return all
         .filter((n) => !n.deleted_at && !n.storagePath)
-        .sort((a: any, b: any) => (b.date ?? "").localeCompare(a.date ?? "") || (b.updated_at ?? "").localeCompare(a.updated_at ?? ""))
+        .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? "") || (b.updated_at ?? "").localeCompare(a.updated_at ?? ""))
         .map(noteFromDB);
     });
   },
@@ -632,7 +639,7 @@ export const idbAdapter: StorageAdapter = {
   async getAllConcepts(): Promise<string[]> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
-      const all = await getAll<any>(store);
+      const all = await getAll<StoredNote>(store);
       const concepts = new Set<string>();
       for (const n of all) {
         if (n.deleted_at) continue;
@@ -650,7 +657,7 @@ export const idbAdapter: StorageAdapter = {
 
 // ── 排序辅助 ──
 
-function sortNotes(a: any, b: any): number {
+function sortNotes(a: StoredNote, b: StoredNote): number {
   // pinned first, then sort_order ascending, then created_at ascending
   const pa = a.pinned === 1 || a.pinned === true ? 1 : 0;
   const pb = b.pinned === 1 || b.pinned === true ? 1 : 0;

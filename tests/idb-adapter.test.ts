@@ -10,10 +10,9 @@
  */
 
 import "fake-indexeddb/auto";
-// @ts-ignore — fake-indexeddb 没有完整 localStorage，mock 它
 if (typeof localStorage === "undefined") {
   const store: Record<string, string> = {};
-  (globalThis as any).localStorage = {
+  globalThis.localStorage = {
     getItem: (k: string) => store[k] ?? null,
     setItem: (k: string, v: string) => { store[k] = v; },
     removeItem: (k: string) => { delete store[k]; },
@@ -23,7 +22,7 @@ if (typeof localStorage === "undefined") {
   };
 }
 
-import type { Note, DailyPage, Todo, CreateNoteInput, PathNode } from "../src/types/models";
+import type { Note, Todo, PathNode } from "../src/types/models";
 import { idbAdapter } from "../src/lib/storage/idb";
 
 let passed = 0;
@@ -397,7 +396,7 @@ async function runTests() {
     });
     const originalPut = IDBObjectStore.prototype.put;
     let putCount = 0;
-    (IDBObjectStore.prototype as any).put = function (...args: any[]) {
+    IDBObjectStore.prototype.put = function (...args: Parameters<IDBObjectStore["put"]>) {
       putCount++;
       if (putCount === 2) throw new Error("injected move failure");
       return originalPut.apply(this, args);

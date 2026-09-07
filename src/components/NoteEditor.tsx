@@ -115,6 +115,15 @@ import {
   toggleBookmark,
 } from "../extensions/DocumentBookmarks";
 
+declare module "@tiptap/core" {
+  interface Commands<ReturnType> {
+    fontSize: {
+      setFontSize: (size: string) => ReturnType;
+      unsetFontSize: () => ReturnType;
+    };
+  }
+}
+
 const FontSize = Extension.create({
   name: "fontSize",
   addOptions() {
@@ -137,16 +146,15 @@ const FontSize = Extension.create({
       },
     ];
   },
-  // @ts-expect-error TipTap custom extension commands
   addCommands() {
     return {
       setFontSize:
         (size: string) =>
-        ({ chain }: { chain: any }) =>
+        ({ chain }: { chain: Editor["chain"] }) =>
           chain().setMark("textStyle", { fontSize: size }).run(),
       unsetFontSize:
         () =>
-        ({ chain }: { chain: any }) =>
+        ({ chain }: { chain: Editor["chain"] }) =>
           chain().setMark("textStyle", { fontSize: null }).removeEmptyTextStyle().run(),
     };
   },
@@ -2131,7 +2139,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
     if (!headingOpen || !editor) return;
     try {
       const json = editor.getJSON();
-      const scan = (node: any): boolean => {
+      const scan = (node: ReturnType<Editor["getJSON"]>): boolean => {
         if (node.type === 'heading' && node.attrs?.level > 5) return true;
         if (Array.isArray(node.content)) return node.content.some(scan);
         return false;
@@ -2467,7 +2475,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
           e.preventDefault();
           storeImage(file).then((ref) => {
             if (readonlyRef.current || editor.isDestroyed || !editor.isEditable) return;
-            (editor.chain().focus() as any).setResizableImage({ src: ref }).run();
+            editor.chain().focus().setResizableImage({ src: ref }).run();
           });
         }
       }
@@ -2477,7 +2485,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
 
   const insertImageUrl = () => {
     if (!editor || !imageUrl.trim()) return;
-    (editor.chain().focus() as any).setResizableImage({ src: imageUrl.trim() }).run();
+    editor.chain().focus().setResizableImage({ src: imageUrl.trim() }).run();
     setImageUrl("");
     setImageDialog(false);
   };

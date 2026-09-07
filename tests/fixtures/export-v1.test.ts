@@ -24,7 +24,6 @@ async function main() {
   console.log("\n── export-v1 fixture 导入/导出 round-trip ──")
 
   const fixture = await import("./export-v1.json", { with: { type: "json" } });
-  const { notes, daily_pages } = fixture.default ?? fixture;
 
   // ── 导入 ──
   const json = JSON.stringify(fixture.default ?? fixture);

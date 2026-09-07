@@ -482,7 +482,7 @@ export const CodeBlockLineNumbers = Node.create<CodeBlockLineNumberOptions>({
 
   addKeyboardShortcuts() {
     return {
-      'Mod-Alt-c': ({ editor }: { editor: any }) => {
+      'Mod-Alt-c': ({ editor }) => {
         if (editor.isActive('codeBlock')) {
           editor.chain().focus().setNode('paragraph').run();
         } else {

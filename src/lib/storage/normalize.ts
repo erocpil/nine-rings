@@ -12,7 +12,7 @@
  *   const normalized = snakeImportToCamel(importRaw);
  */
 
-import type { Note, NoteVersion, DailyPage } from "../../types/models";
+import type { Note, NoteVersion, DailyPage, DocType } from "../../types/models";
 
 // ═══════════════════════════════════════════════════════════════════
 // 原始 snake_case 行类型（SQLite / IndexedDB 查询返回）
@@ -68,16 +68,21 @@ function parseBool(v: unknown): boolean {
   return false;
 }
 
+export function normalizeDocType(value: unknown): DocType | undefined {
+  return value === "explanation" || value === "how-to" || value === "reference" || value === "tutorial"
+    ? value : undefined;
+}
+
 function parseJson<T>(v: string | T | undefined): T {
-  if (v === undefined) return (Array.isArray([] as any) ? [] : {}) as T;
+  if (v === undefined) return ([]) as T;
   if (typeof v === "string") {
-    try { return JSON.parse(v); } catch { return (Array.isArray([] as any) ? [] : {}) as T; }
+    try { return JSON.parse(v); } catch { return ([]) as T; }
   }
   return v;
 }
 
 /** snake_case SQL/IDB 行 → camelCase TS Note */
-export function snakeNoteToCamel(row: Record<string, any>): Note {
+export function snakeNoteToCamel(row: SnakeNoteRow): Note {
   const note: Note = {
     id: row.id,
     date: row.date,
@@ -90,16 +95,16 @@ export function snakeNoteToCamel(row: Record<string, any>): Note {
     created_at: row.created_at,
     updated_at: row.updated_at,
     storagePath: row.storage_path ?? undefined,
-    docType: row.doc_type ?? undefined,
+    docType: normalizeDocType(row.doc_type),
   };
   // 仅当 key 存在时设置可选字段（缺失 → undefined 而非空数组）
-  if ("concepts" in row) (note as any).concepts = parseJson<string[]>(row.concepts);
-  if ("linked_doc_ids" in row) (note as any).linkedDocIds = parseJson<string[]>(row.linked_doc_ids);
+  if ("concepts" in row) note.concepts = parseJson<string[]>(row.concepts);
+  if ("linked_doc_ids" in row) note.linkedDocIds = parseJson<string[]>(row.linked_doc_ids);
   return note;
 }
 
 /** snake_case SQL/IDB 行 → NoteVersion */
-export function snakeVersionToCamel(row: Record<string, any>): NoteVersion {
+export function snakeVersionToCamel(row: SnakeVersionRow): NoteVersion {
   return {
     id: row.id,
     note_id: row.note_id,
@@ -113,10 +118,10 @@ export function snakeVersionToCamel(row: Record<string, any>): NoteVersion {
 }
 
 /** snake_case SQL/IDB 行 → DailyPage */
-export function snakeDailyPageToCamel(row: Record<string, any>): DailyPage {
+export function snakeDailyPageToCamel(row: SnakeDailyPageRow): DailyPage {
   return {
     date: row.date,
-    todos: parseJson(row.todos),
+    todos: parseJson<DailyPage["todos"]>(row.todos),
     todo_carryover: parseBool(row.todo_carryover),
     updated_at: row.updated_at,
   };
