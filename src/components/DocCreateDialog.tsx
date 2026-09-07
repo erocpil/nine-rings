@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import type { DocType, Note } from "../types/models";
@@ -44,7 +44,7 @@ function applyTemplateMeta(template: Template) {
 }
 
 function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogProps) {
-  const [suggestion] = useState(() => splitSuggestedDocPath(suggestedPath));
+  const suggestion = useMemo(() => splitSuggestedDocPath(suggestedPath), [suggestedPath]);
   const [title, setTitle] = useState("");
   const [rootPath, setRootPath] = useState(suggestion.rootPath);
   const [customRootPath, setCustomRootPath] = useState("");
@@ -107,6 +107,13 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
       if (blank) setActiveTemplateId(blank.id);
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    setRootPath(suggestion.rootPath);
+    setSubPath(suggestion.subPath);
+    setCustomRootPath("");
+    setPathTouched(false);
+  }, [suggestion]);
 
   useEffect(() => {
     const revealActiveControl = () => revealFocusedControl();

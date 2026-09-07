@@ -1975,7 +1975,7 @@ function App() {
       {docCreateOpen && (
         <Suspense fallback={null}>
           <DocCreateDialog
-            suggestedPath={selectedNote?.storagePath || undefined}
+            suggestedPath={selectedFolderPath ?? selectedNote?.storagePath ?? undefined}
             onClose={() => setDocCreateOpen(false)}
             onCreated={(note) => {
               setDocCreateOpen(false);
