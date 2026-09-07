@@ -316,6 +316,27 @@ describe("backup failure boundaries", () => {
       "缺少本地图片",
     );
   });
+  it("reports missing image references with document context", async () => {
+    await withDB(async (db) => {
+      db.transaction("images", "readwrite").objectStore("images").clear();
+    });
+    const noteWithImage = {
+      id: "doc-1",
+      title: "带图文档",
+      date: "2026-09-06",
+      storagePath: "areas/private",
+      content: { ops: [{ insert: { image: "nr-image://9f7a9c2d-0000-4e55-bf1b-111111111111" } }] },
+      tags: [],
+      pinned: false,
+      readonly: false,
+      sort_order: 0,
+      created_at: "2026-09-06",
+      updated_at: "2026-09-06",
+    };
+    await expect(resolveImageRefs([noteWithImage] as const)).rejects.toThrow(
+      /带图文档|areas\/private|doc-1/,
+    );
+  });
   it("round-trips explicit templates in a fresh frontend store", async () => {
     const template = {
       id: "custom",
