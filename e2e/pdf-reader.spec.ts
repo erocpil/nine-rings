@@ -1,30 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-function createPdfFixture(): Buffer {
-  const firstStream = "BT /F1 18 Tf 36 90 Td (Nine Rings PDF MVP) Tj ET";
-  const secondStream = "BT /F1 18 Tf 36 90 Td (Second page searchable target) Tj ET";
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R 6 0 R] /Count 2 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
-    `<< /Length ${Buffer.byteLength(firstStream)} >>\nstream\n${firstStream}\nendstream`,
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Resources << /Font << /F1 5 0 R >> >> /Contents 7 0 R >>",
-    `<< /Length ${Buffer.byteLength(secondStream)} >>\nstream\n${secondStream}\nendstream`,
-  ];
-  let source = "%PDF-1.4\n";
-  const offsets = [0];
-  objects.forEach((object, index) => {
-    offsets.push(Buffer.byteLength(source));
-    source += `${index + 1} 0 obj\n${object}\nendobj\n`;
-  });
-  const xrefOffset = Buffer.byteLength(source);
-  source += `xref\n0 ${objects.length + 1}\n`;
-  source += "0000000000 65535 f \n";
-  source += offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("");
-  source += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
-  return Buffer.from(source, "ascii");
-}
+import { createPdfFixture } from "./helpers/reader-fixtures";
 
 test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 500 });
@@ -59,7 +35,7 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
     buffer: createPdfFixture(),
   });
 
-  const reader = page.getByLabel("PDF 阅读器");
+  const reader = page.getByLabel("PDF 阅读器", { exact: true });
   const viewport = page.locator(".pdf-page-viewport");
   await expect(reader).toBeVisible();
   await expect(page.locator(".pdf-reader-title")).toHaveText("nine-rings-mvp.pdf");
@@ -106,7 +82,7 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   }, doubleClickPoint);
   const canvasWidthBeforeZoom = await doubleClickSurface.locator("canvas").getAttribute("width");
   await doubleClickSurface.dblclick({ position: doubleClickPoint });
-  await expect(page.getByRole("button", { name: "适宽" })).not.toHaveClass(/active/);
+  await expect(page.getByRole("button", { name: "适宽", includeHidden: true })).not.toHaveClass(/active/);
   await expect.poll(() => doubleClickSurface.locator("canvas").getAttribute("width"))
     .not.toBe(canvasWidthBeforeZoom);
   await expect.poll(() => doubleClickSurface.evaluate((element, anchor) => {
@@ -116,7 +92,7 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
     return Math.max(Math.abs(currentX - anchor.x), Math.abs(currentY - anchor.y));
   }, anchorBeforeZoom)).toBeLessThan(3);
   await doubleClickSurface.dblclick({ position: doubleClickPoint });
-  await expect(page.getByRole("button", { name: "适宽" })).toHaveClass(/active/);
+  await expect(page.getByRole("button", { name: "适宽", includeHidden: true })).toHaveClass(/active/);
 
   const initialSurfaceWidth = await page.locator(".pdf-page-surface").evaluate((element) => element.clientWidth);
   await viewport.evaluate((element) => {
@@ -151,9 +127,11 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
       changedTouches: [touch(1, 180), touch(2, 220)],
     }));
   });
-  await expect(page.getByRole("button", { name: "适宽" })).not.toHaveClass(/active/);
+  await expect(page.getByRole("button", { name: "适宽", includeHidden: true })).not.toHaveClass(/active/);
   await expect.poll(() => page.locator(".pdf-page-surface").evaluate((element) => element.clientWidth)).toBeLessThan(initialSurfaceWidth);
+  await page.getByRole("button", { name: "PDF 阅读设置", exact: true }).click();
   await page.getByRole("button", { name: "适宽" }).click();
+  await page.getByRole("button", { name: "关闭 PDF 阅读设置", exact: true }).click();
 
   const selectableText = page.locator(".pdf-text-layer span").filter({ hasText: "Nine Rings PDF MVP" }).first();
   await expect(selectableText).toBeAttached();
@@ -224,7 +202,7 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   await page.getByRole("button", { name: /^阅读资料库/ }).click();
   await expect(page.getByRole("button", { name: /打开 nine-rings-mvp.pdf/ })).toBeVisible();
   await page.getByRole("button", { name: /打开 nine-rings-mvp.pdf/ }).click();
-  await expect(page.getByLabel("PDF 阅读器")).toBeVisible();
+  await expect(page.getByLabel("PDF 阅读器", { exact: true })).toBeVisible();
   const excerptSource = page.locator(".pdf-text-layer span").filter({ hasText: "Second page searchable target" }).first();
   await expect(excerptSource).toBeAttached();
   await excerptSource.evaluate((span) => {
@@ -236,10 +214,10 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   });
   await expect(page.getByRole("button", { name: "摘录到笔记" })).toBeVisible();
   await page.getByRole("button", { name: "摘录到笔记" }).click();
-  await expect(page.getByLabel("PDF 阅读器")).toHaveCount(0);
+  await expect(page.getByLabel("PDF 阅读器", { exact: true })).toHaveCount(0);
   await expect(page.locator(".note-title")).toHaveValue("PDF 摘录 · nine-rings-mvp.pdf · 第 2 页");
   await page.getByRole("button", { name: "PDF · 2" }).click();
-  await expect(page.getByLabel("PDF 阅读器")).toBeVisible();
+  await expect(page.getByLabel("PDF 阅读器", { exact: true })).toBeVisible();
   await expect(page.getByLabel("PDF 页码")).toHaveValue("2");
   await expect(page.locator(".pdf-highlight-target")).toContainText("Second page searchable target");
 

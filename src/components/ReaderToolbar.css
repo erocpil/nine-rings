@@ -1,0 +1,124 @@
+/* Shared, responsive reader chrome. Content rendering stays format-specific. */
+.reader-toolbar.pdf-reader-toolbar {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding-bottom: 6px;
+}
+
+.reader-toolbar-main, .reader-toolbar-controls,
+.reader-library-actions, .reader-panel-triggers, .reader-navigation {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 4px;
+}
+.reader-toolbar-main { flex: 1 1 220px; }
+.reader-toolbar-controls { flex: 0 0 auto; gap: 12px; }
+.reader-toolbar .pdf-reader-title { min-width: 0; flex: 1; font-size: 15px; }
+.reader-toolbar .reader-focus-action { display: flex; }
+.reader-toolbar button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+.reader-toolbar-main > button, .reader-toolbar .reader-library-actions button,
+.reader-toolbar .reader-focus-action button, .reader-toolbar .reader-panel-triggers button {
+  border-color: transparent;
+  background: transparent;
+}
+.reader-toolbar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.reader-toolbar .pdf-page-controls { order: 0; gap: 2px; }
+.reader-panel-triggers { border-left: 1px solid var(--border); padding-left: 8px; }
+.reader-action-label { font-size: 12px; white-space: nowrap; }
+.reader-type-icon { font: 600 18px Georgia, serif; }
+.reader-theme-swatch { width: 14px; height: 14px; border: 1px solid var(--border); border-radius: 50%; }
+.reader-toolbar .epub-theme-controls button { width: auto; }
+.reader-toolbar .reader-panel-backdrop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: 100dvh;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: default;
+  touch-action: none;
+}
+.reader-toolbar .reader-panel-backdrop:hover { background: transparent; }
+.reader-tool-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: max(8px, var(--safe-right, 0px));
+  z-index: 1;
+  width: min(360px, calc(100% - 16px));
+  box-sizing: border-box;
+  max-height: min(440px, calc(var(--app-viewport-height, 100dvh) - var(--safe-top, 0px) - var(--safe-bottom, 0px) - 150px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: 0 12px 36px rgb(0 0 0 / 18%);
+}
+.reader-tool-panel[hidden] { display: none; }
+.reader-tool-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.reader-tool-panel-heading strong { font-size: 14px; }
+.reader-tool-panel-heading button { border-color: transparent; }
+.reader-tool-section + .reader-tool-section { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; }
+.reader-tool-section > p { margin: 0 0 8px; font-size: 12px; color: var(--text-secondary); }
+.reader-toolbar .reader-tool-section > div { flex-wrap: wrap; gap: 6px; }
+.reader-tool-section .reader-tool-help { margin-top: 8px; line-height: 1.5; }
+.reader-toolbar .pdf-search { flex-wrap: wrap; gap: 6px; max-width: none; }
+.reader-toolbar .pdf-search input { flex: 1 1 120px; width: 0; min-width: 0; }
+.reader-toolbar .pdf-search > span { display: block; flex: 1 1 100%; max-width: none; white-space: normal; }
+.reader-toolbar .pdf-annotation-tools { overflow: visible; }
+.reader-active-tool, .reader-toolbar-notice { flex: 1 1 100%; font-size: 12px; color: var(--text-secondary); }
+.reader-toolbar-notice {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 8px;
+  right: 8px;
+  width: fit-content;
+  max-width: calc(100% - 16px);
+  margin-inline: auto;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
+  pointer-events: none;
+}
+.reader-panel-notice { margin-top: 10px; font-size: 12px; color: var(--text-secondary); }
+.reader-active-tool { display: flex; gap: 12px; align-items: center; color: var(--accent); }
+.reader-toolbar .reader-active-tool button { height: 28px; min-height: 28px; }
+
+@media (max-width: 900px) {
+  .reader-toolbar .reader-action-label { display: none; }
+}
+@media (max-width: 600px) {
+  .reader-toolbar.pdf-reader-toolbar { gap: 2px; }
+  .reader-toolbar-main, .reader-toolbar-controls { flex: 1 1 100%; }
+  .reader-toolbar-controls { justify-content: space-between; gap: 4px; }
+  .reader-toolbar button { min-width: 40px; min-height: 40px; }
+  .reader-toolbar .pdf-page-controls button { min-width: 34px; }
+  .reader-panel-triggers { padding-left: 4px; gap: 2px; }
+  .reader-toolbar .pdf-search input { font-size: 16px; }
+}
+
+/* Preserve the existing PDF fullscreen surface/gesture owner and minimal bar. */
+.pdf-reader-fullscreen .reader-toolbar.pdf-reader-toolbar {
+  position: absolute;
+  gap: 4px;
+  padding: 4px;
+}
+.pdf-reader-fullscreen .reader-toolbar-main,
+.pdf-reader-fullscreen .reader-toolbar-controls { display: contents; }
+.pdf-reader-fullscreen .reader-library-actions,
+.pdf-reader-fullscreen .reader-panel-triggers,
+.pdf-reader-fullscreen .reader-tool-panel,
+.pdf-reader-fullscreen .reader-panel-backdrop,
+.pdf-reader-fullscreen .reader-toolbar-notice,
+.pdf-reader-fullscreen .reader-active-tool { display: none; }
+.pdf-reader-fullscreen .reader-focus-action { order: 1; }
+.epub-reader-focus .reader-toolbar.pdf-reader-toolbar { display: none; }

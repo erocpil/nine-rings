@@ -969,7 +969,7 @@ vite --host 0.0.0.0
 - [x] 已从 `App.tsx` 提取跨日检测与时钟 Hook，以及键盘快捷键与窗口事件 Hook。
 - [x] Quick Capture 事件监听已抽离至 `useQuickCaptureListener`。
 - [x] 存储层 import/export、version、images 和 config 已抽离为独立模块。
-- [x] 编辑器工具栏展示、右键菜单和链接/图片对话框已抽离；主体 4,800 → 4,013 行（2026-09-07）。会话与锚点尚未拆分，详见[当前分批进度](editor-module-split.md)。
+- [x] 编辑器工具栏展示、菜单状态 Hook、右键菜单和链接/图片对话框已抽离；主体 4,800 → 3,969 行（2026-09-07）。会话与锚点尚未拆分，详见[当前分批进度](editor-module-split.md)。阅读器共享工具栏和独立 CSS 另见[阅读器界面](reader-toolbar-design.md)。
 - [ ] 每次只移动一个职责，禁止同时改变业务行为。
 - [x] 为 Tauri 环境检测建立统一 runtime 模块和 `Window` 边界，移除相关重复 `@ts-ignore`。
 - [ ] 已修正 `UpdateNoteInput` 和开发导入模型；搜索结果模型与编辑器扩展类型仍待收敛。

@@ -1,47 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { strToU8, zipSync } from "fflate";
 
 test.use({ hasTouch: true });
 
-function createEpubFixture(): Buffer {
-  const files = {
-    mimetype: strToU8("application/epub+zip"),
-    "META-INF/container.xml": strToU8(`<?xml version="1.0"?>
-      <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
-        <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
-      </container>`),
-    "OEBPS/content.opf": strToU8(`<?xml version="1.0" encoding="UTF-8"?>
-      <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id">
-        <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-          <dc:identifier id="book-id">nine-rings-epub-test</dc:identifier>
-          <dc:title>Nine Rings EPUB MVP</dc:title>
-          <dc:creator>测试作者</dc:creator>
-          <dc:language>zh-CN</dc:language>
-        </metadata>
-        <manifest>
-          <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
-          <item id="chapter-1" href="chapter-1.xhtml" media-type="application/xhtml+xml"/>
-          <item id="chapter-2" href="chapter-2.xhtml" media-type="application/xhtml+xml"/>
-          <item id="style" href="book.css" media-type="text/css"/>
-          <item id="cover" href="cover.svg" media-type="image/svg+xml" properties="cover-image"/>
-        </manifest>
-        <spine><itemref idref="chapter-1"/><itemref idref="chapter-2"/></spine>
-      </package>`),
-    "OEBPS/nav.xhtml": strToU8(`<?xml version="1.0" encoding="UTF-8"?>
-      <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body>
-        <nav epub:type="toc"><ol><li><a href="chapter-1.xhtml">开始阅读</a><ol><li><a href="chapter-2.xhtml#target">继续阅读</a></li></ol></li></ol></nav>
-      </body></html>`),
-    "OEBPS/book.css": strToU8("h1 { letter-spacing: 0.02em; }"),
-    "OEBPS/cover.svg": strToU8(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600"><rect width="400" height="600" fill="#315f9b"/><text x="200" y="300" text-anchor="middle" fill="white">Nine Rings</text></svg>`),
-    "OEBPS/chapter-1.xhtml": strToU8(`<?xml version="1.0" encoding="UTF-8"?>
-      <html xmlns="http://www.w3.org/1999/xhtml"><head><title>开始阅读</title><link rel="stylesheet" href="book.css"/></head>
-      <body><h1>第一章</h1><p>这是 EPUB 第一章正文。</p><p id="hard-line-a">At one time or</p><p id="hard-line-b">another, this line should be joined.</p><p id="manual-line-a">Manual line break</p><p id="manual-line-b">Needs exact repair.</p><a href="chapter-2.xhtml#target">正文下一章</a><script>parent.document.body.dataset.epubUnsafe='true'</script></body></html>`),
-    "OEBPS/chapter-2.xhtml": strToU8(`<?xml version="1.0" encoding="UTF-8"?>
-      <html xmlns="http://www.w3.org/1999/xhtml"><head><title>继续阅读</title></head>
-      <body><h1 id="target">第二章</h1><p>阅读进度应当保存到这里。</p><div style="height: 1800px"></div><p>章节末尾内容。</p></body></html>`),
-  };
-  return Buffer.from(zipSync(files, { level: 6 }));
-}
+import { createEpubFixture } from "./helpers/reader-fixtures";
 
 test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page }) => {
   test.setTimeout(60_000);
@@ -77,10 +38,12 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   }, { fromX, toX });
   await expect(chapterFrame.getByRole("heading", { name: "第一章" })).toBeVisible();
   await expect(chapterFrame.locator("#hard-line-b")).toBeVisible();
+  await page.getByRole("button", { name: "EPUB 阅读设置", exact: true }).click();
   await page.getByRole("button", { name: "智能合并 EPUB 硬换行" }).click();
   await expect(page.getByRole("button", { name: "智能合并 EPUB 硬换行" })).toHaveAttribute("aria-pressed", "true");
   await expect(chapterFrame.locator("#hard-line-b")).toHaveCount(0);
   await expect(chapterFrame.locator("#hard-line-a")).toContainText("At one time or another, this line should be joined.");
+  await page.getByRole("button", { name: "关闭 EPUB 阅读设置", exact: true }).click();
   const manualLineTop = await chapterFrame.locator("#manual-line-a").evaluate((element) => element.getBoundingClientRect().top);
   await chapterFrame.locator("#manual-line-a").evaluate((element) => {
     const next = element.nextElementSibling;
@@ -97,7 +60,7 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(chapterFrame.locator("#manual-line-b")).toHaveCount(0);
   await expect(chapterFrame.locator("#manual-line-a")).toContainText("Manual line break Needs exact repair.");
   await expect.poll(() => chapterFrame.locator("#manual-line-a").evaluate((element) => element.getBoundingClientRect().top)).toBeCloseTo(manualLineTop, 0);
-  await expect(page.getByRole("button", { name: "管理 EPUB 人工断行修复" })).toContainText("1");
+  await expect(page.getByRole("button", { name: "管理 EPUB 人工断行修复", includeHidden: true })).toContainText("1");
   await swipeFrame(300, 390);
   await expect(page.getByRole("status")).toHaveText("已经是第一章");
   await swipeFrame(330, 100);
@@ -118,11 +81,13 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(chapterFrame.getByRole("heading", { name: "第二章" })).toBeVisible();
 
   await toc.getByRole("button", { name: "开始阅读", exact: true }).click();
+  await page.getByRole("button", { name: "EPUB 搜索", exact: true }).click();
   await page.getByLabel("搜索 EPUB").fill("阅读进度");
   await page.getByLabel("下一个 EPUB 搜索结果").click();
   await expect(chapterFrame.locator("mark.epub-search-current")).toHaveText("阅读进度");
   await expect(page.locator(".epub-search")).toContainText("1/1");
 
+  await page.getByRole("button", { name: "EPUB 阅读设置", exact: true }).click();
   await page.getByLabel("EPUB 字号").getByRole("button", { name: "A＋" }).click();
   await expect(page.getByLabel("EPUB 字号")).toContainText("110%");
   await page.getByRole("button", { name: "护眼主题" }).click();
@@ -163,6 +128,7 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
 
   await expect(reader).toBeVisible();
   await expect(page.locator(".epub-chapter-controls")).toContainText("2/2");
+  await page.getByRole("button", { name: "EPUB 阅读设置", exact: true }).click();
   await expect(page.getByLabel("EPUB 字号")).toContainText("110%");
   await expect(reader).toHaveClass(/epub-theme-sepia/);
   await expect(page.getByRole("button", { name: "智能合并 EPUB 硬换行" })).toHaveAttribute("aria-pressed", "true");

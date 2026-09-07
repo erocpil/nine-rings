@@ -1,3 +1,5 @@
+import { ReaderToolbar, type ReaderToolPanel } from "./ReaderToolbar";
+import { ToolbarIcon } from "./ToolbarIcon";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { toggleTauriFullscreen } from "../lib/fullscreen";
@@ -463,6 +465,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const [annotationOpen, setAnnotationOpen] = useState(false);
   const [bookmarkPanelOpen, setBookmarkPanelOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [toolsPanel, setToolsPanel] = useState<ReaderToolPanel>(null);
   const [focusControlsVisible, setFocusControlsVisible] = useState(false);
   const [frameRevision, setFrameRevision] = useState(0);
   const [actionBusy, setActionBusy] = useState(false);
@@ -747,6 +750,8 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.target instanceof Element && event.target.closest("input, textarea, select, button, [contenteditable=true]") && event.key !== "Escape") return;
       if (event.key === "Escape" && lineMergePanelOpen) {
         setLineMergePanelOpen(false);
       }
@@ -1212,34 +1217,40 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
 
   return (
     <section ref={readerRef} className={`pdf-reader epub-reader epub-theme-${theme}${fullscreen ? " epub-reader-focus" : ""}${focusControlsVisible ? " epub-focus-controls-visible" : ""}`} aria-label="EPUB 阅读器">
-      <header className="pdf-reader-toolbar epub-reader-toolbar">
-        <button type="button" className="pdf-reader-close" onClick={closeReader} aria-label="关闭 EPUB 阅读器">←</button>
-        <strong className="pdf-reader-title" title={entry?.name}>{book?.title ?? entry?.name ?? "EPUB 阅读器"}</strong>
-        <div className="pdf-page-controls epub-chapter-controls">
+      <ReaderToolbar
+        format="EPUB" title={book?.title ?? entry?.name ?? "EPUB 阅读器"} onClose={closeReader}
+        activePanel={toolsPanel} onPanelChange={setToolsPanel}
+        libraryActions={<><button type="button" className={tocOpen ? "active" : ""} onClick={() => setTocOpen((open) => !open)} aria-label="EPUB 目录">目录</button>
+        <button type="button" className={bookmarkPanelOpen || currentBookmark ? "active" : ""} onClick={() => setBookmarkPanelOpen(true)} aria-label="打开 EPUB 书签"><ToolbarIcon name="bookmark" />{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button></>}
+        focusAction={<button type="button" onClick={() => void toggleFullscreen()} aria-label={fullscreen ? "退出 EPUB 专注模式" : "进入 EPUB 专注模式"}>⛶</button>}
+        navigation={<div className="pdf-page-controls epub-chapter-controls">
           <button type="button" onClick={() => scrollChapterToEdge("start")} disabled={!book} aria-label="回到本章顶部" title="回到本章顶部">⤒</button>
-          <button type="button" onClick={() => changeChapter(chapter - 1)} disabled={!book || chapter <= 0}>‹</button>
+          <button type="button" onClick={() => changeChapter(chapter - 1)} aria-label="上一章" disabled={!book || chapter <= 0}>‹</button>
           <span>{book ? `${chapter + 1}/${book.chapters.length}` : "–/–"}</span>
-          <button type="button" onClick={() => changeChapter(chapter + 1)} disabled={!book || chapter >= book.chapters.length - 1}>›</button>
+          <button type="button" onClick={() => changeChapter(chapter + 1)} aria-label="下一章" disabled={!book || chapter >= book.chapters.length - 1}>›</button>
           <button type="button" onClick={() => scrollChapterToEdge("end")} disabled={!book} aria-label="跳到本章末尾" title="跳到本章末尾">⤓</button>
-        </div>
-        <div className="epub-font-controls" aria-label="EPUB 字号">
+        </div>}
+        appearance={<>
+          <div className="reader-tool-section"><p>文字大小</p><div className="epub-font-controls" aria-label="EPUB 字号">
           <button type="button" onClick={() => setFontSize((size) => Math.max(70, size - 10))} disabled={fontSize <= 70}>A−</button>
           <span>{fontSize}%</span>
           <button type="button" onClick={() => setFontSize((size) => Math.min(180, size + 10))} disabled={fontSize >= 180}>A＋</button>
-        </div>
-        <div className="epub-theme-controls" aria-label="EPUB 主题">
+        </div></div>
+          <div className="reader-tool-section"><p>背景主题</p><div className="epub-theme-controls" aria-label="EPUB 主题">
           {(["light", "sepia", "dark"] as const).map((value) => (
-            <button key={value} type="button" className={theme === value ? "active" : ""} onPointerDown={() => startThemeLongPress(value)} onPointerUp={endThemeLongPress} onPointerCancel={endThemeLongPress} onPointerLeave={endThemeLongPress} onContextMenu={(event) => event.preventDefault()} onClick={() => {
+            <button key={value} type="button" className={theme === value ? "active" : ""} aria-pressed={theme === value} onPointerDown={() => startThemeLongPress(value)} onPointerUp={endThemeLongPress} onPointerCancel={endThemeLongPress} onPointerLeave={endThemeLongPress} onContextMenu={(event) => event.preventDefault()} onClick={() => {
               if (themeLongPressTriggeredRef.current) { themeLongPressTriggeredRef.current = false; return; }
               setTheme(value);
             }} aria-label={`${value === "light" ? "浅色" : value === "sepia" ? "护眼" : "深色"}主题`}>
-              {value === "light" ? "☀" : value === "sepia" ? "◐" : "☾"}
+              <span className="reader-theme-swatch" aria-hidden="true" style={{ background: themeBackgrounds[value] ?? EPUB_THEME_DEFAULT_BACKGROUNDS[value] }} />
+              {value === "light" ? "浅色" : value === "sepia" ? "护眼" : "深色"}
             </button>
           ))}
-        </div>
-        <button type="button" className={smartLineMerge ? "active epub-line-merge-toggle" : "epub-line-merge-toggle"} aria-pressed={smartLineMerge} aria-label="智能合并 EPUB 硬换行" title="智能合并硬换行" onClick={() => { rememberViewportForReflow(); setSmartLineMerge((enabled) => !enabled); }}>断行</button>
-        <button type="button" className={lineMergePanelOpen ? "active epub-line-merge-toggle" : "epub-line-merge-toggle"} aria-label="管理 EPUB 人工断行修复" onClick={() => setLineMergePanelOpen((open) => !open)}>修复{manualLineMerges.length ? ` ${manualLineMerges.length}` : ""}</button>
-        <form className="pdf-search epub-search" role="search" onSubmit={(event) => { event.preventDefault(); runSearch(1); }}>
+        </div><p className="reader-tool-help">长按任一主题按钮，可自定义背景颜色。</p></div>
+          <div className="reader-tool-section"><p>断行处理</p><div className="epub-font-controls"><button type="button" className={smartLineMerge ? "active epub-line-merge-toggle" : "epub-line-merge-toggle"} aria-pressed={smartLineMerge} aria-label="智能合并 EPUB 硬换行" title="智能合并硬换行" onClick={() => { rememberViewportForReflow(); setSmartLineMerge((enabled) => !enabled); }}>{smartLineMerge ? "智能合并 · 开" : "智能合并 · 关"}</button>
+        <button type="button" className={lineMergePanelOpen ? "active epub-line-merge-toggle" : "epub-line-merge-toggle"} aria-label="管理 EPUB 人工断行修复" onClick={() => { setToolsPanel(null); setLineMergePanelOpen((open) => !open); }}>人工修复{manualLineMerges.length ? ` ${manualLineMerges.length}` : ""}</button></div></div>
+        </>}
+        search={<form className="pdf-search epub-search" role="search" onSubmit={(event) => { event.preventDefault(); runSearch(1); }}>
           <input
             type="search"
             aria-label="搜索 EPUB"
@@ -1250,11 +1261,8 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
           <button type="button" aria-label="上一个 EPUB 搜索结果" disabled={searchMatches.length === 0} onClick={() => runSearch(-1)}>↑</button>
           <button type="submit" aria-label="下一个 EPUB 搜索结果">↓</button>
           <span>{completedSearchQuery ? (searchMatches.length > 0 ? `${activeSearchIndex + 1}/${searchMatches.length}` : "未找到") : ""}</span>
-        </form>
-        <button type="button" className={tocOpen ? "active" : ""} onClick={() => setTocOpen((open) => !open)} aria-label="EPUB 目录">目录</button>
-        <button type="button" className={bookmarkPanelOpen || currentBookmark ? "active" : ""} onClick={() => setBookmarkPanelOpen(true)} aria-label="打开 EPUB 书签">🔖{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button>
-        <button type="button" onClick={() => void toggleFullscreen()} aria-label={fullscreen ? "退出 EPUB 专注模式" : "进入 EPUB 专注模式"}>⛶</button>
-      </header>
+        </form>}
+      />
       <div className="pdf-reader-body">
         {tocOpen && book && (
           <aside className="pdf-outline epub-outline" aria-label="EPUB 目录">

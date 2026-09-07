@@ -1,6 +1,10 @@
 import type { ReactNode } from "react";
 
 const paths = {
+  search: <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></>,
+  bookmark: <path d="M6 3h12v18l-6-4-6 4Z" />,
+  sliders: <><path d="M4 7h16M4 17h16" /><circle cx="9" cy="7" r="2" /><circle cx="15" cy="17" r="2" /></>,
+  annotate: <><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14Z" /></>,
   undo: <><path d="m9 5-5 5 5 5M4 10h10a6 6 0 0 1 0 12" /></>,
   redo: <><path d="m15 5 5 5-5 5M20 10H10a6 6 0 0 0 0 12" /></>,
   quote: <><path d="M4 6h6v7H5c0 3-1 4-2 5M14 6h6v7h-5c0 3-1 4-2 5" /></>,

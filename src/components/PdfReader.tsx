@@ -1,3 +1,5 @@
+import { ReaderToolbar, type ReaderToolPanel } from "./ReaderToolbar";
+import { ToolbarIcon } from "./ToolbarIcon";
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getDocument,
@@ -189,6 +191,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const pageSurfaceRefCallbacks = useRef(new Map<number, (node: HTMLDivElement | null) => void>());
   const textLayerRefCallbacks = useRef(new Map<number, (node: HTMLDivElement | null) => void>());
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [toolsPanel, setToolsPanel] = useState<ReaderToolPanel>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const textLayerRefs = useRef(new Map<number, TextLayer>());
   const textContentCacheRef = useRef(new Map<number, TextContent>());
@@ -261,6 +264,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
 
   const applyFullscreenState = useCallback((next: boolean) => {
     if (!next) setImmersiveFallback(false);
+    if (next) { setToolsPanel(null); setAnnotationTool(null); }
     setFullscreenControlsVisible(true);
     setFullscreen(next);
     onFullscreenChange?.(next);
@@ -1053,14 +1057,16 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!pdf) return;
+      if (!pdf || event.defaultPrevented) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "f") {
         event.preventDefault();
+        if (fullscreen) void exitFullscreen().then(() => setToolsPanel("search"));
+        else setToolsPanel("search");
         searchInputRef.current?.focus();
         searchInputRef.current?.select();
         return;
       }
-      if (event.target instanceof HTMLInputElement) return;
+      if (event.target instanceof Element && event.target.closest("input, textarea, select, button, [contenteditable=true]") && event.key !== "Escape") return;
       if (event.key === "ArrowLeft" || event.key === "PageUp") {
         event.preventDefault();
         setPage((current) => Math.max(1, current - 1));
@@ -1886,10 +1892,10 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       className={`pdf-reader ${fullscreen ? "pdf-reader-fullscreen" : ""} ${immersiveFallback ? "pdf-reader-immersive" : ""} ${fullscreen && !fullscreenControlsVisible ? "pdf-fullscreen-controls-hidden" : ""}`}
       aria-label="PDF 阅读器"
     >
-      <header className="pdf-reader-toolbar">
-        <button type="button" className="pdf-reader-close" onClick={() => void closeReader()} title="返回 Nine Rings">←</button>
-        <span className="pdf-reader-title" title={entry?.name}>{entry?.name ?? "PDF 阅读器"}</span>
-        {pdf && (
+      <ReaderToolbar
+        format="PDF" title={entry?.name ?? "PDF 阅读器"} onClose={() => void closeReader()}
+        activePanel={toolsPanel} onPanelChange={setToolsPanel} notice={actionNotice}
+        libraryActions={<>{pdf && (
           <button
             type="button"
             className={outlineOpen ? "active" : undefined}
@@ -1904,28 +1910,18 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
             onClick={() => void togglePageBookmark()}
             aria-label={currentPageBookmark ? `取消第 ${page} 页书签` : `添加第 ${page} 页书签`}
             title={currentPageBookmark ? "取消当前页书签" : "添加当前页书签"}
-          >🔖</button>
-        )}
-        {pdf && (
-          <button
-            type="button"
-            className={outlineOpen && outlineMode === "highlights" ? "active" : undefined}
-            onClick={() => {
-              setOutlineMode("highlights");
-              setOutlineOpen(true);
-            }}
-            title="查看和管理 PDF 批注"
-          >批注{highlights.length > 0 ? ` ${highlights.length}` : ""}</button>
-        )}
-        <button
+            aria-pressed={Boolean(currentPageBookmark)}
+          ><ToolbarIcon name="bookmark" /></button>
+        )}</>}
+        focusAction={<button
           type="button"
           className={fullscreen ? "pdf-fullscreen-button active" : "pdf-fullscreen-button"}
-          onClick={() => void toggleFullscreen()}
+          onClick={() => { setAnnotationTool(null); void toggleFullscreen(); }}
           aria-label={fullscreen ? "退出全屏阅读" : "进入全屏阅读"}
           title={fullscreen ? "退出全屏阅读（Esc）" : "进入全屏阅读"}
-        >{fullscreen ? "⤢" : "⛶"}</button>
-        <div className="pdf-page-controls">
-          <button type="button" onClick={() => changePage(page - 1)} disabled={!pdf || page <= 1}>‹</button>
+        >{fullscreen ? "⤢" : "⛶"}</button>}
+        navigation={<div className="pdf-page-controls">
+          <button type="button" onClick={() => changePage(page - 1)} aria-label="上一页" disabled={!pdf || page <= 1}>‹</button>
           <input
             aria-label="PDF 页码"
             inputMode="numeric"
@@ -1935,31 +1931,24 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
             onKeyDown={(event) => { if (event.key === "Enter") changePage(Number(pageInput)); }}
           />
           <span>/ {pdf?.numPages ?? "—"}</span>
-          <button type="button" onClick={() => changePage(page + 1)} disabled={!pdf || page >= pdf.numPages}>›</button>
-        </div>
-        <div className="pdf-zoom-controls">
-          <button type="button" onClick={() => { setFitWidth(false); setFitHeight(false); setZoom((value) => Math.max(0.25, value - 0.15)); }}>−</button>
+          <button type="button" onClick={() => changePage(page + 1)} aria-label="下一页" disabled={!pdf || page >= pdf.numPages}>›</button>
+        </div>}
+        appearance={<>
+          <div className="reader-tool-section"><p>缩放</p><div className="pdf-zoom-controls">
+          <button type="button" aria-label="缩小 PDF" onClick={() => { setFitWidth(false); setFitHeight(false); setZoom((value) => Math.max(0.25, value - 0.15)); }}>−</button>
           <button type="button" className={fitWidth ? "active" : undefined} onClick={() => { setFitWidth(true); setFitHeight(false); }}>适宽</button>
-          <button type="button" onClick={() => { setFitWidth(false); setFitHeight(false); setZoom((value) => Math.min(4, value + 0.15)); }}>＋</button>
-          <button type="button" className={fitHeight ? "active" : undefined} onClick={() => { setFitHeight(true); setFitWidth(false); }}>适高</button>
-          <button type="button" className={showHighlights ? "active" : undefined} onClick={() => setShowHighlights((value) => !value)} title="显示/隐藏高亮标注">
-            {showHighlights ? "隐藏高亮" : "显示高亮"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void exportAnnotatedPdf()}
-            disabled={!pdf || highlights.length === 0 || annotatedPdfExporting}
-            title="将当前高亮写入新的标准 PDF 文件"
-          >{annotatedPdfExporting ? "导出中…" : "导出标注 PDF"}</button>
-        </div>
-        <div className="pdf-view-mode-controls">
+          <button type="button" aria-label="放大 PDF" onClick={() => { setFitWidth(false); setFitHeight(false); setZoom((value) => Math.min(4, value + 0.15)); }}>＋</button>
+          <button type="button" className={fitHeight ? "active" : undefined} onClick={() => { setFitHeight(true); setFitWidth(false); }}>适高</button></div></div>
+          <div className="reader-tool-section"><p>翻页方式</p><div className="pdf-view-mode-controls">
           <button type="button" className={viewMode === "horizontal" ? "active" : undefined} onClick={() => setViewMode("horizontal")}>横向</button>
           <button type="button" className={viewMode === "vertical" ? "active" : undefined} onClick={() => {
             pendingPageNavigationRef.current = page;
             setViewMode("vertical");
           }}>纵向</button>
-        </div>
-        <div className="pdf-annotation-tools" aria-label="PDF 批注工具">
+        </div></div>
+        </>}
+        annotations={<>
+          <div className="reader-tool-section"><p>在页面上添加批注</p><div className="pdf-annotation-tools" aria-label="PDF 批注工具">
           {([
             ["freeText", "文本"],
             ["square", "矩形"],
@@ -1972,12 +1961,37 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
               type="button"
               className={annotationTool === tool ? "active" : undefined}
               aria-pressed={annotationTool === tool}
-              onClick={() => setAnnotationTool((current) => current === tool ? null : tool)}
+              onClick={() => { setAnnotationTool((current) => current === tool ? null : tool); setToolsPanel(null); }}
               title={`在页面上绘制${label}批注`}
             >{label}</button>
           ))}
-        </div>
-        <form className="pdf-search" onSubmit={(event) => { event.preventDefault(); void search(1); }}>
+        </div></div>
+          <div className="reader-tool-section"><p>管理与导出</p><div className="pdf-zoom-controls">{pdf && (
+          <button
+            type="button"
+            className={outlineOpen && outlineMode === "highlights" ? "active" : undefined}
+            onClick={() => {
+              setOutlineMode("highlights");
+              setOutlineOpen(true);
+              setToolsPanel(null);
+            }}
+            title="查看和管理 PDF 批注"
+          >批注{highlights.length > 0 ? ` ${highlights.length}` : ""}</button>
+        )}<button type="button" className={showHighlights ? "active" : undefined} onClick={() => setShowHighlights((value) => !value)} title="显示/隐藏高亮标注">
+            {showHighlights ? "隐藏高亮" : "显示高亮"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void exportAnnotatedPdf()}
+            disabled={!pdf || highlights.length === 0 || annotatedPdfExporting}
+            title="将当前高亮写入新的标准 PDF 文件"
+          >{annotatedPdfExporting ? "导出中…" : "导出标注 PDF"}</button></div></div>
+        </>}
+        activeTool={annotationTool && <>
+          <span>正在绘制：{{ freeText: "文本", square: "矩形", circle: "圆形", line: "直线", arrow: "箭头" }[annotationTool]}</span>
+          <button type="button" onClick={() => setAnnotationTool(null)}>完成批注</button>
+        </>}
+        search={<form className="pdf-search" onSubmit={(event) => { event.preventDefault(); void search(1); }}>
           <input
             ref={searchInputRef}
             type="search"
@@ -1996,9 +2010,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           />
           <button type="button" aria-label="上一个搜索结果" onClick={() => void search(-1)} disabled={!pdf || searching || !searchQuery.trim()}>↑</button>
           <button type="submit" aria-label="下一个搜索结果" disabled={!pdf || searching || !searchQuery.trim()}>↓</button>
-          {(actionNotice || searchStatus) && <span role="status" aria-live="polite">{actionNotice || searchStatus}</span>}
-        </form>
-      </header>
+          {searchStatus && <span role="status" aria-live="polite">{searchStatus}</span>}
+        </form>}
+      />
 
       <div className="pdf-reader-body">
         {outlineOpen && pdf && (
