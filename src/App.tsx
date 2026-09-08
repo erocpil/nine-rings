@@ -25,7 +25,7 @@ import { MOBILE_VIEWPORT_QUERY, useEdgeDrawer, useMobileViewport } from "./hooks
 import { useAutoSave } from "./hooks/useAutoSave";
 import { useSettings } from "./hooks/useSettings";
 import DocTree from "./components/DocTree";
-import { DocumentBrowser } from "./components/DocumentBrowser";
+import { DocumentBrowser, type DocumentBrowserSession } from "./components/DocumentBrowser";
 import { DocMOC } from "./components/DocMOC";
 import type { DeltaOps, DocumentMetadata, ExternalMarkdownSource, Note, DocType, SearchNavigationTarget } from "./types/models";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
@@ -447,6 +447,8 @@ function App() {
   const [epubReaderFullscreen, setEpubReaderFullscreen] = useState(false);
   const [overdueOpen, setOverdueOpen] = useState(false);
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
+  const documentBrowserSession = useRef<DocumentBrowserSession>({});
+  const [browserToolbarHost, setBrowserToolbarHost] = useState<HTMLDivElement | null>(null);
   const [docTreeToolbarHost, setDocTreeToolbarHost] = useState<HTMLDivElement | null>(null);
   const clock = useClockAndDateRollover(setDate);
   const [activeTag, setActiveTag] = useState<string | null>(() => localStorage.getItem(ACTIVE_TAG_KEY));
@@ -2107,11 +2109,13 @@ function App() {
           <div ref={popupPanelRef} className="doc-tree-popup" role="dialog" aria-modal="true" aria-label="文档视图" onClick={(e) => e.stopPropagation()}>
             <div className="sidebar-tabs">
               <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} />
-              <div className="doc-tree-toolbar-host" />
+              <div className="doc-tree-toolbar-host" ref={setBrowserToolbarHost} />
               <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" title="收起文档视图" aria-label="关闭文档视图" onClick={() => setDocTreePopupOpen(false)}><ToolbarIcon name="chevronLeft" /></button>
             </div>
             <div className="doc-tree-popup-body">
               <DocumentBrowser
+                session={documentBrowserSession.current}
+                toolbarHost={browserToolbarHost}
                 disabled={syncBusy}
                 initialPath={selectedFolderPath ?? ""}
                 onSelect={(note) => {

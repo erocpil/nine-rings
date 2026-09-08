@@ -61,6 +61,50 @@ async function swipeNoteEditor(
 test.describe("PWA 窄屏应用外壳", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
+  test("文档浏览保留现场，最近打开不修改文档", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+    const fixture = await page.evaluate(async () => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");
+      const { rememberRecentNote }: typeof import("../src/lib/quick-switcher") = await load("/src/lib/quick-switcher.ts");
+      let first;
+      for (let index = 0; index < 24; index++) {
+        const note = await api.notes.create({ title: `现场 ${String(index).padStart(2, "0")}`, storagePath: "projects/session", date: "2026-09-09", readonly: true, content: { ops: [{ insert: "当前完整正文\n" }] } });
+        first ??= note;
+      }
+      rememberRecentNote(first!.id);
+      return { id: first!.id, updated: first!.updated_at };
+    });
+    const open = () => swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: 100, endX: 110, endY: 100 });
+    await open();
+    const view = page.getByRole("dialog", { name: "文档视图", exact: true });
+    await expect(view.locator(".document-browser-row").first()).toContainText("现场 00");
+    await expect(view.getByRole("textbox", { name: "查找文档" })).toBeHidden();
+    await view.locator(".document-browser-row").first().click();
+    await expect(page.locator(".ProseMirror")).toContainText("当前完整正文");
+    const updated = await page.evaluate(async id => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");
+      return (await api.notes.get(id))!.updated_at;
+    }, fixture.id);
+    expect(updated).toBe(fixture.updated);
+    await open();
+    await view.getByRole("button", { name: "全部文档", exact: true }).click();
+    await view.getByRole("button", { name: "搜索文档", exact: true }).click();
+    await view.getByRole("textbox", { name: "查找文档" }).fill("现场");
+    await expect(view.locator(".document-browser-row")).toHaveCount(24);
+    await view.locator(".document-browser-list").evaluate(el => { el.scrollTop = 300; el.dispatchEvent(new Event("scroll", { bubbles: true })); });
+    await view.getByRole("button", { name: "关闭文档视图", exact: true }).click();
+    await open();
+    await expect(view.getByRole("textbox", { name: "查找文档" })).toHaveValue("现场");
+    await expect.poll(() => view.locator(".document-browser-list").evaluate(el => el.scrollTop)).toBe(300);
+    await page.setViewportSize({ width: 760, height: 390 });
+    await expect(view.getByRole("button", { name: "全部文档", exact: true })).toHaveAttribute("aria-pressed", "true");
+    expect(await view.locator(".sidebar-tabs").evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+    await expect.poll(() => view.locator(".document-browser-list").evaluate(el => el.scrollTop)).toBe(300);
+  });
+
   test("文档列表按路径筛选且只搜索元数据", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
@@ -73,8 +117,11 @@ test.describe("PWA 窄屏应用外壳", () => {
     });
     await swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: 190, endX: 110, endY: 190 });
     const view = page.getByRole("dialog", { name: "文档视图", exact: true });
+    await view.getByRole("button", { name: "全部文档", exact: true }).click();
+    await view.getByRole("button", { name: "搜索文档", exact: true }).click();
     await view.getByRole("textbox", { name: "查找文档" }).fill("列表");
     await expect(view.locator(".document-browser-row")).toHaveCount(2);
+    await view.getByRole("button", { name: "筛选", exact: true }).click();
     await view.getByLabel("筛选路径").selectOption("projects/list-test");
     await expect(view.locator(".document-browser-row")).toHaveCount(1);
     await expect(view.locator(".document-browser-row")).toContainText("列表甲");
