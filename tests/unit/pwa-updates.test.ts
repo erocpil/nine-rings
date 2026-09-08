@@ -116,11 +116,13 @@ describe("PWA update lifecycle", () => {
     registration.update.mockImplementation(async () => {
       registration.installing = worker;
       registration.dispatchEvent(new Event("updatefound"));
-      worker.dispatchEvent(new Event("error", { cancelable: true, bubbles: true }));
+      worker.dispatchEvent(
+        new Event("error", { cancelable: true, bubbles: true }),
+      );
       worker.change("redundant");
     });
 
-    await updater.check(true);
+    await updater.check();
     await settle();
 
     expect(status.error).toContain("检查更新失败");
@@ -144,6 +146,36 @@ describe("PWA update lifecycle", () => {
     expect(status.error).toBeNull();
     expect(browser.location.reload).not.toHaveBeenCalled();
   });
+
+  it.each([true, false])(
+    "keeps resource diagnostics across message/state ordering: %s",
+    async (messageFirst) => {
+      const worker = new Worker();
+      registration.installing = worker;
+      start();
+      await settle();
+      const report = () => {
+        const event = new MessageEvent("message", {
+          data: {
+            type: "PWA_INSTALL_FAILED",
+            details: "resource=/assets/missing.js status=404",
+          },
+        });
+        Object.defineProperty(event, "source", { value: worker });
+        container.dispatchEvent(event);
+      };
+      if (messageFirst) report();
+      registration.installing = null;
+      worker.change("redundant");
+      await settle();
+      if (!messageFirst) report();
+      expect(status.errorDetails).toContain("status=404");
+      await updater.check();
+      report();
+      expect(status.error).toBeNull();
+      expect(status.errorDetails).toBeNull();
+    },
+  );
 
   it("does not surface redundant installers that are not part of this tab's update attempt", async () => {
     const worker = new Worker();

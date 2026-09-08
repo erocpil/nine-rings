@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createServer, request as proxyRequest, type ServerResponse } from "node:http";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 
 // Real SW requests bypass page.route(). A tiny deploy proxy allows tests to
@@ -8,6 +8,7 @@ import type { AddressInfo } from "node:net";
 let revision = 1;
 let blockDownload = false;
 let failDownload = false;
+let transientFailures = 0;
 let serverUnavailable = false;
 let pendingDownloads: ServerResponse[] = [];
 let origin: string;
@@ -24,7 +25,9 @@ const server = createServer((req, res) => {
   }
   if (req.url?.startsWith("/__pwa-test-")) {
     if (blockDownload) { pendingDownloads.push(res); return; }
-    res.writeHead(failDownload ? 503 : 200, { "Content-Type": "application/javascript", "Cache-Control": "no-store" });
+    const fail = failDownload || transientFailures > 0;
+    if (transientFailures > 0) transientFailures--;
+    res.writeHead(fail ? 503 : 200, { "Content-Type": "application/javascript", "Cache-Control": "no-store" });
     res.end("/* deployment test marker */");
     return;
   }
@@ -56,6 +59,8 @@ async function activeVersion(page: Page) {
 test.describe.configure({ mode: "serial" });
 test.beforeAll(async () => {
   source = await readFile("dist/sw.js", "utf8");
+  const precache = JSON.parse(source.match(/const PRECACHE = (.*);/)![1]) as string[];
+  await Promise.all(precache.map((path) => access(`dist${path === "/" ? "/index.html" : path}`)));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
@@ -68,6 +73,7 @@ test.beforeEach(async ({ page }) => {
   revision = 1;
   blockDownload = false;
   failDownload = false;
+  transientFailures = 0;
   serverUnavailable = false;
   await page.goto(origin);
   await page.evaluate(() => navigator.serviceWorker.ready);
@@ -112,6 +118,9 @@ test("新版下载失败保留旧版，设置可手动检查并重试升级", as
   await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: "检查更新", exact: true }).click();
   await expect(page.locator(".settings-web-update [role=status]")).toContainText(/失败|未完成/);
+  await page.getByRole("button", { name: "查看详情", exact: true }).click();
+  await expect(page.locator(".settings-web-update")).toContainText("resource=/__pwa-test-2.js");
+  await expect(page.locator(".settings-web-update")).toContainText("status=503");
   await expect.poll(() => activeVersion(page)).toBe(1);
   failDownload = false;
   await page.getByRole("button", { name: "检查更新", exact: true }).click();
@@ -122,4 +131,14 @@ test("新版下载失败保留旧版，设置可手动检查并重试升级", as
   ]);
   await expect(page.locator(".ProseMirror")).toBeVisible();
   await expect.poll(() => activeVersion(page)).toBe(2);
+});
+
+test("新版资源短暂失败时自动重试，不需要再次点击检查", async ({ page }) => {
+  revision = 2;
+  transientFailures = 1;
+  await page.getByTitle("设置", { exact: true }).click();
+  await page.getByRole("button", { name: "检查更新", exact: true }).click();
+  await expect(page.locator(".settings-web-update [role=status]")).toContainText("新版本已就绪");
+  expect(transientFailures).toBe(0);
+  await expect.poll(() => activeVersion(page)).toBe(1);
 });

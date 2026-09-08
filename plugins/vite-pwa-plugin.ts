@@ -40,12 +40,69 @@ const CACHE_NAME = ${JSON.stringify(cacheName)};
 const PRECACHE = ${JSON.stringify(precache)};
 
 self.addEventListener("install", (event) => {
-  // A new worker must not inherit an HTTP-cached HTML shell from an older build.
-  // Keep addAll atomic: a failed download leaves the active offline version intact.
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) =>
-    cache.addAll(PRECACHE.map((url) => new Request(url, { cache: "reload" })))
-  ));
+  event.waitUntil(installVersion());
 });
+
+async function installVersion() {
+  let failure;
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    let next = 0;
+    // Bound network and CacheStorage pressure on mobile. Activation still waits
+    // for the entire version; partially downloaded versions are never served.
+    await Promise.all(Array.from({ length: 4 }, async () => {
+      while (!failure && next < PRECACHE.length) {
+        const url = PRECACHE[next++];
+        try {
+          await cacheResource(cache, url);
+        } catch (error) {
+          failure ||= error;
+        }
+      }
+    }));
+    if (failure) throw failure;
+  } catch (error) {
+    // All writers have settled before removing this failed version's cache.
+    // Never touch IndexedDB or the active version's offline cache.
+    await caches.delete(CACHE_NAME).catch(() => {});
+    const details = "build=" + ${JSON.stringify(buildId)} + " cache=" + CACHE_NAME + "\\n" + String(error);
+    try {
+      const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const client of clients) client.postMessage({ type: "PWA_INSTALL_FAILED", details });
+    } catch { /* Reporting must not mask the installation error. */ }
+    throw error;
+  }
+}
+
+async function cacheResource(cache, url) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    let stage = "download";
+    let status = "unavailable";
+    try {
+      const request = new Request(url, { cache: "reload" });
+      const response = await fetch(request, { signal: controller.signal });
+      status = response.status;
+      if (!response.ok) throw new Error("HTTP " + status);
+      // A deployment fallback must not silently cache HTML as a script/style.
+      const type = response.headers.get("content-type") || "";
+      if (/\\.(?:m?js|css)$/.test(url) && type.includes("text/html")) {
+        throw new Error("Unexpected HTML response");
+      }
+      stage = "cache-write";
+      await cache.put(request, response);
+      return;
+    } catch (error) {
+      if (attempt === 3 || stage === "cache-write") {
+        throw new Error("resource=" + url + " stage=" + stage + " status=" + status + " attempt=" + attempt + " " + String(error));
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+    await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+  }
+}
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
@@ -102,9 +159,14 @@ export default function pwaPlugin(buildId: string): Plugin {
   return {
     name: "nine-rings-pwa",
     apply: "build",
-    generateBundle(_options, bundle) {
-      const source = createServiceWorkerSource(Object.values(bundle).map((entry) => entry.fileName), buildId);
-      this.emitFile({ type: "asset", fileName: "sw.js", source });
+    generateBundle: {
+      // Vite removes pure-CSS JS chunks in its own generateBundle hook.
+      // Snapshot only after those hooks, otherwise every install hits a 404.
+      order: "post",
+      handler(_options, bundle) {
+        const source = createServiceWorkerSource(Object.values(bundle).map((entry) => entry.fileName), buildId);
+        this.emitFile({ type: "asset", fileName: "sw.js", source });
+      },
     },
   };
 }

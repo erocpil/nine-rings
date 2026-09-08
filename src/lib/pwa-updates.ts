@@ -41,6 +41,8 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
   let checking: Promise<void> | undefined;
   const cleanups = new Set<() => void>();
   const watched = new Set<ServiceWorker>();
+  const installerFailures = new WeakMap<ServiceWorker, string>();
+  let failedInstaller: ServiceWorker | null = null;
   const publish = (patch: Partial<PwaUpdateStatus>) => {
     status = { ...status, ...patch };
     if (!disposed) onStatus(status);
@@ -54,7 +56,8 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
   };
   const buildFailureDetails = (worker: ServiceWorker, summary: string) => {
     const script = worker.scriptURL;
-    return `${summary} worker=${script} state=${worker.state}`;
+    const details = installerFailures.get(worker);
+    return `${summary} worker=${script} state=${worker.state}${details ? `\n${details}` : ""}`;
   };
   const setFailure = (message: string | null, details: string | null = null) => {
     publish({
@@ -73,6 +76,18 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
       }
     });
   };
+  const onInstallMessage = (event: MessageEvent) => {
+    const worker = event.source as ServiceWorker | null;
+    if (!worker || (worker !== registration?.installing && !watched.has(worker))) return;
+    if (event.data?.type !== "PWA_INSTALL_FAILED" || typeof event.data.details !== "string") return;
+    installerFailures.set(worker, event.data.details);
+    // Message delivery and statechange are separate tasks; accept either order.
+    if (worker === failedInstaller && status.error) {
+      publish({ errorDetails: buildFailureDetails(worker, "安装失败。") });
+    }
+  };
+  navigator.serviceWorker.addEventListener("message", onInstallMessage);
+  cleanups.add(() => navigator.serviceWorker.removeEventListener("message", onInstallMessage));
   listen(navigator.serviceWorker, "controllerchange", () => {
     // First install is not an update. Other tabs can activate an update: this
     // tab still needs an explicit save + reload, never an unsolicited reload.
@@ -109,7 +124,8 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
     const changed = () => {
       if (done()) finish();
       else if (worker.state === "redundant") {
-        finish(new PwaUpdateFailure("新版安装失败，请检查网络后重试。", buildFailureDetails(worker, "安装失败。")));
+        failedInstaller = worker;
+        finish(new PwaUpdateFailure("新版安装失败，请查看安装失败详情后重试。", buildFailureDetails(worker, "安装失败。")));
       }
     };
     const timer = setTimeout(
@@ -133,6 +149,7 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
       return Promise.resolve();
     }
     lastCheck = Date.now();
+    failedInstaller = null;
     publish({ checking: true, error: null, errorDetails: null });
     checking = (async () => {
       try {
