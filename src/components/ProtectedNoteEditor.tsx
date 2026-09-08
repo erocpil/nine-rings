@@ -75,8 +75,8 @@ export function ProtectedNoteEditor({ props, render }: { props: NoteEditorProps;
     {props.onSecurityChanged && <div className="document-security-bar">
       {encrypted && <span>🔒 正文已加密</span>}
       {encrypted && <button type="button" disabled={busy} onClick={() => void run(lock)}>锁定文档</button>}
-      <button type="button" disabled={busy || props.securityDisabled} onClick={() => void manage()}>{encrypted ? "更改文档密码" : "设置文档密码"}</button>
-      {encrypted && <button type="button" disabled={busy || props.securityDisabled} onClick={() => void manage(true)}>解除文档加密</button>}
+      {!props.hideDocumentPasswordControls && <button type="button" disabled={busy || props.securityDisabled} onClick={() => void manage()}>{encrypted ? "更改文档密码" : "设置文档密码"}</button>}
+      {!props.hideDocumentPasswordControls && encrypted && <button type="button" disabled={busy || props.securityDisabled} onClick={() => void manage(true)}>解除文档加密</button>}
       {error && <span role="alert">{error}</span>}
     </div>}
     {render({ ...props, readonly: props.readonly || busy, content, sensitive: encrypted, pdfExcerptSource: content.metadata?.pdfExcerpt, epubExcerptSource: content.metadata?.epubExcerpt,

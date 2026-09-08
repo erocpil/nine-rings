@@ -416,6 +416,7 @@ function clampOutlineDockWidth(width: number): number {
 export interface NoteEditorProps {
   sensitive?: boolean;
   securityDisabled?: boolean;
+  hideDocumentPasswordControls?: boolean;
   onFlush?: () => Promise<void>;
   onSecurityChanged?: () => Promise<void>;
   onProtectionBusy?: (busy: boolean) => void;
