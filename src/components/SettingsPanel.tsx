@@ -119,6 +119,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [settingsPage, setSettingsPage] = useState<SettingsPage>("root");
   const [localRendering, setLocalRendering] = useState(readonlyRenderingEnabled);
   const [rebuildingSearchIndex, setRebuildingSearchIndex] = useState(false);
+  const [showUpdateFailureDetails, setShowUpdateFailureDetails] = useState(false);
   const [bookmarkNotes, setBookmarkNotes] = useState<Note[]>([]);
   const [bookmarksLoading, setBookmarksLoading] = useState(false);
   const [deletingBookmarkId, setDeletingBookmarkId] = useState<string | null>(null);
@@ -207,6 +208,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
       previouslyFocused?.focus();
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!webUpdate?.error) setShowUpdateFailureDetails(false);
+    else if (webUpdate?.error && !webUpdate.errorDetails) setShowUpdateFailureDetails(false);
+  }, [webUpdate?.error, webUpdate?.errorDetails]);
 
   useEffect(() => {
     if (!open || settingsPage !== "bookmarks") return;
@@ -1210,6 +1216,20 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                       <span className="settings-update-status-dot" aria-hidden="true" />
                       {getUpdateStatusText(webUpdate)}
                     </span>
+                    {webUpdate.error && webUpdate.errorDetails && (
+                      <button
+                        type="button"
+                        className="settings-update-error-details"
+                        onClick={() => setShowUpdateFailureDetails((value) => !value)}
+                      >
+                        {showUpdateFailureDetails ? "收起详情" : "查看详情"}
+                      </button>
+                    )}
+                    {showUpdateFailureDetails && webUpdate.error && webUpdate.errorDetails && (
+                      <pre className="settings-update-error-panel" role="status">
+                        {webUpdate.errorDetails}
+                      </pre>
+                    )}
                   </div>
                 )}
               </>

@@ -107,7 +107,13 @@ function syncViewportCSS() {
 
 export function useWebPlatform() {
   const [online, setOnline] = useState(() => navigator.onLine);
-  const [updateStatus, setUpdateStatus] = useState<PwaUpdateStatus>({ checking: false, available: false, checked: false, error: null });
+  const [updateStatus, setUpdateStatus] = useState<PwaUpdateStatus>({
+    checking: false,
+    available: false,
+    checked: false,
+    error: null,
+    errorDetails: null,
+  });
   const [storage, setStorage] = useState<WebStorageStatus>(EMPTY_STORAGE_STATUS);
   const updaterRef = useRef<ReturnType<typeof watchPwaUpdates> | null>(null);
 

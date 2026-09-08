@@ -108,6 +108,27 @@ describe("PWA update lifecycle", () => {
     expect(browser.location.reload).toHaveBeenCalledOnce();
   });
 
+  it("records failure details when current install fails", async () => {
+    start();
+    await settle();
+
+    const worker = new Worker();
+    registration.update.mockImplementation(async () => {
+      registration.installing = worker;
+      registration.dispatchEvent(new Event("updatefound"));
+      worker.dispatchEvent(new Event("error", { cancelable: true, bubbles: true }));
+      worker.change("redundant");
+    });
+
+    await updater.check(true);
+    await settle();
+
+    expect(status.error).toContain("检查更新失败");
+    expect(status.errorDetails).toContain("安装失败");
+    expect(status.errorDetails).toContain("worker=");
+    expect(status.errorDetails).toContain("state=redundant");
+  });
+
   it("reports installation failure and retries on reconnect without clearing data", async () => {
     const worker = new Worker();
     registration.installing = worker;

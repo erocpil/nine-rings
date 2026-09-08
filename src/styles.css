@@ -3375,6 +3375,32 @@ body {
   color: var(--text-secondary);
 }
 
+.settings-update-error-details {
+  border: 1px dashed var(--border);
+  background: color-mix(in srgb, var(--surface) 90%, var(--bg));
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  min-height: 30px;
+}
+
+.settings-update-error-panel {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  background: color-mix(in srgb, var(--surface) 90%, var(--bg));
+  border: 1px dashed var(--danger);
+  border-radius: var(--radius);
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 1.4;
+  max-height: 220px;
+  overflow: auto;
+}
+
 /* ── 字段 ── */
 
 .settings-field {
