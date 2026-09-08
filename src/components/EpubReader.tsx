@@ -1308,11 +1308,11 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
           <aside className="pdf-outline epub-outline" aria-label="EPUB 目录">
             <div className="pdf-outline-heading">
               <strong>目录</strong>
-              <span className="epub-outline-progress">第 {chapter + 1} / {book.chapters.length} 章</span>
-            </div>
-            <div className="epub-outline-actions">
-              <button type="button" aria-label="展开全部 EPUB 目录" disabled={collapsibleTocItems.size === 0} onClick={() => setCollapsedTocItems(new Set())}>全部展开</button>
-              <button type="button" aria-label="折叠全部 EPUB 目录" disabled={collapsibleTocItems.size === 0} onClick={() => setCollapsedTocItems(new Set(collapsibleTocItems))}>全部折叠</button>
+              <div className="epub-outline-actions">
+                <span className="epub-outline-progress">第 {chapter + 1} / {book.chapters.length} 章</span>
+                <button type="button" title="展开全部 EPUB 目录" aria-label="展开全部 EPUB 目录" disabled={collapsibleTocItems.size === 0} onClick={() => setCollapsedTocItems(new Set())}>＋</button>
+                <button type="button" title="折叠全部 EPUB 目录" aria-label="折叠全部 EPUB 目录" disabled={collapsibleTocItems.size === 0} onClick={() => setCollapsedTocItems(new Set(collapsibleTocItems))}>−</button>
+              </div>
             </div>
             <div className="pdf-outline-list">
               {renderTocItems(tocTree)}

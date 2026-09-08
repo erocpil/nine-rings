@@ -16,8 +16,13 @@ for (const width of [320, 390, 1200]) {
     const reader = page.getByRole("region", { name: "EPUB 阅读器", exact: true });
     const trigger = page.getByRole("button", { name: "打开 EPUB 书签", exact: true });
     const panel = page.getByRole("dialog", { name: "EPUB 书签", exact: true });
-    await expect(page.getByRole("button", { name: "展开全部 EPUB 目录" })).toHaveText("全部展开");
-    await expect(page.getByRole("button", { name: "折叠全部 EPUB 目录" })).toHaveText("全部折叠");
+    await expect(page.getByRole("button", { name: "展开全部 EPUB 目录" })).toHaveText("＋");
+    await expect(page.getByRole("button", { name: "折叠全部 EPUB 目录" })).toHaveText("−");
+    const toc = page.getByRole("complementary", { name: "EPUB 目录", exact: true });
+    await toc.getByRole("button", { name: "折叠全部 EPUB 目录" }).click();
+    await expect(toc.getByRole("button", { name: "继续阅读", exact: true })).toBeHidden();
+    await toc.getByRole("button", { name: "展开全部 EPUB 目录" }).click();
+    await expect(toc.getByRole("button", { name: "继续阅读", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "EPUB 高亮与备注", exact: true }).click();
     await expect(page.getByText("还没有高亮，选中正文文字后可添加高亮和备注。")).toBeVisible();
     await trigger.click();

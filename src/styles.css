@@ -10849,7 +10849,7 @@ button.doc-tree-toggle:focus-visible {
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 0 12px 8px;
+  padding: 0;
 }
 
 .epub-outline-progress {
