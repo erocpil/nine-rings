@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./helpers/reader-test";
 import { createEpubFixture } from "./helpers/reader-fixtures";
 import { strToU8, unzipSync, zipSync } from "fflate";
 

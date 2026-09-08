@@ -1,10 +1,63 @@
-import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./helpers/reader-test";
 
 test.use({ hasTouch: true });
 
 import { createEpubFixture } from "./helpers/reader-fixtures";
 
-test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page }) => {
+async function openFocusReader(page: Page) {
+  await page.goto("/");
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^阅读资料库/ }).click();
+  await page.locator('input[type="file"][accept="application/epub+zip,.epub"]').setInputFiles({
+    name: "focus-controls.epub", mimeType: "application/epub+zip", buffer: createEpubFixture(),
+  });
+  const frame = page.locator(".epub-chapter-frame").contentFrame();
+  await expect(frame.getByRole("heading", { name: "第一章" })).toBeVisible();
+  await page.getByRole("button", { name: "进入 EPUB 专注模式" }).click();
+  await expect(page.locator(".epub-bottom-navigation")).toBeHidden();
+  return frame;
+}
+
+test("EPUB 专注模式连续显隐不会遗留计时器提前隐藏按钮", async ({ page }) => {
+  const frame = await openFocusReader(page);
+  await page.clock.install();
+  await page.clock.pauseAt(new Date());
+  const navigation = page.locator(".epub-bottom-navigation");
+  for (let cycle = 0; cycle < 2; cycle++) {
+    await frame.locator("body").dispatchEvent("click");
+    await expect(navigation).toBeVisible();
+    await page.clock.runFor(200);
+    await frame.locator("body").dispatchEvent("click");
+    await expect(navigation).toBeHidden();
+    await page.clock.runFor(200);
+    await frame.locator("body").dispatchEvent("click");
+    await expect(navigation).toBeVisible();
+    await page.clock.runFor(650);
+    // The first reveal's deadline has passed; the latest reveal still owns 350ms.
+    await expect(navigation).toBeVisible();
+    await page.clock.runFor(350);
+    await expect(navigation).toBeHidden();
+  }
+});
+
+test("EPUB 专注模式 pointer 手势后的兼容 click 不重复切换，快速点按仍有效", async ({ page }) => {
+  const frame = await openFocusReader(page);
+  const tap = () => frame.locator("body").evaluate((body) => {
+    for (const type of ["pointerdown", "pointerup"]) {
+      body.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerType: "touch", isPrimary: true, clientX: 80, clientY: 160 }));
+    }
+    body.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 80, clientY: 160 }));
+  });
+  await tap();
+  await expect(page.locator(".epub-bottom-navigation")).toBeVisible();
+  await tap();
+  await expect(page.locator(".epub-bottom-navigation")).toBeHidden();
+  await tap();
+  await expect(page.locator(".epub-bottom-navigation")).toBeVisible();
+});
+
+test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page, browserName }) => {
   test.setTimeout(60_000);
   await page.goto("/");
   await page.getByTitle("设置").click();
@@ -243,9 +296,26 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(page.locator(".epub-focus-exit")).toBeHidden();
   const frameBox = await page.locator(".epub-chapter-frame").boundingBox();
   if (!frameBox) throw new Error("EPUB frame is not visible");
-  const cdp = await page.context().newCDPSession(page);
+  const cdp = browserName === "chromium" ? await page.context().newCDPSession(page) : null;
   const dispatchSwipe = async (fromX: number, toX: number) => {
     const y = frameBox.y + frameBox.height / 2;
+    if (!cdp) {
+      // WebKit has no CDP touch injection or constructible Touch object.
+      // Exercise the iframe bridge with the same touch fields; Chromium below
+      // retains native touch routing across the iframe boundary.
+      await chapterFrame.locator("body").evaluate((body, { fromX, toX, y }) => {
+        for (const [type, x] of [["touchstart", fromX], ["touchmove", toX], ["touchend", toX]] as const) {
+          const touch = { identifier: 1, target: body, clientX: x, clientY: y };
+          const event = new Event(type, { bubbles: true, cancelable: true });
+          Object.defineProperties(event, {
+            touches: { value: type === "touchend" ? [] : [touch] },
+            changedTouches: { value: [touch] },
+          });
+          body.dispatchEvent(event);
+        }
+      }, { fromX: fromX - frameBox.x, toX: toX - frameBox.x, y: y - frameBox.y });
+      return;
+    }
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: fromX, y }] });
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: (fromX + toX) / 2, y: y + 2 }] });
     await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: toX, y: y + 3 }] });
@@ -255,6 +325,7 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page 
   await expect(chapterFrame.getByRole("heading", { name: "第一章" })).toBeVisible();
   await dispatchSwipe(frameBox.x + frameBox.width - 70, frameBox.x + 70);
   await expect(chapterFrame.getByRole("heading", { name: "第二章" })).toBeVisible();
+  await cdp?.detach();
   await page.touchscreen.tap(frameBox.x + frameBox.width / 2, frameBox.y + frameBox.height / 2);
   await expect(page.locator(".epub-bottom-navigation")).toBeVisible();
   await expect(page.locator(".epub-focus-exit")).toBeVisible();

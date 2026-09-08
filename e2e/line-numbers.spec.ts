@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { createBlankNote } from "./helpers/editor-fixtures";
 
 async function openEditorSettings(page: Page) {
   await page.getByTitle("设置").click();
@@ -8,12 +9,7 @@ async function openEditorSettings(page: Page) {
 
 test.describe("编辑器块级 gutter", () => {
   test("Alt-G 可按稳定块编号跳转且不挤压正文", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-
-    const editor = page.locator(".ProseMirror");
+    const editor = await createBlankNote(page);
     await editor.fill(Array.from({ length: 36 }, (_, index) => `第 ${index + 1} 块`).join("\n"));
     const editorTopBefore = await editor.evaluate((element) => element.getBoundingClientRect().top);
     await editor.press("Alt+g");
@@ -44,14 +40,38 @@ test.describe("编辑器块级 gutter", () => {
     await expect(jumpInput).toHaveCount(0);
   });
 
+  for (const readonly of [false, true]) {
+    test(`块号输入后立即确认会同步 DOM 光标和模型选区（${readonly ? "只读" : "编辑"}）`, async ({ page }) => {
+      const editor = await createBlankNote(page);
+      await editor.fill(Array.from({ length: 36 }, (_, index) => `第 ${index + 1} 块`).join("\n"));
+      if (readonly) {
+        await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+        await expect(editor).toHaveAttribute("contenteditable", "false");
+      }
+      await editor.press("Alt+g");
+      const jumpInput = page.getByRole("dialog", { name: "跳转行号" }).getByLabel("跳转到行号");
+      // Confirm within the same event turn, while native selection updates
+      // from the input may still be pending.
+      await jumpInput.evaluate((input: HTMLInputElement) => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "30");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+      });
+      await expect(jumpInput).toHaveCount(0);
+      await expect(editor).toBeFocused();
+      if (!readonly) {
+        await expect.poll(() => editor.evaluate(() => {
+          const anchor = window.getSelection()?.anchorNode;
+          return anchor?.parentElement?.closest("p")?.textContent ?? "";
+        })).toBe("第 30 块");
+      }
+      await expect(page.locator(".editor-status-block")).toHaveText("块 30 / 36");
+      await expect.poll(() => page.locator(".note-editor-scroll").evaluate(el => el.scrollTop)).toBeGreaterThan(100);
+    });
+  }
+
   test("只读文档仍显示块编号，但不显示插入按钮", async ({ page }) => {
-    await page.goto("/");
-
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-
-    const editor = page.locator(".ProseMirror");
+    const editor = await createBlankNote(page);
     await editor.fill("第一行");
     await editor.press("End");
     await editor.press("Enter");
@@ -83,12 +103,7 @@ test.describe("编辑器块级 gutter", () => {
   });
 
   test("悬停块编号会在原位置显示块格式", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-
-    const editor = page.locator(".ProseMirror");
+    const editor = await createBlankNote(page);
     await editor.fill("三级标题");
     await editor.press("Control+Alt+3");
     await editor.press("End");
@@ -164,12 +179,7 @@ test.describe("编辑器块级 gutter", () => {
   });
 
   test("长代码块的主块号固定对齐代码首行而不是块中部", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-
-    const editor = page.locator(".ProseMirror");
+    const editor = await createBlankNote(page);
     await editor.fill("first line");
     await page.getByTitle("代码块 (Ctrl+Alt+C)", { exact: true }).click();
     for (let index = 2; index <= 12; index += 1) {
@@ -217,12 +227,7 @@ test.describe("编辑器块级 gutter", () => {
   });
 
   test("只有明确的加号按钮会插入段落", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-
-    const editor = page.locator(".ProseMirror");
+    const editor = await createBlankNote(page);
     await editor.fill("第一块\n第二块");
     await expect(editor.locator(":scope > p")).toHaveCount(2);
 
@@ -256,12 +261,7 @@ test.describe("编辑器块级 gutter", () => {
   });
 
   test("分割线后的插入按钮位于分割线与下一块之间", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-
-    const editor = page.locator(".ProseMirror");
+    const editor = await createBlankNote(page);
     await editor.fill("第一块");
     await editor.press("End");
     await editor.press("Enter");
@@ -288,12 +288,7 @@ test.describe("编辑器块级 gutter", () => {
   });
 
   test("有序与无序列表缩进在块号开关前后保持稳定", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-
-    const editor = page.locator(".ProseMirror");
+    const editor = await createBlankNote(page);
     const markdown = "正文\n\n- 无序项目\n\n1. 有序项目";
     await editor.evaluate((element, text) => {
       const clipboardData = new DataTransfer();
@@ -399,12 +394,7 @@ test.describe("编辑器块级 gutter", () => {
   });
 
   test("多位有序编号按右沿对齐且不侵入块号沟槽", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-
-    const editor = page.locator(".ProseMirror");
+    const editor = await createBlankNote(page);
     const markdown = Array.from({ length: 105 }, (_, index) => `${index + 1}. 项目 ${index + 1}`)
       .join("\n");
     await editor.evaluate((element, text) => {
@@ -469,12 +459,7 @@ test.describe("编辑器块级 gutter", () => {
   });
 
   test("状态栏块号跟随光标并可独立关闭", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-
-    const editor = page.locator(".ProseMirror");
+    const editor = await createBlankNote(page);
     await editor.fill("第一块\n第二块\n第三块");
     await editor.locator(":scope > p").nth(1).click();
     await expect(page.locator(".editor-status-block")).toHaveText("块 2 / 3");

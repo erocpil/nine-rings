@@ -1,5 +1,25 @@
 import { expect, test, type Locator } from "@playwright/test";
 
+async function createOutlineFixture(page: import("@playwright/test").Page, title: string) {
+  await page.goto("/");
+  const editor = page.locator(".ProseMirror");
+  await expect(editor).toBeVisible();
+  await page.evaluate(async (title) => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");
+    const { useNotesStore }: typeof import("../src/stores/useNotesStore") = await load("/src/stores/useNotesStore.ts");
+    const note = await api.notes.create({
+      title: "目录布局验证", date: useNotesStore.getState().currentDate,
+      content: { ops: [{ insert: title }, { insert: "\n", attributes: { header: 2 } }, { insert: "目录追加起点\n" }] },
+    });
+    useNotesStore.getState().selectNote(note);
+  }, title);
+  await expect(page.locator(".note-title")).toHaveValue("目录布局验证");
+  await expect(editor.locator(":scope > h2")).toHaveText(title);
+  await expect(editor.locator(":scope > p")).toHaveText("目录追加起点");
+  return editor;
+}
+
 async function swipeNoteEditor(
   editor: Locator,
   points: {
@@ -152,7 +172,7 @@ test.describe("PWA 窄屏应用外壳", () => {
   });
 
   test("目录快速滚动按钮显隐不改变标题栏高度", async ({ page }) => {
-    await page.goto("/");
+    const editor = await createOutlineFixture(page, "目录测试");
     const outlineButton = page.getByTitle("文档目录");
     await outlineButton.click();
     const outline = page.getByRole("navigation", { name: "文档目录" });
@@ -162,14 +182,15 @@ test.describe("PWA 窄屏应用外壳", () => {
     );
     await outlineButton.click();
 
-    const editor = page.locator(".ProseMirror");
-    const initialHeadingCount = await editor.locator("h1, h2, h3, h4, h5, h6").count();
+    const initialHeadingCount = 1;
     const extraOutline = Array.from(
       { length: 160 },
       (_, index) => `## 性能章节 ${index + 1}\n\n章节正文 ${index + 1}`,
     ).join("\n\n");
-    await editor.click();
-    await editor.press("Control+End");
+    // Do not click the middle of the welcome note: the caret may land inside
+    // a nested quote/table instead of a top-level paragraph on a slow runner.
+    await editor.locator(":scope > p").last().click();
+    await editor.press("End");
     await editor.evaluate((element, markdown) => {
       const clipboardData = new DataTransfer();
       clipboardData.setData("text/plain", markdown);
@@ -202,13 +223,12 @@ test.describe("PWA 窄屏应用外壳", () => {
   });
 
   test("手机目录长标题最多显示两行，点击入口保持浮层宽度", async ({ page }) => {
-    await page.goto("/");
-    const editor = page.locator(".ProseMirror");
     const longTitle = "这是一个用于验证手机目录能够尽量完整显示内容而不会过早截断的很长章节标题并继续补充足够多的文字验证第二行显示效果";
-    await editor.fill(longTitle);
+    const editor = await createOutlineFixture(page, longTitle);
     const longHeading = editor.locator("h1, h2, h3, h4, h5, h6").filter({ hasText: longTitle });
     await expect(longHeading).toBeVisible();
-    await editor.press("Control+End");
+    await editor.locator(":scope > p").last().click();
+    await editor.press("End");
     await editor.evaluate((element) => {
       const markdown = Array.from({ length: 105 }, (_, index) => `## 短章节 ${index + 1}\n\n正文 ${index + 1}`)
         .join("\n\n");
@@ -232,6 +252,9 @@ test.describe("PWA 窄屏应用外壳", () => {
       const text = item.querySelector<HTMLElement>(".document-outline-text")!;
       return {
         width: panel.getBoundingClientRect().width,
+        hostWidth: panel.parentElement!.clientWidth,
+        center: panel.getBoundingClientRect().x + panel.getBoundingClientRect().width / 2,
+        hostCenter: panel.parentElement!.getBoundingClientRect().x + panel.parentElement!.getBoundingClientRect().width / 2,
         itemHeight: item.getBoundingClientRect().height,
         textWidth: text.getBoundingClientRect().width,
         textHeight: text.getBoundingClientRect().height,
@@ -241,7 +264,10 @@ test.describe("PWA 窄屏应用外壳", () => {
         lineClamp: getComputedStyle(text).webkitLineClamp,
       };
     });
-    expect(normalGeometry.width).toBeGreaterThanOrEqual(370);
+    // Floating panels are centered within the editor with 8px on each side,
+    // not sized to the viewport (which also includes the editor's outer gap).
+    expect(normalGeometry.width).toBeCloseTo(Math.min(420, normalGeometry.hostWidth - 16), 0);
+    expect(normalGeometry.center).toBeCloseTo(normalGeometry.hostCenter, 0);
     // WebKit 的行高取整可能让两行条目恰好为 38px，按实际文字行高验证换行。
     expect(normalGeometry.textHeight).toBeGreaterThan(normalGeometry.lineHeight * 1.5);
     expect(normalGeometry.textHeight).toBeLessThanOrEqual(normalGeometry.lineHeight * 2 + 1);
@@ -254,7 +280,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     const focusOutlineButton = page.getByLabel("专注模式工具栏").getByTitle("文档目录");
     await focusOutlineButton.click();
     const focusWidth = await outline.evaluate((panel) => panel.getBoundingClientRect().width);
-    expect(focusWidth).toBeCloseTo(normalGeometry.width, 1);
+    expect(focusWidth).toBeCloseTo(Math.min(420, page.viewportSize()!.width - 16), 0);
   });
 
   test("普通模式目录与书签按钮等高且垂直对齐", async ({ page }) => {

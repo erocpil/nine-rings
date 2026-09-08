@@ -69,10 +69,23 @@ test.describe("编辑器复制粘贴", () => {
         selection.removeAllRanges();
         selection.addRange(range);
       });
+      if (mode === "原生") {
+        // Copy is asynchronous: the clipboard can still expose a previous
+        // plain-text-only item while the native rich write is in flight.
+        await page.evaluate(async () => {
+          await navigator.clipboard.writeText("复制完成前的旧内容");
+          const write = navigator.clipboard.write.bind(navigator.clipboard);
+          Object.defineProperty(navigator.clipboard, "write", { configurable: true, value: async (items: ClipboardItem[]) => {
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            return write(items);
+          } });
+        });
+      }
       await page.getByTitle("复制 (Ctrl+C)").click();
       await expect.poll(() => page.evaluate(async () => {
         const items = await navigator.clipboard.read();
-        return (await items[0].getType("text/html")).text();
+        const html = items.find((item) => item.types.includes("text/html"));
+        return html ? (await html.getType("text/html")).text() : "";
       })).toContain("data-pm-slice");
       await page.getByTitle("粘贴 (Ctrl+V)").click();
       await expect(editor.locator(":scope > p")).toHaveCount(1);

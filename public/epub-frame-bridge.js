@@ -4,8 +4,7 @@
   const MESSAGE_TYPE = "nine-rings:epub-frame";
   let touchStart = null;
   let pointerStart = null;
-  let lastTouchStart = 0;
-  let lastTouchEnd = 0;
+  let suppressCompatClickUntil = 0;
 
   const post = (action) => {
     window.parent.postMessage({ type: MESSAGE_TYPE, action }, "*");
@@ -30,7 +29,6 @@
   };
 
   document.addEventListener("touchstart", (event) => {
-    lastTouchStart = Date.now();
     pointerStart = null;
     if (event.touches.length !== 1) {
       touchStart = null;
@@ -52,7 +50,7 @@
     const start = touchStart;
     touchStart = null;
     if (!start || event.changedTouches.length !== 1) return;
-    lastTouchEnd = Date.now();
+    suppressCompatClickUntil = Date.now() + 500;
     const touch = event.changedTouches[0];
     finish(start, touch.clientX, touch.clientY);
   }, { passive: true, capture: true });
@@ -61,17 +59,23 @@
     touchStart = null;
   }, { passive: true, capture: true });
 
-  // 部分 Android WebView 只提供 Pointer Events；iOS 同时提供两套事件时，
-  // touchend 后的时间门限会阻止同一次手势被处理两次。
+  // Touch events own a gesture when available. Pointer-only WebViews must
+  // also suppress the compatibility click, without blocking the next gesture.
   document.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse") {
+      suppressCompatClickUntil = 0;
+      return;
+    }
     if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+    if (touchStart) return;
     pointerStart = { x: event.clientX, y: event.clientY, time: Date.now() };
   }, { passive: true, capture: true });
 
   document.addEventListener("pointerup", (event) => {
     const start = pointerStart;
     pointerStart = null;
-    if (!start || Date.now() - lastTouchStart < 1200 || Date.now() - lastTouchEnd < 120) return;
+    if (!start || touchStart) return;
+    suppressCompatClickUntil = Date.now() + 500;
     finish(start, event.clientX, event.clientY);
   }, { passive: true, capture: true });
 
@@ -80,7 +84,11 @@
   }, { passive: true, capture: true });
 
   document.addEventListener("click", () => {
-    if (Date.now() - lastTouchEnd > 500 && !hasSelection()) post("tap");
+    if (Date.now() <= suppressCompatClickUntil) {
+      suppressCompatClickUntil = 0;
+      return;
+    }
+    if (!hasSelection()) post("tap");
   }, { passive: true, capture: true });
 
   const ready = () => post("ready");

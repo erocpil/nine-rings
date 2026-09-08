@@ -81,6 +81,9 @@ for (const width of [390, 1280]) {
     await expect(page.locator(".save-status-saved")).toBeVisible();
 
     await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+    // The button awaits an IndexedDB write; click completion alone does not
+    // mean the readonly flag has persisted before navigation tears down the page.
+    await expect(editor).toHaveAttribute("contenteditable", "false");
     await page.reload();
     await expect(page.locator(".ProseMirror")).toHaveAttribute("contenteditable", "false");
     await expect(page.locator(".resizable-image-wrapper img")).toBeVisible();

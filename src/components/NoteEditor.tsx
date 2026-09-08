@@ -1707,7 +1707,11 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
     expandHeadingFoldsAt(editor, resolved.pos);
     const selection = TextSelection.near(resolved, 1);
     editor.view.dispatch(editor.state.tr.setSelection(selection));
-    editor.view.dom.focus({ preventScroll: true });
+    // Synchronize the browser caret with the model when leaving the input.
+    // Native DOM focus alone may restore the old caret during selectionchange.
+    // ProseMirror does not focus a non-editable DOM node on its own.
+    if (!editor.isEditable) editor.view.dom.focus({ preventScroll: true });
+    editor.view.focus();
     closeLineJump();
 
     requestAnimationFrame(() => {

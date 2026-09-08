@@ -432,6 +432,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const registryRef = useRef<ReturnType<typeof createResourceRegistry> | null>(null);
   const scrollSaveTimerRef = useRef<number | null>(null);
   const focusControlsTimerRef = useRef<number | null>(null);
+  const focusControlsVisibleRef = useRef(false);
   const themeLongPressTimerRef = useRef<number | null>(null);
   const themeLongPressTriggeredRef = useRef(false);
   const swipeNoticeTimerRef = useRef<number | null>(null);
@@ -481,32 +482,25 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const hideFocusControls = useCallback(() => {
     if (focusControlsTimerRef.current !== null) window.clearTimeout(focusControlsTimerRef.current);
     focusControlsTimerRef.current = null;
+    focusControlsVisibleRef.current = false;
     setFocusControlsVisible(false);
   }, []);
 
   const showFocusControls = useCallback(() => {
     if (!fullscreenRef.current) return;
     if (focusControlsTimerRef.current !== null) window.clearTimeout(focusControlsTimerRef.current);
+    focusControlsVisibleRef.current = true;
     setFocusControlsVisible(true);
-    focusControlsTimerRef.current = window.setTimeout(() => {
-      focusControlsTimerRef.current = null;
-      setFocusControlsVisible(false);
-    }, 1000);
-  }, []);
+    focusControlsTimerRef.current = window.setTimeout(hideFocusControls, 1000);
+  }, [hideFocusControls]);
 
   const toggleFocusControls = useCallback(() => {
     if (!fullscreenRef.current) return;
-    if (focusControlsTimerRef.current !== null) window.clearTimeout(focusControlsTimerRef.current);
-    focusControlsTimerRef.current = null;
-    setFocusControlsVisible((visible) => {
-      if (visible) return false;
-      focusControlsTimerRef.current = window.setTimeout(() => {
-        focusControlsTimerRef.current = null;
-        setFocusControlsVisible(false);
-      }, 1000);
-      return true;
-    });
-  }, []);
+    // State updaters may run twice in StrictMode. Keep timer side effects in
+    // the event handler, with one synchronous visibility source for rapid taps.
+    if (focusControlsVisibleRef.current) hideFocusControls();
+    else showFocusControls();
+  }, [hideFocusControls, showFocusControls]);
 
   useEffect(() => {
     let cancelled = false;
