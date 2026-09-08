@@ -61,6 +61,26 @@ async function swipeNoteEditor(
 test.describe("PWA 窄屏应用外壳", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
+  test("切换文档视图时数量保持在筛选按钮左侧", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+    await swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: 100, endX: 110, endY: 100 });
+    const view = page.getByRole("dialog", { name: "文档视图", exact: true });
+    for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
+      await page.setViewportSize(viewport);
+      for (const name of ["最近打开", "全部文档", "收藏"]) {
+        await view.getByRole("button", { name, exact: true }).click();
+        const count = view.locator(".document-browser-count");
+        await expect(count).toHaveText(/^\d+$/);
+        const countBox = (await count.boundingBox())!;
+        const filterBox = (await view.getByRole("button", { name: "筛选", exact: true }).boundingBox())!;
+        const tabsBox = (await view.locator(".document-browser-tabs").boundingBox())!;
+        expect(filterBox.x - countBox.x - countBox.width).toBeCloseTo(4, 0);
+        expect(filterBox.x + filterBox.width).toBeCloseTo(tabsBox.x + tabsBox.width, 0);
+      }
+    }
+  });
+
   test("文档列表支持组合关键词和可清除的类型筛选", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
@@ -78,9 +98,28 @@ test.describe("PWA 窄屏应用外壳", () => {
     await view.getByRole("textbox", { name: "查找文档", exact: true }).fill("检索 network work");
     await expect(view.locator(".document-browser-row")).toHaveCount(2);
     await view.getByRole("button", { name: "筛选", exact: true }).click();
+    const styles = await view.locator(".document-browser-filter-control").evaluateAll(elements => elements.map(element => {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      const text = element.querySelector("span")!.getBoundingClientRect();
+      return { width: rect.width, height: rect.height, background: style.backgroundColor, font: style.fontSize, padding: style.padding, textOffset: text.x - rect.x };
+    }));
+    expect(styles).toHaveLength(2);
+    expect(styles[0]).toEqual(styles[1]);
     await view.getByLabel("文档类型筛选").selectOption("reference");
+    await expect(view.locator(".document-browser-type-trigger > span")).toHaveText("参考");
     await expect(view.locator(".document-browser-row")).toHaveCount(1);
     await expect(view.locator(".document-browser-row")).toContainText("reference");
+    await view.getByRole("checkbox", { name: "显示标签和修改时间", exact: true }).check();
+    const modified = view.locator(".document-browser-modified");
+    await expect(modified).toHaveText(/修改于 \d{4}\/\d{2}\/\d{2} \d{2}:\d{2}/);
+    for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
+      await page.setViewportSize(viewport);
+      await expect(modified).toBeVisible();
+      const timeBox = (await modified.boundingBox())!;
+      const starBox = (await view.locator(".document-browser-favorite").boundingBox())!;
+      expect(timeBox.x + timeBox.width).toBeLessThanOrEqual(starBox.x + 1);
+    }
     await view.getByRole("button", { name: "筛选", exact: true }).click();
     await expect(view.getByRole("button", { name: "清除类型筛选", exact: true })).toBeVisible();
     await view.getByRole("button", { name: "清除类型筛选", exact: true }).click();

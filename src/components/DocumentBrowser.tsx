@@ -6,6 +6,7 @@ import { readDocumentFavorites, toggleDocumentFavorite } from "../lib/document-f
 import type { DocType, Note } from "../types/models";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { DocumentPathPicker } from "./DocumentPathPicker";
+import { documentModifiedTime } from "../lib/document-modified-time";
 import "./DocumentBrowser.css";
 
 const DOCUMENT_TYPES: Record<DocType, string> = { explanation: "解释", "how-to": "指南", reference: "参考", tutorial: "教程" };
@@ -131,15 +132,18 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
       </div>
       {searchOpen && <input ref={searchRef} aria-label="查找文档" placeholder="查找标题、路径、标签或概念" value={query} onChange={event => { setQuery(event.target.value); resetScroll(); }} />}
       {filtersOpen && <div className="document-browser-filters">
-        <button className="document-browser-path-trigger" aria-label="筛选路径" onClick={() => setPathPickerOpen(true)}><ToolbarIcon name="folder" /><span>{path || "全部路径"}</span><ToolbarIcon name="chevronRight" /></button>
-        <label>类型<select aria-label="文档类型筛选" value={docType} onChange={event => { setDocType(event.target.value as DocType | ""); resetScroll(); }}>
+        <button className="document-browser-filter-control document-browser-path-trigger" aria-label="筛选路径" onClick={() => setPathPickerOpen(true)}><ToolbarIcon name="folder" /><span>{path || "全部路径"}</span><ToolbarIcon name="chevronRight" /></button>
+        <div className="document-browser-filter-control document-browser-type-trigger">
+          <ToolbarIcon name="document" /><span aria-hidden="true">{docType ? DOCUMENT_TYPES[docType] : "全部类型"}</span><ToolbarIcon name="chevronRight" />
+          <select className="document-browser-native-select" aria-label="文档类型筛选" value={docType} onChange={event => { setDocType(event.target.value as DocType | ""); resetScroll(); }}>
           <option value="">全部类型</option>
           {Object.entries(DOCUMENT_TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select></label>
+          </select>
+        </div>
         {view !== "recent" && <label>排序<select aria-label="文档排序" value={sort} onChange={event => { setSort(event.target.value); resetScroll(); }}>
           <option value="updated">最近修改</option><option value="title">标题排序</option>
         </select></label>}
-        <label><input type="checkbox" checked={showDetails} onChange={event => setShowDetails(event.target.checked)} />显示标签和修改日期</label>
+        <label><input type="checkbox" checked={showDetails} onChange={event => setShowDetails(event.target.checked)} />显示标签和修改时间</label>
       </div>}
       {path && <button className="document-browser-path-filter" title={path} aria-label={`清除路径筛选 ${path}`} onClick={() => { setPath(""); resetScroll(); }}>{path}<ToolbarIcon name="close" /></button>}
       {docType && <button className="document-browser-type-filter" aria-label="清除类型筛选" onClick={() => { setDocType(""); resetScroll(); }}>{DOCUMENT_TYPES[docType]}<ToolbarIcon name="close" /></button>}
@@ -177,8 +181,8 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
           {note.storagePath !== path && <span className="document-browser-path" title={note.storagePath}>{(path ? note.storagePath?.slice(path.length + 1) : note.storagePath?.split("/").slice(-2).join(" / ")) || "未分类"}</span>}
           {showDetails && note.tags.length > 0 && <span className="document-browser-tags">{note.tags.map(tag => <span key={tag}>{tag}</span>)}</span>}
           {showDetails && note.docType && <span className="document-browser-path">{DOCUMENT_TYPES[note.docType]}</span>}
+          {showDetails && <ModifiedTime value={note.updated_at} />}
         </span>
-        {showDetails && <time dateTime={note.updated_at} title={new Date(note.updated_at).toLocaleString()}>{new Date(note.updated_at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })}</time>}
         </button>
         <button className="document-browser-favorite" aria-label={`${favorites.includes(note.id) ? "取消收藏" : "收藏文档"} ${note.title || "未命名文档"}`}
           aria-pressed={favorites.includes(note.id)} disabled={disabled || opening} onClick={() => {
@@ -188,4 +192,9 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
       </div>)}
     </div>
   </section>;
+}
+
+function ModifiedTime({ value }: { value: string }) {
+  const { label, dateTime } = documentModifiedTime(value);
+  return <time className="document-browser-modified" dateTime={dateTime}>{label}</time>;
 }
