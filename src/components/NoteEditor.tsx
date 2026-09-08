@@ -46,6 +46,7 @@ import {
 import { EditorBlockGutter } from "./EditorBlockGutter";
 import { DocumentOutlineList, type VisibleOutlineEntry } from "./DocumentOutlineList";
 import { EditorToolbarContents } from "./EditorToolbarContents";
+import { createReplacementTransaction } from "../lib/editor-replace";
 import { EditorContextMenu } from "./EditorContextMenu";
 import { EditorInsertDialogs } from "./EditorInsertDialogs";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
@@ -620,6 +621,16 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
   const [activeSearchMatch, setActiveSearchMatch] = useState(0);
   const [editorFindOpen, setEditorFindOpen] = useState(false);
   const [editorFindQuery, setEditorFindQuery] = useState("");
+  const [editorReplaceOpen, setEditorReplaceOpen] = useState(false);
+  const [editorReplaceValue, setEditorReplaceValue] = useState("");
+  const [editorReplaceMessage, setEditorReplaceMessage] = useState("");
+  useEffect(() => {
+    setEditorFindOpen(false);
+    setEditorFindQuery("");
+    setEditorReplaceOpen(false);
+    setEditorReplaceValue("");
+    setEditorReplaceMessage("");
+  }, [noteId]);
   const [lineJumpOpen, setLineJumpOpen] = useState(false);
   const [lineJumpValue, setLineJumpValue] = useState("");
   const [lineJumpError, setLineJumpError] = useState<string | null>(null);
@@ -1685,6 +1696,8 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
 
   const closeEditorFind = useCallback(() => {
     setEditorFindOpen(false);
+    setEditorReplaceOpen(false);
+    setEditorReplaceMessage("");
     searchMatchesRef.current = [];
     setSearchMatches([]);
     setActiveSearchMatch(0);
@@ -1772,6 +1785,33 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
       editorFindInputRef.current?.select();
     });
   }, [closeLineJump, editor]);
+
+  const openEditorReplace = useCallback(() => {
+    if (readonly || !editor?.isEditable) return;
+    openEditorFind();
+    setEditorReplaceOpen(true);
+    setEditorReplaceMessage("");
+  }, [editor, readonly, openEditorFind]);
+
+  const replaceEditorText = (all: boolean) => {
+    if (readonly || !editor?.isEditable || editor.isDestroyed || !editorFindQuery) return;
+    const matches = findSearchMatches(editor.state.doc, editorFindQuery, true);
+    const index = activeSearchMatch >= 0 && activeSearchMatch < matches.length ? activeSearchMatch
+      : searchMatchIndexFromPosition(matches, editorFindOriginRef.current, 1);
+    const { transaction, count, nextPosition } = createReplacementTransaction(editor.state, editorFindQuery, editorReplaceValue, all ? undefined : index);
+    if (count) editor.view.dispatch(transaction);
+    const remaining = findSearchMatches(editor.state.doc, editorFindQuery, true);
+    searchMatchesRef.current = remaining;
+    setSearchMatches(remaining);
+    setActiveSearchMatch(-1);
+    setSearchHighlights(editor, remaining, -1);
+    editorFindOriginRef.current = nextPosition;
+    setEditorReplaceMessage(count ? `已替换 ${count} 处，可撤销` : "没有需要替换的内容");
+    if (!all && remaining.length) {
+      revealSearchMatch(searchMatchIndexFromPosition(remaining, nextPosition, 1), remaining);
+      requestAnimationFrame(() => editorFindInputRef.current?.focus({ preventScroll: true }));
+    }
+  };
 
   const navigateEditorFind = useCallback((direction: number) => {
     const matches = searchMatchesRef.current;
@@ -1885,14 +1925,19 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
 
   useEffect(() => {
     if (!editor || !editorFindOpen) return;
-    const query = editorFindQuery.trim();
-    const matches = query ? findSearchMatches(editor.state.doc, query) : [];
-    editorFindOriginRef.current = editor.state.selection.from;
-    searchMatchesRef.current = matches;
-    setSearchMatches(matches);
-    setActiveSearchMatch(-1);
-    setSearchHighlights(editor, matches, -1);
-  }, [editor, editorFindOpen, editorFindQuery]);
+    const refresh = () => {
+      const matches = findSearchMatches(editor.state.doc, editorFindQuery, editorReplaceOpen);
+      editorFindOriginRef.current = editor.state.selection.from;
+      searchMatchesRef.current = matches;
+      setSearchMatches(matches);
+      setActiveSearchMatch(-1);
+      setSearchHighlights(editor, matches, -1);
+      setEditorReplaceMessage("");
+    };
+    refresh();
+    editor.on("update", refresh);
+    return () => { editor.off("update", refresh); };
+  }, [editor, editorFindOpen, editorFindQuery, editorReplaceOpen]);
 
   // 接收搜索列表传来的一次性定位请求。优先匹配完整短语；FTS 的
   // 多词 AND 查询若没有连续短语，则回退到各个词的命中位置。
@@ -3492,7 +3537,8 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
         </FocusModeBar>
       )}
       {editorFindOpen && (
-        <div className="editor-find-bar" role="search" onClick={(event) => event.stopPropagation()}>
+        <div className={`editor-find-bar${editorReplaceOpen && !readonly ? " editor-find-bar-replace" : ""}`} role="search" onClick={(event) => event.stopPropagation()}>
+          <div className="editor-find-row">
           <input
             ref={editorFindInputRef}
             value={editorFindQuery}
@@ -3511,11 +3557,24 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
             aria-label="在当前文档中查找"
           />
           <span className="editor-find-count" aria-live="polite">
-            {editorFindQuery.trim() ? (searchMatches.length > 0 ? `${activeSearchMatch + 1}/${searchMatches.length}` : "0/0") : ""}
+            {editorFindQuery ? (searchMatches.length > 0 ? `${activeSearchMatch + 1}/${searchMatches.length}` : "0/0") : ""}
           </span>
           <button type="button" onClick={() => navigateEditorFind(-1)} disabled={searchMatches.length === 0} title="上一处匹配" aria-label="上一处匹配">↑</button>
           <button type="button" onClick={() => navigateEditorFind(1)} disabled={searchMatches.length === 0} title="下一处匹配" aria-label="下一处匹配">↓</button>
+          {!readonly && <button type="button" className="editor-find-replace-toggle" onClick={() => setEditorReplaceOpen(open => !open)} aria-expanded={editorReplaceOpen} aria-label="显示替换">替换</button>}
           <button type="button" onClick={() => { closeEditorFind(); editor.commands.focus(); }} title="关闭查找" aria-label="关闭查找">×</button>
+          </div>
+          {editorReplaceOpen && !readonly && <>
+            <div className="editor-find-row">
+              <input aria-label="替换为" placeholder="替换为（留空则删除）" value={editorReplaceValue} onChange={event => { setEditorReplaceValue(event.target.value); setEditorReplaceMessage(""); }}
+                onKeyDown={event => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); replaceEditorText(false); } }} />
+              <button type="button" className="editor-replace-action" disabled={!searchMatches.length} onClick={() => replaceEditorText(false)}>替换当前</button>
+              <button type="button" className="editor-replace-action" disabled={!searchMatches.length} onClick={() => replaceEditorText(true)}>全部替换</button>
+            </div>
+            <div className="editor-replace-status" role="status"><span>{editorReplaceMessage || "普通文本匹配，不区分大小写；仅替换当前正文"}</span>
+              {editorReplaceMessage.startsWith("已替换") && <button type="button" className="editor-replace-action" onClick={() => editor.commands.undo()}>撤销替换</button>}
+            </div>
+          </>}
         </div>
       )}
       {lineJumpOpen && (
@@ -3851,7 +3910,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
               runToolbarFormat, changeSelectedBlockIndent, handleToggleCodeBlock,
               insertBlankBlockAfterCurrent, hasSelection, convertSelectionFromMarkdown,
               setTableSelection, copySelectedTableCells, clearSelectedTableCells, setTableCellAlignment,
-              handleCopy, handleCut, handleClipboardPaste, handleExportMarkdown, handleExportPdf,
+              handleCopy, handleCut, handleClipboardPaste, handleExportMarkdown, handleExportPdf, openEditorReplace,
               toggleCurrentBookmark, openDocumentBookmarks, setLinkDialogUrl, setLinkDialog, setImageDialog,
             }}
             editorFontSize={editorFontSize} onEditorFontSizeChange={onEditorFontSizeChange}

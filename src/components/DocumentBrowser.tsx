@@ -49,6 +49,9 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
   const [showDetails, setShowDetails] = useState(session.showDetails ?? false);
   const [recentIds] = useState(readRecentNoteIds);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(!session.notes);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState("");
@@ -69,7 +72,7 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
   };
   useEffect(() => {
     let active = true;
-    setError("");
+    setLoadError("");
     Promise.all([api.docs.search({}), api.docs.tree(false)])
       .then(([documents, tree]) => {
         if (!active) return;
@@ -78,10 +81,10 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
         setPaths([...new Set(tree.filter(node => node.type === "folder").map(node => node.path))].sort());
         setProtectedPaths(tree.filter(node => node.type === "folder" && node.protected).map(node => node.path));
       })
-      .catch((reason: unknown) => { if (active) setError(String(reason)); })
+      .catch((reason: unknown) => { if (active) setLoadError(String(reason)); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [refreshKey]);
+  }, [refreshKey, reloadKey]);
   const visible = useMemo(() => {
     const term = query.trim().toLocaleLowerCase();
     return notes.filter(note => (view !== "recent" || recentIds.includes(note.id))
@@ -93,7 +96,11 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
         : b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id));
   }, [notes, path, query, sort, view, recentIds, favorites]);
   const actions = <>
-    <button className="btn-icon" aria-label="搜索文档" aria-expanded={searchOpen} onClick={() => { setSearchOpen(!searchOpen); if (searchOpen) { setQuery(""); resetScroll(); } }}><ToolbarIcon name="search" /></button>
+    <button className="btn-icon" aria-label="搜索文档" aria-expanded={searchOpen} onClick={() => {
+      setSearchOpen(!searchOpen);
+      if (searchOpen) { setQuery(""); resetScroll(); }
+      else requestAnimationFrame(() => searchRef.current?.focus({ preventScroll: true }));
+    }}><ToolbarIcon name="search" /></button>
     <button className="btn-icon" aria-label="新建文档" title="在当前路径新建文档" disabled={disabled || opening} onClick={() => onCreate(path)}><ToolbarIcon name="plus" /></button>
   </>;
   return <section className="document-browser" aria-label="文档列表">
@@ -106,7 +113,7 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
         <span className="document-browser-count" aria-live="polite">{loading ? "…" : visible.length}</span>
         <button className="document-browser-filter-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}><ToolbarIcon name="sliders" />筛选</button>
       </div>
-      {searchOpen && <input aria-label="查找文档" placeholder="查找标题、路径、标签或概念" value={query} onChange={event => { setQuery(event.target.value); resetScroll(); }} />}
+      {searchOpen && <input ref={searchRef} aria-label="查找文档" placeholder="查找标题、路径、标签或概念" value={query} onChange={event => { setQuery(event.target.value); resetScroll(); }} />}
       {filtersOpen && <div className="document-browser-filters">
         <button className="document-browser-path-trigger" aria-label="筛选路径" onClick={() => setPathPickerOpen(true)}><ToolbarIcon name="folder" /><span>{path || "全部路径"}</span><ToolbarIcon name="chevronRight" /></button>
         {view !== "recent" && <label>排序<select aria-label="文档排序" value={sort} onChange={event => { setSort(event.target.value); resetScroll(); }}>
@@ -119,9 +126,15 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
     {pathPickerOpen && <DocumentPathPicker paths={paths} protectedPaths={protectedPaths} initialPath={path}
       onClose={() => setPathPickerOpen(false)} onSelect={value => { setPath(value); resetScroll(); setPathPickerOpen(false); }} />}
     <div className="document-browser-list" ref={scrollRef} onScroll={event => { session.scrollTop = event.currentTarget.scrollTop; }}>
+      {loadError && <div className="document-browser-empty"><p role="alert">列表加载失败：{loadError}</p><button className="settings-btn" onClick={() => { setLoading(true); setReloadKey(key => key + 1); }}>重试加载</button></div>}
       {error && <p role="alert">操作失败：{error}</p>}
       {view === "favorites" && <p className="document-browser-favorites-hint">文档收藏，与正文书签独立；保存在本机，可随全量备份恢复。</p>}
-      {!loading && visible.length === 0 ? <p>{view === "recent" ? "暂无匹配的最近文档，可切换到全部文档" : view === "favorites" ? "暂无匹配的收藏，点击文档右侧星标即可收藏" : "没有符合条件的文档"}</p> : visible.map(note => <div
+      {!loading && !loadError && visible.length === 0 ? <div className="document-browser-empty">
+        <p>{view === "recent" ? "暂无匹配的最近文档" : view === "favorites" ? "暂无匹配的收藏，点击文档右侧星标即可收藏" : "没有符合条件的文档"}</p>
+        {(path || query) && <button className="settings-btn" onClick={() => { setPath(""); setQuery(""); resetScroll(); }}>清除筛选</button>}
+        {view !== "all" && <button className="settings-btn" onClick={() => { setView("all"); resetScroll(); }}>浏览全部文档</button>}
+        <button className="settings-btn" disabled={disabled || opening} onClick={() => onCreate(path)}>在此路径新建文档</button>
+      </div> : visible.map(note => <div
         key={note.id} className={`document-browser-row${note.id === selectedId ? " selected" : ""}`}>
         <button data-drawer-swipe-item className="document-browser-open"
         disabled={disabled || opening} onClick={async () => {

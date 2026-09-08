@@ -61,6 +61,7 @@ export interface EditorToolbarProps {
     handleClipboardPaste: () => Promise<void>;
     handleExportMarkdown: () => Promise<void>;
     handleExportPdf: () => void;
+    openEditorReplace: () => void;
     toggleCurrentBookmark: () => void;
     openDocumentBookmarks: () => void;
     setLinkDialogUrl: (url: string) => void;
@@ -120,6 +121,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     setLinkDialogUrl, setLinkDialog, setImageDialog,
   } = actions;
   const moreActions = (<>
+    <button className="menu-dropdown-item" disabled={readonly} onClick={() => { closeMore(); actions.openEditorReplace(); }} type="button"><ToolbarIcon name="search" />查找与替换</button>
     {hiddenTools.includes("clipboard") && <>
     <button className="menu-dropdown-item" onClick={() => { handleCopy(); closeMore(); }} type="button"><ToolbarIcon name="copy" />复制</button>
     <button className="menu-dropdown-item" onClick={() => { handleCut(); closeMore(); }} type="button"><ToolbarIcon name="cut" />剪切</button>
@@ -174,6 +176,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
   </>);
 
   return (<>
+    {!isMinimalToolbar && btn(<ToolbarIcon name="search" />, actions.openEditorReplace, false, "查找与替换", readonly)}
     <span className="toolbar-history-actions">
       {btn(<span className="toolbar-history-icon toolbar-history-icon-undo"><ToolbarIcon name="undo" /></span>, () => editor.chain().focus().undo().run(), false, "撤销 (Ctrl+Z)", readonly || !editor.can().undo())}
       {btn(<span className="toolbar-history-icon toolbar-history-icon-redo"><ToolbarIcon name="redo" /></span>, () => editor.chain().focus().redo().run(), false, "重做 (Ctrl+Y)", readonly || !editor.can().redo())}

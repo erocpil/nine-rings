@@ -26,49 +26,36 @@ const searchHighlightsKey = new PluginKey<DecorationSet>("searchHighlights");
  * Adjacent text nodes (for example, text split by a bold mark) are treated as
  * one run; structural gaps between blocks are kept as hard boundaries.
  */
-export function findMatchesInTextSegments(segments: TextSegment[], query: string): SearchMatch[] {
-  const needle = query.trim().toLocaleLowerCase();
+export function findMatchesInTextSegments(segments: TextSegment[], query: string, preserveWhitespace = false): SearchMatch[] {
+  const needle = preserveWhitespace ? query : query.trim();
   if (!needle) return [];
-
-  let haystack = "";
-  const positions: Array<number | null> = [];
-  let previousEnd: number | null = null;
-
+  const runs: TextSegment[] = [];
   for (const segment of segments) {
     if (!segment.text) continue;
-    if (previousEnd !== null && segment.from !== previousEnd) {
-      haystack += "\n";
-      positions.push(null);
-    }
-    haystack += segment.text;
-    for (let offset = 0; offset < segment.text.length; offset += 1) {
-      positions.push(segment.from + offset);
-    }
-    previousEnd = segment.from + segment.text.length;
+    const previous = runs[runs.length - 1];
+    if (previous && previous.from + previous.text.length === segment.from) previous.text += segment.text;
+    else runs.push({ ...segment });
   }
-
-  const lowered = haystack.toLocaleLowerCase();
+  // Regex is escaped literal text. Native match indices retain original UTF-16
+  // positions even when case folding would change a character's string length.
+  const pattern = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "giu");
   const matches: SearchMatch[] = [];
-  let start = 0;
-  while (start <= lowered.length - needle.length) {
-    const index = lowered.indexOf(needle, start);
-    if (index === -1) break;
-    const from = positions[index];
-    const last = positions[index + needle.length - 1];
-    if (from !== null && from !== undefined && last !== null && last !== undefined) {
-      matches.push({ from, to: last + 1 });
+  for (const run of runs) {
+    pattern.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(run.text))) {
+      matches.push({ from: run.from + match.index, to: run.from + match.index + match[0].length });
     }
-    start = index + Math.max(1, needle.length);
   }
   return matches;
 }
 
-export function findSearchMatches(doc: ProseMirrorNode, query: string): SearchMatch[] {
+export function findSearchMatches(doc: ProseMirrorNode, query: string, preserveWhitespace = false): SearchMatch[] {
   const segments: TextSegment[] = [];
   doc.descendants((node, pos) => {
     if (node.isText && node.text) segments.push({ text: node.text, from: pos });
   });
-  return findMatchesInTextSegments(segments, query);
+  return findMatchesInTextSegments(segments, query, preserveWhitespace);
 }
 
 /** Resolve the first navigation target relative to the editor caret. */

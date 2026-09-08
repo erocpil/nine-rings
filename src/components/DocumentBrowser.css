@@ -16,6 +16,9 @@
 .document-browser-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .document-browser-list::after { content: ""; display: block; height: 33vh; }
 .document-browser-list > p { padding: 12px; color: var(--text-muted); }
+.document-browser-empty { padding: 12px; font-size: 13px; color: var(--text-muted); }
+.document-browser-empty p { margin: 0 0 10px; overflow-wrap: anywhere; }
+.document-browser-empty button { margin: 0 6px 6px 0; min-height: 40px; }
 .document-browser-row { display: flex; align-items: flex-start; width: 100%; min-height: 44px; border: 0; border-radius: 0; background: transparent; color: var(--text); text-align: left; }
 .document-browser-open { display: flex; flex: 1; min-width: 0; min-height: 44px; gap: 6px; padding: 8px 0 8px 12px; background: transparent; border: 0; color: inherit; text-align: left; border-radius: 0; }
 .document-browser-favorite { display: flex; align-items: center; justify-content: center; flex: 0 0 40px; width: 40px; min-height: 44px; border: 0; background: transparent; color: var(--text-muted); }

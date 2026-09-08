@@ -61,6 +61,35 @@ async function swipeNoteEditor(
 test.describe("PWA 窄屏应用外壳", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
+  test("文档列表加载失败可重试，空结果可清除筛选", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+    await page.evaluate(async () => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");
+      await api.notes.create({ title: "重试验证", storagePath: "projects/retry", date: "2026-09-09", content: { ops: [] } });
+      const original = api.docs.search;
+      api.docs.search = () => Promise.reject(new Error("模拟读取失败"));
+      window.addEventListener("test:restore-document-search", () => { api.docs.search = original; }, { once: true });
+    });
+    await swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: 100, endX: 110, endY: 100 });
+    const view = page.getByRole("dialog", { name: "文档视图", exact: true });
+    await expect(view.getByRole("alert")).toContainText("模拟读取失败");
+    await page.evaluate(() => window.dispatchEvent(new Event("test:restore-document-search")));
+    await view.getByRole("button", { name: "重试加载", exact: true }).click();
+    await expect(view.getByRole("alert")).toHaveCount(0);
+    await view.getByRole("button", { name: "全部文档", exact: true }).click();
+    await expect(view.locator(".document-browser-row").filter({ hasText: "重试验证" })).toBeVisible();
+    await view.getByRole("button", { name: "搜索文档", exact: true }).click();
+    const query = view.getByRole("textbox", { name: "查找文档" });
+    await expect(query).toBeFocused();
+    await query.fill("没有这个文档");
+    await expect(view.locator(".document-browser-row")).toHaveCount(0);
+    await view.getByRole("button", { name: "清除筛选", exact: true }).click();
+    await expect(query).toHaveValue("");
+    await expect(view.locator(".document-browser-row").filter({ hasText: "重试验证" })).toBeVisible();
+  });
+
   test("文档收藏持久保存，路径选择可搜索并取消", async ({ page }, testInfo) => {
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
