@@ -3401,6 +3401,17 @@ body {
   overflow: auto;
 }
 
+.settings-update-error-copy {
+  border: 1px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--danger);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  min-height: 30px;
+}
+
 /* ── 字段 ── */
 
 .settings-field {

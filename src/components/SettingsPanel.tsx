@@ -214,6 +214,29 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     else if (webUpdate?.error && !webUpdate.errorDetails) setShowUpdateFailureDetails(false);
   }, [webUpdate?.error, webUpdate?.errorDetails]);
 
+  const handleCopyUpdateFailureDetails = useCallback(async () => {
+    if (!webUpdate?.errorDetails) return;
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(webUpdate.errorDetails);
+      } else {
+        const target = document.createElement("textarea");
+        target.value = webUpdate.errorDetails;
+        target.style.position = "fixed";
+        target.style.opacity = "0";
+        target.style.left = "-9999px";
+        document.body.appendChild(target);
+        target.focus();
+        target.select();
+        document.execCommand("copy");
+        document.body.removeChild(target);
+      }
+      showMessage("更新失败详情已复制到剪贴板");
+    } catch (error) {
+      showMessage(`复制失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  }, [showMessage, webUpdate?.errorDetails]);
+
   useEffect(() => {
     if (!open || settingsPage !== "bookmarks") return;
     let cancelled = false;
@@ -1226,9 +1249,18 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                       </button>
                     )}
                     {showUpdateFailureDetails && webUpdate.error && webUpdate.errorDetails && (
-                      <pre className="settings-update-error-panel" role="status">
-                        {webUpdate.errorDetails}
-                      </pre>
+                      <>
+                        <pre className="settings-update-error-panel" role="status">
+                          {webUpdate.errorDetails}
+                        </pre>
+                        <button
+                          type="button"
+                          className="settings-update-error-copy"
+                          onClick={() => void handleCopyUpdateFailureDetails()}
+                        >
+                          一键复制详情
+                        </button>
+                      </>
                     )}
                   </div>
                 )}
