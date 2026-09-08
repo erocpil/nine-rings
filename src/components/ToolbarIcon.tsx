@@ -1,6 +1,12 @@
 import type { ReactNode } from "react";
 
 const paths = {
+  minus: <path d="M5 12h14" />,
+  lineBreak: <path d="M20 5v8H5m5-5-5 5 5 5" />,
+  export: <path d="M12 15V3m-4 4 4-4 4 4M4 14v7h16v-7" />,
+  font: <path d="m5 20 7-16 7 16M8 14h8" />,
+  color: <><path d="m7 16 5-13 5 13M9 11h6M4 21h16" /></>,
+  erase: <><path d="m4 14 10-10 7 7-10 10H7ZM10 8l7 7M11 21h10" /></>,
   switchViews: <path d="M4 8h16m-4-4 4 4-4 4M20 16H4m4-4-4 4 4 4" />,
   chevronLeft: <path d="m14 6-6 6 6 6" />,
   chevronRight: <path d="m10 6 6 6-6 6" />,

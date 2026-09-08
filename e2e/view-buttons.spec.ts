@@ -264,7 +264,15 @@ test.describe("手机工具栏状态恢复", () => {
       await selectSingleLine(page, "更多操作正文");
       const more = page.getByRole("dialog", { name: "更多编辑操作", exact: true });
       await page.getByTitle("更多编辑操作").tap();
-      await more.getByRole("combobox", { name: "文字字号", exact: true }).selectOption("24");
+      const sizeSelect = more.getByRole("combobox", { name: "文字字号", exact: true });
+      if (await sizeSelect.count()) {
+        await sizeSelect.selectOption("24");
+      } else {
+        await page.keyboard.press("Escape");
+        await page.getByTitle("字号", { exact: true }).tap();
+        await page.locator("[data-toolbar-tool='size']").getByRole("button", { name: "24px", exact: true }).tap();
+        await page.getByTitle("更多编辑操作").tap();
+      }
       await expect(editor.locator('span[style*="font-size"]')).toHaveCSS("font-size", "24px");
       await more.getByLabel("文字颜色", { exact: true }).fill("#ff0000");
       await expect(editor.locator('span[style*="color"]')).toHaveCSS("color", "rgb(255, 0, 0)");
@@ -275,20 +283,20 @@ test.describe("手机工具栏状态恢复", () => {
       await expect(editor).toHaveCSS("font-size", `${parseFloat(size) + 1}px`);
       await more.getByRole("button", { name: "缩小编辑器字号", exact: true }).tap();
       await expect(editor).toHaveCSS("font-size", size);
-      await more.getByRole("button", { name: "🔗 添加或编辑链接", exact: true }).tap();
+      await more.getByRole("button", { name: "添加或编辑链接", exact: true }).tap();
       await page.getByPlaceholder("https://...", { exact: true }).fill("https://example.com/reader");
       await page.locator(".image-dialog").getByRole("button", { name: "插入", exact: true }).tap();
       await expect(editor.locator("a")).toHaveAttribute("href", "https://example.com/reader");
       await expect(editor.locator("a")).toHaveText("更多操作正文");
       await editor.press("End");
       await page.getByTitle("更多编辑操作").tap();
-      await more.getByRole("button", { name: "🖼 插入图片", exact: true }).tap();
+      await more.getByRole("button", { name: "插入图片", exact: true }).tap();
       await page.getByPlaceholder("图片 URL 或 base64").fill("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=");
       await page.locator(".image-dialog").getByRole("button", { name: "插入", exact: true }).tap();
       await expect(editor.locator("img")).toHaveCount(1);
       await page.getByTitle("更多编辑操作").tap();
       const download = page.waitForEvent("download");
-      await more.getByRole("button", { name: "M↑ 导出 Markdown", exact: true }).tap();
+      await more.getByRole("button", { name: "导出 Markdown", exact: true }).tap();
       expect((await download).suggestedFilename()).toMatch(/\.md$/);
       await expect(editor).toContainText("更多操作正文");
     });

@@ -1,13 +1,14 @@
-import { useCallback, useLayoutEffect, type RefObject } from "react";
+import { useCallback, useLayoutEffect, useState, type RefObject } from "react";
 
 /** Measure live controls (including current labels/fonts), without cloning editor UI. */
 export function useToolbarOverflow(ref: RefObject<HTMLElement>, enabled: boolean) {
+  const [hiddenTools, setHiddenTools] = useState("");
   const measure = useCallback(() => {
     const toolbar = ref.current;
     if (!toolbar) return;
     const optional = Array.from(toolbar.querySelectorAll<HTMLElement>(".toolbar-secondary > *"));
     optional.forEach(el => el.removeAttribute("data-toolbar-overflow"));
-    if (!enabled || !toolbar.clientWidth) return;
+    if (!enabled || !toolbar.clientWidth) { setHiddenTools(""); return; }
     const style = getComputedStyle(toolbar);
     const gap = parseFloat(style.columnGap) || 0;
     const width = (el: HTMLElement) => {
@@ -25,6 +26,8 @@ export function useToolbarOverflow(ref: RefObject<HTMLElement>, enabled: boolean
       if (fits) remaining -= sizes[index] + gap;
       else el.setAttribute("data-toolbar-overflow", "true");
     });
+    setHiddenTools(optional.filter(el => el.hasAttribute("data-toolbar-overflow"))
+      .map(el => el.dataset.toolbarTool).filter(Boolean).join(","));
   }, [ref, enabled]);
   // Labels change with the selection, save state and text size.
   useLayoutEffect(measure);
@@ -37,4 +40,5 @@ export function useToolbarOverflow(ref: RefObject<HTMLElement>, enabled: boolean
     void document.fonts.ready.then(() => { if (!disposed) measure(); });
     return () => { disposed = true; observer.disconnect(); };
   }, [ref, measure]);
+  return hiddenTools.split(",");
 }

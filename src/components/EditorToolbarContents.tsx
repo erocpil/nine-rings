@@ -99,9 +99,9 @@ const btn = (label: ReactNode, action: () => void, active?: boolean, title?: str
 );
 
 /** No wrapper DOM and no second EditorView; commands use the owning session. */
-export function EditorToolbarContents({ editor, readonly, saveStatus, layout, menus, actions, editorFontSize, onEditorFontSizeChange, showCodeLineNumbers, onCodeLineNumbersChange, selectedTableCellCount, hasCurrentBookmark, bookmarkCount }: EditorToolbarProps) {
+export function EditorToolbarContents({ editor, readonly, saveStatus, layout, menus, actions, editorFontSize, onEditorFontSizeChange, showCodeLineNumbers, onCodeLineNumbersChange, selectedTableCellCount, hasCurrentBookmark }: EditorToolbarProps) {
   const { isNarrow, isMinimalToolbar, isMobileToolbarViewport, toolbarRef, moreButtonRef } = layout;
-  useToolbarOverflow(toolbarRef, isMinimalToolbar);
+  const hiddenTools = useToolbarOverflow(toolbarRef, isMinimalToolbar);
   const {
     colorOpen, setColorOpen, sizeOpen, setSizeOpen,
     headingOpen, setHeadingOpen, headingPage, setHeadingPage,
@@ -115,12 +115,14 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     insertBlankBlockAfterCurrent, hasSelection, convertSelectionFromMarkdown,
     setTableSelection, copySelectedTableCells, clearSelectedTableCells, setTableCellAlignment,
     handleCopy, handleCut, handleClipboardPaste, handleExportMarkdown,
-    toggleCurrentBookmark, openDocumentBookmarks, setLinkDialogUrl, setLinkDialog, setImageDialog,
+    toggleCurrentBookmark, setLinkDialogUrl, setLinkDialog, setImageDialog,
   } = actions;
   const moreActions = (<>
-    <button className="menu-dropdown-item" onClick={() => { handleCopy(); closeMore(); }} type="button">复制</button>
-    <button className="menu-dropdown-item" onClick={() => { handleCut(); closeMore(); }} type="button">剪切</button>
-    <button className="menu-dropdown-item" onClick={() => { handleClipboardPaste(); closeMore(); }} type="button">粘贴</button>
+    {hiddenTools.includes("clipboard") && <>
+    <button className="menu-dropdown-item" onClick={() => { handleCopy(); closeMore(); }} type="button"><ToolbarIcon name="copy" />复制</button>
+    <button className="menu-dropdown-item" onClick={() => { handleCut(); closeMore(); }} type="button"><ToolbarIcon name="cut" />剪切</button>
+    <button className="menu-dropdown-item" onClick={() => { handleClipboardPaste(); closeMore(); }} type="button"><ToolbarIcon name="paste" />粘贴</button>
+    </>}
     <button
       className="menu-dropdown-item"
       disabled={editor.isActive("codeBlock") || !editor.can().setHardBreak()}
@@ -129,27 +131,23 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
         setMoreOpen(false);
       }}
       type="button"
-    >↵ 块内换行</button>
+    ><ToolbarIcon name="lineBreak" />块内换行</button>
     <div className="menu-dropdown-sep" />
-    <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setMoreOpen(false); }} type="button">M↑ 导出 Markdown</button>
+    <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setMoreOpen(false); }} type="button"><ToolbarIcon name="export" />导出 Markdown</button>
     <div className="menu-dropdown-sep" />
     <button className="menu-dropdown-item" onClick={() => {
       toggleCurrentBookmark();
       setMoreOpen(false);
-    }} type="button">{hasCurrentBookmark ? "取消当前位置书签" : "添加当前位置书签"} <span className="toolbar-more-shortcut">Ctrl+Shift+M</span></button>
-    <button className="menu-dropdown-item" onClick={() => {
-      openDocumentBookmarks();
-      setMoreOpen(false);
-    }} type="button">书签列表{bookmarkCount > 0 ? `（${bookmarkCount}）` : ""}</button>
+    }} type="button"><ToolbarIcon name="bookmark" />{hasCurrentBookmark ? "取消当前位置书签" : "添加当前位置书签"} <span className="toolbar-more-shortcut">Ctrl+Shift+M</span></button>
     <div className="menu-dropdown-sep" />
     <button className="menu-dropdown-item" onClick={() => {
       setLinkDialogUrl(editor.getAttributes("link").href || "");
       setLinkDialog(true);
       setMoreOpen(false);
-    }} type="button">🔗 添加或编辑链接</button>
-    <button className="menu-dropdown-item" onClick={() => { setImageDialog(true); setMoreOpen(false); }} type="button">🖼 插入图片</button>
-    <label className="menu-dropdown-control">
-      <span>文字字号</span>
+    }} type="button"><ToolbarIcon name="link" />添加或编辑链接</button>
+    <button className="menu-dropdown-item" onClick={() => { setImageDialog(true); setMoreOpen(false); }} type="button"><ToolbarIcon name="image" />插入图片</button>
+    {hiddenTools.includes("size") && <label className="menu-dropdown-control">
+      <span><ToolbarIcon name="font" />文字字号</span>
       <select
         value={editor.getAttributes("textStyle").fontSize || ""}
         onChange={(event) => {
@@ -160,19 +158,21 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
         <option value="">默认</option>
         {FONT_SIZES.map((size) => <option key={size} value={size}>{size}px</option>)}
       </select>
-    </label>
+    </label>}
     <label className="menu-dropdown-control">
-      <span>文字颜色</span>
+      <span><ToolbarIcon name="color" />文字颜色</span>
       <input
         type="color"
         value={editor.getAttributes("textStyle").color || "#333333"}
         onChange={(event) => editor.chain().focus().setColor(event.target.value).run()}
       />
     </label>
-    <button className="menu-dropdown-item toolbar-more-clear-color" onClick={() => editor.chain().focus().unsetColor().run()} type="button">清除文字颜色</button>
+    <button className="menu-dropdown-item toolbar-more-clear-color" onClick={() => editor.chain().focus().unsetColor().run()} type="button"><ToolbarIcon name="erase" />清除文字颜色</button>
     <div className="menu-dropdown-sep" />
-    <button className="menu-dropdown-item" disabled={editorFontSize <= 12} onClick={() => onEditorFontSizeChange(Math.max(12, editorFontSize - 1))} type="button">缩小编辑器字号</button>
-    <button className="menu-dropdown-item" disabled={editorFontSize >= 32} onClick={() => onEditorFontSizeChange(Math.min(32, editorFontSize + 1))} type="button">放大编辑器字号</button>
+    {hiddenTools.includes("font") && <>
+    <button className="menu-dropdown-item" disabled={editorFontSize <= 12} onClick={() => onEditorFontSizeChange(Math.max(12, editorFontSize - 1))} type="button"><ToolbarIcon name="minus" />缩小编辑器字号</button>
+    <button className="menu-dropdown-item" disabled={editorFontSize >= 32} onClick={() => onEditorFontSizeChange(Math.min(32, editorFontSize + 1))} type="button"><ToolbarIcon name="plus" />放大编辑器字号</button>
+    </>}
   </>);
 
   return (<>
@@ -428,7 +428,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     <span className="menu-sep" />
     <div className="toolbar-secondary">
     {isNarrow ? (
-      <div className="menu-dropdown">
+      <div className="menu-dropdown" data-toolbar-tool="clipboard">
         <button
           className="menu-btn"
           onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("clip", clipOpen); }}
@@ -570,7 +570,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     )}
 
     {/* 分隔后右区：字号 / 颜色 / 图片 */}
-    <div className="menu-dropdown">
+    <div className="menu-dropdown" data-toolbar-tool="size">
       <button className="menu-btn" onClick={(e) => { e.stopPropagation(); if (!readonly) toggleMobileToolbarMenu("size", sizeOpen); }} type="button" title="字号" disabled={readonly}>
         {editor.getAttributes("textStyle").fontSize || "字号"}
       </button>
@@ -658,7 +658,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
       <ToolbarIcon name="image" />
     </button>
     <span className="menu-sep" />
-    <span className="toolbar-font-actions">
+    <span className="toolbar-font-actions" data-toolbar-tool="font">
     {btn("A⁻", () => onEditorFontSizeChange(Math.max(12, editorFontSize - 1)), false, "缩小字号", editorFontSize <= 12)}
     <span className="menu-font-size-label">{editorFontSize}</span>
     {btn("A⁺", () => onEditorFontSizeChange(Math.min(32, editorFontSize + 1)), false, "放大字号", editorFontSize >= 32)}

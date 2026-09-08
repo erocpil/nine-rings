@@ -57,19 +57,28 @@ function syncViewportCSS() {
   const viewport = typeof window.visualViewport === "undefined" ? null : window.visualViewport;
   const viewportWidth = viewport?.width ?? window.innerWidth;
   const viewportHeight = viewport?.height ?? window.innerHeight;
+  const activeElement = document.activeElement;
+  const acceptsKeyboard = activeElement instanceof HTMLElement && (
+    activeElement.isContentEditable
+    || (activeElement instanceof HTMLTextAreaElement && !activeElement.readOnly && !activeElement.disabled)
+    || (activeElement instanceof HTMLInputElement && !activeElement.readOnly && !activeElement.disabled
+      && /^(text|search|email|url|tel|password|number)$/.test(activeElement.type))
+  );
   // iOS 旋转时 visualViewport 会短暂保留上一方向的宽度。此时高度差
   // 不是软键盘，若误判会把应用外壳锁成旧尺寸，露出大块页面背景。
+  // 宽度可能先恢复、而高度仍停在横屏值；仅比较宽度会把只读浏览误判为键盘。
   const orientationSettling = Math.abs(viewportWidth - window.innerWidth) >= 24;
-  const offsetTop = orientationSettling ? 0 : (viewport?.offsetTop ?? 0);
-  const offsetLeft = orientationSettling ? 0 : (viewport?.offsetLeft ?? 0);
-  const keyboardHeight = orientationSettling ? 0 : Math.max(
+  const useKeyboardViewport = acceptsKeyboard && !orientationSettling;
+  const offsetTop = useKeyboardViewport ? (viewport?.offsetTop ?? 0) : 0;
+  const offsetLeft = useKeyboardViewport ? (viewport?.offsetLeft ?? 0) : 0;
+  const keyboardHeight = !useKeyboardViewport ? 0 : Math.max(
     0,
     Math.round(window.innerHeight - Math.min(viewportHeight, window.innerHeight)),
   );
   // Fixed-position overlays are laid out against the layout viewport on iOS.
   // This is the exact hidden area below the visual viewport; unlike keyboardHeight,
   // it also accounts for Safari panning the visual viewport upward.
-  const viewportBottomInset = orientationSettling ? 0 : Math.max(
+  const viewportBottomInset = !useKeyboardViewport ? 0 : Math.max(
     0,
     Math.round(window.innerHeight - Math.min(offsetTop + viewportHeight, window.innerHeight)),
   );
@@ -143,6 +152,8 @@ export function useWebPlatform() {
     viewport?.addEventListener("scroll", scheduleViewportSync);
     window.addEventListener("resize", scheduleViewportSync);
     window.addEventListener("orientationchange", syncAfterOrientation);
+    document.addEventListener("focusin", scheduleViewportSync);
+    document.addEventListener("focusout", scheduleViewportSync);
 
     let cancelled = false;
     const prepareStorage = async () => {
@@ -168,6 +179,8 @@ export function useWebPlatform() {
       viewport?.removeEventListener("scroll", scheduleViewportSync);
       window.removeEventListener("resize", scheduleViewportSync);
       window.removeEventListener("orientationchange", syncAfterOrientation);
+      document.removeEventListener("focusin", scheduleViewportSync);
+      document.removeEventListener("focusout", scheduleViewportSync);
       if (animationFrameId) window.cancelAnimationFrame(animationFrameId);
       updaterRef.current?.dispose();
       updaterRef.current = null;

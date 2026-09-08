@@ -1936,6 +1936,12 @@ test.describe("PWA 窄屏应用外壳", () => {
   test("键盘打开后旋转时侧栏不保留旧方向的宽高", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("显示侧栏").click();
+    // A keyboard resize must be associated with a focused text input.
+    await page.evaluate(() => {
+      const input = document.createElement("input");
+      document.body.append(input);
+      input.focus();
+    });
     for (const next of [{ width: 760, height: 390 }, { width: 390, height: 760 }]) {
       const keyboardHeight = await page.evaluate(() => {
         const height = window.innerHeight - 230;

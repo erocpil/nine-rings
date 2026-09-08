@@ -2171,10 +2171,36 @@ body {
   gap: 4px;
 }
 
+.toolbar-more-sheet .menu-dropdown-item,
+.toolbar-more-list .menu-dropdown-item,
+.toolbar-more-sheet .menu-dropdown-control > span,
+.toolbar-more-list .menu-dropdown-control > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-more-sheet .toolbar-icon,
+.toolbar-more-list .toolbar-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+
 .toolbar-more-sheet .menu-dropdown-control select,
 .toolbar-more-sheet .menu-dropdown-control input {
   max-width: 76px;
   min-height: 44px;
+}
+
+.toolbar-more-sheet .menu-dropdown-control input[type="color"],
+.toolbar-more-list .menu-dropdown-control input[type="color"] {
+  width: 32px;
+  height: 28px;
+  min-width: 32px;
+  min-height: 28px;
+  flex: 0 0 32px;
+  padding: 0;
 }
 
 .toolbar-more-sheet .toolbar-more-clear-color {
@@ -4902,7 +4928,7 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 .editor-block-number.bookmarked {
   text-decoration-line: underline;
   text-decoration-color: color-mix(in srgb, var(--accent) 72%, transparent);
-  text-decoration-thickness: 1px;
+  text-decoration-thickness: 2px;
   text-underline-offset: 2px;
 }
 
@@ -9835,6 +9861,36 @@ button.doc-tree-toggle:focus-visible {
 }
 
 @media (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
+  .note-title-row .document-outline-toggle,
+  .note-title-row .document-bookmark-toggle {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .app .focus-mode .mobile-focus-bar {
+    height: 48px;
+    left: max(8px, var(--safe-left));
+    right: max(8px, var(--safe-right));
+  }
+  .app .mobile-focus-bar > button {
+    flex-basis: 44px;
+    width: 44px;
+    height: 44px;
+  }
+  .app .focus-mode .note-editor-scroll {
+    padding-top: calc(48px + var(--safe-top));
+  }
+  .app .focus-mode > .document-outline-panel,
+  .app .focus-mode > .document-bookmark-panel {
+    top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 50px);
+  }
+  .app .focus-mode.focus-toolbar-expanded .editor-menu {
+    top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top) + 50px);
+    left: max(8px, var(--safe-left));
+    right: max(8px, var(--safe-right));
+  }
+  .app .focus-mode.focus-toolbar-expanded .note-editor-scroll {
+    padding-top: calc(98px + var(--safe-top));
+  }
   .app-sidebar { width: 70vw !important; }
   .doc-tree-popup,
   .mobile-document-drawer-panel { width: 70vw; max-width: 85vw; }

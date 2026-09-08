@@ -73,7 +73,7 @@ test("切换工具栏布局和插入弹层不重建正文，选区格式与撤�
 
   await page.getByTitle("更多编辑操作").click();
   const more = page.getByRole("dialog", { name: "更多编辑操作", exact: true });
-  await more.getByRole("button", { name: "🔗 添加或编辑链接", exact: true }).click();
+  await more.getByRole("button", { name: "添加或编辑链接", exact: true }).click();
   const dialog = page.locator(".image-dialog");
   await expect(dialog.locator("input")).toBeFocused();
   await dialog.locator("input").fill("https://example.com/cancelled");

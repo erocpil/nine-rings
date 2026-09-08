@@ -41,7 +41,7 @@ test("工具栏按宽度补回按钮，手机横屏隐藏密码入口并加宽�
   await expect.poll(async () => (await inspect()).visible).toBe(portrait);
   expect((await inspect()).overflow).toBeLessThanOrEqual(2);
   await page.getByTitle("更多编辑操作", { exact: true }).click();
-  await expect(page.getByRole("button", { name: "🖼 插入图片", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "插入图片", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   await page.screenshot({ path: "/tmp/nr-toolbar-fit-portrait.png" });
 });
