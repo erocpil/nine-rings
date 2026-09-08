@@ -124,6 +124,22 @@ describe("PWA update lifecycle", () => {
     expect(browser.location.reload).not.toHaveBeenCalled();
   });
 
+  it("does not surface redundant installers that are not part of this tab's update attempt", async () => {
+    const worker = new Worker();
+    start();
+    await settle();
+
+    expect(status.available).toBe(false);
+    registration.installing = worker;
+    registration.dispatchEvent(new Event("updatefound"));
+    await settle();
+
+    worker.change("redundant");
+    await settle();
+
+    expect(status.error).toBeNull();
+  });
+
   it("coalesces checks, polls only while visible, and throttles focus events", async () => {
     start();
     await settle();

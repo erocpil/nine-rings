@@ -18,6 +18,7 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
   let registration: ServiceWorkerRegistration | undefined;
   let initialController = navigator.serviceWorker.controller;
   let controllerChanged = false;
+  let trackedInstaller: ServiceWorker | null = null;
   let lastCheck = -Infinity;
   let checking: Promise<void> | undefined;
   const cleanups = new Set<() => void>();
@@ -39,7 +40,7 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
     watched.add(worker);
     listen(worker, "statechange", () => {
       reconcile();
-      if (worker.state === "redundant") {
+      if (worker === trackedInstaller && worker.state === "redundant") {
         publish({ error: "新版安装未完成，请检查网络后重试更新。" });
       }
     });
@@ -103,13 +104,21 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
         if (!current.installing && !current.waiting) await withTimeout(current.update(), UPDATE_TIMEOUT, "获取新版");
         watchInstaller();
         const worker = current.installing;
-        if (worker) await waitFor(worker, () => worker.state === "installed" || worker.state === "activated");
+        if (worker) {
+          trackedInstaller = worker;
+          try {
+            await waitFor(worker, () => worker.state === "installed" || worker.state === "activated");
+          } finally {
+            if (trackedInstaller === worker) trackedInstaller = null;
+          }
+        }
         reconcile();
         publish({ checked: true });
       } catch (error) {
         publish({ error: `检查更新失败：${error instanceof Error ? error.message : String(error)}` });
       } finally {
         checking = undefined;
+        trackedInstaller = null;
         publish({ checking: false });
       }
     })();
@@ -132,9 +141,13 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
       if (controllerChanged) { window.location.reload(); return; }
       const worker = registration?.waiting;
       if (!worker) throw new Error(status.error || "新版尚未准备好，请稍后重新检查更新。");
+      trackedInstaller = worker;
+      const clearTracking = () => {
+        if (trackedInstaller === worker) trackedInstaller = null;
+      };
       const activated = waitFor(worker, () => navigator.serviceWorker.controller === worker);
       worker.postMessage({ type: "SKIP_WAITING" });
-      await activated;
+      await activated.finally(clearTracking);
       window.location.reload();
     },
     dispose() {
