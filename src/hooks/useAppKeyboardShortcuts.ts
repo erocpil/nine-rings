@@ -12,6 +12,7 @@ import {
 } from "../lib/shortcuts";
 
 export interface AppShortcutActions {
+  workspaceActive?: boolean;
   setSettingsOpen: (open: boolean) => void;
   setQuickSwitcherOpen: (open: boolean) => void;
   setDate: (date: string) => Promise<void>;
@@ -70,6 +71,7 @@ export function useAppKeyboardShortcuts(actions: AppShortcutActions): void {
       const action = resolveShortcut(e);
       if (!action) return;
       const a = actionsRef.current;
+      if (a.workspaceActive === false && action !== "fullscreen") return;
       switch (action) {
         case "fullscreen":
           // Web 版交还给浏览器处理 F11 / macOS 原生全屏快捷键。
@@ -107,10 +109,10 @@ export function useAppKeyboardShortcuts(actions: AppShortcutActions): void {
     const a = actionsRef.current;
     void registerShortcuts(
       {
-        createNote: a.createNote,
-        focusSearch: focusSearchInput,
-        openSettings: () => a.setSettingsOpen(true),
-        toggleDaily: () => goToToday(a),
+        createNote: () => { if (actionsRef.current.workspaceActive !== false) actionsRef.current.createNote(); },
+        focusSearch: () => { if (actionsRef.current.workspaceActive !== false) focusSearchInput(); },
+        openSettings: () => { if (actionsRef.current.workspaceActive !== false) actionsRef.current.setSettingsOpen(true); },
+        toggleDaily: () => { if (actionsRef.current.workspaceActive !== false) goToToday(actionsRef.current); },
         showWindow,
       },
       { ...DEFAULT_HOTKEYS, ...(a.hotkeys ?? {}) },

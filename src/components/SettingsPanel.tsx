@@ -10,7 +10,6 @@ import { exportLocalJsonBackup } from "../lib/local-backup-export";
 import SettingsSync from "./SettingsSync";
 import { withTimeout } from "../lib/async";
 import { EditorAppearancePanel } from "./EditorAppearancePanel";
-import { ReaderDataBackupPanel } from "./ReaderDataBackupPanel";
 import { BackupRestoreStatus } from "./BackupRestoreStatus";
 import { isDocumentFindShortcut, isEditorLineJumpShortcut } from "../lib/shortcuts";
 import type { WebStorageStatus } from "../hooks/useWebPlatform";
@@ -18,19 +17,7 @@ import { useTransientMessage } from "../hooks/useTransientMessage";
 import { collectWebDiagnostics } from "../lib/web-diagnostics";
 import { rebuildWebSearchIndex } from "../lib/web-search-index";
 import { readonlyRenderingEnabled, setReadonlyRenderingEnabled } from "../lib/readonly-rendering";
-import {
-  deleteLocalPdf,
-  importLocalPdf,
-  listLocalPdfs,
-  type LocalPdfEntry,
-} from "../lib/pdf-library";
-import {
-  deleteLocalEpub,
-  getLocalEpubCover,
-  importLocalEpub,
-  listLocalEpubs,
-  type LocalEpubEntry,
-} from "../lib/epub-library";
+
 
 interface Props {
   open: boolean;
@@ -46,8 +33,8 @@ interface Props {
   onBeforeBookmarkNoteUpdate?: (noteId: string) => Promise<void>;
   onBookmarkNoteUpdated?: (note: Note) => void;
   onNotesChanged?: () => void;
-  onOpenPdf?: (documentId: string) => void;
-  onOpenEpub?: (documentId: string) => void;
+  onOpenLibrary: () => void;
+  libraryError?: string | null;
 }
 
 type SettingsPage = "root" | "appearance" | "editor" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "library" | "data" | "sync" | "advanced";
@@ -111,7 +98,7 @@ function yieldToNextFrame(): Promise<void> {
   return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
 }
 
-export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onPullDone, webStorageStatus, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onNotesChanged, onOpenPdf, onOpenEpub }: Props) {
+export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onPullDone, webStorageStatus, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onNotesChanged, onOpenLibrary, libraryError }: Props) {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -155,27 +142,6 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [mdImportDocType, setMdImportDocType] = useState<DocType>("reference");
   const [mdImportTags, setMdImportTags] = useState("");
   const [mdImportConcepts, setMdImportConcepts] = useState("");
-  const pdfInputRef = useRef<HTMLInputElement>(null);
-  const [pdfEntries, setPdfEntries] = useState<LocalPdfEntry[]>([]);
-  const [pdfLibraryLoading, setPdfLibraryLoading] = useState(false);
-  const [pdfImporting, setPdfImporting] = useState(false);
-  const epubInputRef = useRef<HTMLInputElement>(null);
-  const [epubEntries, setEpubEntries] = useState<LocalEpubEntry[]>([]);
-  const [epubLibraryLoading, setEpubLibraryLoading] = useState(false);
-  const [epubImporting, setEpubImporting] = useState(false);
-  const [epubCoverUrls, setEpubCoverUrls] = useState<Record<string, string>>({});
-  const [libraryFormat, setLibraryFormat] = useState<"all" | "pdf" | "epub">("all");
-  const [readerBackupTarget, setReaderBackupTarget] = useState<{ format: "pdf" | "epub"; id: string; title: string } | null>(null);
-  const [readerBackupBusy, setReaderBackupBusy] = useState(false);
-  const [libraryView, setLibraryView] = useState<"shelf" | "list">(() => {
-    try { return localStorage.getItem("nine-rings-reader-library-view") === "list" ? "list" : "shelf"; }
-    catch { return "shelf"; }
-  });
-
-  useEffect(() => {
-    try { localStorage.setItem("nine-rings-reader-library-view", libraryView); } catch { /* ignore unavailable storage */ }
-  }, [libraryView]);
-
   const loadSettings = () => {
     setLoading(true);
     setLoadError(null);
@@ -543,121 +509,17 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     }
   };
 
-  const refreshPdfLibrary = useCallback(async () => {
-    setPdfLibraryLoading(true);
-    try {
-      setPdfEntries(await listLocalPdfs());
-    } catch (reason) {
-      showMessage(`PDF 资料库读取失败：${reason instanceof Error ? reason.message : String(reason)}`);
-    } finally {
-      setPdfLibraryLoading(false);
-    }
-  }, [showMessage]);
-
-  useEffect(() => {
-    if (!open || settingsPage !== "library") return;
-    void refreshPdfLibrary();
-  }, [open, refreshPdfLibrary, settingsPage]);
-
-  const handlePdfImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setPdfImporting(true);
-    try {
-      const imported = await importLocalPdf(file);
-      await refreshPdfLibrary();
-      showMessage(`已导入 PDF：${imported.name}`);
-      onOpenPdf?.(imported.id);
-    } catch (reason) {
-      showMessage(`PDF 导入失败：${reason instanceof Error ? reason.message : String(reason)}`);
-    } finally {
-      setPdfImporting(false);
-      event.target.value = "";
-    }
-  };
-
-  const handlePdfDelete = async (entry: LocalPdfEntry) => {
-    if (!window.confirm(`删除本地 PDF「${entry.name}」？此操作不会影响笔记。`)) return;
-    try {
-      await deleteLocalPdf(entry.id);
-      await refreshPdfLibrary();
-      showMessage(`已删除 PDF：${entry.name}`);
-    } catch (reason) {
-      showMessage(`PDF 删除失败：${reason instanceof Error ? reason.message : String(reason)}`);
-    }
-  };
-
-  const refreshEpubLibrary = useCallback(async () => {
-    setEpubLibraryLoading(true);
-    try {
-      const entries = await listLocalEpubs();
-      setEpubEntries(entries);
-      const covers = await Promise.all(entries.filter((entry) => entry.hasCover).map(async (entry) => {
-        const blob = await getLocalEpubCover(entry.id);
-        return [entry.id, blob ? URL.createObjectURL(blob) : ""] as const;
-      }));
-      setEpubCoverUrls((current) => {
-        Object.values(current).forEach((url) => URL.revokeObjectURL(url));
-        return Object.fromEntries(covers.filter(([, url]) => url));
-      });
-    } catch (reason) {
-      showMessage(`EPUB 资料库读取失败：${reason instanceof Error ? reason.message : String(reason)}`);
-    } finally {
-      setEpubLibraryLoading(false);
-    }
-  }, [showMessage]);
-
-  useEffect(() => () => { Object.values(epubCoverUrls).forEach((url) => URL.revokeObjectURL(url)); }, [epubCoverUrls]);
-
-  useEffect(() => {
-    if (!open || settingsPage !== "library") return;
-    void refreshEpubLibrary();
-  }, [open, refreshEpubLibrary, settingsPage]);
-
-  const handleEpubImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setEpubImporting(true);
-    try {
-      const imported = await importLocalEpub(file);
-      await refreshEpubLibrary();
-      showMessage(`已导入 EPUB：${imported.title}`);
-      onOpenEpub?.(imported.id);
-    } catch (reason) {
-      showMessage(`EPUB 导入失败：${reason instanceof Error ? reason.message : String(reason)}`);
-    } finally {
-      setEpubImporting(false);
-      event.target.value = "";
-    }
-  };
-
-  const handleEpubDelete = async (entry: LocalEpubEntry) => {
-    if (!window.confirm(`删除本地 EPUB「${entry.title}」？此操作不会影响笔记。`)) return;
-    try {
-      await deleteLocalEpub(entry.id);
-      await refreshEpubLibrary();
-      showMessage(`已删除 EPUB：${entry.title}`);
-    } catch (reason) {
-      showMessage(`EPUB 删除失败：${reason instanceof Error ? reason.message : String(reason)}`);
-    }
-  };
-
-  const libraryItems: Array<{ format: "pdf"; entry: LocalPdfEntry } | { format: "epub"; entry: LocalEpubEntry }> = [
-    ...(libraryFormat !== "epub" ? pdfEntries.map((entry) => ({ format: "pdf" as const, entry })) : []),
-    ...(libraryFormat !== "pdf" ? epubEntries.map((entry) => ({ format: "epub" as const, entry })) : []),
-  ].sort((left, right) => right.entry.lastOpenedAt.localeCompare(left.entry.lastOpenedAt));
-
   if (!open) return null;
 
   return (
-    <div className="settings-overlay" onClick={() => { if (!readerBackupBusy) onClose(); }}>
+    <div className="settings-overlay" onClick={() => { onClose(); }}>
       <div
         className="settings-panel"
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-dialog-title"
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); if (!readerBackupBusy) onClose(); } }}
+        onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}
       >
         <div className="settings-header">
           <div className="settings-header-main">
@@ -665,7 +527,6 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               <button
                 className="settings-back"
                 type="button"
-                disabled={readerBackupBusy}
                 onClick={() => setSettingsPage(
                   settingsPage === "editor"
                     ? "appearance"
@@ -687,7 +548,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             )}
             <h2 id="settings-dialog-title">{SETTINGS_PAGE_TITLES[settingsPage]}</h2>
           </div>
-          <button ref={closeButtonRef} className="settings-close" disabled={readerBackupBusy} onClick={onClose} aria-label="关闭设置">✕</button>
+          <button ref={closeButtonRef} className="settings-close" onClick={onClose} aria-label="关闭设置">✕</button>
         </div>
 
         {loading ? (
@@ -699,6 +560,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
           </div>
         ) : (
           <div className="settings-body">
+            {libraryError && <div className="reading-library-message" role="alert">{libraryError}</div>}
             {settingsPage === "root" && (
               <div key="settings-root-categories" className="settings-category-grid" aria-label="设置分类">
                 {SETTINGS_CATEGORIES.map((category) => (
@@ -706,7 +568,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                     className="settings-category-card"
                     type="button"
                     key={category.id}
-                    onClick={() => setSettingsPage(category.id)}
+                    onClick={() => category.id === "library" ? onOpenLibrary() : setSettingsPage(category.id)}
                   >
                     <span>
                       <strong>{category.title}</strong>
@@ -1096,58 +958,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               )}
             </SettingsSection>
 
-            <SettingsSection title="本地阅读资料库" desc="原文件保存在当前设备；每本书可单独备份阅读数据，尚未纳入全量 JSON 或 GitHub 备份" visible={settingsPage === "library"}>
-              {readerBackupTarget && <ReaderDataBackupPanel
-                key={`${readerBackupTarget.format}-${readerBackupTarget.id}`}
-                format={readerBackupTarget.format} documentId={readerBackupTarget.id} title={readerBackupTarget.title}
-                onClose={() => setReaderBackupTarget(null)} onBusyChange={setReaderBackupBusy}
-                onRestored={() => { void refreshPdfLibrary(); void refreshEpubLibrary(); }}
-              />}
-              <div className="reader-library-toolbar">
-                <div className="settings-button-row reader-library-imports">
-                  <button className="settings-btn-primary" type="button" onClick={() => pdfInputRef.current?.click()} disabled={pdfImporting || readerBackupBusy}>{pdfImporting ? "正在导入 PDF…" : "导入 PDF"}</button>
-                  <button className="settings-btn-primary" type="button" onClick={() => epubInputRef.current?.click()} disabled={epubImporting || readerBackupBusy}>{epubImporting ? "正在导入 EPUB…" : "导入 EPUB"}</button>
-                  <input ref={pdfInputRef} type="file" accept="application/pdf,.pdf" style={{ display: "none" }} onChange={handlePdfImport} />
-                  <input ref={epubInputRef} type="file" accept="application/epub+zip,.epub" style={{ display: "none" }} onChange={handleEpubImport} />
-                </div>
-                <div className="reader-library-controls">
-                  <div className="reader-library-segment" aria-label="阅读资料库格式筛选">
-                    {(["all", "pdf", "epub"] as const).map((format) => <button type="button" key={format} className={libraryFormat === format ? "active" : ""} aria-pressed={libraryFormat === format} onClick={() => setLibraryFormat(format)}>{format === "all" ? "全部" : format.toUpperCase()}</button>)}
-                  </div>
-                  <div className="reader-library-segment" aria-label="阅读资料库视图">
-                    <button type="button" className={libraryView === "shelf" ? "active" : ""} aria-pressed={libraryView === "shelf"} onClick={() => setLibraryView("shelf")} aria-label="书架视图">▦</button>
-                    <button type="button" className={libraryView === "list" ? "active" : ""} aria-pressed={libraryView === "list"} onClick={() => setLibraryView("list")} aria-label="列表视图">☷</button>
-                  </div>
-                </div>
-              </div>
-              {pdfLibraryLoading || epubLibraryLoading ? <div className="pdf-library-empty">正在读取阅读资料库…</div>
-                : libraryItems.length === 0 ? <div className="pdf-library-empty">{libraryFormat === "all" ? "尚未导入 PDF 或 EPUB" : `尚未导入 ${libraryFormat.toUpperCase()}`}</div>
-                  : <div className={`reader-library-items reader-library-${libraryView}`}>
-                    {libraryItems.map((item) => {
-                      const isPdf = item.format === "pdf";
-                      const title = isPdf ? item.entry.name : item.entry.title;
-                      const progressText = isPdf
-                        ? (item.entry.pageCount ? `第 ${item.entry.page}/${item.entry.pageCount} 页` : "尚未记录页数")
-                        : (item.entry.chapterCount ? `第 ${item.entry.chapter + 1}/${item.entry.chapterCount} 章` : "尚未记录章节");
-                      return <article className="reader-library-item" data-format={item.format} data-document-id={item.entry.id} key={`${item.format}-${item.entry.id}`}>
-                        <button type="button" className="reader-library-open" disabled={readerBackupBusy} onClick={() => isPdf ? onOpenPdf?.(item.entry.id) : onOpenEpub?.(item.entry.id)} title={`打开 ${title}`} aria-label={`打开 ${title}`}>
-                          <span className="reader-library-cover">
-                            {!isPdf && epubCoverUrls[item.entry.id] ? <img src={epubCoverUrls[item.entry.id]} alt="" /> : <span aria-hidden="true">{isPdf ? "PDF" : "📖"}</span>}
-                            <em>{item.format.toUpperCase()}</em>
-                          </span>
-                          <span className="reader-library-meta">
-                            <strong>{title}</strong>
-                            {!isPdf && item.entry.author && <small>{item.entry.author}</small>}
-                            <small>{progressText} · {formatStorageBytes(item.entry.size)}</small>
-                            <small>最近阅读 {formatLibraryDate(item.entry.lastOpenedAt)}</small>
-                          </span>
-                        </button>
-                        <button type="button" className="reader-library-backup" disabled={readerBackupBusy} onClick={() => setReaderBackupTarget({ format: item.format, id: item.entry.id, title })} aria-label={`阅读数据备份 ${title}`}>阅读备份</button>
-                        <button type="button" className="reader-library-delete" disabled={readerBackupBusy} onClick={() => isPdf ? void handlePdfDelete(item.entry) : void handleEpubDelete(item.entry)} aria-label={`删除 ${title}`} title={`删除本地 ${item.format.toUpperCase()}`}>×</button>
-                      </article>;
-                    })}
-                  </div>}
-            </SettingsSection>
+
 
             {/* ═══════════════════════ */}
             {/* 数据导出/导入 */}
@@ -1389,12 +1200,6 @@ function formatStorageBytes(bytes: number | null): string {
     unit = units[i];
   }
   return `${value.toFixed(value >= 10 ? 1 : 2)} ${unit}`;
-}
-
-function formatLibraryDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "未知";
-  return new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
 // ── 快捷键配置 ──

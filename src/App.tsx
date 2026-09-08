@@ -2,6 +2,8 @@ import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useSta
 import { useNotes } from "./hooks/useNotes";
 import { DatePicker } from "./components/DatePicker";
 import { ToolbarIcon } from "./components/ToolbarIcon";
+import type { ReadingLibrarySession } from "./components/ReadingLibrary";
+import "./components/ReadingLibrary.css";
 import { OverdueTodos } from "./components/OverdueTodos";
 import { Sidebar } from "./components/Sidebar";
 import { SearchBar } from "./components/SearchBar";
@@ -63,6 +65,7 @@ const PropertiesPanel = lazy(() => import("./components/PropertiesPanel"));
 const DocCreateDialog = lazy(() => import("./components/DocCreateDialog"));
 const QuickSwitcher = lazy(() => import("./components/QuickSwitcher"));
 const PdfReader = lazy(() => import("./components/PdfReader"));
+const ReadingLibrary = lazy(() => import("./components/ReadingLibrary"));
 const EpubReader = lazy(() => import("./components/EpubReader"));
 const TodoList = lazy(() => import("./components/TodoList")
   .then((module) => ({ default: module.TodoList })));
@@ -400,6 +403,9 @@ function App() {
   }, [clearSearch, flushAutoSave, search]);
 
   const [recycleOpen, setRecycleOpen] = useState(false);
+  const [readingLibraryOpen, setReadingLibraryOpen] = useState(false);
+  const [readingLibraryError, setReadingLibraryError] = useState<string | null>(null);
+  const readingLibrarySession = useRef<ReadingLibrarySession>({ format: "all", query: "", scrollTop: 0 });
   const [pdfReaderDocumentId, setPdfReaderDocumentId] = useState<string | null>(null);
   const [pdfReaderTargetHighlightId, setPdfReaderTargetHighlightId] = useState<string | null>(null);
   const [pdfReaderTargetRange, setPdfReaderTargetRange] = useState<{ page: number; start: number; end: number } | null>(null);
@@ -497,6 +503,21 @@ function App() {
       setSidebarHidden(true);
     }
   }, []);
+
+  const openReadingLibrary = useCallback(async () => {
+    if (syncBusy) return;
+    try {
+      await flushAutoSave();
+      setSettingsOpen(false);
+      setQuickSwitcherOpen(false);
+      setDocTreePopupOpen(false);
+      closeSidebarOnNarrowScreen();
+      setReadingLibraryError(null);
+      setReadingLibraryOpen(true);
+    } catch (error) {
+      setReadingLibraryError(`打开阅读资料库前保存失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  }, [syncBusy, flushAutoSave, setSettingsOpen, closeSidebarOnNarrowScreen]);
   const handleQuickSwitch = useCallback(async (note: Note) => {
     setQuery("");
     setDocResults(null);
@@ -1140,6 +1161,7 @@ function App() {
 
   // ── 键盘快捷键（浏览器 keydown + Tauri 全局热键）──
   useAppKeyboardShortcuts({
+    workspaceActive: !readingLibraryOpen,
     setSettingsOpen,
     setQuickSwitcherOpen,
     setDate,
@@ -1286,6 +1308,7 @@ function App() {
                 },
               });
               setPdfReaderFullscreen(false);
+              setReadingLibraryOpen(false);
               setPdfReaderDocumentId(null);
               setPdfReaderTargetHighlightId(null);
               setPdfReaderTargetRange(null);
@@ -1337,6 +1360,7 @@ function App() {
                 },
               });
               setEpubReaderFullscreen(false);
+              setReadingLibraryOpen(false);
               setEpubReaderDocumentId(null);
               setEpubReaderTargetHighlightId(null);
               revealDocTreePath("resources/epub-excerpts");
@@ -1352,6 +1376,20 @@ function App() {
         </Suspense>
       </div>
     );
+  }
+
+  if (readingLibraryOpen) {
+    return <div className="pdf-reader-app">
+      {isTauriRuntime() && <Suspense fallback={null}><TitleBar /></Suspense>}
+      <Suspense fallback={<div className="pdf-reader-boot">正在加载阅读资料库…</div>}>
+        <ReadingLibrary session={readingLibrarySession.current}
+          onClose={() => setReadingLibraryOpen(false)}
+          onSettings={() => { setReadingLibraryOpen(false); setSettingsOpen(true); }}
+          onOpenPdf={id => { setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
+          onOpenEpub={id => { setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }}
+        />
+      </Suspense>
+    </div>;
   }
 
   return (
@@ -1490,6 +1528,7 @@ function App() {
       )}
 
       <BackupRestoreStatus compact onOpenSettings={() => setSettingsOpen(true)} />
+      {readingLibraryError && <div role="alert" className="reading-library-message">{readingLibraryError}</div>}
 
       <div className="app-body">
         <aside ref={sidebarPanelRef} className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}
@@ -1516,6 +1555,10 @@ function App() {
               <ToolbarIcon name="chevronLeft" />
             </button>
           </div>
+
+          <button type="button" className="sidebar-reading-entry" disabled={syncBusy} onClick={() => void openReadingLibrary()} aria-label="打开阅读资料库">
+            <ToolbarIcon name="document" />阅读<span>PDF / EPUB</span>
+          </button>
 
           {!secondaryUiReady ? (
             <div className="doc-tree-loading">正在加载列表...</div>
@@ -1855,25 +1898,8 @@ function App() {
           webStorageStatus={isTauriRuntime() ? undefined : webPlatform.storage}
           onClose={() => setSettingsOpen(false)}
           onConfigChange={handleConfigChange}
-          onOpenPdf={(documentId) => {
-            void flushAutoSave()
-              .then(() => {
-                setSettingsOpen(false);
-                setPdfReaderTargetHighlightId(null);
-                setPdfReaderTargetRange(null);
-                setPdfReaderDocumentId(documentId);
-              })
-              .catch((saveError) => console.error("[PDF] 打开阅读器前保存笔记失败:", saveError));
-          }}
-          onOpenEpub={(documentId) => {
-            void flushAutoSave()
-              .then(() => {
-                setSettingsOpen(false);
-                setEpubReaderTargetHighlightId(null);
-                setEpubReaderDocumentId(documentId);
-              })
-              .catch((saveError) => console.error("[EPUB] 打开阅读器前保存笔记失败:", saveError));
-          }}
+          onOpenLibrary={() => void openReadingLibrary()}
+          libraryError={readingLibraryError}
           onBeforeBookmarkNoteUpdate={async (noteId) => {
             if (selectedNoteRef.current?.id === noteId) await autoSave.flush();
           }}
