@@ -1,4 +1,45 @@
 import { expect, test } from "@playwright/test";
+import { createBlankNote } from "./helpers/editor-fixtures";
+
+test("跨标签读取期间的新输入不会被迟到的外部快照覆盖", async ({ context }) => {
+  test.slow();
+  const first = await context.newPage();
+  const firstEditor = await createBlankNote(first);
+  await firstEditor.fill("原始内容");
+  await expect(first.locator(".save-status-saved")).toBeVisible();
+  const noteId = await first.evaluate(() => localStorage.getItem("nr:lastNote"));
+
+  const second = await context.newPage();
+  await second.goto("/");
+  const secondEditor = second.locator(".ProseMirror");
+  await expect(secondEditor).toHaveText("原始内容");
+  await second.evaluate(async (targetId) => {
+    const path = "/src/lib/api.ts";
+    const { api }: typeof import("../src/lib/api") = await import(/* @vite-ignore */ path);
+    const original = api.notes.get;
+    let held = false;
+    api.notes.get = async (id) => {
+      const note = await original(id);
+      if (id === targetId && !held) {
+        held = true;
+        await new Promise<void>((resolve) => Object.assign(window, { releaseTabRead: resolve }));
+      }
+      return note;
+    };
+  }, noteId);
+
+  await firstEditor.fill("另一页已保存的修改");
+  await expect(first.locator(".save-status-saved")).toBeVisible();
+  await expect.poll(() => second.evaluate(() => "releaseTabRead" in window)).toBe(true);
+  await secondEditor.fill("本页在读取期间的新输入");
+  await second.evaluate(() => {
+    (window as unknown as { releaseTabRead: () => void }).releaseTabRead();
+  });
+  await expect(second.locator(".tab-conflict-banner")).toContainText("另一个标签页修改");
+  await expect(secondEditor).toHaveText("本页在读取期间的新输入");
+  await expect(second.getByRole("button", { name: "载入其他标签页版本" })).toBeVisible();
+  await expect(second.getByRole("button", { name: "保留本页并覆盖" })).toBeVisible();
+});
 
 test("多标签页自动刷新并在本地编辑时提示冲突", async ({ context }) => {
   test.slow();

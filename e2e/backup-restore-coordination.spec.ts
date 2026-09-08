@@ -145,8 +145,12 @@ for (const mode of ["safe-merge", "replace"] as const) {
         const syncBefore = localStorage.getItem("nr:github-sync");
         const transaction = IDBDatabase.prototype.transaction;
         let writes = 0;
+        const writeStores: string[] = [];
         IDBDatabase.prototype.transaction = function (...args: Parameters<typeof transaction>) {
-          if (args[1] === "readwrite") writes++;
+          if (args[1] === "readwrite") {
+            writes++;
+            writeStores.push(`${this.name}:${String(args[0])}`);
+          }
           return transaction.apply(this, args);
         };
         let error = "";
@@ -154,12 +158,12 @@ for (const mode of ["safe-merge", "replace"] as const) {
           await pullFromGitHub({ ...loadSyncConfig(), token: "test-token", owner: "test", repo: "test" }, { mode: pullMode });
         } catch (reason) { error = String(reason); }
         finally { IDBDatabase.prototype.transaction = transaction; }
-        return { error, writes, before, after: await api.notes.get(keeper.id), syncBefore,
+        return { error, writes, writeStores, before, after: await api.notes.get(keeper.id), syncBefore,
           syncAfter: localStorage.getItem("nr:github-sync"), record: JSON.parse(localStorage.getItem("nr:backup-restore-journal:v1")!) };
       }, mode);
       expect(result.error).not.toBe("");
       expect(result.error).not.toContain("private-invalid-content");
-      expect(result.writes).toBe(0);
+      expect(result.writes, `Unexpected writes: ${result.writeStores.join(", ")}`).toBe(0);
       expect(result.after).toEqual(result.before);
       expect(result.syncAfter).toBe(result.syncBefore);
       expect(result.record.phase).toBe("failed");

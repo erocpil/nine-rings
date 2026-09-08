@@ -151,8 +151,18 @@ async function runTests() {
     await idbAdapter.restoreNote(toRestore.id);
     const restored = await idbAdapter.getNote(toRestore.id);
     assert(!!restored, "restored visible");
+    await idbAdapter.createNoteCheckpoint(toRestore.id);
+    const versionCount = (await idbAdapter.getNoteVersions(toRestore.id)).length;
+    let refused = false;
+    try { await idbAdapter.permanentlyDeleteNote(toRestore.id); }
+    catch (error) { refused = String(error).includes("已恢复"); }
+    assert(refused, "permanent delete refuses a restored/active note");
+    assert(!!await idbAdapter.getNote(toRestore.id), "restored note is preserved");
+    assert((await idbAdapter.getNoteVersions(toRestore.id)).length === versionCount, "restored note versions are preserved");
     // 永久删除
     await idbAdapter.deleteNote(toRestore.id);
+    await idbAdapter.permanentlyDeleteNote(toRestore.id);
+    assert((await idbAdapter.getNoteVersions(toRestore.id)).length === 0, "permanent delete removes trashed note versions");
     await idbAdapter.permanentlyDeleteNote(toRestore.id);
     const cleaned = await idbAdapter.cleanOldDeleted(0);
     assert(typeof cleaned === "number", "cleanOldDeleted returns number");

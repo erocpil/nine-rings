@@ -26,7 +26,10 @@ test("属性页可预览、版本化更新并解除外部 Markdown 来源", asyn
   await page.getByPlaceholder("文档标题...").fill("外部来源测试");
   await page.getByRole("button", { name: "创建", exact: true }).click();
 
+  await expect(page.locator(".note-title")).toHaveValue("外部来源测试");
   const editor = page.locator(".ProseMirror");
+  await expect(editor).toHaveText("");
+  await expect(editor).toHaveAttribute("contenteditable", "true");
   await editor.fill("更新前的本地正文");
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
   await page.getByTitle("显示属性面板").click();

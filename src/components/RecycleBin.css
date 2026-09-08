@@ -1,0 +1,195 @@
+/* Keep recycle-bin layout together; colors follow the current application theme. */
+.dialog.recycle-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, 100%);
+  min-width: 0;
+  max-height: min(82dvh, 760px);
+  padding: 0;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.recycle-panel .recycle-header {
+  flex-shrink: 0;
+  gap: 12px;
+  padding: 20px;
+  border-bottom: 0;
+  background: var(--bg);
+}
+.recycle-panel .recycle-header-icon,
+.recycle-panel .recycle-empty-icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--active-bg);
+  color: var(--accent);
+}
+.recycle-panel .recycle-header-icon .toolbar-icon { width: 23px; height: 23px; }
+.recycle-panel .recycle-heading { flex: 1; min-width: 0; }
+.recycle-panel .recycle-heading-title { display: flex; align-items: center; gap: 10px; }
+.recycle-panel .recycle-heading h3 { font-size: 22px; line-height: 1.3; letter-spacing: -0.02em; }
+.recycle-panel .recycle-heading p { margin: 5px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+.recycle-panel .recycle-total {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.recycle-panel .recycle-close { width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; }
+
+.recycle-panel .recycle-selection-bar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 20px;
+  border-block: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.recycle-panel .recycle-selection-toggle,
+.recycle-panel .recycle-item-select {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  gap: 10px;
+  cursor: pointer;
+}
+.recycle-panel input[type="checkbox"] { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); cursor: inherit; }
+.recycle-panel .recycle-selection-count { padding: 4px 8px; border-radius: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.recycle-panel .recycle-selection-count.has-selection { background: var(--active-bg); color: var(--accent); }
+
+.recycle-panel .recycle-feedback { flex-shrink: 0; max-height: min(26dvh, 160px); overflow-y: auto; padding: 8px 16px; border-bottom: 1px solid var(--border); }
+.recycle-panel .recycle-feedback .ui-operation-error { margin: 0; }
+.recycle-panel .recycle-notice,
+.recycle-panel .recycle-progress { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.recycle-panel .recycle-notice { color: var(--text); }
+.recycle-panel .recycle-notice > .toolbar-icon { color: var(--success); }
+.recycle-panel .recycle-progress { color: var(--accent); }
+.recycle-panel .recycle-content {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+}
+.recycle-panel .recycle-item {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 12px 10px 12px 2px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+}
+.recycle-panel .recycle-item:last-child { margin-bottom: 0; }
+.recycle-panel .recycle-item.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--bg)); }
+.recycle-panel .recycle-item-info { min-width: 0; }
+.recycle-panel .recycle-item-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.recycle-panel .recycle-item-path { display: flex; align-items: center; gap: 5px; margin-top: 5px; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+.recycle-panel .recycle-item-path .toolbar-icon { width: 14px; height: 14px; }
+.recycle-panel .recycle-item-path span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recycle-panel .recycle-item-date { margin-top: 3px; color: var(--text-secondary); font-size: 11px; line-height: 1.6; }
+.recycle-panel .recycle-item-actions { display: flex; align-items: center; gap: 6px; }
+.recycle-panel :is(.recycle-btn-restore, .recycle-btn-delete, .recycle-btn-clean) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.recycle-panel .recycle-btn-restore { background: var(--active-bg); color: var(--accent); }
+.recycle-panel .recycle-btn-delete { background: transparent; color: var(--danger); }
+.recycle-panel .recycle-clear { border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
+.recycle-panel .recycle-delete-selected { background: var(--danger); color: var(--bg); }
+.recycle-panel .recycle-delete-selected:disabled { background: var(--surface); border-color: var(--border); color: var(--text-secondary); opacity: 1; }
+.recycle-panel button:disabled { cursor: not-allowed; opacity: 0.5; }
+.recycle-panel :is(button, input):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.recycle-panel .recycle-footer { display: flex; flex-direction: column; flex-shrink: 0; gap: 6px; margin: 0; padding: 12px 20px 8px; border-top: 1px solid var(--border); background: var(--bg); }
+.recycle-panel .recycle-footer-main { display: flex; justify-content: space-between; gap: 12px; }
+.recycle-panel .recycle-footer-secondary { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.recycle-panel .recycle-btn-clean { padding-inline: 0; background: transparent; color: var(--text-secondary); font-size: 12px; font-weight: 400; }
+.recycle-panel .recycle-delete-hint { display: flex; align-items: center; gap: 5px; color: var(--text-secondary); font-size: 11px; }
+.recycle-panel .recycle-delete-hint .toolbar-icon { width: 13px; height: 13px; }
+.recycle-panel .recycle-empty { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 48px 20px; }
+.recycle-panel .recycle-empty-icon { width: 64px; height: 64px; border-radius: 20px; }
+.recycle-panel .recycle-empty-icon .toolbar-icon { width: 30px; height: 30px; }
+.recycle-panel .recycle-empty strong { font-size: 17px; font-weight: 600; color: var(--text); }
+.recycle-panel .recycle-empty p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--text-secondary); }
+
+@media (hover: hover) and (pointer: fine) {
+  .recycle-panel .recycle-item:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+  .recycle-panel .recycle-btn-restore:hover:not(:disabled) { border-color: var(--accent); }
+  .recycle-panel .recycle-btn-delete:hover:not(:disabled) { background: var(--danger-bg); border-color: var(--danger); }
+  .recycle-panel .recycle-delete-selected:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 85%, var(--text)); color: var(--bg); }
+  .recycle-panel .recycle-btn-clean:hover:not(:disabled) { color: var(--danger); text-decoration: underline; }
+}
+@media (pointer: coarse) {
+  .recycle-panel :is(.recycle-btn-restore, .recycle-btn-delete, .recycle-btn-clean) { min-height: 44px; }
+}
+@media (max-width: 600px) {
+  .dialog.recycle-panel { max-height: calc(100dvh - 32px); border-radius: 16px; }
+  .recycle-panel .recycle-header { padding: 16px 12px; gap: 10px; }
+  .recycle-panel .recycle-heading h3 { font-size: 20px; }
+  .recycle-panel .recycle-selection-bar { padding-inline: 16px; }
+  .recycle-panel .recycle-content { padding: 8px; }
+  .recycle-panel .recycle-item { grid-template-columns: 44px minmax(0, 1fr); column-gap: 4px; row-gap: 8px; padding: 10px 10px 8px 0; }
+  .recycle-panel .recycle-item-select { align-self: start; }
+  .recycle-panel .recycle-item-actions { grid-column: 2; justify-content: flex-end; }
+  .recycle-panel .recycle-item-actions button { min-width: 88px; }
+  .recycle-panel .recycle-footer { padding: 10px 12px max(6px, env(safe-area-inset-bottom, 0px)); gap: 2px; }
+  .recycle-panel .recycle-footer-main { gap: 10px; }
+  .recycle-panel .recycle-footer-main button { flex: 1; }
+  .recycle-panel .recycle-heading p { font-size: 11px; }
+  .recycle-panel .recycle-feedback { padding-inline: 12px; }
+}
+@media (max-width: 360px) {
+  .recycle-panel .recycle-header-icon { width: 36px; height: 36px; border-radius: 11px; }
+  .recycle-panel .recycle-heading-title { gap: 6px; }
+  .recycle-panel .recycle-total { padding-inline: 5px; }
+  .recycle-panel .recycle-delete-hint .toolbar-icon { display: none; }
+}
+@media (max-height: 500px) {
+  .dialog.recycle-panel { max-height: calc(100dvh - 16px); }
+  .recycle-panel .recycle-header { padding-block: 10px; }
+  .recycle-panel .recycle-empty { padding-block: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recycle-panel :is(.recycle-item, button) { transition: none; }
+}

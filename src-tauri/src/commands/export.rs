@@ -145,7 +145,21 @@ pub fn restore_note(state: State<AppState>, id: String) -> Result<(), String> {
 #[tauri::command]
 pub fn permanently_delete_note(state: State<AppState>, id: String) -> Result<(), String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
+    permanently_delete_trashed_note(&conn, &id)
+}
+
+fn permanently_delete_trashed_note(conn: &rusqlite::Connection, id: &str) -> Result<(), String> {
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    let restored: bool = tx
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM notes WHERE id = ?1 AND deleted_at IS NULL)",
+            rusqlite::params![id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    if restored {
+        return Err("文档已恢复，不能从回收站永久删除；请刷新列表".into());
+    }
     tx.execute(
         "DELETE FROM note_versions WHERE note_id = ?1",
         rusqlite::params![id],
@@ -155,6 +169,39 @@ pub fn permanently_delete_note(state: State<AppState>, id: String) -> Result<(),
         .map_err(|e| e.to_string())?;
     tx.commit().map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod recycle_tests {
+    use super::permanently_delete_trashed_note;
+    use rusqlite::Connection;
+
+    #[test]
+    fn permanent_delete_preserves_restored_notes_and_their_versions() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE notes (id TEXT PRIMARY KEY, deleted_at TEXT);
+             CREATE TABLE note_versions (id TEXT PRIMARY KEY, note_id TEXT);
+             INSERT INTO notes VALUES ('restored', NULL), ('trashed', '2026-09-01');
+             INSERT INTO note_versions VALUES ('v1', 'restored'), ('v2', 'trashed');",
+        )
+        .unwrap();
+        assert!(permanently_delete_trashed_note(&conn, "restored")
+            .unwrap_err()
+            .contains("已恢复"));
+        permanently_delete_trashed_note(&conn, "trashed").unwrap();
+        permanently_delete_trashed_note(&conn, "trashed").unwrap();
+        let notes: String = conn
+            .query_row("SELECT group_concat(id) FROM notes", [], |row| row.get(0))
+            .unwrap();
+        let versions: String = conn
+            .query_row("SELECT group_concat(id) FROM note_versions", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert_eq!(notes, "restored");
+        assert_eq!(versions, "v1");
+    }
 }
 
 #[tauri::command]

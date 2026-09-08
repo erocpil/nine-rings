@@ -158,10 +158,12 @@ jobs:
       - name: Mobile block gutter editing regression tests (WebKit)
         run: npx playwright test e2e/block-gutter-edit.spec.ts --browser=webkit --workers=1
       - name: Data safety regression tests (WebKit)
-        run: npx playwright test e2e/data-safety.spec.ts e2e/hook-lifecycle.spec.ts --browser=webkit --workers=1
+        run: npx playwright test e2e/data-safety.spec.ts e2e/hook-lifecycle.spec.ts e2e/multi-tab.spec.ts e2e/image-readonly.spec.ts e2e/recycle-bin.spec.ts --browser=webkit --workers=1
+      - name: Native clipboard parsing regression tests (WebKit)
+        run: npx playwright test e2e/clipboard-paste.spec.ts --browser=webkit --grep "代码块内原生粘贴|Windows 风格段内|Windows Office|HTML 表格粘贴为|同时携带 HTML 的 Markdown 仍完整|引用段落之间" --workers=1
       - name: Mobile drag and keyboard recovery regression tests (WebKit)
         run: npx playwright test e2e/mobile-interaction-recovery.spec.ts --browser=webkit --workers=1
       - name: Experimental readonly rendering regression tests (WebKit)
         run: npx playwright test e2e/readonly-rendering.spec.ts --browser=webkit --workers=1
       - name: Edge drawers and mobile toolbar regression tests (WebKit)
-        run: npx playwright test e2e/pwa-layout.spec.ts e2e/toolbar-responsive.spec.ts --browser=webkit --grep "边缘|侧栏.*同宽|点击目录书签|同一可视视口|更多菜单|更多弹层|再次点按更多|手机端可从更多|选择文字后工具栏|待办输入框与|手机向上拖动 splitter|专注模式.*待办|响应式编辑器工具栏" --workers=1
+        run: npx playwright test e2e/pwa-layout.spec.ts e2e/toolbar-responsive.spec.ts --browser=webkit --grep "边缘|侧栏.*同宽|点击目录书签|非专注模式书签与目录弹层|同一可视视口|更多菜单|更多弹层|再次点按更多|手机端可从更多|选择文字后工具栏|待办输入框与|手机向上拖动 splitter|专注模式.*待办|响应式编辑器工具栏" --workers=1

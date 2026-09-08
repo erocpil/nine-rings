@@ -24,7 +24,7 @@ declare module "@tiptap/core" {
 
 // ── React NodeView 组件 ──
 
-function ResizableImageView({ node, updateAttributes, selected }: NodeViewProps) {
+function ResizableImageView({ node, updateAttributes, selected, editor }: NodeViewProps) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const dragStart = useRef<{ pointerId: number; x: number; w: number } | null>(null);
@@ -66,7 +66,7 @@ function ResizableImageView({ node, updateAttributes, selected }: NodeViewProps)
   useEffect(() => () => dragCleanupRef.current?.(), []);
 
   const onResizePointerDown = useCallback((e: React.PointerEvent<HTMLSpanElement>) => {
-    if (dragStart.current || (e.pointerType === "mouse" && e.button !== 0)) return;
+    if (editor.isDestroyed || !editor.isEditable || dragStart.current || (e.pointerType === "mouse" && e.button !== 0)) return;
     e.preventDefault();
     e.stopPropagation();
     const img = imgRef.current;
@@ -84,6 +84,7 @@ function ResizableImageView({ node, updateAttributes, selected }: NodeViewProps)
 
     const onMove = (ev: PointerEvent) => {
       if (!dragStart.current || ev.pointerId !== pointerId) return;
+      if (editor.isDestroyed || !editor.isEditable) { cleanup(); return; }
       if (ev.cancelable) ev.preventDefault();
       const delta = ev.clientX - dragStart.current.x;
       const newW = Math.max(60, dragStart.current.w + delta);
@@ -97,29 +98,39 @@ function ResizableImageView({ node, updateAttributes, selected }: NodeViewProps)
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
       document.removeEventListener("pointercancel", onUp);
+      readonlyObserver.disconnect();
       dragCleanupRef.current = null;
     };
     const onUp = (ev: PointerEvent) => {
       if (ev.pointerId !== pointerId) return;
       if (ev.cancelable) ev.preventDefault();
-      if (dragStart.current && imgRef.current) {
+      if (ev.type === "pointerup" && !editor.isDestroyed && editor.isEditable && dragStart.current && imgRef.current) {
         const finalW = imgRef.current.offsetWidth;
         updateAttributes({ width: `${finalW}px` });
       }
       cleanup();
     };
+    // setEditable(..., false) changes the DOM without a document update.
+    // Observe only while dragging, so readonly immediately cancels a preview
+    // without subscribing every image to every editor transaction.
+    const readonlyObserver = new MutationObserver(() => {
+      if (editor.isDestroyed || !editor.isEditable) cleanup();
+    });
+    readonlyObserver.observe(editor.view.dom, { attributes: true, attributeFilter: ["contenteditable"] });
     dragCleanupRef.current = cleanup;
     document.addEventListener("pointermove", onMove, { passive: false });
     document.addEventListener("pointerup", onUp);
     document.addEventListener("pointercancel", onUp);
-  }, [updateAttributes]);
+  }, [editor, updateAttributes]);
 
   // 双击恢复原始大小
   const onDoubleClick = useCallback(() => {
+    if (editor.isDestroyed || !editor.isEditable) return;
     updateAttributes({ width: null });
-  }, [updateAttributes]);
+  }, [editor, updateAttributes]);
 
   const onImagePointerUp = useCallback((event: React.PointerEvent<HTMLImageElement>) => {
+    if (editor.isDestroyed || !editor.isEditable) { imageTapRef.current = null; return; }
     if (event.pointerType === "mouse") return;
     const now = Date.now();
     const previous = imageTapRef.current;
@@ -131,7 +142,7 @@ function ResizableImageView({ node, updateAttributes, selected }: NodeViewProps)
     event.stopPropagation();
     imageTapRef.current = null;
     updateAttributes({ width: null });
-  }, [updateAttributes]);
+  }, [editor, updateAttributes]);
 
   return (
     <NodeViewWrapper className="resizable-image-wrapper" data-selected={selected ? "true" : undefined}>

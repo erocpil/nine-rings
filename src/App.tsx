@@ -274,23 +274,38 @@ function App() {
       .catch((saveError) => console.error("[Recovery] 重试保存失败:", saveError));
   }, [flushAutoSave]);
 
-  useEffect(() => subscribeToDataChanges((event) => {
-    const current = useNotesStore.getState().selectedNote;
-    if (!event.noteId || event.noteId !== current?.id) return;
-    if (event.type === "note-deleted") {
-      setExternalNoteConflict(true);
-      return;
-    }
-    if (autoSave.status === "dirty" || autoSave.status === "saving" || autoSave.status === "error") {
-      setExternalNoteConflict(true);
-      return;
-    }
-    void api.notes.get(event.noteId).then((note) => {
-      if (!note) return;
-      selectNote(note);
-      setExternalReloadKey((key) => key + 1);
+  useEffect(() => {
+    let active = true;
+    let request = 0;
+    const unsubscribe = subscribeToDataChanges((event) => {
+      const current = useNotesStore.getState().selectedNote;
+      if (!event.noteId || event.noteId !== current?.id) return;
+      const generation = ++request;
+      if (event.type === "note-deleted" || getPendingData()) {
+        setExternalNoteConflict(true);
+        return;
+      }
+      void api.notes.get(event.noteId).then((note) => {
+        if (!active || generation !== request) return;
+        const latest = useNotesStore.getState().selectedNote;
+        if (latest?.id !== current.id) return;
+        // Read pending state synchronously again: React's status at the time
+        // of the broadcast cannot protect edits made while this read awaits.
+        // Also reject an old snapshot after a local save or another selection.
+        if (getPendingData() || latest !== current || !note) {
+          setExternalNoteConflict(true);
+          return;
+        }
+        selectNote(note);
+        setExternalReloadKey((key) => key + 1);
+      }).catch(() => {
+        if (active && generation === request && useNotesStore.getState().selectedNote?.id === current.id) {
+          setExternalNoteConflict(true);
+        }
+      });
     });
-  }), [autoSave.status, selectNote]);
+    return () => { active = false; unsubscribe(); };
+  }, [getPendingData, selectNote, selectedNoteId]);
 
   const loadExternalNote = useCallback(async () => {
     const noteId = useNotesStore.getState().selectedNote?.id;
@@ -1950,7 +1965,7 @@ function App() {
         <RecycleBin
           open={recycleOpen}
           onClose={() => setRecycleOpen(false)}
-          onNotesChanged={() => {
+          onRestored={() => {
             void setDate(currentDate);
             refreshNoteViews();
           }}

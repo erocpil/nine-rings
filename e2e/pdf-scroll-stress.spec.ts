@@ -81,9 +81,9 @@ test("PDF 快速往返滚动后只提交当前页，离屏画布释放", async (
     }),
   ).toBe(true);
   await expect(reader).toHaveAttribute("data-pdf-scroll-quality", "full");
-  await expect(target.locator("canvas")).not.toHaveAttribute(
+  await expect(target.locator("canvas")).toHaveAttribute(
     "data-pdf-render-signature",
-    /:preview$/,
+    /^\d+:\d+:\d+:fit-width$/,
   );
   await page
     .locator('.pdf-page-surface[data-pdf-page="30"]')

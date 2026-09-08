@@ -1,5 +1,46 @@
 import { test, expect } from "@playwright/test";
 
+test("打开笔记和切换只读不产生正文保存，真实编辑仍正常保存", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeEditable();
+  await page.evaluate(async () => {
+    const path = "/src/lib/api.ts";
+    const { api }: typeof import("../src/lib/api") = await import(/* @vite-ignore */ path);
+    const original = api.notes.update;
+    const contentWrites: string[] = [];
+    Object.assign(window, { contentWrites });
+    api.notes.update = (id, data) => {
+      if (data.content !== undefined) contentWrites.push(id);
+      return original(id, data);
+    };
+  });
+  await page.getByTitle("随笔").click();
+  await page.getByTitle("从模板新建").click();
+  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  await expect(page.locator(".note-title")).toHaveValue("新随笔");
+  const editor = page.locator(".ProseMirror");
+  await expect(editor).toHaveText("");
+  const id = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
+  const writes = () => page.evaluate((noteId) =>
+    (window as unknown as { contentWrites: string[] }).contentWrites.filter((value) => value === noteId).length, id);
+
+  // Deliberately exceed the 600 ms debounce to catch synthetic update events.
+  await page.waitForTimeout(1200);
+  expect(await writes()).toBe(0);
+  await page.getByTitle("点击设为只读").click();
+  await expect(editor).toHaveAttribute("contenteditable", "false");
+  await page.getByTitle("点击设为可编辑").click();
+  await expect(editor).toHaveAttribute("contenteditable", "true");
+  await page.waitForTimeout(1200);
+  expect(await writes()).toBe(0);
+
+  await editor.fill("真正修改的正文");
+  await expect(page.locator(".save-status-saved")).toBeVisible();
+  expect(await writes()).toBe(1);
+  await page.reload();
+  await expect(page.locator(".ProseMirror")).toHaveText("真正修改的正文");
+});
+
 test("搜索摘要中的 HTML 只显示为文字", async ({ page }) => {
   await page.goto("/");
   const result = await page.evaluate(async () => {

@@ -1,7 +1,10 @@
 /** CSS theme token contract: every var() without a fallback must be defined. */
 import { readFileSync } from "node:fs";
 
-const css = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+// Component styles share the same theme-token contract as application chrome.
+const css = ["../src/styles.css", "../src/components/ReaderToolbar.css", "../src/components/RecycleBin.css"]
+  .map((path) => readFileSync(new URL(path, import.meta.url), "utf8"))
+  .join("\n");
 const definitions = new Set(
   Array.from(css.matchAll(/(--[a-zA-Z0-9-]+)\s*:/g), (match) => match[1]),
 );
@@ -68,7 +71,7 @@ for (const selector of [
   ".template-popover",
   ".qc-container",
   ".pdf-reader-toolbar",
-  ".epub-bookmark-popover",
+  ".reader-tool-panel",
 ]) {
   if (!sharedChrome.includes(selector)) {
     console.error(`Shared application chrome must cover ${selector}`);

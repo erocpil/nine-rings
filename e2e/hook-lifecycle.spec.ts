@@ -98,7 +98,7 @@ test("StrictMode 连接检查更换 Token 后重新请求并丢弃旧响应", as
     await expect(harness.locator(".sync-status")).toHaveCount(1);
     await expect(harness.locator(".sync-toast")).toHaveCount(0);
     await harness.getByRole("button", { name: "Push ↑", exact: true }).click();
-    await expect(harness.locator(".sync-feedback .sync-toast.error")).toContainText("推送失败");
+    await expect(harness.locator(".sync-feedback").getByRole("alert")).toContainText("推送失败");
     await expect(harness.locator(".sync-status")).toHaveCount(0);
     await harness.getByPlaceholder("ghp_...").fill("");
     await expect(harness.locator(".sync-status")).toHaveCount(0);

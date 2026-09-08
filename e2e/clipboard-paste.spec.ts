@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+import { createBlankNote } from "./helpers/editor-fixtures";
 
 const markdownLikeShellSource = [
   "#!/usr/bin/env bash",
@@ -25,11 +26,98 @@ const wrappedRgCommand = [
 ].join("\n");
 
 test.describe("编辑器复制粘贴", () => {
+  for (const mode of ["原生", "工具栏"] as const) {
+    test(`${mode}富文本粘贴保留样式、列表、表格和复制切片边界`, async ({ page, context }) => {
+      await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+      const editor = await createBlankNote(page);
+      const content = {
+        text: "# 保留原文 加粗 斜体 链接\n父项\n子项\n名称\n内容",
+        html: '<p># 保留原文 <strong>加粗</strong> <em>斜体</em> <a href="https://example.com/">链接</a> <span style="color: rgb(200, 0, 0)">红色</span></p><ul><li><p>父项</p><ul><li><p>子项</p></li></ul></li></ul><table><tr><th>名称</th></tr><tr><td>内容</td></tr></table>',
+      };
+      if (mode === "原生") {
+        await editor.evaluate((element, { text, html }) => {
+          const clipboardData = new DataTransfer();
+          clipboardData.setData("text/plain", text);
+          clipboardData.setData("text/html", html);
+          element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+        }, content);
+      } else {
+        await page.evaluate(async ({ text, html }) => {
+          await navigator.clipboard.write([new ClipboardItem({
+            "text/plain": new Blob([text], { type: "text/plain" }),
+            "text/html": new Blob([html], { type: "text/html" }),
+          })]);
+        }, content);
+        await page.getByTitle("粘贴 (Ctrl+V)").click();
+      }
+      await expect(editor.locator("h1")).toHaveCount(0);
+      await expect(editor.locator("strong")).toHaveText("加粗");
+      await expect(editor.locator("em")).toHaveText("斜体");
+      await expect(editor.locator("a")).toHaveAttribute("href", "https://example.com/");
+      await expect(editor.getByText("红色", { exact: true })).toHaveCSS("color", "rgb(200, 0, 0)");
+      await expect(editor.locator("ul ul li")).toHaveText("子项");
+      await expect(editor.locator("table td")).toHaveText("内容");
+
+      // Copy a partial rich paragraph through the app, then paste it in place.
+      // Keeping PM slice metadata prevents either lost marks or extra blocks.
+      await editor.evaluate((element) => {
+        const paragraph = element.querySelector("p")!;
+        const range = document.createRange();
+        range.setStartBefore(paragraph.querySelector("strong")!);
+        range.setEndAfter(paragraph.querySelector("em")!);
+        const selection = window.getSelection()!;
+        selection.removeAllRanges();
+        selection.addRange(range);
+      });
+      await page.getByTitle("复制 (Ctrl+C)").click();
+      await expect.poll(() => page.evaluate(async () => {
+        const items = await navigator.clipboard.read();
+        return (await items[0].getType("text/html")).text();
+      })).toContain("data-pm-slice");
+      await page.getByTitle("粘贴 (Ctrl+V)").click();
+      await expect(editor.locator(":scope > p")).toHaveCount(1);
+      await expect(editor.locator("strong")).toHaveText("加粗");
+      await expect(editor.locator("em")).toHaveText("斜体");
+      await expect(editor.locator("table td")).toHaveText("内容");
+    });
+  }
+
+  for (const action of ["继续输入", "切换只读", "切换文档"] as const) {
+    test(`异步读取剪贴板期间${action}不会把旧内容粘到新状态`, async ({ page }) => {
+      const editor = await createBlankNote(page);
+      await editor.fill("保留的正文");
+      await page.evaluate(() => {
+        Object.defineProperty(navigator.clipboard, "read", { configurable: true, value: () => {
+          return new Promise<ClipboardItem[]>((resolve) => {
+            Object.assign(window, { finishClipboardRead: () => resolve([new ClipboardItem({
+              "text/plain": new Blob(["过期粘贴内容"], { type: "text/plain" }),
+            })]) });
+          });
+        } });
+      });
+      await page.getByTitle("粘贴 (Ctrl+V)").click();
+      await expect.poll(() => page.evaluate(() => "finishClipboardRead" in window)).toBe(true);
+      if (action === "继续输入") await editor.fill("更新后的正文");
+      else if (action === "切换只读") {
+        await page.getByTitle("点击设为只读").click();
+        await expect(editor).toHaveAttribute("contenteditable", "false");
+      } else {
+        const previous = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
+        await page.getByTitle("从模板新建").click();
+        await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+        await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:lastNote"))).not.toBe(previous);
+        await expect(editor).toHaveText("");
+      }
+      await page.evaluate(async () => {
+        (window as unknown as { finishClipboardRead: () => void }).finishClipboardRead();
+        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      });
+      await expect(editor).toHaveText(action === "继续输入" ? "更新后的正文" : action === "切换只读" ? "保留的正文" : "");
+    });
+  }
+
   test("代码块内原生粘贴 shell 源码不会触发 Markdown 转换", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
     await editor.click();
@@ -55,10 +143,7 @@ test.describe("编辑器复制粘贴", () => {
 
   test("代码块内使用粘贴按钮仍按原始纯文本插入", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
     await editor.click();
@@ -82,10 +167,7 @@ test.describe("编辑器复制粘贴", () => {
   });
 
   test("已有代码块仍保留粘贴文本的末尾换行", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
     await editor.fill("已有代码：");
@@ -107,10 +189,7 @@ test.describe("编辑器复制粘贴", () => {
   });
 
   test("长 shell 参数自动换行时不会让前导空格单独占据视觉行", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
     await editor.click();
@@ -189,11 +268,7 @@ test.describe("编辑器复制粘贴", () => {
 
   test("复制行内文本后粘贴不会引入首尾空白", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-    await page.goto("/");
-
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
     await editor.fill("前缀 中间文本 后缀");
@@ -232,10 +307,7 @@ test.describe("编辑器复制粘贴", () => {
 
   test("复制列表项中的局部文本不会附加项目符号", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const phrase = "尾延迟和公平性之间要用实";
     const editor = page.locator(".ProseMirror");
@@ -261,11 +333,7 @@ test.describe("编辑器复制粘贴", () => {
 
   test("复制整行文本后粘贴只产生预期内容", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-    await page.goto("/");
-
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
     await editor.fill("整行文本");
@@ -292,10 +360,7 @@ test.describe("编辑器复制粘贴", () => {
 
   test("全选复制多个代码块不会包含语言和复制控件文字", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const firstCommand = "kubectl patch deployment boson-probe";
     const secondCommand = "kubectl get deployment.apps/boson-probe";
@@ -329,10 +394,7 @@ test.describe("编辑器复制粘贴", () => {
 
   test("折叠引用块后全选复制仍只包含引用正文", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
     await editor.fill("需要保留的引用正文");
@@ -358,10 +420,7 @@ test.describe("编辑器复制粘贴", () => {
   });
 
   test("引用段落之间的空行不会拆成三个引用块", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
     await editor.evaluate((element) => {
@@ -382,10 +441,7 @@ test.describe("编辑器复制粘贴", () => {
 
   test("复制有序列表到纯文本时列表项之间没有多余空行", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const lines = [
       "办公网可以正常使用codex；",
@@ -412,11 +468,7 @@ test.describe("编辑器复制粘贴", () => {
 
   test("通过编辑器粘贴按钮粘贴单段 HTML 不产生首尾空段落", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-    await page.goto("/");
-
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
     await editor.fill("前缀 后缀");
@@ -438,11 +490,7 @@ test.describe("编辑器复制粘贴", () => {
 
   test("粘贴按钮优先将同时携带 HTML 的 Markdown 解析为多级列表", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-    await page.goto("/");
-
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const markdown = [
       "- **VFIO/UIO接入层**",
@@ -474,11 +522,7 @@ test.describe("编辑器复制粘贴", () => {
   });
 
   test("Windows 风格段内边界换行不会变成粘贴前后空行", async ({ page }) => {
-    await page.goto("/");
-
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
     await editor.fill("已有内容");
@@ -502,11 +546,7 @@ test.describe("编辑器复制粘贴", () => {
   });
 
   test("Windows Office 风格嵌套边界空块不会变成大段空白", async ({ page }) => {
-    await page.goto("/");
-
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
     await editor.fill("已有内容");
@@ -530,11 +570,7 @@ test.describe("编辑器复制粘贴", () => {
   });
 
   test("HTML 表格粘贴为可编辑表格节点", async ({ page }) => {
-    await page.goto("/");
-
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
     await editor.evaluate((element) => {
@@ -562,11 +598,7 @@ test.describe("编辑器复制粘贴", () => {
   });
 
   test("单行 Markdown 标题粘贴转换为一级标题", async ({ page }) => {
-    await page.goto("/");
-
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
     await editor.evaluate((element) => {
@@ -583,11 +615,7 @@ test.describe("编辑器复制粘贴", () => {
   });
 
   test("Markdown 多级混合列表按层级渲染", async ({ page }) => {
-    await page.goto("/");
-
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const markdown = [
       "- **VFIO/UIO接入层**",
@@ -639,11 +667,7 @@ test.describe("编辑器复制粘贴", () => {
   });
 
   test("同时携带 HTML 的 Markdown 仍完整格式化", async ({ page }) => {
-    await page.goto("/");
-
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const markdown = [
       "# 面试复习材料:DPDK / 内核网络 / SR-IOV & VIRTIO",
@@ -679,11 +703,7 @@ test.describe("编辑器复制粘贴", () => {
   });
 
   test("Markdown 表格粘贴后渲染为表格", async ({ page }) => {
-    await page.goto("/");
-
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const markdown = [
       "# Part 0. 内容索引",
@@ -715,10 +735,7 @@ test.describe("编辑器复制粘贴", () => {
   });
 
   test("编辑后的表格可规范化导出为 Markdown", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
     const markdown = "| 名称 | 数值 |\n| :--- | ---: |\n| `a \\| b` | **42** |";
@@ -750,10 +767,7 @@ test.describe("编辑器复制粘贴", () => {
   });
 
   test("超过五万字符的 Markdown 可替换已有内容", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+    await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
     await editor.fill("旧内容");

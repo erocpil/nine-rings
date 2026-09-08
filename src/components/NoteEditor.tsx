@@ -15,7 +15,6 @@ import TableCell from "@tiptap/extension-table-cell";
 import { MarkdownLinkInput } from "../extensions/MarkdownLinkInput";
 import {
   normalizePastedHTML,
-  normalizeSingleParagraphHTML,
   normalizeSingleParagraphPaste,
 } from "../extensions/NormalizeSingleParagraphPaste";
 import CharacterCount from "@tiptap/extension-character-count";
@@ -31,7 +30,8 @@ import {
 // ── 自定义字体大小扩展 ──
 
 import { Extension, getSchema, type Editor } from "@tiptap/core";
-import { DOMSerializer, type Node as ProseMirrorNode } from "@tiptap/pm/model";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import { readClipboardContent, shouldParseClipboardMarkdown } from "../lib/clipboard-content";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { CellSelection, deleteCellSelection, TableMap } from "@tiptap/pm/tables";
@@ -51,7 +51,7 @@ import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
 import { DocumentPanelDrawer, type DocumentPanelPresentation } from "./DocumentPanelDrawer";
 import { storeImage } from "../lib/storage/db-images";
 import { api } from "../lib/api";
-import { looksLikeMarkdown, mdToDelta } from "../lib/md-parser";
+import { mdToDelta } from "../lib/md-parser";
 import {
   SearchHighlights,
   findSearchMatches,
@@ -1014,6 +1014,9 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
       localStorage.setItem(`selectionPos:${noteId}`, JSON.stringify({ from, to }));
     },
     onUpdate: ({ editor: ed, transaction }) => {
+      // TipTap can emit update for setEditable without changing the document.
+      // Mode/UI updates must not autosave, clear search, or notify other tabs.
+      if (!transaction.docChanged) return;
       scheduleDocumentStats(ed);
       // 搜索高亮是导航提示，不应在用户开始修改正文后继续指向旧位置。
       if (searchMatchesRef.current.length > 0) {
@@ -1615,7 +1618,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
 
   // 当 readonly 变化时同步编辑器状态
   useEffect(() => {
-    editor?.setEditable(!readonly);
+    editor?.setEditable(!readonly, false);
   }, [readonly, editor]);
 
   useEffect(() => {
@@ -2377,11 +2380,9 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
       }
 
       const rawHtml = e.clipboardData.getData("text/html")?.trim();
-      if (rawHtml) {
-        e.preventDefault();
-        editor.chain().focus().insertContent(normalizePastedHTML(rawHtml)).run();
-        return;
-      }
+      // Let ProseMirror parse rich HTML in the current selection context and
+      // run both transformPastedHTML and transformPasted (including edge trim).
+      if (rawHtml && !shouldParseClipboardMarkdown(rawPlainText.trim(), rawHtml)) return;
 
       // ── URL 粘贴：自动抓标题 ──
       const plainText = rawPlainText.trim();
@@ -2426,8 +2427,8 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
       }
 
       // 浏览器和聊天应用复制 Markdown 时通常会同时提供 text/html。
-      // 优先使用 HTML 数据，避免把富文本再次退回到 Markdown 解析。
-      if (plainText && looksLikeMarkdown(plainText)) {
+      // 仅源码包装按 Markdown 解析；真实富文本沿用原生粘贴链路。
+      if (plainText && shouldParseClipboardMarkdown(plainText, rawHtml)) {
         e.preventDefault();
         const parsed = deltaToProseMirror(mdToDelta(plainText));
         editor.chain().focus().insertContent(parsed.content).run();
@@ -2863,9 +2864,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
     if (from === to) return;
     const slice = editor.state.selection.content();
     const text = clipboardSliceToPlainText(slice);
-    const fragment = DOMSerializer.fromSchema(editor.schema).serializeFragment(slice.content);
-    const htmlContainer = document.createElement("div");
-    htmlContainer.appendChild(fragment);
+    const { dom: htmlContainer } = editor.view.serializeForClipboard(slice);
 
     try {
       await navigator.clipboard.write([
@@ -2884,9 +2883,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
     if (from === to) return;
     const slice = editor.state.selection.content();
     const text = clipboardSliceToPlainText(slice);
-    const fragment = DOMSerializer.fromSchema(editor.schema).serializeFragment(slice.content);
-    const htmlContainer = document.createElement("div");
-    htmlContainer.appendChild(fragment);
+    const { dom: htmlContainer } = editor.view.serializeForClipboard(slice);
 
     try {
       await navigator.clipboard.write([
@@ -2901,42 +2898,27 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
     editor.chain().focus().deleteSelection().run();
   };
   const handleClipboardPaste = async () => {
+    const sourceDoc = editor.state.doc;
+    const selection = editor.state.selection;
     try {
-      const items = await navigator.clipboard.read();
-      for (const item of items) {
-        if (item.types.includes("text/html")) {
-          const blob = await item.getType("text/html");
-          const html = await blob.text();
-          if (!html) continue;
-          editor.chain().focus().insertContent(normalizeSingleParagraphHTML(html)).run();
-          return;
-        }
+      const { text, html } = await readClipboardContent();
+      // Clipboard permissions may resolve after typing or switching documents.
+      if (editor.isDestroyed || readonlyRef.current || !editor.isEditable || editor.state.doc !== sourceDoc) return;
+      editor.view.dispatch(editor.state.tr.setSelection(selection));
+      if (text && isSelectionInsideCodeBlock(editor)) {
+        insertCodeBlockPlainText(editor, text);
+      } else if (shouldParseClipboardMarkdown(text.trim(), html)) {
+        const parsed = deltaToProseMirror(mdToDelta(text.trim()));
+        editor.chain().focus().insertContent(parsed.content).run();
+        setMarkdownPasteText(text.trim());
+      } else {
+        editor.view.focus();
+        // Use the same parsing/normalization pipeline as native paste, not
+        // insertContent which bypasses the clipboard slice transforms.
+        if (html) editor.view.pasteHTML(html);
+        else if (text.trim()) editor.view.pasteText(text.trim());
       }
-
-      for (const item of items) {
-        if (item.types.includes("text/plain")) {
-          const blob = await item.getType("text/plain");
-          const rawPlainText = await blob.text();
-          if (rawPlainText && isSelectionInsideCodeBlock(editor)) {
-            insertCodeBlockPlainText(editor, rawPlainText);
-            return;
-          }
-          const plainText = rawPlainText.trim();
-          if (plainText && looksLikeMarkdown(plainText)) {
-            const parsed = deltaToProseMirror(mdToDelta(plainText));
-            editor.chain().focus().insertContent(parsed.content).run();
-            setMarkdownPasteText(plainText);
-            return;
-          }
-        }
-      }
-      // 回退：普通纯文本，去除首尾空白以防空段落
-      const text = await navigator.clipboard.readText();
-      const trimmed = text.replace(/^\s+|\s+$/g, '');
-      if (trimmed) {
-        editor.chain().focus().insertContent(trimmed).run();
-      }
-    } catch { /* 权限拒绝静默忽略 */ }
+    } catch { /* 系统拒绝剪贴板读取时保留原内容 */ }
   };
 
   // ── 正文右键菜单 ──

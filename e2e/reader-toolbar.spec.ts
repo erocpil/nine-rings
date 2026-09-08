@@ -81,6 +81,16 @@ test("PDF 批注工具按需展开，绘制后可完成并查看、隐藏和导�
   await expect(page.locator(".pdf-page-annotation-square")).toHaveCount(1);
   await page.getByRole("button", { name: "完成批注", exact: true }).click();
   await expect(page.locator(".pdf-annotation-overlay.drawing")).toHaveCount(0);
+  await expect(page.locator(".reader-active-tool")).toHaveCount(0);
+  // Finishing drawing removes a toolbar row. ResizeObserver then requests a
+  // new text layer; selecting the old span before that commit loses the range.
+  // Wait for the actual viewport's render, not merely an attached old span.
+  await expect.poll(() => page.locator(".pdf-page-viewport").evaluate((viewport) => {
+    const canvas = viewport.querySelector<HTMLCanvasElement>(".pdf-page-surface canvas");
+    const signature = canvas?.dataset.pdfRenderSignature?.split(":");
+    return signature?.length === 4 && signature[1] === String(viewport.clientWidth)
+      && signature[2] === String(viewport.clientHeight) && signature[3] === "fit-width";
+  })).toBe(true);
   await page.locator(".pdf-text-layer span").first().evaluate((element) => {
     const range = document.createRange();
     range.selectNodeContents(element);

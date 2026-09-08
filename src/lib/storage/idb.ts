@@ -394,7 +394,12 @@ export const idbAdapter: StorageAdapter = {
   async permanentlyDeleteNote(id: string): Promise<void> {
     return withDB(async (db) => {
       const tx = db.transaction(["notes", "note_versions"], "readwrite");
-      await delRecord(tx.objectStore("notes"), id);
+      const store = tx.objectStore("notes");
+      const note = await getOne<StoredNote>(store, id);
+      // The row may have been restored in another window since confirmation.
+      // Check and delete in the same transaction, including its versions.
+      if (note && !note.deleted_at) throw new Error("文档已恢复，不能从回收站永久删除；请刷新列表");
+      await delRecord(store, id);
 
       // Delete all versions for this note
       const verIndex = tx.objectStore("note_versions").index("note_id");

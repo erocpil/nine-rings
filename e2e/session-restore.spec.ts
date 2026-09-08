@@ -23,12 +23,12 @@ test.describe("移动端视图切换", () => {
     const viewSwitch = page.locator(".sidebar-view-switch");
     await expect(viewSwitch).toHaveCount(1);
     await expect(viewSwitch).toHaveAttribute("aria-label", "切换到随笔");
-    await expect(viewSwitch).toContainText("📂");
+    await expect(viewSwitch.locator("svg")).toHaveCount(1);
     await expect(viewSwitch.locator(".sidebar-view-switch-label")).toHaveText("文档");
     await expect(viewSwitch.locator(".sidebar-view-switch-label")).toBeVisible();
     await viewSwitch.click();
     await expect(viewSwitch).toHaveAttribute("aria-label", "切换到文档");
-    await expect(viewSwitch).toContainText("✏️");
+    await expect(viewSwitch.locator("svg")).toHaveCount(1);
     await expect(viewSwitch.locator(".sidebar-view-switch-label")).toHaveText("随笔");
     await page.locator(".sidebar-overlay").click({ position: { x: 590, y: 300 } });
     await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
@@ -263,7 +263,7 @@ test.describe("会话位置恢复与编辑器查找", () => {
     await popup.getByTitle("折叠其它目录（保留当前文档所在目录）").click();
     await expect(popup.locator(".doc-tree-folder .doc-tree-toggle").filter({ hasText: "▼" }).first()).toBeVisible();
 
-    await popup.getByRole("button", { name: "✕" }).click();
+    await popup.getByRole("button", { name: "关闭文档视图", exact: true }).click();
     await page.getByTitle("显示侧栏").click();
     await expect(sidebar.locator(".doc-tree-folder .doc-tree-toggle").filter({ hasText: "▼" }).first()).toBeVisible();
   });

@@ -2576,6 +2576,18 @@ body {
   opacity: 1;
 }
 
+/* Readonly changes need no NodeView re-render or synthetic document update. */
+.note-editor-readonly .resizable-image-wrapper .resize-handle,
+.ProseMirror[contenteditable="false"] .resizable-image-wrapper .resize-handle {
+  display: none;
+  pointer-events: none;
+}
+
+.note-editor-readonly .resizable-image-wrapper[data-selected="true"] img,
+.ProseMirror[contenteditable="false"] .resizable-image-wrapper[data-selected="true"] img {
+  outline: none;
+}
+
 @media (hover: none), (pointer: coarse), (any-pointer: coarse) {
   .resize-handle {
     width: 28px;
@@ -4154,6 +4166,15 @@ body {
   top: 8px;
 }
 
+/* 普通模式的按钮浮层以文档区居中；固定目录和专注模式保持原定位。 */
+.note-editor:not(.focus-mode):not(.outline-docked-left):not(.outline-docked-right) > .document-outline-panel,
+.note-editor:not(.focus-mode) > .document-bookmark-panel {
+  left: 8px;
+  right: 8px;
+  width: min(420px, calc(100% - 16px));
+  margin-inline: auto;
+}
+
 .document-bookmark-header,
 .document-bookmark-item {
   display: flex;
@@ -5294,52 +5315,6 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   padding: 20px;
 }
 
-/* ──── Recycle Bin ──── */
-
-.recycle-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: fadeIn 0.15s ease;
-}
-
-.recycle-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 20px;
-  min-width: 420px;
-  max-width: 80vw;
-  max-height: 70vh;
-  overflow-y: auto;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-}
-
-.recycle-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.recycle-header h3 {
-  font-size: 15px;
-  margin: 0;
-}
-
-.recycle-close {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 18px;
-  padding: 2px 4px;
-}
-
 /* ──── Overdue Todos ──── */
 
 .overdue-overlay {
@@ -5423,105 +5398,6 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   padding: 20px;
   color: var(--text-secondary);
   text-align: center;
-}
-
-.recycle-item {
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  margin-bottom: 6px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.recycle-item:hover {
-  background: var(--bg);
-}
-
-.recycle-item-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.recycle-item-title {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 13px;
-  min-width: 0;
-}
-
-.recycle-item-name {
-  flex-shrink: 0;
-  max-width: 55%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.recycle-item-path {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-tertiary);
-  font-family: var(--font-mono, monospace);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.recycle-item-date {
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
-.recycle-item-actions {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.recycle-btn-restore {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--success);
-  padding: 2px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.recycle-btn-delete {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--danger);
-  padding: 2px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.recycle-btn-clean {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  padding: 4px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.recycle-footer {
-  margin-top: 12px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
-}
-
-.recycle-empty {
-  color: var(--text-secondary);
-  font-size: 13px;
-  text-align: center;
-  padding: 20px;
 }
 
 /* ──── Undo Toast ──── */
@@ -9416,6 +9292,15 @@ button.doc-tree-toggle:focus-visible {
     width: min(420px, calc(100vw - 16px));
   }
 
+  /* 窄屏不固定目录，即使保留了桌面固定偏好，也应使用居中的浮层。 */
+  .note-editor:not(.focus-mode) > .document-outline-panel {
+    left: 8px;
+    right: 8px;
+    width: min(420px, calc(100% - 16px));
+    max-width: calc(100% - 16px);
+    margin-inline: auto;
+  }
+
   .document-outline-header {
     gap: 6px;
   }
@@ -11659,12 +11544,6 @@ button.doc-tree-toggle:focus-visible {
   box-sizing: border-box;
 }
 
-.recycle-footer {
-  margin: 0;
-  padding: 8px var(--ui-panel-padding);
-  border-top: 1px solid var(--border);
-}
-
 /* Empty/loading states */
 :is(
   .version-empty,
@@ -12273,14 +12152,6 @@ button.doc-tree-toggle:focus-visible {
   .recycle-item,
   .overdue-item {
     min-height: 56px;
-  }
-
-  .recycle-item {
-    align-items: flex-start;
-  }
-
-  .recycle-item-actions {
-    flex-direction: column;
   }
 
   .qc-hint {

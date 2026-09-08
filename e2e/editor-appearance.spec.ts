@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { createBlankNote } from "./helpers/editor-fixtures";
 
 test("排版设置中的调整即时生效并在重载后保持", async ({ page }) => {
   await page.goto("/");
@@ -255,12 +256,7 @@ test("纯粗体小节标签与下一段正文保持紧凑间距", async ({ page 
 });
 
 test("局部加粗正文不会改变其后分割线间距", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-
-  const editor = page.locator(".ProseMirror");
+  const editor = await createBlankNote(page);
   await editor.evaluate((element) => {
     const clipboardData = new DataTransfer();
     clipboardData.setData(

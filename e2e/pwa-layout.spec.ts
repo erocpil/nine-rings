@@ -281,8 +281,8 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(geometry.outline.bottom).toBeCloseTo(geometry.bookmark.bottom, 1);
   });
 
-  for (const width of [320, 390, 1280]) {
-    test(`非专注模式书签与目录弹层位置一致（${width}px）`, async ({ page }) => {
+  for (const width of [320, 390, 600, 768, 769, 1280]) {
+    test(`非专注模式书签与目录弹层居中且位置一致（${width}px）`, async ({ page }) => {
       await page.setViewportSize({ width, height: 800 });
       await page.goto("/");
       const editor = page.locator(".ProseMirror");
@@ -293,6 +293,7 @@ test.describe("PWA 窄屏应用外壳", () => {
       const outline = page.getByRole("navigation", { name: "文档目录" });
       const bookmark = page.getByRole("navigation", { name: "文档书签" });
       const checkPosition = async () => {
+        const hostRect = (await page.locator(".note-editor").boundingBox())!;
         await outlineButton.click();
         await expect(outline).toBeVisible();
         const outlineRect = await outline.boundingBox();
@@ -301,9 +302,16 @@ test.describe("PWA 窄屏应用外壳", () => {
         await expect(bookmark).toBeVisible();
         await expect(bookmark).toHaveCSS("position", "absolute");
         const bookmarkRect = await bookmark.boundingBox();
+        for (const rect of [outlineRect!, bookmarkRect!]) {
+          expect(rect.x + rect.width / 2).toBeCloseTo(hostRect.x + hostRect.width / 2, 1);
+          expect(rect.x).toBeGreaterThanOrEqual(hostRect.x + 7);
+          expect(rect.x + rect.width).toBeLessThanOrEqual(hostRect.x + hostRect.width - 7);
+          expect(rect.y).toBeCloseTo(hostRect.y + 38, 1);
+        }
+        expect(bookmarkRect!.width).toBeCloseTo(outlineRect!.width, 1);
         expect(bookmarkRect!.y).toBeCloseTo(outlineRect!.y, 1);
         expect(bookmarkRect!.x + bookmarkRect!.width).toBeCloseTo(outlineRect!.x + outlineRect!.width, 1);
-        if (width <= 768) expect(bookmarkRect!.x).toBeCloseTo(outlineRect!.x, 1);
+        expect(bookmarkRect!.x).toBeCloseTo(outlineRect!.x, 1);
         await bookmarkButton.click();
       };
       await checkPosition();

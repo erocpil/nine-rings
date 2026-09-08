@@ -1091,12 +1091,15 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
               if (isStale()) return;
               textLayerRefs.current.set(pageNumber, textLayer);
             }
-            const cached = !previewOnly ? bitmapCacheRef.current.take(pageNumber, fullSignature) : undefined;
+            // Borrow the bitmap until both raster and text layers commit. A
+            // scroll/quality change can cancel while textLayer.render awaits;
+            // consuming the cache here would lose the only full-quality copy.
+            const candidate = !previewOnly ? bitmapCacheRef.current.peek(pageNumber) : undefined;
+            const cached = candidate?.signature === fullSignature ? candidate : undefined;
             if (cached) {
               stagedCanvas.width = cached.canvas.width;
               stagedCanvas.height = cached.canvas.height;
               context.drawImage(cached.canvas, 0, 0);
-              cached.canvas.width = cached.canvas.height = 0;
             }
             const renderTask = cached ? null : pdfPage.render({
               canvasContext: context,
@@ -1120,6 +1123,10 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
               canvas.dataset.pdfRenderSignature = renderSignature;
               canvas.dataset.pdfReady = "true";
               canvas.dataset.pdfRenderSource = cached ? "cache" : previewOnly ? "preview" : "render";
+              if (cached && bitmapCacheRef.current.peek(pageNumber) === cached) {
+                bitmapCacheRef.current.take(pageNumber, fullSignature);
+                cached.canvas.width = cached.canvas.height = 0;
+              }
               rememberThumbnail(pageNumber, stagedCanvas);
               completed = true;
             } finally {
