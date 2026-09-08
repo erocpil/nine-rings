@@ -1,12 +1,14 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { api } from "../lib/api";
-import { readRecentNoteIds } from "../lib/quick-switcher";
+import { filterQuickSwitcherNotes, readRecentNoteIds } from "../lib/quick-switcher";
 import { readDocumentFavorites, toggleDocumentFavorite } from "../lib/document-favorites";
-import type { Note } from "../types/models";
+import type { DocType, Note } from "../types/models";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { DocumentPathPicker } from "./DocumentPathPicker";
 import "./DocumentBrowser.css";
+
+const DOCUMENT_TYPES: Record<DocType, string> = { explanation: "解释", "how-to": "指南", reference: "参考", tutorial: "教程" };
 
 interface Props {
   session: DocumentBrowserSession;
@@ -31,6 +33,8 @@ export interface DocumentBrowserSession {
   filtersOpen?: boolean;
   showDetails?: boolean;
   scrollTop?: number;
+  scrollPositions?: Record<string, number>;
+  docType?: DocType | "";
 }
 
 /** Metadata-only browsing: never index or preview document bodies, including unlocked ones. */
@@ -43,6 +47,7 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
   const [path, setPath] = useState(session.path ?? initialPath);
   const [query, setQuery] = useState(session.query ?? "");
   const [sort, setSort] = useState(session.sort ?? "updated");
+  const [docType, setDocType] = useState<DocType | "">(session.docType ?? "");
   const [view, setView] = useState(session.view ?? "recent");
   const [searchOpen, setSearchOpen] = useState(session.searchOpen ?? false);
   const [filtersOpen, setFiltersOpen] = useState(session.filtersOpen ?? false);
@@ -56,17 +61,27 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
-    Object.assign(session, { notes, paths, protectedPaths, path, query, sort, view, searchOpen, filtersOpen, showDetails });
-  }, [session, notes, paths, protectedPaths, path, query, sort, view, searchOpen, filtersOpen, showDetails]);
+    Object.assign(session, { notes, paths, protectedPaths, path, query, sort, view, docType, searchOpen, filtersOpen, showDetails });
+  }, [session, notes, paths, protectedPaths, path, query, sort, view, docType, searchOpen, filtersOpen, showDetails]);
   useEffect(() => {
     const refreshFavorites = () => setFavorites(readDocumentFavorites());
     window.addEventListener("storage", refreshFavorites);
     return () => window.removeEventListener("storage", refreshFavorites);
   }, []);
   useLayoutEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = session.scrollTop ?? 0;
-  }, [session]);
+    if (scrollRef.current) scrollRef.current.scrollTop = session.scrollPositions?.[view]
+      ?? (session.view === view ? session.scrollTop ?? 0 : 0);
+  }, [session, view]);
+  const switchView = (next: string) => {
+    if (next === view) return;
+    session.scrollPositions ??= {};
+    session.scrollPositions[view] = scrollRef.current?.scrollTop ?? 0;
+    setView(next);
+  };
   const resetScroll = () => {
+    // Filters apply to all three views, so old offsets no longer describe the
+    // same result sets after changing a filter or sort order.
+    session.scrollPositions = {};
     session.scrollTop = 0;
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   };
@@ -86,15 +101,16 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
     return () => { active = false; };
   }, [refreshKey, reloadKey]);
   const visible = useMemo(() => {
-    const term = query.trim().toLocaleLowerCase();
-    return notes.filter(note => (view !== "recent" || recentIds.includes(note.id))
+    return filterQuickSwitcherNotes(notes, query).filter(note => (view !== "recent" || recentIds.includes(note.id))
       && (view !== "favorites" || favorites.includes(note.id))
+      && (!docType || note.docType === docType)
       && (!path || note.storagePath === path || note.storagePath?.startsWith(`${path}/`))
-      && (!term || [note.title, note.storagePath, ...note.tags, ...(note.concepts ?? [])].join(" ").toLocaleLowerCase().includes(term)))
+      )
       .sort((a, b) => view === "recent" ? recentIds.indexOf(a.id) - recentIds.indexOf(b.id) : sort === "title"
         ? (a.title ?? "").localeCompare(b.title ?? "", "zh-CN")
         : b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id));
-  }, [notes, path, query, sort, view, recentIds, favorites]);
+  }, [notes, path, query, sort, view, recentIds, favorites, docType]);
+  const hasFilters = Boolean(path || query.trim() || docType);
   const actions = <>
     <button className="btn-icon" aria-label="搜索文档" aria-expanded={searchOpen} onClick={() => {
       flushSync(() => setSearchOpen(!searchOpen));
@@ -107,32 +123,41 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
     {toolbarHost && createPortal(actions, toolbarHost)}
     <div className="document-browser-controls">
       <div className="document-browser-tabs" aria-label="文档浏览方式">
-        <button aria-pressed={view === "recent"} onClick={() => { setView("recent"); resetScroll(); }}>最近打开</button>
-        <button aria-pressed={view === "all"} onClick={() => { setView("all"); resetScroll(); }}>全部文档</button>
-        <button aria-pressed={view === "favorites"} onClick={() => { setView("favorites"); resetScroll(); }}>收藏</button>
+        <button aria-pressed={view === "recent"} onClick={() => switchView("recent")}>最近打开</button>
+        <button aria-pressed={view === "all"} onClick={() => switchView("all")}>全部文档</button>
+        <button aria-pressed={view === "favorites"} onClick={() => switchView("favorites")}>收藏</button>
         <span className="document-browser-count" aria-live="polite">{loading ? "…" : visible.length}</span>
-        <button className="document-browser-filter-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}><ToolbarIcon name="sliders" />筛选</button>
+        <button className={`document-browser-filter-toggle${hasFilters ? " is-filtered" : ""}`} aria-label="筛选" title={hasFilters ? "已应用筛选" : "筛选文档"} aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}><ToolbarIcon name="sliders" />筛选</button>
       </div>
       {searchOpen && <input ref={searchRef} aria-label="查找文档" placeholder="查找标题、路径、标签或概念" value={query} onChange={event => { setQuery(event.target.value); resetScroll(); }} />}
       {filtersOpen && <div className="document-browser-filters">
         <button className="document-browser-path-trigger" aria-label="筛选路径" onClick={() => setPathPickerOpen(true)}><ToolbarIcon name="folder" /><span>{path || "全部路径"}</span><ToolbarIcon name="chevronRight" /></button>
+        <label>类型<select aria-label="文档类型筛选" value={docType} onChange={event => { setDocType(event.target.value as DocType | ""); resetScroll(); }}>
+          <option value="">全部类型</option>
+          {Object.entries(DOCUMENT_TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select></label>
         {view !== "recent" && <label>排序<select aria-label="文档排序" value={sort} onChange={event => { setSort(event.target.value); resetScroll(); }}>
           <option value="updated">最近修改</option><option value="title">标题排序</option>
         </select></label>}
         <label><input type="checkbox" checked={showDetails} onChange={event => setShowDetails(event.target.checked)} />显示标签和修改日期</label>
       </div>}
       {path && <button className="document-browser-path-filter" title={path} aria-label={`清除路径筛选 ${path}`} onClick={() => { setPath(""); resetScroll(); }}>{path}<ToolbarIcon name="close" /></button>}
+      {docType && <button className="document-browser-type-filter" aria-label="清除类型筛选" onClick={() => { setDocType(""); resetScroll(); }}>{DOCUMENT_TYPES[docType]}<ToolbarIcon name="close" /></button>}
     </div>
     {pathPickerOpen && <DocumentPathPicker paths={paths} protectedPaths={protectedPaths} initialPath={path}
       onClose={() => setPathPickerOpen(false)} onSelect={value => { setPath(value); resetScroll(); setPathPickerOpen(false); }} />}
-    <div className="document-browser-list" ref={scrollRef} onScroll={event => { session.scrollTop = event.currentTarget.scrollTop; }}>
+    <div className="document-browser-list" ref={scrollRef} onScroll={event => {
+      session.scrollTop = event.currentTarget.scrollTop;
+      session.scrollPositions ??= {};
+      session.scrollPositions[view] = event.currentTarget.scrollTop;
+    }}>
       {loadError && <div className="document-browser-empty"><p role="alert">列表加载失败：{loadError}</p><button className="settings-btn" onClick={() => { setLoading(true); setReloadKey(key => key + 1); }}>重试加载</button></div>}
       {error && <p role="alert">操作失败：{error}</p>}
       {view === "favorites" && <p className="document-browser-favorites-hint">文档收藏，与正文书签独立；保存在本机，可随全量备份恢复。</p>}
       {!loading && !loadError && visible.length === 0 ? <div className="document-browser-empty">
         <p>{view === "recent" ? "暂无匹配的最近文档" : view === "favorites" ? "暂无匹配的收藏，点击文档右侧星标即可收藏" : "没有符合条件的文档"}</p>
-        {(path || query) && <button className="settings-btn" onClick={() => { setPath(""); setQuery(""); resetScroll(); }}>清除筛选</button>}
-        {view !== "all" && <button className="settings-btn" onClick={() => { setView("all"); resetScroll(); }}>浏览全部文档</button>}
+        {hasFilters && <button className="settings-btn" onClick={() => { setPath(""); setQuery(""); setDocType(""); resetScroll(); }}>清除筛选</button>}
+        {view !== "all" && <button className="settings-btn" onClick={() => switchView("all")}>浏览全部文档</button>}
         <button className="settings-btn" disabled={disabled || opening} onClick={() => onCreate(path)}>在此路径新建文档</button>
       </div> : visible.map(note => <div
         key={note.id} className={`document-browser-row${note.id === selectedId ? " selected" : ""}`}>
@@ -151,6 +176,7 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
           <span className="document-browser-title" title={note.title || "未命名文档"}>{note.title || "未命名文档"}</span>
           {note.storagePath !== path && <span className="document-browser-path" title={note.storagePath}>{(path ? note.storagePath?.slice(path.length + 1) : note.storagePath?.split("/").slice(-2).join(" / ")) || "未分类"}</span>}
           {showDetails && note.tags.length > 0 && <span className="document-browser-tags">{note.tags.map(tag => <span key={tag}>{tag}</span>)}</span>}
+          {showDetails && note.docType && <span className="document-browser-path">{DOCUMENT_TYPES[note.docType]}</span>}
         </span>
         {showDetails && <time dateTime={note.updated_at} title={new Date(note.updated_at).toLocaleString()}>{new Date(note.updated_at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })}</time>}
         </button>

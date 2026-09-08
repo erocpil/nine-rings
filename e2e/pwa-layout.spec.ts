@@ -61,6 +61,33 @@ async function swipeNoteEditor(
 test.describe("PWA 窄屏应用外壳", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
+  test("文档列表支持组合关键词和可清除的类型筛选", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+    await page.evaluate(async () => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");
+      for (const docType of ["reference", "tutorial"] as const) {
+        await api.notes.create({ title: `组合检索 ${docType}`, storagePath: "projects/network", date: "2026-09-09", docType, tags: ["work"], content: { ops: [] } });
+      }
+    });
+    await swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: 100, endX: 110, endY: 100 });
+    const view = page.getByRole("dialog", { name: "文档视图", exact: true });
+    await view.getByRole("button", { name: "全部文档", exact: true }).click();
+    await view.getByRole("button", { name: "搜索文档", exact: true }).click();
+    await view.getByRole("textbox", { name: "查找文档", exact: true }).fill("检索 network work");
+    await expect(view.locator(".document-browser-row")).toHaveCount(2);
+    await view.getByRole("button", { name: "筛选", exact: true }).click();
+    await view.getByLabel("文档类型筛选").selectOption("reference");
+    await expect(view.locator(".document-browser-row")).toHaveCount(1);
+    await expect(view.locator(".document-browser-row")).toContainText("reference");
+    await view.getByRole("button", { name: "筛选", exact: true }).click();
+    await expect(view.getByRole("button", { name: "清除类型筛选", exact: true })).toBeVisible();
+    await view.getByRole("button", { name: "清除类型筛选", exact: true }).click();
+    await expect(view.locator(".document-browser-row")).toHaveCount(2);
+    await expect(view.getByRole("textbox", { name: "查找文档", exact: true })).toHaveValue("检索 network work");
+  });
+
   test("专注模式右侧按钮宽度间距与普通模式一致", async ({ page }) => {
     await createOutlineFixture(page, "布局标题");
     await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
@@ -237,6 +264,13 @@ test.describe("PWA 窄屏应用外壳", () => {
     await view.getByRole("textbox", { name: "查找文档" }).fill("现场");
     await expect(view.locator(".document-browser-row")).toHaveCount(24);
     await view.locator(".document-browser-list").evaluate(el => { el.scrollTop = 300; el.dispatchEvent(new Event("scroll", { bubbles: true })); });
+    await view.getByRole("button", { name: "最近打开", exact: true }).click();
+    await expect.poll(() => view.locator(".document-browser-list").evaluate(el => el.scrollTop)).toBe(0);
+    await view.getByRole("button", { name: "全部文档", exact: true }).click();
+    await expect.poll(() => view.locator(".document-browser-list").evaluate(el => el.scrollTop)).toBe(300);
+    // Re-selecting the current view must not unexpectedly jump to the top.
+    await view.getByRole("button", { name: "全部文档", exact: true }).click();
+    await expect.poll(() => view.locator(".document-browser-list").evaluate(el => el.scrollTop)).toBe(300);
     await view.getByRole("button", { name: "关闭文档视图", exact: true }).click();
     await open();
     await expect(view.getByRole("textbox", { name: "查找文档" })).toHaveValue("现场");

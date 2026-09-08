@@ -6,6 +6,9 @@
 .document-browser-tabs button[aria-pressed="true"] { color: var(--accent); background: var(--active-bg); }
 .document-browser-tabs .document-browser-filter-toggle { margin-left: auto; border-left: 1px solid var(--border); border-radius: 0; }
 .document-browser-filter-toggle .toolbar-icon { width: 15px; height: 15px; }
+.document-browser-tabs .document-browser-filter-toggle.is-filtered { color: var(--accent); background: var(--active-bg); }
+.document-browser-type-filter { display: inline-flex; align-items: center; gap: 4px; margin-block: 4px; padding: 4px 6px; border: 0; border-radius: 4px; background: var(--active-bg); color: var(--text-muted); font-size: 12px; }
+.document-browser-type-filter .toolbar-icon { width: 14px; height: 14px; }
 .document-browser-filters { display: flex; flex-direction: column; gap: 8px; padding: 8px 0; }
 .document-browser-filters label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); }
 .document-browser-filters select { flex: 1; min-width: 0; min-height: 36px; max-width: 100%; }
