@@ -10,9 +10,11 @@
 
 import type { PathNode, DocType, Note, CreateNoteInput, DeltaOps } from "../../types/models";
 import { getTableEmbed } from "../table-embed";
+import { isEncrypted } from "../document-crypto";
 
 /** Extract searchable text from Delta strings and supported structured embeds. */
 export function extractPlainText(content: unknown): string {
+  if (isEncrypted(content)) return "";
   if (!content || typeof content !== "object") return "";
   const candidate = content as { ops?: unknown };
   const ops = Array.isArray(candidate.ops) ? candidate.ops : Array.isArray(content) ? content : [];

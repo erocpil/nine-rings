@@ -49,6 +49,10 @@ pub fn run(conn: &Connection) -> rusqlite::Result<()> {
     if current < 7 {
         migrate_v7(&tx)?;
     }
+    if current < 8 {
+        // protected_paths is created by ensure_tables, including on existing DBs.
+        tx.execute("INSERT INTO _schema_version (version) VALUES (8)", [])?;
+    }
 
     // 索引在列迁移完成后创建——若提前创建则因旧库缺少列而失败
     ensure_indexes(&tx)?;

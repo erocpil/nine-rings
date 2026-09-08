@@ -6,6 +6,13 @@ import type { DeltaOps } from './models';
 
 export type DocType = 'explanation' | 'how-to' | 'reference' | 'tutorial';
 
+/** 加密路径独立记录（包括空目录） */
+export interface SchemaProtectedPathRecord {
+  id: string;
+  /** ProtectedPath JSON，不含密码或密钥 */
+  data: string;
+}
+
 /** 一条随笔笔记 / 文档 */
 export interface SchemaNote {
   id: string;
@@ -98,7 +105,7 @@ export interface SchemaTemplate {
 
 // ── IndexedDB 运行时契约 ──
 
-export const IDB_DATABASE_VERSION = 3;
+export const IDB_DATABASE_VERSION = 4;
 
 export const IDB_STORES = {
   notes: {
@@ -123,6 +130,11 @@ export const IDB_STORES = {
     ],
   },
   images: {
+    keyPath: 'id',
+    indexes: [
+    ],
+  },
+  protected_paths: {
     keyPath: 'id',
     indexes: [
     ],

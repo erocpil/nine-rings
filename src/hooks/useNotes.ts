@@ -5,7 +5,7 @@ import { useNotesStore } from "../stores/useNotesStore";
  * 按日期加载数据的 Hook
  * 切换日期时自动触发 load
  */
-export function useNotes(preferredNoteId?: string, selectFallback = true) {
+export function useNotes(preferredNoteId?: string, selectFallback = true, documentsOnly = false) {
   const store = useNotesStore();
   const {
     currentDate,
@@ -23,9 +23,9 @@ export function useNotes(preferredNoteId?: string, selectFallback = true) {
   useEffect(() => {
     if (!initialized.current) {
       initialized.current = true;
-      void initialize(preferredNoteId, selectFallback);
+      void initialize(preferredNoteId, selectFallback, documentsOnly);
     }
-  }, [initialize, preferredNoteId, selectFallback]);
+  }, [initialize, preferredNoteId, selectFallback, documentsOnly]);
 
   return {
     currentDate,

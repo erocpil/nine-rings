@@ -376,10 +376,15 @@ pub fn run() {
                 let quick_cap = MenuItemBuilder::with_id("quick_capture", "快捷记录    Ctrl+Alt+N")
                     .build(app)?;
                 let quit = MenuItemBuilder::with_id("quit", "退出").build(app)?;
-                let menu = MenuBuilder::new(app)
-                    .item(&show)
-                    .item(&new_note)
-                    .item(&quick_cap)
+                // Same presentation switch as Web/PWA. Keep data and commands
+                // intact while removing the hidden workflow's tray entries.
+                let features: serde_json::Value =
+                    serde_json::from_str(include_str!("../../src/workspace-features.json"))?;
+                let mut menu = MenuBuilder::new(app).item(&show);
+                if features["dailyNotes"].as_bool().unwrap_or(false) {
+                    menu = menu.item(&new_note).item(&quick_cap);
+                }
+                let menu = menu
                     .separator()
                     .item(&quit)
                     .build()?;
@@ -546,6 +551,9 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::protection::protection_snapshot,
+            commands::protection::protected_paths_list,
+            commands::protection::protection_commit,
             commands::note::get_note,
             commands::note::update_note_order,
             commands::note::search_notes,

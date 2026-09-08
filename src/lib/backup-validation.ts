@@ -1,3 +1,6 @@
+import { isEncrypted, validateEncryptedContent, type ProtectedPath } from "./document-crypto";
+import type { NoteVersion } from "../types/models";
+import { normalizeStoragePath, isPathUnder } from "./storage/core";
 export type BackupRecord = Record<string, unknown>;
 export type ValidatedTemplate = BackupRecord & {
   id: string;
@@ -11,6 +14,8 @@ export interface ValidatedBackup extends BackupRecord {
   daily_pages?: (BackupRecord & { date: string })[];
   templates?: ValidatedTemplate[];
   config?: BackupRecord | null;
+  protected_paths?: ProtectedPath[];
+  protected_versions?: NoteVersion[];
 }
 
 /** Validate all input before starting destructive storage work. */
@@ -31,7 +36,7 @@ export function validateBackup(
   safe(value);
   if (!object(value) || !Array.isArray(value.notes))
     throw new Error("备份必须包含 notes 数组");
-  if (value.version !== undefined && value.version !== 1)
+  if (value.version !== undefined && value.version !== 1 && value.version !== 2)
     throw new Error("不支持的备份版本");
   function unique<K extends string>(
     items: unknown[],
@@ -69,6 +74,7 @@ export function validateBackup(
         ? JSON.parse(note.content)
         : note.content;
     safe(content);
+    if (isEncrypted(content)) validateEncryptedContent(content);
     if (
       !object(content) ||
       (!Array.isArray(content.ops) && content.type !== "doc")
@@ -83,6 +89,25 @@ export function validateBackup(
           field.some((v: unknown) => typeof v !== "string"))
       )
         throw new Error("备份标签/关联字段无效");
+    }
+  }
+  if (value.protected_paths !== undefined) {
+    if (!Array.isArray(value.protected_paths)) throw new Error("加密路径备份无效");
+    unique(value.protected_paths, "id");
+    const paths: string[] = [];
+    for (const p of value.protected_paths) {
+      if (typeof p.path !== "string" || normalizeStoragePath(p.path) !== p.path || typeof p.createdAt !== "string" || typeof p.updatedAt !== "string") throw new Error("加密路径记录无效");
+      validateEncryptedContent(p.verifier);
+      if (p.verifier.encrypted.protectionId !== p.id || paths.some(path => isPathUnder(path, p.path as string) || isPathUnder(p.path as string, path))) throw new Error("加密路径身份冲突或路径重叠");
+      paths.push(p.path);
+    }
+  }
+  if (value.protected_versions !== undefined) {
+    if (!Array.isArray(value.protected_versions)) throw new Error("加密历史备份无效");
+    unique(value.protected_versions, "id");
+    for (const v of value.protected_versions) {
+      if (typeof v.note_id !== "string" || typeof v.saved_at !== "string" || !Array.isArray(v.tags) || v.tags.some(t => typeof t !== "string")) throw new Error("加密历史版本字段无效");
+      validateEncryptedContent(v.content);
     }
   }
   if (value.daily_pages !== undefined) {

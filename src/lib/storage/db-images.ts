@@ -1,5 +1,6 @@
 import { uuid, now, blobToBase64 } from "./core";
-import { withDB, getOne, putRecord } from "./db";
+import { withDB, getOne, putRecord, getAll, delRecord } from "./db";
+import type { ProtectionState } from "./protection-state";
 import { isTauriRuntime } from "../runtime";
 import { getOrCreateDeviceId } from "../backup-user-settings";
 
@@ -137,4 +138,19 @@ export async function resolveImageRefs<T>(value: T): Promise<T> {
   }
   if (missing.size > 0) throw new Error(buildMissingImageError(missing));
   return copy;
+}
+
+export async function cleanupProtectedImages(before: ProtectionState, after: ProtectionState): Promise<void> {
+  const refs = (value: unknown) => new Set(JSON.stringify(value).match(/nr-image:\/\/[a-zA-Z0-9-]+/g) ?? []);
+  const old = refs([before.notes, before.versions]);
+  const remaining = refs([after.notes, after.versions]);
+  const removed = [...old].filter(ref => !remaining.has(ref));
+  if (!removed.length) return;
+  // Recheck the live shared store in the same transaction as deleting blobs.
+  // Another tab may have pasted a reference while crypto was running.
+  await withDB(async db => {
+    const tx = db.transaction(["notes", "note_versions", "images"], "readwrite");
+    const live = refs(await Promise.all([getAll(tx.objectStore("notes")), getAll(tx.objectStore("note_versions"))]));
+    for (const ref of removed) if (!live.has(ref)) await delRecord(tx.objectStore("images"), ref.slice("nr-image://".length));
+  });
 }

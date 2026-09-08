@@ -3,5 +3,6 @@ pub mod doc_tree;
 pub mod export;
 pub mod note;
 pub mod query;
+pub mod protection;
 pub mod quick_capture;
 pub mod template;

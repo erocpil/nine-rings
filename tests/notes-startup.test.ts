@@ -122,6 +122,38 @@ async function main(): Promise<void> {
     api.daily.get = originalDailyGet;
   }
 
+  console.log("\n── document-only presentation preserves hidden data ──");
+  const originalDocsSearch = api.docs.search;
+  const essay: Note = { ...restored, id: "hidden-essay", storagePath: undefined };
+  api.notes.get = async () => essay;
+  api.docs.search = async () => [restored];
+  api.notes.listByDate = async () => { throw new Error("hidden essays must not be loaded"); };
+  api.daily.get = async () => { throw new Error("hidden Todo pages must not be created or carried over"); };
+  try {
+    await useNotesStore.getState().initialize(essay.id, true, true);
+    let state = useNotesStore.getState();
+    assert(state.selectedNote?.id === restored.id, "legacy last essay falls back to a document");
+    assert(state.error === null && state.startupReady, "documents open without loading daily data");
+    assert(!state.startupDateLoadPending, "hidden daily data is not queued for hydration");
+    await state.setDate("2026-09-09");
+    state = useNotesStore.getState();
+    assert(state.selectedNote?.id === restored.id, "date rollover preserves document selection");
+    assert(state.error === null, "date rollover does not read or create hidden data");
+    api.docs.search = async () => [];
+    await state.initialize(essay.id, true, true);
+    state = useNotesStore.getState();
+    assert(state.selectedNote === null, "essay-only workspace stays empty without deleting the essay");
+    assert(state.error === null, "empty document workspace is valid");
+    api.docs.search = async () => { throw new Error("folder restoration must not choose another document"); };
+    await state.initialize(undefined, false, true);
+    assert(useNotesStore.getState().error === null, "explicit folder target bypasses document fallback");
+  } finally {
+    api.notes.get = originalGet;
+    api.docs.search = originalDocsSearch;
+    api.notes.listByDate = originalListByDate;
+    api.daily.get = originalDailyGet;
+  }
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }

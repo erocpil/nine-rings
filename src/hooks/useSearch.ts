@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { api } from "../lib/api";
+import { DAILY_NOTES_ENABLED, TODOS_ENABLED } from "../lib/workspace-features";
 import { toSearchNote, type SearchNote } from "../lib/search-index-core";
 
 export interface TodoHit {
@@ -32,9 +33,9 @@ export function useSearch() {
     setSearching(true);
     try {
       const [notes, documents, todoHits] = await Promise.all([
-        api.notes.searchSummaries(q),
+        DAILY_NOTES_ENABLED ? api.notes.searchSummaries(q) : Promise.resolve([]),
         api.docs.search({ text: q }),
-        api.daily.searchTodos(q),
+        TODOS_ENABLED ? api.daily.searchTodos(q) : Promise.resolve([]),
       ]);
       if (requestId !== searchRequestRef.current) return;
       // The Web index starts with essays; native search may already include docs.

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
+import { DAILY_NOTES_ENABLED } from "../lib/workspace-features";
 import {
   filterQuickSwitcherNotes,
   rankQuickSwitcherNotes,
@@ -41,7 +42,7 @@ export default function QuickSwitcher({ open, activeNoteId, onClose, onSelect }:
     setActiveIndex(0);
     setLoading(true);
     setFailed(false);
-    Promise.all([api.notes.all(), api.docs.search({})])
+    Promise.all([DAILY_NOTES_ENABLED ? api.notes.all() : Promise.resolve([]), api.docs.search({})])
       .then(([daily, docs]) => {
         if (cancelled) return;
         const unique = [...new Map([...daily, ...docs].map((note) => [note.id, note])).values()];

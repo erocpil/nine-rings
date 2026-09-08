@@ -20,8 +20,8 @@
 #   default: X   → 默认值
 
 _meta:
-  version: 7
-  idb_version: 3
+  version: 8
+  idb_version: 4
   # IndexedDB 只持久化浏览器运行时实际使用的数据；templates 使用
   # localStorage，sync_changes 属于尚未实现的增量同步设计。
   idb_stores:
@@ -39,6 +39,16 @@ _meta:
       indexes:
         - { name: note_id, key_path: note_id }
     images: { key_path: id, indexes: [] }
+    protected_paths: { key_path: id, indexes: [] }
+
+ProtectedPath:
+  description: 加密路径独立记录（包括空目录）
+  sql_table: protected_paths
+  ts_interface: ProtectedPathRecord
+  dart_class: ProtectedPathRecord
+  fields:
+    id: { type: uuid, pk: true }
+    data: { type: string, required: true, description: "ProtectedPath JSON，不含密码或密钥" }
 
 Note:
   description: 一条随笔笔记 / 文档

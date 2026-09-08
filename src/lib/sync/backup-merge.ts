@@ -6,6 +6,8 @@ interface BackupBundle extends Record<string, unknown> {
   notes?: BackupRecord[];
   daily_pages?: BackupRecord[];
   templates?: BackupRecord[];
+  protected_paths?: BackupRecord[];
+  protected_versions?: BackupRecord[];
 }
 
 export type SyncDocumentKind = "document" | "note";
@@ -370,6 +372,26 @@ export function buildSafeMergedBackup(localJson: string, remoteJson: string, bas
     daily_pages: mergedPages,
     ...(local.templates || remote.templates ? { templates: mergedTemplates } : {}),
   };
+  const localPaths = recordsBy(local.protected_paths, "id");
+  const remotePaths = recordsBy(remote.protected_paths, "id");
+  const basePaths = recordsBy(base?.protected_paths, "id");
+  const paths: BackupRecord[] = [];
+  const pathIdentity = (p: BackupRecord) => ({ id: p.id, path: p.path, verifier: p.verifier });
+  for (const id of new Set([...localPaths.keys(), ...remotePaths.keys()])) {
+    const l = localPaths.get(id), r = remotePaths.get(id), b = basePaths.get(id);
+    if (b && (!l || !r)) {
+      const remaining = l ?? r;
+      if (sameIdentity(remaining, b, pathIdentity)) continue;
+      throw new Error("加密路径存在删除与修改冲突，请先核对两端密码/路径；未生成合并备份");
+    }
+    const category = classifyRecord(l, r, b, pathIdentity);
+    if (category === "conflicts") throw new Error("加密路径密码或位置存在冲突，请先核对两端；未生成合并备份");
+    const p = category === "localOnly" || category === "localChanged" ? l : r;
+    if (p) paths.push(p);
+  }
+  if (local.protected_paths || remote.protected_paths) merged.protected_paths = paths;
+  if (local.protected_versions || remote.protected_versions) merged.protected_versions = [...new Map([...(local.protected_versions ?? []), ...(remote.protected_versions ?? [])].map(v => [String(v.id), v])).values()];
+  if (local.version === 2 || remote.version === 2) merged.version = 2;
   return {
     json: JSON.stringify(merged),
     comparison,

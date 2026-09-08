@@ -23,6 +23,8 @@ assert.doesNotMatch(first, /\/assets\/pdfjs-lazy\.js/);
 assert.doesNotMatch(first, /\/assets\/PdfReader-lazy\.js/);
 assert.doesNotMatch(first, /\/assets\/pdf\.worker\.min-lazy\.mjs/);
 assert.match(first, /SKIP_WAITING/);
+assert.match(first, /new Request\(url, \{ cache: "reload" \}\)/);
+assert.doesNotMatch(first, /await caches\.match\(request\)/, "运行时资源只从当前构建缓存读取");
 assert.match(first, /caches\.open\(CACHE_NAME\)/);
 assert.match(first, /cache\.match\(request\)/);
 assert.match(first, /cached \|\| cache\.match\("\/index\.html"\)/);

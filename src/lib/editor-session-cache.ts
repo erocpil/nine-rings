@@ -9,8 +9,14 @@ interface EditorSessionEntry {
 // live TipTap editors (and their DOM/event state) resident on memory-limited iOS.
 const MAX_EDITOR_SESSIONS = 2;
 const sessions = new Map<string, EditorSessionEntry>();
+const sensitive = new Set<string>();
+export function blockEditorSessionCache(noteId: string): void {
+  sensitive.add(noteId);
+  sessions.delete(noteId);
+}
 
 export function getCachedEditorDocument(noteId: string, revision: string): ProseMirrorJson | null {
+  if (sensitive.has(noteId)) return null;
   const entry = sessions.get(noteId);
   if (!entry || entry.revision !== revision) return null;
   sessions.delete(noteId);
@@ -19,6 +25,7 @@ export function getCachedEditorDocument(noteId: string, revision: string): Prose
 }
 
 export function cacheEditorDocument(noteId: string, revision: string, document: ProseMirrorJson): void {
+  if (sensitive.has(noteId)) return;
   sessions.delete(noteId);
   sessions.set(noteId, { revision, document });
   while (sessions.size > MAX_EDITOR_SESSIONS) {

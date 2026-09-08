@@ -36,6 +36,8 @@ export interface SearchNavigationTarget {
 // ── PathNode: 文档树节点 ──
 
 export interface PathNode {
+  protected?: boolean;
+  protectionRoot?: boolean;
   path: string;         // 完整路径, e.g. "projects/nine-rings"
   name: string;         // 叶子名, e.g. "nine-rings"
   type: 'folder' | 'document';
@@ -75,6 +77,8 @@ export interface SyncChange {
 
 export interface DeltaOps {
   ops: DeltaOp[];
+  /** Ciphertext only: ops is empty and metadata is inside the encrypted payload. */
+  encrypted?: import("../lib/document-crypto").EncryptedContent;
   /** 可扩展的文档级发布元信息；正文转换只处理 ops，并原样保留此字段。 */
   metadata?: DocumentMetadata;
 }

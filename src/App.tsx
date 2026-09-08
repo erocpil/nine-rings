@@ -1,6 +1,9 @@
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNotes } from "./hooks/useNotes";
 import { DatePicker } from "./components/DatePicker";
+import { DAILY_NOTES_ENABLED, TODOS_ENABLED } from "./lib/workspace-features";
+import { isEncrypted, documentSessionKey } from "./lib/document-crypto";
+import { sealContent, setPathPassword, removeEmptyProtectedPath } from "./lib/document-protection";
 import { ToolbarIcon } from "./components/ToolbarIcon";
 import type { ReadingLibrarySession } from "./components/ReadingLibrary";
 import "./components/ReadingLibrary.css";
@@ -108,6 +111,8 @@ function saveWorkspaceTarget(target: WorkspaceTarget): void {
 
 function App() {
   const webPlatform = useWebPlatform();
+  const [applyingWebUpdate, setApplyingWebUpdate] = useState(false);
+  const webUpdateInFlight = useRef(false);
 
   // 先提交轻量应用外壳，再并行下载编辑器。这样低性能手机不必等待 TipTap
   // 解析完成才看到界面，同时通常能在 IndexedDB 恢复文档前完成代码预热。
@@ -139,7 +144,7 @@ function App() {
     createNote,
     updateNote,
     deleteNote,
-  } = useNotes(startupNoteIdRef.current, !restoreWorkspaceInsteadOfNote);
+  } = useNotes(startupNoteIdRef.current, !restoreWorkspaceInsteadOfNote, !DAILY_NOTES_ENABLED);
 
   const dailyPage = useNotesStore((s) => s.dailyPage);
   const updateTodos = useNotesStore((s) => s.updateTodos);
@@ -243,9 +248,18 @@ function App() {
   const flushAutoSave = autoSave.flush;
   const { getPendingData, discardPending, setNoteId: setAutoSaveNoteId } = autoSave;
   const applyWebUpdate = useCallback(() => {
+    if (webUpdateInFlight.current) return;
+    webUpdateInFlight.current = true;
+    setApplyingWebUpdate(true);
     void flushAutoSave()
       .then(webPlatform.applyUpdate)
-      .catch((error) => console.error("[PWA] 刷新前保存失败，已取消更新:", error));
+      .catch((error) => {
+        useNotesStore.setState({ error: `更新未完成，已保留本地数据：${error instanceof Error ? error.message : String(error)}` });
+      })
+      .finally(() => {
+        webUpdateInFlight.current = false;
+        setApplyingWebUpdate(false);
+      });
   }, [flushAutoSave, webPlatform.applyUpdate]);
 
   const exportEmergencyBackup = useCallback(async () => {
@@ -256,7 +270,16 @@ function App() {
       if (pending) {
         const parsed = JSON.parse(json) as { notes?: Array<Record<string, unknown>> };
         const target = parsed.notes?.find((note) => note.id === pending.noteId);
-        if (target) Object.assign(target, pending.changes);
+        if (target) {
+          const changes = { ...pending.changes };
+          const stored = typeof target.content === "string" ? JSON.parse(target.content) : target.content;
+          if (isEncrypted(stored) && changes.content && !isEncrypted(changes.content)) {
+            const key = documentSessionKey(pending.noteId);
+            if (!key) throw new Error("加密文档的恢复导出需要当前编辑会话的密钥");
+            changes.content = await sealContent(changes.content, key);
+          }
+          Object.assign(target, changes);
+        }
         backup = JSON.stringify(parsed, null, 2);
       }
       const blob = new Blob([backup], { type: "application/json" });
@@ -425,6 +448,7 @@ function App() {
   const [versionOpen, setVersionOpen] = useState(false);
   const [pdfExportRequestId, setPdfExportRequestId] = useState(0);
   const [syncBusy, setSyncBusy] = useState(false);
+  const [protectionBusy, setProtectionBusy] = useState(false);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const { config, settingsOpen, setSettingsOpen, handleConfigChange } = useSettings();
   const selectedDocumentMetadata = selectedNote?.content.metadata;
@@ -470,9 +494,11 @@ function App() {
   const defaultViewAppliedRef = useRef(false);
   const sidebarViewTouchedRef = useRef(false);
   const [sidebarTab, setSidebarTab] = useState<'daily' | 'tree'>(() => {
+    if (!DAILY_NOTES_ENABLED) return 'tree';
     return (localStorage.getItem(TAB_KEY) as 'daily' | 'tree') || 'tree';
   });
   const handleSetSidebarTab = (tab: 'daily' | 'tree') => {
+    if (tab === 'daily' && !DAILY_NOTES_ENABLED) return;
     sidebarViewTouchedRef.current = true;
     setSidebarTab(tab);
     localStorage.setItem(TAB_KEY, tab);
@@ -554,7 +580,7 @@ function App() {
   const [propertiesOpen, setPropertiesOpen] = useState(false);
 
   useEffect(() => {
-    if (!configuredDefaultView || !startupReady || defaultViewAppliedRef.current) return;
+    if (!DAILY_NOTES_ENABLED || !configuredDefaultView || !startupReady || defaultViewAppliedRef.current) return;
     // 默认视图是一次性冷启动决策。若将 selectedNote 作为持续依赖，点击目录
     // 时清空当前文档会再次触发它，把刚打开的目录误切回随笔页。
     defaultViewAppliedRef.current = true;
@@ -870,7 +896,7 @@ function App() {
 
   // ── Tauri 托盘事件："新建随笔" ──
   useEffect(() => {
-    if (!isTauriRuntime()) return;
+    if (!DAILY_NOTES_ENABLED || !isTauriRuntime()) return;
     let unlisten: (() => void) | undefined;
     import("@tauri-apps/api/event").then(({ listen }) => {
       listen("tray-new-note", () => {
@@ -1144,24 +1170,29 @@ function App() {
           return;
         }
         // 整个工作区为空 → 写入示例笔记
-        await api.notes.create({
+        const seeded = await api.notes.create({
           date: dateStr,
           title: DEMO_TITLE,
           content: DEMO_CONTENT as unknown as DeltaOps,
           tags: DEMO_TAGS,
+          ...(!DAILY_NOTES_ENABLED ? { storagePath: "references" } : {}),
         });
         localStorage.setItem(SEED_KEY, "1");
+        if (!DAILY_NOTES_ENABLED && !useNotesStore.getState().selectedNote) {
+          selectNote(seeded);
+          refreshNoteViews();
+        }
         setDate(dateStr); // 刷新
       } catch {
         // 静默忽略——非首次运行或环境问题
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [setDate]);
+  }, [setDate, selectNote, refreshNoteViews]);
 
   // ── 键盘快捷键（浏览器 keydown + Tauri 全局热键）──
   useAppKeyboardShortcuts({
-    workspaceActive: !readingLibraryOpen,
+    workspaceActive: !readingLibraryOpen && !protectionBusy && !applyingWebUpdate,
     setSettingsOpen,
     setQuickSwitcherOpen,
     setDate,
@@ -1263,6 +1294,25 @@ function App() {
     setDocSearchText("");
     setDocSearching(false);
   }, [clearSearch]);
+
+  const handlePathSecurity = useCallback(async (path: string, action: "set" | "remove" | "delete") => {
+    if (syncBusy || protectionBusy) return;
+    setProtectionBusy(true);
+    try {
+      await flushAutoSave();
+      if (action === "delete") await removeEmptyProtectedPath(path);
+      else await setPathPassword(path, action === "remove");
+      const id = useNotesStore.getState().selectedNote?.id;
+      if (id) selectNote(await api.notes.get(id));
+      setExternalReloadKey(key => key + 1);
+      refreshNoteViews();
+      dismissSearchResults();
+    } catch (reason) {
+      useNotesStore.setState({ error: reason instanceof Error ? reason.message : String(reason) });
+    } finally {
+      setProtectionBusy(false);
+    }
+  }, [syncBusy, protectionBusy, flushAutoSave, selectNote, refreshNoteViews, dismissSearchResults]);
 
   useEffect(() => {
     if (!query && docResults === null) return;
@@ -1396,6 +1446,7 @@ function App() {
     <div
       className={`app ${focusMode ? "app-focus-mode" : ""}`}
       style={editorAppearanceVariables(config ?? undefined)}
+      {...(protectionBusy || applyingWebUpdate ? { inert: "", "aria-busy": true } : {})}
     >
       {/* 桌面版（Tauri）才需要自定义标题栏；web 版无窗口概念 */}
       {isTauriRuntime() && (
@@ -1434,9 +1485,9 @@ function App() {
             📂
           </button>
         )}
-        <DatePicker value={currentDate} onChange={handleDateChange} />
+        {DAILY_NOTES_ENABLED && <DatePicker value={currentDate} onChange={handleDateChange} />}
         <span className="header-clock">{clock}</span>
-        <DailyOverview />
+        {TODOS_ENABLED && <DailyOverview />}
         <span className="header-spacer" />
         {stickyTitle && (
           <div className="header-sticky-area">
@@ -1513,6 +1564,7 @@ function App() {
         <WebStatusBanner
           online={webPlatform.online}
           updateAvailable={webPlatform.updateAvailable}
+          applyingUpdate={applyingWebUpdate}
           storagePressure={webPlatform.storagePressure}
           onApplyUpdate={applyWebUpdate}
           onExportBackup={() => void exportEmergencyBackup()}
@@ -1537,7 +1589,7 @@ function App() {
           aria-hidden={mobileDrawerViewport && sidebarHidden || undefined}
           {...(mobileDrawerViewport && sidebarHidden ? { inert: "" } : {})}>
           <div className="sidebar-tabs">
-            <button
+            {DAILY_NOTES_ENABLED ? <button
               className="sidebar-tab sidebar-view-switch"
               onClick={() => handleSetSidebarTab(sidebarTab === 'daily' ? 'tree' : 'daily')}
               title={sidebarTab === 'daily' ? '切换到文档' : '切换到随笔'}
@@ -1548,7 +1600,14 @@ function App() {
               <span className="sidebar-view-switch-label">
                 {sidebarTab === 'daily' ? '随笔' : '文档'}
               </span>
-            </button>
+            </button> : <>
+              <button type="button" className="sidebar-tab sidebar-workspace-tab active" aria-label="文档视图" aria-current="page" onClick={() => handleSetSidebarTab('tree')}>
+                <ToolbarIcon name="folder" /><span>文档</span>
+              </button>
+              <button type="button" className="sidebar-tab sidebar-workspace-tab" disabled={syncBusy} title="阅读 PDF / EPUB" aria-label="打开阅读资料库" onClick={() => void openReadingLibrary()}>
+                <ToolbarIcon name="document" /><span>阅读</span>
+              </button>
+            </>}
             <span className="sidebar-tab-spacer" />
             <div className="doc-tree-toolbar-host" ref={setDocTreeToolbarHost} />
             <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏" aria-label="隐藏侧栏">
@@ -1556,13 +1615,13 @@ function App() {
             </button>
           </div>
 
-          <button type="button" className="sidebar-reading-entry" disabled={syncBusy} onClick={() => void openReadingLibrary()} aria-label="打开阅读资料库">
+          {DAILY_NOTES_ENABLED && <button type="button" className="sidebar-reading-entry" disabled={syncBusy} onClick={() => void openReadingLibrary()} aria-label="打开阅读资料库">
             <ToolbarIcon name="document" />阅读<span>PDF / EPUB</span>
-          </button>
+          </button>}
 
           {!secondaryUiReady ? (
             <div className="doc-tree-loading">正在加载列表...</div>
-          ) : sidebarTab === 'daily' ? (
+          ) : DAILY_NOTES_ENABLED && sidebarTab === 'daily' ? (
             <Sidebar
               disabled={syncBusy}
               notes={(query ? results.notes : (activeTag && tagFilteredNotes ? tagFilteredNotes : notes)).filter(n => !n.storagePath)}
@@ -1633,6 +1692,7 @@ function App() {
             />
           ) : (
             <DocTree
+              onPathSecurity={handlePathSecurity}
               collapsed={docTreeCollapsed}
               setCollapsed={setDocTreeCollapsed}
               disabled={syncBusy}
@@ -1682,12 +1742,12 @@ function App() {
           </div>
         </aside>
 
-        <OverdueTodos
+        {TODOS_ENABLED && <OverdueTodos
           open={overdueOpen}
           disabled={syncBusy}
           onClose={() => setOverdueOpen(false)}
           onOpenDate={(date) => { setQuery(""); setDocResults(null); setDate(date); }}
-        />
+        />}
 
         {!sidebarHidden && <div className="sidebar-divider" onPointerDown={handleSidePointerDown} />}
 
@@ -1740,7 +1800,7 @@ function App() {
             />
           ) : (
             <div className="app-main-split" ref={splitRef}>
-              {todoFlex > 0 && (
+              {TODOS_ENABLED && todoFlex > 0 && (
                 <div
                   className={`app-main-todo ${(dailyPage?.todos.length ?? 0) === 0 ? "app-main-todo-empty" : ""}`}
                   style={{ flex: (dailyPage?.todos.length ?? 0) === 0 ? "0 0 auto" : todoFlex }}
@@ -1756,18 +1816,29 @@ function App() {
                   </Suspense>
                 </div>
               )}
-              <div
+              {TODOS_ENABLED && <div
                 className={`app-main-divider ${todoFlex === 0 ? "divider-collapsed" : ""}`}
                 onPointerDown={handleSplitPointerDown}
-              />
+              />}
               <div
                 className="app-main-editor"
-                style={{ flex: todoFlex > 0 ? 10 - todoFlex : 1 }}
+                style={{ flex: TODOS_ENABLED && todoFlex > 0 ? 10 - todoFlex : 1 }}
               >
                 {selectedNote && editorReadyNoteId === selectedNote.id ? (
                   <Suspense fallback={<div className="empty-state">正在打开文档...</div>}>
                     <NoteEditor
                       key={`${selectedNote.id}:${externalReloadKey}`}
+                      onFlush={flushAutoSave}
+                      onProtectionBusy={setProtectionBusy}
+                      onSecurityError={message => useNotesStore.setState({ error: message })}
+                      securityDisabled={syncBusy}
+                      onSecurityChanged={async () => {
+                        const note = await api.notes.get(selectedNote.id);
+                        selectNote(note);
+                        setExternalReloadKey(key => key + 1);
+                        refreshNoteViews();
+                        dismissSearchResults();
+                      }}
                       noteId={selectedNote.id}
                       focusMode={focusMode}
                       readonly={selectedNote.readonly || syncBusy}
@@ -1896,6 +1967,11 @@ function App() {
         <SettingsPanel
           open={settingsOpen}
           webStorageStatus={isTauriRuntime() ? undefined : webPlatform.storage}
+          webUpdate={!isTauriRuntime() && import.meta.env.PROD ? {
+            ...webPlatform.updateStatus,
+            onCheck: webPlatform.checkUpdate,
+            onApply: applyWebUpdate,
+          } : undefined}
           onClose={() => setSettingsOpen(false)}
           onConfigChange={handleConfigChange}
           onOpenLibrary={() => void openReadingLibrary()}
@@ -1939,6 +2015,7 @@ function App() {
             </div>
             <div className="doc-tree-popup-body">
               <DocTree
+                onPathSecurity={handlePathSecurity}
                 disabled={syncBusy}
                 collapsed={docTreeCollapsed}
                 setCollapsed={setDocTreeCollapsed}

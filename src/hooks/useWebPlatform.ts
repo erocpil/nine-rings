@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isTauriRuntime } from "../lib/runtime";
+import { watchPwaUpdates, type PwaUpdateStatus } from "../lib/pwa-updates";
 
 export interface WebStorageStatus {
   supported: boolean;
@@ -106,10 +107,9 @@ function syncViewportCSS() {
 
 export function useWebPlatform() {
   const [online, setOnline] = useState(() => navigator.onLine);
-  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<PwaUpdateStatus>({ checking: false, available: false, checked: false, error: null });
   const [storage, setStorage] = useState<WebStorageStatus>(EMPTY_STORAGE_STATUS);
-  const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
-  const reloadForUpdateRef = useRef(false);
+  const updaterRef = useRef<ReturnType<typeof watchPwaUpdates> | null>(null);
 
   useEffect(() => {
     if (isTauriRuntime()) return;
@@ -150,35 +150,8 @@ export function useWebPlatform() {
     };
     void prepareStorage();
 
-    let removeControllerListener: (() => void) | undefined;
-    let visibilityListener: (() => void) | undefined;
     if (import.meta.env.PROD && "serviceWorker" in navigator) {
-      const onControllerChange = () => {
-        if (reloadForUpdateRef.current) window.location.reload();
-      };
-      navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
-      removeControllerListener = () => navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
-
-      navigator.serviceWorker.register("/sw.js").then((registration) => {
-        if (cancelled) return;
-        registrationRef.current = registration;
-        if (registration.waiting) setUpdateAvailable(true);
-        registration.addEventListener("updatefound", () => {
-          const worker = registration.installing;
-          worker?.addEventListener("statechange", () => {
-            if (worker.state === "installed" && navigator.serviceWorker.controller) {
-              setUpdateAvailable(true);
-            }
-          });
-        });
-        const checkWhenVisible = () => {
-          if (document.visibilityState === "visible") void registration.update();
-        };
-        document.addEventListener("visibilitychange", checkWhenVisible);
-        visibilityListener = () => document.removeEventListener("visibilitychange", checkWhenVisible);
-      }).catch((error) => {
-        console.warn("[PWA] Service Worker 注册失败，不影响本地编辑:", error);
-      });
+      updaterRef.current = watchPwaUpdates(setUpdateStatus);
     }
 
     return () => {
@@ -190,18 +163,19 @@ export function useWebPlatform() {
       window.removeEventListener("resize", scheduleViewportSync);
       window.removeEventListener("orientationchange", syncAfterOrientation);
       if (animationFrameId) window.cancelAnimationFrame(animationFrameId);
-      removeControllerListener?.();
-      visibilityListener?.();
+      updaterRef.current?.dispose();
+      updaterRef.current = null;
     };
   }, []);
 
   const applyUpdate = useCallback(async () => {
-    const registration = registrationRef.current;
-    if (!registration) return;
-    reloadForUpdateRef.current = true;
-    if (!registration.waiting) await registration.update();
-    registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+    if (!updaterRef.current) throw new Error("当前环境不支持 PWA 更新");
+    await updaterRef.current.apply();
+  }, []);
+  const checkUpdate = useCallback(async () => {
+    if (!updaterRef.current) throw new Error("请在已部署的 HTTPS 应用中检查更新");
+    await updaterRef.current.check();
   }, []);
 
-  return { online, updateAvailable, storage, storagePressure: storagePressure(storage), applyUpdate };
+  return { online, updateAvailable: updateStatus.available, updateStatus, checkUpdate, storage, storagePressure: storagePressure(storage), applyUpdate };
 }

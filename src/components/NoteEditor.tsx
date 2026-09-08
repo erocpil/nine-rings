@@ -50,6 +50,8 @@ import { EditorInsertDialogs } from "./EditorInsertDialogs";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
 import { DocumentPanelDrawer, type DocumentPanelPresentation } from "./DocumentPanelDrawer";
 import { storeImage } from "../lib/storage/db-images";
+import { blobToBase64 } from "../lib/storage/core";
+import { ProtectedNoteEditor } from "./ProtectedNoteEditor";
 import { api } from "../lib/api";
 import { mdToDelta } from "../lib/md-parser";
 import {
@@ -412,6 +414,12 @@ function clampOutlineDockWidth(width: number): number {
 // ══════════════════════════════════════
 
 export interface NoteEditorProps {
+  sensitive?: boolean;
+  securityDisabled?: boolean;
+  onFlush?: () => Promise<void>;
+  onSecurityChanged?: () => Promise<void>;
+  onProtectionBusy?: (busy: boolean) => void;
+  onSecurityError?: (message: string) => void;
   noteId: string;
   title: string | null;
   content: DeltaOps;
@@ -541,6 +549,10 @@ let readonlySchema: ReturnType<typeof getSchema> | undefined;
 let readonlyDocumentSequence = 0;
 
 export function NoteEditor(props: NoteEditorProps) {
+  return <ProtectedNoteEditor props={props} render={next => <DocumentEditor {...next} />} />;
+}
+
+function DocumentEditor(props: NoteEditorProps) {
   const [experimental, setExperimental] = useState(readonlyRenderingEnabled);
   const [full, setFull] = useState(false);
   const previousExport = useRef(props.pdfExportRequestId);
@@ -577,7 +589,7 @@ export function NoteEditor(props: NoteEditorProps) {
   return <FullNoteEditor {...props} initialPdfExportRequest={exportRequested} />;
 }
 
-function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean }) {
+function FullNoteEditor({ sensitive = false, noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean }) {
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -959,9 +971,9 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
       BlockIndent,
       StandaloneStrongLabel,
       HeadingFold.configure({
-        initialCollapsedKeys: sessionHeadingFoldStore.load(noteId)?.collapsedKeys ?? [],
+        initialCollapsedKeys: sensitive ? [] : sessionHeadingFoldStore.load(noteId)?.collapsedKeys ?? [],
         onChange: (collapsedKeys) => {
-          sessionHeadingFoldStore.save(noteId, { version: 1, collapsedKeys });
+          if (!sensitive) sessionHeadingFoldStore.save(noteId, { version: 1, collapsedKeys });
           if (headingFoldRenderFrameRef.current === null) {
             headingFoldRenderFrameRef.current = window.requestAnimationFrame(() => {
               headingFoldRenderFrameRef.current = null;
@@ -2445,7 +2457,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
           e.preventDefault();
           const file = item.getAsFile();
           if (!file) continue;
-          storeImage(file).then((ref) => {
+          (sensitive ? blobToBase64(file) : storeImage(file)).then((ref) => {
             if (readonlyRef.current || editor.isDestroyed || !editor.isEditable) return;
             const { $from } = editor.state.selection;
             // ResizableImage 是 block node，不能在段落中间插入。
@@ -2459,7 +2471,7 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
         }
       }
     },
-    [editor, vimModeEnabled],
+    [editor, vimModeEnabled, sensitive],
   );
 
   const handleDrop = useCallback(
@@ -2478,14 +2490,14 @@ function FullNoteEditor({ noteId, title, content, contentVersion = "", pdfDocume
       for (const file of Array.from(files)) {
         if (file.type.startsWith("image/")) {
           e.preventDefault();
-          storeImage(file).then((ref) => {
+          (sensitive ? blobToBase64(file) : storeImage(file)).then((ref) => {
             if (readonlyRef.current || editor.isDestroyed || !editor.isEditable) return;
             editor.chain().focus().setResizableImage({ src: ref }).run();
           });
         }
       }
     },
-    [editor, vimModeEnabled],
+    [editor, vimModeEnabled, sensitive],
   );
 
   const insertImageUrl = () => {

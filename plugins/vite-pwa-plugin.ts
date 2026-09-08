@@ -40,7 +40,11 @@ const CACHE_NAME = ${JSON.stringify(cacheName)};
 const PRECACHE = ${JSON.stringify(precache)};
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE)));
+  // A new worker must not inherit an HTTP-cached HTML shell from an older build.
+  // Keep addAll atomic: a failed download leaves the active offline version intact.
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) =>
+    cache.addAll(PRECACHE.map((url) => new Request(url, { cache: "reload" })))
+  ));
 });
 
 self.addEventListener("activate", (event) => {
@@ -80,11 +84,11 @@ self.addEventListener("fetch", (event) => {
 });
 
 async function cacheFirst(request) {
-  const cached = await caches.match(request);
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
   if (cached) return cached;
   const response = await fetch(request);
   if (response.ok) {
-    const cache = await caches.open(CACHE_NAME);
     await cache.put(request, response.clone());
   }
   return response;

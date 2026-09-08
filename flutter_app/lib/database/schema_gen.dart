@@ -2,10 +2,15 @@
 // 工具: scripts/gen-schema.py
 
 /// 当前目标 schema 版本号，与 Rust/Flutter 历史迁移终点一致。
-const int targetSchemaVersion = 7;
+const int targetSchemaVersion = 8;
 
 /// 完整初始 schema DDL
 const String migrationV1 = '''
+CREATE TABLE IF NOT EXISTS protected_paths (
+  id TEXT PRIMARY KEY,
+  data TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS notes (
   id TEXT PRIMARY KEY,
   date TEXT NOT NULL,

@@ -154,3 +154,7 @@ CREATE INDEX IF NOT EXISTS idx_notes_pinned_sort_order ON notes(pinned, sort_ord
 CREATE INDEX IF NOT EXISTS idx_notes_storage_path ON notes(storage_path);
 CREATE INDEX IF NOT EXISTS idx_note_versions_note_id ON note_versions(note_id);
 ''';
+
+String migrationV8 = '''
+CREATE TABLE IF NOT EXISTS protected_paths (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+''';

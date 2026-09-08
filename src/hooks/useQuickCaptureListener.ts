@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { DAILY_NOTES_ENABLED } from "../lib/workspace-features";
 import { isTauriRuntime } from "../lib/runtime";
 import { localDateKey } from "../lib/local-date";
 import { addLog } from "../lib/debugLog";
@@ -27,6 +28,7 @@ export function useQuickCaptureListener({ setDate, onNotesChanged }: QuickCaptur
   onNotesChangedRef.current = onNotesChanged;
 
   useEffect(() => {
+    if (!DAILY_NOTES_ENABLED) return;
     const onMessage = () => {
       addLog("[QC→主窗口] 收到 Quick Capture 提交，切到当日");
       onNotesChangedRef.current?.();

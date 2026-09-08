@@ -6,6 +6,7 @@ import { localDateKey } from "../lib/local-date";
 import { toggleTauriFullscreen } from "../lib/fullscreen";
 import { useNotesStore } from "../stores/useNotesStore";
 import { registerShortcuts } from "../lib/global-shortcuts";
+import { DAILY_NOTES_ENABLED, isWorkspaceShortcutEnabled } from "../lib/workspace-features";
 import {
   resolveShortcut,
   shouldIgnoreShortcut,
@@ -40,6 +41,7 @@ function showWindow(): void {
 }
 
 function goToToday(a: AppShortcutActions): void {
+  if (!DAILY_NOTES_ENABLED) return;
   const today = localDateKey();
   a.setDate(today).then(() => {
     const sel = useNotesStore.getState().selectedNote;
@@ -115,7 +117,8 @@ export function useAppKeyboardShortcuts(actions: AppShortcutActions): void {
         toggleDaily: () => { if (actionsRef.current.workspaceActive !== false) goToToday(actionsRef.current); },
         showWindow,
       },
-      { ...DEFAULT_HOTKEYS, ...(a.hotkeys ?? {}) },
+      Object.fromEntries(Object.entries({ ...DEFAULT_HOTKEYS, ...(a.hotkeys ?? {}) })
+        .filter(([id]) => isWorkspaceShortcutEnabled(id))),
     );
   }, [hotkeysKey]);
 }

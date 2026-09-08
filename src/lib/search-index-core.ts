@@ -1,6 +1,7 @@
 import type { Note } from "../types/models";
 import { extractPlainText } from "./storage/core";
 import { snippetParts } from "./storage/idb-snippet";
+import { isEncrypted } from "./document-crypto";
 
 function normalize(value: string): string {
   return value.normalize("NFKC").toLocaleLowerCase().replace(/\s+/g, " ").trim();
@@ -15,6 +16,7 @@ interface IndexedNote {
 export type SearchNote = Omit<Note, "content"> & { search_text: string };
 export function toSearchNote(note: Note | SearchNote): SearchNote {
   const { content, ...metadata } = note as Note;
+  if (isEncrypted(content)) return { ...metadata, tags: [], concepts: [], search_text: "" };
   return { ...metadata, search_text: (note as SearchNote).search_text ?? extractPlainText(content) };
 }
 

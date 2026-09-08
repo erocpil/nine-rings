@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import type { AppConfig, DocType, Note } from "../types/models";
 import { DEFAULT_HOTKEYS, HOTKEY_LABELS } from "../types/models";
+import { DAILY_NOTES_ENABLED, TODOS_ENABLED, isWorkspaceShortcutEnabled } from "../lib/workspace-features";
 import { parseMetadataList } from "../lib/markdown-import";
 import { transformMarkdownBatch } from "../lib/data-transform-client";
 import { isTauri, importWithDialog } from "../lib/tauri-desktop";
@@ -13,6 +14,7 @@ import { EditorAppearancePanel } from "./EditorAppearancePanel";
 import { BackupRestoreStatus } from "./BackupRestoreStatus";
 import { isDocumentFindShortcut, isEditorLineJumpShortcut } from "../lib/shortcuts";
 import type { WebStorageStatus } from "../hooks/useWebPlatform";
+import type { PwaUpdateStatus } from "../lib/pwa-updates";
 import { useTransientMessage } from "../hooks/useTransientMessage";
 import { collectWebDiagnostics } from "../lib/web-diagnostics";
 import { rebuildWebSearchIndex } from "../lib/web-search-index";
@@ -30,6 +32,7 @@ interface Props {
   /** Pull 完成后回调 — 重新载入并应用恢复后的设置与工作区 */
   onPullDone?: () => void;
   webStorageStatus?: WebStorageStatus;
+  webUpdate?: PwaUpdateStatus & { onCheck: () => Promise<void>; onApply: () => void };
   onBeforeBookmarkNoteUpdate?: (noteId: string) => Promise<void>;
   onBookmarkNoteUpdated?: (note: Note) => void;
   onNotesChanged?: () => void;
@@ -66,7 +69,7 @@ const SETTINGS_CATEGORIES: Array<{
 }> = [
   { id: "appearance", title: "外观与排版", description: "主题、字体、字号与内容间距" },
   { id: "documents", title: "文档管理", description: "集中管理书签与标签" },
-  { id: "general", title: "工作流与快捷键", description: "默认视图、待办继承和按键绑定" },
+  { id: "general", title: "工作流与快捷键", description: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "默认视图、待办继承和按键绑定" : "搜索、设置与窗口按键绑定" },
   { id: "library", title: "阅读资料库", description: "导入和管理本地 PDF、EPUB 图书" },
   { id: "sync", title: "同步与备份", description: "GitHub 仓库和同步操作" },
   { id: "data", title: "数据与导入", description: "JSON 备份及 Markdown 批量导入" },
@@ -98,7 +101,7 @@ function yieldToNextFrame(): Promise<void> {
   return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
 }
 
-export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onPullDone, webStorageStatus, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onNotesChanged, onOpenLibrary, libraryError }: Props) {
+export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onNotesChanged, onOpenLibrary, libraryError }: Props) {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -665,7 +668,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             </Field>
 
             {/* ── 默认视图 ── */}
-            <Field label="默认视图" desc="打开应用时的默认布局" visible={settingsPage === "general"}>
+            <Field label="默认视图" desc="打开应用时的默认布局" visible={DAILY_NOTES_ENABLED && settingsPage === "general"}>
               <div className="settings-radio-group">
                 {([["daily", "每日聚合"], ["list", "全部列表"]] as const).map(([v, label]) => (
                   <button
@@ -683,7 +686,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             </Field>
 
             {/* ── 待办跨日继承 ── */}
-            <Field label="待办跨日继承" desc="新每日页默认从未完成项继承待办" visible={settingsPage === "general"}>
+            <Field label="待办跨日继承" desc="新每日页默认从未完成项继承待办" visible={TODOS_ENABLED && settingsPage === "general"}>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
@@ -1017,11 +1020,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                     onClick={() => setMdImportMode("document")}
                     type="button"
                   >导入为文档</button>
-                  <button
+                  {DAILY_NOTES_ENABLED && <button
                     className={`settings-radio ${mdImportMode === "note" ? "active" : ""}`}
                     onClick={() => setMdImportMode("note")}
                     type="button"
-                  >导入为随笔</button>
+                  >导入为随笔</button>}
                 </div>
 
                 {mdImportMode === "document" && (
@@ -1171,7 +1174,19 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
 
             {/* ── 版本 ── */}
             {settingsPage === "root" && (
-              <div className="settings-version">v{__APP_VERSION__}</div>
+              <>
+                <div className="settings-version">v{__APP_VERSION__}</div>
+                {webUpdate && (
+                  <div className="settings-web-update">
+                    <button type="button" className="btn-secondary" disabled={webUpdate.checking}
+                      onClick={() => void webUpdate.onCheck().catch((error) => showMessage(String(error)))}>
+                      {webUpdate.checking ? "正在检查并下载…" : "检查更新"}
+                    </button>
+                    {webUpdate.available && <button type="button" className="btn-primary" onClick={webUpdate.onApply}>保存并刷新</button>}
+                    <span role="status">{webUpdate.error || (webUpdate.available ? "新版本已就绪" : webUpdate.checking ? "正在检查新版，请保持联网" : webUpdate.checked ? "未发现待安装的新版本" : "检查已部署的应用版本")}</span>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -1257,7 +1272,7 @@ function HotkeyConfig({ config, onUpdate }: {
     <div className="hotkey-list">
       <div className="hotkey-reserved-note">Cmd+F、Alt+F：当前文档查找；Alt+G：跳转行号；Vim Normal/Visual 会优先接管 Ctrl 导航键，格式快捷键只在 Insert 生效</div>
       {recordingError && <div className="hotkey-recording-error" role="status">{recordingError}</div>}
-      {Object.entries(HOTKEY_LABELS).map(([id, label]) => {
+      {Object.entries(HOTKEY_LABELS).filter(([id]) => isWorkspaceShortcutEnabled(id)).map(([id, label]) => {
         const current = config.hotkeys?.[id] || DEFAULT_HOTKEYS[id];
         const isRecording = recordingId === id;
 

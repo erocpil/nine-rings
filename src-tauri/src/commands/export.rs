@@ -71,7 +71,7 @@ pub fn import_data(
 ) -> Result<ImportResult, String> {
     let bundle: crate::export::ExportBundle =
         serde_json::from_str(&json).map_err(|e| format!("parse error: {}", e))?;
-    if bundle.version != 1 {
+    if bundle.version != 1 && bundle.version != 2 {
         return Err("不支持的备份版本".into());
     }
     let conn = state.db.lock().map_err(|e| e.to_string())?;

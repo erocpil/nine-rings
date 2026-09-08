@@ -20,6 +20,7 @@ interface DocTreeProps {
   selectedFolderPath?: string | null;
   showDaily?: boolean;
   onCreate: () => void;
+  onPathSecurity?: (path: string, action: "set" | "remove" | "delete") => Promise<void>;
   refreshKey?: number;
   onRename?: (id: string, title: string) => void;
   onDelete?: (id: string) => void;
@@ -127,7 +128,7 @@ function InlineRename({
 }
 
 function DocTree({
-  onSelect, onFolderSelect, selectedId, selectedTitle, selectedFolderPath, showDaily = false, onCreate, refreshKey,
+  onSelect, onFolderSelect, selectedId, selectedTitle, selectedFolderPath, showDaily = false, onCreate, onPathSecurity, refreshKey,
   onRename, onDelete, onToggleReadonly,
   onMoveDocument, onBatchMoveDocuments, onMoveFolder,
   onBatchDelete, onBatchSetReadonly,
@@ -600,7 +601,7 @@ function DocTree({
               <span className="doc-tree-toggle" aria-hidden="true" />
             )}
             <span className="doc-tree-icon">
-              {STATE_ICONS[node.path.split("/")[0]] ?? "📂"}
+              {node.protected ? "🔒" : STATE_ICONS[node.path.split("/")[0]] ?? "📂"}
             </span>
             {renamingFolder === node.path ? (
               <InlineRename
@@ -828,6 +829,15 @@ function DocTree({
         >
           {contextMenu.type === 'folder' ? (
             <>
+              {onPathSecurity && !contextMenu.path.startsWith("daily") && <>
+                <button className="doc-context-item" onClick={() => { const path = contextMenu.path; setContextMenu(null); void onPathSecurity(path, "set"); }}>
+                  {tree.some(n => n.path === contextMenu.path && n.protectionRoot) ? "更改路径密码" : "设置路径密码"}
+                </button>
+                {tree.some(n => n.path === contextMenu.path && n.protectionRoot) && <>
+                  <button className="doc-context-item" onClick={() => { const path = contextMenu.path; setContextMenu(null); void onPathSecurity(path, "remove"); }}>解除路径加密</button>
+                  <button className="doc-context-item" onClick={() => { const path = contextMenu.path; setContextMenu(null); void onPathSecurity(path, "delete"); }}>删除空加密路径</button>
+                </>}
+              </>}
               {contextMenu.path !== "daily" && !contextMenu.path.startsWith("daily/") && (
                 <button className="doc-context-item" onClick={() => handleMoveFolder(contextMenu.path)}>
                   移动到…

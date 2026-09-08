@@ -319,6 +319,10 @@ class NoteService {
       orderBy: 'date DESC, sort_order ASC',
     );
     final dailyPages = await _db.database.query('daily_pages');
+    final protectedPaths = await _db.database.query('protected_paths');
+    if (protectedPaths.isNotEmpty || notes.any((r) => Note.fromJson(r).encrypted)) {
+      throw StateError('此 Flutter 客户端暂不支持加密工作区，请使用新版 PWA 或 Tauri 进行备份和同步，避免丢失路径保护信息。');
+    }
     final data = {
       'version': 1,
       'exported_at': DateTime.now().toUtc().toIso8601String(),
@@ -338,6 +342,10 @@ class NoteService {
     bool replace = false,
   }) async {
     final data = jsonDecode(jsonStr) as Map;
+    if ((data['version'] != null && data['version'] != 1) ||
+        ((data['protected_paths'] as List?)?.isNotEmpty ?? false)) {
+      throw StateError('此备份包含新版加密数据，请使用支持文档加密的 PWA 或 Tauri；本机数据未修改。');
+    }
     final notes = data['notes'] as List? ?? [];
     final dailyPages = data['daily_pages'] as List? ?? [];
 

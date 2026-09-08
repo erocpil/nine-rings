@@ -1,17 +1,18 @@
 interface Props {
   online: boolean;
   updateAvailable: boolean;
+  applyingUpdate?: boolean;
   storagePressure: number | null;
   onApplyUpdate: () => void;
   onExportBackup: () => void;
 }
 
-export function WebStatusBanner({ online, updateAvailable, storagePressure, onApplyUpdate, onExportBackup }: Props) {
+export function WebStatusBanner({ online, updateAvailable, applyingUpdate, storagePressure, onApplyUpdate, onExportBackup }: Props) {
   if (updateAvailable) {
     return (
       <div className="web-status-banner update" role="status">
-        <span>新版本已准备好。刷新前会先保存当前编辑。</span>
-        <button type="button" onClick={onApplyUpdate}>保存并刷新</button>
+        <span>{applyingUpdate ? "正在保存并启用新版，请稍候…" : "新版本已准备好。刷新前会先保存当前编辑。"}</span>
+        <button type="button" disabled={applyingUpdate} onClick={onApplyUpdate}>保存并刷新</button>
       </div>
     );
   }

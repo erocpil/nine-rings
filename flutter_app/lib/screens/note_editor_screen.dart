@@ -155,6 +155,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   }
 
   Future<void> _save() async {
+    if (widget.note?.encrypted == true) return;
     if (_saving) return;
     setState(() => _saving = true);
 
@@ -260,6 +261,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     final theme = Theme.of(context);
     final note = widget.note;
     final isDoc = _isDocument;
+
+    if (note?.encrypted == true) {
+      return Scaffold(appBar: AppBar(title: Text(note?.title ?? '加密文档')),
+        body: const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('此文档已加密。请在支持文档密码的新版 PWA 或 Tauri 中打开；此客户端不会将它作为空文档编辑。'))));
+    }
 
     return Scaffold(
       appBar: AppBar(

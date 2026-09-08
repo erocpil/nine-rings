@@ -38,9 +38,10 @@ interface NotesStore {
   startupReady: boolean;
   startupDateLoadPending: boolean;
   error: string | null;
+  documentsOnly: boolean;
 
   // 操作
-  initialize: (preferredNoteId?: string, selectFallback?: boolean) => Promise<void>;
+  initialize: (preferredNoteId?: string, selectFallback?: boolean, documentsOnly?: boolean) => Promise<void>;
   setDate: (date: string) => Promise<void>;
   selectNote: (note: Note | null) => void;
   createNote: () => Promise<Note | null>;
@@ -110,14 +111,15 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
   startupReady: false,
   startupDateLoadPending: false,
   error: null,
+  documentsOnly: false,
 
   clearError: () => set({ error: null }),
 
   // 启动优先恢复最后文档：单行主键查询完成后立即交给界面渲染，日期列表和
   // Todo 等编辑器首次呈现后再加载。大备份不再要求先扫描列表才能看到文档。
-  initialize: async (preferredNoteId, selectFallback = true) => {
+  initialize: async (preferredNoteId, selectFallback = true, documentsOnly = false) => {
     const generation = ++dateLoadGeneration;
-    set({ loading: true, startupReady: false, startupDateLoadPending: false, error: null });
+    set({ loading: true, startupReady: false, startupDateLoadPending: false, error: null, documentsOnly });
     let restored: Note | null = null;
     const preferredId = preferredNoteId
       || (selectFallback ? getPersistedLastNoteId() ?? undefined : undefined);
@@ -125,6 +127,27 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
       restored = await resolvePreferredNoteId(preferredId);
     }
     if (generation !== dateLoadGeneration) return;
+
+    // Presentation-only mode: do not restore essays or create/carry over daily
+    // Todo pages. Existing records and their backups remain untouched.
+    if (documentsOnly) {
+      try {
+        if (!restored?.storagePath) {
+          restored = null;
+          if (selectFallback) {
+            const documents = await withTimeout(api.docs.search({}), NOTE_LIST_TIMEOUT_MS, "恢复文档");
+            restored = documents.filter((note) => note.storagePath)
+              .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0] ?? null;
+          }
+        }
+        if (generation !== dateLoadGeneration) return;
+        set({ selectedNote: restored, notes: [], dailyPage: null, loading: false, startupReady: true });
+      } catch (error) {
+        if (generation !== dateLoadGeneration) return;
+        set({ loading: false, startupReady: true, error: `恢复文档失败: ${String(error)}` });
+      }
+      return;
+    }
 
     const requestedDate = restored?.date ?? get().currentDate;
     localStorage.setItem(CURRENT_DATE_KEY, requestedDate);
@@ -209,6 +232,12 @@ export const useNotesStore = create<NotesStore>((set, get) => ({
   setDate: async (date: string) => {
     const generation = ++dateLoadGeneration;
     const prevSelected = get().selectedNote;
+    if (get().documentsOnly) {
+      // Updating a document's date must not resurrect hidden daily UI or create
+      // a daily page. Preserve the current folder/document selection.
+      set({ currentDate: date, startupDateLoadPending: false });
+      return;
+    }
     localStorage.setItem(CURRENT_DATE_KEY, date);
     set({ loading: true, currentDate: date, startupDateLoadPending: false, error: null });
     try {

@@ -4,6 +4,10 @@ import 'package:uuid/uuid.dart';
 const _uuid = Uuid();
 
 class Note {
+  bool get encrypted {
+    try { final data = jsonDecode(content); return data is Map && data.containsKey('encrypted'); }
+    catch (_) { return false; }
+  }
   final String id;
   final String date; // "2026-07-08"
   String? title;

@@ -292,6 +292,10 @@ pub struct ExportBundle {
     pub config: Option<Value>,
     #[serde(default)]
     pub templates: Option<Vec<BackupTemplate>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub protected_paths: Vec<Value>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub protected_versions: Vec<Value>,
 }
 
 /// 导出全部数据（不含软删除的笔记）
@@ -334,13 +338,17 @@ pub fn export_all(conn: &Connection, config: &AppConfig) -> rusqlite::Result<Exp
             };
             Ok(BackupTemplate { id: row.get(0)?, name: row.get(1)?, description: row.get(2)?, is_builtin: row.get(3)?, title_template: row.get(4)?, tags: parse_list(5)?, storage_path: row.get(6)?, doc_type: row.get(7)?, concepts: parse_list(8)?, pinned: row.get(9)?, sort_order: row.get(10)?, created_at: row.get(11)?, updated_at: row.get(12)? })
         })?.collect::<rusqlite::Result<Vec<_>>>()?;
+    let protection = crate::commands::protection::snapshot(conn).map_err(|_| rusqlite::Error::InvalidQuery)?;
+    let protected_versions = protection.versions.into_iter().filter(|v| notes.iter().any(|n| Some(n.id.as_str()) == v["note_id"].as_str() && n.content.get("encrypted").is_some())).collect();
     Ok(ExportBundle {
-        version: 1,
+        version: if !protection.paths.is_empty() || notes.iter().any(|n| n.content.get("encrypted").is_some()) { 2 } else { 1 },
         exported_at: chrono::Utc::now().to_rfc3339(),
         notes,
         daily_pages,
         config: Some(serde_json::to_value(config).unwrap_or(Value::Null)),
         templates: Some(templates),
+        protected_paths: protection.paths,
+        protected_versions,
     })
 }
 
@@ -359,6 +367,7 @@ pub fn import_bundle(
         tx.execute("DELETE FROM note_versions", [])?;
         tx.execute("DELETE FROM notes", [])?;
         tx.execute("DELETE FROM daily_pages", [])?;
+        tx.execute("DELETE FROM protected_paths", [])?;
     }
 
     // 构建现有笔记的 id 集合（按 UUID 去重）
@@ -383,7 +392,7 @@ pub fn import_bundle(
                 note.date,
                 note.title,
                 note.content.to_string(),
-                note.search_text,
+                if note.content.get("encrypted").is_some() { "" } else { &note.search_text },
                 serde_json::to_string(&note.tags).unwrap_or_default(),
                 note.pinned,
                 note.sort_order,
@@ -421,6 +430,16 @@ pub fn import_bundle(
             tx.execute("INSERT OR REPLACE INTO templates (id, name, description, is_builtin, title_template, tags, storage_path, doc_type, concepts, pinned, sort_order, created_at, updated_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)", rusqlite::params![t.id, t.name, t.description, t.is_builtin, t.title_template, serde_json::to_string(&t.tags).unwrap(), t.storage_path, t.doc_type, serde_json::to_string(&t.concepts).unwrap(), t.pinned, t.sort_order, t.created_at, t.updated_at])?;
         }
     }
+    for path in &bundle.protected_paths {
+        let id = path["id"].as_str().ok_or(rusqlite::Error::InvalidQuery)?;
+        tx.execute("INSERT OR REPLACE INTO protected_paths (id,data) VALUES (?1,?2)", rusqlite::params![id,path.to_string()])?;
+    }
+    for v in &bundle.protected_versions {
+        if v["content"].get("encrypted").is_none() { return Err(rusqlite::Error::InvalidQuery); }
+        tx.execute("INSERT OR REPLACE INTO note_versions (id,note_id,title,content,tags,pinned,sort_order,saved_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)", rusqlite::params![v["id"].as_str(),v["note_id"].as_str(),v["title"].as_str(),v["content"].to_string(),v["tags"].to_string(),v["pinned"].as_bool().unwrap_or(false),v["sort_order"].as_i64().unwrap_or(0),v["saved_at"].as_str()])?;
+    }
+    let protection = crate::commands::protection::snapshot(&tx).map_err(|_| rusqlite::Error::InvalidQuery)?;
+    crate::commands::protection::validate(&protection).map_err(|_| rusqlite::Error::InvalidQuery)?;
     tx.commit()?;
 
     Ok((notes_imported, pages_imported))
