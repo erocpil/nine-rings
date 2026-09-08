@@ -420,11 +420,9 @@ export default function ReadingLibrary({
               style={{ display: "none" }}
               onChange={handleEpubImport}
             />
-          </div>
-          <div className="reader-library-controls">
             <button
               type="button"
-              className="settings-btn"
+              className="settings-btn reader-library-refresh"
               disabled={busy || pdfLibraryLoading || epubLibraryLoading}
               onClick={() => {
                 showMessage(null);
@@ -432,9 +430,12 @@ export default function ReadingLibrary({
                 void refreshEpubLibrary();
               }}
               aria-label="刷新阅读资料库"
+              title="重新读取当前设备的阅读资料列表"
             >
               刷新
             </button>
+          </div>
+          <div className="reader-library-controls">
             <div
               className="reader-library-segment"
               aria-label="阅读资料库格式筛选"
@@ -451,7 +452,8 @@ export default function ReadingLibrary({
                 </button>
               ))}
             </div>
-            <div className="reader-library-segment" aria-label="阅读资料库视图">
+            <span className="reader-library-control-divider" aria-hidden="true" />
+            <div className="reader-library-segment reader-library-view" aria-label="阅读资料库视图">
               <button
                 type="button"
                 className={libraryView === "shelf" ? "active" : ""}

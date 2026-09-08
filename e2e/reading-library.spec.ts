@@ -38,6 +38,20 @@ for (const width of [390, 1280]) {
       exact: true,
     });
     await expect(library).toBeVisible();
+    const librarySearch = library.getByRole("searchbox", { name: "查找书籍" });
+    await librarySearch.fill("保留阅读筛选");
+    for (const closeWithEscape of [false, true]) {
+      await library.getByRole("button", { name: "设置", exact: true }).click();
+      const settings = page.getByRole("dialog", { name: "设置", exact: true });
+      await expect(settings).toBeVisible();
+      await expect(page.locator(".ProseMirror")).toHaveCount(0);
+      if (closeWithEscape) await page.keyboard.press("Escape");
+      else await settings.getByRole("button", { name: "关闭设置", exact: true }).click();
+      await expect(settings).toBeHidden();
+      await expect(librarySearch).toHaveValue("保留阅读筛选");
+      await expect(library.getByRole("button", { name: "设置", exact: true })).toBeFocused();
+    }
+    await librarySearch.fill("");
     await page.keyboard.press("Control+f");
     await expect(library.getByRole("searchbox", { name: "查找书籍" })).toBeFocused();
     await expect(
@@ -169,6 +183,7 @@ for (const width of [390, 1280]) {
     await library
       .getByRole("button", { name: "打开 library.pdf", exact: true })
       .click();
+    await expect(page.locator(".pdf-page-surface canvas")).toHaveAttribute("data-pdf-ready", "true");
     await page
       .locator(".pdf-text-layer span")
       .filter({ hasText: "Nine Rings PDF MVP" })

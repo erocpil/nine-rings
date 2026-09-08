@@ -21,7 +21,7 @@ import { useNotesStore } from "./stores/useNotesStore";
 import { api } from "./lib/api";
 import { localDateKey } from "./lib/local-date";
 import { bindViewportEdgeSwipe } from "./lib/edge-swipe";
-import { useEdgeDrawer, useMobileViewport } from "./hooks/useEdgeDrawer";
+import { MOBILE_VIEWPORT_QUERY, useEdgeDrawer, useMobileViewport } from "./hooks/useEdgeDrawer";
 import { useAutoSave } from "./hooks/useAutoSave";
 import { useSettings } from "./hooks/useSettings";
 import DocTree from "./components/DocTree";
@@ -496,7 +496,7 @@ function App() {
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     const persisted = localStorage.getItem(HIDDEN_KEY);
     if (persisted !== null) return persisted === "true";
-    return typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches;
+    return typeof window !== "undefined" && window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
   });
   const TAB_KEY = "nr:sidebarTab";
   const defaultViewAppliedRef = useRef(false);
@@ -533,7 +533,7 @@ function App() {
     });
   }, [configuredAutoCleanDays]);
   const closeSidebarOnNarrowScreen = useCallback(() => {
-    if (window.matchMedia("(max-width: 768px)").matches) {
+    if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) {
       setSidebarHidden(true);
     }
   }, []);
@@ -1474,17 +1474,55 @@ function App() {
     );
   }
 
+  const settingsPanel = <SettingsPanel
+    open={settingsOpen}
+    webStorageStatus={isTauriRuntime() ? undefined : webPlatform.storage}
+    webUpdate={!isTauriRuntime() && import.meta.env.PROD ? {
+      ...webPlatform.updateStatus,
+      onCheck: webPlatform.checkUpdate,
+      onApply: applyWebUpdate,
+    } : undefined}
+    onClose={() => setSettingsOpen(false)}
+    onConfigChange={handleConfigChange}
+    onOpenLibrary={() => void openReadingLibrary()}
+    libraryError={readingLibraryError}
+    onBeforeBookmarkNoteUpdate={async (noteId) => {
+      if (selectedNoteRef.current?.id === noteId) await autoSave.flush();
+    }}
+    onBookmarkNoteUpdated={(updated) => {
+      if (selectedNoteRef.current?.id === updated.id) {
+        handleSelectNote(updated);
+        setExternalReloadKey((key) => key + 1);
+      }
+    }}
+    onNotesChanged={refreshNoteViews}
+    onSyncBusy={setSyncBusy}
+    onImport={() => {
+      // Restore replaces both database and local workspace configuration.
+      window.setTimeout(() => window.location.reload(), 1000);
+    }}
+    onMarkdownImport={() => {
+      setDocTreeKey((key) => key + 1);
+      setSidebarRefreshKey((key) => key + 1);
+      void setDate(currentDate);
+    }}
+    onPullDone={() => window.location.reload()}
+  />;
+
   if (readingLibraryOpen) {
     return <div className="pdf-reader-app">
       {isTauriRuntime() && <Suspense fallback={null}><TitleBar /></Suspense>}
-      <Suspense fallback={<div className="pdf-reader-boot">正在加载阅读资料库…</div>}>
-        <ReadingLibrary session={readingLibrarySession.current}
-          onClose={() => setReadingLibraryOpen(false)}
-          onSettings={() => { setReadingLibraryOpen(false); setSettingsOpen(true); }}
-          onOpenPdf={id => { setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
-          onOpenEpub={id => { setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }}
-        />
-      </Suspense>
+      <div style={{ display: "flex", flex: 1, minHeight: 0 }} {...(settingsOpen ? { inert: "" } : {})}>
+        <Suspense fallback={<div className="pdf-reader-boot">正在加载阅读资料库…</div>}>
+          <ReadingLibrary session={readingLibrarySession.current}
+            onClose={() => setReadingLibraryOpen(false)}
+            onSettings={() => setSettingsOpen(true)}
+            onOpenPdf={id => { setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
+            onOpenEpub={id => { setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }}
+          />
+        </Suspense>
+      </div>
+      <Suspense fallback={null}>{settingsPanel}</Suspense>
     </div>;
   }
 
@@ -1975,6 +2013,10 @@ function App() {
               securityDisabled={syncBusy || protectionBusy}
               note={selectedNote}
               onMetadataUpdate={handleDocumentMetadataUpdate}
+              onTagsUpdate={async tags => {
+                autoSave.markTagsDirty(tags);
+                await autoSave.flush();
+              }}
               onMoveDocument={handleMoveDocument}
               onExportPdf={() => setPdfExportRequestId((requestId) => requestId + 1)}
               onExternalMarkdownApply={handleExternalMarkdownApply}
@@ -2025,43 +2067,7 @@ function App() {
           onClose={() => setQuickSwitcherOpen(false)}
           onSelect={handleQuickSwitch}
         />
-        <SettingsPanel
-          open={settingsOpen}
-          webStorageStatus={isTauriRuntime() ? undefined : webPlatform.storage}
-          webUpdate={!isTauriRuntime() && import.meta.env.PROD ? {
-            ...webPlatform.updateStatus,
-            onCheck: webPlatform.checkUpdate,
-            onApply: applyWebUpdate,
-          } : undefined}
-          onClose={() => setSettingsOpen(false)}
-          onConfigChange={handleConfigChange}
-          onOpenLibrary={() => void openReadingLibrary()}
-          libraryError={readingLibraryError}
-          onBeforeBookmarkNoteUpdate={async (noteId) => {
-            if (selectedNoteRef.current?.id === noteId) await autoSave.flush();
-          }}
-          onBookmarkNoteUpdated={(updated) => {
-            if (selectedNoteRef.current?.id === updated.id) {
-              handleSelectNote(updated);
-              setExternalReloadKey((key) => key + 1);
-            }
-          }}
-          onNotesChanged={refreshNoteViews}
-          onSyncBusy={setSyncBusy}
-          onImport={() => {
-            // 完整恢复会同时替换数据库配置和 localStorage 中的工作区状态。
-            // 先让成功反馈完成绘制，再重新载入并让所有 Hook 从恢复值初始化。
-            window.setTimeout(() => window.location.reload(), 1000);
-          }}
-          onMarkdownImport={() => {
-            setDocTreeKey((key) => key + 1);
-            setSidebarRefreshKey((key) => key + 1);
-            void setDate(currentDate);
-          }}
-          onPullDone={() => {
-            window.location.reload();
-          }}
-        />
+        {settingsPanel}
       </Suspense>
       {docTreePopupOpen && (
         <div className="doc-tree-popup-overlay" onClick={() => setDocTreePopupOpen(false)}>

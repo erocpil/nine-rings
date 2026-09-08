@@ -30,6 +30,9 @@ const SINGLE_ROW_HEIGHT = 26;
 const WRAPPED_ROW_HEIGHT = 39;
 const DEFAULT_LIST_WIDTH = 360;
 const OVERSCAN_PX = SINGLE_ROW_HEIGHT * 8;
+// Session objects only: reopening an unchanged outline reuses size estimates.
+// Weak keys let closed/encrypted document data be collected; nothing is persisted.
+const rowEstimateCache = new WeakMap<DocumentOutlineItem, Map<string, number>>();
 
 function entryKey(entry: VisibleOutlineEntry): string {
   return `${entry.index}:${entry.item.pos}:${entry.item.text}`;
@@ -53,12 +56,21 @@ function estimatedRowHeight(
   outlineBaseLevel: number,
   listWidth: number,
 ): number {
+  const cacheKey = `${outlineBaseLevel}:${listWidth}`;
+  const cached = rowEstimateCache.get(entry.item);
+  const existing = cached?.get(cacheKey);
+  if (existing !== undefined) return existing;
   const indentation = Math.max(0, entry.item.level - outlineBaseLevel) * 14;
   // 行内固定区域：左缩进、折叠按钮、Hn 标签、间距及右内边距。
   const availableTextWidth = Math.max(80, listWidth - indentation - 60);
-  return approximateTextWidth(entry.item.text) > availableTextWidth
+  const height = approximateTextWidth(entry.item.text) > availableTextWidth
     ? WRAPPED_ROW_HEIGHT
     : SINGLE_ROW_HEIGHT;
+  const sizes = cached ?? new Map<string, number>();
+  if (sizes.size >= 4) sizes.clear();
+  sizes.set(cacheKey, height);
+  rowEstimateCache.set(entry.item, sizes);
+  return height;
 }
 
 function firstRowEndingAfter(
@@ -233,7 +245,9 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
         className={`document-outline-item ${index === activeOutlineIndex ? "current" : ""}`}
         style={{
           paddingInlineStart: `${10 + (item.level - outlineBaseLevel) * 14}px`,
-          ...(virtualized ? { top: `${rowLayout.tops[visibleIndex]}px` } : {}),
+          // Reserve the complete one/two-line row before it enters the DOM.
+          // Measuring newly mounted rows must not keep shifting the scroll range.
+          ...(virtualized ? { top: `${rowLayout.tops[visibleIndex]}px`, height: `${rowLayout.heights[visibleIndex]}px` } : {}),
         }}
         data-level={item.level}
         data-outline-index={index}

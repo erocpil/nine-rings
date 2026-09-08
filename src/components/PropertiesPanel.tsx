@@ -22,6 +22,7 @@ interface PropertiesPanelProps {
   readonlyChangeDisabled?: boolean;
   securityDisabled?: boolean;
   onMetadataUpdate: (metadata: DocumentMetadata) => Promise<void>;
+  onTagsUpdate: (tags: string[]) => Promise<void>;
   onMoveDocument: (id: string, targetPath: string) => Promise<void>;
   onExportPdf: () => void;
   onExternalMarkdownApply: (content: DeltaOps, source: ExternalMarkdownSource) => Promise<void>;
@@ -72,6 +73,7 @@ function PropertiesPanel({
   readonlyChangeDisabled,
   securityDisabled,
   onMetadataUpdate,
+  onTagsUpdate,
   onMoveDocument,
   onExportPdf,
   onExternalMarkdownApply,
@@ -82,6 +84,27 @@ function PropertiesPanel({
   onOpenConcept,
 }: PropertiesPanelProps) {
   const [conceptInput, setConceptInput] = useState("");
+  const [tagInput, setTagInput] = useState("");
+  const [tagsSaving, setTagsSaving] = useState(false);
+  const [tagsError, setTagsError] = useState("");
+  useEffect(() => { setTagInput(""); setTagsError(""); }, [note.id]);
+  const saveTags = async (tags: string[]) => {
+    if (readonly || tagsSaving) return;
+    setTagsSaving(true);
+    setTagsError("");
+    try {
+      await onTagsUpdate(tags);
+      setTagInput("");
+    } catch (error) {
+      setTagsError(`标签保存失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally { setTagsSaving(false); }
+  };
+  const addTag = () => {
+    const tag = tagInput.trim();
+    if (!tag) return;
+    if (note.tags.includes(tag)) { setTagsError("该标签已存在"); return; }
+    void saveTags([...note.tags, tag]);
+  };
   const [existingConcepts, setExistingConcepts] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [linkSearch, setLinkSearch] = useState("");
@@ -485,6 +508,22 @@ function PropertiesPanel({
       </div>
 
       <div className="properties-body">
+        <div className="prop-section" aria-label="文档标签">
+          <div className="prop-label">标签</div>
+          <div className="prop-tags">
+            {note.tags.map(tag => <span key={tag} className="prop-tag">
+              <span>{tag}</span>
+              {!readonly && <button type="button" className="prop-tag-remove" aria-label={`移除标签 ${tag}`} disabled={tagsSaving} onClick={() => void saveTags(note.tags.filter(value => value !== tag))}>✕</button>}
+            </span>)}
+          </div>
+          {readonly ? <div className="prop-empty">{note.tags.length ? "只读文档；切换为可编辑后可修改标签。" : "暂无标签；切换为可编辑后可添加。"}</div> : <div className="prop-tags-input-row prop-document-tags-row">
+            <input className="prop-input" aria-label="添加文档标签" placeholder="输入标签，按回车添加" value={tagInput} disabled={tagsSaving} onChange={event => setTagInput(event.target.value)} onKeyDown={event => {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); addTag(); }
+            }} />
+            <button type="button" className="settings-sm-btn" disabled={tagsSaving || !tagInput.trim()} onClick={addTag}>添加</button>
+          </div>}
+          {tagsError && <div role="alert" className="prop-empty">{tagsError}</div>}
+        </div>
         <div className="prop-section">
           <div className="prop-label">文档安全</div>
           {pathProtection?.protected ? (

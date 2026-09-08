@@ -1,10 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { bindEdgeSwipe } from "../lib/edge-swipe";
 
+export const MOBILE_VIEWPORT_QUERY = "(max-width: 768px), (pointer: coarse) and (orientation: landscape) and (max-height: 600px)";
+
 export function useMobileViewport() {
-  const [mobile, setMobile] = useState(() => window.matchMedia("(max-width: 768px)").matches);
+  const [mobile, setMobile] = useState(() => window.matchMedia(MOBILE_VIEWPORT_QUERY).matches);
   useEffect(() => {
-    const media = window.matchMedia("(max-width: 768px)");
+    const media = window.matchMedia(MOBILE_VIEWPORT_QUERY);
     const update = () => setMobile(media.matches);
     update();
     media.addEventListener("change", update);

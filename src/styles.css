@@ -1658,9 +1658,12 @@ body {
   display: contents;
 }
 
-.toolbar-minimal .toolbar-secondary {
+.toolbar-secondary > [data-toolbar-overflow="true"] {
   display: none;
 }
+
+.toolbar-secondary > * { flex-shrink: 0; }
+.toolbar-font-actions { display: inline-flex; align-items: center; gap: 3px; }
 
 .toolbar-full .menu-dropdown-list {
   max-height: min(75vh, 460px);
@@ -6811,6 +6814,15 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   flex-shrink: 0;
 }
 
+.note-editor-readonly:not(.focus-mode) .note-editor-sticky {
+  padding-bottom: 4px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
+
+.note-editor-readonly .tag-bar:empty {
+  display: none;
+}
+
 /* 专注模式：不固定，随滚动一起离开视口 */
 .focus-mode .note-editor-sticky {
   position: relative;
@@ -8084,6 +8096,10 @@ button.doc-tree-toggle:focus-visible {
   margin-bottom: 4px;
 }
 
+.prop-document-tags-row { display: flex; align-items: center; gap: 6px; }
+.prop-document-tags-row .prop-input { flex: 1; min-width: 0; }
+.prop-document-tags-row button { flex-shrink: 0; }
+
 .prop-input {
   width: 100%;
   padding: 5px 8px;
@@ -9171,7 +9187,7 @@ button.doc-tree-toggle:focus-visible {
   --safe-right: env(safe-area-inset-right, 0px);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 768px), (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
   /* 正常浏览时由 fixed inset 直接跟随布局视口。横竖屏切换期间 iOS 的
      visualViewport 可能仍短暂报告上一方向尺寸，不能用它锁定应用外壳。 */
   .app {
@@ -9246,7 +9262,7 @@ button.doc-tree-toggle:focus-visible {
 
   .app-main {
     flex: 1;
-    padding: 12px 8px 12px 4px;
+    padding: 4px 8px 12px 4px;
     padding-bottom: max(4px, var(--safe-bottom));
   }
 
@@ -9254,6 +9270,17 @@ button.doc-tree-toggle:focus-visible {
      预留的上边距不应继续叠加，否则首行会在工具栏下方留下近 50px 空白。 */
   .app-focus-mode .app-main {
     padding-top: 0;
+    /* 状态栏隐藏后，安全区不应继续占据正文滚动区之外的固定空白。
+       正文已有 scroll-padding 和文末滚动余量；可见的搜索导航单独避让。 */
+    padding-bottom: 0;
+  }
+
+  .focus-mode .editor-stats-has-search-navigation {
+    padding-bottom: var(--safe-bottom);
+  }
+
+  .web-keyboard-open .focus-mode .editor-stats-has-search-navigation {
+    padding-bottom: 0;
   }
 
   .app-focus-mode .app-main-divider {
@@ -9276,7 +9303,7 @@ button.doc-tree-toggle:focus-visible {
   }
 
   .app:not(.app-focus-mode) .app-main-editor > .note-editor {
-    padding-top: 10px;
+    padding-top: 0;
   }
 
   /* 键盘已经覆盖 Home Indicator 区域，不再在状态栏下重复预留 safe area。 */
@@ -9376,7 +9403,7 @@ button.doc-tree-toggle:focus-visible {
 
   /* ── 编辑器 ── */
   .note-editor {
-    padding: 10px 0 0;
+    padding: 0;
   }
 
   .note-title-row {
@@ -9807,6 +9834,23 @@ button.doc-tree-toggle:focus-visible {
   }
 }
 
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
+  .app-sidebar { width: 70vw !important; }
+  .doc-tree-popup,
+  .mobile-document-drawer-panel { width: 70vw; max-width: 85vw; }
+  .note-editor:not(.focus-mode):not(.outline-docked-left):not(.outline-docked-right) > .document-outline-panel,
+  .note-editor:not(.focus-mode) > .document-bookmark-panel,
+  .focus-mode .document-outline-panel,
+  .focus-mode .document-bookmark-panel,
+  .mobile-document-drawer .document-outline-panel,
+  .mobile-document-drawer .document-bookmark-panel {
+    width: 70vw;
+    max-width: 85vw;
+  }
+  .mobile-document-drawer .document-outline-panel,
+  .mobile-document-drawer .document-bookmark-panel { width: 100%; }
+}
+
 /* 横屏手机 / 小高度窗口：保留单行工具栏，把更多垂直空间留给正文。 */
 @media (max-width: 768px) and (max-height: 480px) {
   .app-header {
@@ -9816,7 +9860,7 @@ button.doc-tree-toggle:focus-visible {
   }
 
   .note-editor {
-    padding-top: 6px;
+    padding-top: 0;
   }
 
   .editor-menu {
@@ -9845,6 +9889,7 @@ button.doc-tree-toggle:focus-visible {
   display: grid;
   flex: 1;
   place-items: center;
+  text-align: center;
   color: #eef1f4;
 }
 
@@ -10276,6 +10321,11 @@ button.doc-tree-toggle:focus-visible {
   touch-action: pan-x pan-y;
 }
 
+/* Auto margins center short pages without clipping tall, zoomed pages. */
+.pdf-page-viewport:not(.pdf-page-viewport-vertical) > .pdf-page-surface {
+  margin-block: auto;
+}
+
 .pdf-page-viewport-vertical .pdf-page-surface {
   margin-block: 8px;
   /* Keep geometry while a placeholder becomes a mounted, not-yet-rendered
@@ -10293,6 +10343,8 @@ button.doc-tree-toggle:focus-visible {
 }
 
 .pdf-page-surface canvas {
+  /* Positioned canvases paint above the preceding absolute thumbnail in both modes. */
+  position: relative;
   display: block;
   pointer-events: none;
 }
@@ -10495,6 +10547,8 @@ button.doc-tree-toggle:focus-visible {
 
 .pdf-reader-message {
   display: flex;
+  margin: auto;
+  text-align: center;
   min-height: 180px;
   align-self: center;
   align-items: center;
@@ -10745,7 +10799,30 @@ button.doc-tree-toggle:focus-visible {
 .reader-library-list .reader-library-open {
   align-items: center;
   gap: 10px;
-  padding-right: 44px;
+  min-height: 100px;
+}
+
+.reader-library-list .reader-library-meta {
+  flex: 1;
+}
+
+.reader-library-list .reader-library-meta strong,
+.reader-library-list .reader-library-meta small {
+  margin-right: 35px;
+}
+
+/* Reserve the lower metadata rows for the independent backup action. */
+.reader-library-list .reader-library-meta small:nth-last-child(-n + 2) {
+  margin-right: 78px;
+}
+
+.reader-library-list .reader-library-backup {
+  position: absolute;
+  right: 9px;
+  bottom: 9px;
+  margin: 0;
+  width: 70px;
+  padding-inline: 6px;
 }
 
 .reader-library-list .reader-library-cover {

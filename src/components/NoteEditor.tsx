@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useEditorToolbarMenus } from "../hooks/useEditorToolbarMenus";
+import { MOBILE_VIEWPORT_QUERY } from "../hooks/useEdgeDrawer";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { OrderedListLayout } from "../extensions/OrderedListLayout";
@@ -726,10 +727,10 @@ function FullNoteEditor({ sensitive = false, noteId, title, content, contentVers
   const [toolbarWidth, setToolbarWidth] = useState(1000);
   const [isMobileToolbarViewport, setIsMobileToolbarViewport] = useState(() => {
     if (typeof window === "undefined") return false;
-    return window.matchMedia("(max-width: 768px)").matches;
+    return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
   });
   const isNarrow = toolbarWidth < 900 || isMobileToolbarViewport;
-  const isMinimalToolbar = toolbarWidth < 620 || isMobileToolbarViewport;
+  const isMinimalToolbar = isNarrow;
   const CODE_LN_KEY = "nr:codeLineNumbers";
   const [showCodeLineNumbers, setShowCodeLineNumbers] = useState(() => {
     return localStorage.getItem(CODE_LN_KEY) === "true";
@@ -805,7 +806,7 @@ function FullNoteEditor({ sensitive = false, noteId, title, content, contentVers
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const media = window.matchMedia("(max-width: 768px)");
+    const media = window.matchMedia(MOBILE_VIEWPORT_QUERY);
     const updateViewport = () => setIsMobileToolbarViewport(media.matches);
     updateViewport();
     media.addEventListener("change", updateViewport);
@@ -1445,16 +1446,20 @@ function FullNoteEditor({ sensitive = false, noteId, title, content, contentVers
     if (!outlineOpen || activeOutlineIndex < 0) return;
     const list = outlineListRef.current;
     if (!list) return;
+    let userInteracted = false;
+    const stopCentering = () => { userInteracted = true; };
+    const interactionEvents = ["pointerdown", "touchstart", "wheel", "keydown"];
+    interactionEvents.forEach(name => list.addEventListener(name, stopCentering, { passive: true }));
     const centerActiveItem = () => {
+      if (userInteracted) return;
       const activeItem = list.querySelector<HTMLElement>(
         `[data-outline-index="${activeOutlineIndex}"]`,
       );
       const overflowing = list.scrollHeight > list.clientHeight + 1;
       setOutlineOverflow((current) => current === overflowing ? current : overflowing);
-      if (!activeItem || !overflowing) {
-        list.scrollTop = 0;
-        return;
-      }
+      // A virtual row can temporarily be unmounted. That does not mean the
+      // user's scroll position should be reset to the beginning.
+      if (!activeItem || !overflowing) return;
       const listRect = list.getBoundingClientRect();
       const activeRect = activeItem.getBoundingClientRect();
       const activeTop = activeRect.top - listRect.top + list.scrollTop;
@@ -1484,8 +1489,19 @@ function FullNoteEditor({ sensitive = false, noteId, title, content, contentVers
       window.cancelAnimationFrame(firstFrame);
       if (secondFrame) window.cancelAnimationFrame(secondFrame);
       observer?.disconnect();
+      interactionEvents.forEach(name => list.removeEventListener(name, stopCentering));
     };
-  }, [activeOutlineIndex, documentOutline.length, headingFoldRevision, outlineCollapsedHeadingKeys, outlineOpen, panelPresentation]);
+  }, [activeOutlineIndex, outlineOpen, panelPresentation]);
+
+  useLayoutEffect(() => {
+    const list = outlineListRef.current;
+    if (!outlineOpen || !list) return;
+    const measureOverflow = () => setOutlineOverflow(list.scrollHeight > list.clientHeight + 1);
+    const frame = requestAnimationFrame(measureOverflow);
+    const observer = new ResizeObserver(measureOverflow);
+    observer.observe(list);
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); };
+  }, [documentOutline.length, headingFoldRevision, outlineCollapsedHeadingKeys, outlineOpen, panelPresentation]);
 
   const scrollOutlineTo = useCallback((target: "top" | "middle" | "bottom") => {
     const list = outlineListRef.current;
@@ -3746,7 +3762,7 @@ function FullNoteEditor({ sensitive = false, noteId, title, content, contentVers
           </button>
         </div>
         {/* ── 标签区 ── */}
-        <div className="tag-bar">
+        {tags.length > 0 && <div className="tag-bar">
           {tags.map((t) => (
             <span key={t} className="tag-chip">
               {t}
@@ -3766,8 +3782,7 @@ function FullNoteEditor({ sensitive = false, noteId, title, content, contentVers
               }
             }}
           />}
-        </div>
-
+        </div>}
         {/* ── 工具栏 ── */}
         {!readonly && (<div
           ref={toolbarRef}

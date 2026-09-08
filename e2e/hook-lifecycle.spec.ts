@@ -113,7 +113,7 @@ test("虚拟目录实测行高变化后更新后续行的位置", async ({ page 
     const { createRoot }: typeof import("react-dom/client") = (await load("/node_modules/.vite/deps/react-dom_client.js")).default;
     const { flushSync }: typeof import("react-dom") = (await load("/node_modules/.vite/deps/react-dom.js")).default;
     const { DocumentOutlineList } = await load("/src/components/DocumentOutlineList.tsx");
-    const entries = Array.from({ length: 200 }, (_, index) => ({ index, folded: false, item: { pos: index * 10, level: 1, text: `章节 ${index}` } }));
+    const entries = Array.from({ length: 200 }, (_, index) => ({ index, folded: false, item: { pos: index * 10, level: 1, text: `章节 ${index}${index % 2 ? "：用于验证长标题滚动时的高度是否稳定。".repeat(4) : ""}` } }));
     const host = document.createElement("div"); host.dataset.testid = "outline-harness";
     Object.assign(host.style, { position: "fixed", width: "320px", height: "400px", top: "0", left: "0", zIndex: "99999" });
     document.body.append(host);
@@ -131,4 +131,18 @@ test("虚拟目录实测行高变化后更新后续行的位置", async ({ page 
   expect(before).toBeLessThan(78);
   await first.evaluate((element: HTMLElement) => { element.style.height = "26px"; element.style.minHeight = "26px"; });
   await expect.poll(() => second.evaluate((element: HTMLElement) => parseFloat(element.style.top))).toBe(26);
+  const scroller = list.locator(".document-outline-list");
+  await scroller.evaluate((el: HTMLElement) => { el.style.height = "320px"; });
+  for (const fraction of [0.8, 0.4, 0.9, 0.2]) {
+    const drift = await scroller.evaluate(async (el, ratio) => {
+      const beforeHeight = el.scrollHeight;
+      el.scrollTop = (el.scrollHeight - el.clientHeight) * ratio;
+      const beforeTop = el.scrollTop;
+      el.dispatchEvent(new Event("scroll"));
+      for (let i = 0; i < 8; i++) await new Promise(requestAnimationFrame);
+      return { top: Math.abs(el.scrollTop - beforeTop), height: Math.abs(el.scrollHeight - beforeHeight) };
+    }, fraction);
+    expect(drift.top).toBeLessThanOrEqual(1);
+    expect(drift.height).toBeLessThanOrEqual(1);
+  }
 });

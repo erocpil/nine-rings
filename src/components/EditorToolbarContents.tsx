@@ -4,6 +4,7 @@ import type { EditorToolbarMenu } from "../hooks/useEditorToolbarMenus";
 import { exitCurrentStructuredBlock } from "../extensions/StructuredBlockExit";
 import { MobileActionSheet } from "./MobileActionSheet";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { useToolbarOverflow } from "../hooks/useToolbarOverflow";
 
 // Controlled by the editor session: extraction must not remount menu state or
 // move selection restoration/native touch handlers away from .editor-menu.
@@ -100,6 +101,7 @@ const btn = (label: ReactNode, action: () => void, active?: boolean, title?: str
 /** No wrapper DOM and no second EditorView; commands use the owning session. */
 export function EditorToolbarContents({ editor, readonly, saveStatus, layout, menus, actions, editorFontSize, onEditorFontSizeChange, showCodeLineNumbers, onCodeLineNumbersChange, selectedTableCellCount, hasCurrentBookmark, bookmarkCount }: EditorToolbarProps) {
   const { isNarrow, isMinimalToolbar, isMobileToolbarViewport, toolbarRef, moreButtonRef } = layout;
+  useToolbarOverflow(toolbarRef, isMinimalToolbar);
   const {
     colorOpen, setColorOpen, sizeOpen, setSizeOpen,
     headingOpen, setHeadingOpen, headingPage, setHeadingPage,
@@ -116,6 +118,9 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     toggleCurrentBookmark, openDocumentBookmarks, setLinkDialogUrl, setLinkDialog, setImageDialog,
   } = actions;
   const moreActions = (<>
+    <button className="menu-dropdown-item" onClick={() => { handleCopy(); closeMore(); }} type="button">复制</button>
+    <button className="menu-dropdown-item" onClick={() => { handleCut(); closeMore(); }} type="button">剪切</button>
+    <button className="menu-dropdown-item" onClick={() => { handleClipboardPaste(); closeMore(); }} type="button">粘贴</button>
     <button
       className="menu-dropdown-item"
       disabled={editor.isActive("codeBlock") || !editor.can().setHardBreak()}
@@ -653,9 +658,11 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
       <ToolbarIcon name="image" />
     </button>
     <span className="menu-sep" />
+    <span className="toolbar-font-actions">
     {btn("A⁻", () => onEditorFontSizeChange(Math.max(12, editorFontSize - 1)), false, "缩小字号", editorFontSize <= 12)}
     <span className="menu-font-size-label">{editorFontSize}</span>
     {btn("A⁺", () => onEditorFontSizeChange(Math.min(32, editorFontSize + 1)), false, "放大字号", editorFontSize >= 32)}
+    </span>
     </div>
     {isMinimalToolbar && (
       <div className="menu-dropdown toolbar-more-menu">
