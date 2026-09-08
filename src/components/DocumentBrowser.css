@@ -16,12 +16,39 @@
 .document-browser-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .document-browser-list::after { content: ""; display: block; height: 33vh; }
 .document-browser-list > p { padding: 12px; color: var(--text-muted); }
-.document-browser-row { display: flex; align-items: flex-start; gap: 6px; width: 100%; min-height: 44px; padding: 8px 12px; border: 0; border-radius: 0; background: transparent; color: var(--text); text-align: left; }
+.document-browser-row { display: flex; align-items: flex-start; width: 100%; min-height: 44px; border: 0; border-radius: 0; background: transparent; color: var(--text); text-align: left; }
+.document-browser-open { display: flex; flex: 1; min-width: 0; min-height: 44px; gap: 6px; padding: 8px 0 8px 12px; background: transparent; border: 0; color: inherit; text-align: left; border-radius: 0; }
+.document-browser-favorite { display: flex; align-items: center; justify-content: center; flex: 0 0 40px; width: 40px; min-height: 44px; border: 0; background: transparent; color: var(--text-muted); }
+.document-browser-favorite .toolbar-icon { width: 17px; height: 17px; }
+.document-browser-favorite[aria-pressed="true"] { color: var(--accent); }
+.document-browser-favorite[aria-pressed="true"] .toolbar-icon { fill: var(--active-bg); }
+.document-browser-favorites-hint { font-size: 11px; margin: 0; }
 .document-browser-row.selected { background: var(--active-bg); box-shadow: inset 3px 0 var(--accent); }
-.document-browser-row > .toolbar-icon { width: 17px; height: 17px; flex-shrink: 0; margin-top: 2px; color: var(--text-muted); }
+.document-browser-open > .toolbar-icon { width: 17px; height: 17px; flex-shrink: 0; margin-top: 2px; color: var(--text-muted); }
 .document-browser-details { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
 .document-browser-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
 .document-browser-path { color: var(--text-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .document-browser-row time { color: var(--text-muted); font-size: 11px; white-space: nowrap; padding-top: 3px; }
 .document-browser-tags { display: flex; flex-wrap: wrap; gap: 4px; }
 .document-browser-tags > span { font-size: 10px; padding: 1px 4px; border-radius: 3px; background: var(--active-bg); color: var(--text-muted); }
+.document-browser-path-trigger { display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 4px 6px; background: var(--active-bg); color: var(--text); border: 0; border-radius: 4px; text-align: left; }
+.document-browser-path-trigger span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.document-browser-path-trigger .toolbar-icon { width: 16px; height: 16px; flex-shrink: 0; }
+.document-path-picker { width: min(420px, calc(100vw - 24px)); max-width: none; height: min(520px, calc(100dvh - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--text); box-shadow: 0 12px 40px #0003; overflow: hidden; }
+.document-path-picker[open] { display: flex; flex-direction: column; }
+.document-path-picker::backdrop { background: #0005; }
+.document-path-picker:focus { outline: none; }
+.document-path-picker-heading { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid var(--border); }
+.document-path-picker-heading button, .document-path-picker-location button { min-height: 40px; border: 0; background: transparent; color: var(--text-muted); }
+.document-path-picker > input { margin: 8px 12px; min-width: 0; min-height: 40px; padding: 6px 8px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); font-size: 16px; flex-shrink: 0; }
+.document-path-picker-location { display: flex; align-items: center; gap: 4px; padding: 0 8px; flex-shrink: 0; }
+.document-path-picker-location button { white-space: nowrap; }
+.document-path-picker-location span { min-width: 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
+.document-path-picker-list { overflow-y: auto; overscroll-behavior: contain; min-height: 44px; flex: 1; padding: 0 8px; }
+.document-path-picker-list > button { display: flex; align-items: center; gap: 8px; min-height: 44px; width: 100%; padding: 8px; border: 0; background: transparent; color: var(--text); text-align: left; }
+.document-path-picker-list > button span { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+.document-path-picker-list .toolbar-icon { width: 16px; height: 16px; flex-shrink: 0; color: var(--text-muted); }
+.document-path-picker-list p { font-size: 13px; color: var(--text-muted); padding: 8px; }
+.document-path-picker-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--border); flex-shrink: 0; }
+.document-path-picker-footer span { font-size: 11px; color: var(--text-muted); }
+.document-path-picker-footer button { min-height: 40px; white-space: nowrap; }

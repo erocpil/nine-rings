@@ -5,6 +5,7 @@ import {
   rememberRecentNote,
 } from "../src/lib/quick-switcher";
 import type { Note } from "../src/types/models";
+import { DOCUMENT_FAVORITES_KEY, documentFolderPaths, readDocumentFavorites, toggleDocumentFavorite } from "../src/lib/document-favorites";
 
 let passed = 0;
 let failed = 0;
@@ -48,6 +49,20 @@ assert(rankQuickSwitcherNotes(notes, ["a"])[0].id === "a", "最近访问优先�
 assert(filterQuickSwitcherNotes(notes, "network DPDK")[0]?.id === "a", "可组合匹配路径与概念");
 assert(filterQuickSwitcherNotes(notes, "review")[0]?.id === "b", "可按标签匹配");
 assert(filterQuickSwitcherNotes(notes, "不存在").length === 0, "无匹配时返回空列表");
+
+assert(toggleDocumentFavorite("a", storage).join() === "a", "文档收藏保存 ID");
+assert(toggleDocumentFavorite("b", storage).join() === "a,b", "可收藏多个文档");
+assert(toggleDocumentFavorite("a", storage).join() === "b", "取消收藏不影响其他文档");
+assert(readRecentNoteIds(storage).join() === "a,b", "收藏不改变最近访问顺序");
+storage.setItem(DOCUMENT_FAVORITES_KEY, '["b","b",null,{},"bad/id"]');
+assert(readDocumentFavorites(storage).join() === "b", "收藏读取过滤无效 ID 和重复项");
+storage.setItem(DOCUMENT_FAVORITES_KEY, "invalid json");
+assert(readDocumentFavorites(storage).length === 0, "损坏收藏不阻断浏览");
+let writeFailed = false;
+try { toggleDocumentFavorite("a", { getItem: () => null, setItem: () => { throw new Error("quota"); } }); }
+catch { writeFailed = true; }
+assert(writeFailed, "收藏写入失败向界面报告");
+assert(documentFolderPaths(["areas/private/empty", "areas/private", "projects", "areas/private/empty"]).join() === "areas,areas/private,areas/private/empty,projects", "路径补齐祖先且保留空目录，不重复");
 
 console.log(`\n结果：${passed} 通过，${failed} 失败`);
 if (failed > 0) process.exit(1);

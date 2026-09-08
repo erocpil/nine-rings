@@ -58,6 +58,10 @@ assert(typeof metadata?.device?.name === "string", "backup metadata includes dev
 assert(typeof source.value("nr:backup-device-id") === "string", "device id is persisted locally");
 
 const target = memoryStorage();
+const favoritesBackup = collectFrontendSettings(memoryStorage({ "nr:documentFavorites": '["doc-a","doc-b"]' }));
+const favoritesTarget = memoryStorage();
+restoreFrontendSettings(favoritesBackup, favoritesTarget);
+assert(favoritesTarget.value("nr:documentFavorites") === '["doc-a","doc-b"]', "document favorites survive backup and restore");
 const restored = restoreFrontendSettings(collected, target);
 assert(restored === 8, "preferences and the last document session are restored");
 assert(target.value("nr:focusMode") === "true", "boolean preference restores in localStorage form");

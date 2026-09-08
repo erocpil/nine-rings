@@ -61,6 +61,62 @@ async function swipeNoteEditor(
 test.describe("PWA 窄屏应用外壳", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
+  test("文档收藏持久保存，路径选择可搜索并取消", async ({ page }, testInfo) => {
+    await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+    const fixture = await page.evaluate(async () => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");
+      const note = await api.notes.create({ title: "收藏测试", storagePath: "areas/private/favorites", date: "2026-09-09", content: { ops: [{ insert: "收藏不修改正文\n" }] } });
+      await api.notes.update(note.id, { readonly: true });
+      return { id: note.id, json: JSON.stringify(await api.notes.get(note.id)) };
+    });
+    const open = () => swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: 100, endX: 110, endY: 100 });
+    await open();
+    const view = page.getByRole("dialog", { name: "文档视图", exact: true });
+    await view.getByRole("button", { name: "全部文档", exact: true }).click();
+    await view.getByRole("button", { name: "收藏文档 收藏测试", exact: true }).click();
+    await expect(view).toBeVisible();
+    await view.getByRole("button", { name: "收藏", exact: true }).click();
+    await expect(view.locator(".document-browser-row")).toHaveCount(1);
+    await view.getByRole("button", { name: "筛选", exact: true }).click();
+    await view.getByRole("button", { name: "筛选路径", exact: true }).click();
+    const picker = page.getByRole("dialog", { name: "选择文档路径", exact: true });
+    await picker.getByRole("textbox", { name: "搜索路径", exact: true }).fill("private/favorites");
+    await picker.getByRole("button", { name: "进入路径 areas/private/favorites", exact: true }).click();
+    await expect(picker.getByLabel("当前候选路径")).toContainText("areas/private/favorites");
+    await picker.getByRole("button", { name: "返回上级路径", exact: true }).click();
+    await expect(picker.getByLabel("当前候选路径")).toHaveText("/ areas/private");
+    await page.keyboard.press("Escape");
+    await expect(picker).toBeHidden();
+    await expect(view).toBeVisible();
+    await expect(view.locator(".document-browser-path-filter")).toHaveCount(0);
+    expect(await view.locator(".document-browser-tabs").evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+    await page.reload();
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+    await open();
+    await view.getByRole("button", { name: "收藏", exact: true }).click();
+    await expect(view.locator(".document-browser-row")).toHaveCount(1);
+    await page.setViewportSize({ width: 760, height: 390 });
+    await view.getByRole("button", { name: "筛选", exact: true }).click();
+    await view.getByRole("button", { name: "筛选路径", exact: true }).click();
+    const box = (await picker.boundingBox())!;
+    expect(Math.abs(box.x + box.width / 2 - 380)).toBeLessThanOrEqual(1);
+    expect(Math.abs(box.y + box.height / 2 - 195)).toBeLessThanOrEqual(1);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(390);
+    await page.screenshot({ path: testInfo.outputPath("path-picker-landscape.png") });
+    await picker.getByRole("button", { name: "取消", exact: true }).click();
+    await view.getByRole("button", { name: "取消收藏 收藏测试", exact: true }).click();
+    await expect(view.locator(".document-browser-row")).toHaveCount(0);
+    const after = await page.evaluate(async id => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");
+      return JSON.stringify(await api.notes.get(id));
+    }, fixture.id);
+    expect(after).toBe(fixture.json);
+  });
+
   test("文档浏览保留现场，最近打开不修改文档", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
@@ -70,8 +126,9 @@ test.describe("PWA 窄屏应用外壳", () => {
       const { rememberRecentNote }: typeof import("../src/lib/quick-switcher") = await load("/src/lib/quick-switcher.ts");
       let first;
       for (let index = 0; index < 24; index++) {
-        const note = await api.notes.create({ title: `现场 ${String(index).padStart(2, "0")}`, storagePath: "projects/session", date: "2026-09-09", readonly: true, content: { ops: [{ insert: "当前完整正文\n" }] } });
-        first ??= note;
+        const note = await api.notes.create({ title: `现场 ${String(index).padStart(2, "0")}`, storagePath: "projects/session", date: "2026-09-09", content: { ops: [{ insert: "当前完整正文\n" }] } });
+        await api.notes.update(note.id, { readonly: true });
+        first ??= await api.notes.get(note.id);
       }
       rememberRecentNote(first!.id);
       return { id: first!.id, updated: first!.updated_at };
@@ -122,7 +179,11 @@ test.describe("PWA 窄屏应用外壳", () => {
     await view.getByRole("textbox", { name: "查找文档" }).fill("列表");
     await expect(view.locator(".document-browser-row")).toHaveCount(2);
     await view.getByRole("button", { name: "筛选", exact: true }).click();
-    await view.getByLabel("筛选路径").selectOption("projects/list-test");
+    await view.getByRole("button", { name: "筛选路径", exact: true }).click();
+    const picker = page.getByRole("dialog", { name: "选择文档路径", exact: true });
+    await picker.getByRole("button", { name: "进入路径 projects", exact: true }).click();
+    await picker.getByRole("button", { name: "进入路径 projects/list-test", exact: true }).click();
+    await picker.getByRole("button", { name: "使用此路径", exact: true }).click();
     await expect(view.locator(".document-browser-row")).toHaveCount(1);
     await expect(view.locator(".document-browser-row")).toContainText("列表甲");
     await view.getByRole("textbox", { name: "查找文档" }).fill("正文不得");

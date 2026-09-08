@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 const paths = {
+  star: <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z" />,
   minus: <path d="M5 12h14" />,
   lineBreak: <path d="M20 5v8H5m5-5-5 5 5 5" />,
   export: <path d="M12 15V3m-4 4 4-4 4 4M4 14v7h16v-7" />,
