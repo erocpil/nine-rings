@@ -7,7 +7,7 @@ import { protectedAdapter } from "../../src/lib/storage/protected-adapter";
 import { withDB, getAll } from "../../src/lib/storage/db";
 import { commitProtectionState, readProtectionState, listProtectedPaths } from "../../src/lib/storage/protection-state";
 import { setDocumentPassword, setPathPassword, removeEmptyProtectedPath } from "../../src/lib/document-protection";
-import { registerPasswordPrompt } from "../../src/lib/password-request";
+import { PasswordRequestCancelled, registerPasswordPrompt } from "../../src/lib/password-request";
 import { NoteSearchIndex } from "../../src/lib/search-index-core";
 import { buildSafeMergedBackup } from "../../src/lib/sync/backup-merge";
 
@@ -28,6 +28,22 @@ beforeEach(async () => {
 const create = (title = "公开标题", storagePath = "areas/private") => adapter.createNote({ date: "2026-09-08", title, storagePath, content: body });
 
 describe("document encryption", () => {
+  it("cancelling path setup/removal or document setup leaves protection and content unchanged", async () => {
+    const note = await create();
+    const before = await readProtectionState();
+    const cancel = registerPasswordPrompt(prompt => prompt?.cancel());
+    await expect(setPathPassword("areas/private")).rejects.toBeInstanceOf(PasswordRequestCancelled);
+    await expect(setDocumentPassword(note.id)).rejects.toBeInstanceOf(PasswordRequestCancelled);
+    expect(await readProtectionState()).toEqual(before);
+    cancel();
+    registerPasswordPrompt(prompt => { if (prompt) void prompt.submit(password); });
+    await setPathPassword("areas/private");
+    const protectedState = await readProtectionState();
+    const stop = registerPasswordPrompt(prompt => prompt?.cancel());
+    await expect(setPathPassword("areas/private", true)).rejects.toBeInstanceOf(PasswordRequestCancelled);
+    expect(await readProtectionState()).toEqual(protectedState);
+    stop();
+  });
   it("authenticated encryption preserves Unicode/metadata, randomizes every save and rejects wrong passwords/tampering", async () => {
     const key = await createDocumentKey(password);
     const a = await encryptDocument(body, key), b = await encryptDocument(body, key);

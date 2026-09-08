@@ -3166,7 +3166,10 @@ body {
 
 .doc-tree-popup-body {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 @keyframes slideInLeft {
@@ -6865,7 +6868,7 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   font-size: 12px;
 }
 
-.sidebar-workspace-tab {
+.workspace-switch {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -6873,18 +6876,29 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   gap: 4px;
   min-height: 36px;
   padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
   color: var(--text);
   font-size: 12px;
-  opacity: 0.8;
+  white-space: nowrap;
 }
 
-.sidebar-workspace-tab:focus-visible {
+.workspace-switch .toolbar-icon { width: 16px; height: 16px; }
+.workspace-switch .toolbar-icon:last-child { width: 12px; color: var(--text-secondary); }
+.workspace-switch:disabled { opacity: 0.5; cursor: default; }
+@media (hover: hover) {
+  .workspace-switch:hover:not(:disabled) { background: var(--hover-bg); }
+}
+
+.workspace-switch:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
 @media (pointer: coarse) {
-  .sidebar-workspace-tab { min-height: 44px; }
+  .workspace-switch { min-height: 44px; }
 }
 
 .sidebar-tab-spacer {
@@ -6991,9 +7005,18 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 
 .doc-tree {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 4px 0;
   font-size: 13px;
+}
+
+/* Both tree views scroll their final row above a third of the visible area. */
+.doc-tree::after {
+  content: "";
+  display: block;
+  height: 33.333333%;
+  pointer-events: none;
 }
 
 .doc-tree-loading,

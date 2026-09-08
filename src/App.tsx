@@ -6,6 +6,8 @@ import { isEncrypted, documentSessionKey } from "./lib/document-crypto";
 import { sealContent, setDocumentPassword, setPathPassword, removeEmptyProtectedPath } from "./lib/document-protection";
 import { ToolbarIcon } from "./components/ToolbarIcon";
 import type { ReadingLibrarySession } from "./components/ReadingLibrary";
+import { WorkspaceSwitch } from "./components/WorkspaceSwitch";
+import { PasswordRequestCancelled } from "./lib/password-request";
 import "./components/ReadingLibrary.css";
 import { OverdueTodos } from "./components/OverdueTodos";
 import { Sidebar } from "./components/Sidebar";
@@ -1302,7 +1304,7 @@ function App() {
   }, [clearSearch]);
 
   const handlePathSecurity = useCallback(async (path: string, action: "set" | "remove" | "delete") => {
-    if (syncBusy || protectionBusy) return;
+    if (syncBusy || protectionBusy) return false;
     setProtectionBusy(true);
     try {
       await flushAutoSave();
@@ -1313,8 +1315,12 @@ function App() {
       setExternalReloadKey(key => key + 1);
       refreshNoteViews();
       dismissSearchResults();
+      return true;
     } catch (reason) {
-      useNotesStore.setState({ error: reason instanceof Error ? reason.message : String(reason) });
+      if (!(reason instanceof PasswordRequestCancelled)) {
+        useNotesStore.setState({ error: reason instanceof Error ? reason.message : String(reason) });
+      }
+      return false;
     } finally {
       setProtectionBusy(false);
     }
@@ -1329,9 +1335,9 @@ function App() {
   }, [handleDocSearch]);
 
   const handleDocumentSecurity = useCallback(async (noteId: string, remove = false) => {
-    if (syncBusy || protectionBusy) return;
+    if (syncBusy || protectionBusy) return false;
     const selected = useNotesStore.getState().selectedNote;
-    if (!selected || selected.id !== noteId) return;
+    if (!selected || selected.id !== noteId) return false;
     setProtectionBusy(true);
     try {
       await flushAutoSave();
@@ -1343,8 +1349,12 @@ function App() {
       setExternalReloadKey((key) => key + 1);
       refreshNoteViews();
       dismissSearchResults();
+      return true;
     } catch (reason) {
-      useNotesStore.setState({ error: reason instanceof Error ? reason.message : String(reason) });
+      if (!(reason instanceof PasswordRequestCancelled)) {
+        useNotesStore.setState({ error: reason instanceof Error ? reason.message : String(reason) });
+      }
+      return false;
     } finally {
       setProtectionBusy(false);
     }
@@ -1636,14 +1646,7 @@ function App() {
               <span className="sidebar-view-switch-label">
                 {sidebarTab === 'daily' ? '随笔' : '文档'}
               </span>
-            </button> : <>
-              <button type="button" className="sidebar-tab sidebar-workspace-tab active" aria-label="文档视图" aria-current="page" onClick={() => handleSetSidebarTab('tree')}>
-                <ToolbarIcon name="folder" /><span>文档</span>
-              </button>
-              <button type="button" className="sidebar-tab sidebar-workspace-tab" disabled={syncBusy} title="阅读 PDF / EPUB" aria-label="打开阅读资料库" onClick={() => void openReadingLibrary()}>
-                <ToolbarIcon name="document" /><span>阅读</span>
-              </button>
-            </>}
+            </button> : <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} />}
             <span className="sidebar-tab-spacer" />
             <div className="doc-tree-toolbar-host" ref={setDocTreeToolbarHost} />
             <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏" aria-label="隐藏侧栏">
@@ -1978,7 +1981,7 @@ function App() {
               onExternalMarkdownDetach={handleExternalMarkdownDetach}
               externalSourceActionsDisabled={syncBusy}
               onDocumentSecurityAction={async (remove = false) => {
-                await handleDocumentSecurity(selectedNote.id, remove);
+                return handleDocumentSecurity(selectedNote.id, remove);
               }}
               onPathSecurity={handlePathSecurity}
               onNoteUpdate={(updated) => {

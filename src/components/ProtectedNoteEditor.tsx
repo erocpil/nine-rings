@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { NoteEditorProps } from "./NoteEditor";
 import type { DeltaOps } from "../types/models";
 import { isEncrypted, openDocumentSession, unlockDocument } from "../lib/document-crypto";
-import { requestPassword } from "../lib/password-request";
+import { PasswordRequestCancelled, requestPassword } from "../lib/password-request";
 import { setDocumentPassword } from "../lib/document-protection";
 import { blockEditorSessionCache } from "../lib/editor-session-cache";
 import { sessionHeadingFoldStore } from "../lib/heading-fold";
@@ -36,6 +36,7 @@ export function ProtectedNoteEditor({ props, render }: { props: NoteEditorProps;
     if (busy) return;
     setBusy(true); setError("");
     try { await action(); } catch (reason) {
+      if (reason instanceof PasswordRequestCancelled) return;
       const message = reason instanceof Error ? reason.message : String(reason);
       props.onSecurityError?.(message);
       if (mounted.current) setError(message);
@@ -54,9 +55,9 @@ export function ProtectedNoteEditor({ props, render }: { props: NoteEditorProps;
     await props.onFlush?.();
     await setDocumentPassword(props.noteId, remove);
     release.current?.(); release.current = null; setPlain(null);
+    await props.onSecurityChanged?.();
     } finally {
-      try { await props.onSecurityChanged?.(); }
-      finally { props.onProtectionBusy?.(false); }
+      props.onProtectionBusy?.(false);
     }
   });
   if (encrypted && !plain) return <section className="protected-document" aria-label="加密文档">
@@ -72,7 +73,7 @@ export function ProtectedNoteEditor({ props, render }: { props: NoteEditorProps;
   </section>;
   const content = encrypted ? plain! : props.content;
   return <div className="protected-editor">
-    {props.onSecurityChanged && <div className="document-security-bar">
+    {props.onSecurityChanged && (encrypted || !props.hideDocumentPasswordControls || error) && <div className="document-security-bar">
       {encrypted && <span>🔒 正文已加密</span>}
       {encrypted && <button type="button" disabled={busy} onClick={() => void run(lock)}>锁定文档</button>}
       {!props.hideDocumentPasswordControls && <button type="button" disabled={busy || props.securityDisabled} onClick={() => void manage()}>{encrypted ? "更改文档密码" : "设置文档密码"}</button>}

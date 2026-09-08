@@ -20,6 +20,7 @@ import {
 } from "../lib/epub-library";
 import { ReaderDataBackupPanel } from "./ReaderDataBackupPanel";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { WorkspaceSwitch } from "./WorkspaceSwitch";
 import "./ReadingLibrary.css";
 
 export interface ReadingLibrarySession {
@@ -305,16 +306,7 @@ export default function ReadingLibrary({
       }}
     >
       <header className="reading-library-heading">
-        <button
-          type="button"
-          className="settings-btn"
-          onClick={onClose}
-          disabled={busy}
-          aria-label="返回笔记"
-        >
-          <ToolbarIcon name="chevronLeft" />
-          返回笔记
-        </button>
+        <WorkspaceSwitch mode="reading" disabled={busy} onSwitch={onClose} />
         <h1 ref={headingRef} tabIndex={-1}>
           阅读资料库
         </h1>

@@ -20,7 +20,7 @@ interface DocTreeProps {
   selectedFolderPath?: string | null;
   showDaily?: boolean;
   onCreate: () => void;
-  onPathSecurity?: (path: string, action: "set" | "remove" | "delete") => Promise<void>;
+  onPathSecurity?: (path: string, action: "set" | "remove" | "delete") => Promise<boolean>;
   refreshKey?: number;
   onRename?: (id: string, title: string) => void;
   onDelete?: (id: string) => void;

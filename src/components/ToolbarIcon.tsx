@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 const paths = {
+  switchViews: <path d="M4 8h16m-4-4 4 4-4 4M20 16H4m4-4-4 4 4 4" />,
   chevronLeft: <path d="m14 6-6 6 6 6" />,
   chevronRight: <path d="m10 6 6 6-6 6" />,
   pageTop: <path d="M4 4h16M12 20V8m-5 5 5-5 5 5" />,

@@ -6,7 +6,7 @@ import type { DocType, Note, PathNode } from "../types/models";
 interface FolderPropertiesPanelProps {
   path: string;
   securityDisabled?: boolean;
-  onPathSecurity: (path: string, action: "set" | "remove" | "delete") => Promise<void>;
+  onPathSecurity: (path: string, action: "set" | "remove" | "delete") => Promise<boolean>;
   onFilterByPath?: (path: string, docType?: DocType) => void;
   onCreateDocument: () => void;
   onClose: () => void;
@@ -143,7 +143,7 @@ function FolderPropertiesPanel({
     setPathBusy(true);
     setPathMessage("");
     try {
-      await onPathSecurity(path, action);
+      if (!await onPathSecurity(path, action)) return;
       if (action === "set") {
         setPathMessage(pathProtection.protectionRoot ? "路径密码已更新" : "路径密码设置成功");
       } else if (action === "remove") {

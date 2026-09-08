@@ -27,8 +27,8 @@ interface PropertiesPanelProps {
   onExternalMarkdownApply: (content: DeltaOps, source: ExternalMarkdownSource) => Promise<void>;
   onExternalMarkdownDetach: () => Promise<void>;
   externalSourceActionsDisabled?: boolean;
-  onDocumentSecurityAction?: (remove?: boolean) => Promise<void>;
-  onPathSecurity?: (path: string, action: "set" | "remove" | "delete") => Promise<void>;
+  onDocumentSecurityAction?: (remove?: boolean) => Promise<boolean>;
+  onPathSecurity?: (path: string, action: "set" | "remove" | "delete") => Promise<boolean>;
   /** 点击概念标签时，跳转到该概念的聚合页 */
   onOpenConcept?: (concept: string) => void;
 }
@@ -210,7 +210,7 @@ function PropertiesPanel({
     setDocSecurityBusy(true);
     setDocSecurityMessage("");
     try {
-      await onDocumentSecurityAction(remove);
+      if (!await onDocumentSecurityAction(remove)) return;
       if (remove) {
         setDocSecurityMessage("已解除文档加密");
       } else {
@@ -257,7 +257,7 @@ function PropertiesPanel({
     setPathSecurityBusy(true);
     setPathSecurityMessage("");
     try {
-      await onPathSecurity(note.storagePath, action);
+      if (!await onPathSecurity(note.storagePath, action)) return;
       if (action === "set") {
         setPathSecurityMessage(pathProtection?.protectionRoot ? "路径密码已更新" : "路径密码设置成功");
       } else if (action === "remove") {
