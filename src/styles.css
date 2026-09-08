@@ -3266,6 +3266,115 @@ body {
 .settings-web-update button { min-height: 44px; }
 .settings-web-update [role="status"] { flex-basis: 100%; text-align: center; }
 
+.settings-update-check,
+.settings-update-apply {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text);
+  background: var(--surface);
+  width: auto;
+}
+
+.settings-update-check:hover:not(:disabled),
+.settings-update-apply:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.settings-update-check.is-loading {
+  color: var(--text-secondary);
+}
+
+.settings-update-check:disabled {
+  opacity: 0.8;
+  cursor: not-allowed;
+}
+
+.settings-update-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.settings-update-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-right-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  flex-shrink: 0;
+}
+
+.settings-update-apply {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.settings-update-apply:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.settings-update-apply .toolbar-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.settings-update-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-basis: 100%;
+  margin-top: 2px;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 90%, var(--bg));
+}
+
+.settings-update-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+}
+
+.settings-update-status.is-error {
+  color: var(--danger);
+}
+
+.settings-update-status.is-error .settings-update-status-dot {
+  background: var(--danger);
+}
+
+.settings-update-status.is-ready {
+  color: var(--accent);
+}
+
+.settings-update-status.is-ready .settings-update-status-dot {
+  background: var(--accent);
+}
+
+.settings-update-status.is-checking {
+  color: var(--text);
+}
+
+.settings-update-status.is-neutral,
+.settings-update-status.is-idle {
+  color: var(--text-secondary);
+}
+
 /* ── 字段 ── */
 
 .settings-field {

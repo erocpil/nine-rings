@@ -19,6 +19,7 @@ import { useTransientMessage } from "../hooks/useTransientMessage";
 import { collectWebDiagnostics } from "../lib/web-diagnostics";
 import { rebuildWebSearchIndex } from "../lib/web-search-index";
 import { readonlyRenderingEnabled, setReadonlyRenderingEnabled } from "../lib/readonly-rendering";
+import { ToolbarIcon } from "./ToolbarIcon";
 
 
 interface Props {
@@ -167,6 +168,22 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     } finally {
       setRebuildingSearchIndex(false);
     }
+  };
+
+  const getUpdateStatusText = (status: NonNullable<Props["webUpdate"]>) => {
+    if (status.error) return status.error;
+    if (status.available) return "新版本已就绪";
+    if (status.checking) return "正在检查新版，请保持联网";
+    if (status.checked) return "未发现待安装的新版本";
+    return "检查已部署的应用版本";
+  };
+
+  const getUpdateStatusClass = (status: NonNullable<Props["webUpdate"]>) => {
+    if (status.error) return "is-error";
+    if (status.available) return "is-ready";
+    if (status.checking) return "is-checking";
+    if (status.checked) return "is-neutral";
+    return "is-idle";
   };
 
   useEffect(() => {
@@ -1178,12 +1195,21 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 <div className="settings-version">v{__APP_VERSION__}</div>
                 {webUpdate && (
                   <div className="settings-web-update">
-                    <button type="button" className="btn-secondary" disabled={webUpdate.checking}
+                    <button type="button" className={`settings-update-check${webUpdate.checking ? " is-loading" : ""}`} disabled={webUpdate.checking}
                       onClick={() => void webUpdate.onCheck().catch((error) => showMessage(String(error)))}>
-                      {webUpdate.checking ? "正在检查并下载…" : "检查更新"}
+                      {webUpdate.checking ? <span className="settings-update-spinner" aria-hidden="true" /> : <span className="settings-update-icon" aria-hidden="true">↻</span>}
+                      {webUpdate.checking ? "检查中…" : "检查更新"}
                     </button>
-                    {webUpdate.available && <button type="button" className="btn-primary" onClick={webUpdate.onApply}>保存并刷新</button>}
-                    <span role="status">{webUpdate.error || (webUpdate.available ? "新版本已就绪" : webUpdate.checking ? "正在检查新版，请保持联网" : webUpdate.checked ? "未发现待安装的新版本" : "检查已部署的应用版本")}</span>
+                    {webUpdate.available && (
+                      <button type="button" className="settings-update-apply" onClick={webUpdate.onApply}>
+                        <ToolbarIcon name="check" />
+                        保存并刷新
+                      </button>
+                    )}
+                    <span role="status" className={`settings-update-status ${getUpdateStatusClass(webUpdate)}`}>
+                      <span className="settings-update-status-dot" aria-hidden="true" />
+                      {getUpdateStatusText(webUpdate)}
+                    </span>
                   </div>
                 )}
               </>
