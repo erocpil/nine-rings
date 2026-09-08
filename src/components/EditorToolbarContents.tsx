@@ -60,6 +60,7 @@ export interface EditorToolbarProps {
     handleCut: () => Promise<void>;
     handleClipboardPaste: () => Promise<void>;
     handleExportMarkdown: () => Promise<void>;
+    handleExportPdf: () => void;
     toggleCurrentBookmark: () => void;
     openDocumentBookmarks: () => void;
     setLinkDialogUrl: (url: string) => void;
@@ -100,7 +101,7 @@ const btn = (label: ReactNode, action: () => void, active?: boolean, title?: str
 );
 
 /** No wrapper DOM and no second EditorView; commands use the owning session. */
-export function EditorToolbarContents({ editor, readonly, saveStatus, layout, menus, actions, editorFontSize, onEditorFontSizeChange, showCodeLineNumbers, onCodeLineNumbersChange, selectedTableCellCount, hasCurrentBookmark }: EditorToolbarProps) {
+export function EditorToolbarContents({ editor, readonly, saveStatus, layout, menus, actions, editorFontSize, onEditorFontSizeChange, showCodeLineNumbers, onCodeLineNumbersChange, selectedTableCellCount }: EditorToolbarProps) {
   const { isNarrow, isMinimalToolbar, isMobileToolbarViewport, toolbarRef, moreButtonRef } = layout;
   const hiddenTools = useToolbarOverflow(toolbarRef, isMinimalToolbar);
   const {
@@ -115,8 +116,8 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     runToolbarFormat, changeSelectedBlockIndent, handleToggleCodeBlock,
     insertBlankBlockAfterCurrent, hasSelection, convertSelectionFromMarkdown,
     setTableSelection, copySelectedTableCells, clearSelectedTableCells, setTableCellAlignment,
-    handleCopy, handleCut, handleClipboardPaste, handleExportMarkdown,
-    toggleCurrentBookmark, setLinkDialogUrl, setLinkDialog, setImageDialog,
+    handleCopy, handleCut, handleClipboardPaste, handleExportMarkdown, handleExportPdf,
+    setLinkDialogUrl, setLinkDialog, setImageDialog,
   } = actions;
   const moreActions = (<>
     {hiddenTools.includes("clipboard") && <>
@@ -135,11 +136,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     ><ToolbarIcon name="lineBreak" />块内换行</button>
     <div className="menu-dropdown-sep" />
     <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setMoreOpen(false); }} type="button"><ToolbarIcon name="export" />导出 Markdown</button>
-    <div className="menu-dropdown-sep" />
-    <button className="menu-dropdown-item" onClick={() => {
-      toggleCurrentBookmark();
-      setMoreOpen(false);
-    }} type="button"><ToolbarIcon name="bookmark" />{hasCurrentBookmark ? "取消当前位置书签" : "添加当前位置书签"} <span className="toolbar-more-shortcut">Ctrl+Shift+M</span></button>
+    <button className="menu-dropdown-item" onClick={() => { setMoreOpen(false); handleExportPdf(); }} type="button"><ToolbarIcon name="document" />导出 PDF</button>
     <div className="menu-dropdown-sep" />
     <button className="menu-dropdown-item" onClick={() => {
       setLinkDialogUrl(editor.getAttributes("link").href || "");
@@ -160,7 +157,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
         {FONT_SIZES.map((size) => <option key={size} value={size}>{size}px</option>)}
       </select>
     </label>}
-    <label className="menu-dropdown-control">
+    <label className="menu-dropdown-control toolbar-more-color-picker">
       <span><ToolbarIcon name="color" />文字颜色</span>
       <input
         type="color"
@@ -675,8 +672,9 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
           onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("more", moreOpen); }}
           type="button"
           title="更多编辑操作"
+          aria-label="更多编辑操作"
           aria-expanded={moreOpen}
-        >更多 ⋯</button>
+        ><span aria-hidden="true">⋯</span></button>
         {moreOpen && (isMobileToolbarViewport ? (
           <MobileActionSheet
             open

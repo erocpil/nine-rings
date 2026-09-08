@@ -2,6 +2,19 @@ import { expect, test } from "@playwright/test";
 
 test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
 
+test("省略号菜单可导出正文 PDF 打印页", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  const moreButton = page.getByRole("button", { name: "更多编辑操作", exact: true });
+  await expect(moreButton).toHaveText("⋯");
+  await moreButton.tap();
+  const popupPromise = page.waitForEvent("popup");
+  await page.getByRole("button", { name: "导出 PDF", exact: true }).tap();
+  const popup = await popupPromise;
+  await expect(popup.locator(".document-content")).toContainText("欢迎使用 Nine Rings");
+  await expect(page.getByRole("dialog", { name: "更多编辑操作", exact: true })).toHaveCount(0);
+});
+
 test("标题动态标签保留下拉三角，前后工具底色一致", async ({ page }) => {
   await page.goto("/");
   await page.locator(".ProseMirror h2").first().click();
@@ -36,11 +49,12 @@ test("更多菜单跟随实际工具溢出，不重复工具栏入口", async ({
       const hidden = await page.locator(`[data-toolbar-tool="${tool}"]`).getAttribute("data-toolbar-overflow") === "true";
       await expect(sheet.getByText(label, { exact: true })).toHaveCount(hidden ? 1 : 0);
     }
-    await expect(sheet.getByText(/书签列表/)).toHaveCount(0);
+    await expect(sheet.getByText(/书签/)).toHaveCount(0);
+    await expect(sheet.getByRole("button", { name: "导出 PDF", exact: true })).toBeVisible();
     expect(await sheet.locator(".menu-dropdown-item").evaluateAll(items => items.every(el => el.querySelector("svg.toolbar-icon")))).toBe(true);
     const color = sheet.getByLabel("文字颜色", { exact: true });
-    expect((await color.boundingBox())!.width).toBeLessThanOrEqual(32);
-    expect((await color.boundingBox())!.height).toBeLessThanOrEqual(28);
+    await expect(color).toHaveCSS("opacity", "0");
+    expect((await color.boundingBox())!.width).toBeGreaterThan(32);
     await page.keyboard.press("Escape");
   }
 });

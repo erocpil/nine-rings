@@ -2,7 +2,8 @@ import { useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { DocumentBookmark } from "../types/models";
 
-const ACTIONS_WIDTH = 104;
+// Two 28px buttons, a 4px gap and 4px padding on either side.
+const ACTIONS_WIDTH = 68;
 const SWIPE_DECISION_DISTANCE = 10;
 
 interface Props {

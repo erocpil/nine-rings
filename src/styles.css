@@ -2202,14 +2202,29 @@ body {
   min-height: 44px;
 }
 
-.toolbar-more-sheet .menu-dropdown-control input[type="color"],
-.toolbar-more-list .menu-dropdown-control input[type="color"] {
-  width: 32px;
-  height: 28px;
-  min-width: 32px;
-  min-height: 28px;
-  flex: 0 0 32px;
+.toolbar-more-color-picker {
+  position: relative;
+  cursor: pointer;
+}
+
+.toolbar-more-color-picker:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Keep the native picker and keyboard accessibility, without a permanent swatch. */
+.toolbar-more-sheet .toolbar-more-color-picker input[type="color"],
+.toolbar-more-list .toolbar-more-color-picker input[type="color"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 0;
   padding: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .toolbar-more-sheet .toolbar-more-clear-color {
@@ -2775,7 +2790,13 @@ body {
 }
 .mobile-document-drawer-header button[aria-pressed="true"] { background: var(--active-bg); color: var(--accent); }
 .mobile-document-drawer-header button:disabled { opacity: 0.45; }
-.mobile-document-drawer-header .mobile-document-drawer-close { margin-left: auto; font-size: 22px; }
+.mobile-document-drawer-header .mobile-document-drawer-settings {
+  margin-left: auto;
+  width: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .mobile-document-drawer .mobile-document-drawer-panel,
@@ -3190,7 +3211,13 @@ body {
   animation: fadeIn 0.15s ease;
 }
 
+.doc-tree-popup-backdrop {
+  position: absolute;
+  inset: 0;
+}
+
 .doc-tree-popup {
+  position: relative;
   width: 320px;
   max-width: 85vw;
   height: 100%;
@@ -4461,18 +4488,18 @@ body {
   flex: 1 !important;
   min-width: 0;
   gap: 7px;
-  padding: 7px 6px;
+  padding: 4px 6px;
   color: var(--text) !important;
   text-align: start;
   font-family: inherit;
-  font-size: 14px;
-  line-height: 1.4;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .document-bookmark-item.is-current .document-bookmark-jump {
   /* Keep the swipe foreground opaque so hidden actions do not show through. */
   background: color-mix(in srgb, var(--accent) 12%, var(--bg));
-  box-shadow: inset 3px 0 var(--accent);
+  color: var(--accent) !important;
 }
 
 .document-bookmark-item.is-current .document-bookmark-index {
@@ -9364,10 +9391,25 @@ button.doc-tree-toggle:focus-visible {
     overflow: visible;
   }
 
-  /* header-right 推到右侧（替代隐藏的 spacer） */
+  /* 查找在左，阅读操作和设置在右。 */
   .header-right {
-    margin-left: auto;
+    margin-left: 0;
+    flex: 1;
+    min-width: 0;
     position: relative;
+  }
+
+  .header-document-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  .note-title-row > .document-outline-control,
+  .note-title-row > .document-bookmark-toggle,
+  .note-title-row > .focus-btn:not(.pdf-excerpt-source-button) {
+    display: none;
   }
 
   /* 搜索折叠：移动端默认隐藏搜索栏，显示 🔍 图标 */
@@ -9573,7 +9615,7 @@ button.doc-tree-toggle:focus-visible {
     z-index: 32;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 2px;
     height: 30px;
     padding: 1px 6px;
     border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
@@ -9623,16 +9665,16 @@ button.doc-tree-toggle:focus-visible {
 
   .document-bookmark-actions {
     position: absolute;
-    top: 0;
+    top: 2px;
     right: 0;
     z-index: 0;
-    gap: 8px;
+    gap: 4px;
     padding: 0 4px;
   }
 
   .document-bookmark-item {
     position: relative;
-    min-height: 44px;
+    min-height: 32px;
     overflow: hidden;
     gap: 0;
   }
@@ -9641,8 +9683,8 @@ button.doc-tree-toggle:focus-visible {
     z-index: 1;
     flex: none !important;
     width: 100%;
-    min-height: 44px;
-    font-size: 15px;
+    min-height: 32px;
+    font-size: 12px;
     background: var(--bg);
     touch-action: pan-y;
     transform: translateX(var(--bookmark-swipe-offset, 0));
@@ -9655,12 +9697,12 @@ button.doc-tree-toggle:focus-visible {
   }
 
   .document-bookmark-index {
-    font-size: 13px;
+    font-size: 11px;
   }
 
   .document-bookmark-action {
-    width: 44px;
-    height: 44px;
+    width: 28px;
+    height: 28px;
     border-color: var(--border);
     background: var(--surface);
   }
@@ -9738,6 +9780,12 @@ button.doc-tree-toggle:focus-visible {
   .focus-mode-icon {
     width: 17px;
     height: 17px;
+  }
+
+  /* Keep tall touch targets, but reserve more horizontal room for the title. */
+  .focus-mode .mobile-focus-bar > button:not(.focus-readonly-toggle) {
+    flex-basis: 32px;
+    width: 32px;
   }
 
   .focus-bookmark-count,

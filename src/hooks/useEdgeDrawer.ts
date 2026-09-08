@@ -24,7 +24,7 @@ export function useEdgeDrawer(open: boolean, side: "left" | "right", panelRef: R
     const backdrop = backdropRef.current;
     if (!open || !panel) return;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    panel.querySelector<HTMLElement>("[data-drawer-close]")?.focus({ preventScroll: true });
+    panel.querySelector<HTMLElement>("[data-drawer-initial-focus], [data-drawer-close]")?.focus({ preventScroll: true });
     const unbind = bindEdgeSwipe(window, (touch) => {
       if (!(touch.target instanceof Node) || (!panel.contains(touch.target) && !backdrop?.contains(touch.target))) return null;
       return { direction: side === "left" ? "left" : "right", run: () => close.current() };

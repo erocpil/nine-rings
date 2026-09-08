@@ -6,10 +6,21 @@ test("专注标题前的线框锁切换只读，横竖屏不退出专注", async
   await page.goto("/");
   const editor = page.locator(".ProseMirror");
   await expect(editor).toBeVisible();
-  await page.locator(".note-title-row").getByTitle("专注模式", { exact: true }).click();
+  const title = "这是一份标题很长的文档，用于验证紧凑专注按钮不会遮挡标题";
+  await page.locator(".note-title").fill(title);
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
   const bar = page.getByLabel("专注模式工具栏");
   for (const viewport of [{ width: 390, height: 844 }, { width: 844, height: 390 }]) {
     await page.setViewportSize(viewport);
+    const titleButton = bar.getByRole("button", { name: "查看完整标题", exact: true });
+    const titleBox = (await titleButton.boundingBox())!;
+    const outlineBox = (await bar.getByRole("button", { name: "文档目录", exact: true }).boundingBox())!;
+    expect(titleBox.width).toBeGreaterThan(150);
+    expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(outlineBox.x);
+    expect(outlineBox.width).toBe(32);
+    await titleButton.tap();
+    await expect(bar.getByRole("tooltip")).toHaveText(title);
+    await titleButton.tap();
     const lock = bar.getByRole("button", { name: "点击设为只读", exact: true });
     await expect(lock.locator("svg.toolbar-icon")).toBeVisible();
     expect(await lock.evaluate(el => el.nextElementSibling?.classList.contains("mobile-focus-title-wrap"))).toBe(true);

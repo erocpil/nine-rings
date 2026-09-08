@@ -5,7 +5,7 @@ test.use({ hasTouch: true, isMobile: true, viewport: { width: 844, height: 390 }
 test("横屏工具栏可触摸，旋转后滞留高度不会把文档树截成半屏", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible();
-  await page.locator(".note-title-row").getByTitle("专注模式", { exact: true }).click();
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
   await page.evaluate(() => {
     document.documentElement.style.setProperty("--safe-left", "44px");
     document.documentElement.style.setProperty("--safe-right", "44px");
@@ -21,7 +21,7 @@ test("横屏工具栏可触摸，旋转后滞留高度不会把文档树截成�
     await expect(button).toHaveCSS("border-bottom-color", "rgba(0, 0, 0, 0)");
     const box = (await button.boundingBox())!;
     expect(box.height).toBeGreaterThanOrEqual(44);
-    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.width).toBe(32);
     expect(box.y + box.height).toBeGreaterThan(barBottom.y + barBottom.height);
     expect(box.x).toBeGreaterThanOrEqual(44);
     expect(box.x + box.width).toBeLessThanOrEqual(800);
@@ -43,7 +43,7 @@ test("横屏工具栏可触摸，旋转后滞留高度不会把文档树截成�
   // Focus mode hides the global header: use its normal left-edge swipe.
   await page.locator(".note-editor").evaluate(el => {
     for (const [type, x] of [["touchstart", 8], ["touchmove", 120], ["touchend", 120]] as const) {
-      const touch = { identifier: 1, target: el, clientX: x, clientY: 400 };
+      const touch = { identifier: 1, target: el, clientX: x, clientY: 650 };
       const event = new Event(type, { bubbles: true, cancelable: true });
       Object.defineProperties(event, {
         touches: { value: type === "touchend" ? [] : [touch] },

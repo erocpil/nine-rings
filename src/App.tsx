@@ -2,7 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useSta
 import { useNotes } from "./hooks/useNotes";
 import { DatePicker } from "./components/DatePicker";
 import { DAILY_NOTES_ENABLED, TODOS_ENABLED } from "./lib/workspace-features";
-import { isEncrypted, documentSessionKey } from "./lib/document-crypto";
+import { isEncrypted, documentSessionKey, decryptDocument } from "./lib/document-crypto";
 import { sealContent, setDocumentPassword, setPathPassword, removeEmptyProtectedPath } from "./lib/document-protection";
 import { ToolbarIcon } from "./components/ToolbarIcon";
 import type { ReadingLibrarySession } from "./components/ReadingLibrary";
@@ -20,7 +20,7 @@ import { useDevImport } from "./hooks/useDevImport";
 import { useNotesStore } from "./stores/useNotesStore";
 import { api } from "./lib/api";
 import { localDateKey } from "./lib/local-date";
-import { bindViewportEdgeSwipe } from "./lib/edge-swipe";
+import { bindViewportEdgeSwipe, swipeViewport } from "./lib/edge-swipe";
 import { MOBILE_VIEWPORT_QUERY, useEdgeDrawer, useMobileViewport } from "./hooks/useEdgeDrawer";
 import { useAutoSave } from "./hooks/useAutoSave";
 import { useSettings } from "./hooks/useSettings";
@@ -1214,14 +1214,19 @@ function App() {
   // ── 移动端滑动手势：左边缘右滑打开；侧栏或遮罩内左滑关闭 ──
   const sidebarPanelRef = useRef<HTMLElement>(null);
   const sidebarBackdropRef = useRef<HTMLDivElement>(null);
+  const popupPanelRef = useRef<HTMLDivElement>(null);
+  const popupBackdropRef = useRef<HTMLDivElement>(null);
   const mobileDrawerViewport = useMobileViewport();
   useEdgeDrawer(mobileDrawerViewport && !sidebarHidden, "left", sidebarPanelRef, sidebarBackdropRef, () => setSidebarHidden(true));
-  useEffect(() => bindViewportEdgeSwipe("left", () => {
-    if (!sidebarHidden || !mobileDrawerViewport) return null;
+  useEdgeDrawer(mobileDrawerViewport && docTreePopupOpen, "left", popupPanelRef, popupBackdropRef, () => setDocTreePopupOpen(false));
+  useEffect(() => bindViewportEdgeSwipe("left", (touch) => {
+    if (!sidebarHidden || docTreePopupOpen || !mobileDrawerViewport) return null;
+    const openDocumentView = touch.clientY < swipeViewport().middleY;
     return () => {
-      setSidebarHidden(false);
+      if (openDocumentView) setDocTreePopupOpen(true);
+      else setSidebarHidden(false);
     };
-  }), [mobileDrawerViewport, sidebarHidden]);
+  }), [mobileDrawerViewport, sidebarHidden, docTreePopupOpen]);
 
   // ── 开发模式后台导入 ──
   const refreshView = useCallback(() => {
@@ -1551,7 +1556,7 @@ function App() {
             <button type="button" className="error-dismiss" onClick={clearError} aria-label="关闭错误提示">✕</button>
           </div>
         )}
-        {sidebarHidden && (
+        {sidebarHidden && !mobileDrawerViewport && (
           <button
             className="btn-icon btn-show-sidebar"
             onClick={() => setSidebarHidden(false)}
@@ -1560,7 +1565,7 @@ function App() {
             <span className="arrow arrow-right" />
           </button>
         )}
-        {sidebarHidden && (
+        {sidebarHidden && !mobileDrawerViewport && (
           <button
             className="btn-icon btn-doc-tree-popup"
             onClick={() => setDocTreePopupOpen(true)}
@@ -1617,15 +1622,16 @@ function App() {
             title="快速切换笔记 (Ctrl+P)"
             aria-label="快速切换笔记"
             type="button"
-          >⇄</button>
+          ><ToolbarIcon name="switchViews" /></button>
           <button
             className={`btn-icon btn-search-toggle${searchExpanded ? " search-active" : ""}`}
             onClick={() => setSearchExpanded(true)}
             title="搜索"
+            aria-label="搜索"
             aria-expanded={searchExpanded}
             aria-controls="header-search"
             type="button"
-          >🔍</button>
+          ><ToolbarIcon name="search" /></button>
           <div id="header-search" className={`search-bar-collapse${searchExpanded ? ' expanded' : ''}`}>
             <SearchBar
               onSearch={search}
@@ -1638,8 +1644,19 @@ function App() {
             />
           </div>
           <span className="header-btn-gap" />
-          <button className="btn-icon" onClick={() => setSettingsOpen(true)} title="设置">
-            ⚙
+          {mobileDrawerViewport && <div className="header-document-actions" onClick={event => event.stopPropagation()}>
+            <button type="button" className="btn-icon" title="文档目录" aria-label="文档目录"
+              disabled={!selectedNote || !documentOutlineAvailable}
+              onClick={() => setDocumentOutlineRequestId(id => id + 1)}><ToolbarIcon name="bullet" /></button>
+            <button type="button" className="btn-icon" title="文档书签" aria-label="文档书签"
+              disabled={!selectedNote}
+              onClick={() => setDocumentBookmarkRequestId(id => id + 1)}><ToolbarIcon name="bookmark" /></button>
+            <button type="button" className="btn-icon" title="专注模式" aria-label="专注模式"
+              disabled={!selectedNote}
+              onClick={() => setFocusMode(true)}><ToolbarIcon name="expand" /></button>
+          </div>}
+          <button className="btn-icon" onClick={() => setSettingsOpen(true)} title="设置" aria-label="设置">
+            <ToolbarIcon name="sliders" />
           </button>
         </div>
       </header>
@@ -1904,6 +1921,7 @@ function App() {
                 {selectedNote && editorReadyNoteId === selectedNote.id ? (
                   <Suspense fallback={<div className="empty-state">正在打开文档...</div>}>
                     <NoteEditor
+                      onOpenSettings={() => setSettingsOpen(true)}
                       key={`${selectedNote.id}:${externalReloadKey}`}
                       onFlush={flushAutoSave}
                       onProtectionBusy={setProtectionBusy}
@@ -2019,6 +2037,20 @@ function App() {
               }}
               onMoveDocument={handleMoveDocument}
               onExportPdf={() => setPdfExportRequestId((requestId) => requestId + 1)}
+              onExportMarkdown={async () => {
+                const noteId = selectedNote.id;
+                await autoSave.flush();
+                const note = await api.notes.get(noteId);
+                if (!note) throw new Error("文档已不存在，无法导出");
+                let content = note.content;
+                if (isEncrypted(content)) {
+                  const key = documentSessionKey(noteId);
+                  if (!key) throw new Error("请先解锁文档再导出 Markdown");
+                  content = await decryptDocument(content, key);
+                }
+                const { exportDocumentMarkdown } = await import("./lib/markdown-export");
+                await exportDocumentMarkdown(note.title, content);
+              }}
               onExternalMarkdownApply={handleExternalMarkdownApply}
               onExternalMarkdownDetach={handleExternalMarkdownDetach}
               externalSourceActionsDisabled={syncBusy}
@@ -2071,14 +2103,15 @@ function App() {
       </Suspense>
       {docTreePopupOpen && (
         <div className="doc-tree-popup-overlay" onClick={() => setDocTreePopupOpen(false)}>
-          <div className="doc-tree-popup" onClick={(e) => e.stopPropagation()}>
+          <div ref={popupBackdropRef} className="doc-tree-popup-backdrop" aria-hidden="true" />
+          <div ref={popupPanelRef} className="doc-tree-popup" role="dialog" aria-modal="true" aria-label="文档视图" onClick={(e) => e.stopPropagation()}>
             <div className="settings-header">
               <h2>文档视图</h2>
               <div
                 className="doc-tree-toolbar-host doc-tree-popup-toolbar-host"
                 ref={setPopupDocTreeToolbarHost}
               />
-              <button className="settings-close" aria-label="关闭文档视图" onClick={() => setDocTreePopupOpen(false)}><ToolbarIcon name="close" /></button>
+              <button data-drawer-close className="settings-close" aria-label="关闭文档视图" onClick={() => setDocTreePopupOpen(false)}><ToolbarIcon name="close" /></button>
             </div>
             <div className="doc-tree-popup-body">
               <DocTree

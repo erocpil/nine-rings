@@ -63,8 +63,8 @@ import {
   setSearchHighlights,
   type SearchMatch,
 } from "../extensions/SearchHighlights";
-import { noteToMarkdown } from "../lib/markdown-serializer";
-import { exportMarkdownWithDialog, isTauri } from "../lib/tauri-desktop";
+import { exportDocumentMarkdown } from "../lib/markdown-export";
+import { isTauri } from "../lib/tauri-desktop";
 import { exportDocumentAsPdf, type PdfDocumentInfo } from "../lib/pdf-export";
 import { FULLSCREEN_WILL_CHANGE_EVENT } from "../lib/fullscreen";
 import { editorGutterWidth } from "../lib/editor-gutter";
@@ -432,6 +432,7 @@ export interface NoteEditorProps {
   tags: string[];
   readonly?: boolean;
   onReadonlyChange?: (readonly: boolean) => Promise<void> | void;
+  onOpenSettings?: () => void;
   focusMode: boolean;
   showLineNumbers: boolean;
   showStatusBlockNumber: boolean;
@@ -592,7 +593,7 @@ function DocumentEditor(props: NoteEditorProps) {
   return <FullNoteEditor {...props} initialPdfExportRequest={exportRequested} />;
 }
 
-function FullNoteEditor({ sensitive = false, noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean }) {
+function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean }) {
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -3087,21 +3088,7 @@ function FullNoteEditor({ sensitive = false, noteId, title, content, contentVers
   };
 
   const handleExportMarkdown = async () => {
-    const markdown = noteToMarkdown(localTitle, proseMirrorToDelta(editor.getJSON()));
-    const safeTitle = (localTitle.trim() || "无标题")
-      .replace(/[\\/:*?"<>|]/g, "-")
-      .slice(0, 100);
-    const filename = `${safeTitle}.md`;
-    if (isTauri()) {
-      await exportMarkdownWithDialog(markdown, filename);
-      return;
-    }
-    const url = URL.createObjectURL(new Blob([markdown], { type: "text/markdown;charset=utf-8" }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    await exportDocumentMarkdown(localTitle, proseMirrorToDelta(editor.getJSON()));
   };
 
   const getTableCellContext = () => {
@@ -3574,6 +3561,7 @@ function FullNoteEditor({ sensitive = false, noteId, title, content, contentVers
           else openDocumentBookmarks("drawer");
         }}
         onClose={() => { setOutlineOpen(false); setBookmarkOpen(false); }}
+        onOpenSettings={onOpenSettings}
       >
       {outlineOpen && documentOutline.length > 0 && (
         <nav
@@ -3863,7 +3851,7 @@ function FullNoteEditor({ sensitive = false, noteId, title, content, contentVers
               runToolbarFormat, changeSelectedBlockIndent, handleToggleCodeBlock,
               insertBlankBlockAfterCurrent, hasSelection, convertSelectionFromMarkdown,
               setTableSelection, copySelectedTableCells, clearSelectedTableCells, setTableCellAlignment,
-              handleCopy, handleCut, handleClipboardPaste, handleExportMarkdown,
+              handleCopy, handleCut, handleClipboardPaste, handleExportMarkdown, handleExportPdf,
               toggleCurrentBookmark, openDocumentBookmarks, setLinkDialogUrl, setLinkDialog, setImageDialog,
             }}
             editorFontSize={editorFontSize} onEditorFontSizeChange={onEditorFontSizeChange}

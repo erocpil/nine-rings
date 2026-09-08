@@ -61,6 +61,59 @@ async function swipeNoteEditor(
 test.describe("PWA 窄屏应用外壳", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
+  test("左边缘上半部打开文档视图，下半部打开文档树", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+    const host = page.locator(".note-editor");
+    for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
+      await page.setViewportSize(viewport);
+      const upper = viewport.height / 4;
+      const lower = viewport.height * 3 / 4;
+      await swipeNoteEditor(host, { startX: 8, startY: upper, endX: 110, endY: upper });
+      const view = page.getByRole("dialog", { name: "文档视图", exact: true });
+      await expect(view).toBeVisible();
+      await expect(page.getByRole("dialog", { name: "文档侧栏", exact: true })).toBeHidden();
+      await swipeNoteEditor(view, { startX: 210, startY: upper, endX: 110, endY: upper });
+      await expect(view).toBeHidden();
+      await swipeNoteEditor(host, { startX: 8, startY: upper, endX: 110, endY: upper });
+      await expect(view).toBeVisible();
+      await page.locator(".doc-tree-popup-backdrop").click({ position: { x: viewport.width - 4, y: lower } });
+      await expect(view).toBeHidden();
+      await swipeNoteEditor(host, { startX: 8, startY: lower, endX: 110, endY: lower });
+      const tree = page.getByRole("dialog", { name: "文档侧栏", exact: true });
+      await expect(tree).toBeVisible();
+      await expect(view).toBeHidden();
+      await page.keyboard.press("Escape");
+      await expect(tree).toBeHidden();
+    }
+  });
+
+  test("手机顶部查找居左，目录书签专注设置居右", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+    const header = page.locator(".app-header");
+    await expect(header.getByTitle("显示侧栏", { exact: true })).toHaveCount(0);
+    await expect(header.getByTitle("文档视图", { exact: true })).toHaveCount(0);
+    for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
+      await page.setViewportSize(viewport);
+      const names = ["快速切换笔记", "搜索", "文档目录", "文档书签", "专注模式", "设置"];
+      let right = 0;
+      for (const name of names) {
+        const box = (await header.getByRole("button", { name, exact: true }).boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(right);
+        right = box.x + box.width;
+      }
+      expect(right).toBeLessThanOrEqual(viewport.width);
+    }
+    await header.getByRole("button", { name: "文档目录", exact: true }).click();
+    await expect(page.getByRole("navigation", { name: "文档目录", exact: true })).toBeVisible();
+    await header.getByRole("button", { name: "文档书签", exact: true }).click();
+    await expect(page.getByRole("navigation", { name: "文档书签", exact: true })).toBeVisible();
+    await header.getByRole("button", { name: "文档书签", exact: true }).click();
+    await header.getByRole("button", { name: "专注模式", exact: true }).click();
+    await expect(page.getByLabel("专注模式工具栏")).toBeVisible();
+  });
+
   test("文档工具栏右对齐且抽屉收起按钮使用紧凑线框图标", async ({ page }, testInfo) => {
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
@@ -403,10 +456,29 @@ test.describe("PWA 窄屏应用外壳", () => {
       await swipeNoteEditor(host, { startX: 370, startY: 570, endX: 270, endY: 580 });
       await expect(drawer.getByRole("navigation", { name: "文档目录" })).toBeVisible();
       await drawer.getByRole("button", { name: "切换到书签" }).click();
-      await drawer.getByRole("button", { name: "关闭阅读侧栏" }).click();
+      await page.keyboard.press("Escape");
       await bookmarkButton.click();
       await assertPopover(bookmark);
       await bookmarkButton.click();
+    }
+  });
+
+  test("专注阅读侧栏右上角设置替代关闭按钮并保留专注状态", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    for (const y of [190, 570]) {
+      await swipeNoteEditor(page.locator(".note-editor"), { startX: 370, startY: y, endX: 270, endY: y });
+      const drawer = page.getByRole("dialog", { name: "阅读侧栏", exact: true });
+      await expect(drawer).toBeVisible();
+      await expect(drawer.getByRole("button", { name: "关闭阅读侧栏" })).toHaveCount(0);
+      await drawer.getByRole("button", { name: "设置", exact: true }).click();
+      const settings = page.getByRole("dialog", { name: "设置", exact: true });
+      await expect(settings).toBeVisible();
+      await expect(drawer).toBeHidden();
+      await settings.getByRole("button", { name: "关闭设置", exact: true }).click();
+      await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
+      await expect(page.getByLabel("专注模式工具栏")).toBeVisible();
     }
   });
 
@@ -608,7 +680,7 @@ test.describe("PWA 窄屏应用外壳", () => {
         } else {
           if (sample.opens) {
             await expect(bookmarks).toBeVisible();
-            await page.getByRole("button", { name: "关闭阅读侧栏" }).click();
+            await page.keyboard.press("Escape");
           }
           await expect(bookmarks).toHaveCount(0);
         }
@@ -635,7 +707,7 @@ test.describe("PWA 窄屏应用外壳", () => {
           await expect(sidebar).toHaveClass(/sidebar-hidden/);
         } else {
           await expect(bookmarks).toBeVisible();
-          await page.getByRole("button", { name: "关闭阅读侧栏" }).click();
+          await page.keyboard.press("Escape");
         }
       };
       // 尚未达到打开面板的距离时，就必须阻止竖直漂移；锁定后不换轴。
@@ -687,7 +759,7 @@ test.describe("PWA 窄屏应用外壳", () => {
         await page.locator(".sidebar-overlay.active").click({ position: { x: 350, y: 380 } });
       } else {
         await expect(page.getByRole("navigation", { name: "文档书签" })).toBeVisible();
-        await page.getByRole("button", { name: "关闭阅读侧栏" }).click();
+        await page.keyboard.press("Escape");
       }
       await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBe(500);
     }

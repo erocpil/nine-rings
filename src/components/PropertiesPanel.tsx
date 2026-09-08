@@ -25,6 +25,7 @@ interface PropertiesPanelProps {
   onTagsUpdate: (tags: string[]) => Promise<void>;
   onMoveDocument: (id: string, targetPath: string) => Promise<void>;
   onExportPdf: () => void;
+  onExportMarkdown: () => Promise<void>;
   onExternalMarkdownApply: (content: DeltaOps, source: ExternalMarkdownSource) => Promise<void>;
   onExternalMarkdownDetach: () => Promise<void>;
   externalSourceActionsDisabled?: boolean;
@@ -76,6 +77,7 @@ function PropertiesPanel({
   onTagsUpdate,
   onMoveDocument,
   onExportPdf,
+  onExportMarkdown,
   onExternalMarkdownApply,
   onExternalMarkdownDetach,
   externalSourceActionsDisabled,
@@ -84,6 +86,8 @@ function PropertiesPanel({
   onOpenConcept,
 }: PropertiesPanelProps) {
   const [conceptInput, setConceptInput] = useState("");
+  const [markdownExporting, setMarkdownExporting] = useState(false);
+  const [markdownExportError, setMarkdownExportError] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [tagsSaving, setTagsSaving] = useState(false);
   const [tagsError, setTagsError] = useState("");
@@ -698,6 +702,15 @@ function PropertiesPanel({
 
         <div className="prop-section">
           <div className="prop-label">导出</div>
+          <button type="button" className="settings-btn-secondary" disabled={markdownExporting}
+            onClick={async () => {
+              setMarkdownExporting(true);
+              setMarkdownExportError("");
+              try { await onExportMarkdown(); }
+              catch (error) { setMarkdownExportError(error instanceof Error ? error.message : String(error)); }
+              finally { setMarkdownExporting(false); }
+            }}>{markdownExporting ? "正在导出…" : "导出 Markdown"}</button>
+          {markdownExportError && <div className="prop-empty" role="alert">{markdownExportError}</div>}
           <button
             type="button"
             className="settings-btn-secondary"
