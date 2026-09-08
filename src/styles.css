@@ -1583,11 +1583,16 @@ body {
   z-index: 31;
 }
 
+.editor-menu {
+  --toolbar-button-bg: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
 .editor-menu > * {
   flex-shrink: 0;
 }
 
 .toolbar-history-actions {
+  --toolbar-button-bg: transparent;
   display: inline-flex;
   gap: 0;
   border-radius: 10px;
@@ -1607,12 +1612,16 @@ body {
 }
 
 .editor-menu .menu-btn {
+  background: var(--toolbar-button-bg, color-mix(in srgb, var(--text) 4%, transparent));
   border-radius: 8px;
   transition: color 120ms ease, background-color 120ms ease;
 }
 
-.editor-menu > .menu-dropdown > .menu-btn {
-  background: color-mix(in srgb, var(--text) 4%, transparent);
+.toolbar-dropdown-caret {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px;
+  line-height: 1;
 }
 
 .editor-menu .menu-btn.active,
@@ -1879,7 +1888,7 @@ body {
 /* 触屏浏览器会在菜单关闭后保留最后一个按钮的 :hover，造成灰色状态残留。 */
 @media (hover: none) {
   .menu-btn:hover:not(.active):not([aria-expanded="true"]) {
-    background: none;
+    background: var(--toolbar-button-bg, transparent);
     border-color: transparent;
     box-shadow: none;
     color: var(--text-secondary);
@@ -4922,19 +4931,27 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 
 .editor-block-number.active {
   color: var(--accent);
-  opacity: 0.75;
 }
 
 .editor-block-number.bookmarked {
   text-decoration-line: underline;
-  text-decoration-color: color-mix(in srgb, var(--accent) 72%, transparent);
+  text-decoration-color: var(--accent);
   text-decoration-thickness: 2px;
   text-underline-offset: 2px;
 }
 
 .no-active-line .editor-block-number.active {
   color: var(--text-secondary);
-  opacity: 0.4;
+}
+
+.editor-block-number.bookmarked,
+.no-active-line .editor-block-number.bookmarked {
+  opacity: 0.85;
+}
+
+.editor-block-number.active,
+.no-active-line .editor-block-number.active {
+  opacity: 0.95;
 }
 
 .editor-block-number:hover,
@@ -9867,7 +9884,7 @@ button.doc-tree-toggle:focus-visible {
     min-height: 44px;
   }
   .app .focus-mode .mobile-focus-bar {
-    height: 48px;
+    height: 30px;
     left: max(8px, var(--safe-left));
     right: max(8px, var(--safe-right));
   }
@@ -9875,9 +9892,17 @@ button.doc-tree-toggle:focus-visible {
     flex-basis: 44px;
     width: 44px;
     height: 44px;
+    /* 局部向下延伸，不再让整条标题栏与正文一起为触摸热区增高。 */
+    align-self: flex-start;
+    background: var(--bg);
+    border-radius: 0 0 8px 8px;
+    border-bottom-color: color-mix(in srgb, var(--border) 65%, transparent);
+  }
+  .app .mobile-focus-bar > button:is(:active, .active, [aria-expanded="true"]) {
+    background: color-mix(in srgb, var(--accent) 11%, var(--bg));
   }
   .app .focus-mode .note-editor-scroll {
-    padding-top: calc(48px + var(--safe-top));
+    padding-top: calc(30px + var(--safe-top));
   }
   .app .focus-mode > .document-outline-panel,
   .app .focus-mode > .document-bookmark-panel {

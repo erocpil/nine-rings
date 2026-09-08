@@ -11,11 +11,15 @@ test("横屏工具栏可触摸，旋转后滞留高度不会把文档树截成�
     document.documentElement.style.setProperty("--safe-right", "44px");
   });
   const bar = page.getByLabel("专注模式工具栏");
+  await expect(bar).toHaveCSS("height", "30px");
+  await expect(page.locator(".note-editor-scroll")).toHaveCSS("padding-top", "30px");
+  const barBottom = (await bar.boundingBox())!;
   for (const name of ["文档目录", "文档书签"]) {
     const button = bar.getByRole("button", { name, exact: true });
     const box = (await button.boundingBox())!;
     expect(box.height).toBeGreaterThanOrEqual(44);
     expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.y + box.height).toBeGreaterThan(barBottom.y + barBottom.height);
     expect(box.x).toBeGreaterThanOrEqual(44);
     expect(box.x + box.width).toBeLessThanOrEqual(800);
     // Tap near the lower edge rather than the small glyph at its center.

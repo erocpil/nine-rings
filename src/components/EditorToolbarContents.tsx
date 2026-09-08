@@ -84,6 +84,7 @@ const PRESET_COLORS = [
 ];
 
 const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32];
+const dropdownCaret = <span className="toolbar-dropdown-caret" aria-hidden="true">▾</span>;
 
 const btn = (label: ReactNode, action: () => void, active?: boolean, title?: string, disabled?: boolean) => (
   <button
@@ -192,7 +193,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
         >
           {editor.isActive("bold") ? "B" :
            editor.isActive("italic") ? "I" :
-           editor.isActive("strike") ? "S" : "样式 ▾"}
+           editor.isActive("strike") ? "S" : "样式"}{dropdownCaret}
         </button>
         {styleOpen && (
           <div className="menu-dropdown-list">
@@ -234,7 +235,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
            editor.isActive("heading", { level: 6 }) ? "H6" :
            editor.isActive("heading", { level: 3 }) ? "H3" :
            editor.isActive("heading", { level: 4 }) ? "H4" :
-           editor.isActive("heading", { level: 5 }) ? "H5" : "标题 ▾"}
+           editor.isActive("heading", { level: 5 }) ? "H5" : "标题"}{dropdownCaret}
         </button>
         {headingOpen && (
           <div className="menu-dropdown-list">
@@ -286,7 +287,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
           type="button"
           title="块"
           aria-expanded={blockOpen}
-        >块 ▾</button>
+        >块{dropdownCaret}</button>
         {blockOpen && (
           <div className="menu-dropdown-list">
             <button
@@ -391,7 +392,8 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
           onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("table", tableOpen); }}
           type="button"
           title="表格操作"
-        >▦ 表格 ▾</button>
+          aria-expanded={tableOpen}
+        >▦ 表格{dropdownCaret}</button>
         {tableOpen && (
           <div className="menu-dropdown-list table-context-menu">
             <div className="table-selection-hint">
@@ -434,7 +436,8 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
           onClick={(e) => { e.stopPropagation(); toggleMobileToolbarMenu("clip", clipOpen); }}
           type="button"
           title="剪贴"
-        >剪贴 ▾</button>
+          aria-expanded={clipOpen}
+        >剪贴{dropdownCaret}</button>
         {clipOpen && (
           <div className="menu-dropdown-list">
             <button className="menu-dropdown-item" onClick={() => { handleCopy(); setClipOpen(false); }} type="button">📋 复制</button>
@@ -571,8 +574,8 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
 
     {/* 分隔后右区：字号 / 颜色 / 图片 */}
     <div className="menu-dropdown" data-toolbar-tool="size">
-      <button className="menu-btn" onClick={(e) => { e.stopPropagation(); if (!readonly) toggleMobileToolbarMenu("size", sizeOpen); }} type="button" title="字号" disabled={readonly}>
-        {editor.getAttributes("textStyle").fontSize || "字号"}
+      <button className="menu-btn" onClick={(e) => { e.stopPropagation(); if (!readonly) toggleMobileToolbarMenu("size", sizeOpen); }} type="button" title="字号" aria-expanded={sizeOpen} disabled={readonly}>
+        {editor.getAttributes("textStyle").fontSize || "字号"}{dropdownCaret}
       </button>
       {sizeOpen && (
         <div className="menu-dropdown-list">

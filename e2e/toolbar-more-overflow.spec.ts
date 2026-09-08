@@ -2,6 +2,28 @@ import { expect, test } from "@playwright/test";
 
 test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
 
+test("标题动态标签保留下拉三角，前后工具底色一致", async ({ page }) => {
+  await page.goto("/");
+  await page.locator(".ProseMirror h2").first().click();
+  const heading = page.getByTitle("标题", { exact: true });
+  await expect(heading).toContainText("H2");
+  await expect(heading.locator(".toolbar-dropdown-caret")).toBeVisible();
+  await page.setViewportSize({ width: 844, height: 390 });
+  const style = page.getByTitle("样式", { exact: true });
+  const background = await style.evaluate(el => getComputedStyle(el).backgroundColor);
+  for (const title of ["标题", "块", "剪贴", "字号", "更多编辑操作"]) {
+    const button = page.getByTitle(title, { exact: true });
+    await expect(button).toBeVisible();
+    await expect(button).toHaveCSS("background-color", background);
+    if (title !== "更多编辑操作") await expect(button.locator(".toolbar-dropdown-caret")).toBeVisible();
+  }
+  await heading.tap();
+  await expect(heading).toHaveAttribute("aria-expanded", "true");
+  expect(await heading.evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe(background);
+  await heading.tap();
+  await expect(heading).toHaveCSS("background-color", background);
+});
+
 test("更多菜单跟随实际工具溢出，不重复工具栏入口", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible();
