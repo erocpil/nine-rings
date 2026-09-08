@@ -61,6 +61,58 @@ async function swipeNoteEditor(
 test.describe("PWA 窄屏应用外壳", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
+  test("专注模式右侧按钮宽度间距与普通模式一致", async ({ page }) => {
+    await createOutlineFixture(page, "布局标题");
+    await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+    const measure = async (buttons: Locator) => {
+      const boxes = await buttons.evaluateAll(elements => elements.map(el => {
+        const rect = el.getBoundingClientRect();
+        return { x: rect.x, width: rect.width };
+      }));
+      return { widths: boxes.map(box => box.width), gaps: boxes.slice(1).map((box, index) => box.x - boxes[index].x - boxes[index].width) };
+    };
+    for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
+      await page.setViewportSize(viewport);
+      const normal = page.locator(".header-document-actions > button");
+      await expect(normal).toHaveCount(3);
+      const expected = await measure(normal);
+      await page.locator(".header-document-actions").getByRole("button", { name: "专注模式", exact: true }).click();
+      const focus = page.locator(".mobile-focus-bar > button:not(.focus-readonly-toggle)");
+      await expect(focus).toHaveCount(3);
+      expect(await measure(focus)).toEqual(expected);
+      await focus.last().click();
+      await expect(page.locator(".header-document-actions")).toBeVisible();
+    }
+  });
+
+  test("左侧搜索就地展开并在点击事件内聚焦", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+    await page.evaluate(() => {
+      document.addEventListener("click", event => {
+        if (event.target instanceof Element && event.target.closest(".btn-search-toggle")) {
+          document.documentElement.dataset.searchFocusedDuringClick = String(document.activeElement?.matches("#header-search .search-input"));
+        }
+      });
+    });
+    for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
+      await page.setViewportSize(viewport);
+      const toggle = page.getByRole("button", { name: "搜索", exact: true });
+      const before = (await toggle.boundingBox())!;
+      await toggle.tap();
+      const input = page.locator("#header-search .search-input");
+      await expect(input).toBeFocused();
+      await expect(page.locator("html")).toHaveAttribute("data-search-focused-during-click", "true");
+      const box = (await input.boundingBox())!;
+      expect(Math.abs(box.x - before.x)).toBeLessThanOrEqual(1);
+      expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+      await expect(input).toHaveCSS("font-size", "16px");
+      await input.fill("保留搜索内容");
+      await input.press("Escape");
+      await expect(input).toBeHidden();
+    }
+  });
+
   test("文档列表加载失败可重试，空结果可清除筛选", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
@@ -80,7 +132,11 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(view.getByRole("alert")).toHaveCount(0);
     await view.getByRole("button", { name: "全部文档", exact: true }).click();
     await expect(view.locator(".document-browser-row").filter({ hasText: "重试验证" })).toBeVisible();
-    await view.getByRole("button", { name: "搜索文档", exact: true }).click();
+    const focusedDuringClick = await view.getByRole("button", { name: "搜索文档", exact: true }).evaluate(button => {
+      (button as HTMLButtonElement).click();
+      return document.activeElement?.matches('.document-browser input[aria-label="查找文档"]');
+    });
+    expect(focusedDuringClick).toBe(true);
     const query = view.getByRole("textbox", { name: "查找文档" });
     await expect(query).toBeFocused();
     await query.fill("没有这个文档");

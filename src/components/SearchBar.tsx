@@ -1,8 +1,9 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, type RefObject } from "react";
 import { api } from "../lib/api";
 import type { DocType } from "../types/models";
 
 interface SearchBarProps {
+  inputRef?: RefObject<HTMLInputElement>;
   onSearch: (query: string) => void;
   onDocSearch?: (query: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => void;
   onInputBlur?: () => void;
@@ -26,7 +27,7 @@ const TYPE_FILTERS: { value: DocType | ""; label: string }[] = [
   { value: "tutorial", label: "🎓 教程" },
 ];
 
-export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: SearchBarProps) {
+export function SearchBar({ inputRef, onSearch, onDocSearch, onInputBlur, onEscape }: SearchBarProps) {
   const [value, setValue] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [pathFilter, setPathFilter] = useState("");
@@ -148,6 +149,7 @@ export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: Sear
       <div className="search-input-row">
         <div className="search-input-wrap">
           <input
+            ref={inputRef}
             type="text"
             placeholder="搜索笔记..."
             value={value}
@@ -169,6 +171,7 @@ export function SearchBar({ onSearch, onDocSearch, onInputBlur, onEscape }: Sear
               }, 150);
             }}
             onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return;
               if (e.key === "Enter") {
                 // 重新触发搜索（用户可能想用保留的关键词再次搜索）
                 if (searchTimerRef.current) {

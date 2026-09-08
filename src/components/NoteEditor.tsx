@@ -46,6 +46,7 @@ import {
 import { EditorBlockGutter } from "./EditorBlockGutter";
 import { DocumentOutlineList, type VisibleOutlineEntry } from "./DocumentOutlineList";
 import { EditorToolbarContents } from "./EditorToolbarContents";
+import { flushSync } from "react-dom";
 import { createReplacementTransaction } from "../lib/editor-replace";
 import { EditorContextMenu } from "./EditorContextMenu";
 import { EditorInsertDialogs } from "./EditorInsertDialogs";
@@ -612,6 +613,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
   const searchMatchesRef = useRef<SearchMatch[]>([]);
   const editorFindOriginRef = useRef(0);
   const editorFindInputRef = useRef<HTMLInputElement>(null);
+  const editorReplaceInputRef = useRef<HTMLInputElement>(null);
   const vimSearchActionRef = useRef<(direction: 1 | -1 | 0) => void>(() => undefined);
   const lineJumpInputRef = useRef<HTMLInputElement>(null);
   const outlineListRef = useRef<HTMLDivElement>(null);
@@ -624,12 +626,14 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
   const [editorReplaceOpen, setEditorReplaceOpen] = useState(false);
   const [editorReplaceValue, setEditorReplaceValue] = useState("");
   const [editorReplaceMessage, setEditorReplaceMessage] = useState("");
+  const [editorFindCaseSensitive, setEditorFindCaseSensitive] = useState(false);
   useEffect(() => {
     setEditorFindOpen(false);
     setEditorFindQuery("");
     setEditorReplaceOpen(false);
     setEditorReplaceValue("");
     setEditorReplaceMessage("");
+    setEditorFindCaseSensitive(false);
   }, [noteId]);
   const [lineJumpOpen, setLineJumpOpen] = useState(false);
   const [lineJumpValue, setLineJumpValue] = useState("");
@@ -1667,7 +1671,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
     if (!focusMode) setFocusToolbarExpanded(false);
   }, [focusMode]);
 
-  const revealSearchMatch = useCallback((requestedIndex: number, suppliedMatches?: SearchMatch[]) => {
+  const revealSearchMatch = useCallback((requestedIndex: number, suppliedMatches?: SearchMatch[], focusEditor = true) => {
     if (!editor) return;
     const matches = suppliedMatches ?? searchMatchesRef.current;
     if (!matches.length) return;
@@ -1679,7 +1683,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
 
     // 防止浏览器先把整个编辑器滚到不可预测的位置，再把命中放到
     // 可视正文区域约 1/3 的高度，保留足够的前后文。
-    editor.view.dom.focus({ preventScroll: true });
+    if (focusEditor) editor.view.dom.focus({ preventScroll: true });
     editor.commands.setTextSelection({ from: match.from, to: match.to });
     requestAnimationFrame(() => {
       const root = scrollRef.current;
@@ -1775,15 +1779,15 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
 
   const openEditorFind = useCallback(() => {
     if (!editor || editor.isDestroyed) return;
-    closeLineJump();
     const { from, to } = editor.state.selection;
     const selected = from === to ? "" : editor.state.doc.textBetween(from, to, " ").trim();
-    if (selected && !selected.includes("\n")) setEditorFindQuery(selected);
-    setEditorFindOpen(true);
-    requestAnimationFrame(() => {
-      editorFindInputRef.current?.focus({ preventScroll: true });
-      editorFindInputRef.current?.select();
+    flushSync(() => {
+      closeLineJump();
+      if (selected && !selected.includes("\n")) setEditorFindQuery(selected);
+      setEditorFindOpen(true);
     });
+    editorFindInputRef.current?.focus({ preventScroll: true });
+    editorFindInputRef.current?.select();
   }, [closeLineJump, editor]);
 
   const openEditorReplace = useCallback(() => {
@@ -1795,12 +1799,12 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
 
   const replaceEditorText = (all: boolean) => {
     if (readonly || !editor?.isEditable || editor.isDestroyed || !editorFindQuery) return;
-    const matches = findSearchMatches(editor.state.doc, editorFindQuery, true);
+    const matches = findSearchMatches(editor.state.doc, editorFindQuery, true, editorFindCaseSensitive);
     const index = activeSearchMatch >= 0 && activeSearchMatch < matches.length ? activeSearchMatch
       : searchMatchIndexFromPosition(matches, editorFindOriginRef.current, 1);
-    const { transaction, count, nextPosition } = createReplacementTransaction(editor.state, editorFindQuery, editorReplaceValue, all ? undefined : index);
+    const { transaction, count, nextPosition } = createReplacementTransaction(editor.state, editorFindQuery, editorReplaceValue, all ? undefined : index, editorFindCaseSensitive);
     if (count) editor.view.dispatch(transaction);
-    const remaining = findSearchMatches(editor.state.doc, editorFindQuery, true);
+    const remaining = findSearchMatches(editor.state.doc, editorFindQuery, true, editorFindCaseSensitive);
     searchMatchesRef.current = remaining;
     setSearchMatches(remaining);
     setActiveSearchMatch(-1);
@@ -1808,9 +1812,9 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
     editorFindOriginRef.current = nextPosition;
     setEditorReplaceMessage(count ? `已替换 ${count} 处，可撤销` : "没有需要替换的内容");
     if (!all && remaining.length) {
-      revealSearchMatch(searchMatchIndexFromPosition(remaining, nextPosition, 1), remaining);
-      requestAnimationFrame(() => editorFindInputRef.current?.focus({ preventScroll: true }));
+      revealSearchMatch(searchMatchIndexFromPosition(remaining, nextPosition, 1), remaining, false);
     }
+    editorReplaceInputRef.current?.focus({ preventScroll: true });
   };
 
   const navigateEditorFind = useCallback((direction: number) => {
@@ -1819,8 +1823,8 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
     const requestedIndex = activeSearchMatch < 0
       ? searchMatchIndexFromPosition(matches, editorFindOriginRef.current, direction)
       : activeSearchMatch + direction;
-    revealSearchMatch(requestedIndex, matches);
-    requestAnimationFrame(() => editorFindInputRef.current?.focus({ preventScroll: true }));
+    revealSearchMatch(requestedIndex, matches, false);
+    editorFindInputRef.current?.focus({ preventScroll: true });
   }, [activeSearchMatch, revealSearchMatch]);
 
   useEffect(() => {
@@ -1867,6 +1871,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
   useEffect(() => {
     if (!editor) return;
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.isComposing || event.keyCode === 229) return;
       const isCtrlF = event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
         && (event.code === "KeyF" || event.key.toLocaleLowerCase() === "f");
       if (isCtrlF) {
@@ -1926,7 +1931,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
   useEffect(() => {
     if (!editor || !editorFindOpen) return;
     const refresh = () => {
-      const matches = findSearchMatches(editor.state.doc, editorFindQuery, editorReplaceOpen);
+      const matches = findSearchMatches(editor.state.doc, editorFindQuery, editorReplaceOpen, editorFindCaseSensitive);
       editorFindOriginRef.current = editor.state.selection.from;
       searchMatchesRef.current = matches;
       setSearchMatches(matches);
@@ -1937,7 +1942,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
     refresh();
     editor.on("update", refresh);
     return () => { editor.off("update", refresh); };
-  }, [editor, editorFindOpen, editorFindQuery, editorReplaceOpen]);
+  }, [editor, editorFindOpen, editorFindQuery, editorReplaceOpen, editorFindCaseSensitive]);
 
   // 接收搜索列表传来的一次性定位请求。优先匹配完整短语；FTS 的
   // 多词 AND 查询若没有连续短语，则回退到各个词的命中位置。
@@ -3544,6 +3549,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
             value={editorFindQuery}
             onChange={(event) => setEditorFindQuery(event.target.value)}
             onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing || event.keyCode === 229) return;
               if (event.key === "Enter") {
                 event.preventDefault();
                 navigateEditorFind(event.shiftKey ? -1 : 1);
@@ -3564,14 +3570,15 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
           {!readonly && <button type="button" className="editor-find-replace-toggle" onClick={() => setEditorReplaceOpen(open => !open)} aria-expanded={editorReplaceOpen} aria-label="显示替换">替换</button>}
           <button type="button" onClick={() => { closeEditorFind(); editor.commands.focus(); }} title="关闭查找" aria-label="关闭查找">×</button>
           </div>
+          <div className="editor-find-options"><label><input type="checkbox" checked={editorFindCaseSensitive} onChange={event => setEditorFindCaseSensitive(event.target.checked)} />区分大小写</label></div>
           {editorReplaceOpen && !readonly && <>
             <div className="editor-find-row">
-              <input aria-label="替换为" placeholder="替换为（留空则删除）" value={editorReplaceValue} onChange={event => { setEditorReplaceValue(event.target.value); setEditorReplaceMessage(""); }}
-                onKeyDown={event => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); replaceEditorText(false); } }} />
+              <input ref={editorReplaceInputRef} aria-label="替换为" placeholder="替换为（留空则删除）" value={editorReplaceValue} onChange={event => { setEditorReplaceValue(event.target.value); setEditorReplaceMessage(""); }}
+                onKeyDown={event => { if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) { event.preventDefault(); replaceEditorText(false); } }} />
               <button type="button" className="editor-replace-action" disabled={!searchMatches.length} onClick={() => replaceEditorText(false)}>替换当前</button>
               <button type="button" className="editor-replace-action" disabled={!searchMatches.length} onClick={() => replaceEditorText(true)}>全部替换</button>
             </div>
-            <div className="editor-replace-status" role="status"><span>{editorReplaceMessage || "普通文本匹配，不区分大小写；仅替换当前正文"}</span>
+            <div className="editor-replace-status" role="status"><span>{editorReplaceMessage || "普通文本匹配；仅替换当前正文"}</span>
               {editorReplaceMessage.startsWith("已替换") && <button type="button" className="editor-replace-action" onClick={() => editor.commands.undo()}>撤销替换</button>}
             </div>
           </>}

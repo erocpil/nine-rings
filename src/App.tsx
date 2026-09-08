@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useNotes } from "./hooks/useNotes";
 import { DatePicker } from "./components/DatePicker";
 import { DAILY_NOTES_ENABLED, TODOS_ENABLED } from "./lib/workspace-features";
@@ -495,6 +496,7 @@ function App() {
   const [documentBookmarkRequestId, setDocumentBookmarkRequestId] = useState(0);
   const HIDDEN_KEY = "nr:sidebarHidden";
   const [searchExpanded, setSearchExpanded] = useState(false);
+  const headerSearchInputRef = useRef<HTMLInputElement>(null);
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     const persisted = localStorage.getItem(HIDDEN_KEY);
     if (persisted !== null) return persisted === "true";
@@ -876,15 +878,6 @@ function App() {
   useEffect(() => {
     localStorage.setItem(FOCUS_KEY, String(focusMode));
   }, [focusMode]);
-
-  // ── 搜索展开时自动聚焦 ──
-  useEffect(() => {
-    if (searchExpanded) {
-      setTimeout(() => {
-        document.querySelector<HTMLInputElement>(".search-input")?.focus();
-      }, 50);
-    }
-  }, [searchExpanded]);
 
   // ── 禁用双指缩放（浏览器忽略 viewport user-scalable=no）
   useEffect(() => {
@@ -1625,9 +1618,15 @@ function App() {
             aria-label="快速切换笔记"
             type="button"
           ><ToolbarIcon name="switchViews" /></button>
+          <div className="header-search-anchor">
           <button
             className={`btn-icon btn-search-toggle${searchExpanded ? " search-active" : ""}`}
-            onClick={() => setSearchExpanded(true)}
+            onClick={() => {
+              // iOS requires focus within the user gesture, after the hidden
+              // input becomes visible; a timer/effect can lose keyboard access.
+              flushSync(() => setSearchExpanded(true));
+              headerSearchInputRef.current?.focus({ preventScroll: true });
+            }}
             title="搜索"
             aria-label="搜索"
             aria-expanded={searchExpanded}
@@ -1636,6 +1635,7 @@ function App() {
           ><ToolbarIcon name="search" /></button>
           <div id="header-search" className={`search-bar-collapse${searchExpanded ? ' expanded' : ''}`}>
             <SearchBar
+              inputRef={headerSearchInputRef}
               onSearch={search}
               onDocSearch={handleDocSearch}
               onInputBlur={() => setSearchExpanded(false)}
@@ -1644,6 +1644,7 @@ function App() {
                 setSearchExpanded(false);
               }}
             />
+          </div>
           </div>
           <span className="header-btn-gap" />
           {mobileDrawerViewport && <div className="header-document-actions" onClick={event => event.stopPropagation()}>

@@ -42,4 +42,11 @@ describe("literal editor replacement", () => {
     expect(findMatchesInTextSegments([{ from: 1, text: "İ😀 foo" }], "foo", true)).toEqual([{ from: 5, to: 8 }]);
     expect(findMatchesInTextSegments([{ from: 1, text: "foo" }, { from: 6, text: "bar" }], "foo\nbar", true)).toEqual([]);
   });
+  it("uses the same case-sensitive rules for highlighting and replacement", () => {
+    const state = EditorState.create({ doc: schema.node("doc", null, schema.node("paragraph", null, schema.text("Foo foo FOO"))) });
+    expect(findMatchesInTextSegments([{ from: 1, text: "Foo foo FOO" }], "foo", true, true)).toEqual([{ from: 5, to: 8 }]);
+    const result = createReplacementTransaction(state, "foo", "bar", undefined, true);
+    expect(result.count).toBe(1);
+    expect(state.apply(result.transaction).doc.textContent).toBe("Foo bar FOO");
+  });
 });

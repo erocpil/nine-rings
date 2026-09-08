@@ -540,6 +540,8 @@ body {
 
 /* ──── Search ──── */
 
+.header-search-anchor { position: relative; display: flex; align-items: center; min-width: 0; }
+
 .search-bar {
   position: relative;
   flex: 0 1 auto;
@@ -1747,7 +1749,8 @@ body {
 .editor-find-bar {
   position: absolute;
   top: 6px;
-  right: 92px;
+  left: 6px;
+  right: auto;
   z-index: 70;
   display: flex;
   flex-direction: column;
@@ -1763,6 +1766,9 @@ body {
 }
 
 .editor-find-row { display: flex; align-items: center; gap: 3px; min-width: 0; }
+.editor-find-options { padding: 0 6px; }
+.editor-find-options label { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; color: var(--text-muted); font-size: 12px; }
+.editor-find-bar .editor-find-options input { flex: none; width: 16px; min-width: 16px; height: 16px; margin: 0; padding: 0; }
 .editor-find-bar .editor-find-replace-toggle { width: auto; padding-inline: 4px; white-space: nowrap; }
 .editor-find-bar .editor-replace-action { width: auto; padding-inline: 6px; white-space: nowrap; }
 .editor-replace-status { display: flex; align-items: center; justify-content: space-between; gap: 4px; font-size: 11px; color: var(--text-muted); padding: 3px 6px; }
@@ -1809,7 +1815,7 @@ body {
 }
 
 @media (max-width: 768px), (pointer: coarse) and (max-height: 600px) {
-  .editor-find-bar { right: 6px; width: min(420px, calc(100% - 12px)); box-sizing: border-box; }
+  .editor-find-bar { left: 6px; right: auto; width: min(420px, calc(100% - 12px)); box-sizing: border-box; }
   .editor-find-bar input { font-size: 16px; min-width: 0; }
   .editor-find-bar button { flex-shrink: 0; }
 }
@@ -9441,8 +9447,13 @@ button.doc-tree-toggle:focus-visible {
   .header-document-actions {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--document-action-gap, 4px);
     margin-left: auto;
+  }
+
+  .header-document-actions > .btn-icon {
+    flex: 0 0 var(--document-action-width, 28px);
+    width: var(--document-action-width, 28px);
   }
 
   .note-title-row > .document-outline-control,
@@ -9470,10 +9481,11 @@ button.doc-tree-toggle:focus-visible {
     position: absolute;
     z-index: 60;
     top: 50%;
-    right: 30px;
+    left: 0;
+    right: auto;
     display: block;
     width: min(180px, calc(100vw - 112px));
-    padding: 2px 0 2px 4px;
+    padding: 2px 0;
     transform: translateY(-50%);
     background: var(--surface);
   }
@@ -9483,6 +9495,8 @@ button.doc-tree-toggle:focus-visible {
     min-width: 0;
     max-width: none;
   }
+
+  .search-bar-collapse.expanded .search-input { font-size: 16px; }
 
   .header-clock { display: none; }
   .header-spacer { display: none; }
@@ -9821,10 +9835,12 @@ button.doc-tree-toggle:focus-visible {
     height: 17px;
   }
 
-  /* Keep tall touch targets, but reserve more horizontal room for the title. */
+  /* Match normal-mode actions without changing the lock/title spacing.
+     The bar's 2px gap plus this 2px margin equals the normal 4px gap. */
   .focus-mode .mobile-focus-bar > button:not(.focus-readonly-toggle) {
-    flex-basis: 32px;
-    width: 32px;
+    flex-basis: var(--document-action-width, 28px);
+    width: var(--document-action-width, 28px);
+    margin-left: calc(var(--document-action-gap, 4px) - 2px);
   }
 
   .focus-bookmark-count,

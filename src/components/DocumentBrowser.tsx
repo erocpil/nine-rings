@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { api } from "../lib/api";
 import { readRecentNoteIds } from "../lib/quick-switcher";
 import { readDocumentFavorites, toggleDocumentFavorite } from "../lib/document-favorites";
@@ -97,9 +97,9 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
   }, [notes, path, query, sort, view, recentIds, favorites]);
   const actions = <>
     <button className="btn-icon" aria-label="搜索文档" aria-expanded={searchOpen} onClick={() => {
-      setSearchOpen(!searchOpen);
+      flushSync(() => setSearchOpen(!searchOpen));
       if (searchOpen) { setQuery(""); resetScroll(); }
-      else requestAnimationFrame(() => searchRef.current?.focus({ preventScroll: true }));
+      else searchRef.current?.focus({ preventScroll: true });
     }}><ToolbarIcon name="search" /></button>
     <button className="btn-icon" aria-label="新建文档" title="在当前路径新建文档" disabled={disabled || opening} onClick={() => onCreate(path)}><ToolbarIcon name="plus" /></button>
   </>;

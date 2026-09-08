@@ -26,7 +26,7 @@ const searchHighlightsKey = new PluginKey<DecorationSet>("searchHighlights");
  * Adjacent text nodes (for example, text split by a bold mark) are treated as
  * one run; structural gaps between blocks are kept as hard boundaries.
  */
-export function findMatchesInTextSegments(segments: TextSegment[], query: string, preserveWhitespace = false): SearchMatch[] {
+export function findMatchesInTextSegments(segments: TextSegment[], query: string, preserveWhitespace = false, caseSensitive = false): SearchMatch[] {
   const needle = preserveWhitespace ? query : query.trim();
   if (!needle) return [];
   const runs: TextSegment[] = [];
@@ -38,7 +38,7 @@ export function findMatchesInTextSegments(segments: TextSegment[], query: string
   }
   // Regex is escaped literal text. Native match indices retain original UTF-16
   // positions even when case folding would change a character's string length.
-  const pattern = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "giu");
+  const pattern = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), caseSensitive ? "gu" : "giu");
   const matches: SearchMatch[] = [];
   for (const run of runs) {
     pattern.lastIndex = 0;
@@ -50,12 +50,12 @@ export function findMatchesInTextSegments(segments: TextSegment[], query: string
   return matches;
 }
 
-export function findSearchMatches(doc: ProseMirrorNode, query: string, preserveWhitespace = false): SearchMatch[] {
+export function findSearchMatches(doc: ProseMirrorNode, query: string, preserveWhitespace = false, caseSensitive = false): SearchMatch[] {
   const segments: TextSegment[] = [];
   doc.descendants((node, pos) => {
     if (node.isText && node.text) segments.push({ text: node.text, from: pos });
   });
-  return findMatchesInTextSegments(segments, query, preserveWhitespace);
+  return findMatchesInTextSegments(segments, query, preserveWhitespace, caseSensitive);
 }
 
 /** Resolve the first navigation target relative to the editor caret. */

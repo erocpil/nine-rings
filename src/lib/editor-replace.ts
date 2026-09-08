@@ -3,8 +3,8 @@ import { closeHistory } from "@tiptap/pm/history";
 import { findSearchMatches } from "../extensions/SearchHighlights";
 
 /** Literal, in-block replacement. Recompute matches from the current snapshot. */
-export function createReplacementTransaction(state: EditorState, query: string, replacement: string, index?: number): { transaction: Transaction; count: number; nextPosition: number } {
-  const matches = findSearchMatches(state.doc, query, true);
+export function createReplacementTransaction(state: EditorState, query: string, replacement: string, index?: number, caseSensitive = false): { transaction: Transaction; count: number; nextPosition: number } {
+  const matches = findSearchMatches(state.doc, query, true, caseSensitive);
   const targets = index === undefined ? matches : matches.slice(index, index + 1);
   const transaction = closeHistory(state.tr);
   let count = 0;

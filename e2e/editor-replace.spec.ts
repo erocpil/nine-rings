@@ -49,17 +49,42 @@ test("手机从更多打开替换，横竖屏均不溢出", async ({ page }, tes
   await page.getByRole("button", { name: "更多编辑操作", exact: true }).click();
   await page.getByRole("button", { name: "查找与替换", exact: true }).click();
   await expect(page.getByLabel("替换为", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("在当前文档中查找")).toBeFocused();
   await page.getByLabel("在当前文档中查找").fill("foobar");
   await page.getByLabel("替换为", { exact: true }).fill("new");
   await page.getByRole("button", { name: "替换当前", exact: true }).click();
+  await expect(page.getByLabel("替换为", { exact: true })).toBeFocused();
   await expect(page.locator(".search-match")).toHaveCount(1);
   for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
     await page.setViewportSize(viewport);
     const bar = page.locator(".editor-find-bar");
     const box = (await bar.boundingBox())!;
+    const editorBox = (await page.locator(".note-editor").boundingBox())!;
+    expect(Math.abs(box.x - editorBox.x - 6)).toBeLessThanOrEqual(1);
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
     expect(await bar.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
   }
   await page.screenshot({ path: testInfo.outputPath("replace-landscape.png") });
+});
+
+test("区分大小写与中文候选确认不会误替换或跳转", async ({ page }) => {
+  await seed(page);
+  await page.keyboard.press("Alt+f");
+  await page.getByRole("button", { name: "显示替换", exact: true }).click();
+  const find = page.getByLabel("在当前文档中查找");
+  await find.fill("foobar");
+  await expect(page.locator(".editor-find-count")).toHaveText("0/2");
+  await find.dispatchEvent("keydown", { key: "Enter", code: "Enter", isComposing: true });
+  await expect(page.locator(".editor-find-count")).toHaveText("0/2");
+  await page.getByRole("checkbox", { name: "区分大小写", exact: true }).check();
+  await expect(page.locator(".editor-find-count")).toHaveText("0/1");
+  const replacement = page.getByLabel("替换为", { exact: true });
+  await replacement.fill("新的内容");
+  await replacement.dispatchEvent("keydown", { key: "Enter", code: "Enter", isComposing: true });
+  await expect(page.locator(".ProseMirror h2")).toHaveText("foobar");
+  await replacement.press("Enter");
+  await expect(page.locator(".ProseMirror h2")).toHaveText("新的内容");
+  await expect(page.locator(".ProseMirror p")).toContainText("FOOBAR");
+  await expect(replacement).toBeFocused();
 });
