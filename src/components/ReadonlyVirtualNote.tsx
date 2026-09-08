@@ -10,6 +10,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 import { Slice } from "@tiptap/pm/model";
 import type { NoteEditorProps } from "./NoteEditor";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
+import { ToolbarIcon } from "./ToolbarIcon";
 import { DocumentPanelDrawer } from "./DocumentPanelDrawer";
 import {
   ReadingLayout,
@@ -692,7 +693,14 @@ export function ReadonlyVirtualNote(
       }
     >
       {props.focusMode ? (
-        <FocusModeBar title={props.title || "无标题"}>{toolbar}</FocusModeBar>
+        <FocusModeBar title={props.title || "无标题"} leading={
+          <button type="button" className="focus-readonly-toggle" aria-label="点击设为可编辑"
+            title="点击设为可编辑" aria-pressed="true" disabled={!props.onReadonlyChange}
+            onClick={() => {
+              handoffReadingAnchor(noteId, capture());
+              void props.onReadonlyChange?.(false);
+            }}><ToolbarIcon name="lock" /></button>
+        }>{toolbar}</FocusModeBar>
       ) : (
         <div className="vr-title">
           <button
@@ -704,7 +712,7 @@ export function ReadonlyVirtualNote(
               void props.onReadonlyChange?.(false);
             }}
           >
-            🔒
+            <ToolbarIcon name="lock" />
           </button>
           <strong>{props.title || "无标题"}</strong>
           {toolbar}

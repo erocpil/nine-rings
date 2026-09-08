@@ -12,10 +12,13 @@ test("横屏工具栏可触摸，旋转后滞留高度不会把文档树截成�
   });
   const bar = page.getByLabel("专注模式工具栏");
   await expect(bar).toHaveCSS("height", "30px");
+  await expect(bar).toHaveCSS("border-bottom-color", "rgba(0, 0, 0, 0)");
+  await expect(bar).toHaveCSS("box-shadow", "none");
   await expect(page.locator(".note-editor-scroll")).toHaveCSS("padding-top", "30px");
   const barBottom = (await bar.boundingBox())!;
   for (const name of ["文档目录", "文档书签"]) {
     const button = bar.getByRole("button", { name, exact: true });
+    await expect(button).toHaveCSS("border-bottom-color", "rgba(0, 0, 0, 0)");
     const box = (await button.boundingBox())!;
     expect(box.height).toBeGreaterThanOrEqual(44);
     expect(box.width).toBeGreaterThanOrEqual(44);

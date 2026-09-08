@@ -49,6 +49,7 @@ import { EditorToolbarContents } from "./EditorToolbarContents";
 import { EditorContextMenu } from "./EditorContextMenu";
 import { EditorInsertDialogs } from "./EditorInsertDialogs";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
+import { ToolbarIcon } from "./ToolbarIcon";
 import { DocumentPanelDrawer, type DocumentPanelPresentation } from "./DocumentPanelDrawer";
 import { storeImage } from "../lib/storage/db-images";
 import { blobToBase64 } from "../lib/storage/core";
@@ -3423,7 +3424,22 @@ function FullNoteEditor({ sensitive = false, noteId, title, content, contentVers
       }}
     >
       {focusMode && (
-        <FocusModeBar key={noteId} title={localTitle || "无标题"}>
+        <FocusModeBar key={noteId} title={localTitle || "无标题"} leading={onReadonlyChange && (
+          <button type="button" className="focus-readonly-toggle" aria-pressed={readonly}
+            title={readonly ? "点击设为可编辑" : "点击设为只读"}
+            aria-label={readonly ? "点击设为可编辑" : "点击设为只读"}
+            disabled={readonlyChangeBusy}
+            onClick={async () => {
+              if (readonlyChangeBusy) return;
+              setReadonlyChangeBusy(true);
+              try {
+                await onReadonlyChange(!readonly);
+                setFocusToolbarExpanded(false);
+                setReadonlyChangeNotice(true);
+              } finally { setReadonlyChangeBusy(false); }
+            }}
+          ><ToolbarIcon name={readonly ? "lock" : "unlock"} /></button>
+        )}>
           {pdfExcerptSource && onOpenPdfExcerpt && (
             <button
               type="button"
@@ -3694,10 +3710,10 @@ function FullNoteEditor({ sensitive = false, noteId, title, content, contentVers
               title={readonly ? "点击设为可编辑" : "点击设为只读"}
               aria-label={readonly ? "点击设为可编辑" : "点击设为只读"}
             >
-              <span aria-hidden="true">{readonly ? "🔒" : "🔓"}</span>
+              <ToolbarIcon name={readonly ? "lock" : "unlock"} />
             </button>
           ) : readonly ? (
-            <span className="note-readonly-badge" title="只读">🔒</span>
+            <span className="note-readonly-badge" title="只读"><ToolbarIcon name="lock" /></span>
           ) : null}
           <div className="note-title-field">
             <input

@@ -10,6 +10,7 @@ import {
 import { isStandaloneStrongLabel } from "../src/extensions/StandaloneStrongLabel";
 
 const defaults = editorAppearanceVariables();
+assert.equal(defaults["--editor-blockquote-indent"], "8px");
 assert.equal(defaults["--editor-font-size"], "16px");
 assert.equal(defaults["--editor-list-indent"], "1.25em");
 assert.equal(defaults["--editor-list-marker-gap"], "0.35em");
@@ -36,6 +37,7 @@ const custom = editorAppearanceVariables({
   editor_search_highlight_color: "#12ABef",
 });
 assert.equal(custom["--editor-font-size"], "20px");
+assert.equal(custom["--editor-blockquote-indent"], "20px");
 assert.match(custom["--editor-font-family"], /SimSun/);
 assert.equal(custom["--editor-line-height"], "1.8");
 assert.equal(custom["--editor-list-marker-gap"], "0.15em");

@@ -111,7 +111,7 @@ fn default_editor_list_marker_gap() -> f64 {
 }
 
 fn default_editor_blockquote_indent() -> i32 {
-    12
+    8
 }
 
 fn default_editor_search_highlight_color() -> String {

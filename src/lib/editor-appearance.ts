@@ -12,7 +12,7 @@ export const DEFAULT_EDITOR_APPEARANCE = {
   editor_list_margin_bottom: 0.25,
   editor_list_indent: 1.25,
   editor_list_marker_gap: 0.35,
-  editor_blockquote_indent: 12,
+  editor_blockquote_indent: 8,
   editor_search_highlight_color: "#ffd54f",
   editor_cjk_spacing: true,
 } as const;
@@ -51,7 +51,7 @@ export function editorAppearanceVariables(config?: Partial<AppConfig>): Record<s
     "--editor-list-margin-bottom": `${clamp(config?.editor_list_margin_bottom, 0, 1.5, 0.25)}em`,
     "--editor-list-indent": `${clamp(config?.editor_list_indent, 1, 3, 1.25)}em`,
     "--editor-list-marker-gap": `${clamp(config?.editor_list_marker_gap, 0.1, 0.8, 0.35)}em`,
-    "--editor-blockquote-indent": `${clamp(config?.editor_blockquote_indent, 4, 32, 12)}px`,
+    "--editor-blockquote-indent": `${clamp(config?.editor_blockquote_indent, 4, 32, 8)}px`,
     "--editor-search-highlight": safeColor(config?.editor_search_highlight_color),
   };
 }

@@ -87,7 +87,7 @@ html {
   --editor-list-indent: 1.25em;
   --editor-list-marker-gap: 0.35em;
   --editor-ordered-list-offset: 0.5em;
-  --editor-blockquote-indent: 12px;
+  --editor-blockquote-indent: 8px;
   --editor-search-highlight: #ffd54f;
   --app-viewport-width: 100vw;
   --app-viewport-height: 100dvh;
@@ -4936,7 +4936,7 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 .editor-block-number.bookmarked {
   text-decoration-line: underline;
   text-decoration-color: var(--accent);
-  text-decoration-thickness: 2px;
+  text-decoration-thickness: 1px;
   text-underline-offset: 2px;
 }
 
@@ -5290,7 +5290,7 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 /* ── Blockquote：border-left 在元素左沿 = gutter 右沿（父级 .ProseMirror 的 padding-left 提供 gutter）
    三种模式自动对齐，无需模式特化规则。 */
 .editor-content blockquote {
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid color-mix(in srgb, var(--accent) 60%, transparent);
   padding-left: var(--editor-blockquote-indent);
   margin-top: 0;
   margin-bottom: 0;
@@ -6092,7 +6092,7 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 .editor-appearance-document blockquote {
   margin: 0;
   padding-left: var(--editor-blockquote-indent);
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid color-mix(in srgb, var(--accent) 60%, transparent);
   color: var(--text-secondary);
 }
 
@@ -9887,6 +9887,8 @@ button.doc-tree-toggle:focus-visible {
     height: 30px;
     left: max(8px, var(--safe-left));
     right: max(8px, var(--safe-right));
+    border-bottom-color: transparent;
+    box-shadow: none;
   }
   .app .mobile-focus-bar > button {
     flex-basis: 44px;
@@ -9895,8 +9897,8 @@ button.doc-tree-toggle:focus-visible {
     /* 局部向下延伸，不再让整条标题栏与正文一起为触摸热区增高。 */
     align-self: flex-start;
     background: var(--bg);
-    border-radius: 0 0 8px 8px;
-    border-bottom-color: color-mix(in srgb, var(--border) 65%, transparent);
+    border-radius: 8px;
+    border-color: transparent;
   }
   .app .mobile-focus-bar > button:is(:active, .active, [aria-expanded="true"]) {
     background: color-mix(in srgb, var(--accent) 11%, var(--bg));

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
-export function FocusModeBar({ title, children }: { title: string; children: ReactNode }) {
+export function FocusModeBar({ title, leading, children }: { title: string; leading?: ReactNode; children: ReactNode }) {
   const [titleOpen, setTitleOpen] = useState(false);
   const titleRef = useRef<HTMLDivElement>(null);
   const tooltipId = useId();
@@ -29,6 +29,7 @@ export function FocusModeBar({ title, children }: { title: string; children: Rea
 
   return (
     <div className="mobile-focus-bar" aria-label="专注模式工具栏">
+      {leading}
       <div className="mobile-focus-title-wrap" ref={titleRef}>
         <button
           type="button"
