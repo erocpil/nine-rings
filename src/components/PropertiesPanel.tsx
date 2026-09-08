@@ -1,5 +1,6 @@
 import { useConfirmation } from "./ConfirmationDialog";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { isEncrypted } from "../lib/document-crypto";
 import type { AppConfig, DeltaOps, DocumentMetadata, ExternalMarkdownSource, Note, DocType } from "../types/models";
 import { api } from "../lib/api";
 import MoveToDialog from "./MoveToDialog";
@@ -19,14 +20,22 @@ interface PropertiesPanelProps {
   onClose: () => void;
   readonly?: boolean;
   readonlyChangeDisabled?: boolean;
+  securityDisabled?: boolean;
   onMetadataUpdate: (metadata: DocumentMetadata) => Promise<void>;
   onMoveDocument: (id: string, targetPath: string) => Promise<void>;
   onExportPdf: () => void;
   onExternalMarkdownApply: (content: DeltaOps, source: ExternalMarkdownSource) => Promise<void>;
   onExternalMarkdownDetach: () => Promise<void>;
   externalSourceActionsDisabled?: boolean;
+  onDocumentSecurityAction?: (remove?: boolean) => Promise<void>;
+  onPathSecurity?: (path: string, action: "set" | "remove" | "delete") => Promise<void>;
   /** 点击概念标签时，跳转到该概念的聚合页 */
   onOpenConcept?: (concept: string) => void;
+}
+
+interface FolderProtectionStatus {
+  protected: boolean;
+  protectionRoot: boolean;
 }
 
 const DOC_TYPE_OPTIONS: { value: DocType; label: string }[] = [
@@ -55,7 +64,23 @@ interface ExternalSourcePreview {
   localModified: boolean;
 }
 
-function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChangeDisabled, onMetadataUpdate, onMoveDocument, onExportPdf, onExternalMarkdownApply, onExternalMarkdownDetach, externalSourceActionsDisabled, onOpenConcept }: PropertiesPanelProps) {
+function PropertiesPanel({
+  note,
+  onNoteUpdate,
+  onClose,
+  readonly,
+  readonlyChangeDisabled,
+  securityDisabled,
+  onMetadataUpdate,
+  onMoveDocument,
+  onExportPdf,
+  onExternalMarkdownApply,
+  onExternalMarkdownDetach,
+  externalSourceActionsDisabled,
+  onDocumentSecurityAction,
+  onPathSecurity,
+  onOpenConcept,
+}: PropertiesPanelProps) {
   const [conceptInput, setConceptInput] = useState("");
   const [existingConcepts, setExistingConcepts] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -76,6 +101,13 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
   const [sourceBusy, setSourceBusy] = useState<"fetch" | "apply" | "detach" | null>(null);
   const { message: sourceMessage, showMessage: showSourceMessage, clearMessage: clearSourceMessage } = useTransientMessage();
   const sourceAbortRef = useRef<AbortController | null>(null);
+  const [pathProtection, setPathProtection] = useState<FolderProtectionStatus | null>(null);
+  const [pathSecurityLoading, setPathSecurityLoading] = useState(false);
+  const [pathSecurityBusy, setPathSecurityBusy] = useState(false);
+  const [pathSecurityMessage, setPathSecurityMessage] = useState("");
+  const [docSecurityBusy, setDocSecurityBusy] = useState(false);
+  const [docSecurityMessage, setDocSecurityMessage] = useState("");
+  const pathSecurityRequestId = useRef(0);
 
   const concepts = note.concepts ?? [];
   const linkedIds = note.linkedDocIds ?? [];
@@ -138,6 +170,108 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
     setSourceBusy(null);
     return () => sourceAbortRef.current?.abort();
   }, [clearSourceMessage, externalSource?.url, note.id]);
+
+  const loadFolderProtection = useCallback(() => {
+    if (!note.storagePath || !onPathSecurity) {
+      setPathProtection(null);
+      return;
+    }
+    const requestId = ++pathSecurityRequestId.current;
+    setPathSecurityLoading(true);
+    api.docs.tree(false).then((nodes) => {
+      if (requestId !== pathSecurityRequestId.current) return;
+      const node = nodes.find((item) => item.type === "folder" && item.path === note.storagePath);
+      if (node) {
+        setPathProtection({
+          protected: Boolean(node.protected),
+          protectionRoot: Boolean(node.protectionRoot),
+        });
+      } else {
+        setPathProtection({ protected: false, protectionRoot: false });
+      }
+    }).catch(() => {
+      if (requestId !== pathSecurityRequestId.current) return;
+      setPathProtection(null);
+    }).finally(() => {
+      if (requestId !== pathSecurityRequestId.current) return;
+      setPathSecurityLoading(false);
+    });
+  }, [note.storagePath, onPathSecurity]);
+
+  useEffect(() => {
+    loadFolderProtection();
+    return () => {
+      pathSecurityRequestId.current += 1;
+    };
+  }, [loadFolderProtection, note.id, note.storagePath]);
+
+  const runDocumentSecurity = async (remove = false) => {
+    if (!onDocumentSecurityAction || docSecurityBusy || securityDisabled) return;
+    setDocSecurityBusy(true);
+    setDocSecurityMessage("");
+    try {
+      await onDocumentSecurityAction(remove);
+      if (remove) {
+        setDocSecurityMessage("已解除文档加密");
+      } else {
+        setDocSecurityMessage(isEncrypted(note.content) ? "文档密码已更新" : "文档密码设置成功");
+      }
+    } catch (error) {
+      setDocSecurityMessage(`操作失败：${(error as Error).message}`);
+    } finally {
+      setDocSecurityBusy(false);
+    }
+  };
+
+  const runPathSecurity = async (action: "set" | "remove" | "delete") => {
+    if (!onPathSecurity || !note.storagePath || pathSecurityBusy || securityDisabled) return;
+    if ((action === "remove" || action === "delete") && !pathProtection?.protectionRoot) {
+      setPathSecurityMessage("当前路径未设置路径加密，无需该操作");
+      return;
+    }
+    if (action === "remove") {
+      const confirmed = await confirm({
+        title: "解除路径加密",
+        description: `解除 ${note.storagePath}/ 的路径密码后，该路径下新建文档不会继续继承加密。`,
+        confirmLabel: "解除路径加密",
+        danger: true,
+      });
+      if (!confirmed) return;
+    } else if (action === "delete") {
+      const confirmed = await confirm({
+        title: "删除空加密路径",
+        description: "仅当此路径下已无文档时可删除加密路径记录。确认继续？",
+        confirmLabel: "删除",
+        danger: true,
+      });
+      if (!confirmed) return;
+    } else if (pathProtection?.protectionRoot) {
+      const confirmed = await confirm({
+        title: "更改路径密码",
+        description: "更改路径密码会用新密码重新加密该路径下全部文档。确认继续？",
+        confirmLabel: "继续更改",
+      });
+      if (!confirmed) return;
+    }
+
+    setPathSecurityBusy(true);
+    setPathSecurityMessage("");
+    try {
+      await onPathSecurity(note.storagePath, action);
+      if (action === "set") {
+        setPathSecurityMessage(pathProtection?.protectionRoot ? "路径密码已更新" : "路径密码设置成功");
+      } else if (action === "remove") {
+        setPathSecurityMessage("路径密码已解除");
+      } else {
+        setPathSecurityMessage("加密路径记录已删除");
+      }
+      loadFolderProtection();
+    } catch (error) {
+      setPathSecurityMessage(`操作失败：${(error as Error).message}`);
+    } finally {
+      setPathSecurityBusy(false);
+    }
+  };
 
   const checkExternalSource = async () => {
     if (sourceBusy || externalSourceActionsDisabled) return;
@@ -351,6 +485,51 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
       </div>
 
       <div className="properties-body">
+        <div className="prop-section">
+          <div className="prop-label">文档安全</div>
+          {pathProtection?.protected ? (
+            <div className="prop-empty">
+              当前文档位于路径加密范围，由路径密码统一管理。
+            </div>
+          ) : (
+            <div className="prop-empty">
+              当前文档未继承路径密码，可设置独立文档密码。
+            </div>
+          )}
+          <div className="prop-security-actions">
+            {isEncrypted(note.content) ? (
+              <>
+                <button
+                  type="button"
+                  className="settings-sm-btn"
+                  disabled={Boolean(securityDisabled || docSecurityBusy || pathProtection?.protected)}
+                  onClick={() => { void runDocumentSecurity(false); }}
+                >
+                  {docSecurityBusy ? "处理中…" : "更改文档密码"}
+                </button>
+                <button
+                  type="button"
+                  className="settings-sm-btn"
+                  disabled={Boolean(securityDisabled || docSecurityBusy || pathProtection?.protected)}
+                  onClick={() => { void runDocumentSecurity(true); }}
+                >
+                  {docSecurityBusy ? "处理中…" : "解除文档加密"}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="settings-sm-btn"
+                disabled={Boolean(securityDisabled || docSecurityBusy || pathProtection?.protected)}
+                onClick={() => { void runDocumentSecurity(false); }}
+              >
+                {docSecurityBusy ? "处理中…" : "设置文档密码"}
+              </button>
+            )}
+          </div>
+          {docSecurityMessage && <div className={`prop-security-message ${docSecurityMessage.startsWith("操作失败") ? "error" : ""}`} role="status">{docSecurityMessage}</div>}
+        </div>
+
         {/* 位置 */}
         <div className="prop-section">
           <div className="prop-label">位置</div>
@@ -360,6 +539,57 @@ function PropertiesPanel({ note, onNoteUpdate, onClose, readonly, readonlyChange
             {!readonly && <span className="prop-path-edit-icon">↗</span>}
           </button>
         </div>
+
+        {onPathSecurity ? (
+          <div className="prop-section">
+            <div className="prop-label">路径加密</div>
+            <div className="prop-empty">
+              路径：{note.storagePath}
+            </div>
+            {pathSecurityLoading ? (
+              <div className="prop-empty">正在读取路径加密状态…</div>
+            ) : (
+              <div className="prop-empty">
+                {pathProtection?.protectionRoot
+                  ? "当前路径设置了专属密码"
+                  : pathProtection?.protected
+                    ? "当前路径继承上级路径密码"
+                    : "当前路径未设置专属路径密码"}
+              </div>
+            )}
+            <div className="prop-security-actions">
+              <button
+                type="button"
+                className="settings-sm-btn"
+                disabled={Boolean(securityDisabled || pathSecurityBusy)}
+                onClick={() => { void runPathSecurity("set"); }}
+              >
+                {pathSecurityBusy ? "处理中…" : pathProtection?.protectionRoot ? "更改路径密码" : "设置路径密码"}
+              </button>
+              {pathProtection?.protectionRoot && (
+                <>
+                  <button
+                    type="button"
+                    className="settings-sm-btn"
+                    disabled={Boolean(securityDisabled || pathSecurityBusy)}
+                    onClick={() => { void runPathSecurity("remove"); }}
+                  >
+                    {pathSecurityBusy ? "处理中…" : "解除路径加密"}
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-sm-btn"
+                    disabled={Boolean(securityDisabled || pathSecurityBusy)}
+                    onClick={() => { void runPathSecurity("delete"); }}
+                  >
+                    {pathSecurityBusy ? "处理中…" : "删除空加密路径"}
+                  </button>
+                </>
+              )}
+            </div>
+            {pathSecurityMessage && <div className={`prop-security-message ${pathSecurityMessage.startsWith("操作失败") ? "error" : ""}`} role="status">{pathSecurityMessage}</div>}
+          </div>
+        ) : null}
 
         {/* 访问权限：即使文档已经只读，也必须保留取消只读的入口。 */}
         <div className="prop-section">

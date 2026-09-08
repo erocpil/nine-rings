@@ -7583,6 +7583,24 @@ button.doc-tree-toggle:focus-visible {
   margin-bottom: 14px;
 }
 
+.prop-security-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.prop-security-message {
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.prop-security-message.error {
+  color: var(--danger);
+}
+
 .prop-label {
   font-size: 11px;
   font-weight: 600;

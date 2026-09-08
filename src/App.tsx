@@ -3,7 +3,7 @@ import { useNotes } from "./hooks/useNotes";
 import { DatePicker } from "./components/DatePicker";
 import { DAILY_NOTES_ENABLED, TODOS_ENABLED } from "./lib/workspace-features";
 import { isEncrypted, documentSessionKey } from "./lib/document-crypto";
-import { sealContent, setPathPassword, removeEmptyProtectedPath } from "./lib/document-protection";
+import { sealContent, setDocumentPassword, setPathPassword, removeEmptyProtectedPath } from "./lib/document-protection";
 import { ToolbarIcon } from "./components/ToolbarIcon";
 import type { ReadingLibrarySession } from "./components/ReadingLibrary";
 import "./components/ReadingLibrary.css";
@@ -65,6 +65,7 @@ const SettingsPanel = lazy(() => import("./components/SettingsPanel").then((modu
 const DebugPanel = lazy(() => import("./components/DebugPanel").then((module) => ({ default: module.DebugPanel })));
 const TitleBar = lazy(() => import("./components/TitleBar"));
 const PropertiesPanel = lazy(() => import("./components/PropertiesPanel"));
+const FolderPropertiesPanel = lazy(() => import("./components/FolderPropertiesPanel"));
 const DocCreateDialog = lazy(() => import("./components/DocCreateDialog"));
 const QuickSwitcher = lazy(() => import("./components/QuickSwitcher"));
 const PdfReader = lazy(() => import("./components/PdfReader"));
@@ -1314,6 +1315,28 @@ function App() {
     }
   }, [syncBusy, protectionBusy, flushAutoSave, selectNote, refreshNoteViews, dismissSearchResults]);
 
+  const handleDocumentSecurity = useCallback(async (noteId: string, remove = false) => {
+    if (syncBusy || protectionBusy) return;
+    const selected = useNotesStore.getState().selectedNote;
+    if (!selected || selected.id !== noteId) return;
+    setProtectionBusy(true);
+    try {
+      await flushAutoSave();
+      await setDocumentPassword(noteId, remove);
+      const note = await api.notes.get(noteId);
+      if (note) {
+        selectNote(note);
+      }
+      setExternalReloadKey((key) => key + 1);
+      refreshNoteViews();
+      dismissSearchResults();
+    } catch (reason) {
+      useNotesStore.setState({ error: reason instanceof Error ? reason.message : String(reason) });
+    } finally {
+      setProtectionBusy(false);
+    }
+  }, [syncBusy, protectionBusy, flushAutoSave, selectNote, refreshNoteViews, dismissSearchResults]);
+
   useEffect(() => {
     if (!query && docResults === null) return;
     const handleEscape = (event: KeyboardEvent) => {
@@ -1932,6 +1955,7 @@ function App() {
             <PropertiesPanel
               readonly={selectedNote.readonly || syncBusy}
               readonlyChangeDisabled={syncBusy}
+              securityDisabled={syncBusy || protectionBusy}
               note={selectedNote}
               onMetadataUpdate={handleDocumentMetadataUpdate}
               onMoveDocument={handleMoveDocument}
@@ -1939,6 +1963,10 @@ function App() {
               onExternalMarkdownApply={handleExternalMarkdownApply}
               onExternalMarkdownDetach={handleExternalMarkdownDetach}
               externalSourceActionsDisabled={syncBusy}
+              onDocumentSecurityAction={async (remove = false) => {
+                await handleDocumentSecurity(selectedNote.id, remove);
+              }}
+              onPathSecurity={handlePathSecurity}
               onNoteUpdate={(updated) => {
                 handleSelectNote(updated);
                 refreshNoteViews();
@@ -1952,6 +1980,21 @@ function App() {
                 setDocResults(null);
                 setPropertiesOpen(false);
               }}
+            />
+          </Suspense>
+        )}
+
+        {secondaryUiReady && !selectedNote?.storagePath && selectedFolderPath && propertiesOpen && (
+          <Suspense fallback={null}>
+            <FolderPropertiesPanel
+              path={selectedFolderPath}
+              securityDisabled={syncBusy || protectionBusy}
+              onPathSecurity={handlePathSecurity}
+              onCreateDocument={() => {
+                setSelectedFolderPath(selectedFolderPath);
+                setDocCreateOpen(true);
+              }}
+              onClose={() => setPropertiesOpen(false)}
             />
           </Suspense>
         )}
