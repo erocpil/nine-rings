@@ -25,6 +25,7 @@ import { MOBILE_VIEWPORT_QUERY, useEdgeDrawer, useMobileViewport } from "./hooks
 import { useAutoSave } from "./hooks/useAutoSave";
 import { useSettings } from "./hooks/useSettings";
 import DocTree from "./components/DocTree";
+import { DocumentBrowser } from "./components/DocumentBrowser";
 import { DocMOC } from "./components/DocMOC";
 import type { DeltaOps, DocumentMetadata, ExternalMarkdownSource, Note, DocType, SearchNavigationTarget } from "./types/models";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
@@ -447,7 +448,6 @@ function App() {
   const [overdueOpen, setOverdueOpen] = useState(false);
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
   const [docTreeToolbarHost, setDocTreeToolbarHost] = useState<HTMLDivElement | null>(null);
-  const [popupDocTreeToolbarHost, setPopupDocTreeToolbarHost] = useState<HTMLDivElement | null>(null);
   const clock = useClockAndDateRollover(setDate);
   const [activeTag, setActiveTag] = useState<string | null>(() => localStorage.getItem(ACTIVE_TAG_KEY));
   const [tagFilteredNotes, setTagFilteredNotes] = useState<Note[] | null>(null);
@@ -2107,19 +2107,13 @@ function App() {
           <div ref={popupPanelRef} className="doc-tree-popup" role="dialog" aria-modal="true" aria-label="文档视图" onClick={(e) => e.stopPropagation()}>
             <div className="sidebar-tabs">
               <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} />
-              <div
-                className="doc-tree-toolbar-host doc-tree-popup-toolbar-host"
-                ref={setPopupDocTreeToolbarHost}
-              />
+              <div className="doc-tree-toolbar-host" />
               <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" title="收起文档视图" aria-label="关闭文档视图" onClick={() => setDocTreePopupOpen(false)}><ToolbarIcon name="chevronLeft" /></button>
             </div>
             <div className="doc-tree-popup-body">
-              <DocTree
-                onPathSecurity={handlePathSecurity}
+              <DocumentBrowser
                 disabled={syncBusy}
-                collapsed={docTreeCollapsed}
-                setCollapsed={setDocTreeCollapsed}
-                toolbarHost={popupDocTreeToolbarHost}
+                initialPath={selectedFolderPath ?? ""}
                 onSelect={(note) => {
                   setQuery("");
                   setDocResults(null);
@@ -2127,38 +2121,13 @@ function App() {
                   setDate(note.date);
                   setDocTreePopupOpen(false);
                 }}
-                onFolderSelect={(path) => {
-                  dismissSearchResults();
-                  setSelectedFolderPath(path);
-                  setSelectedConcept(null);
-                  handleSelectNote(null);
-                  setDocTreePopupOpen(false);
-                }}
                 selectedId={selectedNote?.id ?? null}
-                selectedTitle={selectedNote?.title ?? undefined}
-                selectedFolderPath={selectedFolderPath}
-                onCreate={() => {
+                onCreate={(path) => {
+                  setSelectedFolderPath(path);
                   setDocTreePopupOpen(false);
                   setDocCreateOpen(true);
                 }}
                 refreshKey={docTreeKey}
-                onRename={(id, title) => updateNote(id, { title })}
-                onDelete={handleDeleteWithUndo}
-                onToggleReadonly={async (id, readonly) => {
-                  await updateNote(id, { readonly });
-                  setDocTreeKey(k => k + 1);
-                }}
-                onMoveDocument={handleMoveDocument}
-                onBatchMoveDocuments={handleBatchMoveDocuments}
-                onMoveFolder={handleMoveFolder}
-                onBatchDelete={handleBatchDeleteWithUndo}
-                onBatchSetReadonly={async (ids, readonly) => {
-                  await handleBatchSetReadonly(ids, readonly);
-                }}
-                propertiesAutoShow={propertiesOpen}
-                onTogglePropertiesAuto={() => {
-                  setPropertiesOpen((open) => !open);
-                }}
               />
             </div>
           </div>

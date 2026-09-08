@@ -15,11 +15,11 @@
     12px max(16px, var(--safe-left, 0px));
   border-bottom: 1px solid var(--border);
 }
-.reading-library-heading h1 {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  font-size: 18px;
+.reading-library-heading:focus {
+  outline: none;
+}
+.reading-library-heading > .settings-btn {
+  margin-left: auto;
 }
 .reading-library-heading button {
   display: inline-flex;
@@ -163,9 +163,6 @@
   .reading-library-heading {
     gap: 8px;
     padding-inline: 8px;
-  }
-  .reading-library-heading h1 {
-    font-size: 16px;
   }
   .reading-library-search input {
     font-size: 16px;

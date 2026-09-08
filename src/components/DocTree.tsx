@@ -634,7 +634,7 @@ function DocTree({
       <div
         key={node.path}
         className={`doc-tree-node doc-tree-doc ${isSelected ? "doc-tree-selected" : ""}`}
-        style={{ paddingLeft }}
+        style={{ paddingLeft: 6 + Math.max(0, depth - 1) * 12 }}
         onClick={() => handleDocClick(node)}
         onContextMenu={(e) => handleContextMenu(e, node)}
         onPointerDown={(event) => handleTreePointerDown(event, node)}
@@ -643,17 +643,18 @@ function DocTree({
         onPointerCancel={handleTreePointerEnd}
         onClickCapture={suppressTreeClickAfterLongPress}
       >
+        <span className="doc-tree-toggle" />
+        <span className="doc-tree-icon">{node.readonly ? "🔒" : (node.docType && DOC_TYPE_ICONS[node.docType]) || "🧩"}</span>
         {selectMode && node.noteId && (
           <input
             type="checkbox"
             className="doc-tree-checkbox"
+            aria-label={`选择文档 ${node.name}`}
             checked={isChecked}
             onChange={() => toggleSelectId(node.noteId!)}
             onClick={(e) => e.stopPropagation()}
           />
         )}
-        <span className="doc-tree-toggle" />
-        <span className="doc-tree-icon">{node.readonly ? "🔒" : (node.docType && DOC_TYPE_ICONS[node.docType]) || "🧩"}</span>
         {isRenaming && node.noteId ? (
           <InlineRename
             initialValue={node.name}

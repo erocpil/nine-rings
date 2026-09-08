@@ -61,6 +61,29 @@ async function swipeNoteEditor(
 test.describe("PWA 窄屏应用外壳", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
+  test("文档列表按路径筛选且只搜索元数据", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+    await page.evaluate(async () => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");
+      for (const [title, storagePath] of [["列表甲", "projects/list-test"], ["列表乙", "areas/list-test"]]) {
+        await api.notes.create({ title, storagePath, date: "2026-09-08", content: { ops: [{ insert: "正文不得出现在列表搜索中\n" }] } });
+      }
+    });
+    await swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: 190, endX: 110, endY: 190 });
+    const view = page.getByRole("dialog", { name: "文档视图", exact: true });
+    await view.getByRole("textbox", { name: "查找文档" }).fill("列表");
+    await expect(view.locator(".document-browser-row")).toHaveCount(2);
+    await view.getByLabel("筛选路径").selectOption("projects/list-test");
+    await expect(view.locator(".document-browser-row")).toHaveCount(1);
+    await expect(view.locator(".document-browser-row")).toContainText("列表甲");
+    await view.getByRole("textbox", { name: "查找文档" }).fill("正文不得");
+    await expect(view.locator(".document-browser-row")).toHaveCount(0);
+    await view.getByRole("button", { name: "新建文档", exact: true }).click();
+    await expect(page.getByPlaceholder("子路径 (如 nine-rings)")).toHaveValue("list-test");
+  });
+
   test("左边缘上半部打开文档视图，下半部打开文档树", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
@@ -131,9 +154,13 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect((await view.locator(".sidebar-tabs").boundingBox())!.height).toBe(height);
     await expect(view.getByRole("button", { name: "关闭文档视图", exact: true })).not.toBeFocused();
     expect(await view.locator(".sidebar-tabs").evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
-    await expect(view.locator(".doc-tree-folder-chevron").first()).toBeVisible();
+    await expect(view.getByRole("region", { name: "文档列表" })).toBeVisible();
     await view.getByRole("button", { name: "打开阅读资料库", exact: true }).click();
     await expect(page.getByRole("region", { name: "阅读资料库", exact: true })).toBeVisible();
+    const readingHeader = page.locator(".reading-library-heading");
+    await expect(readingHeader).not.toContainText("阅读资料库");
+    await expect(readingHeader.getByRole("button", { name: "切换到文档", exact: true })).toBeVisible();
+    await expect(readingHeader.getByRole("button", { name: "设置", exact: true })).toBeVisible();
     await expect(view).toBeHidden();
   });
 

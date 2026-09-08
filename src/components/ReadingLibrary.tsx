@@ -50,7 +50,7 @@ export default function ReadingLibrary({
   const [deleting, setDeleting] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const headingRef = useRef<HTMLHeadingElement>(null);
+  const headingRef = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     headingRef.current?.focus({ preventScroll: true });
   }, []);
@@ -305,11 +305,8 @@ export default function ReadingLibrary({
         else onClose();
       }}
     >
-      <header className="reading-library-heading">
+      <header className="reading-library-heading" ref={headingRef} tabIndex={-1}>
         <WorkspaceSwitch mode="reading" disabled={busy} onSwitch={onClose} />
-        <h1 ref={headingRef} tabIndex={-1}>
-          阅读资料库
-        </h1>
         <button
           type="button"
           className="settings-btn"

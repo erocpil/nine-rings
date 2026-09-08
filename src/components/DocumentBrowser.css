@@ -1,0 +1,20 @@
+.document-browser { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.document-browser-controls { padding: 10px 12px 4px; }
+.document-browser-controls input { width: 100%; box-sizing: border-box; min-width: 0; }
+.document-browser-filters { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.document-browser-filters select { min-width: 0; min-height: 36px; max-width: 100%; }
+.document-browser-filters select:first-child { flex: 1; width: 0; }
+.document-browser-filters .btn-icon { flex-shrink: 0; min-width: 36px; min-height: 36px; }
+.document-browser-count { padding: 6px 12px; color: var(--text-muted); font-size: 12px; border-bottom: 1px solid var(--border); }
+.document-browser-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.document-browser-list::after { content: ""; display: block; height: 33vh; }
+.document-browser-list > p { padding: 12px; color: var(--text-muted); }
+.document-browser-row { display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; color: var(--text); text-align: left; }
+.document-browser-row.selected { background: var(--active-bg); box-shadow: inset 3px 0 var(--accent); }
+.document-browser-row > .toolbar-icon { width: 17px; height: 17px; flex-shrink: 0; margin-top: 2px; color: var(--text-muted); }
+.document-browser-details { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.document-browser-title { font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.document-browser-path { color: var(--text-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.document-browser-row time { color: var(--text-muted); font-size: 11px; white-space: nowrap; padding-top: 3px; }
+.document-browser-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.document-browser-tags > span { font-size: 10px; padding: 1px 4px; border-radius: 3px; background: var(--active-bg); color: var(--text-muted); }
