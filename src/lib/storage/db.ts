@@ -26,49 +26,66 @@ function openDB(): Promise<IDBDatabase> {
     }, 5000);
 
     let req: IDBOpenDBRequest;
+    let retriedAtExistingVersion = false;
+    const attachRequestHandlers = (request: IDBOpenDBRequest) => {
+      req = request;
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        const tx = req.transaction!;
+        for (const [storeName, definition] of Object.entries(IDB_STORES)) {
+          const store = db.objectStoreNames.contains(storeName)
+            ? tx.objectStore(storeName)
+            : db.createObjectStore(storeName, { keyPath: definition.keyPath });
+          for (const index of definition.indexes) {
+            if (!store.indexNames.contains(index.name)) {
+              store.createIndex(index.name, index.keyPath, { unique: false });
+            }
+          }
+        }
+      };
+      req.onsuccess = () => {
+        clearTimeout(timeout);
+        if (expired) {
+          req.result.close();
+          return;
+        }
+        const invalidate = () => {
+          req.result.close();
+          if (_dbOpenPromise === attempt) _dbOpenPromise = null;
+        };
+        req.result.onversionchange = invalidate;
+        req.result.onclose = invalidate;
+        resolve(req.result);
+      };
+      req.onerror = () => {
+        // A stale PWA bundle can request an older version after another bundle
+        // has upgraded this browser database. Use the existing additive schema.
+        if (req.error?.name === "VersionError" && !retriedAtExistingVersion) {
+          retriedAtExistingVersion = true;
+          try {
+            attachRequestHandlers(indexedDB.open(DB_NAME));
+          } catch (error) {
+            clearTimeout(timeout);
+            if (_dbOpenPromise === attempt) _dbOpenPromise = null;
+            reject(error);
+          }
+          return;
+        }
+        clearTimeout(timeout);
+        if (_dbOpenPromise === attempt) _dbOpenPromise = null;
+        reject(req.error || new Error("IndexedDB open failed"));
+      };
+      req.onblocked = () => {
+        console.warn("[IDB] blocked — another connection is open");
+      };
+    };
     try {
-      req = indexedDB.open(DB_NAME, IDB_DATABASE_VERSION);
+      attachRequestHandlers(indexedDB.open(DB_NAME, IDB_DATABASE_VERSION));
     } catch (error) {
       clearTimeout(timeout);
       reject(error);
       return;
     }
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      const tx = req.transaction!;
-      for (const [storeName, definition] of Object.entries(IDB_STORES)) {
-        const store = db.objectStoreNames.contains(storeName)
-          ? tx.objectStore(storeName)
-          : db.createObjectStore(storeName, { keyPath: definition.keyPath });
-        for (const index of definition.indexes) {
-          if (!store.indexNames.contains(index.name)) {
-            store.createIndex(index.name, index.keyPath, { unique: false });
-          }
-        }
-      }
-    };
-    req.onsuccess = () => {
-      clearTimeout(timeout);
-      if (expired) {
-        req.result.close();
-        return;
-      }
-      const invalidate = () => {
-        req.result.close();
-        if (_dbOpenPromise === attempt) _dbOpenPromise = null;
-      };
-      req.result.onversionchange = invalidate;
-      req.result.onclose = invalidate;
-      resolve(req.result);
-    };
-    req.onerror = () => {
-      clearTimeout(timeout);
-      if (_dbOpenPromise === attempt) _dbOpenPromise = null;
-      reject(req.error || new Error("IndexedDB open failed"));
-    };
-    req.onblocked = () => {
-      console.warn("[IDB] blocked — another connection is open");
-    };
   });
 
   _dbOpenPromise = attempt;

@@ -288,10 +288,15 @@ function App() {
       const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = `nine-rings-recovery-${localDateKey()}.json`;
+      document.body.appendChild(anchor);
       anchor.click();
-      URL.revokeObjectURL(url);
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
     } catch (backupError) {
       console.error("[Recovery] 紧急导出失败:", backupError);
+      useNotesStore.setState({
+        error: `恢复文件导出失败：${backupError instanceof Error ? backupError.message : String(backupError)}`,
+      });
     }
   }, [getPendingData]);
 

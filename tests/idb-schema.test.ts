@@ -21,11 +21,32 @@ function assert(condition: boolean, message: string): void {
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("nine_rings", IDB_DATABASE_VERSION);
+    const request = indexedDB.open("nine_rings");
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
 }
+
+// A cached older PWA bundle may start after a newer bundle has already bumped
+// the database. Seed that real-world state while also creating the current
+// additive schema for the contract assertions below.
+await new Promise<void>((resolve, reject) => {
+  const request = indexedDB.open("nine_rings", IDB_DATABASE_VERSION + 1);
+  request.onupgradeneeded = () => {
+    const database = request.result;
+    for (const [storeName, definition] of Object.entries(IDB_STORES)) {
+      const store = database.createObjectStore(storeName, { keyPath: definition.keyPath });
+      for (const index of definition.indexes) {
+        store.createIndex(index.name, index.keyPath, { unique: false });
+      }
+    }
+  };
+  request.onsuccess = () => {
+    request.result.close();
+    resolve();
+  };
+  request.onerror = () => reject(request.error);
+});
 
 await idbAdapter.getAllNotes();
 const db = await openDatabase();
