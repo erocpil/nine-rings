@@ -1,12 +1,13 @@
 import { useConfirmation } from "./ConfirmationDialog";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
-import type { PathNode } from "../types/models";
+import type { DocType, Note, PathNode } from "../types/models";
 
 interface FolderPropertiesPanelProps {
   path: string;
   securityDisabled?: boolean;
   onPathSecurity: (path: string, action: "set" | "remove" | "delete") => Promise<void>;
+  onFilterByPath?: (path: string, docType?: DocType) => void;
   onCreateDocument: () => void;
   onClose: () => void;
 }
@@ -20,11 +21,19 @@ function FolderPropertiesPanel({
   path,
   securityDisabled,
   onPathSecurity,
+  onFilterByPath,
   onCreateDocument,
   onClose,
 }: FolderPropertiesPanelProps) {
   const [pathProtection, setPathProtection] = useState<FolderProtectionStatus>({ protected: false, protectionRoot: false });
   const [documentCount, setDocumentCount] = useState<number | null>(null);
+  const [recentlyUpdatedAt, setRecentlyUpdatedAt] = useState<string | null>(null);
+  const [typeCounts, setTypeCounts] = useState<Record<DocType, number>>({
+    explanation: 0,
+    "how-to": 0,
+    reference: 0,
+    tutorial: 0,
+  });
   const [pathLoading, setPathLoading] = useState(false);
   const [pathBusy, setPathBusy] = useState(false);
   const [pathMessage, setPathMessage] = useState("");
@@ -33,12 +42,22 @@ function FolderPropertiesPanel({
 
   const pathParts = useMemo(() => path.split("/").filter(Boolean), [path]);
   const pathName = pathParts[pathParts.length - 1] || path;
+  const quickPathFilters = useMemo(() => [
+    { label: "全部文档", value: "all" as const, count: documentCount ?? 0 },
+    { label: "解释", value: "explanation" as const, count: typeCounts.explanation },
+    { label: "指南", value: "how-to" as const, count: typeCounts["how-to"] },
+    { label: "参考", value: "reference" as const, count: typeCounts.reference },
+    { label: "教程", value: "tutorial" as const, count: typeCounts.tutorial },
+  ], [typeCounts, documentCount]);
 
   const loadFolderData = useCallback(async () => {
     const requestId = ++requestIdRef.current;
     setPathLoading(true);
     try {
-      const nodes = await api.docs.tree(false);
+      const [nodes, notes] = await Promise.all([
+        api.docs.tree(false),
+        api.docs.listByPath(path),
+      ]);
       if (requestId !== requestIdRef.current) return;
       const node = nodes.find((item: PathNode) => item.type === "folder" && item.path === path);
       if (node) {
@@ -51,10 +70,32 @@ function FolderPropertiesPanel({
         setPathProtection({ protected: false, protectionRoot: false });
         setDocumentCount(null);
       }
+      setTypeCounts({
+        explanation: notes.filter((note: Note) => note.docType === "explanation").length,
+        "how-to": notes.filter((note: Note) => note.docType === "how-to").length,
+        reference: notes.filter((note: Note) => note.docType === "reference").length,
+        tutorial: notes.filter((note: Note) => note.docType === "tutorial").length,
+      });
+      if (notes.length) {
+        const maxUpdatedAt = notes.reduce((max, note) => {
+          if (!note.updated_at) return max;
+          return max && max.localeCompare(note.updated_at) >= 0 ? max : note.updated_at;
+        }, notes[0]?.updated_at ?? "");
+        setRecentlyUpdatedAt(maxUpdatedAt || null);
+      } else {
+        setRecentlyUpdatedAt(null);
+      }
     } catch {
       if (requestId !== requestIdRef.current) return;
       setPathProtection({ protected: false, protectionRoot: false });
       setDocumentCount(null);
+      setRecentlyUpdatedAt(null);
+      setTypeCounts({
+        explanation: 0,
+        "how-to": 0,
+        reference: 0,
+        tutorial: 0,
+      });
     } finally {
       if (requestId === requestIdRef.current) setPathLoading(false);
     }
@@ -142,6 +183,22 @@ function FolderPropertiesPanel({
           </button>
           <div className="prop-empty">
             子文档数：{pathLoading ? "读取中…" : (documentCount ?? 0)} 篇
+          </div>
+          <div className="prop-empty">
+            最近改动：{pathLoading ? "读取中…" : (recentlyUpdatedAt ? new Date(recentlyUpdatedAt).toLocaleString() : "暂无文档")}
+          </div>
+          <div className="prop-quick-filter">
+            {quickPathFilters.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                className="settings-sm-btn"
+                disabled={Boolean(pathLoading || (pathMessage && pathBusy))}
+                onClick={() => { onFilterByPath?.(path, item.value === "all" ? undefined : item.value); }}
+              >
+                {item.label} ({item.count})
+              </button>
+            ))}
           </div>
         </div>
 

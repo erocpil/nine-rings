@@ -1315,6 +1315,14 @@ function App() {
     }
   }, [syncBusy, protectionBusy, flushAutoSave, selectNote, refreshNoteViews, dismissSearchResults]);
 
+  const handleFolderFilter = useCallback((path: string, docType?: DocType) => {
+    void handleDocSearch({
+      text: "",
+      storagePath: path,
+      ...(docType ? { docType } : {}),
+    });
+  }, [handleDocSearch]);
+
   const handleDocumentSecurity = useCallback(async (noteId: string, remove = false) => {
     if (syncBusy || protectionBusy) return;
     const selected = useNotesStore.getState().selectedNote;
@@ -1991,6 +1999,7 @@ function App() {
               path={selectedFolderPath}
               securityDisabled={syncBusy || protectionBusy}
               onPathSecurity={handlePathSecurity}
+              onFilterByPath={handleFolderFilter}
               onCreateDocument={() => {
                 setSelectedFolderPath(selectedFolderPath);
                 setDocCreateOpen(true);
