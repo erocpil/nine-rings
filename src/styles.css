@@ -1012,7 +1012,8 @@ body {
   line-height: 1;
 }
 
-.note-readonly-action {
+.note-readonly-action,
+.focus-mode .mobile-focus-bar > .focus-readonly-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1029,8 +1030,17 @@ body {
   cursor: pointer;
 }
 
+.focus-mode .mobile-focus-bar > .focus-readonly-toggle {
+  flex: 0 0 26px;
+  align-self: center;
+  /* 2px 栏间距 + 3px 外边距，与普通模式的 4px + 1px 一致。 */
+  margin-right: 3px;
+}
+
 .note-readonly-action:hover,
-.note-readonly-action:focus-visible {
+.note-readonly-action:focus-visible,
+.focus-mode .mobile-focus-bar > .focus-readonly-toggle:hover,
+.focus-mode .mobile-focus-bar > .focus-readonly-toggle:focus-visible {
   border-color: var(--accent);
   color: var(--accent);
   outline: none;
@@ -3221,7 +3231,7 @@ body {
   width: 320px;
   max-width: 85vw;
   height: 100%;
-  background: var(--surface);
+  background: var(--bg);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -6913,6 +6923,15 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   padding: 4px 6px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  min-height: 44px;
+}
+
+.app-sidebar:focus,
+.doc-tree-popup:focus,
+.mobile-document-drawer-panel:focus { outline: none; }
+
+@media (pointer: coarse) {
+  .sidebar-tabs { height: 52px; min-height: 52px; padding-block: 4px; }
 }
 
 .sidebar-tab {
@@ -7185,6 +7204,13 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   font-weight: 500;
   color: var(--text);
 }
+
+.doc-tree-folder-chevron { display: inline-flex; color: var(--text-secondary); }
+.doc-tree-folder-chevron .toolbar-icon { width: 14px; height: 14px; }
+.doc-tree-folder-chevron.expanded { transform: rotate(90deg); }
+.doc-tree-path-lock .toolbar-icon { width: 13px; height: 13px; color: var(--text-secondary); }
+.doc-tree-folder .doc-tree-name { font-size: 13px; }
+.doc-tree-folder .doc-tree-count { font-size: 10px; padding-inline: 3px; }
 
 .doc-tree-doc {
   color: var(--text);
@@ -9258,6 +9284,7 @@ button.doc-tree-toggle:focus-visible {
 }
 
 @media (max-width: 768px), (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
+  .doc-tree-popup { padding-top: var(--safe-top); }
   /* 正常浏览时由 fixed inset 直接跟随布局视口。横竖屏切换期间 iOS 的
      visualViewport 可能仍短暂报告上一方向尺寸，不能用它锁定应用外壳。 */
   .app {
@@ -9611,13 +9638,13 @@ button.doc-tree-toggle:focus-visible {
     position: fixed;
     top: calc(var(--app-visual-viewport-offset-top, 0px) + var(--safe-top));
     right: 8px;
-    left: 8px;
+    left: max(4px, var(--safe-left));
     z-index: 32;
     display: flex;
     align-items: center;
     gap: 2px;
     height: 30px;
-    padding: 1px 6px;
+    padding: 1px 0;
     border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
     box-shadow: 0 1px 0 color-mix(in srgb, var(--text) 3%, transparent);
     /* 固定毛玻璃层会让 iOS 在长页面滚动时持续重合成并加剧棋盘式补绘。 */
@@ -9720,7 +9747,7 @@ button.doc-tree-toggle:focus-visible {
     display: block;
     width: 100%;
     height: 26px;
-    padding: 0 2px;
+    padding: 2px 0;
     border: 0;
     border-radius: 4px;
     background: transparent;
@@ -9731,12 +9758,12 @@ button.doc-tree-toggle:focus-visible {
     -webkit-tap-highlight-color: transparent;
     overflow: hidden;
     min-width: 0;
-    font-size: 16px;
-    font-weight: 600;
+    font-size: calc(var(--editor-font-size) * 1.125);
+    font-weight: 700;
     line-height: 1.2;
     text-overflow: ellipsis;
     white-space: nowrap;
-    letter-spacing: -0.01em;
+    letter-spacing: normal;
   }
 
   .mobile-focus-full-title {
@@ -9933,7 +9960,7 @@ button.doc-tree-toggle:focus-visible {
   }
   .app .focus-mode .mobile-focus-bar {
     height: 30px;
-    left: max(8px, var(--safe-left));
+    left: max(4px, var(--safe-left));
     right: max(8px, var(--safe-right));
     border-bottom-color: transparent;
     box-shadow: none;

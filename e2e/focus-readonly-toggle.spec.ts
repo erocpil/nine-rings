@@ -8,6 +8,8 @@ test("专注标题前的线框锁切换只读，横竖屏不退出专注", async
   await expect(editor).toBeVisible();
   const title = "这是一份标题很长的文档，用于验证紧凑专注按钮不会遮挡标题";
   await page.locator(".note-title").fill(title);
+  const regularLock = (await page.locator(".note-title-row .note-readonly-action").boundingBox())!;
+  const regularTitle = (await page.locator(".note-title").boundingBox())!;
   await page.getByRole("button", { name: "专注模式", exact: true }).click();
   const bar = page.getByLabel("专注模式工具栏");
   for (const viewport of [{ width: 390, height: 844 }, { width: 844, height: 390 }]) {
@@ -22,6 +24,13 @@ test("专注标题前的线框锁切换只读，横竖屏不退出专注", async
     await expect(bar.getByRole("tooltip")).toHaveText(title);
     await titleButton.tap();
     const lock = bar.getByRole("button", { name: "点击设为只读", exact: true });
+    const lockBox = (await lock.boundingBox())!;
+    expect(lockBox.width).toBe(26);
+    expect(lockBox.height).toBe(26);
+    expect(titleBox.x - (lockBox.x + lockBox.width)).toBe(regularTitle.x - (regularLock.x + regularLock.width));
+    if (viewport.width === 390) expect(lockBox.x).toBe(regularLock.x);
+    await expect(titleButton).toHaveCSS("font-size", "18px");
+    await expect(titleButton).toHaveCSS("font-weight", "700");
     await expect(lock.locator("svg.toolbar-icon")).toBeVisible();
     expect(await lock.evaluate(el => el.nextElementSibling?.classList.contains("mobile-focus-title-wrap"))).toBe(true);
     await lock.tap();

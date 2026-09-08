@@ -88,7 +88,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     }
   });
 
-  test("手机顶部查找居左，目录书签专注设置居右", async ({ page }) => {
+  test("手机顶部查找居左，目录书签专注居右", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
     const header = page.locator(".app-header");
@@ -96,7 +96,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(header.getByTitle("文档视图", { exact: true })).toHaveCount(0);
     for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
       await page.setViewportSize(viewport);
-      const names = ["快速切换笔记", "搜索", "文档目录", "文档书签", "专注模式", "设置"];
+      const names = ["快速切换笔记", "搜索", "文档目录", "文档书签", "专注模式"];
       let right = 0;
       for (const name of names) {
         const box = (await header.getByRole("button", { name, exact: true }).boundingBox())!;
@@ -112,6 +112,47 @@ test.describe("PWA 窄屏应用外壳", () => {
     await header.getByRole("button", { name: "文档书签", exact: true }).click();
     await header.getByRole("button", { name: "专注模式", exact: true }).click();
     await expect(page.getByLabel("专注模式工具栏")).toBeVisible();
+  });
+
+  test("两种文档侧栏统一顶部高度与收起样式，文档视图可进入阅读", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+    const host = page.locator(".note-editor");
+    await swipeNoteEditor(host, { startX: 8, startY: 570, endX: 110, endY: 570 });
+    const tree = page.getByRole("dialog", { name: "文档侧栏", exact: true });
+    await expect(tree).toBeVisible();
+    const height = (await tree.locator(".sidebar-tabs").boundingBox())!.height;
+    const close = tree.getByRole("button", { name: "隐藏侧栏", exact: true });
+    await expect(close).not.toBeFocused();
+    await close.click();
+    await swipeNoteEditor(host, { startX: 8, startY: 190, endX: 110, endY: 190 });
+    const view = page.getByRole("dialog", { name: "文档视图", exact: true });
+    await expect(view).toBeVisible();
+    expect((await view.locator(".sidebar-tabs").boundingBox())!.height).toBe(height);
+    await expect(view.getByRole("button", { name: "关闭文档视图", exact: true })).not.toBeFocused();
+    expect(await view.locator(".sidebar-tabs").evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+    await expect(view.locator(".doc-tree-folder-chevron").first()).toBeVisible();
+    await view.getByRole("button", { name: "打开阅读资料库", exact: true }).click();
+    await expect(page.getByRole("region", { name: "阅读资料库", exact: true })).toBeVisible();
+    await expect(view).toBeHidden();
+  });
+
+  test("普通模式左划区分书签目录，设置仅在阅读侧栏提供", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".ProseMirror")).toBeVisible();
+    await expect(page.locator(".app-header").getByRole("button", { name: "设置", exact: true })).toHaveCount(0);
+    for (const [y, name] of [[190, "文档书签"], [570, "文档目录"]] as const) {
+      await swipeNoteEditor(page.locator(".note-editor"), { startX: 370, startY: y, endX: 270, endY: y });
+      const drawer = page.getByRole("dialog", { name: "阅读侧栏", exact: true });
+      await expect(drawer.getByRole("navigation", { name, exact: true })).toBeVisible();
+      await expect(page.locator(".app")).not.toHaveClass(/app-focus-mode/);
+      await drawer.getByRole("button", { name: "设置", exact: true }).click();
+      const settings = page.getByRole("dialog", { name: "设置", exact: true });
+      await expect(settings).toBeVisible();
+      await settings.getByRole("button", { name: "关闭设置", exact: true }).click();
+      await expect(drawer).toBeHidden();
+      await expect(page.locator(".app")).not.toHaveClass(/app-focus-mode/);
+    }
   });
 
   test("文档工具栏右对齐且抽屉收起按钮使用紧凑线框图标", async ({ page }, testInfo) => {

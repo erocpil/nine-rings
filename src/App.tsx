@@ -1655,9 +1655,9 @@ function App() {
               disabled={!selectedNote}
               onClick={() => setFocusMode(true)}><ToolbarIcon name="expand" /></button>
           </div>}
-          <button className="btn-icon" onClick={() => setSettingsOpen(true)} title="设置" aria-label="设置">
+          {(!mobileDrawerViewport || !selectedNote) && <button className="btn-icon" onClick={() => setSettingsOpen(true)} title="设置" aria-label="设置">
             <ToolbarIcon name="sliders" />
-          </button>
+          </button>}
         </div>
       </header>
 
@@ -2105,13 +2105,13 @@ function App() {
         <div className="doc-tree-popup-overlay" onClick={() => setDocTreePopupOpen(false)}>
           <div ref={popupBackdropRef} className="doc-tree-popup-backdrop" aria-hidden="true" />
           <div ref={popupPanelRef} className="doc-tree-popup" role="dialog" aria-modal="true" aria-label="文档视图" onClick={(e) => e.stopPropagation()}>
-            <div className="settings-header">
-              <h2>文档视图</h2>
+            <div className="sidebar-tabs">
+              <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} />
               <div
                 className="doc-tree-toolbar-host doc-tree-popup-toolbar-host"
                 ref={setPopupDocTreeToolbarHost}
               />
-              <button data-drawer-close className="settings-close" aria-label="关闭文档视图" onClick={() => setDocTreePopupOpen(false)}><ToolbarIcon name="close" /></button>
+              <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" title="收起文档视图" aria-label="关闭文档视图" onClick={() => setDocTreePopupOpen(false)}><ToolbarIcon name="chevronLeft" /></button>
             </div>
             <div className="doc-tree-popup-body">
               <DocTree

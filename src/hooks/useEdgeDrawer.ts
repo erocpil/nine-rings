@@ -24,7 +24,11 @@ export function useEdgeDrawer(open: boolean, side: "left" | "right", panelRef: R
     const backdrop = backdropRef.current;
     if (!open || !panel) return;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    panel.querySelector<HTMLElement>("[data-drawer-initial-focus], [data-drawer-close]")?.focus({ preventScroll: true });
+    // Focus the dialog itself on touch opening; focusing its first button makes
+    // WebKit paint a keyboard focus ring before the user has touched that control.
+    const previousTabIndex = panel.getAttribute("tabindex");
+    panel.tabIndex = -1;
+    panel.focus({ preventScroll: true });
     const unbind = bindEdgeSwipe(window, (touch) => {
       if (!(touch.target instanceof Node) || (!panel.contains(touch.target) && !backdrop?.contains(touch.target))) return null;
       return { direction: side === "left" ? "left" : "right", run: () => close.current() };
@@ -58,6 +62,8 @@ export function useEdgeDrawer(open: boolean, side: "left" | "right", panelRef: R
     window.addEventListener("touchmove", preventScroll, { passive: false });
     document.addEventListener("keydown", keydown, true);
     return () => {
+      if (previousTabIndex === null) panel.removeAttribute("tabindex");
+      else panel.setAttribute("tabindex", previousTabIndex);
       unbind();
       window.removeEventListener("touchmove", preventScroll);
       document.removeEventListener("keydown", keydown, true);

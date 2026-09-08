@@ -6,7 +6,7 @@ import { ToolbarIcon } from "./ToolbarIcon";
 type Panel = "outline" | "bookmark";
 export type DocumentPanelPresentation = "popover" | "drawer";
 
-/** 点击入口使用浮层，手机专注模式的边缘手势使用阅读侧栏。 */
+/** 点击入口使用浮层，手机普通/专注模式的边缘手势共用阅读侧栏。 */
 export function DocumentPanelDrawer({ enabled, presentation, panel, hasOutline, onSelect, onClose, onOpenSettings, children }: {
   enabled: boolean;
   presentation: DocumentPanelPresentation;

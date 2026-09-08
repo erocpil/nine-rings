@@ -52,15 +52,6 @@ const DOC_TYPE_ICONS: Record<string, string> = {
   tutorial: "🎓",
 };
 
-const STATE_ICONS: Record<string, string> = {
-  projects: "📁",
-  areas: "🌐",
-  references: "📚",
-  ideas: "💡",
-  archives: "📦",
-  daily: "📅",
-};
-
 const DOC_TREE_SCROLL_KEY = "nr:docTreeScrollTop";
 
 interface ContextMenuState {
@@ -570,7 +561,7 @@ function DocTree({
     });
 
   const renderNode = (node: PathNode, depth: number) => {
-    const paddingLeft = 6 + depth * 8;  // 缩进 8px/层
+    const paddingLeft = 6 + depth * 12;
     const isCollapsed = collapsed.has(node.path);
     const hasChildren = childrenMap.has(node.path) && childrenMap.get(node.path)!.length > 0;
 
@@ -595,14 +586,12 @@ function DocTree({
                 aria-expanded={!isCollapsed}
                 onClick={(e) => { e.stopPropagation(); toggleCollapse(node.path); }}
               >
-                {isCollapsed ? "▶" : "▼"}
+                <span className={`doc-tree-folder-chevron${isCollapsed ? "" : " expanded"}`}><ToolbarIcon name="chevronRight" /></span>
               </button>
             ) : (
               <span className="doc-tree-toggle" aria-hidden="true" />
             )}
-            <span className="doc-tree-icon">
-              {node.protected ? "🔒" : STATE_ICONS[node.path.split("/")[0]] ?? "📂"}
-            </span>
+            {node.protected && <span className="doc-tree-icon doc-tree-path-lock" title="加密路径"><ToolbarIcon name="lock" /></span>}
             {renamingFolder === node.path ? (
               <InlineRename
                 initialValue={node.name}

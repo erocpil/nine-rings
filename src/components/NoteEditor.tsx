@@ -1321,7 +1321,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
   }, [bookmarkOpen, openDocumentBookmarks]);
 
   useEffect(() => {
-    if (!focusMode || !isMobileToolbarViewport) return;
+    if (!isMobileToolbarViewport) return;
 
     return bindViewportEdgeSwipe("right", (touch) => {
       const target = touch.clientY < swipeViewport().middleY ? "bookmark" : "outline";
@@ -1335,7 +1335,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
         }
       };
     });
-  }, [focusMode, isMobileToolbarViewport, documentOutline.length, openDocumentOutline, openDocumentBookmarks]);
+  }, [isMobileToolbarViewport, documentOutline.length, openDocumentOutline, openDocumentBookmarks]);
 
   const toggleDocumentOutline = useCallback(() => {
     if (outlineOpen) {
@@ -3552,7 +3552,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
         </div>
       )}
       <DocumentPanelDrawer
-        enabled={focusMode && isMobileToolbarViewport}
+        enabled={isMobileToolbarViewport}
         presentation={panelPresentation}
         panel={bookmarkOpen ? "bookmark" : outlineOpen && documentOutline.length > 0 ? "outline" : null}
         hasOutline={documentOutline.length > 0}

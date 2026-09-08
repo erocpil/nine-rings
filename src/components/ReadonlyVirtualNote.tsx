@@ -618,12 +618,12 @@ export function ReadonlyVirtualNote(
   useEffect(
     () =>
       bindViewportEdgeSwipe("right", (touch) => {
-        if (!props.focusMode || !mobileDrawerViewport) return null;
+        if (!mobileDrawerViewport) return null;
         const target = touch.clientY < swipeViewport().middleY ? "bookmarks" : "outline";
         if (target === "outline" && sections.length === 0) return null;
         return () => openPanel(target, true);
       }),
-    [props.focusMode, mobileDrawerViewport, sections.length, openPanel],
+    [mobileDrawerViewport, sections.length, openPanel],
   );
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -755,7 +755,7 @@ export function ReadonlyVirtualNote(
         </div>
       )}
       <DocumentPanelDrawer
-        enabled={!!props.focusMode && mobileDrawerViewport}
+        enabled={mobileDrawerViewport}
         presentation={presentation}
         panel={
           panel === "outline"
