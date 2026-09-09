@@ -59,6 +59,7 @@ import { DocumentPanelDrawer, type DocumentPanelPresentation } from "./DocumentP
 import { storeImage } from "../lib/storage/db-images";
 import { blobToBase64 } from "../lib/storage/core";
 import { ProtectedNoteEditor } from "./ProtectedNoteEditor";
+import { BlockSelectAll } from "../extensions/BlockSelectAll";
 import { api } from "../lib/api";
 import { mdToDelta } from "../lib/md-parser";
 import {
@@ -566,6 +567,7 @@ function DocumentEditor(props: NoteEditorProps) {
   useEffect(watchBlockDisplaySettings, []);
   const [experimental, setExperimental] = useState(readonlyRenderingEnabled);
   const [full, setFull] = useState(false);
+  const [selectAllOnOpen, setSelectAllOnOpen] = useState(false);
   const previousExport = useRef(props.pdfExportRequestId);
   const exportRequested = previousExport.current !== props.pdfExportRequestId;
   useEffect(() => {
@@ -596,11 +598,11 @@ function DocumentEditor(props: NoteEditorProps) {
     const doc = buildReadonlyDocument(JSON.parse(readingSource), readonlySchema);
     return doc ? { doc, key: ++readonlyDocumentSequence } : null;
   }, [readingSource]);
-  if (readingDocument && !full && !exportRequested) return <ReadonlyVirtualNote {...props} key={`${props.noteId}:${readingDocument.key}`} doc={readingDocument.doc} onFallback={() => setFull(true)} />;
-  return <FullNoteEditor {...props} initialPdfExportRequest={exportRequested} />;
+  if (readingDocument && !full && !exportRequested) return <ReadonlyVirtualNote {...props} key={`${props.noteId}:${readingDocument.key}`} doc={readingDocument.doc} onFallback={(selectAll = false) => { setSelectAllOnOpen(selectAll); setFull(true); }} />;
+  return <FullNoteEditor {...props} initialPdfExportRequest={exportRequested} selectAllOnOpen={selectAllOnOpen} />;
 }
 
-function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean }) {
+function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -1000,6 +1002,7 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
       CollapsibleBlockquote,
       createReadonlyDocumentGuard(() => readonlyRef.current),
       StructuredBlockExit,
+      BlockSelectAll,
       MarkdownLinkInput,
       CjkLatinSpacing,
       BlockIndent,
@@ -1193,6 +1196,9 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
       frame = requestAnimationFrame(() => {
         const root = scrollRef.current;
         if (!root || editor.isDestroyed || !editor.isFocused || readonly) return;
+        // Only compensate for a virtual keyboard. Applying this mobile margin
+        // on desktop moves text even when a mouse click is already visible.
+        if (!document.documentElement.classList.contains("web-keyboard-open")) return;
         try {
           const rootRect = root.getBoundingClientRect();
           const caret = editor.view.coordsAtPos(editor.state.selection.head);
@@ -2013,6 +2019,7 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
     let frame = 0;
     let restoreFrame = 0;
     let followupRestoreFrame = 0;
+    let smallRestoreFrame = 0;
     let scrollCaptureTimer = 0;
     let scrollGestureActive = false;
     let adjusting = false;
@@ -2163,6 +2170,8 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
       restoreFrame = 0;
       if (followupRestoreFrame) cancelAnimationFrame(followupRestoreFrame);
       followupRestoreFrame = 0;
+      if (smallRestoreFrame) cancelAnimationFrame(smallRestoreFrame);
+      smallRestoreFrame = 0;
     };
 
     const stabilizeWidthChange = (force = false) => {
@@ -2195,7 +2204,9 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
         return;
       }
       const previous = anchor;
-      requestAnimationFrame(() => {
+      if (smallRestoreFrame) cancelAnimationFrame(smallRestoreFrame);
+      smallRestoreFrame = requestAnimationFrame(() => {
+        smallRestoreFrame = 0;
         if (editor.isDestroyed || !root.isConnected) return;
         adjusting = true;
         restoreAnchor(previous);
@@ -2218,16 +2229,33 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
       capture();
     };
 
-    editor.on("selectionUpdate", scheduleCapture);
+    const userNavigation = () => {
+      // A pending layout restore belongs to the old caret. Never apply it after
+      // the user clicks, drags, wheels or explicitly moves to a new selection.
+      clearSettleTimers();
+      adjusting = false;
+      anchor = null;
+      lastObservedWidth = root.clientWidth;
+      scheduleCapture();
+    };
+    const wheelNavigation = () => {
+      // Ordinary continuous scrolling keeps the existing throttled capture.
+      if (adjusting || restoreFrame || followupRestoreFrame || smallRestoreFrame) userNavigation();
+    };
+    editor.on("selectionUpdate", userNavigation);
     editor.on("focus", scheduleCapture);
+    root.addEventListener("pointerdown", userNavigation, { passive: true });
+    root.addEventListener("wheel", wheelNavigation, { passive: true });
     root.addEventListener("scroll", captureAfterScrollSettles, { passive: true });
     window.addEventListener("resize", onWindowResize);
     window.addEventListener(FULLSCREEN_WILL_CHANGE_EVENT, captureBeforeFullscreen);
     observer.observe(root);
     scheduleCapture();
     return () => {
-      editor.off("selectionUpdate", scheduleCapture);
+      editor.off("selectionUpdate", userNavigation);
       editor.off("focus", scheduleCapture);
+      root.removeEventListener("pointerdown", userNavigation);
+      root.removeEventListener("wheel", wheelNavigation);
       root.removeEventListener("scroll", captureAfterScrollSettles);
       window.removeEventListener("resize", onWindowResize);
       window.removeEventListener(FULLSCREEN_WILL_CHANGE_EVENT, captureBeforeFullscreen);
@@ -2252,6 +2280,29 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
   }, [headingOpen, editor, setHeadingPage]);
 
   // ── 滚动位置记忆（localStorage 持久化，跨刷新保持）──
+  useEffect(() => {
+    if (!selectAllOnOpen || !editor) return;
+    // React NodeViews and renderer handoff finish mounting after the editor is
+    // created; selecting earlier can leave the native DOM selection empty.
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        if (editor.isDestroyed) return;
+        if (!editor.isEditable) editor.view.dom.focus({ preventScroll: true });
+        editor.commands.selectAll();
+        editor.view.focus();
+        // A readonly view without an existing native selection is not treated
+        // as selection owner by ProseMirror; establish the DOM range explicitly.
+        if (!editor.isEditable) {
+          const range = document.createRange();
+          range.selectNodeContents(editor.view.dom);
+          const selection = document.getSelection();
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+        }
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [editor, selectAllOnOpen]);
 
   const rendererHandoffRef = useRef<ReturnType<typeof takeReadingAnchor>>();
   useLayoutEffect(() => {

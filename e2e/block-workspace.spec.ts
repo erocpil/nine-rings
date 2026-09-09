@@ -61,6 +61,61 @@ test("块工作区编辑只同步原块并共享撤销，模式不修改文档�
   expect(JSON.stringify(saved)).toContain("const updated = 100;");
 });
 
+for (const readonly of [false, true]) {
+  for (const shortcut of ["Control+a", "Meta+a"]) {
+    test(`块内全选再全文全选，只读=${readonly}，${shortcut}`, async ({ page }) => {
+      await fixture(page, readonly);
+      for (const [selector, expected] of [["pre code", "const answer = 42;"], [".blockquote-content p", "引用第一段"]]) {
+        const content = page.locator(`.note-editor ${selector}`).first();
+        await content.evaluate(element => {
+          const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+          const text = walker.nextNode()!;
+          const range = document.createRange();
+          range.setStart(text, 1); range.collapse(true);
+          const selection = window.getSelection()!;
+          selection.removeAllRanges(); selection.addRange(range);
+          if ((element.closest(".ProseMirror") as HTMLElement).isContentEditable)
+            (element.closest(".ProseMirror") as HTMLElement).focus();
+        });
+        await page.keyboard.press(shortcut);
+        const selected = await page.evaluate(() => window.getSelection()?.toString());
+        expect(selected).toContain(expected);
+        expect(selected).not.toContain("前文");
+        expect(selected).not.toContain("后文");
+        if (selector.includes("blockquote")) expect(selected).toContain("引用第二段");
+        await page.keyboard.press(shortcut);
+        const all = await page.evaluate(() => window.getSelection()?.toString());
+        expect(all).toContain("前文");
+        expect(all).toContain("后文");
+        expect(all).toContain("const answer = 42;");
+      }
+      await expect(page.locator(".note-editor .ProseMirror")).toHaveAttribute("contenteditable", String(!readonly));
+    });
+  }
+}
+
+test("局部只读渲染先选中块，再切换完整渲染全选", async ({ page }) => {
+  await fixture(page, true);
+  await page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { setReadonlyRenderingEnabled } = await load("/src/lib/readonly-rendering.ts") as typeof import("../src/lib/readonly-rendering");
+    setReadonlyRenderingEnabled(true);
+  });
+  const code = page.locator(".vr-note pre code");
+  await expect(code).toBeVisible();
+  await code.evaluate(element => {
+    const range = document.createRange();
+    range.selectNodeContents(element); range.collapse(true);
+    window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
+  });
+  await page.keyboard.press("Control+a");
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toContain("const answer = 42;");
+  expect(await page.evaluate(() => window.getSelection()?.toString())).not.toContain("前文");
+  await page.keyboard.press("Control+a");
+  await expect(page.locator(".vr-note")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toContain("后文");
+});
+
 test("只读引用弹层没有编辑入口且粘贴无效", async ({ page }) => {
   await fixture(page, true);
   await page.getByRole("button", { name: "放大阅读引用块" }).click();

@@ -251,7 +251,7 @@ function renderBlock(
 }
 
 export function ReadonlyVirtualNote(
-  props: NoteEditorProps & { doc: PMNode; onFallback: () => void },
+  props: NoteEditorProps & { doc: PMNode; onFallback: (selectAll?: boolean) => void },
 ) {
   const {
     doc,
@@ -656,16 +656,37 @@ export function ReadonlyVirtualNote(
       if (event.key === "Escape") setPanel(null);
       if (
         (event.ctrlKey || event.metaKey) &&
+        !event.altKey && !event.shiftKey && !event.isComposing &&
         event.key.toLowerCase() === "a" &&
-        bodyRef.current?.contains(document.activeElement)
+        !(event.target instanceof Element && event.target.closest("input, textarea, select")) &&
+        (bodyRef.current?.contains(document.activeElement) || bodyRef.current?.contains(window.getSelection()?.anchorNode ?? null))
       ) {
         event.preventDefault();
-        setNotice("跨全文选择请使用“完整渲染”；“复制全文”不受局部渲染限制。");
+        event.stopPropagation();
+        const selection = window.getSelection();
+        const anchor = selection?.anchorNode;
+        const element = anchor instanceof Element ? anchor : anchor?.parentElement;
+        const block = element?.closest("code, .blockquote-content");
+        if (block && bodyRef.current?.contains(block) && selection?.rangeCount && block.contains(selection.focusNode)) {
+          const range = document.createRange();
+          range.selectNodeContents(block);
+          const current = selection.getRangeAt(0);
+          // Text ranges can have equivalent boundaries represented by distinct
+          // DOM nodes. Compare selected text as well for repeated select-all.
+          if (current.toString() !== range.toString()) {
+            selection.removeAllRanges(); selection.addRange(range);
+            return;
+          }
+        }
+        // Unmounted rows cannot participate in native selection. Switch to the
+        // complete renderer before selecting the whole document.
+        handoffReadingAnchor(noteId, capture());
+        onFallback(true);
       }
     };
     window.addEventListener("keydown", keydown, true);
     return () => window.removeEventListener("keydown", keydown, true);
-  }, [openPanel]);
+  }, [openPanel, capture, noteId, onFallback]);
   const tap = useRef<{
     pos: number;
     time: number;

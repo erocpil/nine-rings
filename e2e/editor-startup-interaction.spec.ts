@@ -1,4 +1,46 @@
 import { expect, test } from "@playwright/test";
+import type { Editor } from "@tiptap/core";
+
+test("桌面点击可见区顶部不套用软键盘滚动补偿，且取消旧宽度锚点", async ({ page }) => {
+  await page.goto("/");
+  const editor = page.locator(".ProseMirror");
+  await expect(editor).toBeVisible();
+  await editor.evaluate(element => {
+    const instance = (element as HTMLElement & { editor: Editor }).editor;
+    instance.commands.setContent({ type: "doc", content: Array.from({ length: 100 }, (_, index) => ({
+      type: "paragraph", content: [{ type: "text", text: `第 ${index} 段：${"点击不应该移动正文。".repeat(12)}` }],
+    })) });
+    instance.view.focus();
+  });
+  const scroller = page.locator(".note-editor-scroll");
+  const point = await scroller.evaluate(el => {
+    const paragraph = el.querySelectorAll(".ProseMirror > p")[50];
+    el.scrollTop += paragraph.getBoundingClientRect().top - el.getBoundingClientRect().top - 2;
+    return { x: paragraph.getBoundingClientRect().left + 20, y: el.getBoundingClientRect().top + 10 };
+  });
+  const before = await scroller.evaluate(el => el.scrollTop);
+  await page.mouse.click(point.x, point.y);
+  await scroller.evaluate(() => new Promise<void>(resolve => {
+    let frames = 0;
+    const tick = () => ++frames === 10 ? resolve() : requestAnimationFrame(tick);
+    requestAnimationFrame(tick);
+  }));
+  expect(Math.abs(await scroller.evaluate(el => el.scrollTop) - before)).toBeLessThanOrEqual(1);
+
+  await scroller.evaluate(el => {
+    (el as HTMLElement).style.width = `${el.clientWidth - 150}px`;
+    window.dispatchEvent(new Event("resize"));
+    // A click arrives before the queued width-restoration frame.
+    el.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    el.scrollTop = 120;
+  });
+  await scroller.evaluate(() => new Promise<void>(resolve => {
+    let frames = 0;
+    const tick = () => ++frames === 10 ? resolve() : requestAnimationFrame(tick);
+    requestAnimationFrame(tick);
+  }));
+  expect(await scroller.evaluate(el => el.scrollTop)).toBeCloseTo(120, 0);
+});
 
 for (const input of ["wheel", "touchstart", "pointerdown", "keydown"]) {
   test(`旧滚动位置不可达时，${input} 立即接管首次打开的文档`, async ({ page }) => {

@@ -110,7 +110,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
   const peerIndex = peers.indexOf(position.current);
   const extensions = useMemo(() => [
     ...source.extensionManager.extensions.filter(extension =>
-      extension.type === "node" || extension.type === "mark" || ["blockIndent", "fontSize", "orderedListLayout"].includes(extension.name),
+      extension.type === "node" || extension.type === "mark" || ["blockIndent", "fontSize", "orderedListLayout", "blockSelectAll"].includes(extension.name),
     ).map(extension => extension.name === "doc"
       ? extension.extend({ content: rootType })
       : extension.configure({ ...extension.options })),

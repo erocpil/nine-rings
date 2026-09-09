@@ -486,7 +486,9 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 
 ---
 
-## Tauri 与 Web 差异对照表（模板复核至 2026-09-05）
+## Tauri 与 Web 差异对照表（复核至 2026-09-09）
+
+本轮修复、测试边界和原生真机待验收项见 [跨端一致性复核](cross-platform-consistency.md)。共享代码不等同于所有安装包已完成真机验收。
 
 | 功能 | Tauri | Web | 差异说明 |
 |------|-------|-----|---------|
@@ -494,15 +496,18 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 | 路径树构建 | `buildDocTree()` (core.ts) | `buildDocTree()` (core.ts) | ✅ 已统一，两端共用 |
 | 模板系统 | StorageAdapter → SQLite | StorageAdapter → 原 localStorage 键 | ✅ 业务规则与契约统一；底层引擎不同 |
 | GitHub 备份 | `github.ts` + `api.export.*` | `github.ts` + `api.export.*` | ✅ 功能等价 |
-| 全文搜索 | SQLite FTS5 | JS `indexOf` | ✅ 功能等价（精度不同） |
+| 全文搜索 | SQLite FTS5 | Worker 索引，失败时回退存储搜索 | 提供相同入口；匹配/排序不保证完全相同，需持续对拍 |
 | 版本历史 | ✅ checkpoint 已恢复 | ✅ `idb.ts` 完整实现 | ✅ 两端一致 |
 | 全局热键 | ✅ Rust 端 + JS 端双注册 | ✅ 浏览器快捷键 | ✅ 符合预期 |
 | Quick Capture | ✅ 独立 frameless 窗口 | ✅ BroadcastChannel 跨标签页 | ✅ 功能等价 |
 | 导出到文件 | ✅ 原生保存对话框 | ✅ Blob download | ✅ 功能等价 |
 | 标签重命名/合并 | ✅ api.ts 实现 | ✅ api.ts 实现 | ✅ 功能等价 |
 | PDF 阅读与批注 | ✅ WebView 中本地保存、批注及导出 | ✅ 浏览器本地保存、批注及下载 | ✅ 核心功能等价；文件选择/保存由各平台能力实现 |
+| EPUB 阅读 | 共享 EpubReader/本地资料库 | 共享 EpubReader/本地资料库 | 全屏能力按平台处理 |
+| 文档/路径加密入口 | 属性面板 | 属性面板 | 已移除 Tauri 顶部重复入口，保留解锁后锁定 |
+| 代码/引用块两级全选 | Ctrl+A/⌘A | Ctrl+A/⌘A | 先选块再选全文；只读支持，局部渲染全选转完整渲染 |
 
-### 当前无功能缺失差异
+### 已解决的历史功能缺失
 
 历史上的 P0/P1 差异（模板 Web 不可用、路径树两套实现、版本历史不一致）均已解决。
 

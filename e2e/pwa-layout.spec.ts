@@ -2835,7 +2835,11 @@ test.describe("PWA 窄屏应用外壳", () => {
     const editor = page.locator(".ProseMirror");
     await editor.fill(Array.from({ length: 40 }, (_, index) => `移动编辑第 ${index + 1} 行`).join("\n"));
     await editor.press("Control+End");
-    await page.setViewportSize({ width: 390, height: 430 });
+    await page.evaluate(() => {
+      Object.defineProperty(window.visualViewport!, "height", { configurable: true, value: 430 });
+      window.visualViewport!.dispatchEvent(new Event("resize"));
+    });
+    await expect(page.locator("html")).toHaveClass(/web-keyboard-open/);
     await editor.press("End");
 
     await expect.poll(() => page.evaluate(() => {
@@ -2905,15 +2909,10 @@ test.describe("PWA 窄屏应用外壳", () => {
   });
 
   test("只读横竖屏往返保持顶部可见块及其偏移", async ({ page }) => {
-    await page.goto("/");
-    await page.getByTitle("显示侧栏").click();
-    await page.getByTitle("切换到随笔").click();
-    await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 100 } });
-    const editor = page.locator(".ProseMirror");
+    const editor = await createOutlineFixture(page, "只读旋转测试");
     await editor.fill(Array.from({ length: 100 }, (_, index) => `阅读定位第 ${index + 1} 块`).join("\n"));
     await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
-    await page.locator(".sidebar-item.active").getByTitle("设为只读")
-      .evaluate((button: HTMLButtonElement) => button.click());
+    await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
     await expect(editor).toHaveAttribute("contenteditable", "false");
 
     const target = editor.locator(":scope > p").nth(54);

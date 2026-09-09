@@ -1566,11 +1566,11 @@ function App() {
             onClick={() => setDocTreePopupOpen(true)}
             title="文档视图"
           >
-            📂
+            <ToolbarIcon name="folder" />
           </button>
         )}
         {DAILY_NOTES_ENABLED && <DatePicker value={currentDate} onChange={handleDateChange} />}
-        {isTauriRuntime() && <span className="header-clock">{clock}</span>}
+        {DAILY_NOTES_ENABLED && isTauriRuntime() && <span className="header-clock">{clock}</span>}
         {TODOS_ENABLED && <DailyOverview />}
         <span className="header-spacer" />
         {stickyTitle && (
@@ -1597,7 +1597,7 @@ function App() {
               title={focusMode ? "退出专注模式" : "专注模式"}
               type="button"
             >
-              {focusMode ? "⊞" : "⊟"}
+              <ToolbarIcon name={focusMode ? "compress" : "expand"} />
             </button>
             {focusMode && (
               <button
@@ -1606,7 +1606,7 @@ function App() {
                 title="文档书签"
                 aria-label="文档书签"
                 type="button"
-              >🔖</button>
+              ><ToolbarIcon name="bookmark" /></button>
             )}
           </div>
         )}

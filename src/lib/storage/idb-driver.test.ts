@@ -16,42 +16,26 @@ import type { Note, CreateNoteInput, PathNode } from "../../types/models";
 import { idbAdapter } from "./idb";
 import { executeOp, idbDriver, type DriverContext } from "./idb-driver";
 import { buildDocTree, type FlatDocRecord, type FlatDailyRecord } from "./core";
+import { IDB_DATABASE_VERSION, IDB_STORES } from "../../types/schema_gen";
 
 // ═══════════════════════════════════════════════════════════════════
 // 测试辅助
 // ═══════════════════════════════════════════════════════════════════
 
 const DB_NAME = "nine_rings";
-const DB_VERSION = 3;
 
 function openTestDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    const req = indexedDB.open(DB_NAME, IDB_DATABASE_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains("notes")) {
-        const store = db.createObjectStore("notes", { keyPath: "id" });
-        store.createIndex("date", "date", { unique: false });
-        store.createIndex("deleted_at", "deleted_at", { unique: false });
-        store.createIndex("tags", "tags", { unique: false });
-        store.createIndex("pinned_sort", ["pinned", "sort_order"], { unique: false });
-      }
-      if (db.objectStoreNames.contains("notes")) {
-        const tx = req.transaction!;
-        const store = tx.objectStore("notes");
-        if (!store.indexNames.contains("storagePath")) {
-          store.createIndex("storagePath", "storagePath", { unique: false });
+      for (const [name, definition] of Object.entries(IDB_STORES)) {
+        const store = db.objectStoreNames.contains(name)
+          ? req.transaction!.objectStore(name)
+          : db.createObjectStore(name, { keyPath: definition.keyPath });
+        for (const index of definition.indexes) {
+          if (!store.indexNames.contains(index.name)) store.createIndex(index.name, index.keyPath, { unique: false });
         }
-      }
-      if (!db.objectStoreNames.contains("daily_pages")) {
-        db.createObjectStore("daily_pages", { keyPath: "date" });
-      }
-      if (!db.objectStoreNames.contains("note_versions")) {
-        const store = db.createObjectStore("note_versions", { keyPath: "id" });
-        store.createIndex("note_id", "note_id", { unique: false });
-      }
-      if (!db.objectStoreNames.contains("images")) {
-        db.createObjectStore("images", { keyPath: "id" });
       }
     };
     req.onsuccess = () => resolve(req.result);
