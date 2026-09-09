@@ -759,6 +759,8 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
   const [markdownSelectionNotice, setMarkdownSelectionNotice] = useState(false);
   const [readonlyChangeNotice, setReadonlyChangeNotice] = useState(false);
   const [copyBlockNotice, setCopyBlockNotice] = useState("");
+  const readonlyCopyPosition = useRef<number | null>(null);
+  useEffect(() => { readonlyCopyPosition.current = null; }, [noteId]);
   const [readonlyChangeBusy, setReadonlyChangeBusy] = useState(false);
   const [gutterBlockCount, setGutterBlockCount] = useState(0);
   const [currentStatusBlock, setCurrentStatusBlock] = useState(1);
@@ -2949,7 +2951,9 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
 
   // ── 剪贴板操作 ──
   const handleCopyBlock = async () => {
-    const { $from } = editor.state.selection;
+    const $from = readonly && readonlyCopyPosition.current !== null
+      ? editor.state.doc.resolve(Math.min(readonlyCopyPosition.current, editor.state.doc.content.size))
+      : editor.state.selection.$from;
     const start = $from.depth > 0 ? $from.before(1) : $from.pos;
     const node = editor.state.doc.nodeAt(start);
     if (!node) return;
@@ -3480,6 +3484,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
       onMouseDownCapture={preventReadonlyTableResize}
       onPointerDownCapture={(event) => {
         if (!(event.target instanceof Element) || !event.target.closest(".ProseMirror")) return;
+        if (readonly) readonlyCopyPosition.current = editor.view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? null;
         toolbarSelectionRef.current = null;
         toolbarCellSelectionRef.current = null;
         setToolbarSelectionHighlight(editor, null);
@@ -3539,6 +3544,9 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
             title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
             aria-label={bookmarks.length > 0 ? `文档书签，共 ${bookmarks.length} 项` : "文档书签"}
           ><FocusModeIcon name="bookmark" />{bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}</button>
+          {readonly && (
+            <button type="button" title="复制块" aria-label="复制块" onMouseDown={(event) => event.preventDefault()} onClick={() => void handleCopyBlock()}><ToolbarIcon name="copy" /></button>
+          )}
           {!readonly && (
             <button
               type="button"
@@ -3810,6 +3818,9 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
               </div>
             )}
           </div>
+          {readonly && (
+            <button type="button" className="focus-btn readonly-copy-block" title="复制块" aria-label="复制块" onMouseDown={(event) => event.preventDefault()} onClick={() => void handleCopyBlock()}><ToolbarIcon name="copy" /></button>
+          )}
           {pdfExcerptSource && onOpenPdfExcerpt && (
             <button
               type="button"
@@ -4105,7 +4116,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
         contextSubmenu={contextSubmenu} setContextSubmenu={setContextSubmenu}
         setContextMenu={setContextMenu}
         hasCurrentBookmark={Boolean(currentBookmark)} bookmarkCount={bookmarks.length}
-        actions={{ hasSelection, handleCut, handleClipboardPaste, handleCopy, openDocumentBookmarks,
+        actions={{ hasSelection, handleCut, handleClipboardPaste, handleCopy, handleCopyBlock, openDocumentBookmarks,
           toggleCurrentBookmark, convertSelectionFromMarkdown, changeSelectedBlockIndent,
           setLinkDialogUrl, setLinkDialog, setImageDialog }}
       />

@@ -51,8 +51,21 @@ test.describe("桌面加号状态", () => {
   test.use({ viewport: { width: 1280, height: 800 }, hasTouch: false });
 
   test("鼠标悬停和键盘导航仍显示加号反馈", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true })));
     await page.goto("/");
     const insert = page.getByRole("button", { name: "在第一块前插入段落", exact: true });
+    await page.mouse.move(800, 40);
+    await expect(insert).toHaveCSS("opacity", "0.03");
+    const number = page.locator(".editor-block-number").first();
+    await number.hover();
+    await expect(insert).toHaveCSS("opacity", "0.55");
+    const label = await number.evaluate(element => {
+      const style = getComputedStyle(element, "::after");
+      return { right: style.right, padding: style.paddingRight, align: style.textAlign, visible: style.visibility };
+    });
+    expect(label).toEqual({ right: "4px", padding: "0px", align: "right", visible: "visible" });
+    await page.mouse.move(800, 40);
+    await expect(insert).toHaveCSS("opacity", "0.03");
     await insert.hover();
     await expect(insert).toHaveCSS("opacity", "1");
     await page.mouse.move(800, 40);

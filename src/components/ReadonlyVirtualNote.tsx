@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 import type { Node as PMNode } from "@tiptap/pm/model";
-import { Slice } from "@tiptap/pm/model";
+import { DOMSerializer, Slice } from "@tiptap/pm/model";
 import type { NoteEditorProps } from "./NoteEditor";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -36,7 +36,7 @@ import { bindViewportEdgeSwipe, swipeViewport } from "../lib/edge-swipe";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { isDocumentFindKeyEvent } from "../lib/shortcuts";
 
-type BlockState = { collapsed?: boolean; wrap?: boolean };
+type BlockState = { collapsed?: boolean; wrap?: boolean; lineNumbers?: boolean };
 // Reading overrides belong to a document revision, not a mounted block.
 const sessions = new WeakMap<PMNode, Map<number, BlockState>>();
 function readingSession(key: PMNode) {
@@ -185,6 +185,9 @@ function renderBlock(
     }
     case "codeBlock": {
       const collapsed = state.collapsed ?? node.attrs.collapsed === true;
+      const lineNumbers = state.lineNumbers ?? false;
+      const lines = node.textContent.split("\n");
+      let linePosition = pos + 1;
       const wrap =
         state.wrap ??
         (node.attrs.wrap === undefined
@@ -198,6 +201,7 @@ function renderBlock(
         >
           <div className="vr-code-toolbar" contentEditable={false}>
             <span>{node.attrs.title || node.attrs.language || "代码"}</span>
+            <button type="button" aria-label={lineNumbers ? "隐藏代码行号" : "显示代码行号"} aria-pressed={lineNumbers} onClick={() => update(pos, { lineNumbers: !lineNumbers })}>行号</button>
             <button
               type="button"
               onClick={() => void copyToClipboard(node.textContent)}
@@ -223,7 +227,14 @@ function renderBlock(
           {!collapsed && (
             <div className="code-block-inner">
               <pre>
-                <code>{children}</code>
+                <code>{lineNumbers ? lines.map((line, index) => {
+                  const position = linePosition;
+                  linePosition += line.length + 1;
+                  return <span className="vr-code-line" key={index} style={{ gridTemplateColumns: `calc(${String(lines.length).length}ch + 8px) minmax(0, 1fr)` }}>
+                    <span className="vr-code-line-number" aria-hidden="true">{index + 1}</span>
+                    <span>{line ? renderBlock(node.type.schema.text(line), position, states, update, match, defaultWrap) : "\n"}</span>
+                  </span>;
+                }) : children}</code>
               </pre>
             </div>
           )}
@@ -291,6 +302,7 @@ export function ReadonlyVirtualNote(
     [number, number] | null
   >(null);
   const selectedBlocks = useRef<[number, number] | null>(null);
+  const copyPosition = useRef<number | null>(null);
   const [notice, setNotice] = useState("");
   const scrollBusy = useRef(false);
   const touchDown = useRef(false);
@@ -658,6 +670,25 @@ export function ReadonlyVirtualNote(
   useEffect(() => () => onBookmarkCountChange?.(0), [onBookmarkCountChange]);
   const toolbar = (
     <>
+      <button type="button" title="复制块" aria-label="复制块" onMouseDown={(event) => event.preventDefault()} onClick={async () => {
+        const pos = copyPosition.current ?? capture().position;
+        const node = doc.nodeAt(pos);
+        if (!node) return;
+        const slice = doc.slice(pos, pos + node.nodeSize);
+        const text = clipboardSliceToPlainText(slice);
+        try {
+          const container = document.createElement("div");
+          container.append(DOMSerializer.fromSchema(doc.type.schema).serializeFragment(slice.content));
+          await navigator.clipboard.write([new ClipboardItem({
+            "text/plain": new Blob([text], { type: "text/plain" }),
+            "text/html": new Blob([container.innerHTML], { type: "text/html" }),
+          })]);
+          setNotice("已复制当前块（保留格式）");
+        } catch {
+          try { await copyToClipboard(text, { reportFailure: true }); setNotice("已复制当前块（纯文本）"); }
+          catch { setNotice("复制块失败，请检查剪贴板权限后重试"); }
+        }
+      }}><ToolbarIcon name="copy" /></button>
       <button
         type="button"
         title="目录"
@@ -928,6 +959,8 @@ export function ReadonlyVirtualNote(
               toggleHeading(Number(row.dataset.position));
           }}
           onPointerDown={(event) => {
+            const row = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-reading-row]") : null;
+            if (row) copyPosition.current = Number(row.dataset.position);
             pointer.current = {
               x: event.clientX,
               y: event.clientY,

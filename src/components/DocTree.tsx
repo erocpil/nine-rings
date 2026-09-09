@@ -128,6 +128,20 @@ function DocTree({
 }: DocTreeProps) {
   const [tree, setTree] = useState<PathNode[]>([]);
   const treeScrollRef = useRef<HTMLDivElement>(null);
+  const [toolbarScroller, setToolbarScroller] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!toolbarScroller) return;
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey || toolbarScroller.scrollWidth <= toolbarScroller.clientWidth) return;
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      const scale = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? toolbarScroller.clientWidth : 1;
+      const previous = toolbarScroller.scrollLeft;
+      toolbarScroller.scrollLeft += delta * scale;
+      if (toolbarScroller.scrollLeft !== previous) event.preventDefault();
+    };
+    toolbarScroller.addEventListener("wheel", onWheel, { passive: false });
+    return () => toolbarScroller.removeEventListener("wheel", onWheel);
+  }, [toolbarScroller]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const selectionRequestRef = useRef(0);
@@ -688,7 +702,7 @@ function DocTree({
   const selectedDocument = tree.find((node) => node.type === "document" && node.noteId === selectedId);
   const toolbar = (
     <div className="doc-tree-toolbar">
-      <div className="doc-tree-toolbar-actions">
+      <div ref={setToolbarScroller} className="doc-tree-toolbar-actions" role="group" aria-label="文档树工具，滚轮可横向浏览">
         <button
           className="btn-icon doc-tree-batch-btn"
           onClick={collapseAll}

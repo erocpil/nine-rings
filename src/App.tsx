@@ -1485,7 +1485,6 @@ function App() {
     } : undefined}
     onClose={() => setSettingsOpen(false)}
     onConfigChange={handleConfigChange}
-    onOpenLibrary={() => void openReadingLibrary()}
     libraryError={readingLibraryError}
     onBeforeBookmarkNoteUpdate={async (noteId) => {
       if (selectedNoteRef.current?.id === noteId) await autoSave.flush();
@@ -1571,7 +1570,7 @@ function App() {
           </button>
         )}
         {DAILY_NOTES_ENABLED && <DatePicker value={currentDate} onChange={handleDateChange} />}
-        <span className="header-clock">{clock}</span>
+        {isTauriRuntime() && <span className="header-clock">{clock}</span>}
         {TODOS_ENABLED && <DailyOverview />}
         <span className="header-spacer" />
         {stickyTitle && (
@@ -1909,7 +1908,7 @@ function App() {
                       onFlush={flushAutoSave}
                       onProtectionBusy={setProtectionBusy}
                       onSecurityError={message => useNotesStore.setState({ error: message })}
-                      hideDocumentPasswordControls={mobileDrawerViewport}
+                      hideDocumentPasswordControls={mobileDrawerViewport || !isTauriRuntime()}
                       securityDisabled={syncBusy}
                       onSecurityChanged={async () => {
                         const note = await api.notes.get(selectedNote.id);

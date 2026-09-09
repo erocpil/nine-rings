@@ -171,6 +171,8 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
   const [lineNumbersEnabled, setLineNumbersEnabled] = useState(
     () => codeLineNumbersPluginKey.getState(editor.state) ?? false,
   );
+  const [lineNumbersOverride, setLineNumbersOverride] = useState<boolean | null>(null);
+  const showLineNumbers = lineNumbersOverride ?? lineNumbersEnabled;
   const [visualRows, setVisualRows] = useState<number[]>(() => Array(lineCount).fill(1));
 
   useEffect(() => {
@@ -185,7 +187,7 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
   }, [editor]);
 
   useEffect(() => {
-    if (!lineNumbersEnabled) {
+    if (!showLineNumbers) {
       setVisualRows((current) => current.length === lineCount && current.every((rows) => rows === 1)
         ? current
         : Array(lineCount).fill(1));
@@ -222,7 +224,7 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
       resizeObserver?.disconnect();
       mutationObserver.disconnect();
     };
-  }, [code, lineCount, lineNumbersEnabled]);
+  }, [code, lineCount, showLineNumbers]);
 
   useEffect(() => {
     const syncEditable = () => {
@@ -276,6 +278,15 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
           />
           <div className="code-block-actions">
             <button
+              type="button"
+              className={`code-block-wrap-toggle ${showLineNumbers ? "active" : ""}`}
+              aria-label={showLineNumbers ? "隐藏代码行号" : "显示代码行号"}
+              aria-pressed={showLineNumbers}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => setLineNumbersOverride(!showLineNumbers)}
+              title="代码行号（仅改变显示）"
+            >行号</button>
+            <button
               className="code-block-collapse-toggle"
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => {
@@ -328,10 +339,11 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
         <div className="code-block-inner">
           <div
             className="code-block-gutter"
+            style={{ display: showLineNumbers ? "block" : "none", width: `calc(${String(lineCount).length}ch + 8px)` }}
             contentEditable={false}
             suppressContentEditableWarning
           >
-            {lineNumbersEnabled && Array.from({ length: lineCount }, (_, index) => (
+            {showLineNumbers && Array.from({ length: lineCount }, (_, index) => (
               <span
                 key={index}
                 // iOS WebKit 在 contenteditable NodeView 中有时会忽略逻辑

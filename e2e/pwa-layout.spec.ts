@@ -61,6 +61,29 @@ async function swipeNoteEditor(
 test.describe("PWA 窄屏应用外壳", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
+  test("文档树工具图标一致且滚轮横向浏览溢出工具", async ({ page }) => {
+    await createOutlineFixture(page, "工具滚轮");
+    await swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: 550, endX: 110, endY: 550 });
+    const tree = page.getByRole("dialog", { name: "文档侧栏", exact: true });
+    await tree.getByRole("button", { name: "批量选择", exact: true }).click();
+    const scroller = tree.getByRole("group", { name: "文档树工具，滚轮可横向浏览" });
+    const styles = await tree.locator(".doc-tree-toolbar .btn-icon").evaluateAll(buttons => buttons.map(button => {
+      const icon = button.querySelector("svg")!.getBoundingClientRect();
+      const style = getComputedStyle(button);
+      return { width: style.width, height: style.height, radius: style.borderRadius, iconWidth: icon.width, iconHeight: icon.height };
+    }));
+    for (const style of styles) expect(style).toEqual({ width: "32px", height: "40px", radius: "6px", iconWidth: 18, iconHeight: 18 });
+    expect(await scroller.evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true);
+    await scroller.evaluate(el => { el.scrollLeft = 0; });
+    await scroller.dispatchEvent("wheel", { deltaY: 80, cancelable: true });
+    const offset = await scroller.evaluate(el => el.scrollLeft);
+    expect(offset).toBeGreaterThan(0);
+    await scroller.dispatchEvent("wheel", { deltaY: -40, ctrlKey: true, cancelable: true });
+    expect(await scroller.evaluate(el => el.scrollLeft)).toBe(offset);
+    await scroller.dispatchEvent("wheel", { deltaY: -1000, cancelable: true });
+    expect(await scroller.evaluate(el => el.scrollLeft)).toBe(0);
+  });
+
   test("四种手势弹层主要文字统一为13px", async ({ page }) => {
     await createOutlineFixture(page, "字号检查");
     await page.evaluate(async () => {
@@ -137,6 +160,62 @@ test.describe("PWA 窄屏应用外壳", () => {
     await page.getByRole("button", { name: "复制块", exact: true }).click();
     await expect(page.locator("html")).toHaveAttribute("data-copied-block-html", /<blockquote[\s\S]*复制整块内容/);
     await expect(editor.locator("blockquote")).toContainText("复制整块内容");
+    await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+    await expect(editor).toHaveAttribute("contenteditable", "false");
+    await editor.locator("blockquote").getByText("复制整块内容", { exact: true }).click();
+    await page.evaluate(() => delete document.documentElement.dataset.copiedBlockHtml);
+    await page.getByRole("button", { name: "复制块", exact: true }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-copied-block-html", /<blockquote[\s\S]*复制整块内容/);
+    await page.locator(".header-document-actions").getByRole("button", { name: "专注模式", exact: true }).click();
+    await page.evaluate(() => delete document.documentElement.dataset.copiedBlockHtml);
+    await page.getByRole("button", { name: "复制块", exact: true }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-copied-block-html", /<blockquote[\s\S]*复制整块内容/);
+    await expect(editor).toHaveAttribute("contenteditable", "false");
+    await expect(editor.locator("blockquote")).toContainText("复制整块内容");
+  });
+
+  test("只读代码行号可切换且按总行数预留宽度", async ({ page }) => {
+    const editor = await createOutlineFixture(page, "代码行号");
+    await editor.fill("``` ");
+    await editor.press("Enter");
+    // Use the editor's Markdown paste pipeline to create a long code block.
+    await editor.press("Control+a");
+    await editor.evaluate(element => {
+      const data = new DataTransfer();
+      data.setData("text/plain", "```typescript\n" + Array.from({ length: 101 }, (_, i) => `const n${i} = ${i};`).join("\n") + "\n```");
+      element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data }));
+    });
+    const block = editor.locator(".code-block-wrap").first();
+    await expect(block).toBeVisible();
+    await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+    await expect(editor).toHaveAttribute("contenteditable", "false");
+    const before = await block.locator("pre code").textContent();
+    await block.getByRole("button", { name: "显示代码行号", exact: true }).click();
+    const gutter = block.locator(".code-block-gutter");
+    await expect(gutter).toBeVisible();
+    await expect(gutter.locator("span")).toHaveCount(101);
+    expect(await gutter.evaluate(el => (el as HTMLElement).style.width)).toBe("calc(3ch + 8px)");
+    await expect(gutter).toHaveCSS("border-right-width", "0px");
+    await expect(block.locator(".code-block-toolbar")).toHaveCSS("border-bottom-width", "0px");
+    await block.getByRole("button", { name: "隐藏代码行号", exact: true }).click();
+    await expect(gutter).toBeHidden();
+    expect(await block.locator("pre code").textContent()).toBe(before);
+    await expect(editor).toHaveAttribute("contenteditable", "false");
+    await page.evaluate(() => {
+      localStorage.setItem("nr:experimentalReadonlyRendering", "true");
+      window.dispatchEvent(new Event("nine-rings:readonly-rendering-change"));
+      Object.defineProperty(navigator.clipboard, "write", { configurable: true, value: async (items: ClipboardItem[]) => {
+        document.documentElement.dataset.copiedBlockHtml = await (await items[0].getType("text/html")).text();
+      } });
+    });
+    const virtual = page.locator("[data-virtual-reader]");
+    await expect(virtual).toBeVisible();
+    await virtual.getByRole("button", { name: "显示代码行号", exact: true }).click();
+    await expect(virtual.locator(".vr-code-line-number")).toHaveCount(101);
+    await virtual.getByRole("button", { name: "复制块", exact: true }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-copied-block-html", /<pre[\s\S]*const n100 = 100;/);
+    await virtual.getByRole("button", { name: "隐藏代码行号", exact: true }).click();
+    expect(await virtual.locator("pre code").textContent()).toBe(before);
   });
 
   test("普通模式目录书签对齐入口行且侧滑面板加宽", async ({ page }) => {

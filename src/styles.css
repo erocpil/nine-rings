@@ -4985,8 +4985,11 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 .editor-block-number::after {
   content: attr(data-block-format);
   position: absolute;
-  inset: 0 0 auto;
-  padding-right: 4px;
+  top: 0;
+  right: 4px;
+  left: auto;
+  width: max-content;
+  padding: 0;
   text-align: right;
   color: var(--text-secondary);
   font-size: 11px;
@@ -5079,6 +5082,9 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 /* Touch browsers may retain :hover after inserting/repositioning the button.
    Use our bounded press feedback, not WebKit's native tap-highlight overlay. */
 @media (hover: hover) and (pointer: fine) {
+  .editor-block-insert { opacity: 0.03; }
+  .editor-block-gutter:hover .editor-block-insert { opacity: 0.55; }
+  .editor-block-gutter .editor-block-insert:is(:hover, :active, :focus-visible) { opacity: 1; }
   .editor-block-insert:hover {
     border-color: var(--border);
     color: var(--accent);
@@ -6893,6 +6899,8 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 .vr-gutter span { margin-left: auto; }
 .vr-code-toolbar { display: flex; align-items: center; gap: 4px; padding: 4px; font-size: 12px; }
 .vr-code-toolbar span { flex: 1; }
+.vr-code-line { display: grid; min-height: 1.5em; }
+.vr-code-line-number { text-align: right; padding-right: 8px; color: var(--text-secondary); user-select: none; -webkit-user-select: none; }
 .vr-status, .vr-notice { padding: 4px 8px; font-size: 12px; color: var(--text-secondary); }
 .vr-panel { position: absolute; right: 8px; top: 76px; width: min(380px, calc(100% - 16px)); max-height: calc(100% - 100px); overflow: auto; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); z-index: 35; box-shadow: 0 8px 24px #0002; }
 .vr-panel-close { float: right; }
@@ -8758,7 +8766,7 @@ button.doc-tree-toggle:focus-visible {
   min-width: 0;
   min-height: 28px;
   padding: 3px 5px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0;
   background: var(--code-bg);
   -webkit-user-select: none;
   user-select: none;
@@ -8853,7 +8861,7 @@ button.doc-tree-toggle:focus-visible {
   padding: 6px 2px 6px 0;
   text-align: right;
   user-select: none;
-  border-right: 1px solid var(--border);
+  border-right: 0;
   margin-right: 3px;
   min-width: 1ch;
 }
@@ -9477,7 +9485,7 @@ button.doc-tree-toggle:focus-visible {
 
   .note-title-row > .document-outline-control,
   .note-title-row > .document-bookmark-toggle,
-  .note-title-row > .focus-btn:not(.pdf-excerpt-source-button) {
+  .note-title-row > .focus-btn:not(.pdf-excerpt-source-button):not(.readonly-copy-block) {
     display: none;
   }
 
@@ -12983,3 +12991,27 @@ button.doc-tree-toggle:focus-visible {
 .sidebar-tabs .sidebar-tab-hide::before { content: none; }
 .sidebar-tabs .sidebar-tab-hide:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
 .settings-close .toolbar-icon { width: 20px; height: 20px; }
+
+.doc-tree-toolbar .btn-icon,
+.sidebar-tabs .doc-tree-select-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 32px;
+  width: 32px;
+  min-width: 32px;
+  height: 40px;
+  padding: 0 !important;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+}
+.doc-tree-toolbar .toolbar-icon,
+.sidebar-tabs > .btn-icon .toolbar-icon { width: 18px; height: 18px; }
+.doc-tree-toolbar .doc-tree-btn-off:not(:disabled) { opacity: 1; }
+.doc-tree-toolbar .btn-icon[aria-pressed="true"] { color: var(--accent); background: var(--active-bg); }
+.doc-tree-toolbar .btn-icon:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) {
+  .doc-tree-toolbar .btn-icon:hover:not(:disabled) { background: var(--hover-bg); }
+}

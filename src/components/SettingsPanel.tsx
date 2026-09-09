@@ -37,11 +37,10 @@ interface Props {
   onBeforeBookmarkNoteUpdate?: (noteId: string) => Promise<void>;
   onBookmarkNoteUpdated?: (note: Note) => void;
   onNotesChanged?: () => void;
-  onOpenLibrary: () => void;
   libraryError?: string | null;
 }
 
-type SettingsPage = "root" | "appearance" | "editor" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "library" | "data" | "sync" | "advanced";
+type SettingsPage = "root" | "appearance" | "editor" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced";
 const EDITOR_APPEARANCE_KEYS: Array<keyof AppConfig> = [
   "note_font_size",
   "editor_font_family",
@@ -69,12 +68,10 @@ const SETTINGS_CATEGORIES: Array<{
   description: string;
 }> = [
   { id: "appearance", title: "外观与排版", description: "主题、字体、字号与内容间距" },
-  { id: "documents", title: "文档管理", description: "集中管理书签与标签" },
+  { id: "documents", title: "文档管理", description: "书签、标签与用户信息" },
   { id: "general", title: "工作流与快捷键", description: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "默认视图、待办继承和按键绑定" : "搜索、设置与窗口按键绑定" },
-  { id: "library", title: "阅读资料库", description: "导入和管理本地 PDF、EPUB 图书" },
   { id: "sync", title: "同步与备份", description: "GitHub 仓库和同步操作" },
   { id: "data", title: "数据与导入", description: "JSON 备份及 Markdown 批量导入" },
-  { id: "profile", title: "用户信息", description: "文档作者、组织与发布默认值" },
   { id: "advanced", title: "高级", description: "回收站策略与开发服务端口" },
 ];
 
@@ -87,7 +84,6 @@ const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   general: "工作流与快捷键",
   profile: "用户信息",
   tags: "标签管理",
-  library: "阅读资料库",
   data: "数据与导入",
   sync: "同步与备份",
   advanced: "高级",
@@ -102,7 +98,7 @@ function yieldToNextFrame(): Promise<void> {
   return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
 }
 
-export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onNotesChanged, onOpenLibrary, libraryError }: Props) {
+export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onNotesChanged, libraryError }: Props) {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -579,18 +575,18 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 onClick={() => setSettingsPage(
                   settingsPage === "editor"
                     ? "appearance"
-                    : settingsPage === "bookmarks" || settingsPage === "tags"
+                    : settingsPage === "bookmarks" || settingsPage === "tags" || settingsPage === "profile"
                       ? "documents"
                       : "root",
                 )}
                 aria-label={settingsPage === "editor"
                   ? "返回外观与排版"
-                  : settingsPage === "bookmarks" || settingsPage === "tags"
+                  : settingsPage === "bookmarks" || settingsPage === "tags" || settingsPage === "profile"
                     ? "返回文档管理"
                     : "返回设置分类"}
                 title={settingsPage === "editor"
                   ? "返回外观与排版"
-                  : settingsPage === "bookmarks" || settingsPage === "tags"
+                  : settingsPage === "bookmarks" || settingsPage === "tags" || settingsPage === "profile"
                     ? "返回文档管理"
                     : "返回设置分类"}
               >←</button>
@@ -617,7 +613,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                     className="settings-category-card"
                     type="button"
                     key={category.id}
-                    onClick={() => category.id === "library" ? onOpenLibrary() : setSettingsPage(category.id)}
+                    onClick={() => setSettingsPage(category.id)}
                   >
                     <span>
                       <strong>{category.title}</strong>
@@ -651,6 +647,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                     <strong>标签管理</strong>
                     <small>重命名、合并或删除标签</small>
                   </span>
+                  <span className="settings-category-arrow">→</span>
+                </button>
+                <button className="settings-category-card" type="button" onClick={() => setSettingsPage("profile")}>
+                  <span><strong>用户信息</strong><small>文档作者、组织与发布默认值</small></span>
                   <span className="settings-category-arrow">→</span>
                 </button>
               </div>

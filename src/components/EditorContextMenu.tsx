@@ -12,7 +12,7 @@ interface EditorContextMenuProps {
   setContextSubmenu: Dispatch<SetStateAction<"format" | "paragraph" | "insert" | null>>;
   hasCurrentBookmark: boolean;
   bookmarkCount: number;
-  actions: Pick<EditorToolbarProps["actions"], "hasSelection" | "handleCut" | "handleClipboardPaste" | "handleCopy" | "openDocumentBookmarks" | "toggleCurrentBookmark" | "convertSelectionFromMarkdown" | "changeSelectedBlockIndent" | "setLinkDialogUrl" | "setLinkDialog" | "setImageDialog">;
+  actions: Pick<EditorToolbarProps["actions"], "hasSelection" | "handleCut" | "handleClipboardPaste" | "handleCopy" | "handleCopyBlock" | "openDocumentBookmarks" | "toggleCurrentBookmark" | "convertSelectionFromMarkdown" | "changeSelectedBlockIndent" | "setLinkDialogUrl" | "setLinkDialog" | "setImageDialog">;
 }
 
 /** Presentation only; dismissal/positioning and the live selection stay in NoteEditor. */
@@ -61,6 +61,7 @@ export function EditorContextMenu({ editor, readonly, contextMenu, contextMenuRe
           disabled={!hasSelection()}
           onClick={() => { handleCopy(); setContextMenu(null); }}
         >复制</button>
+        <button className="editor-context-item" onClick={() => { void actions.handleCopyBlock(); setContextMenu(null); }}>复制块</button>
         <button
           className="editor-context-item"
           onClick={() => { editor.chain().focus().selectAll().run(); setContextMenu(null); }}

@@ -674,6 +674,113 @@ function PropertiesPanel({
           </div>
         </div>
 
+        {/* 概念标签 */}
+        <div className="prop-section">
+          <div className="prop-label">概念</div>
+          <div className="prop-tags-input-row">
+            <input
+              type="text"
+              className="prop-input"
+              placeholder="添加概念..."
+              value={conceptInput}
+              disabled={readonly}
+              onChange={(e) => handleConceptInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addConcept(conceptInput);
+                }
+              }}
+            />
+            {suggestions.length > 0 && (
+              <div className="prop-suggestions">
+                {suggestions.map((s) => (
+                  <button type="button" key={s} className="prop-suggestion" onClick={() => addConcept(s)}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {concepts.length > 0 && (
+            <div className="prop-tags">
+              {concepts.map((c) => (
+                <span key={c} className="prop-tag">
+                  <button
+                    type="button"
+                    className="prop-tag-name"
+                    onClick={onOpenConcept ? () => onOpenConcept(c) : undefined}
+                    disabled={!onOpenConcept}
+                    title={onOpenConcept ? `查看 #${c} 的所有文档` : undefined}
+                  >
+                    {c}
+                  </button>
+                  <button className="prop-tag-remove" onClick={() => removeConcept(c)}>✕</button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 关联文档 */}
+        <div className="prop-section">
+          <div className="prop-label">
+            关联文档
+            <span className="prop-count">{linkedIds.length}</span>
+          </div>
+          {linkedIds.length > 0 && (
+            <div className="prop-links">
+              {linkedIds.map((lid) => (
+                <LinkedNoteItem
+                  key={lid}
+                  noteId={lid}
+                  onRemove={removeLink}
+                />
+              ))}
+            </div>
+          )}
+          <div className="prop-tags-input-row">
+            <input
+              type="text"
+              className="prop-input"
+              placeholder="搜索并关联文档..."
+              value={linkSearch}
+              disabled={readonly}
+              onChange={(e) => handleLinkSearch(e.target.value)}
+            />
+            {linkResults.length > 0 && (
+              <div className="prop-suggestions">
+                {linkResults.map((r) => (
+                  <button type="button" key={r.id} className="prop-suggestion" onClick={() => addLink(r)}>
+                    <span className="prop-link-title">{r.title || "无标题"}</span>
+                    <span className="prop-link-date">{r.date}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 反向链接 */}
+        <div className="prop-section">
+          <div className="prop-label">
+            反向链接
+            <span className="prop-count">{backlinks.length}</span>
+          </div>
+          {backlinks.length === 0 ? (
+            <div className="prop-empty">暂无其他笔记引用此文档</div>
+          ) : (
+            <div className="prop-links">
+              {backlinks.map((n) => (
+                <div key={n.id} className="prop-link-item">
+                  <span className="prop-link-title" title={n.title ?? ""}>{n.title || "无标题"}</span>
+                  <span className="prop-link-date">{n.date}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* 发布元信息 */}
         <div className="prop-section">
           <div className="prop-label">发布元信息</div>
@@ -787,113 +894,6 @@ function PropertiesPanel({
             </div>
           )}
           <div className="prop-empty">公开 Markdown 来源；只读文档也可手动更新。普通网站需要允许浏览器跨域读取。</div>
-        </div>
-
-        {/* 概念标签 */}
-        <div className="prop-section">
-          <div className="prop-label">概念</div>
-          <div className="prop-tags-input-row">
-            <input
-              type="text"
-              className="prop-input"
-              placeholder="添加概念..."
-              value={conceptInput}
-              disabled={readonly}
-              onChange={(e) => handleConceptInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addConcept(conceptInput);
-                }
-              }}
-            />
-            {suggestions.length > 0 && (
-              <div className="prop-suggestions">
-                {suggestions.map((s) => (
-                  <button type="button" key={s} className="prop-suggestion" onClick={() => addConcept(s)}>
-                    {s}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {concepts.length > 0 && (
-            <div className="prop-tags">
-              {concepts.map((c) => (
-                <span key={c} className="prop-tag">
-                  <button
-                    type="button"
-                    className="prop-tag-name"
-                    onClick={onOpenConcept ? () => onOpenConcept(c) : undefined}
-                    disabled={!onOpenConcept}
-                    title={onOpenConcept ? `查看 #${c} 的所有文档` : undefined}
-                  >
-                    {c}
-                  </button>
-                  <button className="prop-tag-remove" onClick={() => removeConcept(c)}>✕</button>
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 关联文档 */}
-        <div className="prop-section">
-          <div className="prop-label">
-            关联文档
-            <span className="prop-count">{linkedIds.length}</span>
-          </div>
-          {linkedIds.length > 0 && (
-            <div className="prop-links">
-              {linkedIds.map((lid) => (
-                <LinkedNoteItem
-                  key={lid}
-                  noteId={lid}
-                  onRemove={removeLink}
-                />
-              ))}
-            </div>
-          )}
-          <div className="prop-tags-input-row">
-            <input
-              type="text"
-              className="prop-input"
-              placeholder="搜索并关联文档..."
-              value={linkSearch}
-              disabled={readonly}
-              onChange={(e) => handleLinkSearch(e.target.value)}
-            />
-            {linkResults.length > 0 && (
-              <div className="prop-suggestions">
-                {linkResults.map((r) => (
-                  <button type="button" key={r.id} className="prop-suggestion" onClick={() => addLink(r)}>
-                    <span className="prop-link-title">{r.title || "无标题"}</span>
-                    <span className="prop-link-date">{r.date}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 反向链接 */}
-        <div className="prop-section">
-          <div className="prop-label">
-            反向链接
-            <span className="prop-count">{backlinks.length}</span>
-          </div>
-          {backlinks.length === 0 ? (
-            <div className="prop-empty">暂无其他笔记引用此文档</div>
-          ) : (
-            <div className="prop-links">
-              {backlinks.map((n) => (
-                <div key={n.id} className="prop-link-item">
-                  <span className="prop-link-title" title={n.title ?? ""}>{n.title || "无标题"}</span>
-                  <span className="prop-link-date">{n.date}</span>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     </div>
