@@ -3244,16 +3244,20 @@ body {
 .doc-tree-popup-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: transparent;
   z-index: 1000;
   display: flex;
   justify-content: flex-start;
-  animation: fadeIn 0.15s ease;
+  /* Do not animate an ancestor of backdrop-filter: it creates a separate
+     backdrop root and makes the upper drawer's blur differ from the tree. */
+  animation: none;
 }
 
 .doc-tree-popup-backdrop {
   position: absolute;
   inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  animation: fadeIn 0.25s ease;
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
@@ -3267,7 +3271,7 @@ body {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  animation: slideInLeft 0.2s ease;
+  animation: slideInLeft 0.25s ease;
   overflow: hidden;
 }
 
@@ -3277,6 +3281,10 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doc-tree-popup, .doc-tree-popup-backdrop { animation: none; }
 }
 
 @keyframes slideInLeft {
@@ -9392,13 +9400,13 @@ button.doc-tree-toggle:focus-visible {
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.25s ease;
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
   }
 
   .sidebar-overlay.active {
     opacity: 1;
     pointer-events: auto;
-    -webkit-backdrop-filter: blur(4px);
-    backdrop-filter: blur(4px);
   }
 
   .app-main {

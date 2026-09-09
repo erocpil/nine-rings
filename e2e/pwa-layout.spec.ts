@@ -1416,10 +1416,16 @@ test.describe("PWA 窄屏应用外壳", () => {
       if (startY === 160) {
         await expect(page.getByRole("dialog", { name: "文档视图", exact: true })).toBeVisible();
         await expect(page.locator(".doc-tree-popup-backdrop")).toHaveCSS("backdrop-filter", "blur(4px)");
+        await expect(page.locator(".doc-tree-popup-overlay")).toHaveCSS("animation-name", "none");
+        await expect(page.locator(".doc-tree-popup-overlay")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+        await expect(page.locator(".doc-tree-popup-backdrop")).toHaveCSS("background-color", "rgba(0, 0, 0, 0.35)");
+        await expect(page.locator(".doc-tree-popup-backdrop")).toHaveCSS("animation-duration", "0.25s");
         await page.getByRole("button", { name: "关闭文档视图", exact: true }).click();
       } else {
         await expect(page.locator(".app-sidebar")).not.toHaveClass(/sidebar-hidden/);
         await expect(page.locator(".sidebar-overlay.active")).toHaveCSS("backdrop-filter", "blur(4px)");
+        await expect(page.locator(".sidebar-overlay.active")).toHaveCSS("background-color", "rgba(0, 0, 0, 0.35)");
+        await expect(page.locator(".sidebar-overlay.active")).toHaveCSS("transition-duration", "0.25s");
         await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
       }
     }
