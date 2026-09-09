@@ -155,7 +155,7 @@ function App() {
   const updateTodos = useNotesStore((s) => s.updateTodos);
   const batchDelete = useNotesStore((s) => s.batchDelete);
   const { search, results, query, setQuery, clear: clearSearch } = useSearch();
-  const [docResults, setDocResults] = useState<Note[] | null>(null);
+  const [docResults, setDocResults] = useState<Awaited<ReturnType<typeof api.docs.searchSummaries>> | null>(null);
   const [docSearchText, setDocSearchText] = useState("");
   const [docSearching, setDocSearching] = useState(false);
   const docSearchRequestIdRef = useRef(0);
@@ -407,7 +407,7 @@ function App() {
         if (requestId === docSearchRequestIdRef.current) setDocResults(null);
         return;
       }
-      const notes = await api.docs.search({
+      const notes = await api.docs.searchSummaries({
         text: q.text || undefined,
         storagePath: q.storagePath,
         docType: q.docType,
@@ -1272,6 +1272,8 @@ function App() {
       });
     }
     if (!keepSearch) {
+      docSearchRequestIdRef.current += 1;
+      setDocSearching(false);
       setQuery("");           // 仅清 query 状态，保留 SearchBar 输入框值
       setDocResults(null);    // 清除文档搜索
       setDocSearchText("");

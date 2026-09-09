@@ -19,6 +19,7 @@ vi.mock("../../src/lib/storage", () => ({ getAdapter: vi.fn() }));
 import {
   invalidateWebSearchIndex,
   searchWebNoteSummaries,
+  searchDocumentSummaries,
 } from "../../src/lib/web-search-index";
 
 const note = (id: string, title: string, body: string): Note => ({
@@ -38,6 +39,75 @@ let adapter: StorageAdapter;
 const getAll = vi.fn();
 const nativeSearch = vi.fn();
 const documents = vi.fn();
+
+it("document filters preserve multi-term matching/ranking and exact path boundaries on both runtimes", async () => {
+  const docs: Note[] = [
+    {
+      ...note("match", "ＡＢＣ", "性能"),
+      storagePath: "projects/foo/child",
+      docType: "reference",
+      concepts: ["网络"],
+    },
+    {
+      ...note("sibling", "ＡＢＣ", "性能"),
+      storagePath: "projects/foobar",
+      docType: "reference",
+      concepts: ["网络"],
+    },
+    {
+      ...note("type", "ＡＢＣ", "性能"),
+      storagePath: "projects/foo",
+      docType: "tutorial",
+      concepts: ["网络"],
+    },
+    {
+      ...note("concept", "ＡＢＣ", "性能"),
+      storagePath: "projects/foo",
+      docType: "reference",
+      concepts: ["网络安全"],
+    },
+  ];
+  notes = [note("essay", "ABC", "性能")];
+  documents.mockResolvedValue(docs);
+  for (const native of [false, true]) {
+    for (const worker of [SearchWorker, undefined, CrashedWorker]) {
+      invalidateWebSearchIndex();
+      runtime.native = native;
+      vi.stubGlobal("Worker", worker);
+      const all = await searchWebNoteSummaries(adapter, "abc 性能");
+      const filtered = await searchDocumentSummaries(adapter, {
+        text: "abc 性能",
+        storagePath: "projects/foo",
+        docType: "reference",
+        concept: "网络",
+      });
+      expect(filtered.map((n) => n.id)).toEqual(["match"]);
+      expect(filtered).toEqual(all.filter((n) => n.id === "match"));
+      expect(
+        await searchDocumentSummaries(adapter, {
+          text: "abc 性能",
+          storagePath: "projects/foo",
+          staleBefore: "2026-09-09",
+        }),
+      ).toEqual([]);
+      expect(
+        (
+          await searchDocumentSummaries(adapter, {
+            text: " \t ",
+            storagePath: "projects/foo",
+            docType: "reference",
+            concept: "网络",
+            staleBefore: "2026-09-10",
+          })
+        ).map((n) => n.id),
+      ).toEqual(["match"]);
+    }
+  }
+  expect(
+    documents.mock.calls.every(([query]) => Object.keys(query).length === 0),
+  ).toBe(true);
+  expect(nativeSearch).not.toHaveBeenCalled();
+});
 
 class SearchWorker {
   index = new NoteSearchIndex();
@@ -145,6 +215,23 @@ it("does not cache stale fallback results or expose encrypted body/search_text",
     search_text: "secret-body",
   };
   notes = [protectedNote];
+  documents.mockResolvedValue([
+    { ...protectedNote, storagePath: "private/doc", docType: "reference" },
+  ]);
+  expect(
+    await searchDocumentSummaries(adapter, {
+      text: "secret-body",
+      storagePath: "private",
+    }),
+  ).toEqual([]);
+  const protectedResults = await searchDocumentSummaries(adapter, {
+    storagePath: "private",
+    docType: "reference",
+  });
+  expect(protectedResults).toHaveLength(1);
+  expect(protectedResults[0].search_text).toBe("");
+  expect(protectedResults[0]).not.toHaveProperty("content");
+  documents.mockResolvedValue([]);
   expect(await searchWebNoteSummaries(adapter, "secret-body")).toEqual([]);
   expect(
     (await searchWebNoteSummaries(adapter, "公开标题"))[0].search_text,

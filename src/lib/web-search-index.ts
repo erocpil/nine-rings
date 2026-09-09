@@ -1,5 +1,6 @@
 import type { Note } from "../types/models";
-import type { StorageAdapter } from "./storage/types";
+import type { StorageAdapter, DocSearchQuery } from "./storage/types";
+import { isPathUnder } from "./storage/core";
 import { isTauriRuntime } from "./runtime";
 import { subscribeToDataChanges } from "./tab-coordination";
 import { getAdapter } from "./storage";
@@ -89,6 +90,26 @@ export async function searchWebNoteSummaries(adapter: StorageAdapter, query: str
     console.warn("[search-index] Worker 不可用，使用相同规则的本地搜索:", error);
     return searchLocally(adapter, query);
   }
+}
+
+/** Filters narrow the shared ranked results; they never change text matching.
+ * Filter-only queries load fresh documents and keep updated-time ordering. */
+export async function searchDocumentSummaries(adapter: StorageAdapter, query: DocSearchQuery): Promise<SearchNote[]> {
+  const text = query.text?.trim();
+  const compare = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
+  const candidates = text
+    ? await searchWebNoteSummaries(adapter, text)
+    : (await adapter.searchDocs({})).map(toSearchNote).sort((a, b) =>
+      compare(b.updated_at, a.updated_at) || compare(a.id, b.id));
+  const before = query.staleBefore ? Date.parse(query.staleBefore) : null;
+  return candidates.filter(note => {
+    if (!note.storagePath || note.deleted_at) return false;
+    if (query.storagePath && !isPathUnder(note.storagePath, query.storagePath)) return false;
+    if (query.docType && note.docType !== query.docType) return false;
+    if (query.concept && !note.concepts?.includes(query.concept)) return false;
+    if (before !== null && !(Date.parse(note.updated_at) < before)) return false;
+    return true;
+  });
 }
 
 /** A degraded browser must preserve matching, ranking and redaction semantics.

@@ -7265,7 +7265,6 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 }
 
 .doc-tree-selected .doc-tree-name {
-  font-weight: 600;
   color: var(--accent);
 }
 

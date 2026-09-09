@@ -2,7 +2,7 @@ import type { StorageAdapter, DocSearchQuery } from "./storage/types";
 import { getAdapter } from "./storage";
 import type { AppConfig, CreateNoteInput, UpdateNoteInput, UpdateTodosInput, Todo } from "../types/models";
 import { broadcastDataChange } from "./tab-coordination";
-import { invalidateWebSearchIndex, removeFromWebSearchIndex, searchWebNotes, searchWebNoteSummaries, updateWebSearchIndex } from "./web-search-index";
+import { invalidateWebSearchIndex, removeFromWebSearchIndex, searchWebNotes, searchWebNoteSummaries, searchDocumentSummaries, updateWebSearchIndex } from "./web-search-index";
 import { addFrontendSettingsToBackup, withFrontendSettings } from "./backup-user-settings";
 import { parseJsonAsync, stringifyJsonAsync } from "./data-transform-client";
 import { validateBackup } from "./backup-validation";
@@ -270,6 +270,9 @@ export const api = {
 
     search: (query: DocSearchQuery) =>
       adapter().then((a) => a.searchDocs(query)),
+
+    searchSummaries: (query: DocSearchQuery) =>
+      adapter().then((a) => searchDocumentSummaries(a, query)),
 
     allConcepts: () =>
       adapter().then((a) => a.getAllConcepts()),
