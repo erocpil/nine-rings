@@ -385,7 +385,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
         <div className="code-block-inner">
           <div
             className="code-block-gutter"
-            style={{ display: showLineNumbers ? "block" : "none", width: `calc(${String(lineCount).length}ch + 8px)` }}
+            style={{ display: showLineNumbers ? "block" : "none", width: `calc(${String(lineCount).length}ch + var(--code-line-number-padding, 8px))` }}
             contentEditable={false}
             suppressContentEditableWarning
           >

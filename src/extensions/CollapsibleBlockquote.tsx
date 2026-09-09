@@ -42,6 +42,9 @@ function CollapsibleBlockquoteView({ node, editor, getPos }: NodeViewProps) {
     >
       <div className="blockquote-toolbar" data-pdf-exclude contentEditable={false}>
         <span>引用</span>
+        <button type="button" className="block-workspace-open" title="放大阅读引用块" aria-label="放大阅读引用块"
+          onMouseDown={event => event.preventDefault()}
+          onClick={event => openBlockWorkspace(editor, getPos(), event.currentTarget)}><ToolbarIcon name="expand" /></button>
         <button
           type="button"
           onMouseDown={(event) => event.preventDefault()}
@@ -104,9 +107,6 @@ function CollapsibleBlockquoteView({ node, editor, getPos }: NodeViewProps) {
           aria-expanded={!collapsed}
           title={collapsed ? "展开引用块" : "折叠引用块"}
         ><span className="blockquote-fold-icon" aria-hidden="true">{collapsed ? "▶" : "▼"}</span></button>
-        <button type="button" className="block-workspace-open" title="放大阅读引用块" aria-label="放大阅读引用块"
-          onMouseDown={event => event.preventDefault()}
-          onClick={event => openBlockWorkspace(editor, getPos(), event.currentTarget)}><ToolbarIcon name="expand" /></button>
       </div>
       <NodeViewContent className="blockquote-content" />
     </NodeViewWrapper>

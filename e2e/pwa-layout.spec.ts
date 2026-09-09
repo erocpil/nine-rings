@@ -217,7 +217,8 @@ test.describe("PWA 窄屏应用外壳", () => {
     const gutter = block.locator(".code-block-gutter");
     await expect(gutter).toBeVisible();
     await expect(gutter.locator("span")).toHaveCount(101);
-    expect(await gutter.evaluate(el => (el as HTMLElement).style.width)).toBe("calc(3ch + 8px)");
+    expect(await gutter.evaluate(el => (el as HTMLElement).style.width)).toBe("calc(3ch + var(--code-line-number-padding, 8px))");
+    await expect(gutter).toHaveCSS("--code-line-number-padding", "4px");
     await expect(gutter).toHaveCSS("border-right-width", "0px");
     await expect(block.locator(".code-block-toolbar")).toHaveCSS("border-bottom-width", "0px");
     await block.getByRole("button", { name: "隐藏代码行号", exact: true }).click();
@@ -1590,6 +1591,58 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(geometry.orderedNumberRight).toBeLessThanOrEqual(geometry.orderedListLeft);
     expect(geometry.orderedItemOffset).toBeCloseTo(geometry.orderedPadding, 1);
     expect(geometry.insertRight).toBeLessThanOrEqual(geometry.numberLeft);
+  });
+
+  test("手机正文左移保留四位块号与折叠热区，代码右侧有留白", async ({ page }) => {
+    test.setTimeout(60000);
+    const editor = await createOutlineFixture(page, "留白测试");
+    await editor.evaluate(el => {
+      const instance = (el as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      instance.commands.setContent({ type: "doc", content: [
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "对齐标题" }] },
+        { type: "codeBlock", content: [{ type: "text", text: "正文起点\n代码第二行" }] },
+        ...Array.from({ length: 999 }, (_, i) => ({ type: "paragraph", content: [{ type: "text", text: `正文 ${i}` }] })),
+      ] });
+    });
+    for (const numbers of [false, true]) {
+      if (numbers) {
+        await page.setViewportSize({ width: 390, height: 760 });
+        await swipeNoteEditor(page.locator(".note-editor"), { startX: 380, startY: 160, endX: 280, endY: 160 });
+        await page.getByRole("dialog", { name: "阅读侧栏" }).getByRole("button", { name: "设置", exact: true }).click();
+        await page.getByRole("button", { name: /^外观与排版/ }).click();
+        await page.getByRole("button", { name: /^编辑器设置/ }).click();
+        await page.locator(".settings-field").filter({ hasText: "显示块编号" }).locator(".settings-toggle").click();
+        await page.getByLabel("关闭设置").click();
+      }
+      await page.locator(".header-document-actions").getByRole("button", { name: "专注模式", exact: true }).click();
+      await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", numbers ? "50px" : "22px");
+      for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
+        await page.setViewportSize(viewport);
+        const geometry = await page.locator(".editor-content-shell").evaluate(shell => {
+          const heading = shell.querySelector("h2")!.getBoundingClientRect();
+          const frame = shell.querySelector(".code-block-frame")!.getBoundingClientRect();
+          const fold = shell.querySelector(".editor-heading-fold")!.getBoundingClientRect();
+          const number = shell.querySelector(".editor-block-number")?.getBoundingClientRect();
+          const code = shell.querySelector("pre code")!;
+          return { headingLeft: heading.left, frameLeft: frame.left, frameRight: frame.right, foldLeft: fold.left, foldRight: fold.right, foldWidth: fold.width, numberLeft: number?.left, numberRight: number?.right, paddingRight: parseFloat(getComputedStyle(code).paddingRight) };
+        });
+        expect(geometry.frameLeft).toBeCloseTo(geometry.headingLeft, 1);
+        expect(geometry.foldLeft).toBeGreaterThanOrEqual(0);
+        expect(geometry.foldWidth).toBe(22);
+        expect(geometry.foldRight).toBeLessThanOrEqual(geometry.headingLeft);
+        expect(geometry.frameRight).toBeLessThanOrEqual(viewport.width - 12);
+        expect(geometry.paddingRight).toBe(8);
+        if (numbers) {
+          expect(geometry.numberLeft!).toBeGreaterThanOrEqual(geometry.foldRight);
+          expect(geometry.numberRight!).toBeLessThanOrEqual(geometry.headingLeft - 3);
+        }
+        if (viewport.width === 390) {
+          await page.locator(".note-editor-scroll").evaluate(el => { el.scrollTop = 0; });
+          await page.screenshot({ path: `/tmp/nr-body-spacing-${numbers ? "numbered" : "plain"}.png` });
+        }
+      }
+      if (!numbers) await page.locator(".note-editor > .mobile-focus-bar").getByRole("button", { name: "退出专注模式", exact: true }).click();
+    }
   });
 
   test("只读文档可从主编辑区直接恢复编辑", async ({ page }) => {

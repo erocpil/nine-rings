@@ -6919,7 +6919,7 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 .vr-code-toolbar { display: flex; align-items: center; gap: 4px; padding: 4px; font-size: 12px; }
 .vr-code-toolbar span { flex: 1; }
 .vr-code-line { display: grid; min-height: 1.5em; }
-.vr-code-line-number { text-align: right; padding-right: 8px; color: var(--text-secondary); user-select: none; -webkit-user-select: none; }
+.vr-code-line-number { text-align: right; padding-right: var(--code-line-number-padding, 8px); color: var(--text-secondary); user-select: none; -webkit-user-select: none; }
 .vr-status, .vr-notice { padding: 4px 8px; font-size: 12px; color: var(--text-secondary); }
 .vr-panel { position: absolute; right: 8px; top: 76px; width: min(380px, calc(100% - 16px)); max-height: calc(100% - 100px); overflow: auto; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); z-index: 35; box-shadow: 0 8px 24px #0002; }
 .vr-panel-close { float: right; }
@@ -8956,7 +8956,8 @@ button.doc-tree-toggle:focus-visible {
 .blockquote-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
+  gap: 2px;
   min-height: 24px;
   margin-bottom: 2px;
   color: var(--text-secondary);
@@ -8964,6 +8965,8 @@ button.doc-tree-toggle:focus-visible {
   -webkit-user-select: none;
   user-select: none;
 }
+
+.blockquote-toolbar > span:first-child { margin-right: auto; }
 
 .blockquote-toolbar button {
   width: 22px;
@@ -9645,7 +9648,16 @@ button.doc-tree-toggle:focus-visible {
      继续作为键盘打开或 gutter 暂时离屏时的备用操作。 */
   .editor-content-shell {
     margin-top: 16px;
+    /* Move the entire gutter with its text, not the text into the block-number
+       column. The app's 4px left inset absorbs this small adjustment. */
+    margin-left: -4px;
+    margin-right: 4px;
   }
+
+  .note-editor .code-block-inner { --code-line-number-padding: 4px; }
+  .note-editor .code-block-gutter { margin-right: 1px; }
+  .note-editor .ProseMirror .code-block-inner pre code { padding-right: 8px; }
+  .vr-note .vr-body { margin-left: -4px; margin-right: 4px; }
 
   .editor-block-insert,
   .show-line-numbers .editor-block-insert {

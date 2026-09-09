@@ -172,6 +172,7 @@ function renderBlock(
         >
           <div className="blockquote-toolbar" contentEditable={false}>
             <span>引用</span>
+            <button type="button" className="block-workspace-open" data-workspace-position={pos} title="放大阅读引用块" aria-label="放大阅读引用块"><ToolbarIcon name="expand" /></button>
             <button
               type="button"
               aria-label={collapsed ? "展开引用块" : "折叠引用块"}
@@ -180,7 +181,6 @@ function renderBlock(
             >
               {collapsed ? "▶" : "▼"}
             </button>
-            <button type="button" className="block-workspace-open" data-workspace-position={pos} title="放大阅读引用块" aria-label="放大阅读引用块"><ToolbarIcon name="expand" /></button>
           </div>
           {!collapsed && <div className="blockquote-content">{children}</div>}
         </blockquote>
@@ -234,7 +234,7 @@ function renderBlock(
                 <code>{lineNumbers ? lines.map((line, index) => {
                   const position = linePosition;
                   linePosition += line.length + 1;
-                  return <span className="vr-code-line" key={index} style={{ gridTemplateColumns: `calc(${String(lines.length).length}ch + 8px) minmax(0, 1fr)` }}>
+                  return <span className="vr-code-line" key={index} style={{ gridTemplateColumns: `calc(${String(lines.length).length}ch + var(--code-line-number-padding, 8px)) minmax(0, 1fr)` }}>
                     <span className="vr-code-line-number" aria-hidden="true">{index + 1}</span>
                     <span>{line ? renderBlock(node.type.schema.text(line), position, states, update, match, defaultWrap) : "\n"}</span>
                   </span>;
@@ -738,6 +738,7 @@ export function ReadonlyVirtualNote(
         {
           "--editor-font-size": `${props.editorFontSize}px`,
           "--editor-gutter-width": `${editorGutterWidth(doc.childCount, props.showLineNumbers, true)}px`,
+          "--editor-gutter-text-gap": props.showLineNumbers ? "4px" : "0px",
         } as React.CSSProperties
       }
     >
