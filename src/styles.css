@@ -85,9 +85,9 @@ html {
   --editor-heading-margin-bottom: 0.35em;
   --editor-list-margin-top: 0.25em;
   --editor-list-margin-bottom: 0.25em;
-  --editor-list-indent: 1.25em;
+  --editor-list-indent: 1em;
   --editor-list-marker-gap: 0.35em;
-  --editor-ordered-list-offset: 0.5em;
+  --editor-ordered-list-offset: 0em;
   --editor-blockquote-indent: 8px;
   --editor-search-highlight: #ffd54f;
   --app-viewport-width: 100vw;
@@ -5187,7 +5187,7 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 /* ──── ProseMirror content ──── */
 
 .editor-content ul {
-  padding-inline-start: var(--editor-list-indent);
+  padding-inline-start: max(var(--editor-list-indent), calc(0.5em + var(--editor-list-marker-gap)));
 }
 
 .editor-content ul,
@@ -5848,7 +5848,7 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 
 .editor-appearance-preview ul {
   margin: 0;
-  padding-inline-start: var(--editor-list-indent);
+  padding-inline-start: max(var(--editor-list-indent), calc(0.5em + var(--editor-list-marker-gap)));
   list-style: none;
 }
 
@@ -5898,6 +5898,13 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 
 .editor-appearance-preview li li > ol > li::before {
   content: counter(editor-list-item, lower-roman) ".";
+}
+
+/* A compact fixed bullet column keeps markers near the paragraph edge.
+   Do not stretch it to fill the indent: that would cancel the gap setting. */
+:is(.editor-content, .editor-appearance-preview) ul > li::before {
+  width: 0.5em;
+  text-align: right;
 }
 
 /* 列表级列宽来自起始编号和项目数。每个嵌套列表重新初始化变量，

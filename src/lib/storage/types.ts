@@ -55,7 +55,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   editor_heading_margin_bottom: 0.35,
   editor_list_margin_top: 0.25,
   editor_list_margin_bottom: 0.25,
-  editor_list_indent: 1.25,
+  editor_list_indent: 1,
   editor_list_marker_gap: 0.35,
   editor_blockquote_indent: 8,
   editor_search_highlight_color: "#ffd54f",

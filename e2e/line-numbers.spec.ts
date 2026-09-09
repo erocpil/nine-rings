@@ -1,5 +1,15 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createBlankNote } from "./helpers/editor-fixtures";
+import type { Editor } from "@tiptap/core";
+
+async function createListFixture(page: Page) {
+  await page.goto("/");
+  const editor = page.locator(".note-editor .ProseMirror");
+  await expect(editor).toBeVisible({ timeout: 15000 });
+  await editor.evaluate(el => (el as HTMLElement & { editor: Editor }).editor.commands.clearContent());
+  await editor.click();
+  return editor;
+}
 
 async function openEditorSettings(page: Page) {
   await page.getByTitle("设置").click();
@@ -288,7 +298,7 @@ test.describe("编辑器块级 gutter", () => {
   });
 
   test("有序与无序列表缩进在块号开关前后保持稳定", async ({ page }) => {
-    const editor = await createBlankNote(page);
+    const editor = await createListFixture(page);
     const markdown = "正文\n\n- 无序项目\n\n1. 有序项目";
     await editor.evaluate((element, text) => {
       const clipboardData = new DataTransfer();
@@ -356,9 +366,11 @@ test.describe("编辑器块级 gutter", () => {
       .toBeCloseTo(withoutNumbers.unorderedPadding, 1);
     expect(withoutNumbers.orderedItemLeft - withoutNumbers.orderedLeft)
       .toBeCloseTo(withoutNumbers.orderedPadding, 1);
-    const expectedOrderedOffset = withoutNumbers.fontSize * withoutNumbers.orderedOffset;
-    expect(withoutNumbers.orderedPadding - withoutNumbers.unorderedPadding)
-      .toBeCloseTo(expectedOrderedOffset, 1);
+    // Number-column width may exceed the configured indent; there is no
+    // additional fixed offset on top of that safety reservation.
+    expect(withoutNumbers.orderedOffset).toBe(0);
+    const expectedOrderedOffset = withoutNumbers.orderedPadding - withoutNumbers.unorderedPadding;
+    expect(expectedOrderedOffset).toBeGreaterThanOrEqual(0);
     expect(withoutNumbers.orderedItemLeft - withoutNumbers.unorderedItemLeft)
       .toBeCloseTo(expectedOrderedOffset, 1);
     expect(withoutNumbers.orderedMarker).toContain("counter(editor-list-item)");
@@ -394,7 +406,7 @@ test.describe("编辑器块级 gutter", () => {
   });
 
   test("多位有序编号按右沿对齐且不侵入块号沟槽", async ({ page }) => {
-    const editor = await createBlankNote(page);
+    const editor = await createListFixture(page);
     const markdown = Array.from({ length: 105 }, (_, index) => `${index + 1}. 项目 ${index + 1}`)
       .join("\n");
     await editor.evaluate((element, text) => {

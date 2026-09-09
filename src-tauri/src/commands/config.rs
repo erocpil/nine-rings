@@ -103,7 +103,7 @@ fn default_editor_list_margin() -> f64 {
 }
 
 fn default_editor_list_indent() -> f64 {
-    1.25
+    1.0
 }
 
 fn default_editor_list_marker_gap() -> f64 {
@@ -319,7 +319,7 @@ mod tests {
         assert_eq!(config.editor_heading_margin_bottom, 0.35);
         assert_eq!(config.editor_list_margin_top, 0.25);
         assert_eq!(config.editor_list_margin_bottom, 0.25);
-        assert_eq!(config.editor_list_indent, 1.25);
+        assert_eq!(config.editor_list_indent, 1.0);
         assert_eq!(config.editor_search_highlight_color, "#ffd54f");
         assert!(config.editor_cjk_spacing);
         assert!(config.editor_show_status_block_number);

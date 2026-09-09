@@ -14,7 +14,7 @@ test("排版设置中的调整即时生效并在重载后保持", async ({ page 
   await page.getByRole("button", { name: "增大正文与标题字号" }).click();
   await page.getByRole("button", { name: "增大行距" }).click();
   await page.getByRole("button", { name: "增大正文块间距" }).click();
-  await page.getByRole("button", { name: "减小列表层级缩进" }).click();
+  await page.getByRole("button", { name: "增大列表层级缩进" }).click();
   await page.getByRole("button", { name: "增大标题上间距" }).click();
   await page.getByRole("button", { name: "减小标题下间距" }).click();
   await page.getByRole("button", { name: "增大列表上间距" }).click();
@@ -39,7 +39,7 @@ test("排版设置中的调整即时生效并在重载后保持", async ({ page 
     size: "17px",
     lineHeight: "1.7",
     blockSpacing: "1.05em",
-    listIndent: "1.2em",
+    listIndent: "1.05em",
     searchColor: "#33aa77",
     headingTop: "0.75em",
     headingBottom: "0.3em",
@@ -84,11 +84,9 @@ test("排版设置中的调整即时生效并在重载后保持", async ({ page 
   expect(previewSpacing.listTop).toBeCloseTo(0.3, 2);
   expect(previewSpacing.listBottom).toBeCloseTo(0.2, 2);
   expect(previewSpacing.nestedTop).toBe(0);
-  expect(previewSpacing.unorderedIndent).toBeCloseTo(1.2, 2);
-  expect(previewSpacing.orderedIndent).toBeCloseTo(
-    previewSpacing.unorderedIndent + previewSpacing.orderedOffset,
-    2,
-  );
+  expect(previewSpacing.unorderedIndent).toBeCloseTo(1.05, 2);
+  expect(previewSpacing.orderedOffset).toBe(0);
+  expect(previewSpacing.orderedIndent).toBeGreaterThanOrEqual(previewSpacing.unorderedIndent);
   expect(previewSpacing.nestedOrderedIndent).toBeCloseTo(previewSpacing.orderedIndent, 2);
   expect(previewSpacing.unorderedMarker).toContain("•");
   expect(previewSpacing.orderedMarker).toContain("counter(editor-list-item)");
