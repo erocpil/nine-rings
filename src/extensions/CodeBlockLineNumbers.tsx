@@ -5,6 +5,8 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { useEffect, useRef, useState } from "react";
 import { copyToClipboard } from "../lib/clipboard";
+import { openBlockWorkspace } from "../lib/block-workspace";
+import { ToolbarIcon } from "../components/ToolbarIcon";
 import { CODE_LANGUAGE_OPTIONS, highlightCode, normalizeCodeLanguage } from "../lib/code-highlight";
 
 const codeHighlightPluginKey = new PluginKey<DecorationSet>("codeSyntaxHighlight");
@@ -155,7 +157,7 @@ function changedCodeBlocks(document: ProseMirrorNode, ranges: ChangedRange[]) {
  *     </div>
  *   </NodeViewWrapper>
  */
-function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
+function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [editable, setEditable] = useState(editor.isEditable);
@@ -334,6 +336,9 @@ function CodeBlockView({ node, editor, updateAttributes }: NodeViewProps) {
             >
               {copied ? "已复制" : "⎘"}
             </button>
+            <button type="button" className="block-workspace-open" title="放大阅读代码块" aria-label="放大阅读代码块"
+              onMouseDown={event => event.preventDefault()}
+              onClick={event => openBlockWorkspace(editor, getPos(), event.currentTarget)}><ToolbarIcon name="expand" /></button>
           </div>
         </div>
         <div className="code-block-inner">

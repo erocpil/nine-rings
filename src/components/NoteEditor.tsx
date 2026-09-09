@@ -52,6 +52,7 @@ import { EditorContextMenu } from "./EditorContextMenu";
 import { EditorInsertDialogs } from "./EditorInsertDialogs";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { BlockWorkspaceHost } from "./BlockWorkspace";
 import { DocumentPanelDrawer, type DocumentPanelPresentation } from "./DocumentPanelDrawer";
 import { storeImage } from "../lib/storage/db-images";
 import { blobToBase64 } from "../lib/storage/core";
@@ -596,7 +597,7 @@ function DocumentEditor(props: NoteEditorProps) {
   return <FullNoteEditor {...props} initialPdfExportRequest={exportRequested} />;
 }
 
-function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean }) {
+function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean }) {
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -759,6 +760,11 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
   const [markdownSelectionNotice, setMarkdownSelectionNotice] = useState(false);
   const [readonlyChangeNotice, setReadonlyChangeNotice] = useState(false);
   const [copyBlockNotice, setCopyBlockNotice] = useState("");
+  useEffect(() => {
+    if (!copyBlockNotice.startsWith("已复制")) return;
+    const timer = window.setTimeout(() => setCopyBlockNotice(""), 2200);
+    return () => window.clearTimeout(timer);
+  }, [copyBlockNotice]);
   const readonlyCopyPosition = useRef<number | null>(null);
   useEffect(() => { readonlyCopyPosition.current = null; }, [noteId]);
   const [readonlyChangeBusy, setReadonlyChangeBusy] = useState(false);
@@ -4110,6 +4116,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
         )}
       </div>}
 
+      <BlockWorkspaceHost key={noteId} noteId={noteId} source={editor} readonly={readonly} saveStatus={saveStatus} onFlush={onFlush} />
       <EditorContextMenu
         editor={editor} readonly={readonly}
         contextMenu={contextMenu} contextMenuRef={contextMenuRef}

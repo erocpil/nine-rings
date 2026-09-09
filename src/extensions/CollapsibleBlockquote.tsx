@@ -1,6 +1,8 @@
 import Blockquote from "@tiptap/extension-blockquote";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useRef } from "react";
+import { openBlockWorkspace } from "../lib/block-workspace";
+import { ToolbarIcon } from "../components/ToolbarIcon";
 
 export const blockquoteFoldTransactionMeta = "nine-rings:blockquote-fold";
 
@@ -95,6 +97,9 @@ function CollapsibleBlockquoteView({ node, editor, getPos }: NodeViewProps) {
           aria-expanded={!collapsed}
           title={collapsed ? "展开引用块" : "折叠引用块"}
         ><span className="blockquote-fold-icon" aria-hidden="true">{collapsed ? "▶" : "▼"}</span></button>
+        <button type="button" className="block-workspace-open" title="放大阅读引用块" aria-label="放大阅读引用块"
+          onMouseDown={event => event.preventDefault()}
+          onClick={event => openBlockWorkspace(editor, getPos(), event.currentTarget)}><ToolbarIcon name="expand" /></button>
       </div>
       <NodeViewContent className="blockquote-content" />
     </NodeViewWrapper>

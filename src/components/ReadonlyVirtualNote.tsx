@@ -11,6 +11,7 @@ import { DOMSerializer, Slice } from "@tiptap/pm/model";
 import type { NoteEditorProps } from "./NoteEditor";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { queueBlockWorkspace } from "../lib/block-workspace";
 import { DocumentPanelDrawer } from "./DocumentPanelDrawer";
 import {
   ReadingLayout,
@@ -178,6 +179,7 @@ function renderBlock(
             >
               {collapsed ? "▶" : "▼"}
             </button>
+            <button type="button" className="block-workspace-open" data-workspace-position={pos} title="放大阅读引用块" aria-label="放大阅读引用块"><ToolbarIcon name="expand" /></button>
           </div>
           {!collapsed && <div className="blockquote-content">{children}</div>}
         </blockquote>
@@ -223,6 +225,7 @@ function renderBlock(
             >
               {collapsed ? "▶" : "▼"}
             </button>
+            <button type="button" className="block-workspace-open" data-workspace-position={pos} title="放大阅读代码块" aria-label="放大阅读代码块"><ToolbarIcon name="expand" /></button>
           </div>
           {!collapsed && (
             <div className="code-block-inner">
@@ -304,6 +307,11 @@ export function ReadonlyVirtualNote(
   const selectedBlocks = useRef<[number, number] | null>(null);
   const copyPosition = useRef<number | null>(null);
   const [notice, setNotice] = useState("");
+  useEffect(() => {
+    if (!notice.startsWith("已复制")) return;
+    const timer = window.setTimeout(() => setNotice(""), 2200);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
   const scrollBusy = useRef(false);
   const touchDown = useRef(false);
   const savedAnchor = useRef<ReadingAnchor>({ position: 0, offset: 0 });
@@ -719,6 +727,12 @@ export function ReadonlyVirtualNote(
     <div
       className={`note-editor note-editor-readonly vr-note ${props.cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${props.focusMode ? "focus-mode" : ""}`}
       data-virtual-reader="true"
+      onClick={event => {
+        const trigger = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-workspace-position]") : null;
+        if (!trigger) return;
+        queueBlockWorkspace(noteId, Number(trigger.dataset.workspacePosition));
+        fallback();
+      }}
       style={
         {
           "--editor-font-size": `${props.editorFontSize}px`,
