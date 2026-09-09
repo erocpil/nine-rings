@@ -1,23 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { localDateKey } from "../lib/local-date";
 import { useNotesStore } from "../stores/useNotesStore";
 
-function currentClock(): string {
-  return new Date().toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
-
-export function useClockAndDateRollover(
+export function useDateRollover(
   setDate: (date: string) => Promise<void>,
-): string {
-  const [clock, setClock] = useState(currentClock);
+): void {
   const lastTodayRef = useRef(localDateKey());
 
   useEffect(() => {
-    const clockId = window.setInterval(() => setClock(currentClock()), 1_000);
     const dateId = window.setInterval(() => {
       const today = localDateKey();
       if (today === lastTodayRef.current) return;
@@ -26,10 +16,7 @@ export function useClockAndDateRollover(
         void setDate(today);
     }, 30_000);
     return () => {
-      window.clearInterval(clockId);
       window.clearInterval(dateId);
     };
   }, [setDate]);
-
-  return clock;
 }

@@ -721,27 +721,30 @@ export function ReadonlyVirtualNote(
       }}><ToolbarIcon name="copy" /></button>
       <button
         type="button"
-        title="目录"
-        aria-label="目录"
+        title="文档目录"
+        aria-label="文档目录"
+        aria-expanded={panel === "outline"}
         onClick={() => openPanel(panel === "outline" ? null : "outline")}
       >
         <FocusModeIcon name="outline" />
       </button>
       <button
         type="button"
-        title="书签"
-        aria-label="书签"
+        title="文档书签"
+        aria-label="文档书签"
+        aria-expanded={panel === "bookmarks"}
         onClick={() => openPanel(panel === "bookmarks" ? null : "bookmarks")}
       >
         <FocusModeIcon name="bookmark" />
+        {bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}
       </button>
       <button
         type="button"
-        title={props.focusMode ? "退出专注" : "专注模式"}
-        aria-label={props.focusMode ? "退出专注" : "专注模式"}
+        title={props.focusMode ? "退出专注模式" : "专注模式"}
+        aria-label={props.focusMode ? "退出专注模式" : "专注模式"}
         onClick={() => props.onFocusModeChange?.(!props.focusMode)}
       >
-        <FocusModeIcon name="exit" />
+        <ToolbarIcon name={props.focusMode ? "compress" : "expand"} />
       </button>
     </>
   );

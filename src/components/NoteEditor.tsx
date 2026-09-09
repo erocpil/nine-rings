@@ -3936,7 +3936,7 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
             title={focusMode ? "退出专注模式" : "专注模式"}
             type="button"
           >
-            {focusMode ? "⊞" : "⊟"}
+            <ToolbarIcon name={focusMode ? "compress" : "expand"} />
           </button>
         </div>
         {/* ── 标签区 ── */}

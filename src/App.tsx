@@ -33,7 +33,7 @@ import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
 import type { Template } from "./lib/storage/template-store";
 import { templateStore } from "./lib/storage/template-store";
 import { isTauriRuntime } from "./lib/runtime";
-import { useClockAndDateRollover } from "./hooks/useClockAndDateRollover";
+import { useDateRollover } from "./hooks/useDateRollover";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
 import { useQuickCaptureListener } from "./hooks/useQuickCaptureListener";
 import { editorAppearanceVariables } from "./lib/editor-appearance";
@@ -287,15 +287,8 @@ function App() {
         }
         backup = JSON.stringify(parsed, null, 2);
       }
-      const blob = new Blob([backup], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `nine-rings-recovery-${localDateKey()}.json`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      const { saveJsonBackup } = await import("./lib/local-backup-export");
+      await saveJsonBackup(backup, `nine-rings-recovery-${localDateKey()}.json`);
     } catch (backupError) {
       console.error("[Recovery] 紧急导出失败:", backupError);
       useNotesStore.setState({
@@ -451,7 +444,7 @@ function App() {
   const documentBrowserSession = useRef<DocumentBrowserSession>({});
   const [browserToolbarHost, setBrowserToolbarHost] = useState<HTMLDivElement | null>(null);
   const [docTreeToolbarHost, setDocTreeToolbarHost] = useState<HTMLDivElement | null>(null);
-  const clock = useClockAndDateRollover(setDate);
+  useDateRollover(setDate);
   const [activeTag, setActiveTag] = useState<string | null>(() => localStorage.getItem(ACTIVE_TAG_KEY));
   const [tagFilteredNotes, setTagFilteredNotes] = useState<Note[] | null>(null);
   const [undo, setUndo] = useState<UndoState | null>(null);
@@ -1545,9 +1538,7 @@ function App() {
             {autoSave.status === "error" && (
               <button type="button" onClick={retryFailedSave}>重试保存</button>
             )}
-            {!isTauriRuntime() && (
-              <button type="button" onClick={() => void exportEmergencyBackup()}>导出恢复文件</button>
-            )}
+            <button type="button" onClick={() => void exportEmergencyBackup()}>导出恢复文件</button>
             <button type="button" className="error-dismiss" onClick={clearError} aria-label="关闭错误提示">✕</button>
           </div>
         )}
@@ -1570,7 +1561,6 @@ function App() {
           </button>
         )}
         {DAILY_NOTES_ENABLED && <DatePicker value={currentDate} onChange={handleDateChange} />}
-        {DAILY_NOTES_ENABLED && isTauriRuntime() && <span className="header-clock">{clock}</span>}
         {TODOS_ENABLED && <DailyOverview />}
         <span className="header-spacer" />
         {stickyTitle && (

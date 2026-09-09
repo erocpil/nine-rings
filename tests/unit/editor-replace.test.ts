@@ -5,17 +5,27 @@ import { history, undo } from "@tiptap/pm/history";
 import { createReplacementTransaction } from "../../src/lib/editor-replace";
 import { findMatchesInTextSegments } from "../../src/extensions/SearchHighlights";
 
-const schema = new Schema({ nodes: {
-  doc: { content: "block+" },
-  paragraph: { content: "inline*", group: "block" },
-  heading: { content: "inline*", group: "block", attrs: { level: { default: 2 } } },
-  text: { group: "inline" },
-}, marks: { bold: {} } });
+const schema = new Schema({
+  nodes: {
+    doc: { content: "block+" },
+    paragraph: { content: "inline*", group: "block" },
+    heading: {
+      content: "inline*",
+      group: "block",
+      attrs: { level: { default: 2 } },
+    },
+    text: { group: "inline" },
+  },
+  marks: { bold: {} },
+});
 
 describe("literal editor replacement", () => {
   it("keeps block structure and first-character marks, undoing all replacements together", () => {
     const original = schema.node("doc", null, [
-      schema.node("heading", { level: 3 }, [schema.text("foo", [schema.mark("bold")]), schema.text("bar rest")]),
+      schema.node("heading", { level: 3 }, [
+        schema.text("foo", [schema.mark("bold")]),
+        schema.text("bar rest"),
+      ]),
       schema.node("paragraph", null, [schema.text("FOOBAR")]),
     ]);
     let state = EditorState.create({ doc: original, plugins: [history()] });
@@ -26,11 +36,19 @@ describe("literal editor replacement", () => {
     expect(state.doc.firstChild?.attrs.level).toBe(3);
     expect(state.doc.firstChild?.firstChild?.marks[0].type.name).toBe("bold");
     expect(state.doc.lastChild?.type.name).toBe("paragraph");
-    expect(undo(state, transaction => { state = state.apply(transaction); })).toBe(true);
+    expect(
+      undo(state, (transaction) => {
+        state = state.apply(transaction);
+      }),
+    ).toBe(true);
     expect(state.doc.eq(original)).toBe(true);
   });
   it("supports spaces, empty replacement, literal symbols and single-match selection", () => {
-    const state = EditorState.create({ doc: schema.node("doc", null, [schema.node("paragraph", null, schema.text("a  b  c.*"))]) });
+    const state = EditorState.create({
+      doc: schema.node("doc", null, [
+        schema.node("paragraph", null, schema.text("a  b  c.*")),
+      ]),
+    });
     const result = createReplacementTransaction(state, "  ", "", 1);
     expect(result.count).toBe(1);
     expect(state.apply(result.transaction).doc.textContent).toBe("a  bc.*");
@@ -39,13 +57,43 @@ describe("literal editor replacement", () => {
     expect(createReplacementTransaction(state, "a", "a").count).toBe(0);
   });
   it("does not cross blocks or mis-map Unicode offsets", () => {
-    expect(findMatchesInTextSegments([{ from: 1, text: "İ😀 foo" }], "foo", true)).toEqual([{ from: 5, to: 8 }]);
-    expect(findMatchesInTextSegments([{ from: 1, text: "foo" }, { from: 6, text: "bar" }], "foo\nbar", true)).toEqual([]);
+    expect(
+      findMatchesInTextSegments([{ from: 1, text: "İ😀 foo" }], "foo", true),
+    ).toEqual([{ from: 5, to: 8 }]);
+    expect(
+      findMatchesInTextSegments(
+        [
+          { from: 1, text: "foo" },
+          { from: 6, text: "bar" },
+        ],
+        "foo\nbar",
+        true,
+      ),
+    ).toEqual([]);
   });
   it("uses the same case-sensitive rules for highlighting and replacement", () => {
-    const state = EditorState.create({ doc: schema.node("doc", null, schema.node("paragraph", null, schema.text("Foo foo FOO"))) });
-    expect(findMatchesInTextSegments([{ from: 1, text: "Foo foo FOO" }], "foo", true, true)).toEqual([{ from: 5, to: 8 }]);
-    const result = createReplacementTransaction(state, "foo", "bar", undefined, true);
+    const state = EditorState.create({
+      doc: schema.node(
+        "doc",
+        null,
+        schema.node("paragraph", null, schema.text("Foo foo FOO")),
+      ),
+    });
+    expect(
+      findMatchesInTextSegments(
+        [{ from: 1, text: "Foo foo FOO" }],
+        "foo",
+        true,
+        true,
+      ),
+    ).toEqual([{ from: 5, to: 8 }]);
+    const result = createReplacementTransaction(
+      state,
+      "foo",
+      "bar",
+      undefined,
+      true,
+    );
     expect(result.count).toBe(1);
     expect(state.apply(result.transaction).doc.textContent).toBe("Foo bar FOO");
   });
