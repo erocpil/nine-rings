@@ -234,14 +234,15 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
       const rect = source.view.dom.closest(".note-editor")?.getBoundingClientRect();
       const safeTop = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--safe-top")) || 0;
       // Reclaim a little of the source header area without entering the status
-      // bar/notch. The bottom and side edges retain their existing margins.
+      // bar/notch. Leave more breathing room vertically, especially below.
       let left = Math.max(x, rect?.left ?? x), top = Math.max(y + safeTop, (rect?.top ?? y) - 24);
       let right = Math.min(x + width, rect?.right ?? x + width), bottom = Math.min(y + height, rect?.bottom ?? y + height);
       // A keyboard or a narrow desktop split can leave almost no editor area.
       // Keep the close/mode controls reachable using the visual viewport.
       if (right - left < 280) { left = x; right = x + width; }
       if (bottom - top < 160) { top = y + safeTop; bottom = y + height; }
-      Object.assign(element.style, { left: `${left + 8}px`, top: `${top + 8}px`, width: `${Math.max(1, right - left - 16)}px`, height: `${Math.max(1, bottom - top - 16)}px` });
+      const topGap = 16, bottomGap = 24;
+      Object.assign(element.style, { left: `${left + 8}px`, top: `${top + topGap}px`, width: `${Math.max(1, right - left - 16)}px`, height: `${Math.max(1, bottom - top - topGap - bottomGap)}px` });
     };
     resize();
     element.showModal();

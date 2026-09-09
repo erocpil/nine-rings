@@ -340,6 +340,20 @@ test.describe("触屏块工作区", () => {
       const dialog = page.getByRole("dialog", { name: `${name}工作区` });
       await expect(dialog).toBeVisible();
       await expect(opener).not.toBeFocused();
+      const spacing = await dialog.evaluate(element => {
+        const box = element.getBoundingClientRect();
+        const source = document.querySelector(".note-editor")!.getBoundingClientRect();
+        const viewport = window.visualViewport!;
+        const safeTop = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--safe-top")) || 0;
+        return {
+          top: box.top - Math.max(viewport.offsetTop + safeTop, source.top - 24),
+          bottom: Math.min(viewport.offsetTop + viewport.height, source.bottom) - box.bottom,
+          blur: getComputedStyle(element, "::backdrop").backdropFilter,
+        };
+      });
+      expect(spacing.top).toBeCloseTo(16, 0);
+      expect(spacing.bottom).toBeCloseTo(24, 0);
+      expect(spacing.blur).toBe("blur(2px)");
       expect((await dialog.locator(".block-workspace-header").boundingBox())!.height).toBeLessThanOrEqual(40);
       await page.mouse.click(1, 300);
       await expect(dialog).toBeVisible();
@@ -377,7 +391,7 @@ test.describe("触屏块工作区", () => {
     }).toBe(true);
     expect(await dialog.locator(".block-workspace-body").evaluate(element => element.clientHeight)).toBeGreaterThan(0);
     const bounds = (await dialog.boundingBox())!;
-    expect(260 - bounds.y - bounds.height).toBeGreaterThanOrEqual(7);
+    expect(260 - bounds.y - bounds.height).toBeGreaterThanOrEqual(23);
     await expect(dialog).toHaveCSS("padding-bottom", "8px");
     await page.screenshot({ path: "/tmp/nr-block-workspace-keyboard.png" });
     await close.click();
