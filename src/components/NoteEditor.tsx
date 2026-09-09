@@ -3680,7 +3680,7 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
           {!readonly && <button type="button" className="editor-find-replace-toggle" onClick={() => setEditorReplaceOpen(open => !open)} aria-expanded={editorReplaceOpen} aria-label="显示替换">替换</button>}
           <button type="button" onClick={() => { closeEditorFind(); editor.commands.focus(); }} title="关闭查找" aria-label="关闭查找">×</button>
           </div>
-          <div className="editor-find-options"><label><input type="checkbox" checked={editorFindCaseSensitive} onChange={event => setEditorFindCaseSensitive(event.target.checked)} />区分大小写</label></div>
+          <div className="editor-find-options"><span className="search-scope-label">当前文档</span><label><input type="checkbox" checked={editorFindCaseSensitive} onChange={event => setEditorFindCaseSensitive(event.target.checked)} />区分大小写</label></div>
           {editorReplaceOpen && !readonly && <>
             <div className="editor-find-row">
               <input ref={editorReplaceInputRef} aria-label="替换为" placeholder="替换为（留空则删除）" value={editorReplaceValue} onChange={event => { setEditorReplaceValue(event.target.value); setEditorReplaceMessage(""); }}

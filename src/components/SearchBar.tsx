@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from "react";
+import { flushSync } from "react-dom";
 import { api } from "../lib/api";
+import { ToolbarIcon } from "./ToolbarIcon";
 import type { DocType } from "../types/models";
 
 interface SearchBarProps {
@@ -135,11 +137,16 @@ export function SearchBar({ inputRef, onSearch, onDocSearch, onInputBlur, onEsca
   };
 
   const clearAll = () => {
-    setValue("");
-    setPathFilter("");
-    setTypeFilter("");
-    setConceptFilter("");
-    setConceptInput("");
+    flushSync(() => {
+      setValue("");
+      setPathFilter("");
+      setTypeFilter("");
+      setConceptFilter("");
+      setConceptInput("");
+    });
+    // The clear button disappears with the query. Keep focus inside search so
+    // the mobile blur handler does not collapse it (or dismiss the keyboard).
+    inputRef?.current?.focus({ preventScroll: true });
     scheduleSearch("", "", "", "");
   };
 
@@ -155,10 +162,13 @@ export function SearchBar({ inputRef, onSearch, onDocSearch, onInputBlur, onEsca
     <div className="search-bar" ref={filterRef}>
       <div className="search-input-row">
         <div className="search-input-wrap">
+          <span className="search-scope-label">全局</span>
           <input
             ref={inputRef}
             type="text"
-            placeholder="搜索笔记..."
+            placeholder="搜索标题和正文…"
+            aria-label="全局搜索"
+            title="搜索全部文档；加密正文始终不参与搜索"
             value={value}
             onChange={(e) => handleChange(e.target.value)}
             onFocus={() => {
@@ -208,8 +218,10 @@ export function SearchBar({ inputRef, onSearch, onDocSearch, onInputBlur, onEsca
           className={`search-filter-btn ${filterOpen || hasFilters ? "active" : ""}`}
           onClick={() => setFilterOpen(!filterOpen)}
           title="筛选"
+          aria-label="全局搜索筛选"
+          aria-expanded={filterOpen}
         >
-          🔍
+          <ToolbarIcon name="sliders" />
           {activeFilterCount > 0 && <span className="search-filter-badge">{activeFilterCount}</span>}
         </button>
       </div>

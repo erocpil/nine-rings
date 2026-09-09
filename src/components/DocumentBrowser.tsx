@@ -145,7 +145,7 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
         <span className="document-browser-count" aria-live="polite">{loading ? "…" : visible.length}</span>
         <button className={`document-browser-filter-toggle${hasFilters ? " is-filtered" : ""}`} aria-label="筛选" title={hasFilters ? "已应用筛选" : "筛选文档"} aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}><ToolbarIcon name="sliders" />筛选</button>
       </div>
-      {searchOpen && <input ref={searchRef} aria-label="查找文档" placeholder="查找标题、路径、标签或概念" value={query} onChange={event => { setQuery(event.target.value); resetScroll(); }} />}
+      {searchOpen && <label className="document-browser-search"><span className="search-scope-label">当前列表</span><input ref={searchRef} aria-label="查找文档" placeholder="标题、路径、标签或概念" title="仅筛选当前列表，不搜索正文" value={query} onChange={event => { setQuery(event.target.value); resetScroll(); }} /></label>}
       {filtersOpen && <div className="document-browser-filters">
         <button ref={pathTriggerRef} className="document-browser-filter-control document-browser-path-trigger" aria-label="筛选路径" title={path || "全部路径"} onClick={() => setPathPickerOpen(true)}><ToolbarIcon name="folder" /><span>{path || "全部路径"}</span><ToolbarIcon name="chevronRight" /></button>
         <div className="document-browser-filter-control document-browser-type-trigger">
