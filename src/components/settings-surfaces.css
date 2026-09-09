@@ -1,0 +1,24 @@
+/* Keep settings cards softly tinted across light, dark and custom themes. */
+.settings-panel {
+  --settings-card-bg: color-mix(in srgb, var(--surface) 92%, var(--accent));
+  --settings-input-bg: color-mix(in srgb, var(--surface) 97%, var(--accent));
+}
+.settings-panel .settings-category-card,
+.settings-panel .editor-appearance-entry {
+  background: var(--settings-card-bg);
+}
+.settings-panel .settings-input,
+.settings-panel .settings-field select,
+.settings-panel .settings-field input:not([type="checkbox"]):not([type="range"]):not([type="color"]) {
+  background: var(--settings-input-bg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .settings-panel .settings-category-card:hover,
+  .settings-panel .editor-appearance-entry:hover {
+    background: color-mix(in srgb, var(--surface) 86%, var(--accent));
+  }
+}
+@media (hover: none), (pointer: coarse), (any-pointer: coarse) {
+  .settings-panel .settings-category-card:hover,
+  .settings-panel .editor-appearance-entry:hover { background: var(--settings-card-bg); }
+}
