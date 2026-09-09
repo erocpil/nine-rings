@@ -3,6 +3,7 @@ import { DAILY_NOTES_ENABLED } from "../lib/workspace-features";
 import { isTauriRuntime } from "../lib/runtime";
 import { localDateKey } from "../lib/local-date";
 import { addLog } from "../lib/debugLog";
+import { invalidateWebSearchIndex } from "../lib/web-search-index";
 import {
   createTauriQuickCaptureListener,
   createBroadcastQuickCaptureListener,
@@ -30,6 +31,7 @@ export function useQuickCaptureListener({ setDate, onNotesChanged }: QuickCaptur
   useEffect(() => {
     if (!DAILY_NOTES_ENABLED) return;
     const onMessage = () => {
+      invalidateWebSearchIndex();
       addLog("[QC→主窗口] 收到 Quick Capture 提交，切到当日");
       onNotesChangedRef.current?.();
       void setDateRef.current(localDateKey());

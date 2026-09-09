@@ -3285,6 +3285,12 @@ body {
   overflow: hidden;
 }
 
+/* This search entry lives in the shared document browser, not the old mobile
+   header. Keep it available on desktop as well. */
+.doc-tree-popup .btn-search-toggle {
+  display: inline-flex !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .doc-tree-popup, .doc-tree-popup-backdrop { animation: none; }
 }
@@ -13012,6 +13018,13 @@ button.doc-tree-toggle:focus-visible {
   padding: 0;
 }
 .sidebar-tabs .sidebar-tab-hide::before { content: none; }
+@media (hover: hover) and (pointer: fine) {
+  .sidebar-tabs { min-height: 38px; padding-block: 2px; }
+  .sidebar-tabs > .btn-icon,
+  .sidebar-tabs .doc-tree-toolbar-actions > button,
+  .sidebar-tabs .doc-tree-toolbar-host > button { height: 32px; min-height: 32px; }
+  .sidebar-tabs > .workspace-switch { min-height: 32px; }
+}
 .sidebar-tabs .sidebar-tab-hide:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
 .settings-close .toolbar-icon { width: 20px; height: 20px; }
 

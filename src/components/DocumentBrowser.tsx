@@ -147,7 +147,7 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
       </div>
       {searchOpen && <input ref={searchRef} aria-label="查找文档" placeholder="查找标题、路径、标签或概念" value={query} onChange={event => { setQuery(event.target.value); resetScroll(); }} />}
       {filtersOpen && <div className="document-browser-filters">
-        <button ref={pathTriggerRef} className="document-browser-filter-control document-browser-path-trigger" aria-label="筛选路径" onClick={() => setPathPickerOpen(true)}><ToolbarIcon name="folder" /><span>{path || "全部路径"}</span><ToolbarIcon name="chevronRight" /></button>
+        <button ref={pathTriggerRef} className="document-browser-filter-control document-browser-path-trigger" aria-label="筛选路径" title={path || "全部路径"} onClick={() => setPathPickerOpen(true)}><ToolbarIcon name="folder" /><span>{path || "全部路径"}</span><ToolbarIcon name="chevronRight" /></button>
         <div className="document-browser-filter-control document-browser-type-trigger">
           <ToolbarIcon name="document" /><span aria-hidden="true">{docType ? DOCUMENT_TYPES[docType] : "全部类型"}</span><ToolbarIcon name="chevronRight" />
           <select className="document-browser-native-select" aria-label="文档类型筛选" value={docType} onChange={event => { setDocType(event.target.value as DocType | ""); resetScroll(); }}>
@@ -176,11 +176,13 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
             <option value="desc">{sort === "title" ? "标题降序" : "最新修改在前"}</option>
           </select></div>
         </div>}
-        <fieldset className="document-browser-display-fields"><legend>显示字段</legend>
+        <details className="document-browser-display-options"><summary>显示字段</summary>
+        <fieldset className="document-browser-display-fields" aria-label="显示字段">
           {(Object.keys(DISPLAY_FIELDS) as (keyof DisplayFields)[]).map(key => <label key={key}>
             <input type="checkbox" aria-label={`显示${DISPLAY_FIELDS[key]}`} checked={fields[key]} onChange={event => { setFields(current => ({ ...current, [key]: event.target.checked })); resetScroll(); }} />{DISPLAY_FIELDS[key]}
           </label>)}
         </fieldset>
+        </details>
       </div>}
       {hasFilters && <div className="document-browser-active-filters" aria-label="已应用筛选">
       {query.trim() && <button className="document-browser-type-filter" aria-label="清除关键词筛选" onClick={() => { setQuery(""); resetScroll(); }}><ToolbarIcon name="search" />{query.trim()}<ToolbarIcon name="close" /></button>}

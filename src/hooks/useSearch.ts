@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { api } from "../lib/api";
 import { DAILY_NOTES_ENABLED, TODOS_ENABLED } from "../lib/workspace-features";
-import { toSearchNote, type SearchNote } from "../lib/search-index-core";
+import type { SearchNote } from "../lib/search-index-core";
 
 export interface TodoHit {
   todo: { id: string; text: string; done: boolean };
@@ -32,17 +32,12 @@ export function useSearch() {
     }
     setSearching(true);
     try {
-      const [notes, documents, todoHits] = await Promise.all([
-        DAILY_NOTES_ENABLED ? api.notes.searchSummaries(q) : Promise.resolve([]),
-        api.docs.search({ text: q }),
+      const [notes, todoHits] = await Promise.all([
+        api.notes.searchSummaries(q),
         TODOS_ENABLED ? api.daily.searchTodos(q) : Promise.resolve([]),
       ]);
       if (requestId !== searchRequestRef.current) return;
-      // The Web index starts with essays; native search may already include docs.
-      // Merge by ID so the shared entry returns both without duplicate results.
-      const uniqueNotes = new Map(notes.map((note) => [note.id, note]));
-      for (const document of documents) uniqueNotes.set(document.id, toSearchNote(document));
-      setResults({ notes: [...uniqueNotes.values()], todos: todoHits });
+      setResults({ notes: notes.filter(note => DAILY_NOTES_ENABLED || !!note.storagePath), todos: todoHits });
     } catch (error) {
       if (requestId !== searchRequestRef.current) return;
       console.error("搜索失败:", error);

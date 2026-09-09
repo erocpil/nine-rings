@@ -31,7 +31,7 @@ function resetWorker(error?: Error): void {
 }
 
 function getWorker(): Worker | null {
-  if (worker || typeof Worker === "undefined" || isTauriRuntime()) return worker;
+  if (worker || typeof Worker === "undefined") return worker;
   worker = new Worker(new URL("../workers/search-index.worker.ts", import.meta.url), { type: "module" });
   worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
     const request = pending.get(event.data.id);
@@ -56,7 +56,7 @@ function send<T>(message: WorkerRequest): Promise<T> {
 
 async function ensureReady(adapter: StorageAdapter): Promise<number> {
   if (!ready) {
-    ready = adapter.getAllNotes()
+    ready = loadSearchNotes(adapter)
       .then((notes) => send<number>({ type: "rebuild", notes: notes.map(toSearchNote) }))
       .catch((error) => {
         resetWorker();
@@ -81,7 +81,6 @@ export async function searchWebNoteSummaries(adapter: StorageAdapter, query: str
   query = query.trim();
   // In particular, native LIKE '%%' must not turn a cleared query into results.
   if (!query) return [];
-  if (isTauriRuntime()) return (await adapter.searchNotes(query)).map(toSearchNote);
   if (typeof Worker === "undefined") return searchLocally(adapter, query);
   try {
     await ensureReady(adapter);
@@ -96,13 +95,20 @@ export async function searchWebNoteSummaries(adapter: StorageAdapter, query: str
  * Do not cache this fallback: writes in another tab must be visible even when
  * workers are unavailable. Yield between batches to keep the UI responsive. */
 async function searchLocally(adapter: StorageAdapter, query: string): Promise<SearchNote[]> {
-  const notes = await adapter.getAllNotes();
+  const notes = await loadSearchNotes(adapter);
   const index = new NoteSearchIndex();
   for (let offset = 0; offset < notes.length; offset += 250) {
     for (const note of notes.slice(offset, offset + 250)) index.upsert(note);
     if (offset + 250 < notes.length) await new Promise<void>(resolve => setTimeout(resolve, 0));
   }
   return index.search(query);
+}
+
+// getAllNotes intentionally contains essays only. Documents must be loaded
+// without a text predicate so backend matching/limits cannot discard candidates.
+async function loadSearchNotes(adapter: StorageAdapter): Promise<Note[]> {
+  const [essays, documents] = await Promise.all([adapter.getAllNotes(), adapter.searchDocs({})]);
+  return [...new Map([...essays, ...documents].map(note => [note.id, note])).values()];
 }
 
 export function updateWebSearchIndex(note: Note): void {
@@ -127,4 +133,10 @@ export async function rebuildWebSearchIndex(): Promise<number> {
 
 if (typeof window !== "undefined" && !isTauriRuntime()) {
   subscribeToDataChanges(() => invalidateWebSearchIndex());
+}
+
+// Native auxiliary windows do not use the browser BroadcastChannel. Recheck
+// persisted data when the main window regains focus after external writes.
+if (typeof window !== "undefined" && isTauriRuntime()) {
+  window.addEventListener("focus", invalidateWebSearchIndex);
 }

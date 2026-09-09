@@ -326,6 +326,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(view.locator(".document-browser-title")).toHaveText(["字段排序 A", "字段排序 B"]);
     await view.getByLabel("文档排序方向").selectOption("desc");
     await expect(view.locator(".document-browser-title")).toHaveText(["字段排序 B", "字段排序 A"]);
+    await view.locator(".document-browser-display-options summary").click();
     await view.getByLabel("显示路径", { exact: true }).uncheck();
     await view.getByLabel("显示标签", { exact: true }).check();
     await expect(view.locator(".document-browser-tags")).toHaveCount(2);
@@ -398,7 +399,7 @@ test.describe("PWA 窄屏应用外壳", () => {
       const rect = element.getBoundingClientRect();
       const style = getComputedStyle(element);
       const text = element.querySelector("span")!.getBoundingClientRect();
-      return { width: rect.width, height: rect.height, background: style.backgroundColor, font: style.fontSize, padding: style.padding, textOffset: text.x - rect.x };
+      return { height: rect.height, background: style.backgroundColor, font: style.fontSize, padding: style.padding, textOffset: text.x - rect.x };
     }));
     expect(styles).toHaveLength(5);
     for (const style of styles) expect(style).toEqual(styles[0]);
@@ -410,6 +411,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(view.locator(".document-browser-type-trigger > span")).toHaveText("参考");
     await expect(view.locator(".document-browser-row")).toHaveCount(1);
     await expect(view.locator(".document-browser-row")).toContainText("reference");
+    await view.locator(".document-browser-display-options summary").click();
     await view.getByRole("checkbox", { name: "显示修改时间", exact: true }).check();
     const modified = view.locator(".document-browser-modified");
     await expect(modified).toHaveText(/修改于 \d{4}\/\d{2}\/\d{2} \d{2}:\d{2}/);

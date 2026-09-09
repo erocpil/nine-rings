@@ -37,6 +37,7 @@ let notes: Note[];
 let adapter: StorageAdapter;
 const getAll = vi.fn();
 const nativeSearch = vi.fn();
+const documents = vi.fn();
 
 class SearchWorker {
   index = new NoteSearchIndex();
@@ -81,9 +82,11 @@ beforeEach(() => {
   ];
   getAll.mockReset().mockImplementation(async () => notes);
   nativeSearch.mockReset().mockResolvedValue([]);
+  documents.mockReset().mockResolvedValue([]);
   adapter = {
     getAllNotes: getAll,
     searchNotes: nativeSearch,
+    searchDocs: documents,
   } as unknown as StorageAdapter;
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
@@ -120,15 +123,14 @@ it("uses identical matching, normalization, ranking and snippets without a Worke
   expect(nativeSearch).not.toHaveBeenCalled();
 });
 
-it("returns no results for blank queries without calling either backend and trims native queries", async () => {
+it("returns no results for blank queries without calling either backend", async () => {
   for (const native of [false, true]) {
     runtime.native = native;
     expect(await searchWebNoteSummaries(adapter, " \n\t ")).toEqual([]);
   }
   expect(getAll).not.toHaveBeenCalled();
   expect(nativeSearch).not.toHaveBeenCalled();
-  await searchWebNoteSummaries(adapter, "  中文  ");
-  expect(nativeSearch).toHaveBeenCalledWith("中文");
+  expect(documents).not.toHaveBeenCalled();
 });
 
 it("does not cache stale fallback results or expose encrypted body/search_text", async () => {
@@ -151,8 +153,35 @@ it("does not cache stale fallback results or expose encrypted body/search_text",
   expect((await searchWebNoteSummaries(adapter, "新增"))[0].id).toBe("new");
   expect(await searchWebNoteSummaries(adapter, "公开标题")).toEqual([]);
   runtime.native = true;
-  nativeSearch.mockResolvedValue([protectedNote]);
+  notes = [protectedNote];
   expect(
     (await searchWebNoteSummaries(adapter, "公开标题"))[0].search_text,
   ).toBe("");
+});
+
+it("uses the same complete corpus and stable ordering on Web and native, including more than 80 documents", async () => {
+  const docs = Array.from({ length: 105 }, (_, i) => ({
+    ...note(`doc-${String(i).padStart(3, "0")}`, "测试 ＡＢＣ", "性能 正文"),
+    storagePath: "areas/network",
+    tags: ["ＤＰＤＫ"],
+  }));
+  notes = [note("essay", "测试 ABC", "性能")];
+  let expected: SearchNote[] | undefined;
+  for (const native of [false, true]) {
+    for (const worker of [SearchWorker, undefined, CrashedWorker]) {
+      invalidateWebSearchIndex();
+      runtime.native = native;
+      vi.stubGlobal("Worker", worker);
+      documents.mockResolvedValue(native ? [...docs].reverse() : docs);
+      const results = await searchWebNoteSummaries(adapter, " abc 性能 ");
+      expect(results).toHaveLength(106);
+      expected ??= results;
+      expect(results).toEqual(expected);
+      expect(
+        await searchWebNoteSummaries(adapter, "network dpdk"),
+      ).toHaveLength(105);
+    }
+  }
+  expect(documents).toHaveBeenCalledWith({});
+  expect(nativeSearch).not.toHaveBeenCalled();
 });

@@ -15,7 +15,7 @@
 | 2 | 软删除 / 回收站 | `api.recycle.*` | `StorageAdapter` |
 | 3 | 每日页面 & 待办 | `api.daily.*` | `StorageAdapter` |
 | 4 | 标签系统 | `api.tags.*` | `StorageAdapter` |
-| 5 | 全文搜索 | `api.notes.search()` | FTS5 (Tauri) / JS 匹配 (Web) |
+| 5 | 全文搜索 | `api.notes.searchSummaries()` | 各端共享 Worker 索引；不可用时同规则本地降级 |
 | 6 | 文档系统 (P.A.R.A.) | `api.docs.*` | `StorageAdapter` + `core.ts` |
 | 7 | 导出 / 导入 | `api.export.*` | `StorageAdapter` |
 | 8 | GitHub 备份 | `SettingsSync` → `github.ts` | 前端独立 |
@@ -183,12 +183,15 @@ searchNotes(query: string) → Note[]
 
 | | Tauri | Web |
 |------|-------|-----|
-| 引擎 | SQLite FTS5 (`notes_fts`) | JS `String.indexOf` |
-| 搜索范围 | `title` + `search_text` | `title` + `extractPlainText(content)` |
-| 排序 | FTS5 rank（BM25） | 日期倒序 |
-| 匹配 | 子串匹配（`LIKE %q%`） | 子串匹配（`indexOf`） |
-| 高亮 | 由前端 `extractSnippet()` 生成 `<mark>` 片段 | 同左 |
-| 性能 | ~ms 级 | O(n) 全表扫描 |
+| 引擎 | 共享 NoteSearchIndex，优先 Worker | 同左 |
+| 搜索范围 | 标题、非加密正文、路径、标签、概念 | 同左 |
+| 排序 | 标题匹配程度、置顶、修改时间、稳定 ID | 同左 |
+| 匹配 | NFKC + 大小写无关、多词 AND 子串 | 同左 |
+| 高亮 | 共享 `snippetParts()` | 同左 |
+| 数量 | 不截断候选，界面每次显示 80 条 | 同左 |
+| 性能 | 首次加载全量候选，Worker 索引复用；降级分批构建 | 同左 |
+
+以上为全局搜索入口。旧存储适配器 FTS/LIKE 命令与文档列表结构化筛选保留；原生 WebView2 性能仍需真机验收。
 
 ### 搜索文本提取
 
@@ -496,7 +499,7 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 | 路径树构建 | `buildDocTree()` (core.ts) | `buildDocTree()` (core.ts) | ✅ 已统一，两端共用 |
 | 模板系统 | StorageAdapter → SQLite | StorageAdapter → 原 localStorage 键 | ✅ 业务规则与契约统一；底层引擎不同 |
 | GitHub 备份 | `github.ts` + `api.export.*` | `github.ts` + `api.export.*` | ✅ 功能等价 |
-| 全文搜索 | SQLite FTS5 | Worker 索引，失败时以相同索引规则在本地分批执行 | 空白查询一致；原生非空匹配/排序/数量上限仍需后续对齐 |
+| 全文搜索 | 共享 Worker 索引 | 共享 Worker 索引 | 全局搜索统一匹配、排序和显示分页；失败时同规则本地降级 |
 | 版本历史 | ✅ checkpoint 已恢复 | ✅ `idb.ts` 完整实现 | ✅ 两端一致 |
 | 全局热键 | ✅ Rust 端 + JS 端双注册 | ✅ 浏览器快捷键 | ✅ 符合预期 |
 | Quick Capture | ✅ 独立 frameless 窗口 | ✅ BroadcastChannel 跨标签页 | ✅ 功能等价 |

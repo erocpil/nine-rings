@@ -1,0 +1,30 @@
+import { expect, test } from "@playwright/test";
+
+test("桌面文档列表筛选紧凑排列，字段按需展开，路径选择对齐触发项", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
+  await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
+  await page.getByTitle("文档视图", { exact: true }).click();
+  const view = page.getByRole("dialog", { name: "文档视图", exact: true });
+  await view.getByRole("button", { name: "全部文档", exact: true }).click();
+  await view.getByRole("button", { name: "筛选", exact: true }).click();
+  const type = (await view.locator(".document-browser-type-trigger").boundingBox())!;
+  const tag = (await view.locator(".document-browser-tag-trigger").boundingBox())!;
+  expect(type.y).toBeCloseTo(tag.y, 0);
+  expect(tag.x).toBeGreaterThan(type.x + type.width);
+  expect((await view.locator(".document-browser-controls").boundingBox())!.height).toBeLessThan(220);
+  const options = view.locator(".document-browser-display-options");
+  await expect(options).not.toHaveAttribute("open");
+  await options.locator("summary").click();
+  await expect(view.getByLabel("显示路径", { exact: true })).toBeVisible();
+  await options.locator("summary").click();
+  const trigger = view.getByRole("button", { name: "筛选路径", exact: true });
+  const anchor = (await trigger.boundingBox())!;
+  await trigger.click();
+  const picker = page.getByRole("dialog", { name: "选择文档路径", exact: true });
+  await expect(picker).toBeVisible();
+  const box = (await picker.boundingBox())!;
+  expect(box.y).toBeCloseTo(anchor.y, 0);
+  expect(box.height).toBeLessThan(360);
+  await page.screenshot({ path: "/tmp/nr-compact-document-list.png" });
+});

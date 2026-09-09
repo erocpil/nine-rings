@@ -22,6 +22,15 @@ function adapter(): Promise<StorageAdapter> {
   return _adapterPromise;
 }
 
+/** Bulk writes can partially succeed; invalidate even when the operation fails. */
+async function withSearchRefresh<T>(operation: Promise<T>): Promise<T> {
+  try { return await operation; }
+  finally {
+    invalidateWebSearchIndex();
+    broadcastDataChange({ type: "data-imported" });
+  }
+}
+
 export const api = {
   notes: {
     listByDate: (date: string) =>
@@ -86,7 +95,9 @@ export const api = {
         const updatedTags = n.tags
           .filter((t) => t !== oldName)
           .concat(newName);
-        await ad.updateNote(n.id, { tags: updatedTags });
+        const updated = await ad.updateNote(n.id, { tags: updatedTags });
+        updateWebSearchIndex(updated);
+        broadcastDataChange({ type: "note-changed", noteId: n.id });
         affected++;
       }
       return { affected };
@@ -102,7 +113,9 @@ export const api = {
         const updatedTags = n.tags
           .filter((t) => t !== sourceName)
           .concat(targetName);
-        await ad.updateNote(n.id, { tags: updatedTags });
+        const updated = await ad.updateNote(n.id, { tags: updatedTags });
+        updateWebSearchIndex(updated);
+        broadcastDataChange({ type: "note-changed", noteId: n.id });
         affected++;
       }
       return { affected };
@@ -116,7 +129,9 @@ export const api = {
       let affected = 0;
       for (const n of notes) {
         const updatedTags = n.tags.filter((t) => t !== name);
-        await ad.updateNote(n.id, { tags: updatedTags });
+        const updated = await ad.updateNote(n.id, { tags: updatedTags });
+        updateWebSearchIndex(updated);
+        broadcastDataChange({ type: "note-changed", noteId: n.id });
         affected++;
       }
       return { affected };
@@ -199,7 +214,7 @@ export const api = {
     list: () => adapter().then((a) => a.getDeletedNotes()),
 
     restore: (id: string) =>
-      adapter().then((a) => a.restoreNote(id)),
+      withSearchRefresh(adapter().then((a) => a.restoreNote(id))),
 
     permanentlyDelete: (id: string) =>
       adapter().then((a) => a.permanentlyDeleteNote(id)),
@@ -209,10 +224,10 @@ export const api = {
 
     batch: {
       delete: (ids: string[]) =>
-        adapter().then((a) => a.batchDelete(ids)),
+        withSearchRefresh(adapter().then((a) => a.batchDelete(ids))),
 
       setReadonly: (ids: string[], readonly: boolean) =>
-        adapter().then((a) => a.batchSetReadonly(ids, readonly)),
+        withSearchRefresh(adapter().then((a) => a.batchSetReadonly(ids, readonly))),
     },
   },
 
@@ -221,7 +236,7 @@ export const api = {
       adapter().then((a) => a.getNoteVersions(noteId)),
 
     restore: (versionId: string) =>
-      adapter().then((a) => a.restoreNoteVersion(versionId)),
+      withSearchRefresh(adapter().then((a) => a.restoreNoteVersion(versionId))),
 
     checkpoint: (noteId: string) =>
       adapter().then((a) => a.createNoteCheckpoint(noteId)),
@@ -242,16 +257,16 @@ export const api = {
       adapter().then((a) => a.getNotesByPath(pathPrefix)),
 
     renameFolder: (oldPath: string, newPath: string) =>
-      adapter().then((a) => a.renameFolder(oldPath, newPath)),
+      withSearchRefresh(adapter().then((a) => a.renameFolder(oldPath, newPath))),
 
     moveDocument: (noteId: string, targetFolderPath: string) =>
-      adapter().then((a) => a.moveDocument(noteId, targetFolderPath)),
+      withSearchRefresh(adapter().then((a) => a.moveDocument(noteId, targetFolderPath))),
 
     batchMoveDocuments: (noteIds: string[], targetFolderPath: string) =>
-      adapter().then((a) => a.batchMoveDocuments(noteIds, targetFolderPath)),
+      withSearchRefresh(adapter().then((a) => a.batchMoveDocuments(noteIds, targetFolderPath))),
 
     relocateFolder: (sourcePath: string, targetPath: string) =>
-      adapter().then((a) => a.relocateFolder(sourcePath, targetPath)),
+      withSearchRefresh(adapter().then((a) => a.relocateFolder(sourcePath, targetPath))),
 
     search: (query: DocSearchQuery) =>
       adapter().then((a) => a.searchDocs(query)),
