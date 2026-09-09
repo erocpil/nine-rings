@@ -18,9 +18,13 @@ export async function copyToClipboard(text: string, options: { reportFailure?: b
   textarea.style.position = "fixed";
   textarea.style.opacity = "0";
   textarea.style.left = "-9999px";
-  document.body.appendChild(textarea);
+  // Native modal dialogs make the rest of the document inert. The fallback
+  // selection must live inside the active dialog to remain selectable.
+  const container = previousFocus instanceof Element ? previousFocus.closest("dialog[open]") ?? document.body : document.body;
+  container.appendChild(textarea);
 
   try {
+    textarea.focus({ preventScroll: true });
     textarea.select();
     textarea.setSelectionRange(0, text.length);
     const copied = document.execCommand("copy");
@@ -28,7 +32,7 @@ export async function copyToClipboard(text: string, options: { reportFailure?: b
   } catch (error) {
     if (options.reportFailure) throw error;
   } finally {
-    document.body.removeChild(textarea);
-    if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+    container.removeChild(textarea);
+    if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus({ preventScroll: true });
   }
 }

@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { copyToClipboard } from "../lib/clipboard";
 import { openBlockWorkspace } from "../lib/block-workspace";
 import { ToolbarIcon } from "../components/ToolbarIcon";
+import { blockWorkspacePreferences, saveBlockWorkspacePreferences } from "../lib/block-display-settings";
 import { CODE_LANGUAGE_OPTIONS, highlightCode, normalizeCodeLanguage } from "../lib/code-highlight";
 
 const codeHighlightPluginKey = new PluginKey<DecorationSet>("codeSyntaxHighlight");
@@ -160,6 +161,7 @@ function changedCodeBlocks(document: ProseMirrorNode, ranges: ChangedRange[]) {
 function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
   const [editable, setEditable] = useState(editor.isEditable);
   const [readonlyWrapOverride, setReadonlyWrapOverride] = useState<boolean | null>(null);
   const [readonlyCollapsedOverride, setReadonlyCollapsedOverride] = useState<boolean | null>(null);
@@ -176,6 +178,12 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
   );
   const [lineNumbersOverride, setLineNumbersOverride] = useState<boolean | null>(null);
   const showLineNumbers = lineNumbersOverride ?? lineNumbersEnabled;
+  useEffect(() => {
+    if (!editor.view.dom.closest(".block-workspace")) return;
+    const preferences = blockWorkspacePreferences();
+    if (preferences.lineNumbers !== undefined) setLineNumbersOverride(preferences.lineNumbers);
+    if (preferences.wrap !== undefined) setReadonlyWrapOverride(preferences.wrap);
+  }, [editor]);
   const [visualRows, setVisualRows] = useState<number[]>(() => Array(lineCount).fill(1));
 
   useEffect(() => {
@@ -250,9 +258,12 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
 
   const handleCopy = async () => {
     // Copy model text, never rendered decorations such as whitespace markers.
-    await copyToClipboard(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    try {
+      await copyToClipboard(code, { reportFailure: true });
+      setCopyError(false);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    } catch { setCopyError(true); }
   };
 
   return (
@@ -285,7 +296,10 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
               aria-label={showLineNumbers ? "隐藏代码行号" : "显示代码行号"}
               aria-pressed={showLineNumbers}
               onMouseDown={(event) => event.preventDefault()}
-              onClick={() => setLineNumbersOverride(!showLineNumbers)}
+              onClick={() => {
+                setLineNumbersOverride(!showLineNumbers);
+                if (inWorkspace) saveBlockWorkspacePreferences({ lineNumbers: !showLineNumbers });
+              }}
               title="代码行号（仅改变显示）"
             >行号</button>
             <button
@@ -318,6 +332,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
               className={`code-block-wrap-toggle ${wrapEnabled ? "active" : ""}`}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => {
+                if (inWorkspace) saveBlockWorkspacePreferences({ wrap: !wrapEnabled });
                 if (editable) { setReadonlyWrapOverride(null); updateAttributes({ wrap: !wrapEnabled }); }
                 else setReadonlyWrapOverride(!wrapEnabled);
               }}
@@ -334,7 +349,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
               title="复制代码"
               aria-label="复制代码"
             >
-              {copied ? "已复制" : "⎘"}
+              {copyError ? "复制失败" : copied ? "已复制" : "⎘"}
             </button>
             <button type="button" className="block-workspace-open" title="放大阅读代码块" aria-label="放大阅读代码块"
               onMouseDown={event => event.preventDefault()}

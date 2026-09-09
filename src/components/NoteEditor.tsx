@@ -4118,7 +4118,7 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
         )}
       </div>}
 
-      <BlockWorkspaceHost key={noteId} noteId={noteId} source={editor} readonly={readonly} saveStatus={saveStatus} onFlush={onFlush} />
+      <BlockWorkspaceHost key={noteId} noteId={noteId} source={editor} readonly={readonly} sensitive={sensitive} saveStatus={saveStatus} onFlush={onFlush} />
       <EditorContextMenu
         editor={editor} readonly={readonly}
         contextMenu={contextMenu} contextMenuRef={contextMenuRef}

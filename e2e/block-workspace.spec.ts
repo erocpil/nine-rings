@@ -1,18 +1,18 @@
 import { expect, test, type Page } from "@playwright/test";
 
-async function fixture(page: Page, readonly = false) {
+async function fixture(page: Page, readonly = false, secondCode = false) {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15000 });
-  const id = await page.evaluate(async readonly => {
+  const id = await page.evaluate(async ({ readonly, secondCode }) => {
     const load = (path: string) => import(/* @vite-ignore */ path);
     const { api } = await load("/src/lib/api.ts") as typeof import("../src/lib/api");
     const { mdToDelta } = await load("/src/lib/md-parser.ts") as typeof import("../src/lib/md-parser");
     const { useNotesStore } = await load("/src/stores/useNotesStore.ts") as typeof import("../src/stores/useNotesStore");
-    const note = await api.notes.create({ title: "块工作区测试", date: useNotesStore.getState().currentDate, content: mdToDelta("前文\n\n```js\nconst answer = 42;\nconsole.log(answer);\n```\n\n> 引用第一段\n>\n> 引用第二段\n\n后文") });
+    const note = await api.notes.create({ title: "块工作区测试", date: useNotesStore.getState().currentDate, content: mdToDelta("前文\n\n```js\nconst answer = 42;\nconsole.log(answer);\n```\n\n> 引用第一段\n>\n> 引用第二段\n\n后文" + (secondCode ? "\n\n```js\nconst second = 2;\n```" : "")) });
     if (readonly) await api.notes.update(note.id, { readonly: true });
     useNotesStore.getState().selectNote((await api.notes.get(note.id))!);
     return note.id;
-  }, readonly);
+  }, { readonly, secondCode });
   await expect(page.locator(".note-title")).toHaveValue("块工作区测试");
   return id;
 }
@@ -130,4 +130,126 @@ test("长代码正文限高而弹层保持单一纵向滚动区", async ({ page 
   await dialog.getByLabel("跳转代码行").fill("140");
   await dialog.getByRole("button", { name: "跳转", exact: true }).click();
   expect(await dialog.locator(".block-workspace-body").evaluate(el => el.scrollTop)).toBeGreaterThan(1000);
+});
+
+test("同类块切换保留编辑且保存失败不关闭弹层", async ({ page }) => {
+  await fixture(page, false, true);
+  await page.getByRole("button", { name: "放大阅读代码块" }).first().click();
+  const dialog = page.getByRole("dialog", { name: "代码块工作区" });
+  await dialog.getByRole("button", { name: "下一个代码块", exact: true }).click();
+  await expect(dialog.locator("pre code")).toHaveText("const second = 2;");
+  await expect(dialog.getByRole("button", { name: "下一个代码块", exact: true })).toBeDisabled();
+  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts") as typeof import("../src/lib/api");
+    const update = api.notes.update;
+    document.documentElement.dataset.failBlockSave = "true";
+    api.notes.update = (id, changes) => document.documentElement.dataset.failBlockSave === "true" && changes.content ? Promise.reject(new Error("test: storage unavailable")) : update(id, changes);
+  });
+  await dialog.locator("pre code").click();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.insertText("const second = 200;");
+  await dialog.getByRole("button", { name: "关闭块工作区" }).click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("保存失败");
+  await page.evaluate(() => delete document.documentElement.dataset.failBlockSave);
+  await dialog.getByRole("button", { name: "上一个代码块", exact: true }).click();
+  await expect(dialog.locator("pre code")).toContainText("const answer = 42;");
+  await expect(page.locator(".note-editor .ProseMirror pre code").last()).toHaveText("const second = 200;");
+});
+
+test("实验只读渲染可进入块工作区", async ({ page }) => {
+  await fixture(page, true);
+  await page.evaluate(() => {
+    localStorage.setItem("nr:experimentalReadonlyRendering", "true");
+    window.dispatchEvent(new Event("nine-rings:readonly-rendering-change"));
+  });
+  await expect(page.locator("[data-virtual-reader]")).toBeVisible();
+  await page.getByRole("button", { name: "放大阅读引用块" }).click();
+  const dialog = page.getByRole("dialog", { name: "引用块工作区" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("引用第一段");
+  await expect(dialog.getByRole("button", { name: "编辑", exact: true })).toHaveCount(0);
+});
+
+test("外部替换目标块后旧弹层失效，不覆盖新正文", async ({ page }) => {
+  await fixture(page);
+  await page.getByRole("button", { name: "放大阅读代码块" }).click();
+  await page.locator(".note-editor .ProseMirror").evaluate(element => {
+    // Exercise a source transaction (e.g. restoring an external revision),
+    // not a props-only autosave acknowledgement which intentionally keeps DOM.
+    const editor = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    editor.commands.setContent({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "外部替换的新正文" }] }] }, true);
+  });
+  await expect(page.getByRole("dialog", { name: "代码块工作区" })).toHaveCount(0);
+  await expect(page.locator(".note-editor .ProseMirror")).toContainText("外部替换的新正文");
+});
+
+test("引用编辑复用格式工具，显示偏好在重新打开后保留", async ({ page }) => {
+  await fixture(page);
+  await page.getByRole("button", { name: "放大阅读引用块" }).click();
+  const dialog = page.getByRole("dialog", { name: "引用块工作区" });
+  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await dialog.locator(".ProseMirror p").first().click();
+  await dialog.getByLabel("段落样式").selectOption("2");
+  await expect(dialog.locator("h2")).toHaveText("引用第一段");
+  await expect(page.locator(".note-editor blockquote h2")).toHaveText("引用第一段");
+  await dialog.getByRole("button", { name: "增加缩进", exact: true }).click();
+  await expect(page.locator(".note-editor blockquote")).toHaveAttribute("data-indent", "1");
+  await dialog.getByRole("button", { name: "阅读", exact: true }).click();
+  await dialog.getByRole("button", { name: "块显示设置" }).click();
+  await dialog.getByLabel("Tab 显示宽度").selectOption("8");
+  await dialog.getByLabel("弹层字号").selectOption("20");
+  await dialog.getByRole("button", { name: "关闭块工作区" }).click();
+  await page.getByRole("button", { name: "放大阅读引用块" }).click();
+  await dialog.getByRole("button", { name: "块显示设置" }).click();
+  await expect(dialog.getByLabel("Tab 显示宽度")).toHaveValue("8");
+  await expect(dialog.getByLabel("弹层字号")).toHaveValue("20");
+});
+
+test("弹层剪贴板降级在模态内部选择纯文本", async ({ page }) => {
+  await fixture(page, true);
+  await page.getByRole("button", { name: "放大阅读代码块" }).click();
+  const dialog = page.getByRole("dialog", { name: "代码块工作区" });
+  await dialog.getByRole("button", { name: "块显示设置" }).click();
+  await dialog.getByLabel("显示空白字符").selectOption("all");
+  await page.evaluate(() => {
+    Object.defineProperty(navigator.clipboard, "write", { configurable: true, value: async () => { throw new Error("denied"); } });
+    Object.defineProperty(navigator.clipboard, "writeText", { configurable: true, value: async () => { throw new Error("denied"); } });
+    document.execCommand = command => {
+      const input = document.activeElement;
+      if (command !== "copy" || !(input instanceof HTMLTextAreaElement) || !input.closest("dialog[open]")) return false;
+      document.documentElement.dataset.fallbackCopy = input.value;
+      return true;
+    };
+  });
+  await dialog.getByRole("button", { name: "复制块", exact: true }).click();
+  await expect(dialog).toContainText("已复制块（纯文本）");
+  await expect(page.locator("html")).toHaveAttribute("data-fallback-copy", "const answer = 42;\nconsole.log(answer);");
+  await dialog.getByRole("button", { name: "复制代码", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-fallback-copy", "const answer = 42;\nconsole.log(answer);");
+});
+
+test.describe("触屏块工作区", () => {
+  test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
+  test("键盘压缩可视区域后关闭按钮仍可点击", async ({ page }) => {
+    await fixture(page);
+    await page.getByRole("button", { name: "放大阅读代码块" }).click();
+    const dialog = page.getByRole("dialog", { name: "代码块工作区" });
+    await dialog.getByRole("button", { name: "块显示设置" }).click();
+    await page.evaluate(() => {
+      Object.defineProperty(window.visualViewport!, "height", { configurable: true, value: 260 });
+      window.visualViewport!.dispatchEvent(new Event("resize"));
+    });
+    const close = dialog.getByRole("button", { name: "关闭块工作区" });
+    await expect.poll(async () => {
+      const bounds = (await close.boundingBox())!;
+      return bounds.y >= 0 && bounds.y + bounds.height <= 260;
+    }).toBe(true);
+    expect(await dialog.locator(".block-workspace-body").evaluate(element => element.clientHeight)).toBeGreaterThan(0);
+    await page.screenshot({ path: "/tmp/nr-block-workspace-keyboard.png" });
+    await close.click();
+    await expect(dialog).toHaveCount(0);
+  });
 });
