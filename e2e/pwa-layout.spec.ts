@@ -179,6 +179,22 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(page.locator("html")).toHaveAttribute("data-copied-block-html", /<blockquote[\s\S]*复制整块内容/);
     await expect(editor).toHaveAttribute("contenteditable", "false");
     await expect(editor.locator("blockquote")).toContainText("复制整块内容");
+    const focusBar = page.getByLabel("专注模式工具栏");
+    await focusBar.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
+    await expect(editor).toHaveAttribute("contenteditable", "true");
+    for (const viewport of [{ width: 320, height: 760 }, { width: 760, height: 390 }]) {
+      await page.setViewportSize(viewport);
+      await editor.locator("blockquote").getByText("复制整块内容", { exact: true }).click();
+      await page.evaluate(() => delete document.documentElement.dataset.copiedBlockHtml);
+      await focusBar.getByRole("button", { name: "复制块", exact: true }).click();
+      await expect(page.locator("html")).toHaveAttribute("data-copied-block-html", /<blockquote[\s\S]*复制整块内容/);
+      await expect(focusBar.getByRole("button", { name: "更多编辑工具", exact: true })).toBeVisible();
+      expect(await focusBar.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+      const titleBox = (await focusBar.getByRole("button", { name: "查看完整标题" }).boundingBox())!;
+      const copyBox = (await focusBar.getByRole("button", { name: "复制块", exact: true }).boundingBox())!;
+      expect(titleBox.width).toBeGreaterThan(40);
+      expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(copyBox.x);
+    }
   });
 
   test("只读代码行号可切换且按总行数预留宽度", async ({ page }) => {

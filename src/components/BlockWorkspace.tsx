@@ -232,12 +232,15 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
       const x = viewport?.offsetLeft ?? 0, y = viewport?.offsetTop ?? 0;
       const width = viewport?.width ?? window.innerWidth, height = viewport?.height ?? window.innerHeight;
       const rect = source.view.dom.closest(".note-editor")?.getBoundingClientRect();
-      let left = Math.max(x, rect?.left ?? x), top = Math.max(y, rect?.top ?? y);
+      const safeTop = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--safe-top")) || 0;
+      // Reclaim a little of the source header area without entering the status
+      // bar/notch. The bottom and side edges retain their existing margins.
+      let left = Math.max(x, rect?.left ?? x), top = Math.max(y + safeTop, (rect?.top ?? y) - 24);
       let right = Math.min(x + width, rect?.right ?? x + width), bottom = Math.min(y + height, rect?.bottom ?? y + height);
       // A keyboard or a narrow desktop split can leave almost no editor area.
       // Keep the close/mode controls reachable using the visual viewport.
       if (right - left < 280) { left = x; right = x + width; }
-      if (bottom - top < 160) { top = y; bottom = y + height; }
+      if (bottom - top < 160) { top = y + safeTop; bottom = y + height; }
       Object.assign(element.style, { left: `${left + 8}px`, top: `${top + 8}px`, width: `${Math.max(1, right - left - 16)}px`, height: `${Math.max(1, bottom - top - 16)}px` });
     };
     resize();

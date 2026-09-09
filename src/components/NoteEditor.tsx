@@ -3553,9 +3553,7 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
             title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
             aria-label={bookmarks.length > 0 ? `文档书签，共 ${bookmarks.length} 项` : "文档书签"}
           ><FocusModeIcon name="bookmark" />{bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}</button>
-          {readonly && (
-            <button type="button" title="复制块" aria-label="复制块" onMouseDown={(event) => event.preventDefault()} onClick={() => void handleCopyBlock()}><ToolbarIcon name="copy" /></button>
-          )}
+          <button type="button" title="复制块" aria-label="复制块" onMouseDown={(event) => event.preventDefault()} onClick={() => void handleCopyBlock()}><ToolbarIcon name="copy" /></button>
           {!readonly && (
             <button
               type="button"

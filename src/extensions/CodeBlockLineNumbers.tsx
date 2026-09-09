@@ -38,8 +38,12 @@ function textPointAt(
   return last ? { node: last.node, offset: last.node.data.length } : null;
 }
 
-/** 返回每个逻辑代码行实际占用的视觉行数（软换行可能大于 1）。 */
-function measureCodeLineVisualRows(codeElement: HTMLElement, code: string): number[] {
+/** Measure logical-line advances in pixels, including wrapped/empty lines.
+ * Glyph rectangles are not visual rows: WebKit returns extra zero-width
+ * newline rectangles, and fallback fonts can change actual line-box height. */
+function measureCodeLineHeights(codeElement: HTMLElement, code: string): number[] {
+  const style = getComputedStyle(codeElement);
+  const lineHeight = Number.parseFloat(style.lineHeight) || Number.parseFloat(style.fontSize) * 1.5;
   const walker = document.createTreeWalker(codeElement, NodeFilter.SHOW_TEXT);
   const textSpans: TextSpan[] = [];
   let textOffset = 0;
@@ -49,29 +53,46 @@ function measureCodeLineVisualRows(codeElement: HTMLElement, code: string): numb
       textOffset += current.data.length;
     }
   }
-  if (textSpans.length === 0) return code.split("\n").map(() => 1);
+  if (textSpans.length === 0) return code.split("\n").map(() => lineHeight);
 
   let lineStart = 0;
-  return code.split("\n").map((line) => {
+  const lines = code.split("\n");
+  const tops: number[] = [];
+  const ends: number[] = [];
+  lines.forEach((line) => {
     const lineEnd = lineStart + line.length;
     const start = textPointAt(textSpans, lineStart, true);
     const end = textPointAt(textSpans, lineEnd, false);
     lineStart = lineEnd + 1;
-    if (!line.length || !start || !end) return 1;
+    if (!line.length || !start || !end) { tops.push(NaN); ends.push(NaN); return; }
 
     const range = document.createRange();
     range.setStart(start.node, start.offset);
+    // Read the first glyph separately; a range spanning highlighted elements
+    // also includes wrapper rectangles that can start on earlier lines.
+    range.setEnd(start.node, Math.min(start.node.length, start.offset + 1));
+    const first = Array.from(range.getClientRects()).find(rect => rect.height > 0 && rect.width > 0);
+    tops.push(first?.top ?? NaN);
     range.setEnd(end.node, end.offset);
-    const rowTops: number[] = [];
+    let lastTop = -Infinity;
     for (const rect of range.getClientRects()) {
-      if (rect.height <= 0) continue;
-      if (!rowTops.some((top) => Math.abs(top - rect.top) < 2)) rowTops.push(rect.top);
+      if (rect.height <= 0 || rect.width <= 0) continue;
+      lastTop = Math.max(lastTop, rect.top);
     }
-    return Math.max(1, rowTops.length);
+    ends.push(Number.isFinite(lastTop) ? lastTop + lineHeight : NaN);
   });
+  // Empty-line rectangles are ambiguous at newline boundaries in WebKit.
+  // Anchor each run of blanks to the next real line, then fill trailing blanks.
+  for (let index = tops.length - 2; index >= 0; index--) {
+    if (!Number.isFinite(tops[index]) && Number.isFinite(tops[index + 1])) tops[index] = tops[index + 1] - lineHeight;
+  }
+  for (let index = 0; index < tops.length; index++) {
+    if (!Number.isFinite(tops[index])) tops[index] = index === 0 ? 0 : Number.isFinite(ends[index - 1]) ? ends[index - 1] : tops[index - 1] + lineHeight;
+  }
+  return tops.map((top, index) => Math.max(1, (tops[index + 1] ?? ends[index]) - top || lineHeight));
 }
 
-function equalRows(left: readonly number[], right: readonly number[]): boolean {
+function equalHeights(left: readonly number[], right: readonly number[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
@@ -189,7 +210,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
     window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, syncPreferences);
     return () => window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, syncPreferences);
   }, [editor]);
-  const [visualRows, setVisualRows] = useState<number[]>(() => Array(lineCount).fill(1));
+  const [lineHeights, setLineHeights] = useState<number[]>(() => Array(lineCount).fill(0));
 
   useEffect(() => {
     const syncLineNumbers = () => {
@@ -204,9 +225,9 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
 
   useEffect(() => {
     if (!showLineNumbers) {
-      setVisualRows((current) => current.length === lineCount && current.every((rows) => rows === 1)
+      setLineHeights((current) => current.length === lineCount && current.every((height) => height === 0)
         ? current
-        : Array(lineCount).fill(1));
+        : Array(lineCount).fill(0));
       return;
     }
     const codeElement = wrapperRef.current?.querySelector<HTMLElement>("code");
@@ -216,8 +237,8 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
     const measure = () => {
       frame = 0;
       if (cancelled) return;
-      const measured = measureCodeLineVisualRows(codeElement, code);
-      setVisualRows((current) => equalRows(current, measured) ? current : measured);
+      const measured = measureCodeLineHeights(codeElement, code);
+      setLineHeights((current) => equalHeights(current, measured) ? current : measured);
     };
     const scheduleMeasure = () => {
       if (!frame) frame = window.requestAnimationFrame(measure);
@@ -374,7 +395,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
                 // iOS WebKit 在 contenteditable NodeView 中有时会忽略逻辑
                 // block-size，导致软换行后仍按单行高度排列并丢失末尾行号。
                 // 代码块固定为横向书写，使用物理 height 更可靠。
-                style={{ height: `${(visualRows[index] ?? 1) * 1.5}em` }}
+                style={{ height: lineHeights[index] ? `${lineHeights[index]}px` : "1.5em" }}
               >{index + 1}</span>
             ))}
           </div>
