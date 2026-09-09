@@ -131,7 +131,7 @@ describe("PWA update lifecycle", () => {
     expect(status.errorDetails).toContain("state=redundant");
   });
 
-  it("reports installation failure and retries on reconnect without clearing data", async () => {
+  it("reports installation failure and retries on reconnect after cooldown without clearing data", async () => {
     const worker = new Worker();
     registration.installing = worker;
     start();
@@ -140,6 +140,12 @@ describe("PWA update lifecycle", () => {
     worker.change("redundant");
     await settle();
     expect(status.error).toContain("安装失败");
+    browser.dispatchEvent(new Event("online"));
+    await settle();
+    expect(registration.update).not.toHaveBeenCalled();
+    doc.visibilityState = "hidden";
+    await vi.advanceTimersByTimeAsync(30 * 60_000);
+    doc.visibilityState = "visible";
     browser.dispatchEvent(new Event("online"));
     await settle();
     expect(registration.update).toHaveBeenCalledOnce();
@@ -199,16 +205,47 @@ describe("PWA update lifecycle", () => {
     browser.dispatchEvent(new Event("focus"));
     browser.dispatchEvent(new Event("pageshow"));
     expect(registration.update).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    browser.dispatchEvent(new Event("focus"));
+    browser.dispatchEvent(new Event("pageshow"));
+    browser.dispatchEvent(new Event("online"));
+    doc.dispatchEvent(new Event("visibilitychange"));
+    await settle();
+    expect(registration.update).toHaveBeenCalledTimes(1);
     doc.visibilityState = "hidden";
-    await vi.advanceTimersByTimeAsync(300_000);
+    await vi.advanceTimersByTimeAsync(30 * 60_000);
     expect(registration.update).toHaveBeenCalledTimes(1);
     doc.visibilityState = "visible";
     doc.dispatchEvent(new Event("visibilitychange"));
     browser.dispatchEvent(new Event("focus"));
     await settle();
     expect(registration.update).toHaveBeenCalledTimes(2);
-    await vi.advanceTimersByTimeAsync(300_000);
+  });
+
+  it("polls every thirty minutes and allows immediate manual checks", async () => {
+    start();
+    await settle();
+    await vi.advanceTimersByTimeAsync(30 * 60_000);
+    expect(registration.update).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(30 * 60_000);
     expect(registration.update).toHaveBeenCalledTimes(3);
+    await updater.check();
+    expect(registration.update).toHaveBeenCalledTimes(4);
+    browser.dispatchEvent(new Event("online"));
+    browser.dispatchEvent(new Event("focus"));
+    await settle();
+    expect(registration.update).toHaveBeenCalledTimes(4);
+  });
+
+  it("checks on reconnect immediately if offline startup never made a request", async () => {
+    network.onLine = false;
+    start();
+    expect(container.register).not.toHaveBeenCalled();
+    network.onLine = true;
+    browser.dispatchEvent(new Event("online"));
+    await settle();
+    expect(registration.update).toHaveBeenCalledOnce();
+    expect(status.error).toBeNull();
   });
 
   it("does not refresh unsaved tabs when another tab activates an update", async () => {

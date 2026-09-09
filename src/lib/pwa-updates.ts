@@ -9,7 +9,8 @@ export interface PwaUpdateStatus {
 }
 
 const UPDATE_TIMEOUT = 60_000;
-const CHECK_INTERVAL = 5 * 60_000;
+// All automatic triggers share a cooldown; explicit checks remain immediate.
+const CHECK_INTERVAL = 30 * 60_000;
 
 class PwaUpdateFailure extends Error {
   constructor(message: string, public readonly details: string | null) {
@@ -143,7 +144,7 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
 
   const check = (force = false): Promise<void> => {
     if (checking) return checking;
-    if (disposed || (!force && (document.visibilityState !== "visible" || Date.now() - lastCheck < 30_000))) return Promise.resolve();
+    if (disposed || (!force && (document.visibilityState !== "visible" || Date.now() - lastCheck < CHECK_INTERVAL))) return Promise.resolve();
     if (!navigator.onLine) {
       if (force) setFailure("当前离线，联网后再检查更新。", "网络状态离线");
       return Promise.resolve();
@@ -184,7 +185,7 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
   listen(document, "visibilitychange", () => { void check(); });
   listen(window, "focus", () => { void check(); });
   listen(window, "pageshow", () => { void check(); });
-  listen(window, "online", () => { void check(true); });
+  listen(window, "online", () => { void check(); });
   const interval = setInterval(() => { void check(); }, CHECK_INTERVAL);
   void check(true);
 
