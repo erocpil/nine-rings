@@ -5117,7 +5117,7 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 }
 
 .editor-heading-fold {
-  --heading-fold-target-height: 24px;
+  --heading-fold-target-height: 20px;
   position: absolute;
   left: 0;
   z-index: 2;
@@ -13080,10 +13080,9 @@ button.doc-tree-toggle:focus-visible {
 :is(.btn-icon, .search-clear, .search-filter-btn, .editor-find-bar button):not(:disabled):is([aria-pressed="true"], [aria-expanded="true"], :active) {
   color: var(--accent); background: var(--active-bg);
 }
-:is(.btn-icon, .search-clear, .search-filter-btn, .editor-find-bar button, .editor-heading-fold):focus-visible {
+:is(.btn-icon, .search-clear, .search-filter-btn, .editor-find-bar button):focus-visible {
   outline: 2px solid var(--accent); outline-offset: -2px;
 }
-.editor-heading-fold:focus-visible { opacity: 1; }
 :is(.btn-icon, .search-clear, .search-filter-btn, .editor-find-bar button):disabled {
   opacity: 0.4; cursor: default;
 }

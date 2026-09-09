@@ -162,6 +162,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
     const layoutIndexByPosition = new Map<number, number>();
     const observedIndexes = new Map<HTMLElement, number>();
     const measuredBlocks = new Map<HTMLElement, GutterBlock>();
+    const layoutElements = new Set<HTMLElement>();
 
     const publishBlocks = () => {
       setBlocks([...measuredBlocks.values()].sort((left, right) => left.index - right.index));
@@ -395,6 +396,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
       if (!force && start === observedWindow.start && end === observedWindow.end) return;
       observedWindow = { start, end };
       const nextObservedIndexes = new Map<HTMLElement, number>();
+      const nextLayoutElements = new Set<HTMLElement>();
       // 强制重建发生在折叠事务之后。此时不能只等待 IntersectionObserver：
       // WebView / WebKit 可能要到下一次滚动才回调，已经隐藏的正文块号便会
       // 暂留在旧坐标。force 时同步读取当前布局，立即淘汰高度为 0 的块。
@@ -405,11 +407,12 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
         : 0;
       for (let blockIndex = start; blockIndex <= end; blockIndex += 1) {
         const block = layoutBlocks[blockIndex];
-        if (!block
-          || hiddenFoldBlockPositions.has(block.pos)
-          || (!needsAllBlocks && !block.heading)) continue;
+        if (!block || hiddenFoldBlockPositions.has(block.pos)) continue;
         const dom = editor.view.nodeDOM(block.pos);
         if (!(dom instanceof HTMLElement)) continue;
+        nextLayoutElements.add(dom);
+        if (!layoutElements.has(dom)) blockResizeObserver?.observe(dom, { box: "border-box" });
+        if (!needsAllBlocks && !block.heading) continue;
         nextObservedIndexes.set(dom, block.index);
         if (intersectionObserver) {
           if (!observedIndexes.has(dom)) intersectionObserver.observe(dom);
@@ -427,6 +430,11 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
       }
       observedIndexes.clear();
       for (const [dom, index] of nextObservedIndexes) observedIndexes.set(dom, index);
+      for (const dom of layoutElements) {
+        if (!nextLayoutElements.has(dom)) blockResizeObserver?.unobserve(dom);
+      }
+      layoutElements.clear();
+      for (const dom of nextLayoutElements) layoutElements.add(dom);
       publishBlocks();
     };
 
@@ -527,6 +535,12 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
           scheduleDocumentMeasure();
           scheduleWindowRefresh();
         });
+    // A quote/code block can change height while the editor's total height
+    // stays constant. IO does not report every position change of an already
+    // visible heading. Observe only the bounded layout window, not the document.
+    const blockResizeObserver = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(scheduleVisibleMeasure);
     resizeObserver?.observe(root);
     resizeObserver?.observe(editor.view.dom);
     const mutationObserver = typeof MutationObserver === "undefined"
@@ -546,6 +560,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
       window.removeEventListener("resize", scheduleWindowRefresh);
       intersectionObserver?.disconnect();
       resizeObserver?.disconnect();
+      blockResizeObserver?.disconnect();
       mutationObserver?.disconnect();
       if (documentMeasureTimer) window.clearTimeout(documentMeasureTimer);
       if (measureFrame) cancelAnimationFrame(measureFrame);

@@ -86,4 +86,22 @@ test("手机专注模式折叠三角始终对齐标题而不是引用块", async
   await assertAlignment();
   await page.getByRole("button", { name: "展开引用块", exact: true }).click();
   await assertAlignment();
+  // Balanced block resizes do not resize the editor root. Keep headings inside
+  // the viewport so IntersectionObserver cannot be relied on for relocation.
+  await page.setViewportSize({ width: 390, height: 1800 });
+  await page.locator(".ProseMirror").evaluate((root) => {
+    const quote = root.querySelector<HTMLElement>(".blockquote-wrap")!;
+    const tail = root.lastElementChild as HTMLElement;
+    quote.style.paddingBottom = "80px";
+    tail.style.paddingBottom = "80px";
+  });
+  await assertAlignment();
+  await page.waitForTimeout(250);
+  await page.locator(".ProseMirror").evaluate((root) => {
+    const quote = root.querySelector<HTMLElement>(".blockquote-wrap")!;
+    const tail = root.lastElementChild as HTMLElement;
+    quote.style.paddingBottom = "140px";
+    tail.style.paddingBottom = "20px";
+  });
+  await assertAlignment();
 });
