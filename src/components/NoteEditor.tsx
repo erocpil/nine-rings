@@ -2045,6 +2045,10 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
     const capture = () => {
       frame = 0;
       if (adjusting || editor.isDestroyed || !root.isConnected) return;
+      // Navigation invalidates the old anchor synchronously, but geometry reads
+      // belong to this coalesced frame. Reading clientWidth in selectionUpdate
+      // forces layout of newly pasted content before the transaction returns.
+      if (!anchor) lastObservedWidth = root.clientWidth;
       const viewport = editorReadingViewport(root);
       const pos = Math.min(editor.state.selection.head, editor.state.doc.content.size);
       const coords = editor.view.coordsAtPos(pos);
@@ -2235,7 +2239,6 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
       clearSettleTimers();
       adjusting = false;
       anchor = null;
-      lastObservedWidth = root.clientWidth;
       scheduleCapture();
     };
     const wheelNavigation = () => {

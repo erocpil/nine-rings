@@ -34,6 +34,14 @@ for (const count of [300, 1500, 5000]) {
         ? `# 章节 ${i / 30 + 1}`
         : `段落 ${i + 1}：${"用于测试长文档布局、自动换行和滚动响应。含 **加粗文本** 与 English words。".repeat(3)}`,
     ).join("\n\n");
+    const profiler =
+      process.env.NR_EDITOR_PROFILE === "1" && browserName === "chromium"
+        ? await page.context().newCDPSession(page)
+        : null;
+    if (profiler) {
+      await profiler.send("Profiler.enable");
+      await profiler.send("Profiler.start");
+    }
     const paste = await editor.evaluate(async (element, content) => {
       const data = new DataTransfer();
       data.setData("text/plain", content);
@@ -42,6 +50,16 @@ for (const count of [300, 1500, 5000]) {
       ).editor;
       const view = instance.view;
       const dispatch = view.dispatch;
+      const updateState = view.updateState;
+      let updateStateMs = 0;
+      view.updateState = (state) => {
+        const before = performance.now();
+        try {
+          updateState.call(view, state);
+        } finally {
+          updateStateMs += performance.now() - before;
+        }
+      };
       let dispatchMs = 0;
       let transactionCount = 0;
       view.dispatch = (transaction) => {
@@ -64,6 +82,7 @@ for (const count of [300, 1500, 5000]) {
         );
       } finally {
         view.dispatch = dispatch;
+        view.updateState = updateState;
       }
       const pasteMs = performance.now() - start;
       await new Promise(requestAnimationFrame);
@@ -72,11 +91,31 @@ for (const count of [300, 1500, 5000]) {
       return {
         pasteMs,
         dispatchMs,
+        updateStateMs,
         transactionCount,
         outsideDispatchMs: pasteMs - dispatchMs,
         layoutReadyMs: performance.now() - start,
       };
     }, markdown);
+    if (profiler) {
+      const { profile } = await profiler.send("Profiler.stop");
+      console.log(
+        "EDITOR_CPU_PROFILE",
+        JSON.stringify(
+          profile.nodes
+            .filter((node) => node.hitCount)
+            .sort((left, right) => (right.hitCount ?? 0) - (left.hitCount ?? 0))
+            .slice(0, 25)
+            .map((node) => ({
+              function: node.callFrame.functionName,
+              url: node.callFrame.url,
+              line: node.callFrame.lineNumber,
+              hits: node.hitCount,
+            })),
+        ),
+      );
+      await profiler.detach();
+    }
     await expect(editor.locator(":scope > *")).toHaveCount(count);
     await expect(page.locator(".save-status-saved")).toBeVisible({
       timeout: 20000,

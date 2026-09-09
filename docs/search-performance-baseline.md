@@ -59,11 +59,22 @@ Chromium 同环境、无其它测试并行，每个规模各一次的新测量�
 
 下一步应继续拆分 dispatch 内部成本，而不是继续假定 Markdown 解析是主要瓶颈；真实已有文档打开耗时仍待单独测量。本轮补充长 Unicode 文本、空格/Tab、混合行内语法与无效标记单测，以及大段粘贴的结构、单步撤销重做和光标回归。
 
+## 第三个性能子批次：避免选区回调过早强制布局（2026-09-09）
+
+基准补充 `view.updateState` 计时，以及可选 Chromium CPU 采样（`NR_EDITOR_PROFILE=1`）。采样自身有开销，仅用于定位调用，不与未采样的耗时直接比较。
+
+1,500 块采样中，粘贴 dispatch 约 4326ms，内部 `updateState` 约 152ms。CPU 样本集中在 `userNavigation`：`selectionUpdate` 回调立即读取 `root.clientWidth`，迫使刚插入的整篇文档同步排版。这里需要立即取消的是旧的滚动恢复任务，而不是立即读取宽度。
+
+改动保留立即取消恢复、清空旧锚点的行为；宽度基线延迟到已合并的下一帧锚点采集，并且仅在没有有效锚点时更新。补充断言：连续选区通知同步阶段不读取容器宽度，下一帧仍采集宽度。
+
+必须区分事务返回与画面就绪：修改后一次未采样的 1,500 块运行同步粘贴约 606ms，但布局就绪约 8602ms；另一次 CPU 采样运行分别约 299ms / 2662ms。后者热点转移到浏览器选区读取，说明完整排版成本仍会在后续阶段支付，且运行波动明显。**本批只确认移除了选区回调中的强制布局点，不据此声称总体显示耗时或帧率改善。** 后续应单独记录布局长任务、已有文档打开和宽度变化，评估布局范围与渲染策略；不能仅把耗时推迟到下一帧就认定优化完成。
+
 ## 复现命令
 
 ```sh
 NR_SEARCH_BENCHMARK=1 npx playwright test e2e/search-performance.spec.ts --workers=1
 NR_EDITOR_BENCHMARK=1 npx playwright test e2e/editor-rendering-benchmark.spec.ts --grep '300 块|1500 块' --workers=1
+NR_EDITOR_BENCHMARK=1 NR_EDITOR_PROFILE=1 npx playwright test e2e/editor-rendering-benchmark.spec.ts --grep '1500 块' --workers=1
 ```
 
 两个基准均显式启用，使用隔离浏览器中的合成数据，不读取用户资料库。长文档基准已改用文档 API 创建测试内容，不再依赖隐藏的随笔入口。
