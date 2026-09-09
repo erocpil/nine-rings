@@ -489,10 +489,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
       const configTip = result.configs_imported ? "，配置已恢复" : "";
       showMessage(`导入完成：${result.notes_imported} 篇笔记, ${result.pages_imported} 个页面${configTip}`);
       onImport?.();
-      e.target.value = "";
     } catch (e) {
       showMessage(`导入失败: ${e}`);
     } finally {
+      // Match native dialogs: a failed import can be retried with the same file.
+      e.target.value = "";
       setImporting(false);
     }
   };

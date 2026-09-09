@@ -41,6 +41,18 @@
 
 仍需真机验收的边界：Windows WebView2/macOS WKWebView/Linux WebKitGTK 的原生窗口、剪贴板、文件系统和字体栅格化；iOS PWA 的系统键盘及安全区。浏览器回归和 IPC 替身测试不能证明所有安装包逐像素相同。以同一提交构建的版本比较功能与交互，不以不同发布批次截图直接判断分叉。
 
+### 第三轮：搜索降级、导入重试与旧格式备份
+
+- Web/PWA 无 Worker、Worker 构造失败或运行失败时，改用同一 `NoteSearchIndex`，保留多关键词、NFKC 规范化、标题优先排序、摘要与加密脱敏规则。降级路径分批构建索引并让出主线程，不保留易过期的降级缓存。
+- 应用搜索接口统一先 trim；空白查询直接返回空数组，不进入 Tauri 的 LIKE 查询（其旧底层行为会返回至多 50 条记录）。Tauri 非空查询仍使用原 FTS/LIKE 后端，没有将原生全文库改为每次主线程全量扫描。
+- Tauri 导入兼容 SQLite 旧格式时，在解析 JSON 字符串正文之后再清除加密文档的 `search_text`，使对象/字符串两种正文表示在 IPC 边界上一致；不改变密文。
+- Web/PWA 的 JSON 文件输入在失败时也清空，允许再次选择同一个文件；原生文件对话框本就允许重选。Markdown 文件输入已有相同 finally 清理，不重复改写。
+- 只读正文继续由共享 ProseMirror 事务守卫阻止编辑；块工作区有独立只读守卫。本轮没有发现新的平台条件分叉。当前文档的 Markdown 属性页/编辑器导出共用序列化与导出入口，保存方式保留平台差异。
+
+验证入口：`tests/unit/search-platform.test.ts`、`tests/unit/tauri-backup-import.test.ts`、既有 `tests/unit/document-protection.test.ts`、`e2e/import-retry.spec.ts`。搜索对拍使用受控 Worker 替身，原生导入测试检查实际 adapter 发出的 IPC 参数，不冒充 Rust/SQLite 或 Windows 安装包实测。
+
+仍未统一：Tauri FTS 的英文前缀/BM25、中文 LIKE 与 Web 子串多词搜索之间的匹配和排序；原生最多 50 条与 Web 结果数量也不同。需要另行确定统一的结果契约并做性能测试，不能仅对已截断的 50 条重新排序就称为完整对齐。
+
 ## 移动侧栏与工具栏约定（复核至 2026-09-09）
 
 - 左侧文档树、右侧阅读面板统一使用 `bindViewportEdgeSwipe`：从窗口监听，按 `visualViewport` 的尺寸和偏移计算 30px 边缘，横向超过 60px 松手展开。方向锁定后不再把竖向漂移交给正文滚动；按钮、输入框、选区和其它弹层不参与开启手势。

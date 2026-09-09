@@ -496,7 +496,7 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 | 路径树构建 | `buildDocTree()` (core.ts) | `buildDocTree()` (core.ts) | ✅ 已统一，两端共用 |
 | 模板系统 | StorageAdapter → SQLite | StorageAdapter → 原 localStorage 键 | ✅ 业务规则与契约统一；底层引擎不同 |
 | GitHub 备份 | `github.ts` + `api.export.*` | `github.ts` + `api.export.*` | ✅ 功能等价 |
-| 全文搜索 | SQLite FTS5 | Worker 索引，失败时回退存储搜索 | 提供相同入口；匹配/排序不保证完全相同，需持续对拍 |
+| 全文搜索 | SQLite FTS5 | Worker 索引，失败时以相同索引规则在本地分批执行 | 空白查询一致；原生非空匹配/排序/数量上限仍需后续对齐 |
 | 版本历史 | ✅ checkpoint 已恢复 | ✅ `idb.ts` 完整实现 | ✅ 两端一致 |
 | 全局热键 | ✅ Rust 端 + JS 端双注册 | ✅ 浏览器快捷键 | ✅ 符合预期 |
 | Quick Capture | ✅ 独立 frameless 窗口 | ✅ BroadcastChannel 跨标签页 | ✅ 功能等价 |

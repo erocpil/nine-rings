@@ -3,7 +3,7 @@ import type { StorageAdapter } from "./storage/types";
 import { isTauriRuntime } from "./runtime";
 import { subscribeToDataChanges } from "./tab-coordination";
 import { getAdapter } from "./storage";
-import { toSearchNote, type SearchNote } from "./search-index-core";
+import { NoteSearchIndex, toSearchNote, type SearchNote } from "./search-index-core";
 
 type WorkerRequest =
   | { type: "rebuild"; notes: SearchNote[] }
@@ -78,14 +78,31 @@ export async function searchWebNotes(adapter: StorageAdapter, query: string): Pr
 }
 
 export async function searchWebNoteSummaries(adapter: StorageAdapter, query: string): Promise<SearchNote[]> {
-  if (isTauriRuntime() || typeof Worker === "undefined") return (await adapter.searchNotes(query)).map(toSearchNote);
+  query = query.trim();
+  // In particular, native LIKE '%%' must not turn a cleared query into results.
+  if (!query) return [];
+  if (isTauriRuntime()) return (await adapter.searchNotes(query)).map(toSearchNote);
+  if (typeof Worker === "undefined") return searchLocally(adapter, query);
   try {
     await ensureReady(adapter);
     return await send<SearchNote[]>({ type: "search", query });
   } catch (error) {
-    console.warn("[search-index] 索引不可用，回退到存储搜索:", error);
-    return (await adapter.searchNotes(query)).map(toSearchNote);
+    console.warn("[search-index] Worker 不可用，使用相同规则的本地搜索:", error);
+    return searchLocally(adapter, query);
   }
+}
+
+/** A degraded browser must preserve matching, ranking and redaction semantics.
+ * Do not cache this fallback: writes in another tab must be visible even when
+ * workers are unavailable. Yield between batches to keep the UI responsive. */
+async function searchLocally(adapter: StorageAdapter, query: string): Promise<SearchNote[]> {
+  const notes = await adapter.getAllNotes();
+  const index = new NoteSearchIndex();
+  for (let offset = 0; offset < notes.length; offset += 250) {
+    for (const note of notes.slice(offset, offset + 250)) index.upsert(note);
+    if (offset + 250 < notes.length) await new Promise<void>(resolve => setTimeout(resolve, 0));
+  }
+  return index.search(query);
 }
 
 export function updateWebSearchIndex(note: Note): void {

@@ -89,10 +89,12 @@ export const tauriAdapter: StorageAdapter = {
     // Compatibility for legacy SQLite-shaped JSON fields; shared validation
     // runs before invoking Rust, whose serde model also enforces field types.
     for (const note of data.notes) {
-      if (note.content && typeof note.content === "object" && "encrypted" in note.content) note.search_text = "";
       for (const key of ["content", "tags", "concepts", "linked_doc_ids", "linkedDocIds"]) {
         if (typeof note[key] === "string") note[key] = JSON.parse(note[key]);
       }
+      // Legacy SQLite exports store content as JSON text. Redact only after
+      // decoding so both representations receive the same protection.
+      if (note.content && typeof note.content === "object" && "encrypted" in note.content) note.search_text = "";
       for (const key of ["tags", "concepts", "linked_doc_ids"]) if (note[key] === null) note[key] = [];
       if (note.linkedDocIds === null) note.linkedDocIds = [];
     }
