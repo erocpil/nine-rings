@@ -102,9 +102,12 @@ function parseInline(text: string): InlineSegment[] {
       }
     }
 
-    // 普通字符
-    result.push({ insert: text[i], attrs: {} });
-    i++;
+    // 连续普通文本作为一个片段处理，避免长文档逐字符创建对象、合并属性。
+    // 未匹配的语法起始符仍消费一个字符，再从下一个可能的起始符重试。
+    const start = i++;
+    while (i < text.length && text[i] !== "!" && text[i] !== "["
+      && text[i] !== "*" && text[i] !== "`") i++;
+    result.push({ insert: text.slice(start, i), attrs: {} });
   }
 
   return result;

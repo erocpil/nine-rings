@@ -12,9 +12,18 @@ for (const count of [300, 1500, 5000]) {
     await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
     const noteId = await page.evaluate(async () => {
       const load = (path: string) => import(/* @vite-ignore */ path);
-      const { api } = await load("/src/lib/api.ts") as typeof import("../src/lib/api");
-      const { useNotesStore } = await load("/src/stores/useNotesStore.ts") as typeof import("../src/stores/useNotesStore");
-      const note = await api.notes.create({ title: "长文档性能基线", date: "2026-09-09", storagePath: "bench/documents", content: { ops: [] } });
+      const { api } = (await load(
+        "/src/lib/api.ts",
+      )) as typeof import("../src/lib/api");
+      const { useNotesStore } = (await load(
+        "/src/stores/useNotesStore.ts",
+      )) as typeof import("../src/stores/useNotesStore");
+      const note = await api.notes.create({
+        title: "长文档性能基线",
+        date: "2026-09-09",
+        storagePath: "bench/documents",
+        content: { ops: [] },
+      });
       useNotesStore.getState().selectNote(note);
       return note.id;
     });
@@ -28,29 +37,61 @@ for (const count of [300, 1500, 5000]) {
     const paste = await editor.evaluate(async (element, content) => {
       const data = new DataTransfer();
       data.setData("text/plain", content);
+      const instance = (
+        element as HTMLElement & { editor: import("@tiptap/core").Editor }
+      ).editor;
+      const view = instance.view;
+      const dispatch = view.dispatch;
+      let dispatchMs = 0;
+      let transactionCount = 0;
+      view.dispatch = (transaction) => {
+        const before = performance.now();
+        try {
+          dispatch.call(view, transaction);
+        } finally {
+          dispatchMs += performance.now() - before;
+          transactionCount++;
+        }
+      };
       const start = performance.now();
-      element.dispatchEvent(
-        new ClipboardEvent("paste", {
-          bubbles: true,
-          cancelable: true,
-          clipboardData: data,
-        }),
-      );
+      try {
+        element.dispatchEvent(
+          new ClipboardEvent("paste", {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: data,
+          }),
+        );
+      } finally {
+        view.dispatch = dispatch;
+      }
       const pasteMs = performance.now() - start;
       await new Promise(requestAnimationFrame);
       await new Promise(requestAnimationFrame);
       element.lastElementChild!.getBoundingClientRect();
-      return { pasteMs, layoutReadyMs: performance.now() - start };
+      return {
+        pasteMs,
+        dispatchMs,
+        transactionCount,
+        outsideDispatchMs: pasteMs - dispatchMs,
+        layoutReadyMs: performance.now() - start,
+      };
     }, markdown);
     await expect(editor.locator(":scope > *")).toHaveCount(count);
     await expect(page.locator(".save-status-saved")).toBeVisible({
       timeout: 20000,
     });
-    await page.evaluate(async id => {
+    await page.evaluate(async (id) => {
       const load = (path: string) => import(/* @vite-ignore */ path);
-      const { api } = await load("/src/lib/api.ts") as typeof import("../src/lib/api");
-      const { useNotesStore } = await load("/src/stores/useNotesStore.ts") as typeof import("../src/stores/useNotesStore");
-      useNotesStore.getState().selectNote(await api.notes.update(id, { readonly: true }));
+      const { api } = (await load(
+        "/src/lib/api.ts",
+      )) as typeof import("../src/lib/api");
+      const { useNotesStore } = (await load(
+        "/src/stores/useNotesStore.ts",
+      )) as typeof import("../src/stores/useNotesStore");
+      useNotesStore
+        .getState()
+        .selectNote(await api.notes.update(id, { readonly: true }));
     }, noteId);
     await page.setViewportSize({ width: 390, height: 852 });
     await page
