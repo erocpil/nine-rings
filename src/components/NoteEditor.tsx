@@ -2322,6 +2322,25 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
     let stopped = false;
     let observer: ResizeObserver | null = null;
     let mutationObserver: MutationObserver | null = null;
+    // Restoring is best-effort: stale positions and slow NodeViews must never
+    // fight wheel/touch/scrollbar input while the document is opening.
+    const stop = () => {
+      stopped = true;
+      cancelAnimationFrame(frame);
+      observer?.disconnect();
+      mutationObserver?.disconnect();
+      el.removeEventListener("wheel", stop);
+      el.removeEventListener("touchstart", stop);
+      el.removeEventListener("pointerdown", stop);
+      el.removeEventListener("keydown", onKeyDown);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) stop();
+    };
+    el.addEventListener("wheel", stop, { passive: true });
+    el.addEventListener("touchstart", stop, { passive: true });
+    el.addEventListener("pointerdown", stop, { passive: true });
+    el.addEventListener("keydown", onKeyDown);
     const restore = () => {
       if (stopped) return;
       const maximum = Math.max(0, el.scrollHeight - el.clientHeight);
@@ -2331,15 +2350,14 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
       settledFrames = targetIsReachable && targetIsApplied ? settledFrames + 1 : 0;
       const minimumRestoreWindowElapsed = performance.now() - startedAt >= 600;
       if ((settledFrames >= 4 && minimumRestoreWindowElapsed) || performance.now() >= deadline) {
-        stopped = true;
-        observer?.disconnect();
-        mutationObserver?.disconnect();
+        stop();
         return;
       }
       frame = requestAnimationFrame(restore);
     };
     observer = typeof ResizeObserver !== "undefined"
       ? new ResizeObserver(() => {
+          if (stopped) return;
           cancelAnimationFrame(frame);
           frame = requestAnimationFrame(restore);
         })
@@ -2347,18 +2365,14 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
     observer?.observe(el);
     mutationObserver = typeof MutationObserver !== "undefined"
       ? new MutationObserver(() => {
+          if (stopped) return;
           cancelAnimationFrame(frame);
           frame = requestAnimationFrame(restore);
         })
       : null;
     mutationObserver?.observe(el, { childList: true, subtree: true });
     frame = requestAnimationFrame(restore);
-    return () => {
-      stopped = true;
-      cancelAnimationFrame(frame);
-      observer?.disconnect();
-      mutationObserver?.disconnect();
-    };
+    return stop;
   }, [noteId]);
 
   // 滚动时保存位置 & 更新位置显示

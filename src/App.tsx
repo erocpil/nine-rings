@@ -1908,7 +1908,7 @@ function App() {
                       onFlush={flushAutoSave}
                       onProtectionBusy={setProtectionBusy}
                       onSecurityError={message => useNotesStore.setState({ error: message })}
-                      hideDocumentPasswordControls={mobileDrawerViewport || !isTauriRuntime()}
+                      hideDocumentPasswordControls
                       securityDisabled={syncBusy}
                       onSecurityChanged={async () => {
                         const note = await api.notes.get(selectedNote.id);

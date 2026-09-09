@@ -3957,6 +3957,7 @@ body {
 
 .app-focus-mode .header-sticky-title {
   font-size: 16px;
+  font-weight: 400;
   letter-spacing: -0.01em;
 }
 
@@ -9852,7 +9853,7 @@ button.doc-tree-toggle:focus-visible {
     overflow: hidden;
     min-width: 0;
     font-size: calc(var(--editor-font-size) * 1.125);
-    font-weight: 700;
+    font-weight: 400;
     line-height: 1.2;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -9872,7 +9873,7 @@ button.doc-tree-toggle:focus-visible {
     box-shadow: 0 4px 14px color-mix(in srgb, var(--text) 10%, transparent);
     font-size: 16px;
     line-height: 1.5;
-    font-weight: 600;
+    font-weight: 400;
     overflow-wrap: anywhere;
     max-height: min(40dvh, 240px);
     overflow-y: auto;
