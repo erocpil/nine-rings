@@ -1936,7 +1936,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(editor.locator(":scope > *")).toHaveCount(1200);
     // 光标在文末时首个标题处于虚拟窗口外；gutter 不应再为离屏标题
     // 永久保留 DOM。
-    expect(await page.locator(".editor-block-gutter .editor-heading-fold").count()).toBeLessThanOrEqual(1);
+    expect(await page.locator(".editor-heading-fold").count()).toBeLessThanOrEqual(1);
     const paragraphGeometryReads = await page.evaluate(async () => {
       const scrollRoot = document.querySelector<HTMLElement>(".note-editor-scroll")!;
       const editor = document.querySelector<HTMLElement>(".ProseMirror")!;

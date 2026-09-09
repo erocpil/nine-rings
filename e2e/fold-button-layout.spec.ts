@@ -57,6 +57,7 @@ test("手机专注模式折叠三角始终对齐标题而不是引用块", async
               !/^H[1-6]$/.test(heading.tagName)
             )
               return false;
+            if (button.closest(".editor-fold-anchor") !== heading) return false;
             const rect = button.getBoundingClientRect();
             const headingRect = heading.getBoundingClientRect();
             const lineHeight = parseFloat(getComputedStyle(heading).lineHeight);
@@ -104,4 +105,72 @@ test("手机专注模式折叠三角始终对齐标题而不是引用块", async
     tail.style.paddingBottom = "20px";
   });
   await assertAlignment();
+});
+
+test("标题内折叠控件不进入编辑、撤销及剪贴板数据", async ({ page }) => {
+  await page.goto("/");
+  const root = page.locator(".ProseMirror");
+  await expect(root).toBeVisible({ timeout: 25000 });
+  await page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = (await load(
+      "/src/lib/api.ts",
+    )) as typeof import("../src/lib/api");
+    const { useNotesStore } = (await load(
+      "/src/stores/useNotesStore.ts",
+    )) as typeof import("../src/stores/useNotesStore");
+    const note = await api.notes.create({
+      title: "控件正文隔离",
+      date: "2026-09-09",
+      storagePath: "tests/anchors",
+      content: {
+        ops: [
+          { insert: "Anchor heading" },
+          { insert: "\n", attributes: { header: 2 } },
+          { insert: "Body content\n" },
+        ],
+      },
+    });
+    useNotesStore.getState().selectNote(note);
+  });
+  await expect(page.locator(".note-title")).toHaveValue("控件正文隔离");
+  await root.evaluate((element) => {
+    const editor = (
+      element as HTMLElement & { editor: import("@tiptap/core").Editor }
+    ).editor;
+    editor.commands.setTextSelection(15);
+    editor.commands.focus();
+  });
+  await expect(
+    page.locator(".editor-fold-anchor .editor-heading-fold"),
+  ).toHaveCount(1);
+  await page.keyboard.type("!");
+  await expect(root.locator("h2")).toContainText("Anchor heading!");
+  await page.keyboard.press("Control+z");
+  await expect(root.locator("h2")).not.toContainText("!");
+  const copied = await root.evaluate((element) => {
+    const editor = (
+      element as HTMLElement & { editor: import("@tiptap/core").Editor }
+    ).editor;
+    editor.commands.selectAll();
+    const copy = editor.view.serializeForClipboard(
+      editor.state.selection.content(),
+    );
+    return {
+      json: editor.getJSON(),
+      html: copy.dom.innerHTML,
+      text: copy.text,
+    };
+  });
+  expect(JSON.stringify(copied)).not.toMatch(/editor-fold|[▼▶]/);
+  expect(copied.text).toContain("Anchor heading");
+  expect(copied.text).toContain("Body content");
+  await root.evaluate((element) => {
+    const editor = (
+      element as HTMLElement & { editor: import("@tiptap/core").Editor }
+    ).editor;
+    editor.commands.setTextSelection(1);
+    editor.commands.setParagraph();
+  });
+  await expect(page.locator(".editor-heading-fold")).toHaveCount(0);
 });

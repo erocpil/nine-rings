@@ -5136,6 +5136,23 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   transition: color 0.15s, opacity 0.15s;
 }
 
+/* The browser moves each control with its owning heading, not a cached y. */
+.ProseMirror > .editor-fold-anchor { position: relative; }
+.editor-fold-host {
+  position: absolute;
+  left: calc(-1 * var(--editor-gutter-width));
+  top: 0;
+  width: 22px;
+  height: 1.5em;
+  height: 1lh;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  user-select: none;
+}
+.editor-fold-host > .editor-heading-fold { position: static; flex-shrink: 0; }
+@media print { .editor-fold-host { display: none; } }
+
 .editor-heading-fold:hover,
 .editor-heading-fold:focus-visible {
   color: var(--accent);

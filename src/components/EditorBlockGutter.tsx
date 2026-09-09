@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { headingFoldAnchors, headingFoldAnchorsKey } from "../lib/heading-fold-anchors";
 import type { Editor } from "@tiptap/core";
 import type { Transaction } from "@tiptap/pm/state";
 import {
@@ -134,6 +136,16 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
     moved: boolean;
   } | null>(null);
   const [blocks, setBlocks] = useState<GutterBlock[]>([]);
+  const foldHosts = useRef(new Map<number, HTMLElement>());
+  useEffect(() => {
+    if (editor.isDestroyed) return;
+    const hosts = foldHosts.current;
+    editor.registerPlugin(headingFoldAnchors(hosts));
+    return () => {
+      if (!editor.isDestroyed) editor.unregisterPlugin(headingFoldAnchorsKey);
+      hosts.clear();
+    };
+  }, [editor]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -696,14 +708,14 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
           title={`第 ${block.index} 块有书签`}
         />
       ))}
-      {onHeadingFoldToggle && blocks.filter((block) => block.heading).map((block) => (
+      {onHeadingFoldToggle && blocks.filter((block) => block.heading).map((block) => {
+        const host = foldHosts.current.get(block.pos);
+        if (!host?.isConnected) return null;
+        return createPortal(
         <button
           key={`fold-${block.pos}`}
           type="button"
           className={`editor-heading-fold ${block.folded ? "folded" : ""}`}
-          // Keep the hit target centered using layout coordinates, not a
-          // transformed scrolling button layer (prone to stale WebKit paint).
-          style={{ top: `calc(${block.firstLineCenter}px - var(--heading-fold-target-height) / 2)` }}
           aria-label={`${block.folded ? "展开" : "折叠"}第 ${block.index} 块章节`}
           title={block.folded ? "展开本节" : "折叠本节"}
           onMouseDown={(event) => event.preventDefault()}
@@ -713,7 +725,8 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
           onTouchEnd={(event) => runGutterActionFromTouch(event, () => onHeadingFoldToggle(block.pos))}
           onClick={(event) => runGutterActionFromClick(event, () => onHeadingFoldToggle(block.pos))}
         >{block.folded ? "▶" : "▼"}</button>
-      ))}
+        , host, `fold-${block.pos}`);
+      })}
       {!readonly && showInsertButtons && boundaries.map((boundary) => (
         <button
           key={boundary.key}
