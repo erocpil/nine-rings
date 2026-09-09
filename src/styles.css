@@ -5117,13 +5117,14 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 }
 
 .editor-heading-fold {
+  --heading-fold-target-height: 24px;
   position: absolute;
   left: 0;
   z-index: 2;
   width: 14px;
-  height: 24px;
+  height: var(--heading-fold-target-height);
   padding: 0;
-  transform: translateY(-50%);
+  transform: none;
   border: 0;
   background: transparent;
   color: var(--text-secondary);

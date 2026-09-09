@@ -686,7 +686,9 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
           key={`fold-${block.pos}`}
           type="button"
           className={`editor-heading-fold ${block.folded ? "folded" : ""}`}
-          style={{ top: block.firstLineCenter }}
+          // Keep the hit target centered using layout coordinates, not a
+          // transformed scrolling button layer (prone to stale WebKit paint).
+          style={{ top: `calc(${block.firstLineCenter}px - var(--heading-fold-target-height) / 2)` }}
           aria-label={`${block.folded ? "展开" : "折叠"}第 ${block.index} 块章节`}
           title={block.folded ? "展开本节" : "折叠本节"}
           onMouseDown={(event) => event.preventDefault()}
