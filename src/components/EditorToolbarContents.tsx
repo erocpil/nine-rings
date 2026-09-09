@@ -580,10 +580,10 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
       <span role="status" className={`save-status save-status-${saveStatus}`} title={
         saveStatus === "dirty" ? "未保存" :
         saveStatus === "saving" ? "保存中..." :
-        saveStatus === "saved" ? "已保存" :
+        saveStatus === "saved" ? "已保存到本机，不代表已完成备份" :
         saveStatus === "error" ? "保存失败" : ""
       }>
-        <span className="toolbar-status-label">{saveStatus === "saving" ? "保存中" : saveStatus === "saved" ? "已保存" : saveStatus === "error" ? "保存失败" : "未保存"}</span>
+        <span className="toolbar-status-label">{saveStatus === "saving" ? "保存中" : saveStatus === "saved" ? "已存本机" : saveStatus === "error" ? "保存失败" : "未保存"}</span>
         {saveStatus === "saving" ? <ToolbarIcon name="saving" /> :
          saveStatus === "saved" ? <ToolbarIcon name="check" /> :
          saveStatus === "error" ? <ToolbarIcon name="warning" /> : "●"}

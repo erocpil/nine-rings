@@ -18,6 +18,7 @@ import {
 import { useTransientMessage } from "../hooks/useTransientMessage";
 import { exportLocalJsonBackup } from "../lib/local-backup-export";
 import { BackupRestoreStatus } from "./BackupRestoreStatus";
+import { BackupExportStatus } from "./BackupExportStatus";
 
 interface Props {
   /** 备份进行中回调 — 父组件用来 freeze 编辑区 */
@@ -238,7 +239,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     try {
       const updated = await pushToGitHub(cfg);
       setCfg(updated);
-      showMessage(`已推送 (${new Date().toLocaleTimeString()})`, "success");
+      showMessage(`备份已上传至 GitHub (${new Date().toLocaleTimeString()})`, "success");
     } catch (e) {
       showMessage(`推送失败：${(e as Error).message}`, "error");
     } finally {
@@ -309,7 +310,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
       const result = await exportLocalJsonBackup();
       if (result) {
         showMessage(
-          result.desktop ? `本地备份已保存到 ${result.destination}` : "本地备份已导出",
+          result.desktop ? `本地备份已保存到 ${result.destination}` : "已发起备份下载，请确认文件已保存到下载目录",
           "success",
         );
       }
@@ -366,14 +367,15 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
 
       {/* 版本信息 */}
       <BackupRestoreStatus />
+      <BackupExportStatus />
       {(cfg.lastPushVersion || cfg.lastPullVersion) && (
         <div className="sync-versions">
           {cfg.lastPushVersion && (
-            <span>上次 Push: {fmtVersion(cfg.lastPushVersion)}</span>
+            <span>上次上传备份版本: {fmtVersion(cfg.lastPushVersion)}</span>
           )}
           {cfg.lastPushVersion && cfg.lastPullVersion && <span className="sync-versions-sep" />}
           {cfg.lastPullVersion && (
-            <span>上次 Pull: {fmtVersion(cfg.lastPullVersion)}</span>
+            <span>上次读取远端版本: {fmtVersion(cfg.lastPullVersion)}</span>
           )}
         </div>
       )}

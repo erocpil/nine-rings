@@ -1,11 +1,21 @@
 import { withTimeout } from "./async";
 
 export interface PwaUpdateStatus {
+  phase?: "idle" | "checking" | "installing" | "ready" | "up-to-date" | "error";
   checking: boolean;
   available: boolean;
   checked: boolean;
   error: string | null;
   errorDetails: string | null;
+}
+
+export function pwaUpdateStatusText(status: PwaUpdateStatus): string {
+  if (status.error) return status.error;
+  if (status.available) return "新版本已就绪，保存本机改动后即可刷新";
+  if (status.phase === "installing") return "正在下载并安装新版，请保持联网";
+  if (status.checking) return "正在检查新版，请保持联网";
+  if (status.checked) return "未发现待安装的新版本";
+  return "检查已部署的应用版本";
 }
 
 const UPDATE_TIMEOUT = 60_000;
@@ -46,6 +56,9 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
   let failedInstaller: ServiceWorker | null = null;
   const publish = (patch: Partial<PwaUpdateStatus>) => {
     status = { ...status, ...patch };
+    status.phase = status.error ? "error" : status.available ? "ready"
+      : registration?.installing?.state === "installing" ? "installing"
+      : status.checking ? "checking" : status.checked ? "up-to-date" : "idle";
     if (!disposed) onStatus(status);
   };
   const listen = (target: EventTarget, event: string, callback: () => void) => {
@@ -70,6 +83,7 @@ export function watchPwaUpdates(onStatus: (status: PwaUpdateStatus) => void) {
     const worker = registration?.installing;
     if (!worker || watched.has(worker)) return;
     watched.add(worker);
+    reconcile();
     listen(worker, "statechange", () => {
       reconcile();
       if (worker === trackedInstaller && worker.state === "redundant") {

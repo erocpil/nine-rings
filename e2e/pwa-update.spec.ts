@@ -98,9 +98,17 @@ test("手机 PWA 重启时接管已开始的新版下载，保存后升级且服
   blockDownload = true;
   await page.evaluate(async () => { await (await navigator.serviceWorker.ready).update(); });
   await expect.poll(() => page.evaluate(async () => Boolean((await navigator.serviceWorker.ready).installing))).toBe(true);
+  await page.keyboard.press("Alt+,");
+  await expect(page.locator(".settings-web-update [role=status]")).toContainText("正在下载并安装新版");
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   // register resolves with an existing installer, without a new updatefound.
   await page.reload();
   await expect(page.locator(".ProseMirror")).toBeVisible();
+  await page.keyboard.press("Alt+,");
+  // Re-registration may wait behind the existing installation. Until it
+  // resolves, only the check itself is observable by the reopened page.
+  await expect(page.locator(".settings-web-update [role=status]")).toHaveText(/正在(?:检查新版|下载并安装新版)，请保持联网/);
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
   releaseDownloads();
   await expect(page.locator(".web-status-banner.update")).toBeVisible();
   await expect.poll(() => activeVersion(page)).toBe(1);

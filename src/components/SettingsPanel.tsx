@@ -13,9 +13,10 @@ import SettingsSync from "./SettingsSync";
 import { withTimeout } from "../lib/async";
 import { EditorAppearancePanel } from "./EditorAppearancePanel";
 import { BackupRestoreStatus } from "./BackupRestoreStatus";
+import { BackupExportStatus } from "./BackupExportStatus";
 import { isDocumentFindShortcut, isEditorLineJumpShortcut } from "../lib/shortcuts";
 import type { WebStorageStatus } from "../hooks/useWebPlatform";
-import type { PwaUpdateStatus } from "../lib/pwa-updates";
+import { pwaUpdateStatusText, type PwaUpdateStatus } from "../lib/pwa-updates";
 import { useTransientMessage } from "../hooks/useTransientMessage";
 import { collectWebDiagnostics } from "../lib/web-diagnostics";
 import { rebuildWebSearchIndex } from "../lib/web-search-index";
@@ -188,17 +189,13 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   };
 
   const getUpdateStatusText = (status: NonNullable<Props["webUpdate"]>) => {
-    if (status.error) return status.error;
-    if (status.available) return "新版本已就绪";
-    if (status.checking) return "正在检查新版，请保持联网";
-    if (status.checked) return "未发现待安装的新版本";
-    return "检查已部署的应用版本";
+    return pwaUpdateStatusText(status);
   };
 
   const getUpdateStatusClass = (status: NonNullable<Props["webUpdate"]>) => {
     if (status.error) return "is-error";
     if (status.available) return "is-ready";
-    if (status.checking) return "is-checking";
+    if (status.checking || status.phase === "installing") return "is-checking";
     if (status.checked) return "is-neutral";
     return "is-idle";
   };
@@ -452,7 +449,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     try {
       const result = await exportLocalJsonBackup();
       if (!result) return;
-      showMessage(result.desktop ? `已保存到 ${result.destination}` : "导出成功");
+      showMessage(result.desktop ? `备份文件已保存到 ${result.destination}` : "已发起备份下载，请确认文件已保存到下载目录");
     } catch (e) {
       showMessage(`导出失败: ${e}`);
     }
@@ -1075,6 +1072,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </SettingsSection>
             )}
             <SettingsSection title="数据导出 / 导入" desc="全量 JSON 包含笔记、待办、书签、应用配置及非敏感用户设置；Token、密码等凭据不导出" visible={settingsPage === "data"}>
+              <BackupExportStatus />
               <BackupRestoreStatus />
               <p className="settings-hint">恢复前请关闭其他编辑窗口；恢复锁只防止多个恢复同时执行，不隔离普通编辑。中断后请先导出本地数据并检查，再决定是否重新导入。</p>
               <div className="settings-button-row">

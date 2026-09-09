@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   watchPwaUpdates,
+  pwaUpdateStatusText,
   type PwaUpdateStatus,
 } from "../../src/lib/pwa-updates";
 
@@ -73,12 +74,16 @@ describe("PWA update lifecycle", () => {
     registration.installing = worker;
     start();
     await settle();
+    expect(status.phase).toBe("installing");
+    expect(pwaUpdateStatusText(status)).toBe("正在下载并安装新版，请保持联网");
     expect(status.checking).toBe(true);
     expect(container.register).toHaveBeenCalledWith("/sw.js", {
       updateViaCache: "none",
     });
     installed(worker);
     await settle();
+    expect(status.phase).toBe("ready");
+    expect(pwaUpdateStatusText(status)).toContain("新版本已就绪");
     expect(status).toMatchObject({
       checking: false,
       available: true,

@@ -1,6 +1,7 @@
 import { api } from "./api";
 import { localDateKey } from "./local-date";
 import { exportWithDialog, isTauri } from "./tauri-desktop";
+import { recordBackupExport } from "./backup-export-receipt";
 
 export interface LocalBackupExportResult {
   destination: string;
@@ -10,7 +11,9 @@ export interface LocalBackupExportResult {
 /** 导出与 GitHub 全量快照同格式的本地 JSON；取消桌面保存对话框时返回 null。 */
 export async function exportLocalJsonBackup(): Promise<LocalBackupExportResult | null> {
   const data = await api.export.data();
-  return saveJsonBackup(data, `nine-rings-${localDateKey()}.json`);
+  const result = await saveJsonBackup(data, `nine-rings-${localDateKey()}.json`);
+  if (result) recordBackupExport(result.desktop);
+  return result;
 }
 
 /** Shared delivery for normal backups and recovery snapshots with pending edits. */
