@@ -53,6 +53,7 @@ import { EditorInsertDialogs } from "./EditorInsertDialogs";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { BlockWorkspaceHost } from "./BlockWorkspace";
+import { watchBlockDisplaySettings } from "../lib/block-display-settings";
 import { DocumentPanelDrawer, type DocumentPanelPresentation } from "./DocumentPanelDrawer";
 import { storeImage } from "../lib/storage/db-images";
 import { blobToBase64 } from "../lib/storage/core";
@@ -561,6 +562,7 @@ export function NoteEditor(props: NoteEditorProps) {
 }
 
 function DocumentEditor(props: NoteEditorProps) {
+  useEffect(watchBlockDisplaySettings, []);
   const [experimental, setExperimental] = useState(readonlyRenderingEnabled);
   const [full, setFull] = useState(false);
   const previousExport = useRef(props.pdfExportRequestId);

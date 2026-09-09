@@ -43,7 +43,7 @@ function measureCodeLineVisualRows(codeElement: HTMLElement, code: string): numb
   const textSpans: TextSpan[] = [];
   let textOffset = 0;
   for (let current = walker.nextNode(); current; current = walker.nextNode()) {
-    if (current instanceof Text) {
+    if (current instanceof Text && !current.parentElement?.closest(".workspace-ws-newline")) {
       textSpans.push({ node: current, start: textOffset, end: textOffset + current.data.length });
       textOffset += current.data.length;
     }
@@ -167,7 +167,8 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
   const codeTitle = typeof node.attrs.title === "string" ? node.attrs.title : "";
   const storedWrapEnabled = node.attrs.wrap !== false;
   const storedCollapsed = node.attrs.collapsed === true;
-  const wrapEnabled = editable ? storedWrapEnabled : readonlyWrapOverride ?? storedWrapEnabled;
+  const inWorkspace = Boolean(editor.view?.dom.closest(".block-workspace"));
+  const wrapEnabled = editable && !inWorkspace ? storedWrapEnabled : readonlyWrapOverride ?? storedWrapEnabled;
   const collapsed = editable ? storedCollapsed : readonlyCollapsedOverride ?? storedCollapsed;
   const lineCount = code.split("\n").length;
   const [lineNumbersEnabled, setLineNumbersEnabled] = useState(
@@ -232,7 +233,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
     const syncEditable = () => {
       const nextEditable = editor.isEditable;
       setEditable((current) => current === nextEditable ? current : nextEditable);
-      if (nextEditable) {
+      if (nextEditable && !editor.view.dom.closest(".block-workspace")) {
         setReadonlyWrapOverride(null);
         setReadonlyCollapsedOverride(null);
       }
@@ -248,9 +249,8 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
   }, [editor]);
 
   const handleCopy = async () => {
-    const codeEl = wrapperRef.current?.querySelector("code");
-    if (!codeEl) return;
-    await copyToClipboard(codeEl.textContent || "");
+    // Copy model text, never rendered decorations such as whitespace markers.
+    await copyToClipboard(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
@@ -318,7 +318,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
               className={`code-block-wrap-toggle ${wrapEnabled ? "active" : ""}`}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => {
-                if (editable) updateAttributes({ wrap: !wrapEnabled });
+                if (editable) { setReadonlyWrapOverride(null); updateAttributes({ wrap: !wrapEnabled }); }
                 else setReadonlyWrapOverride(!wrapEnabled);
               }}
               type="button"

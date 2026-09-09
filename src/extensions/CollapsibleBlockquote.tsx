@@ -1,18 +1,24 @@
 import Blockquote from "@tiptap/extension-blockquote";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { openBlockWorkspace } from "../lib/block-workspace";
 import { ToolbarIcon } from "../components/ToolbarIcon";
 
 export const blockquoteFoldTransactionMeta = "nine-rings:blockquote-fold";
 
 function CollapsibleBlockquoteView({ node, editor, getPos }: NodeViewProps) {
-  const collapsed = node.attrs.collapsed === true;
+  const [readingCollapsed, setReadingCollapsed] = useState<boolean | null>(null);
+  const collapsed = readingCollapsed ?? node.attrs.collapsed === true;
   const suppressClickUntilRef = useRef(0);
   const lastTouchActionAtRef = useRef(0);
   const touchRef = useRef<{ identifier: number; x: number; y: number; moved: boolean } | null>(null);
   const toggle = () => {
     if (editor.isDestroyed) return;
+    if (!editor.isEditable && editor.view.dom.closest(".block-workspace")) {
+      setReadingCollapsed(!collapsed);
+      return;
+    }
+    setReadingCollapsed(null);
     const position = getPos();
     if (typeof position !== "number") return;
     const current = editor.state.doc.nodeAt(position);
@@ -32,6 +38,7 @@ function CollapsibleBlockquoteView({ node, editor, getPos }: NodeViewProps) {
   return (
     <NodeViewWrapper
       className="blockquote-node-view"
+      data-workspace-collapsed={readingCollapsed === null ? undefined : String(readingCollapsed)}
     >
       <div className="blockquote-toolbar" data-pdf-exclude contentEditable={false}>
         <span>引用</span>

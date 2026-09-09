@@ -79,3 +79,55 @@ test("手机横竖屏块弹层不超出可视范围", async ({ page }) => {
     await page.screenshot({ path: `/tmp/nr-block-workspace-${viewport.width}.png` });
   }
 });
+
+test("阅读空白标记不进入复制，查找替换仅影响当前块", async ({ page }) => {
+  await fixture(page);
+  await page.getByRole("button", { name: "放大阅读代码块" }).click();
+  const dialog = page.getByRole("dialog", { name: "代码块工作区" });
+  await dialog.getByRole("button", { name: "块显示设置" }).click();
+  await dialog.getByLabel("显示空白字符").selectOption("all");
+  await expect(dialog.locator(".workspace-ws-space").first()).toBeVisible();
+  await expect(dialog.locator(".workspace-ws-newline")).toHaveCount(1);
+  await dialog.getByLabel("Tab 显示宽度").selectOption("8");
+  await expect(dialog.locator(".ProseMirror")).toHaveCSS("tab-size", "8");
+  await page.evaluate(() => Object.defineProperty(navigator.clipboard, "write", { configurable: true, value: async (items: ClipboardItem[]) => {
+    document.documentElement.dataset.blockCopy = await (await items[0].getType("text/plain")).text();
+  } }));
+  await dialog.getByRole("button", { name: "复制块", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-block-copy", "const answer = 42;\nconsole.log(answer);");
+  await expect(dialog.getByText("已复制块（保留格式）")).toBeVisible();
+  await expect(dialog.getByText("已复制块（保留格式）")).toHaveCount(0, { timeout: 4000 });
+  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await expect(dialog.getByLabel("显示空白字符")).toHaveCount(0);
+  await expect(dialog.locator(".workspace-ws-space")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "块内查找", exact: true }).click();
+  await dialog.getByLabel("在当前块查找").fill("answer");
+  await dialog.getByLabel("当前块替换为").fill("result");
+  await dialog.getByRole("button", { name: "替换本块全部", exact: true }).click();
+  await expect(page.locator(".note-editor .ProseMirror pre code")).toHaveText("const result = 42;\nconsole.log(result);");
+  await expect(page.locator(".note-editor .ProseMirror")).toContainText("引用第一段");
+  await dialog.getByRole("button", { name: "阅读", exact: true }).click();
+  await expect(dialog.getByLabel("显示空白字符")).toHaveValue("all");
+  await expect(dialog.locator(".workspace-ws-space").first()).toBeVisible();
+});
+
+test("长代码正文限高而弹层保持单一纵向滚动区", async ({ page }) => {
+  await fixture(page);
+  await page.getByRole("button", { name: "放大阅读代码块" }).click();
+  const dialog = page.getByRole("dialog", { name: "代码块工作区" });
+  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await dialog.locator("pre code").click();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.insertText(Array.from({ length: 150 }, (_, i) => `line${i}`).join("\n"));
+  await dialog.getByRole("button", { name: "阅读", exact: true }).click();
+  await dialog.getByRole("button", { name: "块显示设置" }).click();
+  await dialog.getByLabel("正文代码最大高度").selectOption("40");
+  const sourceInner = page.locator(".note-editor .code-block-inner");
+  await expect.poll(async () => (await sourceInner.boundingBox())!.height).toBeLessThanOrEqual(321);
+  await expect(dialog.locator(".code-block-inner")).toHaveCSS("max-height", "none");
+  expect(await dialog.locator(".block-workspace-body").evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
+  expect(await dialog.locator("pre").evaluate(el => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+  await dialog.getByLabel("跳转代码行").fill("140");
+  await dialog.getByRole("button", { name: "跳转", exact: true }).click();
+  expect(await dialog.locator(".block-workspace-body").evaluate(el => el.scrollTop)).toBeGreaterThan(1000);
+});

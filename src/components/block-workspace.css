@@ -1,10 +1,11 @@
 .block-workspace-open { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 4px; color: var(--text-secondary); border: 0; border-radius: 5px; background: transparent; cursor: pointer; }
 .block-workspace-open .toolbar-icon { width: 16px; height: 16px; }
+.note-editor .code-block-inner { max-height: max(0px, min(var(--code-block-height, 60dvh), calc(var(--app-viewport-height, 100dvh) - 80px))); overflow-y: auto; align-items: flex-start; }
 .blockquote-toolbar > .block-workspace-open { margin-left: 2px; }
 .block-workspace { position: fixed; margin: 0; padding: 0; max-width: none; max-height: none; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--text); box-shadow: 0 12px 48px #0004; overflow: hidden; }
 .block-workspace[open] { display: flex; flex-direction: column; }
 .block-workspace::backdrop { background: #15202066; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
-.block-workspace-header { display: flex; align-items: center; gap: 6px; padding: 6px 8px; flex: 0 0 auto; border-bottom: 1px solid var(--border); }
+.block-workspace-header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; flex: 0 0 auto; border-bottom: 1px solid var(--border); }
 .block-workspace-header strong { font-size: 14px; white-space: nowrap; }
 .block-workspace-header [role="group"] { display: flex; background: var(--hover-bg); border-radius: 6px; }
 .block-workspace button { color: var(--text-secondary); border: 0; background: transparent; cursor: pointer; border-radius: 6px; }
@@ -17,12 +18,26 @@
 .block-workspace-tools { display: flex; align-items: center; gap: 4px; padding: 4px 8px; flex-shrink: 0; overflow-x: auto; }
 .block-workspace-tools label { display: flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; }
 .block-workspace-tools input[type="color"] { width: 24px; height: 24px; padding: 0; }
+.block-workspace-find, .block-workspace-options { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; font-size: 12px; flex-shrink: 0; }
+.block-workspace-options label, .block-workspace-options form { display: flex; align-items: center; gap: 4px; }
+.block-workspace-find input { min-width: 90px; width: 130px; flex: 1; }
+.block-workspace-find input, .block-workspace-options input, .block-workspace-options select { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 5px; border-radius: 5px; }
+.block-workspace-options input { width: 60px; }
+.block-workspace-find button, .block-workspace-options button { min-height: 30px; padding: 4px; }
+.block-workspace-body .ProseMirror { font-size: inherit; tab-size: inherit; }
+.workspace-ws-space, .workspace-ws-tab { position: relative; }
+.workspace-ws-space::after, .workspace-ws-tab::after { position: absolute; top: 0; left: 0; color: var(--accent); pointer-events: none; opacity: .65; }
+.workspace-ws-space::after { content: "·"; }
+.workspace-ws-tab::after { content: "→"; }
+.workspace-ws-newline { position: absolute; color: var(--accent); opacity: .65; pointer-events: none; user-select: none; -webkit-user-select: none; }
 .block-workspace-notice { padding: 4px 10px; font-size: 12px; color: var(--text-secondary); }
 .block-workspace-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 8px; }
 .block-workspace-body .ProseMirror { min-height: 80px; outline: none; }
 .block-workspace-body .block-workspace-open { display: none; }
 .block-workspace-body .ProseMirror > .code-block-wrap.collapsed .code-block-inner { max-height: none; opacity: 1; pointer-events: auto; }
-.block-workspace-body .ProseMirror > .blockquote-wrap[data-collapsed="true"] .blockquote-content { display: block; }
+.block-workspace-body .ProseMirror > .blockquote-wrap[data-collapsed="true"] > .blockquote-node-view > .blockquote-content { display: block; }
+.block-workspace .blockquote-node-view[data-workspace-collapsed="true"] > .blockquote-content { display: none; }
+.block-workspace .blockquote-node-view[data-workspace-collapsed="false"] > .blockquote-content { display: block; }
 .block-workspace-body .ProseMirror > .code-block-wrap .code-block-collapse-toggle,
 .block-workspace-body .ProseMirror > .blockquote-wrap > .blockquote-node-view > .blockquote-toolbar > button:not(.block-workspace-open) { display: none; }
 .block-workspace-body .code-block-inner { max-height: none; overflow: visible; }

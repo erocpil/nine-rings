@@ -10,6 +10,11 @@ import { clipboardSliceToPlainText } from "../lib/clipboard-plain-text";
 import { copyToClipboard } from "../lib/clipboard";
 import { ToolbarIcon } from "./ToolbarIcon";
 import "./block-workspace.css";
+import { WorkspaceWhitespace, setWorkspaceWhitespace } from "../extensions/WorkspaceWhitespace";
+import type { WhitespaceMode } from "../lib/whitespace-markers";
+import { SearchHighlights, findSearchMatches, setSearchHighlights } from "../extensions/SearchHighlights";
+import { createReplacementTransaction } from "../lib/editor-replace";
+import { codeBlockHeightPercent, setCodeBlockHeightPercent } from "../lib/block-display-settings";
 
 type Request = { position: number; trigger: HTMLElement };
 type Props = { source: Editor; noteId?: string; readonly?: boolean; saveStatus?: string; onFlush?: () => Promise<void> };
@@ -58,6 +63,17 @@ function BlockWorkspace({ source, readonly, saveStatus, onFlush, request, onClos
   }, [notice]);
   const [closing, setClosing] = useState(false);
   const [color, setColor] = useState("#333333");
+  const [whitespace, setWhitespace] = useState<WhitespaceMode>("off");
+  const [tabSize, setTabSize] = useState(4);
+  const [fontSize, setFontSize] = useState(() => Math.round(parseFloat(getComputedStyle(source.view.dom).fontSize)) || 16);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [replacement, setReplacement] = useState("");
+  const [matchIndex, setMatchIndex] = useState(0);
+  const [line, setLine] = useState("");
+  const [heightPercent, setHeightPercent] = useState(codeBlockHeightPercent);
+  const searchInput = useRef<HTMLInputElement>(null);
   const rootType = initial.type.name;
   const name = rootType === "codeBlock" ? "代码块" : "引用块";
   const extensions = useMemo(() => [
@@ -66,6 +82,7 @@ function BlockWorkspace({ source, readonly, saveStatus, onFlush, request, onClos
     ).map(extension => extension.name === "doc"
       ? extension.extend({ content: rootType })
       : extension.configure({ ...extension.options })),
+    WorkspaceWhitespace, SearchHighlights,
     Extension.create({
       name: "blockWorkspaceScope",
       addKeyboardShortcuts: () => ({
@@ -75,7 +92,7 @@ function BlockWorkspace({ source, readonly, saveStatus, onFlush, request, onClos
       }),
       addProseMirrorPlugins: () => [new Plugin({
         filterTransaction: transaction => !transaction.docChanged || Boolean(transaction.getMeta("workspace-sync")) || (
-          editableRef.current && transaction.doc.childCount === 1 && transaction.doc.firstChild?.type.name === rootType
+          editableRef.current && source.isEditable && transaction.doc.childCount === 1 && transaction.doc.firstChild?.type.name === rootType
         ),
       })],
     }),
@@ -104,6 +121,43 @@ function BlockWorkspace({ source, readonly, saveStatus, onFlush, request, onClos
       finally { bridging.current = false; }
     },
   });
+
+  const documentNode = editor?.state.doc;
+  const matches = useMemo(() => documentNode ? findSearchMatches(documentNode, query, true) : [], [documentNode, query]);
+  useEffect(() => {
+    if (editor) setSearchHighlights(editor, matches, Math.min(matchIndex, Math.max(0, matches.length - 1)));
+  }, [editor, matches, matchIndex]);
+  useEffect(() => { if (editor) setWorkspaceWhitespace(editor, editable ? "off" : whitespace); }, [editor, editable, whitespace]);
+
+  const reveal = (pos: number) => {
+    if (!editor || !body.current) return;
+    const coordinates = editor.view.coordsAtPos(Math.min(pos, editor.state.doc.content.size));
+    body.current.scrollTop += coordinates.top - body.current.getBoundingClientRect().top - 24;
+  };
+  const preservePosition = (change: () => void) => {
+    const element = body.current;
+    if (!element || !editor) { change(); return; }
+    const rect = element.getBoundingClientRect();
+    const pos = editor.view.posAtCoords({ left: rect.left + Math.min(80, rect.width / 2), top: rect.top + 8 })?.pos;
+    const offset = pos === undefined ? 0 : editor.view.coordsAtPos(pos).top - rect.top;
+    change();
+    window.requestAnimationFrame(() => {
+      if (editor.isDestroyed || pos === undefined || !element.isConnected) return;
+      element.scrollTop += editor.view.coordsAtPos(Math.min(pos, editor.state.doc.content.size)).top - element.getBoundingClientRect().top - offset;
+    });
+  };
+  const navigateMatch = (direction: number) => {
+    if (!matches.length) return;
+    const next = (matchIndex + direction + matches.length) % matches.length;
+    setMatchIndex(next); reveal(matches[next].from);
+  };
+  const replace = (all: boolean) => {
+    if (!editable || !editor) return;
+    const result = createReplacementTransaction(editor.state, query, replacement, all ? undefined : matchIndex);
+    if (result.count) editor.view.dispatch(result.transaction);
+    setNotice(/[\r\n]/.test(replacement) ? "暂不支持跨行替换。" : `已替换当前块中的 ${result.count} 处`);
+    setMatchIndex(0);
+  };
 
   useEffect(() => {
     if (!editor) return;
@@ -188,26 +242,63 @@ function BlockWorkspace({ source, readonly, saveStatus, onFlush, request, onClos
   const iconButton = (label: string, icon: Parameters<typeof ToolbarIcon>[0]["name"], run: () => void) =>
     <button type="button" title={label} aria-label={label} onMouseDown={event => event.preventDefault()} onClick={run}><ToolbarIcon name={icon} /></button>;
 
-  return createPortal(<dialog ref={dialog} className="block-workspace" aria-label={`${name}工作区`}
+  return createPortal(<dialog ref={dialog} className="block-workspace" role="dialog" aria-modal="true" aria-label={`${name}工作区`}
     onCancel={event => { event.preventDefault(); if (!editor?.view.composing) void close(); }}
     onClick={event => { if (event.target === event.currentTarget && !editable) void close(); }}
-    onKeyDown={event => { event.stopPropagation(); }}>
+    onKeyDown={event => {
+      event.stopPropagation();
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault(); setFindOpen(true); window.requestAnimationFrame(() => searchInput.current?.focus());
+      }
+    }}>
     <header className="block-workspace-header">
       <strong>{name}</strong>
       <div role="group" aria-label="块模式">
-        <button type="button" aria-pressed={!editable} onClick={() => setMode("read")}>阅读</button>
-        {!readonly && <button type="button" aria-pressed={editable} onClick={() => setMode("edit")}>编辑</button>}
+        <button type="button" aria-pressed={!editable} onClick={() => preservePosition(() => setMode("read"))}>阅读</button>
+        {!readonly && <button type="button" aria-pressed={editable} onClick={() => preservePosition(() => setMode("edit"))}>编辑</button>}
       </div>
       <span className="block-workspace-save" role="status">{saveStatus === "error" ? "保存失败" : saveStatus === "saving" || saveStatus === "dirty" ? "保存中…" : "已保存"}</span>
       {iconButton("复制块", "copy", () => void copy())}
+      {iconButton("块内查找", "search", () => { setFindOpen(!findOpen); window.requestAnimationFrame(() => searchInput.current?.focus()); })}
+      {iconButton("块显示设置", "sliders", () => preservePosition(() => setOptionsOpen(!optionsOpen)))}
       <button type="button" aria-label="关闭块工作区" title="关闭" disabled={closing} onClick={() => void close()}><ToolbarIcon name="compress" /></button>
     </header>
+    {findOpen && <div className="block-workspace-find" role="search" aria-label="当前块查找">
+      <input ref={searchInput} aria-label="在当前块查找" placeholder="在当前块查找" value={query} onChange={event => { setQuery(event.target.value); setMatchIndex(0); }} onKeyDown={event => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); navigateMatch(event.shiftKey ? -1 : 1); } }} />
+      <span>{matches.length ? `${Math.min(matchIndex + 1, matches.length)} / ${matches.length}` : "0 / 0"}</span>
+      {iconButton("上一个匹配", "chevronLeft", () => navigateMatch(-1))}
+      {iconButton("下一个匹配", "chevronRight", () => navigateMatch(1))}
+      {editable && <>
+        <input aria-label="当前块替换为" placeholder="替换为" value={replacement} onChange={event => setReplacement(event.target.value)} />
+        <button type="button" onClick={() => replace(false)}>替换</button>
+        <button type="button" onClick={() => replace(true)}>替换本块全部</button>
+      </>}
+    </div>}
+    {optionsOpen && <div className="block-workspace-options">
+      {!editable && <label>空白字符<select aria-label="显示空白字符" value={whitespace} onChange={event => preservePosition(() => setWhitespace(event.target.value as WhitespaceMode))}>
+        <option value="off">关闭</option><option value="all">全部</option><option value="abnormal">仅异常</option>
+      </select></label>}
+      <label>Tab 宽度<select aria-label="Tab 显示宽度" value={tabSize} onChange={event => preservePosition(() => setTabSize(Number(event.target.value)))}>{[2, 4, 8].map(size => <option key={size}>{size}</option>)}</select></label>
+      <label>阅读字号<select aria-label="弹层字号" value={fontSize} onChange={event => preservePosition(() => setFontSize(Number(event.target.value)))}>{Array.from(new Set([12, 14, 16, 18, 20, 24, 28, fontSize])).sort((a, b) => a - b).map(size => <option key={size}>{size}</option>)}</select></label>
+      <label>正文代码高度<select aria-label="正文代码最大高度" value={heightPercent} onChange={event => { const value = Number(event.target.value); setHeightPercent(value); setCodeBlockHeightPercent(value); }}>{[40, 60, 80, 100].map(value => <option value={value} key={value}>{value}% 可视区</option>)}</select></label>
+      {rootType === "codeBlock" && <form onSubmit={event => {
+        event.preventDefault();
+        const lines = editor?.state.doc.firstChild?.textContent.split("\n") ?? [];
+        const number = Number(line);
+        if (!Number.isInteger(number) || number < 1 || number > lines.length) { setNotice(`请输入 1–${lines.length} 的行号`); return; }
+        reveal(1 + lines.slice(0, number - 1).reduce((length, text) => length + text.length + 1, 0));
+      }}><input aria-label="跳转代码行" placeholder="行号" inputMode="numeric" value={line} onChange={event => setLine(event.target.value)} /><button type="submit">跳转</button></form>}
+    </div>}
     {editable && editor && <div className="block-workspace-tools" role="toolbar" aria-label="块编辑工具">
       {iconButton("撤销", "undo", () => { source.commands.undo(); })}
       {iconButton("重做", "redo", () => { source.commands.redo(); })}
-      {iconButton("减少缩进", "outdent", () => { editor.chain().focus().outdentBlocks().run(); })}
-      {iconButton("增加缩进", "indent", () => { editor.chain().focus().indentBlocks().run(); })}
+      {iconButton("减少缩进", "outdent", () => { editor.chain().focus().updateAttributes(rootType, { indent: Math.max(0, Number(editor.state.doc.firstChild?.attrs.indent ?? 0) - 1) }).run(); })}
+      {iconButton("增加缩进", "indent", () => { editor.chain().focus().updateAttributes(rootType, { indent: Math.min(8, Number(editor.state.doc.firstChild?.attrs.indent ?? 0) + 1) }).run(); })}
       {rootType === "blockquote" && <>
+        <select aria-label="段落样式" defaultValue="paragraph" onChange={event => {
+          if (event.target.value === "paragraph") editor.chain().focus().setParagraph().run();
+          else editor.chain().focus().setHeading({ level: Number(event.target.value) as 1 | 2 | 3 | 4 | 5 | 6 }).run();
+        }}><option value="paragraph">正文</option>{[1, 2, 3, 4, 5, 6].map(level => <option key={level} value={level}>H{level}</option>)}</select>
         <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => editor.chain().focus().toggleBold().run()} title="粗体"><strong>B</strong></button>
         <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => editor.chain().focus().toggleItalic().run()} title="斜体"><em>I</em></button>
         <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => editor.chain().focus().toggleStrike().run()} title="删除线"><s>S</s></button>
@@ -222,7 +313,7 @@ function BlockWorkspace({ source, readonly, saveStatus, onFlush, request, onClos
       </>}
     </div>}
     {notice && <div className="block-workspace-notice" role="status">{notice}</div>}
-    <div ref={body} className="block-workspace-body editor-content" onPasteCapture={event => { if (!editable) event.preventDefault(); }} onBeforeInputCapture={event => { if (!editable) event.preventDefault(); }}>
+    <div ref={body} className="block-workspace-body editor-content" style={{ fontSize: `${fontSize}px`, tabSize }} onPasteCapture={event => { if (!editable) event.preventDefault(); }} onBeforeInputCapture={event => { if (!editable) event.preventDefault(); }}>
       <EditorContent editor={editor} />
     </div>
   </dialog>, document.body);
