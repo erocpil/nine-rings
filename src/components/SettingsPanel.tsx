@@ -21,6 +21,7 @@ import { collectWebDiagnostics } from "../lib/web-diagnostics";
 import { rebuildWebSearchIndex } from "../lib/web-search-index";
 import { readonlyRenderingEnabled, setReadonlyRenderingEnabled } from "../lib/readonly-rendering";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { searchSettings, type SettingsSearchEntry } from "../lib/settings-search";
 
 
 interface Props {
@@ -114,6 +115,24 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [editorAppearanceOpen, setEditorAppearanceOpen] = useState(false);
   const [editorAppearanceDraft, setEditorAppearanceDraft] = useState<AppConfig | null>(null);
   const [settingsPage, setSettingsPage] = useState<SettingsPage>("root");
+  const [settingsQuery, setSettingsQuery] = useState("");
+  const [editorAppearanceSearch, setEditorAppearanceSearch] = useState("");
+  const settingsSearchRef = useRef<HTMLInputElement>(null);
+  const settingsPanelRef = useRef<HTMLDivElement>(null);
+  const [searchDestination, setSearchDestination] = useState<SettingsSearchEntry | null>(null);
+  const settingsResults = searchSettings(settingsQuery, { web: !isTauri(), updates: Boolean(webUpdate) });
+  useEffect(() => {
+    if (!searchDestination) return;
+    const frame = requestAnimationFrame(() => {
+      const target = searchDestination.action === "update"
+        ? settingsPanelRef.current?.querySelector<HTMLElement>(".settings-update-check")
+        : settingsPanelRef.current?.querySelector<HTMLElement>("#settings-dialog-title");
+      target?.focus({ preventScroll: true });
+      target?.scrollIntoView({ block: "nearest" });
+      setSearchDestination(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [searchDestination]);
   const [localRendering, setLocalRendering] = useState(readonlyRenderingEnabled);
   const [rebuildingSearchIndex, setRebuildingSearchIndex] = useState(false);
   const [showUpdateFailureDetails, setShowUpdateFailureDetails] = useState(false);
@@ -188,6 +207,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     clearMessage();
     if (open) {
       setSettingsPage("root");
+      setSettingsQuery("");
       tagsLoadedRef.current = false;
       loadSettings();
     }
@@ -562,6 +582,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     <div className="settings-overlay" onClick={() => { onClose(); }}>
       <div
         className="settings-panel"
+        ref={settingsPanelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-dialog-title"
@@ -593,7 +614,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                     : "返回设置分类"}
               >←</button>
             )}
-            <h2 id="settings-dialog-title">{SETTINGS_PAGE_TITLES[settingsPage]}</h2>
+            <h2 id="settings-dialog-title" tabIndex={-1}>{SETTINGS_PAGE_TITLES[settingsPage]}</h2>
           </div>
           <button ref={closeButtonRef} className="settings-close" onClick={onClose} aria-label="关闭设置"><ToolbarIcon name="exit" /></button>
         </div>
@@ -609,6 +630,25 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
           <div className="settings-body">
             {libraryError && <div className="reading-library-message" role="alert">{libraryError}</div>}
             {settingsPage === "root" && (
+              <div className="settings-search">
+                <div className="settings-search-input-row">
+                  <ToolbarIcon name="search" />
+                  <input ref={settingsSearchRef} aria-label="查找设置" placeholder="查找设置：行号、缩进、更新…" value={settingsQuery} onChange={event => setSettingsQuery(event.target.value)} />
+                  {settingsQuery && <button className="btn-icon" aria-label="清除设置查找" onClick={() => { setSettingsQuery(""); settingsSearchRef.current?.focus(); }}><ToolbarIcon name="close" /></button>}
+                </div>
+                {settingsQuery.trim() && <div className="settings-search-results" aria-label="设置查找结果">
+                  <p role="status">{settingsResults.length ? `找到 ${settingsResults.length} 项设置或说明` : "没有匹配的设置，请尝试其他关键词。"}</p>
+                  {settingsResults.map(result => result.action === "help"
+                    ? <div key={result.title} className="settings-search-help"><strong>{result.title}</strong><p>{result.description}</p></div>
+                    : <button key={result.title} className="settings-category-card" onClick={() => {
+                      setSettingsPage(result.page);
+                      if (result.action === "typography") { setEditorAppearanceSearch(settingsQuery); setEditorAppearanceDraft({ ...config }); setEditorAppearanceOpen(true); }
+                      else setSearchDestination(result);
+                    }}><span><strong>{result.title}</strong><small>{result.description}</small></span><ToolbarIcon name="chevronRight" /></button>)}
+                </div>}
+              </div>
+            )}
+            {settingsPage === "root" && !settingsQuery.trim() && (
               <div key="settings-root-categories" className="settings-category-grid" aria-label="设置分类">
                 {SETTINGS_CATEGORIES.map((category) => (
                   <button
@@ -690,6 +730,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 type="button"
                 onClick={() => {
                   if (config) setEditorAppearanceDraft({ ...config });
+                  setEditorAppearanceSearch("");
                   setEditorAppearanceOpen(true);
                 }}
               >
@@ -1273,6 +1314,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
       </div>
       {editorAppearanceOpen && config && (
         <EditorAppearancePanel
+          initialSearch={editorAppearanceSearch}
           config={editorAppearanceDraft ?? config}
           onClose={closeEditorAppearance}
           onUpdate={updateEditorAppearance}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import type { AppConfig } from "../types/models";
 import { DEFAULT_EDITOR_APPEARANCE, editorAppearanceVariables } from "../lib/editor-appearance";
 import { blockWorkspacePreferences, saveBlockWorkspacePreferences, codeBlockHeightPercent, setCodeBlockHeightPercent } from "../lib/block-display-settings";
@@ -9,9 +9,24 @@ interface Props {
   onApply: () => void;
   dirty: boolean;
   onUpdate: (partial: Partial<AppConfig>) => void;
+  initialSearch?: string;
 }
 
-export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdate }: Props) {
+export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdate, initialSearch }: Props) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!initialSearch?.trim()) return;
+    const terms = initialSearch.normalize("NFKC").toLocaleLowerCase().trim().split(/\s+/);
+    const frame = requestAnimationFrame(() => {
+      const labels = [...(panelRef.current?.querySelectorAll<HTMLElement>(".settings-label") ?? [])];
+      const target = labels.find(label => terms.every(term => label.textContent?.toLocaleLowerCase().includes(term)));
+      if (!target) return;
+      target.tabIndex = -1;
+      target.focus({ preventScroll: true });
+      target.closest(".appearance-field")?.scrollIntoView({ block: "center" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [initialSearch]);
   const variables = editorAppearanceVariables(config) as React.CSSProperties;
   const [blockDisplay, setBlockDisplay] = useState(blockWorkspacePreferences);
   const [codeHeight, setCodeHeight] = useState(codeBlockHeightPercent);
@@ -39,7 +54,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="editor-appearance-panel" onClick={(event) => event.stopPropagation()}>
+      <div ref={panelRef} className="editor-appearance-panel" onClick={(event) => event.stopPropagation()}>
         <header className="editor-appearance-header">
           <div>
             <div className="editor-appearance-kicker">编辑器</div>

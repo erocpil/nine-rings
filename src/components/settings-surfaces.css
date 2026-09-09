@@ -1,4 +1,15 @@
 /* Keep settings cards softly tinted across light, dark and custom themes. */
+.settings-search { margin-bottom: 12px; }
+.settings-search-input-row { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 10px; background: var(--settings-input-bg); color: var(--text-secondary); }
+.settings-search-input-row:focus-within { outline: 2px solid var(--accent); outline-offset: -2px; }
+.settings-search-input-row > .toolbar-icon { width: 18px; height: 18px; flex: none; }
+.settings-search-input-row input { flex: 1; min-width: 0; min-height: 36px; padding: 0; border: 0; background: transparent; color: var(--text); font: 16px var(--font); }
+.settings-search-input-row input:focus { outline: none; }
+.settings-search-input-row button { flex: none; }
+.settings-search-results { display: grid; gap: 8px; }
+.settings-search-results > p, .settings-search-help p { margin: 8px 0; color: var(--text-secondary); font-size: 13px; }
+.settings-search-help { padding: 12px; border-radius: 10px; background: var(--settings-card-bg); }
+.settings-search-results button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .settings-panel {
   --settings-card-bg: color-mix(in srgb, var(--surface) 92%, var(--accent));
   --settings-input-bg: color-mix(in srgb, var(--surface) 97%, var(--accent));

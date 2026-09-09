@@ -7,6 +7,7 @@ import type { DocType, Note } from "../types/models";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { DocumentPathPicker } from "./DocumentPathPicker";
 import { documentModifiedTime } from "../lib/document-modified-time";
+import { readDocumentBrowserPreferences, saveDocumentBrowserPreferences } from "../lib/document-browser-preferences";
 import "./DocumentBrowser.css";
 
 const DOCUMENT_TYPES: Record<DocType, string> = { explanation: "解释", "how-to": "指南", reference: "参考", tutorial: "教程" };
@@ -45,6 +46,7 @@ export interface DocumentBrowserSession {
 
 /** Metadata-only browsing: never index or preview document bodies, including unlocked ones. */
 export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath, refreshKey, disabled, onSelect, onCreate }: Props) {
+  const [preferences] = useState(readDocumentBrowserPreferences);
   const [notes, setNotes] = useState<Note[]>(session.notes ?? []);
   const [paths, setPaths] = useState<string[]>(session.paths ?? []);
   const [protectedPaths, setProtectedPaths] = useState<string[]>(session.protectedPaths ?? []);
@@ -52,14 +54,18 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
   const [favorites, setFavorites] = useState(readDocumentFavorites);
   const [path, setPath] = useState(session.path ?? initialPath);
   const [query, setQuery] = useState(session.query ?? "");
-  const [sort, setSort] = useState(session.sort ?? "updated");
-  const [sortDirection, setSortDirection] = useState(session.sortDirection ?? (session.sort === "title" ? "asc" : "desc"));
+  const [sort, setSort] = useState(session.sort ?? preferences.sort);
+  const [sortDirection, setSortDirection] = useState(session.sortDirection ?? (session.sort ? (session.sort === "title" ? "asc" : "desc") : preferences.sortDirection));
   const [docType, setDocType] = useState<DocType | "">(session.docType ?? "");
   const [tag, setTag] = useState(session.tag ?? "");
-  const [view, setView] = useState(session.view ?? "recent");
+  const [view, setView] = useState(session.view ?? preferences.view);
   const [searchOpen, setSearchOpen] = useState(session.searchOpen ?? false);
   const [filtersOpen, setFiltersOpen] = useState(session.filtersOpen ?? false);
-  const [fields, setFields] = useState<DisplayFields>(session.fields ?? { path: true, tags: session.showDetails ?? false, type: session.showDetails ?? false, modified: session.showDetails ?? false });
+  const [fields, setFields] = useState<DisplayFields>(session.fields ?? (session.showDetails === undefined ? preferences.fields : { path: true, tags: session.showDetails, type: session.showDetails, modified: session.showDetails }));
+  const [preferencesFailed, setPreferencesFailed] = useState(false);
+  useEffect(() => {
+    setPreferencesFailed(!saveDocumentBrowserPreferences({ sort, sortDirection, view, fields }));
+  }, [sort, sortDirection, view, fields]);
   const [recentIds] = useState(readRecentNoteIds);
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -138,6 +144,7 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
   return <section className="document-browser" aria-label="文档列表">
     {toolbarHost && createPortal(actions, toolbarHost)}
     <div className="document-browser-controls">
+      {preferencesFailed && <p role="status" className="document-browser-empty">列表偏好未能保存到本机，当前会话仍可使用。</p>}
       <div className="document-browser-tabs" aria-label="文档浏览方式">
         <button aria-pressed={view === "recent"} onClick={() => switchView("recent")}>最近打开</button>
         <button aria-pressed={view === "all"} onClick={() => switchView("all")}>全部文档</button>

@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  testIgnore: ['**/pwa-offline.spec.ts', '**/pwa-update.spec.ts'],
+  testIgnore: ['**/pwa-offline.spec.ts', '**/pwa-update.spec.ts', '**/settings-search-production.spec.ts'],
   timeout: 30000,
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 2 : 4,
