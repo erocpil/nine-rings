@@ -9,6 +9,7 @@ import { NoteSearchIndex, toSearchNote, type SearchNote } from "./search-index-c
 type WorkerRequest =
   | { type: "rebuild"; notes: SearchNote[] }
   | { type: "upsert"; note: SearchNote }
+  | { type: "upsertMany"; notes: SearchNote[] }
   | { type: "remove"; noteId: string }
   | { type: "search"; query: string };
 
@@ -21,9 +22,11 @@ interface WorkerResponse {
 let worker: Worker | null = null;
 let requestId = 0;
 let ready: Promise<number> | null = null;
+let indexGeneration = 0;
 const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
 
 function resetWorker(error?: Error): void {
+  indexGeneration++;
   worker?.terminate();
   worker = null;
   ready = null;
@@ -57,10 +60,21 @@ function send<T>(message: WorkerRequest): Promise<T> {
 
 async function ensureReady(adapter: StorageAdapter): Promise<number> {
   if (!ready) {
+    const generation = indexGeneration;
     ready = loadSearchNotes(adapter)
-      .then((notes) => send<number>({ type: "rebuild", notes: notes.map(toSearchNote) }))
+      .then(async (notes) => {
+        let size = 0;
+        // Bound main-thread extraction/structured-clone work. Waiting for each
+        // reply yields to input/painting and avoids queuing the entire corpus.
+        for (let offset = 0; offset < Math.max(1, notes.length); offset += 250) {
+          if (generation !== indexGeneration) throw new Error("搜索索引已重置");
+          size = await send<number>({ type: offset === 0 ? "rebuild" : "upsertMany", notes: notes.slice(offset, offset + 250).map(toSearchNote) });
+        }
+        return size;
+      })
       .catch((error) => {
-        resetWorker();
+        // An old build must not tear down a newer index after import/locking.
+        if (generation === indexGeneration) resetWorker();
         throw error;
       });
   }

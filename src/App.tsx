@@ -156,6 +156,7 @@ function App() {
   const batchDelete = useNotesStore((s) => s.batchDelete);
   const { search, results, query, setQuery, clear: clearSearch } = useSearch();
   const [docResults, setDocResults] = useState<Awaited<ReturnType<typeof api.docs.searchSummaries>> | null>(null);
+  const [searchCancelRequestId, setSearchCancelRequestId] = useState(0);
   const [docSearchText, setDocSearchText] = useState("");
   const [docSearching, setDocSearching] = useState(false);
   const docSearchRequestIdRef = useRef(0);
@@ -1301,6 +1302,7 @@ function App() {
   }, []);
 
   const dismissSearchResults = useCallback(() => {
+    setSearchCancelRequestId(id => id + 1);
     // 让仍在飞行中的请求失效；SearchBar 自己保留关键词和筛选条件。
     docSearchRequestIdRef.current += 1;
     clearSearch();
@@ -1620,6 +1622,7 @@ function App() {
           <div id="header-search" className={`search-bar-collapse${searchExpanded ? ' expanded' : ''}`}>
             <SearchBar
               inputRef={headerSearchInputRef}
+              cancelRequestId={searchCancelRequestId}
               onSearch={search}
               onDocSearch={handleDocSearch}
               onInputBlur={() => setSearchExpanded(false)}
@@ -1841,6 +1844,10 @@ function App() {
               searching={docSearching}
               onClose={dismissSearchResults}
               onSelectNote={(summary, keepSearch, term) => {
+                if (!keepSearch) {
+                  setSearchCancelRequestId(id => id + 1);
+                  docSearchRequestIdRef.current += 1;
+                }
                 const request = ++searchRequestIdRef.current;
                 void api.notes.get(summary.id).then((note) => {
                   if (note && searchRequestIdRef.current === request) clearSearchAndSelect(note, keepSearch, term);

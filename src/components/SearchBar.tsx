@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, type RefObject } from "react";
+import { useState, useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { api } from "../lib/api";
 import type { DocType } from "../types/models";
 
@@ -8,6 +8,7 @@ interface SearchBarProps {
   onDocSearch?: (query: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => void;
   onInputBlur?: () => void;
   onEscape?: () => void;
+  cancelRequestId?: number;
 }
 
 const PATH_FILTERS = [
@@ -27,7 +28,7 @@ const TYPE_FILTERS: { value: DocType | ""; label: string }[] = [
   { value: "tutorial", label: "🎓 教程" },
 ];
 
-export function SearchBar({ inputRef, onSearch, onDocSearch, onInputBlur, onEscape }: SearchBarProps) {
+export function SearchBar({ inputRef, onSearch, onDocSearch, onInputBlur, onEscape, cancelRequestId }: SearchBarProps) {
   const [value, setValue] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [pathFilter, setPathFilter] = useState("");
@@ -38,6 +39,12 @@ export function SearchBar({ inputRef, onSearch, onDocSearch, onInputBlur, onEsca
   const [existingConcepts, setExistingConcepts] = useState<string[]>([]);
   const filterRef = useRef<HTMLDivElement>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useLayoutEffect(() => {
+    if (searchTimerRef.current) {
+      clearTimeout(searchTimerRef.current);
+      searchTimerRef.current = null;
+    }
+  }, [cancelRequestId]);
 
   const hasFilters = pathFilter || typeFilter || conceptFilter;
 

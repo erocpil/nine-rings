@@ -7,16 +7,18 @@ test.skip(process.env.NR_EDITOR_BENCHMARK !== "1", "仅在性能评估时运行"
 for (const count of [300, 1500, 5000]) {
   test(`${count} 块正文布局和滚动基线`, async ({ page, browserName }) => {
     test.setTimeout(120000);
+    page.setDefaultTimeout(15000);
     await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-    await expect(
-      page.getByRole("textbox", { name: "随心记 — 标题" }),
-    ).toHaveValue("新随笔");
-    await expect(
-      page.locator(".sidebar-item.active .sidebar-item-title"),
-    ).toHaveText("新随笔");
+    await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
+    const noteId = await page.evaluate(async () => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api } = await load("/src/lib/api.ts") as typeof import("../src/lib/api");
+      const { useNotesStore } = await load("/src/stores/useNotesStore.ts") as typeof import("../src/stores/useNotesStore");
+      const note = await api.notes.create({ title: "长文档性能基线", date: "2026-09-09", storagePath: "bench/documents", content: { ops: [] } });
+      useNotesStore.getState().selectNote(note);
+      return note.id;
+    });
+    await expect(page.locator(".note-title")).toHaveValue("长文档性能基线");
     const editor = page.locator(".ProseMirror");
     const markdown = Array.from({ length: count }, (_, i) =>
       i % 30 === 0
@@ -44,15 +46,17 @@ for (const count of [300, 1500, 5000]) {
     await expect(page.locator(".save-status-saved")).toBeVisible({
       timeout: 20000,
     });
-    await page
-      .locator(".sidebar-item.active")
-      .getByTitle("设为只读")
-      .evaluate((button: HTMLButtonElement) => button.click());
+    await page.evaluate(async id => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api } = await load("/src/lib/api.ts") as typeof import("../src/lib/api");
+      const { useNotesStore } = await load("/src/stores/useNotesStore.ts") as typeof import("../src/stores/useNotesStore");
+      useNotesStore.getState().selectNote(await api.notes.update(id, { readonly: true }));
+    }, noteId);
     await page.setViewportSize({ width: 390, height: 852 });
     await page
-      .locator(".sidebar-overlay.active")
+      .locator(".sidebar-overlay")
       .click({ position: { x: 380, y: 100 } });
-    await page.locator(".note-title-row").getByTitle("专注模式").click();
+    await page.getByRole("button", { name: "专注模式", exact: true }).click();
     await page.waitForTimeout(350);
     const scroll = await editor.evaluate(async (element) => {
       const root = element.closest(".note-editor-scroll")!;

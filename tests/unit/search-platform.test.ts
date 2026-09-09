@@ -121,8 +121,10 @@ class SearchWorker {
     query: string;
   }) {
     if (message.type === "rebuild") this.index.rebuild(message.notes);
+    if (message.type === "upsertMany")
+      message.notes.forEach((note) => this.index.upsert(note));
     const result =
-      message.type === "rebuild"
+      message.type === "rebuild" || message.type === "upsertMany"
         ? this.index.size
         : this.index.search(message.query);
     queueMicrotask(() =>
@@ -136,6 +138,59 @@ class CrashedWorker extends SearchWorker {
     queueMicrotask(() => this.onerror?.());
   }
 }
+
+it("builds large indexes in bounded summary batches without losing the tail", async () => {
+  vi.stubGlobal("Worker", SearchWorker);
+  notes = Array.from({ length: 751 }, (_, i) =>
+    note(`batch-${i}`, `批次 ${i}`, "共同关键词"),
+  );
+  const messages = vi.spyOn(SearchWorker.prototype, "postMessage");
+  const results = await searchWebNoteSummaries(adapter, "共同关键词");
+  expect(results).toHaveLength(751);
+  expect(new Set(results.map((n) => n.id)).size).toBe(751);
+  const batches = messages.mock.calls
+    .map(([message]) => message)
+    .filter((message) => message.type !== "search");
+  expect(batches.map((message) => message.type)).toEqual([
+    "rebuild",
+    "upsertMany",
+    "upsertMany",
+    "upsertMany",
+  ]);
+  expect(batches.map((message) => message.notes.length)).toEqual([
+    250, 250, 250, 1,
+  ]);
+  expect(
+    batches.every((message) => message.notes.every((n) => !("content" in n))),
+  ).toBe(true);
+  expect((await searchWebNoteSummaries(adapter, "批次 750"))[0].id).toBe(
+    "batch-750",
+  );
+  expect(getAll).toHaveBeenCalledTimes(1);
+  invalidateWebSearchIndex();
+  notes = [];
+  expect(await searchWebNoteSummaries(adapter, "共同关键词")).toEqual([]);
+});
+
+it("an invalidated loading build cannot replace or terminate the newer index", async () => {
+  vi.stubGlobal("Worker", SearchWorker);
+  let release!: (value: Note[]) => void;
+  getAll.mockImplementationOnce(
+    () =>
+      new Promise<Note[]>((resolve) => {
+        release = resolve;
+      }),
+  );
+  const oldSearch = searchWebNoteSummaries(adapter, "旧内容");
+  invalidateWebSearchIndex();
+  notes = [note("fresh", "新内容", "new")];
+  expect((await searchWebNoteSummaries(adapter, "新内容"))[0].id).toBe("fresh");
+  release([note("old", "旧内容", "old")]);
+  expect(await oldSearch).toEqual([]);
+  const reads = getAll.mock.calls.length;
+  expect((await searchWebNoteSummaries(adapter, "新内容"))[0].id).toBe("fresh");
+  expect(getAll).toHaveBeenCalledTimes(reads);
+});
 
 beforeEach(() => {
   vi.stubGlobal("crypto", webcrypto);

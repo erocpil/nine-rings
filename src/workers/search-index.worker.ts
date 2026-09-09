@@ -3,6 +3,7 @@ import { NoteSearchIndex, type SearchNote } from "../lib/search-index-core";
 type Request =
   | { id: number; type: "rebuild"; notes: SearchNote[] }
   | { id: number; type: "upsert"; note: SearchNote }
+  | { id: number; type: "upsertMany"; notes: SearchNote[] }
   | { id: number; type: "remove"; noteId: string }
   | { id: number; type: "search"; query: string };
 
@@ -13,6 +14,9 @@ self.onmessage = (event: MessageEvent<Request>) => {
   try {
     if (request.type === "rebuild") {
       index.rebuild(request.notes);
+      self.postMessage({ id: request.id, result: index.size });
+    } else if (request.type === "upsertMany") {
+      request.notes.forEach(note => index.upsert(note));
       self.postMessage({ id: request.id, result: index.size });
     } else if (request.type === "upsert") {
       index.upsert(request.note);

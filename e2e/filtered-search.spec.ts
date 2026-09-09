@@ -33,6 +33,11 @@ test("全局搜索增加路径类型概念筛选后保留多词匹配，清除�
   await expect(page.locator(".search-hit mark")).toHaveCount(0);
   await expect(page.locator(".search-hit")).toHaveCount(1);
   await expect(page.locator(".search-hit")).toContainText("筛选验证");
+  // Queue another debounced query, then immediately open an existing result.
+  // Its timer must not put the search panel back over the opened document.
+  await input.fill("uniquefilterbody");
   await page.locator(".search-hit").click();
   await expect(page.locator(".note-title")).toHaveValue("筛选验证 ＡＢＣ");
+  await page.waitForTimeout(350);
+  await expect(page.locator(".search-results")).toHaveCount(0);
 });
