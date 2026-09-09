@@ -68,6 +68,7 @@ html {
   --ui-control-height: 30px;
   --ui-icon-button-size: 28px;
   --ui-panel-header-height: 44px;
+  --left-document-drawer-width: min(320px, 85vw);
   --ui-panel-padding: 12px;
   --ui-list-gap: 4px;
   --ui-overlay: rgba(18, 20, 24, 0.5);
@@ -3264,7 +3265,7 @@ body {
 
 .doc-tree-popup {
   position: relative;
-  width: 320px;
+  width: var(--left-document-drawer-width);
   max-width: 85vw;
   height: 100%;
   background: var(--drawer-surface);
@@ -6091,6 +6092,9 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   grid-template-columns: 1fr 1fr;
   gap: 0 18px;
 }
+
+.block-display-toggle { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; cursor: pointer; }
+.block-display-toggle input { width: 16px; height: 16px; accent-color: var(--accent); }
 
 .editor-appearance-control-grid .settings-stepper {
   width: 100%;
@@ -9373,8 +9377,8 @@ button.doc-tree-toggle:focus-visible {
     bottom: auto;
     height: var(--app-viewport-height, 100dvh);
     z-index: 100;
-    width: min(420px, calc(var(--app-viewport-width, 100vw) * 0.82)) !important;
-    max-width: calc(var(--app-viewport-width, 100vw) * 0.85);
+    width: var(--left-document-drawer-width) !important;
+    max-width: 85vw;
     background: var(--bg);
     border-right: 1px solid var(--border);
     transform: translateX(-100%);
@@ -10071,8 +10075,7 @@ button.doc-tree-toggle:focus-visible {
   .app .focus-mode.focus-toolbar-expanded .note-editor-scroll {
     padding-top: calc(98px + var(--safe-top));
   }
-  .app-sidebar { width: 70vw !important; }
-  .doc-tree-popup,
+  :root { --left-document-drawer-width: 70vw; }
   .mobile-document-drawer-panel { width: 70vw; max-width: 85vw; }
   .mobile-document-drawer-panel { width: 78vw; }
   .note-editor:not(.focus-mode):not(.outline-docked-left):not(.outline-docked-right) > .document-outline-panel,

@@ -1,5 +1,6 @@
 const KEY = "nr:codeBlockHeightPercent";
 const EVENT = "nine-rings:block-display-change";
+export const BLOCK_WORKSPACE_DISPLAY_EVENT = "nine-rings:block-workspace-display-change";
 type WorkspacePreferences = { fontSize?: number; tabSize?: number; whitespace?: "off" | "all" | "abnormal"; lineNumbers?: boolean; wrap?: boolean };
 const WORKSPACE_KEY = "nr:blockWorkspaceDisplay";
 export function blockWorkspacePreferences(): WorkspacePreferences {
@@ -19,6 +20,7 @@ export function blockWorkspacePreferences(): WorkspacePreferences {
 export function saveBlockWorkspacePreferences(patch: WorkspacePreferences) {
   try { localStorage.setItem(WORKSPACE_KEY, JSON.stringify({ ...blockWorkspacePreferences(), ...patch })); }
   catch { /* Display controls remain usable if local storage is unavailable. */ }
+  window.dispatchEvent(new Event(BLOCK_WORKSPACE_DISPLAY_EVENT));
 }
 export function codeBlockHeightPercent() {
   const value = Number(localStorage.getItem(KEY));

@@ -9,17 +9,19 @@ import { OPEN_BLOCK_WORKSPACE, queueBlockWorkspace, takeBlockWorkspace } from ".
 import { clipboardSliceToPlainText } from "../lib/clipboard-plain-text";
 import { copyToClipboard } from "../lib/clipboard";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { CopyBlockNotice } from "./CopyBlockNotice";
 import "./block-workspace.css";
 import { WorkspaceWhitespace, setWorkspaceWhitespace } from "../extensions/WorkspaceWhitespace";
 import type { WhitespaceMode } from "../lib/whitespace-markers";
 import { SearchHighlights, findSearchMatches, setSearchHighlights } from "../extensions/SearchHighlights";
 import { createReplacementTransaction } from "../lib/editor-replace";
-import { blockWorkspacePreferences, saveBlockWorkspacePreferences, codeBlockHeightPercent, setCodeBlockHeightPercent } from "../lib/block-display-settings";
+import { blockWorkspacePreferences, saveBlockWorkspacePreferences } from "../lib/block-display-settings";
+import { codeLineNumbersPluginKey } from "../extensions/CodeBlockLineNumbers";
 import { storeImage } from "../lib/storage/db-images";
 import { blobToBase64 } from "../lib/storage/core";
 import { normalizePastedHTML, normalizeSingleParagraphPaste } from "../extensions/NormalizeSingleParagraphPaste";
 
-type Request = { position: number; trigger: HTMLElement };
+type Request = { position: number; trigger: HTMLElement; restoreFocus?: boolean };
 type Props = { source: Editor; noteId?: string; readonly?: boolean; sensitive?: boolean; saveStatus?: string; onFlush?: () => Promise<void> };
 
 export function BlockWorkspaceHost(props: Props) {
@@ -76,24 +78,23 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
   const editableRef = useRef(editable);
   editableRef.current = editable;
   const [notice, setNotice] = useState("");
+  const [copyNotice, setCopyNotice] = useState("");
   useEffect(() => {
-    if (!notice.startsWith("已复制")) return;
-    const timer = window.setTimeout(() => setNotice(""), 2200);
+    if (!copyNotice.startsWith("已复制")) return;
+    const timer = window.setTimeout(() => setCopyNotice(""), 2200);
     return () => window.clearTimeout(timer);
-  }, [notice]);
+  }, [copyNotice]);
   const [closing, setClosing] = useState(false);
   const [color, setColor] = useState("#333333");
-  const [whitespace, setWhitespace] = useState<WhitespaceMode>(() => blockWorkspacePreferences().whitespace ?? "off");
-  const [tabSize, setTabSize] = useState(() => blockWorkspacePreferences().tabSize ?? 4);
-  const [fontSize, setFontSize] = useState(() => blockWorkspacePreferences().fontSize ?? (Math.round(parseFloat(getComputedStyle(source.view.dom).fontSize)) || 16));
-  useEffect(() => { saveBlockWorkspacePreferences({ whitespace, tabSize, fontSize }); }, [whitespace, tabSize, fontSize]);
-  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [whitespace] = useState<WhitespaceMode>(() => blockWorkspacePreferences().whitespace ?? "off");
+  const [tabSize] = useState(() => blockWorkspacePreferences().tabSize ?? 4);
+  const [fontSize] = useState(() => blockWorkspacePreferences().fontSize ?? (Math.round(parseFloat(getComputedStyle(source.view.dom).fontSize)) || 16));
+  const [lineNumbers, setLineNumbers] = useState(() => blockWorkspacePreferences().lineNumbers ?? codeLineNumbersPluginKey.getState(source.state) ?? false);
   const [findOpen, setFindOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [replacement, setReplacement] = useState("");
   const [matchIndex, setMatchIndex] = useState(0);
   const [line, setLine] = useState("");
-  const [heightPercent, setHeightPercent] = useState(codeBlockHeightPercent);
   const [insertKind, setInsertKind] = useState<"link" | "image" | null>(null);
   const [url, setUrl] = useState("");
   const imageInput = useRef<HTMLInputElement>(null);
@@ -251,7 +252,8 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
       window.visualViewport?.removeEventListener("resize", resize);
       window.visualViewport?.removeEventListener("scroll", resize);
       if (scroller && scrollTop !== undefined) scroller.scrollTop = scrollTop;
-      if (opener.isConnected) opener.focus({ preventScroll: true });
+      if (opener.isConnected && request.restoreFocus) opener.focus({ preventScroll: true });
+      else if (document.activeElement === opener) opener.blur();
     };
   }, [source, request]);
 
@@ -290,18 +292,17 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
     try {
       const { dom } = editor.view.serializeForClipboard(slice);
       await navigator.clipboard.write([new ClipboardItem({ "text/plain": new Blob([text], { type: "text/plain" }), "text/html": new Blob([dom.innerHTML], { type: "text/html" }) })]);
-      setNotice("已复制块（保留格式）");
+      setCopyNotice("已复制块（保留格式）");
     } catch {
-      try { await copyToClipboard(text, { reportFailure: true }); setNotice("已复制块（纯文本）"); }
-      catch { setNotice("复制失败，请检查剪贴板权限。"); }
+      try { await copyToClipboard(text, { reportFailure: true }); setCopyNotice("已复制块（纯文本）"); }
+      catch { setCopyNotice("复制失败，请检查剪贴板权限。"); }
     }
   };
   const iconButton = (label: string, icon: Parameters<typeof ToolbarIcon>[0]["name"], run: () => void) =>
     <button type="button" title={label} aria-label={label} onMouseDown={event => event.preventDefault()} onClick={run}><ToolbarIcon name={icon} /></button>;
 
-  return createPortal(<dialog ref={dialog} tabIndex={-1} className="block-workspace" role="dialog" aria-modal="true" aria-label={`${name}工作区`}
-    onCancel={event => { event.preventDefault(); if (insertKind && editable) setInsertKind(null); else if (!editor?.view.composing) void close(); }}
-    onClick={event => { if (event.target === event.currentTarget && !editable) void close(); }}
+  return createPortal(<dialog ref={dialog} tabIndex={-1} className="block-workspace" data-block-type={rootType} role="dialog" aria-modal="true" aria-label={`${name}工作区`}
+    onCancel={event => { event.preventDefault(); if (!editor?.view.composing) void close(); }}
     onKeyDown={event => {
       event.stopPropagation();
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
@@ -319,7 +320,9 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
       <span className="block-workspace-save" data-error={saveStatus === "error"} role="status">{saveStatus === "error" ? "保存失败" : saveStatus === "saving" || saveStatus === "dirty" ? "保存中…" : "已保存"}</span>
       {iconButton("复制块", "copy", () => void copy())}
       {!sensitive && iconButton("块内查找", "search", () => { setFindOpen(!findOpen); window.requestAnimationFrame(() => searchInput.current?.focus()); })}
-      {iconButton("块显示设置", "sliders", () => preservePosition(() => setOptionsOpen(!optionsOpen)))}
+      {rootType === "codeBlock" && <button type="button" aria-label={lineNumbers ? "隐藏代码行号" : "显示代码行号"} aria-pressed={lineNumbers} title="代码行号" onMouseDown={event => event.preventDefault()} onClick={() => {
+        preservePosition(() => { setLineNumbers(!lineNumbers); saveBlockWorkspacePreferences({ lineNumbers: !lineNumbers }); });
+      }}>行号</button>}
       <button type="button" aria-label="关闭块工作区" title="关闭" disabled={closing} onClick={() => void close()}><ToolbarIcon name="compress" /></button>
     </header>
     {findOpen && !sensitive && <div className="block-workspace-find" role="search" aria-label="当前块查找">
@@ -333,20 +336,13 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
         <button type="button" onClick={() => replace(true)}>替换本块全部</button>
       </>}
     </div>}
-    {optionsOpen && <div className="block-workspace-options">
-      {!editable && <label>空白字符<select aria-label="显示空白字符" value={whitespace} onChange={event => preservePosition(() => setWhitespace(event.target.value as WhitespaceMode))}>
-        <option value="off">关闭</option><option value="all">全部</option><option value="abnormal">仅异常</option>
-      </select></label>}
-      <label>Tab 宽度<select aria-label="Tab 显示宽度" value={tabSize} onChange={event => preservePosition(() => setTabSize(Number(event.target.value)))}>{[2, 4, 8].map(size => <option key={size}>{size}</option>)}</select></label>
-      <label>阅读字号<select aria-label="弹层字号" value={fontSize} onChange={event => preservePosition(() => setFontSize(Number(event.target.value)))}>{Array.from(new Set([12, 14, 16, 18, 20, 24, 28, fontSize])).sort((a, b) => a - b).map(size => <option key={size}>{size}</option>)}</select></label>
-      <label>正文代码高度<select aria-label="正文代码最大高度" value={heightPercent} onChange={event => { const value = Number(event.target.value); setHeightPercent(value); setCodeBlockHeightPercent(value); }}>{[40, 60, 80, 100].map(value => <option value={value} key={value}>{value}% 可视区</option>)}</select></label>
-      {rootType === "codeBlock" && <form onSubmit={event => {
+    {findOpen && rootType === "codeBlock" && <div className="block-workspace-options"><form onSubmit={event => {
         event.preventDefault();
         const lines = editor?.state.doc.firstChild?.textContent.split("\n") ?? [];
         const number = Number(line);
         if (!Number.isInteger(number) || number < 1 || number > lines.length) { setNotice(`请输入 1–${lines.length} 的行号`); return; }
         reveal(1 + lines.slice(0, number - 1).reduce((length, text) => length + text.length + 1, 0));
-      }}><input aria-label="跳转代码行" placeholder="行号" inputMode="numeric" value={line} onChange={event => setLine(event.target.value)} /><button type="submit">跳转</button></form>}
+      }}><input aria-label="跳转代码行" placeholder="行号" inputMode="numeric" value={line} onChange={event => setLine(event.target.value)} /><button type="submit">跳转</button></form>
     </div>}
     {editable && editor && <div className="block-workspace-tools" role="toolbar" aria-label="块编辑工具">
       {iconButton("撤销", "undo", () => { source.commands.undo(); })}
@@ -396,6 +392,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
       <button type="submit">插入</button><button type="button" onClick={() => setInsertKind(null)}>取消</button>
     </form>}
     {notice && <div className="block-workspace-notice" data-error={notice.includes("失败")} role="status">{notice}</div>}
+    <CopyBlockNotice message={copyNotice} onClose={() => setCopyNotice("")} withinDialog />
     <div ref={body} className="block-workspace-body editor-content" style={{ fontSize: `${fontSize}px`, tabSize }} onPasteCapture={event => { if (!editable) event.preventDefault(); }} onBeforeInputCapture={event => { if (!editable) event.preventDefault(); }}>
       <EditorContent editor={editor} />
     </div>

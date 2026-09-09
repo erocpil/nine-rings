@@ -1,12 +1,16 @@
 .block-workspace-open { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 4px; color: var(--text-secondary); border: 0; border-radius: 5px; background: transparent; cursor: pointer; }
 .block-workspace-open .toolbar-icon { width: 16px; height: 16px; }
+.block-workspace-open:not(:focus-visible) { outline: none; }
+@media (hover: none) {
+  .block-workspace-open:hover { background: transparent; color: var(--text-secondary); }
+}
 .note-editor .code-block-inner { max-height: max(0px, min(var(--code-block-height, 60dvh), calc(var(--app-viewport-height, 100dvh) - 80px))); overflow-y: auto; align-items: flex-start; }
 .blockquote-toolbar > .block-workspace-open { margin-left: 2px; }
-.block-workspace { position: fixed; margin: 0; padding: 0; max-width: none; max-height: none; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--text); box-shadow: 0 12px 48px #0004; overflow: hidden; }
+.block-workspace { position: fixed; margin: 0; padding: 0 0 8px; max-width: none; max-height: none; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--text); box-shadow: 0 12px 48px #0004; overflow: hidden; }
 .block-workspace[open] { display: flex; flex-direction: column; }
 .block-workspace:focus { outline: none; }
 .block-workspace::backdrop { background: #15202066; backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
-.block-workspace-header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; flex: 0 0 auto; border-bottom: 1px solid var(--border); }
+.block-workspace-header { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 3px 8px; flex: 0 0 auto; border-bottom: 1px solid var(--border); }
 .block-workspace-header strong { font-size: 14px; white-space: nowrap; }
 .block-workspace-header [role="group"] { display: flex; background: var(--hover-bg); border-radius: 6px; }
 .block-workspace button { color: var(--text-secondary); border: 0; background: transparent; cursor: pointer; border-radius: 6px; }
@@ -16,7 +20,7 @@
 .block-workspace button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .block-workspace .toolbar-icon { width: 18px; height: 18px; }
 .block-workspace-save { margin-left: auto; font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
-.block-workspace-tools { display: flex; align-items: center; gap: 4px; padding: 4px 8px; flex-shrink: 0; overflow-x: auto; }
+.block-workspace-tools { display: flex; align-items: center; gap: 4px; padding: 2px 8px; flex-shrink: 0; overflow-x: auto; }
 .block-workspace-tools label { display: flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; }
 .block-workspace-tools input[type="color"] { width: 24px; height: 24px; padding: 0; }
 .block-workspace-find, .block-workspace-options { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; font-size: 12px; flex-shrink: 0; }
@@ -43,6 +47,7 @@
 .block-workspace-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 8px; }
 .block-workspace-body .ProseMirror { min-height: 80px; outline: none; }
 .block-workspace-body .block-workspace-open { display: none; }
+.block-workspace[data-block-type="codeBlock"] .code-block-actions [title="代码行号（仅改变显示）"] { display: none; }
 .block-workspace-body .ProseMirror > .code-block-wrap.collapsed .code-block-inner { max-height: none; opacity: 1; pointer-events: auto; }
 .block-workspace-body .ProseMirror > .blockquote-wrap[data-collapsed="true"] > .blockquote-node-view > .blockquote-content { display: block; }
 .block-workspace .blockquote-node-view[data-workspace-collapsed="true"] > .blockquote-content { display: none; }
@@ -52,5 +57,5 @@
 .block-workspace-body .code-block-inner { max-height: none; overflow: visible; }
 @media (pointer: coarse) {
   .block-workspace-open { width: 32px; height: 32px; flex-basis: 32px; }
-  .block-workspace-header button, .block-workspace-tools button { min-height: 40px; }
+  .block-workspace-header button, .block-workspace-tools button { min-height: 32px; }
 }

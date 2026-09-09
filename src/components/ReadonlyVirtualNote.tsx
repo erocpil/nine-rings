@@ -7,6 +7,7 @@ import React, {
   useState,
 } from "react";
 import type { Node as PMNode } from "@tiptap/pm/model";
+import { CopyBlockNotice } from "./CopyBlockNotice";
 import { DOMSerializer, Slice } from "@tiptap/pm/model";
 import type { NoteEditorProps } from "./NoteEditor";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
@@ -794,7 +795,8 @@ export function ReadonlyVirtualNote(
           完整渲染
         </button>
       </div>
-      {notice && (
+      {notice && (notice.startsWith("已复制") || notice.startsWith("复制块失败") ?
+        <CopyBlockNotice message={notice} onClose={() => setNotice("")} /> :
         <div className="vr-notice" role="status">
           {notice}
           <button type="button" onClick={() => setNotice("")}>

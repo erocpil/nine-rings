@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { CopyBlockNotice } from "./CopyBlockNotice";
 import { useEditorToolbarMenus } from "../hooks/useEditorToolbarMenus";
 import { MOBILE_VIEWPORT_QUERY } from "../hooks/useEdgeDrawer";
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -3975,7 +3976,7 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
         </div>
 
         {/* ── 编辑器内容 ── */}
-        {copyBlockNotice && <div className="markdown-paste-notice" role="status"><span>{copyBlockNotice}</span><button type="button" aria-label="关闭复制提示" onClick={() => setCopyBlockNotice("")}>×</button></div>}
+        <CopyBlockNotice message={copyBlockNotice} onClose={() => setCopyBlockNotice("")} />
         {markdownPasteText && (
           <div className="markdown-paste-notice" role="status">
             <span>已按 Markdown 格式化</span>

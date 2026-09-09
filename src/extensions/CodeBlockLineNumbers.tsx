@@ -7,11 +7,11 @@ import { useEffect, useRef, useState } from "react";
 import { copyToClipboard } from "../lib/clipboard";
 import { openBlockWorkspace } from "../lib/block-workspace";
 import { ToolbarIcon } from "../components/ToolbarIcon";
-import { blockWorkspacePreferences, saveBlockWorkspacePreferences } from "../lib/block-display-settings";
+import { BLOCK_WORKSPACE_DISPLAY_EVENT, blockWorkspacePreferences, saveBlockWorkspacePreferences } from "../lib/block-display-settings";
 import { CODE_LANGUAGE_OPTIONS, highlightCode, normalizeCodeLanguage } from "../lib/code-highlight";
 
 const codeHighlightPluginKey = new PluginKey<DecorationSet>("codeSyntaxHighlight");
-const codeLineNumbersPluginKey = new PluginKey<boolean>("codeLineNumbersEnabled");
+export const codeLineNumbersPluginKey = new PluginKey<boolean>("codeLineNumbersEnabled");
 const codeBlockDefaultWrapPluginKey = new PluginKey<boolean>("codeBlockDefaultWrap");
 
 interface TextSpan {
@@ -180,9 +180,14 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
   const showLineNumbers = lineNumbersOverride ?? lineNumbersEnabled;
   useEffect(() => {
     if (!editor.view.dom.closest(".block-workspace")) return;
-    const preferences = blockWorkspacePreferences();
-    if (preferences.lineNumbers !== undefined) setLineNumbersOverride(preferences.lineNumbers);
-    if (preferences.wrap !== undefined) setReadonlyWrapOverride(preferences.wrap);
+    const syncPreferences = () => {
+      const preferences = blockWorkspacePreferences();
+      if (preferences.lineNumbers !== undefined) setLineNumbersOverride(preferences.lineNumbers);
+      if (preferences.wrap !== undefined) setReadonlyWrapOverride(preferences.wrap);
+    };
+    syncPreferences();
+    window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, syncPreferences);
+    return () => window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, syncPreferences);
   }, [editor]);
   const [visualRows, setVisualRows] = useState<number[]>(() => Array(lineCount).fill(1));
 

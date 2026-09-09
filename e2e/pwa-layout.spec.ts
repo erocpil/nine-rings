@@ -160,6 +160,13 @@ test.describe("PWA 窄屏应用外壳", () => {
     await page.getByRole("button", { name: "复制块", exact: true }).click();
     await expect(page.locator("html")).toHaveAttribute("data-copied-block-html", /<blockquote[\s\S]*复制整块内容/);
     await expect(editor.locator("blockquote")).toContainText("复制整块内容");
+    const contentBeforeCopy = await editor.boundingBox();
+    await expect(page.locator(".copy-block-feedback")).toBeVisible();
+    await expect(page.locator(".copy-block-feedback")).toHaveCSS("position", "fixed");
+    const feedback = (await page.locator(".copy-block-feedback").boundingBox())!;
+    expect(feedback.y).toBeGreaterThan(760 / 2);
+    await expect(page.locator(".copy-block-feedback")).toHaveCount(0, { timeout: 4000 });
+    expect(await editor.boundingBox()).toEqual(contentBeforeCopy);
     await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
     await expect(editor).toHaveAttribute("contenteditable", "false");
     await editor.locator("blockquote").getByText("复制整块内容", { exact: true }).click();
@@ -656,13 +663,14 @@ test.describe("PWA 窄屏应用外壳", () => {
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
     const host = page.locator(".note-editor");
-    for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
+    for (const viewport of [{ width: 390, height: 760 }, { width: 430, height: 932 }, { width: 844, height: 390 }, { width: 320, height: 640 }]) {
       await page.setViewportSize(viewport);
       const upper = viewport.height / 4;
       const lower = viewport.height * 3 / 4;
       await swipeNoteEditor(host, { startX: 8, startY: upper, endX: 110, endY: upper });
       const view = page.getByRole("dialog", { name: "文档视图", exact: true });
       await expect(view).toBeVisible();
+      const viewWidth = (await view.boundingBox())!.width;
       await expect(page.getByRole("dialog", { name: "文档侧栏", exact: true })).toBeHidden();
       await swipeNoteEditor(view, { startX: 210, startY: upper, endX: 110, endY: upper });
       await expect(view).toBeHidden();
@@ -673,6 +681,8 @@ test.describe("PWA 窄屏应用外壳", () => {
       await swipeNoteEditor(host, { startX: 8, startY: lower, endX: 110, endY: lower });
       const tree = page.getByRole("dialog", { name: "文档侧栏", exact: true });
       await expect(tree).toBeVisible();
+      expect((await tree.boundingBox())!.width).toBeCloseTo(viewWidth, 1);
+      expect(viewWidth).toBeLessThanOrEqual(viewport.width * 0.85 + 1);
       await expect(view).toBeHidden();
       await page.keyboard.press("Escape");
       await expect(tree).toBeHidden();

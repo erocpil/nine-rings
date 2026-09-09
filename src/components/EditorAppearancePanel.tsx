@@ -1,6 +1,7 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import type { AppConfig } from "../types/models";
 import { DEFAULT_EDITOR_APPEARANCE, editorAppearanceVariables } from "../lib/editor-appearance";
+import { blockWorkspacePreferences, saveBlockWorkspacePreferences, codeBlockHeightPercent, setCodeBlockHeightPercent } from "../lib/block-display-settings";
 
 interface Props {
   config: AppConfig;
@@ -12,6 +13,10 @@ interface Props {
 
 export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdate }: Props) {
   const variables = editorAppearanceVariables(config) as React.CSSProperties;
+  const [blockDisplay, setBlockDisplay] = useState(blockWorkspacePreferences);
+  const [codeHeight, setCodeHeight] = useState(codeBlockHeightPercent);
+  const [blockDirty, setBlockDirty] = useState(false);
+  const updateBlock = (patch: typeof blockDisplay) => { setBlockDisplay(value => ({ ...value, ...patch })); setBlockDirty(true); };
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -120,18 +125,45 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
               </label>
             </AppearanceField>
 
+            <section aria-label="块显示设置">
+              <h3>代码／引用块显示</h3>
+              <p>保存在当前设备；空白字符仅在弹层阅读模式显示，不修改正文。</p>
+              <div className="editor-appearance-control-grid">
+                <AppearanceField label="空白字符" desc="区分空格、Tab 和实际换行">
+                  <select className="settings-input editor-appearance-select" aria-label="显示空白字符" value={blockDisplay.whitespace ?? "off"} onChange={event => updateBlock({ whitespace: event.target.value as "off" | "all" | "abnormal" })}>
+                    <option value="off">关闭</option><option value="all">全部</option><option value="abnormal">仅异常</option>
+                  </select>
+                </AppearanceField>
+                <AppearanceField label="Tab 显示宽度" desc="只改变显示宽度，不转换字符">
+                  <select className="settings-input editor-appearance-select" aria-label="Tab 显示宽度" value={blockDisplay.tabSize ?? 4} onChange={event => updateBlock({ tabSize: Number(event.target.value) })}>{[2, 4, 8].map(size => <option key={size}>{size}</option>)}</select>
+                </AppearanceField>
+                <AppearanceField label="块弹层字号" desc="代码／引用独立阅读字号">
+                  <select className="settings-input editor-appearance-select" aria-label="弹层字号" value={blockDisplay.fontSize ?? ""} onChange={event => updateBlock({ fontSize: event.target.value ? Number(event.target.value) : undefined })}><option value="">跟随正文</option>{Array.from({ length: 21 }, (_, i) => i + 12).map(size => <option key={size}>{size}</option>)}</select>
+                </AppearanceField>
+                <AppearanceField label="正文代码高度" desc="长代码块内部滚动，最高不超过可视区">
+                  <select className="settings-input editor-appearance-select" aria-label="正文代码最大高度" value={codeHeight} onChange={event => { setCodeHeight(Number(event.target.value)); setBlockDirty(true); }}>{[40, 60, 80, 100].map(value => <option value={value} key={value}>{value}% 可视区</option>)}</select>
+                </AppearanceField>
+                <AppearanceField label="代码行号" desc="弹层内也可随时显示或隐藏">
+                  <label className="block-display-toggle"><input type="checkbox" aria-label="块弹层显示代码行号" checked={blockDisplay.lineNumbers ?? false} onChange={event => updateBlock({ lineNumbers: event.target.checked })} /><span>{blockDisplay.lineNumbers ? "显示行号" : "隐藏行号"}</span></label>
+                </AppearanceField>
+                <AppearanceField label="代码自动换行" desc="块弹层默认显示方式">
+                  <label className="block-display-toggle"><input type="checkbox" aria-label="块弹层代码自动换行" checked={blockDisplay.wrap ?? true} onChange={event => updateBlock({ wrap: event.target.checked })} /><span>{(blockDisplay.wrap ?? true) ? "自动换行" : "横向滚动"}</span></label>
+                </AppearanceField>
+              </div>
+            </section>
+
             <button
               className="settings-btn-secondary editor-appearance-reset"
               type="button"
-              onClick={() => onUpdate({ ...DEFAULT_EDITOR_APPEARANCE })}
+              onClick={() => { onUpdate({ ...DEFAULT_EDITOR_APPEARANCE }); setBlockDisplay({ fontSize: undefined, whitespace: "off", tabSize: 4, lineNumbers: false, wrap: true }); setCodeHeight(60); setBlockDirty(true); }}
             >恢复默认排版</button>
             <div className="editor-appearance-actions">
               <button className="settings-btn-secondary editor-appearance-cancel" type="button" onClick={onClose}>取消</button>
               <button
                 className="settings-btn-primary editor-appearance-apply"
                 type="button"
-                disabled={!dirty}
-                onClick={onApply}
+                disabled={!dirty && !blockDirty}
+                onClick={() => { if (blockDirty) { saveBlockWorkspacePreferences(blockDisplay); setCodeBlockHeightPercent(codeHeight); } onApply(); }}
               >
                 应用到编辑器
               </button>

@@ -7,7 +7,9 @@ export function takeBlockWorkspace(noteId: string) { const position = pending.ge
 
 export function openBlockWorkspace(editor: Editor, position: number | undefined, trigger: HTMLElement) {
   if (typeof position !== "number" || editor.isDestroyed) return;
+  const restoreFocus = trigger.matches(":focus-visible");
+  trigger.blur();
   editor.view.dom.dispatchEvent(new CustomEvent(OPEN_BLOCK_WORKSPACE, {
-    bubbles: true, detail: { position, trigger },
+    bubbles: true, detail: { position, trigger, restoreFocus },
   }));
 }
