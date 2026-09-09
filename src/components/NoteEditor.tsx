@@ -1685,7 +1685,9 @@ function FullNoteEditor({ sensitive = false, onFlush, onOpenSettings, noteId, ti
 
   // 当 readonly 变化时同步编辑器状态
   useEffect(() => {
-    editor?.setEditable(!readonly, false);
+    // useEditor already supplies the initial value. Reapplying it invokes
+    // setOptions/updateState again while the initial document is mounting.
+    if (editor && editor.options.editable !== !readonly) editor.setEditable(!readonly, false);
   }, [readonly, editor]);
 
   useEffect(() => {

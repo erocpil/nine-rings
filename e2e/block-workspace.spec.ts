@@ -352,7 +352,7 @@ test.describe("触屏块工作区", () => {
         };
       });
       expect(spacing.top).toBeCloseTo(16, 0);
-      expect(spacing.bottom).toBeCloseTo(24, 0);
+      expect(spacing.bottom).toBeCloseTo(36, 0);
       expect(spacing.blur).toBe("blur(2px)");
       expect((await dialog.locator(".block-workspace-header").boundingBox())!.height).toBeLessThanOrEqual(40);
       await page.mouse.click(1, 300);
@@ -391,7 +391,7 @@ test.describe("触屏块工作区", () => {
     }).toBe(true);
     expect(await dialog.locator(".block-workspace-body").evaluate(element => element.clientHeight)).toBeGreaterThan(0);
     const bounds = (await dialog.boundingBox())!;
-    expect(260 - bounds.y - bounds.height).toBeGreaterThanOrEqual(23);
+    expect(260 - bounds.y - bounds.height).toBeGreaterThanOrEqual(35);
     await expect(dialog).toHaveCSS("padding-bottom", "8px");
     await page.screenshot({ path: "/tmp/nr-block-workspace-keyboard.png" });
     await close.click();

@@ -241,7 +241,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
       // Keep the close/mode controls reachable using the visual viewport.
       if (right - left < 280) { left = x; right = x + width; }
       if (bottom - top < 160) { top = y + safeTop; bottom = y + height; }
-      const topGap = 16, bottomGap = 24;
+      const topGap = 16, bottomGap = 36;
       Object.assign(element.style, { left: `${left + 8}px`, top: `${top + topGap}px`, width: `${Math.max(1, right - left - 16)}px`, height: `${Math.max(1, bottom - top - topGap - bottomGap)}px` });
     };
     resize();

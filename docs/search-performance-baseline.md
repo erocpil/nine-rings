@@ -75,6 +75,23 @@ Chromium 同环境、无其它测试并行，每个规模各一次的新测量�
 NR_SEARCH_BENCHMARK=1 npx playwright test e2e/search-performance.spec.ts --workers=1
 NR_EDITOR_BENCHMARK=1 npx playwright test e2e/editor-rendering-benchmark.spec.ts --grep '300 块|1500 块' --workers=1
 NR_EDITOR_BENCHMARK=1 NR_EDITOR_PROFILE=1 npx playwright test e2e/editor-rendering-benchmark.spec.ts --grep '1500 块' --workers=1
+NR_EDITOR_BENCHMARK=1 npx playwright test e2e/editor-opening-benchmark.spec.ts --workers=1
+NR_EDITOR_BENCHMARK=1 NR_EDITOR_PROFILE=1 npx playwright test e2e/editor-opening-benchmark.spec.ts --grep '1500 块' --workers=1
 ```
 
-两个基准均显式启用，使用隔离浏览器中的合成数据，不读取用户资料库。长文档基准已改用文档 API 创建测试内容，不再依赖隐藏的随笔入口。
+这些基准均显式启用，使用隔离浏览器中的合成数据，不读取用户资料库。长文档基准已改用文档 API 创建测试内容，不再依赖隐藏的随笔入口。
+
+## 第四个性能子批次：已有文档重复打开（2026-09-09）
+
+新增 `editor-opening-benchmark.spec.ts`，直接保存合成文档到浏览器 IndexedDB，再通过实际文档 API 读取并打开；每个规模在空白文档与长文档之间切换三轮。首次打开目标文档与后两次再次打开分别记录，包含编辑器挂载、DOM 块数确认、下一帧及尾块几何读取。Markdown 解析与测试文档创建在计时之外，实际存储读取在计时之内。宽度变化从 1280 到 1000，保持 800 高度；包含 Playwright 设置视口的往返时间，不是纯布局时间。
+
+环境仍是 Linux Chromium/Vite 开发模式（包含 React StrictMode 开发期重复执行）；不能将这些绝对耗时作为 Windows 安装包或 iOS 发布版指标。CPU 采样指向 gutter 初始布局读取以及 ProseMirror 视图更新，并非 IndexedDB 读取。视图更新本身也可能触发原生布局，CPU 样本不能精确拆分浏览器内部阶段。
+
+本轮小改动仅跳过重复的 `setEditable`：`useEditor` 已提供初始只读状态，配置相同时不再调用一次 `setOptions/updateState`；真实只读切换仍执行。没有调整 gutter 坐标、正文布局或虚拟渲染。
+
+| 块数 | 清理前打开三轮 ms | 清理后打开三轮 ms | 清理后读取三轮 ms | 清理后宽度变化三轮 ms |
+| --- | --- | --- | --- | --- |
+| 300 | 1508.7 / 1490.4 / 1589.7 | 2016.4 / 1480.9 / 1679.7 | 2.6 / 11.4 / 3.0 | 64.7 / 58.4 / 90.1 |
+| 1500 | 7890.7 / 8096.4 / 7395.4 | 9097.4 / 7917.0 / 7128.1 | 10.1 / 35.8 / 22.2 | 152.3 / 168.4 / 225.1 |
+
+两组均独立运行、未并行执行其它测试；只有三轮，启动/运行时波动仍明显。结果**未证明总体打开速度改善**，仅确认存储不是此合成样本的主要耗时，重复打开仍需支付完整编辑器挂载和排版成本。本轮交付可重复测量与无效调用清理，保留其它布局优化待反馈后再推进。新增跨浏览器回归覆盖：初次打开不重复调用 setEditable、只读/编辑双向切换、只读拒绝模拟粘贴，以及原有大段粘贴撤销重做。

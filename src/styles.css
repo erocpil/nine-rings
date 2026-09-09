@@ -4589,11 +4589,12 @@ body {
 }
 
 .editor-block-bookmark.without-number {
-  left: 10px;
-  width: 4px;
-  height: 14px;
-  transform: translateY(-50%);
-  border-radius: 2px;
+  /* Match the fold control's centre; stay below the glyph in both states. */
+  left: 2px;
+  width: 10px;
+  height: 2px;
+  transform: translateY(8px);
+  border-radius: 1px;
   background: color-mix(in srgb, var(--accent) 72%, transparent);
 }
 
@@ -9692,6 +9693,10 @@ button.doc-tree-toggle:focus-visible {
     left: 0;
     width: 22px;
     touch-action: manipulation;
+  }
+
+  .editor-block-bookmark.without-number {
+    left: 6px;
   }
 
   /* 保留 iOS 原生选区菜单、文字选择和拖动手柄。系统剪贴板、替换和
