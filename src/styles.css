@@ -231,6 +231,16 @@ body {
 .btn-search-toggle {
   display: none !important;
 }
+.app-header .btn-doc-tree-popup {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: auto;
+  padding-inline: 8px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.btn-doc-tree-popup .toolbar-icon { width: 18px; height: 18px; }
 
 .app-body {
   display: flex;

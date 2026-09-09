@@ -491,6 +491,15 @@ function App() {
   const HIDDEN_KEY = "nr:sidebarHidden";
   const [searchExpanded, setSearchExpanded] = useState(false);
   const headerSearchInputRef = useRef<HTMLInputElement>(null);
+  const openGlobalSearch = useCallback(() => {
+    flushSync(() => {
+      setDocTreePopupOpen(false);
+      setQuickSwitcherOpen(false);
+      setFocusMode(false);
+      setSearchExpanded(true);
+    });
+    headerSearchInputRef.current?.focus({ preventScroll: true });
+  }, []);
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     const persisted = localStorage.getItem(HIDDEN_KEY);
     if (persisted !== null) return persisted === "true";
@@ -1192,6 +1201,7 @@ function App() {
     workspaceActive: !readingLibraryOpen && !protectionBusy && !applyingWebUpdate,
     setSettingsOpen,
     setQuickSwitcherOpen,
+    openSearch: openGlobalSearch,
     setDate,
     setSidebarHidden,
     setSidebarTab: handleSetSidebarTab,
@@ -1207,7 +1217,7 @@ function App() {
   const popupBackdropRef = useRef<HTMLDivElement>(null);
   const mobileDrawerViewport = useMobileViewport();
   useEdgeDrawer(mobileDrawerViewport && !sidebarHidden, "left", sidebarPanelRef, sidebarBackdropRef, () => setSidebarHidden(true));
-  useEdgeDrawer(mobileDrawerViewport && docTreePopupOpen, "left", popupPanelRef, popupBackdropRef, () => setDocTreePopupOpen(false));
+  useEdgeDrawer(docTreePopupOpen, "left", popupPanelRef, popupBackdropRef, () => setDocTreePopupOpen(false));
   useEffect(() => bindViewportEdgeSwipe("left", (touch) => {
     if (!sidebarHidden || docTreePopupOpen || !mobileDrawerViewport) return null;
     const openDocumentView = touch.clientY < swipeViewport().middleY;
@@ -1551,13 +1561,16 @@ function App() {
             <span className="arrow arrow-right" />
           </button>
         )}
-        {sidebarHidden && !mobileDrawerViewport && (
+        {!mobileDrawerViewport && (
           <button
             className="btn-icon btn-doc-tree-popup"
             onClick={() => setDocTreePopupOpen(true)}
             title="文档视图"
+            aria-label="文档列表"
+            aria-expanded={docTreePopupOpen}
+            type="button"
           >
-            <ToolbarIcon name="folder" />
+            <ToolbarIcon name="folder" /><span>文档列表</span>
           </button>
         )}
         {DAILY_NOTES_ENABLED && <DatePicker value={currentDate} onChange={handleDateChange} />}
@@ -2084,10 +2097,7 @@ function App() {
                 flushSync(() => { setDocTreePopupOpen(false); setQuickSwitcherOpen(true); });
                 document.querySelector<HTMLInputElement>('.quick-switcher-search input')?.focus({ preventScroll: true });
               }}><ToolbarIcon name="switchViews" /></button>
-              <button className="btn-icon btn-search-toggle" type="button" aria-label="全局搜索" title="全局搜索" onClick={() => {
-                flushSync(() => { setDocTreePopupOpen(false); setFocusMode(false); setSearchExpanded(true); });
-                headerSearchInputRef.current?.focus({ preventScroll: true });
-              }}><ToolbarIcon name="search" /></button>
+              <button className="btn-icon btn-search-toggle" type="button" aria-label="全局搜索" title="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>
               <div className="doc-tree-toolbar-host" ref={setBrowserToolbarHost} />
               <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" title="收起文档视图" aria-label="关闭文档视图" onClick={() => setDocTreePopupOpen(false)}><ToolbarIcon name="chevronLeft" /></button>
             </div>

@@ -16,16 +16,13 @@ export interface AppShortcutActions {
   workspaceActive?: boolean;
   setSettingsOpen: (open: boolean) => void;
   setQuickSwitcherOpen: (open: boolean) => void;
+  openSearch: () => void;
   setDate: (date: string) => Promise<void>;
   setSidebarHidden: (hidden: boolean) => void;
   setSidebarTab: (tab: "daily" | "tree") => void;
   selectNote: (note: Note | null) => void;
   createNote: () => void;
   hotkeys?: Record<string, string>;
-}
-
-function focusSearchInput(): void {
-  document.querySelector<HTMLInputElement>(".search-input")?.focus();
 }
 
 function showWindow(): void {
@@ -93,7 +90,7 @@ export function useAppKeyboardShortcuts(actions: AppShortcutActions): void {
           break;
         case "focusSearch":
           e.preventDefault();
-          focusSearchInput();
+          a.openSearch();
           break;
         case "goToDaily":
           e.preventDefault();
@@ -112,7 +109,7 @@ export function useAppKeyboardShortcuts(actions: AppShortcutActions): void {
     void registerShortcuts(
       {
         createNote: () => { if (actionsRef.current.workspaceActive !== false) actionsRef.current.createNote(); },
-        focusSearch: () => { if (actionsRef.current.workspaceActive !== false) focusSearchInput(); },
+        focusSearch: () => { if (actionsRef.current.workspaceActive !== false) actionsRef.current.openSearch(); },
         openSettings: () => { if (actionsRef.current.workspaceActive !== false) actionsRef.current.setSettingsOpen(true); },
         toggleDaily: () => { if (actionsRef.current.workspaceActive !== false) goToToday(actionsRef.current); },
         showWindow,
