@@ -4405,7 +4405,7 @@ body {
   flex: 1;
   overflow: hidden;
   min-width: 0;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.35;
   overflow-wrap: anywhere;
   white-space: normal;
@@ -4534,7 +4534,7 @@ body {
   color: var(--text) !important;
   text-align: start;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.35;
 }
 
@@ -9764,7 +9764,7 @@ button.doc-tree-toggle:focus-visible {
     flex: none !important;
     width: 100%;
     min-height: 32px;
-    font-size: 12px;
+    font-size: 13px;
     background: var(--bg);
     touch-action: pan-y;
     transform: translateX(var(--bookmark-swipe-offset, 0));

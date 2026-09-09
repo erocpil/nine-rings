@@ -27,7 +27,8 @@ interface DocumentOutlineListProps {
 
 const VIRTUALIZE_AFTER = 100;
 const SINGLE_ROW_HEIGHT = 26;
-const WRAPPED_ROW_HEIGHT = 39;
+// Two lines at 13px × 1.35 plus 6px vertical padding, rounded up.
+const WRAPPED_ROW_HEIGHT = 42;
 const DEFAULT_LIST_WIDTH = 360;
 const OVERSCAN_PX = SINGLE_ROW_HEIGHT * 8;
 // Session objects only: reopening an unchanged outline reuses size estimates.
@@ -48,7 +49,7 @@ function approximateTextWidth(text: string): number {
     else if (/[MW@#%&]/u.test(character)) width += 9;
     else width += 6.5;
   }
-  return width;
+  return width * (13 / 12);
 }
 
 function estimatedRowHeight(

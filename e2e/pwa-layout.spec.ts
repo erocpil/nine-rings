@@ -61,6 +61,39 @@ async function swipeNoteEditor(
 test.describe("PWA 窄屏应用外壳", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
+  test("四种手势弹层主要文字统一为13px", async ({ page }) => {
+    await createOutlineFixture(page, "字号检查");
+    await page.evaluate(async () => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");
+      const { useNotesStore }: typeof import("../src/stores/useNotesStore") = await load("/src/stores/useNotesStore.ts");
+      const note = await api.notes.create({ title: "字号一致", storagePath: "projects/fonts", date: "2026-09-09", content: {
+        ops: [{ insert: "字号标题" }, { insert: "\n", attributes: { header: 1 } }, { insert: "正文\n" }],
+        metadata: { bookmarks: [{ id: "font-bookmark", position: 1, preview: "字号书签", createdAt: "2026-09-09T00:00:00Z" }] },
+      } });
+      useNotesStore.getState().selectNote(note);
+    });
+    await expect(page.locator(".note-title")).toHaveValue("字号一致");
+    for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
+      await page.setViewportSize(viewport);
+      const host = page.locator(".note-editor");
+      const lower = viewport.height - 80;
+      await swipeNoteEditor(host, { startX: 8, startY: 100, endX: 110, endY: 100 });
+      const list = page.getByRole("dialog", { name: "文档视图", exact: true });
+      await list.getByRole("button", { name: "全部文档", exact: true }).click();
+      await expect(list.locator(".document-browser-title").first()).toHaveCSS("font-size", "13px");
+      await list.getByRole("button", { name: "关闭文档视图", exact: true }).click();
+      await swipeNoteEditor(host, { startX: 8, startY: lower, endX: 110, endY: lower });
+      await expect(page.locator(".app-sidebar .doc-tree-name").first()).toHaveCSS("font-size", "13px");
+      await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
+      for (const [y, selector] of [[100, ".document-outline-text"], [lower, ".document-bookmark-jump"]] as const) {
+        await swipeNoteEditor(host, { startX: viewport.width - 10, startY: y, endX: viewport.width - 110, endY: y });
+        await expect(page.locator(`.mobile-document-drawer.is-open ${selector}`).first()).toHaveCSS("font-size", "13px");
+        await page.keyboard.press("Escape");
+      }
+    }
+  });
+
   test("抽屉操作等宽右对齐且右侧手势上目录下书签", async ({ page }) => {
     await createOutlineFixture(page, "手势分区");
     await swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: 100, endX: 110, endY: 100 });

@@ -39,7 +39,7 @@
 .document-browser-row.selected .document-browser-title { color: var(--accent); font-weight: 600; }
 .document-browser-open > .toolbar-icon { width: 17px; height: 17px; flex-shrink: 0; margin-top: 2px; color: var(--text-muted); }
 .document-browser-details { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
-.document-browser-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.document-browser-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
 .document-browser-path { color: var(--text-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .document-browser-meta-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
 .document-browser-meta-row .document-browser-doc-type { flex-shrink: 0; }
