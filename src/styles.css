@@ -6951,7 +6951,8 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 .vr-gutter { position: absolute; inset: 12px auto auto 0; width: var(--editor-gutter-width); display: flex; align-items: center; gap: 2px; color: var(--text-secondary); user-select: none; font-size: 11px; }
 .vr-gutter button { width: 22px; padding: 4px 0; flex-shrink: 0; border: none; }
 .vr-gutter span { margin-left: auto; }
-.vr-code-toolbar { display: flex; align-items: center; gap: var(--block-toolbar-gap); padding: 4px; font-size: 12px; }
+.vr-code-toolbar { display: flex; align-items: center; gap: var(--block-toolbar-gap); padding: 3px 5px; font-size: 12px; }
+.vr-code-toolbar > button:last-child { flex: 0 0 22px; width: 22px; height: 22px; padding: 0; font: 10px/18px var(--font); }
 .vr-code-toolbar span { flex: 1; }
 .vr-code-line { display: grid; min-height: 1.5em; }
 .vr-code-line-number { text-align: right; padding-right: var(--code-line-number-padding, 8px); color: var(--text-secondary); user-select: none; -webkit-user-select: none; }
@@ -8992,8 +8993,10 @@ button.doc-tree-toggle:focus-visible {
   align-items: center;
   justify-content: flex-end;
   gap: var(--block-toolbar-gap);
-  min-height: 24px;
-  margin-bottom: 2px;
+  min-height: 28px;
+  /* Match the code toolbar's 5px inset plus its outer 1px border. */
+  padding: 4px 6px 4px 0;
+  margin-bottom: 0;
   color: var(--text-secondary);
   font: 11px/1.4 var(--font);
   -webkit-user-select: none;
@@ -9002,7 +9005,8 @@ button.doc-tree-toggle:focus-visible {
 
 .blockquote-toolbar > span:first-child { margin-right: auto; }
 
-.blockquote-toolbar button {
+.blockquote-toolbar button:not(.block-workspace-open) {
+  flex: 0 0 22px;
   width: 22px;
   height: 22px;
   padding: 0;
@@ -9053,15 +9057,11 @@ button.doc-tree-toggle:focus-visible {
 
 @media (max-width: 768px) {
   .blockquote-toolbar {
-    /* 按钮仍保留 36px 触控热区，但不再让每条引用额外占据 44px 高度。 */
     min-height: 28px;
     margin-bottom: 0;
   }
 
   .blockquote-toolbar button {
-    width: 36px;
-    height: 36px;
-    margin: -4px 0;
     touch-action: manipulation;
   }
 
