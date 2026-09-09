@@ -9,6 +9,7 @@ let revision = 1;
 let blockDownload = false;
 let failDownload = false;
 let transientFailures = 0;
+let transientBodyFailures = 0;
 let serverUnavailable = false;
 let pendingDownloads: ServerResponse[] = [];
 let origin: string;
@@ -29,6 +30,14 @@ const server = createServer((req, res) => {
     if (transientFailures > 0) transientFailures--;
     res.writeHead(fail ? 503 : 200, { "Content-Type": "application/javascript", "Cache-Control": "no-store" });
     res.end("/* deployment test marker */");
+    return;
+  }
+  if (req.url === "/icon-192.png" && transientBodyFailures > 0) {
+    transientBodyFailures--;
+    res.writeHead(200, { "Content-Type": "image/png", "Content-Length": "99999", "Cache-Control": "no-store" });
+    res.flushHeaders();
+    res.write("incomplete image body");
+    setTimeout(() => res.destroy(), 50);
     return;
   }
   const upstream = proxyRequest(`http://localhost:8001${req.url}`, { method: req.method, headers: { ...req.headers, host: "localhost:8001" } }, (response) => {
@@ -74,6 +83,7 @@ test.beforeEach(async ({ page }) => {
   blockDownload = false;
   failDownload = false;
   transientFailures = 0;
+  transientBodyFailures = 0;
   serverUnavailable = false;
   await page.goto(origin);
   await page.evaluate(() => navigator.serviceWorker.ready);
@@ -115,7 +125,7 @@ test("手机 PWA 重启时接管已开始的新版下载，保存后升级且服
 test("新版下载失败保留旧版，设置可手动检查并重试升级", async ({ page }) => {
   revision = 2;
   failDownload = true;
-  await page.getByTitle("设置", { exact: true }).click();
+  await page.keyboard.press("Alt+,");
   await page.getByRole("button", { name: "检查更新", exact: true }).click();
   await expect(page.locator(".settings-web-update [role=status]")).toContainText(/失败|未完成/);
   await page.getByRole("button", { name: "查看详情", exact: true }).click();
@@ -136,9 +146,31 @@ test("新版下载失败保留旧版，设置可手动检查并重试升级", as
 test("新版资源短暂失败时自动重试，不需要再次点击检查", async ({ page }) => {
   revision = 2;
   transientFailures = 1;
-  await page.getByTitle("设置", { exact: true }).click();
+  await page.keyboard.press("Alt+,");
   await page.getByRole("button", { name: "检查更新", exact: true }).click();
   await expect(page.locator(".settings-web-update [role=status]")).toContainText("新版本已就绪");
   expect(transientFailures).toBe(0);
   await expect.poll(() => activeVersion(page)).toBe(1);
+});
+
+test("图标返回200后正文中断会重试，完整缓存后才能升级", async ({ page }) => {
+  revision = 2;
+  transientBodyFailures = 1;
+  await page.keyboard.press("Alt+,");
+  await page.getByRole("button", { name: "检查更新", exact: true }).click();
+  await expect(page.locator(".settings-web-update [role=status]")).toContainText("新版本已就绪");
+  expect(transientBodyFailures).toBe(0);
+  await expect.poll(() => activeVersion(page)).toBe(1);
+  await Promise.all([
+    page.waitForEvent("load"),
+    page.locator(".settings-web-update").getByRole("button", { name: "保存并刷新" }).click(),
+  ]);
+  await expect.poll(() => activeVersion(page)).toBe(2);
+  serverUnavailable = true;
+  expect(await page.evaluate(() => new Promise<number>((resolve, reject) => {
+    const icon = new Image();
+    icon.onload = () => resolve(icon.naturalWidth);
+    icon.onerror = () => reject(new Error("cached icon is incomplete"));
+    icon.src = "/icon-192.png";
+  }))).toBe(192);
 });

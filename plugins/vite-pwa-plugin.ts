@@ -77,7 +77,8 @@ async function installVersion() {
 async function cacheResource(cache, url) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 15000);
     let stage = "download";
     let status = "unavailable";
     try {
@@ -90,12 +91,22 @@ async function cacheResource(cache, url) {
       if (/\\.(?:m?js|css)$/.test(url) && type.includes("text/html")) {
         throw new Error("Unexpected HTML response");
       }
+      // HTTP headers (including 200) can arrive before the response body.
+      // Finish the abortable download before handing bytes to CacheStorage.
+      stage = "body-read";
+      const body = await response.arrayBuffer();
+      clearTimeout(timer);
+      const headers = new Headers(response.headers);
+      // fetch has already decoded content encodings; these bytes are complete.
+      headers.delete("content-encoding");
+      headers.delete("content-length");
       stage = "cache-write";
-      await cache.put(request, response);
+      await cache.put(request, new Response(body, { status: response.status, statusText: response.statusText, headers }));
       return;
     } catch (error) {
-      if (attempt === 3 || stage === "cache-write") {
-        throw new Error("resource=" + url + " stage=" + stage + " status=" + status + " attempt=" + attempt + " " + String(error));
+      const transientWrite = error?.name === "AbortError" || error?.name === "NetworkError";
+      if (attempt === 3 || (stage === "cache-write" && !transientWrite)) {
+        throw new Error("resource=" + url + " stage=" + stage + " status=" + status + " attempt=" + attempt + " timeout=" + timedOut + " " + String(error));
       }
     } finally {
       clearTimeout(timer);
