@@ -26,7 +26,7 @@ export function bindViewportEdgeSwipe(side: "left" | "right", resolve: (touch: T
     if (!isWithinSwipeEdge(side === "left" ? touch.clientX - viewport.left : viewport.right - touch.clientX)) return null;
     const run = resolve(touch);
     return run ? { direction: side === "left" ? "right" : "left", run } : null;
-  });
+  }, { swipeButtonSelector: ".editor-heading-fold, .editor-block-insert, .blockquote-toolbar button" });
 }
 
 /** 在第一个有位移的 touchmove 决定归属，不能等到 60px 才拦截原生滚动。 */

@@ -454,6 +454,7 @@ export interface NoteEditorProps {
   onFocusModeChange?: (focus: boolean) => void;
   onStickyTitleChange?: (title: string | null) => void;
   onOutlineAvailabilityChange?: (available: boolean) => void;
+  onBookmarkCountChange?: (count: number) => void;
   outlineRequestId?: number;
   bookmarkRequestId?: number;
   saveStatus?: "clean" | "dirty" | "saving" | "saved" | "error";
@@ -595,7 +596,7 @@ function DocumentEditor(props: NoteEditorProps) {
   return <FullNoteEditor {...props} initialPdfExportRequest={exportRequested} />;
 }
 
-function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean }) {
+function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean }) {
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -647,6 +648,8 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
   const [bookmarkOpen, setBookmarkOpen] = useState(false);
   const [panelPresentation, setPanelPresentation] = useState<DocumentPanelPresentation>("popover");
   const [bookmarks, setBookmarks] = useState<DocumentBookmark[]>(bookmarksRef.current);
+  useEffect(() => { onBookmarkCountChange?.(bookmarks.length); }, [bookmarks.length, onBookmarkCountChange]);
+  useEffect(() => () => onBookmarkCountChange?.(0), [onBookmarkCountChange]);
   const [bookmarkJumpBlockIndex, setBookmarkJumpBlockIndex] = useState<number | null>(null);
   const [openBookmarkActionsId, setOpenBookmarkActionsId] = useState<string | null>(null);
   const [activeOutlineIndex, setActiveOutlineIndex] = useState(-1);
@@ -755,6 +758,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
   const [markdownPasteText, setMarkdownPasteText] = useState<string | null>(null);
   const [markdownSelectionNotice, setMarkdownSelectionNotice] = useState(false);
   const [readonlyChangeNotice, setReadonlyChangeNotice] = useState(false);
+  const [copyBlockNotice, setCopyBlockNotice] = useState("");
   const [readonlyChangeBusy, setReadonlyChangeBusy] = useState(false);
   const [gutterBlockCount, setGutterBlockCount] = useState(0);
   const [currentStatusBlock, setCurrentStatusBlock] = useState(1);
@@ -1339,7 +1343,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
     if (!isMobileToolbarViewport) return;
 
     return bindViewportEdgeSwipe("right", (touch) => {
-      const target = touch.clientY < swipeViewport().middleY ? "bookmark" : "outline";
+      const target = touch.clientY < swipeViewport().middleY ? "outline" : "bookmark";
       if (target === "outline" && documentOutline.length === 0) return null;
       return () => {
         setFocusToolbarExpanded(false);
@@ -2944,6 +2948,27 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
   const totalBlocks = gutterBlockCount || editor.state.doc.childCount;
 
   // ── 剪贴板操作 ──
+  const handleCopyBlock = async () => {
+    const { $from } = editor.state.selection;
+    const start = $from.depth > 0 ? $from.before(1) : $from.pos;
+    const node = editor.state.doc.nodeAt(start);
+    if (!node) return;
+    const slice = editor.state.doc.slice(start, start + node.nodeSize);
+    const text = clipboardSliceToPlainText(slice);
+    const { dom } = editor.view.serializeForClipboard(slice);
+    try {
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/plain": new Blob([text], { type: "text/plain" }),
+        "text/html": new Blob([dom.innerHTML], { type: "text/html" }),
+      })]);
+      setCopyBlockNotice("已复制当前块（保留格式）");
+    } catch {
+      try {
+        await copyToClipboard(text, { reportFailure: true });
+        setCopyBlockNotice("已复制当前块（纯文本）");
+      } catch { setCopyBlockNotice("复制块失败，请检查剪贴板权限后重试"); }
+    }
+  };
   const handleCopy = async () => {
     const { from, to } = editor.state.selection;
     if (from === to) return;
@@ -3917,7 +3942,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
               runToolbarFormat, changeSelectedBlockIndent, handleToggleCodeBlock,
               insertBlankBlockAfterCurrent, hasSelection, convertSelectionFromMarkdown,
               setTableSelection, copySelectedTableCells, clearSelectedTableCells, setTableCellAlignment,
-              handleCopy, handleCut, handleClipboardPaste, handleExportMarkdown, handleExportPdf, openEditorReplace,
+              handleCopy, handleCopyBlock, handleCut, handleClipboardPaste, handleExportMarkdown, handleExportPdf, openEditorReplace,
               toggleCurrentBookmark, openDocumentBookmarks, setLinkDialogUrl, setLinkDialog, setImageDialog,
             }}
             editorFontSize={editorFontSize} onEditorFontSizeChange={onEditorFontSizeChange}
@@ -3931,6 +3956,7 @@ function FullNoteEditor({ sensitive = false, onOpenSettings, noteId, title, cont
         </div>
 
         {/* ── 编辑器内容 ── */}
+        {copyBlockNotice && <div className="markdown-paste-notice" role="status"><span>{copyBlockNotice}</span><button type="button" aria-label="关闭复制提示" onClick={() => setCopyBlockNotice("")}>×</button></div>}
         {markdownPasteText && (
           <div className="markdown-paste-notice" role="status">
             <span>已按 Markdown 格式化</span>

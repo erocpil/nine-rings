@@ -77,6 +77,8 @@ function CollapsibleBlockquoteView({ node, editor, getPos }: NodeViewProps) {
           }}
           onPointerUp={(event) => {
             if (event.pointerType !== "touch") return;
+            const gesture = touchRef.current;
+            if (!gesture || gesture.moved || Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 12) return;
             event.preventDefault();
             event.stopPropagation();
             const now = Date.now();

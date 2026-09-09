@@ -181,6 +181,10 @@ export function SearchBar({ inputRef, onSearch, onDocSearch, onInputBlur, onEsca
                 fireSearch(value, pathFilter, typeFilter, conceptFilter);
               }
               if (e.key === "Escape") {
+                if (searchTimerRef.current) {
+                  clearTimeout(searchTimerRef.current);
+                  searchTimerRef.current = null;
+                }
                 onEscape?.();
                 e.currentTarget.blur();
                 e.preventDefault();

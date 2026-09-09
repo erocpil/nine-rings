@@ -494,6 +494,7 @@ function App() {
   const [documentOutlineAvailable, setDocumentOutlineAvailable] = useState(false);
   const [documentOutlineRequestId, setDocumentOutlineRequestId] = useState(0);
   const [documentBookmarkRequestId, setDocumentBookmarkRequestId] = useState(0);
+  const [documentBookmarkCount, setDocumentBookmarkCount] = useState(0);
   const HIDDEN_KEY = "nr:sidebarHidden";
   const [searchExpanded, setSearchExpanded] = useState(false);
   const headerSearchInputRef = useRef<HTMLInputElement>(null);
@@ -1611,28 +1612,7 @@ function App() {
           </div>
         )}
         <div className="header-right">
-          <button
-            className="btn-icon btn-quick-switcher"
-            onClick={() => setQuickSwitcherOpen(true)}
-            title="快速切换笔记 (Ctrl+P)"
-            aria-label="快速切换笔记"
-            type="button"
-          ><ToolbarIcon name="switchViews" /></button>
-          <div className="header-search-anchor">
-          <button
-            className={`btn-icon btn-search-toggle${searchExpanded ? " search-active" : ""}`}
-            onClick={() => {
-              // iOS requires focus within the user gesture, after the hidden
-              // input becomes visible; a timer/effect can lose keyboard access.
-              flushSync(() => setSearchExpanded(true));
-              headerSearchInputRef.current?.focus({ preventScroll: true });
-            }}
-            title="搜索"
-            aria-label="搜索"
-            aria-expanded={searchExpanded}
-            aria-controls="header-search"
-            type="button"
-          ><ToolbarIcon name="search" /></button>
+          <div className="header-search-anchor" hidden={!searchExpanded}>
           <div id="header-search" className={`search-bar-collapse${searchExpanded ? ' expanded' : ''}`}>
             <SearchBar
               inputRef={headerSearchInputRef}
@@ -1653,7 +1633,7 @@ function App() {
               onClick={() => setDocumentOutlineRequestId(id => id + 1)}><ToolbarIcon name="bullet" /></button>
             <button type="button" className="btn-icon" title="文档书签" aria-label="文档书签"
               disabled={!selectedNote}
-              onClick={() => setDocumentBookmarkRequestId(id => id + 1)}><ToolbarIcon name="bookmark" /></button>
+              onClick={() => setDocumentBookmarkRequestId(id => id + 1)}><ToolbarIcon name="bookmark" />{documentBookmarkCount > 0 && <span className="focus-bookmark-count" aria-hidden="true">{documentBookmarkCount > 99 ? "99+" : documentBookmarkCount}</span>}</button>
             <button type="button" className="btn-icon" title="专注模式" aria-label="专注模式"
               disabled={!selectedNote}
               onClick={() => setFocusMode(true)}><ToolbarIcon name="expand" /></button>
@@ -2008,6 +1988,7 @@ function App() {
                       onFocusModeChange={setFocusMode}
                       onStickyTitleChange={setStickyTitle}
                       onOutlineAvailabilityChange={setDocumentOutlineAvailable}
+                      onBookmarkCountChange={setDocumentBookmarkCount}
                       outlineRequestId={documentOutlineRequestId}
                       bookmarkRequestId={documentBookmarkRequestId}
                       saveStatus={autoSave.status}
@@ -2110,6 +2091,14 @@ function App() {
           <div ref={popupPanelRef} className="doc-tree-popup" role="dialog" aria-modal="true" aria-label="文档视图" onClick={(e) => e.stopPropagation()}>
             <div className="sidebar-tabs">
               <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} />
+              <button className="btn-icon btn-quick-switcher" type="button" aria-label="快速切换笔记" title="快速切换笔记 (Ctrl+P)" onClick={() => {
+                flushSync(() => { setDocTreePopupOpen(false); setQuickSwitcherOpen(true); });
+                document.querySelector<HTMLInputElement>('.quick-switcher-search input')?.focus({ preventScroll: true });
+              }}><ToolbarIcon name="switchViews" /></button>
+              <button className="btn-icon btn-search-toggle" type="button" aria-label="全局搜索" title="全局搜索" onClick={() => {
+                flushSync(() => { setDocTreePopupOpen(false); setFocusMode(false); setSearchExpanded(true); });
+                headerSearchInputRef.current?.focus({ preventScroll: true });
+              }}><ToolbarIcon name="search" /></button>
               <div className="doc-tree-toolbar-host" ref={setBrowserToolbarHost} />
               <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" title="收起文档视图" aria-label="关闭文档视图" onClick={() => setDocTreePopupOpen(false)}><ToolbarIcon name="chevronLeft" /></button>
             </div>

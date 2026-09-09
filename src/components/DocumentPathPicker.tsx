@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { documentFolderPaths } from "../lib/document-favorites";
 import { ToolbarIcon } from "./ToolbarIcon";
 
-export function DocumentPathPicker({ paths, protectedPaths, initialPath, onSelect, onClose }: {
+export function DocumentPathPicker({ anchor, paths, protectedPaths, initialPath, onSelect, onClose }: {
+  anchor: HTMLElement | null;
   paths: string[];
   protectedPaths: string[];
   initialPath: string;
@@ -18,16 +19,38 @@ export function DocumentPathPicker({ paths, protectedPaths, initialPath, onSelec
   const results = folders.filter(path => query.trim()
     ? path.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())
     : path.split("/").slice(0, -1).join("/") === current);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const previous = document.activeElement;
     const dialog = dialogRef.current!;
+    const viewport = window.visualViewport;
+    const position = () => {
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const height = viewport?.height ?? window.innerHeight;
+      const bottom = viewportTop + height - 12;
+      // Preserve room for the fixed controls and at least one path row.
+      const top = Math.max(viewportTop + 12, Math.min(anchor?.getBoundingClientRect().top ?? viewportTop + 12, bottom - Math.min(260, height - 24)));
+      dialog.style.top = `${top}px`;
+      dialog.style.maxHeight = `${Math.max(0, Math.min(520, bottom - top))}px`;
+    };
+    position();
     dialog.showModal();
     dialog.focus({ preventScroll: true });
+    const observer = new ResizeObserver(position);
+    if (anchor) observer.observe(anchor);
+    window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+    viewport?.addEventListener("resize", position);
+    viewport?.addEventListener("scroll", position);
     return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
+      viewport?.removeEventListener("resize", position);
+      viewport?.removeEventListener("scroll", position);
       dialog.close();
       if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
     };
-  }, []);
+  }, [anchor]);
   const navigate = (path: string) => {
     setCurrent(path);
     setQuery("");

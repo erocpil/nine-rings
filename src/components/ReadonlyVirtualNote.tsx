@@ -619,7 +619,7 @@ export function ReadonlyVirtualNote(
     () =>
       bindViewportEdgeSwipe("right", (touch) => {
         if (!mobileDrawerViewport) return null;
-        const target = touch.clientY < swipeViewport().middleY ? "bookmarks" : "outline";
+        const target = touch.clientY < swipeViewport().middleY ? "outline" : "bookmarks";
         if (target === "outline" && sections.length === 0) return null;
         return () => openPanel(target, true);
       }),
@@ -653,6 +653,9 @@ export function ReadonlyVirtualNote(
   } | null>(null);
   const pointer = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const bookmarks = props.content.metadata?.bookmarks ?? [];
+  const { onBookmarkCountChange } = props;
+  useEffect(() => { onBookmarkCountChange?.(bookmarks.length); }, [onBookmarkCountChange, bookmarks.length]);
+  useEffect(() => () => onBookmarkCountChange?.(0), [onBookmarkCountChange]);
   const toolbar = (
     <>
       <button

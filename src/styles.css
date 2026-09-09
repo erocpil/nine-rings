@@ -47,6 +47,7 @@ html {
   --text-muted: var(--text-secondary);
   --bg-card: var(--surface);
   --bg-secondary: var(--surface);
+  --drawer-surface: color-mix(in srgb, var(--bg) 91%, #000);
   --bg-hover: var(--hover-bg);
   --hover: var(--hover-bg);
   --primary: var(--accent);
@@ -541,6 +542,8 @@ body {
 /* ──── Search ──── */
 
 .header-search-anchor { position: relative; display: flex; align-items: center; min-width: 0; }
+.header-search-anchor[hidden] { display: none; }
+.header-search-anchor:not([hidden]) { position: absolute; left: 8px; top: 50%; z-index: 60; transform: translateY(-50%); }
 
 .search-bar {
   position: relative;
@@ -1649,7 +1652,7 @@ body {
 }
 
 .editor-menu .menu-sep {
-  opacity: 0.45;
+  display: none;
 }
 
 .save-status .toolbar-icon {
@@ -2737,33 +2740,41 @@ body {
 /* 与左侧文档树保持相同的宽度、遮罩浓度和进出速度。使用 portal 避免编辑器裁切。 */
 .mobile-document-drawer {
   position: fixed;
-  top: var(--app-visual-viewport-offset-top, 0px);
-  left: var(--app-visual-viewport-offset-left, 0px);
-  width: var(--app-viewport-width, 100vw);
-  height: var(--app-viewport-height, 100dvh);
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100dvh;
   z-index: 100;
   pointer-events: none;
 }
 
 .mobile-document-drawer-backdrop {
   position: absolute;
-  inset: 0 0 var(--safe-bottom);
+  inset: 0;
   background: rgba(0, 0, 0, 0.35);
   opacity: 0;
   transition: opacity 0.25s ease;
+}
+
+.web-keyboard-open .mobile-document-drawer {
+  top: var(--app-visual-viewport-offset-top, 0px);
+  left: var(--app-visual-viewport-offset-left, 0px);
+  width: var(--app-viewport-width, 100vw);
+  height: var(--app-viewport-height, 100dvh);
 }
 
 .mobile-document-drawer-panel {
   position: absolute;
   top: 0;
   right: 0;
-  bottom: var(--safe-bottom);
-  width: 280px;
+  bottom: 0;
+  width: min(420px, calc(var(--app-viewport-width, 100vw) * 0.82));
   max-width: calc(var(--app-viewport-width, 100vw) * 0.85);
   display: flex;
   flex-direction: column;
   padding-top: var(--safe-top);
-  background: var(--bg);
+  padding-bottom: var(--safe-bottom);
+  background: var(--drawer-surface);
   border-left: 1px solid var(--border);
   box-shadow: -4px 0 12px rgba(0, 0, 0, 0.12);
   transform: translateX(100%);
@@ -2792,6 +2803,7 @@ body {
   border: 0;
   border-radius: 0;
   box-shadow: none;
+  background: var(--drawer-surface);
 }
 
 .mobile-document-drawer .document-outline-list,
@@ -3242,6 +3254,8 @@ body {
 .doc-tree-popup-backdrop {
   position: absolute;
   inset: 0;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
 
 .doc-tree-popup {
@@ -3249,7 +3263,7 @@ body {
   width: 320px;
   max-width: 85vw;
   height: 100%;
-  background: var(--bg);
+  background: var(--drawer-surface);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -9302,7 +9316,7 @@ button.doc-tree-toggle:focus-visible {
 }
 
 @media (max-width: 768px), (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
-  .doc-tree-popup { padding-top: var(--safe-top); }
+  .doc-tree-popup { padding-top: var(--safe-top); padding-bottom: var(--safe-bottom); }
   /* 正常浏览时由 fixed inset 直接跟随布局视口。横竖屏切换期间 iOS 的
      visualViewport 可能仍短暂报告上一方向尺寸，不能用它锁定应用外壳。 */
   .app {
@@ -9334,9 +9348,9 @@ button.doc-tree-toggle:focus-visible {
     top: var(--app-visual-viewport-offset-top, 0px);
     left: var(--app-visual-viewport-offset-left, 0px);
     bottom: auto;
-    height: calc(var(--app-viewport-height, 100dvh) - var(--safe-bottom));
+    height: var(--app-viewport-height, 100dvh);
     z-index: 100;
-    width: 280px !important;
+    width: min(420px, calc(var(--app-viewport-width, 100vw) * 0.82)) !important;
     max-width: calc(var(--app-viewport-width, 100vw) * 0.85);
     background: var(--bg);
     border-right: 1px solid var(--border);
@@ -9345,9 +9359,11 @@ button.doc-tree-toggle:focus-visible {
     transition: transform 0.25s ease, visibility 0s linear 0.25s;
     box-shadow: 4px 0 12px rgba(0, 0, 0, 0.12);
     padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
   }
 
   .app-sidebar:not(.sidebar-hidden) {
+    background: var(--drawer-surface);
     transform: translateX(0);
     visibility: visible;
     transition-delay: 0s;
@@ -9362,7 +9378,7 @@ button.doc-tree-toggle:focus-visible {
     right: auto;
     bottom: auto;
     width: var(--app-viewport-width, 100vw);
-    height: calc(var(--app-viewport-height, 100dvh) - var(--safe-bottom));
+    height: var(--app-viewport-height, 100dvh);
     background: rgba(0, 0, 0, 0.35);
     z-index: 99;
     opacity: 0;
@@ -9373,6 +9389,8 @@ button.doc-tree-toggle:focus-visible {
   .sidebar-overlay.active {
     opacity: 1;
     pointer-events: auto;
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
   }
 
   .app-main {
@@ -9452,6 +9470,7 @@ button.doc-tree-toggle:focus-visible {
   }
 
   .header-document-actions > .btn-icon {
+    position: relative;
     flex: 0 0 var(--document-action-width, 28px);
     width: var(--document-action-width, 28px);
   }
@@ -9687,6 +9706,14 @@ button.doc-tree-toggle:focus-visible {
   }
 
   /* 窄屏不固定目录，即使保留了桌面固定偏好，也应使用居中的浮层。 */
+  .note-editor:not(.focus-mode) > .document-outline-panel,
+  .note-editor:not(.focus-mode) > .document-bookmark-panel {
+    position: fixed;
+    top: var(--document-panel-anchor-top, 8px);
+    z-index: 70;
+    max-height: min(58dvh, calc(var(--app-viewport-height, 100dvh) + var(--app-visual-viewport-offset-top, 0px) - var(--document-panel-anchor-top, 8px) - 12px));
+  }
+
   .note-editor:not(.focus-mode) > .document-outline-panel {
     left: 8px;
     right: 8px;
@@ -10024,6 +10051,7 @@ button.doc-tree-toggle:focus-visible {
   .app-sidebar { width: 70vw !important; }
   .doc-tree-popup,
   .mobile-document-drawer-panel { width: 70vw; max-width: 85vw; }
+  .mobile-document-drawer-panel { width: 78vw; }
   .note-editor:not(.focus-mode):not(.outline-docked-left):not(.outline-docked-right) > .document-outline-panel,
   .note-editor:not(.focus-mode) > .document-bookmark-panel,
   .focus-mode .document-outline-panel,
@@ -12934,3 +12962,24 @@ button.doc-tree-toggle:focus-visible {
     color: var(--text-secondary);
   }
 }
+
+/* Drawer actions share a compact slot; only the workspace switch stays left. */
+.sidebar-tabs { gap: 2px; }
+.sidebar-tabs > .workspace-switch { margin-right: auto; }
+.sidebar-tabs .doc-tree-toolbar-host { flex: 0 1 auto; margin-left: 0; gap: 2px; }
+.sidebar-tabs > .btn-icon,
+.sidebar-tabs .doc-tree-toolbar-actions > button,
+.sidebar-tabs .doc-tree-toolbar-host > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 32px;
+  width: 32px;
+  min-width: 32px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+}
+.sidebar-tabs .sidebar-tab-hide::before { content: none; }
+.sidebar-tabs .sidebar-tab-hide:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+.settings-close .toolbar-icon { width: 20px; height: 20px; }

@@ -57,6 +57,7 @@ export interface EditorToolbarProps {
     clearSelectedTableCells: () => void;
     setTableCellAlignment: (align: "left" | "center" | "right") => void;
     handleCopy: () => Promise<void>;
+    handleCopyBlock: () => Promise<void>;
     handleCut: () => Promise<void>;
     handleClipboardPaste: () => Promise<void>;
     handleExportMarkdown: () => Promise<void>;
@@ -111,7 +112,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     blockOpen, setBlockOpen, styleOpen, setStyleOpen,
     clipOpen, setClipOpen, tableOpen, setTableOpen,
     moreOpen, setMoreOpen, closeMore,
-    linkOpen, setLinkOpen, linkUrl, setLinkUrl, toggleMobileToolbarMenu,
+    toggleMobileToolbarMenu,
   } = menus;
   const {
     runToolbarFormat, changeSelectedBlockIndent, handleToggleCodeBlock,
@@ -127,15 +128,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     <button className="menu-dropdown-item" onClick={() => { handleCut(); closeMore(); }} type="button"><ToolbarIcon name="cut" />剪切</button>
     <button className="menu-dropdown-item" onClick={() => { handleClipboardPaste(); closeMore(); }} type="button"><ToolbarIcon name="paste" />粘贴</button>
     </>}
-    <button
-      className="menu-dropdown-item"
-      disabled={editor.isActive("codeBlock") || !editor.can().setHardBreak()}
-      onClick={() => {
-        editor.chain().focus().setHardBreak().run();
-        setMoreOpen(false);
-      }}
-      type="button"
-    ><ToolbarIcon name="lineBreak" />块内换行</button>
+    <button className="menu-dropdown-item" onClick={() => { void actions.handleCopyBlock(); closeMore(); }} type="button"><ToolbarIcon name="copy" />复制块</button>
     <div className="menu-dropdown-sep" />
     <button className="menu-dropdown-item" onClick={() => { void handleExportMarkdown(); setMoreOpen(false); }} type="button"><ToolbarIcon name="export" />导出 Markdown</button>
     <button className="menu-dropdown-item" onClick={() => { setMoreOpen(false); handleExportPdf(); }} type="button"><ToolbarIcon name="document" />导出 PDF</button>
@@ -428,6 +421,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
       </div>
     )}
     <span className="menu-sep" />
+    {btn(<ToolbarIcon name="lineBreak" />, () => { editor.chain().focus().setHardBreak().run(); }, false, "块内换行", readonly || editor.isActive("codeBlock") || !editor.can().setHardBreak())}
     <div className="toolbar-secondary">
     {isNarrow ? (
       <div className="menu-dropdown" data-toolbar-tool="clipboard">
@@ -455,122 +449,6 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     </>)}
     <span className="menu-sep" />
 
-    {/* 超链接 */}
-    {isNarrow ? (
-      <div className="menu-dropdown">
-        <button
-          className={`menu-btn ${editor.isActive("link") ? "active" : ""}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (readonly) return;
-            const attrs = editor.getAttributes("link");
-            setLinkUrl(attrs.href || "");
-            toggleMobileToolbarMenu("link", linkOpen);
-          }}
-          type="button"
-          title="超链接"
-          aria-label="超链接"
-          aria-expanded={linkOpen}
-          disabled={readonly}
-        ><ToolbarIcon name="link" /></button>
-        {linkOpen && (
-          <div className="menu-dropdown-list">
-            <div style={{ padding: "6px 8px", display: "flex", gap: 4, alignItems: "center" }}>
-              <input
-                className="doc-tree-rename-input"
-                style={{ flex: 1, fontSize: 12 }}
-                placeholder="https://..."
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    if (linkUrl.trim()) editor.chain().focus().setLink({ href: linkUrl.trim() }).run();
-                    else editor.chain().focus().unsetLink().run();
-                    setLinkOpen(false);
-                  }
-                }}
-                onClick={(e) => e.stopPropagation()}
-                autoFocus
-              />
-              <button
-                className="menu-btn menu-btn-sm"
-                onClick={() => {
-                  if (linkUrl.trim()) editor.chain().focus().setLink({ href: linkUrl.trim() }).run();
-                  else editor.chain().focus().unsetLink().run();
-                  setLinkOpen(false);
-                }}
-                type="button"
-              >✓</button>
-            </div>
-            {editor.isActive("link") && (
-              <button
-                className="menu-dropdown-item"
-                onClick={() => { editor.chain().focus().unsetLink().run(); setLinkOpen(false); }}
-                type="button"
-              >移除链接</button>
-            )}
-          </div>
-        )}
-      </div>
-    ) : (
-      <div className="menu-dropdown" style={{ position: "relative" }}>
-        <button
-          className={`menu-btn ${editor.isActive("link") ? "active" : ""}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (readonly) return;
-            const attrs = editor.getAttributes("link");
-            setLinkUrl(attrs.href || "");
-            setLinkOpen(!linkOpen);
-          }}
-          type="button"
-          title={editor.isActive("link") ? "编辑/移除链接" : "添加超链接 (Ctrl+K)"}
-          aria-label={editor.isActive("link") ? "编辑/移除链接" : "添加超链接 (Ctrl+K)"}
-          aria-expanded={linkOpen}
-          disabled={readonly}
-        ><ToolbarIcon name="link" /></button>
-        {linkOpen && (
-          <div className="menu-dropdown-list" style={{ minWidth: 260 }}>
-            <div style={{ padding: "6px 8px", display: "flex", gap: 4, alignItems: "center" }}>
-              <input
-                className="doc-tree-rename-input"
-                style={{ flex: 1, fontSize: 12 }}
-                placeholder="https://..."
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    if (linkUrl.trim()) editor.chain().focus().setLink({ href: linkUrl.trim() }).run();
-                    else editor.chain().focus().unsetLink().run();
-                    setLinkOpen(false);
-                  }
-                }}
-                onClick={(e) => e.stopPropagation()}
-                autoFocus
-              />
-              <button
-                className="menu-btn menu-btn-sm"
-                onClick={() => {
-                  if (linkUrl.trim()) editor.chain().focus().setLink({ href: linkUrl.trim() }).run();
-                  else editor.chain().focus().unsetLink().run();
-                  setLinkOpen(false);
-                }}
-                type="button"
-              >✓</button>
-            </div>
-            {editor.isActive("link") && (
-              <button
-                className="menu-dropdown-item"
-                onClick={() => { editor.chain().focus().unsetLink().run(); setLinkOpen(false); }}
-                type="button"
-              >移除链接</button>
-            )}
-          </div>
-        )}
-      </div>
-    )}
 
     {/* 分隔后右区：字号 / 颜色 / 图片 */}
     <div className="menu-dropdown" data-toolbar-tool="size">

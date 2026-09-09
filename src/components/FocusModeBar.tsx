@@ -51,7 +51,7 @@ export function FocusModeIcon({ name }: { name: "outline" | "bookmark" | "tools"
     outline: <><path d="M9 6h11M9 12h11M9 18h11" /><path d="M4 6h.01M4 12h.01M4 18h.01" /></>,
     bookmark: <path d="M6 4h12v17l-6-4-6 4z" />,
     tools: <><path d="M4 7h16M4 17h16" /><path d="M8 4v6M16 14v6" /></>,
-    exit: <><path d="M10 4H4v16h6M10 12h11m-4-4 4 4-4 4" /></>,
+    exit: <path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" />,
     pdf: <><path d="M14 3H5v18h14V8zM14 3v5h5M8 12h8M8 16h6" /></>,
     epub: <><path d="M12 5v16M12 5C8 2 3 3 3 3v16s5-1 9 2c4-3 9-2 9-2V3s-5-1-9 2Z" /></>,
   };

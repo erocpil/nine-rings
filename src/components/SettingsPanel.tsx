@@ -597,7 +597,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             )}
             <h2 id="settings-dialog-title">{SETTINGS_PAGE_TITLES[settingsPage]}</h2>
           </div>
-          <button ref={closeButtonRef} className="settings-close" onClick={onClose} aria-label="关闭设置">✕</button>
+          <button ref={closeButtonRef} className="settings-close" onClick={onClose} aria-label="关闭设置"><ToolbarIcon name="exit" /></button>
         </div>
 
         {loading ? (

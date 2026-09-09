@@ -23,6 +23,36 @@ export function DocumentPanelDrawer({ enabled, presentation, panel, hasOutline, 
   const lastContent = useRef<ReactNode>(null);
   const [exiting, setExiting] = useState(false);
   useEdgeDrawer(open, "right", drawerRef, backdropRef, onClose);
+  useEffect(() => {
+    if (!enabled || presentation !== "popover" || !panel) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.isComposing) return;
+      event.preventDefault();
+      onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [enabled, presentation, panel, onClose]);
+  useLayoutEffect(() => {
+    if (!enabled || presentation !== "popover" || !panel) return;
+    const anchor = document.querySelector<HTMLElement>(".app:not(.app-focus-mode) .header-document-actions");
+    if (!anchor) return;
+    const root = document.documentElement;
+    const update = () => root.style.setProperty("--document-panel-anchor-top", `${anchor.getBoundingClientRect().top}px`);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(anchor);
+    window.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("resize", update);
+    window.visualViewport?.addEventListener("scroll", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("resize", update);
+      window.visualViewport?.removeEventListener("scroll", update);
+      root.style.removeProperty("--document-panel-anchor-top");
+    };
+  }, [enabled, presentation, panel]);
   useLayoutEffect(() => {
     if (open) lastContent.current = children;
   }, [children, open]);
