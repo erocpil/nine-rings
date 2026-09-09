@@ -76,6 +76,7 @@ html {
   --ui-shadow-dialog: 0 18px 48px rgba(0, 0, 0, 0.28);
   --ui-focus-ring: color-mix(in srgb, var(--accent) 28%, transparent);
   --code-bg: #f0f2f5;
+  --block-toolbar-gap: 4px;
   --activeline-bg: rgba(9, 105, 218, 0.06);
   --editor-font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
   --editor-font-size: 16px;
@@ -6916,7 +6917,7 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 .vr-gutter { position: absolute; inset: 12px auto auto 0; width: var(--editor-gutter-width); display: flex; align-items: center; gap: 2px; color: var(--text-secondary); user-select: none; font-size: 11px; }
 .vr-gutter button { width: 22px; padding: 4px 0; flex-shrink: 0; border: none; }
 .vr-gutter span { margin-left: auto; }
-.vr-code-toolbar { display: flex; align-items: center; gap: 4px; padding: 4px; font-size: 12px; }
+.vr-code-toolbar { display: flex; align-items: center; gap: var(--block-toolbar-gap); padding: 4px; font-size: 12px; }
 .vr-code-toolbar span { flex: 1; }
 .vr-code-line { display: grid; min-height: 1.5em; }
 .vr-code-line-number { text-align: right; padding-right: var(--code-line-number-padding, 8px); color: var(--text-secondary); user-select: none; -webkit-user-select: none; }
@@ -8823,7 +8824,7 @@ button.doc-tree-toggle:focus-visible {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 4px;
+  gap: var(--block-toolbar-gap);
 }
 
 .code-block-collapse-toggle,
@@ -8957,7 +8958,7 @@ button.doc-tree-toggle:focus-visible {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 2px;
+  gap: var(--block-toolbar-gap);
   min-height: 24px;
   margin-bottom: 2px;
   color: var(--text-secondary);

@@ -328,18 +328,6 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
               }}
               title="代码行号（仅改变显示）"
             >行号</button>
-            <button
-              className="code-block-collapse-toggle"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                if (editable) updateAttributes({ collapsed: !collapsed });
-                else setReadonlyCollapsedOverride(!collapsed);
-              }}
-              type="button"
-              aria-label={collapsed ? "展开代码块" : "折叠代码块"}
-              aria-expanded={!collapsed}
-              title={collapsed ? "展开代码块" : "折叠代码块"}
-            >{collapsed ? "▶" : "▼"}</button>
             {editable && (
               <select
                 className="code-block-language"
@@ -380,6 +368,18 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
             <button type="button" className="block-workspace-open" title="放大阅读代码块" aria-label="放大阅读代码块"
               onMouseDown={event => event.preventDefault()}
               onClick={event => openBlockWorkspace(editor, getPos(), event.currentTarget)}><ToolbarIcon name="expand" /></button>
+            <button
+              className="code-block-collapse-toggle"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                if (editable) updateAttributes({ collapsed: !collapsed });
+                else setReadonlyCollapsedOverride(!collapsed);
+              }}
+              type="button"
+              aria-label={collapsed ? "展开代码块" : "折叠代码块"}
+              aria-expanded={!collapsed}
+              title={collapsed ? "展开代码块" : "折叠代码块"}
+            >{collapsed ? "▶" : "▼"}</button>
           </div>
         </div>
         <div className="code-block-inner">

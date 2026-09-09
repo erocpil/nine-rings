@@ -76,26 +76,35 @@ test("只读引用弹层没有编辑入口且粘贴无效", async ({ page }) => 
   await expect(dialog).toHaveCount(0);
 });
 
-test("引用折叠三角位于最右侧，放大阅读紧邻其左侧", async ({ page }) => {
+test("代码和引用折叠三角位于最右侧，所有工具间距一致", async ({ page }) => {
   for (const readonly of [false, true]) {
     await fixture(page, readonly);
-    const toolbar = page.locator(".note-editor .blockquote-toolbar");
     for (const width of [390, 760, 1280]) {
       await page.setViewportSize({ width, height: 760 });
       if (await page.locator(".sidebar-overlay.active").isVisible()) {
         await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
       }
-      const fold = toolbar.getByRole("button", { name: "折叠引用块", exact: true });
-      const expand = toolbar.getByRole("button", { name: "放大阅读引用块", exact: true });
-      const bounds = (await toolbar.boundingBox())!;
-      const foldBounds = (await fold.boundingBox())!;
-      const expandBounds = (await expand.boundingBox())!;
-      expect(foldBounds.x + foldBounds.width).toBeCloseTo(bounds.x + bounds.width, 1);
-      expect(expandBounds.x + expandBounds.width).toBeLessThanOrEqual(foldBounds.x);
-      await fold.click();
-      await expect(toolbar.getByRole("button", { name: "展开引用块", exact: true })).toBeVisible();
-      await toolbar.getByRole("button", { name: "展开引用块", exact: true }).click();
-      await expect(fold).toBeVisible();
+      for (const [selector, kind] of [[".blockquote-toolbar", "引用"], [".code-block-actions", "代码"]]) {
+        const toolbar = page.locator(`.note-editor ${selector}`);
+        const fold = toolbar.getByRole("button", { name: `折叠${kind}块`, exact: true });
+        const expand = toolbar.getByRole("button", { name: `放大阅读${kind}块`, exact: true });
+        const bounds = (await toolbar.boundingBox())!;
+        const foldBounds = (await fold.boundingBox())!;
+        const expandBounds = (await expand.boundingBox())!;
+        expect(foldBounds.x + foldBounds.width).toBeCloseTo(bounds.x + bounds.width, 1);
+        expect(foldBounds.x - expandBounds.x - expandBounds.width).toBeCloseTo(4, 1);
+        const gaps = await toolbar.evaluate(element => {
+          const controls = Array.from(element.querySelectorAll("button, select"))
+            .filter(control => control.getBoundingClientRect().width > 0);
+          return controls.slice(1).map((control, index) =>
+            control.getBoundingClientRect().left - controls[index].getBoundingClientRect().right);
+        });
+        for (const gap of gaps) expect(gap).toBeCloseTo(4, 1);
+        await fold.click();
+        await expect(toolbar.getByRole("button", { name: `展开${kind}块`, exact: true })).toBeVisible();
+        await toolbar.getByRole("button", { name: `展开${kind}块`, exact: true }).click();
+        await expect(fold).toBeVisible();
+      }
     }
   }
 });

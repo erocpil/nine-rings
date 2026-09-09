@@ -218,6 +218,7 @@ function renderBlock(
             >
               换行
             </button>
+            <button type="button" className="block-workspace-open" data-workspace-position={pos} title="放大阅读代码块" aria-label="放大阅读代码块"><ToolbarIcon name="expand" /></button>
             <button
               type="button"
               aria-label={collapsed ? "展开代码块" : "折叠代码块"}
@@ -226,7 +227,6 @@ function renderBlock(
             >
               {collapsed ? "▶" : "▼"}
             </button>
-            <button type="button" className="block-workspace-open" data-workspace-position={pos} title="放大阅读代码块" aria-label="放大阅读代码块"><ToolbarIcon name="expand" /></button>
           </div>
           {!collapsed && (
             <div className="code-block-inner">
