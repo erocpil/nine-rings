@@ -2753,6 +2753,23 @@ body {
   line-height: 1.45;
 }
 
+/* 文本选区只属于正文编辑区。移动端拖动长选区时，避免标题栏、工具栏
+   和状态栏被浏览器一并纳入原生选区。输入框/正文单独恢复可选。 */
+.note-editor,
+.note-editor .note-editor-sticky,
+.note-editor .editor-menu,
+.note-editor .note-title-row,
+.note-editor .editor-stats {
+  -webkit-user-select: none;
+  user-select: none;
+}
+.note-editor .note-title,
+.note-editor .editor-content,
+.note-editor .editor-content .ProseMirror {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .editor-content:focus {
   outline: none;
 }
