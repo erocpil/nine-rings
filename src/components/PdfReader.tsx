@@ -301,6 +301,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const [fullscreen, setFullscreen] = useState(false);
   const [immersiveFallback, setImmersiveFallback] = useState(false);
   const [fullscreenControlsVisible, setFullscreenControlsVisible] = useState(true);
+  const fullscreenHoverRef = useRef(false);
+  const fullscreenHideTimerRef = useRef<number | null>(null);
   const [selectionAnchor, setSelectionAnchor] = useState<PdfTextSelection | null>(null);
   const [highlights, setHighlights] = useState<LocalPdfHighlight[]>([]);
   const [bookmarks, setBookmarks] = useState<LocalPdfBookmark[]>([]);
@@ -322,8 +324,26 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
 
   useEffect(() => {
     if (!fullscreen || !fullscreenControlsVisible) return;
+    if (fullscreenHoverRef.current) return;
     const timer = window.setTimeout(() => setFullscreenControlsVisible(false), 1000);
+    fullscreenHideTimerRef.current = timer;
     return () => window.clearTimeout(timer);
+  }, [fullscreen, fullscreenControlsVisible]);
+
+  useEffect(() => () => {
+    if (fullscreenHideTimerRef.current !== null) window.clearTimeout(fullscreenHideTimerRef.current);
+  }, []);
+
+  const handleFullscreenControlsEnter = useCallback(() => {
+    if (!fullscreen) return;
+    fullscreenHoverRef.current = true;
+    if (fullscreenHideTimerRef.current !== null) window.clearTimeout(fullscreenHideTimerRef.current);
+  }, [fullscreen]);
+  const handleFullscreenControlsLeave = useCallback(() => {
+    fullscreenHoverRef.current = false;
+    if (!fullscreen || !fullscreenControlsVisible) return;
+    if (fullscreenHideTimerRef.current !== null) window.clearTimeout(fullscreenHideTimerRef.current);
+    fullscreenHideTimerRef.current = window.setTimeout(() => setFullscreenControlsVisible(false), 1000);
   }, [fullscreen, fullscreenControlsVisible]);
 
   useEffect(() => {
@@ -2238,6 +2258,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           <button type="submit" aria-label="下一个搜索结果" disabled={!pdf || searching || !searchQuery.trim()}>↓</button>
           {searchStatus && <span role="status" aria-live="polite">{searchStatus}</span>}
         </form>}
+        onMouseEnter={handleFullscreenControlsEnter}
+        onMouseLeave={handleFullscreenControlsLeave}
       />
 
       <div className="pdf-reader-body">

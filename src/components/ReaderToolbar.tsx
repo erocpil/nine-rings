@@ -20,6 +20,8 @@ interface Props {
   onPanelChange: (panel: ReaderToolPanel) => void;
   notice?: ReactNode;
   activeTool?: ReactNode;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
 /** Shared reader chrome only. Panels stay inside the reader's fullscreen root,
@@ -27,6 +29,7 @@ interface Props {
 export function ReaderToolbar({
   format, title, onClose, navigation, libraryActions, focusAction,
   appearance, annotations, bookmarks, search, activePanel, onPanelChange, notice, activeTool,
+  onMouseEnter, onMouseLeave,
 }: Props) {
   const rootRef = useRef<HTMLElement>(null);
   useReaderSwipeClickGuard(rootRef);
@@ -71,7 +74,7 @@ export function ReaderToolbar({
     };
   }, [activePanel]);
 
-  return <header ref={rootRef} className={`pdf-reader-toolbar reader-toolbar${format === "EPUB" ? " epub-reader-toolbar" : ""}`}>
+  return <header ref={rootRef} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} className={`pdf-reader-toolbar reader-toolbar${format === "EPUB" ? " epub-reader-toolbar" : ""}`}>
     <div className="reader-toolbar-main">
       <button type="button" className="pdf-reader-close" onClick={onClose} aria-label={`关闭 ${format} 阅读器`} title="返回 Nine Rings">←</button>
       <strong className="pdf-reader-title" title={title}>{title}</strong>

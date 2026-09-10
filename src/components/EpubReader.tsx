@@ -471,6 +471,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const [fullscreen, setFullscreen] = useState(false);
   const [toolsPanel, setToolsPanel] = useState<ReaderToolPanel>(null);
   const [focusControlsVisible, setFocusControlsVisible] = useState(false);
+  const focusControlsHoverRef = useRef(false);
   const [frameRevision, setFrameRevision] = useState(0);
   const [actionBusy, setActionBusy] = useState(false);
   const [tocOpen, setTocOpen] = useState(!embedded);
@@ -502,6 +503,18 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     if (focusControlsVisibleRef.current) hideFocusControls();
     else showFocusControls();
   }, [hideFocusControls, showFocusControls]);
+
+  const handleFocusControlsEnter = useCallback(() => {
+    if (!fullscreenRef.current) return;
+    focusControlsHoverRef.current = true;
+    if (focusControlsTimerRef.current !== null) window.clearTimeout(focusControlsTimerRef.current);
+  }, []);
+  const handleFocusControlsLeave = useCallback(() => {
+    focusControlsHoverRef.current = false;
+    if (!fullscreenRef.current || !focusControlsVisibleRef.current) return;
+    if (focusControlsTimerRef.current !== null) window.clearTimeout(focusControlsTimerRef.current);
+    focusControlsTimerRef.current = window.setTimeout(hideFocusControls, 1000);
+  }, [hideFocusControls]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1221,6 +1234,8 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
         libraryActions={<><button type="button" className={tocOpen ? "active" : ""} onClick={() => setTocOpen((open) => !open)} aria-label="EPUB 目录">目录</button>
         <button type="button" data-reader-trigger="bookmarks" className={toolsPanel === "bookmarks" ? "active" : ""} aria-expanded={toolsPanel === "bookmarks"} onClick={(event) => { event.stopPropagation(); setToolsPanel((panel) => panel === "bookmarks" ? null : "bookmarks"); }} aria-label="打开 EPUB 书签"><ToolbarIcon name="bookmark" />书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button></>}
         focusAction={<button type="button" onClick={() => void toggleFullscreen()} aria-label={fullscreen ? "退出 EPUB 专注模式" : "进入 EPUB 专注模式"}><ToolbarIcon name={fullscreen ? "compress" : "expand"} /></button>}
+        onMouseEnter={handleFocusControlsEnter}
+        onMouseLeave={handleFocusControlsLeave}
         navigation={<div className="pdf-page-controls epub-chapter-controls">
           <button type="button" onClick={() => scrollChapterToEdge("start")} disabled={!book} aria-label="回到本章顶部" title="回到本章顶部"><ToolbarIcon name="pageTop" /></button>
           <button type="button" onClick={() => changeChapter(chapter - 1)} aria-label="上一章" disabled={!book || chapter <= 0}><ToolbarIcon name="chevronLeft" /></button>
@@ -1347,7 +1362,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
           )}
         </main>
       </div>
-      {fullscreen && <button type="button" className="epub-focus-exit" onClick={() => void toggleFullscreen()} aria-label="退出 EPUB 专注模式">↙️</button>}
+      {fullscreen && <button type="button" className="epub-focus-exit" onMouseEnter={handleFocusControlsEnter} onMouseLeave={handleFocusControlsLeave} onClick={() => void toggleFullscreen()} aria-label="退出 EPUB 专注模式">↙️</button>}
       {swipeNotice && <div className="epub-swipe-notice" role="status">{swipeNotice}</div>}
       {colorPaletteTheme && (
         <aside className="epub-background-palette" role="dialog" aria-modal="true" aria-label="EPUB 背景色板">
