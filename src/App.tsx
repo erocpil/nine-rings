@@ -1230,6 +1230,14 @@ function App() {
       const delta = pe.clientX - sideStartXRef.current;
       const minimum = sideDragPanelRef.current === "reader" ? READER_SIDEBAR_MIN_WIDTH : 0;
       const rawWidth = Math.min(window.innerWidth - DESKTOP_ACTIVITY_BAR_WIDTH - 4, sideStartWRef.current + delta);
+      // Once the handle is dragged clearly past the usable edge, collapse the
+      // panel instead of leaving a narrow sliver that cannot be operated.
+      const collapseThreshold = sideDragPanelRef.current === "reader" ? minimum - 32 : 24;
+      if (rawWidth <= collapseThreshold) {
+        setSidebarHidden(true);
+        finishSideDrag();
+        return;
+      }
       if (sideDragPanelRef.current === "reader" && rawWidth < minimum) showSidebarWidthHint();
       const newW = Math.max(minimum, rawWidth);
       sideDragWidthRef.current = Math.round(newW);
