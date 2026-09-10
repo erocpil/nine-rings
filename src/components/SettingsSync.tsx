@@ -420,7 +420,10 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
           <div className="sync-remote-preview">
             <div className="sync-remote-preview-heading">
               <strong>远端文档预览与忽略</strong>
-              <span className="settings-hint">勾选后安全合并不会导入该文档</span>
+              <span className="settings-hint" role="status" aria-live="polite">
+                勾选后安全合并不会导入该文档
+                {ignoredRemoteIds.size > 0 && ` · 已忽略 ${ignoredRemoteIds.size} 篇`}
+              </span>
             </div>
             <div className="sync-remote-preview-grid">
               <div className="sync-remote-preview-list">
