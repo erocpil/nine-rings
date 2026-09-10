@@ -248,6 +248,20 @@ body {
   overflow: hidden;
   min-height: 0;
 }
+.sidebar-width-hint {
+  position: fixed;
+  left: calc(44px + 12px);
+  bottom: 16px;
+  z-index: 120;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  color: var(--text-secondary);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 14%);
+  font-size: 12px;
+  pointer-events: none;
+}
 
 .web-status-banner {
   display: flex;

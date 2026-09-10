@@ -66,6 +66,7 @@ const PDF_DOC_TYPE_LABELS: Record<DocType, string> = {
 const DESKTOP_ACTIVITY_BAR_WIDTH = 44;
 const SIDEBAR_MIN_WIDTH = 360;
 const SIDEBAR_MOBILE_MIN_WIDTH = 240;
+const READER_SIDEBAR_MIN_WIDTH = 240;
 const READER_SIDEBAR_WIDTH_KEY = "nr:readerSidebarW";
 const TREE_SIDEBAR_WIDTH_KEY = "nr:treeSidebarW";
 const LIST_SIDEBAR_WIDTH_KEY = "nr:listSidebarW";
@@ -1109,7 +1110,7 @@ function App() {
     const width = Number.isFinite(saved) && saved >= 0
       ? saved
       : Math.round((window.innerWidth - DESKTOP_ACTIVITY_BAR_WIDTH) / 2);
-    return clampSidebarWidth(width);
+    return clampSidebarWidth(width, READER_SIDEBAR_MIN_WIDTH);
   }, [clampSidebarWidth]);
   const computePanelSidebarWidth = useCallback((panel: typeof desktopPanel) => {
     if (panel === "reader") return computeReaderSidebarWidth();
@@ -1149,6 +1150,13 @@ function App() {
       ? Math.max(SIDEBAR_MOBILE_MIN_WIDTH, candidate)
       : clampSidebarWidth(candidate, 0);
   });
+  const [sidebarWidthHint, setSidebarWidthHint] = useState<string | null>(null);
+  const sidebarHintTimerRef = useRef<number | null>(null);
+  const showSidebarWidthHint = useCallback(() => {
+    setSidebarWidthHint(`阅读分栏最小宽度为 ${READER_SIDEBAR_MIN_WIDTH}px`);
+    if (sidebarHintTimerRef.current !== null) window.clearTimeout(sidebarHintTimerRef.current);
+    sidebarHintTimerRef.current = window.setTimeout(() => setSidebarWidthHint(null), 2200);
+  }, []);
   useEffect(() => {
     if (sidebarHidden) return;
     const resize = () => applyPanelSidebarWidth(desktopPanel);
@@ -1166,6 +1174,9 @@ function App() {
     window.addEventListener("nr:reset-sidebar-widths", reset);
     return () => window.removeEventListener("nr:reset-sidebar-widths", reset);
   }, [applyPanelSidebarWidth, desktopPanel]);
+  useEffect(() => () => {
+    if (sidebarHintTimerRef.current !== null) window.clearTimeout(sidebarHintTimerRef.current);
+  }, []);
   const openReadingLibrary = useCallback(async () => {
     if (syncBusy) return;
     try {
@@ -1217,7 +1228,10 @@ function App() {
       if (!sideDragRef.current || pe.pointerId !== pointerId) return;
       if (pe.cancelable) pe.preventDefault();
       const delta = pe.clientX - sideStartXRef.current;
-      const newW = Math.max(0, Math.min(window.innerWidth - DESKTOP_ACTIVITY_BAR_WIDTH - 4, sideStartWRef.current + delta));
+      const minimum = sideDragPanelRef.current === "reader" ? READER_SIDEBAR_MIN_WIDTH : 0;
+      const rawWidth = Math.min(window.innerWidth - DESKTOP_ACTIVITY_BAR_WIDTH - 4, sideStartWRef.current + delta);
+      if (sideDragPanelRef.current === "reader" && rawWidth < minimum) showSidebarWidthHint();
+      const newW = Math.max(minimum, rawWidth);
       sideDragWidthRef.current = Math.round(newW);
       setSidebarWidth(sideDragWidthRef.current);
     };
@@ -1755,6 +1769,7 @@ function App() {
       {readingLibraryError && <div role="alert" className="reading-library-message">{readingLibraryError}</div>}
 
       <div className="app-body">
+        {sidebarWidthHint && <div className="sidebar-width-hint" role="status" aria-live="polite">{sidebarWidthHint}</div>}
         {!mobileDrawerViewport && <nav className="desktop-activity-bar" aria-label="工作区面板">
           {([
             ['tree', '文档树', 'folder'],
