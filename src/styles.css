@@ -9155,6 +9155,15 @@ button.doc-tree-toggle:focus-visible {
   position: relative;
 }
 
+/* NodeView 的工具栏禁止进入选区，但引用正文必须显式允许跨段落选择；
+   iOS 对嵌套 contenteditable 的默认 user-select 继承较严格，长选区会在
+   节点边界被截断。 */
+.blockquote-content,
+.blockquote-content > * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .blockquote-toolbar {
   display: flex;
   align-items: center;
