@@ -5,6 +5,12 @@ import { vim } from "@replit/codemirror-vim";
 
 interface Props { value: string; onChange: (value: string) => void; onModeChange?: (mode: "normal" | "insert") => void; }
 
+function readVimConfig() {
+  const text = localStorage.getItem("nr:vim-config") ?? "";
+  const get = (name: string, fallback: number) => Number(text.match(new RegExp(`(?:^|\\n)\\s*set\\s+${name}=(\\d+)`, "m"))?.[1] ?? fallback);
+  return { tabSize: Math.max(1, Math.min(16, get("tabstop", 4))), wrap: !/(?:^|\n)\s*set\s+nowrap\b/m.test(text) };
+}
+
 /** CodeMirror 6 编辑表面：仅用于代码块弹层，正文仍由 ProseMirror 管理。 */
 export function CodeMirrorBlockEditor({ value, onChange, onModeChange }: Props) {
   const host = useRef<HTMLDivElement>(null);
@@ -12,7 +18,8 @@ export function CodeMirrorBlockEditor({ value, onChange, onModeChange }: Props) 
   const modeRef = useRef(onModeChange); modeRef.current = onModeChange;
   useEffect(() => {
     if (!host.current) return;
-    const state = EditorState.create({ doc: value, extensions: [vim({ status: true }), EditorView.lineWrapping, EditorView.updateListener.of((update) => {
+    const config = readVimConfig();
+    const state = EditorState.create({ doc: value, extensions: [vim({ status: true }), ...(config.wrap ? [EditorView.lineWrapping] : []), EditorState.tabSize.of(config.tabSize), EditorView.updateListener.of((update) => {
       if (update.docChanged) changeRef.current(update.state.doc.toString());
       // @replit/codemirror-vim manages mode internally; the outer dialog keeps
       // its existing indicator until the extension exposes a CM6 mode API.

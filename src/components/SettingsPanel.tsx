@@ -93,6 +93,7 @@ const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
 };
 
 const MD_IMPORT_CHUNK_SIZE = 4;
+const VIM_CONFIG_KEY = "nr:vim-config";
 
 function yieldToNextFrame(): Promise<void> {
   if (typeof window === "undefined") {
@@ -102,6 +103,7 @@ function yieldToNextFrame(): Promise<void> {
 }
 
 export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onNotesChanged, libraryError }: Props) {
+  const [vimConfig, setVimConfig] = useState(() => localStorage.getItem(VIM_CONFIG_KEY) ?? "set number\nset tabstop=4\nset shiftwidth=4\nset expandtab");
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -874,6 +876,21 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 <span className="toggle-track" />
                 <span className="toggle-label">{config.editor_vim_mode ? "开" : "关"}</span>
               </label>
+            </Field>
+
+            <Field label="Vim 配置" desc="代码块弹层仅解析安全的 set 选项；不会执行 VimScript 或插件命令" visible={settingsPage === "editor"}>
+              <textarea
+                className="settings-input vim-config-editor"
+                value={vimConfig}
+                spellCheck={false}
+                aria-label="Vim 配置"
+                onChange={(event) => {
+                  setVimConfig(event.target.value);
+                  localStorage.setItem(VIM_CONFIG_KEY, event.target.value);
+                }}
+                rows={5}
+              />
+              <div className="settings-hint">支持：number、relativenumber、wrap、expandtab、tabstop、shiftwidth、ignorecase、smartcase</div>
             </Field>
 
             <SettingsSection title="使用方法" desc="书签随文档和备份保存；只读文档也可以查看和跳转" visible={settingsPage === "bookmarks"}>
