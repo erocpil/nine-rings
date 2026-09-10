@@ -43,7 +43,7 @@ interface Props {
   libraryError?: string | null;
 }
 
-type SettingsPage = "root" | "appearance" | "editor" | "vim" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced";
+type SettingsPage = "root" | "appearance" | "editor" | "vim" | "sidebar" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced";
 const EDITOR_APPEARANCE_KEYS: Array<keyof AppConfig> = [
   "note_font_size",
   "editor_font_family",
@@ -83,6 +83,7 @@ const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   appearance: "外观与排版",
   editor: "编辑器",
   vim: "Vim 编辑",
+  sidebar: "分栏设置",
   documents: "文档管理",
   bookmarks: "书签",
   general: "工作流与快捷键",
@@ -610,18 +611,18 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 className="settings-back"
                 type="button"
                 onClick={() => setSettingsPage(
-                  settingsPage === "editor" || settingsPage === "vim"
+                  settingsPage === "editor" || settingsPage === "vim" || settingsPage === "sidebar"
                     ? "appearance"
                     : settingsPage === "bookmarks" || settingsPage === "tags" || settingsPage === "profile"
                       ? "documents"
                       : "root",
                 )}
-                aria-label={settingsPage === "editor" || settingsPage === "vim"
+                aria-label={settingsPage === "editor" || settingsPage === "vim" || settingsPage === "sidebar"
                   ? "返回外观与排版"
                   : settingsPage === "bookmarks" || settingsPage === "tags" || settingsPage === "profile"
                     ? "返回文档管理"
                     : "返回设置分类"}
-                title={settingsPage === "editor" || settingsPage === "vim"
+                title={settingsPage === "editor" || settingsPage === "vim" || settingsPage === "sidebar"
                   ? "返回外观与排版"
                   : settingsPage === "bookmarks" || settingsPage === "tags" || settingsPage === "profile"
                     ? "返回文档管理"
@@ -763,31 +764,6 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            <Field label="分栏设置" desc="调整侧栏顺序和宽度偏好" visible={settingsPage === "appearance"}>
-              <div className="sidebar-panel-order" aria-label="分栏显示顺序">
-                {panelOrder.map((panel, index) => (
-                  <div key={panel} className="sidebar-panel-order-item" draggable onDragStart={() => setDraggedPanel(panel)} onDragOver={(event) => event.preventDefault()} onDrop={() => {
-                    if (!draggedPanel || draggedPanel === panel) return;
-                    const next = [...panelOrder];
-                    next.splice(next.indexOf(draggedPanel), 1);
-                    next.splice(index, 0, draggedPanel);
-                    setPanelOrder(next);
-                    localStorage.setItem("nr:sidebarOrder", next.join(","));
-                    window.dispatchEvent(new Event("nr:sidebar-order-change"));
-                    setDraggedPanel(null);
-                  }}>
-                    <span className="sidebar-panel-order-grip" aria-hidden="true">⋮⋮</span>
-                    <span>{panel === "tree" ? "文档树" : panel === "list" ? "文档列表" : "PDF / EPUB 阅读"}</span>
-                    <small>第 {index + 1} 位</small>
-                  </div>
-                ))}
-              </div>
-              <div className="sidebar-width-reset-card">
-                <div><strong>分栏宽度</strong><span>拖动分隔条调整，切换回来会恢复上次宽度</span></div>
-                <button type="button" className="settings-btn settings-btn-compact" onClick={() => window.dispatchEvent(new Event("nr:reset-sidebar-widths"))}>恢复默认宽度</button>
-              </div>
-            </Field>
-
             <Field label="编辑器" desc="块编号、状态栏与右键菜单" visible={settingsPage === "appearance"}>
               <button
                 className="editor-appearance-entry"
@@ -811,6 +787,51 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 <span className="editor-appearance-entry-action">打开 Vim 设置 →</span>
               </button>
             </Field>
+
+            <Field label="分栏设置" desc="调整文档树、文档列表和阅读分栏的顺序与宽度" visible={settingsPage === "appearance"}>
+              <button className="editor-appearance-entry" type="button" onClick={() => setSettingsPage("sidebar")}>
+                <span>
+                  <strong>分栏设置</strong>
+                  <small>拖动排序，宽度会在切换回来时保留</small>
+                </span>
+                <span className="editor-appearance-entry-action">打开分栏设置 →</span>
+              </button>
+            </Field>
+
+            <div className="sidebar-settings-page" hidden={settingsPage !== "sidebar"}>
+              <div className="sidebar-settings-intro">
+                <strong>工作区分栏</strong>
+                <span>拖动项目调整显示顺序；分隔条调整后的宽度会自动记住。</span>
+              </div>
+              <div className="sidebar-settings-card">
+                <div className="sidebar-settings-card-heading">
+                  <div><strong>显示顺序</strong><span>按住右侧把手拖动</span></div>
+                  <span className="sidebar-settings-count">{panelOrder.length} 个分栏</span>
+                </div>
+                <div className="sidebar-panel-order" aria-label="分栏显示顺序">
+                  {panelOrder.map((panel, index) => (
+                    <div key={panel} className="sidebar-panel-order-item" draggable onDragStart={() => setDraggedPanel(panel)} onDragOver={(event) => event.preventDefault()} onDrop={() => {
+                      if (!draggedPanel || draggedPanel === panel) return;
+                      const next = [...panelOrder];
+                      next.splice(next.indexOf(draggedPanel), 1);
+                      next.splice(index, 0, draggedPanel);
+                      setPanelOrder(next);
+                      localStorage.setItem("nr:sidebarOrder", next.join(","));
+                      window.dispatchEvent(new Event("nr:sidebar-order-change"));
+                      setDraggedPanel(null);
+                    }}>
+                      <span className="sidebar-panel-order-position">{String(index + 1).padStart(2, "0")}</span>
+                      <span className="sidebar-panel-order-label">{panel === "tree" ? "文档树" : panel === "list" ? "文档列表" : "PDF / EPUB 阅读"}</span>
+                      <span className="sidebar-panel-order-grip" aria-label="拖动排序" title="拖动排序">⠿</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="sidebar-width-reset-card">
+                <div><strong>分栏宽度</strong><span>恢复文档树、文档列表和阅读分栏的默认宽度</span></div>
+                <button type="button" className="settings-btn settings-btn-compact" onClick={() => window.dispatchEvent(new Event("nr:reset-sidebar-widths"))}>恢复默认</button>
+              </div>
+            </div>
 
             {/* ── 默认视图 ── */}
             <Field label="默认视图" desc="打开应用时的默认布局" visible={DAILY_NOTES_ENABLED && settingsPage === "general"}>

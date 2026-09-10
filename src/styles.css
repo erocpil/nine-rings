@@ -6538,14 +6538,33 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 }
 .sync-remote-preview-actions { display: inline-flex; gap: 5px; margin-left: auto; }
 .settings-btn-compact { min-height: 28px !important; padding: 3px 8px; font-size: 12px; }
-.sidebar-panel-order { display: grid; gap: 5px; margin: 6px 0 10px; }
-.sidebar-panel-order-item { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); cursor: grab; }
-.sidebar-panel-order-item:active { cursor: grabbing; }
-.sidebar-panel-order-item small { margin-left: auto; color: var(--text-muted); }
-.sidebar-panel-order-grip { color: var(--text-muted); letter-spacing: -2px; }
-.sidebar-width-reset-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 7px; background: color-mix(in srgb, var(--surface) 80%, var(--accent)); }
-.sidebar-width-reset-card div { display: grid; gap: 2px; min-width: 0; }
-.sidebar-width-reset-card span { color: var(--text-secondary); font-size: 12px; }
+.sidebar-settings-page { display: grid; gap: 12px; }
+.sidebar-settings-intro { display: grid; gap: 3px; padding: 2px 2px 4px; }
+.sidebar-settings-intro strong { font-size: 15px; font-weight: 650; }
+.sidebar-settings-intro span { color: var(--text-secondary); font-size: 12px; line-height: 1.45; }
+.sidebar-settings-card { padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: color-mix(in srgb, var(--surface) 92%, var(--accent)); }
+.sidebar-settings-card-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
+.sidebar-settings-card-heading > div { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.sidebar-settings-card-heading strong { font-size: 13px; font-weight: 650; }
+.sidebar-settings-card-heading span, .sidebar-settings-count { color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+.sidebar-panel-order { display: grid; gap: 6px; margin: 0; }
+.sidebar-panel-order-item { display: grid; grid-template-columns: 28px minmax(0, 1fr) 28px; align-items: center; min-height: 40px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); cursor: grab; transition: border-color .12s ease, background .12s ease, transform .12s ease; }
+.sidebar-panel-order-item:hover { border-color: var(--accent); background: var(--hover-bg); transform: translateX(1px); }
+.sidebar-panel-order-item:active { cursor: grabbing; transform: scale(.995); }
+.sidebar-panel-order-position { color: var(--text-muted); font: 11px/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.sidebar-panel-order-label { min-width: 0; overflow: hidden; color: var(--text); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-panel-order-grip { display: inline-grid; place-items: center; justify-self: end; width: 26px; height: 26px; color: var(--text-muted); font-size: 18px; line-height: 1; cursor: grab; }
+.sidebar-width-reset-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+.sidebar-width-reset-card div { display: grid; gap: 3px; min-width: 0; }
+.sidebar-width-reset-card strong { font-size: 13px; font-weight: 600; }
+.sidebar-width-reset-card span { color: var(--text-secondary); font-size: 11px; line-height: 1.35; }
+
+@media (max-width: 520px) {
+  .sidebar-settings-card { padding: 10px; }
+  .sidebar-settings-card-heading > div { display: grid; gap: 2px; }
+  .sidebar-width-reset-card { align-items: flex-start; gap: 8px; }
+  .sidebar-width-reset-card .settings-btn { flex: 0 0 auto; }
+}
 .vim-config-card { display: grid; gap: 10px; width: min(100%, 520px); box-sizing: border-box; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: 0 2px 8px color-mix(in srgb, var(--text) 6%, transparent); }
 .vim-config-card-heading { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
 .vim-config-card-heading span { color: var(--text-muted); font-size: 12px; }
