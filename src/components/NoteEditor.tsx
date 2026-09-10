@@ -54,7 +54,7 @@ import { EditorInsertDialogs } from "./EditorInsertDialogs";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { BlockWorkspaceHost } from "./BlockWorkspace";
-import { watchBlockDisplaySettings } from "../lib/block-display-settings";
+import { saveBlockWorkspacePreferences, watchBlockDisplaySettings } from "../lib/block-display-settings";
 import { DocumentPanelDrawer, type DocumentPanelPresentation } from "./DocumentPanelDrawer";
 import { storeImage } from "../lib/storage/db-images";
 import { blobToBase64 } from "../lib/storage/core";
@@ -1244,6 +1244,7 @@ function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpen
   useEffect(() => {
     if (!editor) return;
     setCodeBlockLineNumbersEnabled(editor, showCodeLineNumbers);
+    saveBlockWorkspacePreferences({ lineNumbers: showCodeLineNumbers });
   }, [editor, showCodeLineNumbers]);
 
   useEffect(() => {
@@ -4040,7 +4041,13 @@ function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpen
             }}
             editorFontSize={editorFontSize} onEditorFontSizeChange={onEditorFontSizeChange}
             showCodeLineNumbers={showCodeLineNumbers}
-            onCodeLineNumbersChange={(next) => { setShowCodeLineNumbers(next); localStorage.setItem(CODE_LN_KEY, String(next)); }}
+            onCodeLineNumbersChange={(next) => {
+              setShowCodeLineNumbers(next);
+              localStorage.setItem(CODE_LN_KEY, String(next));
+              // 代码块弹层复用此显示设置；同步写入共享偏好后，已打开的
+              // 弹层和下次打开的弹层都会立即采用文档中的行号设置。
+              saveBlockWorkspacePreferences({ lineNumbers: next });
+            }}
             selectedTableCellCount={selectedTableCellCount}
             hasCurrentBookmark={Boolean(currentBookmark)} bookmarkCount={bookmarks.length}
           />
