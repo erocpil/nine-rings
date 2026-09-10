@@ -5313,7 +5313,8 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 }
 
 .editor-content li {
-  margin: 2px 0;
+  margin: 1px 0;
+  line-height: inherit;
 }
 /* TipTap 的 listItem 首个 paragraph 保持和列表标记在同一行。 */
 .editor-content li > p {
@@ -5341,7 +5342,7 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 
 .editor-content :is(ul, ol) > li::before {
   position: absolute;
-  right: calc(100% + var(--editor-list-marker-gap));
+  right: calc(100% + min(var(--editor-list-marker-gap), 0.25em));
   color: currentColor;
   white-space: nowrap;
 }
