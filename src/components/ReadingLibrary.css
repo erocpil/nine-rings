@@ -8,6 +8,7 @@
   height: 100%;
   background: var(--bg);
   color: var(--text);
+  container-type: inline-size;
 }
 .reading-library-heading:focus {
   outline: none;
@@ -16,6 +17,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   padding: 20px max(16px, var(--safe-right, 0px))
     max(24px, var(--safe-bottom, 0px)) max(16px, var(--safe-left, 0px));
@@ -172,6 +174,17 @@
 @container (max-width: 250px) {
   .reading-library-page .reader-library-view { display: none; }
   .reading-library-page .reader-library-segment { width: 100%; }
+}
+@container (max-width: 250px) {
+  .reading-library-page .reader-library-shelf,
+  .reading-library-page .reader-library-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .reading-library-page .reader-library-item,
+  .reading-library-page .reader-library-open {
+    min-width: 0;
+    max-width: 100%;
+  }
 }
 @container (max-width: 190px) {
   .reading-library-page .reader-library-segment button:nth-child(3) { display: none; }
