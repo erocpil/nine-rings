@@ -3226,6 +3226,11 @@ body {
   to   { transform: translateX(0); }
 }
 
+@keyframes slideInFromLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
 /* ── 面板本体 ── */
 
 .settings-panel {
@@ -3238,6 +3243,17 @@ body {
   flex-direction: column;
   animation: slideIn 0.2s ease;
   overflow: hidden;
+}
+
+@media (min-width: 769px) {
+  .settings-overlay {
+    justify-content: flex-start;
+  }
+  .settings-panel {
+    border-left: 0;
+    border-right: 1px solid var(--border);
+    animation-name: slideInFromLeft;
+  }
 }
 
 /* ── 头部 ── */
