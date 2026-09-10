@@ -1334,13 +1334,33 @@ function App() {
   useEdgeDrawer(mobileDrawerViewport && !sidebarHidden, "left", sidebarPanelRef, sidebarBackdropRef, () => setSidebarHidden(true));
   useEdgeDrawer(docTreePopupOpen, "left", popupPanelRef, popupBackdropRef, () => setDocTreePopupOpen(false));
   useEffect(() => bindViewportEdgeSwipe("left", (touch) => {
-    if (!sidebarHidden || docTreePopupOpen || !mobileDrawerViewport) return null;
-    const openDocumentView = touch.clientY < swipeViewport().middleY;
+    if (!sidebarHidden || docTreePopupOpen || readingLibraryOpen || !mobileDrawerViewport) return null;
+    const fallback = ["tree", "list", "reader"] as const;
+    const saved = localStorage.getItem("nr:sidebarOrder")?.split(",") ?? [];
+    const order = [
+      ...saved.filter((panel): panel is typeof fallback[number] => fallback.includes(panel as typeof fallback[number])),
+      ...fallback.filter((panel) => !saved.includes(panel)),
+    ];
+    const viewport = swipeViewport();
+    const viewportHeight = Math.max(1, viewport.bottom - viewport.top);
+    const relativeY = Math.max(0, Math.min(viewportHeight - 1, touch.clientY - viewport.top));
+    const target = order[Math.min(order.length - 1, Math.floor((relativeY / viewportHeight) * order.length))];
     return () => {
-      if (openDocumentView) setDocTreePopupOpen(true);
-      else setSidebarHidden(false);
+      setSettingsOpen(false);
+      setDocTreePopupOpen(false);
+      if (target === "tree") {
+        setReadingLibraryOpen(false);
+        setSidebarPanel("tree");
+        setSidebarHidden(false);
+      } else if (target === "list") {
+        setReadingLibraryOpen(false);
+        setSidebarHidden(true);
+        setDocTreePopupOpen(true);
+      } else {
+        void openReadingLibrary();
+      }
     };
-  }), [mobileDrawerViewport, sidebarHidden, docTreePopupOpen]);
+  }), [mobileDrawerViewport, sidebarHidden, docTreePopupOpen, readingLibraryOpen, setSettingsOpen, setSidebarPanel, openReadingLibrary]);
 
   // ── 开发模式后台导入 ──
   const refreshView = useCallback(() => {
