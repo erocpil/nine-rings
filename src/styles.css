@@ -360,7 +360,27 @@ body {
   flex-shrink: 0;
 }
 
-.sidebar-document-list { flex: 0 0 auto; min-height: 0; border-top: 1px solid var(--border); }
+.desktop-panel-content { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.desktop-panel-content[hidden], .sidebar-document-list.is-open[hidden], .desktop-reader-panel[hidden], .sidebar-footer[hidden] { display: none; }
+.desktop-activity-bar { display: flex; flex-direction: column; flex: 0 0 44px; align-items: center; gap: 6px; padding-block: 8px; border-right: 1px solid var(--border); background: var(--surface); }
+.desktop-activity-bar .btn-icon { width: 36px; height: 36px; border-radius: 6px; color: var(--text-secondary); }
+.desktop-activity-bar .btn-icon[aria-pressed="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 2px 0 var(--accent); }
+.desktop-activity-bar .toolbar-icon { width: 20px; height: 20px; }
+.desktop-panel-title { flex: 1; min-width: 0; padding-inline: 6px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.desktop-reader-panel { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
+.desktop-reader-panel .pdf-reader { min-width: 0; }
+.desktop-reader-panel .pdf-outline { position: absolute; inset: 0 auto 0 0; z-index: 10; width: min(90%, 340px); box-shadow: 6px 0 20px rgb(0 0 0 / 15%); }
+.desktop-reader-panel .reader-toolbar-controls { flex-wrap: wrap; flex-shrink: 1; gap: 4px; }
+.desktop-reader-panel .reader-toolbar-main { flex-basis: 100%; }
+.desktop-reader-panel .reader-action-label { display: none; }
+.desktop-reader-panel .reading-library-heading { padding: 6px 8px; gap: 4px; }
+.desktop-reader-panel .reading-library-heading button { min-height: 32px; }
+.desktop-reader-panel .reading-library-content { padding: 10px; }
+.desktop-reader-panel .reader-library-imports { flex-wrap: wrap; }
+.desktop-activity-bar + .app-sidebar { max-width: calc(100vw - 400px); }
+.desktop-activity-bar + .app-sidebar .sidebar-tabs,
+.desktop-activity-bar + .app-sidebar .sidebar-document-list-heading { box-sizing: border-box; min-height: 40px; padding: 4px 6px; gap: 4px; }
+.sidebar-document-list { flex: 0 0 auto; min-height: 0; }
 .sidebar-document-list.is-open { display: flex; flex-direction: column; flex: 1 1 50%; overflow: hidden; }
 .sidebar-document-list-heading { display: flex; align-items: center; flex-shrink: 0; min-height: 32px; padding: 0 6px; background: var(--surface); }
 .sidebar-document-list-heading > button { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; padding: 6px 0; border: 0; background: transparent; color: var(--text-secondary); text-align: left; font: 600 12px var(--font); cursor: pointer; }

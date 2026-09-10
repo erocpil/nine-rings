@@ -21,11 +21,11 @@ for (const readonly of [false, true]) {
     await openList.click();
     await expect(dialog).toBeVisible();
     await openList.click();
-    await expect(dialog).toHaveCount(0);
+    await expect(dialog).toBeHidden();
     await expect(openList).toBeFocused();
-    await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
-    await page.getByRole("button", { name: "显示侧栏", exact: true }).click();
     await openList.click();
+    await page.getByRole("button", { name: "隐藏侧栏", exact: true }).filter({ visible: true }).click();
+    await page.getByRole("button", { name: "显示侧栏", exact: true }).click();
     await page.locator(".sidebar-document-list").getByRole("button", { name: "全局搜索", exact: true }).click();
     const input = page.locator(".search-input");
     await expect(input).toBeVisible();

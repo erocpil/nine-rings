@@ -706,6 +706,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     const element = viewportRef.current;
     if (!element) return;
     const update = () => {
+      if (element.clientWidth === 0 || element.clientHeight === 0) return;
       setViewportWidth(element.clientWidth);
       setViewportHeight(element.clientHeight);
     };
@@ -1265,6 +1266,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const sidebar = readerRef.current?.closest('.desktop-reader-panel');
+      if (sidebar && (sidebar.closest('[hidden], .sidebar-hidden') || !(event.target instanceof Node) || !sidebar.contains(event.target))) return;
       if (!pdf || event.defaultPrevented) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "f") {
         event.preventDefault();

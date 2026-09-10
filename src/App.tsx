@@ -444,7 +444,7 @@ function App() {
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
   const documentBrowserSession = useRef<DocumentBrowserSession>({});
   const [browserToolbarHost, setBrowserToolbarHost] = useState<HTMLDivElement | null>(null);
-  const [sidebarBrowserOpen, setSidebarBrowserOpen] = useState(false);
+  const [desktopPanel, setDesktopPanel] = useState<'tree' | 'list' | 'reader'>('tree');
   const [sidebarBrowserToolbarHost, setSidebarBrowserToolbarHost] = useState<HTMLDivElement | null>(null);
   const [docTreeToolbarHost, setDocTreeToolbarHost] = useState<HTMLDivElement | null>(null);
   useDateRollover(setDate);
@@ -560,6 +560,8 @@ function App() {
       closeSidebarOnNarrowScreen();
       setReadingLibraryError(null);
       setReadingLibraryOpen(true);
+      setDesktopPanel('reader');
+      if (!window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) setSidebarHidden(false);
     } catch (error) {
       setReadingLibraryError(`打开阅读资料库前保存失败：${error instanceof Error ? error.message : String(error)}`);
     }
@@ -1099,7 +1101,8 @@ function App() {
   const SIDEBAR_KEY = "nr:sidebarW";
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem(SIDEBAR_KEY);
-    return saved ? parseFloat(saved) : 240;
+    const mobile = window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
+    return saved && Number.isFinite(Number(saved)) ? (mobile ? Number(saved) : Math.max(280, Number(saved))) : mobile ? 240 : 360;
   });
   const sideDragRef = useRef(false);
   const sideStartXRef = useRef(0);
@@ -1132,7 +1135,7 @@ function App() {
       if (!sideDragRef.current || pe.pointerId !== pointerId) return;
       if (pe.cancelable) pe.preventDefault();
       const delta = pe.clientX - sideStartXRef.current;
-      const newW = Math.max(0, Math.min(500, sideStartWRef.current + delta));
+      const newW = Math.max(280, Math.min(window.innerWidth - 400, sideStartWRef.current + delta));
       sideDragWidthRef.current = Math.round(newW);
       setSidebarWidth(sideDragWidthRef.current);
     };
@@ -1203,7 +1206,7 @@ function App() {
 
   // ── 键盘快捷键（浏览器 keydown + Tauri 全局热键）──
   useAppKeyboardShortcuts({
-    workspaceActive: !readingLibraryOpen && !protectionBusy && !applyingWebUpdate,
+    workspaceActive: (!readingLibraryOpen || !window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) && !protectionBusy && !applyingWebUpdate,
     setSettingsOpen,
     setQuickSwitcherOpen,
     openSearch: openGlobalSearch,
@@ -1383,10 +1386,9 @@ function App() {
     return () => document.removeEventListener("keydown", handleEscape);
   }, [dismissSearchResults, docResults, query]);
 
-  if (pdfReaderDocumentId) {
-    return (
+  const pdfReaderPanel = pdfReaderDocumentId ? (
       <div className="pdf-reader-app">
-        {isTauriRuntime() && !pdfReaderFullscreen && (
+        {mobileDrawerViewport && isTauriRuntime() && !pdfReaderFullscreen && (
           <Suspense fallback={null}>
             <TitleBar />
           </Suspense>
@@ -1417,7 +1419,7 @@ function App() {
               });
               setPdfReaderFullscreen(false);
               setReadingLibraryOpen(false);
-              setPdfReaderDocumentId(null);
+              if (mobileDrawerViewport) setPdfReaderDocumentId(null);
               setPdfReaderTargetHighlightId(null);
               setPdfReaderTargetRange(null);
               revealDocTreePath("resources/pdf-excerpts");
@@ -1433,19 +1435,18 @@ function App() {
           />
         </Suspense>
       </div>
-    );
-  }
+    ) : null;
 
-  if (epubReaderDocumentId) {
-    return (
+  const epubReaderPanel = epubReaderDocumentId ? (
       <div className="pdf-reader-app epub-reader-app">
-        {isTauriRuntime() && !epubReaderFullscreen && (
+        {mobileDrawerViewport && isTauriRuntime() && !epubReaderFullscreen && (
           <Suspense fallback={null}>
             <TitleBar />
           </Suspense>
         )}
         <Suspense fallback={<div className="pdf-reader-boot">正在加载 EPUB 阅读器…</div>}>
           <EpubReader
+            embedded={!mobileDrawerViewport}
             documentId={epubReaderDocumentId}
             initialHighlightId={epubReaderTargetHighlightId}
             onFullscreenChange={setEpubReaderFullscreen}
@@ -1469,7 +1470,7 @@ function App() {
               });
               setEpubReaderFullscreen(false);
               setReadingLibraryOpen(false);
-              setEpubReaderDocumentId(null);
+              if (mobileDrawerViewport) setEpubReaderDocumentId(null);
               setEpubReaderTargetHighlightId(null);
               revealDocTreePath("resources/epub-excerpts");
               setDocTreeKey((key) => key + 1);
@@ -1483,8 +1484,10 @@ function App() {
           />
         </Suspense>
       </div>
-    );
-  }
+    ) : null;
+
+  if (mobileDrawerViewport && pdfReaderPanel) return pdfReaderPanel;
+  if (mobileDrawerViewport && epubReaderPanel) return epubReaderPanel;
 
   const settingsPanel = <SettingsPanel
     open={settingsOpen}
@@ -1520,7 +1523,7 @@ function App() {
     onPullDone={() => window.location.reload()}
   />;
 
-  if (readingLibraryOpen) {
+  if (mobileDrawerViewport && readingLibraryOpen) {
     return <div className="pdf-reader-app">
       {isTauriRuntime() && <Suspense fallback={null}><TitleBar /></Suspense>}
       <div style={{ display: "flex", flex: 1, minHeight: 0 }} {...(settingsOpen ? { inert: "" } : {})}>
@@ -1668,11 +1671,23 @@ function App() {
       {readingLibraryError && <div role="alert" className="reading-library-message">{readingLibraryError}</div>}
 
       <div className="app-body">
+        {!mobileDrawerViewport && <nav className="desktop-activity-bar" aria-label="工作区面板">
+          {([
+            ['tree', '文档树', 'folder'],
+            ['list', '文档列表', 'bullet'],
+            ['reader', 'PDF / EPUB 阅读', 'document'],
+          ] as const).map(([panel, label, icon]) => <button key={panel} type="button" className="btn-icon"
+            title={label} aria-label={label} aria-pressed={!sidebarHidden && desktopPanel === panel}
+            onClick={() => { setDesktopPanel(panel); setSidebarHidden(!sidebarHidden && desktopPanel === panel); }}>
+            <ToolbarIcon name={icon} />
+          </button>)}
+        </nav>}
         <aside ref={sidebarPanelRef} className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}
           role={mobileDrawerViewport ? "dialog" : undefined} aria-label={mobileDrawerViewport ? "文档侧栏" : undefined}
           aria-modal={mobileDrawerViewport && !sidebarHidden || undefined}
           aria-hidden={mobileDrawerViewport && sidebarHidden || undefined}
           {...(mobileDrawerViewport && sidebarHidden ? { inert: "" } : {})}>
+          <div className="desktop-panel-content" style={mobileDrawerViewport ? { display: 'contents' } : undefined} hidden={!mobileDrawerViewport && desktopPanel !== 'tree'}>
           <div className="sidebar-tabs">
             {DAILY_NOTES_ENABLED ? <button
               className="sidebar-tab sidebar-view-switch"
@@ -1685,7 +1700,7 @@ function App() {
               <span className="sidebar-view-switch-label">
                 {sidebarTab === 'daily' ? '随笔' : '文档'}
               </span>
-            </button> : <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} />}
+            </button> : mobileDrawerViewport ? <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} /> : <span className="desktop-panel-title">文档树</span>}
             <span className="sidebar-tab-spacer" />
             <div className="doc-tree-toolbar-host" ref={setDocTreeToolbarHost} />
             <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏" aria-label="隐藏侧栏">
@@ -1813,14 +1828,14 @@ function App() {
               }}
             />
           )}
-          {!mobileDrawerViewport && <section className={`sidebar-document-list${sidebarBrowserOpen ? " is-open" : ""}`} aria-label="文档列表分区">
+          </div>
+          {!mobileDrawerViewport && desktopPanel === 'list' && <section className="sidebar-document-list is-open" aria-label="文档列表分区">
             <div className="sidebar-document-list-heading">
-              <button type="button" aria-expanded={sidebarBrowserOpen} aria-controls="sidebar-document-browser" onClick={() => setSidebarBrowserOpen(open => !open)}>
-                <ToolbarIcon name="chevronRight" />文档列表
-              </button>
-              {sidebarBrowserOpen && <div className="doc-tree-toolbar-host" ref={setSidebarBrowserToolbarHost} />}
+              <span className="desktop-panel-title">文档列表</span>
+              <div className="doc-tree-toolbar-host" ref={setSidebarBrowserToolbarHost} />
+              <button type="button" className="btn-icon" aria-label="隐藏侧栏" onClick={() => setSidebarHidden(true)}><ToolbarIcon name="chevronLeft" /></button>
             </div>
-            {sidebarBrowserOpen && <div id="sidebar-document-browser" className="sidebar-document-list-body">
+            <div id="sidebar-document-browser" className="sidebar-document-list-body">
               <div className="sidebar-document-list-search">
               <button type="button" className="btn-icon" aria-label="快速切换笔记" onClick={() => setQuickSwitcherOpen(true)}><ToolbarIcon name="switchViews" /></button>
               <button type="button" className="btn-icon" aria-label="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>
@@ -1840,9 +1855,20 @@ function App() {
                 onCreate={(path) => { setSelectedFolderPath(path); setDocCreateOpen(true); }}
                 refreshKey={docTreeKey}
               />
-            </div>}
+            </div>
           </section>}
-          <div className="sidebar-footer">
+          {!mobileDrawerViewport && <section className="desktop-reader-panel" hidden={desktopPanel !== 'reader'} aria-label="侧栏阅读" tabIndex={-1}
+            onPointerDownCapture={event => {
+              if (event.target instanceof Element && !event.target.closest('button, input, textarea, select, a, [contenteditable=true]')) event.currentTarget.focus({ preventScroll: true });
+            }}>
+            {pdfReaderPanel ?? epubReaderPanel ?? (desktopPanel === 'reader' && <Suspense fallback={<div className="doc-tree-loading">正在加载阅读资料…</div>}>
+              <ReadingLibrary session={readingLibrarySession.current}
+                onClose={() => setDesktopPanel('tree')} onSettings={() => setSettingsOpen(true)}
+                onOpenPdf={id => { setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
+                onOpenEpub={id => { setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }} />
+            </Suspense>)}
+          </section>}
+          <div className="sidebar-footer" hidden={!mobileDrawerViewport && desktopPanel === 'reader'}>
             <button type="button" className="sidebar-recycle-btn" onClick={() => setRecycleOpen(true)}>
               🗑 回收站
             </button>
@@ -1985,6 +2011,9 @@ function App() {
                               : null,
                           );
                           setPdfReaderDocumentId(source.pdfId);
+                          setEpubReaderDocumentId(null);
+                          setDesktopPanel('reader');
+                          if (!mobileDrawerViewport) setSidebarHidden(false);
                         } catch (reason) {
                           window.alert(`无法打开 PDF 来源：${reason instanceof Error ? reason.message : String(reason)}`);
                         }
@@ -1997,6 +2026,9 @@ function App() {
                           if (!await getLocalEpub(source.epubId)) throw new Error("原 EPUB 已被删除");
                           setEpubReaderTargetHighlightId(source.highlightId ?? null);
                           setEpubReaderDocumentId(source.epubId);
+                          setPdfReaderDocumentId(null);
+                          setDesktopPanel('reader');
+                          if (!mobileDrawerViewport) setSidebarHidden(false);
                         } catch (reason) {
                           window.alert(`无法打开 EPUB 来源：${reason instanceof Error ? reason.message : String(reason)}`);
                         }

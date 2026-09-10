@@ -27,6 +27,7 @@ import {
 } from "../lib/epub-library";
 
 interface Props {
+  embedded?: boolean;
   documentId: string;
   onClose: () => void;
   initialHighlightId?: string | null;
@@ -426,7 +427,7 @@ function safeChapterDocument(
   return `<!doctype html>${new XMLSerializer().serializeToString(document.documentElement)}`;
 }
 
-export function EpubReader({ documentId, onClose, initialHighlightId, onFullscreenChange, onCreateExcerpt }: Props) {
+export function EpubReader({ documentId, onClose, initialHighlightId, onFullscreenChange, onCreateExcerpt, embedded = false }: Props) {
   const readerRef = useRef<HTMLElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const registryRef = useRef<ReturnType<typeof createResourceRegistry> | null>(null);
@@ -472,7 +473,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const [focusControlsVisible, setFocusControlsVisible] = useState(false);
   const [frameRevision, setFrameRevision] = useState(0);
   const [actionBusy, setActionBusy] = useState(false);
-  const [tocOpen, setTocOpen] = useState(true);
+  const [tocOpen, setTocOpen] = useState(!embedded);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadRevision, setLoadRevision] = useState(0);
@@ -748,6 +749,8 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
+      const sidebar = readerRef.current?.closest('.desktop-reader-panel');
+      if (sidebar && (sidebar.closest('[hidden], .sidebar-hidden') || !(event.target instanceof Node) || !sidebar.contains(event.target))) return;
       if (event.defaultPrevented) return;
       if (event.target instanceof Element && event.target.closest("input, textarea, select, button, [contenteditable=true]") && event.key !== "Escape") return;
       if (event.key === "Escape" && lineMergePanelOpen) {
@@ -1203,7 +1206,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
               return next;
             })}>{collapsed ? "▸" : "▾"}</button>
             : <span className="epub-toc-disclosure-placeholder" />}
-          <button type="button" className={`epub-toc-link${itemChapter === chapter ? " active" : ""}`} onClick={() => navigateTo(item.path, item.fragment)}>{item.label}</button>
+          <button type="button" className={`epub-toc-link${itemChapter === chapter ? " active" : ""}`} onClick={() => { navigateTo(item.path, item.fragment); if (embedded) setTocOpen(false); }}>{item.label}</button>
         </div>
         {hasChildren && !collapsed && renderTocItems(item.children, depth + 1, nodeId)}
       </div>
