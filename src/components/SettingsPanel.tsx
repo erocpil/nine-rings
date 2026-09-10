@@ -798,7 +798,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </button>
             </Field>
 
-            <div className="sidebar-settings-page" hidden={settingsPage !== "sidebar"}>
+            {settingsPage === "sidebar" && <div className="sidebar-settings-page">
               <div className="sidebar-settings-intro">
                 <strong>工作区分栏</strong>
                 <span>拖动项目调整显示顺序；分隔条调整后的宽度会自动记住。</span>
@@ -831,7 +831,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 <div><strong>分栏宽度</strong><span>恢复文档树、文档列表和阅读分栏的默认宽度</span></div>
                 <button type="button" className="settings-btn settings-btn-compact" onClick={() => window.dispatchEvent(new Event("nr:reset-sidebar-widths"))}>恢复默认</button>
               </div>
-            </div>
+            </div>}
 
             {/* ── 默认视图 ── */}
             <Field label="默认视图" desc="打开应用时的默认布局" visible={DAILY_NOTES_ENABLED && settingsPage === "general"}>
