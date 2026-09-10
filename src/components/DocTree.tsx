@@ -619,9 +619,16 @@ function DocTree({
                   title={node.name}
                   onClick={() => {
                     if (disabled) return;
+                    // 打开路径会切换到路径文档视图；先记录当前树的位置，
+                    // 避免后续选中/加载文档时的自动定位把用户带回当前文档。
+                    const treeScrollTop = treeScrollRef.current?.scrollTop ?? 0;
+                    localStorage.setItem(DOC_TREE_SCROLL_KEY, String(treeScrollTop));
                     selectionRequestRef.current++;
                     setSelectionError(null);
                     onFolderSelect?.(node.path);
+                    window.requestAnimationFrame(() => {
+                      if (treeScrollRef.current) treeScrollRef.current.scrollTop = treeScrollTop;
+                    });
                   }}
                 >
                   {node.name}
