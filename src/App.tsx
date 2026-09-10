@@ -1096,7 +1096,7 @@ function App() {
     if (mobile) return SIDEBAR_MOBILE_MIN_WIDTH;
     return SIDEBAR_MIN_WIDTH;
   }, []);
-  const clampSidebarWidth = useCallback((width: number, min = 280) => {
+  const clampSidebarWidth = useCallback((width: number, min = 0) => {
     const viewport = window.innerWidth;
     // The reader may occupy the complete document area. Keep only the
     // activity bar and the 4px splitter visible at the right edge.
@@ -1106,7 +1106,7 @@ function App() {
   }, []);
   const computeReaderSidebarWidth = useCallback(() => {
     const saved = Number(localStorage.getItem(READER_SIDEBAR_WIDTH_KEY));
-    const width = Number.isFinite(saved) && saved > 0
+    const width = Number.isFinite(saved) && saved >= 0
       ? saved
       : Math.round((window.innerWidth - DESKTOP_ACTIVITY_BAR_WIDTH) / 2);
     return clampSidebarWidth(width);
@@ -1114,8 +1114,8 @@ function App() {
   const computePanelSidebarWidth = useCallback((panel: typeof desktopPanel) => {
     if (panel === "reader") return computeReaderSidebarWidth();
     const saved = Number(localStorage.getItem(sidebarWidthKey(panel)));
-    const width = Number.isFinite(saved) && saved > 0 ? saved : computeDefaultSidebarWidth();
-    return clampSidebarWidth(width, SIDEBAR_MIN_WIDTH);
+    const width = Number.isFinite(saved) && saved >= 0 ? saved : computeDefaultSidebarWidth();
+    return clampSidebarWidth(width, 0);
   }, [clampSidebarWidth, computeDefaultSidebarWidth, computeReaderSidebarWidth]);
   const applyPanelSidebarWidth = useCallback((panel: typeof desktopPanel) => {
     if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return;
@@ -1145,10 +1145,9 @@ function App() {
         : SIDEBAR_MIN_WIDTH;
     }
     const candidate = Number(saved);
-    const baseline = computeDefaultSidebarWidth();
     return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches
       ? Math.max(SIDEBAR_MOBILE_MIN_WIDTH, candidate)
-      : clampSidebarWidth(candidate, baseline);
+      : clampSidebarWidth(candidate, 0);
   });
   useEffect(() => {
     if (sidebarHidden) return;
@@ -1218,7 +1217,7 @@ function App() {
       if (!sideDragRef.current || pe.pointerId !== pointerId) return;
       if (pe.cancelable) pe.preventDefault();
       const delta = pe.clientX - sideStartXRef.current;
-      const newW = Math.max(280, Math.min(window.innerWidth - DESKTOP_ACTIVITY_BAR_WIDTH - 4, sideStartWRef.current + delta));
+      const newW = Math.max(0, Math.min(window.innerWidth - DESKTOP_ACTIVITY_BAR_WIDTH - 4, sideStartWRef.current + delta));
       sideDragWidthRef.current = Math.round(newW);
       setSidebarWidth(sideDragWidthRef.current);
     };
