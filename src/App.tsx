@@ -1658,7 +1658,6 @@ function App() {
           <ReadingLibrary session={readingLibrarySession.current}
             showWorkspaceSwitch
             onClose={() => setReadingLibraryOpen(false)}
-            onSettings={() => setSettingsOpen(true)}
             onOpenPdf={id => { setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
             onOpenEpub={id => { setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }}
           />
@@ -2008,7 +2007,7 @@ function App() {
               <ReadingLibrary session={readingLibrarySession.current}
                 showWorkspaceSwitch={false}
                 onHide={() => setSidebarHidden(true)}
-                onClose={() => setSidebarPanel('tree')} onSettings={() => setSettingsOpen(true)}
+                onClose={() => setSidebarPanel('tree')}
                 onOpenPdf={id => { setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
                 onOpenEpub={id => { setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }} />
             </Suspense>)}

@@ -34,7 +34,6 @@ export interface ReadingLibrarySession {
 interface Props {
   session: ReadingLibrarySession;
   onClose: () => void;
-  onSettings: () => void;
   onOpenPdf: (id: string) => void;
   onOpenEpub: (id: string) => void;
   showWorkspaceSwitch?: boolean;
@@ -44,7 +43,6 @@ interface Props {
 export default function ReadingLibrary({
   session,
   onClose,
-  onSettings,
   onOpenPdf,
   onOpenEpub,
   showWorkspaceSwitch = true,
@@ -315,12 +313,12 @@ export default function ReadingLibrary({
         <button
           type="button"
           className="btn-icon"
-          title="设置"
-          aria-label="设置"
-          onClick={onSettings}
+          title="退出阅读资料库"
+          aria-label="退出阅读资料库"
+          onClick={onClose}
           disabled={busy}
         >
-          <ToolbarIcon name="sliders" />
+          <ToolbarIcon name="exit" />
         </button>
         {onHide && <button type="button" className="btn-icon" title="隐藏侧栏" aria-label="隐藏侧栏" onClick={onHide}>
           <ToolbarIcon name="chevronLeft" />
