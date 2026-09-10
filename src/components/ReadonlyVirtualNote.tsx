@@ -848,7 +848,6 @@ export function ReadonlyVirtualNote(
           setPanel(next === "outline" ? "outline" : "bookmarks")
         }
         onClose={() => setPanel(null)}
-        onOpenSettings={props.onOpenSettings}
       >
         {panel && (
           <section

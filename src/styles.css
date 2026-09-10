@@ -2920,13 +2920,6 @@ body {
 }
 .mobile-document-drawer-header button[aria-pressed="true"] { background: var(--active-bg); color: var(--accent); }
 .mobile-document-drawer-header button:disabled { opacity: 0.45; }
-.mobile-document-drawer-header .mobile-document-drawer-settings {
-  margin-left: auto;
-  width: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
 
 @media (prefers-reduced-motion: reduce) {
   .mobile-document-drawer .mobile-document-drawer-panel,

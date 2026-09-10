@@ -3750,7 +3750,6 @@ function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpen
           else openDocumentBookmarks("drawer");
         }}
         onClose={() => { setOutlineOpen(false); setBookmarkOpen(false); }}
-        onOpenSettings={onOpenSettings}
       >
       {outlineOpen && documentOutline.length > 0 && (
         <nav

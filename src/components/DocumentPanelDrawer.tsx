@@ -1,20 +1,18 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useEdgeDrawer } from "../hooks/useEdgeDrawer";
-import { ToolbarIcon } from "./ToolbarIcon";
 
 type Panel = "outline" | "bookmark";
 export type DocumentPanelPresentation = "popover" | "drawer";
 
 /** 点击入口使用浮层，手机普通/专注模式的边缘手势共用阅读侧栏。 */
-export function DocumentPanelDrawer({ enabled, presentation, panel, hasOutline, onSelect, onClose, onOpenSettings, children }: {
+export function DocumentPanelDrawer({ enabled, presentation, panel, hasOutline, onSelect, onClose, children }: {
   enabled: boolean;
   presentation: DocumentPanelPresentation;
   panel: Panel | null;
   hasOutline: boolean;
   onSelect: (panel: Panel) => void;
   onClose: () => void;
-  onOpenSettings?: () => void;
   children: ReactNode;
 }) {
   const open = enabled && presentation === "drawer" && panel !== null;
@@ -76,9 +74,6 @@ export function DocumentPanelDrawer({ enabled, presentation, panel, hasOutline, 
         <div className="mobile-document-drawer-header">
           <button type="button" aria-label="切换到目录" aria-pressed={panel === "outline"} disabled={!hasOutline} onClick={() => onSelect("outline")}>目录</button>
           <button type="button" aria-label="切换到书签" aria-pressed={panel === "bookmark"} onClick={() => onSelect("bookmark")}>书签</button>
-          <button data-drawer-initial-focus type="button" className="mobile-document-drawer-settings"
-            aria-label="设置" title="设置" disabled={!onOpenSettings}
-            onClick={() => { onClose(); onOpenSettings?.(); }}><ToolbarIcon name="sliders" /></button>
         </div>
         {open ? children : exiting && presentation === "drawer" ? lastContent.current : null}
       </div>
