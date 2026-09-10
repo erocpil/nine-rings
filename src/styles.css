@@ -6518,6 +6518,10 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   max-height: min(90vh, 760px);
   overflow: auto;
   margin: 0;
+  /* 弹层自身必须是不透明的；毛玻璃只用于外部遮罩，否则正文会透过来干扰文字。 */
+  background: var(--surface);
+  color: var(--text);
+  isolation: isolate;
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
 }
 
