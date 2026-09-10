@@ -482,6 +482,7 @@ function App() {
   }, [handleConfigChange]);
   const FOCUS_KEY = "nr:focusMode";
   const [securityToolbarTarget, setSecurityToolbarTarget] = useState<HTMLDivElement | null>(null);
+  const [focusToolbarTarget, setFocusToolbarTarget] = useState<HTMLDivElement | null>(null);
   const [focusMode, setFocusMode] = useState(() => {
     return localStorage.getItem(FOCUS_KEY) === "true";
   });
@@ -1581,8 +1582,9 @@ function App() {
         )}
         {DAILY_NOTES_ENABLED && <DatePicker value={currentDate} onChange={handleDateChange} />}
         {TODOS_ENABLED && <DailyOverview />}
+        {focusMode && !mobileDrawerViewport && <div className="desktop-focus-toolbar" ref={setFocusToolbarTarget} />}
         <span className="header-spacer" />
-        {stickyTitle && (
+        {stickyTitle && !(focusMode && !mobileDrawerViewport) && (
           <div className="header-sticky-area">
             {documentOutlineAvailable ? (
               <button
@@ -1924,6 +1926,7 @@ function App() {
                       onSecurityError={message => useNotesStore.setState({ error: message })}
                       hideDocumentPasswordControls
                       securityToolbarTarget={securityToolbarTarget}
+                      focusToolbarTarget={!mobileDrawerViewport ? focusToolbarTarget : null}
                       securityDisabled={syncBusy}
                       onSecurityChanged={async () => {
                         const note = await api.notes.get(selectedNote.id);

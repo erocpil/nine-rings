@@ -27,6 +27,50 @@ async function fixture(page: Page, readonly = false, secondCode = false) {
   return id;
 }
 
+test("折叠代码块的弹层显示正文且保留原块折叠状态", async ({ page }) => {
+  await fixture(page);
+  const block = page.locator(".note-editor .code-block-wrap");
+  await block.getByRole("button", { name: "折叠代码块", exact: true }).click();
+  await block.getByRole("button", { name: "放大阅读代码块" }).click();
+  const dialog = page.getByRole("dialog", { name: "代码块工作区" });
+  const inner = dialog.locator(".code-block-inner");
+  await expect(inner).toHaveCSS("opacity", "1");
+  expect((await inner.boundingBox())!.height).toBeGreaterThan(20);
+  await expect(dialog.locator("pre code")).toContainText("const answer = 42;");
+  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await dialog.locator("pre code").click();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.insertText("const updated = 100;");
+  await dialog.getByRole("button", { name: "关闭块工作区" }).click();
+  await expect(block).toHaveClass(/collapsed/);
+  await block.getByRole("button", { name: "展开代码块", exact: true }).click();
+  await expect(block.locator("pre code")).toHaveText("const updated = 100;");
+});
+
+test("块内换行现状：代码按钮禁用但快捷键可用，引用按钮可用", async ({ page }) => {
+  await fixture(page);
+  const source = page.locator(".note-editor .ProseMirror");
+  const code = source.locator("pre code");
+  await code.click();
+  await page.keyboard.press("End");
+  const lineBreak = page.getByRole("button", { name: "块内换行", exact: true });
+  await expect(lineBreak).toBeDisabled();
+  const before = await code.textContent();
+  await page.keyboard.press("Shift+Enter");
+  expect((await code.textContent())!.split("\n").length).toBe(before!.split("\n").length + 1);
+  await expect(source.locator(".code-block-wrap")).toHaveCount(1);
+  const quote = source.locator("blockquote");
+  await quote.locator("p").first().click();
+  await page.keyboard.press("Home");
+  const breaksBefore = await quote.locator("br:not(.ProseMirror-trailingBreak)").count();
+  const paragraphsBefore = await quote.locator("p").count();
+  await expect(lineBreak).toBeEnabled();
+  await lineBreak.click();
+  await expect(quote.locator("br:not(.ProseMirror-trailingBreak)")).toHaveCount(breaksBefore + 1);
+  await expect(quote.locator("p")).toHaveCount(paragraphsBefore);
+  await expect(source.locator("blockquote")).toHaveCount(1);
+});
+
 test("块工作区编辑只同步原块并共享撤销，模式不修改文档只读属性", async ({ page }) => {
   const id = await fixture(page);
   const source = page.locator(".note-editor .ProseMirror");

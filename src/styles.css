@@ -4686,6 +4686,23 @@ body {
   display: none;
 }
 
+/* Desktop mounts the same focus actions into the app header. */
+.desktop-focus-toolbar { flex: 1; min-width: 0; -webkit-app-region: no-drag; }
+.desktop-focus-toolbar ~ .header-spacer { display: none; }
+.desktop-focus-toolbar .mobile-focus-bar { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.desktop-focus-toolbar .mobile-focus-title-wrap { position: relative; flex: 1; min-width: 0; }
+.desktop-focus-toolbar .mobile-focus-title { display: block; width: 100%; border: 0; padding: 0; background: transparent; color: var(--text); font: inherit; font-weight: 400; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; }
+.desktop-focus-toolbar .mobile-focus-full-title { position: absolute; top: 100%; left: 0; max-width: 100%; max-height: 40dvh; overflow: auto; overflow-wrap: anywhere; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; z-index: 60; }
+.desktop-focus-toolbar .mobile-focus-bar > button { position: relative; display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 0; margin: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-secondary); cursor: pointer; }
+.desktop-focus-toolbar .focus-mode-icon { width: 17px; height: 17px; }
+.desktop-focus-toolbar .mobile-focus-bar > button:is(:hover, .active, [aria-expanded="true"]) { color: var(--accent); background: color-mix(in srgb, var(--accent) 11%, var(--bg)); }
+.desktop-focus-toolbar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.desktop-focus-toolbar .focus-bookmark-count, .desktop-focus-toolbar .focus-source-position { position: absolute; top: -3px; right: 0; font-size: 9px; }
+.desktop-focus-toolbar + .header-spacer + .header-right { gap: 4px; }
+.app-focus-mode:has(.desktop-focus-toolbar) .header-right .btn-icon { width: 28px; height: 28px; margin: 0; }
+.app-focus-mode:has(.desktop-focus-toolbar) .header-btn-gap { display: none; }
+.focus-mode.focus-toolbar-expanded .editor-menu { display: flex !important; }
+
 .focus-mode .editor-stats {
   display: none !important;
 }

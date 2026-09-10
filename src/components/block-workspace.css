@@ -47,11 +47,12 @@
 .block-workspace-body .ProseMirror { min-height: 80px; outline: none; }
 .block-workspace-body .block-workspace-open { display: none; }
 .block-workspace[data-block-type="codeBlock"] .code-block-actions [title="代码行号（仅改变显示）"] { display: none; }
-.block-workspace-body .ProseMirror > .code-block-wrap.collapsed .code-block-inner { max-height: none; opacity: 1; pointer-events: auto; }
+/* React NodeViews add a renderer wrapper between ProseMirror and the block. */
+.block-workspace[data-block-type="codeBlock"] .code-block-wrap.collapsed .code-block-inner { max-height: none; opacity: 1; pointer-events: auto; }
 .block-workspace-body .ProseMirror > .blockquote-wrap[data-collapsed="true"] > .blockquote-node-view > .blockquote-content { display: block; }
 .block-workspace .blockquote-node-view[data-workspace-collapsed="true"] > .blockquote-content { display: none; }
 .block-workspace .blockquote-node-view[data-workspace-collapsed="false"] > .blockquote-content { display: block; }
-.block-workspace-body .ProseMirror > .code-block-wrap .code-block-collapse-toggle,
+.block-workspace[data-block-type="codeBlock"] .code-block-collapse-toggle,
 .block-workspace-body .ProseMirror > .blockquote-wrap > .blockquote-node-view > .blockquote-toolbar > button:not(.block-workspace-open) { display: none; }
 .block-workspace-body .code-block-inner { max-height: none; overflow: visible; }
 @media (pointer: coarse) {
