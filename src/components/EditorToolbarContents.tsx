@@ -487,7 +487,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     </div>
 
     {/* 文字颜色 */}
-    <div className="menu-dropdown">
+    <div className="menu-dropdown" data-toolbar-tool="color">
       <button
         className="menu-btn"
         onClick={(e) => { e.stopPropagation(); if (!readonly) toggleMobileToolbarMenu("color", colorOpen); }}
@@ -532,6 +532,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     {/* 图片 */}
     <button
       className="menu-btn"
+      data-toolbar-tool="image"
       onClick={() => { if (!readonly) setImageDialog(true); }}
       type="button"
       title="插入图片"
