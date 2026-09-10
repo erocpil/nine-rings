@@ -34,12 +34,6 @@ const entries: SettingsSearchEntry[] = [
     action: "typography",
   },
   {
-    title: "阅读分栏占比",
-    description: "外观与排版 › 阅读资料库 · 设置侧栏宽度比例",
-    keywords: "阅读 分栏 占比 比例 宽度 栏宽 67% 2/3",
-    page: "appearance",
-  },
-  {
     title: "代码与引用块显示",
     description: "外观与排版 › 编辑器排版 · 行号、空白字符与代码高度",
     keywords: "代码 引用 行号 空格 tab 空白 高度 换行 弹层",

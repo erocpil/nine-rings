@@ -21,6 +21,7 @@ import {
 import { ReaderDataBackupPanel } from "./ReaderDataBackupPanel";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { WorkspaceSwitch } from "./WorkspaceSwitch";
+import { WorkspacePanelHeading } from "./WorkspacePanelHeading";
 import "./ReadingLibrary.css";
 
 export interface ReadingLibrarySession {
@@ -37,6 +38,7 @@ interface Props {
   onOpenPdf: (id: string) => void;
   onOpenEpub: (id: string) => void;
   showWorkspaceSwitch?: boolean;
+  onHide?: () => void;
 }
 
 export default function ReadingLibrary({
@@ -46,6 +48,7 @@ export default function ReadingLibrary({
   onOpenPdf,
   onOpenEpub,
   showWorkspaceSwitch = true,
+  onHide,
 }: Props) {
   const [query, setQuery] = useState(session.query);
   const [message, showMessage] = useState<string | null>(null);
@@ -307,11 +310,11 @@ export default function ReadingLibrary({
         else onClose();
       }}
     >
-      <header className="reading-library-heading" ref={headingRef} tabIndex={-1}>
-        {showWorkspaceSwitch && <WorkspaceSwitch mode="reading" disabled={busy} onSwitch={onClose} />}
+      <WorkspacePanelHeading className="reading-library-heading" ref={headingRef} tabIndex={-1}
+        title={showWorkspaceSwitch ? <WorkspaceSwitch mode="reading" disabled={busy} onSwitch={onClose} /> : "阅读"}>
         <button
           type="button"
-          className="settings-btn"
+          className="btn-icon"
           title="设置"
           aria-label="设置"
           onClick={onSettings}
@@ -319,7 +322,10 @@ export default function ReadingLibrary({
         >
           <ToolbarIcon name="sliders" />
         </button>
-      </header>
+        {onHide && <button type="button" className="btn-icon" title="隐藏侧栏" aria-label="隐藏侧栏" onClick={onHide}>
+          <ToolbarIcon name="chevronLeft" />
+        </button>}
+      </WorkspacePanelHeading>
       <div
         className="reading-library-content"
         ref={scrollRef}

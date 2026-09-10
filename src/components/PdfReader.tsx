@@ -849,7 +849,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!pdf || viewMode !== "vertical" || !viewport) {
-      setVisibleVerticalPages(new Set([page]));
+      // Horizontal displayedPages depends on this set through renderedPages.
+      // Replacing an equivalent set here loops and continually cancels raster jobs.
+      setVisibleVerticalPages(current => current.size === 1 && current.has(page) ? current : new Set([page]));
       return;
     }
     const mobileViewport = window.matchMedia("(max-width: 768px)").matches;

@@ -8,6 +8,7 @@ import { sealContent, setDocumentPassword, setPathPassword, removeEmptyProtected
 import { ToolbarIcon } from "./components/ToolbarIcon";
 import type { ReadingLibrarySession } from "./components/ReadingLibrary";
 import { WorkspaceSwitch } from "./components/WorkspaceSwitch";
+import { WorkspacePanelHeading } from "./components/WorkspacePanelHeading";
 import { PasswordRequestCancelled } from "./lib/password-request";
 import "./components/ReadingLibrary.css";
 import { OverdueTodos } from "./components/OverdueTodos";
@@ -65,14 +66,7 @@ const PDF_DOC_TYPE_LABELS: Record<DocType, string> = {
 const DESKTOP_ACTIVITY_BAR_WIDTH = 44;
 const SIDEBAR_MIN_WIDTH = 360;
 const SIDEBAR_MOBILE_MIN_WIDTH = 240;
-const DEFAULT_READER_PANEL_RATIO = 0.67;
-const MIN_READER_PANEL_RATIO = 0.4;
-const MAX_READER_PANEL_RATIO = 0.9;
-
-const clampReaderSidebarRatio = (ratio: number) => Math.min(
-  MAX_READER_PANEL_RATIO,
-  Math.max(MIN_READER_PANEL_RATIO, Number.isFinite(ratio) ? ratio : DEFAULT_READER_PANEL_RATIO),
-);
+const READER_SIDEBAR_WIDTH_KEY = "nr:readerSidebarW";
 
 const RecycleBin = lazy(() => import("./components/RecycleBin").then((module) => ({ default: module.RecycleBin })));
 const VersionHistory = lazy(() => import("./components/VersionHistory").then((module) => ({ default: module.VersionHistory })));
@@ -1106,12 +1100,12 @@ function App() {
     return Math.max(safeMin, Math.min(maxWidth, width));
   }, []);
   const computeReaderSidebarWidth = useCallback(() => {
-    const viewport = window.innerWidth;
-    const ratio = clampReaderSidebarRatio(config?.reader_sidebar_ratio ?? DEFAULT_READER_PANEL_RATIO);
-    const maxWidth = Math.max(280, viewport - 400);
-    const width = Math.round((viewport - DESKTOP_ACTIVITY_BAR_WIDTH) * ratio);
-    return Math.min(maxWidth, Math.max(computeDefaultSidebarWidth(), width));
-  }, [computeDefaultSidebarWidth, config?.reader_sidebar_ratio]);
+    const saved = Number(localStorage.getItem(READER_SIDEBAR_WIDTH_KEY));
+    const width = Number.isFinite(saved) && saved > 0
+      ? saved
+      : Math.round((window.innerWidth - DESKTOP_ACTIVITY_BAR_WIDTH) / 2);
+    return clampSidebarWidth(width);
+  }, [clampSidebarWidth]);
   const applyPanelSidebarWidth = useCallback((panel: typeof desktopPanel) => {
     if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return;
     const nextWidth = panel === "reader"
@@ -1119,7 +1113,7 @@ function App() {
       : clampSidebarWidth(computeDefaultSidebarWidth(), SIDEBAR_MIN_WIDTH);
     sideDragWidthRef.current = nextWidth;
     setSidebarWidth(nextWidth);
-    localStorage.setItem(SIDEBAR_KEY, String(nextWidth));
+    if (panel !== "reader") localStorage.setItem(SIDEBAR_KEY, String(nextWidth));
   }, [clampSidebarWidth, computeDefaultSidebarWidth, computeReaderSidebarWidth]);
   const setSidebarPanel = useCallback((panel: typeof desktopPanel, toggle = false) => {
     if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) {
@@ -1214,7 +1208,9 @@ function App() {
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
       document.body.style.webkitUserSelect = "";
-      localStorage.setItem(SIDEBAR_KEY, String(sideDragWidthRef.current));
+      const key = desktopPanel === "reader" && !window.matchMedia(MOBILE_VIEWPORT_QUERY).matches
+        ? READER_SIDEBAR_WIDTH_KEY : SIDEBAR_KEY;
+      localStorage.setItem(key, String(sideDragWidthRef.current));
       sideDragCleanupRef.current = null;
     };
 
@@ -1755,8 +1751,7 @@ function App() {
           aria-hidden={mobileDrawerViewport && sidebarHidden || undefined}
           {...(mobileDrawerViewport && sidebarHidden ? { inert: "" } : {})}>
           <div className="desktop-panel-content" style={mobileDrawerViewport ? { display: 'contents' } : undefined} hidden={!mobileDrawerViewport && desktopPanel !== 'tree'}>
-          <div className="sidebar-tabs">
-            {DAILY_NOTES_ENABLED ? <button
+          <WorkspacePanelHeading className="sidebar-tabs" title={DAILY_NOTES_ENABLED ? <button
               className="sidebar-tab sidebar-view-switch"
               onClick={() => handleSetSidebarTab(sidebarTab === 'daily' ? 'tree' : 'daily')}
               title={sidebarTab === 'daily' ? '切换到文档' : '切换到随笔'}
@@ -1767,13 +1762,12 @@ function App() {
               <span className="sidebar-view-switch-label">
                 {sidebarTab === 'daily' ? '随笔' : '文档'}
               </span>
-            </button> : mobileDrawerViewport ? <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} /> : <span className="desktop-panel-title">文档树</span>}
-            <span className="sidebar-tab-spacer" />
+            </button> : mobileDrawerViewport ? <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} /> : "文档树"}>
             <div className="doc-tree-toolbar-host" ref={setDocTreeToolbarHost} />
             <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏" aria-label="隐藏侧栏">
               <ToolbarIcon name="chevronLeft" />
             </button>
-          </div>
+          </WorkspacePanelHeading>
 
           {DAILY_NOTES_ENABLED && <button type="button" className="sidebar-reading-entry" disabled={syncBusy} onClick={() => void openReadingLibrary()} aria-label="打开阅读资料库">
             <ToolbarIcon name="document" />阅读<span>PDF / EPUB</span>
@@ -1897,11 +1891,10 @@ function App() {
           )}
           </div>
           {!mobileDrawerViewport && desktopPanel === 'list' && <section className="sidebar-document-list is-open" aria-label="文档列表分区">
-            <div className="sidebar-document-list-heading">
-              <span className="desktop-panel-title">文档列表</span>
+            <WorkspacePanelHeading className="sidebar-document-list-heading" title="文档列表">
               <div className="doc-tree-toolbar-host" ref={setSidebarBrowserToolbarHost} />
               <button type="button" className="btn-icon" aria-label="隐藏侧栏" onClick={() => setSidebarHidden(true)}><ToolbarIcon name="chevronLeft" /></button>
-            </div>
+            </WorkspacePanelHeading>
             <div id="sidebar-document-browser" className="sidebar-document-list-body">
               <div className="sidebar-document-list-search">
               <button type="button" className="btn-icon" aria-label="快速切换笔记" onClick={() => setQuickSwitcherOpen(true)}><ToolbarIcon name="switchViews" /></button>
@@ -1931,6 +1924,7 @@ function App() {
             {pdfReaderPanel ?? epubReaderPanel ?? (desktopPanel === 'reader' && <Suspense fallback={<div className="doc-tree-loading">正在加载阅读资料…</div>}>
               <ReadingLibrary session={readingLibrarySession.current}
                 showWorkspaceSwitch={false}
+                onHide={() => setSidebarHidden(true)}
                 onClose={() => setSidebarPanel('tree')} onSettings={() => setSettingsOpen(true)}
                 onOpenPdf={id => { setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
                 onOpenEpub={id => { setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }} />
@@ -2224,8 +2218,7 @@ function App() {
         <div className="doc-tree-popup-overlay" onClick={() => setDocTreePopupOpen(false)}>
           <div ref={popupBackdropRef} className="doc-tree-popup-backdrop" aria-hidden="true" />
           <div ref={popupPanelRef} className="doc-tree-popup" role="dialog" aria-modal="true" aria-label="文档视图" onClick={(e) => e.stopPropagation()}>
-            <div className="sidebar-tabs">
-              <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} />
+            <WorkspacePanelHeading className="sidebar-tabs" title={<WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} />}>
               <button className="btn-icon btn-quick-switcher" type="button" aria-label="快速切换笔记" title="快速切换笔记 (Ctrl+P)" onClick={() => {
                 flushSync(() => { setDocTreePopupOpen(false); setQuickSwitcherOpen(true); });
                 document.querySelector<HTMLInputElement>('.quick-switcher-search input')?.focus({ preventScroll: true });
@@ -2233,7 +2226,7 @@ function App() {
               <button className="btn-icon btn-search-toggle" type="button" aria-label="全局搜索" title="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>
               <div className="doc-tree-toolbar-host" ref={setBrowserToolbarHost} />
               <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" title="收起文档视图" aria-label="关闭文档视图" onClick={() => setDocTreePopupOpen(false)}><ToolbarIcon name="chevronLeft" /></button>
-            </div>
+            </WorkspacePanelHeading>
             <div className="doc-tree-popup-body">
               <DocumentBrowser
                 session={documentBrowserSession.current}

@@ -114,13 +114,6 @@ AppConfig:
       default: "#ffd54f"
       description: 编辑器内搜索关键字高亮色
 
-    reader_sidebar_ratio:
-      type: number
-      default: 0.67
-      min: 0.4
-      max: 0.9
-      description: 桌面版阅读资料库侧栏占可见宽度比例（默认 67%）
-
     editor_cjk_spacing:
       type: boolean
       default: true

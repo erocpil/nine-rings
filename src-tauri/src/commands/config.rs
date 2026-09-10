@@ -37,8 +37,6 @@ pub struct AppConfig {
     pub editor_blockquote_indent: i32,
     #[serde(default = "default_editor_search_highlight_color")]
     pub editor_search_highlight_color: String,
-    #[serde(default = "default_reader_sidebar_ratio")]
-    pub reader_sidebar_ratio: f64,
     #[serde(default = "default_true")]
     pub editor_cjk_spacing: bool,
     pub dev_port: i32,
@@ -120,10 +118,6 @@ fn default_editor_search_highlight_color() -> String {
     "#ffd54f".into()
 }
 
-fn default_reader_sidebar_ratio() -> f64 {
-    0.67
-}
-
 fn default_user_language() -> String {
     "zh-CN".into()
 }
@@ -159,7 +153,6 @@ impl Default for AppConfig {
             editor_list_marker_gap: default_editor_list_marker_gap(),
             editor_blockquote_indent: default_editor_blockquote_indent(),
             editor_search_highlight_color: default_editor_search_highlight_color(),
-            reader_sidebar_ratio: default_reader_sidebar_ratio(),
             editor_cjk_spacing: true,
             dev_port: 8000,
             highlight_active_line: true,
@@ -328,7 +321,6 @@ mod tests {
         assert_eq!(config.editor_list_margin_bottom, 0.25);
         assert_eq!(config.editor_list_indent, 1.0);
         assert_eq!(config.editor_search_highlight_color, "#ffd54f");
-        assert!((config.reader_sidebar_ratio - 0.67).abs() < 1e-9);
         assert!(config.editor_cjk_spacing);
         assert!(config.editor_show_status_block_number);
         assert!(config.editor_show_status_bar);

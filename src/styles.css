@@ -366,26 +366,17 @@ body {
 .desktop-activity-bar .btn-icon { width: 36px; height: 36px; border-radius: 6px; color: var(--text-secondary); }
 .desktop-activity-bar .btn-icon[aria-pressed="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .desktop-activity-bar .toolbar-icon { width: 20px; height: 20px; }
-.desktop-panel-title { flex: 1; min-width: 0; padding-inline: 6px; font-size: 13px; font-weight: 600; white-space: nowrap; }
 .desktop-reader-panel { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
 .desktop-reader-panel .pdf-reader { min-width: 0; }
 .desktop-reader-panel .pdf-outline { position: absolute; inset: 0 auto 0 0; z-index: 10; width: min(90%, 340px); box-shadow: 6px 0 20px rgb(0 0 0 / 15%); }
 .desktop-reader-panel .reader-toolbar-controls { flex-wrap: wrap; flex-shrink: 1; gap: 4px; }
 .desktop-reader-panel .reader-toolbar-main { flex-basis: 100%; }
 .desktop-reader-panel .reader-action-label { display: none; }
-.desktop-reader-panel .reading-library-heading { padding: 6px 8px; gap: 4px; }
-.desktop-reader-panel .reading-library-heading button { min-height: 32px; }
 .desktop-reader-panel .reading-library-content { padding: 10px; }
 .desktop-reader-panel .reader-library-imports { flex-wrap: wrap; }
 .desktop-activity-bar + .app-sidebar { max-width: calc(100vw - 400px); }
-.desktop-activity-bar + .app-sidebar .sidebar-tabs,
-.desktop-activity-bar + .app-sidebar .sidebar-document-list-heading { box-sizing: border-box; min-height: 40px; padding: 4px 6px; gap: 4px; }
 .sidebar-document-list { flex: 0 0 auto; min-height: 0; }
 .sidebar-document-list.is-open { display: flex; flex-direction: column; flex: 1 1 50%; overflow: hidden; }
-.sidebar-document-list-heading { display: flex; align-items: center; flex-shrink: 0; min-height: 32px; padding: 0 6px; background: var(--surface); }
-.sidebar-document-list-heading > button { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; padding: 6px 0; border: 0; background: transparent; color: var(--text-secondary); text-align: left; font: 600 12px var(--font); cursor: pointer; }
-.sidebar-document-list-heading .toolbar-icon { width: 16px; height: 16px; }
-.sidebar-document-list-heading > button[aria-expanded="true"] .toolbar-icon { transform: rotate(90deg); }
 .sidebar-document-list-body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .sidebar-document-list-search { display: flex; flex-shrink: 0; padding-inline: 6px; }
 .sidebar-document-list-search > .btn-icon { height: 28px; flex: 0 0 28px; }
@@ -7062,23 +7053,9 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 
 /* ──── Sidebar Tabs ──── */
 
-.sidebar-tabs {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px 6px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  min-height: 44px;
-}
-
 .app-sidebar:focus,
 .doc-tree-popup:focus,
 .mobile-document-drawer-panel:focus { outline: none; }
-
-@media (pointer: coarse) {
-  .sidebar-tabs { height: 52px; min-height: 52px; padding-block: 4px; }
-}
 
 .sidebar-tab {
   background: none;
@@ -7146,10 +7123,6 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 
 @media (pointer: coarse) {
   .workspace-switch { min-height: 44px; }
-}
-
-.sidebar-tab-spacer {
-  flex: 0;
 }
 
 .doc-tree-toolbar-host {
@@ -13089,31 +13062,7 @@ button.doc-tree-toggle:focus-visible {
   }
 }
 
-/* Drawer actions share a compact slot; only the workspace switch stays left. */
-.sidebar-tabs { gap: 2px; }
-.sidebar-tabs > .workspace-switch { margin-right: auto; }
-.sidebar-tabs .doc-tree-toolbar-host { flex: 0 1 auto; margin-left: 0; gap: 2px; }
-.sidebar-tabs > .btn-icon,
-.sidebar-tabs .doc-tree-toolbar-actions > button,
-.sidebar-tabs .doc-tree-toolbar-host > button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 32px;
-  width: 32px;
-  min-width: 32px;
-  height: 40px;
-  min-height: 40px;
-  padding: 0;
-}
 .sidebar-tabs .sidebar-tab-hide::before { content: none; }
-@media (hover: hover) and (pointer: fine) {
-  .sidebar-tabs { min-height: 38px; padding-block: 2px; }
-  .sidebar-tabs > .btn-icon,
-  .sidebar-tabs .doc-tree-toolbar-actions > button,
-  .sidebar-tabs .doc-tree-toolbar-host > button { height: 32px; min-height: 32px; }
-  .sidebar-tabs > .workspace-switch { min-height: 32px; }
-}
 .sidebar-tabs .sidebar-tab-hide:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
 .settings-close .toolbar-icon { width: 20px; height: 20px; }
 

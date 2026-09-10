@@ -1,34 +1,56 @@
 import { expect, test } from "@playwright/test";
 
-test("阅读分栏按配置展开，切换文档分栏恢复紧凑宽度", async ({ page }) => {
+test("阅读分栏默认半宽并记住拖动宽度，三个分栏标题栏一致", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
   const sidebar = page.locator(".app-sidebar");
   const width = () => sidebar.evaluate(el => el.getBoundingClientRect().width);
   const reader = page.getByRole("button", { name: "PDF / EPUB 阅读", exact: true });
   await reader.click();
-  await expect.poll(width).toBeCloseTo(828, 0);
+  await expect.poll(width).toBeCloseTo(618, 0);
+  const heading = sidebar.locator('.workspace-panel-heading').filter({ visible: true });
+  await expect(heading.locator('.workspace-panel-title')).toHaveText('阅读');
+  const headingHeight = await heading.evaluate(el => el.getBoundingClientRect().height);
+  const closeSize = await heading.getByRole('button', { name: '隐藏侧栏' }).evaluate(el => {
+    const rect = el.getBoundingClientRect();
+    return { width: rect.width, height: rect.height };
+  });
   await expect(sidebar.locator(".workspace-switch")).toHaveCount(0);
   await page.setViewportSize({ width: 1600, height: 900 });
-  await expect.poll(width).toBeCloseTo(1043, 0);
+  await expect.poll(width).toBeCloseTo(778, 0);
   await page.getByTitle("设置", { exact: true }).filter({ visible: true }).first().click();
   await page.getByRole("button", { name: /^外观与排版/ }).click();
   const ratio = page.locator(".settings-field").filter({ hasText: "阅读分栏占比" });
-  await expect(ratio.locator(".settings-value")).toHaveText("67%");
-  await page.getByRole("button", { name: "减小阅读分栏占比" }).click();
-  await expect(ratio.locator(".settings-value")).toHaveText("66%");
-  await expect.poll(width).toBeCloseTo(1027, 0);
-  await page.keyboard.press("Escape");
+  await expect(ratio).toHaveCount(0);
+  await page.locator('.settings-close').click();
+  await expect(page.locator('.settings-overlay')).toBeHidden();
+  const divider = await page.locator('.sidebar-divider').boundingBox();
+  await page.mouse.move(divider!.x + divider!.width / 2, divider!.y + 100);
+  await page.mouse.down();
+  await page.mouse.move(divider!.x + divider!.width / 2 + 122, divider!.y + 100, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(width).toBeCloseTo(900, 0);
   for (const name of ["文档树", "文档列表"]) {
     await page.locator(".desktop-activity-bar").getByRole("button", { name, exact: true }).click();
     await expect.poll(width).toBeCloseTo(360, 0);
+    await expect(heading.locator('.workspace-panel-title')).toHaveText(name);
+    expect(await heading.evaluate(el => el.getBoundingClientRect().height)).toBe(headingHeight);
+    expect(await heading.getByRole('button', { name: '隐藏侧栏' }).evaluate(el => {
+      const rect = el.getBoundingClientRect();
+      return { width: rect.width, height: rect.height };
+    })).toEqual(closeSize);
     await reader.click();
-    await expect.poll(width).toBeCloseTo(1027, 0);
+    await expect.poll(width).toBeCloseTo(900, 0);
   }
+  // A temporarily smaller window must not overwrite the user's preferred width.
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await expect.poll(width).toBeCloseTo(600, 0);
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await expect.poll(width).toBeCloseTo(900, 0);
   await page.reload();
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
   await reader.click();
-  await expect.poll(width).toBeCloseTo(1027, 0);
+  await expect.poll(width).toBeCloseTo(900, 0);
 });
 
 for (const readonly of [false, true]) {

@@ -91,13 +91,6 @@ const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   sync: "同步与备份",
   advanced: "高级",
 };
-const READER_PANEL_RATIO_MIN = 40;
-const READER_PANEL_RATIO_MAX = 90;
-const READER_PANEL_RATIO_STEP = 1;
-const clampReaderPanelPercent = (value: number) => Math.max(
-  READER_PANEL_RATIO_MIN,
-  Math.min(READER_PANEL_RATIO_MAX, value),
-);
 
 const MD_IMPORT_CHUNK_SIZE = 4;
 
@@ -725,40 +718,6 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                     <span className="theme-label">{label}</span>
                   </button>
                 ))}
-              </div>
-            </Field>
-
-            <Field label="阅读分栏占比" desc="桌面阅读分栏默认占可用宽度的67%，可调整为40%–90%；同时为正文保留必要宽度。" visible={settingsPage === "appearance"}>
-              <div className="settings-stepper">
-                <button
-                  type="button"
-                  className="settings-step-btn"
-                  aria-label="减小阅读分栏占比"
-                  onClick={() => update({
-                    reader_sidebar_ratio: clampReaderPanelPercent(
-                      Math.round(config.reader_sidebar_ratio * 100) - READER_PANEL_RATIO_STEP,
-                    ) / 100,
-                  })}
-                  disabled={Math.round(config.reader_sidebar_ratio * 100) <= READER_PANEL_RATIO_MIN}
-                >
-                  -
-                </button>
-                <span className={`settings-value ${chk("reader_sidebar_ratio", 0)}`}>
-                  {Math.round(config.reader_sidebar_ratio * 100)}%
-                </span>
-                <button
-                  type="button"
-                  className="settings-step-btn"
-                  aria-label="增大阅读分栏占比"
-                  onClick={() => update({
-                    reader_sidebar_ratio: clampReaderPanelPercent(
-                      Math.round(config.reader_sidebar_ratio * 100) + READER_PANEL_RATIO_STEP,
-                    ) / 100,
-                  })}
-                  disabled={Math.round(config.reader_sidebar_ratio * 100) >= READER_PANEL_RATIO_MAX}
-                >
-                  +
-                </button>
               </div>
             </Field>
 

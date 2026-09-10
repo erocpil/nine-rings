@@ -22,7 +22,6 @@ export interface AppConfig {
   editor_blockquote_indent: number;
   editor_search_highlight_color: string;
   editor_cjk_spacing: boolean;
-  reader_sidebar_ratio: number;
   dev_port: number; // 仅 web 模式生效
   highlight_active_line: boolean;
   editor_show_line_numbers: boolean;
@@ -61,7 +60,6 @@ export const DEFAULT_CONFIG: AppConfig = {
   editor_blockquote_indent: 8,
   editor_search_highlight_color: "#ffd54f",
   editor_cjk_spacing: true,
-  reader_sidebar_ratio: 0.67,
   dev_port: 8000,
   highlight_active_line: true,
   editor_show_line_numbers: false,
