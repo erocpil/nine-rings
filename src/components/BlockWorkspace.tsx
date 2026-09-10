@@ -20,6 +20,7 @@ import { codeLineNumbersPluginKey } from "../extensions/CodeBlockLineNumbers";
 import { storeImage } from "../lib/storage/db-images";
 import { blobToBase64 } from "../lib/storage/core";
 import { normalizePastedHTML, normalizeSingleParagraphPaste } from "../extensions/NormalizeSingleParagraphPaste";
+import { CodeMirrorBlockEditor } from "./CodeMirrorBlockEditor";
 
 type Request = { position: number; trigger: HTMLElement; restoreFocus?: boolean };
 type Props = { source: Editor; noteId?: string; readonly?: boolean; sensitive?: boolean; saveStatus?: string; onFlush?: () => Promise<void> };
@@ -309,6 +310,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
   return createPortal(<dialog ref={dialog} tabIndex={-1} className="block-workspace" data-block-type={rootType} role="dialog" aria-modal="true" aria-label={`${name}工作区`}
     onCancel={event => { event.preventDefault(); if (!editor?.view.composing) void close(); }}
     onKeyDownCapture={event => {
+      if (event.target instanceof Element && event.target.closest(".cm-editor")) return;
       if (!editable) return;
       if (event.key === "Escape" && vimMode === "insert") {
         event.preventDefault(); event.stopPropagation(); setVimMode("normal"); return;
@@ -416,7 +418,20 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
     {notice && <div className="block-workspace-notice" data-error={notice.includes("失败")} role="status">{notice}</div>}
     <CopyBlockNotice message={copyNotice} onClose={() => setCopyNotice("")} withinDialog />
     <div ref={body} className="block-workspace-body editor-content" style={{ fontSize: `${fontSize}px`, tabSize }} onPasteCapture={event => { if (!editable) event.preventDefault(); }} onBeforeInputCapture={event => { if (!editable) event.preventDefault(); }}>
-      <EditorContent editor={editor} />
+      {editable && rootType === "codeBlock" ? (
+        <CodeMirrorBlockEditor
+          value={initial.textContent}
+          onChange={(value) => {
+            const node = source.state.doc.nodeAt(position.current);
+            if (!node || node.textContent === value) return;
+            source.view.dispatch(source.state.tr.replaceWith(
+              position.current + 1,
+              position.current + node.nodeSize - 1,
+              source.schema.text(value),
+            ));
+          }}
+        />
+      ) : <EditorContent editor={editor} />}
     </div>
     {peers.length > 1 && <nav className="block-workspace-navigation" aria-label="同类块导航">
       <button type="button" disabled={closing || peerIndex <= 0} onClick={() => void nextBlock(-1)}><ToolbarIcon name="chevronLeft" />上一个{name}</button>
