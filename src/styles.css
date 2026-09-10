@@ -10435,6 +10435,16 @@ button.doc-tree-toggle:focus-visible {
   background: #34373c;
 }
 
+/* Opening the mobile library must not unmount/reflow the document underneath. */
+.pdf-reader-app.mobile-reading-library-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  height: var(--app-viewport-height, 100dvh);
+  background: var(--bg);
+}
+.mobile-reading-library-layer .pdf-reader-boot { color: var(--text-secondary); }
+
 .pdf-reader-boot {
   display: grid;
   flex: 1;

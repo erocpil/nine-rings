@@ -1652,8 +1652,9 @@ function App() {
     onPullDone={() => window.location.reload()}
   />;
 
-  if (mobileDrawerViewport && readingLibraryOpen) {
-    return <div className="pdf-reader-app">
+  const mobileReadingLibraryOpen = mobileDrawerViewport && readingLibraryOpen;
+  const mobileReadingLibraryPanel = mobileReadingLibraryOpen ? (
+    <div className="pdf-reader-app mobile-reading-library-layer" role="dialog" aria-modal="true" aria-label="阅读分栏">
       {isTauriRuntime() && <Suspense fallback={null}><TitleBar /></Suspense>}
       <div style={{ display: "flex", flex: 1, minHeight: 0 }} {...(settingsOpen ? { inert: "" } : {})}>
         <Suspense fallback={<div className="pdf-reader-boot">正在加载阅读资料库…</div>}>
@@ -1666,13 +1667,15 @@ function App() {
         </Suspense>
       </div>
       <Suspense fallback={null}>{settingsPanel}</Suspense>
-    </div>;
-  }
+    </div>
+  ) : null;
 
   return (
+    <>
     <div
       className={`app ${focusMode ? "app-focus-mode" : ""}`}
       style={editorAppearanceVariables(config ?? undefined)}
+      {...(mobileReadingLibraryOpen ? { inert: "", "aria-hidden": true } : {})}
       {...(protectionBusy || applyingWebUpdate ? { inert: "", "aria-busy": true } : {})}
     >
       {/* 桌面版（Tauri）才需要自定义标题栏；web 版无窗口概念 */}
@@ -2300,7 +2303,7 @@ function App() {
           onClose={() => setQuickSwitcherOpen(false)}
           onSelect={handleQuickSwitch}
         />
-        {settingsPanel}
+        {!mobileReadingLibraryOpen && settingsPanel}
       </Suspense>
       {docTreePopupOpen && (
         <div className="doc-tree-popup-overlay" onClick={() => setDocTreePopupOpen(false)}>
@@ -2390,6 +2393,8 @@ function App() {
       />
 
     </div>
+    {mobileReadingLibraryPanel}
+    </>
   );
 }
 

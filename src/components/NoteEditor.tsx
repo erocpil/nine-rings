@@ -1908,6 +1908,7 @@ function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpen
     if (!editor) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.isComposing || event.keyCode === 229) return;
+      if (editor.view.dom.closest("[inert]")) return;
       const isCtrlF = event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
         && (event.code === "KeyF" || event.key.toLocaleLowerCase() === "f");
       if (isCtrlF) {

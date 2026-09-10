@@ -40,11 +40,27 @@ export function ReaderToolbar({
     if (!toolbar || !reader) return;
     // Floating fullscreen navigation must clear the actual toolbar, including
     // wrapping controls and safe-area padding after rotating a phone.
-    const measure = () => reader.style.setProperty("--reader-toolbar-height", `${toolbar.offsetHeight}px`);
+    const measure = () => {
+      const bounds = reader.getBoundingClientRect();
+      const bar = toolbar.getBoundingClientRect();
+      const height = toolbar.offsetHeight;
+      const surfaceTop = bar.top + toolbar.clientTop + toolbar.clientHeight;
+      const surfaceLeft = bounds.left - bar.left - toolbar.clientLeft;
+      // The dismiss surface starts below the toolbar, not at the viewport top.
+      // A full 100dvh here adds hidden overflow that WebKit can scroll on focus.
+      reader.style.setProperty("--reader-toolbar-height", `${height}px`);
+      reader.style.setProperty("--reader-backdrop-height", `${Math.max(0, bounds.bottom - surfaceTop)}px`);
+      reader.style.setProperty("--reader-backdrop-width", `${bounds.width}px`);
+      reader.style.setProperty("--reader-backdrop-left", `${surfaceLeft}px`);
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(toolbar);
-    return () => { observer.disconnect(); reader.style.removeProperty("--reader-toolbar-height"); };
+    observer.observe(reader);
+    return () => {
+      observer.disconnect();
+      for (const name of ["--reader-toolbar-height", "--reader-backdrop-height", "--reader-backdrop-width", "--reader-backdrop-left"]) reader.style.removeProperty(name);
+    };
   }, []);
   const changeRef = useRef(onPanelChange);
   changeRef.current = onPanelChange;
@@ -112,9 +128,13 @@ export function ReaderToolbar({
     {notice && !activePanel && <div className="reader-toolbar-notice" role="status" aria-live="polite">{notice}</div>}
     {activePanel && activePanel !== "search" && <button
       type="button" className="reader-panel-backdrop" tabIndex={-1} aria-label="关闭阅读工具面板"
-      onPointerDown={(event) => event.preventDefault()} onClick={() => {
+      onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); }} onClick={(event) => {
+        event.stopPropagation();
+        // Pointer dismissal must not pull focus (and the iOS visual viewport)
+        // back to the top toolbar. Escape/explicit close still restore focus.
+        const focused = document.activeElement;
+        if (focused instanceof HTMLElement && rootRef.current?.querySelector(`[data-reader-panel="${activePanel}"]`)?.contains(focused)) focused.blur();
         onPanelChange(null);
-        rootRef.current?.querySelector<HTMLElement>(`[data-reader-trigger="${activePanel}"]`)?.focus({ preventScroll: true });
       }}
     />}
     {panels.map(({ key, label, content }) => <section

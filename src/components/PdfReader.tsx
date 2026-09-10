@@ -3,6 +3,7 @@ import { ToolbarIcon } from "./ToolbarIcon";
 import { recordReaderDiagnostic } from "../lib/reader-diagnostics";
 import { lockedPdfScale, normalizePdfWidth } from "../lib/reader-width";
 import { PdfPageCache } from "../lib/pdf-page-cache";
+import { capturePdfReadingPosition, pdfPageAtReadingLine, restorePdfReadingPosition, type PdfReadingPosition } from "../lib/pdf-reading-position";
 import { trackPdfCleanup, waitForPdfCleanup } from "../lib/pdf-document-lifecycle";
 import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
@@ -254,6 +255,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const zoomAnchorRef = useRef<PdfZoomAnchor | null>(null);
   const zoomPreviewFrameRef = useRef<number | null>(null);
   const pendingPageNavigationRef = useRef<number | null>(null);
+  const pendingReadingPositionRef = useRef<{ page: number; position: PdfReadingPosition | null } | null>(null);
   const annotationDraftRef = useRef<PdfAnnotationDraft | null>(null);
   const annotationManipulationRef = useRef<PdfAnnotationManipulation | null>(null);
   const searchRequestRef = useRef(0);
@@ -273,7 +275,21 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     fitHeight: boolean;
     viewMode: PdfViewMode;
     pageCount: number;
+    position: PdfReadingPosition | null;
   } | null>(null);
+  const captureProgress = useCallback(() => {
+    const progress = latestProgressRef.current;
+    const viewport = viewportRef.current;
+    if (!progress || !viewport || pendingReadingPositionRef.current || pendingPageNavigationRef.current !== null) return progress;
+    const currentPage = progress.viewMode === "vertical"
+      ? pdfPageAtReadingLine(viewport, pageSurfaceRefs.current, progress.pageCount) : progress.page;
+    const surface = pageSurfaceRefs.current.get(currentPage);
+    if (!surface) return progress;
+    const next = { ...progress, page: currentPage,
+      position: pageSizesRef.current.has(currentPage) ? capturePdfReadingPosition(viewport, surface) : null };
+    latestProgressRef.current = next;
+    return next;
+  }, []);
   const [entry, setEntry] = useState<LocalPdfEntry | null>(null);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [loadRevision, setLoadRevision] = useState(0);
@@ -586,7 +602,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
-    const progress = latestProgressRef.current;
+    const progress = captureProgress();
     if (progress) {
       try { await updateLocalPdfProgress(progress.id, progress); }
       catch (reason) {
@@ -602,7 +618,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     } finally {
       if (mountedRef.current) onClose();
     }
-  }, [exitFullscreen, fullscreen, onClose, showActionNotice]);
+  }, [captureProgress, exitFullscreen, fullscreen, onClose, showActionNotice]);
 
   useEffect(() => {
     if (isTauriRuntime()) {
@@ -672,6 +688,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         zoomPreviewFrameRef.current = null;
       }
       zoomAnchorRef.current = null;
+      pendingReadingPositionRef.current = null;
+      pendingPageNavigationRef.current = null;
       pendingZoomCommitRef.current = null;
       renderTasks.forEach((task) => task.cancel());
       textLayers.forEach((textLayer) => textLayer.cancel());
@@ -721,6 +739,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       setPdf(loadedDocument);
       const restoredPage = clampPage(stored.entry.page, loadedDocument.numPages);
       pendingPageNavigationRef.current = restoredPage;
+      pendingReadingPositionRef.current = { page: restoredPage, position: stored.entry.position ?? null };
       setPage(restoredPage);
       setVisibleVerticalPages(new Set([restoredPage]));
       setPageInput(String(restoredPage));
@@ -935,19 +954,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           if (next.size === current.size && [...next].every((pageNumber) => current.has(pageNumber))) return current;
           return next;
         });
-        if (pendingPageNavigationRef.current === null) {
-          const viewportRect = viewport.getBoundingClientRect();
-          const probeX = viewportRect.left + viewportRect.width / 2;
-          const probeY = viewportRect.top + viewportRect.height / 2;
-          let visiblePage = 0;
-          for (const offset of [0, -24, 24, -48, 48]) {
-            const hit = viewport.ownerDocument.elementFromPoint(probeX, probeY + offset);
-            const surface = hit?.closest<HTMLElement>(".pdf-page-surface");
-            visiblePage = Number(surface?.dataset.pdfPage) || 0;
-            if (visiblePage) break;
-          }
-          if (visiblePage) setPage((current) => current === visiblePage ? current : visiblePage);
-        }
+        // Visibility controls raster scheduling only. Reading progress follows
+        // the top reading line on scroll, never an asynchronous observer callback.
       });
     }, {
       root: viewport,
@@ -1286,7 +1294,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       if (closingRef.current) return;
       if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
-      const progress = latestProgressRef.current;
+      const progress = captureProgress();
       if (progress) void updateLocalPdfProgress(progress.id, progress)
         .catch(reason => console.warn("[PDF] 后台保存阅读进度失败:", reason));
     };
@@ -1301,10 +1309,11 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       document.removeEventListener("visibilitychange", visibility);
       window.removeEventListener("pagehide", flush);
     };
-  }, []);
+  }, [captureProgress]);
 
   useEffect(() => {
     if (!pdf || !entry || closingRef.current) return;
+    const previous = latestProgressRef.current;
     latestProgressRef.current = {
       lockedWidthRatio,
       id: entry.id,
@@ -1314,22 +1323,44 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       fitHeight,
       viewMode,
       pageCount: pdf.numPages,
+      position: pendingReadingPositionRef.current?.position
+        ?? (previous?.page === page && previous.id === entry.id ? previous.position : null),
     };
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = window.setTimeout(() => {
-      void updateLocalPdfProgress(entry.id, {
-        lockedWidthRatio,
-        page,
-        zoom,
-        fitWidth,
-        fitHeight,
-        viewMode,
-        pageCount: pdf.numPages,
-      })
+      const progress = captureProgress();
+      if (progress) void updateLocalPdfProgress(progress.id, progress)
         .catch((reason) => console.warn("[PDF] 保存阅读进度失败:", reason));
       saveTimerRef.current = null;
     }, 400);
-  }, [entry, fitHeight, fitWidth, page, pdf, viewMode, zoom, lockedWidthRatio]);
+  }, [captureProgress, entry, fitHeight, fitWidth, page, pdf, viewMode, zoom, lockedWidthRatio]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!pdf || !viewport) return;
+    let frame = 0;
+    const scroll = () => {
+      if (frame || closingRef.current || pendingPageNavigationRef.current !== null || pendingReadingPositionRef.current) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const progress = captureProgress();
+        if (!progress) return;
+        setPage(current => current === progress.page ? current : progress.page);
+        if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = window.setTimeout(() => {
+          saveTimerRef.current = null;
+          const latest = captureProgress();
+          if (latest) void updateLocalPdfProgress(latest.id, latest)
+            .catch(reason => console.warn("[PDF] 保存页内位置失败:", reason));
+        }, 400);
+      });
+    };
+    viewport.addEventListener("scroll", scroll, { passive: true });
+    return () => {
+      viewport.removeEventListener("scroll", scroll);
+      window.cancelAnimationFrame(frame);
+    };
+  }, [captureProgress, pdf]);
 
   useEffect(() => () => {
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
@@ -1339,6 +1370,15 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         .catch((reason) => console.warn("[PDF] 保存最终阅读进度失败:", reason));
     }
   }, []);
+
+  const changePage = useCallback((nextPage: number) => {
+    if (!pdf) return;
+    const next = clampPage(nextPage, pdf.numPages);
+    if (next === page) return;
+    pendingReadingPositionRef.current = null;
+    pendingPageNavigationRef.current = next;
+    setPage(next);
+  }, [page, pdf]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1356,20 +1396,20 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       if (event.target instanceof Element && event.target.closest("input, textarea, select, button, [contenteditable=true]") && event.key !== "Escape") return;
       if (event.key === "ArrowLeft" || event.key === "PageUp") {
         event.preventDefault();
-        setPage((current) => Math.max(1, current - 1));
+        changePage(page - 1);
       } else if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
         event.preventDefault();
-        setPage((current) => Math.min(pdf.numPages, current + 1));
+        changePage(page + 1);
       } else if (event.key === "Escape") {
         if (outlineOpen) { event.preventDefault(); setOutlineOpen(false); }
         else if (fullscreen) void exitFullscreen();
         else void closeReader();
       } else if (event.key === "Home") {
         event.preventDefault();
-        setPage(1);
+        changePage(1);
       } else if (event.key === "End") {
         event.preventDefault();
-        setPage(pdf.numPages);
+        changePage(pdf.numPages);
       } else if (event.key === "+" || event.key === "=") {
         event.preventDefault();
         setFitWidth(false);
@@ -1388,7 +1428,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [closeReader, exitFullscreen, fullscreen, outlineOpen, pdf, setFitWidth]);
+  }, [changePage, closeReader, exitFullscreen, fullscreen, outlineOpen, page, pdf, setFitWidth]);
 
   useEffect(() => {
     if (!pdf || rendering || page >= pdf.numPages) return;
@@ -1406,13 +1446,6 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   }, [page, pdf, rendering]);
 
   useEffect(() => setPageInput(String(page)), [page]);
-
-  const changePage = useCallback((nextPage: number) => {
-    if (!pdf) return;
-    const next = clampPage(nextPage, pdf.numPages);
-    pendingPageNavigationRef.current = next;
-    setPage(next);
-  }, [pdf]);
 
   const currentPageBookmark = bookmarks.find((bookmark) => bookmark.page === page);
 
@@ -2160,21 +2193,28 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     });
   }, [outlineMode, outlineOpen, page]);
 
-  useEffect(() => {
-    if (!pdf || viewMode !== "vertical") return;
+  useLayoutEffect(() => {
+    if (!pdf || loading || viewportWidth <= 0 || viewportHeight <= 0) return;
     if (pendingPageNavigationRef.current !== page) return;
     const target = pageSurfaceRefs.current.get(page);
-    if (!target) return;
-    window.requestAnimationFrame(() => {
-      const viewport = viewportRef.current;
-      if (!viewport) return;
-      viewport.scrollTo({
-        top: Math.max(0, target.offsetTop - 12),
-        left: Math.max(0, target.offsetLeft - 12),
-      });
+    const viewport = viewportRef.current;
+    if (!target || !viewport || !pageSizesRef.current.has(page)) return;
+    const restore = () => {
+      const saved = pendingReadingPositionRef.current;
+      if (saved?.page === page && saved.position) restorePdfReadingPosition(viewport, target, saved.position);
+      else if (viewMode === "vertical") restorePdfReadingPosition(viewport, target, null);
+    };
+    restore();
+    // Raster jobs discover real dimensions. Keep the anchor protected until
+    // this batch finishes; placeholders must not become persisted progress.
+    if (rendering) return;
+    const frame = window.requestAnimationFrame(() => {
+      restore();
+      pendingReadingPositionRef.current = null;
       pendingPageNavigationRef.current = null;
     });
-  }, [page, viewMode, pdf]);
+    return () => window.cancelAnimationFrame(frame);
+  }, [page, viewMode, pdf, loading, rendering, pageSizeRevision, viewportWidth, viewportHeight]);
 
   return (
     <div

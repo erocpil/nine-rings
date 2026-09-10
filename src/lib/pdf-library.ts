@@ -1,4 +1,5 @@
 import { normalizePdfWidth } from "./reader-width";
+import { normalizePdfReadingPosition, type PdfReadingPosition } from "./pdf-reading-position";
 import { PdfFileCache } from "./pdf-file-cache";
 import { readReadingSnapshot, restoreReadingSnapshot } from "./reading-backup-store";
 import { fingerprintReadingFile, validateReadingBackup, type PdfReadingBackup } from "./reading-backup-format";
@@ -26,6 +27,7 @@ export interface LocalPdfEntry {
   fitHeight?: boolean;
   viewMode?: "horizontal" | "vertical";
   pageCount?: number;
+  position?: PdfReadingPosition | null;
 }
 
 export interface LocalPdfHighlight {
@@ -151,6 +153,7 @@ function publicEntry(record: StoredPdfRecord): LocalPdfEntry {
     fitHeight: record.fitHeight,
     viewMode: record.viewMode,
     pageCount: record.pageCount,
+    position: normalizePdfReadingPosition(record.position),
   };
 }
 
@@ -286,6 +289,7 @@ export async function updateLocalPdfProgress(
     fitHeight?: boolean;
     viewMode?: "horizontal" | "vertical";
     pageCount?: number;
+    position?: PdfReadingPosition | null;
   },
 ): Promise<void> {
   return withPdfOperation(id, async () => {
@@ -312,6 +316,9 @@ export async function updateLocalPdfProgress(
       fitHeight: progress.fitHeight ?? record.fitHeight,
       viewMode: progress.viewMode ?? record.viewMode,
       pageCount: progress.pageCount ?? record.pageCount,
+      position: progress.position === undefined
+        ? (progress.page === record.page ? record.position : null)
+        : normalizePdfReadingPosition(progress.position),
       lastOpenedAt: new Date().toISOString(),
     });
     await done;
@@ -487,6 +494,7 @@ export async function restoreLocalPdfReadingBackup(id: string, backup: PdfReadin
       lockedWidthRatio: normalizePdfWidth(backup.progress.lockedWidthRatio),
       fitWidth: backup.progress.fitWidth, fitHeight: backup.progress.fitHeight,
       viewMode: backup.progress.viewMode, pageCount: backup.progress.pageCount ?? current.pageCount,
+      position: normalizePdfReadingPosition(backup.progress.position),
       lastOpenedAt: new Date().toISOString(),
     } : current,
   );

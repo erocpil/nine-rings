@@ -66,6 +66,7 @@ async function seedPdf() {
     zoom: 1.5,
     pageCount: 10,
     lockedWidthRatio: 0.85,
+    position: { x: 0.7, y: 0.2 },
   });
   await addLocalPdfHighlight({
     pdfId: entry.id,
@@ -102,12 +103,24 @@ describe("单书阅读备份", () => {
     expect((await getLocalPdf(target.id))?.entry.name).toBe("renamed.pdf");
     expect((await getLocalPdf(target.id))?.entry.zoom).toBe(1.5);
     expect((await getLocalPdf(target.id))?.entry.lockedWidthRatio).toBe(0.85);
+    expect((await getLocalPdf(target.id))?.entry.position).toEqual({
+      x: 0.7,
+      y: 0.2,
+    });
     await updateLocalPdfProgress(target.id, {
       page: 4,
       zoom: 1,
       lockedWidthRatio: null,
     });
     expect((await getLocalPdf(target.id))?.entry.lockedWidthRatio).toBeNull();
+    if (backup.format !== "pdf") throw new Error("Expected PDF backup");
+    delete backup.progress.position;
+    await restoreReadingBackup(target.id, backup, true);
+    expect((await getLocalPdf(target.id))?.entry.position).toBeNull();
+    backup.progress.position = { x: Infinity, y: 0 };
+    await expect(
+      restoreReadingBackup(target.id, backup, true),
+    ).rejects.toThrow();
   });
 
   it("内容变化但名称和大小相同也拒绝，原书签和进度不变", async () => {

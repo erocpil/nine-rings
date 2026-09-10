@@ -38,9 +38,11 @@
 .reader-toolbar .reader-panel-backdrop {
   position: absolute;
   top: 100%;
-  left: 0;
-  width: 100%;
-  height: 100dvh;
+  left: var(--reader-backdrop-left, 0px);
+  width: var(--reader-backdrop-width, 100%);
+  height: var(--reader-backdrop-height, 0px);
+  min-height: 0;
+  padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -184,6 +186,9 @@
   border-radius: 10px;
   background: var(--bg);
   box-shadow: 0 2px 12px rgb(0 0 0 / 18%);
+  /* Fading chrome must not move the dismiss surface or change its bounds. */
+  transform: none;
+  transition: opacity 120ms ease;
 }
 :is(.pdf-reader-fullscreen, .epub-reader-focus) .reader-toolbar-main { justify-content: flex-end; }
 :is(.pdf-reader-fullscreen, .epub-reader-focus) .pdf-reader-close,

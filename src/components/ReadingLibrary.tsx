@@ -58,6 +58,7 @@ export default function ReadingLibrary({
     headingRef.current?.focus({ preventScroll: true });
   }, []);
   const restoredRef = useRef(false);
+  const [initialReady, setInitialReady] = useState(false);
   const coverRequestRef = useRef(0);
   const coverUrlsRef = useRef<Record<string, string>>({});
   useEffect(
@@ -279,13 +280,17 @@ export default function ReadingLibrary({
       return;
     restoredRef.current = true;
     scrollRef.current.scrollTop = session.scrollTop;
+    setInitialReady(true);
+  }, [pdfLibraryLoading, epubLibraryLoading, session]);
+  useLayoutEffect(() => {
+    if (!initialReady || !scrollRef.current) return;
     const item = Array.from(
       scrollRef.current.querySelectorAll<HTMLElement>("[data-document-id]"),
     ).find((el) => el.dataset.documentId === session.openedId);
     if (document.activeElement === headingRef.current || document.activeElement === document.body) {
       item?.querySelector<HTMLButtonElement>(".reader-library-open")?.focus({ preventScroll: true });
     }
-  }, [pdfLibraryLoading, epubLibraryLoading, session]);
+  }, [initialReady, session]);
   return (
     <section
       className="reading-library-page"
@@ -324,9 +329,12 @@ export default function ReadingLibrary({
           <ToolbarIcon name="chevronLeft" />
         </button>}
       </WorkspacePanelHeading>
+      {!initialReady && <div className="reading-library-loading" role="status">正在读取阅读资料库…</div>}
       <div
         className="reading-library-content"
         ref={scrollRef}
+        aria-busy={!initialReady}
+        {...(!initialReady ? { "data-loading": "true", inert: "" } : {})}
         onScroll={(event) => {
           if (restoredRef.current)
             session.scrollTop = event.currentTarget.scrollTop;
@@ -341,7 +349,7 @@ export default function ReadingLibrary({
             {message}
           </div>
         )}
-        {!pdfLibraryLoading && !epubLibraryLoading && recent && (
+        {recent && (
           <button
             type="button"
             className="reading-library-continue"
@@ -478,7 +486,7 @@ export default function ReadingLibrary({
             </div>
           </div>
         </div>
-        {pdfLibraryLoading || epubLibraryLoading ? (
+        {!initialReady && (pdfLibraryLoading || epubLibraryLoading) ? (
           <div className="pdf-library-empty">正在读取阅读资料库…</div>
         ) : libraryItems.length === 0 ? (
           <div className="pdf-library-empty">

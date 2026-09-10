@@ -56,12 +56,22 @@ async function run() {
     zoom: 1.4,
     fitWidth: false,
     pageCount: 18,
+    position: { x: 0.65, y: 0.3 },
   });
   const progressed = await getLocalPdf(imported.id);
   assert.equal(progressed?.entry.page, 7);
   assert.equal(progressed?.entry.zoom, 1.4);
   assert.equal(progressed?.entry.fitWidth, false);
   assert.equal(progressed?.entry.pageCount, 18);
+  assert.deepEqual(progressed?.entry.position, { x: 0.65, y: 0.3 });
+  await updateLocalPdfProgress(imported.id, { page: 7, zoom: 1.4 });
+  assert.deepEqual((await getLocalPdf(imported.id))?.entry.position, { x: 0.65, y: 0.3 });
+  await resetPdfLibraryConnectionForTests();
+  assert.deepEqual((await getLocalPdf(imported.id))?.entry.position, { x: 0.65, y: 0.3 });
+  await updateLocalPdfProgress(imported.id, { page: 8, zoom: 1.4 });
+  assert.equal((await getLocalPdf(imported.id))?.entry.position, null);
+  await updateLocalPdfProgress(imported.id, { page: 7, zoom: 1.4, position: { x: NaN, y: 0 } });
+  assert.equal((await getLocalPdf(imported.id))?.entry.position, null);
 
   const highlight = await addLocalPdfHighlight({
     pdfId: imported.id,

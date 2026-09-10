@@ -9,11 +9,11 @@ export async function exportReadingBackup(format: "pdf" | "epub", id: string): P
   const base = { kind: "nine-rings-reading-data" as const, version: 1 as const, exportedAt: new Date().toISOString() };
   if (format === "pdf") {
     const { entry, highlights, bookmarks } = await readLocalPdfReadingSnapshot(id);
-    const { page, zoom, fitWidth, fitHeight, viewMode, pageCount, lockedWidthRatio } = entry;
+    const { page, zoom, fitWidth, fitHeight, viewMode, pageCount, lockedWidthRatio, position } = entry;
     backup = {
       ...base, format,
       file: { name: entry.name, size: entry.size, algorithm: "sha256-chunks-v1", fingerprint: await fingerprintReadingFile(entry.blob) },
-      progress: { page, zoom, fitWidth, fitHeight, viewMode, pageCount, lockedWidthRatio }, highlights, bookmarks,
+      progress: { page, zoom, fitWidth, fitHeight, viewMode, pageCount, lockedWidthRatio, position }, highlights, bookmarks,
     };
   } else {
     const { entry, highlights, bookmarks } = await readLocalEpubReadingSnapshot(id);

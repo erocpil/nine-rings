@@ -638,20 +638,22 @@ export function ReadonlyVirtualNote(
     onSearchTargetConsumed?.(target.requestId);
   }, [searchTarget, onSearchTargetConsumed, doc, noteId, jump, openPanel]);
   const mobileDrawerViewport = useMobileViewport();
+  const onOpenSettings = props.onOpenSettings;
   useEffect(
     () =>
       bindViewportEdgeSwipe("right", (touch) => {
         if (!mobileDrawerViewport) return null;
         const viewport = swipeViewport();
-        if (touch.clientY >= viewport.middleY) return props.onOpenSettings ? () => props.onOpenSettings?.() : null;
+        if (touch.clientY >= viewport.middleY) return onOpenSettings ?? null;
         const target = lastMobilePanel.current;
         if (target === "outline" && sections.length === 0) return () => openPanel("bookmarks", true);
         return () => openPanel(target, true);
       }),
-    [mobileDrawerViewport, sections.length, openPanel, props.onOpenSettings],
+    [mobileDrawerViewport, sections.length, openPanel, onOpenSettings],
   );
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
+      if (rootRef.current?.closest("[inert]")) return;
       if (isDocumentFindKeyEvent(event)) {
         event.preventDefault();
         event.stopPropagation();

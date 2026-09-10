@@ -2,7 +2,7 @@ import type { LocalPdfEntry, LocalPdfHighlight, LocalPdfBookmark } from "./pdf-l
 import type { LocalEpubEntry, LocalEpubHighlight, LocalEpubBookmark, LocalEpubLineMerge } from "./epub-library";
 
 export const MAX_READING_BACKUP_BYTES = 20 * 1024 * 1024;
-export type PdfReadingProgress = Pick<LocalPdfEntry, "page" | "zoom" | "fitWidth" | "fitHeight" | "viewMode" | "pageCount" | "lockedWidthRatio">;
+export type PdfReadingProgress = Pick<LocalPdfEntry, "page" | "zoom" | "fitWidth" | "fitHeight" | "viewMode" | "pageCount" | "lockedWidthRatio" | "position">;
 export type EpubReadingProgress = Pick<LocalEpubEntry, "chapter" | "chapterCount" | "location" | "scrollProgress" | "chapterProgress" | "fontSize" | "theme" | "themeBackgrounds" | "smartLineMerge" | "contentWidth">;
 interface BaseBackup {
   kind: "nine-rings-reading-data";
@@ -88,6 +88,12 @@ export function validateReadingBackup(value: unknown): asserts value is ReadingB
     if (typeof progress.pageCount === "number" && (progress.page as number) > progress.pageCount) invalid();
     optional(progress, "fitWidth", boolean); optional(progress, "fitHeight", boolean);
     optional(progress, "lockedWidthRatio", (v) => { if (v !== null) number(v, 0.1, 10); });
+    optional(progress, "position", (v) => {
+      if (v === null) return;
+      const position = object(v);
+      number(position.x, -100, 100);
+      number(position.y, -100, 100);
+    });
     optional(progress, "viewMode", (v) => { if (v !== "horizontal" && v !== "vertical") invalid(); });
     for (const item of [...highlights, ...bookmarks]) {
       id(item.pdfId); number(item.page, 1, Number(progress.pageCount) || 1_000_000, true);
