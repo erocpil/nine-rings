@@ -6538,6 +6538,14 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 }
 .sync-remote-preview-actions { display: inline-flex; gap: 5px; margin-left: auto; }
 .settings-btn-compact { min-height: 28px !important; padding: 3px 8px; font-size: 12px; }
+.sidebar-panel-order { display: grid; gap: 5px; margin: 6px 0 10px; }
+.sidebar-panel-order-item { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); cursor: grab; }
+.sidebar-panel-order-item:active { cursor: grabbing; }
+.sidebar-panel-order-item small { margin-left: auto; color: var(--text-muted); }
+.sidebar-panel-order-grip { color: var(--text-muted); letter-spacing: -2px; }
+.sidebar-width-reset-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 7px; background: color-mix(in srgb, var(--surface) 80%, var(--accent)); }
+.sidebar-width-reset-card div { display: grid; gap: 2px; min-width: 0; }
+.sidebar-width-reset-card span { color: var(--text-secondary); font-size: 12px; }
 
 .sync-remote-preview-grid {
   display: grid;
