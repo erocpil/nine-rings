@@ -13,6 +13,7 @@ import {
   getLocalEpub,
   listLocalEpubBookmarks,
   listLocalEpubHighlights,
+  parseEpubArchive,
   parseEpubArchiveAsync,
   resolveEpubPath,
   updateLocalEpubHighlight,
@@ -524,8 +525,22 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     setEntry(null);
     void getLocalEpub(documentId).then(async (stored) => {
       if (!stored) throw new Error("EPUB 不存在或已经被删除");
-      const [parsed, storedHighlights, storedBookmarks] = await Promise.all([
-        parseEpubArchiveAsync(await stored.blob.arrayBuffer()),
+      const archiveBuffer = await stored.blob.arrayBuffer();
+      let parsed: ParsedEpub;
+      try {
+        parsed = await parseEpubArchiveAsync(archiveBuffer);
+      } catch (asyncReason) {
+        // iOS/WebKit occasionally loses the asynchronous fflate callback when
+        // the same reader is closed and opened again in quick succession.
+        // Retry synchronously with the already-read bytes before surfacing an
+        // error; this also avoids asking the user to re-import a valid EPUB.
+        try {
+          parsed = parseEpubArchive(archiveBuffer);
+        } catch {
+          throw asyncReason;
+        }
+      }
+      const [storedHighlights, storedBookmarks] = await Promise.all([
         listLocalEpubHighlights(documentId),
         listLocalEpubBookmarks(documentId),
       ]);
