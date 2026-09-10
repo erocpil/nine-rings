@@ -360,6 +360,20 @@ body {
   flex-shrink: 0;
 }
 
+.sidebar-document-list { flex: 0 0 auto; min-height: 0; border-top: 1px solid var(--border); }
+.sidebar-document-list.is-open { display: flex; flex-direction: column; flex: 1 1 50%; overflow: hidden; }
+.sidebar-document-list-heading { display: flex; align-items: center; flex-shrink: 0; min-height: 32px; padding: 0 6px; background: var(--surface); }
+.sidebar-document-list-heading > button { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; padding: 6px 0; border: 0; background: transparent; color: var(--text-secondary); text-align: left; font: 600 12px var(--font); cursor: pointer; }
+.sidebar-document-list-heading .toolbar-icon { width: 16px; height: 16px; }
+.sidebar-document-list-heading > button[aria-expanded="true"] .toolbar-icon { transform: rotate(90deg); }
+.sidebar-document-list-body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.sidebar-document-list-search { display: flex; flex-shrink: 0; padding-inline: 6px; }
+.sidebar-document-list-search > .btn-icon { height: 28px; flex: 0 0 28px; }
+.sidebar-document-list-body > .document-browser { min-width: 0; }
+.sidebar-document-list .document-browser-tabs { flex-wrap: wrap; gap: 2px; }
+.sidebar-document-list .document-browser-tabs button { min-height: 30px; padding: 3px 4px; font-size: 12px; }
+.sidebar-document-list .document-browser-controls { padding-inline: 6px; }
+
 .sidebar-recycle-btn {
   width: 100%;
   padding: 0;
@@ -3970,7 +3984,7 @@ body {
 
 .app-focus-mode .header-sticky-title {
   font-size: 16px;
-  font-weight: 400;
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 
@@ -4689,9 +4703,9 @@ body {
 /* Desktop mounts the same focus actions into the app header. */
 .desktop-focus-toolbar { flex: 1; min-width: 0; -webkit-app-region: no-drag; }
 .desktop-focus-toolbar ~ .header-spacer { display: none; }
-.desktop-focus-toolbar .mobile-focus-bar { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.desktop-focus-toolbar .mobile-focus-title-wrap { position: relative; flex: 1; min-width: 0; }
-.desktop-focus-toolbar .mobile-focus-title { display: block; width: 100%; border: 0; padding: 0; background: transparent; color: var(--text); font: inherit; font-weight: 400; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; }
+.desktop-focus-toolbar .mobile-focus-bar { display: flex; align-items: center; justify-content: flex-end; gap: 4px; min-width: 0; }
+.desktop-focus-toolbar .mobile-focus-title-wrap { position: relative; flex: 0 1 auto; min-width: 0; max-width: 40vw; margin-right: 12px; }
+.desktop-focus-toolbar .mobile-focus-title { display: block; width: 100%; border: 0; padding: 0; background: transparent; color: var(--text); font: inherit; font-weight: 600; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; }
 .desktop-focus-toolbar .mobile-focus-full-title { position: absolute; top: 100%; left: 0; max-width: 100%; max-height: 40dvh; overflow: auto; overflow-wrap: anywhere; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; z-index: 60; }
 .desktop-focus-toolbar .mobile-focus-bar > button { position: relative; display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 0; margin: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-secondary); cursor: pointer; }
 .desktop-focus-toolbar .focus-mode-icon { width: 17px; height: 17px; }
@@ -9905,7 +9919,7 @@ button.doc-tree-toggle:focus-visible {
     overflow: hidden;
     min-width: 0;
     font-size: calc(var(--editor-font-size) * 1.125);
-    font-weight: 400;
+    font-weight: 600;
     line-height: 1.2;
     text-overflow: ellipsis;
     white-space: nowrap;

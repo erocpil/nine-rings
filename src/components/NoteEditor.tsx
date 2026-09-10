@@ -441,6 +441,7 @@ export interface NoteEditorProps {
   readonly?: boolean;
   onReadonlyChange?: (readonly: boolean) => Promise<void> | void;
   onOpenSettings?: () => void;
+  onOpenProperties?: () => void;
   focusMode: boolean;
   showLineNumbers: boolean;
   showStatusBlockNumber: boolean;
@@ -604,7 +605,7 @@ function DocumentEditor(props: NoteEditorProps) {
   return <FullNoteEditor {...props} initialPdfExportRequest={exportRequested} selectAllOnOpen={selectAllOnOpen} />;
 }
 
-function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
+function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -3572,7 +3573,7 @@ function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpen
       }}
     >
       {focusMode && (
-        <FocusModeBar key={noteId} target={focusToolbarTarget} title={localTitle || "无标题"} leading={onReadonlyChange && (
+        <FocusModeBar key={noteId} target={focusToolbarTarget} onOpenProperties={onOpenProperties} title={localTitle || "无标题"} leading={onReadonlyChange && (
           <button type="button" className="focus-readonly-toggle" aria-pressed={readonly}
             title={readonly ? "点击设为可编辑" : "点击设为只读"}
             aria-label={readonly ? "点击设为可编辑" : "点击设为只读"}

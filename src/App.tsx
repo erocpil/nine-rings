@@ -444,6 +444,8 @@ function App() {
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
   const documentBrowserSession = useRef<DocumentBrowserSession>({});
   const [browserToolbarHost, setBrowserToolbarHost] = useState<HTMLDivElement | null>(null);
+  const [sidebarBrowserOpen, setSidebarBrowserOpen] = useState(false);
+  const [sidebarBrowserToolbarHost, setSidebarBrowserToolbarHost] = useState<HTMLDivElement | null>(null);
   const [docTreeToolbarHost, setDocTreeToolbarHost] = useState<HTMLDivElement | null>(null);
   useDateRollover(setDate);
   const [activeTag, setActiveTag] = useState<string | null>(() => localStorage.getItem(ACTIVE_TAG_KEY));
@@ -1568,18 +1570,6 @@ function App() {
             <span className="arrow arrow-right" />
           </button>
         )}
-        {!mobileDrawerViewport && (
-          <button
-            className="btn-icon btn-doc-tree-popup"
-            onClick={() => setDocTreePopupOpen(true)}
-            title="文档视图"
-            aria-label="文档列表"
-            aria-expanded={docTreePopupOpen}
-            type="button"
-          >
-            <ToolbarIcon name="folder" /><span>文档列表</span>
-          </button>
-        )}
         {DAILY_NOTES_ENABLED && <DatePicker value={currentDate} onChange={handleDateChange} />}
         {TODOS_ENABLED && <DailyOverview />}
         {focusMode && !mobileDrawerViewport && <div className="desktop-focus-toolbar" ref={setFocusToolbarTarget} />}
@@ -1823,6 +1813,35 @@ function App() {
               }}
             />
           )}
+          {!mobileDrawerViewport && <section className={`sidebar-document-list${sidebarBrowserOpen ? " is-open" : ""}`} aria-label="文档列表分区">
+            <div className="sidebar-document-list-heading">
+              <button type="button" aria-expanded={sidebarBrowserOpen} aria-controls="sidebar-document-browser" onClick={() => setSidebarBrowserOpen(open => !open)}>
+                <ToolbarIcon name="chevronRight" />文档列表
+              </button>
+              {sidebarBrowserOpen && <div className="doc-tree-toolbar-host" ref={setSidebarBrowserToolbarHost} />}
+            </div>
+            {sidebarBrowserOpen && <div id="sidebar-document-browser" className="sidebar-document-list-body">
+              <div className="sidebar-document-list-search">
+              <button type="button" className="btn-icon" aria-label="快速切换笔记" onClick={() => setQuickSwitcherOpen(true)}><ToolbarIcon name="switchViews" /></button>
+              <button type="button" className="btn-icon" aria-label="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>
+              </div>
+              <DocumentBrowser
+                session={documentBrowserSession.current}
+                toolbarHost={sidebarBrowserToolbarHost}
+                disabled={syncBusy}
+                initialPath={selectedFolderPath ?? ""}
+                onSelect={(note) => {
+                  setQuery("");
+                  setDocResults(null);
+                  handleSelectNote(note);
+                  setDate(note.date);
+                }}
+                selectedId={selectedNote?.id ?? null}
+                onCreate={(path) => { setSelectedFolderPath(path); setDocCreateOpen(true); }}
+                refreshKey={docTreeKey}
+              />
+            </div>}
+          </section>}
           <div className="sidebar-footer">
             <button type="button" className="sidebar-recycle-btn" onClick={() => setRecycleOpen(true)}>
               🗑 回收站
@@ -1919,6 +1938,7 @@ function App() {
                 {selectedNote && editorReadyNoteId === selectedNote.id ? (
                   <Suspense fallback={<div className="empty-state">正在打开文档...</div>}>
                     <NoteEditor
+                      onOpenProperties={() => setPropertiesOpen(true)}
                       onOpenSettings={() => setSettingsOpen(true)}
                       key={`${selectedNote.id}:${externalReloadKey}`}
                       onFlush={flushAutoSave}

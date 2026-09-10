@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-export function FocusModeBar({ title, leading, children, target }: { title: string; leading?: ReactNode; children: ReactNode; target?: HTMLElement | null }) {
+export function FocusModeBar({ title, leading, children, target, onOpenProperties }: { title: string; leading?: ReactNode; children: ReactNode; target?: HTMLElement | null; onOpenProperties?: () => void }) {
   const [titleOpen, setTitleOpen] = useState(false);
   const titleRef = useRef<HTMLDivElement>(null);
   const tooltipId = useId();
@@ -35,12 +35,12 @@ export function FocusModeBar({ title, leading, children, target }: { title: stri
         <button
           type="button"
           className="mobile-focus-title"
-          aria-label="查看完整标题"
-          aria-expanded={titleOpen}
+          aria-label={target ? "文档属性" : "查看完整标题"}
+          aria-expanded={target ? undefined : titleOpen}
           aria-describedby={titleOpen ? tooltipId : undefined}
-          onClick={() => setTitleOpen((open) => !open)}
+          onClick={() => target ? onOpenProperties?.() : setTitleOpen((open) => !open)}
         >{title}</button>
-        {titleOpen && <div className="mobile-focus-full-title" id={tooltipId} role="tooltip">{title}</div>}
+        {!target && titleOpen && <div className="mobile-focus-full-title" id={tooltipId} role="tooltip">{title}</div>}
       </div>
       {children}
     </div>

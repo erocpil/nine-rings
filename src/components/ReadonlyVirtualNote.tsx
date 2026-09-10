@@ -767,7 +767,7 @@ export function ReadonlyVirtualNote(
       }
     >
       {props.focusMode ? (
-        <FocusModeBar target={props.focusToolbarTarget} title={props.title || "无标题"} leading={
+        <FocusModeBar target={props.focusToolbarTarget} onOpenProperties={props.onOpenProperties} title={props.title || "无标题"} leading={
           <button type="button" className="focus-readonly-toggle" aria-label="点击设为可编辑"
             title="点击设为可编辑" aria-pressed="true" disabled={!props.onReadonlyChange}
             onClick={() => {

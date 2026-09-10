@@ -16,17 +16,17 @@ for (const readonly of [false, true]) {
     }, readonly);
     await expect(page.locator(".note-title")).toHaveValue("桌面导航验证");
     const openList = page.getByRole("button", { name: "文档列表", exact: true });
-    const dialog = page.getByRole("dialog", { name: "文档视图", exact: true });
+    const dialog = page.locator(".app-sidebar .document-browser");
     await expect(openList).toBeVisible();
     await openList.click();
     await expect(dialog).toBeVisible();
-    await page.keyboard.press("Escape");
+    await openList.click();
     await expect(dialog).toHaveCount(0);
     await expect(openList).toBeFocused();
     await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
-    await expect(openList).toBeVisible();
+    await page.getByRole("button", { name: "显示侧栏", exact: true }).click();
     await openList.click();
-    await dialog.getByRole("button", { name: "全局搜索", exact: true }).click();
+    await page.locator(".sidebar-document-list").getByRole("button", { name: "全局搜索", exact: true }).click();
     const input = page.locator(".search-input");
     await expect(input).toBeVisible();
     await expect(input).toBeFocused();
@@ -40,6 +40,14 @@ for (const readonly of [false, true]) {
     }
     await page.getByRole("button", { name: "专注模式", exact: true }).first().click();
     await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
+    const title = page.locator(".desktop-focus-toolbar .mobile-focus-title");
+    await expect(title).toHaveText("桌面导航验证");
+    const titleBox = await title.boundingBox();
+    expect(titleBox!.x).toBeGreaterThan(600);
+    await title.click();
+    await expect(page.locator(".properties-panel")).toBeVisible();
+    await expect(page.locator(".mobile-focus-full-title")).toHaveCount(0);
+    await page.locator(".properties-close").click();
     await page.keyboard.press("Control+Shift+f");
     await expect(input).toBeVisible();
     await expect(input).toBeFocused();
