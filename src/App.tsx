@@ -1149,6 +1149,15 @@ function App() {
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
   }, [applyPanelSidebarWidth, sidebarHidden, desktopPanel]);
+  useEffect(() => {
+    const reset = () => {
+      localStorage.removeItem(READER_SIDEBAR_WIDTH_KEY);
+      localStorage.removeItem(SIDEBAR_KEY);
+      applyPanelSidebarWidth(desktopPanel);
+    };
+    window.addEventListener("nr:reset-sidebar-widths", reset);
+    return () => window.removeEventListener("nr:reset-sidebar-widths", reset);
+  }, [applyPanelSidebarWidth, desktopPanel]);
   const openReadingLibrary = useCallback(async () => {
     if (syncBusy) return;
     try {

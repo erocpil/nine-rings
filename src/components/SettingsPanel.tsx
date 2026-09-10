@@ -739,6 +739,12 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </button>
             </Field>
 
+            <Field label="分栏宽度" desc="重置文档树、文档列表和阅读分栏的宽度偏好" visible={settingsPage === "appearance"}>
+              <button type="button" className="editor-appearance-reset" onClick={() => window.dispatchEvent(new Event("nr:reset-sidebar-widths"))}>
+                重置三个分栏宽度
+              </button>
+            </Field>
+
             <Field label="编辑器" desc="Vim、块编号、状态栏与右键菜单" visible={settingsPage === "appearance"}>
               <button
                 className="editor-appearance-entry"
