@@ -6415,6 +6415,22 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   font-size: 13px;
   color: var(--text-secondary);
 }
+.sync-config-section > .settings-label {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: stretch;
+}
+.sync-config-section > .settings-label > .settings-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.sync-config-section > .settings-inline > .settings-row-inline {
+  flex-direction: row;
+  align-items: center;
+}
 
 .sync-status {
   margin-top: 8px;

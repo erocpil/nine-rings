@@ -611,7 +611,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
           />
         </label>
 
-        <label className="settings-label settings-inline">
+        <div className="settings-label settings-inline">
           Token 保存策略
           <label className="settings-row settings-row-inline">
             <input
@@ -626,7 +626,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
               ? "Token 已持久保存在此浏览器；请仅在可信的个人设备上启用。"
               : "默认仅保留到当前浏览器会话，关闭浏览器后清除。"}
           </span>
-        </label>
+        </div>
       </div>
     </div>
   );
