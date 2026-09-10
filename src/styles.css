@@ -6525,6 +6525,21 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
 }
 
+.sync-preview-feedback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -2px 0 10px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.sync-preview-feedback .ui-operation-error { flex: 1; min-width: 0; }
+
 .sync-remote-preview {
   margin: 10px 0;
   padding: 10px;

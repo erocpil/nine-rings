@@ -388,6 +388,20 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
       {pullPrecheck && (
         <div className="sync-preview-overlay" role="dialog" aria-modal="true" aria-label="GitHub Pull 预览">
         <div className="sync-preview sync-preview-dialog">
+          {(busy || message) && (
+            <div className="sync-preview-feedback" role="status" aria-live="polite" aria-atomic="true">
+              {busy ? (
+                <>
+                  <div className="sync-banner-spinner" />
+                  <span>{BUSY_MESSAGES[busyOperation]}</span>
+                </>
+              ) : message && messageType === "error" ? (
+                <OperationError key={message} message={message} />
+              ) : (
+                <span>{message}</span>
+              )}
+            </div>
+          )}
           <div className="settings-hint" style={{ marginBottom: 8 }}>
             远端备份来源：{formatBackupDevice(pullPrecheck.remote.backupDevice)}
           </div>
