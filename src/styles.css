@@ -400,6 +400,7 @@ body {
 .sidebar-document-list-search { display: flex; flex-shrink: 0; padding-inline: 6px; }
 .sidebar-document-list-search > .btn-icon { height: 28px; flex: 0 0 28px; }
 .sidebar-document-list-body > .document-browser { min-width: 0; }
+.doc-tree { overflow-anchor: none; }
 .sidebar-document-list .document-browser-tabs { flex-wrap: wrap; gap: 2px; }
 .sidebar-document-list .document-browser-tabs button { min-height: 30px; padding: 3px 4px; font-size: 12px; }
 .sidebar-document-list .document-browser-controls { padding-inline: 6px; }

@@ -277,11 +277,16 @@ function DocTree({
 
   const toggleCollapse = (path: string) => {
     setContextMenu(null);
+    const scrollTop = treeScrollRef.current?.scrollTop ?? 0;
     setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(path)) next.delete(path);
       else next.add(path);
       return next;
+    });
+    // 展开/折叠会改变节点高度；恢复滚动锚点，避免浏览器把视图跳到选中文档。
+    window.requestAnimationFrame(() => {
+      if (treeScrollRef.current) treeScrollRef.current.scrollTop = scrollTop;
     });
   };
 
