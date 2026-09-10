@@ -140,6 +140,18 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const settingsPanelRef = useRef<HTMLDivElement>(null);
   const [searchDestination, setSearchDestination] = useState<SettingsSearchEntry | null>(null);
   const settingsResults = searchSettings(settingsQuery, { web: !isTauri(), updates: Boolean(webUpdate) });
+  const persistPanelOrder = (next: string[]) => {
+    setPanelOrder(next);
+    localStorage.setItem("nr:sidebarOrder", next.join(","));
+    window.dispatchEvent(new Event("nr:sidebar-order-change"));
+  };
+  const movePanel = (index: number, offset: -1 | 1) => {
+    const target = index + offset;
+    if (target < 0 || target >= panelOrder.length) return;
+    const next = [...panelOrder];
+    [next[index], next[target]] = [next[target], next[index]];
+    persistPanelOrder(next);
+  };
   useEffect(() => {
     if (!searchDestination) return;
     const frame = requestAnimationFrame(() => {
@@ -815,14 +827,16 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                       const next = [...panelOrder];
                       next.splice(next.indexOf(draggedPanel), 1);
                       next.splice(index, 0, draggedPanel);
-                      setPanelOrder(next);
-                      localStorage.setItem("nr:sidebarOrder", next.join(","));
-                      window.dispatchEvent(new Event("nr:sidebar-order-change"));
+                      persistPanelOrder(next);
                       setDraggedPanel(null);
                     }}>
                       <span className="sidebar-panel-order-position">{String(index + 1).padStart(2, "0")}</span>
                       <span className="sidebar-panel-order-label">{panel === "tree" ? "文档树" : panel === "list" ? "文档列表" : "PDF / EPUB 阅读"}</span>
-                      <span className="sidebar-panel-order-grip" aria-label="拖动排序" title="拖动排序">⠿</span>
+                      <span className="sidebar-panel-order-actions">
+                        <button type="button" className="sidebar-panel-order-button" disabled={index === 0} onClick={() => movePanel(index, -1)} aria-label={`将${panel === "tree" ? "文档树" : panel === "list" ? "文档列表" : "PDF / EPUB 阅读"}上移`} title="上移">↑</button>
+                        <button type="button" className="sidebar-panel-order-button" disabled={index === panelOrder.length - 1} onClick={() => movePanel(index, 1)} aria-label={`将${panel === "tree" ? "文档树" : panel === "list" ? "文档列表" : "PDF / EPUB 阅读"}下移`} title="下移">↓</button>
+                        <span className="sidebar-panel-order-grip" aria-label="拖动排序" title="拖动排序">⠿</span>
+                      </span>
                     </div>
                   ))}
                 </div>
