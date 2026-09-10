@@ -71,7 +71,6 @@ const SETTINGS_CATEGORIES: Array<{
   description: string;
 }> = [
   { id: "appearance", title: "外观与排版", description: "主题、字体、字号与内容间距" },
-  { id: "vim", title: "Vim 编辑", description: "Vim 模式、快捷键和代码块配置" },
   { id: "documents", title: "文档管理", description: "书签、标签与用户信息" },
   { id: "general", title: "工作流与快捷键", description: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "默认视图、待办继承和按键绑定" : "搜索、设置与窗口按键绑定" },
   { id: "sync", title: "同步与备份", description: "GitHub 仓库和同步操作" },
@@ -611,18 +610,18 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 className="settings-back"
                 type="button"
                 onClick={() => setSettingsPage(
-                  settingsPage === "editor"
+                  settingsPage === "editor" || settingsPage === "vim"
                     ? "appearance"
                     : settingsPage === "bookmarks" || settingsPage === "tags" || settingsPage === "profile"
                       ? "documents"
                       : "root",
                 )}
-                aria-label={settingsPage === "editor"
+                aria-label={settingsPage === "editor" || settingsPage === "vim"
                   ? "返回外观与排版"
                   : settingsPage === "bookmarks" || settingsPage === "tags" || settingsPage === "profile"
                     ? "返回文档管理"
                     : "返回设置分类"}
-                title={settingsPage === "editor"
+                title={settingsPage === "editor" || settingsPage === "vim"
                   ? "返回外观与排版"
                   : settingsPage === "bookmarks" || settingsPage === "tags" || settingsPage === "profile"
                     ? "返回文档管理"
@@ -789,7 +788,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </div>
             </Field>
 
-            <Field label="编辑器" desc="Vim、块编号、状态栏与右键菜单" visible={settingsPage === "appearance"}>
+            <Field label="编辑器" desc="块编号、状态栏与右键菜单" visible={settingsPage === "appearance"}>
               <button
                 className="editor-appearance-entry"
                 type="button"
@@ -800,6 +799,16 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                   <small>行为、导航与辅助显示</small>
                 </span>
                 <span className="editor-appearance-entry-action">打开编辑器设置 →</span>
+              </button>
+            </Field>
+
+            <Field label="Vim 编辑" desc="集中管理 Vim 模式、快捷键和代码块弹层配置" visible={settingsPage === "appearance"}>
+              <button className="editor-appearance-entry" type="button" onClick={() => setSettingsPage("vim")}>
+                <span>
+                  <strong>Vim 设置</strong>
+                  <small>模式、快捷键和代码块 Vim 配置</small>
+                </span>
+                <span className="editor-appearance-entry-action">打开 Vim 设置 →</span>
               </button>
             </Field>
 
