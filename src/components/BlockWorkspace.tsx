@@ -90,6 +90,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
   const [color, setColor] = useState("#333333");
   const [whitespace] = useState<WhitespaceMode>(() => blockWorkspacePreferences().whitespace ?? "off");
   const [tabSize] = useState(() => blockWorkspacePreferences().tabSize ?? 4);
+  const [wrap] = useState(() => blockWorkspacePreferences().wrap ?? true);
   const [fontSize] = useState(() => blockWorkspacePreferences().fontSize ?? (Math.round(parseFloat(getComputedStyle(source.view.dom).fontSize)) || 16));
   const [lineNumbers, setLineNumbers] = useState(() => blockWorkspacePreferences().lineNumbers ?? codeLineNumbersPluginKey.getState(source.state) ?? false);
   const [findOpen, setFindOpen] = useState(false);
@@ -421,6 +422,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
       {editable && rootType === "codeBlock" ? (
         <CodeMirrorBlockEditor
           value={initial.textContent}
+          wrap={wrap}
           onModeChange={setVimMode}
           onChange={(value) => {
             const node = source.state.doc.nodeAt(position.current);

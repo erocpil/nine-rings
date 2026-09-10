@@ -101,7 +101,8 @@ function normalizeVimConfig(value: string): string {
   const options = new Map<string, string>();
   for (const line of lines) {
     const match = /^\s*set\s+([^\s=]+)(?:=(\S+))?/.exec(line);
-    if (match) options.set(match[1], match[2] ? `set ${match[1]}=${match[2]}` : `set ${match[1]}`);
+    // 换行由“编辑器排版 → 代码／引用块显示”统一管理，避免 Vim 配置覆盖弹层设置。
+    if (match && match[1] !== "wrap" && match[1] !== "nowrap") options.set(match[1], match[2] ? `set ${match[1]}=${match[2]}` : `set ${match[1]}`);
   }
   return [...options.values()].join("\n");
 }
@@ -114,7 +115,7 @@ function yieldToNextFrame(): Promise<void> {
 }
 
 export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onNotesChanged, libraryError }: Props) {
-  const [vimConfig, setVimConfig] = useState(() => normalizeVimConfig(localStorage.getItem(VIM_CONFIG_KEY) ?? "set number\nset tabstop=4\nset shiftwidth=4\nset expandtab\nset wrap"));
+  const [vimConfig, setVimConfig] = useState(() => normalizeVimConfig(localStorage.getItem(VIM_CONFIG_KEY) ?? "set number\nset tabstop=4\nset shiftwidth=4\nset expandtab"));
   const [panelOrder, setPanelOrder] = useState<string[]>(() => {
     const saved = localStorage.getItem("nr:sidebarOrder")?.split(",") ?? [];
     return [...saved.filter((item) => ["tree", "list", "reader"].includes(item)), ...["tree", "list", "reader"].filter((item) => !saved.includes(item))];
@@ -769,13 +770,6 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </button>
             </Field>
 
-            <Field label="代码块弹层自动换行" desc="固定代码块弹层宽度；仅控制超长代码是否换行" visible={settingsPage === "appearance"}>
-              <label className="settings-toggle">
-                <input type="checkbox" checked={config.editor_code_wrap_default} onChange={(e) => update({ editor_code_wrap_default: e.target.checked })} />
-                <span className="toggle-track" /><span className="toggle-label">{config.editor_code_wrap_default ? "开启换行" : "横向滚动"}</span>
-              </label>
-            </Field>
-
             <Field label="编辑器" desc="块编号、状态栏与右键菜单" visible={settingsPage === "appearance"}>
               <button
                 className="editor-appearance-entry"
@@ -952,7 +946,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            <Field label="Vim 配置" desc="代码块弹层仅解析安全的 set 选项；不会执行 VimScript 或插件命令" visible={settingsPage === "vim"}>
+            <Field label="Vim 配置" desc="代码块弹层仅解析安全的 set 选项；换行由编辑器排版统一控制，不会执行 VimScript 或插件命令" visible={settingsPage === "vim"}>
               <div className="vim-config-card">
                 <div className="vim-config-card-heading"><strong>代码块弹层</strong><span>CodeMirror · Vim 键位</span></div>
                 <div className="vim-config-grid">
@@ -961,7 +955,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                     setVimConfig(next); localStorage.setItem(VIM_CONFIG_KEY, next);
                   }}><option value="2">2</option><option value="4">4</option><option value="8">8</option></select></label>
                 </div>
-                <details><summary>高级 set 配置</summary><textarea className="settings-input vim-config-editor" value={vimConfig} spellCheck={false} aria-label="Vim set 配置" onChange={(event) => { setVimConfig(event.target.value); localStorage.setItem(VIM_CONFIG_KEY, event.target.value); }} rows={5} /><div className="settings-hint">支持 number、relativenumber、wrap、nowrap、expandtab、tabstop、shiftwidth、ignorecase、smartcase。</div></details>
+                <details><summary>高级 set 配置</summary><textarea className="settings-input vim-config-editor" value={vimConfig} spellCheck={false} aria-label="Vim set 配置" onChange={(event) => { setVimConfig(event.target.value); localStorage.setItem(VIM_CONFIG_KEY, event.target.value); }} onBlur={() => { const next = normalizeVimConfig(vimConfig); setVimConfig(next); localStorage.setItem(VIM_CONFIG_KEY, next); }} rows={5} /><div className="settings-hint">支持 number、relativenumber、expandtab、tabstop、shiftwidth、ignorecase、smartcase；换行请在编辑器排版中设置。</div></details>
               </div>
             </Field>
 
