@@ -421,6 +421,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
       {editable && rootType === "codeBlock" ? (
         <CodeMirrorBlockEditor
           value={initial.textContent}
+          onModeChange={setVimMode}
           onChange={(value) => {
             const node = source.state.doc.nodeAt(position.current);
             if (!node || node.textContent === value) return;
