@@ -483,6 +483,8 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadRevision, setLoadRevision] = useState(0);
+  const navigationPinned = tocOpen || toolsPanel !== null;
+  const previousNavigationPinnedRef = useRef(false);
 
   useEffect(() => { fullscreenRef.current = fullscreen; }, [fullscreen]);
 
@@ -500,6 +502,11 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     setFocusControlsVisible(true);
     focusControlsTimerRef.current = window.setTimeout(hideFocusControls, 1000);
   }, [hideFocusControls]);
+
+  useEffect(() => {
+    if (fullscreen && previousNavigationPinnedRef.current !== navigationPinned) showFocusControls();
+    previousNavigationPinnedRef.current = fullscreen && navigationPinned;
+  }, [fullscreen, navigationPinned, showFocusControls]);
 
   const toggleFocusControls = useCallback(() => {
     if (!fullscreenRef.current) return;
@@ -782,6 +789,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       if (event.key === "Escape" && lineMergePanelOpen) {
         setLineMergePanelOpen(false);
       }
+      else if (event.key === "Escape" && tocOpen) { event.preventDefault(); setTocOpen(false); }
       else if (event.key === "Escape" && fullscreen) {
         if (!document.fullscreenElement) { setFullscreen(false); onFullscreenChange?.(false); }
       }
@@ -791,7 +799,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [changeChapter, chapter, closeReader, fullscreen, lineMergePanelOpen, onFullscreenChange]);
+  }, [changeChapter, chapter, closeReader, fullscreen, lineMergePanelOpen, onFullscreenChange, tocOpen]);
 
   const showSwipeNotice = useCallback((message: string) => {
     if (swipeNoticeTimerRef.current !== null) window.clearTimeout(swipeNoticeTimerRef.current);
@@ -1246,13 +1254,13 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   });
 
   return (
-    <section ref={readerRef} className={`pdf-reader epub-reader epub-theme-${theme}${fullscreen ? " epub-reader-focus" : ""}${focusControlsVisible ? " epub-focus-controls-visible" : ""}`} aria-label="EPUB 阅读器">
+    <section ref={readerRef} className={`pdf-reader epub-reader epub-theme-${theme}${fullscreen ? " epub-reader-focus" : ""}${focusControlsVisible || (fullscreen && navigationPinned) ? " epub-focus-controls-visible" : ""}`} aria-label="EPUB 阅读器">
       <ReaderToolbar
         format="EPUB" title={book?.title ?? entry?.name ?? "EPUB 阅读器"} onClose={closeReader}
-        activePanel={toolsPanel} onPanelChange={setToolsPanel}
+        activePanel={toolsPanel} onPanelChange={(panel) => { setToolsPanel(panel); if (panel) setTocOpen(false); }}
         libraryActions={<><button type="button" className={tocOpen ? "active" : ""} onClick={() => { setToolsPanel(null); setTocOpen((open) => !open); }} aria-label="EPUB 目录" aria-expanded={tocOpen}>目录</button>
         <button type="button" data-reader-trigger="bookmarks" className={toolsPanel === "bookmarks" ? "active" : ""} aria-expanded={toolsPanel === "bookmarks"} onClick={(event) => { event.stopPropagation(); setTocOpen(false); setToolsPanel((panel) => panel === "bookmarks" ? null : "bookmarks"); }} aria-label="打开 EPUB 书签"><ToolbarIcon name="bookmark" />书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button></>}
-        focusAction={<button type="button" onClick={() => void toggleFullscreen()} aria-label={fullscreen ? "退出 EPUB 专注模式" : "进入 EPUB 专注模式"}><ToolbarIcon name={fullscreen ? "compress" : "expand"} /></button>}
+        focusAction={<button type="button" className={fullscreen ? "epub-focus-exit" : undefined} onClick={() => void toggleFullscreen()} aria-label={fullscreen ? "退出 EPUB 专注模式" : "进入 EPUB 专注模式"}><ToolbarIcon name={fullscreen ? "compress" : "expand"} /></button>}
         onMouseEnter={handleFocusControlsEnter}
         onMouseLeave={handleFocusControlsLeave}
         navigation={<div className="pdf-page-controls epub-chapter-controls">
@@ -1387,7 +1395,6 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
           )}
         </main>
       </div>
-      {fullscreen && <button type="button" className="epub-focus-exit" onMouseEnter={handleFocusControlsEnter} onMouseLeave={handleFocusControlsLeave} onClick={() => void toggleFullscreen()} aria-label="退出 EPUB 专注模式">↙️</button>}
       {swipeNotice && <div className="epub-swipe-notice" role="status">{swipeNotice}</div>}
       {colorPaletteTheme && (
         <aside className="epub-background-palette" role="dialog" aria-modal="true" aria-label="EPUB 背景色板">

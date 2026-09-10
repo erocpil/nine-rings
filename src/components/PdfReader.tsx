@@ -326,19 +326,23 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
 
   const applyFullscreenState = useCallback((next: boolean) => {
     if (!next) setImmersiveFallback(false);
-    if (next) { setToolsPanel(null); setAnnotationTool(null); }
+    if (next) { setToolsPanel(null); setOutlineOpen(false); setAnnotationTool(null); }
     setFullscreenControlsVisible(true);
     setFullscreen(next);
     onFullscreenChange?.(next);
   }, [onFullscreenChange]);
 
   useEffect(() => {
+    if (fullscreen && (outlineOpen || toolsPanel !== null)) {
+      setFullscreenControlsVisible(true);
+      return;
+    }
     if (!fullscreen || !fullscreenControlsVisible) return;
     if (fullscreenHoverRef.current) return;
     const timer = window.setTimeout(() => setFullscreenControlsVisible(false), 1000);
     fullscreenHideTimerRef.current = timer;
     return () => window.clearTimeout(timer);
-  }, [fullscreen, fullscreenControlsVisible]);
+  }, [fullscreen, fullscreenControlsVisible, outlineOpen, toolsPanel]);
 
   useEffect(() => () => {
     if (fullscreenHideTimerRef.current !== null) window.clearTimeout(fullscreenHideTimerRef.current);
@@ -351,10 +355,10 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   }, [fullscreen]);
   const handleFullscreenControlsLeave = useCallback(() => {
     fullscreenHoverRef.current = false;
-    if (!fullscreen || !fullscreenControlsVisible) return;
+    if (!fullscreen || !fullscreenControlsVisible || outlineOpen || toolsPanel !== null) return;
     if (fullscreenHideTimerRef.current !== null) window.clearTimeout(fullscreenHideTimerRef.current);
     fullscreenHideTimerRef.current = window.setTimeout(() => setFullscreenControlsVisible(false), 1000);
-  }, [fullscreen, fullscreenControlsVisible]);
+  }, [fullscreen, fullscreenControlsVisible, outlineOpen, toolsPanel]);
 
   useEffect(() => {
     const updateSelection = () => {
@@ -1343,8 +1347,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       if (!pdf || event.defaultPrevented) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "f") {
         event.preventDefault();
-        if (fullscreen) void exitFullscreen().then(() => setToolsPanel("search"));
-        else setToolsPanel("search");
+        setOutlineOpen(false);
+        setToolsPanel("search");
         searchInputRef.current?.focus();
         searchInputRef.current?.select();
         return;
@@ -1357,7 +1361,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         event.preventDefault();
         setPage((current) => Math.min(pdf.numPages, current + 1));
       } else if (event.key === "Escape") {
-        if (fullscreen) void exitFullscreen();
+        if (outlineOpen) { event.preventDefault(); setOutlineOpen(false); }
+        else if (fullscreen) void exitFullscreen();
         else void closeReader();
       } else if (event.key === "Home") {
         event.preventDefault();
@@ -1383,7 +1388,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [closeReader, exitFullscreen, fullscreen, pdf, setFitWidth]);
+  }, [closeReader, exitFullscreen, fullscreen, outlineOpen, pdf, setFitWidth]);
 
   useEffect(() => {
     if (!pdf || rendering || page >= pdf.numPages) return;
@@ -2174,21 +2179,21 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   return (
     <div
       ref={readerRef}
-      className={`pdf-reader ${fullscreen ? "pdf-reader-fullscreen" : ""} ${immersiveFallback ? "pdf-reader-immersive" : ""} ${fullscreen && !fullscreenControlsVisible ? "pdf-fullscreen-controls-hidden" : ""}`}
+      className={`pdf-reader ${fullscreen ? "pdf-reader-fullscreen" : ""} ${immersiveFallback ? "pdf-reader-immersive" : ""} ${fullscreen && !fullscreenControlsVisible && !outlineOpen && toolsPanel === null ? "pdf-fullscreen-controls-hidden" : ""}`}
       aria-label="PDF 阅读器"
       data-pdf-scroll-quality={fastScrolling ? "preview" : "full"}
     >
       <ReaderToolbar
         format="PDF" title={entry?.name ?? "PDF 阅读器"} onClose={() => void closeReader()}
-        activePanel={toolsPanel} onPanelChange={setToolsPanel} notice={actionNotice}
+        activePanel={toolsPanel} onPanelChange={(panel) => { setToolsPanel(panel); if (panel) setOutlineOpen(false); }} notice={actionNotice}
         libraryActions={<>{pdf && (
           <button
             type="button"
-            className={outlineOpen && outlineMode === "outline" ? "active" : undefined}
-            aria-expanded={outlineOpen && outlineMode === "outline"}
+            className={outlineOpen && outlineMode !== "bookmarks" ? "active" : undefined}
+            aria-expanded={outlineOpen && outlineMode !== "bookmarks"}
             onClick={() => {
-              if (outlineOpen && outlineMode === "outline") setOutlineOpen(false);
-              else { setOutlineMode("outline"); setOutlineOpen(true); }
+              if (outlineOpen && outlineMode !== "bookmarks") setOutlineOpen(false);
+              else { setOutlineMode(outline.length > 0 ? "outline" : "pages"); setOutlineOpen(true); }
             }}
           >目录</button>
         )}
@@ -2207,7 +2212,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
             type="button"
             className={outlineOpen && outlineMode === "bookmarks" ? "active" : undefined}
             aria-expanded={outlineOpen && outlineMode === "bookmarks"}
-            onClick={() => { setOutlineMode("bookmarks"); setOutlineOpen(true); }}
+            onClick={() => { setOutlineMode("bookmarks"); setOutlineOpen(!(outlineOpen && outlineMode === "bookmarks")); }}
             aria-label="打开 PDF 书签"
           >书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button>
         )}</>}
@@ -2217,7 +2222,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
           onClick={() => { setAnnotationTool(null); void toggleFullscreen(); }}
           aria-label={fullscreen ? "退出全屏阅读" : "进入全屏阅读"}
           title={fullscreen ? "退出全屏阅读（Esc）" : "进入全屏阅读"}
-        >{fullscreen ? "⤢" : "⛶"}</button>}
+        ><ToolbarIcon name={fullscreen ? "compress" : "expand"} /></button>}
         navigation={<div className="pdf-page-controls">
           <button type="button" onClick={() => changePage(page - 1)} aria-label="上一页" disabled={!pdf || page <= 1}>‹</button>
           <input

@@ -1912,6 +1912,9 @@ function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpen
         && (event.code === "KeyF" || event.key.toLocaleLowerCase() === "f");
       if (isCtrlF) {
         const target = event.target;
+        // A side-by-side reader owns its own search shortcut, including native
+        // fullscreen. Do not swallow it in the editor's window capture handler.
+        if (target instanceof Element && target.closest(".pdf-reader:not(.epub-reader)")) return;
         const vimMode = getVimEditorMode(editor);
         const isVimEditorTarget = target instanceof Node
           && editor.view.dom.contains(target)

@@ -4,11 +4,12 @@ import { expect, test } from "./helpers/reader-test";
 test.use({ hasTouch: true });
 
 import { createEpubFixture } from "./helpers/reader-fixtures";
+import { openMobileReadingLibrary } from "./helpers/mobile-reading";
 
 async function openFocusReader(page: Page) {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^阅读资料库/ }).click();
+  await openMobileReadingLibrary(page);
   await page.locator('input[type="file"][accept="application/epub+zip,.epub"]').setInputFiles({
     name: "focus-controls.epub", mimeType: "application/epub+zip", buffer: createEpubFixture(),
   });
@@ -16,6 +17,9 @@ async function openFocusReader(page: Page) {
   await expect(frame.getByRole("heading", { name: "第一章" })).toBeVisible();
   await page.getByRole("button", { name: "进入 EPUB 专注模式" }).click();
   await expect(page.locator(".epub-bottom-navigation")).toBeHidden();
+  // The shared fullscreen toolbar now occupies the old entry button position.
+  // Keep the synthetic desktop mouse off it while testing touch auto-hide.
+  await page.mouse.move(8, 500);
   return frame;
 }
 
@@ -240,12 +244,13 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page,
     element.dispatchEvent(touchEnd);
   });
   await expect(page.locator(".epub-bottom-navigation")).toBeVisible();
-  await expect(page.locator(".epub-focus-exit")).toHaveText("↙️");
-  await expect(page.getByRole("button", { name: "回到本章顶部" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "跳到本章末尾" })).toBeVisible();
-  await page.getByRole("button", { name: "回到本章顶部" }).click();
+  await expect(page.locator(".epub-focus-exit svg")).toBeVisible();
+  const focusNavigation = page.locator(".epub-bottom-navigation");
+  await expect(focusNavigation.getByRole("button", { name: "回到本章顶部" })).toBeVisible();
+  await expect(focusNavigation.getByRole("button", { name: "跳到本章末尾" })).toBeVisible();
+  await focusNavigation.getByRole("button", { name: "回到本章顶部" }).click();
   await expect.poll(() => chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollY ?? 0)).toBeLessThan(10);
-  await page.getByRole("button", { name: "跳到本章末尾" }).click();
+  await focusNavigation.getByRole("button", { name: "跳到本章末尾" }).click();
   await expect.poll(() => chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollY ?? 0)).toBeGreaterThan(400);
   await chapterFrame.locator("body").click({ position: { x: 8, y: 8 } });
   await expect(page.locator(".epub-bottom-navigation")).toBeHidden();

@@ -34,6 +34,18 @@ export function ReaderToolbar({
   const rootRef = useRef<HTMLElement>(null);
   useReaderSwipeClickGuard(rootRef);
   const panelId = useId();
+  useLayoutEffect(() => {
+    const toolbar = rootRef.current;
+    const reader = toolbar?.parentElement;
+    if (!toolbar || !reader) return;
+    // Floating fullscreen navigation must clear the actual toolbar, including
+    // wrapping controls and safe-area padding after rotating a phone.
+    const measure = () => reader.style.setProperty("--reader-toolbar-height", `${toolbar.offsetHeight}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(toolbar);
+    return () => { observer.disconnect(); reader.style.removeProperty("--reader-toolbar-height"); };
+  }, []);
   const changeRef = useRef(onPanelChange);
   changeRef.current = onPanelChange;
   const panels: { key: Exclude<ReaderToolPanel, null>; label: string; content: ReactNode }[] = [
