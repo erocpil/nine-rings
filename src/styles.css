@@ -8797,6 +8797,10 @@ button.doc-tree-toggle:focus-visible {
   text-align: right;
 }
 
+.moc-table th.moc-col-date {
+  text-align: right;
+}
+
 .moc-date {
   font-size: 12px;
   color: var(--text-tertiary);
