@@ -1185,6 +1185,7 @@ function App() {
   const sideDragRef = useRef(false);
   const sideStartXRef = useRef(0);
   const sideStartWRef = useRef(0);
+  const sideDragPanelRef = useRef<typeof desktopPanel>(desktopPanel);
   const sideDragWidthRef = useRef(sidebarWidth);
   const sideDragCleanupRef = useRef<(() => void) | null>(null);
 
@@ -1195,6 +1196,10 @@ function App() {
     e.preventDefault();
     e.stopPropagation();
     sideDragRef.current = true;
+    // Capture the panel at pointer-down. React may render a different panel
+    // before pointerup; saving from the latest closure could then overwrite
+    // another panel's preference.
+    sideDragPanelRef.current = desktopPanel;
     sideStartXRef.current = e.clientX;
     sideStartWRef.current = sidebarWidth;
     sideDragWidthRef.current = sidebarWidth;
@@ -1226,7 +1231,7 @@ function App() {
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
       document.body.style.webkitUserSelect = "";
-      const key = sidebarWidthKey(desktopPanel);
+      const key = sidebarWidthKey(sideDragPanelRef.current);
       localStorage.setItem(key, String(sideDragWidthRef.current));
       sideDragCleanupRef.current = null;
     };
@@ -2043,7 +2048,7 @@ function App() {
                 {selectedNote && editorReadyNoteId === selectedNote.id ? (
                   <Suspense fallback={<div className="empty-state">正在打开文档...</div>}>
                     <NoteEditor
-                      onOpenProperties={() => setPropertiesOpen(true)}
+                      onOpenProperties={() => setPropertiesOpen(open => !open)}
                       onOpenSettings={() => setSettingsOpen(true)}
                       key={`${selectedNote.id}:${externalReloadKey}`}
                       onFlush={flushAutoSave}
