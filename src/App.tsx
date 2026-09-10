@@ -1672,13 +1672,23 @@ function App() {
             <button type="button" className="error-dismiss" onClick={clearError} aria-label="关闭错误提示">✕</button>
           </div>
         )}
-        {sidebarHidden && !mobileDrawerViewport && (
+        {!mobileDrawerViewport && (
           <button
             className="btn-icon btn-show-sidebar"
-            onClick={() => setSidebarHidden(false)}
-            title="显示侧栏"
+            onClick={() => {
+              if (sidebarHidden) {
+                // 隐藏状态下重新打开时重新计算当前分栏宽度；若此前保存的是
+                // 0（隐藏哨兵值），computePanelSidebarWidth 会回退到初始宽度。
+                setSidebarHidden(false);
+                applyPanelSidebarWidth(desktopPanel);
+              } else {
+                setSidebarHidden(true);
+              }
+            }}
+            title={sidebarHidden ? "显示侧栏" : "隐藏侧栏"}
+            aria-label={sidebarHidden ? "显示侧栏" : "隐藏侧栏"}
           >
-            <span className="arrow arrow-right" />
+            <span className={`arrow ${sidebarHidden ? "arrow-right" : "arrow-left"}`} />
           </button>
         )}
         {DAILY_NOTES_ENABLED && <DatePicker value={currentDate} onChange={handleDateChange} />}
