@@ -6531,7 +6531,7 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 
 .sync-preview-dialog {
   width: min(860px, 100%);
-  max-height: min(90vh, 760px);
+  max-height: calc(var(--app-viewport-height, 100dvh) - 32px);
   overflow: auto;
   margin: 0;
   /* 弹层自身必须是不透明的；毛玻璃只用于外部遮罩，否则正文会透过来干扰文字。 */
@@ -6806,7 +6806,7 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 
 @media (max-width: 768px) {
   .sync-preview-overlay { padding: max(8px, var(--safe-top, 8px)) max(8px, var(--safe-right, 8px)) max(8px, var(--safe-bottom, 8px)); }
-  .sync-preview-dialog { max-height: min(90vh, 760px); }
+  .sync-preview-dialog { max-height: calc(var(--app-viewport-height, 100dvh) - 16px); }
   .sync-remote-preview-grid { grid-template-columns: 1fr; }
   .sync-remote-preview-heading { flex-wrap: wrap; }
   .sync-remote-preview-actions { width: 100%; margin-left: 0; }
