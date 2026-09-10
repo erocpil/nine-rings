@@ -306,7 +306,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     } finally {
       setBusyOperation(null);
     }
-  }, [cfg, clearMessage, onPullDone, pullPrecheck, showMessage, confirm]);
+  }, [cfg, clearMessage, ignoredRemoteIds, onPullDone, pullPrecheck, showMessage, confirm]);
 
   const handleLocalExport = useCallback(async () => {
     setExportingLocal(true);

@@ -46,6 +46,9 @@
 .block-workspace .code-block-actions { max-width: 100%; overflow-x: auto; }
 .block-workspace-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 8px; }
 .block-workspace-body .ProseMirror { min-height: 80px; outline: none; }
+.codemirror-block-editor { min-height: 160px; padding: 8px; font: 14px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; background: var(--code-bg); }
+.codemirror-block-editor .cm-editor { min-height: 160px; outline: none; }
+.codemirror-block-editor .cm-scroller { overflow: auto; }
 .block-workspace-body .block-workspace-open { display: none; }
 .block-workspace[data-block-type="codeBlock"] .code-block-actions [title="代码行号（仅改变显示）"] { display: none; }
 /* React NodeViews add a renderer wrapper between ProseMirror and the block. */
