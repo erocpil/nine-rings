@@ -1,11 +1,13 @@
 import { normalizeEpubWidth } from "./reader-width";
+import { EpubBookCache } from "./epub-book-cache";
 import { unzip, unzipSync, type Unzipped } from "fflate";
 import { canonicalReadingItem, readReadingSnapshot, restoreReadingSnapshot } from "./reading-backup-store";
 import { fingerprintReadingFile, validateReadingBackup, type EpubReadingBackup } from "./reading-backup-format";
 
 const EPUB_DB_NAME = "nine_rings_epub_library";
-const EPUB_DB_VERSION = 2;
+const EPUB_DB_VERSION = 3;
 const EPUB_STORE = "books";
+const EPUB_FILE_STORE = "files";
 const EPUB_HIGHLIGHT_STORE = "highlights";
 const EPUB_BOOKMARK_STORE = "bookmarks";
 const EPUB_ID_INDEX = "epubId";
@@ -46,8 +48,29 @@ export interface LocalEpubLineMerge {
 }
 
 interface StoredEpubRecord extends LocalEpubEntry {
-  blob: Blob;
+  // Legacy v1/v2 data. Converted on first successful read, never discarded on failure.
+  blob?: Blob;
   coverBlob?: Blob;
+}
+
+interface StoredEpubFile {
+  id: string;
+  bytes: ArrayBuffer;
+  coverBytes?: Uint8Array;
+  coverType?: string;
+}
+
+const parsedBooks = new EpubBookCache();
+const bookOperations = new Map<string, Promise<unknown>>();
+
+function withBookOperation<T>(id: string, operation: () => Promise<T>): Promise<T> {
+  const previous = bookOperations.get(id) ?? Promise.resolve();
+  const task = previous.catch(() => {}).then(operation);
+  bookOperations.set(id, task);
+  void task.finally(() => {
+    if (bookOperations.get(id) === task) bookOperations.delete(id);
+  }).catch(() => {});
+  return task;
 }
 
 export interface EpubTextAnchor {
@@ -129,6 +152,9 @@ function openEpubDatabase(): Promise<IDBDatabase> {
       if (!request.result.objectStoreNames.contains(EPUB_STORE)) {
         request.result.createObjectStore(EPUB_STORE, { keyPath: "id" });
       }
+      if (!request.result.objectStoreNames.contains(EPUB_FILE_STORE)) {
+        request.result.createObjectStore(EPUB_FILE_STORE, { keyPath: "id" });
+      }
       for (const storeName of [EPUB_HIGHLIGHT_STORE, EPUB_BOOKMARK_STORE]) {
         if (!request.result.objectStoreNames.contains(storeName)) {
           const store = request.result.createObjectStore(storeName, { keyPath: "id" });
@@ -144,6 +170,9 @@ function openEpubDatabase(): Promise<IDBDatabase> {
       const database = request.result;
       database.onversionchange = () => {
         database.close();
+        if (openPromise === attempt) openPromise = null;
+      };
+      database.onclose = () => {
         if (openPromise === attempt) openPromise = null;
       };
       resolve(database);
@@ -347,12 +376,18 @@ export function parseEpubArchiveAsync(buffer: ArrayBuffer): Promise<ParsedEpub> 
     let expandedBytes = 0;
     let fileCount = 0;
     let limitExceeded = false;
-    unzip(new Uint8Array(buffer), { filter: (file) => {
+    let terminate: (() => void) | undefined;
+    const timer = setTimeout(() => {
+      terminate?.();
+      reject(new Error("EPUB 解析超时，请重试打开"));
+    }, 30_000);
+    try { terminate = unzip(new Uint8Array(buffer), { filter: (file) => {
       expandedBytes += file.originalSize;
       fileCount += 1;
       limitExceeded ||= expandedBytes > MAX_EXPANDED_EPUB_BYTES || fileCount > MAX_EPUB_FILE_COUNT;
       return !limitExceeded;
     } }, (error, files) => {
+      clearTimeout(timer);
       if (limitExceeded) {
         reject(new Error("EPUB 解压后体积或文件数量超过安全限制"));
         return;
@@ -363,11 +398,11 @@ export function parseEpubArchiveAsync(buffer: ArrayBuffer): Promise<ParsedEpub> 
       }
       try { resolve(parseEpubFiles(files)); }
       catch (reason) { reject(reason); }
-    });
+    }); } catch (reason) { clearTimeout(timer); reject(reason); }
   });
 }
 
-async function assertEpubFile(file: File): Promise<ParsedEpub> {
+async function assertEpubFile(file: File): Promise<{ parsed: ParsedEpub; bytes: ArrayBuffer }> {
   if (file.size <= 0) throw new Error("EPUB 文件为空");
   if (file.size > MAX_LOCAL_EPUB_BYTES) throw new Error("第一版仅支持 100 MiB 以内的 EPUB");
   const signature = new Uint8Array(await file.slice(0, 4).arrayBuffer());
@@ -376,11 +411,12 @@ async function assertEpubFile(file: File): Promise<ParsedEpub> {
   if (estimate?.quota !== undefined && estimate.usage !== undefined && estimate.quota - estimate.usage < file.size * 1.3) {
     throw new Error("浏览器本地存储空间不足，无法保存此 EPUB");
   }
-  return parseEpubArchiveAsync(await file.arrayBuffer());
+  const bytes = await file.arrayBuffer();
+  return { parsed: await parseEpubArchiveAsync(bytes.slice(0)), bytes };
 }
 
 export async function importLocalEpub(file: File): Promise<LocalEpubEntry> {
-  const parsed = await assertEpubFile(file);
+  const { parsed, bytes } = await assertEpubFile(file);
   const timestamp = new Date().toISOString();
   const record: StoredEpubRecord = {
     id: createId(),
@@ -399,13 +435,16 @@ export async function importLocalEpub(file: File): Promise<LocalEpubEntry> {
     theme: "light",
     smartLineMerge: false,
     hasCover: Boolean(parsed.cover),
-    blob: file,
-    coverBlob: parsed.cover ? new Blob([parsed.files[parsed.cover.path]], { type: parsed.cover.mediaType }) : undefined,
   };
   const database = await openEpubDatabase();
-  const transaction = database.transaction(EPUB_STORE, "readwrite");
+  const transaction = database.transaction([EPUB_STORE, EPUB_FILE_STORE], "readwrite");
   const done = transactionDone(transaction);
   transaction.objectStore(EPUB_STORE).put(record);
+  transaction.objectStore(EPUB_FILE_STORE).put({
+    id: record.id, bytes,
+    coverBytes: parsed.cover ? parsed.files[parsed.cover.path] : undefined,
+    coverType: parsed.cover?.mediaType,
+  } satisfies StoredEpubFile);
   await done;
   void globalThis.navigator?.storage?.persist?.().catch(() => false);
   return publicEntry(record);
@@ -420,22 +459,90 @@ export async function listLocalEpubs(): Promise<LocalEpubEntry[]> {
   return records.map(publicEntry).sort((left, right) => right.lastOpenedAt.localeCompare(left.lastOpenedAt));
 }
 
-export async function getLocalEpub(id: string): Promise<{ entry: LocalEpubEntry; blob: Blob } | null> {
+async function readStoredEpub(id: string): Promise<{ entry: LocalEpubEntry; file: StoredEpubFile } | null> {
   const database = await openEpubDatabase();
-  const transaction = database.transaction(EPUB_STORE, "readonly");
+  const transaction = database.transaction([EPUB_STORE, EPUB_FILE_STORE], "readonly");
   const done = transactionDone(transaction);
-  const record = await requestResult<StoredEpubRecord | undefined>(transaction.objectStore(EPUB_STORE).get(id));
+  const [record, file] = await Promise.all([
+    requestResult<StoredEpubRecord | undefined>(transaction.objectStore(EPUB_STORE).get(id)),
+    requestResult<StoredEpubFile | undefined>(transaction.objectStore(EPUB_FILE_STORE).get(id)),
+  ]);
   await done;
-  return record ? { entry: publicEntry(record), blob: record.blob } : null;
+  if (!record) return null;
+  if (file) return { entry: publicEntry(record), file };
+  if (!record.blob) throw new Error("读取 EPUB 原文件失败：本地原文件不存在，请从原文件重新导入；阅读记录仍保留。");
+
+  // Read the complete bytes before opening a write transaction. Reusing an
+  // IDB-backed Blob in every progress write can retain an invalid file handle.
+  let bytes: ArrayBuffer;
+  try { bytes = await record.blob.arrayBuffer(); }
+  catch (reason) {
+    const detail = reason instanceof Error ? `${reason.name}: ${reason.message}` : String(reason);
+    throw new Error(`读取 EPUB 原文件失败：${detail}。请重试；若仍失败，请从原文件重新导入，现有阅读记录不会被删除。`);
+  }
+  if (bytes.byteLength !== record.size) throw new Error("读取 EPUB 原文件失败：文件长度与记录不一致，原记录已保留，请从原文件重新导入。");
+  // Recover the cover from the readable archive if its legacy Blob is broken.
+  let coverBytes: Uint8Array | undefined;
+  let coverType = record.coverBlob?.type;
+  try { if (record.coverBlob) coverBytes = new Uint8Array(await record.coverBlob.arrayBuffer()); }
+  catch { /* The archive below is authoritative. */ }
+  if (record.hasCover && !coverBytes) {
+    const parsed = await parseEpubArchiveAsync(bytes.slice(0));
+    if (parsed.cover) {
+      coverBytes = parsed.files[parsed.cover.path];
+      coverType = parsed.cover.mediaType;
+    }
+  }
+  const converted: StoredEpubFile = { id, bytes, coverBytes, coverType };
+  const migration = database.transaction([EPUB_STORE, EPUB_FILE_STORE], "readwrite");
+  const migrated = transactionDone(migration);
+  const store = migration.objectStore(EPUB_STORE);
+  // Another tab may have updated progress or deleted the book while reading bytes.
+  const latest = await requestResult<StoredEpubRecord | undefined>(store.get(id));
+  if (!latest) { await migrated; return null; }
+  migration.objectStore(EPUB_FILE_STORE).put(converted);
+  store.put(publicEntry(latest));
+  await migrated;
+  return { entry: publicEntry(latest), file: converted };
+}
+
+export function getLocalEpub(id: string): Promise<{ entry: LocalEpubEntry; blob: Blob } | null> {
+  return withBookOperation(id, async () => {
+    const stored = await readStoredEpub(id);
+    return stored ? { entry: stored.entry, blob: new Blob([stored.file.bytes], { type: stored.entry.mimeType }) } : null;
+  });
+}
+
+/** Each open reads fresh progress, but shares immutable parsed archive data. */
+export function loadLocalEpub(id: string) {
+  return withBookOperation(id, async () => {
+    const stored = await readStoredEpub(id);
+    if (!stored) throw new Error("EPUB 不存在或已经被删除");
+    const book = await parsedBooks.load(id, async () => {
+      try { return await parseEpubArchiveAsync(stored.file.bytes.slice(0)); }
+      catch (reason) {
+        throw new Error(`解析 EPUB 内容失败：${reason instanceof Error ? reason.message : String(reason)}`);
+      }
+    });
+    const release = () => withBookOperation(id, async () => {
+      const database = await openEpubDatabase();
+      const tx = database.transaction(EPUB_STORE, "readonly");
+      const done = transactionDone(tx);
+      const current = await requestResult<StoredEpubRecord | undefined>(tx.objectStore(EPUB_STORE).get(id));
+      await done;
+      if (current?.importedAt === stored.entry.importedAt && current.size === stored.entry.size) {
+        parsedBooks.remember(id, book);
+      }
+    });
+    return { entry: stored.entry, book, release };
+  });
 }
 
 export async function getLocalEpubCover(id: string): Promise<Blob | null> {
-  const database = await openEpubDatabase();
-  const transaction = database.transaction(EPUB_STORE, "readonly");
-  const done = transactionDone(transaction);
-  const record = await requestResult<StoredEpubRecord | undefined>(transaction.objectStore(EPUB_STORE).get(id));
-  await done;
-  return record?.coverBlob ?? null;
+  return withBookOperation(id, async () => {
+    const stored = await readStoredEpub(id);
+    return stored?.file.coverBytes ? new Blob([new Uint8Array(stored.file.coverBytes)], { type: stored.file.coverType }) : null;
+  });
 }
 
 export async function listLocalEpubHighlights(epubId: string): Promise<LocalEpubHighlight[]> {
@@ -512,45 +619,53 @@ export async function updateLocalEpubProgress(
   id: string,
   progress: Pick<LocalEpubEntry, "chapter" | "fontSize" | "theme" | "themeBackgrounds" | "smartLineMerge" | "manualLineMerges"> & { contentWidth?: number; location?: string; scrollProgress?: number; chapterProgress?: Record<string, number> },
 ): Promise<void> {
-  const database = await openEpubDatabase();
-  const transaction = database.transaction(EPUB_STORE, "readwrite");
-  const done = transactionDone(transaction);
-  const store = transaction.objectStore(EPUB_STORE);
-  const record = await requestResult<StoredEpubRecord | undefined>(store.get(id));
-  if (!record) throw new Error("EPUB 已被删除");
-  store.put({
-    ...record,
-    chapter: Math.max(0, Math.min(record.chapterCount - 1, Math.round(progress.chapter))),
-    location: progress.location,
-    scrollProgress: Math.max(0, Math.min(1, progress.scrollProgress ?? 0)),
-    chapterProgress: Object.fromEntries(Object.entries(progress.chapterProgress ?? {})
-      .filter(([path, value]) => Boolean(path) && Number.isFinite(value))
-      .map(([path, value]) => [path, Math.max(0, Math.min(1, value))])),
-    contentWidth: normalizeEpubWidth(progress.contentWidth ?? record.contentWidth),
-    fontSize: Math.max(70, Math.min(180, Math.round(progress.fontSize))),
-    theme: progress.theme,
-    themeBackgrounds: progress.themeBackgrounds,
-    smartLineMerge: Boolean(progress.smartLineMerge),
-    manualLineMerges: progress.manualLineMerges ?? [],
-    lastOpenedAt: new Date().toISOString(),
+  return withBookOperation(id, async () => {
+    const database = await openEpubDatabase();
+    const transaction = database.transaction(EPUB_STORE, "readwrite");
+    const done = transactionDone(transaction);
+    const store = transaction.objectStore(EPUB_STORE);
+    const record = await requestResult<StoredEpubRecord | undefined>(store.get(id));
+    if (!record) { await done; throw new Error("EPUB 已被删除"); }
+    store.put({
+      ...record,
+      chapter: Math.max(0, Math.min(record.chapterCount - 1, Math.round(progress.chapter))),
+      location: progress.location,
+      scrollProgress: Math.max(0, Math.min(1, progress.scrollProgress ?? 0)),
+      chapterProgress: Object.fromEntries(Object.entries(progress.chapterProgress ?? {})
+        .filter(([path, value]) => Boolean(path) && Number.isFinite(value))
+        .map(([path, value]) => [path, Math.max(0, Math.min(1, value))])),
+      contentWidth: normalizeEpubWidth(progress.contentWidth ?? record.contentWidth),
+      fontSize: Math.max(70, Math.min(180, Math.round(progress.fontSize))),
+      theme: progress.theme,
+      themeBackgrounds: progress.themeBackgrounds,
+      smartLineMerge: Boolean(progress.smartLineMerge),
+      manualLineMerges: progress.manualLineMerges ?? [],
+      lastOpenedAt: new Date().toISOString(),
+    });
+    await done;
   });
-  await done;
 }
 
 export async function deleteLocalEpub(id: string): Promise<void> {
-  const database = await openEpubDatabase();
-  const transaction = database.transaction([EPUB_STORE, EPUB_HIGHLIGHT_STORE, EPUB_BOOKMARK_STORE], "readwrite");
-  const done = transactionDone(transaction);
-  transaction.objectStore(EPUB_STORE).delete(id);
-  for (const storeName of [EPUB_HIGHLIGHT_STORE, EPUB_BOOKMARK_STORE]) {
-    const index = transaction.objectStore(storeName).index(EPUB_ID_INDEX);
-    const keys = await requestResult<IDBValidKey[]>(index.getAllKeys(id));
-    keys.forEach((key) => transaction.objectStore(storeName).delete(key));
-  }
-  await done;
+  return withBookOperation(id, async () => {
+    const database = await openEpubDatabase();
+    const transaction = database.transaction([EPUB_STORE, EPUB_FILE_STORE, EPUB_HIGHLIGHT_STORE, EPUB_BOOKMARK_STORE], "readwrite");
+    const done = transactionDone(transaction);
+    transaction.objectStore(EPUB_STORE).delete(id);
+    transaction.objectStore(EPUB_FILE_STORE).delete(id);
+    for (const storeName of [EPUB_HIGHLIGHT_STORE, EPUB_BOOKMARK_STORE]) {
+      const index = transaction.objectStore(storeName).index(EPUB_ID_INDEX);
+      const keys = await requestResult<IDBValidKey[]>(index.getAllKeys(id));
+      keys.forEach((key) => transaction.objectStore(storeName).delete(key));
+    }
+    await done;
+    parsedBooks.invalidate(id);
+  });
 }
 
 export async function resetEpubLibraryConnectionForTests(): Promise<void> {
+  await Promise.allSettled(bookOperations.values());
+  parsedBooks.clear();
   const database = await openPromise?.catch(() => null);
   database?.close();
   openPromise = null;
@@ -559,7 +674,12 @@ export async function resetEpubLibraryConnectionForTests(): Promise<void> {
 const EPUB_READING_STORES = { entry: EPUB_STORE, highlights: EPUB_HIGHLIGHT_STORE, bookmarks: EPUB_BOOKMARK_STORE, owner: "epubId" as const };
 
 export async function readLocalEpubReadingSnapshot(id: string) {
-  return readReadingSnapshot<StoredEpubRecord, LocalEpubHighlight, LocalEpubBookmark>(await openEpubDatabase(), EPUB_READING_STORES, id);
+  return withBookOperation(id, async () => {
+    const stored = await readStoredEpub(id);
+    if (!stored) throw new Error("EPUB 已被删除");
+    const snapshot = await readReadingSnapshot<StoredEpubRecord, LocalEpubHighlight, LocalEpubBookmark>(await openEpubDatabase(), EPUB_READING_STORES, id);
+    return { ...snapshot, entry: { ...snapshot.entry, blob: new Blob([stored.file.bytes], { type: stored.entry.mimeType }) } };
+  });
 }
 
 export async function restoreLocalEpubReadingBackup(id: string, backup: EpubReadingBackup, restoreProgress: boolean) {

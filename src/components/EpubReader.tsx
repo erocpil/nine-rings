@@ -10,11 +10,9 @@ import {
   addLocalEpubHighlight,
   deleteLocalEpubBookmark,
   deleteLocalEpubHighlight,
-  getLocalEpub,
+  loadLocalEpub,
   listLocalEpubBookmarks,
   listLocalEpubHighlights,
-  parseEpubArchive,
-  parseEpubArchiveAsync,
   resolveEpubPath,
   updateLocalEpubHighlight,
   updateLocalEpubProgress,
@@ -332,30 +330,6 @@ function createResourceRegistry(book: ParsedEpub) {
   };
 }
 
-async function parseEpubArchiveResilient(buffer: ArrayBuffer): Promise<ParsedEpub> {
-  let timeout: number | undefined;
-  try {
-    const asyncParse = parseEpubArchiveAsync(buffer.slice(0));
-    const timeoutGuard = new Promise<ParsedEpub>((_, reject) => {
-      timeout = window.setTimeout(() => reject(new Error("EPUB 异步解析超时")), 8000);
-    });
-    try {
-      return await Promise.race([asyncParse, timeoutGuard]);
-    } catch (asyncReason) {
-      // WebKit occasionally drops the worker callback after a reader is
-      // closed and reopened. A synchronous pass is a reliable fallback for
-      // the already-loaded bytes and avoids making the user re-import a book.
-      try {
-        return parseEpubArchive(buffer.slice(0));
-      } catch {
-        throw asyncReason;
-      }
-    }
-  } finally {
-    if (timeout !== undefined) window.clearTimeout(timeout);
-  }
-}
-
 function safeChapterDocument(
   book: ParsedEpub,
   chapterPath: string,
@@ -456,6 +430,12 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const readerRef = useRef<HTMLElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const registryRef = useRef<ReturnType<typeof createResourceRegistry> | null>(null);
+  const closingRef = useRef(false);
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   const scrollSaveTimerRef = useRef<number | null>(null);
   const focusControlsTimerRef = useRef<number | null>(null);
   const focusControlsVisibleRef = useRef(false);
@@ -543,14 +523,15 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
 
   useEffect(() => {
     let cancelled = false;
+    let releaseBook: (() => Promise<void>) | undefined;
     setLoading(true);
     setError(null);
     setBook(null);
     setEntry(null);
-    void getLocalEpub(documentId).then(async (stored) => {
-      if (!stored) throw new Error("EPUB 不存在或已经被删除");
-      const archiveBuffer = await stored.blob.arrayBuffer();
-      const parsed = await parseEpubArchiveResilient(archiveBuffer);
+    void loadLocalEpub(documentId).then(async (stored) => {
+      if (cancelled) return;
+      releaseBook = stored.release;
+      const parsed = stored.book;
       const [storedHighlights, storedBookmarks] = await Promise.all([
         listLocalEpubHighlights(documentId),
         listLocalEpubBookmarks(documentId),
@@ -588,6 +569,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     }).finally(() => { if (!cancelled) setLoading(false); });
     return () => {
       cancelled = true;
+      void releaseBook?.().catch(reason => console.warn("[EPUB] 保留近期阅读缓存失败:", reason));
       if (scrollSaveTimerRef.current !== null) window.clearTimeout(scrollSaveTimerRef.current);
       if (focusControlsTimerRef.current !== null) window.clearTimeout(focusControlsTimerRef.current);
       if (themeLongPressTimerRef.current !== null) window.clearTimeout(themeLongPressTimerRef.current);
@@ -603,7 +585,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     try {
       return { html: safeChapterDocument(book, book.chapters[chapter].path, registryRef.current.resourceUrl, fontSize, contentWidth, theme, themeBackgrounds[theme], smartLineMerge, manualLineMerges), error: null };
     } catch (reason) {
-      return { html: "", error: reason instanceof Error ? reason.message : String(reason) };
+      return { html: "", error: `准备 EPUB 章节失败：${reason instanceof Error ? reason.message : String(reason)}` };
     }
   }, [book, chapter, contentWidth, fontSize, manualLineMerges, smartLineMerge, theme, themeBackgrounds]);
   const displayError = error ?? chapterResult.error;
@@ -766,17 +748,22 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   }, [book, chapter, entry, contentWidth, fontSize, fragment, manualLineMerges, scrollProgress, smartLineMerge, theme, themeBackgrounds]);
 
   useEffect(() => {
+    if (closingRef.current) return;
     void persistProgress().catch((reason) => console.warn("[EPUB] 保存阅读进度失败:", reason));
   }, [persistProgress]);
 
   const closeReader = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
     void persistProgress(readFrameScrollProgress())
       .catch((reason) => console.warn("[EPUB] 保存最终阅读进度失败:", reason))
-      .finally(onClose);
+      .finally(() => { if (mountedRef.current) onClose(); });
   }, [onClose, persistProgress, readFrameScrollProgress]);
 
   useEffect(() => {
-    const flushLiveProgress = () => { void persistProgress(readFrameScrollProgress()).catch(() => {}); };
+    const flushLiveProgress = () => {
+      if (!closingRef.current) void persistProgress(readFrameScrollProgress()).catch(() => {});
+    };
     const handleVisibility = () => { if (document.visibilityState === "hidden") flushLiveProgress(); };
     window.addEventListener("pagehide", flushLiveProgress);
     document.addEventListener("visibilitychange", handleVisibility);

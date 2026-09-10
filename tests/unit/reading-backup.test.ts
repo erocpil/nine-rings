@@ -275,7 +275,8 @@ describe("单书阅读备份", () => {
       theme: "light",
     };
     await new Promise<void>((resolve, reject) => {
-      const open = indexedDB.open("nine_rings_epub_library", 2);
+      const open = indexedDB.open("nine_rings_epub_library");
+      open.onerror = () => reject(open.error);
       open.onsuccess = () => {
         const tx = open.result.transaction("books", "readwrite");
         tx.objectStore("books").put({ ...initial, blob });

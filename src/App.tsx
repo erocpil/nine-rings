@@ -1573,6 +1573,7 @@ function App() {
         )}
         <Suspense fallback={<div className="pdf-reader-boot">正在加载 EPUB 阅读器…</div>}>
           <EpubReader
+            key={epubReaderDocumentId}
             embedded={!mobileDrawerViewport}
             documentId={epubReaderDocumentId}
             initialHighlightId={epubReaderTargetHighlightId}
