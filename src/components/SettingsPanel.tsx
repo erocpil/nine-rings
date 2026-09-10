@@ -23,6 +23,8 @@ import { rebuildWebSearchIndex } from "../lib/web-search-index";
 import { readonlyRenderingEnabled, setReadonlyRenderingEnabled } from "../lib/readonly-rendering";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { searchSettings, type SettingsSearchEntry } from "../lib/settings-search";
+import { useMobileViewport } from "../hooks/useEdgeDrawer";
+import { bindEdgeSwipe } from "../lib/edge-swipe";
 
 
 interface Props {
@@ -139,6 +141,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [editorAppearanceSearch, setEditorAppearanceSearch] = useState("");
   const settingsSearchRef = useRef<HTMLInputElement>(null);
   const settingsPanelRef = useRef<HTMLDivElement>(null);
+  const mobileSettingsViewport = useMobileViewport();
   const [searchDestination, setSearchDestination] = useState<SettingsSearchEntry | null>(null);
   const settingsResults = searchSettings(settingsQuery, { web: !isTauri(), updates: Boolean(webUpdate) });
   const persistPanelOrder = (next: string[]) => {
@@ -153,6 +156,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     [next[index], next[target]] = [next[target], next[index]];
     persistPanelOrder(next);
   };
+  useEffect(() => {
+    const panel = settingsPanelRef.current;
+    if (!open || !mobileSettingsViewport || !panel) return;
+    return bindEdgeSwipe(panel, () => ({ direction: "right", run: onClose }), { withinPanel: true });
+  }, [open, mobileSettingsViewport, onClose]);
   useEffect(() => {
     if (!searchDestination) return;
     const frame = requestAnimationFrame(() => {
