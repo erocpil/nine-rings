@@ -6546,7 +6546,7 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 .sidebar-width-reset-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 7px; background: color-mix(in srgb, var(--surface) 80%, var(--accent)); }
 .sidebar-width-reset-card div { display: grid; gap: 2px; min-width: 0; }
 .sidebar-width-reset-card span { color: var(--text-secondary); font-size: 12px; }
-.vim-config-card { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.vim-config-card { display: grid; gap: 10px; width: min(100%, 520px); box-sizing: border-box; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: 0 2px 8px color-mix(in srgb, var(--text) 6%, transparent); }
 .vim-config-card-heading { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
 .vim-config-card-heading span { color: var(--text-muted); font-size: 12px; }
 .vim-config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
