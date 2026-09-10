@@ -87,6 +87,7 @@
   flex-direction: row;
   align-items: center;
   gap: 8px;
+  container-type: inline-size;
 }
 .reading-library-page .reader-library-segment {
   flex: 1;
@@ -94,7 +95,7 @@
 }
 .reading-library-page .reader-library-segment button {
   flex: 1;
-  min-width: 0;
+  min-width: 52px;
   padding-inline: 6px;
   white-space: nowrap;
 }
@@ -164,4 +165,17 @@
   .reading-library-page .reader-library-view {
     align-self: flex-end;
   }
+}
+
+/* The reading sidebar can be narrower than the phone viewport. Keep filter
+   buttons usable instead of shrinking their labels into wrapped columns. */
+@container (max-width: 250px) {
+  .reading-library-page .reader-library-view { display: none; }
+  .reading-library-page .reader-library-segment { width: 100%; }
+}
+@container (max-width: 190px) {
+  .reading-library-page .reader-library-segment button:nth-child(3) { display: none; }
+}
+@container (max-width: 135px) {
+  .reading-library-page .reader-library-segment button:nth-child(2) { display: none; }
 }
