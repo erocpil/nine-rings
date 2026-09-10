@@ -11107,7 +11107,7 @@ button.doc-tree-toggle:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: #f3f4f6;
+  color: var(--text-primary, #1f2328);
 }
 
 .pdf-reader-error {

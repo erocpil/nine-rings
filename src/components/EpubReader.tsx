@@ -332,6 +332,30 @@ function createResourceRegistry(book: ParsedEpub) {
   };
 }
 
+async function parseEpubArchiveResilient(buffer: ArrayBuffer): Promise<ParsedEpub> {
+  let timeout: number | undefined;
+  try {
+    const asyncParse = parseEpubArchiveAsync(buffer.slice(0));
+    const timeoutGuard = new Promise<ParsedEpub>((_, reject) => {
+      timeout = window.setTimeout(() => reject(new Error("EPUB 异步解析超时")), 8000);
+    });
+    try {
+      return await Promise.race([asyncParse, timeoutGuard]);
+    } catch (asyncReason) {
+      // WebKit occasionally drops the worker callback after a reader is
+      // closed and reopened. A synchronous pass is a reliable fallback for
+      // the already-loaded bytes and avoids making the user re-import a book.
+      try {
+        return parseEpubArchive(buffer.slice(0));
+      } catch {
+        throw asyncReason;
+      }
+    }
+  } finally {
+    if (timeout !== undefined) window.clearTimeout(timeout);
+  }
+}
+
 function safeChapterDocument(
   book: ParsedEpub,
   chapterPath: string,
@@ -526,20 +550,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     void getLocalEpub(documentId).then(async (stored) => {
       if (!stored) throw new Error("EPUB 不存在或已经被删除");
       const archiveBuffer = await stored.blob.arrayBuffer();
-      let parsed: ParsedEpub;
-      try {
-        parsed = await parseEpubArchiveAsync(archiveBuffer);
-      } catch (asyncReason) {
-        // iOS/WebKit occasionally loses the asynchronous fflate callback when
-        // the same reader is closed and opened again in quick succession.
-        // Retry synchronously with the already-read bytes before surfacing an
-        // error; this also avoids asking the user to re-import a valid EPUB.
-        try {
-          parsed = parseEpubArchive(archiveBuffer);
-        } catch {
-          throw asyncReason;
-        }
-      }
+      const parsed = await parseEpubArchiveResilient(archiveBuffer);
       const [storedHighlights, storedBookmarks] = await Promise.all([
         listLocalEpubHighlights(documentId),
         listLocalEpubBookmarks(documentId),
