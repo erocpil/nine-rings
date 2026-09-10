@@ -30,7 +30,7 @@ test("阅读分栏默认半宽并记住拖动宽度，三个分栏标题栏一�
   await page.mouse.move(divider!.x + divider!.width / 2 + 122, divider!.y + 100, { steps: 8 });
   await page.mouse.up();
   await expect.poll(width).toBeCloseTo(900, 0);
-  for (const name of ["文档树", "文档列表"]) {
+  for (const [name, adjustedWidth] of [["文档树", 430], ["文档列表", 470]] as const) {
     await page.locator(".desktop-activity-bar").getByRole("button", { name, exact: true }).click();
     await expect.poll(width).toBeCloseTo(360, 0);
     await expect(heading.locator('.workspace-panel-title')).toHaveText(name);
@@ -39,12 +39,22 @@ test("阅读分栏默认半宽并记住拖动宽度，三个分栏标题栏一�
       const rect = el.getBoundingClientRect();
       return { width: rect.width, height: rect.height };
     })).toEqual(closeSize);
+    const panelDivider = await page.locator('.sidebar-divider').boundingBox();
+    await page.mouse.move(panelDivider!.x + 2, panelDivider!.y + 100);
+    await page.mouse.down();
+    await page.mouse.move(panelDivider!.x + 2 + adjustedWidth - 360, panelDivider!.y + 100, { steps: 6 });
+    await page.mouse.up();
+    await expect.poll(width).toBeCloseTo(adjustedWidth, 0);
     await reader.click();
     await expect.poll(width).toBeCloseTo(900, 0);
+    await page.locator(".desktop-activity-bar").getByRole("button", { name, exact: true }).click();
+    await expect.poll(width).toBeCloseTo(adjustedWidth, 0);
   }
+  await reader.click();
+  await expect.poll(width).toBeCloseTo(900, 0);
   // A temporarily smaller window must not overwrite the user's preferred width.
   await page.setViewportSize({ width: 1000, height: 800 });
-  await expect.poll(width).toBeCloseTo(600, 0);
+  await expect.poll(width).toBeCloseTo(900, 0);
   await page.setViewportSize({ width: 1600, height: 900 });
   await expect.poll(width).toBeCloseTo(900, 0);
   await page.reload();

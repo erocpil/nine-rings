@@ -374,7 +374,7 @@ body {
 .desktop-reader-panel .reader-action-label { display: none; }
 .desktop-reader-panel .reading-library-content { padding: 10px; }
 .desktop-reader-panel .reader-library-imports { flex-wrap: wrap; }
-.desktop-activity-bar + .app-sidebar { max-width: calc(100vw - 400px); }
+.desktop-activity-bar + .app-sidebar { max-width: calc(100vw - 48px); }
 .sidebar-document-list { flex: 0 0 auto; min-height: 0; }
 .sidebar-document-list.is-open { display: flex; flex-direction: column; flex: 1 1 50%; overflow: hidden; }
 .sidebar-document-list-body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
@@ -10218,6 +10218,9 @@ button.doc-tree-toggle:focus-visible {
 .pdf-reader:fullscreen,
 .pdf-reader:-webkit-full-screen,
 .pdf-reader.pdf-reader-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
   width: 100vw;
   height: 100vh;
   min-height: 100vh;

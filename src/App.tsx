@@ -67,6 +67,10 @@ const DESKTOP_ACTIVITY_BAR_WIDTH = 44;
 const SIDEBAR_MIN_WIDTH = 360;
 const SIDEBAR_MOBILE_MIN_WIDTH = 240;
 const READER_SIDEBAR_WIDTH_KEY = "nr:readerSidebarW";
+const TREE_SIDEBAR_WIDTH_KEY = "nr:treeSidebarW";
+const LIST_SIDEBAR_WIDTH_KEY = "nr:listSidebarW";
+const sidebarWidthKey = (panel: "tree" | "list" | "reader") => panel === "reader"
+  ? READER_SIDEBAR_WIDTH_KEY : panel === "list" ? LIST_SIDEBAR_WIDTH_KEY : TREE_SIDEBAR_WIDTH_KEY;
 
 const RecycleBin = lazy(() => import("./components/RecycleBin").then((module) => ({ default: module.RecycleBin })));
 const VersionHistory = lazy(() => import("./components/VersionHistory").then((module) => ({ default: module.VersionHistory })));
@@ -1087,7 +1091,6 @@ function App() {
   };
 
   // ── 侧栏可拖拽分隔条 ──
-  const SIDEBAR_KEY = "nr:sidebarW";
   const computeDefaultSidebarWidth = useCallback(() => {
     const mobile = window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
     if (mobile) return SIDEBAR_MOBILE_MIN_WIDTH;
@@ -1095,7 +1098,9 @@ function App() {
   }, []);
   const clampSidebarWidth = useCallback((width: number, min = 280) => {
     const viewport = window.innerWidth;
-    const maxWidth = Math.max(240, viewport - 400);
+    // The reader may occupy the complete document area. Keep only the
+    // activity bar and the 4px splitter visible at the right edge.
+    const maxWidth = Math.max(240, viewport - DESKTOP_ACTIVITY_BAR_WIDTH - 4);
     const safeMin = Math.min(min, maxWidth);
     return Math.max(safeMin, Math.min(maxWidth, width));
   }, []);
@@ -1106,15 +1111,18 @@ function App() {
       : Math.round((window.innerWidth - DESKTOP_ACTIVITY_BAR_WIDTH) / 2);
     return clampSidebarWidth(width);
   }, [clampSidebarWidth]);
+  const computePanelSidebarWidth = useCallback((panel: typeof desktopPanel) => {
+    if (panel === "reader") return computeReaderSidebarWidth();
+    const saved = Number(localStorage.getItem(sidebarWidthKey(panel)));
+    const width = Number.isFinite(saved) && saved > 0 ? saved : computeDefaultSidebarWidth();
+    return clampSidebarWidth(width, SIDEBAR_MIN_WIDTH);
+  }, [clampSidebarWidth, computeDefaultSidebarWidth, computeReaderSidebarWidth]);
   const applyPanelSidebarWidth = useCallback((panel: typeof desktopPanel) => {
     if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return;
-    const nextWidth = panel === "reader"
-      ? computeReaderSidebarWidth()
-      : clampSidebarWidth(computeDefaultSidebarWidth(), SIDEBAR_MIN_WIDTH);
+    const nextWidth = computePanelSidebarWidth(panel);
     sideDragWidthRef.current = nextWidth;
     setSidebarWidth(nextWidth);
-    if (panel !== "reader") localStorage.setItem(SIDEBAR_KEY, String(nextWidth));
-  }, [clampSidebarWidth, computeDefaultSidebarWidth, computeReaderSidebarWidth]);
+  }, [computePanelSidebarWidth]);
   const setSidebarPanel = useCallback((panel: typeof desktopPanel, toggle = false) => {
     if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) {
       setDesktopPanel(panel);
@@ -1130,7 +1138,7 @@ function App() {
     applyPanelSidebarWidth(panel);
   }, [applyPanelSidebarWidth, desktopPanel, sidebarHidden]);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const saved = localStorage.getItem(SIDEBAR_KEY);
+    const saved = localStorage.getItem(TREE_SIDEBAR_WIDTH_KEY);
     if (!saved || !Number.isFinite(Number(saved))) {
       return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches
         ? SIDEBAR_MOBILE_MIN_WIDTH
@@ -1152,7 +1160,8 @@ function App() {
   useEffect(() => {
     const reset = () => {
       localStorage.removeItem(READER_SIDEBAR_WIDTH_KEY);
-      localStorage.removeItem(SIDEBAR_KEY);
+      localStorage.removeItem(TREE_SIDEBAR_WIDTH_KEY);
+      localStorage.removeItem(LIST_SIDEBAR_WIDTH_KEY);
       applyPanelSidebarWidth(desktopPanel);
     };
     window.addEventListener("nr:reset-sidebar-widths", reset);
@@ -1204,7 +1213,7 @@ function App() {
       if (!sideDragRef.current || pe.pointerId !== pointerId) return;
       if (pe.cancelable) pe.preventDefault();
       const delta = pe.clientX - sideStartXRef.current;
-      const newW = Math.max(280, Math.min(window.innerWidth - 400, sideStartWRef.current + delta));
+      const newW = Math.max(280, Math.min(window.innerWidth - DESKTOP_ACTIVITY_BAR_WIDTH - 4, sideStartWRef.current + delta));
       sideDragWidthRef.current = Math.round(newW);
       setSidebarWidth(sideDragWidthRef.current);
     };
@@ -1217,8 +1226,7 @@ function App() {
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
       document.body.style.webkitUserSelect = "";
-      const key = desktopPanel === "reader" && !window.matchMedia(MOBILE_VIEWPORT_QUERY).matches
-        ? READER_SIDEBAR_WIDTH_KEY : SIDEBAR_KEY;
+      const key = sidebarWidthKey(desktopPanel);
       localStorage.setItem(key, String(sideDragWidthRef.current));
       sideDragCleanupRef.current = null;
     };
