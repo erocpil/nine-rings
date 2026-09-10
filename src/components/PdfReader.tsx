@@ -2134,9 +2134,12 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         libraryActions={<>{pdf && (
           <button
             type="button"
-            className={outlineOpen ? "active" : undefined}
-            aria-expanded={outlineOpen}
-            onClick={() => setOutlineOpen((open) => !open)}
+            className={outlineOpen && outlineMode === "outline" ? "active" : undefined}
+            aria-expanded={outlineOpen && outlineMode === "outline"}
+            onClick={() => {
+              if (outlineOpen && outlineMode === "outline") setOutlineOpen(false);
+              else { setOutlineMode("outline"); setOutlineOpen(true); }
+            }}
           >目录</button>
         )}
         {pdf && (
@@ -2148,6 +2151,15 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
             title={currentPageBookmark ? "取消当前页书签" : "添加当前页书签"}
             aria-pressed={Boolean(currentPageBookmark)}
           ><ToolbarIcon name="bookmark" /></button>
+        )}
+        {pdf && (
+          <button
+            type="button"
+            className={outlineOpen && outlineMode === "bookmarks" ? "active" : undefined}
+            aria-expanded={outlineOpen && outlineMode === "bookmarks"}
+            onClick={() => { setOutlineMode("bookmarks"); setOutlineOpen(true); }}
+            aria-label="打开 PDF 书签"
+          >书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button>
         )}</>}
         focusAction={<button
           type="button"
@@ -2262,7 +2274,13 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         onMouseLeave={handleFullscreenControlsLeave}
       />
 
-      <div className="pdf-reader-body">
+      <div
+        className="pdf-reader-body"
+        onPointerDown={(event) => {
+          if (!outlineOpen || !(event.target instanceof Element) || event.target.closest(".pdf-outline")) return;
+          setOutlineOpen(false);
+        }}
+      >
         {outlineOpen && pdf && (
           <aside className="pdf-outline" aria-label="PDF 目录">
             <div className="pdf-outline-heading">

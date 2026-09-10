@@ -941,6 +941,12 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     frameDocument.addEventListener("scroll", captureScroll, { passive: true, capture: true });
     frameDocument.addEventListener("mouseup", captureFrameSelection);
     frameDocument.addEventListener("selectionchange", () => window.requestAnimationFrame(captureFrameSelection));
+    // iframe 拥有独立的 DOM 事件树，正文点击不会冒泡到阅读器外层。
+    // 在正文区域点击时收起目录/书签面板，避免面板挡住后续阅读。
+    frameDocument.addEventListener("click", () => {
+      setTocOpen(false);
+      setToolsPanel(null);
+    });
     frameDocument.addEventListener("click", (event) => {
       const marked = (event.target as { closest?: (selector: string) => Element | null } | null)?.closest?.("mark.epub-highlight") as HTMLElement | null;
       if (!marked?.dataset.highlightId) return;
@@ -1231,8 +1237,8 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       <ReaderToolbar
         format="EPUB" title={book?.title ?? entry?.name ?? "EPUB 阅读器"} onClose={closeReader}
         activePanel={toolsPanel} onPanelChange={setToolsPanel}
-        libraryActions={<><button type="button" className={tocOpen ? "active" : ""} onClick={() => setTocOpen((open) => !open)} aria-label="EPUB 目录">目录</button>
-        <button type="button" data-reader-trigger="bookmarks" className={toolsPanel === "bookmarks" ? "active" : ""} aria-expanded={toolsPanel === "bookmarks"} onClick={(event) => { event.stopPropagation(); setToolsPanel((panel) => panel === "bookmarks" ? null : "bookmarks"); }} aria-label="打开 EPUB 书签"><ToolbarIcon name="bookmark" />书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button></>}
+        libraryActions={<><button type="button" className={tocOpen ? "active" : ""} onClick={() => { setToolsPanel(null); setTocOpen((open) => !open); }} aria-label="EPUB 目录" aria-expanded={tocOpen}>目录</button>
+        <button type="button" data-reader-trigger="bookmarks" className={toolsPanel === "bookmarks" ? "active" : ""} aria-expanded={toolsPanel === "bookmarks"} onClick={(event) => { event.stopPropagation(); setTocOpen(false); setToolsPanel((panel) => panel === "bookmarks" ? null : "bookmarks"); }} aria-label="打开 EPUB 书签"><ToolbarIcon name="bookmark" />书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button></>}
         focusAction={<button type="button" onClick={() => void toggleFullscreen()} aria-label={fullscreen ? "退出 EPUB 专注模式" : "进入 EPUB 专注模式"}><ToolbarIcon name={fullscreen ? "compress" : "expand"} /></button>}
         onMouseEnter={handleFocusControlsEnter}
         onMouseLeave={handleFocusControlsLeave}
@@ -1321,7 +1327,13 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
           <span>{completedSearchQuery ? (searchMatches.length > 0 ? `${activeSearchIndex + 1}/${searchMatches.length}` : "未找到") : ""}</span>
         </form>}
       />
-      <div className="pdf-reader-body">
+      <div
+        className="pdf-reader-body"
+        onPointerDown={(event) => {
+          if (!tocOpen || !(event.target instanceof Element) || event.target.closest(".pdf-outline")) return;
+          setTocOpen(false);
+        }}
+      >
         {tocOpen && book && (
           <aside className="pdf-outline epub-outline" aria-label="EPUB 目录">
             <div className="pdf-outline-heading">
