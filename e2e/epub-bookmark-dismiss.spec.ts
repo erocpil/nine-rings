@@ -41,6 +41,22 @@ for (const fullscreen of [false, true]) {
         original.call(this, options);
       };
     });
+    // Check the pressed/hover frame, not just geometry after dismissal. A
+    // transparent full-page button must never inherit the toolbar's fill.
+    const beforePress = await page.locator(".epub-chapter-frame").screenshot();
+    await page.mouse.move(12, 740);
+    await expect(backdrop).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect(backdrop).toHaveCSS("-webkit-tap-highlight-color", "rgba(0, 0, 0, 0)");
+    await page.mouse.down();
+    await expect(backdrop).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect(backdrop).toHaveCSS("box-shadow", "none");
+    await expect(backdrop).toHaveCSS("transform", "none");
+    expect(await page.locator(".epub-chapter-frame").screenshot()).toEqual(beforePress);
+    await page.mouse.up();
+    await expect(panel).toBeHidden();
+    await toolbar.getByRole("button", { name: "打开 EPUB 书签" }).click();
+    await expect(panel).toBeVisible();
+    await page.evaluate(() => { (window as unknown as { readerFocusCalls: string[] }).readerFocusCalls = []; });
     await page.touchscreen.tap(12, 740);
     await expect(panel).toBeHidden();
     expect(await page.evaluate(() => (window as unknown as { readerFocusCalls: string[] }).readerFocusCalls)).toEqual([]);

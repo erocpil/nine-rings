@@ -49,7 +49,21 @@
   cursor: default;
   touch-action: none;
 }
-.reader-toolbar .reader-panel-backdrop:hover { background: transparent; }
+/* This full-page hit target is not a visible toolbar control. Generic button
+   hover styles used to paint the entire chapter during pointer dismissal;
+   WebKit's native tap highlight can flash it even with a transparent fill. */
+.reader-toolbar.pdf-reader-toolbar .reader-panel-backdrop,
+.reader-toolbar.pdf-reader-toolbar .reader-panel-backdrop:is(:hover, :active, :focus, :focus-visible) {
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  background: transparent;
+  border: 0;
+  outline: none;
+  box-shadow: none;
+  transform: none;
+  transition: none;
+}
 .reader-tool-panel {
   position: absolute;
   top: calc(100% + 6px);
