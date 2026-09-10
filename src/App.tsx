@@ -2073,7 +2073,7 @@ function App() {
                 className="app-main-editor"
                 style={{ flex: TODOS_ENABLED && todoFlex > 0 ? 10 - todoFlex : 1 }}
               >
-                {selectedNote && editorReadyNoteId === selectedNote.id ? (
+                {selectedNote && (editorReadyNoteId === selectedNote.id || !isTauriRuntime()) ? (
                   <Suspense fallback={<div className="empty-state">正在打开文档...</div>}>
                     <NoteEditor
                       onOpenProperties={() => setPropertiesOpen(open => !open)}
