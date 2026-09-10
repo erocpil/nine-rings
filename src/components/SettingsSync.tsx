@@ -424,6 +424,14 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
                 勾选后安全合并不会导入该文档
                 {ignoredRemoteIds.size > 0 && ` · 已忽略 ${ignoredRemoteIds.size} 篇`}
               </span>
+              <span className="sync-remote-preview-actions">
+                <button type="button" className="settings-btn settings-btn-compact" onClick={() => setIgnoredRemoteIds(new Set(pullPrecheck.remoteDocuments.map((doc) => doc.id)))}>
+                  全部忽略
+                </button>
+                <button type="button" className="settings-btn settings-btn-compact" onClick={() => setIgnoredRemoteIds(new Set())} disabled={ignoredRemoteIds.size === 0}>
+                  清除忽略
+                </button>
+              </span>
             </div>
             <div className="sync-remote-preview-grid">
               <div className="sync-remote-preview-list">

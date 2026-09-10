@@ -6509,6 +6509,8 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   gap: 8px;
   margin-bottom: 8px;
 }
+.sync-remote-preview-actions { display: inline-flex; gap: 5px; margin-left: auto; }
+.settings-btn-compact { min-height: 28px !important; padding: 3px 8px; font-size: 12px; }
 
 .sync-remote-preview-grid {
   display: grid;
@@ -6703,6 +6705,8 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 @media (max-width: 768px) {
   .sync-preview-overlay { padding: 8px; }
   .sync-remote-preview-grid { grid-template-columns: 1fr; }
+  .sync-remote-preview-heading { flex-wrap: wrap; }
+  .sync-remote-preview-actions { width: 100%; margin-left: 0; }
   .sync-remote-preview-detail { max-height: 180px; }
   .sync-diff-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
