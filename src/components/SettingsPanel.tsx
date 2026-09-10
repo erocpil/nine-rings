@@ -43,7 +43,7 @@ interface Props {
   libraryError?: string | null;
 }
 
-type SettingsPage = "root" | "appearance" | "editor" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced";
+type SettingsPage = "root" | "appearance" | "editor" | "panels" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced";
 const EDITOR_APPEARANCE_KEYS: Array<keyof AppConfig> = [
   "note_font_size",
   "editor_font_family",
@@ -71,6 +71,7 @@ const SETTINGS_CATEGORIES: Array<{
   description: string;
 }> = [
   { id: "appearance", title: "外观与排版", description: "主题、字体、字号与内容间距" },
+  { id: "panels", title: "分栏", description: "侧栏顺序、宽度和显示行为" },
   { id: "documents", title: "文档管理", description: "书签、标签与用户信息" },
   { id: "general", title: "工作流与快捷键", description: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "默认视图、待办继承和按键绑定" : "搜索、设置与窗口按键绑定" },
   { id: "sync", title: "同步与备份", description: "GitHub 仓库和同步操作" },
@@ -81,6 +82,7 @@ const SETTINGS_CATEGORIES: Array<{
 const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   root: "设置",
   appearance: "外观与排版",
+  panels: "分栏",
   editor: "编辑器",
   documents: "文档管理",
   bookmarks: "书签",
@@ -104,6 +106,7 @@ function yieldToNextFrame(): Promise<void> {
 
 export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onNotesChanged, libraryError }: Props) {
   const [vimConfig, setVimConfig] = useState(() => localStorage.getItem(VIM_CONFIG_KEY) ?? "set number\nset tabstop=4\nset shiftwidth=4\nset expandtab");
+  const [panelOrder, setPanelOrder] = useState(() => localStorage.getItem("nr:sidebarOrder") ?? "tree,list,reader");
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
@@ -741,10 +744,23 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </button>
             </Field>
 
-            <Field label="分栏宽度" desc="重置文档树、文档列表和阅读分栏的宽度偏好" visible={settingsPage === "appearance"}>
+            <Field label="分栏设置" desc="调整侧栏顺序和宽度偏好" visible={settingsPage === "panels"}>
+              <label className="settings-label">显示顺序
+                <select className="settings-input" value={panelOrder} onChange={(event) => {
+                  setPanelOrder(event.target.value);
+                  localStorage.setItem("nr:sidebarOrder", event.target.value);
+                  window.dispatchEvent(new Event("nr:sidebar-order-change"));
+                }}>
+                  <option value="tree,list,reader">文档树 → 文档列表 → 阅读</option>
+                  <option value="tree,reader,list">文档树 → 阅读 → 文档列表</option>
+                  <option value="list,tree,reader">文档列表 → 文档树 → 阅读</option>
+                  <option value="reader,tree,list">阅读 → 文档树 → 文档列表</option>
+                </select>
+              </label>
               <button type="button" className="editor-appearance-reset" onClick={() => window.dispatchEvent(new Event("nr:reset-sidebar-widths"))}>
-                重置三个分栏宽度
+                恢复三个分栏默认宽度
               </button>
+              <div className="settings-hint">宽度可直接拖动分隔条调整；再次切换到对应分栏时会恢复上次宽度。</div>
             </Field>
 
             <Field label="编辑器" desc="Vim、块编号、状态栏与右键菜单" visible={settingsPage === "appearance"}>

@@ -1791,11 +1791,14 @@ function App() {
       <div className="app-body">
         {sidebarWidthHint && <div className="sidebar-width-hint" role="status" aria-live="polite">{sidebarWidthHint}</div>}
         {!mobileDrawerViewport && <nav className="desktop-activity-bar" aria-label="工作区面板">
-          {([
-            ['tree', '文档树', 'folder'],
-            ['list', '文档列表', 'bullet'],
-            ['reader', 'PDF / EPUB 阅读', 'document'],
-          ] as const).map(([panel, label, icon]) => <button key={panel} type="button" className="btn-icon"
+          {((() => {
+            const fallback = ['tree', 'list', 'reader'] as const;
+            const saved = localStorage.getItem('nr:sidebarOrder')?.split(',') ?? [];
+            const order = saved.filter((panel): panel is typeof fallback[number] => fallback.includes(panel as typeof fallback[number]));
+            return [...order, ...fallback.filter((panel) => !order.includes(panel))].map((panel) => [panel,
+              panel === 'tree' ? '文档树' : panel === 'list' ? '文档列表' : 'PDF / EPUB 阅读',
+              panel === 'tree' ? 'folder' : panel === 'list' ? 'bullet' : 'document'] as const);
+          })()).map(([panel, label, icon]) => <button key={panel} type="button" className="btn-icon"
             title={label} aria-label={label} aria-pressed={!sidebarHidden && desktopPanel === panel}
             onClick={() => { setSidebarPanel(panel, true); }}>
             <ToolbarIcon name={icon} />
