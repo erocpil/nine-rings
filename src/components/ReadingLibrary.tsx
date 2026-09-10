@@ -36,6 +36,7 @@ interface Props {
   onSettings: () => void;
   onOpenPdf: (id: string) => void;
   onOpenEpub: (id: string) => void;
+  showWorkspaceSwitch?: boolean;
 }
 
 export default function ReadingLibrary({
@@ -44,6 +45,7 @@ export default function ReadingLibrary({
   onSettings,
   onOpenPdf,
   onOpenEpub,
+  showWorkspaceSwitch = true,
 }: Props) {
   const [query, setQuery] = useState(session.query);
   const [message, showMessage] = useState<string | null>(null);
@@ -306,7 +308,7 @@ export default function ReadingLibrary({
       }}
     >
       <header className="reading-library-heading" ref={headingRef} tabIndex={-1}>
-        <WorkspaceSwitch mode="reading" disabled={busy} onSwitch={onClose} />
+        {showWorkspaceSwitch && <WorkspaceSwitch mode="reading" disabled={busy} onSwitch={onClose} />}
         <button
           type="button"
           className="settings-btn"

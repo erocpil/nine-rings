@@ -225,6 +225,7 @@ export interface AppConfig {
   editor_blockquote_indent: number;
   editor_search_highlight_color: string;
   editor_cjk_spacing: boolean;
+  reader_sidebar_ratio: number;
   dev_port: number;
   highlight_active_line: boolean;
   editor_show_line_numbers: boolean;

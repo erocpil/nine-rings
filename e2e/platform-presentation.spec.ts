@@ -31,7 +31,7 @@ for (const width of [390, 1280]) {
     await expect(bookmarks.locator(".focus-bookmark-count")).toHaveText("1");
     await expect(titlebar.getByRole("button", { name: "专注模式" }).locator("svg")).toHaveCount(1);
     await titlebar.getByRole("button", { name: "专注模式" }).click();
-    const focus = page.locator(".vr-note .mobile-focus-bar");
+    const focus = page.locator(width > 600 ? ".desktop-focus-toolbar" : ".vr-note .mobile-focus-bar");
     await expect(focus.getByRole("button", { name: "退出专注模式" })).toBeVisible();
     await expect(focus.getByRole("button", { name: "文档书签" })).toContainText("1");
     await focus.getByRole("button", { name: "退出专注模式" }).click();

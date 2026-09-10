@@ -62,6 +62,17 @@ const PDF_DOC_TYPE_LABELS: Record<DocType, string> = {
   reference: "参考",
   tutorial: "教程",
 };
+const DESKTOP_ACTIVITY_BAR_WIDTH = 44;
+const SIDEBAR_MIN_WIDTH = 360;
+const SIDEBAR_MOBILE_MIN_WIDTH = 240;
+const DEFAULT_READER_PANEL_RATIO = 0.67;
+const MIN_READER_PANEL_RATIO = 0.4;
+const MAX_READER_PANEL_RATIO = 0.9;
+
+const clampReaderSidebarRatio = (ratio: number) => Math.min(
+  MAX_READER_PANEL_RATIO,
+  Math.max(MIN_READER_PANEL_RATIO, Number.isFinite(ratio) ? ratio : DEFAULT_READER_PANEL_RATIO),
+);
 
 const RecycleBin = lazy(() => import("./components/RecycleBin").then((module) => ({ default: module.RecycleBin })));
 const VersionHistory = lazy(() => import("./components/VersionHistory").then((module) => ({ default: module.VersionHistory })));
@@ -550,22 +561,6 @@ function App() {
     }
   }, []);
 
-  const openReadingLibrary = useCallback(async () => {
-    if (syncBusy) return;
-    try {
-      await flushAutoSave();
-      setSettingsOpen(false);
-      setQuickSwitcherOpen(false);
-      setDocTreePopupOpen(false);
-      closeSidebarOnNarrowScreen();
-      setReadingLibraryError(null);
-      setReadingLibraryOpen(true);
-      setDesktopPanel('reader');
-      if (!window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) setSidebarHidden(false);
-    } catch (error) {
-      setReadingLibraryError(`打开阅读资料库前保存失败：${error instanceof Error ? error.message : String(error)}`);
-    }
-  }, [syncBusy, flushAutoSave, setSettingsOpen, closeSidebarOnNarrowScreen]);
   const handleQuickSwitch = useCallback(async (note: Note) => {
     setQuery("");
     setDocResults(null);
@@ -1099,11 +1094,82 @@ function App() {
 
   // ── 侧栏可拖拽分隔条 ──
   const SIDEBAR_KEY = "nr:sidebarW";
+  const computeDefaultSidebarWidth = useCallback(() => {
+    const mobile = window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
+    if (mobile) return SIDEBAR_MOBILE_MIN_WIDTH;
+    return SIDEBAR_MIN_WIDTH;
+  }, []);
+  const clampSidebarWidth = useCallback((width: number, min = 280) => {
+    const viewport = window.innerWidth;
+    const maxWidth = Math.max(240, viewport - 400);
+    const safeMin = Math.min(min, maxWidth);
+    return Math.max(safeMin, Math.min(maxWidth, width));
+  }, []);
+  const computeReaderSidebarWidth = useCallback(() => {
+    const viewport = window.innerWidth;
+    const ratio = clampReaderSidebarRatio(config?.reader_sidebar_ratio ?? DEFAULT_READER_PANEL_RATIO);
+    const maxWidth = Math.max(280, viewport - 400);
+    const width = Math.round((viewport - DESKTOP_ACTIVITY_BAR_WIDTH) * ratio);
+    return Math.min(maxWidth, Math.max(computeDefaultSidebarWidth(), width));
+  }, [computeDefaultSidebarWidth, config?.reader_sidebar_ratio]);
+  const applyPanelSidebarWidth = useCallback((panel: typeof desktopPanel) => {
+    if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return;
+    const nextWidth = panel === "reader"
+      ? computeReaderSidebarWidth()
+      : clampSidebarWidth(computeDefaultSidebarWidth(), SIDEBAR_MIN_WIDTH);
+    sideDragWidthRef.current = nextWidth;
+    setSidebarWidth(nextWidth);
+    localStorage.setItem(SIDEBAR_KEY, String(nextWidth));
+  }, [clampSidebarWidth, computeDefaultSidebarWidth, computeReaderSidebarWidth]);
+  const setSidebarPanel = useCallback((panel: typeof desktopPanel, toggle = false) => {
+    if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) {
+      setDesktopPanel(panel);
+      return;
+    }
+    const isCurrent = toggle && desktopPanel === panel && !sidebarHidden;
+    if (isCurrent) {
+      setSidebarHidden(true);
+      return;
+    }
+    setDesktopPanel(panel);
+    setSidebarHidden(false);
+    applyPanelSidebarWidth(panel);
+  }, [applyPanelSidebarWidth, desktopPanel, sidebarHidden]);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem(SIDEBAR_KEY);
-    const mobile = window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
-    return saved && Number.isFinite(Number(saved)) ? (mobile ? Number(saved) : Math.max(280, Number(saved))) : mobile ? 240 : 360;
+    if (!saved || !Number.isFinite(Number(saved))) {
+      return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches
+        ? SIDEBAR_MOBILE_MIN_WIDTH
+        : SIDEBAR_MIN_WIDTH;
+    }
+    const candidate = Number(saved);
+    const baseline = computeDefaultSidebarWidth();
+    return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches
+      ? Math.max(SIDEBAR_MOBILE_MIN_WIDTH, candidate)
+      : clampSidebarWidth(candidate, baseline);
   });
+  useEffect(() => {
+    if (sidebarHidden) return;
+    const resize = () => applyPanelSidebarWidth(desktopPanel);
+    resize();
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, [applyPanelSidebarWidth, sidebarHidden, desktopPanel]);
+  const openReadingLibrary = useCallback(async () => {
+    if (syncBusy) return;
+    try {
+      await flushAutoSave();
+      setSettingsOpen(false);
+      setQuickSwitcherOpen(false);
+      setDocTreePopupOpen(false);
+      closeSidebarOnNarrowScreen();
+      setReadingLibraryError(null);
+      setReadingLibraryOpen(true);
+      setSidebarPanel("reader");
+    } catch (error) {
+      setReadingLibraryError(`打开阅读资料库前保存失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  }, [syncBusy, flushAutoSave, setSettingsOpen, closeSidebarOnNarrowScreen, setSidebarPanel]);
   const sideDragRef = useRef(false);
   const sideStartXRef = useRef(0);
   const sideStartWRef = useRef(0);
@@ -1529,6 +1595,7 @@ function App() {
       <div style={{ display: "flex", flex: 1, minHeight: 0 }} {...(settingsOpen ? { inert: "" } : {})}>
         <Suspense fallback={<div className="pdf-reader-boot">正在加载阅读资料库…</div>}>
           <ReadingLibrary session={readingLibrarySession.current}
+            showWorkspaceSwitch
             onClose={() => setReadingLibraryOpen(false)}
             onSettings={() => setSettingsOpen(true)}
             onOpenPdf={id => { setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
@@ -1678,7 +1745,7 @@ function App() {
             ['reader', 'PDF / EPUB 阅读', 'document'],
           ] as const).map(([panel, label, icon]) => <button key={panel} type="button" className="btn-icon"
             title={label} aria-label={label} aria-pressed={!sidebarHidden && desktopPanel === panel}
-            onClick={() => { setDesktopPanel(panel); setSidebarHidden(!sidebarHidden && desktopPanel === panel); }}>
+            onClick={() => { setSidebarPanel(panel, true); }}>
             <ToolbarIcon name={icon} />
           </button>)}
         </nav>}
@@ -1863,7 +1930,8 @@ function App() {
             }}>
             {pdfReaderPanel ?? epubReaderPanel ?? (desktopPanel === 'reader' && <Suspense fallback={<div className="doc-tree-loading">正在加载阅读资料…</div>}>
               <ReadingLibrary session={readingLibrarySession.current}
-                onClose={() => setDesktopPanel('tree')} onSettings={() => setSettingsOpen(true)}
+                showWorkspaceSwitch={false}
+                onClose={() => setSidebarPanel('tree')} onSettings={() => setSettingsOpen(true)}
                 onOpenPdf={id => { setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
                 onOpenEpub={id => { setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }} />
             </Suspense>)}
@@ -2012,8 +2080,7 @@ function App() {
                           );
                           setPdfReaderDocumentId(source.pdfId);
                           setEpubReaderDocumentId(null);
-                          setDesktopPanel('reader');
-                          if (!mobileDrawerViewport) setSidebarHidden(false);
+                          setSidebarPanel("reader");
                         } catch (reason) {
                           window.alert(`无法打开 PDF 来源：${reason instanceof Error ? reason.message : String(reason)}`);
                         }
@@ -2027,8 +2094,7 @@ function App() {
                           setEpubReaderTargetHighlightId(source.highlightId ?? null);
                           setEpubReaderDocumentId(source.epubId);
                           setPdfReaderDocumentId(null);
-                          setDesktopPanel('reader');
-                          if (!mobileDrawerViewport) setSidebarHidden(false);
+                          setSidebarPanel("reader");
                         } catch (reason) {
                           window.alert(`无法打开 EPUB 来源：${reason instanceof Error ? reason.message : String(reason)}`);
                         }
