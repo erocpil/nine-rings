@@ -186,6 +186,9 @@ body {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   -webkit-app-region: drag;
+  position: relative;
+  z-index: 100;
+  isolation: isolate;
   transition: background var(--transition);
 }
 
@@ -7178,6 +7181,8 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
   top: 0;
   z-index: 10;
   background: var(--bg);
+  background-color: var(--bg);
+  isolation: isolate;
   flex-shrink: 0;
 }
 
