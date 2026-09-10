@@ -170,6 +170,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
 
   return (<>
     {(!isMinimalToolbar || !isMobileToolbarViewport) && btn(<ToolbarIcon name="search" />, actions.openEditorReplace, false, "查找与替换", readonly)}
+    {!isMinimalToolbar && btn(<ToolbarIcon name="copy" />, () => { void actions.handleCopyBlock(); }, false, "复制块", false)}
     <span className="toolbar-history-actions">
       {btn(<span className="toolbar-history-icon toolbar-history-icon-undo"><ToolbarIcon name="undo" /></span>, () => editor.chain().focus().undo().run(), false, "撤销 (Ctrl+Z)", readonly || !editor.can().undo())}
       {btn(<span className="toolbar-history-icon toolbar-history-icon-redo"><ToolbarIcon name="redo" /></span>, () => editor.chain().focus().redo().run(), false, "重做 (Ctrl+Y)", readonly || !editor.can().redo())}
