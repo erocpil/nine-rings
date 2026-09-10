@@ -758,7 +758,9 @@ function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpen
     if (typeof window === "undefined") return false;
     return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
   });
-  const isNarrow = toolbarWidth < 900 || isMobileToolbarViewport;
+  // 桌面 Web 的编辑区通常会因侧栏被压缩到 700～900px；900px 阈值过于
+  // 保守，会在仍有足够空间时提前切换精简工具栏。移动端仍始终使用精简布局。
+  const isNarrow = toolbarWidth < 720 || isMobileToolbarViewport;
   const isMinimalToolbar = isNarrow;
   const CODE_LN_KEY = "nr:codeLineNumbers";
   const [showCodeLineNumbers, setShowCodeLineNumbers] = useState(() => {
