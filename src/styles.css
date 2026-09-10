@@ -6546,6 +6546,15 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 .sidebar-width-reset-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 7px; background: color-mix(in srgb, var(--surface) 80%, var(--accent)); }
 .sidebar-width-reset-card div { display: grid; gap: 2px; min-width: 0; }
 .sidebar-width-reset-card span { color: var(--text-secondary); font-size: 12px; }
+.vim-config-card { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.vim-config-card-heading { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.vim-config-card-heading span { color: var(--text-muted); font-size: 12px; }
+.vim-config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.vim-config-grid label { display: grid; gap: 4px; color: var(--text-secondary); font-size: 12px; }
+.vim-config-grid select { min-height: 32px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); color: var(--text); }
+.vim-config-check { display: flex !important; align-items: center; align-content: center; gap: 6px; }
+.vim-config-card details summary { cursor: pointer; color: var(--text-secondary); font-size: 12px; }
+.vim-config-editor { min-height: 100px; margin-top: 8px; font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
 
 .sync-remote-preview-grid {
   display: grid;

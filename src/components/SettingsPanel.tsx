@@ -43,7 +43,7 @@ interface Props {
   libraryError?: string | null;
 }
 
-type SettingsPage = "root" | "appearance" | "editor" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced";
+type SettingsPage = "root" | "appearance" | "editor" | "vim" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced";
 const EDITOR_APPEARANCE_KEYS: Array<keyof AppConfig> = [
   "note_font_size",
   "editor_font_family",
@@ -71,6 +71,7 @@ const SETTINGS_CATEGORIES: Array<{
   description: string;
 }> = [
   { id: "appearance", title: "外观与排版", description: "主题、字体、字号与内容间距" },
+  { id: "vim", title: "Vim 编辑", description: "Vim 模式、快捷键和代码块配置" },
   { id: "documents", title: "文档管理", description: "书签、标签与用户信息" },
   { id: "general", title: "工作流与快捷键", description: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "默认视图、待办继承和按键绑定" : "搜索、设置与窗口按键绑定" },
   { id: "sync", title: "同步与备份", description: "GitHub 仓库和同步操作" },
@@ -82,6 +83,7 @@ const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   root: "设置",
   appearance: "外观与排版",
   editor: "编辑器",
+  vim: "Vim 编辑",
   documents: "文档管理",
   bookmarks: "书签",
   general: "工作流与快捷键",
@@ -890,7 +892,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            <Field label="Vim 模式（实验性）" desc="Normal/Visual 优先使用 Vim 键位；i 进入输入，Esc 返回 Normal；Ctrl+F/B 整页、Ctrl+D/U 半页、Ctrl+E/Y 单行滚动" visible={settingsPage === "editor"}>
+            <Field label="Vim 模式（实验性）" desc="Normal/Visual 优先使用 Vim 键位；i 进入输入，Esc 返回 Normal；Ctrl+F/B 整页、Ctrl+D/U 半页、Ctrl+E/Y 单行滚动" visible={settingsPage === "vim"}>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
@@ -902,19 +904,21 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            <Field label="Vim 配置" desc="代码块弹层仅解析安全的 set 选项；不会执行 VimScript 或插件命令" visible={settingsPage === "editor"}>
-              <textarea
-                className="settings-input vim-config-editor"
-                value={vimConfig}
-                spellCheck={false}
-                aria-label="Vim 配置"
-                onChange={(event) => {
-                  setVimConfig(event.target.value);
-                  localStorage.setItem(VIM_CONFIG_KEY, event.target.value);
-                }}
-                rows={5}
-              />
-              <div className="settings-hint">支持：number、relativenumber、wrap、expandtab、tabstop、shiftwidth、ignorecase、smartcase</div>
+            <Field label="Vim 配置" desc="代码块弹层仅解析安全的 set 选项；不会执行 VimScript 或插件命令" visible={settingsPage === "vim"}>
+              <div className="vim-config-card">
+                <div className="vim-config-card-heading"><strong>代码块弹层</strong><span>CodeMirror · Vim 键位</span></div>
+                <div className="vim-config-grid">
+                  <label>Tab 宽度<select value={Number(vimConfig.match(/tabstop=(\d+)/)?.[1] ?? 4)} onChange={(event) => {
+                    const next = vimConfig.replace(/set\s+tabstop=\d+/g, `set tabstop=${event.target.value}`);
+                    setVimConfig(next); localStorage.setItem(VIM_CONFIG_KEY, next);
+                  }}><option value="2">2</option><option value="4">4</option><option value="8">8</option></select></label>
+                  <label className="vim-config-check"><input type="checkbox" checked={!/set\s+nowrap\b/.test(vimConfig)} onChange={(event) => {
+                    const next = event.target.checked ? vimConfig.replace(/set\s+nowrap\b/g, "set wrap") : `${vimConfig}\nset nowrap`;
+                    setVimConfig(next); localStorage.setItem(VIM_CONFIG_KEY, next);
+                  }} /> 自动换行</label>
+                </div>
+                <details><summary>高级 set 配置</summary><textarea className="settings-input vim-config-editor" value={vimConfig} spellCheck={false} aria-label="Vim set 配置" onChange={(event) => { setVimConfig(event.target.value); localStorage.setItem(VIM_CONFIG_KEY, event.target.value); }} rows={5} /><div className="settings-hint">支持 number、relativenumber、wrap、nowrap、expandtab、tabstop、shiftwidth、ignorecase、smartcase。</div></details>
+              </div>
             </Field>
 
             <SettingsSection title="使用方法" desc="书签随文档和备份保存；只读文档也可以查看和跳转" visible={settingsPage === "bookmarks"}>
