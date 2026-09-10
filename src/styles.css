@@ -2769,6 +2769,13 @@ body {
   -webkit-user-select: text;
   user-select: text;
 }
+.note-editor .note-title-row,
+.note-editor .editor-menu,
+.note-editor .editor-menu button,
+.note-editor .note-title {
+  pointer-events: auto;
+  touch-action: manipulation;
+}
 
 .editor-content:focus {
   outline: none;
