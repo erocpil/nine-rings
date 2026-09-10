@@ -1726,7 +1726,7 @@ function App() {
               disabled={!selectedNote}
               onClick={() => setFocusMode(true)}><ToolbarIcon name="expand" /></button>
           </div>}
-          {(!mobileDrawerViewport || !selectedNote) && <button className="btn-icon" onClick={() => setSettingsOpen(true)} title="设置" aria-label="设置">
+          {mobileDrawerViewport && !selectedNote && <button className="btn-icon" onClick={() => setSettingsOpen(true)} title="设置" aria-label="设置">
             <ToolbarIcon name="sliders" />
           </button>}
         </div>
@@ -1765,6 +1765,10 @@ function App() {
             onClick={() => { setSidebarPanel(panel, true); }}>
             <ToolbarIcon name={icon} />
           </button>)}
+          <button type="button" className="btn-icon desktop-activity-settings" title="设置" aria-label="设置"
+            onClick={() => setSettingsOpen(true)}>
+            <ToolbarIcon name="sliders" />
+          </button>
         </nav>}
         <aside ref={sidebarPanelRef} className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}
           role={mobileDrawerViewport ? "dialog" : undefined} aria-label={mobileDrawerViewport ? "文档侧栏" : undefined}
