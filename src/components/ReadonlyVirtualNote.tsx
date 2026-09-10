@@ -291,11 +291,13 @@ export function ReadonlyVirtualNote(
   const [panel, setPanel] = useState<"outline" | "bookmarks" | "search" | null>(
     null,
   );
+  const lastMobilePanel = useRef<"outline" | "bookmarks">("outline");
   const [presentation, setPresentation] = useState<"popover" | "drawer">(
     "popover",
   );
   const openPanel = useCallback((next: typeof panel, drawer = false) => {
     setPresentation(drawer ? "drawer" : "popover");
+    if (next === "outline" || next === "bookmarks") lastMobilePanel.current = next;
     setPanel(next);
   }, []);
   const [query, setQuery] = useState("");
@@ -640,11 +642,13 @@ export function ReadonlyVirtualNote(
     () =>
       bindViewportEdgeSwipe("right", (touch) => {
         if (!mobileDrawerViewport) return null;
-        const target = touch.clientY < swipeViewport().middleY ? "outline" : "bookmarks";
-        if (target === "outline" && sections.length === 0) return null;
+        const viewport = swipeViewport();
+        if (touch.clientY >= viewport.middleY) return props.onOpenSettings ? () => props.onOpenSettings?.() : null;
+        const target = lastMobilePanel.current;
+        if (target === "outline" && sections.length === 0) return () => openPanel("bookmarks", true);
         return () => openPanel(target, true);
       }),
-    [mobileDrawerViewport, sections.length, openPanel],
+    [mobileDrawerViewport, sections.length, openPanel, props.onOpenSettings],
   );
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {

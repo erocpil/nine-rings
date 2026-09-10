@@ -1339,8 +1339,10 @@ function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpen
     () => onOutlineAvailabilityChange?.(false)
   ), [onOutlineAvailabilityChange]);
 
+  const lastMobilePanel = useRef<"outline" | "bookmark">("outline");
   const openDocumentOutline = useCallback((presentation: DocumentPanelPresentation = "popover") => {
     if (!editor || editor.isDestroyed || documentOutline.length === 0) return;
+    lastMobilePanel.current = "outline";
     setPanelPresentation(presentation);
     setActiveOutlineIndex(documentOutlineIndexAtPosition(
       documentOutline,
@@ -1352,6 +1354,7 @@ function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpen
   }, [documentOutline, editor]);
 
   const openDocumentBookmarks = useCallback((presentation: DocumentPanelPresentation = "popover") => {
+    lastMobilePanel.current = "bookmark";
     setPanelPresentation(presentation);
     setOutlineOpen(false);
     setBookmarkOpen(true);
@@ -1366,18 +1369,22 @@ function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpen
     if (!isMobileToolbarViewport) return;
 
     return bindViewportEdgeSwipe("right", (touch) => {
-      const target = touch.clientY < swipeViewport().middleY ? "outline" : "bookmark";
-      if (target === "outline" && documentOutline.length === 0) return null;
+      const viewport = swipeViewport();
+      if (touch.clientY >= viewport.middleY) return onOpenSettings ? () => {
+        setFocusToolbarExpanded(false);
+        onOpenSettings();
+      } : null;
+      const target = lastMobilePanel.current;
+      if (target === "outline" && documentOutline.length === 0) {
+        return documentOutline.length === 0 ? () => openDocumentBookmarks("drawer") : null;
+      }
       return () => {
         setFocusToolbarExpanded(false);
-        if (target === "bookmark") {
-          openDocumentBookmarks("drawer");
-        } else {
-          openDocumentOutline("drawer");
-        }
+        if (target === "bookmark") openDocumentBookmarks("drawer");
+        else openDocumentOutline("drawer");
       };
     });
-  }, [isMobileToolbarViewport, documentOutline.length, openDocumentOutline, openDocumentBookmarks]);
+  }, [isMobileToolbarViewport, documentOutline.length, onOpenSettings, openDocumentOutline, openDocumentBookmarks]);
 
   const toggleDocumentOutline = useCallback(() => {
     if (outlineOpen) {
