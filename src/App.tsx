@@ -1107,7 +1107,9 @@ function App() {
   }, []);
   const computeReaderSidebarWidth = useCallback(() => {
     const saved = Number(localStorage.getItem(READER_SIDEBAR_WIDTH_KEY));
-    const width = Number.isFinite(saved) && saved >= 0
+    // 0 仅表示运行时已隐藏分栏，不应成为下次启动的永久宽度；否则
+    // Tauri 重新安装/恢复存储后会得到零宽面板，分隔条和展开按钮都无法命中。
+    const width = Number.isFinite(saved) && saved > 0
       ? saved
       : Math.round((window.innerWidth - DESKTOP_ACTIVITY_BAR_WIDTH) / 2);
     return clampSidebarWidth(width, READER_SIDEBAR_MIN_WIDTH);
@@ -1115,7 +1117,7 @@ function App() {
   const computePanelSidebarWidth = useCallback((panel: typeof desktopPanel) => {
     if (panel === "reader") return computeReaderSidebarWidth();
     const saved = Number(localStorage.getItem(sidebarWidthKey(panel)));
-    const width = Number.isFinite(saved) && saved >= 0 ? saved : computeDefaultSidebarWidth();
+    const width = Number.isFinite(saved) && saved > 0 ? saved : computeDefaultSidebarWidth();
     return clampSidebarWidth(width, 0);
   }, [clampSidebarWidth, computeDefaultSidebarWidth, computeReaderSidebarWidth]);
   const applyPanelSidebarWidth = useCallback((panel: typeof desktopPanel) => {
@@ -1140,7 +1142,7 @@ function App() {
   }, [applyPanelSidebarWidth, desktopPanel, sidebarHidden]);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem(TREE_SIDEBAR_WIDTH_KEY);
-    if (!saved || !Number.isFinite(Number(saved))) {
+    if (!saved || !Number.isFinite(Number(saved)) || Number(saved) <= 0) {
       return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches
         ? SIDEBAR_MOBILE_MIN_WIDTH
         : SIDEBAR_MIN_WIDTH;
@@ -1810,7 +1812,7 @@ function App() {
               <span className="sidebar-view-switch-label">
                 {sidebarTab === 'daily' ? '随笔' : '文档'}
               </span>
-            </button> : mobileDrawerViewport ? <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} /> : "文档树"}>
+            </button> : mobileDrawerViewport ? <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} /> : null}>
             <div className="doc-tree-toolbar-host" ref={setDocTreeToolbarHost} />
             <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏" aria-label="隐藏侧栏">
               <ToolbarIcon name="chevronLeft" />
@@ -1939,7 +1941,7 @@ function App() {
           )}
           </div>
           {!mobileDrawerViewport && desktopPanel === 'list' && <section className="sidebar-document-list is-open" aria-label="文档列表分区">
-            <WorkspacePanelHeading className="sidebar-document-list-heading" title="文档列表">
+            <WorkspacePanelHeading className="sidebar-document-list-heading" title={null}>
               <div className="doc-tree-toolbar-host" ref={setSidebarBrowserToolbarHost} />
               <button type="button" className="btn-icon" aria-label="隐藏侧栏" onClick={() => setSidebarHidden(true)}><ToolbarIcon name="chevronLeft" /></button>
             </WorkspacePanelHeading>

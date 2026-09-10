@@ -105,6 +105,8 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
   const { message, showMessage: showTransientMessage, clearMessage: clearTransientMessage } = useTransientMessage();
   const [messageType, setMessageType] = useState<"" | "success" | "error">("");
   const [pullPrecheck, setPullPrecheck] = useState<PullPrecheck | null>(null);
+  const [ignoredRemoteIds, setIgnoredRemoteIds] = useState<Set<string>>(() => new Set());
+  const [remotePreviewId, setRemotePreviewId] = useState<string | null>(null);
   const [exportingLocal, setExportingLocal] = useState(false);
 
   const [ownerRepoValue, setOwnerRepoValue] = useState(() => {
@@ -254,6 +256,8 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     try {
       const pre = await previewPullFromGitHub(cfg);
       setPullPrecheck(pre);
+      setIgnoredRemoteIds(new Set());
+      setRemotePreviewId(pre.remoteDocuments[0]?.id ?? null);
       showMessage(`预检完成：远端版本 ${pre.remote.version.slice(0, 15)}\n远端备份来源：${formatBackupDevice(pre.remote.backupDevice)}`, "success");
     } catch (e) {
       showMessage(`预检失败：${(e as Error).message}`, "error");
@@ -281,6 +285,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
       const updated = await pullFromGitHub(cfg, {
         mode,
         expectedVersion: pullPrecheck.remote.version,
+        ignoreRemoteNoteIds: mode === "safe-merge" ? [...ignoredRemoteIds] : [],
       });
       setCfg(updated);
       if (mode === "safe-merge") {
@@ -381,7 +386,8 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
       )}
 
       {pullPrecheck && (
-        <div className="sync-preview">
+        <div className="sync-preview-overlay" role="dialog" aria-modal="true" aria-label="GitHub Pull 预览">
+        <div className="sync-preview sync-preview-dialog">
           <div className="settings-hint" style={{ marginBottom: 8 }}>
             远端备份来源：{formatBackupDevice(pullPrecheck.remote.backupDevice)}
           </div>
@@ -409,6 +415,46 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
             <span>仅远端修改 <strong>{pullPrecheck.comparison.remoteChanged.length}</strong></span>
             <span className={pullPrecheck.comparison.conflicts.length ? "danger" : ""}>冲突 <strong>{pullPrecheck.comparison.conflicts.length}</strong></span>
             <span>相同 <strong>{pullPrecheck.comparison.unchanged}</strong></span>
+          </div>
+
+          <div className="sync-remote-preview">
+            <div className="sync-remote-preview-heading">
+              <strong>远端文档预览与忽略</strong>
+              <span className="settings-hint">勾选后安全合并不会导入该文档</span>
+            </div>
+            <div className="sync-remote-preview-grid">
+              <div className="sync-remote-preview-list">
+                {pullPrecheck.remoteDocuments.map((doc) => (
+                  <label key={doc.id} className={`sync-remote-preview-item ${remotePreviewId === doc.id ? "active" : ""}`}>
+                    <input
+                      type="checkbox"
+                      checked={ignoredRemoteIds.has(doc.id)}
+                      onChange={() => setIgnoredRemoteIds((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(doc.id)) next.delete(doc.id); else next.add(doc.id);
+                        return next;
+                      })}
+                    />
+                    <button type="button" className="sync-remote-preview-select" onClick={() => setRemotePreviewId(doc.id)}>
+                      <span>{doc.kind === "document" ? "📄" : "📝"} {doc.title}</span>
+                      <small>{doc.storagePath || doc.date || "无路径"}</small>
+                    </button>
+                  </label>
+                ))}
+              </div>
+              <div className="sync-remote-preview-detail">
+                {(() => {
+                  const doc = pullPrecheck.remoteDocuments.find((item) => item.id === remotePreviewId);
+                  return doc ? (
+                    <>
+                      <div className="sync-remote-preview-detail-title">{doc.title}</div>
+                      <div className="settings-hint">{doc.storagePath || "随笔"} · {doc.updatedAt || doc.date || "无修改时间"}</div>
+                      <p>{doc.contentPreview || "（无可预览正文）"}</p>
+                    </>
+                  ) : <div className="settings-hint">选择一篇远端文档查看预览</div>;
+                })()}
+              </div>
+            </div>
           </div>
 
           <div className="settings-hint sync-base-hint">
@@ -488,7 +534,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
             </div>
           </div>
           <div className="settings-hint sync-preview-source">远端文件: {pullPrecheck.remote.path}</div>
-        </div>
+        </div></div>
       )}
 
       <p className="settings-hint">

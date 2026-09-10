@@ -311,7 +311,7 @@ export default function ReadingLibrary({
       }}
     >
       <WorkspacePanelHeading className="reading-library-heading" ref={headingRef} tabIndex={-1}
-        title={showWorkspaceSwitch ? <WorkspaceSwitch mode="reading" disabled={busy} onSwitch={onClose} /> : "阅读"}>
+        title={showWorkspaceSwitch ? <WorkspaceSwitch mode="reading" disabled={busy} onSwitch={onClose} /> : null}>
         <button
           type="button"
           className="btn-icon"

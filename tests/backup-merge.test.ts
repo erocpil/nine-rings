@@ -1,4 +1,4 @@
-import { buildSafeMergedBackup, compareBackupSnapshots } from "../src/lib/sync/backup-merge";
+import { buildSafeMergedBackup, compareBackupSnapshots, extractRemoteDocumentPreviews } from "../src/lib/sync/backup-merge";
 
 let passed = 0;
 function assert(condition: unknown, message: string): void {
@@ -85,7 +85,7 @@ const remote = {
       concepts: ["格式"],
       linked_doc_ids: ["same"],
     }),
-    note("remote-only", "remote only", "2026-08-28T03:00:00.000Z", "同名文档"),
+    note("remote-only", "remote only", "2026-08-28T03:00:00.000Z", "同名文档", { storage_path: "remote/path" }),
   ],
   daily_pages: [
     page("2026-08-28", [
@@ -132,5 +132,21 @@ assert(mergedPage.todos.some((todo) => String(todo.text).includes("本地同步�
 const conservative = compareBackupSnapshots(JSON.stringify(local), JSON.stringify(remote));
 assert(conservative.conflicts.some((item) => item.id === "local-change"),
   "without a base, differing shared documents are handled conservatively");
+
+const ignored = buildSafeMergedBackup(JSON.stringify(local), JSON.stringify(remote), JSON.stringify(base), {
+  ignoreRemoteNoteIds: ["remote-only", "remote-change"],
+});
+const ignoredNotes = new Map((JSON.parse(ignored.json) as typeof remote).notes.map((item) => [item.id, item]));
+assert(!ignoredNotes.has("remote-only"), "ignored remote-only document is not imported");
+assert(JSON.stringify(ignoredNotes.get("remote-change")?.content).includes("base"), "ignored remote change does not overwrite local data");
+
+const pathIgnored = buildSafeMergedBackup(JSON.stringify(local), JSON.stringify(remote), JSON.stringify(base), {
+  ignoreRemotePaths: ["remote/path"],
+});
+assert(!(JSON.parse(pathIgnored.json) as typeof remote).notes.some((item) => item.id === "remote-only"), "ignored path excludes remote document");
+
+const previews = extractRemoteDocumentPreviews(JSON.stringify(remote));
+assert(previews.some((item) => item.id === "remote-only" && item.contentPreview.includes("remote")), "remote preview includes document text");
+assert(previews.every((item) => item.title.length > 0), "remote previews include titles");
 
 console.log(`${passed} passed, 0 failed`);

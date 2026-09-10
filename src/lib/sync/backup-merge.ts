@@ -22,6 +22,18 @@ export interface SyncDocumentSummary {
   remoteTitle?: string;
 }
 
+export interface SyncRemoteDocumentPreview extends SyncDocumentSummary {
+  contentPreview: string;
+  encrypted: boolean;
+}
+
+export interface SafeMergeOptions {
+  /** Pull 时不导入这些远端文档；本地已有同 ID 文档时保留本地版本。 */
+  ignoreRemoteNoteIds?: readonly string[];
+  /** 可选的路径前缀忽略规则（包含该路径下的全部文档）。 */
+  ignoreRemotePaths?: readonly string[];
+}
+
 export interface SyncPageComparison {
   localOnly: number;
   remoteOnly: number;
@@ -182,6 +194,30 @@ function documentSummary(record: BackupRecord, remote?: BackupRecord): SyncDocum
   };
 }
 
+function isEncryptedContent(content: unknown): boolean {
+  if (!content || typeof content !== "object" || Array.isArray(content)) return false;
+  const value = content as Record<string, unknown>;
+  return ["ciphertext", "encrypted", "iv", "nonce"].some((key) => key in value);
+}
+
+export function extractRemoteDocumentPreviews(remoteJson: string): SyncRemoteDocumentPreview[] {
+  const bundle = parseBundle(remoteJson);
+  return (bundle.notes ?? []).map((record) => {
+    const content = parseJsonValue(record.content, "");
+    const encrypted = isEncryptedContent(content);
+    let contentPreview = "";
+    if (encrypted) contentPreview = "正文已加密，无法在预览中显示。";
+    else {
+      try {
+        contentPreview = extractPlainText(content).replace(/\s+/g, " ").trim().slice(0, 800);
+      } catch {
+        contentPreview = typeof content === "string" ? content.slice(0, 800) : "";
+      }
+    }
+    return { ...documentSummary(record), contentPreview, encrypted };
+  }).sort((left, right) => `${left.storagePath ?? ""}/${left.title}`.localeCompare(`${right.storagePath ?? ""}/${right.title}`, "zh-CN"));
+}
+
 function sortSummaries(items: SyncDocumentSummary[]): SyncDocumentSummary[] {
   return items.sort((left, right) => {
     if (left.kind !== right.kind) return left.kind === "document" ? -1 : 1;
@@ -298,7 +334,7 @@ export function compareBackupSnapshots(localJson: string, remoteJson: string, ba
   );
 }
 
-export function buildSafeMergedBackup(localJson: string, remoteJson: string, baseJson?: string | null): SafeMergeResult {
+export function buildSafeMergedBackup(localJson: string, remoteJson: string, baseJson?: string | null, options: SafeMergeOptions = {}): SafeMergeResult {
   const local = parseBundle(localJson);
   const remote = parseBundle(remoteJson);
   const base = baseJson ? parseBundle(baseJson) : undefined;
@@ -307,6 +343,16 @@ export function buildSafeMergedBackup(localJson: string, remoteJson: string, bas
   const remoteNotes = recordsBy(remote.notes, "id");
   const baseNotes = recordsBy(base?.notes, "id");
   const mergedNotes: BackupRecord[] = [];
+  const ignoredIds = new Set(options.ignoreRemoteNoteIds ?? []);
+  const ignoredPaths = (options.ignoreRemotePaths ?? []).map((path) => path.replace(/^\/+|\/+$/g, "")).filter(Boolean);
+  const isIgnored = (record: BackupRecord | undefined, id: string) => {
+    if (!record) return false;
+    if (ignoredIds.has(id)) return true;
+    const rawPath = record.storagePath ?? record.storage_path;
+    if (typeof rawPath !== "string" || !rawPath) return false;
+    const path = rawPath.replace(/^\/+|\/+$/g, "");
+    return ignoredPaths.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+  };
   const timestamp = now();
   let conflictCopies = 0;
 
@@ -314,6 +360,10 @@ export function buildSafeMergedBackup(localJson: string, remoteJson: string, bas
   for (const id of noteIds) {
     const localNote = localNotes.get(id);
     const remoteNote = remoteNotes.get(id);
+    if (isIgnored(remoteNote, id)) {
+      if (localNote) mergedNotes.push(localNote);
+      continue;
+    }
     const category = classifyRecord(localNote, remoteNote, baseNotes.get(id), noteIdentity);
     if (category === "localOnly" || category === "localChanged") {
       if (localNote) mergedNotes.push(localNote);

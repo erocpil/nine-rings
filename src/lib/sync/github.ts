@@ -16,7 +16,9 @@ import { withBackupRestore, type RestoreContext } from "../backup-restore-coordi
 import {
   buildSafeMergedBackup,
   compareBackupSnapshots,
+  extractRemoteDocumentPreviews,
   type BackupComparison,
+  type SyncRemoteDocumentPreview,
 } from "./backup-merge";
 
 // ── 类型 ──
@@ -190,6 +192,7 @@ export interface PullPrecheck {
   comparison: BackupComparison;
   /** 用于三方比较的上次 Push/Pull 快照；null 表示只能保守识别冲突。 */
   baseVersion: string | null;
+  remoteDocuments: SyncRemoteDocumentPreview[];
 }
 
 export function formatBackupDevice(device?: SyncSnapshotSummary["backupDevice"]): string {
@@ -225,6 +228,8 @@ export interface PullOptions {
   mode?: PullMode;
   /** 防止预检之后 latest 指针已变化却仍按旧摘要执行。 */
   expectedVersion?: string;
+  ignoreRemoteNoteIds?: readonly string[];
+  ignoreRemotePaths?: readonly string[];
 }
 
 export function loadSyncConfig(): SyncConfig {
@@ -792,7 +797,7 @@ async function pullWithRestoreLock(config: SyncConfig, options: PullOptions, con
   try {
     if (mode === "safe-merge") {
       const base = await fetchBaseSnapshot(config, version, remote.content);
-      const merged = buildSafeMergedBackup(restorePoint, remote.content, base.content);
+      const merged = buildSafeMergedBackup(restorePoint, remote.content, base.content, options);
       addLog(
         `[Sync] 安全合并: 保留本地独有 ${merged.comparison.localOnly.length}，`
         + `导入远端独有 ${merged.comparison.remoteOnly.length}，`
@@ -880,6 +885,7 @@ export async function previewPullFromGitHub(config: SyncConfig): Promise<PullPre
     },
     comparison,
     baseVersion: base.version,
+    remoteDocuments: extractRemoteDocumentPreviews(remote.content),
   };
 }
 
