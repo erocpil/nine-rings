@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
+import { openMobileReadingLibrary } from "./helpers/mobile-reading";
 
 test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 test("PDF 快速往返滚动后只提交当前页，离屏画布释放", async ({
@@ -15,8 +16,7 @@ test("PDF 快速往返滚动后只提交当前页，离屏画布释放", async (
   for (let i = 1; i <= 60; i++)
     pdf.addPage([600, 800]).drawText(`Unique page ${i}`, { x: 40, y: 720 });
   await page.goto("/");
-  await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^阅读资料库/ }).click();
+  await openMobileReadingLibrary(page);
   await page
     .locator('input[type="file"][accept="application/pdf,.pdf"]')
     .setInputFiles({
@@ -228,8 +228,7 @@ test("PDF 解析尚未完成时返回会终止加载 Worker", async ({ page }) =
   const pdf = await PDFDocument.create();
   pdf.addPage().drawText("Pending parse");
   await page.goto("/");
-  await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^阅读资料库/ }).click();
+  await openMobileReadingLibrary(page);
   await page
     .locator('input[type="file"][accept="application/pdf,.pdf"]')
     .setInputFiles({

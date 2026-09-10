@@ -1,10 +1,12 @@
 import { normalizePdfWidth } from "./reader-width";
+import { PdfFileCache } from "./pdf-file-cache";
 import { readReadingSnapshot, restoreReadingSnapshot } from "./reading-backup-store";
 import { fingerprintReadingFile, validateReadingBackup, type PdfReadingBackup } from "./reading-backup-format";
 
 const PDF_DB_NAME = "nine_rings_pdf_library";
-const PDF_DB_VERSION = 2;
+const PDF_DB_VERSION = 3;
 const PDF_STORE = "documents";
+const PDF_FILE_STORE = "files";
 const PDF_HIGHLIGHT_STORE = "highlights";
 const PDF_BOOKMARK_STORE = "bookmarks";
 const PDF_ID_INDEX = "pdfId";
@@ -52,8 +54,20 @@ export interface LocalPdfBookmark {
 }
 
 interface StoredPdfRecord extends LocalPdfEntry {
-  blob: Blob;
+  blob?: Blob; // Legacy files are migrated only after their bytes are readable.
 }
+
+const fileCache = new PdfFileCache();
+const operations = new Map<string, Promise<unknown>>();
+function withPdfOperation<T>(id: string, operation: () => Promise<T>): Promise<T> {
+  const task = (operations.get(id) ?? Promise.resolve()).catch(() => {}).then(operation);
+  operations.set(id, task);
+  void task.finally(() => {
+    if (operations.get(id) === task) operations.delete(id);
+  }).catch(() => {});
+  return task;
+}
+const fileKey = (entry: LocalPdfEntry) => `${entry.id}:${entry.importedAt}:${entry.size}`;
 
 let openPromise: Promise<IDBDatabase> | null = null;
 
@@ -75,6 +89,9 @@ function openPdfDatabase(): Promise<IDBDatabase> {
       const database = request.result;
       if (!database.objectStoreNames.contains(PDF_STORE)) {
         database.createObjectStore(PDF_STORE, { keyPath: "id" });
+      }
+      if (!database.objectStoreNames.contains(PDF_FILE_STORE)) {
+        database.createObjectStore(PDF_FILE_STORE, { keyPath: "id" });
       }
       if (!database.objectStoreNames.contains(PDF_HIGHLIGHT_STORE)) {
         const highlights = database.createObjectStore(PDF_HIGHLIGHT_STORE, { keyPath: "id" });
@@ -157,6 +174,7 @@ async function assertPdfFile(file: File): Promise<void> {
 
 export async function importLocalPdf(file: File): Promise<LocalPdfEntry> {
   await assertPdfFile(file);
+  const bytes = await file.arrayBuffer();
   const timestamp = new Date().toISOString();
   const record: StoredPdfRecord = {
     id: createId(),
@@ -170,12 +188,12 @@ export async function importLocalPdf(file: File): Promise<LocalPdfEntry> {
     fitWidth: true,
     fitHeight: false,
     viewMode: "horizontal",
-    blob: file,
   };
   const database = await openPdfDatabase();
-  const transaction = database.transaction(PDF_STORE, "readwrite");
+  const transaction = database.transaction([PDF_STORE, PDF_FILE_STORE], "readwrite");
   const done = transactionDone(transaction);
   transaction.objectStore(PDF_STORE).put(record);
+  transaction.objectStore(PDF_FILE_STORE).put({ id: record.id, bytes });
   await done;
   void globalThis.navigator?.storage?.persist?.().catch(() => false);
   return publicEntry(record);
@@ -192,13 +210,72 @@ export async function listLocalPdfs(): Promise<LocalPdfEntry[]> {
     .sort((left, right) => right.lastOpenedAt.localeCompare(left.lastOpenedAt));
 }
 
-export async function getLocalPdf(id: string): Promise<{ entry: LocalPdfEntry; blob: Blob } | null> {
+async function readPdfMetadata(id: string) {
   const database = await openPdfDatabase();
   const transaction = database.transaction(PDF_STORE, "readonly");
   const done = transactionDone(transaction);
   const record = await requestResult<StoredPdfRecord | undefined>(transaction.objectStore(PDF_STORE).get(id));
   await done;
-  return record ? { entry: publicEntry(record), blob: record.blob } : null;
+  return record;
+}
+
+async function readPdfSource(id: string): Promise<{ entry: LocalPdfEntry; bytes: ArrayBuffer } | null> {
+  const record = await readPdfMetadata(id);
+  if (!record) return null;
+  const cached = fileCache.get(fileKey(record));
+  if (cached) return { entry: publicEntry(record), bytes: cached };
+  const database = await openPdfDatabase();
+  const tx = database.transaction(PDF_FILE_STORE, "readonly");
+  const done = transactionDone(tx);
+  const file = await requestResult<{ bytes: ArrayBuffer } | undefined>(tx.objectStore(PDF_FILE_STORE).get(id));
+  await done;
+  let bytes = file?.bytes;
+  if (!bytes) {
+    if (!record.blob) throw new Error("读取 PDF 原文件失败：本地原文件不存在，阅读记录已保留。");
+    try { bytes = await record.blob.arrayBuffer(); }
+    catch (reason) {
+      const detail = reason instanceof Error ? `${reason.name}: ${reason.message}` : String(reason);
+      throw new Error(`读取 PDF 原文件失败：${detail}。请重试；若仍失败，请从原文件重新导入，原阅读记录已保留。`);
+    }
+    if (bytes.byteLength !== record.size) throw new Error("读取 PDF 原文件失败：文件长度不一致，原记录已保留。");
+    // Binary reads must finish before starting this atomic migration. Fetch
+    // current metadata again to preserve another window's progress updates.
+    const migration = database.transaction([PDF_STORE, PDF_FILE_STORE], "readwrite");
+    const migrated = transactionDone(migration);
+    const store = migration.objectStore(PDF_STORE);
+    const latest = await requestResult<StoredPdfRecord | undefined>(store.get(id));
+    if (!latest) { await migrated; return null; }
+    migration.objectStore(PDF_FILE_STORE).put({ id, bytes });
+    store.put(publicEntry(latest));
+    await migrated;
+    fileCache.remember(fileKey(latest), bytes);
+    return { entry: publicEntry(latest), bytes };
+  }
+  fileCache.remember(fileKey(record), bytes);
+  return { entry: publicEntry(record), bytes };
+}
+
+export function getLocalPdf(id: string): Promise<{ entry: LocalPdfEntry; blob: Blob } | null> {
+  return withPdfOperation(id, async () => {
+    const stored = await readPdfSource(id);
+    return stored ? { entry: stored.entry, blob: new Blob([stored.bytes], { type: stored.entry.mimeType }) } : null;
+  });
+}
+
+export function loadLocalPdf(id: string) {
+  return withPdfOperation(id, async () => {
+    const stored = await readPdfSource(id);
+    if (!stored) throw new Error("PDF 不存在或已经被删除");
+    const cacheable = stored.bytes.byteLength <= fileCache.budget;
+    // PDF.js transfers ownership to its worker. A retained buffer must never
+    // be handed over directly; oversized, uncached files need no extra copy.
+    const data = cacheable ? stored.bytes.slice(0) : stored.bytes;
+    const release = cacheable ? () => withPdfOperation(id, async () => {
+      const current = await readPdfMetadata(id);
+      if (current && fileKey(current) === fileKey(stored.entry)) fileCache.remember(fileKey(current), stored.bytes);
+    }) : async () => {};
+    return { entry: stored.entry, data, release };
+  });
 }
 
 export async function updateLocalPdfProgress(
@@ -211,27 +288,34 @@ export async function updateLocalPdfProgress(
     pageCount?: number;
   },
 ): Promise<void> {
-  const database = await openPdfDatabase();
-  const transaction = database.transaction(PDF_STORE, "readwrite");
-  const done = transactionDone(transaction);
-  const store = transaction.objectStore(PDF_STORE);
-  const record = await requestResult<StoredPdfRecord | undefined>(store.get(id));
-  if (!record) {
+  return withPdfOperation(id, async () => {
+    const database = await openPdfDatabase();
+    const transaction = database.transaction(PDF_STORE, "readwrite");
+    const done = transactionDone(transaction);
+    const store = transaction.objectStore(PDF_STORE);
+    const record = await requestResult<StoredPdfRecord | undefined>(
+      store.get(id),
+    );
+    if (!record) {
+      await done;
+      throw new Error("PDF 已被删除");
+    }
+    store.put({
+      ...record,
+      page: Math.max(1, Math.round(progress.page)),
+      zoom: Math.max(0.25, Math.min(4, progress.zoom)),
+      lockedWidthRatio:
+        progress.lockedWidthRatio === undefined
+          ? record.lockedWidthRatio
+          : normalizePdfWidth(progress.lockedWidthRatio),
+      fitWidth: progress.fitWidth ?? record.fitWidth,
+      fitHeight: progress.fitHeight ?? record.fitHeight,
+      viewMode: progress.viewMode ?? record.viewMode,
+      pageCount: progress.pageCount ?? record.pageCount,
+      lastOpenedAt: new Date().toISOString(),
+    });
     await done;
-    throw new Error("PDF 已被删除");
-  }
-  store.put({
-    ...record,
-    page: Math.max(1, Math.round(progress.page)),
-    zoom: Math.max(0.25, Math.min(4, progress.zoom)),
-    lockedWidthRatio: progress.lockedWidthRatio === undefined ? record.lockedWidthRatio : normalizePdfWidth(progress.lockedWidthRatio),
-    fitWidth: progress.fitWidth ?? record.fitWidth,
-    fitHeight: progress.fitHeight ?? record.fitHeight,
-    viewMode: progress.viewMode ?? record.viewMode,
-    pageCount: progress.pageCount ?? record.pageCount,
-    lastOpenedAt: new Date().toISOString(),
   });
-  await done;
 }
 
 export async function listLocalPdfHighlights(pdfId: string): Promise<LocalPdfHighlight[]> {
@@ -358,22 +442,37 @@ export async function deleteLocalPdfBookmark(id: string): Promise<void> {
 }
 
 export async function deleteLocalPdf(id: string): Promise<void> {
-  const database = await openPdfDatabase();
-  const transaction = database.transaction([PDF_STORE, PDF_HIGHLIGHT_STORE, PDF_BOOKMARK_STORE], "readwrite");
-  const done = transactionDone(transaction);
-  transaction.objectStore(PDF_STORE).delete(id);
-  for (const storeName of [PDF_HIGHLIGHT_STORE, PDF_BOOKMARK_STORE]) {
-    const store = transaction.objectStore(storeName);
-    const keys = await requestResult<IDBValidKey[]>(store.index(PDF_ID_INDEX).getAllKeys(id));
-    keys.forEach((key) => store.delete(key));
-  }
-  await done;
+  return withPdfOperation(id, async () => {
+    const record = await readPdfMetadata(id);
+    const database = await openPdfDatabase();
+    const transaction = database.transaction(
+      [PDF_STORE, PDF_FILE_STORE, PDF_HIGHLIGHT_STORE, PDF_BOOKMARK_STORE],
+      "readwrite",
+    );
+    const done = transactionDone(transaction);
+    transaction.objectStore(PDF_STORE).delete(id);
+    transaction.objectStore(PDF_FILE_STORE).delete(id);
+    for (const storeName of [PDF_HIGHLIGHT_STORE, PDF_BOOKMARK_STORE]) {
+      const store = transaction.objectStore(storeName);
+      const keys = await requestResult<IDBValidKey[]>(
+        store.index(PDF_ID_INDEX).getAllKeys(id),
+      );
+      keys.forEach((key) => store.delete(key));
+    }
+    await done;
+    if (record) fileCache.delete(fileKey(record));
+  });
 }
 
 const PDF_READING_STORES = { entry: PDF_STORE, highlights: PDF_HIGHLIGHT_STORE, bookmarks: PDF_BOOKMARK_STORE, owner: "pdfId" as const };
 
 export async function readLocalPdfReadingSnapshot(id: string) {
-  return readReadingSnapshot<StoredPdfRecord, LocalPdfHighlight, LocalPdfBookmark>(await openPdfDatabase(), PDF_READING_STORES, id);
+  return withPdfOperation(id, async () => {
+    const stored = await readPdfSource(id);
+    if (!stored) throw new Error("PDF 已被删除");
+    const snapshot = await readReadingSnapshot<StoredPdfRecord, LocalPdfHighlight, LocalPdfBookmark>(await openPdfDatabase(), PDF_READING_STORES, id);
+    return { ...snapshot, entry: { ...snapshot.entry, blob: new Blob([stored.bytes], { type: stored.entry.mimeType }) } };
+  });
 }
 
 export async function restoreLocalPdfReadingBackup(id: string, backup: PdfReadingBackup, restoreProgress: boolean) {
@@ -395,6 +494,8 @@ export async function restoreLocalPdfReadingBackup(id: string, backup: PdfReadin
 
 /** 仅供测试关闭连接并允许重新初始化 fake-indexeddb。 */
 export async function resetPdfLibraryConnectionForTests(): Promise<void> {
+  await Promise.allSettled(operations.values());
+  fileCache.clear();
   const database = await openPromise?.catch(() => null);
   database?.close();
   openPromise = null;

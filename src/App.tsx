@@ -1522,6 +1522,7 @@ function App() {
         )}
         <Suspense fallback={<div className="pdf-reader-boot">正在加载 PDF 阅读器…</div>}>
           <PdfReader
+            key={pdfReaderDocumentId}
             documentId={pdfReaderDocumentId}
             initialHighlightId={pdfReaderTargetHighlightId}
             initialTargetRange={pdfReaderTargetRange}

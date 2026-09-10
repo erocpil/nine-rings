@@ -11117,6 +11117,11 @@ button.doc-tree-toggle:focus-visible {
   text-align: center;
 }
 
+/* PDF uses a dark canvas surround; EPUB has its own light reading surface. */
+.pdf-reader:not(.epub-reader) .pdf-reader-message {
+  color: #f3f4f6;
+}
+
 .pdf-reader-error button {
   padding: 6px 14px;
 }

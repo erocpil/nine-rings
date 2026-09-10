@@ -3,6 +3,7 @@ import { ToolbarIcon } from "./ToolbarIcon";
 import { recordReaderDiagnostic } from "../lib/reader-diagnostics";
 import { lockedPdfScale, normalizePdfWidth } from "../lib/reader-width";
 import { PdfPageCache } from "../lib/pdf-page-cache";
+import { trackPdfCleanup, waitForPdfCleanup } from "../lib/pdf-document-lifecycle";
 import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   getDocument,
@@ -23,6 +24,7 @@ import {
   deleteLocalPdfBookmark,
   deleteLocalPdfHighlight,
   getLocalPdf,
+  loadLocalPdf,
   listLocalPdfBookmarks,
   listLocalPdfHighlights,
   updateLocalPdfProgress,
@@ -256,6 +258,12 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   const annotationManipulationRef = useRef<PdfAnnotationManipulation | null>(null);
   const searchRequestRef = useRef(0);
   const saveTimerRef = useRef<number | null>(null);
+  const closingRef = useRef(false);
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   const latestProgressRef = useRef<{
     lockedWidthRatio: number | null;
     id: string;
@@ -268,6 +276,8 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   } | null>(null);
   const [entry, setEntry] = useState<LocalPdfEntry | null>(null);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
+  const [loadRevision, setLoadRevision] = useState(0);
+  const [pageVisible, setPageVisible] = useState(() => document.visibilityState !== "hidden");
   const [page, setPage] = useState(1);
   const [pageInput, setPageInput] = useState("1");
   const [zoom, setZoom] = useState(1);
@@ -565,15 +575,30 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   }, [applyFullscreenState, enterImmersiveFallback, exitFullscreen, fullscreen, showActionNotice]);
 
   const closeReader = useCallback(async () => {
+    if (closingRef.current) return;
+    closingRef.current = true;
     recordReaderDiagnostic("close-request");
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const progress = latestProgressRef.current;
+    if (progress) {
+      try { await updateLocalPdfProgress(progress.id, progress); }
+      catch (reason) {
+        closingRef.current = false;
+        showActionNotice(`阅读进度保存失败，请重试关闭：${pdfErrorMessage(reason)}`);
+        return;
+      }
+    }
     try {
       if (fullscreen) await exitFullscreen();
     } catch (reason) {
       console.warn("[PDF] 退出阅读全屏失败:", reason);
     } finally {
-      onClose();
+      if (mountedRef.current) onClose();
     }
-  }, [exitFullscreen, fullscreen, onClose]);
+  }, [exitFullscreen, fullscreen, onClose, showActionNotice]);
 
   useEffect(() => {
     if (isTauriRuntime()) {
@@ -613,6 +638,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     let cancelled = false;
     let loadedDocument: PDFDocumentProxy | null = null;
     let loadingTask: PDFDocumentLoadingTask | null = null;
+    let releaseFile: (() => Promise<void>) | undefined;
     recordReaderDiagnostic("open");
     const renderTasks = renderTaskRefs.current;
     const textLayers = textLayerRefs.current;
@@ -650,9 +676,11 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       setHighlights([]);
       setBookmarks([]);
       setTargetHighlightId(initialHighlightId ?? (initialTargetRange ? "pdf-source-target" : null));
-      const stored = await getLocalPdf(documentId);
-      if (!stored) throw new Error("PDF 不存在或已经被删除");
+      await waitForPdfCleanup(documentId);
+      if (cancelled) return;
+      const stored = await loadLocalPdf(documentId);
       if (cancelled || documentRenderGenerationRef.current !== documentGeneration) return;
+      releaseFile = stored.release;
       setEntry(stored.entry);
       setPage(Math.max(1, stored.entry.page));
       setPageInput(String(Math.max(1, stored.entry.page)));
@@ -662,15 +690,14 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       setFitHeight(Boolean(stored.entry.fitHeight));
       setViewMode(stored.entry.viewMode === "vertical" ? "vertical" : "horizontal");
 
-      const [data, storedHighlights, storedBookmarks] = await Promise.all([
-        stored.blob.arrayBuffer(),
+      const [storedHighlights, storedBookmarks] = await Promise.all([
         listLocalPdfHighlights(documentId),
         listLocalPdfBookmarks(documentId),
       ]);
       if (cancelled || documentRenderGenerationRef.current !== documentGeneration) return;
       setHighlights(storedHighlights);
       setBookmarks(storedBookmarks);
-      loadingTask = getDocument({ data });
+      loadingTask = getDocument({ data: stored.data });
       loadingTask.onPassword = (updatePassword: (password: string) => void, reason: number) => {
         const promptText = reason === PasswordResponses.INCORRECT_PASSWORD
           ? "密码不正确，请重新输入 PDF 密码"
@@ -709,6 +736,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => {
       cancelled = true;
+      void releaseFile?.().catch(reason => console.warn("[PDF] 保留近期文件缓存失败:", reason));
       bitmapCache.clear();
       if (documentRenderGenerationRef.current === documentGeneration) {
         documentRenderGenerationRef.current += 1;
@@ -718,9 +746,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       if (zoomPreviewFrameRef.current !== null) window.cancelAnimationFrame(zoomPreviewFrameRef.current);
       // The worker exists before loadingTask.promise resolves. Closing a large
       // file during parsing must release it too, not only a loaded document.
-      void loadingTask?.destroy().catch(() => {});
+      if (loadingTask) void trackPdfCleanup(documentId, loadingTask.destroy());
     };
-  }, [documentId, initialHighlightId, initialTargetRange, setFitWidth]);
+  }, [documentId, initialHighlightId, initialTargetRange, setFitWidth, loadRevision]);
 
   useEffect(() => {
     const element = viewportRef.current;
@@ -927,7 +955,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   }, [displayedPages, page, pdf, viewMode, viewportHeight]);
 
   useEffect(() => {
-    if (!pdf || !renderedPages.length || viewportWidth <= 0 || viewportHeight <= 0) return;
+    if (!pdf || !pageVisible || !renderedPages.length || viewportWidth <= 0 || viewportHeight <= 0) return;
     let cancelled = false;
     const requestOwner = Symbol("pdf-render-batch");
     const requestOwners = pageRequestOwnerRefs.current;
@@ -1247,10 +1275,32 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         requestOwners.delete(pageNumber);
       });
     };
-  }, [fitHeight, fitWidth, page, pdf, renderedPages, viewMode, viewportHeight, viewportWidth, zoom, releaseOffscreenPage, fastScrolling, annotationTool, rememberThumbnail, lockedWidthRatio]);
+  }, [fitHeight, fitWidth, page, pdf, pageVisible, renderedPages, viewMode, viewportHeight, viewportWidth, zoom, releaseOffscreenPage, fastScrolling, annotationTool, rememberThumbnail, lockedWidthRatio]);
 
   useEffect(() => {
-    if (!pdf || !entry) return;
+    const flush = () => {
+      if (closingRef.current) return;
+      if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+      const progress = latestProgressRef.current;
+      if (progress) void updateLocalPdfProgress(progress.id, progress)
+        .catch(reason => console.warn("[PDF] 后台保存阅读进度失败:", reason));
+    };
+    const visibility = () => {
+      const visible = document.visibilityState !== "hidden";
+      setPageVisible(visible);
+      if (!visible) flush();
+    };
+    document.addEventListener("visibilitychange", visibility);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", visibility);
+      window.removeEventListener("pagehide", flush);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!pdf || !entry || closingRef.current) return;
     latestProgressRef.current = {
       lockedWidthRatio,
       id: entry.id,
@@ -1280,7 +1330,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   useEffect(() => () => {
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
     const progress = latestProgressRef.current;
-    if (progress) {
+    if (progress && !closingRef.current) {
       void updateLocalPdfProgress(progress.id, progress)
         .catch((reason) => console.warn("[PDF] 保存最终阅读进度失败:", reason));
     }
@@ -2412,6 +2462,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
             <div className="pdf-reader-message pdf-reader-error">
               <strong>无法打开 PDF</strong>
               <span>{error}</span>
+              <button type="button" onClick={() => setLoadRevision(revision => revision + 1)}>重试打开</button>
               <button type="button" onClick={() => void closeReader()}>返回</button>
             </div>
           )}
