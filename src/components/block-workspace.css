@@ -11,6 +11,7 @@
 .block-workspace::backdrop { background: #15202066; backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
 .block-workspace-header { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 3px 8px; flex: 0 0 auto; border-bottom: 1px solid var(--border); }
 .block-workspace-header strong { font-size: 14px; white-space: nowrap; }
+.block-workspace-vim-mode { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; color: var(--text-secondary); font: 11px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .04em; }
 .block-workspace-header [role="group"] { display: flex; background: var(--hover-bg); border-radius: 6px; }
 .block-workspace button { color: var(--text-secondary); border: 0; background: transparent; cursor: pointer; border-radius: 6px; }
 .block-workspace-header button, .block-workspace-tools button { min-width: 32px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; padding: 4px 6px; flex-shrink: 0; }

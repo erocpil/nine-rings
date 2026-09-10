@@ -75,6 +75,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
   const body = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<"read" | "edit">("read");
   const editable = mode === "edit" && !readonly;
+  const [vimMode, setVimMode] = useState<"normal" | "insert">("normal");
   const editableRef = useRef(editable);
   editableRef.current = editable;
   const [notice, setNotice] = useState("");
@@ -307,6 +308,22 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
 
   return createPortal(<dialog ref={dialog} tabIndex={-1} className="block-workspace" data-block-type={rootType} role="dialog" aria-modal="true" aria-label={`${name}工作区`}
     onCancel={event => { event.preventDefault(); if (!editor?.view.composing) void close(); }}
+    onKeyDownCapture={event => {
+      if (!editable) return;
+      if (event.key === "Escape" && vimMode === "insert") {
+        event.preventDefault(); event.stopPropagation(); setVimMode("normal"); return;
+      }
+      if (vimMode !== "normal") return;
+      const key = event.key.toLowerCase();
+      if (["i", "a", "o"].includes(key)) {
+        event.preventDefault(); event.stopPropagation(); setVimMode("insert");
+        window.requestAnimationFrame(() => editor?.commands.focus());
+      } else if (["h", "j", "k", "l"].includes(key)) {
+        event.preventDefault(); event.stopPropagation();
+        const command = key === "h" ? "ArrowLeft" : key === "j" ? "ArrowDown" : key === "k" ? "ArrowUp" : "ArrowRight";
+        editor?.commands.keyboardShortcut(command);
+      }
+    }}
     onKeyDown={event => {
       event.stopPropagation();
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
@@ -317,6 +334,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
     }}>
     <header className="block-workspace-header">
       <strong>{name}</strong>
+      {editable && <span className="block-workspace-vim-mode" role="status">VIM {vimMode === "normal" ? "NORMAL" : "INSERT"}</span>}
       <div role="group" aria-label="块模式">
         <button type="button" aria-pressed={!editable} onClick={() => preservePosition(() => setMode("read"))}>阅读</button>
         {!readonly && <button type="button" aria-pressed={editable} onClick={() => preservePosition(() => setMode("edit"))}>编辑</button>}
