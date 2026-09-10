@@ -16,10 +16,11 @@ export function CodeMirrorBlockEditor({ value, onChange, onModeChange }: Props) 
   const host = useRef<HTMLDivElement>(null);
   const changeRef = useRef(onChange); changeRef.current = onChange;
   const modeRef = useRef(onModeChange); modeRef.current = onModeChange;
+  const valueRef = useRef(value); valueRef.current = value;
   useEffect(() => {
     if (!host.current) return;
     const config = readVimConfig();
-    const state = EditorState.create({ doc: value, extensions: [vim({ status: true }), ...(config.wrap ? [EditorView.lineWrapping] : []), EditorState.tabSize.of(config.tabSize), EditorView.updateListener.of((update) => {
+    const state = EditorState.create({ doc: valueRef.current, extensions: [vim({ status: true }), ...(config.wrap ? [EditorView.lineWrapping] : []), EditorState.tabSize.of(config.tabSize), EditorView.updateListener.of((update) => {
       if (update.docChanged) changeRef.current(update.state.doc.toString());
       // @replit/codemirror-vim manages mode internally; the outer dialog keeps
       // its existing indicator until the extension exposes a CM6 mode API.
