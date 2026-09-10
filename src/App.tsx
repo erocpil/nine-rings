@@ -481,6 +481,7 @@ function App() {
       .catch((error) => console.error("[App] 保存编辑器字号失败:", error));
   }, [handleConfigChange]);
   const FOCUS_KEY = "nr:focusMode";
+  const [securityToolbarTarget, setSecurityToolbarTarget] = useState<HTMLDivElement | null>(null);
   const [focusMode, setFocusMode] = useState(() => {
     return localStorage.getItem(FOCUS_KEY) === "true";
   });
@@ -1546,6 +1547,7 @@ function App() {
         </Suspense>
       )}
       <header className="app-header">
+        <div className="header-document-security" ref={setSecurityToolbarTarget} />
         {error && (
           <div className="error-bar" role="alert">
             <span>⚠ {error}</span>
@@ -1921,6 +1923,7 @@ function App() {
                       onProtectionBusy={setProtectionBusy}
                       onSecurityError={message => useNotesStore.setState({ error: message })}
                       hideDocumentPasswordControls
+                      securityToolbarTarget={securityToolbarTarget}
                       securityDisabled={syncBusy}
                       onSecurityChanged={async () => {
                         const note = await api.notes.get(selectedNote.id);

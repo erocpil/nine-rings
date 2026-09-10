@@ -425,6 +425,7 @@ export interface NoteEditorProps {
   sensitive?: boolean;
   securityDisabled?: boolean;
   hideDocumentPasswordControls?: boolean;
+  securityToolbarTarget?: HTMLElement | null;
   onFlush?: () => Promise<void>;
   onSecurityChanged?: () => Promise<void>;
   onProtectionBusy?: (busy: boolean) => void;

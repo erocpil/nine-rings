@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { NoteEditorProps } from "./NoteEditor";
 import type { DeltaOps } from "../types/models";
 import { isEncrypted, openDocumentSession, unlockDocument } from "../lib/document-crypto";
@@ -72,10 +73,13 @@ export function ProtectedNoteEditor({ props, render }: { props: NoteEditorProps;
     {error && <p role="alert">{error}</p>}
   </section>;
   const content = encrypted ? plain! : props.content;
+  const securityStatus = encrypted && props.onSecurityChanged && !props.focusMode ? <div className="document-security-status">
+    <span>正文已加密</span>
+    <button type="button" disabled={busy} onClick={() => void run(lock)}>锁定文档</button>
+  </div> : null;
   return <div className="protected-editor">
-    {props.onSecurityChanged && (encrypted || !props.hideDocumentPasswordControls || error) && <div className="document-security-bar">
-      {encrypted && <span>🔒 正文已加密</span>}
-      {encrypted && <button type="button" disabled={busy} onClick={() => void run(lock)}>锁定文档</button>}
+    {props.securityToolbarTarget ? createPortal(securityStatus, props.securityToolbarTarget) : props.securityToolbarTarget === undefined ? securityStatus : null}
+    {props.onSecurityChanged && (!props.hideDocumentPasswordControls || error) && <div className="document-security-bar">
       {!props.hideDocumentPasswordControls && <button type="button" disabled={busy || props.securityDisabled} onClick={() => void manage()}>{encrypted ? "更改文档密码" : "设置文档密码"}</button>}
       {!props.hideDocumentPasswordControls && encrypted && <button type="button" disabled={busy || props.securityDisabled} onClick={() => void manage(true)}>解除文档加密</button>}
       {error && <span role="alert">{error}</span>}
