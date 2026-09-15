@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { ToolbarIcon } from "./ToolbarIcon";
 import type { NoteEditorProps } from "./NoteEditor";
 import type { DeltaOps } from "../types/models";
 import { isEncrypted, openDocumentSession, unlockDocument } from "../lib/document-crypto";
@@ -78,13 +79,14 @@ export function ProtectedNoteEditor({ props, render }: { props: NoteEditorProps;
     <button type="button" disabled={busy} onClick={() => void run(lock)}>锁定文档</button>
   </div> : null;
   return <div className="protected-editor">
-    {props.securityToolbarTarget ? createPortal(securityStatus, props.securityToolbarTarget) : props.securityToolbarTarget === undefined ? securityStatus : null}
+    {!props.unifiedTitleBar && (props.securityToolbarTarget ? createPortal(securityStatus, props.securityToolbarTarget) : props.securityToolbarTarget === undefined ? securityStatus : null)}
     {props.onSecurityChanged && (!props.hideDocumentPasswordControls || error) && <div className="document-security-bar">
       {!props.hideDocumentPasswordControls && <button type="button" disabled={busy || props.securityDisabled} onClick={() => void manage()}>{encrypted ? "更改文档密码" : "设置文档密码"}</button>}
       {!props.hideDocumentPasswordControls && encrypted && <button type="button" disabled={busy || props.securityDisabled} onClick={() => void manage(true)}>解除文档加密</button>}
       {error && <span role="alert">{error}</span>}
     </div>}
     {render({ ...props, readonly: props.readonly || busy, content, sensitive: encrypted, pdfExcerptSource: content.metadata?.pdfExcerpt, epubExcerptSource: content.metadata?.epubExcerpt,
+      titleSecurityAction: props.unifiedTitleBar && encrypted ? <button type="button" className="note-readonly-badge note-security-action" disabled={busy} title="正文已加密，点击锁定文档" aria-label="正文已加密，锁定文档" onClick={() => void run(lock)}><ToolbarIcon name="shield" /></button> : undefined,
       onContentChange: read => props.onContentChange(() => {
         const next = read();
         if (encrypted && mounted.current) setPlain(next);

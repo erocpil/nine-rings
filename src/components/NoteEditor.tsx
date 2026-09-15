@@ -422,6 +422,10 @@ function clampOutlineDockWidth(width: number): number {
 // ══════════════════════════════════════
 
 export interface NoteEditorProps {
+  unifiedTitleBar?: boolean;
+  titleSecurityAction?: React.ReactNode;
+  saveIssue?: "error" | "warning";
+  onOpenSaveIssue?: () => void;
   sensitive?: boolean;
   securityDisabled?: boolean;
   hideDocumentPasswordControls?: boolean;
@@ -605,7 +609,7 @@ function DocumentEditor(props: NoteEditorProps) {
   return <FullNoteEditor {...props} initialPdfExportRequest={exportRequested} selectAllOnOpen={selectAllOnOpen} />;
 }
 
-function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
+function FullNoteEditor({ unifiedTitleBar = false, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -3586,7 +3590,7 @@ function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpen
         setToolbarSelectionHighlight(editor, null);
       }}
     >
-      {focusMode && (
+      {focusMode && !unifiedTitleBar && (
         <FocusModeBar key={noteId} target={focusToolbarTarget} onOpenProperties={onOpenProperties} title={localTitle || "无标题"} leading={onReadonlyChange && (
           <button type="button" className="focus-readonly-toggle" aria-pressed={readonly}
             title={readonly ? "点击设为可编辑" : "点击设为只读"}
@@ -3871,6 +3875,7 @@ function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpen
         <div className="note-editor-sticky">
           {/* ── 标题 ── */}
         <div className="note-title-row" ref={titleRef}>
+          {titleSecurityAction}
           {onReadonlyChange ? (
             <button
               type="button"
@@ -3899,11 +3904,18 @@ function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpen
             <input
               ref={titleInputRef}
               type="text"
-              className="note-title"
+              className={`note-title${saveIssue ? ` note-title-save-${saveIssue}` : ""}`}
+              aria-label={unifiedTitleBar && focusMode ? "文档属性" : "文档标题"}
+              title={saveIssue ? "修改尚未保存，点击旁边的警告图标查看详情" : undefined}
+              onClick={unifiedTitleBar && focusMode ? onOpenProperties : undefined}
+              aria-haspopup={unifiedTitleBar && focusMode ? "dialog" : undefined}
+              onKeyDown={unifiedTitleBar && focusMode ? event => {
+                if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpenProperties?.(); }
+              } : undefined}
               placeholder="随心记 — 标题"
               value={localTitle}
               onChange={(e) => { setLocalTitle(e.target.value); onTitleChange(e.target.value); }}
-              readOnly={readonly}
+              readOnly={readonly || (unifiedTitleBar && focusMode)}
             />
             {readonlyChangeNotice && (
               <div className="markdown-paste-notice readonly-change-notice" role="status">
@@ -3911,7 +3923,8 @@ function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpen
               </div>
             )}
           </div>
-          {readonly && (
+          {saveIssue && <button type="button" className="focus-btn workspace-error-indicator" aria-label="查看保存错误详情" title="查看保存错误详情" onClick={onOpenSaveIssue}><ToolbarIcon name="warning" /></button>}
+          {(readonly || (unifiedTitleBar && focusMode)) && (
             <button type="button" className="focus-btn readonly-copy-block" title="复制块" aria-label="复制块" onMouseDown={(event) => event.preventDefault()} onClick={() => void handleCopyBlock()}><ToolbarIcon name="copy" /></button>
           )}
           {pdfExcerptSource && onOpenPdfExcerpt && (
@@ -3951,6 +3964,7 @@ function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpen
             aria-expanded={bookmarkOpen}
             type="button"
           >书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button>
+          {unifiedTitleBar && focusMode && !readonly && <button type="button" className="focus-btn" title="更多编辑工具" aria-label="更多编辑工具" aria-expanded={focusToolbarExpanded} onClick={() => setFocusToolbarExpanded(value => !value)}><ToolbarIcon name="annotate" /></button>}
           <button
             className={`focus-btn ${focusMode ? "active" : ""}`}
             onClick={() => { onFocusModeChange?.(!focusMode); }}
@@ -4146,6 +4160,7 @@ function FullNoteEditor({ sensitive = false, focusToolbarTarget, onFlush, onOpen
 
       {/* ── 底部信息栏（位置 + 字数 + 版本历史）─ */}
       {(showStatusBar || searchMatches.length > 0) && <div className={`editor-stats${showStatusBar ? "" : " editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
+        {saveIssue && <button type="button" className="workspace-error-indicator" onClick={onOpenSaveIssue}>保存异常 · 查看详情</button>}
         {searchMatches.length > 0 && !editorFindOpen && (
           <span className="editor-search-navigation" role="status" aria-live="polite">
             <span>{activeSearchMatch + 1} / {searchMatches.length}</span>

@@ -1,0 +1,68 @@
+import { expect, test } from "@playwright/test";
+
+test("独立搜索不卸载正文、不退出专注模式，关闭后恢复焦点", async ({ page }, testInfo) => {
+  await page.goto("/");
+  const editor = page.locator(".ProseMirror");
+  await expect(editor).toBeVisible();
+  await page.locator(".note-title").fill("独立搜索验证");
+  await editor.fill("workspace-search-token 正文不会因搜索被卸载");
+  await expect(page.locator(".save-status-saved")).toBeVisible();
+  await editor.evaluate(el => { (el as HTMLElement).dataset.testIdentity = "original-editor"; });
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
+  const trigger = page.locator(".desktop-activity-bar").getByRole("button", { name: "全局搜索" });
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: "全局搜索", exact: true });
+  await expect(dialog.getByRole("textbox", { name: "全局搜索" })).toBeFocused();
+  await dialog.getByRole("textbox", { name: "全局搜索" }).fill("workspace-search-token");
+  await expect(dialog.locator(".search-hit")).toContainText("独立搜索验证");
+  await expect(editor).toHaveAttribute("data-test-identity", "original-editor");
+  await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
+  await page.screenshot({ path: testInfo.outputPath("workspace-search.png") });
+  await dialog.getByRole("button", { name: "关闭全局搜索" }).click();
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await dialog.getByRole("textbox", { name: "全局搜索" }).fill("workspace-search-token");
+  await dialog.locator(".search-hit").click();
+  await expect(dialog).toHaveCount(0);
+  await expect(editor).toHaveAttribute("data-test-identity", "original-editor");
+  await expect(page.locator(".search-match")).toHaveCount(1);
+  await page.getByRole("button", { name: "更多编辑工具" }).click();
+  await expect(page.locator(".editor-menu")).toBeVisible();
+  await page.getByRole("button", { name: "更多编辑工具" }).click();
+  await expect(page.locator(".editor-menu")).toBeHidden();
+  await page.getByRole("button", { name: "退出专注模式" }).click();
+  await expect(page.locator(".editor-menu")).toBeVisible();
+});
+
+test("保存失败标题标红加删除线，关闭详情不清除失败状态，重试可恢复", async ({ page }, testInfo) => {
+  await page.goto("/");
+  const editor = page.locator(".ProseMirror");
+  await expect(editor).toBeVisible();
+  await page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts");
+    const original = api.notes.update;
+    api.notes.update = async () => { throw new Error("模拟磁盘写入失败"); };
+    window.addEventListener("test:restore-save", () => { api.notes.update = original; }, { once: true });
+  });
+  await editor.fill("未保存内容必须保留");
+  const dialog = page.getByRole("dialog", { name: "错误详情" });
+  await expect(dialog).toBeVisible();
+  const title = page.locator(".note-title");
+  await expect(title).toHaveClass(/note-title-save-error/);
+  await expect(title).toHaveCSS("text-decoration-line", "line-through");
+  await expect(dialog.getByRole("button", { name: "导出恢复文件" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "复制错误详情" })).toBeVisible();
+  await dialog.getByRole("button", { name: "关闭错误详情" }).click();
+  await expect(title).toHaveClass(/note-title-save-error/);
+  await expect(editor).toContainText("未保存内容必须保留");
+  await page.screenshot({ path: testInfo.outputPath("save-error-title.png") });
+  await page.getByRole("button", { name: "查看保存错误详情" }).click();
+  await page.evaluate(() => window.dispatchEvent(new Event("test:restore-save")));
+  await dialog.getByRole("button", { name: "重试保存" }).click();
+  await expect(title).not.toHaveClass(/note-title-save-error|note-title-save-warning/);
+  await expect(dialog).toContainText("当前没有未解决的错误");
+  await dialog.getByRole("button", { name: "关闭错误详情" }).click();
+  await page.reload();
+  await expect(editor).toContainText("未保存内容必须保留");
+});

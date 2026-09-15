@@ -178,6 +178,64 @@ body {
   min-height: 100dvh;
 }
 
+/* Desktop Web uses the editor's own title row in both modes. Native/mobile
+   keep their existing chrome until explicitly migrated. */
+.app-streamlined-web .focus-mode .note-title-row { display: flex; }
+.app-streamlined-web .focus-mode .note-editor-sticky {
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.app-streamlined-web .focus-mode .note-title { cursor: pointer; }
+.app-streamlined-web .vr-title .vr-properties-title { flex: 1; min-width: 0; width: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font: inherit; font-weight: 600; }
+.app-streamlined-web .note-title-save-error {
+  color: var(--danger, #b33b36);
+  text-decoration: line-through;
+}
+.app-streamlined-web .note-title-save-warning {
+  color: var(--warning, #926315);
+  text-decoration: line-through;
+}
+.workspace-error-indicator { color: var(--danger, #b33b36) !important; }
+.note-security-action { color: var(--accent); flex-shrink: 0; }
+.workspace-dialog-backdrop {
+  position: fixed;
+  top: var(--app-visual-viewport-offset-top, 0px);
+  left: var(--app-visual-viewport-offset-left, 0px);
+  width: 100%;
+  height: var(--app-viewport-height, 100dvh);
+  z-index: 16000;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: max(12px, var(--safe-top, 0px)) 12px max(12px, var(--safe-bottom, 0px));
+  background: rgb(0 0 0 / 32%);
+}
+.workspace-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(760px, 100%);
+  max-height: 100%;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 25%);
+}
+.workspace-dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.workspace-dialog-heading h2 { font-size: 16px; margin: 0; }
+.workspace-dialog .search-bar { flex: 0 0 auto; width: auto; max-width: none; min-width: 0; margin: 12px 16px; }
+.workspace-dialog .search-input { font-size: 16px; }
+.workspace-dialog .search-results { min-height: 0; overflow: auto; margin: 0; }
+.workspace-dialog .search-filters { position: static; width: auto; max-width: none; }
+.workspace-dialog-empty, .workspace-error-details { padding: 12px 16px; overflow-wrap: anywhere; }
+.workspace-error-details p { white-space: pre-wrap; }
+.workspace-error-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
 .app-header {
   display: flex;
   align-items: center;
@@ -4757,8 +4815,8 @@ body.app-sidebar-dragging .desktop-reader-panel:not([hidden]) {
 }
 
 .focus-mode .note-title-row {
-  /* 专注模式的导航入口由桌面顶栏或移动端极简工具栏承载；原始标题行
-     在所有视口都隐藏，避免竖屏下重复显示标题、只读锁和模式开关。 */
+  /* Native/mobile retain their separate focus bar. Desktop Web explicitly
+     overrides this above to reuse the normal title row. */
   display: none;
 }
 

@@ -5,6 +5,8 @@ import { ToolbarIcon } from "./ToolbarIcon";
 import type { DocType } from "../types/models";
 
 interface SearchBarProps {
+  initialQuery?: { text: string; storagePath?: string; docType?: DocType; concept?: string };
+  onQueryChange?: (query: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => void;
   inputRef?: RefObject<HTMLInputElement>;
   onSearch: (query: string) => void;
   onDocSearch?: (query: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => void;
@@ -30,13 +32,16 @@ const TYPE_FILTERS: { value: DocType | ""; label: string }[] = [
   { value: "tutorial", label: "🎓 教程" },
 ];
 
-export function SearchBar({ inputRef, onSearch, onDocSearch, onInputBlur, onEscape, cancelRequestId }: SearchBarProps) {
-  const [value, setValue] = useState("");
+export function SearchBar({ initialQuery, onQueryChange, inputRef, onSearch, onDocSearch, onInputBlur, onEscape, cancelRequestId }: SearchBarProps) {
+  const [value, setValue] = useState(initialQuery?.text ?? "");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [pathFilter, setPathFilter] = useState("");
-  const [typeFilter, setTypeFilter] = useState<DocType | "">("");
-  const [conceptInput, setConceptInput] = useState("");
-  const [conceptFilter, setConceptFilter] = useState("");
+  const [pathFilter, setPathFilter] = useState(initialQuery?.storagePath ?? "");
+  const [typeFilter, setTypeFilter] = useState<DocType | "">(initialQuery?.docType ?? "");
+  const [conceptInput, setConceptInput] = useState(initialQuery?.concept ?? "");
+  const [conceptFilter, setConceptFilter] = useState(initialQuery?.concept ?? "");
+  useEffect(() => {
+    onQueryChange?.({ text: value, storagePath: pathFilter || undefined, docType: typeFilter || undefined, concept: conceptFilter || undefined });
+  }, [value, pathFilter, typeFilter, conceptFilter, onQueryChange]);
   const [conceptSuggestions, setConceptSuggestions] = useState<string[]>([]);
   const [existingConcepts, setExistingConcepts] = useState<string[]>([]);
   const filterRef = useRef<HTMLDivElement>(null);
@@ -177,7 +182,7 @@ export function SearchBar({ inputRef, onSearch, onDocSearch, onInputBlur, onEsca
                 clearTimeout(searchTimerRef.current);
                 searchTimerRef.current = null;
               }
-              if (value) fireSearch(value, pathFilter, typeFilter, conceptFilter);
+              if (value || pathFilter || typeFilter || conceptFilter) fireSearch(value, pathFilter, typeFilter, conceptFilter);
             }}
             onBlur={() => {
               // 延迟检查：如果焦点移到筛选面板内部则不折叠

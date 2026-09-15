@@ -25,6 +25,7 @@ test.describe("搜索定位与编辑器布局锚点", () => {
 
     // 等待自动保存把正文同步到全文搜索字段。
     await page.waitForTimeout(800);
+    await page.keyboard.press("Control+Shift+f");
     await page.locator(".search-input").fill("unique-search-target");
     const result = page.locator(".search-hit").filter({ hasText: "搜索定位测试" });
     await expect(result).toBeVisible();
@@ -43,6 +44,7 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     await editor.fill("第一处 focus-search-target\n第二处 focus-search-target");
     await expect(page.locator(".save-status-saved")).toBeVisible();
     await page.getByTitle("专注模式").click();
+    await page.keyboard.press("Control+Shift+f");
     await page.locator(".search-input").fill("focus-search-target");
     await page.locator(".search-hit").filter({ hasText: "专注搜索导航测试" }).click();
 
@@ -62,7 +64,9 @@ test.describe("搜索定位与编辑器布局锚点", () => {
       "第三处 needle",
     ].join("\n"));
 
-    await editor.locator(":scope > p").nth(1).click();
+    // Click actual text, not the centre of the full-width paragraph's blank area.
+    await editor.locator(":scope > p").nth(1).click({ position: { x: 8, y: 8 } });
+    expect(await editor.evaluate(el => (el as HTMLElement & { editor: import("@tiptap/core").Editor }).editor.state.selection.$from.parent.textContent)).toBe("光标位于这里");
     await page.keyboard.press("Alt+f");
     const findInput = page.getByLabel("在当前文档中查找");
     await findInput.fill("needle");
@@ -86,22 +90,23 @@ test.describe("搜索定位与编辑器布局锚点", () => {
 
     await editor.fill(`正文包含 ${keyword}`);
     await page.waitForTimeout(800);
+    await page.keyboard.press("Control+Shift+f");
     await input.fill(keyword);
     await expect(header).toContainText("搜索结果（1）");
 
-    // Esc 只关闭结果，不删除查询；输入框被主动 blur，下一次点击会触发新搜索。
+    // Esc closes the overlay, but reopening restores the query and refreshes it.
     await input.press("Escape");
     await expect(page.locator(".search-results")).toHaveCount(0);
+    await page.keyboard.press("Control+Shift+f");
     await expect(input).toHaveValue(keyword);
-    await input.click();
     await expect(header).toContainText("搜索结果（1）");
 
     // 显式关闭按钮同样保留关键词。修改后不等待 600ms 自动保存，
     // 再次聚焦必须先 flush，因而旧关键词不应继续命中。
     await page.getByRole("button", { name: "关闭搜索结果" }).click();
-    await expect(input).toHaveValue(keyword);
     await editor.fill("正文已经改变，不再包含原来的检索词");
-    await input.click();
+    await page.keyboard.press("Control+Shift+f");
+    await expect(input).toHaveValue(keyword);
     await expect(header).toContainText("搜索结果（0）");
   });
 
@@ -110,6 +115,7 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     const keyword = "scrollable-search-results-target";
     await page.locator(".ProseMirror").fill(`正文包含 ${keyword}`);
     await page.waitForTimeout(800);
+    await page.keyboard.press("Control+Shift+f");
     await page.locator(".search-input").fill(keyword);
 
     const panel = page.locator(".search-results");
@@ -147,6 +153,7 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     await expect(editor.locator("table")).toHaveCount(1);
     await page.waitForTimeout(800);
 
+    await page.keyboard.press("Control+Shift+f");
     await page.locator(".search-input").fill("unique-table-search-value");
     const result = page.locator(".search-hit").filter({ hasText: "表格搜索测试" });
     await expect(result).toBeVisible();
@@ -174,7 +181,7 @@ test.describe("搜索定位与编辑器布局锚点", () => {
 
     const beforeSidebar = await selectionTop();
     expect(beforeSidebar).not.toBeNull();
-    await page.getByTitle("隐藏侧栏").click();
+    await page.locator(".desktop-activity-bar").getByRole("button", { name: "文档树", exact: true }).click();
     await page.waitForTimeout(100);
     const afterSidebar = await selectionTop();
     expect(Math.abs((afterSidebar ?? 0) - (beforeSidebar ?? 0))).toBeLessThanOrEqual(4);
@@ -201,7 +208,7 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     const caretParagraph = editor.locator(":scope > p").nth(17);
     await caretParagraph.scrollIntoViewIfNeeded();
     await caretParagraph.click();
-    await page.getByTitle("隐藏侧栏").click();
+    await page.locator(".desktop-activity-bar").getByRole("button", { name: "文档树", exact: true }).click();
     await page.waitForTimeout(200);
 
     const readingParagraph = editor.locator(":scope > p").nth(35);

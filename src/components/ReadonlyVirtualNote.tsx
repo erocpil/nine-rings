@@ -772,7 +772,7 @@ export function ReadonlyVirtualNote(
         } as React.CSSProperties
       }
     >
-      {props.focusMode ? (
+      {props.focusMode && !props.unifiedTitleBar ? (
         <FocusModeBar target={props.focusToolbarTarget} onOpenProperties={props.onOpenProperties} title={props.title || "无标题"} leading={
           <button type="button" className="focus-readonly-toggle" aria-label="点击设为可编辑"
             title="点击设为可编辑" aria-pressed="true" disabled={!props.onReadonlyChange}
@@ -783,6 +783,7 @@ export function ReadonlyVirtualNote(
         }>{toolbar}</FocusModeBar>
       ) : (
         <div className="vr-title">
+          {props.titleSecurityAction}
           <button
             type="button"
             aria-label="设为可编辑"
@@ -794,7 +795,8 @@ export function ReadonlyVirtualNote(
           >
             <ToolbarIcon name="lock" />
           </button>
-          <strong>{props.title || "无标题"}</strong>
+          {props.unifiedTitleBar && props.focusMode ? <button type="button" className={`vr-properties-title${props.saveIssue ? ` note-title-save-${props.saveIssue}` : ""}`} aria-label="文档属性" onClick={props.onOpenProperties}>{props.title || "无标题"}</button> : <strong className={props.saveIssue ? `note-title-save-${props.saveIssue}` : undefined}>{props.title || "无标题"}</strong>}
+          {props.saveIssue && <button type="button" className="workspace-error-indicator" onClick={props.onOpenSaveIssue} aria-label="查看保存错误详情"><ToolbarIcon name="warning" /></button>}
           {toolbar}
         </div>
       )}

@@ -471,22 +471,23 @@ test.describe("PWA 窄屏应用外壳", () => {
     await expect(page.locator(".app-header .btn-quick-switcher, .app-header .btn-search-toggle")).toHaveCount(0);
     for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
       await page.setViewportSize(viewport);
-      await swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: 100, endX: 110, endY: 100 });
+      const listY = Math.round(viewport.height * .5);
+      await swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: listY, endX: 110, endY: listY });
       const view = page.getByRole("dialog", { name: "文档视图", exact: true });
       await view.getByRole("button", { name: "快速切换笔记", exact: true }).click();
       await expect(page.getByRole("combobox", { name: "查找并切换笔记" })).toBeFocused();
       await page.getByRole("button", { name: "关闭快速切换" }).click();
-      await swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: 100, endX: 110, endY: 100 });
+      await swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: listY, endX: 110, endY: listY });
       const focusedDuringClick = await view.getByRole("button", { name: "全局搜索", exact: true }).evaluate(button => {
         (button as HTMLButtonElement).click();
-        return document.activeElement?.matches("#header-search .search-input");
+        return document.activeElement?.matches(".workspace-dialog .search-input");
       });
       expect(focusedDuringClick).toBe(true);
       await expect(view).toHaveCount(0);
-      const input = page.locator("#header-search .search-input");
+      const input = page.locator(".workspace-dialog .search-input");
       await expect(input).toBeFocused();
       const box = (await input.boundingBox())!;
-      expect(box.x).toBeLessThanOrEqual(24);
+      expect(box.x).toBeLessThanOrEqual(70);
       expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
       await expect(input).toHaveCSS("font-size", "16px");
       await input.fill("保留搜索内容");

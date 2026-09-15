@@ -9,6 +9,7 @@ import { ToolbarIcon } from "./components/ToolbarIcon";
 import type { ReadingLibrarySession } from "./components/ReadingLibrary";
 import { WorkspaceSwitch } from "./components/WorkspaceSwitch";
 import { WorkspacePanelHeading } from "./components/WorkspacePanelHeading";
+import { WorkspaceDialog } from "./components/WorkspaceDialog";
 import { PasswordRequestCancelled } from "./lib/password-request";
 import "./components/ReadingLibrary.css";
 import { OverdueTodos } from "./components/OverdueTodos";
@@ -505,12 +506,12 @@ function App() {
   const [documentBookmarkCount, setDocumentBookmarkCount] = useState(0);
   const HIDDEN_KEY = "nr:sidebarHidden";
   const [searchExpanded, setSearchExpanded] = useState(false);
+  const globalSearchQueryRef = useRef<{ text: string; storagePath?: string; docType?: DocType; concept?: string }>({ text: "" });
   const headerSearchInputRef = useRef<HTMLInputElement>(null);
   const openGlobalSearch = useCallback(() => {
     flushSync(() => {
       setDocTreePopupOpen(false);
       setQuickSwitcherOpen(false);
-      setFocusMode(false);
       setSearchExpanded(true);
     });
     headerSearchInputRef.current?.focus({ preventScroll: true });
@@ -847,6 +848,13 @@ function App() {
     return () => { active = false; };
   }, [activeTag, secondaryUiReady, sidebarRefreshKey]);
   const error = useNotesStore((s) => s.error);
+  const [errorDetailsOpen, setErrorDetailsOpen] = useState(false);
+  const [failedSaveNoteId, setFailedSaveNoteId] = useState<string | null>(null);
+  const [errorCopyNotice, setErrorCopyNotice] = useState("");
+  useEffect(() => {
+    if (autoSave.status === "error") setFailedSaveNoteId(getPendingData()?.noteId ?? null);
+    else if (autoSave.status === "clean" || autoSave.status === "saved") setFailedSaveNoteId(null);
+  }, [autoSave.status, getPendingData]);
   const clearError = useNotesStore((s) => s.clearError);
 
   // 文档切换后保持正文优先；属性面板仅由用户针对当前文档主动打开。
@@ -1374,6 +1382,13 @@ function App() {
   const popupPanelRef = useRef<HTMLDivElement>(null);
   const popupBackdropRef = useRef<HTMLDivElement>(null);
   const mobileDrawerViewport = useMobileViewport();
+  const streamlinedWeb = !mobileDrawerViewport && !isTauriRuntime();
+  const announcedErrorRef = useRef<string | null>(null);
+  useEffect(() => {
+    const message = error || (autoSave.status === "error" ? "保存失败" : null);
+    if (streamlinedWeb && message && message !== announcedErrorRef.current) setErrorDetailsOpen(true);
+    announcedErrorRef.current = message;
+  }, [error, autoSave.status, streamlinedWeb]);
   useEdgeDrawer(mobileDrawerViewport && !sidebarHidden, "left", sidebarPanelRef, sidebarBackdropRef, () => setSidebarHidden(true));
   useEdgeDrawer(docTreePopupOpen, "left", popupPanelRef, popupBackdropRef, () => setDocTreePopupOpen(false));
   useEffect(() => bindViewportEdgeSwipe("left", (touch) => {
@@ -1450,6 +1465,7 @@ function App() {
       });
     }
     if (!keepSearch) {
+      setSearchExpanded(false);
       docSearchRequestIdRef.current += 1;
       setDocSearching(false);
       setQuery("");           // 仅清 query 状态，保留 SearchBar 输入框值
@@ -1479,6 +1495,8 @@ function App() {
   }, []);
 
   const dismissSearchResults = useCallback(() => {
+    setSearchExpanded(false);
+    searchRequestIdRef.current += 1;
     setSearchCancelRequestId(id => id + 1);
     // 让仍在飞行中的请求失效；SearchBar 自己保留关键词和筛选条件。
     docSearchRequestIdRef.current += 1;
@@ -1717,10 +1735,11 @@ function App() {
   return (
     <>
     <div
-      className={`app ${focusMode ? "app-focus-mode" : ""}`}
+      className={`app ${focusMode ? "app-focus-mode" : ""}${streamlinedWeb ? " app-streamlined-web" : ""}`}
       style={editorAppearanceVariables(config ?? undefined)}
       {...(mobileReadingLibraryOpen ? { inert: "", "aria-hidden": true } : {})}
       {...(protectionBusy || applyingWebUpdate ? { inert: "", "aria-busy": true } : {})}
+      {...(searchExpanded || (streamlinedWeb && errorDetailsOpen) ? { inert: "" } : {})}
     >
       {/* 桌面版（Tauri）才需要自定义标题栏；web 版无窗口概念 */}
       {isTauriRuntime() && (
@@ -1728,7 +1747,7 @@ function App() {
           <TitleBar />
         </Suspense>
       )}
-      <header className="app-header">
+      {!streamlinedWeb && <header className="app-header">
         <div className="header-document-security" ref={setSecurityToolbarTarget} />
         {error && (
           <div className="error-bar" role="alert">
@@ -1801,21 +1820,6 @@ function App() {
           </div>
         )}
         <div className="header-right">
-          <div className="header-search-anchor" hidden={!searchExpanded}>
-          <div id="header-search" className={`search-bar-collapse${searchExpanded ? ' expanded' : ''}`}>
-            <SearchBar
-              inputRef={headerSearchInputRef}
-              cancelRequestId={searchCancelRequestId}
-              onSearch={search}
-              onDocSearch={handleDocSearch}
-              onInputBlur={() => setSearchExpanded(false)}
-              onEscape={() => {
-                dismissSearchResults();
-                setSearchExpanded(false);
-              }}
-            />
-          </div>
-          </div>
           <span className="header-btn-gap" />
           {mobileDrawerViewport && <div className="header-document-actions" onClick={event => event.stopPropagation()}>
             <button type="button" className="btn-icon" title="文档目录" aria-label="文档目录"
@@ -1832,7 +1836,7 @@ function App() {
             <ToolbarIcon name="sliders" />
           </button>}
         </div>
-      </header>
+      </header>}
 
       {!isTauriRuntime() && (
         <WebStatusBanner
@@ -1859,6 +1863,8 @@ function App() {
       <div className="app-body">
         {sidebarWidthHint && <div className="sidebar-width-hint" role="status" aria-live="polite">{sidebarWidthHint}</div>}
         {!mobileDrawerViewport && <nav className="desktop-activity-bar" aria-label="工作区面板">
+          {streamlinedWeb && <button type="button" className="btn-icon" title="全局搜索" aria-label="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>}
+          {streamlinedWeb && (error || autoSave.status === "error") && <button type="button" className="btn-icon workspace-error-indicator" aria-label="查看错误详情" title="查看错误详情" onClick={() => setErrorDetailsOpen(true)}><ToolbarIcon name="warning" /></button>}
           {((() => {
             const fallback = ['tree', 'list', 'reader'] as const;
             const saved = localStorage.getItem('nr:sidebarOrder')?.split(',') ?? [];
@@ -1895,9 +1901,9 @@ function App() {
               </span>
             </button> : mobileDrawerViewport ? <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} /> : null}>
             <div className="doc-tree-toolbar-host" ref={setDocTreeToolbarHost} />
-            <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏" aria-label="隐藏侧栏">
+            {!streamlinedWeb && <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏" aria-label="隐藏侧栏">
               <ToolbarIcon name="chevronLeft" />
-            </button>
+            </button>}
           </WorkspacePanelHeading>
 
           {DAILY_NOTES_ENABLED && <button type="button" className="sidebar-reading-entry" disabled={syncBusy} onClick={() => void openReadingLibrary()} aria-label="打开阅读资料库">
@@ -2024,7 +2030,7 @@ function App() {
           {!mobileDrawerViewport && desktopPanel === 'list' && <section className="sidebar-document-list is-open" aria-label="文档列表分区">
             <WorkspacePanelHeading className="sidebar-document-list-heading" title={null}>
               <div className="doc-tree-toolbar-host" ref={setSidebarBrowserToolbarHost} />
-              <button type="button" className="btn-icon" aria-label="隐藏侧栏" onClick={() => setSidebarHidden(true)}><ToolbarIcon name="chevronLeft" /></button>
+              {!streamlinedWeb && <button type="button" className="btn-icon" aria-label="隐藏侧栏" onClick={() => setSidebarHidden(true)}><ToolbarIcon name="chevronLeft" /></button>}
             </WorkspacePanelHeading>
             <div id="sidebar-document-browser" className="sidebar-document-list-body">
               <div className="sidebar-document-list-search">
@@ -2055,7 +2061,7 @@ function App() {
             {pdfReaderPanel ?? epubReaderPanel ?? (desktopPanel === 'reader' && <Suspense fallback={<div className="doc-tree-loading">正在加载阅读资料…</div>}>
               <ReadingLibrary session={readingLibrarySession.current}
                 showWorkspaceSwitch={false}
-                onHide={() => setSidebarHidden(true)}
+                onHide={streamlinedWeb ? undefined : () => setSidebarHidden(true)}
                 onClose={() => setSidebarPanel('tree')}
                 onOpenPdf={id => { setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
                 onOpenEpub={id => { setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }} />
@@ -2078,38 +2084,14 @@ function App() {
         {!sidebarHidden && <div className="sidebar-divider" onPointerDown={handleSidePointerDown} />}
 
         <main className={`app-main${!mobileDrawerViewport && !sidebarHidden && desktopPanel === "reader" ? " reader-companion-editor" : ""}`}>
-          {query || docResults ? (
-            <SearchResultsPanel
-              notes={docResults ?? results.notes}
-              todos={docResults ? [] : results.todos}
-              searchTerm={docResults ? docSearchText : query}
-              searching={docSearching}
-              onClose={dismissSearchResults}
-              onSelectNote={(summary, keepSearch, term) => {
-                if (!keepSearch) {
-                  setSearchCancelRequestId(id => id + 1);
-                  docSearchRequestIdRef.current += 1;
-                }
-                const request = ++searchRequestIdRef.current;
-                void api.notes.get(summary.id).then((note) => {
-                  if (note && searchRequestIdRef.current === request) clearSearchAndSelect(note, keepSearch, term);
-                }).catch((error) => console.error("读取搜索结果失败", error));
-              }}
-              onSelectTodo={(date) => { setQuery(""); setDocResults(null); void setDate(date); }}
-            />
-          ) : selectedConcept && !selectedNote ? (
+          {selectedConcept && !selectedNote ? (
             <DocMOC
               concept={selectedConcept}
               refreshKey={docTreeKey}
               onSelect={(note) => {
-                setQuery("");
-                setDocResults(null);
-                handleSelectNote(note);
-                setDate(note.date);
-                setSelectedConcept(null);
+                setQuery(""); setDocResults(null); handleSelectNote(note); setDate(note.date); setSelectedConcept(null);
               }}
-              onOpenConcept={(c) => setSelectedConcept(c)}
-              selectedId={null}
+              onOpenConcept={(c) => setSelectedConcept(c)} selectedId={null}
             />
           ) : selectedFolderPath && sidebarTab === 'tree' && !selectedNote ? (
             <DocMOC
@@ -2165,6 +2147,9 @@ function App() {
                       onSecurityError={message => useNotesStore.setState({ error: message })}
                       hideDocumentPasswordControls
                       securityToolbarTarget={securityToolbarTarget}
+                      unifiedTitleBar={streamlinedWeb}
+                      saveIssue={streamlinedWeb && failedSaveNoteId === selectedNote.id ? autoSave.status === "error" ? "error" : "warning" : undefined}
+                      onOpenSaveIssue={() => setErrorDetailsOpen(true)}
                       focusToolbarTarget={!mobileDrawerViewport ? focusToolbarTarget : null}
                       securityDisabled={syncBusy}
                       onSecurityChanged={async () => {
@@ -2250,7 +2235,7 @@ function App() {
                       onTagsChange={handleTagsChange}
                       onVersionOpen={() => setVersionOpen(true)}
                       onFocusModeChange={setFocusMode}
-                      onStickyTitleChange={setStickyTitle}
+                      onStickyTitleChange={streamlinedWeb ? undefined : setStickyTitle}
                       onOutlineAvailabilityChange={setDocumentOutlineAvailable}
                       onBookmarkCountChange={setDocumentBookmarkCount}
                       outlineRequestId={documentOutlineRequestId}
@@ -2438,6 +2423,35 @@ function App() {
 
     </div>
     {mobileReadingLibraryPanel}
+    {searchExpanded && <WorkspaceDialog title="全局搜索" onClose={dismissSearchResults} initialFocusRef={headerSearchInputRef}>
+      <SearchBar inputRef={headerSearchInputRef} cancelRequestId={searchCancelRequestId}
+        initialQuery={globalSearchQueryRef.current} onQueryChange={query => { globalSearchQueryRef.current = query; }}
+        onSearch={search} onDocSearch={handleDocSearch} onEscape={dismissSearchResults} />
+      {query || docResults ? <SearchResultsPanel notes={docResults ?? results.notes} todos={docResults ? [] : results.todos}
+        searchTerm={docResults ? docSearchText : query} searching={docSearching} onClose={dismissSearchResults}
+        onSelectNote={(summary, keepSearch, term) => {
+          if (!keepSearch) { setSearchCancelRequestId(id => id + 1); docSearchRequestIdRef.current += 1; }
+          const request = ++searchRequestIdRef.current;
+          void api.notes.get(summary.id).then(note => {
+            if (note && searchRequestIdRef.current === request) clearSearchAndSelect(note, keepSearch, term);
+          }).catch(reason => useNotesStore.setState({ error: `打开搜索结果失败：${String(reason)}` }));
+        }} onSelectTodo={date => { dismissSearchResults(); void setDate(date); }} />
+        : <p className="workspace-dialog-empty">搜索全部文档；加密正文不会出现在结果中。</p>}
+    </WorkspaceDialog>}
+    {streamlinedWeb && errorDetailsOpen && <WorkspaceDialog title="错误详情" onClose={() => { setErrorDetailsOpen(false); setErrorCopyNotice(""); }}>
+      <div className="workspace-error-details">
+        <p role="alert">{error || (autoSave.status === "error" ? "保存失败，本次修改尚未保存。" : "当前没有未解决的错误。")}</p>
+        {failedSaveNoteId && <p>关闭此窗口不会清除未保存的修改。请重试保存，或先导出恢复文件。</p>}
+        <div className="workspace-error-actions">
+          {autoSave.status === "error" && <button type="button" className="settings-btn" onClick={retryFailedSave}>重试保存</button>}
+          <button type="button" className="settings-btn" onClick={() => void exportEmergencyBackup()}>导出恢复文件</button>
+          <button type="button" className="settings-btn" onClick={() => {
+            void Promise.resolve().then(() => navigator.clipboard.writeText(error || "保存失败")).then(() => setErrorCopyNotice("已复制详情"), () => setErrorCopyNotice("复制失败，请手动选择错误信息复制"));
+          }}>复制错误详情</button>
+        </div>
+        <p role="status">{errorCopyNotice}</p>
+      </div>
+    </WorkspaceDialog>}
     </>
   );
 }
