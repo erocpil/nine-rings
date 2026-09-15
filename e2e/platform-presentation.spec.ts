@@ -10,6 +10,7 @@ for (const width of [390, 1280]) {
       const { api } = await load("/src/lib/api.ts") as typeof import("../src/lib/api");
       const { useNotesStore } = await load("/src/stores/useNotesStore.ts") as typeof import("../src/stores/useNotesStore");
       const note = await api.notes.create({ title: "跨端工具验证", date: useNotesStore.getState().currentDate,
+        storagePath: "references/platform-presentation",
         content: { ops: [{ insert: "标题" }, { insert: "\n", attributes: { header: 1 } }, { insert: "正文\n" }],
           metadata: { bookmarks: [{ id: "test-bookmark", position: 1, preview: "标题", createdAt: new Date().toISOString() }] } },
       });
@@ -34,6 +35,24 @@ for (const width of [390, 1280]) {
     const focus = page.locator(width > 600 ? ".desktop-focus-toolbar" : ".vr-note .mobile-focus-bar");
     await expect(focus.getByRole("button", { name: "退出专注模式" })).toBeVisible();
     await expect(focus.getByRole("button", { name: "文档书签" })).toContainText("1");
+    // Desktop titles toggle document properties; mobile titles intentionally
+    // reveal the full name without opening a properties panel.
+    const desktop = width > 600;
+    const focusTitle = focus.getByRole("button", { name: desktop ? "文档属性" : "查看完整标题", exact: true });
+    const titlePanel = desktop ? page.locator(".properties-panel") : focus.getByRole("tooltip");
+    await focusTitle.click();
+    await expect(titlePanel).toBeVisible();
+    if (desktop) {
+      await expect(focus.getByRole("tooltip")).toHaveCount(0);
+    } else {
+      await expect(titlePanel).toHaveText("跨端工具验证");
+      await expect(focusTitle).toHaveAttribute("aria-expanded", "true");
+      await expect(page.locator(".properties-panel")).toHaveCount(0);
+    }
+    await focusTitle.click();
+    await expect(titlePanel).toBeHidden();
+    if (!desktop) await expect(focusTitle).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
     await focus.getByRole("button", { name: "退出专注模式" }).click();
     await expect(titlebar).toBeVisible();
   });

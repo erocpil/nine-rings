@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("阅读分栏默认半宽并记住拖动宽度，三个分栏标题栏一致", async ({ page }) => {
+test("阅读分栏默认半宽并记住拖动宽度，三个分栏工具栏一致且不显示分栏名", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
   const sidebar = page.locator(".app-sidebar");
@@ -9,7 +9,7 @@ test("阅读分栏默认半宽并记住拖动宽度，三个分栏标题栏一�
   await reader.click();
   await expect.poll(width).toBeCloseTo(618, 0);
   const heading = sidebar.locator('.workspace-panel-heading').filter({ visible: true });
-  await expect(heading.locator('.workspace-panel-title')).toHaveText('阅读');
+  await expect(heading.locator('.workspace-panel-title')).toHaveCount(0);
   const headingHeight = await heading.evaluate(el => el.getBoundingClientRect().height);
   const closeSize = await heading.getByRole('button', { name: '隐藏侧栏' }).evaluate(el => {
     const rect = el.getBoundingClientRect();
@@ -33,7 +33,7 @@ test("阅读分栏默认半宽并记住拖动宽度，三个分栏标题栏一�
   for (const [name, adjustedWidth] of [["文档树", 430], ["文档列表", 470]] as const) {
     await page.locator(".desktop-activity-bar").getByRole("button", { name, exact: true }).click();
     await expect.poll(width).toBeCloseTo(360, 0);
-    await expect(heading.locator('.workspace-panel-title')).toHaveText(name);
+    await expect(heading.locator('.workspace-panel-title')).toHaveCount(0);
     expect(await heading.evaluate(el => el.getBoundingClientRect().height)).toBe(headingHeight);
     expect(await heading.getByRole('button', { name: '隐藏侧栏' }).evaluate(el => {
       const rect = el.getBoundingClientRect();
@@ -87,7 +87,7 @@ for (const readonly of [false, true]) {
     await expect(dialog).toBeHidden();
     await expect(openList).toBeFocused();
     await openList.click();
-    await page.getByRole("button", { name: "隐藏侧栏", exact: true }).filter({ visible: true }).click();
+    await page.getByRole("region", { name: "文档列表分区", exact: true }).getByRole("button", { name: "隐藏侧栏", exact: true }).click();
     await page.getByRole("button", { name: "显示侧栏", exact: true }).click();
     await page.locator(".sidebar-document-list").getByRole("button", { name: "全局搜索", exact: true }).click();
     const input = page.locator(".search-input");
@@ -110,6 +110,11 @@ for (const readonly of [false, true]) {
     await title.click();
     await expect(page.locator(".properties-panel")).toBeVisible();
     await expect(page.locator(".mobile-focus-full-title")).toHaveCount(0);
+    await title.click();
+    await expect(page.locator(".properties-panel")).toBeHidden();
+    await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
+    await title.click();
+    await expect(page.locator(".properties-panel")).toBeVisible();
     await page.locator(".properties-close").click();
     await page.keyboard.press("Control+Shift+f");
     await expect(input).toBeVisible();
