@@ -29,13 +29,34 @@ jobs:
           cache: 'npm'
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
+        with:
+          # Match the last successful Windows build; upgrade deliberately so
+          # a moving stable channel does not unexpectedly invalidate the cache.
+          toolchain: '1.98.1'
+
+      - name: Resolve Rust dependencies
+        # Cargo.lock is currently ignored by this repository. Resolve before
+        # cache lookup so its key reflects the actual dependency graph.
+        working-directory: src-tauri
+        run: cargo generate-lockfile
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: 'src-tauri -> target'
+          key: windows-release-v1
+          cache-bin: false
+          cache-workspace-crates: false
+          # PRs may restore the main-branch cache, but only successful main
+          # builds publish caches. The app and its embedded assets rebuild.
+          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
 
       - name: Install frontend dependencies
         run: npm ci
 
       - name: Build Tauri (release)
-        run: npx tauri build --bundles nsis
+        run: npx tauri build --bundles nsis -- --locked
 
       - name: Verify Windows bundle
         shell: pwsh
