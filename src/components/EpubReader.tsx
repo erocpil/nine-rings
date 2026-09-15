@@ -862,7 +862,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     const frameDocument = iframeRef.current?.contentDocument;
     const frameWindow = iframeRef.current?.contentWindow;
     if (!frameDocument || !frameWindow || !book) return;
-    if (frameDocument.documentElement.getAttribute("data-nine-rings-epub-chapter") !== book.chapters[chapter].path) return;
+    if (frameDocument.documentElement?.getAttribute("data-nine-rings-epub-chapter") !== book.chapters[chapter].path) return;
     // srcDoc 的 <html> 标记在正文解析完成前就可见。此时若提前记为“已绑定”，
     // 后续 ready 会跳过真正的正文监听器，正是部分 WebView 上点击失效的来源。
     if (frameDocument.readyState === "loading" || !frameDocument.body) return;

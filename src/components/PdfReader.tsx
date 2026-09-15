@@ -43,6 +43,7 @@ GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 interface Props {
   documentId: string;
+  resizing?: boolean;
   onClose: () => void;
   onFullscreenChange?: (fullscreen: boolean) => void;
   initialHighlightId?: string | null;
@@ -191,7 +192,7 @@ interface PdfAnnotationManipulation {
   rect: NonNullable<LocalPdfHighlight["rect"]>;
 }
 
-export function PdfReader({ documentId, onClose, onFullscreenChange, initialHighlightId, initialTargetRange, onCreateExcerpt }: Props) {
+export function PdfReader({ documentId, resizing = false, onClose, onFullscreenChange, initialHighlightId, initialTargetRange, onCreateExcerpt }: Props) {
   const readerRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef(new Map<number, HTMLCanvasElement>());
   const bitmapCacheRef = useRef(new PdfPageCache());
@@ -773,9 +774,9 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     };
   }, [documentId, initialHighlightId, initialTargetRange, setFitWidth, loadRevision]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = viewportRef.current;
-    if (!element) return;
+    if (resizing || !element) return;
     const update = () => {
       if (element.clientWidth === 0 || element.clientHeight === 0) return;
       setViewportWidth(element.clientWidth);
@@ -785,7 +786,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     const observer = new ResizeObserver(update);
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [resizing]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -830,7 +831,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
-    if (!pdf || !viewport || viewportWidth <= 0 || viewportHeight <= 0) return;
+    if (resizing || !pdf || !viewport || viewportWidth <= 0 || viewportHeight <= 0) return;
     const fallback = pageSizesRef.current.values().next().value ?? { width: 600, height: 800 };
     // Layout belongs to the zoom state, not to the completion order of raster
     // jobs. Update even offscreen/cached pages before the browser paints.
@@ -847,7 +848,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     const fits = !!current && parseFloat(current.style.width) <= viewportWidth - 24;
     viewport.classList.toggle("pdf-page-fits-width", fits);
     if (fits) viewport.scrollLeft = 0;
-  }, [pdf, displayedPages, page, pageSizeRevision, viewportWidth, viewportHeight, fitWidth, fitHeight, zoom, lockedWidthRatio]);
+  }, [resizing, pdf, displayedPages, page, pageSizeRevision, viewportWidth, viewportHeight, fitWidth, fitHeight, zoom, lockedWidthRatio]);
 
   const canvasRefForPage = useCallback((pageNumber: number) => {
     let callback = canvasRefCallbacks.current.get(pageNumber);
@@ -918,6 +919,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   }, []);
 
   useEffect(() => {
+    if (resizing) return;
     const viewport = viewportRef.current;
     if (!pdf || viewMode !== "vertical" || !viewport) {
       // Horizontal displayedPages depends on this set through renderedPages.
@@ -964,9 +966,12 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
     });
     pageSurfaceRefs.current.forEach((surface) => observer.observe(surface));
     return () => observer.disconnect();
-  }, [displayedPages, page, pdf, viewMode, viewportHeight]);
+  }, [resizing, displayedPages, page, pdf, viewMode, viewportHeight]);
 
   useEffect(() => {
+    // Retain the existing bitmap during splitter interaction. Repeatedly
+    // cancelling/reallocating high-DPI canvases can starve the host UI thread.
+    if (resizing) { setRendering(false); return; }
     if (!pdf || !pageVisible || !renderedPages.length || viewportWidth <= 0 || viewportHeight <= 0) return;
     let cancelled = false;
     const requestOwner = Symbol("pdf-render-batch");
@@ -1287,7 +1292,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
         requestOwners.delete(pageNumber);
       });
     };
-  }, [fitHeight, fitWidth, page, pdf, pageVisible, renderedPages, viewMode, viewportHeight, viewportWidth, zoom, releaseOffscreenPage, fastScrolling, annotationTool, rememberThumbnail, lockedWidthRatio]);
+  }, [resizing, fitHeight, fitWidth, page, pdf, pageVisible, renderedPages, viewMode, viewportHeight, viewportWidth, zoom, releaseOffscreenPage, fastScrolling, annotationTool, rememberThumbnail, lockedWidthRatio]);
 
   useEffect(() => {
     const flush = () => {
@@ -1337,7 +1342,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
 
   useEffect(() => {
     const viewport = viewportRef.current;
-    if (!pdf || !viewport) return;
+    if (resizing || !pdf || !viewport) return;
     let frame = 0;
     const scroll = () => {
       if (frame || closingRef.current || pendingPageNavigationRef.current !== null || pendingReadingPositionRef.current) return;
@@ -1360,7 +1365,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       viewport.removeEventListener("scroll", scroll);
       window.cancelAnimationFrame(frame);
     };
-  }, [captureProgress, pdf]);
+  }, [resizing, captureProgress, pdf]);
 
   useEffect(() => () => {
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
@@ -1431,7 +1436,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   }, [changePage, closeReader, exitFullscreen, fullscreen, outlineOpen, page, pdf, setFitWidth]);
 
   useEffect(() => {
-    if (!pdf || rendering || page >= pdf.numPages) return;
+    if (resizing || !pdf || rendering || page >= pdf.numPages) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
       if (cancelled) return;
@@ -1443,7 +1448,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [page, pdf, rendering]);
+  }, [resizing, page, pdf, rendering]);
 
   useEffect(() => setPageInput(String(page)), [page]);
 
@@ -2194,7 +2199,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
   }, [outlineMode, outlineOpen, page]);
 
   useLayoutEffect(() => {
-    if (!pdf || loading || viewportWidth <= 0 || viewportHeight <= 0) return;
+    if (resizing || !pdf || loading || viewportWidth <= 0 || viewportHeight <= 0) return;
     if (pendingPageNavigationRef.current !== page) return;
     const target = pageSurfaceRefs.current.get(page);
     const viewport = viewportRef.current;
@@ -2214,7 +2219,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       pendingPageNavigationRef.current = null;
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [page, viewMode, pdf, loading, rendering, pageSizeRevision, viewportWidth, viewportHeight]);
+  }, [resizing, page, viewMode, pdf, loading, rendering, pageSizeRevision, viewportWidth, viewportHeight]);
 
   return (
     <div
@@ -2222,6 +2227,7 @@ export function PdfReader({ documentId, onClose, onFullscreenChange, initialHigh
       className={`pdf-reader ${fullscreen ? "pdf-reader-fullscreen" : ""} ${immersiveFallback ? "pdf-reader-immersive" : ""} ${fullscreen && !fullscreenControlsVisible && !outlineOpen && toolsPanel === null ? "pdf-fullscreen-controls-hidden" : ""}`}
       aria-label="PDF 阅读器"
       data-pdf-scroll-quality={fastScrolling ? "preview" : "full"}
+      data-pdf-resizing={resizing ? "true" : undefined}
     >
       <ReaderToolbar
         format="PDF" title={entry?.name ?? "PDF 阅读器"} onClose={() => void closeReader()}

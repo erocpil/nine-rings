@@ -387,6 +387,13 @@ body {
 .desktop-activity-bar .btn-icon[aria-pressed="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .desktop-activity-bar .toolbar-icon { width: 20px; height: 20px; }
 .desktop-reader-panel { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
+/* Only the outer sidebar changes size during splitter interaction. Keep both
+   dimensions stable so EPUB frames and PDF pages do not reflow per pointermove. */
+body.app-sidebar-dragging .desktop-reader-panel:not([hidden]) {
+  width: var(--sidebar-drag-reader-width, 100%);
+  height: var(--sidebar-drag-reader-height, auto);
+  flex: 0 0 var(--sidebar-drag-reader-height, auto);
+}
 .desktop-reader-panel > :is(.pdf-reader-app, .reading-library-page),
 .desktop-reader-panel .pdf-reader-app > .pdf-reader,
 .desktop-reader-panel .pdf-reader { width: 100%; max-width: 100%; min-width: 0; }
@@ -4892,6 +4899,14 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+/* The parent clips the companion editor when the reader fills the workspace.
+   Never squeeze a mounted long document into a zero-width column. */
+.app-main.reader-companion-editor { min-width: 320px; }
+body.app-sidebar-dragging .app-main {
+  flex: 0 0 var(--sidebar-drag-editor-width, 320px);
+  min-width: 320px;
 }
 
 .app-main-split {

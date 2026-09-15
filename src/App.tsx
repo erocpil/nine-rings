@@ -1195,6 +1195,7 @@ function App() {
     }
   }, [syncBusy, flushAutoSave, setSettingsOpen, closeSidebarOnNarrowScreen, setSidebarPanel]);
   const sideDragRef = useRef(false);
+  const [sidebarResizing, setSidebarResizing] = useState(false);
   const sideStartXRef = useRef(0);
   const sideStartWRef = useRef(0);
   const sideDragPanelRef = useRef<typeof desktopPanel>(desktopPanel);
@@ -1215,11 +1216,29 @@ function App() {
     sideStartXRef.current = e.clientX;
     sideStartWRef.current = sidebarWidth;
     sideDragWidthRef.current = sidebarWidth;
+    setSidebarResizing(true);
+    // Keep the editor's layout stable while it is clipped by the moving pane.
+    // Rewrapping a long document at every intermediate width can block WebView2.
+    const editorWidth = document.querySelector<HTMLElement>(".app-main")?.getBoundingClientRect().width ?? 320;
+    document.body.style.setProperty("--sidebar-drag-editor-width", `${Math.max(320, editorWidth)}px`);
+    // Freeze the whole reader, not only PDF raster jobs: EPUB iframes, page
+    // geometry and toolbar wrapping must also ignore intermediate pane sizes.
+    const readerBounds = sidebarPanelRef.current?.querySelector<HTMLElement>(".desktop-reader-panel:not([hidden])")?.getBoundingClientRect();
+    if (readerBounds) {
+      document.body.style.setProperty("--sidebar-drag-reader-width", `${readerBounds.width}px`);
+      document.body.style.setProperty("--sidebar-drag-reader-height", `${readerBounds.height}px`);
+    }
+    document.body.classList.add("app-sidebar-dragging");
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    const previousWebkitUserSelect = document.body.style.webkitUserSelect;
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
     document.body.style.webkitUserSelect = "none";
     const pointerId = e.pointerId;
     const divider = e.currentTarget;
+    let widthFrame = 0;
+    let finished = false;
     try {
       divider.setPointerCapture(pointerId);
     } catch {
@@ -1243,17 +1262,35 @@ function App() {
       if (sideDragPanelRef.current === "reader" && rawWidth < minimum) showSidebarWidthHint();
       const newW = Math.max(minimum, rawWidth);
       sideDragWidthRef.current = Math.round(newW);
-      setSidebarWidth(sideDragWidthRef.current);
+      if (!widthFrame) widthFrame = window.requestAnimationFrame(() => {
+        widthFrame = 0;
+        setSidebarWidth(sideDragWidthRef.current);
+      });
     };
 
     const finishSideDrag = () => {
+      if (finished) return;
+      finished = true;
       sideDragRef.current = false;
+      window.cancelAnimationFrame(widthFrame);
+      setSidebarWidth(sideDragWidthRef.current);
+      setSidebarResizing(false);
       document.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("pointerup", handlePointerEnd);
       document.removeEventListener("pointercancel", handlePointerEnd);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      document.body.style.webkitUserSelect = "";
+      divider.removeEventListener("lostpointercapture", handlePointerEnd);
+      window.removeEventListener("blur", finishSideDrag);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      try {
+        if (divider.hasPointerCapture(pointerId)) divider.releasePointerCapture(pointerId);
+      } catch { /* The host may already have released capture at the window edge. */ }
+      document.body.classList.remove("app-sidebar-dragging");
+      document.body.style.removeProperty("--sidebar-drag-editor-width");
+      document.body.style.removeProperty("--sidebar-drag-reader-width");
+      document.body.style.removeProperty("--sidebar-drag-reader-height");
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      document.body.style.webkitUserSelect = previousWebkitUserSelect;
       const key = sidebarWidthKey(sideDragPanelRef.current);
       localStorage.setItem(key, String(sideDragWidthRef.current));
       sideDragCleanupRef.current = null;
@@ -1264,11 +1301,17 @@ function App() {
       if (pe.cancelable) pe.preventDefault();
       finishSideDrag();
     };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") finishSideDrag();
+    };
 
     sideDragCleanupRef.current = finishSideDrag;
     document.addEventListener("pointermove", handlePointerMove, { passive: false });
     document.addEventListener("pointerup", handlePointerEnd);
     document.addEventListener("pointercancel", handlePointerEnd);
+    divider.addEventListener("lostpointercapture", handlePointerEnd);
+    window.addEventListener("blur", finishSideDrag);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
   };
 
   // 首次访问创建示例笔记
@@ -1524,6 +1567,7 @@ function App() {
           <PdfReader
             key={pdfReaderDocumentId}
             documentId={pdfReaderDocumentId}
+            resizing={sidebarResizing && !mobileDrawerViewport}
             initialHighlightId={pdfReaderTargetHighlightId}
             initialTargetRange={pdfReaderTargetRange}
             onFullscreenChange={setPdfReaderFullscreen}
@@ -2033,7 +2077,7 @@ function App() {
 
         {!sidebarHidden && <div className="sidebar-divider" onPointerDown={handleSidePointerDown} />}
 
-        <main className="app-main">
+        <main className={`app-main${!mobileDrawerViewport && !sidebarHidden && desktopPanel === "reader" ? " reader-companion-editor" : ""}`}>
           {query || docResults ? (
             <SearchResultsPanel
               notes={docResults ?? results.notes}
