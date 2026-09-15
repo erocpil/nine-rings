@@ -1,12 +1,20 @@
-# 桌面 Web / Tauri 统一工作区
+# Web / Tauri / 手机 PWA 统一标题区
 
 ## 范围
 
 - 桌面 Web 和 Tauri 共用同一套工作区组件与样式，移除 `app-header` 和重复的侧栏显隐箭头。左侧分栏按钮保持可见：点击当前分栏收起，再点恢复；宽度记忆、拖动隐藏及阅读冻结逻辑保持不变。
-- Tauri 仍保留原生窗口控制条（拖动、全屏、关闭到托盘），仅移除应用内部文档顶栏。手机 PWA 文档顶栏不变。
+- Tauri 仍保留原生窗口控制条（拖动、全屏、关闭到托盘），仅移除应用内部文档顶栏。手机 PWA 也移除 `app-header`，标题和操作共用正文已有的标题行；不改变 PDF/EPUB 阅读器自身工具栏。
 - 全局搜索和设置组成左下角按钮组，搜索位于设置正上方。进入/退出专注模式不改变分栏按钮的尺寸、间距和位置；分栏内部工具也不再受专注模式的顶栏缩小规则影响。
 - 专注模式保留：快捷键、状态栏显示策略、只读标题折叠等不变。桌面 Web 和 Tauri 共用普通模式文本区标题行，不使用额外的吸顶标题副本或独立专注标题条；点击专注标题仍切换属性页。
 - 完整编辑器和实验性的只读局部阅读均适用。复制块、目录、书签、退出专注模式和展开编辑工具仍可用。
+
+## 手机单行标题与手势
+
+- 普通/专注模式共用同一条不透明标题行：只读锁、加密盾牌、标题和右侧操作。目录/书签使用图标，书签计数保留。只读及专注模式保留复制块，非只读专注模式保留展开编辑工具入口。
+- 手机只读/专注模式点击标题查看完整名称，再点或按 Esc 收回；不改成桌面的属性页交互。普通可编辑文档仍可直接编辑标题。
+- 标题与展开的工具栏复用滚动容器中的 sticky 区域，取消旧固定专注栏及其预留偏移。目录/书签浮层锚定新标题行下沿，按钮不会被浮层盖住。横屏避开两侧安全区。
+- 左侧上、中、下右划仍按照分栏设置顺序打开文档树、列表和阅读；右上左划仍记住上次的目录/书签，右下左划打开设置；反向收回不变。
+- 手机移除旧标题栏后，保存错误沿用标题警告和错误详情弹层；无当前文档时保留搜索/设置按钮。
 
 ## 搜索
 
@@ -23,4 +31,4 @@
 
 ## 验证
 
-重点覆盖 `workspace-chrome`、`desktop-navigation`、`desktop-workspace-parity`、`platform-presentation`、`encrypted-header`、`search-navigation` 和 `reader-sidebar-resize` E2E；手机入口使用 `pwa-layout` 中的「文档列表工具栏承接查找入口且全局搜索立即聚焦」。`desktop-workspace-parity` 使用 Tauri SDK 的窗口/IPC 模拟验证共享展示层及全屏按钮调用，不代表 Rust/SQLite 或 Windows WebView2 安装版实测。Windows 原生外观和 iOS 虚拟键盘仍需实机验收。
+重点覆盖 `mobile-unified-title`、`workspace-chrome`、`desktop-navigation`、`desktop-workspace-parity`、`platform-presentation`、`encrypted-header`、`search-navigation` 和 `reader-sidebar-resize` E2E。手机专项覆盖完整编辑/只读/局部阅读、320px 窄屏、横竖屏往返与安全区、标题预览、正文滚动、键盘视口、左右分区手势及反向关闭。`desktop-workspace-parity` 使用 Tauri SDK 的窗口/IPC 模拟验证共享展示层及全屏按钮调用，不代表 Rust/SQLite 或 Windows WebView2 安装版实测。Windows 原生外观和 iOS 虚拟键盘仍需实机验收。

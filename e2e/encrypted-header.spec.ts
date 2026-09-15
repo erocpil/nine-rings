@@ -36,13 +36,11 @@ for (const [width, height] of [[390, 800], [844, 390], [1280, 800]]) {
         await expect(search.locator(".search-hit")).not.toContainText("加密正文");
         await search.getByRole("button", { name: "关闭全局搜索" }).click();
       }
-      const desktop = width === 1280;
-      const status = page.locator(desktop ? ".note-title-row .note-security-action" : ".app-header .document-security-status");
-      if (desktop) await expect(status).toHaveAttribute("aria-label", "正文已加密，锁定文档");
-      else await expect(status).toContainText("正文已加密");
+      const status = page.locator(".note-title-row .note-security-action");
+      await expect(status).toHaveAttribute("aria-label", "正文已加密，锁定文档");
       await expect(page.locator(".protected-editor > .document-security-bar")).toHaveCount(0);
       const bounds = await status.boundingBox();
-      const header = await page.locator(desktop ? ".note-title-row" : ".app-header").boundingBox();
+      const header = await page.locator(".note-title-row").boundingBox();
       expect(bounds!.x - header!.x).toBeLessThan(20);
       expect(bounds!.y).toBeGreaterThanOrEqual(header!.y);
       expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(header!.y + header!.height);
@@ -52,8 +50,7 @@ for (const [width, height] of [[390, 800], [844, 390], [1280, 800]]) {
       await page.getByRole("button", { name: "退出专注模式", exact: true }).click();
       await expect(status).toBeVisible();
       await page.locator(".ProseMirror").fill("锁定前的改动");
-      if (desktop) await status.click();
-      else await status.getByRole("button", { name: "锁定文档" }).click();
+      await status.click();
       await expect(page.locator(".ProseMirror")).toHaveCount(0);
       await expect(status).toHaveCount(0);
       await unlock();

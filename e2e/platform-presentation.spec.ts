@@ -17,7 +17,8 @@ for (const width of [390, 1280]) {
       await api.notes.update(note.id, { readonly: true });
       useNotesStore.getState().selectNote((await api.notes.get(note.id))!);
     });
-    await expect(page.locator(".note-title")).toHaveValue("跨端工具验证");
+    if (width === 390) await expect(page.getByRole("button", { name: "查看完整标题" })).toHaveText("跨端工具验证");
+    else await expect(page.locator(".note-title")).toHaveValue("跨端工具验证");
     await expect(page.locator(".header-clock, .document-security-bar")).toHaveCount(0);
     await expect(page.locator(".note-title-row").getByTitle("专注模式").locator("svg")).toHaveCount(1);
     await expect(page.locator(".note-title-row .document-bookmark-toggle")).toContainText("1");
@@ -32,7 +33,7 @@ for (const width of [390, 1280]) {
     await expect(bookmarks.locator(".focus-bookmark-count")).toHaveText("1");
     await expect(titlebar.getByRole("button", { name: "专注模式" }).locator("svg")).toHaveCount(1);
     await titlebar.getByRole("button", { name: "专注模式" }).click();
-    const focus = page.locator(width > 600 ? ".vr-title" : ".vr-note .mobile-focus-bar");
+    const focus = page.locator(".vr-title");
     await expect(focus.getByRole("button", { name: "退出专注模式" })).toBeVisible();
     await expect(focus.getByRole("button", { name: "文档书签" })).toContainText("1");
     // Desktop titles toggle document properties; mobile titles intentionally

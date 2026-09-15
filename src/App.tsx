@@ -1,7 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useNotes } from "./hooks/useNotes";
-import { DatePicker } from "./components/DatePicker";
 import { DAILY_NOTES_ENABLED, TODOS_ENABLED } from "./lib/workspace-features";
 import { isEncrypted, documentSessionKey, decryptDocument } from "./lib/document-crypto";
 import { sealContent, setDocumentPassword, setPathPassword, removeEmptyProtectedPath } from "./lib/document-protection";
@@ -15,7 +14,6 @@ import "./components/ReadingLibrary.css";
 import { OverdueTodos } from "./components/OverdueTodos";
 import { Sidebar } from "./components/Sidebar";
 import { SearchBar } from "./components/SearchBar";
-import { DailyOverview } from "./components/DailyOverview";
 import { UndoToast } from "./components/UndoToast";
 import type { UndoState } from "./components/UndoToast";
 import { useSearch } from "./hooks/useSearch";
@@ -494,16 +492,9 @@ function App() {
       .catch((error) => console.error("[App] 保存编辑器字号失败:", error));
   }, [handleConfigChange]);
   const FOCUS_KEY = "nr:focusMode";
-  const [securityToolbarTarget, setSecurityToolbarTarget] = useState<HTMLDivElement | null>(null);
-  const [focusToolbarTarget, setFocusToolbarTarget] = useState<HTMLDivElement | null>(null);
   const [focusMode, setFocusMode] = useState(() => {
     return localStorage.getItem(FOCUS_KEY) === "true";
   });
-  const [stickyTitle, setStickyTitle] = useState<string | null>(null);
-  const [documentOutlineAvailable, setDocumentOutlineAvailable] = useState(false);
-  const [documentOutlineRequestId, setDocumentOutlineRequestId] = useState(0);
-  const [documentBookmarkRequestId, setDocumentBookmarkRequestId] = useState(0);
-  const [documentBookmarkCount, setDocumentBookmarkCount] = useState(0);
   const HIDDEN_KEY = "nr:sidebarHidden";
   const [searchExpanded, setSearchExpanded] = useState(false);
   const globalSearchQueryRef = useRef<{ text: string; storagePath?: string; docType?: DocType; concept?: string }>({ text: "" });
@@ -855,7 +846,6 @@ function App() {
     if (autoSave.status === "error") setFailedSaveNoteId(getPendingData()?.noteId ?? null);
     else if (autoSave.status === "clean" || autoSave.status === "saved") setFailedSaveNoteId(null);
   }, [autoSave.status, getPendingData]);
-  const clearError = useNotesStore((s) => s.clearError);
 
   // 文档切换后保持正文优先；属性面板仅由用户针对当前文档主动打开。
   useEffect(() => {
@@ -1382,15 +1372,15 @@ function App() {
   const popupPanelRef = useRef<HTMLDivElement>(null);
   const popupBackdropRef = useRef<HTMLDivElement>(null);
   const mobileDrawerViewport = useMobileViewport();
-  // Desktop Web and Tauri share workspace chrome; only native window controls
-  // depend on the runtime. Mobile keeps its existing title/drawer presentation.
+  // All platforms use the editor title row. Desktop retains an activity rail;
+  // mobile retains edge drawers and its full-title preview interaction.
   const desktopWorkspace = !mobileDrawerViewport;
   const announcedErrorRef = useRef<string | null>(null);
   useEffect(() => {
     const message = error || (autoSave.status === "error" ? "保存失败" : null);
-    if (desktopWorkspace && message && message !== announcedErrorRef.current) setErrorDetailsOpen(true);
+    if (message && message !== announcedErrorRef.current) setErrorDetailsOpen(true);
     announcedErrorRef.current = message;
-  }, [error, autoSave.status, desktopWorkspace]);
+  }, [error, autoSave.status]);
   useEdgeDrawer(mobileDrawerViewport && !sidebarHidden, "left", sidebarPanelRef, sidebarBackdropRef, () => setSidebarHidden(true));
   useEdgeDrawer(docTreePopupOpen, "left", popupPanelRef, popupBackdropRef, () => setDocTreePopupOpen(false));
   useEffect(() => bindViewportEdgeSwipe("left", (touch) => {
@@ -1429,10 +1419,6 @@ function App() {
     setSidebarRefreshKey(k => k + 1);
   }, [currentDate, setDate]);
   useDevImport(refreshView);
-
-  const handleDateChange = (date: string) => {
-    setDate(date);
-  };
 
   const handleTitleChange = (title: string) => {
     autoSave.markTitleDirty(title);
@@ -1737,11 +1723,11 @@ function App() {
   return (
     <>
     <div
-      className={`app ${focusMode ? "app-focus-mode" : ""}${desktopWorkspace ? " app-desktop-workspace" : ""}`}
+      className={`app app-unified-workspace ${focusMode ? "app-focus-mode" : ""}${desktopWorkspace ? " app-desktop-workspace" : " app-mobile-workspace"}`}
       style={editorAppearanceVariables(config ?? undefined)}
       {...(mobileReadingLibraryOpen ? { inert: "", "aria-hidden": true } : {})}
       {...(protectionBusy || applyingWebUpdate ? { inert: "", "aria-busy": true } : {})}
-      {...(searchExpanded || (desktopWorkspace && errorDetailsOpen) ? { inert: "" } : {})}
+      {...(searchExpanded || errorDetailsOpen ? { inert: "" } : {})}
     >
       {/* 桌面版（Tauri）才需要自定义标题栏；web 版无窗口概念 */}
       {isTauriRuntime() && (
@@ -1749,97 +1735,6 @@ function App() {
           <TitleBar />
         </Suspense>
       )}
-      {!desktopWorkspace && <header className="app-header">
-        <div className="header-document-security" ref={setSecurityToolbarTarget} />
-        {error && (
-          <div className="error-bar" role="alert">
-            <span>⚠ {error}</span>
-            {autoSave.status === "error" && (
-              <button type="button" onClick={retryFailedSave}>重试保存</button>
-            )}
-            <button type="button" onClick={() => void exportEmergencyBackup()}>导出恢复文件</button>
-            <button type="button" className="error-dismiss" onClick={clearError} aria-label="关闭错误提示">✕</button>
-          </div>
-        )}
-        {!mobileDrawerViewport && (
-          <button
-            className="btn-icon btn-show-sidebar"
-            onClick={() => {
-              if (sidebarHidden) {
-                // 隐藏状态下重新打开时重新计算当前分栏宽度；若此前保存的是
-                // 0（隐藏哨兵值），computePanelSidebarWidth 会回退到初始宽度。
-                setSidebarHidden(false);
-                applyPanelSidebarWidth(desktopPanel);
-              } else {
-                setSidebarHidden(true);
-              }
-            }}
-            title={sidebarHidden ? "显示侧栏" : "隐藏侧栏"}
-            aria-label={sidebarHidden ? "显示侧栏" : "隐藏侧栏"}
-          >
-            <span className={`arrow ${sidebarHidden ? "arrow-right" : "arrow-left"}`} />
-          </button>
-        )}
-        {DAILY_NOTES_ENABLED && <DatePicker value={currentDate} onChange={handleDateChange} />}
-        {TODOS_ENABLED && <DailyOverview />}
-        {focusMode && !mobileDrawerViewport && <div className="desktop-focus-toolbar" ref={setFocusToolbarTarget} />}
-        <span className="header-spacer" />
-        {stickyTitle && !(focusMode && !mobileDrawerViewport) && (
-          <div className="header-sticky-area">
-            {documentOutlineAvailable ? (
-              <button
-                className="header-sticky-title header-sticky-title-button"
-                title="打开文档目录"
-                aria-label={`${stickyTitle}，打开文档目录`}
-                aria-haspopup="true"
-                onClick={() => setDocumentOutlineRequestId((requestId) => requestId + 1)}
-                type="button"
-              >
-                {stickyTitle}
-              </button>
-            ) : (
-              <span className="header-sticky-title" title={stickyTitle}>
-                {stickyTitle}
-              </span>
-            )}
-            <button
-              className={`header-focus-btn ${focusMode ? "active" : ""}`}
-              onClick={() => setFocusMode(!focusMode)}
-              title={focusMode ? "退出专注模式" : "专注模式"}
-              type="button"
-            >
-              <ToolbarIcon name={focusMode ? "compress" : "expand"} />
-            </button>
-            {focusMode && (
-              <button
-                className="header-focus-btn"
-                onClick={() => setDocumentBookmarkRequestId((requestId) => requestId + 1)}
-                title="文档书签"
-                aria-label="文档书签"
-                type="button"
-              ><ToolbarIcon name="bookmark" /></button>
-            )}
-          </div>
-        )}
-        <div className="header-right">
-          <span className="header-btn-gap" />
-          {mobileDrawerViewport && <div className="header-document-actions" onClick={event => event.stopPropagation()}>
-            <button type="button" className="btn-icon" title="文档目录" aria-label="文档目录"
-              disabled={!selectedNote || !documentOutlineAvailable}
-              onClick={() => setDocumentOutlineRequestId(id => id + 1)}><ToolbarIcon name="bullet" /></button>
-            <button type="button" className="btn-icon" title="文档书签" aria-label="文档书签"
-              disabled={!selectedNote}
-              onClick={() => setDocumentBookmarkRequestId(id => id + 1)}><ToolbarIcon name="bookmark" />{documentBookmarkCount > 0 && <span className="focus-bookmark-count" aria-hidden="true">{documentBookmarkCount > 99 ? "99+" : documentBookmarkCount}</span>}</button>
-            <button type="button" className="btn-icon" title="专注模式" aria-label="专注模式"
-              disabled={!selectedNote}
-              onClick={() => setFocusMode(true)}><ToolbarIcon name="expand" /></button>
-          </div>}
-          {mobileDrawerViewport && !selectedNote && <button className="btn-icon" onClick={() => setSettingsOpen(true)} title="设置" aria-label="设置">
-            <ToolbarIcon name="sliders" />
-          </button>}
-        </div>
-      </header>}
-
       {!isTauriRuntime() && (
         <WebStatusBanner
           online={webPlatform.online}
@@ -2088,6 +1983,10 @@ function App() {
         {!sidebarHidden && <div className="sidebar-divider" onPointerDown={handleSidePointerDown} />}
 
         <main className={`app-main${!mobileDrawerViewport && !sidebarHidden && desktopPanel === "reader" ? " reader-companion-editor" : ""}`}>
+          {mobileDrawerViewport && !selectedNote && <div className="mobile-workspace-empty-actions" aria-label="工作区工具">
+            <button type="button" className="btn-icon" aria-label="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>
+            <button type="button" className="btn-icon" aria-label="设置" onClick={() => setSettingsOpen(true)}><ToolbarIcon name="sliders" /></button>
+          </div>}
           {selectedConcept && !selectedNote ? (
             <DocMOC
               concept={selectedConcept}
@@ -2150,11 +2049,10 @@ function App() {
                       onProtectionBusy={setProtectionBusy}
                       onSecurityError={message => useNotesStore.setState({ error: message })}
                       hideDocumentPasswordControls
-                      securityToolbarTarget={securityToolbarTarget}
-                      unifiedTitleBar={desktopWorkspace}
-                      saveIssue={desktopWorkspace && failedSaveNoteId === selectedNote.id ? autoSave.status === "error" ? "error" : "warning" : undefined}
+                      unifiedTitleBar
+                      mobileTitleBar={mobileDrawerViewport}
+                      saveIssue={failedSaveNoteId === selectedNote.id ? autoSave.status === "error" ? "error" : "warning" : undefined}
                       onOpenSaveIssue={() => setErrorDetailsOpen(true)}
-                      focusToolbarTarget={!mobileDrawerViewport ? focusToolbarTarget : null}
                       securityDisabled={syncBusy}
                       onSecurityChanged={async () => {
                         const note = await api.notes.get(selectedNote.id);
@@ -2239,11 +2137,6 @@ function App() {
                       onTagsChange={handleTagsChange}
                       onVersionOpen={() => setVersionOpen(true)}
                       onFocusModeChange={setFocusMode}
-                      onStickyTitleChange={desktopWorkspace ? undefined : setStickyTitle}
-                      onOutlineAvailabilityChange={setDocumentOutlineAvailable}
-                      onBookmarkCountChange={setDocumentBookmarkCount}
-                      outlineRequestId={documentOutlineRequestId}
-                      bookmarkRequestId={documentBookmarkRequestId}
                       saveStatus={autoSave.status}
                     />
                   </Suspense>
@@ -2442,7 +2335,7 @@ function App() {
         }} onSelectTodo={date => { dismissSearchResults(); void setDate(date); }} />
         : <p className="workspace-dialog-empty">搜索全部文档；加密正文不会出现在结果中。</p>}
     </WorkspaceDialog>}
-    {desktopWorkspace && errorDetailsOpen && <WorkspaceDialog title="错误详情" onClose={() => { setErrorDetailsOpen(false); setErrorCopyNotice(""); }}>
+    {errorDetailsOpen && <WorkspaceDialog title="错误详情" onClose={() => { setErrorDetailsOpen(false); setErrorCopyNotice(""); }}>
       <div className="workspace-error-details">
         <p role="alert">{error || (autoSave.status === "error" ? "保存失败，本次修改尚未保存。" : "当前没有未解决的错误。")}</p>
         {failedSaveNoteId && <p>关闭此窗口不会清除未保存的修改。请重试保存，或先导出恢复文件。</p>}

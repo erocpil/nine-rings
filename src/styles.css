@@ -178,21 +178,21 @@ body {
   min-height: 100dvh;
 }
 
-/* Desktop Web and Tauri share the editor title row in both modes. */
-.app-desktop-workspace .focus-mode .note-title-row { display: flex; }
-.app-desktop-workspace .focus-mode .note-editor-sticky {
+/* All platforms share the editor title row in both modes. */
+.app-unified-workspace .focus-mode .note-title-row { display: flex; }
+.app-unified-workspace .focus-mode .note-editor-sticky {
   position: sticky;
   top: 0;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
-.app-desktop-workspace .focus-mode .note-title { cursor: pointer; }
+.app-unified-workspace .focus-mode .note-title { cursor: pointer; }
 .app-desktop-workspace .vr-title .vr-properties-title { flex: 1; min-width: 0; width: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font: inherit; font-weight: 600; }
-.app-desktop-workspace .note-title-save-error {
+.app-unified-workspace .note-title-save-error {
   color: var(--danger, #b33b36);
   text-decoration: line-through;
 }
-.app-desktop-workspace .note-title-save-warning {
+.app-unified-workspace .note-title-save-warning {
   color: var(--warning, #926315);
   text-decoration: line-through;
 }
@@ -13397,4 +13397,116 @@ button.doc-tree-toggle:focus-visible {
 .search-clear:hover { color: var(--text); background: var(--hover-bg); }
 @media (hover: hover) and (pointer: fine) {
   .doc-tree-toolbar .btn-icon:hover:not(:disabled) { background: var(--hover-bg); }
+}
+
+/* Mobile's sole title row uses the existing sticky region. No fixed focus-bar
+   offsets: keyboard/rotation resize the shell once. */
+.app-mobile-workspace .app-body { padding-top: var(--safe-top); }
+.app-mobile-workspace .app-main {
+  padding-inline-start: max(4px, var(--safe-left));
+  padding-inline-end: max(8px, var(--safe-right));
+}
+.app-mobile-workspace .note-title-row,
+.app-mobile-workspace .vr-title {
+  position: relative;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  min-height: 38px;
+  padding-block: 1px;
+  background: var(--bg);
+}
+.app-mobile-workspace .note-title-row > .document-outline-control { display: flex; }
+.app.app-mobile-workspace .note-title-row > .focus-btn,
+.app-mobile-workspace .note-title-row .document-outline-toggle,
+.app-mobile-workspace .vr-title > button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  width: 32px;
+  min-width: 32px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 6px;
+  opacity: 1;
+  color: var(--text-secondary);
+  background: transparent;
+  touch-action: manipulation;
+}
+.app-mobile-workspace .note-title-row .toolbar-icon,
+.app-mobile-workspace .vr-title :is(.toolbar-icon, .focus-mode-icon) { width: 18px; height: 18px; }
+.app-mobile-workspace .note-title-row .focus-btn:is(.active, [aria-expanded="true"]),
+.app-mobile-workspace .vr-title > button[aria-expanded="true"] {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 11%, var(--bg));
+}
+.app-mobile-workspace .note-title-row .note-readonly-badge,
+.app-mobile-workspace .vr-title > button:has(.toolbar-icon) { flex-shrink: 0; }
+.app-mobile-workspace .note-title-field { position: static; }
+.app-mobile-workspace .note-title-row .note-title,
+.app-mobile-workspace .vr-title .note-title {
+  margin: 0;
+  padding: 2px 0;
+  font-size: calc(var(--editor-font-size) * 1.125);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.document-title-preview { flex: 1; min-width: 0; }
+.document-title-preview > .note-title {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+  font-family: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.document-title-tooltip {
+  position: absolute;
+  inset-inline: 4px;
+  top: calc(100% + 4px);
+  z-index: 40;
+  max-height: min(40dvh, 240px);
+  overflow: auto;
+  overflow-wrap: anywhere;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--text) 12%, transparent);
+  font: 16px/1.5 var(--font);
+}
+.app.app-mobile-workspace .focus-mode .note-editor-scroll { padding-top: 0; }
+.app.app-mobile-workspace .focus-mode .editor-content-shell { margin-top: 12px; }
+.app.app-mobile-workspace .focus-mode.focus-toolbar-expanded .editor-menu {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  margin: 0;
+  box-shadow: none;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid var(--border);
+}
+.mobile-workspace-empty-actions { display: flex; justify-content: flex-end; gap: 4px; }
+.app.app-mobile-workspace .note-editor > :is(.document-outline-panel, .document-bookmark-panel),
+.app.app-mobile-workspace .vr-note > .vr-panel {
+  position: fixed;
+  top: var(--document-panel-anchor-top, 42px);
+  max-height: min(58dvh, calc(var(--app-viewport-height, 100dvh) + var(--app-visual-viewport-offset-top, 0px) - var(--document-panel-anchor-top, 42px) - 12px));
+}
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
+  .app.app-mobile-workspace .note-title-row > .focus-btn,
+  .app-mobile-workspace .note-title-row .document-outline-toggle,
+  .app-mobile-workspace .vr-title > button { flex-basis: 44px; width: 44px; min-width: 44px; }
 }

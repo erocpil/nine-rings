@@ -34,7 +34,9 @@ test("独立搜索不卸载正文、不退出专注模式，关闭后恢复焦�
   await expect(page.locator(".editor-menu")).toBeVisible();
 });
 
-test("保存失败标题标红加删除线，关闭详情不清除失败状态，重试可恢复", async ({ page }, testInfo) => {
+for (const width of [390, 1280]) {
+test(`保存失败标题标红加删除线，关闭详情不清除失败状态，重试可恢复 ${width}`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 800 });
   await page.goto("/");
   const editor = page.locator(".ProseMirror");
   await expect(editor).toBeVisible();
@@ -55,6 +57,13 @@ test("保存失败标题标红加删除线，关闭详情不清除失败状态�
   await expect(dialog.getByRole("button", { name: "复制错误详情" })).toBeVisible();
   await dialog.getByRole("button", { name: "关闭错误详情" }).click();
   await expect(title).toHaveClass(/note-title-save-error/);
+  if (width === 390) {
+    const errorColor = await title.evaluate(node => getComputedStyle(node).color);
+    await page.getByRole("button", { name: "专注模式", exact: true }).click();
+    await expect(page.getByRole("button", { name: "查看完整标题" })).toHaveCSS("color", errorColor);
+    await expect(title).toHaveCSS("text-decoration-line", "line-through");
+    await page.getByRole("button", { name: "退出专注模式", exact: true }).click();
+  }
   await expect(editor).toContainText("未保存内容必须保留");
   await page.screenshot({ path: testInfo.outputPath("save-error-title.png") });
   await page.getByRole("button", { name: "查看保存错误详情" }).click();
@@ -66,3 +75,4 @@ test("保存失败标题标红加删除线，关闭详情不清除失败状态�
   await page.reload();
   await expect(editor).toContainText("未保存内容必须保留");
 });
+}
