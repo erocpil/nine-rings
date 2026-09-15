@@ -5,6 +5,7 @@ import { exitCurrentStructuredBlock } from "../extensions/StructuredBlockExit";
 import { MobileActionSheet } from "./MobileActionSheet";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { useToolbarOverflow } from "../hooks/useToolbarOverflow";
+import { useSelectionFontSize } from "../hooks/useSelectionFontSize";
 
 // Controlled by the editor session: extraction must not remount menu state or
 // move selection restoration/native touch handlers away from .editor-menu.
@@ -106,6 +107,7 @@ const btn = (label: ReactNode, action: () => void, active?: boolean, title?: str
 export function EditorToolbarContents({ editor, readonly, saveStatus, layout, menus, actions, editorFontSize, onEditorFontSizeChange, showCodeLineNumbers, onCodeLineNumbersChange, selectedTableCellCount }: EditorToolbarProps) {
   const { isNarrow, isMinimalToolbar, isMobileToolbarViewport, toolbarRef, moreButtonRef } = layout;
   const hiddenTools = useToolbarOverflow(toolbarRef, isMinimalToolbar);
+  const selectionSize = useSelectionFontSize(editor, editorFontSize);
   const {
     colorOpen, setColorOpen, sizeOpen, setSizeOpen,
     headingOpen, setHeadingOpen, headingPage, setHeadingPage,
@@ -454,14 +456,14 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     {/* 分隔后右区：字号 / 颜色 / 图片 */}
     <div className="menu-dropdown" data-toolbar-tool="size">
       <button className="menu-btn" onClick={(e) => { e.stopPropagation(); if (!readonly) toggleMobileToolbarMenu("size", sizeOpen); }} type="button" title="字号" aria-expanded={sizeOpen} disabled={readonly}>
-        {editor.getAttributes("textStyle").fontSize || "字号"}{dropdownCaret}
+        {selectionSize}{dropdownCaret}
       </button>
       {sizeOpen && (
         <div className="menu-dropdown-list">
           {FONT_SIZES.map((s) => (
             <button
               key={s}
-              className={`menu-dropdown-item ${editor.getAttributes("textStyle").fontSize === String(s) ? "active" : ""}`}
+              className={`menu-dropdown-item ${selectionSize === String(s) ? "active" : ""}`}
               onClick={() => {
                 editor.chain().focus().setFontSize(String(s)).run();
                 setSizeOpen(false);

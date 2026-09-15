@@ -1826,6 +1826,11 @@ body.app-sidebar-dragging .desktop-reader-panel:not([hidden]) {
 /* Desktop icon groups stay on one line, including contextual table actions. */
 .editor-menu.toolbar-full {
   gap: 2px;
+  /* Like the compact toolbar, allow anchored menus below the toolbar's row.
+     overflow-x:auto also clips the Y axis, hiding size/color/block options. */
+  overflow: visible;
+  position: relative;
+  z-index: 30;
 }
 
 .toolbar-full .menu-btn {
