@@ -20,8 +20,18 @@ it("uses the same property-only password entry on every runtime", () => {
 });
 
 it("uses shared SVG focus controls rather than platform-dependent text glyphs", () => {
-  for (const file of ["src/App.tsx", "src/components/NoteEditor.tsx"]) {
+  for (const file of [
+    "src/components/NoteEditor.tsx",
+    "src/components/ReadonlyVirtualNote.tsx",
+  ]) {
     expect(source(file)).not.toMatch(/[⊞⊟]/);
     expect(source(file)).toContain('focusMode ? "compress" : "expand"');
   }
+});
+
+it("uses the editor title bar on mobile and desktop without the old app header", () => {
+  const app = source("src/App.tsx");
+  expect(app).not.toContain('className="app-header"');
+  expect(app).toMatch(/unifiedTitleBar\s*\n/);
+  expect(app).toContain("mobileTitleBar={mobileDrawerViewport}");
 });

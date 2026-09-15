@@ -26,4 +26,10 @@
 
 后续可评估纳入 Cargo.lock 以固定跨构建依赖，以及减少纯文档改动触发的安装包构建。本批不修改触发条件，避免影响现有 PR 必需检查和发布频率。
 
+## 依赖版本兼容保护
+
+首次启用缓存后的构建在 Tauri 版本检查阶段失败：Rust HTTP 插件解析为 `2.6.0`，而 `npm ci` 安装的 JS 插件仍为 `2.5.9`。尚未进入 Rust 编译，不是缓存产物损坏或手机标题栏实现导致。
+
+有 JS 对应包的 Rust 依赖（Tauri API、HTTP、对话框、全局快捷键）改用 `~主版本.次版本`，仅允许补丁升级；其主次版本与 `package-lock.json` 保持一致。新增单元测试保护这一约束。以后升级这些 npm 包时，需要同步调整 Cargo 清单并验证 Windows 构建；不关闭 Tauri 的版本检查。
+
 参考：[rust-cache 配置与缓存键](https://github.com/Swatinem/rust-cache)、[Rust 工具链固定方式](https://github.com/dtolnay/rust-toolchain)。
