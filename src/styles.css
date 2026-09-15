@@ -178,22 +178,21 @@ body {
   min-height: 100dvh;
 }
 
-/* Desktop Web uses the editor's own title row in both modes. Native/mobile
-   keep their existing chrome until explicitly migrated. */
-.app-streamlined-web .focus-mode .note-title-row { display: flex; }
-.app-streamlined-web .focus-mode .note-editor-sticky {
+/* Desktop Web and Tauri share the editor title row in both modes. */
+.app-desktop-workspace .focus-mode .note-title-row { display: flex; }
+.app-desktop-workspace .focus-mode .note-editor-sticky {
   position: sticky;
   top: 0;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
-.app-streamlined-web .focus-mode .note-title { cursor: pointer; }
-.app-streamlined-web .vr-title .vr-properties-title { flex: 1; min-width: 0; width: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font: inherit; font-weight: 600; }
-.app-streamlined-web .note-title-save-error {
+.app-desktop-workspace .focus-mode .note-title { cursor: pointer; }
+.app-desktop-workspace .vr-title .vr-properties-title { flex: 1; min-width: 0; width: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font: inherit; font-weight: 600; }
+.app-desktop-workspace .note-title-save-error {
   color: var(--danger, #b33b36);
   text-decoration: line-through;
 }
-.app-streamlined-web .note-title-save-warning {
+.app-desktop-workspace .note-title-save-warning {
   color: var(--warning, #926315);
   text-decoration: line-through;
 }
@@ -440,8 +439,8 @@ body {
 .desktop-panel-content { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .desktop-panel-content[hidden], .sidebar-document-list.is-open[hidden], .desktop-reader-panel[hidden], .sidebar-footer[hidden] { display: none; }
 .desktop-activity-bar { display: flex; flex-direction: column; flex: 0 0 44px; align-items: center; gap: 6px; padding-block: 8px; border-right: 1px solid var(--border); background: var(--surface); }
-.desktop-activity-bar .btn-icon { width: 36px; height: 36px; border-radius: 6px; color: var(--text-secondary); }
-.desktop-activity-settings { margin-top: auto; }
+.desktop-activity-bar .btn-icon { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 6px; color: var(--text-secondary); }
+.desktop-activity-footer { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; gap: 6px; margin-top: auto; }
 .desktop-activity-bar .btn-icon[aria-pressed="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .desktop-activity-bar .toolbar-icon { width: 20px; height: 20px; }
 .desktop-reader-panel { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
@@ -4815,7 +4814,7 @@ body.app-sidebar-dragging .desktop-reader-panel:not([hidden]) {
 }
 
 .focus-mode .note-title-row {
-  /* Native/mobile retain their separate focus bar. Desktop Web explicitly
+  /* Mobile retains its separate focus bar. Desktop workspaces explicitly
      overrides this above to reuse the normal title row. */
   display: none;
 }
@@ -4882,7 +4881,7 @@ body.app-sidebar-dragging .desktop-reader-panel:not([hidden]) {
   padding: 2px 20px 2px 6px;
 }
 
-.app-focus-mode .btn-icon {
+.app-focus-mode .app-header .btn-icon {
   width: 24px;
   height: 24px;
   font-size: 14px;

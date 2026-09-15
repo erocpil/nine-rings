@@ -1,10 +1,11 @@
-# 桌面 Web 工作区顶部简化
+# 桌面 Web / Tauri 统一工作区
 
 ## 范围
 
-- 仅桌面 Web 移除 `app-header` 和重复的侧栏显隐箭头。左侧分栏按钮保持可见：点击当前分栏收起，再点恢复；宽度记忆、拖动隐藏及阅读冻结逻辑保持不变。
-- Tauri 自定义窗口标题栏、原有文档顶栏和手机 PWA 文档顶栏不在此次移除范围内。
-- 专注模式保留：快捷键、状态栏显示策略、只读标题折叠等不变。桌面 Web 共用普通模式文本区标题行，不使用额外的吸顶标题副本或独立专注标题条；点击专注标题仍切换属性页。
+- 桌面 Web 和 Tauri 共用同一套工作区组件与样式，移除 `app-header` 和重复的侧栏显隐箭头。左侧分栏按钮保持可见：点击当前分栏收起，再点恢复；宽度记忆、拖动隐藏及阅读冻结逻辑保持不变。
+- Tauri 仍保留原生窗口控制条（拖动、全屏、关闭到托盘），仅移除应用内部文档顶栏。手机 PWA 文档顶栏不变。
+- 全局搜索和设置组成左下角按钮组，搜索位于设置正上方。进入/退出专注模式不改变分栏按钮的尺寸、间距和位置；分栏内部工具也不再受专注模式的顶栏缩小规则影响。
+- 专注模式保留：快捷键、状态栏显示策略、只读标题折叠等不变。桌面 Web 和 Tauri 共用普通模式文本区标题行，不使用额外的吸顶标题副本或独立专注标题条；点击专注标题仍切换属性页。
 - 完整编辑器和实验性的只读局部阅读均适用。复制块、目录、书签、退出专注模式和展开编辑工具仍可用。
 
 ## 搜索
@@ -22,4 +23,4 @@
 
 ## 验证
 
-重点覆盖 `workspace-chrome`、`desktop-navigation`、`platform-presentation`、`encrypted-header`、`search-navigation` 和 `reader-sidebar-resize` E2E；手机入口使用 `pwa-layout` 中的「文档列表工具栏承接查找入口且全局搜索立即聚焦」。Windows Tauri 的原生外观和 iOS 虚拟键盘仍需实机验收。
+重点覆盖 `workspace-chrome`、`desktop-navigation`、`desktop-workspace-parity`、`platform-presentation`、`encrypted-header`、`search-navigation` 和 `reader-sidebar-resize` E2E；手机入口使用 `pwa-layout` 中的「文档列表工具栏承接查找入口且全局搜索立即聚焦」。`desktop-workspace-parity` 使用 Tauri SDK 的窗口/IPC 模拟验证共享展示层及全屏按钮调用，不代表 Rust/SQLite 或 Windows WebView2 安装版实测。Windows 原生外观和 iOS 虚拟键盘仍需实机验收。

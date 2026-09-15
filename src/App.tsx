@@ -1382,13 +1382,15 @@ function App() {
   const popupPanelRef = useRef<HTMLDivElement>(null);
   const popupBackdropRef = useRef<HTMLDivElement>(null);
   const mobileDrawerViewport = useMobileViewport();
-  const streamlinedWeb = !mobileDrawerViewport && !isTauriRuntime();
+  // Desktop Web and Tauri share workspace chrome; only native window controls
+  // depend on the runtime. Mobile keeps its existing title/drawer presentation.
+  const desktopWorkspace = !mobileDrawerViewport;
   const announcedErrorRef = useRef<string | null>(null);
   useEffect(() => {
     const message = error || (autoSave.status === "error" ? "保存失败" : null);
-    if (streamlinedWeb && message && message !== announcedErrorRef.current) setErrorDetailsOpen(true);
+    if (desktopWorkspace && message && message !== announcedErrorRef.current) setErrorDetailsOpen(true);
     announcedErrorRef.current = message;
-  }, [error, autoSave.status, streamlinedWeb]);
+  }, [error, autoSave.status, desktopWorkspace]);
   useEdgeDrawer(mobileDrawerViewport && !sidebarHidden, "left", sidebarPanelRef, sidebarBackdropRef, () => setSidebarHidden(true));
   useEdgeDrawer(docTreePopupOpen, "left", popupPanelRef, popupBackdropRef, () => setDocTreePopupOpen(false));
   useEffect(() => bindViewportEdgeSwipe("left", (touch) => {
@@ -1735,11 +1737,11 @@ function App() {
   return (
     <>
     <div
-      className={`app ${focusMode ? "app-focus-mode" : ""}${streamlinedWeb ? " app-streamlined-web" : ""}`}
+      className={`app ${focusMode ? "app-focus-mode" : ""}${desktopWorkspace ? " app-desktop-workspace" : ""}`}
       style={editorAppearanceVariables(config ?? undefined)}
       {...(mobileReadingLibraryOpen ? { inert: "", "aria-hidden": true } : {})}
       {...(protectionBusy || applyingWebUpdate ? { inert: "", "aria-busy": true } : {})}
-      {...(searchExpanded || (streamlinedWeb && errorDetailsOpen) ? { inert: "" } : {})}
+      {...(searchExpanded || (desktopWorkspace && errorDetailsOpen) ? { inert: "" } : {})}
     >
       {/* 桌面版（Tauri）才需要自定义标题栏；web 版无窗口概念 */}
       {isTauriRuntime() && (
@@ -1747,7 +1749,7 @@ function App() {
           <TitleBar />
         </Suspense>
       )}
-      {!streamlinedWeb && <header className="app-header">
+      {!desktopWorkspace && <header className="app-header">
         <div className="header-document-security" ref={setSecurityToolbarTarget} />
         {error && (
           <div className="error-bar" role="alert">
@@ -1863,8 +1865,7 @@ function App() {
       <div className="app-body">
         {sidebarWidthHint && <div className="sidebar-width-hint" role="status" aria-live="polite">{sidebarWidthHint}</div>}
         {!mobileDrawerViewport && <nav className="desktop-activity-bar" aria-label="工作区面板">
-          {streamlinedWeb && <button type="button" className="btn-icon" title="全局搜索" aria-label="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>}
-          {streamlinedWeb && (error || autoSave.status === "error") && <button type="button" className="btn-icon workspace-error-indicator" aria-label="查看错误详情" title="查看错误详情" onClick={() => setErrorDetailsOpen(true)}><ToolbarIcon name="warning" /></button>}
+          {(error || autoSave.status === "error") && <button type="button" className="btn-icon workspace-error-indicator" aria-label="查看错误详情" title="查看错误详情" onClick={() => setErrorDetailsOpen(true)}><ToolbarIcon name="warning" /></button>}
           {((() => {
             const fallback = ['tree', 'list', 'reader'] as const;
             const saved = localStorage.getItem('nr:sidebarOrder')?.split(',') ?? [];
@@ -1877,10 +1878,13 @@ function App() {
             onClick={() => { setSidebarPanel(panel, true); }}>
             <ToolbarIcon name={icon} />
           </button>)}
-          <button type="button" className="btn-icon desktop-activity-settings" title="设置" aria-label="设置"
-            onClick={() => setSettingsOpen(true)}>
-            <ToolbarIcon name="sliders" />
-          </button>
+          <div className="desktop-activity-footer">
+            <button type="button" className="btn-icon" title="全局搜索" aria-label="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>
+            <button type="button" className="btn-icon desktop-activity-settings" title="设置" aria-label="设置"
+              onClick={() => setSettingsOpen(true)}>
+              <ToolbarIcon name="sliders" />
+            </button>
+          </div>
         </nav>}
         <aside ref={sidebarPanelRef} className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}
           role={mobileDrawerViewport ? "dialog" : undefined} aria-label={mobileDrawerViewport ? "文档侧栏" : undefined}
@@ -1901,7 +1905,7 @@ function App() {
               </span>
             </button> : mobileDrawerViewport ? <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} /> : null}>
             <div className="doc-tree-toolbar-host" ref={setDocTreeToolbarHost} />
-            {!streamlinedWeb && <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏" aria-label="隐藏侧栏">
+            {!desktopWorkspace && <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏" aria-label="隐藏侧栏">
               <ToolbarIcon name="chevronLeft" />
             </button>}
           </WorkspacePanelHeading>
@@ -2030,7 +2034,7 @@ function App() {
           {!mobileDrawerViewport && desktopPanel === 'list' && <section className="sidebar-document-list is-open" aria-label="文档列表分区">
             <WorkspacePanelHeading className="sidebar-document-list-heading" title={null}>
               <div className="doc-tree-toolbar-host" ref={setSidebarBrowserToolbarHost} />
-              {!streamlinedWeb && <button type="button" className="btn-icon" aria-label="隐藏侧栏" onClick={() => setSidebarHidden(true)}><ToolbarIcon name="chevronLeft" /></button>}
+              {!desktopWorkspace && <button type="button" className="btn-icon" aria-label="隐藏侧栏" onClick={() => setSidebarHidden(true)}><ToolbarIcon name="chevronLeft" /></button>}
             </WorkspacePanelHeading>
             <div id="sidebar-document-browser" className="sidebar-document-list-body">
               <div className="sidebar-document-list-search">
@@ -2061,7 +2065,7 @@ function App() {
             {pdfReaderPanel ?? epubReaderPanel ?? (desktopPanel === 'reader' && <Suspense fallback={<div className="doc-tree-loading">正在加载阅读资料…</div>}>
               <ReadingLibrary session={readingLibrarySession.current}
                 showWorkspaceSwitch={false}
-                onHide={streamlinedWeb ? undefined : () => setSidebarHidden(true)}
+                onHide={desktopWorkspace ? undefined : () => setSidebarHidden(true)}
                 onClose={() => setSidebarPanel('tree')}
                 onOpenPdf={id => { setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
                 onOpenEpub={id => { setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }} />
@@ -2147,8 +2151,8 @@ function App() {
                       onSecurityError={message => useNotesStore.setState({ error: message })}
                       hideDocumentPasswordControls
                       securityToolbarTarget={securityToolbarTarget}
-                      unifiedTitleBar={streamlinedWeb}
-                      saveIssue={streamlinedWeb && failedSaveNoteId === selectedNote.id ? autoSave.status === "error" ? "error" : "warning" : undefined}
+                      unifiedTitleBar={desktopWorkspace}
+                      saveIssue={desktopWorkspace && failedSaveNoteId === selectedNote.id ? autoSave.status === "error" ? "error" : "warning" : undefined}
                       onOpenSaveIssue={() => setErrorDetailsOpen(true)}
                       focusToolbarTarget={!mobileDrawerViewport ? focusToolbarTarget : null}
                       securityDisabled={syncBusy}
@@ -2235,7 +2239,7 @@ function App() {
                       onTagsChange={handleTagsChange}
                       onVersionOpen={() => setVersionOpen(true)}
                       onFocusModeChange={setFocusMode}
-                      onStickyTitleChange={streamlinedWeb ? undefined : setStickyTitle}
+                      onStickyTitleChange={desktopWorkspace ? undefined : setStickyTitle}
                       onOutlineAvailabilityChange={setDocumentOutlineAvailable}
                       onBookmarkCountChange={setDocumentBookmarkCount}
                       outlineRequestId={documentOutlineRequestId}
@@ -2438,7 +2442,7 @@ function App() {
         }} onSelectTodo={date => { dismissSearchResults(); void setDate(date); }} />
         : <p className="workspace-dialog-empty">搜索全部文档；加密正文不会出现在结果中。</p>}
     </WorkspaceDialog>}
-    {streamlinedWeb && errorDetailsOpen && <WorkspaceDialog title="错误详情" onClose={() => { setErrorDetailsOpen(false); setErrorCopyNotice(""); }}>
+    {desktopWorkspace && errorDetailsOpen && <WorkspaceDialog title="错误详情" onClose={() => { setErrorDetailsOpen(false); setErrorCopyNotice(""); }}>
       <div className="workspace-error-details">
         <p role="alert">{error || (autoSave.status === "error" ? "保存失败，本次修改尚未保存。" : "当前没有未解决的错误。")}</p>
         {failedSaveNoteId && <p>关闭此窗口不会清除未保存的修改。请重试保存，或先导出恢复文件。</p>}
