@@ -31,7 +31,10 @@ beforeEach(() => {
     JSON.stringify({ notes: [], daily_pages: [] }),
   );
 });
-afterEach(() => {
+afterEach(async () => {
+  // Precheck starts local export and HTTP concurrently. A local failure may
+  // settle first; drain the lazy HTTP import before the next test resets mocks.
+  await vi.dynamicImportSettled();
   expect(api.export.import).not.toHaveBeenCalled();
 });
 

@@ -355,32 +355,62 @@ export async function githubApiFetch(
     });
     return await Promise.race([aborted, (async () => {
       checkPushCancellation(controller.signal);
-      const request = isTauriRuntime()
+      const native = isTauriRuntime();
+      const request = native
         ? (await import("@tauri-apps/plugin-http")).fetch
         : fetch;
       checkPushCancellation(controller.signal);
-      const response = await request(input, { ...init, signal: controller.signal });
-      let body: Blob | null = null;
-      const reader = response.body?.getReader();
-      if (reader) {
-        const cancelBody = () => { void reader.cancel().catch(() => {}); };
-        controller.signal.addEventListener("abort", cancelBody, { once: true });
-        try {
-          const chunks: BlobPart[] = [];
-          while (true) {
+      const readResponse = async (response: Response): Promise<Response> => {
+        let body: Blob | null = null;
+        const reader = response.body?.getReader();
+        if (reader) {
+          const cancelBody = () => { void reader.cancel().catch(() => {}); };
+          controller.signal.addEventListener("abort", cancelBody, { once: true });
+          if (controller.signal.aborted) cancelBody();
+          try {
+            const chunks: BlobPart[] = [];
+            while (true) {
+              checkPushCancellation(controller.signal);
+              const { done, value } = await reader.read();
+              if (done) break;
+              chunks.push(value.slice());
+            }
             checkPushCancellation(controller.signal);
-            const { done, value } = await reader.read();
-            if (done) break;
-            chunks.push(value.slice());
+            body = new Blob(chunks);
+          } finally {
+            controller.signal.removeEventListener("abort", cancelBody);
+            reader.releaseLock();
           }
+        }
+        return new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers });
+      };
+      try {
+        return await readResponse(await request(input, { ...init, signal: controller.signal }));
+      } catch (nativeError) {
+        // reqwest may reject while decoding a response stream. Retry only this
+        // known native read failure via the independent WebView HTTP stack.
+        // Never replay writes, relax TLS, or bypass a native scope denial.
+        if (!native || controller.signal.aborted
+          || !/^error decoding response body(?:$|:)/i.test(syncErrorMessage(nativeError))) {
+          throw nativeError;
+        }
+        const original = input instanceof Request ? input : null;
+        const method = (init.method ?? original?.method ?? "GET").toUpperCase();
+        let url: URL;
+        try { url = new URL(original?.url ?? String(input)); } catch { throw nativeError; }
+        if (method !== "GET" || url.origin !== "https://api.github.com" || url.username || url.password) {
+          throw nativeError;
+        }
+        addLog("[Sync] 原生响应体解码失败，使用 WebView 重试一次 GitHub GET（共用原超时预算）");
+        try {
           checkPushCancellation(controller.signal);
-          body = new Blob(chunks);
-        } finally {
-          controller.signal.removeEventListener("abort", cancelBody);
-          reader.releaseLock();
+          return await readResponse(await fetch(input, {
+            ...init, signal: controller.signal, credentials: "omit", redirect: "error",
+          }));
+        } catch (fallbackError) {
+          throw new Error(`原生下载：${syncErrorMessage(nativeError)}\nWebView 重试：${syncErrorMessage(fallbackError)}`);
         }
       }
-      return new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers });
     })()]);
   } catch (reason) {
     if (controller.signal.aborted) {
