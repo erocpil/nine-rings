@@ -22,7 +22,7 @@ import { blobToBase64 } from "../lib/storage/core";
 import { normalizePastedHTML, normalizeSingleParagraphPaste } from "../extensions/NormalizeSingleParagraphPaste";
 import { CodeMirrorBlockEditor } from "./CodeMirrorBlockEditor";
 
-type Request = { position: number; trigger: HTMLElement; restoreFocus?: boolean };
+type Request = { position: number; trigger: HTMLElement; restoreFocus?: boolean; startInEditMode?: boolean };
 type Props = { source: Editor; noteId?: string; readonly?: boolean; sensitive?: boolean; saveStatus?: string; onFlush?: () => Promise<void> };
 
 export function BlockWorkspaceHost(props: Props) {
@@ -74,7 +74,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
   const bridging = useRef(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const body = useRef<HTMLDivElement>(null);
-  const [mode, setMode] = useState<"read" | "edit">("read");
+  const [mode, setMode] = useState<"read" | "edit">(() => request.startInEditMode && !readonly ? "edit" : "read");
   const editable = mode === "edit" && !readonly;
   const [vimMode, setVimMode] = useState<"normal" | "insert">("normal");
   const editableRef = useRef(editable);

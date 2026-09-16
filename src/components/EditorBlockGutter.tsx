@@ -114,7 +114,7 @@ interface EditorBlockGutterProps {
   readonly: boolean;
   bookmarkPositions?: readonly number[];
   highlightedBlockIndex?: number | null;
-  blockSelection?: { anchor: number; head: number } | null;
+  selectedBlockIndexes?: readonly number[];
   onBlockSelect?: (position: number) => void;
   onBlockCountChange?: (count: number) => void;
   onHeadingFoldToggle?: (position: number) => void;
@@ -127,7 +127,7 @@ interface EditorBlockGutterProps {
  * 用户意图。IntersectionObserver 只挂载视口及预读区域内的控件；
  * ResizeObserver 只重新测量这部分节点，避免长文档复制一整套 gutter DOM。
  */
-export function EditorBlockGutter({ editor, compact = false, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], highlightedBlockIndex, blockSelection, onBlockSelect, onBlockCountChange, onHeadingFoldToggle }: EditorBlockGutterProps) {
+export function EditorBlockGutter({ editor, compact = false, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], highlightedBlockIndex, selectedBlockIndexes = [], onBlockSelect, onBlockCountChange, onHeadingFoldToggle }: EditorBlockGutterProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const suppressCompatibilityClickUntilRef = useRef(0);
   const lastTouchActionAtRef = useRef(0);
@@ -154,7 +154,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
     const scrollRoot = root?.closest<HTMLElement>(".note-editor-scroll");
     if (!root || !scrollRoot || editor.isDestroyed) return;
 
-    const needsAllBlocks = showNumbers || (showInsertButtons && !readonly) || bookmarkPositions.length > 0 || Boolean(blockSelection);
+    const needsAllBlocks = showNumbers || (showInsertButtons && !readonly) || bookmarkPositions.length > 0 || selectedBlockIndexes.length > 0;
     const needsHeadings = Boolean(onHeadingFoldToggle);
     if (!needsAllBlocks && !needsHeadings) {
       setBlocks((current) => current.length === 0 ? current : []);
@@ -581,7 +581,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
       if (rebuildFrame) cancelAnimationFrame(rebuildFrame);
       if (windowFrame) cancelAnimationFrame(windowFrame);
     };
-  }, [bookmarkPositions.length, blockSelection, compact, editor, onBlockCountChange, onHeadingFoldToggle, readonly, showInsertButtons, showNumbers]);
+  }, [bookmarkPositions.length, compact, editor, onBlockCountChange, onHeadingFoldToggle, readonly, selectedBlockIndexes, showInsertButtons, showNumbers]);
 
   const insertParagraph = (pos: number) => {
     const safePos = Math.min(Math.max(0, pos), editor.state.doc.content.size);
@@ -620,17 +620,8 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
   const blockHasBookmark = (block: GutterBlock) => bookmarkPositions.some(
     (position) => position >= block.pos && position < block.endPos,
   );
-  const selectedBlockBounds = blockSelection
-    ? [
-        editor.state.doc.resolve(Math.min(blockSelection.anchor, editor.state.doc.content.size)).index(0) + 1,
-        editor.state.doc.resolve(Math.min(blockSelection.head, editor.state.doc.content.size)).index(0) + 1,
-      ].sort((left, right) => left - right)
-    : null;
-  const blockIsSelected = (block: GutterBlock) => Boolean(
-    selectedBlockBounds
-    && block.index >= selectedBlockBounds[0]
-    && block.index <= selectedBlockBounds[1],
-  );
+  const selectedBlockSet = new Set(selectedBlockIndexes);
+  const blockIsSelected = (block: GutterBlock) => selectedBlockSet.has(block.index - 1);
 
   const startGutterTouch = (event: React.TouchEvent<HTMLButtonElement>) => {
     const touch = event.changedTouches[0];
@@ -697,9 +688,9 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
     <div
       ref={rootRef}
       className="editor-block-gutter"
-      aria-hidden={readonly && !showNumbers && !onHeadingFoldToggle && !blockSelection}
+      aria-hidden={readonly && !showNumbers && !onHeadingFoldToggle && selectedBlockIndexes.length === 0}
     >
-      {blockSelection && onBlockSelect && blocks.map((block) => (
+      {selectedBlockIndexes.length > 0 && onBlockSelect && blocks.map((block) => (
         <button
           key={`select-${block.pos}`}
           type="button"
@@ -738,7 +729,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
           title={`第 ${block.index} 块有书签`}
         />
       ))}
-      {!blockSelection && onHeadingFoldToggle && blocks.filter((block) => block.heading).map((block) => {
+      {selectedBlockIndexes.length === 0 && onHeadingFoldToggle && blocks.filter((block) => block.heading).map((block) => {
         const host = foldHosts.current.get(block.pos);
         if (!host?.isConnected) return null;
         return createPortal(
@@ -757,7 +748,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
         >{block.folded ? "▶" : "▼"}</button>
         , host, `fold-${block.pos}`);
       })}
-      {!blockSelection && !readonly && showInsertButtons && boundaries.map((boundary) => (
+      {selectedBlockIndexes.length === 0 && !readonly && showInsertButtons && boundaries.map((boundary) => (
         <button
           key={boundary.key}
           type="button"

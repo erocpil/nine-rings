@@ -19,7 +19,7 @@ async function swipe(locator: Locator, fromX: number, toX: number, y: number) {
 test.describe("手机块级操作", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
-  test("连续选择、格式化并左划编辑普通块", async ({ page }) => {
+  test("独立选择、取消、格式化并左划编辑普通块", async ({ page }) => {
     await page.goto("/");
     await page.evaluate(async () => {
       const load = (path: string) => import(/* @vite-ignore */ path);
@@ -42,21 +42,34 @@ test.describe("手机块级操作", () => {
     await page.getByRole("button", { name: "块级操作", exact: true }).first().tap();
     const selectionToolbar = page.getByRole("toolbar", { name: "块级操作" });
     await expect(selectionToolbar).toContainText("1 块");
+    await expect(editor).toHaveAttribute("contenteditable", "false");
     await page.getByRole("button", { name: "选择到第 3 块" }).tap();
-    await expect(selectionToolbar).toContainText("3 块");
-    await selectionToolbar.getByLabel("所选块字号").selectOption("18");
-    await expect(editor.locator(':scope > p').nth(1).locator('span[style*="18px"]')).toContainText("第二块");
-
+    await expect(selectionToolbar).toContainText("2 块");
+    await page.getByRole("button", { name: "选择到第 3 块" }).tap();
+    await expect(selectionToolbar).toContainText("1 块");
     await page.getByRole("button", { name: "选择到第 2 块" }).tap();
     await expect(selectionToolbar).toContainText("2 块");
+    await selectionToolbar.getByLabel("所选块字号").selectOption("18");
+    await expect(editor.locator(':scope > p').nth(1).locator('span[style*="18px"]')).toContainText("第二块");
+    await expect(editor.locator(':scope > p').nth(2).locator('span[style*="18px"]')).toHaveCount(0);
+
+    await page.getByRole("button", { name: "选择到第 1 块" }).tap();
+    await expect(selectionToolbar).toContainText("1 块");
+    await page.getByRole("button", { name: "选择到第 2 块" }).tap();
+    await expect(selectionToolbar).toHaveCount(0);
+    await expect(editor).toHaveAttribute("contenteditable", "true");
+    await page.getByRole("button", { name: "块级操作", exact: true }).first().tap();
+    await expect(selectionToolbar).toContainText("1 块");
     const second = editor.locator(":scope > p").nth(1);
     const box = await second.boundingBox();
     expect(box).not.toBeNull();
     await swipe(second, box!.x + box!.width - 8, box!.x + 20, box!.y + box!.height / 2);
     await expect(page.getByRole("dialog", { name: "正文块工作区" })).toBeVisible();
+    await expect(page.getByRole("toolbar", { name: "块编辑工具" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "编辑", exact: true })).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("button", { name: "关闭块工作区" }).tap();
-
-    await selectionToolbar.getByRole("button", { name: "退出块选择" }).tap();
+    await expect(selectionToolbar).toHaveCount(0);
+    await expect(editor).toHaveAttribute("contenteditable", "true");
   });
 
   test("大文档改成引用后外壳操作仍可响应", async ({ page }) => {
