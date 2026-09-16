@@ -98,3 +98,11 @@
   .document-path-picker-footer { padding-block: 6px; }
   .document-path-picker-footer button { min-height: 32px; }
 }
+.document-path-tree-row { display: flex; align-items: center; min-width: 0; }
+.document-path-tree-toggle, .document-path-tree-spacer { flex: 0 0 32px; width: 32px; }
+.document-path-tree-row button { min-height: 44px; border: 0; background: transparent; color: var(--text); border-radius: 6px; }
+.document-path-tree-select { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding: 8px; text-align: left; }
+.document-path-tree-select span { overflow-wrap: anywhere; }
+.document-path-tree-select[aria-pressed="true"] { background: var(--accent-bg); color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
+.document-path-tree-row button:hover { background: var(--hover-bg); }
+.document-path-tree-toggle[aria-expanded="true"] .toolbar-icon { transform: rotate(90deg); }

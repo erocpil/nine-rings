@@ -7,6 +7,8 @@ import { withTimeout } from "../lib/async";
 import { getOtherFolderPaths, getVisibleDocumentTreeNodes } from "../lib/doc-tree-collapse";
 import MoveToDialog from "./MoveToDialog";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { copyToClipboard } from "../lib/clipboard";
+import { useTransientMessage } from "../hooks/useTransientMessage";
 import {
   getDocumentFolderPath,
   type MoveToSubject,
@@ -147,6 +149,7 @@ function DocTree({
   const [loadError, setLoadError] = useState<string | null>(null);
   const selectionRequestRef = useRef(0);
   const [selectionError, setSelectionError] = useState<string | null>(null);
+  const { message: pathNotice, showMessage: showPathNotice, clearMessage: clearPathNotice } = useTransientMessage();
   useEffect(() => {
     const requests = selectionRequestRef;
     requests.current++;
@@ -306,6 +309,31 @@ function DocTree({
       else setSelectionError("文档不存在或已删除，请刷新文档树");
     } catch (error) {
       if (request === selectionRequestRef.current) setSelectionError(`打开文档失败，请再次点击重试：${String(error)}`);
+    }
+  };
+
+  const handleFolderClick = (path: string) => {
+    if (disabled) return;
+    setContextMenu(null);
+    const treeScrollTop = treeScrollRef.current?.scrollTop ?? 0;
+    localStorage.setItem(DOC_TREE_SCROLL_KEY, String(treeScrollTop));
+    selectionRequestRef.current++;
+    setSelectionError(null);
+    onFolderSelect?.(path);
+    window.requestAnimationFrame(() => {
+      if (treeScrollRef.current) treeScrollRef.current.scrollTop = treeScrollTop;
+    });
+  };
+
+  const handleCopyPath = async (path: string) => {
+    setContextMenu(null);
+    clearPathNotice();
+    setSelectionError(null);
+    try {
+      await copyToClipboard(path, { reportFailure: true });
+      showPathNotice(`已复制路径：${path}`);
+    } catch {
+      setSelectionError("复制路径失败，请检查剪贴板权限后重试");
     }
   };
 
@@ -510,8 +538,11 @@ function DocTree({
     setContextMenu(null);
     if (disabled) return;
     const ids = getDocIdsUnderPath(folderPath);
-    if (ids.length === 0) return;
-    if (confirm(`删除目录「${folderPath.split("/").pop()}」及其下 ${ids.length} 篇文档？\\n删除后可从回收站恢复。`)) {
+    if (ids.length === 0) {
+      if (tree.some(node => node.path === folderPath && node.protectionRoot)) void onPathSecurity?.(folderPath, "delete");
+      return;
+    }
+    if (confirm(`删除目录「${folderPath}」及其下 ${ids.length} 篇文档（包含子目录）？\n文档删除后可从回收站恢复；默认分类和加密路径会保留。`)) {
       onBatchDelete?.(ids, folderPath);
     }
   };
@@ -599,6 +630,7 @@ function DocTree({
             onPointerUp={handleTreePointerEnd}
             onPointerCancel={handleTreePointerEnd}
             onClickCapture={suppressTreeClickAfterLongPress}
+            onClick={() => handleFolderClick(node.path)}
           >
             {hasChildren ? (
               <button
@@ -625,19 +657,6 @@ function DocTree({
                 <span
                   className="doc-tree-name"
                   title={node.name}
-                  onClick={() => {
-                    if (disabled) return;
-                    // 打开路径会切换到路径文档视图；先记录当前树的位置，
-                    // 避免后续选中/加载文档时的自动定位把用户带回当前文档。
-                    const treeScrollTop = treeScrollRef.current?.scrollTop ?? 0;
-                    localStorage.setItem(DOC_TREE_SCROLL_KEY, String(treeScrollTop));
-                    selectionRequestRef.current++;
-                    setSelectionError(null);
-                    onFolderSelect?.(node.path);
-                    window.requestAnimationFrame(() => {
-                      if (treeScrollRef.current) treeScrollRef.current.scrollTop = treeScrollTop;
-                    });
-                  }}
                 >
                   {node.name}
                 </span>
@@ -673,7 +692,8 @@ function DocTree({
         onClickCapture={suppressTreeClickAfterLongPress}
       >
         <span className="doc-tree-toggle" />
-        <span className="doc-tree-icon">{node.readonly ? "🔒" : (node.docType && DOC_TYPE_ICONS[node.docType]) || "🧩"}</span>
+        <span className="doc-tree-icon" title={node.sourceFormat === "text" ? "纯文本文档" : undefined}>{node.sourceFormat === "text" ? "📄" : node.readonly ? "🔒" : (node.docType && DOC_TYPE_ICONS[node.docType]) || "🧩"}</span>
+        {node.sourceFormat === "text" && node.readonly && <span title="只读" aria-label="只读">🔒</span>}
         {selectMode && node.noteId && (
           <input
             type="checkbox"
@@ -715,6 +735,8 @@ function DocTree({
   }
 
   const selectedDocument = tree.find((node) => node.type === "document" && node.noteId === selectedId);
+  const selectedFolder = !selectedId ? tree.find(node => node.type === "folder" && node.path === selectedFolderPath) : undefined;
+  const selectedPath = selectedDocument?.noteId ? getDocumentFolderPath(selectedDocument.path, selectedDocument.noteId) : selectedFolder?.path;
   const toolbar = (
     <div className="doc-tree-toolbar">
       <div ref={setToolbarScroller} className="doc-tree-toolbar-actions" role="group" aria-label="文档树工具，滚轮可横向浏览">
@@ -789,6 +811,11 @@ function DocTree({
           </>
         ) : (
           <>
+            <button className="btn-icon doc-tree-batch-btn" title={selectedDocument ? "复制所在路径" : "复制路径"}
+              disabled={!selectedPath} onClick={() => { if (selectedPath) void handleCopyPath(selectedPath); }}><ToolbarIcon name="copy" /></button>
+            <button className="btn-icon doc-tree-batch-btn" title="删除选中目录"
+              disabled={disabled || !selectedFolder || !(onBatchDelete && getDocIdsUnderPath(selectedFolder.path).length > 0 || onPathSecurity && selectedFolder.protectionRoot)}
+              onClick={() => { if (selectedFolder) handleFolderDelete(selectedFolder.path); }}><ToolbarIcon name="trash" /></button>
             <button
               className="btn-icon doc-tree-batch-btn"
               onClick={() => selectedDocument?.noteId && handleRename(selectedDocument.noteId)}
@@ -824,6 +851,7 @@ function DocTree({
   return (
     <>
       {selectionError && <div role="alert" className="doc-tree-error-detail">{selectionError}</div>}
+      {pathNotice && <div role="status" className="doc-tree-path-notice">{pathNotice}</div>}
       {toolbarHost === undefined
         ? <div className="doc-tree-toolbar-inline">{toolbar}</div>
         : toolbarHost
@@ -848,6 +876,7 @@ function DocTree({
         >
           {contextMenu.type === 'folder' ? (
             <>
+              <button className="doc-context-item" onClick={() => void handleCopyPath(contextMenu.path)}>复制路径</button>
               {onPathSecurity && !contextMenu.path.startsWith("daily") && <>
                 <button className="doc-context-item" onClick={() => { const path = contextMenu.path; setContextMenu(null); void onPathSecurity(path, "set"); }}>
                   {tree.some(n => n.path === contextMenu.path && n.protectionRoot) ? "更改路径密码" : "设置路径密码"}
@@ -874,6 +903,7 @@ function DocTree({
             </>
           ) : (
             <>
+              <button className="doc-context-item" onClick={() => void handleCopyPath(getDocumentFolderPath(contextMenu.path, contextMenu.noteId!))}>复制所在路径</button>
               {!contextMenu.path.startsWith("daily/") && (
                 <button className="doc-context-item" onClick={() => handleMoveDocument(contextMenu.noteId!, contextMenu.title, contextMenu.path)}>
                   移动到…

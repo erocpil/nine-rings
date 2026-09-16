@@ -32,7 +32,9 @@ test("目录导入保留所选根目录、嵌套层级和纯文本格式，跳�
     (note: { title: string }) => note.title === "根文件",
   );
   expect(plain.content.ops).toEqual([
-    { insert: "# literal heading\n**literal bold**\n中文纯文本\n" },
+    { insert: "# literal heading" }, { insert: "\n" },
+    { insert: "**literal bold**" }, { insert: "\n" },
+    { insert: "中文纯文本" }, { insert: "\n" },
   ]);
   expect(
     notes

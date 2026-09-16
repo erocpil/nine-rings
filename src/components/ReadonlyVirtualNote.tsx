@@ -665,26 +665,12 @@ export function ReadonlyVirtualNote(
         (event.ctrlKey || event.metaKey) &&
         !event.altKey && !event.shiftKey && !event.isComposing &&
         event.key.toLowerCase() === "a" &&
-        !(event.target instanceof Element && event.target.closest("input, textarea, select")) &&
-        (bodyRef.current?.contains(document.activeElement) || bodyRef.current?.contains(window.getSelection()?.anchorNode ?? null))
+        !(event.target instanceof Element && event.target.closest("input, textarea, select, [role=menu], dialog")) &&
+        (event.target === document.body || bodyRef.current?.contains(event.target as Node)) &&
+        (bodyRef.current?.contains(document.activeElement) || bodyRef.current?.contains(window.getSelection()?.anchorNode ?? null) || bodyRef.current?.matches(":hover"))
       ) {
         event.preventDefault();
         event.stopPropagation();
-        const selection = window.getSelection();
-        const anchor = selection?.anchorNode;
-        const element = anchor instanceof Element ? anchor : anchor?.parentElement;
-        const block = element?.closest("code, .blockquote-content");
-        if (block && bodyRef.current?.contains(block) && selection?.rangeCount && block.contains(selection.focusNode)) {
-          const range = document.createRange();
-          range.selectNodeContents(block);
-          const current = selection.getRangeAt(0);
-          // Text ranges can have equivalent boundaries represented by distinct
-          // DOM nodes. Compare selected text as well for repeated select-all.
-          if (current.toString() !== range.toString()) {
-            selection.removeAllRanges(); selection.addRange(range);
-            return;
-          }
-        }
         // Unmounted rows cannot participate in native selection. Switch to the
         // complete renderer before selecting the whole document.
         handoffReadingAnchor(noteId, capture());

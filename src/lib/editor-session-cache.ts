@@ -45,3 +45,7 @@ export function promoteCachedEditorDocument(noteId: string, toRevision: string):
 export function clearEditorSessionCache(): void {
   sessions.clear();
 }
+
+export function invalidateEditorDocument(noteId: string): void {
+  sessions.delete(noteId);
+}

@@ -392,5 +392,15 @@ function assert(condition: boolean, msg: string): void {
 // ═══════════════════════════════════════════════════════════════════
 // Results
 // ═══════════════════════════════════════════════════════════════════
+{
+  const pm = deltaToProseMirror({ ops: [{ insert: "首行\r\n\r\n# 标题不是 Markdown\r末行\n" }] });
+  assert(pm.content.length === 4, "legacy plain-text single op preserves every line including blank lines");
+  assert(pm.content.every(node => node.type === "paragraph"), "plain text is not reparsed as Markdown");
+  assert(pm.content[2].content?.[0].text === "# 标题不是 Markdown", "literal syntax preserved");
+  const saved = deltaToProseMirror({ ops: [{ insert: "first\nsecond" }, { insert: "\n" }] });
+  assert(saved.content.length === 2, "legacy text also retains newlines after an earlier save");
+  const code = deltaToProseMirror({ ops: [{ insert: "one\ntwo\nthree" }, { insert: "\n", attributes: { "code-block": true } }] });
+  assert(code.content.length === 1 && code.content[0].type === "codeBlock" && code.content[0].content?.[0].text === "one\ntwo\nthree", "multiline code remains one code block");
+}
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

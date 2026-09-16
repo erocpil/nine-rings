@@ -11,8 +11,22 @@ export const BlockSelectAll = Extension.create({
         const onKeyDown = (event: KeyboardEvent) => {
           if (event.defaultPrevented || event.isComposing || !(event.ctrlKey || event.metaKey)
             || event.altKey || event.shiftKey || event.key.toLowerCase() !== "a") return;
-          if (event.target instanceof Element && event.target.closest("input, textarea, select")) return;
+          if (view.dom.closest("[inert], .block-selection-active")) return;
+          if (event.target instanceof Element && event.target.closest("input, textarea, select, [role=menu], dialog")) return;
           const native = view.dom.ownerDocument.getSelection();
+          const targetInEditor = event.target instanceof Node && view.dom.contains(event.target);
+          const bodyTarget = event.target === view.dom.ownerDocument.body;
+          const selectionInEditor = !!native?.anchorNode && !!native.focusNode
+            && view.dom.contains(native.anchorNode) && view.dom.contains(native.focusNode);
+          if (!view.editable && (targetInEditor || (bodyTarget && (selectionInEditor || view.dom.matches(":hover"))))) {
+            event.preventDefault(); event.stopPropagation();
+            view.dispatch(view.state.tr.setSelection(new AllSelection(view.state.doc)));
+            view.dom.focus({ preventScroll: true });
+            const range = view.dom.ownerDocument.createRange();
+            range.selectNodeContents(view.dom);
+            native?.removeAllRanges(); native?.addRange(range);
+            return;
+          }
           if (!native?.anchorNode || !native.focusNode || !view.dom.contains(native.anchorNode)
             || !view.dom.contains(native.focusNode)) return;
           let anchor: number;

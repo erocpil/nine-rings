@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CopyBlockNotice } from "./CopyBlockNotice";
+import { RenderedLinkMenu } from "./RenderedLinkMenu";
+import { MarkdownDocumentView } from "./MarkdownDocumentView";
 import { useEditorToolbarMenus } from "../hooks/useEditorToolbarMenus";
 import { useBlockSelectionGestures } from "../hooks/useBlockSelectionGestures";
 import { MOBILE_VIEWPORT_QUERY } from "../hooks/useEdgeDrawer";
@@ -572,7 +574,7 @@ let readonlySchema: ReturnType<typeof getSchema> | undefined;
 let readonlyDocumentSequence = 0;
 
 export function NoteEditor(props: NoteEditorProps) {
-  return <ProtectedNoteEditor props={props} render={next => <DocumentEditor {...next} />} />;
+  return <ProtectedNoteEditor props={props} render={next => <RenderedLinkMenu key={next.noteId}><MarkdownDocumentView props={next} render={current => <DocumentEditor {...current} />} /></RenderedLinkMenu>} />;
 }
 
 function DocumentEditor(props: NoteEditorProps) {
@@ -599,7 +601,7 @@ function DocumentEditor(props: NoteEditorProps) {
     if (!experimental || !props.readonly || props.vimModeEnabled || props.pdfExcerptSource || props.epubExcerptSource) return null;
     // Readonly/metadata saves update updated_at too. They must not remount a
     // reader with identical text and discard an open panel or native selection.
-    return JSON.stringify(isDelta(props.content) ? { ops: props.content.ops } : props.content);
+    return JSON.stringify(isDelta(props.content) ? { ops: props.content.ops, metadata: { sourceFormat: props.content.metadata?.sourceFormat } } : props.content);
   }, [experimental, props.readonly, props.vimModeEnabled, props.pdfExcerptSource, props.epubExcerptSource, props.content]);
   const readingDocument = useMemo(() => {
     if (!readingSource) return null;

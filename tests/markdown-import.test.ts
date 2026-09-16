@@ -1,4 +1,5 @@
 import { buildMarkdownImportInput, buildTextImportInput, decodeTextImport, isTextImportFile, normalizeMarkdownImportPath, parseMetadataList } from "../src/lib/markdown-import";
+import { deltaToProseMirror } from "../src/lib/delta-converter";
 
 let passed = 0;
 let failed = 0;
@@ -56,7 +57,10 @@ const options = { date: "2026-09-16", mode: "document" as const, storagePath: "r
 const plain = buildTextImportInput({ fileName: "原文.TXT", relativePath: "资料/网络/原文.TXT", source: "# 不是标题\r\n**原样保留**\r末行" }, options);
 assert(plain.title === "原文", "plain text title comes from filename, not a Markdown heading");
 assert(plain.storagePath === "references/imported/资料/网络", "selected root and nested folders are preserved");
-assert(JSON.stringify(plain.content) === JSON.stringify({ ops: [{ insert: "# 不是标题\n**原样保留**\n末行\n" }] }), "plain text is literal and CRLF/CR are normalized");
+assert(JSON.stringify(plain.content?.ops) === JSON.stringify([{ insert: "# 不是标题" }, { insert: "\n" }, { insert: "**原样保留**" }, { insert: "\n" }, { insert: "末行" }, { insert: "\n" }]), "plain text preserves each line as a Delta block");
+assert(plain.content?.metadata?.sourceFormat === "text", "plain text format is persisted");
+const literalTable = buildTextImportInput({ fileName: "table.txt", source: "| a | b |\n| --- | --- |\n| c | d |\n" }, options);
+assert(deltaToProseMirror(literalTable.content).content.every(node => node.type === "paragraph"), "TXT table-like text remains literal instead of legacy Markdown migration");
 const markdown = buildTextImportInput({ fileName: "intro.markdown", source: "# 标题", relativePath: "资料/intro.markdown" }, options);
 assert(markdown.title === "标题" && markdown.storagePath === "references/imported/资料", "markdown extension retains parsing and root folder");
 assert(buildTextImportInput({ fileName: "empty.txt", source: "" }, options).content?.ops[0].insert === "\n", "empty text files remain valid documents");

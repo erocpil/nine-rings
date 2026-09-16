@@ -4,6 +4,20 @@ use tauri::State;
 const EXACT_CONCEPT_FILTER: &str =
     " AND EXISTS (SELECT 1 FROM json_each(notes.concepts) AS item WHERE item.value = ?)";
 
+#[tauri::command]
+pub fn get_document_source_formats(
+    state: State<AppState>,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare("SELECT id, json_extract(content, '$.metadata.sourceFormat') FROM notes WHERE deleted_at IS NULL AND storage_path IS NOT NULL AND json_valid(content) AND json_extract(content, '$.metadata.sourceFormat') IN ('text', 'markdown')").map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<_, _>>().map_err(|e| e.to_string())
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub struct DocSearchQuery {
     pub text: Option<String>,

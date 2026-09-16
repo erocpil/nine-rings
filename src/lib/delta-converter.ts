@@ -9,6 +9,7 @@
 
 import type { JSONContent } from "@tiptap/core";
 import type { DeltaOp, DeltaOps } from "../types/models";
+import { splitDeltaLines } from "./plain-text-delta";
 
 import { getTableEmbed, normalizeTableAlignment, normalizeTableColumnWidth, type TableEmbed } from "./table-embed";
 import { markdownTableToEmbed } from "./md-parser";
@@ -276,8 +277,16 @@ function extractInlineOps(
 
 export function deltaToProseMirror(value: unknown): JSONContent & { content: JSONContent[] } {
   // 兼容两种入参：{ops: [...]} 或 {delta: {ops: [...]}}
-  const deltaData = value as { ops?: DeltaOp[]; delta?: DeltaOps } | null | undefined;
-  const ops: DeltaOp[] = migrateLegacyMarkdownTables(deltaData?.ops ?? deltaData?.delta?.ops ?? []);
+  const deltaData = value as { ops?: DeltaOp[]; delta?: DeltaOps; metadata?: DeltaOps["metadata"] } | null | undefined;
+  const rawOps = deltaData?.ops ?? deltaData?.delta?.ops ?? [];
+  // Earlier plain-text imports stored the whole file as one unformatted op
+  // (or several unformatted ops after saving). Restore their block boundaries.
+  // Do not split intentional multiline code/list continuation operations.
+  const legacyPlainText = rawOps.some(op => typeof op.insert === "string" && op.insert !== "\n" && /[\r\n]/.test(op.insert))
+    && rawOps.every(op => typeof op.insert === "string" && !Object.keys(op.attributes ?? {}).length);
+  const normalized = legacyPlainText ? splitDeltaLines(rawOps) : rawOps;
+  const ops: DeltaOp[] = legacyPlainText || (deltaData?.metadata ?? deltaData?.delta?.metadata)?.sourceFormat === "text"
+    ? normalized : migrateLegacyMarkdownTables(normalized);
 
   const doc: JSONContent[] = [];
   let currentParagraph: JSONContent & { content: JSONContent[] } = { type: "paragraph", content: [] };

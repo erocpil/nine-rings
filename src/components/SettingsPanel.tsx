@@ -12,6 +12,7 @@ import { exportLocalJsonBackup } from "../lib/local-backup-export";
 import SettingsSync from "./SettingsSync";
 import { withTimeout } from "../lib/async";
 import { EditorAppearancePanel } from "./EditorAppearancePanel";
+import { ImportPathPicker } from "./ImportPathPicker";
 import { BackupRestoreStatus } from "./BackupRestoreStatus";
 import { BackupExportStatus } from "./BackupExportStatus";
 import { isDocumentFindShortcut, isEditorLineJumpShortcut } from "../lib/shortcuts";
@@ -203,6 +204,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [mdImportCurrentFile, setMdImportCurrentFile] = useState("");
   const [mdImportMode, setMdImportMode] = useState<"document" | "note">("document");
   const [mdImportPath, setMdImportPath] = useState("references/imported");
+  const importPathTriggerRef = useRef<HTMLButtonElement>(null);
+  const [importPathPickerOpen, setImportPathPickerOpen] = useState(false);
+  useEffect(() => { if (!open) setImportPathPickerOpen(false); }, [open]);
   const [mdImportDocType, setMdImportDocType] = useState<DocType>("reference");
   const [mdImportTags, setMdImportTags] = useState("");
   const [mdImportConcepts, setMdImportConcepts] = useState("");
@@ -1238,17 +1242,20 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
 
                 {mdImportMode === "document" && (
                   <div className="markdown-import-grid">
-                    <label className="markdown-import-field markdown-import-path-field">
+                    <div className="markdown-import-field markdown-import-path-field">
                       <span>目标路径</span>
                       <input
                         className="settings-input"
                         aria-label="Markdown 导入目标路径"
                         placeholder="例如 references/networking"
                         value={mdImportPath}
+                        disabled={mdImporting}
                         onChange={(event) => setMdImportPath(event.target.value)}
                       />
+                      <button ref={importPathTriggerRef} type="button" className="settings-btn-secondary" disabled={mdImporting} onClick={() => setImportPathPickerOpen(true)}>从文档树选择路径</button>
+                      <small>可从现有目录树选择，也可手动输入新路径。</small>
                       <small>单独选文件时直接放入目标路径；选择目录时保留所选目录及全部子目录，例如 资料/网络/a.txt → 目标路径/资料/网络。空目录不导入。</small>
-                    </label>
+                    </div>
                     <label className="markdown-import-field">
                       <span>文档类型</span>
                       <select
@@ -1449,6 +1456,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
           </div>
         )}
       </div>
+      {importPathPickerOpen && settingsPage === "data" && <ImportPathPicker anchor={importPathTriggerRef.current} initialPath={mdImportPath}
+        onClose={() => setImportPathPickerOpen(false)} onSelect={path => { setMdImportPath(path); setImportPathPickerOpen(false); }} />}
       {editorAppearanceOpen && config && (
         <EditorAppearancePanel
           initialSearch={editorAppearanceSearch}

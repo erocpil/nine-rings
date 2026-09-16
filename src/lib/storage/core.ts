@@ -116,6 +116,7 @@ export function splitSuggestedDocPath(path?: string): { rootPath: string; subPat
 
 /** 文档类笔记的扁平记录（对应 getDocsWithPath Op 的输出） */
 export interface FlatDocRecord {
+  sourceFormat?: "text" | "markdown";
   id: string;
   title: string | null;
   storage_path: string;   // NOT NULL（已由 Op 的 where IS NOT NULL 保证）
@@ -165,6 +166,7 @@ export function buildDocTree(
       type: "document",
       noteId: d.id,
       docType: d.doc_type,
+      sourceFormat: d.sourceFormat,
       updatedAt: d.updated_at,
       readonly: d.readonly,
     });

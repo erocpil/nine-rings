@@ -1,6 +1,7 @@
 pub mod config;
 pub mod doc_tree;
 pub mod export;
+pub mod external_link;
 pub mod note;
 pub mod query;
 pub mod protection;

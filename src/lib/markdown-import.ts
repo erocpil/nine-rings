@@ -1,5 +1,6 @@
 import type { CreateNoteInput, DocType } from "../types/models";
 import { extractTitle, mdToDelta } from "./md-parser";
+import { plainTextToDelta } from "./plain-text-delta";
 
 export interface MarkdownImportOptions {
   date: string;
@@ -64,7 +65,7 @@ export function buildTextImportInput(file: TextImportSource, options: MarkdownIm
   // Build metadata through the same path but keep plain text out of the Markdown parser.
   const input = buildMarkdownImportInput(file.fileName, "", { ...options, storagePath });
   input.title = file.fileName.replace(/\.[^.]+$/, "");
-  input.content = { ops: [{ insert: source.endsWith("\n") ? source : `${source}\n` }] };
+  input.content = { ...plainTextToDelta(source), metadata: { sourceFormat: "text" } };
   return input;
 }
 
@@ -95,7 +96,7 @@ export function buildMarkdownImportInput(
   const input: CreateNoteInput = {
     date: options.date,
     title: extractTitle(source, fallbackTitle),
-    content: mdToDelta(source),
+    content: { ...mdToDelta(source), metadata: { sourceFormat: "markdown", markdownSource: source } },
     tags: options.tags ?? [],
   };
 

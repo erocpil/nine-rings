@@ -43,6 +43,7 @@ export interface PathNode {
   type: 'folder' | 'document';
   noteId?: string;      // document 时对应 Note.id
   docType?: DocType;    // document 时
+  sourceFormat?: "text" | "markdown";
   updatedAt?: string;   // document 时
   count?: number;       // folder 时，子文档数
   readonly?: boolean;   // document 时
@@ -84,6 +85,9 @@ export interface DeltaOps {
 }
 
 export interface DocumentMetadata {
+  sourceFormat?: "text" | "markdown";
+  /** Original Markdown, retained until the rendered body is edited. */
+  markdownSource?: string;
   author?: string;
   organization?: string;
   email?: string;

@@ -486,6 +486,7 @@ export const idbAdapter: StorageAdapter = {
             title: n.title,
             storage_path: n.storagePath,
             doc_type: n.docType,
+            sourceFormat: n.content.metadata?.sourceFormat,
             updated_at: n.updated_at,
             readonly: n.readonly ?? false,
           });

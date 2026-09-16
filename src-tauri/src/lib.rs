@@ -551,6 +551,8 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::external_link::open_external_link,
+            commands::doc_tree::get_document_source_formats,
             commands::protection::protection_snapshot,
             commands::protection::protected_paths_list,
             commands::protection::protection_commit,

@@ -246,6 +246,9 @@ export const tauriDriver = {
       ],
     };
     const docRows = await dbQuery(docsOp);
+    // Fetch only the format marker, not every document body across IPC.
+    const invoke = await getInvoke();
+    const formats = await invoke<Record<string, "text" | "markdown">>("get_document_source_formats");
 
     // Part B: 随笔/日记（storage_path IS NULL）
     const dailyRows = includeDaily
@@ -270,6 +273,7 @@ export const tauriDriver = {
       title: r.title,
       storage_path: r.storage_path ?? "",   // SQL 列名就是 snake_case，直接对齐
       doc_type: normalizeDocType(r.doc_type),
+      sourceFormat: formats[r.id],
       updated_at: r.updated_at,
       readonly: r.readonly === 1 || r.readonly === true,
     }));

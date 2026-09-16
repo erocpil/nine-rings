@@ -503,6 +503,7 @@ export const idbDriver = {
       title: r.title,
       storage_path: r.storagePath ?? "",   // IDB 字段 → Op 字段
       doc_type: r.docType,
+      sourceFormat: noteFromDB(r).content.metadata?.sourceFormat,
       updated_at: r.updated_at,
       readonly: r.readonly === 1 || r.readonly === true,
     }));

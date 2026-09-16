@@ -13616,3 +13616,23 @@ button.doc-tree-toggle:focus-visible {
 .github-push-status small { display: block; margin: 6px 0; color: var(--text-muted); }
 .github-push-status progress { display: block; width: 100%; margin: 8px 0; accent-color: var(--accent); }
 .github-push-status.error { border-color: var(--danger, #c44); }
+.doc-tree-path-notice { padding: 6px 10px; font-size: 12px; color: var(--text-muted); overflow-wrap: anywhere; }
+.rendered-link-scope { display: contents; }
+.rendered-link-scope .editor-content a { -webkit-touch-callout: none; }
+.rendered-link-menu {
+  position: fixed; z-index: 10050; width: 260px; max-width: calc(100vw - 16px);
+  padding: 6px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text); box-shadow: 0 6px 24px #0003;
+}
+.rendered-link-address { padding: 6px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; opacity: .7; }
+.rendered-link-menu button { display: block; width: 100%; min-height: 44px; text-align: left; background: transparent; border: 0; border-radius: 4px; color: inherit; padding: 8px; cursor: pointer; }
+.rendered-link-menu button:hover, .rendered-link-menu button:focus-visible { background: var(--hover-bg); outline: 2px solid var(--accent); }
+.rendered-link-notice { position: fixed; z-index: 10051; bottom: 48px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 32px); padding: 10px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); }
+.markdown-document-view { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; height: 100%; }
+.markdown-view-toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px 10px; border-bottom: 1px solid var(--border); background: var(--bg); font-size: 12px; }
+.markdown-view-toolbar button { min-height: 32px; padding: 3px 12px; border: 1px solid var(--border); border-radius: 5px; color: var(--text); background: var(--bg); cursor: pointer; }
+.markdown-view-toolbar button[aria-pressed=true] { color: var(--accent); border-color: var(--accent); opacity: 1; }
+.markdown-source-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.markdown-source-hint { padding: 6px 12px; font-size: 12px; color: var(--text-secondary); }
+.markdown-source-editor textarea { flex: 1; min-height: 100px; width: 100%; box-sizing: border-box; resize: none; border: 0; padding: 16px; outline-offset: -2px; font: 16px/1.65 monospace; tab-size: 4; color: var(--text); background: var(--bg); }
+@media (max-width: 768px) { .markdown-view-toolbar button { min-height: 40px; } }
