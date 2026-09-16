@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows:
       - Tauri Windows Build
-      - Tauri macOS Build
+      - Tauri macOS ARM64 Build
       - Tauri Linux Build
       - Flutter Windows Build
       - Flutter macOS Build

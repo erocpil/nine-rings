@@ -1,6 +1,10 @@
-name: Tauri macOS Build
+name: Tauri macOS ARM64 Build
 
 on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -12,13 +16,16 @@ permissions:
 
 jobs:
   tauri-macos:
+    timeout-minutes: 45
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
     strategy:
       fail-fast: false
       matrix:
         include:
-          # macos-14 is the standard Apple Silicon runner.
+          # Standard Apple Silicon runner; avoid the retiring macos-14 image.
           - arch: arm64
-            runner: macos-14
+            runner: macos-15
             target: aarch64-apple-darwin
     runs-on: ${{ matrix.runner }}
 
@@ -33,20 +40,38 @@ jobs:
           cache: 'npm'
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master
         with:
+          toolchain: '1.98.1'
           targets: ${{ matrix.target }}
+
+      - name: Resolve Rust dependencies
+        # Like Windows, resolve the ignored lockfile before computing the cache key.
+        working-directory: src-tauri
+        run: cargo generate-lockfile
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: 'src-tauri -> target'
+          key: macos-${{ matrix.arch }}-release-v1
+          cache-bin: false
+          cache-workspace-crates: false
+          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
 
       - name: Install frontend dependencies
         run: npm ci
 
       - name: Build Tauri (release)
-        run: npx tauri build --target "${{ matrix.target }}" --bundles dmg
-        env:
-          MACOSX_DEPLOYMENT_TARGET: "10.13"
+        # Override only this ARM64 bundle; leave other platform builds unchanged.
+        run: |
+          npx tauri build --target "${{ matrix.target }}" --bundles dmg \
+            --config "{\"bundle\":{\"macOS\":{\"minimumSystemVersion\":\"$MACOSX_DEPLOYMENT_TARGET\"}}}" \
+            -- --locked
 
       - name: Verify bundle architecture and minimum macOS version
         run: |
+          set -euo pipefail
           BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle"
           DMG="$(find "$BUNDLE/dmg" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
           test -n "$DMG"
@@ -66,16 +91,17 @@ jobs:
           file "$BIN"
           ARCHES="$(lipo -archs "$BIN")"
           echo "Architectures: $ARCHES"
-          echo "$ARCHES" | grep -qw "${{ matrix.target == 'aarch64-apple-darwin' && 'arm64' || 'x86_64' }}"
+          test "$ARCHES" = "arm64"
           MIN_OS="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$APP/Contents/Info.plist")"
           echo "Minimum macOS version: $MIN_OS"
-          test "$MIN_OS" = "10.13"
+          test "$MIN_OS" = "$MACOSX_DEPLOYMENT_TARGET"
 
           cleanup
           trap - EXIT
 
       - name: Collect artifacts
         run: |
+          set -euo pipefail
           BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle"
           echo "=== Bundle tree ==="
           find "$BUNDLE" -type f -ls 2>/dev/null || echo "Bundle dir not found"
@@ -98,6 +124,7 @@ jobs:
           retention-days: 7
 
       - name: Publish macOS ARM64 prerelease
+        if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
