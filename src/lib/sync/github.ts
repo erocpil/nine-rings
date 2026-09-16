@@ -10,6 +10,7 @@
  */
 
 import { addLog } from "../debugLog";
+import { syncErrorMessage } from "./errors";
 import { isTauriRuntime } from "../runtime";
 import { validateBackup } from "../backup-validation";
 import { withBackupRestore, type RestoreContext } from "../backup-restore-coordination";
@@ -204,7 +205,7 @@ export function formatBackupDevice(device?: SyncSnapshotSummary["backupDevice"])
 }
 
 function backupError(reason: unknown, context: string): Error {
-  return new Error(`${reason instanceof Error ? reason.message : String(reason)}\n${context}`);
+  return new Error(`${syncErrorMessage(reason)}\n${context}`);
 }
 
 function validateRemoteBackup(json: string, version: string): void {
@@ -387,9 +388,9 @@ export async function githubApiFetch(
       throw new Error(`GitHub 请求超时（${Math.ceil(timeoutMs / 1000)} 秒）。请检查网络、代理或防火墙是否允许访问 api.github.com；上传超时不代表远端一定未写入，请先检查远端状态`);
     }
     if (reason instanceof TypeError) {
-      throw new Error("无法连接 GitHub API。请检查 Windows 网络、代理、防火墙及 WebView2 是否能访问 api.github.com");
+      throw new Error(`无法连接 GitHub API。请检查本机网络、代理或防火墙是否允许访问 api.github.com。\n原始错误：${syncErrorMessage(reason)}`);
     }
-    throw reason;
+    throw new Error(`GitHub 请求失败：${syncErrorMessage(reason)}`);
   } finally {
     globalThis.clearTimeout(timeout);
     controller.signal.removeEventListener("abort", rejectAbort);
@@ -583,7 +584,7 @@ async function fetchBaseSnapshot(
     }
     return { version, content: base.content };
   } catch (reason) {
-    addLog(`[Sync] 读取共同基线失败，改用保守冲突判断: ${(reason as Error).message}`);
+    addLog(`[Sync] 读取共同基线失败，改用保守冲突判断: ${syncErrorMessage(reason)}`);
     return { version: null, content: null };
   }
 }
@@ -752,7 +753,7 @@ export async function pushToGitHub(config: SyncConfig, message?: string, options
   try {
     currentPointer = await fetchRemote(config.token, config.owner, config.repo, ptrPath, options.signal);
   } catch (reason) {
-    addLog(`[Sync] 读取 latest 指针失败: ${(reason as Error).message}`);
+    addLog(`[Sync] 读取 latest 指针失败: ${syncErrorMessage(reason)}`);
     throw reason;
   }
   const remoteVersion = currentPointer?.content.trim() ?? "";
@@ -780,7 +781,7 @@ export async function pushToGitHub(config: SyncConfig, message?: string, options
     await putRemote(config.token, config.owner, config.repo, dataPath, content, null,
       message || `backup: ${version}`, options);
   } catch (e) {
-    addLog(`[Sync] 数据文件写入失败: ${(e as Error).message}`);
+    addLog(`[Sync] 数据文件写入失败: ${syncErrorMessage(e)}`);
     throw e;
   }
 
@@ -792,7 +793,7 @@ export async function pushToGitHub(config: SyncConfig, message?: string, options
     await putRemote(config.token, config.owner, config.repo, ptrPath, version, currentPointer?.sha ?? null,
       `latest: ${version}`, options, "publishing");
   } catch (e) {
-    addLog(`[Sync] latest 指针写入失败: ${(e as Error).message}`);
+    addLog(`[Sync] latest 指针写入失败: ${syncErrorMessage(e)}`);
     throw e;
   }
 
@@ -877,7 +878,7 @@ async function pullWithRestoreLock(config: SyncConfig, options: PullOptions, con
     if (!context.mutationStarted) throw backupError(e, `远端版本：${version}\n远端备份来源：${formatBackupDevice(summarizeBackup(remote.content).backupDevice)}`);
     if (context.dataCommitted) throw new Error("数据已导入，但恢复收尾失败。请先导出并检查本地数据，勿直接重复 Pull。");
     context.setPhase("rolling-back");
-    addLog(`[Sync] 导入失败，尝试恢复拉取前快照: ${(e as Error).message}`);
+    addLog(`[Sync] 导入失败，尝试恢复拉取前快照: ${syncErrorMessage(e)}`);
     try {
       // 安全合并失败时避免用 replace 清空本地版本历史；两端的记录写入
       // 本身都在事务中，merge 恢复足以还原已有记录与配置。
@@ -885,7 +886,7 @@ async function pullWithRestoreLock(config: SyncConfig, options: PullOptions, con
       else await importFullDB(restorePoint, context);
       addLog("[Sync] 已恢复拉取前本地快照");
     } catch (restoreError) {
-      addLog(`[Sync] 恢复快照失败: ${(restoreError as Error).message}`);
+      addLog(`[Sync] 恢复快照失败: ${syncErrorMessage(restoreError)}`);
       throw e;
     }
     throw e;
@@ -914,7 +915,9 @@ export async function previewPullFromGitHub(config: SyncConfig): Promise<PullPre
     exportFullDB().catch((reason: unknown) => {
       throw backupError(reason, "失败阶段：本机导出预检快照");
     }),
-    fetchRemote(config.token, config.owner, config.repo, ptrPath),
+    fetchRemote(config.token, config.owner, config.repo, ptrPath).catch((reason: unknown) => {
+      throw backupError(reason, `失败阶段：读取远端 latest 指针\n远端路径：${ptrPath}`);
+    }),
   ]);
   if (!ptr) {
     throw new Error(`远端仓库中未找到指针文件 ${ptrPath}`);
@@ -924,7 +927,9 @@ export async function previewPullFromGitHub(config: SyncConfig): Promise<PullPre
     throw new Error("latest 指针文件为空");
   }
   const dataPath = versionedPath(config.path, version);
-  const remote = await fetchRemote(config.token, config.owner, config.repo, dataPath);
+  const remote = await fetchRemote(config.token, config.owner, config.repo, dataPath).catch((reason: unknown) => {
+    throw backupError(reason, `失败阶段：下载远端备份快照\n远端版本：${version}\n远端路径：${dataPath}`);
+  });
   if (!remote) {
     throw new Error(`远端仓库中未找到数据文件 ${dataPath}`);
   }
@@ -1009,6 +1014,6 @@ export async function checkStatus(config: SyncConnectionConfig): Promise<SyncSta
       localAt: config.lastSyncAt,
     };
   } catch (e) {
-    return { ok: false, message: `连接失败: ${(e as Error).message}` };
+    return { ok: false, message: `连接失败: ${syncErrorMessage(e)}` };
   }
 }

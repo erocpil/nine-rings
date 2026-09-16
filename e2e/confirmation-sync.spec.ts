@@ -1,5 +1,36 @@
 import { expect, test } from "@playwright/test";
 
+test("Pull 预检显示字符串请求错误和失败阶段，不显示 undefined 或冻结编辑器", async ({ page }) => {
+  await page.goto("/");
+  const editor = page.locator(".ProseMirror");
+  await expect(editor).toBeVisible();
+  const before = await editor.innerText();
+  await page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { loadSyncConfig, saveSyncConfig } = await load("/src/lib/sync/github.ts");
+    saveSyncConfig({ ...loadSyncConfig(), owner: "test", repo: "test", token: "test-token" });
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (input, init) => String(input).startsWith("https://api.github.com/")
+      ? Promise.reject("native transport: connection reset")
+      : originalFetch(input, init);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+      writeText: async (text: string) => { document.body.dataset.copiedError = text; },
+    } });
+  });
+  await page.getByTitle("设置", { exact: true }).click();
+  await page.getByRole("button", { name: /^同步与备份/ }).click();
+  await page.getByRole("button", { name: /Pull/ }).first().click();
+  const error = page.locator(".ui-operation-error");
+  await expect(error).toContainText("native transport: connection reset");
+  await expect(error).toContainText("失败阶段：读取远端 latest 指针");
+  await expect(error).not.toContainText("undefined");
+  await error.getByRole("button", { name: "复制详情" }).click();
+  expect(await page.evaluate(() => document.body.dataset.copiedError)).toContain("connection reset");
+  await page.getByLabel("关闭设置").click();
+  await expect(editor).toHaveAttribute("contenteditable", "true");
+  expect(await editor.innerText()).toBe(before);
+});
+
 test("Token 保存确认可取消，Esc 不关闭设置，确认后才修改配置", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("设置").click();

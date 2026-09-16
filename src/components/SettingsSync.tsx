@@ -1,4 +1,5 @@
 import { OperationError } from "./OperationError";
+import { syncErrorMessage } from "../lib/sync/errors";
 import { useConfirmation } from "./ConfirmationDialog";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
@@ -156,7 +157,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
     void checkRef.current.promise.then((result) => {
       if (!cancelled && request === checkRequestRef.current) setStatus(result);
     }).catch((error) => {
-      if (!cancelled && request === checkRequestRef.current) setStatus({ ok: false, message: `连接检查失败：${String(error)}` });
+      if (!cancelled && request === checkRequestRef.current) setStatus({ ok: false, message: `连接检查失败：${syncErrorMessage(error)}` });
     }).finally(() => {
       if (!cancelled && request === checkRequestRef.current) setAutoChecking(false);
     });
@@ -255,7 +256,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
       setRemotePreviewId(pre.remoteDocuments[0]?.id ?? null);
       showMessage(`预检完成：远端版本 ${pre.remote.version.slice(0, 15)}\n远端备份来源：${formatBackupDevice(pre.remote.backupDevice)}`, "success");
     } catch (e) {
-      showMessage(`预检失败：${(e as Error).message}`, "error");
+      showMessage(`预检失败：${syncErrorMessage(e)}`, "error");
     } finally {
       setBusyOperation(null);
     }
@@ -297,7 +298,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
       onPullDone?.();
       setPullPrecheck(null);
     } catch (e) {
-      showMessage(`拉取失败：${(e as Error).message}`, "error");
+      showMessage(`拉取失败：${syncErrorMessage(e)}`, "error");
     } finally {
       setBusyOperation(null);
     }
@@ -315,7 +316,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
         );
       }
     } catch (error) {
-      showMessage(`本地备份导出失败：${error instanceof Error ? error.message : String(error)}`, "error");
+      showMessage(`本地备份导出失败：${syncErrorMessage(error)}`, "error");
     } finally {
       setExportingLocal(false);
     }
