@@ -114,6 +114,8 @@ interface EditorBlockGutterProps {
   readonly: boolean;
   bookmarkPositions?: readonly number[];
   highlightedBlockIndex?: number | null;
+  blockSelection?: { anchor: number; head: number } | null;
+  onBlockSelect?: (position: number) => void;
   onBlockCountChange?: (count: number) => void;
   onHeadingFoldToggle?: (position: number) => void;
 }
@@ -125,7 +127,7 @@ interface EditorBlockGutterProps {
  * 用户意图。IntersectionObserver 只挂载视口及预读区域内的控件；
  * ResizeObserver 只重新测量这部分节点，避免长文档复制一整套 gutter DOM。
  */
-export function EditorBlockGutter({ editor, compact = false, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], highlightedBlockIndex, onBlockCountChange, onHeadingFoldToggle }: EditorBlockGutterProps) {
+export function EditorBlockGutter({ editor, compact = false, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], highlightedBlockIndex, blockSelection, onBlockSelect, onBlockCountChange, onHeadingFoldToggle }: EditorBlockGutterProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const suppressCompatibilityClickUntilRef = useRef(0);
   const lastTouchActionAtRef = useRef(0);
@@ -152,7 +154,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
     const scrollRoot = root?.closest<HTMLElement>(".note-editor-scroll");
     if (!root || !scrollRoot || editor.isDestroyed) return;
 
-    const needsAllBlocks = showNumbers || (showInsertButtons && !readonly) || bookmarkPositions.length > 0;
+    const needsAllBlocks = showNumbers || (showInsertButtons && !readonly) || bookmarkPositions.length > 0 || Boolean(blockSelection);
     const needsHeadings = Boolean(onHeadingFoldToggle);
     if (!needsAllBlocks && !needsHeadings) {
       setBlocks((current) => current.length === 0 ? current : []);
@@ -579,7 +581,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
       if (rebuildFrame) cancelAnimationFrame(rebuildFrame);
       if (windowFrame) cancelAnimationFrame(windowFrame);
     };
-  }, [bookmarkPositions.length, compact, editor, onBlockCountChange, onHeadingFoldToggle, readonly, showInsertButtons, showNumbers]);
+  }, [bookmarkPositions.length, blockSelection, compact, editor, onBlockCountChange, onHeadingFoldToggle, readonly, showInsertButtons, showNumbers]);
 
   const insertParagraph = (pos: number) => {
     const safePos = Math.min(Math.max(0, pos), editor.state.doc.content.size);
@@ -617,6 +619,17 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
 
   const blockHasBookmark = (block: GutterBlock) => bookmarkPositions.some(
     (position) => position >= block.pos && position < block.endPos,
+  );
+  const selectedBlockBounds = blockSelection
+    ? [
+        editor.state.doc.resolve(Math.min(blockSelection.anchor, editor.state.doc.content.size)).index(0) + 1,
+        editor.state.doc.resolve(Math.min(blockSelection.head, editor.state.doc.content.size)).index(0) + 1,
+      ].sort((left, right) => left - right)
+    : null;
+  const blockIsSelected = (block: GutterBlock) => Boolean(
+    selectedBlockBounds
+    && block.index >= selectedBlockBounds[0]
+    && block.index <= selectedBlockBounds[1],
   );
 
   const startGutterTouch = (event: React.TouchEvent<HTMLButtonElement>) => {
@@ -684,8 +697,25 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
     <div
       ref={rootRef}
       className="editor-block-gutter"
-      aria-hidden={readonly && !showNumbers && !onHeadingFoldToggle}
+      aria-hidden={readonly && !showNumbers && !onHeadingFoldToggle && !blockSelection}
     >
+      {blockSelection && onBlockSelect && blocks.map((block) => (
+        <button
+          key={`select-${block.pos}`}
+          type="button"
+          className={`editor-block-select${blockIsSelected(block) ? " selected" : ""}`}
+          style={{ top: block.firstLineCenter }}
+          aria-label={`选择到第 ${block.index} 块`}
+          aria-pressed={blockIsSelected(block)}
+          title="选择到此块"
+          onMouseDown={(event) => event.preventDefault()}
+          onTouchStart={startGutterTouch}
+          onTouchMove={moveGutterTouch}
+          onTouchCancel={cancelGutterTouch}
+          onTouchEnd={(event) => runGutterActionFromTouch(event, () => onBlockSelect(block.pos))}
+          onClick={(event) => runGutterActionFromClick(event, () => onBlockSelect(block.pos))}
+        >{blockIsSelected(block) ? "✓" : "○"}</button>
+      ))}
       {showNumbers && blocks.map((block) => (
         <span
           key={`number-${block.pos}`}
@@ -708,7 +738,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
           title={`第 ${block.index} 块有书签`}
         />
       ))}
-      {onHeadingFoldToggle && blocks.filter((block) => block.heading).map((block) => {
+      {!blockSelection && onHeadingFoldToggle && blocks.filter((block) => block.heading).map((block) => {
         const host = foldHosts.current.get(block.pos);
         if (!host?.isConnected) return null;
         return createPortal(
@@ -727,7 +757,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
         >{block.folded ? "▶" : "▼"}</button>
         , host, `fold-${block.pos}`);
       })}
-      {!readonly && showInsertButtons && boundaries.map((boundary) => (
+      {!blockSelection && !readonly && showInsertButtons && boundaries.map((boundary) => (
         <button
           key={boundary.key}
           type="button"

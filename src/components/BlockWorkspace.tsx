@@ -38,7 +38,7 @@ export function BlockWorkspaceHost(props: Props) {
       if (!(event instanceof CustomEvent)) return;
       const request = event.detail as Request;
       const node = props.source.state.doc.nodeAt(request.position);
-      if (node && ["codeBlock", "blockquote"].includes(node.type.name)) setRequest(request);
+      if (node && node.isBlock) setRequest(request);
     };
     const dom = props.source.view.dom;
     dom.addEventListener(OPEN_BLOCK_WORKSPACE, open);
@@ -103,7 +103,10 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
   const imageInput = useRef<HTMLInputElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const rootType = initial.type.name;
-  const name = rootType === "codeBlock" ? "代码块" : "引用块";
+  const name = rootType === "codeBlock" ? "代码块"
+    : rootType === "blockquote" ? "引用块"
+      : rootType === "heading" ? "标题块"
+        : rootType === "paragraph" ? "正文块" : "内容块";
   const sourceDocument = source.state.doc;
   const peers = useMemo(() => {
     const positions: number[] = [];
@@ -374,7 +377,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
       {iconButton("重做", "redo", () => { source.commands.redo(); })}
       {iconButton("减少缩进", "outdent", () => { editor.chain().focus().updateAttributes(rootType, { indent: Math.max(0, Number(editor.state.doc.firstChild?.attrs.indent ?? 0) - 1) }).run(); })}
       {iconButton("增加缩进", "indent", () => { editor.chain().focus().updateAttributes(rootType, { indent: Math.min(8, Number(editor.state.doc.firstChild?.attrs.indent ?? 0) + 1) }).run(); })}
-      {rootType === "blockquote" && <>
+      {rootType !== "codeBlock" && <>
         <select aria-label="段落样式" defaultValue="paragraph" onChange={event => {
           if (event.target.value === "paragraph") editor.chain().focus().setParagraph().run();
           else editor.chain().focus().setHeading({ level: Number(event.target.value) as 1 | 2 | 3 | 4 | 5 | 6 }).run();

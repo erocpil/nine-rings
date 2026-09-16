@@ -2315,6 +2315,7 @@ function App() {
       <div
         ref={sidebarBackdropRef}
         className={`sidebar-overlay${!sidebarHidden ? " active" : ""}`}
+        onPointerDown={() => setSidebarHidden(true)}
         onClick={() => setSidebarHidden(true)}
       />
 

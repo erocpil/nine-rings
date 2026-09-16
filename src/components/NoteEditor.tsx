@@ -54,6 +54,7 @@ import { EditorInsertDialogs } from "./EditorInsertDialogs";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { BlockWorkspaceHost } from "./BlockWorkspace";
+import { openBlockWorkspace } from "../lib/block-workspace";
 import { saveBlockWorkspacePreferences, watchBlockDisplaySettings } from "../lib/block-display-settings";
 import { DocumentPanelDrawer, type DocumentPanelPresentation } from "./DocumentPanelDrawer";
 import { storeImage } from "../lib/storage/db-images";
@@ -776,6 +777,9 @@ function FullNoteEditor({ unifiedTitleBar = false, mobileTitleBar = false, title
   const [markdownSelectionNotice, setMarkdownSelectionNotice] = useState(false);
   const [readonlyChangeNotice, setReadonlyChangeNotice] = useState(false);
   const [copyBlockNotice, setCopyBlockNotice] = useState("");
+  const [blockSelection, setBlockSelection] = useState<{ anchor: number; head: number } | null>(null);
+  const blockEditButtonRef = useRef<HTMLButtonElement>(null);
+  const blockSwipeRef = useRef<{ id: number; x: number; y: number; pos: number; target: HTMLElement; horizontal: boolean } | null>(null);
   useEffect(() => {
     if (!copyBlockNotice.startsWith("已复制")) return;
     const timer = window.setTimeout(() => setCopyBlockNotice(""), 2200);
@@ -783,6 +787,7 @@ function FullNoteEditor({ unifiedTitleBar = false, mobileTitleBar = false, title
   }, [copyBlockNotice]);
   const readonlyCopyPosition = useRef<number | null>(null);
   useEffect(() => { readonlyCopyPosition.current = null; }, [noteId]);
+  useEffect(() => { setBlockSelection(null); }, [noteId]);
   const [readonlyChangeBusy, setReadonlyChangeBusy] = useState(false);
   const [gutterBlockCount, setGutterBlockCount] = useState(0);
   const [currentStatusBlock, setCurrentStatusBlock] = useState(1);
@@ -3052,6 +3057,127 @@ function FullNoteEditor({ unifiedTitleBar = false, mobileTitleBar = false, title
   const totalBlocks = gutterBlockCount || editor.state.doc.childCount;
 
   // ── 剪贴板操作 ──
+  const topLevelBlockAt = (position: number) => {
+    const safe = Math.max(0, Math.min(position, editor.state.doc.content.size));
+    const $position = editor.state.doc.resolve(safe);
+    const index = Math.min(editor.state.doc.childCount - 1, $position.index(0));
+    let pos = 0;
+    for (let current = 0; current < index; current += 1) pos += editor.state.doc.child(current).nodeSize;
+    return { index, pos, node: editor.state.doc.child(index) };
+  };
+  const selectedBlockRange = () => {
+    if (!blockSelection || editor.state.doc.childCount === 0) return null;
+    const anchor = topLevelBlockAt(blockSelection.anchor);
+    const head = topLevelBlockAt(blockSelection.head);
+    const firstIndex = Math.min(anchor.index, head.index);
+    const lastIndex = Math.max(anchor.index, head.index);
+    let from = 0;
+    for (let index = 0; index < firstIndex; index += 1) from += editor.state.doc.child(index).nodeSize;
+    let to = from;
+    for (let index = firstIndex; index <= lastIndex; index += 1) to += editor.state.doc.child(index).nodeSize;
+    return { firstIndex, lastIndex, from, to, count: lastIndex - firstIndex + 1 };
+  };
+  const beginBlockSelection = () => {
+    const block = topLevelBlockAt(editor.state.selection.from);
+    setBlockSelection({ anchor: block.pos, head: block.pos });
+    closeToolbarDropdowns();
+  };
+  const extendBlockSelection = (position: number) => {
+    setBlockSelection((current) => current
+      ? { ...current, head: position }
+      : { anchor: position, head: position });
+  };
+  const copySelectedBlocks = async () => {
+    const range = selectedBlockRange();
+    if (!range) return;
+    const slice = editor.state.doc.slice(range.from, range.to);
+    const text = clipboardSliceToPlainText(slice);
+    const { dom } = editor.view.serializeForClipboard(slice);
+    try {
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/plain": new Blob([text], { type: "text/plain" }),
+        "text/html": new Blob([dom.innerHTML], { type: "text/html" }),
+      })]);
+      setCopyBlockNotice(`已复制 ${range.count} 个块（保留格式）`);
+    } catch {
+      try { await copyToClipboard(text, { reportFailure: true }); setCopyBlockNotice(`已复制 ${range.count} 个块（纯文本）`); }
+      catch { setCopyBlockNotice("复制块失败，请检查剪贴板权限后重试"); }
+    }
+  };
+  const selectBlockText = () => {
+    const range = selectedBlockRange();
+    if (!range) return false;
+    const from = Math.min(range.to - 1, range.from + 1);
+    const to = Math.max(from, range.to - 1);
+    return editor.commands.setTextSelection({ from, to });
+  };
+  const formatSelectedBlocks = (action: "bold" | "italic" | "quote") => {
+    if (!selectBlockText() || readonly) return;
+    if (action === "bold") editor.chain().focus().toggleBold().run();
+    else if (action === "italic") editor.chain().focus().toggleItalic().run();
+    else editor.chain().focus().toggleBlockquote().run();
+    const { from, to } = editor.state.selection;
+    setBlockSelection({
+      anchor: topLevelBlockAt(from).pos,
+      head: topLevelBlockAt(Math.max(from, to - 1)).pos,
+    });
+  };
+  const setSelectedBlockFontSize = (fontSize: string) => {
+    if (!selectBlockText() || readonly) return;
+    if (fontSize) editor.chain().focus().setFontSize(fontSize).run();
+    else editor.chain().focus().unsetFontSize().run();
+  };
+  const setSelectedBlockColor = (color: string) => {
+    if (!selectBlockText() || readonly) return;
+    editor.chain().focus().setColor(color).run();
+  };
+  const editSelectedBlock = (trigger: HTMLElement | null) => {
+    const range = selectedBlockRange();
+    if (!range || range.count !== 1 || !trigger) return;
+    openBlockWorkspace(editor, range.from, trigger);
+  };
+  const blockPositionForTarget = (target: EventTarget | null) => {
+    let element = target instanceof HTMLElement ? target : null;
+    while (element && element.parentElement !== editor.view.dom) element = element.parentElement;
+    if (!element || element.parentElement !== editor.view.dom) return null;
+    try {
+      const position = editor.view.posAtDOM(element, 0, -1);
+      return topLevelBlockAt(position).pos;
+    } catch { return null; }
+  };
+  const startSelectedBlockSwipe = (event: React.TouchEvent) => {
+    if (!blockSelection || event.touches.length !== 1) return;
+    const touch = event.touches[0];
+    const pos = blockPositionForTarget(event.target);
+    const range = selectedBlockRange();
+    if (pos === null || !range || pos < range.from || pos >= range.to) return;
+    blockSwipeRef.current = { id: touch.identifier, x: touch.clientX, y: touch.clientY, pos, target: event.target as HTMLElement, horizontal: false };
+  };
+  const moveSelectedBlockSwipe = (event: React.TouchEvent) => {
+    const gesture = blockSwipeRef.current;
+    if (!gesture) return;
+    const touch = Array.from(event.touches).find((item) => item.identifier === gesture.id);
+    if (!touch) { blockSwipeRef.current = null; return; }
+    const dx = touch.clientX - gesture.x;
+    const dy = touch.clientY - gesture.y;
+    if (!gesture.horizontal && (dx >= 0 || Math.abs(dy) > Math.abs(dx))) {
+      if (Math.abs(dx) + Math.abs(dy) > 8) blockSwipeRef.current = null;
+      return;
+    }
+    if (dx < -8 && Math.abs(dx) > Math.abs(dy)) gesture.horizontal = true;
+    if (gesture.horizontal) { event.preventDefault(); event.stopPropagation(); }
+  };
+  const finishSelectedBlockSwipe = (event: React.TouchEvent) => {
+    const gesture = blockSwipeRef.current;
+    blockSwipeRef.current = null;
+    if (!gesture?.horizontal) return;
+    const touch = Array.from(event.changedTouches).find((item) => item.identifier === gesture.id);
+    if (!touch || gesture.x - touch.clientX <= 60) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setBlockSelection({ anchor: gesture.pos, head: gesture.pos });
+    openBlockWorkspace(editor, gesture.pos, gesture.target);
+  };
   const handleCopyBlock = async () => {
     const $from = readonly && readonlyCopyPosition.current !== null
       ? editor.state.doc.resolve(Math.min(readonlyCopyPosition.current, editor.state.doc.content.size))
@@ -3646,7 +3772,7 @@ function FullNoteEditor({ unifiedTitleBar = false, mobileTitleBar = false, title
             title={bookmarks.length > 0 ? `文档书签（${bookmarks.length}）` : "添加书签"}
             aria-label={bookmarks.length > 0 ? `文档书签，共 ${bookmarks.length} 项` : "文档书签"}
           ><FocusModeIcon name="bookmark" />{bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}</button>
-          <button type="button" title="复制块" aria-label="复制块" onMouseDown={(event) => event.preventDefault()} onClick={() => void handleCopyBlock()}><ToolbarIcon name="copy" /></button>
+          <button type="button" title="块级操作" aria-label="块级操作" aria-pressed={Boolean(blockSelection)} onMouseDown={(event) => event.preventDefault()} onClick={beginBlockSelection}><ToolbarIcon name="copy" /></button>
           {!readonly && (
             <button
               type="button"
@@ -3927,8 +4053,8 @@ function FullNoteEditor({ unifiedTitleBar = false, mobileTitleBar = false, title
             )}
           </div>
           {saveIssue && <button type="button" className="focus-btn workspace-error-indicator" aria-label="查看保存错误详情" title="查看保存错误详情" onClick={onOpenSaveIssue}><ToolbarIcon name="warning" /></button>}
-          {(readonly || (unifiedTitleBar && focusMode)) && (
-            <button type="button" className="focus-btn readonly-copy-block" title="复制块" aria-label="复制块" onMouseDown={(event) => event.preventDefault()} onClick={() => void handleCopyBlock()}><ToolbarIcon name="copy" /></button>
+          {(isMobileToolbarViewport || readonly || (unifiedTitleBar && focusMode)) && (
+            <button type="button" className="focus-btn readonly-copy-block" title="块级操作" aria-label="块级操作" aria-pressed={Boolean(blockSelection)} onMouseDown={(event) => event.preventDefault()} onClick={beginBlockSelection}><ToolbarIcon name="copy" /></button>
           )}
           {pdfExcerptSource && onOpenPdfExcerpt && (
             <button
@@ -4084,6 +4210,27 @@ function FullNoteEditor({ unifiedTitleBar = false, mobileTitleBar = false, title
 
         {/* ── 编辑器内容 ── */}
         <CopyBlockNotice message={copyBlockNotice} onClose={() => setCopyBlockNotice("")} />
+        {blockSelection && (() => {
+          const range = selectedBlockRange();
+          return range ? <div className="block-selection-toolbar" role="toolbar" aria-label="块级操作">
+            <strong>{range.count} 块</strong>
+            <button type="button" onClick={() => void copySelectedBlocks()}><ToolbarIcon name="copy" />复制</button>
+            {!readonly && <>
+              <button type="button" onClick={() => formatSelectedBlocks("bold")}><strong>B</strong></button>
+              <button type="button" onClick={() => formatSelectedBlocks("italic")}><em>I</em></button>
+              <button type="button" onClick={() => formatSelectedBlocks("quote")}>引用</button>
+              <select aria-label="所选块字号" defaultValue="" onChange={(event) => setSelectedBlockFontSize(event.target.value)}>
+                <option value="">字号</option>
+                {[12, 14, 16, 18, 20, 24, 32].map((size) => <option key={size} value={`${size}`}>{size}</option>)}
+              </select>
+              <label className="block-selection-color" title="所选块文字颜色">
+                颜色<input type="color" aria-label="所选块文字颜色" defaultValue="#333333" onChange={(event) => setSelectedBlockColor(event.target.value)} />
+              </label>
+              <button ref={blockEditButtonRef} type="button" disabled={range.count !== 1} onClick={() => editSelectedBlock(blockEditButtonRef.current)}>编辑当前块</button>
+            </>}
+            <button type="button" aria-label="退出块选择" onClick={() => setBlockSelection(null)}><ToolbarIcon name="close" /></button>
+          </div> : null;
+        })()}
         {markdownPasteText && (
           <div className="markdown-paste-notice" role="status">
             <span>已按 Markdown 格式化</span>
@@ -4117,6 +4264,8 @@ function FullNoteEditor({ unifiedTitleBar = false, mobileTitleBar = false, title
             readonly={!!readonly}
             bookmarkPositions={bookmarks.map((bookmark) => bookmark.position)}
             highlightedBlockIndex={bookmarkJumpBlockIndex}
+            blockSelection={blockSelection}
+            onBlockSelect={extendBlockSelection}
             onBlockCountChange={setGutterBlockCount}
             onHeadingFoldToggle={toggleEditorHeadingFromGutter}
           />
@@ -4129,6 +4278,10 @@ function FullNoteEditor({ unifiedTitleBar = false, mobileTitleBar = false, title
             onPointerMove={handleReadonlyHeadingPointerMove}
             onPointerCancel={handleReadonlyHeadingPointerCancel}
             onPointerUp={handleReadonlyHeadingPointerUp}
+            onTouchStart={startSelectedBlockSwipe}
+            onTouchMove={moveSelectedBlockSwipe}
+            onTouchEnd={finishSelectedBlockSwipe}
+            onTouchCancel={() => { blockSwipeRef.current = null; }}
             onClick={() => {
               if (readonly && vimModeEnabled) {
                 editor.view.dom.focus({ preventScroll: true });
