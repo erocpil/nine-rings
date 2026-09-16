@@ -13,11 +13,13 @@ import {
 import { transformMarkdownSource } from "../lib/data-transform-client";
 import { extractPlainText } from "../lib/storage/core";
 import { useTransientMessage } from "../hooks/useTransientMessage";
+import { PropertyRename } from "./PropertyRename";
 
 interface PropertiesPanelProps {
   note: Note;
   onNoteUpdate: (note: Note) => void;
   onClose: () => void;
+  onRename: (title: string) => Promise<void>;
   readonly?: boolean;
   readonlyChangeDisabled?: boolean;
   securityDisabled?: boolean;
@@ -70,6 +72,7 @@ function PropertiesPanel({
   note,
   onNoteUpdate,
   onClose,
+  onRename,
   readonly,
   readonlyChangeDisabled,
   securityDisabled,
@@ -512,6 +515,11 @@ function PropertiesPanel({
       </div>
 
       <div className="properties-body">
+        <div className="prop-section" aria-label="文档名称">
+          <div className="prop-label">名称</div>
+          <PropertyRename key={note.id} kind="文档" value={note.title ?? ""} disabled={readonly || securityDisabled} onRename={onRename} />
+          {readonly && <div className="prop-empty">只读文档；切换为可编辑后可重命名。</div>}
+        </div>
         <div className="prop-section" aria-label="文档标签">
           <div className="prop-label">标签</div>
           <div className="prop-tags">

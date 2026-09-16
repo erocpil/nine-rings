@@ -8354,6 +8354,10 @@ button.doc-tree-toggle:focus-visible {
   margin-top: 8px;
 }
 
+.prop-rename { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+.prop-rename .prop-empty { max-width: 100%; overflow-wrap: anywhere; }
+.prop-rename .prop-input { width: 100%; min-width: 0; }
+
 .prop-security-message {
   margin-top: 6px;
   color: var(--text-secondary);

@@ -39,6 +39,7 @@ import { useQuickCaptureListener } from "./hooks/useQuickCaptureListener";
 import { editorAppearanceVariables } from "./lib/editor-appearance";
 import { isPathUnder } from "./lib/storage/core";
 import { getPathAncestors } from "./lib/move-to";
+import { resolveFolderRename } from "./lib/folder-rename";
 import { useWebPlatform } from "./hooks/useWebPlatform";
 import { WebStatusBanner } from "./components/WebStatusBanner";
 import { BackupRestoreStatus } from "./components/BackupRestoreStatus";
@@ -817,6 +818,16 @@ function App() {
     revealDocTreePath(targetPath, sourcePath);
     setDocTreeKey((key) => key + 1);
   }, [flushAutoSave, revealDocTreePath, selectNote]);
+
+  const handleRenameFolder = useCallback(async (path: string, name: string) => {
+    const target = resolveFolderRename(path, name);
+    if (target === path) return;
+    const tree = await api.docs.tree(false);
+    if (tree.some(node => node.type === "folder" && node.path === target)) {
+      throw new Error("同级路径已存在，请使用其他名称");
+    }
+    await handleMoveFolder(path, target);
+  }, [handleMoveFolder]);
 
   // 主侧栏和弹出文档树共享同一个折叠集合，并统一持久化。
   useEffect(() => {
@@ -1907,6 +1918,7 @@ function App() {
               onCreate={() => setDocCreateOpen(true)}
               refreshKey={docTreeKey}
               onRename={(id, title) => updateNote(id, { title })}
+              onRenameFolder={handleRenameFolder}
               onDelete={handleDeleteWithUndo}
               onToggleReadonly={async (id, readonly) => {
                 await updateNote(id, { readonly });
@@ -2156,6 +2168,11 @@ function App() {
         {secondaryUiReady && selectedNote?.storagePath && propertiesOpen && (
           <Suspense fallback={null}>
             <PropertiesPanel
+              onRename={async title => {
+                handleTitleChange(title);
+                await autoSave.flush();
+                refreshNoteViews();
+              }}
               readonly={selectedNote.readonly || syncBusy}
               readonlyChangeDisabled={syncBusy}
               securityDisabled={syncBusy || protectionBusy}
@@ -2209,6 +2226,7 @@ function App() {
           <Suspense fallback={null}>
             <FolderPropertiesPanel
               path={selectedFolderPath}
+              onRename={name => handleRenameFolder(selectedFolderPath, name)}
               securityDisabled={syncBusy || protectionBusy}
               onPathSecurity={handlePathSecurity}
               onFilterByPath={handleFolderFilter}

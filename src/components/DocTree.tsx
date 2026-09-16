@@ -23,6 +23,7 @@ interface DocTreeProps {
   onPathSecurity?: (path: string, action: "set" | "remove" | "delete") => Promise<boolean>;
   refreshKey?: number;
   onRename?: (id: string, title: string) => void;
+  onRenameFolder?: (path: string, name: string) => Promise<void>;
   onDelete?: (id: string) => void;
   onToggleReadonly?: (id: string, readonly: boolean) => Promise<void> | void;
   onMoveDocument?: (id: string, targetPath: string) => Promise<void>;
@@ -120,7 +121,7 @@ function InlineRename({
 
 function DocTree({
   onSelect, onFolderSelect, selectedId, selectedTitle, selectedFolderPath, showDaily = false, onCreate, onPathSecurity, refreshKey,
-  onRename, onDelete, onToggleReadonly,
+  onRename, onRenameFolder, onDelete, onToggleReadonly,
   onMoveDocument, onBatchMoveDocuments, onMoveFolder,
   onBatchDelete, onBatchSetReadonly,
   propertiesAutoShow, onTogglePropertiesAuto,
@@ -454,7 +455,8 @@ function DocTree({
       ? newName
       : parts.slice(0, -1).join("/") + "/" + newName;
     try {
-      await api.docs.renameFolder(folderPath, newPath);
+      if (onRenameFolder) await onRenameFolder(folderPath, newName);
+      else await api.docs.renameFolder(folderPath, newPath);
     } catch (e) {
       console.error("renameFolder failed:", e);
       alert(`重命名失败: ${e instanceof Error ? e.message : String(e)}`);
@@ -588,7 +590,8 @@ function DocTree({
       return (
         <div key={node.path}>
           <div
-            className="doc-tree-node doc-tree-folder"
+            className={`doc-tree-node doc-tree-folder${!selectedId && selectedFolderPath === node.path ? " doc-tree-selected" : ""}`}
+            aria-current={!selectedId && selectedFolderPath === node.path ? "true" : undefined}
             style={{ paddingLeft }}
             onContextMenu={(e) => handleContextMenu(e, node)}
             onPointerDown={(event) => handleTreePointerDown(event, node)}

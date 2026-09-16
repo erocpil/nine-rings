@@ -2,6 +2,7 @@ import { useConfirmation } from "./ConfirmationDialog";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import type { DocType, Note, PathNode } from "../types/models";
+import { PropertyRename } from "./PropertyRename";
 
 interface FolderPropertiesPanelProps {
   path: string;
@@ -10,6 +11,7 @@ interface FolderPropertiesPanelProps {
   onFilterByPath?: (path: string, docType?: DocType) => void;
   onCreateDocument: () => void;
   onClose: () => void;
+  onRename: (name: string) => Promise<void>;
 }
 
 interface FolderProtectionStatus {
@@ -24,6 +26,7 @@ function FolderPropertiesPanel({
   onFilterByPath,
   onCreateDocument,
   onClose,
+  onRename,
 }: FolderPropertiesPanelProps) {
   const [pathProtection, setPathProtection] = useState<FolderProtectionStatus>({ protected: false, protectionRoot: false });
   const [documentCount, setDocumentCount] = useState<number | null>(null);
@@ -171,9 +174,8 @@ function FolderPropertiesPanel({
         <div className="prop-section">
           <div className="prop-label">路径</div>
           <div className="prop-empty">{path}</div>
-          <div className="prop-empty">
-            目录名：{pathName}
-          </div>
+          <PropertyRename key={path} kind="路径" value={pathName}
+            disabled={securityDisabled || pathBusy || path === "daily" || path.startsWith("daily/")} onRename={onRename} />
           <button
             type="button"
             className="settings-sm-btn"
