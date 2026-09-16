@@ -362,6 +362,21 @@
   content: "☑";
 }
 
+.editor-content li:has(> .markdown-task-checkbox)::before { visibility: hidden; }
+.markdown-task-checkbox {
+  position: absolute;
+  right: calc(100% + min(var(--editor-list-marker-gap), 0.25em));
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+.markdown-task-checkbox:focus-visible { outline: 2px solid currentColor; }
+.ProseMirror[contenteditable="false"] .markdown-task-checkbox { cursor: default; }
+
 .editor-content ol > li::before {
   content: counter(editor-list-item) ".";
   font-variant-numeric: tabular-nums;

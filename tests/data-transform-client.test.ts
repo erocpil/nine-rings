@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { deltaToProseMirror } from "../src/lib/delta-converter";
-import { deltaToProseMirrorAsync } from "../src/lib/data-transform-client";
+import { deltaToProseMirrorAsync, deltaToMarkdownAsync } from "../src/lib/data-transform-client";
+import { deltaToMarkdown } from "../src/lib/markdown-serializer";
 
 const delta = {
   ops: [
@@ -30,7 +31,7 @@ class FakeDataTransformWorker {
         id: message.id,
         result: message.task === "delta-to-prosemirror"
           ? deltaToProseMirror(message.payload)
-          : undefined,
+          : message.task === "delta-to-markdown" ? deltaToMarkdown(message.payload) : undefined,
       },
     } as MessageEvent));
   }
@@ -54,6 +55,8 @@ assert.deepEqual(
 );
 assert.equal(workerCreated, 1, "Tauri WebView 可用 Worker 时必须创建后台转换线程");
 assert.equal(workerTasks, 1, "大文档转换必须发送到 Worker，而不是占用 WebKit UI 线程");
+assert.equal(await deltaToMarkdownAsync(delta), deltaToMarkdown(delta));
+assert.equal(workerTasks, 2, "源码序列化也必须发送到 Worker");
 
 if (previousWorker === undefined) delete (globalThis as { Worker?: typeof Worker }).Worker;
 else Object.defineProperty(globalThis, "Worker", { configurable: true, value: previousWorker });

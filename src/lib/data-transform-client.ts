@@ -3,8 +3,13 @@ import { deltaToProseMirror } from "./delta-converter";
 import type { MarkdownImportOptions, TextImportSource } from "./markdown-import";
 import { buildTextImportInput } from "./markdown-import";
 import { extractTitle, mdToDelta } from "./md-parser";
+import { deltaToMarkdown } from "./markdown-serializer";
 
-type WorkerTask = "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "delta-to-prosemirror";
+type WorkerTask = "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "delta-to-prosemirror" | "delta-to-markdown";
+
+export function deltaToMarkdownAsync(content: DeltaOps): Promise<string> {
+  return runWorkerTask("delta-to-markdown", content, () => deltaToMarkdown(content));
+}
 
 export interface MarkdownTransformResult {
   fileName: string;

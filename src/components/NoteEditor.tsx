@@ -10,6 +10,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { OrderedListLayout } from "../extensions/OrderedListLayout";
 import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
+import { createToolbarSelectionCommands } from "../lib/editor-toolbar-commands";
 import Placeholder from "@tiptap/extension-placeholder";
 import TextStyle from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
@@ -1799,6 +1800,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.isComposing || event.keyCode === 229) return;
       if (editor.view.dom.closest("[inert]")) return;
+      if (event.target instanceof Element && event.target.closest(".settings-overlay")) return;
       const isCtrlF = event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
         && (event.code === "KeyF" || event.key.toLocaleLowerCase() === "f");
       if (isCtrlF) {
@@ -2897,39 +2899,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
 
   if (!editor) return <div className="note-editor"><div className="empty-state">加载中...</div></div>;
 
-  const rememberToolbarSelection = () => {
-    if (editor.state.selection instanceof CellSelection) {
-      toolbarCellSelectionRef.current = editor.state.selection;
-      toolbarSelectionRef.current = null;
-      return;
-    }
-    const { from, to } = editor.state.selection;
-    if (from !== to) {
-      toolbarSelectionRef.current = { from, to };
-      setToolbarSelectionHighlight(editor, { from, to });
-      return;
-    }
-    const domSelection = window.getSelection();
-    if (!domSelection || domSelection.isCollapsed || !domSelection.anchorNode || !domSelection.focusNode) return;
-    try {
-      const anchor = editor.view.posAtDOM(domSelection.anchorNode, domSelection.anchorOffset);
-      const focus = editor.view.posAtDOM(domSelection.focusNode, domSelection.focusOffset);
-      toolbarSelectionRef.current = { from: Math.min(anchor, focus), to: Math.max(anchor, focus) };
-      setToolbarSelectionHighlight(editor, toolbarSelectionRef.current);
-    } catch {
-      // The browser can briefly expose a selection outside ProseMirror while moving focus.
-    }
-  };
-
-  const runToolbarFormat = (format: "bold" | "italic" | "strike") => {
-    let chain = editor.chain();
-    const selection = toolbarSelectionRef.current;
-    if (selection) chain = chain.setTextSelection(selection);
-    chain = chain.focus();
-    if (format === "bold") chain.toggleBold().run();
-    else if (format === "italic") chain.toggleItalic().run();
-    else chain.toggleStrike().run();
-  };
+  const { rememberToolbarSelection, runToolbarFormat } = createToolbarSelectionCommands(editor, toolbarSelectionRef, toolbarCellSelectionRef);
 
 
 

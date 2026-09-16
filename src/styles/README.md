@@ -18,6 +18,7 @@ override next to an earlier base rule without a separate cascade review.
 | `responsive.css` | Safe areas and the existing tablet/mobile overrides |
 | `readers-and-templates.css` | PDF/EPUB surfaces, subsequent mobile overrides and templates |
 | `shared-chrome.css` | Late shared-surface and document-title overrides |
+| `markdown-document.css` | Markdown view/source controls and escape-repair preview; extracted from the former tail without reordering |
 
 Some files still contain several related surfaces: this is a conservative first
 pass, not a claim that every component's CSS is isolated. Further moves must

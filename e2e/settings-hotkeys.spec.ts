@@ -8,6 +8,11 @@ test("快捷键录制、取消和恢复默认跨设置页保留", async ({ page 
   const row = page.locator(".hotkey-row").first();
   const original = await row.locator("kbd").innerText();
   await row.locator(".hotkey-btn").click();
+  await row.locator("input").press("Alt+g");
+  await expect(page.locator(".hotkey-recording-error")).toContainText("Alt+G 已保留");
+  await expect(page.locator(".editor-line-jump")).toHaveCount(0);
+  await expect(row.locator("kbd")).toHaveText(original);
+  await row.locator(".hotkey-btn").click();
   await row.locator("input").press("Escape");
   await expect(page.locator(".settings-overlay")).toHaveCount(0);
   await page.getByTitle("设置", { exact: true }).click();

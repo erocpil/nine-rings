@@ -6,15 +6,16 @@ type BlockKind = "paragraph" | "list" | "table" | "code" | "quote" | "heading" |
 function escapeMarkdownText(text: string, inTable: boolean): string {
   let escaped = text
     .replace(/\\/g, "\\\\")
-    .replace(/[*_[\]]/g, "\\$&");
+    .replace(/[*_[\]`~]/g, "\\$&");
   if (inTable) escaped = escaped.replace(/\|/g, "\\|");
   return escaped;
 }
 
 function wrapCode(text: string): string {
-  const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length));
+  const longest = (text.match(/`+/g) ?? []).reduce((max, run) => Math.max(max, run.length), 0);
   const fence = "`".repeat(longest + 1);
-  return `${fence}${text}${fence}`;
+  const pad = text.startsWith("`") || text.endsWith("`") || (text.startsWith(" ") && text.endsWith(" ") && /[^ ]/.test(text)) ? " " : "";
+  return `${fence}${pad}${text}${pad}${fence}`;
 }
 
 function inlineOpToMarkdown(op: DeltaOp, inTable = false): string {
@@ -81,7 +82,8 @@ export function deltaToMarkdown(content: unknown): string {
     inline = "";
     if (attrs["code-block"]) {
       const language = typeof attrs.language === "string" ? attrs.language : "";
-      push("code", `\`\`\`${language}\n${raw}\n\`\`\``);
+      const fence = "`".repeat((raw.match(/`+/g) ?? []).reduce((max, run) => Math.max(max, run.length + 1), 3));
+      push("code", `${fence}${language}\n${raw}\n${fence}`);
       raw = "";
       return;
     }
@@ -107,7 +109,10 @@ export function deltaToMarkdown(content: unknown): string {
       push("quote", `> ${value}`);
       return;
     }
-    push("paragraph", value);
+    // Plain rich-editor text must not turn into block syntax on the next parse.
+    push("paragraph", value
+      .replace(/^(\s*)(?=>|#(?:\s|#)|[+-]\s|-{3,})/, "$1\\")
+      .replace(/^(\s*\d+)\.(?=\s)/, "$1\\."));
   };
 
   for (const op of ops) {

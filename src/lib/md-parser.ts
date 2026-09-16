@@ -111,12 +111,27 @@ function parseInline(text: string): InlineSegment[] {
       }
     }
 
+    if (text.slice(i, i + 2) === "~~") {
+      const end = findInlineEnd(text, "~~", i + 2);
+      if (end !== -1) {
+        result.push(...parseInline(text.slice(i + 2, end)).map(segment => ({ ...segment, attrs: { ...segment.attrs, strike: true } })));
+        i = end + 2;
+        continue;
+      }
+    }
+
     // `行内代码`
     if (text[i] === "`") {
-      const j = text.indexOf("`", i + 1);
+      const marker = text.slice(i).match(/^`+/)![0];
+      let j = text.indexOf(marker, i + marker.length);
+      while (j !== -1 && (text[j - 1] === "`" || text[j + marker.length] === "`")) {
+        j = text.indexOf(marker, j + marker.length);
+      }
       if (j !== -1) {
-        result.push({ insert: text.slice(i + 1, j), attrs: { code: true } });
-        i = j + 1;
+        let value = text.slice(i + marker.length, j);
+        if (value.startsWith(" ") && value.endsWith(" ") && /[^ ]/.test(value)) value = value.slice(1, -1);
+        result.push({ insert: value, attrs: { code: true } });
+        i = j + marker.length;
         continue;
       }
     }
@@ -125,7 +140,7 @@ function parseInline(text: string): InlineSegment[] {
     // 未匹配的语法起始符仍消费一个字符，再从下一个可能的起始符重试。
     const start = i++;
     while (i < text.length && text[i] !== "!" && text[i] !== "["
-      && text[i] !== "*" && text[i] !== "`" && text[i] !== "\\") i++;
+      && text[i] !== "*" && text[i] !== "`" && text[i] !== "\\" && text[i] !== "~") i++;
     result.push({ insert: text.slice(start, i), attrs: {} });
   }
 
@@ -262,6 +277,7 @@ export function mdToDelta(mdText: string): DeltaOps {
   let inCode = false;
   let codeBuf: string[] = [];
   let codeLanguage = "";
+  let codeFence = "";
   let listIndentStack: number[] = [];
 
   const resetListIndent = () => {
@@ -299,7 +315,7 @@ export function mdToDelta(mdText: string): DeltaOps {
   // Markdown 的单个换行是段落内的软换行，而不是新的段落。这里列出会
   // 终止当前段落的块级语法；其余连续非空行会在下面合并为同一段。
   const startsBlock = (text: string): boolean =>
-    /^```/.test(text) ||
+    /^(?:`{3,}|~{3,})/.test(text) ||
     /^[-*_]{3,}\s*$/.test(text) ||
     /^(#{1,6})\s+.+$/.test(text) ||
     /^>\s?(.*)$/.test(text) ||
@@ -318,21 +334,21 @@ export function mdToDelta(mdText: string): DeltaOps {
     const stripped = line.trim();
 
     // ── 代码块 ──
-    if (/^```/.test(stripped)) {
+    const fence = stripped.match(/^(`{3,}|~{3,})(.*)$/);
+    if (fence && (!inCode || (fence[1][0] === codeFence[0] && fence[1].length >= codeFence.length && !fence[2].trim()))) {
       resetListIndent();
       if (inCode) {
-        if (codeBuf.length > 0) {
-          ops.push({ insert: codeBuf.join("\n") });
-          ops.push({
-            insert: "\n",
-            attributes: { "code-block": true, ...(codeLanguage ? { language: codeLanguage } : {}) },
-          });
-        }
+        ops.push({ insert: codeBuf.join("\n") });
+        ops.push({
+          insert: "\n",
+          attributes: { "code-block": true, ...(codeLanguage ? { language: codeLanguage } : {}) },
+        });
         codeBuf = [];
         codeLanguage = "";
         inCode = false;
       } else {
-        codeLanguage = stripped.match(/^```([^\s`]*)/)?.[1] ?? "";
+        codeFence = fence[1];
+        codeLanguage = fence[2].trim().split(/\s/)[0];
         inCode = true;
       }
       i++;

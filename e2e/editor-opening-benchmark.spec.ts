@@ -8,6 +8,8 @@ for (const count of [300, 1500]) {
     browserName,
   }) => {
     test.setTimeout(180000);
+    const mobile = process.env.NR_EDITOR_MOBILE === "1";
+    if (mobile) await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
     const ids = await page.evaluate(async (count) => {
@@ -120,7 +122,7 @@ for (const count of [300, 1500]) {
       // The viewport operation includes automation round-trip time. It is an
       // end-to-end baseline, not a measure of the browser's pure layout time.
       const resizeStart = await page.evaluate(() => performance.now());
-      await page.setViewportSize({ width: 1000, height: 800 });
+      await page.setViewportSize({ width: mobile ? 360 : 1000, height: 800 });
       const resize = await page.evaluate(async (start) => {
         await new Promise(requestAnimationFrame);
         await new Promise(requestAnimationFrame);
@@ -133,11 +135,19 @@ for (const count of [300, 1500]) {
       }, resizeStart);
       expect(opening.blocks).toBe(count);
       expect(resize.blocks).toBe(count);
+      const sourceStart = Date.now();
+      await page.getByRole("button", { name: "源码", exact: true }).click();
+      await expect(page.getByRole("textbox", { name: "Markdown 源码", exact: true })).toBeVisible();
+      const sourceMs = Date.now() - sourceStart;
+      const renderStart = Date.now();
+      await page.getByRole("button", { name: "渲染", exact: true }).click();
+      await expect(page.locator(".ProseMirror > *")).toHaveCount(count);
+      const renderMs = Date.now() - renderStart;
       console.log(
         "EDITOR_OPENING_BENCHMARK",
-        JSON.stringify({ browserName, count, round, opening, resize }),
+        JSON.stringify({ browserName, mobile, count, round, opening, resize, sourceMs, renderMs }),
       );
-      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.setViewportSize({ width: mobile ? 390 : 1280, height: 800 });
       await page.evaluate(async () => {
         await new Promise(requestAnimationFrame);
         await new Promise(requestAnimationFrame);

@@ -1,5 +1,6 @@
 import { useEditorStartup } from "./hooks/useEditorStartup";
-import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { useNoteSessionBoundary } from "./hooks/useNoteSessionBoundary";
 import { flushSync } from "react-dom";
 import { useNotes } from "./hooks/useNotes";
 import { DAILY_NOTES_ENABLED, TODOS_ENABLED } from "./lib/workspace-features";
@@ -299,24 +300,7 @@ function App() {
     selectNote(note);
   }, [selectNote]);
 
-  // 所有选中路径统一在这里完成：立即切换 autosave 目标，同时串行保存旧笔记；
-  // 只有旧笔记保存成功后才创建 checkpoint。
-  const previousNoteIdRef = useRef<string | null>(null);
-  useLayoutEffect(() => {
-    const nextId = selectedNote?.id ?? null;
-    const oldId = previousNoteIdRef.current;
-    if (oldId === nextId) return;
-    previousNoteIdRef.current = nextId;
-
-    void setAutoSaveNoteId(nextId)
-      .then(async () => {
-        if (oldId) await api.versions.checkpoint(oldId);
-      })
-      .catch((error) => {
-        // updateNote 已同步写入全局错误栏；这里阻止失败保存继续生成旧 checkpoint。
-        console.error("[App] 切换笔记前保存失败，已跳过 checkpoint:", error);
-      });
-  }, [selectedNote?.id, setAutoSaveNoteId]);
+  useNoteSessionBoundary(selectedNote?.id ?? null, setAutoSaveNoteId);
 
   const handleDocSearch = useCallback(async (q: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => {
     const requestId = ++docSearchRequestIdRef.current;

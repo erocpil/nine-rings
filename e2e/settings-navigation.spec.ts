@@ -1,6 +1,21 @@
 import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
+async function openMobileSettings(page: import("@playwright/test").Page) {
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await page.locator(".note-editor").evaluate(element => {
+    const x = innerWidth - 8, y = innerHeight * 0.7;
+    const touch = (clientX: number) => ({ identifier: 1, target: element, clientX, clientY: y });
+    const start = touch(x), end = touch(x - 100);
+    for (const [type, touches, changedTouches] of [["touchstart", [start], [start]], ["touchmove", [end], [end]], ["touchend", [], [end]]] as const) {
+      const event = new Event(type, { bubbles: true, cancelable: type !== "touchstart" });
+      Object.defineProperties(event, { touches: { value: touches }, changedTouches: { value: changedTouches } });
+      element.dispatchEvent(event);
+    }
+  });
+  await expect(page.getByRole("heading", { name: "设置", exact: true })).toBeVisible();
+}
+
 test("设置使用分类首页和二级页面精简内容", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("设置").click();
@@ -24,11 +39,10 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await expect(page.getByRole("heading", { name: "外观与排版", exact: true })).toBeVisible();
   await page.getByRole("button", { name: /^编辑器设置/ }).click();
   await expect(page.getByRole("heading", { name: "编辑器", exact: true })).toBeVisible();
-  await expect(page.locator(".settings-field")).toHaveCount(8);
+  await expect(page.locator(".settings-field")).toHaveCount(6);
   await expect(page.getByText("状态栏块号", { exact: true })).toBeVisible();
   await expect(page.getByText("只读文档双击标题折叠", { exact: true })).toBeVisible();
-  await expect(page.getByText("新代码块默认软换行", { exact: true })).toBeVisible();
-  await expect(page.getByText("Vim 模式（实验性）", { exact: true })).toBeVisible();
+  await expect(page.getByText("Vim 模式（实验性）", { exact: true })).toHaveCount(0);
   await expect(page.getByText("主题", { exact: true })).toHaveCount(0);
   await expect(page.locator(".settings-version")).toHaveCount(0);
 
@@ -45,6 +59,7 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
 
 test("设置子页首个分组没有多余顶部留白和分割线", async ({ page }) => {
   await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
   await page.getByTitle("设置").click();
 
   for (const pageName of ["用户信息", "数据与导入", "同步与备份"]) {
@@ -88,7 +103,7 @@ test.describe("触屏设置导航", () => {
 
   test("进入子页后不会把上一页的触摸高亮转移到同位置选项", async ({ page }) => {
     await page.goto("/");
-    await page.getByTitle("设置").tap();
+    await openMobileSettings(page);
 
     await page.getByRole("button", { name: /^文档管理/ }).tap();
     const tagManagement = page.getByRole("button", { name: /^标签管理/ });
@@ -193,22 +208,28 @@ test("PWA 可关闭只读专注模式双击折叠并持久化", async ({ page })
   await expect(restoredField.locator('input[type="checkbox"]')).not.toBeChecked();
 });
 
-test("新代码块遵循默认软换行设置且说明不修改内容", async ({ page }) => {
+test("新代码块遵循已保存的默认软换行配置且说明不修改内容", async ({ page }) => {
   await page.goto("/");
-  await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^外观与排版/ }).click();
-  await page.getByRole("button", { name: /^编辑器设置/ }).click();
-
-  const field = page.locator(".settings-field").filter({ hasText: "新代码块默认软换行" });
-  const toggle = field.locator('input[type="checkbox"]');
-  await expect(toggle).toBeChecked();
-  await expect(field).toContainText("不修改代码内容");
-  await field.locator(".settings-toggle").click();
-  await expect(toggle).not.toBeChecked();
-  await expect(page.getByRole("status").filter({ hasText: "已更新" })).toBeVisible();
-  await page.getByLabel("关闭设置").click();
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  // The old global switch is no longer exposed in editor settings. Preserve
+  // coverage of saved configuration separately from block-workspace display preferences.
+  await page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts");
+    await api.config.set({ editor_code_wrap_default: false });
+  });
+  await page.reload();
 
   const editor = page.locator(".ProseMirror");
+  await expect(editor).toBeVisible();
+  await page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts");
+    const { useNotesStore } = await load("/src/stores/useNotesStore.ts");
+    const note = await api.notes.create({ title: "软换行测试", date: "2026-09-17", storagePath: "tests", content: { ops: [{ insert: "\n" }] } });
+    useNotesStore.getState().selectNote(note);
+  });
+  await expect(page.locator(".note-title")).toHaveValue("软换行测试");
   await editor.fill("new-code");
   await editor.press("Control+Alt+c");
   const codeBlock = editor.locator(".code-block-wrap");
@@ -249,7 +270,7 @@ test.describe("移动端设置", () => {
 
   test("Owner / Repo 字段始终可编辑", async ({ page }) => {
     await page.goto("/");
-    await page.getByTitle("设置").click();
+    await openMobileSettings(page);
     await page.getByRole("button", { name: /^同步与备份/ }).click();
 
     const ownerRepoInput = page.getByRole("textbox", { name: "Owner / Repo" });

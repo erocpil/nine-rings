@@ -3,10 +3,11 @@
 import { buildTextImportInput, type MarkdownImportOptions, type TextImportSource } from "../lib/markdown-import";
 import { deltaToProseMirror } from "../lib/delta-converter";
 import { extractTitle, mdToDelta } from "../lib/md-parser";
+import { deltaToMarkdown } from "../lib/markdown-serializer";
 
 interface WorkerRequest {
   id: number;
-  task: "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "delta-to-prosemirror";
+  task: "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "delta-to-prosemirror" | "delta-to-markdown";
   payload: unknown;
 }
 
@@ -19,6 +20,8 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
     } else if (task === "stringify-json") {
       const request = payload as { value: unknown; space?: number };
       result = JSON.stringify(request.value, null, request.space);
+    } else if (task === "delta-to-markdown") {
+      result = deltaToMarkdown(payload);
     } else if (task === "delta-to-prosemirror") {
       result = deltaToProseMirror(payload);
     } else if (task === "markdown-source") {

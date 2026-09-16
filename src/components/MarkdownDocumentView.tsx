@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { NoteEditorProps } from "./NoteEditor";
 import type { DeltaOps } from "../types/models";
-import { deltaToMarkdown } from "../lib/markdown-serializer";
+import { deltaToMarkdownAsync } from "../lib/data-transform-client";
 import { mdToDelta } from "../lib/md-parser";
 import { invalidateEditorDocument } from "../lib/editor-session-cache";
 import { isProseMirror, proseMirrorToDelta } from "../lib/delta-converter";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { DocumentTitlePreview } from "./DocumentTitlePreview";
+import { MarkdownEscapeRepair } from "./MarkdownEscapeRepair";
+import { api } from "../lib/api";
 
 /** One visible editing surface, one canonical autosave stream for both views. */
 export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps; render: (props: NoteEditorProps) => ReactNode }) {
@@ -21,6 +23,23 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const supported = props.content.metadata?.sourceFormat !== "text" && !props.pdfExcerptSource && !props.epubExcerptSource;
+  const editSource = (text: string) => {
+    setSource(text);
+    const original = initial.current;
+    if (!original) return;
+    let cached: DeltaOps | undefined;
+    const read = () => {
+      if (cached) return cached;
+      if (text === original.text) return original.content;
+      const metadata = { ...latestProps.current.content.metadata, sourceFormat: "markdown" as const, markdownSource: text };
+      delete metadata.bookmarks;
+      cached = { ...mdToDelta(text), metadata };
+      invalidateEditorDocument(props.noteId);
+      return cached;
+    };
+    latestReader.current = read;
+    props.onContentChange(read);
+  };
   const changeView = async () => {
     if (busy) return;
     setBusy(true); setError("");
@@ -33,7 +52,10 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       const content: DeltaOps = isProseMirror(raw) ? { ...proseMirrorToDelta(raw), metadata: raw.metadata } : raw;
       if (source === null) {
         const originalSource = content.metadata?.markdownSource;
-        const text = typeof originalSource === "string" ? originalSource : deltaToMarkdown(content);
+        const text = typeof originalSource === "string" ? originalSource : await deltaToMarkdownAsync(content);
+        if (!alive.current) return;
+        // An edit during the worker conversion must never be replaced by its stale result.
+        if ((latestReader.current?.() ?? latestProps.current.content) !== raw) throw new Error("转换期间正文已变化，请再次切换");
         initial.current = { text, content };
         setSource(text);
       } else {
@@ -84,6 +106,19 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           onClick={() => props.onFocusModeChange?.(!props.focusMode)}><ToolbarIcon name={props.focusMode ? "compress" : "expand"} /></button>}
       </div>
       <div className="markdown-source-hint"><span role="status">{busy ? "正在同步…" : props.saveStatus === "error" ? "保存失败" : props.saveStatus === "dirty" || props.saveStatus === "saving" ? "待保存" : "已同步"}</span> · 修改源码后按 Markdown 保存，不保留字体、颜色等额外富文本样式；仅切换视图不会改写内容。</div>
+      <MarkdownEscapeRepair source={source} disabled={busy || Boolean(props.readonly)} onApply={async (before, after) => {
+        if (before !== source || busy || latestProps.current.readonly) throw new Error("文档状态已变化，请重新扫描");
+        if (!latestProps.current.onFlush) throw new Error("无法确认保存状态，已取消修复");
+        setBusy(true);
+        try {
+          await latestProps.current.onFlush?.();
+          if (!alive.current || latestProps.current.readonly) throw new Error("文档已关闭或设为只读");
+          await api.versions.checkpoint(props.noteId);
+          if (!alive.current || latestProps.current.readonly) throw new Error("文档已关闭或设为只读");
+          editSource(after);
+          await latestProps.current.onFlush?.();
+        } finally { if (alive.current) setBusy(false); }
+      }} />
       <textarea aria-label="Markdown 源码" value={source} readOnly={Boolean(props.readonly) || busy} spellCheck={false}
         onKeyDown={event => {
           if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && !event.nativeEvent.isComposing && event.key.toLowerCase() === "a") {
@@ -91,22 +126,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           }
         }}
         onChange={event => {
-          const text = event.target.value;
-          setSource(text);
-          const original = initial.current!;
-          let cached: DeltaOps | undefined;
-          const read = () => {
-            if (cached) return cached;
-            if (text === original.text) return original.content;
-            const metadata = { ...latestProps.current.content.metadata, sourceFormat: "markdown" as const, markdownSource: text };
-            // Positions in the old rich document no longer identify the same blocks.
-            delete metadata.bookmarks;
-            cached = { ...mdToDelta(text), metadata };
-            invalidateEditorDocument(props.noteId);
-            return cached;
-          };
-          latestReader.current = read;
-          props.onContentChange(read);
+          editSource(event.target.value);
         }} />
     </section>}
   </div>;

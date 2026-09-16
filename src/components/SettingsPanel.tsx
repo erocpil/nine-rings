@@ -6,8 +6,8 @@ import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import type { AppConfig, DocType, Note } from "../types/models";
 import { DAILY_NOTES_ENABLED, TODOS_ENABLED } from "../lib/workspace-features";
-import { decodeTextImport, isTextImportFile, parseMetadataList, TEXT_IMPORT_ACCEPT, type TextImportSource } from "../lib/markdown-import";
-import { transformMarkdownBatch } from "../lib/data-transform-client";
+import { TEXT_IMPORT_ACCEPT } from "../lib/markdown-import";
+import { useSettingsTextImport } from "../hooks/useSettingsTextImport";
 import { isTauri, importWithDialog } from "../lib/tauri-desktop";
 import { exportLocalJsonBackup } from "../lib/local-backup-export";
 import SettingsSync from "./SettingsSync";
@@ -98,7 +98,6 @@ const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   advanced: "高级",
 };
 
-const MD_IMPORT_CHUNK_SIZE = 4;
 const VIM_CONFIG_KEY = "nr:vim-config";
 function normalizeVimConfig(value: string): string {
   const lines = value.split(/\r?\n/).filter(Boolean);
@@ -111,12 +110,6 @@ function normalizeVimConfig(value: string): string {
   return [...options.values()].join("\n");
 }
 
-function yieldToNextFrame(): Promise<void> {
-  if (typeof window === "undefined") {
-    return new Promise((resolve) => setTimeout(resolve, 0));
-  }
-  return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
-}
 
 export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onBeforePush, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onNotesChanged, libraryError }: Props) {
   const [vimConfig, setVimConfig] = useState(() => normalizeVimConfig(localStorage.getItem(VIM_CONFIG_KEY) ?? "set number\nset tabstop=4\nset shiftwidth=4\nset expandtab"));
@@ -193,23 +186,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
 
-  // ── Markdown 导入状态 ──
-  const mdInputRef = useRef<HTMLInputElement>(null);
-  const directoryInputRef = useRef<HTMLInputElement>(null);
-  const [directoryImportSupported] = useState(() => "webkitdirectory" in document.createElement("input"));
-  const [mdImporting, setMdImporting] = useState(false);
-  const [mdImportCount, setMdImportCount] = useState(0);
-  const [mdImportTotal, setMdImportTotal] = useState(0);
-  const [mdImportProgress, setMdImportProgress] = useState(0);
-  const [mdImportCurrentFile, setMdImportCurrentFile] = useState("");
-  const [mdImportMode, setMdImportMode] = useState<"document" | "note">("document");
-  const [mdImportPath, setMdImportPath] = useState("references/imported");
-  const importPathTriggerRef = useRef<HTMLButtonElement>(null);
-  const [importPathPickerOpen, setImportPathPickerOpen] = useState(false);
-  useEffect(() => { if (!open) setImportPathPickerOpen(false); }, [open]);
-  const [mdImportDocType, setMdImportDocType] = useState<DocType>("reference");
-  const [mdImportTags, setMdImportTags] = useState("");
-  const [mdImportConcepts, setMdImportConcepts] = useState("");
+  const { mdInputRef, directoryInputRef, directoryImportSupported, mdImporting, mdImportCount, mdImportTotal, mdImportProgress, mdImportCurrentFile, mdImportMode, setMdImportMode, mdImportPath, setMdImportPath, importPathTriggerRef, importPathPickerOpen, setImportPathPickerOpen, mdImportDocType, setMdImportDocType, mdImportTags, setMdImportTags, mdImportConcepts, setMdImportConcepts, handleMdImport } = useSettingsTextImport(open, showMessage, onMarkdownImport);
   const loadSettings = () => {
     setLoading(true);
     setLoadError(null);
@@ -561,85 +538,6 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     }
   };
 
-  // ── Markdown 导入 ──
-  const handleMdImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const input = e.currentTarget;
-    const files = Array.from(input.files ?? []);
-    input.value = "";
-    if (!files.length || mdImporting) return;
-    const directoryImport = input === directoryInputRef.current;
-    const fileList = files.filter(file => isTextImportFile(file.name))
-      .sort((left, right) => (left.webkitRelativePath || left.name).localeCompare(right.webkitRelativePath || right.name));
-    const skipped = files.length - fileList.length;
-    if (!fileList.length) {
-      showMessage(`未发现支持的文本文件，已跳过 ${skipped} 个非支持类型的文件`);
-      return;
-    }
-    setMdImporting(true);
-    setMdImportCount(0);
-    setMdImportTotal(fileList.length);
-    setMdImportProgress(0);
-    setMdImportCurrentFile("");
-    const today = localDateKey();
-    let count = 0;
-    const failures: string[] = [];
-    try {
-      const options = {
-        date: today,
-        mode: directoryImport ? "document" as const : mdImportMode,
-        storagePath: mdImportPath,
-        docType: mdImportDocType,
-        tags: parseMetadataList(mdImportTags),
-        concepts: parseMetadataList(mdImportConcepts),
-      };
-      // Bound both file reads and Worker conversion; don't hold the entire directory in RAM.
-      for (let offset = 0; offset < fileList.length; offset += MD_IMPORT_CHUNK_SIZE) {
-        const batch = fileList.slice(offset, offset + MD_IMPORT_CHUNK_SIZE);
-        const sources: TextImportSource[] = [];
-        for (const file of batch) {
-          const label = file.webkitRelativePath || file.name;
-          setMdImportCurrentFile(label);
-          try {
-            if (directoryImport && !file.webkitRelativePath) throw new Error("系统未提供目录结构，请改用文件选择导入");
-            sources.push({ fileName: file.name, source: decodeTextImport(new Uint8Array(await file.arrayBuffer())),
-              relativePath: directoryImport ? file.webkitRelativePath : undefined });
-          } catch (error) {
-            failures.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
-          }
-        }
-        const transformed = await transformMarkdownBatch(sources, options);
-        for (let index = 0; index < transformed.length; index++) {
-          const result = transformed[index];
-          const label = sources[index].relativePath || result.fileName;
-          setMdImportCurrentFile(label);
-          try {
-            if (!result.input) throw new Error(result.error ?? "文本转换失败");
-            await api.notes.create(result.input);
-            count++;
-          } catch (error) {
-            failures.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
-          }
-        }
-        setMdImportProgress(offset + batch.length);
-        await yieldToNextFrame();
-      }
-      setMdImportCount(count);
-      if (count > 0) onMarkdownImport?.();
-      showMessage(failures.length > 0
-        ? `已导入 ${count} 篇，跳过 ${skipped} 个非支持类型文件，失败 ${failures.length} 篇：${failures[0]}`
-        : `文本导入完成：${count} 篇${options.mode === "document" ? `，路径 ${mdImportPath}` : ""}${skipped ? `，跳过 ${skipped} 个非支持类型文件` : ""}`);
-    } catch (err) {
-      if (count > 0) onMarkdownImport?.();
-      showMessage(`导入中断，已导入 ${count} 篇（已导入的文档会保留）: ${err}`);
-    } finally {
-      setMdImporting(false);
-      setMdImportCurrentFile("");
-      setMdImportTotal(0);
-      setMdImportProgress(0);
-      // 无论成功失败都允许再次选择同一批文件。
-      input.value = "";
-    }
-  };
 
   if (!open) return null;
 
