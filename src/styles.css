@@ -13629,10 +13629,11 @@ button.doc-tree-toggle:focus-visible {
 .rendered-link-menu button:hover, .rendered-link-menu button:focus-visible { background: var(--hover-bg); outline: 2px solid var(--accent); }
 .rendered-link-notice { position: fixed; z-index: 10051; bottom: 48px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 32px); padding: 10px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); }
 .markdown-document-view { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; height: 100%; }
-.markdown-view-toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px 10px; border-bottom: 1px solid var(--border); background: var(--bg); font-size: 12px; }
-.markdown-view-toolbar button { min-height: 32px; padding: 3px 12px; border: 1px solid var(--border); border-radius: 5px; color: var(--text); background: var(--bg); cursor: pointer; }
-.markdown-view-toolbar button[aria-pressed=true] { color: var(--accent); border-color: var(--accent); opacity: 1; }
+.app .markdown-view-toggle { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: auto; min-width: 40px; min-height: 32px; padding: 2px 6px; border: 1px solid transparent; border-radius: 5px; color: var(--text-secondary); background: transparent; cursor: pointer; font-size: 13px; white-space: nowrap; }
+.app .markdown-view-toggle:hover { color: var(--accent); border-color: var(--border); }
+.app .markdown-view-toggle:disabled { opacity: .5; cursor: wait; }
+.markdown-source-title-row { padding: 4px 12px; }
 .markdown-source-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .markdown-source-hint { padding: 6px 12px; font-size: 12px; color: var(--text-secondary); }
 .markdown-source-editor textarea { flex: 1; min-height: 100px; width: 100%; box-sizing: border-box; resize: none; border: 0; padding: 16px; outline-offset: -2px; font: 16px/1.65 monospace; tab-size: 4; color: var(--text); background: var(--bg); }
-@media (max-width: 768px) { .markdown-view-toolbar button { min-height: 40px; } }
+@media (max-width: 768px) { .app .markdown-view-toggle { min-height: 36px; } }

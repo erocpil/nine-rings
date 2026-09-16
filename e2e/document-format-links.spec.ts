@@ -38,9 +38,18 @@ for (const mobile of [false, true]) {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
     }
+    await expect(page.locator(".markdown-view-toolbar")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^(源码|渲染)$/ })).toHaveCount(1);
+    const titleRow = page.locator(".note-title-row");
+    const toggleBox = (await titleRow.getByRole("button", { name: "源码", exact: true }).boundingBox())!;
+    const outlineBox = (await titleRow.getByRole("button", { name: "文档目录", exact: true }).boundingBox())!;
+    expect(toggleBox.x + toggleBox.width).toBeLessThanOrEqual(outlineBox.x + 1);
+    expect(Math.abs(toggleBox.y - outlineBox.y)).toBeLessThan(10);
     await page.getByRole("button", { name: "源码", exact: true }).click();
     const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
     await expect(source).toHaveValue(/最后一段\n$/);
+    await expect(page.locator(".note-title-row").getByRole("button", { name: "渲染", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^(源码|渲染)$/ })).toHaveCount(1);
     await expect(page.locator(".ProseMirror")).toHaveCount(0);
     await source.fill("# 新标题\n\n**源码修改**\n\n[链接](https://example.org/)\n");
     await page.getByRole("button", { name: "渲染", exact: true }).click();
@@ -78,6 +87,21 @@ test("仅切换视图不改写导入源码或文档，源码遵守只读", async
 });
 
 for (const virtual of [false, true]) {
+  test(`专注模式标题栏只有一个源码切换按钮 ${virtual ? "virtual" : "full"}`, async ({ page }) => {
+    await fixture(page, { readonly: true, virtual });
+    await page.getByRole("button", { name: "专注模式", exact: true }).click();
+    const toggle = page.getByRole("button", { name: "源码", exact: true });
+    await expect(toggle).toBeVisible();
+    await expect(page.getByRole("button", { name: /^(源码|渲染)$/ })).toHaveCount(1);
+    const bounds = (await toggle.boundingBox())!;
+    const outline = (await page.getByRole("button", { name: "文档目录", exact: true }).boundingBox())!;
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(outline.x + 1);
+    await toggle.click();
+    await expect(page.getByRole("textbox", { name: "Markdown 源码", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "渲染", exact: true }).click();
+    await expect(toggle).toBeVisible();
+    await page.getByRole("button", { name: "退出专注模式", exact: true }).click();
+  });
   test(`只读 Ctrl+A 仅选中全文，重复全选不扩散 ${virtual ? "virtual" : "full"}`, async ({ page }) => {
     await fixture(page, { readonly: true, virtual });
     await page.locator(".editor-content p").filter({ hasText: "第一段" }).click();

@@ -712,6 +712,7 @@ export function ReadonlyVirtualNote(
           catch { setNotice("复制块失败，请检查剪贴板权限后重试"); }
         }
       }}><ToolbarIcon name="copy" /></button>
+      {props.documentViewToggle}
       <button
         type="button"
         title="文档目录"
