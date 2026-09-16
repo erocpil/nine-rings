@@ -48,11 +48,30 @@ interface InlineSegment {
   attrs: Record<string, unknown>;
 }
 
+function findInlineEnd(text: string, marker: string, from: number): number {
+  for (let end = text.indexOf(marker, from); end !== -1; end = text.indexOf(marker, end + marker.length)) {
+    let slashes = 0;
+    for (let before = end - 1; before >= 0 && text[before] === "\\"; before--) slashes++;
+    if (slashes % 2 === 0) return end;
+  }
+  return -1;
+}
+
 function parseInline(text: string): InlineSegment[] {
   const result: InlineSegment[] = [];
   let i = 0;
 
   while (i < text.length) {
+    // CommonMark escapes consume exactly one backslash before ASCII punctuation.
+    // Do this before matching syntax; code spans below keep their raw contents.
+    const nextCode = text.charCodeAt(i + 1);
+    if (text[i] === "\\" && (nextCode >= 33 && nextCode <= 47
+      || nextCode >= 58 && nextCode <= 64 || nextCode >= 91 && nextCode <= 96
+      || nextCode >= 123 && nextCode <= 126)) {
+      result.push({ insert: text[i + 1], attrs: {} });
+      i += 2;
+      continue;
+    }
     // ![替代文字](图片地址)
     const imageMatch = text.slice(i).match(/^!\[([^\]]*)\]\(([^)]+)\)/);
     if (imageMatch) {
@@ -62,18 +81,18 @@ function parseInline(text: string): InlineSegment[] {
     }
 
     // [链接](url)
-    const linkMatch = text.slice(i).match(/^\[([^\]]+)\]\(([^)]+)\)/);
+    const linkMatch = text.slice(i).match(/^\[((?:\\.|[^\]\\])+)\]\(([^)]+)\)/);
     if (linkMatch) {
-      result.push({ insert: linkMatch[1], attrs: { link: linkMatch[2] } });
+      result.push(...parseInline(linkMatch[1]).map(segment => ({ ...segment, attrs: { ...segment.attrs, link: linkMatch[2] } })));
       i += linkMatch[0].length;
       continue;
     }
 
     // **粗体**
     if (text.slice(i, i + 2) === "**") {
-      const j = text.indexOf("**", i + 2);
+      const j = findInlineEnd(text, "**", i + 2);
       if (j !== -1) {
-        result.push({ insert: text.slice(i + 2, j), attrs: { bold: true } });
+        result.push(...parseInline(text.slice(i + 2, j)).map(segment => ({ ...segment, attrs: { ...segment.attrs, bold: true } })));
         i = j + 2;
         continue;
       }
@@ -81,11 +100,11 @@ function parseInline(text: string): InlineSegment[] {
 
     // *斜体* (单星号)
     if (text[i] === "*" && (i + 1 >= text.length || text[i + 1] !== "*")) {
-      const j = text.indexOf("*", i + 1);
+      const j = findInlineEnd(text, "*", i + 1);
       if (j !== -1) {
         const inner = text.slice(i + 1, j);
         if (inner) {
-          result.push({ insert: inner, attrs: { italic: true } });
+          result.push(...parseInline(inner).map(segment => ({ ...segment, attrs: { ...segment.attrs, italic: true } })));
           i = j + 1;
           continue;
         }
@@ -106,7 +125,7 @@ function parseInline(text: string): InlineSegment[] {
     // 未匹配的语法起始符仍消费一个字符，再从下一个可能的起始符重试。
     const start = i++;
     while (i < text.length && text[i] !== "!" && text[i] !== "["
-      && text[i] !== "*" && text[i] !== "`") i++;
+      && text[i] !== "*" && text[i] !== "`" && text[i] !== "\\") i++;
     result.push({ insert: text.slice(start, i), attrs: {} });
   }
 
@@ -396,7 +415,8 @@ export function mdToDelta(mdText: string): DeltaOps {
       const depth = resolveListDepth(listMatch[1]);
       const list = /^\d/.test(listMatch[2]) ? "ordered" : "bullet";
       const listStart = list === "ordered" ? Number.parseInt(listMatch[2], 10) : undefined;
-      ops.push(...inlineToDelta(listMatch[3]));
+      const task = /^\[([ xX])\](?:[ \t]+(.*)|$)/.exec(listMatch[3]);
+      ops.push(...inlineToDelta(task ? task[2] ?? "" : listMatch[3]));
       i++;
 
       // 列表项的 lazy continuation（以及显式缩进的续行）仍属于当前项。
@@ -417,6 +437,7 @@ export function mdToDelta(mdText: string): DeltaOps {
         insert: "\n",
         attributes: {
           list,
+          ...(task ? { taskChecked: task[1].toLowerCase() === "x" } : {}),
           ...(depth > 0 ? { indent: depth } : {}),
           ...(listStart !== undefined ? { listStart } : {}),
         },

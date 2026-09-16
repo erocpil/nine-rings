@@ -162,7 +162,7 @@ function renderBlock(
         </ol>
       );
     case "listItem":
-      return <li>{children}</li>;
+      return <li data-task-checked={typeof node.attrs.taskChecked === "boolean" ? String(node.attrs.taskChecked) : undefined}>{children}</li>;
     case "blockquote": {
       const collapsed = state.collapsed ?? node.attrs.collapsed === true;
       return (

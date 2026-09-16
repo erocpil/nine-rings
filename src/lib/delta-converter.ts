@@ -206,6 +206,7 @@ function appendListOps(listNode: JSONContent, ops: DeltaOp[], depth: number): vo
     let emittedItemLine = false;
     const lineAttributes = {
       list,
+      ...(typeof item.attrs?.taskChecked === "boolean" ? { taskChecked: item.attrs.taskChecked } : {}),
       ...(depth > 0 ? { indent: depth } : {}),
       ...(orderedStart !== undefined ? { listStart: orderedStart + itemIndex } : {}),
     };
@@ -299,6 +300,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
     type: "bulletList" | "orderedList";
     indent: number;
     start?: number;
+    taskChecked?: boolean;
     paragraph: JSONContent;
   }> = [];
 
@@ -338,7 +340,10 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
         if (line.indent < depth || line.indent === depth && line.type !== type) break;
         if (line.indent > depth) break;
 
-        const item = { type: "listItem", content: [line.paragraph] };
+        const item: JSONContent & { content: JSONContent[] } = {
+          type: "listItem", content: [line.paragraph],
+          ...(typeof line.taskChecked === "boolean" ? { attrs: { taskChecked: line.taskChecked } } : {}),
+        };
         list.content.push(item);
         index += 1;
 
@@ -384,6 +389,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
           const rawIndent = Number(attrs.indent);
           pendingListLines.push({
             type: attrs.list === "bullet" ? "bulletList" : "orderedList",
+            ...(typeof attrs.taskChecked === "boolean" ? { taskChecked: attrs.taskChecked } : {}),
             indent: Number.isFinite(rawIndent) ? Math.max(0, Math.floor(rawIndent)) : 0,
             ...(attrs.list === "ordered" && Number.isFinite(Number(attrs.listStart))
               ? { start: Math.max(1, Math.floor(Number(attrs.listStart))) }

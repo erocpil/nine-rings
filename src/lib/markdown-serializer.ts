@@ -96,7 +96,11 @@ export function deltaToMarkdown(content: unknown): string {
       const marker = attrs.list === "bullet"
         ? "-"
         : `${Number.isFinite(orderedStart) && orderedStart >= 1 ? Math.floor(orderedStart) : 1}.`;
-      push("list", `${"  ".repeat(indent)}${marker} ${value}`);
+      const task =
+        typeof attrs.taskChecked === "boolean"
+          ? `[${attrs.taskChecked ? "x" : " "}]${value ? " " : ""}`
+          : "";
+      push("list", `${"  ".repeat(indent)}${marker} ${task}${value}`);
       return;
     }
     if (attrs.blockquote) {

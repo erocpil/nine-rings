@@ -9,6 +9,7 @@ import { MOBILE_VIEWPORT_QUERY } from "../hooks/useEdgeDrawer";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { OrderedListLayout } from "../extensions/OrderedListLayout";
+import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
 import Placeholder from "@tiptap/extension-placeholder";
 import TextStyle from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
@@ -462,7 +463,7 @@ function DocumentEditor(props: NoteEditorProps) {
     if (!readingSource) return null;
     readonlySchema ??= getSchema([
       StarterKit.configure({ codeBlock: false, blockquote: false }), TextStyle, Color, FontSize,
-      LinkExt, CodeBlockLineNumbers, CollapsibleBlockquote, BlockIndent,
+      LinkExt, CodeBlockLineNumbers, CollapsibleBlockquote, BlockIndent, MarkdownTaskState,
     ]);
     const doc = buildReadonlyDocument(JSON.parse(readingSource), readonlySchema);
     return doc ? { doc, key: ++readonlyDocumentSequence } : null;
@@ -849,6 +850,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         blockquote: false,
       }),
       OrderedListLayout,
+      MarkdownTaskState,
       // 仅使用扩展的 is-editor-empty class 识别空段落；不在 gutter
       // 内显示文字，避免与行号和行间插入按钮争用伪元素。
       Placeholder.configure({ placeholder: "" }),

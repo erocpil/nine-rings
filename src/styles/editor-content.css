@@ -354,6 +354,14 @@
   content: "•";
 }
 
+.editor-content :is(ul, ol) > li[data-task-checked="false"]::before {
+  content: "☐";
+}
+
+.editor-content :is(ul, ol) > li[data-task-checked="true"]::before {
+  content: "☑";
+}
+
 .editor-content ol > li::before {
   content: counter(editor-list-item) ".";
   font-variant-numeric: tabular-nums;
