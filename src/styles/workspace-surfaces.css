@@ -1,0 +1,2093 @@
+/* ──── Empty State ──── */
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* ──── Search Results ──── */
+
+.search-results {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+.search-results h3 {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.search-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.search-results-header button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 26px;
+}
+
+.search-results-header button:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.search-hit {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+
+.search-hit > .search-hit-date {
+  display: block;
+}
+
+.search-hit:hover {
+  background: var(--surface);
+}
+
+.search-load-more {
+  display: block;
+  width: min(320px, 100%);
+  margin: 14px auto 4px;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+}
+
+.search-load-more:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.search-hit-title {
+  font-size: 14px;
+}
+
+.search-hit-date {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.search-hit-snippet {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.search-hit-snippet mark {
+  background: var(--accent);
+  color: #fff;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+/* ═══════════════════════════════════════
+   设置面板
+   ═══════════════════════════════════════ */
+
+/* ── 遮罩 ── */
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-end;
+  animation: fadeIn 0.15s ease;
+}
+
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+}
+
+.dialog {
+  background: var(--bg);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+/* ── 快速切换笔记 ── */
+
+.quick-switcher-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: max(10vh, 56px) 16px 16px;
+  background: rgba(18, 20, 24, 0.42);
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.12s ease;
+}
+
+.quick-switcher {
+  width: min(620px, 100%);
+  max-height: min(620px, 76vh);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+}
+
+.quick-switcher-search {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 22px;
+}
+
+.quick-switcher-search input {
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 17px;
+}
+
+.quick-switcher-search kbd {
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font: 11px/1.2 system-ui, sans-serif;
+}
+
+.quick-switcher-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 6px;
+  min-width: 44px;
+  min-height: 32px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: 13px/1.2 var(--font-ui, system-ui), sans-serif;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .quick-switcher-close:hover { background: var(--hover-bg); color: var(--text); }
+}
+@media (pointer: coarse) {
+  .quick-switcher-close { min-height: 44px; }
+}
+
+.quick-switcher-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 14px 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.quick-switcher-results {
+  overflow-y: auto;
+  padding: 4px 7px 8px;
+  overscroll-behavior: contain;
+}
+
+.quick-switcher-item {
+  width: 100%;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.quick-switcher-item.active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.quick-switcher-kind {
+  flex: 0 0 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 15px;
+}
+
+.quick-switcher-current {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.quick-switcher-current {
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+@media (max-width: 600px) {
+  .quick-switcher-overlay {
+    padding: max(env(safe-area-inset-top), 10px) 8px 8px;
+  }
+
+  .quick-switcher {
+    max-height: calc(100dvh - max(env(safe-area-inset-top), 10px) - 8px);
+    border-radius: 12px;
+  }
+
+  .quick-switcher-caption span:last-child,
+  .quick-switcher-search kbd {
+    display: none;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes slideInFromLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+/* ── 面板本体 ── */
+
+.settings-panel {
+  width: 400px;
+  max-width: 90vw;
+  height: 100%;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.2s ease;
+  overflow: hidden;
+}
+
+@media (min-width: 769px) {
+  .settings-overlay {
+    justify-content: flex-start;
+  }
+  .settings-panel {
+    border-left: 0;
+    border-right: 1px solid var(--border);
+    animation-name: slideInFromLeft;
+  }
+}
+
+/* ── 头部 ── */
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-header-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-back {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.settings-back:hover {
+  border-color: var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.settings-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.settings-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 18px;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-close:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+
+/* ── 文档树弹窗 ── */
+
+.doc-tree-popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+  z-index: 1000;
+  display: flex;
+  justify-content: flex-start;
+  /* Do not animate an ancestor of backdrop-filter: it creates a separate
+     backdrop root and makes the upper drawer's blur differ from the tree. */
+  animation: none;
+}
+
+.doc-tree-popup-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  animation: fadeIn 0.25s ease;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.doc-tree-popup {
+  position: relative;
+  width: var(--left-document-drawer-width);
+  max-width: 85vw;
+  height: 100%;
+  background: var(--drawer-surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  animation: slideInLeft 0.25s ease;
+  overflow: hidden;
+}
+
+.doc-tree-popup-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* This search entry lives in the shared document browser, not the old mobile
+   header. Keep it available on desktop as well. */
+.doc-tree-popup .btn-search-toggle {
+  display: inline-flex !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doc-tree-popup, .doc-tree-popup-backdrop { animation: none; }
+}
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+/* ── 滚动体 ── */
+
+.settings-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 40px;
+}
+
+.settings-category-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-category-card {
+  width: 100%;
+  min-height: 64px;
+  padding: 11px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, transform 0.12s ease;
+}
+
+.settings-category-card:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+  transform: translateX(-2px);
+}
+
+.settings-category-card > span:first-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.settings-category-card strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings-category-card small {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.settings-category-arrow {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-size: 16px;
+}
+
+.settings-version {
+  margin-top: 16px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  text-align: center;
+  opacity: 0.5;
+}
+
+.settings-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.settings-web-update {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.settings-web-update button { min-height: 44px; }
+.settings-web-update [role="status"] { flex-basis: 100%; text-align: center; }
+
+.settings-update-check,
+.settings-update-apply {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text);
+  background: var(--surface);
+  width: auto;
+}
+
+.settings-update-check:hover:not(:disabled),
+.settings-update-apply:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.settings-update-check.is-loading {
+  color: var(--text-secondary);
+}
+
+.settings-update-check:disabled {
+  opacity: 0.8;
+  cursor: not-allowed;
+}
+
+.settings-update-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.settings-update-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-right-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  flex-shrink: 0;
+}
+
+.settings-update-apply {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.settings-update-apply:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.settings-update-apply .toolbar-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.settings-update-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-basis: 100%;
+  margin-top: 2px;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 90%, var(--bg));
+}
+
+.settings-update-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+}
+
+.settings-update-status.is-error {
+  color: var(--danger);
+}
+
+.settings-update-status.is-error .settings-update-status-dot {
+  background: var(--danger);
+}
+
+.settings-update-status.is-ready {
+  color: var(--accent);
+}
+
+.settings-update-status.is-ready .settings-update-status-dot {
+  background: var(--accent);
+}
+
+.settings-update-status.is-checking {
+  color: var(--text);
+}
+
+.settings-update-status.is-neutral,
+.settings-update-status.is-idle {
+  color: var(--text-secondary);
+}
+
+.settings-update-error-details {
+  border: 1px dashed var(--border);
+  background: color-mix(in srgb, var(--surface) 90%, var(--bg));
+  color: var(--text);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  min-height: 30px;
+}
+
+.settings-update-error-panel {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  background: color-mix(in srgb, var(--surface) 90%, var(--bg));
+  border: 1px dashed var(--danger);
+  border-radius: var(--radius);
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 1.4;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.settings-update-error-copy {
+  border: 1px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--danger);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  min-height: 30px;
+}
+
+/* ── 字段 ── */
+
+.settings-field {
+  margin-bottom: 24px;
+}
+
+.settings-label {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.settings-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.settings-control {
+  display: flex;
+  align-items: center;
+}
+
+.markdown-import-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.markdown-import-mode {
+  width: min(360px, 100%);
+}
+
+.markdown-import-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) minmax(120px, 1fr);
+  gap: 10px 12px;
+}
+
+.markdown-import-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.markdown-import-field > span {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.markdown-import-field small {
+  line-height: 1.4;
+}
+
+.markdown-import-path-field {
+  grid-row: span 2;
+}
+
+@media (max-width: 680px) {
+  .markdown-import-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .markdown-import-path-field {
+    grid-row: auto;
+  }
+}
+
+/* ── Radio Group ── */
+
+.settings-radio-group {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.settings-radio {
+  flex: 1;
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* 含色块的主题按钮：圆点在上，文字在下 */
+.settings-radio:has(.theme-swatch) {
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 6px;
+}
+
+.settings-radio:last-child {
+  border-right: none;
+}
+
+.settings-radio:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+
+.settings-radio.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.settings-radio.saving {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* ── Toggle Switch ── */
+
+.settings-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  display: none;
+}
+
+.toggle-track {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  background: var(--border);
+  border-radius: 10px;
+  transition: background var(--transition);
+}
+
+.toggle-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--text);
+  border-radius: 50%;
+  transition: transform var(--transition);
+}
+
+.settings-toggle input:checked + .toggle-track {
+  background: var(--accent);
+}
+
+.settings-toggle input:checked + .toggle-track::after {
+  transform: translateX(16px);
+}
+
+.toggle-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  min-width: 20px;
+}
+
+/* ── Stepper ── */
+
+.settings-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.settings-step-btn {
+  background: none;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-secondary);
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-step-btn:last-child {
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+.settings-step-btn:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+
+.settings-value {
+  padding: 0 12px;
+  font-size: 13px;
+  min-width: 60px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-value.saving {
+  opacity: 0.6;
+}
+
+/* ── Toast ── */
+
+.settings-toast {
+  position: sticky;
+  bottom: 0;
+  text-align: center;
+  padding: 8px;
+  background: var(--success);
+  color: #fff;
+  font-size: 13px;
+  border-radius: var(--radius);
+  margin-top: 16px;
+  animation: fadeIn 0.15s ease;
+}
+
+/* ──── Scrollbar ──── */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+/* ── 静 · Tiffany 蓝主题 ── */
+
+:root.theme-fu {
+  --bg: #f5fbfa;
+  --surface: #ebf6f4;
+  --border: #c0e0db;
+  --text: #1a2c2a;
+  --text-secondary: #5a7a74;
+  --accent: #0ABAB5;
+  --accent-hover: #089b96;
+  --danger: #d44a5a;
+  --success: #3d8b5c;
+  --code-bg: #ecf4f2;
+  --activeline-bg: rgba(10, 186, 181, 0.06);
+}
+
+/* ── 雅 · 淡紫主题 ── */
+
+:root.theme-grace {
+  --bg: #faf6fc;
+  --surface: #f1eaf6;
+  --border: #d8cbe5;
+  --text: #29262d;
+  --text-secondary: #625b69;
+  --text-tertiary: #746b7b;
+  --text-muted: #746b7b;
+  --accent: #7654b3;
+  --accent-hover: #65439f;
+  --danger: #d43b5a;
+  --success: #3d8b70;
+  --code-bg: #f0eaf5;
+  --hover-bg: rgba(118, 84, 179, 0.07);
+  --active-bg: rgba(118, 84, 179, 0.14);
+  --activeline-bg: rgba(118, 84, 179, 0.07);
+}
+
+/* ── 粋 · 新绿主题 ── */
+
+:root.theme-sui {
+  --bg: #f2f7f0;
+  --surface: #e8f0e4;
+  --border: #c8dcc0;
+  --text: #1e2a1c;
+  --text-secondary: #5c7a52;
+  --accent: #4a8a3a;
+  --accent-hover: #3d7230;
+  --danger: #c44a3a;
+  --success: #3d8b70;
+  --code-bg: #ecf3e8;
+  --activeline-bg: rgba(74, 138, 58, 0.06);
+}
+
+/* ── 幟 · 金暖主题 ── */
+
+:root.theme-zhi {
+  --bg: #fbf7f0;
+  --surface: #f5ede0;
+  --border: #e6d8c0;
+  --text: #2c2518;
+  --text-secondary: #8a7a5a;
+  --accent: #c49a3c;
+  --accent-hover: #a88028;
+  --danger: #c44a3a;
+  --success: #5a8a4a;
+  --code-bg: #f3ecdd;
+  --activeline-bg: rgba(196, 154, 60, 0.06);
+}
+
+/* ── 蔚 · 钴蓝主题 ── */
+
+:root.theme-azure {
+  --bg: #f4f7fb;
+  --surface: #eaf0f8;
+  --border: #c8d6e8;
+  --text: #1a2538;
+  --text-secondary: #5a6d8a;
+  --accent: #3b6dcc;
+  --accent-hover: #2d5aaa;
+  --danger: #d43b4a;
+  --success: #3d8b5c;
+  --code-bg: #eef3f9;
+  --activeline-bg: rgba(59, 109, 204, 0.06);
+}
+
+/* ── 蔚 · 暗色变体 ── */
+
+:root.theme-azure-dark {
+  --bg: #0d1628;
+  --surface: #111d35;
+  --border: #1e3050;
+  --text: #dce4f0;
+  --text-secondary: #7a8fad;
+  --accent: #3b6dcc;
+  --accent-hover: #5a8de8;
+  --danger: #f25a6a;
+  --success: #4ca868;
+  --code-bg: #0b1524;
+  --activeline-bg: rgba(59, 109, 204, 0.08);
+}
+
+/* ── Header 右侧浮动区域（sticky title + 专注按钮 在搜索左侧）── */
+
+.header-sticky-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.header-sticky-title-button {
+  -webkit-app-region: no-drag;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: color var(--transition);
+}
+
+.header-sticky-title-button:hover,
+.header-sticky-title-button:focus-visible {
+  color: var(--accent);
+  outline: none;
+}
+
+.header-sticky-area {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 8px;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.header-focus-btn {
+  -webkit-app-region: no-drag;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color var(--transition), border-color var(--transition);
+}
+
+.header-focus-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.header-focus-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.app-focus-mode .header-sticky-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.app-focus-mode .header-focus-btn {
+  border-color: transparent;
+  border-radius: 6px;
+}
+
+.app-focus-mode .header-focus-btn.active {
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+}
+
+.header-spacer {
+  flex: 1;
+}
+
+.header-btn-gap {
+  width: 2px;
+}
+
+/* ──── Error Bar ──── */
+
+.error-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: var(--danger);
+  color: #fff;
+  padding: 6px 16px;
+  font-size: 13px;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.error-bar button {
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 4px;
+  padding: 2px 7px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.error-bar button:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.error-dismiss {
+  margin-left: auto;
+  font-size: 16px;
+  opacity: 0.7;
+  border: 0 !important;
+}
+
+/* ──── Tag Bar ──── */
+
+.tag-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  padding: 2px 0 0;
+  margin-bottom: 0;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.tag-chip-remove {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.tag-chip-remove:hover {
+  color: var(--danger);
+}
+
+.tag-input {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 12px;
+  padding: 2px 4px;
+  min-width: 60px;
+  flex: 1;
+}
+
+.tag-input:focus {
+  outline: none;
+}
+
+.tag-input::placeholder {
+  color: var(--text-secondary);
+}
+
+/* ──── Title Row + Focus Mode ──── */
+
+.note-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.note-title-field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.note-title-row .note-title {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.focus-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 4px;
+  line-height: 1;
+  opacity: 0.5;
+  transition: opacity var(--transition);
+  flex-shrink: 0;
+}
+
+.focus-btn:hover {
+  opacity: 1;
+  border-color: var(--border);
+}
+
+.focus-btn.active {
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* ──── 结构化文档目录 ──── */
+
+.document-outline-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.document-outline-toggle {
+  min-width: 38px;
+  font-size: 12px;
+}
+
+.document-bookmark-toggle {
+  font-size: 12px;
+}
+
+.document-outline-panel {
+  position: absolute;
+  top: 38px;
+  right: 48px;
+  z-index: 40;
+  width: min(420px, calc(100% - 64px));
+  max-height: min(58vh, 440px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  /* 与正文底色拉开一层，但仍跟随明暗主题。 */
+  background: color-mix(in srgb, var(--surface) 82%, var(--border));
+  box-shadow: 0 8px 24px var(--shadow-color, rgba(0, 0, 0, 0.18));
+}
+
+.focus-mode .document-outline-panel {
+  top: 8px;
+}
+
+.document-outline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  flex: 0 0 37px;
+  height: 37px;
+}
+
+.document-outline-header-primary,
+.document-outline-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 20px;
+}
+
+.document-outline-header-primary > span {
+  flex: none;
+}
+
+.document-outline-count {
+  flex: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.document-outline-jumps {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 2px;
+  height: 20px;
+}
+
+.document-outline-jumps.is-placeholder {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.document-outline-jumps button {
+  min-width: 0;
+  height: 20px;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.document-outline-jumps button:hover,
+.document-outline-jumps button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.document-outline-list {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-anchor: none;
+  padding: 4px 0;
+}
+
+.document-outline-window {
+  position: relative;
+  width: 100%;
+}
+
+.document-outline-list.is-virtualized .document-outline-item {
+  position: absolute;
+  right: 0;
+  left: 0;
+  content-visibility: visible;
+  contain-intrinsic-block-size: none;
+}
+
+.document-outline-item {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  min-width: 0;
+  gap: 3px;
+  min-height: 26px;
+  padding-block: 3px;
+  padding-inline-end: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: start;
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 45px;
+}
+
+.document-outline-item:hover,
+.document-outline-item:focus-within {
+  background: var(--hover-bg);
+  outline: none;
+}
+
+.document-outline-fold,
+.document-outline-link {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.document-outline-fold {
+  flex: 0 0 18px;
+  width: 18px;
+  padding: 2px 0;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.document-outline-link {
+  display: flex;
+  align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+  padding: 0;
+  text-align: start;
+}
+
+.document-outline-header-actions > button,
+.document-outline-header-primary > button {
+  height: 20px;
+  padding: 2px 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.document-outline-header-actions > button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.document-outline-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 13;
+  width: 12px;
+  background: transparent;
+  cursor: col-resize !important;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  pointer-events: auto;
+  display: none;
+}
+
+.document-outline-resize-handle.left {
+  left: -6px;
+}
+
+.document-outline-resize-handle.right {
+  right: -6px;
+}
+
+.document-outline-resize-handle::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 1px;
+  margin-inline: auto;
+  background: var(--border);
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.document-outline-resize-handle:hover::after {
+  background: var(--accent);
+  opacity: 0.5;
+}
+
+@media (min-width: 769px) {
+  .outline-docked-left .document-outline-panel,
+  .outline-docked-right .document-outline-panel {
+    top: 0;
+    bottom: 0;
+    z-index: 12;
+    width: var(--note-outline-docked-width, 280px);
+    max-height: none;
+    border-top: 0;
+    border-bottom: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .outline-docked-left .document-bookmark-panel,
+  .outline-docked-right .document-bookmark-panel {
+    top: 0;
+  }
+
+  .outline-docked-left .document-outline-panel {
+    right: auto;
+    left: 0;
+    border-left: 0;
+  }
+
+  .outline-docked-right .document-outline-panel {
+    right: 0;
+    left: auto;
+    border-right: 0;
+  }
+
+  .outline-docked-left.outline-docked-open .note-editor-scroll {
+    margin-left: var(--note-outline-docked-width, 280px);
+  }
+
+  .outline-docked-right.outline-docked-open .note-editor-scroll {
+    margin-right: var(--note-outline-docked-width, 280px);
+  }
+
+  .outline-docked-left .document-outline-resize-handle.right,
+  .outline-docked-right .document-outline-resize-handle.left {
+    display: block;
+  }
+}
+
+.focus-mode.note-editor-readonly .ProseMirror {
+  touch-action: manipulation;
+}
+
+.document-outline-item.current {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.document-outline-level {
+  flex-shrink: 0;
+  width: 16px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.document-outline-text {
+  display: -webkit-box;
+  flex: 1;
+  overflow: hidden;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* ──── 文档书签 ──── */
+
+.document-bookmark-panel {
+  position: absolute;
+  top: 38px;
+  right: 48px;
+  z-index: 41;
+  width: min(420px, calc(100vw - 48px));
+  max-height: min(58vh, 440px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  box-shadow: 0 8px 24px var(--shadow-color, rgba(0, 0, 0, 0.18));
+}
+
+.focus-mode .document-bookmark-panel {
+  top: 8px;
+}
+
+/* 普通模式的按钮浮层以文档区居中；固定目录和专注模式保持原定位。 */
+.note-editor:not(.focus-mode):not(.outline-docked-left):not(.outline-docked-right) > .document-outline-panel,
+.note-editor:not(.focus-mode) > .document-bookmark-panel {
+  left: 8px;
+  right: 8px;
+  width: min(420px, calc(100% - 16px));
+  margin-inline: auto;
+}
+
+.document-bookmark-header,
+.document-bookmark-item {
+  display: flex;
+  align-items: center;
+}
+
+.document-bookmark-header {
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.document-bookmark-header span:last-child {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.document-bookmark-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.document-bookmark-item {
+  gap: 2px;
+  border-radius: 4px;
+}
+
+.document-bookmark-item:hover {
+  background: var(--hover-bg);
+}
+
+.document-bookmark-item > button {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.document-bookmark-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding-right: 4px;
+}
+
+.document-bookmark-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 17px;
+}
+
+.document-bookmark-edit:hover,
+.document-bookmark-edit:focus-visible {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.document-bookmark-delete:hover,
+.document-bookmark-delete:focus-visible {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.document-bookmark-jump {
+  display: flex;
+  align-items: center;
+  flex: 1 !important;
+  min-width: 0;
+  gap: 7px;
+  padding: 4px 6px;
+  color: var(--text) !important;
+  text-align: start;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.document-bookmark-item.is-current .document-bookmark-jump {
+  /* Keep the swipe foreground opaque so hidden actions do not show through. */
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+  color: var(--accent) !important;
+}
+
+.document-bookmark-item.is-current .document-bookmark-index {
+  font-weight: 700;
+}
+
+.document-bookmark-jump span:last-child {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-bookmark-index {
+  flex: 0 0 32px;
+  color: var(--accent);
+  font: 12px/1.2 var(--font-mono);
+  text-align: center;
+}
+
+.editor-block-bookmark {
+  position: absolute;
+  z-index: 3;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+
+.editor-block-bookmark.without-number {
+  /* Match the fold control's centre; stay below the glyph in both states. */
+  left: 2px;
+  width: 10px;
+  height: 2px;
+  transform: translateY(8px);
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--accent) 72%, transparent);
+}
+
+/* 书签跳转后的单次定位提示：正文块与沟槽标记同步淡出。 */
+.bookmark-jump-target {
+  animation: bookmark-jump-target-pulse 1.4s ease-out;
+}
+
+.editor-block-number.bookmark-jump-gutter {
+  animation: bookmark-jump-number-pulse 1.4s ease-out;
+}
+
+.editor-block-bookmark.bookmark-jump-gutter {
+  animation: bookmark-jump-marker-pulse 1.4s ease-out;
+}
+
+@keyframes bookmark-jump-target-pulse {
+  0%, 30% {
+    outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+    outline-offset: 2px;
+    box-shadow: inset 4px 0 color-mix(in srgb, var(--accent) 88%, transparent);
+  }
+  100% {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: inset 4px 0 transparent;
+  }
+}
+
+@keyframes bookmark-jump-number-pulse {
+  0%, 30% {
+    color: var(--accent);
+    opacity: 1;
+    text-shadow: 0 0 7px color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+  100% {
+    text-shadow: 0 0 0 transparent;
+  }
+}
+
+@keyframes bookmark-jump-marker-pulse {
+  0%, 30% {
+    background: var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 24%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.document-bookmark-empty {
+  padding: 20px 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.document-bookmark-add {
+  margin: 4px 8px 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.focus-mode .note-title-row {
+  /* Mobile retains its separate focus bar. Desktop workspaces explicitly
+     overrides this above to reuse the normal title row. */
+  display: none;
+}
+
+.focus-mode .tag-bar {
+  display: none !important;
+}
+
+.focus-mode .editor-menu {
+  display: none !important;
+}
+
+.mobile-focus-bar {
+  display: none;
+}
+
+/* Desktop mounts the same focus actions into the app header. */
+.desktop-focus-toolbar { flex: 1; min-width: 0; -webkit-app-region: no-drag; }
+.desktop-focus-toolbar ~ .header-spacer { display: none; }
+.desktop-focus-toolbar .mobile-focus-bar { display: flex; align-items: center; justify-content: flex-end; gap: 4px; min-width: 0; }
+.desktop-focus-toolbar .mobile-focus-title-wrap { position: relative; flex: 0 1 auto; min-width: 0; max-width: 40vw; margin-right: 12px; }
+.desktop-focus-toolbar .mobile-focus-title { display: block; width: 100%; border: 0; padding: 0; background: transparent; color: var(--text); font: inherit; font-weight: 600; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; }
+.desktop-focus-toolbar .mobile-focus-full-title { position: absolute; top: 100%; left: 0; max-width: 100%; max-height: 40dvh; overflow: auto; overflow-wrap: anywhere; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; z-index: 60; }
+.desktop-focus-toolbar .mobile-focus-bar > button { position: relative; display: grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 0; margin: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-secondary); cursor: pointer; }
+.desktop-focus-toolbar .focus-mode-icon { width: 17px; height: 17px; }
+.desktop-focus-toolbar .mobile-focus-bar > button:is(:hover, .active, [aria-expanded="true"]) { color: var(--accent); background: color-mix(in srgb, var(--accent) 11%, var(--bg)); }
+.desktop-focus-toolbar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.desktop-focus-toolbar .focus-bookmark-count, .desktop-focus-toolbar .focus-source-position { position: absolute; top: -3px; right: 0; font-size: 9px; }
+.desktop-focus-toolbar + .header-spacer + .header-right { gap: 4px; }
+.app-focus-mode:has(.desktop-focus-toolbar) .header-right .btn-icon { width: 28px; height: 28px; margin: 0; }
+.app-focus-mode:has(.desktop-focus-toolbar) .header-btn-gap { display: none; }
+.focus-mode.focus-toolbar-expanded .editor-menu { display: flex !important; }
+
+.focus-mode .editor-stats {
+  display: none !important;
+}
+
+.focus-mode .editor-stats-has-search-navigation {
+  display: flex !important;
+}
+
+.focus-mode .debug-panel {
+  display: none !important;
+}
+
+/* ── 全局专注模式：压缩 header ── */
+
+.app-focus-mode .app-header {
+  padding: 4px 12px;
+  gap: 4px;
+}
+
+.app-focus-mode .date-picker,
+.app-focus-mode .daily-overview {
+  display: none;
+}
+
+.app-focus-mode .search-bar {
+  max-width: 120px;
+}
+
+.app-focus-mode .search-input {
+  font-size: 12px;
+  padding: 2px 20px 2px 6px;
+}
+
+.app-focus-mode .app-header .btn-icon {
+  width: 24px;
+  height: 24px;
+  font-size: 14px;
+}
+
+/* 专注阅读时保留待办面板状态，但不显示新增入口；退出后原输入内容仍在。 */
+.app-focus-mode .app-main-todo .todo-input {
+  display: none;
+}
+
+/* ──── Sidebar Hidden ──── */
+
+.sidebar-hidden {
+  width: 0 !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  border-right: none !important;
+  flex: 0 !important;
+}
+
+/* ──── Show-sidebar button in header ──── */
+
+.btn-show-sidebar {
+  margin-right: 4px;
+}
+
+/* ──── Sidebar Divider ──── */
+
+.sidebar-divider {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  /* 扩大触控区域：左右各 8px 透明延伸 */
+}
+.sidebar-divider::before {
+  content: "";
+  position: absolute;
+  inset: 0 -8px;
+}
+/* 始终显示一条半透明线 */
+.sidebar-divider::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--border);
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.sidebar-divider:hover::after {
+  background: var(--accent);
+  opacity: 0.5;
+}
+
+/* 侧栏完全隐藏 */
+.sidebar-collapsed {
+  border-right: none !important;
+  overflow: hidden !important;
+}
+
+/* ──── App Main Layout ──── */
+
+.app-main {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The parent clips the companion editor when the reader fills the workspace.
+   Never squeeze a mounted long document into a zero-width column. */
+.app-main.reader-companion-editor { min-width: 320px; }
+body.app-sidebar-dragging .app-main {
+  flex: 0 0 var(--sidebar-drag-editor-width, 320px);
+  min-width: 320px;
+}
+
+.app-main-split {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-main-todo {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* 空待办只占标题与输入框的实际高度，不沿用拖拽保存的面板比例。 */
+.app-main-todo-empty .todo-list {
+  height: auto;
+}
+
+.app-main-divider {
+  height: 4px;
+  cursor: row-resize;
+  background: transparent;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Keep the todo input clear of the splitter's expanded touch target. */
+.app:not(.app-focus-mode) .app-main-divider:not(.divider-collapsed) {
+  margin-top: 12px;
+}
+
+.app-main-divider::before {
+  content: "";
+  position: absolute;
+  inset: -8px 0;
+}
+.app-main-divider::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--border);
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.app-main-divider:hover::after {
+  background: var(--accent);
+  opacity: 0.5;
+}
+
+/* splitter 拖动时，阻止 iOS 在手指经过输入框或正文时显示文本选区。 */
+body.app-split-dragging,
+body.app-split-dragging * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+/* splitter 是两个面板的兄弟元素，保持可拖动。面板内显式声明了
+   pointer-events: auto 的块号/+ 等也必须禁用，避免覆盖祖先的继承值。 */
+body.app-split-dragging :is(.app-main-editor, .app-main-todo),
+body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
+  pointer-events: none !important;
+}
+
+/* 折叠状态：窄条手柄，可向下拖拽展开待办 */
+.divider-collapsed {
+  height: 10px;
+  cursor: s-resize;
+}
+.divider-collapsed::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--text-secondary);
+  opacity: 0.25;
+  pointer-events: none;
+}
+.divider-collapsed:hover::after {
+  opacity: 0.5;
+  background: var(--accent);
+}
+
+.app-main-editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ──── Drag & Drop ──── */
+
+.drag-handle {
+  cursor: grab;
+  color: var(--text-secondary);
+  opacity: 0.3;
+  font-size: 14px;
+  padding: 0 4px;
+  user-select: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.dragging {
+  opacity: 0.4;
+}
+
+.drag-over {
+  border-top: 2px solid var(--accent);
+}

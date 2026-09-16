@@ -1,9 +1,9 @@
 /** CSS theme token contract: every var() without a fallback must be defined. */
-import { readFileSync } from "node:fs";
+import { readStylesheet } from "./css-source";
 
 // Component styles share the same theme-token contract as application chrome.
 const css = ["../src/styles.css", "../src/components/ReaderToolbar.css", "../src/components/RecycleBin.css"]
-  .map((path) => readFileSync(new URL(path, import.meta.url), "utf8"))
+  .map((path) => readStylesheet(new URL(path, import.meta.url)))
   .join("\n");
 const definitions = new Set(
   Array.from(css.matchAll(/(--[a-zA-Z0-9-]+)\s*:/g), (match) => match[1]),

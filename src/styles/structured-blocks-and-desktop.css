@@ -1,0 +1,624 @@
+/* ──── 代码块行号 ──── */
+
+.code-block-language {
+  max-width: 116px;
+  height: 20px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  color: var(--text-secondary);
+  font: 10px/18px var(--font);
+  cursor: pointer;
+  opacity: 0.72;
+  /* contenteditable=false 仍会被 Chromium/WebView2 的 Ctrl+A DOM 选区纳入；
+     显式禁止选择，避免语言名称进入整篇文档的剪贴板文本。 */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.code-block-language:hover,
+.code-block-language:focus-visible {
+  color: var(--text);
+  border-color: var(--accent);
+  opacity: 1;
+}
+
+.code-block-language:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.code-block-copy {
+  min-width: 28px;
+  height: 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.code-block-copy:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.code-block-wrap {
+  /* 保持块级布局，并为代码工具栏提供定位上下文。 */
+  position: relative;
+}
+
+.code-block-frame {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--code-bg);
+}
+
+.code-block-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 28px;
+  padding: 3px 5px;
+  border-bottom: 0;
+  background: var(--code-bg);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.code-block-title {
+  flex: 1;
+  min-width: 60px;
+  height: 22px;
+  padding: 1px 5px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: 11px/18px var(--font);
+  text-align: left;
+  text-overflow: ellipsis;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.code-block-title:hover,
+.code-block-title:focus {
+  color: var(--text);
+  outline: none;
+}
+
+.code-block-title:disabled {
+  /* 简介是文档内容：只读只禁止修改，不隐藏；避免 Safari 淡化禁用输入的文字。 */
+  opacity: 1;
+  -webkit-text-fill-color: var(--text-secondary);
+}
+
+.code-block-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--block-toolbar-gap);
+}
+
+.code-block-collapse-toggle,
+.code-block-wrap-toggle {
+  height: 22px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font: 10px/18px var(--font);
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.code-block-wrap-toggle.active {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+  color: var(--accent);
+}
+
+.code-block-collapse-toggle {
+  width: 22px;
+  padding: 1px 3px;
+}
+
+.code-block-collapse-toggle:hover:not(:disabled),
+.code-block-wrap-toggle:hover:not(:disabled),
+.code-block-copy:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.code-block-inner {
+  display: flex;
+  background: var(--code-bg);
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", monospace;
+  font-size: 0.95em;
+  /* 与 .editor-content pre code 的 1.5 保持一致，避免行号逐行漂移。 */
+  line-height: 1.5;
+}
+
+.code-block-wrap.collapsed .code-block-inner {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.code-block-gutter {
+  display: none;
+  flex-shrink: 0;
+  /* 代码有 1px 边框和 4px 内边距；从同一首行基线开始。 */
+  padding: 6px 2px 6px 0;
+  text-align: right;
+  user-select: none;
+  border-right: 0;
+  margin-right: 3px;
+  min-width: 1ch;
+}
+
+.code-block-gutter span {
+  display: block;
+  font: inherit;
+  color: var(--text-secondary);
+  line-height: inherit;
+}
+
+.show-code-line-numbers .code-block-gutter {
+  display: block;
+}
+
+/* 主块号开启时 code 的纵向 padding 为 2px，仍需计入 1px 边框。 */
+.show-line-numbers .code-block-gutter {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.code-block-inner pre {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  margin: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  line-height: inherit;
+}
+
+/* 无 main 行号时，code 元素显示深色背景 */
+.ProseMirror .code-block-inner pre code {
+  display: block;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 1em;
+}
+
+/* pre-wrap normally prefers the break point after leading indentation over
+   breaking inside a long shell token. That can leave the indentation alone on
+   a visual row. Code-wrap mode may break between characters so the first part
+   of the token stays with its indentation; the underlying text is unchanged. */
+.ProseMirror .code-block-wrap[data-code-wrap="true"] .code-block-inner pre code {
+  word-break: break-all;
+}
+
+.ProseMirror .code-block-wrap[data-code-wrap="false"] .code-block-inner pre code {
+  min-width: max-content;
+  white-space: pre;
+}
+
+/* 外框由 code-block-frame 统一绘制，使工具栏和正文成为一个连续块。 */
+.ProseMirror .code-block-wrap .code-block-inner pre code,
+.show-line-numbers .ProseMirror > .code-block-wrap .code-block-inner pre code,
+.show-line-numbers .ProseMirror .code-block-wrap .code-block-inner pre code {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* ──── 可折叠引用块 ──── */
+
+.blockquote-wrap {
+  position: relative;
+}
+
+/* NodeView 的工具栏禁止进入选区，但引用正文必须显式允许跨段落选择；
+   iOS 对嵌套 contenteditable 的默认 user-select 继承较严格，长选区会在
+   节点边界被截断。 */
+.blockquote-content,
+.blockquote-content > * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.blockquote-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--block-toolbar-gap);
+  min-height: 28px;
+  /* Match the code toolbar's 5px inset plus its outer 1px border. */
+  padding: 4px 6px 4px 0;
+  margin-bottom: 0;
+  color: var(--text-secondary);
+  font: 11px/1.4 var(--font);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.blockquote-toolbar > span:first-child { margin-right: auto; }
+
+.blockquote-toolbar button:not(.block-workspace-open) {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  outline: none;
+  box-shadow: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.blockquote-fold-icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  font: 10px/1 var(--font);
+}
+
+.blockquote-toolbar button:active .blockquote-fold-icon,
+.blockquote-toolbar button:focus-visible .blockquote-fold-icon {
+  border-color: var(--accent);
+  background: var(--surface);
+  color: var(--accent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .blockquote-toolbar button:hover .blockquote-fold-icon {
+    border-color: var(--border);
+    color: var(--accent);
+  }
+}
+
+.blockquote-wrap[data-collapsed="true"] .blockquote-content {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .blockquote-toolbar {
+    min-height: 28px;
+    margin-bottom: 0;
+  }
+
+  .blockquote-toolbar button {
+    touch-action: manipulation;
+  }
+
+  .blockquote-content > :first-child {
+    margin-top: 0;
+  }
+
+  .blockquote-content > :last-child {
+    margin-bottom: 0;
+  }
+}
+
+/* 语法高亮仅由 decorations 绘制，不写入文档内容。颜色使用主题 token，
+   因此切换主题无需重新运行高亮器。 */
+.code-syntax-highlighted .hljs-comment,
+.code-syntax-highlighted .hljs-quote {
+  color: color-mix(in srgb, var(--text-secondary) 82%, transparent);
+  font-style: italic;
+}
+
+.code-syntax-highlighted :is(.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-section, .hljs-link) {
+  color: color-mix(in srgb, var(--danger) 82%, var(--text));
+}
+
+.code-syntax-highlighted :is(.hljs-string, .hljs-title, .hljs-name, .hljs-type, .hljs-attribute, .hljs-symbol, .hljs-bullet, .hljs-addition) {
+  color: color-mix(in srgb, var(--success) 82%, var(--text));
+}
+
+.code-syntax-highlighted :is(.hljs-number, .hljs-built_in, .hljs-variable, .hljs-template-variable, .hljs-selector-class, .hljs-selector-id) {
+  color: color-mix(in srgb, var(--accent) 86%, var(--text));
+}
+
+.code-syntax-highlighted :is(.hljs-meta, .hljs-regexp, .hljs-deletion) {
+  color: color-mix(in srgb, #b45f06 82%, var(--text));
+}
+
+.code-syntax-highlighted :is(.hljs-strong, .hljs-title.class_) {
+  font-weight: 700;
+}
+
+.code-syntax-highlighted .hljs-emphasis {
+  font-style: italic;
+}
+
+/* 行内代码 */
+.ProseMirror code:not(.code-block-inner code) {
+  font-family: "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", monospace;
+  font-size: 0.9em;
+  background: var(--code-bg);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+/* ═══════════════════════════════════════════
+   Frameless 自定义标题栏
+   ═══════════════════════════════════════════ */
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  background: var(--bg);
+  flex-shrink: 0;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+/* Frameless 窗口的拖拽区域不能覆盖交互控件。 */
+.titlebar-controls,
+.titlebar-btn {
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-title {
+  padding-left: 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: 0.3px;
+}
+
+.titlebar-logo {
+  vertical-align: middle;
+  margin-right: 5px;
+  margin-top: -1px;
+}
+
+.titlebar-controls {
+  display: flex;
+  margin-left: auto;
+  height: 100%;
+}
+
+.titlebar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: background 0.15s, color 0.15s;
+}
+
+.titlebar-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.titlebar-btn-close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+.settings-retry {
+  margin-top: 10px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-hover);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.doc-tree-error-detail {
+  max-width: 220px;
+  margin-top: 5px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  text-align: center;
+  word-break: break-word;
+}
+
+/* ═══════════════════════════════════════════
+   Quick Capture 迷你窗口
+   Frameless：窗口无标题栏，CSS 提供拖拽手柄
+   ═══════════════════════════════════════════ */
+
+.qc-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  user-select: none;
+}
+
+.qc-drag-handle {
+  height: 28px;
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.qc-textarea {
+  flex: 1;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 12px 14px;
+}
+
+.qc-textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.qc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+
+.qc-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.qc-submit {
+  font-size: 12px;
+  padding: 4px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.qc-submit:hover {
+  opacity: 0.85;
+}
+
+/* ═══════════════════════════════════════════
+   快捷键配置
+   ═══════════════════════════════════════════ */
+
+.hotkey-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hotkey-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hotkey-label {
+  width: 80px;
+  font-size: 13px;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.hotkey-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.hotkey-btn:hover {
+  border-color: var(--accent);
+}
+
+.hotkey-btn kbd {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.hotkey-input {
+  background: var(--bg);
+  border: 1px dashed var(--accent);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--accent);
+  width: 160px;
+  outline: none;
+}
+
+.hotkey-input.recording {
+  animation: hotkey-pulse 1s ease-in-out infinite;
+}
+
+.hotkey-reserved-note,
+.hotkey-recording-error {
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.hotkey-recording-error {
+  color: var(--danger);
+}
+
+@keyframes hotkey-pulse {
+  0%, 100% { border-color: var(--accent); }
+  50% { border-color: transparent; }
+}
+
+.hotkey-reset {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 4px;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.hotkey-reset:hover:not(:disabled) {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.hotkey-reset:disabled {
+  visibility: hidden;
+}

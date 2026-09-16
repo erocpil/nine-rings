@@ -5,13 +5,13 @@ async function seedNotes(page: Page) {
   await expect(page.locator(".ProseMirror")).toBeVisible();
   const ids = await page.evaluate(async () => {
     const load = (path: string) => import(/* @vite-ignore */ path);
-    const { api } = await load("/src/lib/api.ts");
+    const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");
     const { localDateKey } = await load("/src/lib/local-date.ts");
     const notes = [];
     for (const title of ["拆分验证甲", "拆分验证乙"]) {
-      notes.push(await api.notes.create({ title, date: localDateKey(), content: { ops: [{ insert: `${title}正文` }, { insert: "\n" }] } }));
+      notes.push(await api.notes.create({ title, date: localDateKey(), storagePath: "references", content: { ops: [{ insert: `${title}正文` }, { insert: "\n" }] } }));
     }
-    localStorage.setItem("nr:sidebarTab", "daily");
+    localStorage.setItem("nr:sidebarTab", "tree");
     localStorage.setItem("nr:sidebarHidden", "false");
     localStorage.setItem("nr:lastNote", notes[0].id);
     localStorage.setItem("nr:workspaceTarget", JSON.stringify({ kind: "note", noteId: notes[0].id }));
@@ -19,7 +19,7 @@ async function seedNotes(page: Page) {
   });
   await page.reload();
   // Exercise actual navigation; startup restoration is covered separately.
-  await page.locator(".sidebar-item").filter({ hasText: "拆分验证甲" }).click();
+  await page.locator(".doc-tree-doc").filter({ hasText: "拆分验证甲" }).click();
   await expect(page.locator(".ProseMirror")).toHaveText("拆分验证甲正文");
   return ids;
 }
@@ -100,7 +100,7 @@ test("切换文档后右键菜单和链接对话框只更新当前文档", async
   const ids = await seedNotes(page);
   const editor = page.locator(".ProseMirror");
   for (const title of ["拆分验证甲", "拆分验证乙"]) {
-    await page.locator(".sidebar-item").filter({ hasText: title }).click();
+    await page.locator(".doc-tree-doc").filter({ hasText: title }).click();
     await expect(editor).toHaveText(`${title}正文`);
     await selectLine(page, `${title}正文`);
     await editor.evaluate((element) => element.dispatchEvent(new MouseEvent("contextmenu", {

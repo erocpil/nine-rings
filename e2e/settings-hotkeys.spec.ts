@@ -1,0 +1,37 @@
+import { expect, test } from "@playwright/test";
+
+test("快捷键录制、取消和恢复默认跨设置页保留", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("设置", { exact: true }).click();
+  const openHotkeys = () => page.getByRole("button", { name: /^工作流与快捷键/ }).click();
+  await openHotkeys();
+  const row = page.locator(".hotkey-row").first();
+  const original = await row.locator("kbd").innerText();
+  await row.locator(".hotkey-btn").click();
+  await row.locator("input").press("Escape");
+  await expect(page.locator(".settings-overlay")).toHaveCount(0);
+  await page.getByTitle("设置", { exact: true }).click();
+  await openHotkeys();
+  await expect(row.locator("kbd")).toHaveText(original);
+  await row.locator(".hotkey-btn").click();
+  await row.locator("input").press("Control+Alt+9");
+  await expect(row.locator("kbd")).toContainText("9");
+  await page.getByLabel("返回设置分类").click();
+  await openHotkeys();
+  await expect(row.locator("kbd")).toContainText("9");
+  await row.getByTitle("恢复默认").click();
+  await expect(row.locator("kbd")).toHaveText(original);
+  await expect.poll(() => page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");
+    const { DEFAULT_HOTKEYS, HOTKEY_LABELS } = await load("/src/types/models.ts");
+    const { isWorkspaceShortcutEnabled } = await load("/src/lib/workspace-features.ts");
+    const id = Object.keys(HOTKEY_LABELS).find(isWorkspaceShortcutEnabled)!;
+    return (await api.config.get()).hotkeys[id] === DEFAULT_HOTKEYS[id];
+  })).toBe(true);
+  await page.getByLabel("关闭设置").click();
+  await page.reload();
+  await page.getByTitle("设置", { exact: true }).click();
+  await openHotkeys();
+  await expect(row.locator("kbd")).toHaveText(original);
+});

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
+import { readStylesheet } from "../css-source";
 
 const source = (path: string) =>
   readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -8,7 +9,9 @@ it("keeps the desktop clock removed, including its recurring render timer", () =
   expect(source("src/App.tsx")).not.toMatch(
     /header-clock|useClockAndDateRollover/,
   );
-  expect(source("src/styles.css")).not.toContain("header-clock");
+  expect(
+    readStylesheet(new URL("../../src/styles.css", import.meta.url)),
+  ).not.toContain("header-clock");
   expect(source("src/hooks/useDateRollover.ts")).not.toMatch(
     /useState|currentClock|1_000/,
   );

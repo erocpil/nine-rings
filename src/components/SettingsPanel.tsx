@@ -1,10 +1,11 @@
+import { HotkeyConfig } from "./SettingsHotkeys";
+import { Field, SettingsSection } from "./SettingsFields";
 import React, { useCallback, useEffect, useState, useRef } from "react";
 import "./settings-surfaces.css";
 import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import type { AppConfig, DocType, Note } from "../types/models";
-import { DEFAULT_HOTKEYS, HOTKEY_LABELS } from "../types/models";
-import { DAILY_NOTES_ENABLED, TODOS_ENABLED, isWorkspaceShortcutEnabled } from "../lib/workspace-features";
+import { DAILY_NOTES_ENABLED, TODOS_ENABLED } from "../lib/workspace-features";
 import { decodeTextImport, isTextImportFile, parseMetadataList, TEXT_IMPORT_ACCEPT, type TextImportSource } from "../lib/markdown-import";
 import { transformMarkdownBatch } from "../lib/data-transform-client";
 import { isTauri, importWithDialog } from "../lib/tauri-desktop";
@@ -15,7 +16,6 @@ import { EditorAppearancePanel } from "./EditorAppearancePanel";
 import { ImportPathPicker } from "./ImportPathPicker";
 import { BackupRestoreStatus } from "./BackupRestoreStatus";
 import { BackupExportStatus } from "./BackupExportStatus";
-import { isDocumentFindShortcut, isEditorLineJumpShortcut } from "../lib/shortcuts";
 import type { WebStorageStatus } from "../hooks/useWebPlatform";
 import { pwaUpdateStatusText, type PwaUpdateStatus } from "../lib/pwa-updates";
 import { useTransientMessage } from "../hooks/useTransientMessage";
@@ -1483,137 +1483,4 @@ function formatStorageBytes(bytes: number | null): string {
     unit = units[i];
   }
   return `${value.toFixed(value >= 10 ? 1 : 2)} ${unit}`;
-}
-
-// ── 快捷键配置 ──
-
-function HotkeyConfig({ config, onUpdate }: {
-  config: AppConfig;
-  onUpdate: (hk: Record<string, string>) => void;
-}) {
-  const [recordingId, setRecordingId] = useState<string | null>(null);
-  const [recordingError, setRecordingError] = useState<string | null>(null);
-
-  const startRecord = (id: string) => {
-    setRecordingError(null);
-    setRecordingId(id);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    e.preventDefault();
-    if (e.key === "Escape") {
-      setRecordingId(null);
-      return;
-    }
-    if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) return;
-
-    const parts: string[] = [];
-    if (e.ctrlKey || e.metaKey) parts.push("CommandOrControl");
-    if (e.altKey) parts.push("Alt");
-    if (e.shiftKey) parts.push("Shift");
-
-    const key = e.key.length === 1 ? e.key.toUpperCase() : e.key;
-    parts.push(key);
-
-    const shortcut = parts.join("+");
-    if (isDocumentFindShortcut(shortcut)) {
-      setRecordingError("Ctrl+F 已保留给 Vim 翻页，Cmd+F 与 Alt+F 已保留给当前文档查找。");
-      setRecordingId(null);
-      return;
-    }
-    if (isEditorLineJumpShortcut(shortcut)) {
-      setRecordingError("Alt+G 已保留给当前文档跳转行号，请使用其他组合键。");
-      setRecordingId(null);
-      return;
-    }
-    const updated = { ...config.hotkeys, [recordingId!]: shortcut };
-    onUpdate(updated);
-    setRecordingId(null);
-  };
-
-  const resetHotkey = (id: string) => {
-    const updated = { ...config.hotkeys, [id]: DEFAULT_HOTKEYS[id] };
-    onUpdate(updated);
-  };
-
-  return (
-    <div className="hotkey-list">
-      <div className="hotkey-reserved-note">Cmd+F、Alt+F：当前文档查找；Alt+G：跳转行号；Vim Normal/Visual 会优先接管 Ctrl 导航键，格式快捷键只在 Insert 生效</div>
-      {recordingError && <div className="hotkey-recording-error" role="status">{recordingError}</div>}
-      {Object.entries(HOTKEY_LABELS).filter(([id]) => isWorkspaceShortcutEnabled(id)).map(([id, label]) => {
-        const current = config.hotkeys?.[id] || DEFAULT_HOTKEYS[id];
-        const isRecording = recordingId === id;
-
-        return (
-          <div key={id} className="hotkey-row">
-            <span className="hotkey-label">{label}</span>
-            {isRecording ? (
-              <input
-                className={`hotkey-input recording`}
-                value="按下新快捷键…"
-                readOnly
-                onKeyDown={handleKeyDown}
-                onBlur={() => setRecordingId(null)}
-                autoFocus
-              />
-            ) : (
-              <button
-                className="hotkey-btn"
-                onClick={() => startRecord(id)}
-                title="点击修改快捷键"
-              >
-                <kbd>{formatShortcut(current)}</kbd>
-              </button>
-            )}
-            <button
-              className="hotkey-reset"
-              onClick={() => resetHotkey(id)}
-              title="恢复默认"
-              disabled={current === DEFAULT_HOTKEYS[id]}
-            >
-              ↺
-            </button>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function formatShortcut(s: string): string {
-  return s
-    .replace("CommandOrControl", navigator.platform.includes("Mac") ? "⌘" : "Ctrl")
-    .replace("Alt", navigator.platform.includes("Mac") ? "⌥" : "Alt")
-    .replace("Shift", navigator.platform.includes("Mac") ? "⇧" : "Shift")
-    .replace(/\+/g, " + ");
-}
-
-// ── 字段包装 ──
-
-function Field({ label, desc, children, visible = true }: { label: string; desc: string; children: React.ReactNode; visible?: boolean }) {
-  if (!visible) return null;
-  return (
-    <div className="settings-field">
-      <div className="settings-label">{label}</div>
-      <div className="settings-desc">{desc}</div>
-      <div className="settings-control">{children}</div>
-    </div>
-  );
-}
-
-// ── 分区标题 ──
-
-function SettingsSection({ title, desc, children, visible = true }: { title: string; desc: string; children: React.ReactNode; visible?: boolean }) {
-  if (!visible) return null;
-  return (
-    <div className="settings-section">
-      <div className="settings-section-header">
-        <div className="settings-section-title">{title}</div>
-        <div className="settings-section-desc">{desc}</div>
-      </div>
-      <div className="settings-section-body">
-        {children}
-      </div>
-    </div>
-  );
 }

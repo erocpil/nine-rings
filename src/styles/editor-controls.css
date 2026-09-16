@@ -1,0 +1,1320 @@
+/* ──── Editor ──── */
+
+.note-title {
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text);
+  /* 默认正文 16px 时仍为原来的 22px，并随排版字号同步缩放。 */
+  font-size: calc(var(--editor-font-size) * 1.375);
+  font-weight: 700;
+  padding: 4px 0;
+  margin-bottom: 4px;
+}
+
+.note-title:focus {
+  outline: none;
+}
+
+.editor-menu {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  gap: 4px;
+  padding: 3px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  margin-bottom: 6px;
+  align-items: center;
+  white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+.editor-menu::-webkit-scrollbar {
+  display: none;
+}
+
+.toolbar-compact {
+  position: relative;
+  z-index: 30;
+  padding: 2px 0;
+  margin-bottom: 4px;
+  overflow: visible;
+}
+
+.toolbar-compact .menu-dropdown-list {
+  z-index: 31;
+}
+
+.editor-menu {
+  --toolbar-button-bg: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.editor-menu > * {
+  flex-shrink: 0;
+}
+
+.toolbar-history-actions {
+  --toolbar-button-bg: transparent;
+  display: inline-flex;
+  gap: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.toolbar-history-icon {
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.toolbar-icon {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  vertical-align: middle;
+}
+
+.editor-menu .menu-btn {
+  background: var(--toolbar-button-bg, color-mix(in srgb, var(--text) 4%, transparent));
+  border-radius: 8px;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.toolbar-dropdown-caret {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.editor-menu .menu-btn.active,
+.editor-menu .menu-btn[aria-expanded="true"] {
+  background: var(--active-bg);
+  color: var(--accent);
+  border-color: transparent;
+}
+
+.editor-menu .menu-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.editor-menu .menu-sep {
+  display: none;
+}
+
+.save-status .toolbar-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.toolbar-status-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.toolbar-history-icon-undo {
+  transform: translateX(3px);
+}
+
+.toolbar-history-icon-redo {
+  transform: translateX(-3px);
+}
+
+.toolbar-secondary {
+  display: contents;
+}
+
+.toolbar-secondary > [data-toolbar-overflow="true"] {
+  display: none;
+}
+
+.toolbar-secondary > * { flex-shrink: 0; }
+.toolbar-font-actions { display: inline-flex; align-items: center; gap: 3px; }
+
+.toolbar-full .menu-dropdown-list {
+  max-height: min(75vh, 460px);
+}
+
+/* Desktop icon groups stay on one line, including contextual table actions. */
+.editor-menu.toolbar-full {
+  gap: 2px;
+  /* Like the compact toolbar, allow anchored menus below the toolbar's row.
+     overflow-x:auto also clips the Y axis, hiding size/color/block options. */
+  overflow: visible;
+  position: relative;
+  z-index: 30;
+}
+
+.toolbar-full .menu-btn {
+  padding-inline: 3px;
+}
+
+.toolbar-full .menu-sep {
+  margin-inline: 1px;
+}
+
+.toolbar-table-menu,
+.toolbar-more-menu {
+  position: relative;
+}
+
+.table-context-menu,
+.toolbar-more-list {
+  min-width: 190px;
+  max-height: min(70vh, 420px);
+  overflow-y: auto;
+}
+
+.table-selection-hint {
+  max-width: 240px;
+  padding: 6px 10px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.menu-dropdown-list.toolbar-more-list {
+  right: 0;
+  left: auto;
+  margin-top: 8px;
+}
+
+.menu-dropdown-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 190px;
+  padding: 6px 10px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.menu-dropdown-control select,
+.menu-dropdown-control input {
+  min-width: 64px;
+}
+
+.editor-find-bar {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: auto;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: min(420px, calc(100% - 108px));
+  margin: 0;
+  padding: 4px;
+  gap: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 2px 8px var(--shadow-color, rgba(0, 0, 0, 0.15));
+}
+
+.editor-find-row { display: flex; align-items: center; gap: 3px; min-width: 0; }
+.editor-find-options { padding: 0 6px; }
+.editor-find-options label { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; color: var(--text-muted); font-size: 12px; }
+.editor-find-bar .editor-find-options input { flex: none; width: 16px; min-width: 16px; height: 16px; margin: 0; padding: 0; }
+.editor-find-bar .editor-find-replace-toggle { width: auto; padding-inline: 4px; white-space: nowrap; }
+.editor-find-bar .editor-replace-action { width: auto; padding-inline: 6px; white-space: nowrap; }
+.editor-replace-status { display: flex; align-items: center; justify-content: space-between; gap: 4px; font-size: 11px; color: var(--text-muted); padding: 3px 6px; }
+
+.editor-find-bar input {
+  flex: 1;
+  min-width: 80px;
+  padding: 4px 6px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.editor-find-count {
+  min-width: 34px;
+  color: var(--text-secondary);
+  text-align: center;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-find-bar button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.editor-find-bar button:hover:not(:disabled) {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.editor-find-bar button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+@media (max-width: 768px), (pointer: coarse) and (max-height: 600px) {
+  .editor-find-bar { left: 6px; right: auto; width: min(420px, calc(100% - 12px)); box-sizing: border-box; }
+  .editor-find-bar input { font-size: 16px; min-width: 0; }
+  .editor-find-bar button { flex-shrink: 0; }
+}
+
+.editor-line-jump {
+  position: absolute;
+  top: 6px;
+  right: 92px;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  width: min(300px, calc(100% - 108px));
+  min-height: 34px;
+  padding: 4px 5px 4px 8px;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 2px 8px var(--shadow-color, rgba(0, 0, 0, 0.15));
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.editor-line-jump label {
+  flex-shrink: 0;
+}
+
+.editor-line-jump input {
+  width: 62px;
+  min-width: 42px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  outline: none;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-line-jump input:focus {
+  border-color: var(--accent);
+}
+
+.editor-line-jump-range,
+.editor-line-jump-error {
+  flex: 1;
+  min-width: 42px;
+  white-space: nowrap;
+}
+
+.editor-line-jump-error {
+  color: var(--danger);
+}
+
+.editor-line-jump button {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.editor-line-jump button:hover {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.menu-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.menu-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.menu-btn:disabled:hover {
+  background: none;
+  border-color: transparent;
+}
+
+.menu-btn:hover,
+.menu-btn.active {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+/* 触屏浏览器会在菜单关闭后保留最后一个按钮的 :hover，造成灰色状态残留。 */
+@media (hover: none) {
+  .menu-btn:hover:not(.active):not([aria-expanded="true"]) {
+    background: var(--toolbar-button-bg, transparent);
+    border-color: transparent;
+    box-shadow: none;
+    color: var(--text-secondary);
+  }
+
+  .menu-dropdown-item:hover:not(.active) {
+    background: none;
+  }
+}
+
+.menu-btn-sm {
+  padding: 2px 4px;
+  font-size: 11px;
+  min-width: 0;
+}
+
+/* ── 菜单分隔线 ── */
+
+.menu-sep {
+  display: inline-block;
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 2px;
+  align-self: center;
+}
+
+.menu-font-size-label {
+  display: inline-block;
+  min-width: 14px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.save-status {
+  display: inline-block;
+  margin-left: auto;
+  padding-left: 4px;
+  font-size: 11px;
+  vertical-align: middle;
+}
+.save-status-dirty { color: var(--text-secondary); }
+.save-status-saving { color: #f59e0b; animation: pulse 1s infinite; }
+.save-status-saved { color: #10b981; }
+.save-status-error { color: #ef4444; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ── 工具栏扩展行 ── */
+
+.editor-menu-ext {
+  border-top: none;
+  padding-top: 0;
+  flex-wrap: wrap;
+}
+
+/* ── 下拉菜单 ── */
+
+.menu-dropdown {
+  position: relative;
+  display: inline-flex;
+}
+
+.menu-dropdown-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 100;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  min-width: 80px;
+  padding: 4px;
+  margin-top: 2px;
+  animation: fadeIn 0.1s ease;
+}
+
+.menu-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 4px 10px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.menu-dropdown-item:hover {
+  background: var(--bg);
+}
+
+.menu-dropdown-item.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ── 手机底部操作面板 ── */
+
+.mobile-action-sheet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 12px 8px calc(var(--app-visual-viewport-bottom-inset, 0px) + var(--safe-bottom) + 8px);
+  background: rgba(0, 0, 0, 0.38);
+  overscroll-behavior: contain;
+}
+
+.mobile-action-sheet-layer-anchored {
+  align-items: flex-start;
+  padding: 0 8px 8px;
+}
+
+.mobile-action-sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: min(
+    70dvh,
+    520px,
+    calc(100dvh - var(--safe-top) - var(--safe-bottom) - 20px)
+  );
+  overflow: hidden;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.38);
+  transition: transform 120ms ease-out;
+  will-change: transform;
+}
+
+.web-keyboard-open .mobile-action-sheet {
+  max-height: min(
+    520px,
+    calc(var(--app-viewport-height, 100dvh) - var(--safe-top) - var(--safe-bottom) - 20px)
+  );
+}
+
+.mobile-action-sheet-header {
+  position: relative;
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  align-items: center;
+  min-height: 48px;
+  padding: 5px 8px 3px;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+  touch-action: none;
+  user-select: none;
+}
+
+.mobile-action-sheet-header strong {
+  grid-column: 2;
+  font-size: 14px;
+}
+
+.mobile-action-sheet-handle {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  width: 34px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  transform: translateX(-50%);
+}
+
+.mobile-action-sheet-header button {
+  grid-column: 3;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.mobile-action-sheet-content {
+  min-height: 0;
+  padding: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-action-sheet-scroll-hint {
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  z-index: 2;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: 0 1px 6px var(--shadow-color, rgba(0, 0, 0, 0.16));
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.move-date-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px;
+}
+
+.move-date-field {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  flex-basis: 100%;
+}
+
+.move-date-error { flex-basis: 100%; color: var(--text); margin: 0; }
+.sidebar-action-message, .sidebar-action-hint { padding: 8px 12px; font-size: 12px; color: var(--text-secondary); }
+.sidebar-action-sheet .menu-dropdown-item:disabled { opacity: .45; cursor: not-allowed; }
+
+.move-date-input {
+  width: 100%;
+  min-height: 36px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--ui-radius-medium);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.mobile-action-sheet-content .menu-dropdown-item {
+  min-height: 44px;
+  padding: 9px 12px;
+  font-size: 15px;
+}
+
+.mobile-action-sheet-content .menu-dropdown-control {
+  min-height: 44px;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+
+/* Keep the complete mobile toolbar menu visible without shrinking tap targets. */
+.toolbar-more-sheet .mobile-action-sheet-content {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.toolbar-more-sheet .menu-dropdown-sep,
+.toolbar-more-sheet .toolbar-more-shortcut {
+  display: none;
+}
+
+.toolbar-more-sheet .menu-dropdown-item,
+.toolbar-more-sheet .menu-dropdown-control {
+  min-width: 0;
+  padding: 8px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.toolbar-more-sheet .menu-dropdown-control {
+  gap: 4px;
+}
+
+.toolbar-more-sheet .menu-dropdown-item,
+.toolbar-more-list .menu-dropdown-item,
+.toolbar-more-sheet .menu-dropdown-control > span,
+.toolbar-more-list .menu-dropdown-control > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-more-sheet .toolbar-icon,
+.toolbar-more-list .toolbar-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+
+.toolbar-more-sheet .menu-dropdown-control select,
+.toolbar-more-sheet .menu-dropdown-control input {
+  max-width: 76px;
+  min-height: 44px;
+}
+
+.toolbar-more-color-picker {
+  position: relative;
+  cursor: pointer;
+}
+
+.toolbar-more-color-picker:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Keep the native picker and keyboard accessibility, without a permanent swatch. */
+.toolbar-more-sheet .toolbar-more-color-picker input[type="color"],
+.toolbar-more-list .toolbar-more-color-picker input[type="color"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.toolbar-more-sheet .toolbar-more-clear-color {
+  grid-column: 1 / -1;
+}
+
+.menu-dropdown-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+.menu-dropdown-toggle {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* ── 取色器 ── */
+
+.color-preview {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 2px;
+  vertical-align: middle;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  min-width: 160px;
+  left: auto;
+  right: 0;
+}
+
+.color-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  margin: 1px;
+}
+
+.color-swatch:hover {
+  border-color: var(--accent);
+}
+
+.color-swatch.active {
+  border-color: var(--text);
+}
+
+/* ── 编辑器统计条 ── */
+
+.editor-stats {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 20px;
+  padding: 1px 0 0;
+  line-height: 1.25;
+  font-size: 11px;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.editor-stats-search-only {
+  min-height: 24px;
+}
+
+.editor-status-secondary {
+  display: contents;
+}
+
+.editor-status-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.stat-sep {
+  color: var(--border);
+}
+
+.editor-vim-status {
+  min-width: 48px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.editor-vim-status.vim-insert {
+  color: var(--success, #2e8b57);
+  background: color-mix(in srgb, var(--success, #2e8b57) 10%, transparent);
+}
+
+.editor-vim-status.vim-visual,
+.editor-vim-status.vim-visual-line {
+  color: var(--warning, #b36b00);
+  background: color-mix(in srgb, var(--warning, #b36b00) 10%, transparent);
+}
+
+.ProseMirror.vim-mode-enabled[data-vim-mode="normal"] {
+  caret-color: transparent;
+}
+
+.vim-normal-caret {
+  position: fixed;
+  z-index: 40;
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 1px;
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+.vim-normal-caret[hidden] {
+  display: none;
+}
+
+.stat-hint {
+  margin-left: auto;
+  opacity: 0.25;
+  font-size: 10px;
+  line-height: 1;
+  transition: opacity var(--transition);
+}
+
+.editor-stats:hover .stat-hint {
+  opacity: 0.6;
+}
+
+.editor-search-navigation {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-right: 4px;
+  padding-right: 6px;
+  border-right: 1px solid var(--border);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-search-navigation button {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  line-height: 20px;
+}
+
+.editor-search-navigation button:hover {
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.search-match {
+  background: color-mix(in srgb, var(--editor-search-highlight) 52%, transparent);
+  border-radius: 2px;
+}
+
+.search-match-active {
+  background: color-mix(in srgb, var(--accent) 28%, var(--editor-search-highlight));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+/* iOS 上关闭原生编辑菜单会清除 DOM Range；此 decoration 继续标出工具栏
+   将要处理的范围，直到用户重新触碰正文。 */
+.toolbar-preserved-selection {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  border-radius: 2px;
+}
+
+.btn-version-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 2px;
+  opacity: 0.5;
+  line-height: 1;
+  transition: opacity var(--transition);
+}
+.btn-version-icon:hover {
+  opacity: 1;
+}
+
+/* ── 调试日志面板 ── */
+
+.btn-debug-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 2px;
+  opacity: 0.5;
+  line-height: 1;
+  transition: opacity var(--transition);
+}
+.btn-debug-toggle:hover,
+.btn-debug-toggle.active {
+  opacity: 1;
+}
+
+.debug-panel {
+  max-height: 200px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.debug-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+}
+.debug-panel-title {
+  color: var(--text-secondary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+.debug-panel-clear {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0;
+  line-height: 1;
+}
+.debug-panel-clear:hover {
+  text-decoration: underline;
+}
+.debug-panel-body {
+  overflow-y: auto;
+  flex: 1;
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  padding: 4px 10px;
+}
+.debug-empty {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.debug-line {
+  color: var(--text-secondary);
+  word-break: break-all;
+  white-space: pre-wrap;
+  display: flex;
+  gap: 6px;
+}
+.debug-time {
+  color: var(--text-secondary);
+  opacity: 0.6;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.debug-msg {
+  flex: 1;
+}
+
+/* ── 图片 URL 对话框 ── */
+
+.image-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.15s ease;
+}
+
+.image-dialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 360px;
+  max-width: 90vw;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.image-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.image-dialog-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.image-dialog-close:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+
+.image-dialog-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.image-dialog-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.image-dialog-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.image-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* TipTap embed image */
+.editor-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  margin: 8px 0;
+}
+
+/* ── 可调大小图片 ── */
+
+.resizable-image-wrapper {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: 8px 0;
+}
+.resizable-image-wrapper img {
+  display: block;
+  border-radius: var(--radius);
+  max-width: 100%;
+  height: auto;
+}
+.resizable-image-wrapper[data-selected="true"] img {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  border-radius: 3px;
+  cursor: nwse-resize;
+  opacity: 0;
+  transition: opacity 0.15s;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.resizable-image-wrapper:hover .resize-handle,
+.resizable-image-wrapper[data-selected="true"] .resize-handle {
+  opacity: 1;
+}
+
+/* Readonly changes need no NodeView re-render or synthetic document update. */
+.note-editor-readonly .resizable-image-wrapper .resize-handle,
+.ProseMirror[contenteditable="false"] .resizable-image-wrapper .resize-handle {
+  display: none;
+  pointer-events: none;
+}
+
+.note-editor-readonly .resizable-image-wrapper[data-selected="true"] img,
+.ProseMirror[contenteditable="false"] .resizable-image-wrapper[data-selected="true"] img {
+  outline: none;
+}
+
+@media (hover: none), (pointer: coarse), (any-pointer: coarse) {
+  .resize-handle {
+    width: 28px;
+    height: 28px;
+  }
+
+  .resizable-image-wrapper img {
+    touch-action: manipulation;
+  }
+}
+
+.editor-content {
+  flex: 1;
+  min-height: 200px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+/* 文本选区只属于正文编辑区。移动端拖动长选区时，避免标题栏、工具栏
+   和状态栏被浏览器一并纳入原生选区。输入框/正文单独恢复可选。 */
+.note-editor,
+.note-editor .note-editor-sticky,
+.note-editor .editor-menu,
+.note-editor .note-title-row,
+.note-editor .editor-stats {
+  -webkit-user-select: none;
+  user-select: none;
+}
+.note-editor .note-title,
+.note-editor .editor-content,
+.note-editor .editor-content .ProseMirror {
+  -webkit-user-select: text;
+  user-select: text;
+}
+.note-editor .note-title-row,
+.note-editor .editor-menu,
+.note-editor .editor-menu button,
+.note-editor .note-title {
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.editor-content:focus {
+  outline: none;
+}
+
+.markdown-paste-notice {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 12px 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.markdown-paste-notice button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+}
+
+.readonly-change-notice {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 1;
+  max-width: 100%;
+  margin: 0;
+  padding: 3px 8px;
+  line-height: 1.3;
+  transform: translateY(-50%);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.readonly-change-notice > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 与左侧文档树保持相同的宽度、遮罩浓度和进出速度。使用 portal 避免编辑器裁切。 */
+.mobile-document-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100dvh;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.mobile-document-drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.web-keyboard-open .mobile-document-drawer {
+  top: var(--app-visual-viewport-offset-top, 0px);
+  left: var(--app-visual-viewport-offset-left, 0px);
+  width: var(--app-viewport-width, 100vw);
+  height: var(--app-viewport-height, 100dvh);
+}
+
+.mobile-document-drawer-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, calc(var(--app-viewport-width, 100vw) * 0.82));
+  max-width: calc(var(--app-viewport-width, 100vw) * 0.85);
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+  background: var(--drawer-surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.12);
+  transform: translateX(100%);
+  visibility: hidden;
+  transition: transform 0.25s ease, visibility 0s linear 0.25s;
+}
+
+.mobile-document-drawer.is-open {
+  pointer-events: auto;
+}
+
+.mobile-document-drawer.is-open .mobile-document-drawer-backdrop { opacity: 1; }
+.mobile-document-drawer.is-open .mobile-document-drawer-panel {
+  transform: translateX(0);
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.mobile-document-drawer .document-outline-panel,
+.mobile-document-drawer .document-bookmark-panel {
+  position: static;
+  width: 100% !important;
+  max-height: none;
+  min-height: 0;
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--drawer-surface);
+}
+
+.mobile-document-drawer .document-outline-list,
+.mobile-document-drawer .document-bookmark-list {
+  flex: 1;
+  overscroll-behavior: contain;
+}
+
+.mobile-document-drawer-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mobile-document-drawer-header button {
+  min-height: 36px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+}
+.mobile-document-drawer-header button[aria-pressed="true"] { background: var(--active-bg); color: var(--accent); }
+.mobile-document-drawer-header button:disabled { opacity: 0.45; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-document-drawer .mobile-document-drawer-panel,
+  .mobile-document-drawer .mobile-document-drawer-backdrop { transition: none; }
+}
+
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+  .app .app-sidebar,
+  .app .sidebar-overlay { transition: none; }
+}

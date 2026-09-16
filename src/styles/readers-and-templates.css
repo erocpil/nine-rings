@@ -1,0 +1,1738 @@
+/* ═══════════════════════════════════════════
+   独立 PDF 阅读器
+   ═══════════════════════════════════════════ */
+
+.pdf-reader-app {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: #34373c;
+}
+
+/* Opening the mobile library must not unmount/reflow the document underneath. */
+.pdf-reader-app.mobile-reading-library-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  height: var(--app-viewport-height, 100dvh);
+  background: var(--bg);
+}
+.mobile-reading-library-layer .pdf-reader-boot { color: var(--text-secondary); }
+
+.pdf-reader-boot {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  text-align: center;
+  color: #eef1f4;
+}
+
+.pdf-reader {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  background: #34373c;
+  color: var(--text);
+}
+
+.pdf-reader:fullscreen,
+.pdf-reader:-webkit-full-screen,
+.pdf-reader.pdf-reader-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+}
+
+.pdf-fullscreen-button {
+  font-size: 17px !important;
+}
+
+/* 全屏阅读使用可自动隐藏的最小悬浮控制条；iOS 主屏幕 Web App 没有
+   元素 Fullscreen API 时，同一布局作为沉浸式回退。 */
+.pdf-reader.pdf-reader-immersive {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  width: 100vw;
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
+.pdf-reader-fullscreen .pdf-reader-toolbar {
+  position: absolute;
+  top: max(5px, var(--safe-top, 0px));
+  right: max(6px, var(--safe-right, 0px));
+  z-index: 30;
+  width: auto;
+  min-height: 0;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.pdf-reader-fullscreen .pdf-page-controls {
+  order: 0;
+}
+
+.pdf-reader-fullscreen .pdf-fullscreen-button {
+  order: 1;
+}
+
+.pdf-reader-fullscreen .pdf-page-viewport {
+  padding-top: max(8px, var(--safe-top, 0px));
+}
+
+.pdf-reader-fullscreen.pdf-fullscreen-controls-hidden .pdf-reader-toolbar {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px);
+}
+
+.pdf-reader-toolbar {
+  z-index: 20;
+  display: flex;
+  flex: none;
+  align-items: center;
+  min-height: 46px;
+  gap: 6px;
+  padding: calc(5px + var(--safe-top, 0px)) max(8px, var(--safe-right, 0px)) 5px max(8px, var(--safe-left, 0px));
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.pdf-reader-toolbar button,
+.pdf-reader-toolbar input {
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.pdf-reader-toolbar button {
+  min-width: 34px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.pdf-reader-toolbar button:hover:not(:disabled),
+.pdf-reader-toolbar button.active {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface));
+}
+
+.pdf-reader-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pdf-reader-close {
+  font-size: 20px !important;
+}
+
+.pdf-reader-title {
+  overflow: hidden;
+  flex: 1;
+  min-width: 100px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-page-controls,
+.pdf-view-mode-controls,
+.pdf-zoom-controls,
+.pdf-search {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 4px;
+}
+
+.pdf-page-controls input {
+  width: 48px;
+  padding: 2px 5px;
+  text-align: center;
+}
+
+.pdf-page-controls span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pdf-search input {
+  width: min(190px, 18vw);
+  padding: 3px 8px;
+}
+
+.pdf-search > span {
+  max-width: 100px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-reader-body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.pdf-outline {
+  display: flex;
+  flex: 0 0 290px;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.pdf-outline-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 4px 8px 4px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pdf-outline-heading button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 18px;
+}
+
+.pdf-outline-tabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+}
+
+.pdf-outline-tabs button {
+  overflow: hidden;
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  padding: 3px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-outline-tabs button.active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+
+.pdf-outline-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 5px 0;
+}
+
+.pdf-outline-node button {
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  min-height: 30px;
+  padding-block: 5px;
+  padding-right: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pdf-outline-node button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.pdf-outline-node button:disabled {
+  color: var(--text-secondary);
+  cursor: default;
+}
+
+.pdf-page-directory {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.pdf-page-directory button {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.pdf-page-directory button:hover,
+.pdf-page-directory button.active {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.pdf-page-directory button.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pdf-page-directory small {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.pdf-annotation-directory {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pdf-annotation-directory > p {
+  margin: 0;
+  padding: 14px 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pdf-annotation-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  min-width: 0;
+  align-items: stretch;
+}
+
+.pdf-annotation-item > button:first-child {
+  display: flex;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 8px 6px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pdf-annotation-item > button:first-child:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.pdf-annotation-item strong {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pdf-annotation-item span {
+  overflow: hidden;
+  width: 100%;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-annotation-item .pdf-annotation-delete {
+  flex: 0 0 36px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 17px;
+}
+
+.pdf-annotation-item .pdf-annotation-delete:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.pdf-annotation-properties {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 4px;
+  padding: 2px 8px 7px 12px;
+}
+
+.pdf-annotation-properties input {
+  min-width: 0;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.pdf-annotation-properties input[type="color"] {
+  width: 28px;
+  padding: 2px;
+}
+
+.pdf-annotation-properties input[type="text"] {
+  padding: 3px 6px;
+}
+
+.pdf-annotation-properties small {
+  grid-column: 2;
+  color: var(--text-secondary);
+  font-size: 9px;
+}
+
+.pdf-page-viewport {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow: auto;
+  padding: 12px;
+  overscroll-behavior: contain;
+}
+
+.pdf-page-viewport-vertical {
+  flex-direction: column;
+  align-items: stretch;
+  overflow-anchor: auto;
+  scrollbar-gutter: stable;
+}
+
+/* A page narrower than the viewport has no useful horizontal pan range. */
+.pdf-page-viewport.pdf-page-fits-width { overflow-x: hidden; }
+.pdf-page-fits-width .pdf-page-surface { touch-action: pan-y; }
+
+.pdf-page-surface {
+  position: relative;
+  flex: none;
+  margin-inline: auto;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.34);
+  touch-action: pan-x pan-y;
+}
+
+/* Auto margins center short pages without clipping tall, zoomed pages. */
+.pdf-page-viewport:not(.pdf-page-viewport-vertical) > .pdf-page-surface {
+  margin-block: auto;
+}
+
+.pdf-page-viewport-vertical .pdf-page-surface {
+  margin-block: 8px;
+  /* Keep geometry while a placeholder becomes a mounted, not-yet-rendered
+     canvas. Otherwise its default 150px height moves the visible page. */
+  width: 100%;
+  aspect-ratio: var(--pdf-page-aspect-ratio, 0.7071);
+}
+
+.pdf-page-viewport-vertical .pdf-page-placeholder {
+  contain: layout paint;
+}
+
+.pdf-reader-fullscreen .pdf-page-surface {
+  margin: auto;
+}
+
+.pdf-page-surface canvas {
+  /* Positioned canvases paint above the preceding absolute thumbnail in both modes. */
+  position: relative;
+  display: block;
+  pointer-events: none;
+}
+
+.pdf-page-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+  user-select: none;
+}
+.pdf-page-viewport-vertical .pdf-page-surface canvas { position: absolute; top: 0; left: 0; }
+.pdf-page-surface canvas:not([data-pdf-ready="true"]) { opacity: 0; }
+
+.pdf-text-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: clip;
+  color: transparent;
+  line-height: 1;
+  text-align: initial;
+  text-size-adjust: none;
+  transform-origin: 0 0;
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-text-size-adjust: none;
+}
+
+.pdf-text-layer :is(span, br) {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+}
+
+.pdf-text-layer span.markedContent {
+  top: 0;
+  height: 0;
+}
+
+.pdf-text-layer ::selection {
+  background: color-mix(in srgb, var(--accent) 34%, transparent);
+}
+
+.pdf-text-layer mark {
+  color: transparent;
+  border-radius: 2px;
+  background: rgba(255, 208, 0, 0.34);
+}
+
+.pdf-text-layer mark.pdf-annotation-highlight {
+  background: color-mix(in srgb, var(--pdf-annotation-color, #ffd600) 38%, transparent);
+}
+
+.pdf-text-layer mark.pdf-annotation-underline,
+.pdf-text-layer mark.pdf-annotation-strikeout {
+  background: transparent;
+  text-decoration-color: var(--pdf-annotation-color, #ffd600);
+  text-decoration-thickness: 2px;
+}
+
+.pdf-text-layer mark.pdf-annotation-underline {
+  text-decoration-line: underline;
+  text-underline-offset: 2px;
+}
+
+.pdf-text-layer mark.pdf-annotation-strikeout {
+  text-decoration-line: line-through;
+}
+
+.pdf-annotation-tools {
+  display: flex;
+  gap: 3px;
+}
+
+.pdf-annotation-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.pdf-annotation-overlay.drawing {
+  pointer-events: auto;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.pdf-page-annotation {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid;
+  pointer-events: auto;
+}
+
+.pdf-page-annotation-freeText {
+  overflow: hidden;
+  padding: 3px 5px;
+  background: rgba(255, 255, 255, 0.86);
+  font: 12px/1.35 var(--font);
+  cursor: move;
+}
+
+.pdf-page-annotation-circle {
+  border-radius: 50%;
+}
+
+.pdf-page-annotation.selected {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 2px;
+}
+
+.pdf-annotation-resize-handle {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px 0 0;
+  background: var(--accent);
+  cursor: nwse-resize;
+}
+
+.pdf-line-annotation {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.pdf-annotation-draft {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px dashed var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  pointer-events: none;
+}
+
+.pdf-annotation-draft.pdf-page-annotation-circle {
+  border-radius: 50%;
+}
+
+.pdf-text-layer mark.pdf-highlight-target {
+  outline: 2px solid rgba(224, 122, 0, 0.92);
+  animation: pdf-highlight-pulse 700ms ease-in-out 3;
+}
+
+@keyframes pdf-highlight-pulse {
+  50% {
+    background: rgba(255, 145, 0, 0.68);
+    outline-offset: 2px;
+  }
+}
+
+.pdf-text-layer mark.pdf-search-current {
+  background: rgba(255, 126, 0, 0.52);
+  outline: 1px solid rgba(190, 80, 0, 0.65);
+}
+
+.pdf-selection-actions {
+  position: fixed;
+  left: 50%;
+  bottom: calc(14px + var(--safe-bottom, 0px));
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  box-shadow: 0 3px 16px rgba(0, 0, 0, 0.28);
+  color: var(--text-secondary);
+  font-size: 11px;
+  transform: translateX(-50%);
+  backdrop-filter: blur(10px);
+}
+
+.pdf-selection-actions button {
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.pdf-excerpt-source-button {
+  flex: none;
+  white-space: nowrap;
+}
+
+.pdf-reader-message {
+  display: flex;
+  margin: auto;
+  text-align: center;
+  min-height: 180px;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-primary, #1f2328);
+}
+
+.pdf-reader-error {
+  flex-direction: column;
+  max-width: 480px;
+  padding: 24px;
+  text-align: center;
+}
+
+/* PDF uses a dark canvas surround; EPUB has its own light reading surface. */
+.pdf-reader:not(.epub-reader) .pdf-reader-message {
+  color: #f3f4f6;
+}
+
+.pdf-reader-error button {
+  padding: 6px 14px;
+}
+
+.pdf-library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.pdf-library-item {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.pdf-library-open {
+  display: flex;
+  overflow: hidden;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 7px 9px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pdf-library-open strong {
+  overflow: hidden;
+  width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pdf-library-open small,
+.pdf-library-empty {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.pdf-library-empty {
+  padding: 8px 1px 2px;
+}
+
+.pdf-library-delete {
+  width: 38px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.pdf-library-delete:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.reader-library-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reader-library-controls,
+.reader-library-segment {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reader-library-controls {
+  justify-content: space-between;
+}
+
+.reader-library-segment {
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.reader-library-segment button {
+  min-height: 30px;
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.reader-library-segment button.active {
+  background: var(--bg);
+  color: var(--accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
+}
+
+.reader-library-items {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.reader-backup-panel {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 12px;
+  overflow-wrap: anywhere;
+}
+.reader-backup-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.reader-backup-heading button { min-width: 44px; min-height: 44px; border: 0; border-radius: var(--radius); background: transparent; color: var(--text-secondary); font-size: 20px; }
+.reader-backup-preview { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
+.reader-backup-progress { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0; }
+.reader-library-backup { margin: 4px 8px 8px; padding: 5px 10px; min-height: 44px; border: 1px solid var(--border); border-radius: var(--radius); background: transparent; color: var(--accent); font-size: 12px; }
+
+.reader-library-shelf {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.reader-library-item {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.reader-library-open {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  padding: 9px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.reader-library-shelf .reader-library-open {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reader-library-cover {
+  position: relative;
+  display: grid;
+  flex: none;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 5px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 20%, var(--surface)), var(--surface));
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 22px;
+}
+
+.reader-library-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.reader-library-cover em {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: rgba(20, 22, 25, .72);
+  color: #fff;
+  font-style: normal;
+  font-size: 9px;
+}
+
+.reader-library-meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.reader-library-meta strong,
+.reader-library-meta small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-library-meta small {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.reader-library-delete {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 32px;
+  min-height: 32px;
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  color: var(--text-secondary);
+  font-size: 17px;
+}
+
+.reader-library-delete:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.reader-library-list {
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.reader-library-list .reader-library-open {
+  align-items: center;
+  gap: 10px;
+  min-height: 100px;
+}
+
+.reader-library-list .reader-library-meta {
+  flex: 1;
+}
+
+.reader-library-list .reader-library-meta strong,
+.reader-library-list .reader-library-meta small {
+  margin-right: 35px;
+}
+
+/* Reserve the lower metadata rows for the independent backup action. */
+.reader-library-list .reader-library-meta small:nth-last-child(-n + 2) {
+  margin-right: 78px;
+}
+
+.reader-library-list .reader-library-backup {
+  position: absolute;
+  right: 9px;
+  bottom: 9px;
+  margin: 0;
+  width: 70px;
+  padding-inline: 6px;
+}
+
+.reader-library-list .reader-library-cover {
+  width: 48px;
+  height: 64px;
+  aspect-ratio: auto;
+  font-size: 12px;
+}
+
+@media (max-width: 480px) {
+  .reader-library-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .reader-library-segment {
+    justify-content: center;
+  }
+
+  .reader-library-segment button {
+    flex: 1;
+  }
+
+  .reader-library-shelf {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ── EPUB 阅读器：复用 PDF 的工具栏、目录和资料库视觉语言 ── */
+.epub-reader {
+  background: #f1f2f4;
+}
+
+.epub-reader-focus {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  width: 100vw;
+  width: 100dvw;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.epub-reader-focus .epub-bottom-navigation {
+  display: none;
+}
+
+.epub-reader-focus .epub-reading-viewport,
+.epub-reader-focus .epub-chapter-frame {
+  width: 100%;
+  height: 100%;
+}
+
+.epub-reader-toolbar {
+  flex-wrap: nowrap;
+}
+
+.epub-font-controls,
+.epub-theme-controls {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 4px;
+}
+
+.epub-font-controls span {
+  min-width: 38px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-align: center;
+}
+
+.epub-width-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.epub-width-controls input {
+  width: 100%;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+.epub-width-controls > button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.epub-theme-controls button {
+  min-width: 30px;
+  padding-inline: 6px;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.epub-line-merge-toggle.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  color: var(--accent);
+}
+
+.epub-swipe-notice {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 10004;
+  padding: 9px 14px;
+  border-radius: 8px;
+  background: rgba(24, 24, 26, .78);
+  color: #fff;
+  font-size: 13px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(8px);
+}
+
+.epub-line-merge-panel {
+  position: fixed;
+  top: max(60px, calc(48px + var(--safe-top, 0px)));
+  right: 12px;
+  z-index: 10003;
+  display: flex;
+  width: min(390px, calc(100vw - 24px));
+  max-height: min(70vh, 560px);
+  flex-direction: column;
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .32);
+}
+
+.epub-line-merge-panel header,
+.epub-line-merge-list > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+}
+
+.epub-line-merge-panel header button {
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.epub-line-merge-panel > p,
+.epub-line-merge-list > span {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.epub-line-merge-list {
+  overflow-y: auto;
+}
+
+.epub-line-merge-list > div {
+  margin-top: 4px;
+}
+
+.epub-line-merge-list > div > button:first-child {
+  overflow: hidden;
+  flex: 1;
+  min-height: 34px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.epub-line-merge-list b {
+  color: var(--accent);
+}
+
+.epub-background-palette {
+  position: fixed;
+  top: 58px;
+  right: 12px;
+  z-index: 10003;
+  display: flex;
+  width: min(320px, calc(100vw - 24px));
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .32);
+}
+
+.epub-background-palette header,
+.epub-background-palette label,
+.epub-background-swatches {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.epub-background-palette header button {
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.epub-background-swatches {
+  justify-content: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.epub-background-swatches button {
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+}
+
+.epub-background-swatches button.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.epub-search {
+  flex: 1 1 180px;
+  max-width: 330px;
+}
+
+.epub-selection-actions {
+  position: fixed;
+  bottom: calc(14px + var(--safe-bottom, 0px));
+  left: 50%;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  box-shadow: 0 3px 16px rgba(0, 0, 0, .28);
+  transform: translateX(-50%);
+}
+
+.epub-selection-actions button,
+.epub-note-popover button {
+  min-height: 32px;
+}
+
+.epub-note-popover {
+  position: fixed;
+  right: 14px;
+  bottom: calc(14px + var(--safe-bottom, 0px));
+  z-index: 46;
+  display: flex;
+  width: min(340px, calc(100vw - 28px));
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  box-shadow: 0 5px 24px rgba(0, 0, 0, .3);
+}
+
+.epub-bookmark-current {
+  width: 100%;
+  margin-bottom: 8px;
+  min-height: 40px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.epub-bookmark-list {
+  overflow-y: auto;
+  min-height: 48px;
+}
+
+.epub-bookmark-list > p {
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.epub-note-popover strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.epub-note-popover label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.epub-note-popover textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
+.epub-outline-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+}
+
+.epub-outline-progress {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.epub-outline-actions button {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.epub-outline-actions button:hover:not(:disabled) { background: var(--hover); }
+.epub-outline-actions button:disabled { opacity: .45; cursor: default; }
+.epub-outline-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.epub-toc-row {
+  display: flex;
+  align-items: center;
+}
+
+.pdf-outline-node .epub-toc-disclosure {
+  flex: 0 0 28px;
+  width: 28px;
+  padding: 0;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.epub-toc-disclosure-placeholder {
+  flex: 0 0 28px;
+  width: 28px;
+}
+
+.pdf-outline-node .epub-toc-link {
+  flex: 1;
+  width: auto;
+  padding-left: 2px;
+}
+
+.epub-annotation-item {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 3px;
+}
+
+.epub-annotation-item button:first-child {
+  overflow: hidden;
+  flex: 1;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.epub-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.epub-library-item {
+  position: relative;
+  min-height: 230px;
+}
+
+.epub-library-item .pdf-library-open {
+  justify-content: flex-end;
+}
+
+.epub-library-cover {
+  width: 100%;
+  height: 160px;
+  margin-bottom: auto;
+  border-radius: 4px;
+  object-fit: contain;
+  background: color-mix(in srgb, var(--surface) 80%, var(--border));
+}
+
+.epub-library-cover-placeholder {
+  display: grid;
+  place-items: center;
+  font-size: 42px;
+}
+
+.epub-outline .pdf-outline-node button.active {
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.epub-reading-viewport {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: #f1f2f4;
+}
+
+.epub-theme-dark .epub-reading-viewport {
+  background: #151618;
+}
+
+.epub-theme-sepia .epub-reading-viewport {
+  background: #cfc3a8;
+}
+
+.epub-chapter-frame {
+  width: min(920px, 100%);
+  height: 100%;
+  margin: 0 auto;
+  border: 0;
+  background: #fff;
+}
+
+.epub-reader-focus.epub-focus-controls-visible .epub-bottom-navigation {
+  display: flex;
+  z-index: 20;
+}
+
+.epub-bottom-navigation {
+  position: absolute;
+  right: 0;
+  bottom: max(8px, var(--safe-bottom, 0px));
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: calc(100% - 16px);
+  margin: auto;
+  padding: 5px;
+  border: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.16);
+}
+
+.epub-bottom-navigation button {
+  min-height: 32px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.epub-bottom-navigation button:disabled {
+  opacity: 0.38;
+}
+
+.epub-bottom-navigation span {
+  overflow: hidden;
+  max-width: min(42vw, 360px);
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .pdf-reader-toolbar {
+    flex-wrap: wrap;
+    gap: 4px;
+    padding-top: calc(4px + var(--safe-top, 0px));
+  }
+
+  .pdf-reader-title {
+    flex-basis: calc(100% - 158px);
+    min-width: 80px;
+  }
+
+  .pdf-page-controls {
+    order: 5;
+  }
+
+  .pdf-view-mode-controls {
+    order: 8;
+  }
+
+  .pdf-zoom-controls {
+    order: 6;
+  }
+
+  .pdf-search {
+    order: 7;
+    flex: 1 1 180px;
+  }
+
+  .pdf-annotation-tools {
+    order: 9;
+    overflow-x: auto;
+    flex: 1 1 100%;
+    padding-bottom: 1px;
+    scrollbar-width: thin;
+  }
+
+  .pdf-annotation-tools button {
+    flex: 0 0 auto;
+  }
+
+  .pdf-search input {
+    flex: 1;
+    width: auto;
+    min-width: 90px;
+    font-size: 16px;
+  }
+
+  .pdf-search > span {
+    display: none;
+  }
+
+  .pdf-reader-toolbar button {
+    min-height: 34px;
+  }
+
+  .pdf-outline {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 10;
+    width: min(84vw, 340px);
+    max-width: none;
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .pdf-page-viewport {
+    padding: 8px;
+    padding-bottom: max(8px, var(--safe-bottom, 0px));
+  }
+
+  .epub-reader-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .epub-reader-toolbar .pdf-reader-title {
+    flex-basis: calc(100% - 116px);
+  }
+
+  .epub-chapter-controls {
+    order: 5;
+  }
+
+  .epub-font-controls {
+    order: 6;
+  }
+
+  .epub-theme-controls {
+    order: 7;
+  }
+
+  .epub-search {
+    order: 8;
+    max-width: none;
+  }
+
+  .epub-reader-toolbar > button:last-child {
+    order: 9;
+    margin-left: auto;
+  }
+
+  .epub-chapter-frame {
+    width: 100%;
+  }
+
+  .epub-bottom-navigation span {
+    display: none;
+  }
+
+  .epub-background-palette {
+    top: auto;
+    right: 8px;
+    bottom: max(8px, var(--safe-bottom, 0px));
+    left: 8px;
+    width: auto;
+  }
+
+  .epub-line-merge-panel {
+    top: auto;
+    right: 8px;
+    bottom: max(8px, var(--safe-bottom, 0px));
+    left: 8px;
+    width: auto;
+    max-height: min(72dvh, 560px);
+  }
+}
+
+/* ── 手机 (≤480px) ── */
+@media (max-width: 480px) {
+  .app-header {
+    padding: 4px 6px;
+    gap: 3px;
+    min-height: 40px;
+  }
+
+  .search-input {
+    width: 100% !important;
+    font-size: 11px;
+    padding: 3px 5px;
+  }
+
+  /* DatePicker 紧凑 */
+  .date-picker {
+    font-size: 12px;
+    padding: 2px 4px;
+  }
+
+  .note-editor .editor-title {
+    font-size: 16px;
+  }
+
+  .note-detail-title {
+    font-size: 16px;
+  }
+
+  .sidebar-item {
+    padding: 6px 8px;
+  }
+
+  /* 日期选择器紧凑 */
+  .date-picker {
+    font-size: 13px;
+    padding: 3px 6px;
+  }
+
+  /* 待办列表缩小 */
+  .todo-item {
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+ * 模板选择器 (TemplatePicker)
+ * ═══════════════════════════════════════════════════════════════════ */
+
+.template-popover {
+  position: fixed;
+  z-index: 1000;
+  width: 260px;
+  max-height: 360px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.template-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.template-popover-close {
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.template-popover-close:hover {
+  background: var(--hover-bg);
+  color: var(--text);
+}
+
+.template-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px;
+}
+
+.template-loading,
+.template-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.template-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text);
+  transition: background var(--transition);
+}
+
+.template-item:hover {
+  background: var(--hover-bg);
+}
+
+.template-item-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.template-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.template-item-name {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.template-item-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.template-item-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.template-item-tag {
+  padding: 0 5px;
+  font-size: 10px;
+  background: var(--code-bg);
+  border-radius: 3px;
+  color: var(--text-secondary);
+}
+
+.template-item-blank {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  padding-bottom: 10px;
+}
+
+.template-popover-footer {
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.template-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+}

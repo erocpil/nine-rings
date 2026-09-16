@@ -1,0 +1,647 @@
+/* ──── 高亮当前行 ──── */
+
+.ProseMirror-activeline {
+  background: var(--activeline-bg);
+  border-radius: 3px;
+}
+
+.no-active-line .ProseMirror-activeline {
+  background: transparent;
+}
+
+.editor-content-shell {
+  --editor-gutter-width: 24px;
+  --editor-gutter-text-gap: 0px;
+  position: relative;
+  flex: 1;
+  min-height: 200px;
+  /* 首块前的插入按钮以第一块顶部为圆心，会向上伸出半个按钮高度。
+     给 gutter 留出独立净空，避免被上方 sticky 工具栏盖住。 */
+  margin-top: 12px;
+}
+
+.show-line-numbers .editor-content-shell {
+  --editor-gutter-width: 30px;
+  --editor-gutter-text-gap: 4px;
+}
+
+.focus-mode.show-line-numbers .editor-content-shell {
+  --editor-gutter-width: 30px;
+}
+
+.editor-content-shell > .editor-content {
+  min-height: 100%;
+}
+
+.ProseMirror {
+  outline: none !important;
+  padding-bottom: var(--editor-tail-space, max(72px, 70vh));
+  padding-left: calc(var(--editor-gutter-width) + var(--editor-gutter-text-gap));
+  touch-action: auto;
+  font-size: var(--editor-font-size);
+  font-family: var(--editor-font-family);
+  line-height: var(--editor-line-height);
+}
+
+.ProseMirror > * {
+  scroll-margin-bottom: 32px;
+}
+
+/* ══════════════════════════════════════════
+   块级 Gutter
+
+   编号和插入按钮由 EditorBlockGutter 按 ProseMirror 顶层节点位置
+   渲染。它们是真实 DOM 控件，不占用文档 schema，也不依赖伪元素
+   或鼠标坐标猜测。
+   ══════════════════════════════════════════ */
+
+.editor-block-gutter {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--editor-gutter-width);
+  z-index: 4;
+  pointer-events: none;
+  color: var(--text-secondary);
+}
+
+.editor-block-number {
+  position: absolute;
+  left: 0;
+  width: calc(var(--editor-gutter-width) - 8px);
+  padding-right: 4px;
+  transform: translateY(-50%);
+  text-align: right;
+  color: var(--text-secondary);
+  opacity: 0.4;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: var(--editor-line-height, 1.45);
+  user-select: none;
+  pointer-events: auto;
+}
+
+.show-line-numbers .editor-block-number {
+  left: 14px;
+  width: calc(var(--editor-gutter-width) - 14px);
+}
+
+.editor-block-number::after {
+  content: attr(data-block-format);
+  position: absolute;
+  top: 0;
+  /* Use half of the 4px gutter/text gap and a smaller label so even Image /
+     Quote fit the narrow one-digit gutter without clipping its left edge. */
+  right: -2px;
+  left: auto;
+  width: max-content;
+  padding: 0;
+  text-align: right;
+  color: var(--text-secondary);
+  font-size: clamp(8px, calc(var(--editor-gutter-width) / 3.5), 9px);
+  font-weight: 600;
+  line-height: inherit;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.editor-block-number.active {
+  color: var(--accent);
+}
+
+.editor-block-number.bookmarked {
+  text-decoration-line: underline;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.no-active-line .editor-block-number.active {
+  color: var(--text-secondary);
+}
+
+.editor-block-number.bookmarked,
+.no-active-line .editor-block-number.bookmarked {
+  opacity: 0.85;
+}
+
+.editor-block-number.active,
+.no-active-line .editor-block-number.active {
+  opacity: 0.95;
+}
+
+.editor-block-number:hover,
+.editor-block-number.active:hover,
+.no-active-line .editor-block-number:hover {
+  color: transparent;
+  opacity: 1;
+}
+
+.editor-block-number:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+.editor-block-insert {
+  position: absolute;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  transform: translateY(-50%);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  opacity: 0.12;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+  pointer-events: auto;
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+  transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.show-line-numbers .editor-block-insert {
+  left: 0;
+  width: 14px;
+}
+
+.editor-block-insert:active,
+.editor-block-insert:focus-visible {
+  border-color: var(--border);
+  color: var(--accent);
+  opacity: 1;
+  outline: none;
+}
+
+/* Touch browsers may retain :hover after inserting/repositioning the button.
+   Use our bounded press feedback, not WebKit's native tap-highlight overlay. */
+@media (hover: hover) and (pointer: fine) {
+  .editor-block-insert { opacity: 0.03; }
+  .editor-block-gutter:hover .editor-block-insert { opacity: 0.55; }
+  .editor-block-gutter .editor-block-insert:is(:hover, :active, :focus-visible) { opacity: 1; }
+  .editor-block-insert:hover {
+    border-color: var(--border);
+    color: var(--accent);
+    opacity: 1;
+  }
+}
+
+.editor-heading-fold {
+  --heading-fold-target-height: 20px;
+  position: absolute;
+  left: 0;
+  z-index: 2;
+  width: 14px;
+  height: var(--heading-fold-target-height);
+  padding: 0;
+  transform: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 20px;
+  opacity: 0.38;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: color 0.15s, opacity 0.15s;
+}
+
+/* The browser moves each control with its owning heading, not a cached y. */
+.ProseMirror > .editor-fold-anchor { position: relative; }
+.editor-fold-host {
+  position: absolute;
+  left: calc(-1 * var(--editor-gutter-width));
+  top: 0;
+  width: 22px;
+  height: 1.5em;
+  height: 1lh;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  user-select: none;
+}
+.editor-fold-host > .editor-heading-fold { position: static; flex-shrink: 0; }
+@media print { .editor-fold-host { display: none; } }
+
+.editor-heading-fold:hover,
+.editor-heading-fold:focus-visible {
+  color: var(--accent);
+  opacity: 0.75;
+  outline: none;
+}
+
+.editor-heading-fold.folded {
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
+.editor-heading-fold.folded:hover,
+.editor-heading-fold.folded:focus-visible {
+  color: var(--accent);
+  opacity: 0.75;
+}
+
+/* Tauri/WebView2 使用 ProseMirror 节点装饰执行折叠。规则放在打包样式中，
+   不依赖原生 WebView 对动态 style/nth-child 组合规则的支持。 */
+.ProseMirror > .heading-fold-hidden {
+  display: none !important;
+}
+
+/* HR 独立承担上下留白，避免普通段落、代码块和标题各自的 margin
+   参与折叠后产生不同结果。这样分割线前后的视觉距离始终一致。 */
+.ProseMirror > *:has(+ hr) {
+  margin-bottom: 0;
+}
+
+.ProseMirror > hr + * {
+  margin-top: 0;
+}
+
+.ProseMirror > hr {
+  height: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 1em 0;
+}
+
+/* ── Pre / code 背景（避免背景覆盖 gutter 区）── */
+.show-line-numbers .ProseMirror > pre,
+.show-line-numbers .ProseMirror > .code-block-wrap .code-block-inner pre {
+  background: none;
+  border: none;
+}
+.show-line-numbers .ProseMirror > pre.ProseMirror-activeline,
+.show-line-numbers .ProseMirror .code-block-wrap.ProseMirror-activeline .code-block-inner pre {
+  background: var(--activeline-bg);
+}
+.show-line-numbers .ProseMirror > pre code,
+.show-line-numbers .ProseMirror > .code-block-wrap .code-block-inner pre code {
+  display: block;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2px 12px;
+}
+.show-line-numbers .ProseMirror .code-block-wrap .code-block-inner pre code {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* ──── ProseMirror content ──── */
+
+.editor-content ul {
+  padding-inline-start: max(var(--editor-list-indent), calc(0.5em + var(--editor-list-marker-gap)));
+}
+
+.editor-content ul,
+.editor-content ol {
+  margin: 4px 0;
+  list-style-position: outside;
+}
+
+.editor-content .ProseMirror > :is(ul, ol) {
+  margin: var(--editor-list-margin-top) 0 var(--editor-list-margin-bottom);
+}
+
+.editor-content li {
+  margin: 1px 0;
+  line-height: inherit;
+}
+/* TipTap 的 listItem 首个 paragraph 保持和列表标记在同一行。 */
+.editor-content li > p {
+  display: inline;
+}
+
+.editor-content li {
+  padding-left: 0;
+  text-indent: 0;
+}
+
+/* 原生 marker 的占位和间距在 Chromium/Safari 间不一致。两种列表都由
+   ::before 绘制：文本起点、标记间距和编号列因此使用同一套几何规则。 */
+.editor-content :is(ul, ol) > li {
+  position: relative;
+}
+
+.editor-content :is(ul, ol) > li::marker {
+  content: "";
+}
+
+.editor-content ol > li {
+  counter-increment: editor-list-item;
+}
+
+.editor-content :is(ul, ol) > li::before {
+  position: absolute;
+  right: calc(100% + min(var(--editor-list-marker-gap), 0.25em));
+  color: currentColor;
+  white-space: nowrap;
+}
+
+.editor-content ul > li::before {
+  content: "•";
+}
+
+.editor-content ol > li::before {
+  content: counter(editor-list-item) ".";
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-content li > ul,
+.editor-content li > ol {
+  display: block;
+  margin-top: 2px;
+}
+
+/* Safari 可能同时绘制原生 marker 和 ::before。彻底关闭两种列表的
+   原生 marker，只保留上面的统一标记层。list-item counter 仍会递增。 */
+.editor-content ul,
+.editor-content ol {
+  list-style: none;
+}
+
+.editor-content li > ul > li::before {
+  content: "◦";
+}
+
+.editor-content li li > ul > li::before {
+  content: "▪";
+}
+
+.editor-content li > ol > li::before {
+  content: counter(editor-list-item, lower-alpha) ".";
+}
+
+.editor-content li li > ol > li::before {
+  content: counter(editor-list-item, lower-roman) ".";
+}
+
+/* ── Markdown / TipTap 表格 ── */
+.editor-content .tableWrapper {
+  width: 100%;
+  max-width: 100%;
+  margin: 8px 0;
+  /* 表格通常应随正文宽度重排；这里保留滚动仅作为浏览器无法断行时的兜底。 */
+  overflow-x: auto;
+}
+
+.editor-content table {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  border-collapse: collapse;
+  table-layout: auto;
+  background: var(--bg);
+}
+
+.editor-content .tableWrapper table {
+  table-layout: fixed;
+}
+
+.editor-content th,
+.editor-content td {
+  position: relative;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  vertical-align: top;
+  text-align: left;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.editor-content th {
+  background: var(--surface);
+  font-weight: 600;
+}
+
+.editor-content th > p,
+.editor-content td > p {
+  margin: 0;
+}
+
+.editor-content .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.editor-content .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  z-index: 20;
+  width: 8px;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  opacity: 0.55;
+}
+
+.note-editor-readonly .editor-content .column-resize-handle {
+  display: none;
+}
+
+.editor-content.resize-cursor {
+  cursor: col-resize;
+}
+
+.editor-content code {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 0.9em;
+}
+
+.editor-content pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2px;
+  overflow-x: auto;
+  margin: 4px 0;
+}
+
+.editor-content pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.95em;
+  line-height: 1.5;
+}
+
+/* ── Blockquote：border-left 在元素左沿 = gutter 右沿（父级 .ProseMirror 的 padding-left 提供 gutter）
+   三种模式自动对齐，无需模式特化规则。 */
+.editor-content blockquote {
+  border-left: 3px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  padding-left: var(--editor-blockquote-indent);
+  margin-top: 0;
+  margin-bottom: 0;
+  color: var(--text-secondary);
+}
+
+.editor-content .ProseMirror > .code-block-wrap {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.editor-content .ProseMirror > [data-indent="1"] { margin-inline-start: calc(var(--editor-list-indent) * 1); }
+.editor-content .ProseMirror > [data-indent="2"] { margin-inline-start: calc(var(--editor-list-indent) * 2); }
+.editor-content .ProseMirror > [data-indent="3"] { margin-inline-start: calc(var(--editor-list-indent) * 3); }
+.editor-content .ProseMirror > [data-indent="4"] { margin-inline-start: calc(var(--editor-list-indent) * 4); }
+.editor-content .ProseMirror > [data-indent="5"] { margin-inline-start: calc(var(--editor-list-indent) * 5); }
+.editor-content .ProseMirror > [data-indent="6"] { margin-inline-start: calc(var(--editor-list-indent) * 6); }
+.editor-content .ProseMirror > [data-indent="7"] { margin-inline-start: calc(var(--editor-list-indent) * 7); }
+.editor-content .ProseMirror > [data-indent="8"] { margin-inline-start: calc(var(--editor-list-indent) * 8); }
+
+/* Markdown 空白行是块分隔符，不会生成空段落。正文之间保留稳定分隔，
+   标题与相邻块的节奏则由排版设置独立控制。 */
+.editor-content h1 { font-size: 1.6em; }
+.editor-content h2 { font-size: 1.3em; }
+.editor-content h3 { font-size: 1.1em; }
+.editor-content h4 { font-size: 1.05em; }
+.editor-content h5 { font-size: 1em; }
+.editor-content h6 { font-size: 1em; color: var(--text-secondary); }
+
+.editor-content :is(h1, h2, h3, h4, h5, h6) {
+  margin: var(--editor-heading-margin-top) 0 var(--editor-heading-margin-bottom);
+}
+
+.editor-content p {
+  margin: 2px 0;
+}
+
+.editor-content > p {
+  text-indent: var(--editor-paragraph-indent);
+}
+
+/* 只放宽正文顶层段落；列表项、引用和表格单元格仍保持紧凑。 */
+.editor-content .ProseMirror > p {
+  margin: var(--editor-block-spacing) 0;
+}
+
+/* 相邻块的折叠 margin 不应盖过用户设置的标题间距。 */
+.editor-content .ProseMirror > p:has(+ :is(h1, h2, h3, h4, h5, h6)) {
+  margin-bottom: 0;
+}
+
+.editor-content .ProseMirror > :is(h1, h2, h3, h4, h5, h6) + p {
+  margin-top: 0;
+}
+
+/* 文档首块直接承接编辑区顶部留白；章节上间距只用于正文内部。 */
+.editor-content .ProseMirror > :first-child {
+  margin-top: 0;
+}
+
+/* Markdown 中常用 **概念** / **原理** 作为独立小节标签。它们仍是段落
+   节点，但标签后的正文应使用标题下间距，不能套用两段正文的块间距。 */
+.editor-content .ProseMirror > p.standalone-strong-label {
+  margin-bottom: var(--editor-heading-margin-bottom);
+}
+
+.editor-content .ProseMirror > p.standalone-strong-label + p {
+  margin-top: 0;
+}
+
+/* 顶层列表间距由排版设置直接决定，不让相邻正文块间距覆盖。 */
+.editor-content .ProseMirror > p:has(+ :is(ul, ol)) {
+  margin-bottom: 0;
+}
+
+.editor-content .ProseMirror > :is(ul, ol) + p {
+  margin-top: 0;
+}
+
+/* 中文与英文/数字之间只增加视觉间距，不向文档模型插入字符。 */
+.editor-auto-cjk-spacing .ProseMirror,
+.editor-appearance-document.editor-auto-cjk-spacing {
+  text-autospace: normal;
+}
+
+.editor-auto-cjk-spacing .ProseMirror code,
+.editor-auto-cjk-spacing .ProseMirror pre {
+  text-autospace: no-autospace;
+}
+
+.editor-cjk-spacing-fallback .cjk-auto-space-before {
+  margin-inline-start: 0.25em;
+}
+
+.editor-cjk-spacing-fallback .cjk-auto-space-after {
+  margin-inline-end: 0.25em;
+}
+
+/* ──── [[ Wiki Link 下拉 ──── */
+
+.wiki-dropdown {
+  position: absolute;
+  z-index: 100;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  max-height: 200px;
+  overflow-y: auto;
+  min-width: 200px;
+  max-width: 320px;
+}
+
+.wiki-item {
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+
+.wiki-item:last-child {
+  border-bottom: none;
+}
+
+.wiki-item:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.wiki-empty {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ──── Search Results Sections ──── */
+
+.search-section-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  margin: 8px 0 4px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.todo-dot {
+  margin-right: 4px;
+}
+
+.todo-dot.done {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
