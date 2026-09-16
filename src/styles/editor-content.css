@@ -345,7 +345,7 @@
 
 .editor-content :is(ul, ol) > li::before {
   position: absolute;
-  right: calc(100% + min(var(--editor-list-marker-gap), 0.25em));
+  right: calc(100% + var(--editor-list-marker-gap));
   color: currentColor;
   white-space: nowrap;
 }
@@ -365,7 +365,7 @@
 .editor-content li:has(> .markdown-task-checkbox)::before { visibility: hidden; }
 .markdown-task-checkbox {
   position: absolute;
-  right: calc(100% + min(var(--editor-list-marker-gap), 0.25em));
+  right: calc(100% + var(--editor-list-marker-gap));
   background: transparent;
   border: 0;
   padding: 0;
@@ -397,10 +397,6 @@
 
 .editor-content li > ul > li::before {
   content: "◦";
-}
-
-.editor-content li li > ul > li::before {
-  content: "▪";
 }
 
 .editor-content li > ol > li::before {

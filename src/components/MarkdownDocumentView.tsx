@@ -4,15 +4,17 @@ import type { DeltaOps } from "../types/models";
 import { deltaToMarkdownAsync } from "../lib/data-transform-client";
 import { mdToDelta } from "../lib/md-parser";
 import { invalidateEditorDocument } from "../lib/editor-session-cache";
-import { isProseMirror, proseMirrorToDelta } from "../lib/delta-converter";
+import { deltaToProseMirror, isProseMirror, proseMirrorToDelta } from "../lib/delta-converter";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { DocumentTitlePreview } from "./DocumentTitlePreview";
 import { MarkdownEscapeRepair } from "./MarkdownEscapeRepair";
 import { api } from "../lib/api";
+import { useMarkdownViewPosition } from "../hooks/useMarkdownViewPosition";
 
 /** One visible editing surface, one canonical autosave stream for both views. */
 export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps; render: (props: NoteEditorProps) => ReactNode }) {
   const [source, setSource] = useState<string | null>(null);
+  const viewPosition = useMarkdownViewPosition(props.noteId, source !== null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [snapshot, setSnapshot] = useState<{ base: DeltaOps; content: DeltaOps } | null>(null);
@@ -57,8 +59,10 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         // An edit during the worker conversion must never be replaced by its stale result.
         if ((latestReader.current?.() ?? latestProps.current.content) !== raw) throw new Error("转换期间正文已变化，请再次切换");
         initial.current = { text, content };
+        viewPosition.toSource(text, deltaToProseMirror(content));
         setSource(text);
       } else {
+        viewPosition.toRendered(source, deltaToProseMirror(content));
         invalidateEditorDocument(props.noteId);
         setSnapshot({ base: latestProps.current.content, content });
         setSource(null);
@@ -74,7 +78,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const toggle = <button type="button" className="markdown-view-toggle" disabled={busy}
     title={source === null ? "切换到 Markdown 源码" : "切换到渲染视图"}
     aria-busy={busy} onClick={() => void changeView()}>{source === null ? "源码" : "渲染"}</button>;
-  return <div className="markdown-document-view">
+  return <div className="markdown-document-view" ref={viewPosition.host}>
     {error && <div role="alert" className="markdown-source-hint">{error}</div>}
     {source === null ? render({
       ...props,
@@ -119,7 +123,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           await latestProps.current.onFlush?.();
         } finally { if (alive.current) setBusy(false); }
       }} />
-      <textarea aria-label="Markdown 源码" value={source} readOnly={Boolean(props.readonly) || busy} spellCheck={false}
+      <textarea ref={viewPosition.area} aria-label="Markdown 源码" value={source} readOnly={Boolean(props.readonly) || busy} spellCheck={false}
         onKeyDown={event => {
           if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && !event.nativeEvent.isComposing && event.key.toLowerCase() === "a") {
             event.preventDefault(); event.stopPropagation(); event.currentTarget.select();

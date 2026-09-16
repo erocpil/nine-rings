@@ -268,7 +268,9 @@ export function markdownTableToEmbed(tableLines: string[]): import("./table-embe
 
 // ── 全文解析 ──
 
-export function mdToDelta(mdText: string): DeltaOps {
+export interface MarkdownSourceSpan { fromLine: number; toLine: number; fromOp: number; toOp: number }
+
+export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): DeltaOps {
   // Windows/WebView2 剪贴板使用 CRLF。若保留行尾的 `\r`，依赖 `$` 的
   // 块级正则（尤其列表）会匹配失败，缩进列表继而退化成以 `-` 开头的段落。
   const lines = mdText.replace(/\r\n?/g, "\n").split("\n");
@@ -278,6 +280,7 @@ export function mdToDelta(mdText: string): DeltaOps {
   let codeBuf: string[] = [];
   let codeLanguage = "";
   let codeFence = "";
+  let codeStartLine = 0;
   let listIndentStack: number[] = [];
 
   const resetListIndent = () => {
@@ -330,6 +333,9 @@ export function mdToDelta(mdText: string): DeltaOps {
   };
 
   while (i < lines.length) {
+    const fromLine = inCode ? codeStartLine : i;
+    const fromOp = ops.length;
+    try {
     const line = lines[i];
     const stripped = line.trim();
 
@@ -348,6 +354,7 @@ export function mdToDelta(mdText: string): DeltaOps {
         inCode = false;
       } else {
         codeFence = fence[1];
+        codeStartLine = i;
         codeLanguage = fence[2].trim().split(/\s/)[0];
         inCode = true;
       }
@@ -481,15 +488,20 @@ export function mdToDelta(mdText: string): DeltaOps {
       i++;
     }
     appendParagraph(paragraphLines);
+    } finally {
+      if (sourceSpans && ops.length > fromOp) sourceSpans.push({ fromLine, toLine: i, fromOp, toOp: ops.length });
+    }
   }
 
   // 关闭未闭合的代码块
   if (inCode && codeBuf.length > 0) {
+    const fromOp = ops.length;
     ops.push({ insert: codeBuf.join("\n") });
     ops.push({
       insert: "\n",
       attributes: { "code-block": true, ...(codeLanguage ? { language: codeLanguage } : {}) },
     });
+    sourceSpans?.push({ fromLine: codeStartLine, toLine: lines.length, fromOp, toOp: ops.length });
   }
 
   return { ops };

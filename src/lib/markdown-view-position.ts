@@ -1,0 +1,166 @@
+import type { JSONContent } from "@tiptap/core";
+import type { DeltaOp } from "../types/models";
+import { mdToDelta, type MarkdownSourceSpan } from "./md-parser";
+import { getTableEmbed } from "./table-embed";
+
+const textWeight = (text: string) => text.replace(/\s/g, "").length;
+function opWeight(op: DeltaOp): number {
+  if (typeof op.insert === "string") return textWeight(op.insert);
+  const table = getTableEmbed(op.insert);
+  return table
+    ? Math.max(
+        1,
+        table.rows.reduce(
+          (sum, row) =>
+            sum +
+            row.cells.reduce(
+              (sum, cell) =>
+                sum +
+                cell.content.ops.reduce((sum, op) => sum + opWeight(op), 0),
+              0,
+            ),
+          0,
+        ),
+      )
+    : 1;
+}
+export function nodeWeight(node: JSONContent): number {
+  if (node.type === "text") return textWeight(node.text ?? "");
+  if (["image", "resizableImage", "horizontalRule"].includes(node.type ?? ""))
+    return 1;
+  const weight = (node.content ?? []).reduce(
+    (sum, child) => sum + nodeWeight(child),
+    0,
+  );
+  return node.type === "table" ? Math.max(1, weight) : weight;
+}
+function nodeSize(node: JSONContent): number {
+  if (node.type === "text") return node.text?.length ?? 0;
+  if (
+    ["image", "resizableImage", "horizontalRule", "hardBreak"].includes(
+      node.type ?? "",
+    )
+  )
+    return 1;
+  return (
+    2 + (node.content ?? []).reduce((sum, child) => sum + nodeSize(child), 0)
+  );
+}
+export function renderedPositionMap(doc: JSONContent) {
+  let weight = 0,
+    position = 0;
+  return (doc.content ?? []).map((node, index) => {
+    const entry = {
+      index,
+      position,
+      from: weight,
+      to: weight + nodeWeight(node),
+    };
+    weight = entry.to;
+    position += nodeSize(node);
+    return entry;
+  });
+}
+export function sourcePositionMap(source: string) {
+  const spans: MarkdownSourceSpan[] = [];
+  const delta = mdToDelta(source, spans);
+  const lines = source.split(/\r\n|\r|\n/);
+  const endings = [...source.matchAll(/\r\n|\r|\n/g)];
+  const offsets = [
+    0,
+    ...endings.map((match) => match.index! + match[0].length),
+  ];
+  let weight = 0;
+  return spans.map((span) => {
+    const from = offsets[span.fromLine] ?? source.length;
+    const last = Math.max(span.fromLine, span.toLine - 1);
+    const to = (offsets[last] ?? source.length) + (lines[last]?.length ?? 0);
+    const size = delta.ops
+      .slice(span.fromOp, span.toOp)
+      .reduce((sum, op) => sum + opWeight(op), 0);
+    const entry = { from, to, weightFrom: weight, weightTo: weight + size };
+    weight += size;
+    return entry;
+  });
+}
+const fraction = (value: number, from: number, to: number) =>
+  Math.max(0, Math.min(1, (value - from) / Math.max(1, to - from)));
+export function sourceOffsetToWeight(source: string, offset: number): number {
+  const map = sourcePositionMap(source);
+  const entry = map.find((item) => item.to >= offset) ?? map[map.length - 1];
+  return entry
+    ? entry.weightFrom +
+        fraction(offset, entry.from, entry.to) *
+          (entry.weightTo - entry.weightFrom)
+    : 0;
+}
+export function weightToSourceOffset(source: string, weight: number): number {
+  const map = sourcePositionMap(source);
+  const entry =
+    map.find((item) => item.weightTo > weight) ?? map[map.length - 1];
+  return entry
+    ? Math.round(
+        entry.from +
+          fraction(weight, entry.weightFrom, entry.weightTo) *
+            (entry.to - entry.from),
+      )
+    : 0;
+}
+
+/** Measure actual textarea wrapping without changing focus, caret or selection. */
+export function textareaPosition(
+  area: HTMLTextAreaElement,
+  offset?: number,
+): number {
+  const mirror = document.createElement("div");
+  const style = getComputedStyle(area);
+  for (const name of [
+    "font-family",
+    "font-size",
+    "font-weight",
+    "font-style",
+    "line-height",
+    "letter-spacing",
+    "word-spacing",
+    "tab-size",
+    "padding",
+    "direction",
+  ])
+    mirror.style.setProperty(name, style.getPropertyValue(name));
+  Object.assign(mirror.style, {
+    position: "fixed",
+    left: "-100000px",
+    top: "0",
+    width: `${area.clientWidth}px`,
+    boxSizing: "border-box",
+    whiteSpace: "pre-wrap",
+    overflowWrap: "break-word",
+    visibility: "hidden",
+  });
+  const text = document.createTextNode(area.value + "\u200b");
+  mirror.append(text);
+  document.body.append(mirror);
+  try {
+    const top = mirror.getBoundingClientRect().top;
+    const range = document.createRange();
+    const at = (index: number) => {
+      range.setStart(text, Math.max(0, Math.min(area.value.length, index)));
+      range.setEnd(text, Math.min(text.length, range.startOffset + 1));
+      return range.getBoundingClientRect();
+    };
+    const padding = parseFloat(style.paddingTop) || 0;
+    if (offset !== undefined)
+      return Math.max(0, at(offset).top - top - padding);
+    let low = 0,
+      high = area.value.length;
+    const target = area.scrollTop + padding;
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      if (at(mid).bottom - top <= target + 1) low = mid + 1;
+      else high = mid;
+    }
+    return low;
+  } finally {
+    mirror.remove();
+  }
+}

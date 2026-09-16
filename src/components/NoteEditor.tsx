@@ -2219,10 +2219,15 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   }, [editor, selectAllOnOpen]);
 
   const rendererHandoffRef = useRef<ReturnType<typeof takeReadingAnchor>>();
+  const rendererHandoffNoteRef = useRef(noteId);
   useLayoutEffect(() => {
     if (!editor || !scrollRef.current) return;
     const root = scrollRef.current;
-    const anchor = takeReadingAnchor(noteId);
+    // Keep the one-shot handoff through StrictMode's effect replay. Otherwise
+    // the replay consumes nothing and persistent scroll restoration wins.
+    if (rendererHandoffNoteRef.current !== noteId) rendererHandoffRef.current = undefined;
+    rendererHandoffNoteRef.current = noteId;
+    const anchor = takeReadingAnchor(noteId) ?? rendererHandoffRef.current;
     rendererHandoffRef.current = anchor;
     if (anchor) {
       expandHeadingFoldsAt(editor, anchor.position);

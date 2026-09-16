@@ -351,10 +351,6 @@
   content: "◦";
 }
 
-.editor-appearance-preview li li > ul > li::before {
-  content: "▪";
-}
-
 .editor-appearance-preview ol > li::before {
   content: counter(editor-list-item) ".";
   font-variant-numeric: tabular-nums;
@@ -373,6 +369,16 @@
 :is(.editor-content, .editor-appearance-preview) ul > li::before {
   width: 0.5em;
   text-align: right;
+}
+
+/* U+25AA can become an oversized emoji on iOS and paint over the first
+   character. Draw nested squares inside the marker column, without a glyph.
+   Task items retain their checkbox instead of receiving this decoration. */
+:is(.editor-content, .editor-appearance-preview) li li > ul > li:not([data-task-checked])::before {
+  content: "";
+  top: 0;
+  height: 1lh;
+  background: linear-gradient(currentColor, currentColor) right center / 0.28em 0.28em no-repeat;
 }
 
 /* 列表级列宽来自起始编号和项目数。每个嵌套列表重新初始化变量，
