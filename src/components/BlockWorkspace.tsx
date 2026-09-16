@@ -22,16 +22,18 @@ import { blobToBase64 } from "../lib/storage/core";
 import { normalizePastedHTML, normalizeSingleParagraphPaste } from "../extensions/NormalizeSingleParagraphPaste";
 import { CodeMirrorBlockEditor } from "./CodeMirrorBlockEditor";
 
-type Request = { position: number; trigger: HTMLElement; restoreFocus?: boolean; startInEditMode?: boolean };
+type Request = { position: number; trigger: HTMLElement; restoreFocus?: boolean; startInEditMode?: boolean; selectedPositions?: number[] };
+type Navigate = (position: number, selectedPositions: number[] | undefined, startInEditMode: boolean) => void;
 type Props = { source: Editor; noteId?: string; readonly?: boolean; sensitive?: boolean; saveStatus?: string; onFlush?: () => Promise<void> };
 
 export function BlockWorkspaceHost(props: Props) {
   const [request, setRequest] = useState<Request | null>(null);
   const close = useCallback(() => setRequest(null), []);
-  const navigate = useCallback((position: number) => {
+  const navigate = useCallback<Navigate>((position, selectedPositions, startInEditMode) => {
     const node = props.source.view.nodeDOM(position);
-    const trigger = node instanceof HTMLElement ? node.querySelector<HTMLElement>(".block-workspace-open") : null;
-    if (trigger) setRequest({ position, trigger });
+    if (!(node instanceof HTMLElement)) return;
+    const trigger = node.querySelector<HTMLElement>(".block-workspace-open") ?? node;
+    setRequest({ position, trigger, selectedPositions, startInEditMode });
   }, [props.source]);
   useEffect(() => {
     const open = (event: Event) => {
@@ -67,9 +69,12 @@ export function BlockWorkspaceHost(props: Props) {
 
 /** A scoped view of the original block. Edits are mapped into the source
  * transaction stream; only the source owns undo history and persistence. */
-function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, request, onClose, onNavigate }: Props & { request: Request; onClose: () => void; onNavigate: (position: number) => void }) {
+function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, request, onClose, onNavigate }: Props & { request: Request; onClose: () => void; onNavigate: Navigate }) {
   const initial = useMemo(() => source.state.doc.nodeAt(request.position)!, [source, request]);
   const position = useRef(request.position);
+  // Track document positions through every edit, including this workspace's
+  // own transactions, so changing an earlier block cannot shift later targets.
+  const selectedPositions = useRef(request.selectedPositions?.slice());
   const currentNode = useRef(initial);
   const bridging = useRef(false);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -108,11 +113,12 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
       : rootType === "heading" ? "标题块"
         : rootType === "paragraph" ? "正文块" : "内容块";
   const sourceDocument = source.state.doc;
-  const peers = useMemo(() => {
+  const sameTypePeers = useMemo(() => {
     const positions: number[] = [];
     sourceDocument.descendants((node, position) => { if (node.type.name === rootType) positions.push(position); });
     return positions;
   }, [sourceDocument, rootType]);
+  const peers = selectedPositions.current ?? sameTypePeers;
   const peerIndex = peers.indexOf(position.current);
   const extensions = useMemo(() => [
     ...source.extensionManager.extensions.filter(extension =>
@@ -205,6 +211,12 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
   useEffect(() => {
     if (!editor) return;
     const onTransaction = ({ transaction }: { transaction: import("@tiptap/pm/state").Transaction }) => {
+      if (transaction.docChanged && selectedPositions.current) {
+        selectedPositions.current = selectedPositions.current.flatMap((pos) => {
+          const mapped = transaction.mapping.mapResult(pos, 1);
+          return mapped.deleted || !transaction.doc.nodeAt(mapped.pos)?.isBlock ? [] : [mapped.pos];
+        });
+      }
       if (bridging.current || !transaction.docChanged) return;
       const mapped = transaction.mapping.mapResult(position.current, 1);
       if (mapped.deleted) { onClose(); return; }
@@ -279,8 +291,10 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
     setClosing(true);
     try {
       await onFlush?.();
-      const target = peers[peerIndex + direction];
-      if (target !== undefined && !source.isDestroyed) onNavigate(target);
+      const currentPeers = selectedPositions.current ?? peers;
+      const currentIndex = currentPeers.indexOf(position.current);
+      const target = currentIndex < 0 ? undefined : currentPeers[currentIndex + direction];
+      if (target !== undefined && !source.isDestroyed) onNavigate(target, selectedPositions.current?.slice(), editable);
     } catch { setNotice("保存失败，暂不切换块。请重试或复制内容备份。"); }
     finally { setClosing(false); }
   };
@@ -439,10 +453,10 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
         />
       ) : <EditorContent editor={editor} />}
     </div>
-    {peers.length > 1 && <nav className="block-workspace-navigation" aria-label="同类块导航">
-      <button type="button" disabled={closing || peerIndex <= 0} onClick={() => void nextBlock(-1)}><ToolbarIcon name="chevronLeft" />上一个{name}</button>
+    {peers.length > 1 && <nav className="block-workspace-navigation" aria-label={request.selectedPositions ? "所选块导航" : "同类块导航"}>
+      <button type="button" disabled={closing || peerIndex <= 0} onClick={() => void nextBlock(-1)}><ToolbarIcon name="chevronLeft" />上一个{request.selectedPositions ? "块" : name}</button>
       <span>{peerIndex + 1} / {peers.length}</span>
-      <button type="button" disabled={closing || peerIndex >= peers.length - 1} onClick={() => void nextBlock(1)}>下一个{name}<ToolbarIcon name="chevronRight" /></button>
+      <button type="button" disabled={closing || peerIndex >= peers.length - 1} onClick={() => void nextBlock(1)}>下一个{request.selectedPositions ? "块" : name}<ToolbarIcon name="chevronRight" /></button>
     </nav>}
   </dialog>, document.body);
 }

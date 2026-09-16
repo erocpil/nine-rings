@@ -783,7 +783,6 @@ function FullNoteEditor({ unifiedTitleBar = false, mobileTitleBar = false, title
     [selectedBlockIndexes],
   );
   const blockEditButtonRef = useRef<HTMLButtonElement>(null);
-  const blockSwipeRef = useRef<{ id: number; x: number; y: number; pos: number; target: HTMLElement; horizontal: boolean } | null>(null);
   useEffect(() => {
     if (!copyBlockNotice.startsWith("已复制")) return;
     const timer = window.setTimeout(() => setCopyBlockNotice(""), 2200);
@@ -3143,53 +3142,11 @@ function FullNoteEditor({ unifiedTitleBar = false, mobileTitleBar = false, title
   };
   const editSelectedBlock = (trigger: HTMLElement | null) => {
     const indexes = selectedIndexes();
-    if (indexes.length !== 1 || !trigger) return;
-    const range = blockRangeAtIndex(indexes[0]);
+    if (readonly || indexes.length === 0 || !trigger) return;
+    const positions = indexes.map((index) => blockRangeAtIndex(index).from);
     setSelectedBlockIndexes(new Set());
-    if (!readonly) editor.setEditable(true, false);
-    openBlockWorkspace(editor, range.from, trigger, true);
-  };
-  const blockPositionForTarget = (target: EventTarget | null) => {
-    let element = target instanceof HTMLElement ? target : null;
-    while (element && element.parentElement !== editor.view.dom) element = element.parentElement;
-    if (!element || element.parentElement !== editor.view.dom) return null;
-    try {
-      const position = editor.view.posAtDOM(element, 0, -1);
-      return topLevelBlockAt(position).pos;
-    } catch { return null; }
-  };
-  const startSelectedBlockSwipe = (event: React.TouchEvent) => {
-    if (selectedBlockIndexes.size === 0 || event.touches.length !== 1) return;
-    const touch = event.touches[0];
-    const pos = blockPositionForTarget(event.target);
-    if (pos === null || !selectedBlockIndexes.has(topLevelBlockAt(pos).index)) return;
-    blockSwipeRef.current = { id: touch.identifier, x: touch.clientX, y: touch.clientY, pos, target: event.target as HTMLElement, horizontal: false };
-  };
-  const moveSelectedBlockSwipe = (event: React.TouchEvent) => {
-    const gesture = blockSwipeRef.current;
-    if (!gesture) return;
-    const touch = Array.from(event.touches).find((item) => item.identifier === gesture.id);
-    if (!touch) { blockSwipeRef.current = null; return; }
-    const dx = touch.clientX - gesture.x;
-    const dy = touch.clientY - gesture.y;
-    if (!gesture.horizontal && (dx >= 0 || Math.abs(dy) > Math.abs(dx))) {
-      if (Math.abs(dx) + Math.abs(dy) > 8) blockSwipeRef.current = null;
-      return;
-    }
-    if (dx < -8 && Math.abs(dx) > Math.abs(dy)) gesture.horizontal = true;
-    if (gesture.horizontal) { event.preventDefault(); event.stopPropagation(); }
-  };
-  const finishSelectedBlockSwipe = (event: React.TouchEvent) => {
-    const gesture = blockSwipeRef.current;
-    blockSwipeRef.current = null;
-    if (!gesture?.horizontal) return;
-    const touch = Array.from(event.changedTouches).find((item) => item.identifier === gesture.id);
-    if (!touch || gesture.x - touch.clientX <= 60) return;
-    event.preventDefault();
-    event.stopPropagation();
-    setSelectedBlockIndexes(new Set());
-    if (!readonly) editor.setEditable(true, false);
-    openBlockWorkspace(editor, gesture.pos, gesture.target, true);
+    editor.setEditable(true, false);
+    openBlockWorkspace(editor, positions[0], trigger, true, positions);
   };
   const handleCopyBlock = async () => {
     const $from = readonly && readonlyCopyPosition.current !== null
@@ -4229,6 +4186,7 @@ function FullNoteEditor({ unifiedTitleBar = false, mobileTitleBar = false, title
             <strong>{count} 块</strong>
             <button type="button" onClick={() => void copySelectedBlocks()}><ToolbarIcon name="copy" />复制</button>
             {!readonly && <>
+              <button ref={blockEditButtonRef} type="button" onClick={() => editSelectedBlock(blockEditButtonRef.current)}>编辑</button>
               <button type="button" onClick={() => formatSelectedBlocks("bold")}><strong>B</strong></button>
               <button type="button" onClick={() => formatSelectedBlocks("italic")}><em>I</em></button>
               <button type="button" onClick={() => formatSelectedBlocks("quote")}>引用</button>
@@ -4239,7 +4197,6 @@ function FullNoteEditor({ unifiedTitleBar = false, mobileTitleBar = false, title
               <label className="block-selection-color" title="所选块文字颜色">
                 颜色<input type="color" aria-label="所选块文字颜色" defaultValue="#333333" onChange={(event) => setSelectedBlockColor(event.target.value)} />
               </label>
-              <button ref={blockEditButtonRef} type="button" disabled={count !== 1} onClick={() => editSelectedBlock(blockEditButtonRef.current)}>编辑当前块</button>
             </>}
             <button type="button" aria-label="退出块选择" onClick={() => setSelectedBlockIndexes(new Set())}><ToolbarIcon name="close" /></button>
           </div> : null;
@@ -4291,10 +4248,6 @@ function FullNoteEditor({ unifiedTitleBar = false, mobileTitleBar = false, title
             onPointerMove={handleReadonlyHeadingPointerMove}
             onPointerCancel={handleReadonlyHeadingPointerCancel}
             onPointerUp={handleReadonlyHeadingPointerUp}
-            onTouchStart={startSelectedBlockSwipe}
-            onTouchMove={moveSelectedBlockSwipe}
-            onTouchEnd={finishSelectedBlockSwipe}
-            onTouchCancel={() => { blockSwipeRef.current = null; }}
             onClick={() => {
               if (readonly && vimModeEnabled) {
                 editor.view.dom.focus({ preventScroll: true });
