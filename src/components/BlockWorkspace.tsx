@@ -392,10 +392,13 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
       {iconButton("减少缩进", "outdent", () => { editor.chain().focus().updateAttributes(rootType, { indent: Math.max(0, Number(editor.state.doc.firstChild?.attrs.indent ?? 0) - 1) }).run(); })}
       {iconButton("增加缩进", "indent", () => { editor.chain().focus().updateAttributes(rootType, { indent: Math.min(8, Number(editor.state.doc.firstChild?.attrs.indent ?? 0) + 1) }).run(); })}
       {rootType !== "codeBlock" && <>
-        <select aria-label="段落样式" defaultValue="paragraph" onChange={event => {
-          if (event.target.value === "paragraph") editor.chain().focus().setParagraph().run();
-          else editor.chain().focus().setHeading({ level: Number(event.target.value) as 1 | 2 | 3 | 4 | 5 | 6 }).run();
-        }}><option value="paragraph">正文</option>{[1, 2, 3, 4, 5, 6].map(level => <option key={level} value={level}>H{level}</option>)}</select>
+        <span className="block-workspace-select">
+          <select aria-label="段落样式" defaultValue="paragraph" onChange={event => {
+            if (event.target.value === "paragraph") editor.chain().focus().setParagraph().run();
+            else editor.chain().focus().setHeading({ level: Number(event.target.value) as 1 | 2 | 3 | 4 | 5 | 6 }).run();
+          }}><option value="paragraph">正文</option>{[1, 2, 3, 4, 5, 6].map(level => <option key={level} value={level}>H{level}</option>)}</select>
+          <span className="toolbar-dropdown-caret" aria-hidden="true">▾</span>
+        </span>
         <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => editor.chain().focus().toggleBold().run()} title="粗体"><strong>B</strong></button>
         <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => editor.chain().focus().toggleItalic().run()} title="斜体"><em>I</em></button>
         <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => editor.chain().focus().toggleStrike().run()} title="删除线"><s>S</s></button>
@@ -424,9 +427,12 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
         }} />
         <label>文字颜色<input type="color" value={color} onChange={event => { setColor(event.target.value); editor.chain().focus().setColor(event.target.value).run(); }} /></label>
         {iconButton("清除文字颜色", "erase", () => { editor.chain().focus().unsetColor().run(); })}
-        <select aria-label="文字字号" defaultValue="" onChange={event => editor.chain().focus().setMark("textStyle", { fontSize: event.target.value || null }).run()}>
-          <option value="">默认字号</option>{[12, 14, 16, 18, 20, 24, 32].map(size => <option key={size} value={size}>{size}</option>)}
-        </select>
+        <span className="block-workspace-select">
+          <select aria-label="文字字号" defaultValue="" onChange={event => editor.chain().focus().setMark("textStyle", { fontSize: event.target.value || null }).run()}>
+            <option value="">默认字号</option>{[12, 14, 16, 18, 20, 24, 32].map(size => <option key={size} value={size}>{size}</option>)}
+          </select>
+          <span className="toolbar-dropdown-caret" aria-hidden="true">▾</span>
+        </span>
       </>}
     </div>}
     {insertKind && editable && <form className="block-workspace-options" onSubmit={event => { event.preventDefault(); insertUrl(); }}>

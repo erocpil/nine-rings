@@ -43,19 +43,21 @@ test.describe("手机块级操作", () => {
     const selectionToolbar = page.getByRole("toolbar", { name: "块级操作" });
     await expect(selectionToolbar).toContainText("1 块");
     await expect(editor).toHaveAttribute("contenteditable", "false");
-    await page.getByRole("button", { name: "选择到第 3 块" }).tap();
+    await editor.locator(":scope > p").nth(2).tap();
     await expect(selectionToolbar).toContainText("2 块");
-    await page.getByRole("button", { name: "选择到第 3 块" }).tap();
+    await expect(page.getByRole("button", { name: "选择第 3 块" })).toHaveAttribute("aria-pressed", "true");
+    await editor.locator(":scope > p").nth(2).tap();
     await expect(selectionToolbar).toContainText("1 块");
-    await page.getByRole("button", { name: "选择到第 2 块" }).tap();
+    await expect(page.getByRole("button", { name: "选择第 3 块" })).toHaveAttribute("aria-pressed", "false");
+    await editor.locator(":scope > p").nth(1).tap();
     await expect(selectionToolbar).toContainText("2 块");
     await selectionToolbar.getByLabel("所选块字号").selectOption("18");
     await expect(editor.locator(':scope > p').nth(1).locator('span[style*="18px"]')).toContainText("第二块");
     await expect(editor.locator(':scope > p').nth(2).locator('span[style*="18px"]')).toHaveCount(0);
 
-    await page.getByRole("button", { name: "选择到第 1 块" }).tap();
+    await editor.locator(":scope > p").nth(0).tap();
     await expect(selectionToolbar).toContainText("1 块");
-    await page.getByRole("button", { name: "选择到第 2 块" }).tap();
+    await editor.locator(":scope > p").nth(1).locator("span").tap();
     await expect(selectionToolbar).toHaveCount(0);
     await expect(editor).toHaveAttribute("contenteditable", "true");
     await page.getByRole("button", { name: "块级操作", exact: true }).first().tap();
@@ -67,6 +69,7 @@ test.describe("手机块级操作", () => {
     await expect(page.locator(".block-workspace")).toHaveCount(0);
     await expect(editor).toHaveAttribute("contenteditable", "false");
     await expect(selectionToolbar).toBeVisible();
+    await expect(selectionToolbar).toContainText("1 块");
     await expect(selectionToolbar.getByRole("button", { name: "复制", exact: true })).toBeVisible();
     await selectionToolbar.getByRole("button", { name: "编辑", exact: true }).tap();
     await expect(page.getByRole("dialog", { name: "正文块工作区" })).toBeVisible();
@@ -98,7 +101,7 @@ test.describe("手机块级操作", () => {
     });
     await expect(page.locator(".note-title")).toHaveValue("多块编辑测试");
     await page.getByRole("button", { name: "块级操作", exact: true }).tap();
-    await page.getByRole("button", { name: "选择到第 3 块" }).tap();
+    await page.locator(".ProseMirror > h2").tap();
     const toolbar = page.getByRole("toolbar", { name: "块级操作" });
     await expect(toolbar).toContainText("2 块");
     expect(await toolbar.getByRole("button", { name: "复制", exact: true }).evaluate(element => element.nextElementSibling?.textContent)).toBe("编辑");
@@ -134,6 +137,62 @@ test.describe("手机块级操作", () => {
     await expect(editor.locator(":scope > h2")).toContainText("修改后的标题");
     await expect(editor.locator(":scope > p").nth(1)).toHaveText("跳过的正文");
     await expect(editor.locator(":scope > p").nth(2)).toHaveText("末尾不选");
+  });
+
+  test("只读块点击嵌套正文及控件只切换所属块，块号和折叠区域共同高亮", async ({ page }) => {
+    await page.goto("/");
+    const editor = page.locator(".ProseMirror");
+    await expect(editor).toBeVisible();
+    await editor.evaluate((element) => {
+      const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      instance.commands.setContent({ type: "doc", content: [
+        { type: "paragraph", content: [{ type: "text", text: "起始块" }] },
+        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "可折叠标题" }] },
+        { type: "blockquote", content: [{ type: "paragraph", content: [{ type: "text", text: "引用内部" }] }] },
+        { type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "列表内部" }] }] }] },
+        { type: "paragraph", content: [{ type: "text", text: "链接内部", marks: [{ type: "link", attrs: { href: "https://example.com" } }] }] },
+        { type: "codeBlock", content: [{ type: "text", text: "代码内部" }] },
+        { type: "paragraph" },
+      ] });
+      instance.commands.setTextSelection(1);
+    });
+    await page.getByRole("button", { name: "点击设为只读" }).tap();
+    await page.getByRole("button", { name: "块级操作", exact: true }).first().tap();
+    const toolbar = page.getByRole("toolbar", { name: "块级操作" });
+    const headingGutter = page.getByRole("button", { name: "选择第 2 块" });
+    await expect(headingGutter).toHaveText("▼2");
+    await expect(headingGutter).toHaveCSS("width", "36px");
+    await headingGutter.locator(".editor-block-select-fold").tap();
+    await expect(headingGutter).toHaveClass(/selected/);
+    await expect(headingGutter).toHaveAttribute("aria-pressed", "true");
+    await expect(editor.locator("blockquote")).toBeVisible();
+    expect(await headingGutter.evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
+    await editor.locator(":scope > h2").tap();
+    await expect(headingGutter).not.toHaveClass(/selected/);
+    for (const [target, number] of [
+      [editor.locator("blockquote p"), 3],
+      [editor.locator("li p"), 4],
+      [editor.locator("a"), 5],
+      [editor.locator("code"), 6],
+      [editor.locator(":scope > p").last(), 7],
+    ] as const) {
+      await target.tap();
+      await expect(toolbar).toContainText("2 块");
+      await expect(page.getByRole("button", { name: `选择第 ${number} 块` })).toHaveAttribute("aria-pressed", "true");
+      await target.tap();
+      await expect(toolbar).toContainText("1 块");
+    }
+    await expect(page.locator(".block-workspace")).toHaveCount(0);
+    expect((await page.locator(".editor-block-select").allTextContents()).join("")).not.toMatch(/[○✓]/);
+    // Mouse clicks follow the same path without depending on touch synthesis.
+    await page.waitForTimeout(850);
+    await editor.locator("blockquote p").click();
+    await expect(toolbar).toContainText("2 块");
+    await editor.locator("blockquote p").click();
+    await expect(toolbar).toContainText("1 块");
+    await editor.locator(":scope > p").first().tap();
+    await expect(toolbar).toHaveCount(0);
+    await expect(editor).toHaveAttribute("contenteditable", "false");
   });
 
   test("大文档改成引用后外壳操作仍可响应", async ({ page }) => {

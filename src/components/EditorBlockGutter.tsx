@@ -138,6 +138,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
     moved: boolean;
   } | null>(null);
   const [blocks, setBlocks] = useState<GutterBlock[]>([]);
+  const selectingBlocks = selectedBlockIndexes.length > 0;
   const foldHosts = useRef(new Map<number, HTMLElement>());
   useEffect(() => {
     if (editor.isDestroyed) return;
@@ -154,7 +155,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
     const scrollRoot = root?.closest<HTMLElement>(".note-editor-scroll");
     if (!root || !scrollRoot || editor.isDestroyed) return;
 
-    const needsAllBlocks = showNumbers || (showInsertButtons && !readonly) || bookmarkPositions.length > 0 || selectedBlockIndexes.length > 0;
+    const needsAllBlocks = showNumbers || (showInsertButtons && !readonly) || bookmarkPositions.length > 0 || selectingBlocks;
     const needsHeadings = Boolean(onHeadingFoldToggle);
     if (!needsAllBlocks && !needsHeadings) {
       setBlocks((current) => current.length === 0 ? current : []);
@@ -581,7 +582,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
       if (rebuildFrame) cancelAnimationFrame(rebuildFrame);
       if (windowFrame) cancelAnimationFrame(windowFrame);
     };
-  }, [bookmarkPositions.length, compact, editor, onBlockCountChange, onHeadingFoldToggle, readonly, selectedBlockIndexes, showInsertButtons, showNumbers]);
+  }, [bookmarkPositions.length, compact, editor, onBlockCountChange, onHeadingFoldToggle, readonly, selectingBlocks, showInsertButtons, showNumbers]);
 
   const insertParagraph = (pos: number) => {
     const safePos = Math.min(Math.max(0, pos), editor.state.doc.content.size);
@@ -696,18 +697,21 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
           type="button"
           className={`editor-block-select${blockIsSelected(block) ? " selected" : ""}`}
           style={{ top: block.firstLineCenter }}
-          aria-label={`选择到第 ${block.index} 块`}
+          aria-label={`选择第 ${block.index} 块`}
           aria-pressed={blockIsSelected(block)}
-          title="选择到此块"
+          title={blockIsSelected(block) ? "取消选择此块" : "选择此块"}
           onMouseDown={(event) => event.preventDefault()}
           onTouchStart={startGutterTouch}
           onTouchMove={moveGutterTouch}
           onTouchCancel={cancelGutterTouch}
           onTouchEnd={(event) => runGutterActionFromTouch(event, () => onBlockSelect(block.pos))}
           onClick={(event) => runGutterActionFromClick(event, () => onBlockSelect(block.pos))}
-        >{blockIsSelected(block) ? "✓" : "○"}</button>
+        >
+          <span className="editor-block-select-fold" aria-hidden="true">{block.heading ? block.folded ? "▶" : "▼" : ""}</span>
+          <span className={blockHasBookmark(block) ? "bookmarked" : ""} aria-hidden="true">{block.index}</span>
+        </button>
       ))}
-      {showNumbers && blocks.map((block) => (
+      {!selectingBlocks && showNumbers && blocks.map((block) => (
         <span
           key={`number-${block.pos}`}
           className={`editor-block-number ${block.active ? "active" : ""} ${blockHasBookmark(block) ? "bookmarked" : ""} ${block.index === highlightedBlockIndex ? "bookmark-jump-gutter" : ""}`}
@@ -719,7 +723,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
           {block.index}
         </span>
       ))}
-      {!showNumbers && blocks.filter(blockHasBookmark).map((block) => (
+      {!selectingBlocks && !showNumbers && blocks.filter(blockHasBookmark).map((block) => (
         <span
           key={`bookmark-${block.pos}`}
           className={`editor-block-bookmark without-number ${block.index === highlightedBlockIndex ? "bookmark-jump-gutter" : ""}`}

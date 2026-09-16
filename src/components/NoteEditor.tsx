@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CopyBlockNotice } from "./CopyBlockNotice";
 import { useEditorToolbarMenus } from "../hooks/useEditorToolbarMenus";
+import { useBlockSelectionGestures } from "../hooks/useBlockSelectionGestures";
 import { MOBILE_VIEWPORT_QUERY } from "../hooks/useEdgeDrawer";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -1710,6 +1711,19 @@ function FullNoteEditor({ unifiedTitleBar = false, mobileTitleBar = false, title
     toggleDocumentBookmarks();
   }, [bookmarkRequestId, toggleDocumentBookmarks]);
 
+  const extendBlockSelection = useCallback((position: number) => {
+    if (!editor) return;
+    const doc = editor.state.doc;
+    const index = Math.min(doc.childCount - 1, doc.resolve(Math.max(0, Math.min(position, doc.content.size))).index(0));
+    setSelectedBlockIndexes((current) => {
+      const next = new Set(current);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }, [editor]);
+  useBlockSelectionGestures(editor, selectedBlockIndexes.size > 0, extendBlockSelection);
+
   // 只读和块选择都会锁定原编辑器。块选择期间只能通过显式的块工作区
   // 编辑，避免轻触正文意外改写内容或让移动端键盘抢走 gutter 手势。
   useEffect(() => {
@@ -3084,15 +3098,6 @@ function FullNoteEditor({ unifiedTitleBar = false, mobileTitleBar = false, title
     setSelectedBlockIndexes(new Set([block.index]));
     closeToolbarDropdowns();
   };
-  const extendBlockSelection = (position: number) => {
-    const index = topLevelBlockAt(position).index;
-    setSelectedBlockIndexes((current) => {
-      const next = new Set(current);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      return next;
-    });
-  };
   const copySelectedBlocks = async () => {
     const indexes = selectedIndexes();
     if (indexes.length === 0) return;
@@ -4223,8 +4228,8 @@ function FullNoteEditor({ unifiedTitleBar = false, mobileTitleBar = false, title
           </div>
         )}
         <div
-          className="editor-content-shell"
-          style={{ "--editor-gutter-width": `${editorGutterWidth(gutterBlockCount, showLineNumbers, isMobileToolbarViewport)}px` } as React.CSSProperties}
+          className={`editor-content-shell${selectedBlockIndexes.size > 0 ? " block-selection-active" : ""}`}
+          style={{ "--editor-gutter-width": `${editorGutterWidth(gutterBlockCount, showLineNumbers || selectedBlockIndexes.size > 0, isMobileToolbarViewport)}px` } as React.CSSProperties}
         >
           <EditorBlockGutter
             editor={editor}

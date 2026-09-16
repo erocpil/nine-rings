@@ -333,6 +333,58 @@ test("外部替换目标块后旧弹层失效，不覆盖新正文", async ({ pa
   await expect(page.locator(".note-editor .ProseMirror")).toContainText("外部替换的新正文");
 });
 
+test("桌面块选择入口随专注模式和只读状态显示", async ({ page }) => {
+  await fixture(page);
+  const entry = page.getByRole("button", { name: "块级操作", exact: true });
+  await expect(entry).toHaveCount(0);
+  await page.getByRole("button", { name: "点击设为只读" }).click();
+  await expect(entry).toBeVisible();
+  await entry.click();
+  const toolbar = page.getByRole("toolbar", { name: "块级操作" });
+  await expect(toolbar).toBeVisible();
+  await expect(toolbar.getByRole("button", { name: "编辑", exact: true })).toHaveCount(0);
+  await toolbar.getByRole("button", { name: "退出块选择" }).click();
+  await page.getByRole("button", { name: "点击设为可编辑" }).click();
+  await expect(entry).toHaveCount(0);
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
+  await expect(entry).toBeVisible();
+});
+
+for (const width of [1280, 390]) {
+  test(`块编辑下拉框与工具按钮样式一致并保留格式操作（${width}px）`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await fixture(page);
+    await page.getByRole("button", { name: "放大阅读引用块" }).click();
+    const dialog = page.getByRole("dialog", { name: "引用块工作区" });
+    await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+    const button = dialog.getByRole("button", { name: "撤销", exact: true });
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate(theme => {
+        document.documentElement.classList.remove("theme-light", "theme-dark");
+        document.documentElement.classList.add(`theme-${theme}`);
+      }, theme);
+      for (const label of ["段落样式", "文字字号"]) {
+        const select = dialog.getByRole("combobox", { name: label });
+        await expect(select).toHaveCSS("appearance", "none");
+        for (const property of ["height", "font-size", "font-family", "color", "border-radius", "background-color"]) {
+          const expected = await button.evaluate((element, property) => getComputedStyle(element).getPropertyValue(property), property);
+          await expect(select).toHaveCSS(property, expected);
+        }
+      }
+    }
+    await dialog.locator(".ProseMirror").evaluate(element => {
+      const editor = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      editor.commands.setTextSelection({ from: 2, to: 2 + editor.state.doc.firstChild!.firstChild!.textContent.length });
+    });
+    await dialog.getByRole("combobox", { name: "文字字号" }).selectOption("18");
+    await expect(dialog.locator('p').first().locator('span[style*="18px"]')).toHaveText("引用第一段");
+    await expect(page.locator('.note-editor blockquote p').first().locator('span[style*="18px"]')).toHaveText("引用第一段");
+    await dialog.getByRole("combobox", { name: "段落样式" }).selectOption("2");
+    await expect(dialog.locator("h2")).toHaveText("引用第一段");
+    await expect(dialog.locator("p").last()).toHaveText("引用第二段");
+  });
+}
+
 test("引用编辑复用格式工具，显示偏好在重新打开后保留", async ({ page }) => {
   await fixture(page);
   await page.getByRole("button", { name: "放大阅读引用块" }).click();

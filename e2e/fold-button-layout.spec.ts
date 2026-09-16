@@ -40,7 +40,7 @@ test("手机专注模式折叠三角始终对齐标题而不是引用块", async
       .getState()
       .selectNote(await api.notes.update(note.id, { readonly: true }));
   });
-  await expect(page.locator(".note-title")).toHaveValue("三角定位回归");
+  await expect(page.locator(".note-title")).toHaveText("三角定位回归");
   await page.getByRole("button", { name: "专注模式", exact: true }).click();
   const assertAlignment = async () => {
     await expect

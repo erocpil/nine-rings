@@ -1,4 +1,20 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+async function openTestNote(page: Page, paragraphs = [""]) {
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  // Isolate native editing from asynchronous welcome-note hydration.
+  await page.evaluate(async (lines) => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");
+    const { useNotesStore }: typeof import("../src/stores/useNotesStore") = await load("/src/stores/useNotesStore.ts");
+    const note = await api.notes.create({ title: "块号测试", date: useNotesStore.getState().currentDate,
+      content: { ops: lines.flatMap((line) => line ? [{ insert: line }, { insert: "\n" }] : [{ insert: "\n" }]) },
+    });
+    useNotesStore.getState().selectNote(note);
+  }, paragraphs);
+  await expect(page.locator(".note-title")).toHaveValue("块号测试");
+  await expect(page.locator(".ProseMirror > *")).toHaveCount(paragraphs.length);
+}
 
 test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
@@ -7,9 +23,10 @@ test("触摸代码块后的加号插入后不残留高亮，键盘布局变化�
     localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true }));
   });
   await page.goto("/");
+  await openTestNote(page);
   const editor = page.locator(".ProseMirror");
   await editor.fill("Is this role primarily focused on Spectrum/Quantum switch ASIC SDK development?");
-  await page.getByRole("button", { name: "块 ▾", exact: true }).click();
+  await page.getByRole("button", { name: "块", exact: true }).click();
   await page.getByRole("button", { name: "⏹ 代码块", exact: true }).click();
   await expect(editor.locator(".code-block-wrap")).toHaveCount(1);
   await expect(editor.locator(":scope > *")).toHaveCount(1);
@@ -21,10 +38,10 @@ test("触摸代码块后的加号插入后不残留高亮，键盘布局变化�
   await expect(editor).toBeFocused();
   // Model the keyboard's viewport shrink without dismissing it to clear the button.
   await page.evaluate(() => {
-    document.documentElement.style.setProperty("--app-viewport-height", "460px");
-    document.documentElement.style.setProperty("--app-visual-viewport-bottom-inset", "300px");
-    document.documentElement.classList.add("web-keyboard-open");
+    Object.defineProperty(window.visualViewport!, "height", { configurable: true, value: 460 });
+    window.visualViewport!.dispatchEvent(new Event("resize"));
   });
+  await expect(page.locator("html")).toHaveClass(/web-keyboard-open/);
   await expect(insert).toHaveCSS("-webkit-tap-highlight-color", "rgba(0, 0, 0, 0)");
   await expect(insert).toHaveCSS("appearance", "none");
   await expect(insert).toHaveCSS("width", "22px");
@@ -63,7 +80,7 @@ test.describe("桌面加号状态", () => {
       const style = getComputedStyle(element, "::after");
       return { right: style.right, padding: style.paddingRight, align: style.textAlign, visible: style.visibility };
     });
-    expect(label).toEqual({ right: "4px", padding: "0px", align: "right", visible: "visible" });
+    expect(label).toEqual({ right: "-2px", padding: "0px", align: "right", visible: "visible" });
     await page.mouse.move(800, 40);
     await expect(insert).toHaveCSS("opacity", "0.03");
     await insert.hover();
@@ -76,6 +93,35 @@ test.describe("桌面加号状态", () => {
     await expect.poll(() => insert.evaluate((button) => button.matches(":focus-visible"))).toBe(true);
   });
 });
+
+for (const width of [1280, 390]) {
+  test(`单块文档的悬停类型标签完整显示且不遮挡正文（${width}px）`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true })));
+    await page.goto("/");
+    await openTestNote(page, ["正文边界"]);
+    const number = page.locator(".editor-block-number").first();
+    await number.hover();
+    // Exercise every label against the smallest possible (one-digit) gutter.
+    for (const format of ["Text", "H1", "Quote", "UL", "OL", "Task", "Code", "HR", "Table", "Image", "Block"]) {
+      const bounds = await number.evaluate((element, label) => {
+        element.setAttribute("data-block-format", label);
+        const style = getComputedStyle(element, "::after");
+        const right = element.getBoundingClientRect().right - parseFloat(style.right);
+        const shell = element.closest(".editor-content-shell")!;
+        return {
+          left: right - parseFloat(style.width), right,
+          gutterLeft: shell.getBoundingClientRect().left,
+          textLeft: shell.querySelector(".ProseMirror > p")!.getBoundingClientRect().left,
+          visible: style.visibility,
+        };
+      }, format);
+      expect(bounds.visible).toBe("visible");
+      expect(bounds.left, `${format} must not clip on the left`).toBeGreaterThanOrEqual(bounds.gutterLeft);
+      expect(bounds.right, `${format} must leave space before body text`).toBeLessThanOrEqual(bounds.textLeft - 2);
+    }
+  });
+}
 
 for (const delayedObserver of [false, true]) {
   test(`手机键盘打开时删除末尾空块立即更新块号${delayedObserver ? "（DOM 通知延迟）" : ""}`, async ({ page }) => {
@@ -101,19 +147,15 @@ for (const delayedObserver of [false, true]) {
     }, delayedObserver);
     await page.goto("/");
     const editor = page.locator(".ProseMirror");
-    await editor.fill(Array.from({ length: 19 }, (_, i) => `正文 ${i + 1}`).join("\n"));
-    await editor.press("End");
-    await editor.press("Enter");
-    await editor.press("Enter");
-    await editor.press("Enter");
+    await openTestNote(page, [...Array.from({ length: 19 }, (_, i) => `正文 ${i + 1}`), "", "", ""]);
     await expect(editor.locator(":scope > *")).toHaveCount(22);
     await page.locator(".note-title-row").getByTitle("专注模式").click();
     await editor.locator(":scope > *").last().click();
     await page.evaluate(() => {
-      document.documentElement.style.setProperty("--app-viewport-height", "460px");
-      document.documentElement.style.setProperty("--app-visual-viewport-bottom-inset", "300px");
-      document.documentElement.classList.add("web-keyboard-open");
+      Object.defineProperty(window.visualViewport!, "height", { configurable: true, value: 460 });
+      window.visualViewport!.dispatchEvent(new Event("resize"));
     });
+    await expect(page.locator("html")).toHaveClass(/web-keyboard-open/);
     const number = (index: number) => page.locator(`.editor-block-number[data-block-index="${index}"]`);
     await expect(number(22)).toHaveCount(1);
     // 先排空初始化时的延迟通知，再保持视口与键盘状态不变进行删除。
