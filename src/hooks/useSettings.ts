@@ -7,6 +7,8 @@ import type { AppConfig } from "../lib/storage/types";
 import { addLog } from "../lib/debugLog";
 import { applyTheme } from "../lib/theme";
 import { withTimeout } from "../lib/async";
+import { DEFAULT_EDITOR_APPEARANCE } from "../lib/editor-appearance";
+import { preserveReadingPositions } from "../lib/reading-position";
 
 export function useSettings() {
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -55,7 +57,10 @@ export function useSettings() {
       const onlyThemeChanged = keys.every((key) => key === "theme" || c[key] === previous[key]);
       if (onlyThemeChanged) return;
     }
-    setConfig(c);
+    const appearanceChanged = previous && (Object.keys(DEFAULT_EDITOR_APPEARANCE) as Array<keyof typeof DEFAULT_EDITOR_APPEARANCE>)
+      .some(key => previous[key] !== c[key]);
+    if (appearanceChanged) preserveReadingPositions(() => setConfig(c));
+    else setConfig(c);
   };
 
   return { config, settingsOpen, setSettingsOpen, handleConfigChange };

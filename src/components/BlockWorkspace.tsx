@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { preserveReadingPositions } from "../lib/reading-position";
 import { createPortal } from "react-dom";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { Extension, type Editor } from "@tiptap/core";
@@ -428,7 +429,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
         <label>文字颜色<input type="color" value={color} onChange={event => { setColor(event.target.value); editor.chain().focus().setColor(event.target.value).run(); }} /></label>
         {iconButton("清除文字颜色", "erase", () => { editor.chain().focus().unsetColor().run(); })}
         <span className="block-workspace-select">
-          <select aria-label="文字字号" defaultValue="" onChange={event => editor.chain().focus().setMark("textStyle", { fontSize: event.target.value || null }).run()}>
+          <select aria-label="文字字号" defaultValue="" onChange={event => preserveReadingPositions(() => editor.chain().focus(undefined, { scrollIntoView: false }).setMark("textStyle", { fontSize: event.target.value || null }).run())}>
             <option value="">默认字号</option>{[12, 14, 16, 18, 20, 24, 32].map(size => <option key={size} value={size}>{size}</option>)}
           </select>
           <span className="toolbar-dropdown-caret" aria-hidden="true">▾</span>

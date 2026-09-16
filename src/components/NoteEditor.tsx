@@ -75,6 +75,7 @@ import { exportDocumentMarkdown } from "../lib/markdown-export";
 import { isTauri } from "../lib/tauri-desktop";
 import { exportDocumentAsPdf, type PdfDocumentInfo } from "../lib/pdf-export";
 import { FULLSCREEN_WILL_CHANGE_EVENT } from "../lib/fullscreen";
+import { preserveReadingPositions } from "../lib/reading-position";
 import { editorGutterWidth } from "../lib/editor-gutter";
 import { bindViewportEdgeSwipe, swipeViewport } from "../lib/edge-swipe";
 import { clipboardSliceToPlainText } from "../lib/clipboard-plain-text";
@@ -3133,11 +3134,13 @@ function FullNoteEditor({ unifiedTitleBar = false, mobileTitleBar = false, title
   };
   const setSelectedBlockFontSize = (fontSize: string) => {
     if (readonly) return;
-    for (const index of selectedIndexes()) {
-      if (!selectBlockText(index)) continue;
-      if (fontSize) editor.chain().setFontSize(fontSize).run();
-      else editor.chain().unsetFontSize().run();
-    }
+    preserveReadingPositions(() => {
+      for (const index of selectedIndexes()) {
+        if (!selectBlockText(index)) continue;
+        if (fontSize) editor.chain().setFontSize(fontSize).run();
+        else editor.chain().unsetFontSize().run();
+      }
+    });
   };
   const setSelectedBlockColor = (color: string) => {
     if (readonly) return;

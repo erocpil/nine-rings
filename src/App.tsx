@@ -29,6 +29,7 @@ import DocTree from "./components/DocTree";
 import { DocumentBrowser, type DocumentBrowserSession } from "./components/DocumentBrowser";
 import { DocMOC } from "./components/DocMOC";
 import type { DeltaOps, DocumentMetadata, ExternalMarkdownSource, Note, DocType, SearchNavigationTarget } from "./types/models";
+import { pushSnapshotBusy, useGitHubPushJob } from "./lib/sync/push-job";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
 import type { Template } from "./lib/storage/template-store";
 import { templateStore } from "./lib/storage/template-store";
@@ -464,7 +465,9 @@ function App() {
   const undoTimerRef = useRef<number | null>(null);
   const [versionOpen, setVersionOpen] = useState(false);
   const [pdfExportRequestId, setPdfExportRequestId] = useState(0);
-  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncUiBusy, setSyncBusy] = useState(false);
+  const snapshotBusy = useGitHubPushJob(pushSnapshotBusy);
+  const syncBusy = syncUiBusy || snapshotBusy;
   const [protectionBusy, setProtectionBusy] = useState(false);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const { config, settingsOpen, setSettingsOpen, handleConfigChange } = useSettings();
@@ -1701,6 +1704,7 @@ function App() {
     }}
     onNotesChanged={refreshNoteViews}
     onSyncBusy={setSyncBusy}
+    onBeforePush={flushAutoSave}
     onImport={() => {
       // Restore replaces both database and local workspace configuration.
       window.setTimeout(() => window.location.reload(), 1000);

@@ -13595,3 +13595,24 @@ button.doc-tree-toggle:focus-visible {
   .app-mobile-workspace .note-title-row .document-outline-toggle,
   .app-mobile-workspace .vr-title > button { flex-basis: 44px; width: 44px; min-width: 44px; }
 }
+.github-push-status {
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 12000;
+  width: min(360px, calc(100vw - 24px));
+  max-height: 45dvh;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text-primary);
+  box-shadow: 0 4px 24px #0003;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.github-push-status small { display: block; margin: 6px 0; color: var(--text-muted); }
+.github-push-status progress { display: block; width: 100%; margin: 8px 0; accent-color: var(--accent); }
+.github-push-status.error { border-color: var(--danger, #c44); }

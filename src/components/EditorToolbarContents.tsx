@@ -6,6 +6,7 @@ import { MobileActionSheet } from "./MobileActionSheet";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { useToolbarOverflow } from "../hooks/useToolbarOverflow";
 import { useSelectionFontSize } from "../hooks/useSelectionFontSize";
+import { preserveReadingPositions } from "../lib/reading-position";
 
 // Controlled by the editor session: extraction must not remount menu state or
 // move selection restoration/native touch handlers away from .editor-menu.
@@ -146,8 +147,10 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
       <select
         value={editor.getAttributes("textStyle").fontSize || ""}
         onChange={(event) => {
-          if (event.target.value) editor.chain().focus().setFontSize(event.target.value).run();
-          else editor.chain().focus().unsetFontSize().run();
+          preserveReadingPositions(() => {
+            if (event.target.value) editor.chain().focus(undefined, { scrollIntoView: false }).setFontSize(event.target.value).run();
+            else editor.chain().focus(undefined, { scrollIntoView: false }).unsetFontSize().run();
+          });
         }}
       >
         <option value="">默认</option>
@@ -465,7 +468,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
               key={s}
               className={`menu-dropdown-item ${selectionSize === String(s) ? "active" : ""}`}
               onClick={() => {
-                editor.chain().focus().setFontSize(String(s)).run();
+                preserveReadingPositions(() => editor.chain().focus(undefined, { scrollIntoView: false }).setFontSize(String(s)).run());
                 setSizeOpen(false);
               }}
               type="button"
@@ -477,7 +480,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
           <button
             className="menu-dropdown-item"
             onClick={() => {
-              editor.chain().focus().unsetFontSize().run();
+              preserveReadingPositions(() => editor.chain().focus(undefined, { scrollIntoView: false }).unsetFontSize().run());
               setSizeOpen(false);
             }}
             type="button"

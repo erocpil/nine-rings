@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-import { buildMarkdownImportInput, type MarkdownImportOptions } from "../lib/markdown-import";
+import { buildTextImportInput, type MarkdownImportOptions, type TextImportSource } from "../lib/markdown-import";
 import { deltaToProseMirror } from "../lib/delta-converter";
 import { extractTitle, mdToDelta } from "../lib/md-parser";
 
@@ -29,12 +29,13 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
       };
     } else {
       const request = payload as {
-        sources: Array<{ fileName: string; source: string }>;
+        sources: TextImportSource[];
         options: MarkdownImportOptions;
       };
-      result = request.sources.map(({ fileName, source }) => {
+      result = request.sources.map(file => {
+        const { fileName } = file;
         try {
-          return { fileName, input: buildMarkdownImportInput(fileName, source, request.options) };
+          return { fileName, input: buildTextImportInput(file, request.options) };
         } catch (error) {
           return { fileName, error: error instanceof Error ? error.message : String(error) };
         }

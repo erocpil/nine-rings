@@ -18,7 +18,7 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
   await page.getByLabel("Markdown 导入概念标签").fill("DPDK, 网络");
   await page.getByLabel("Markdown 导入普通标签").fill("imported");
 
-  const input = page.locator('input[type="file"][accept=".md"]');
+  const input = page.locator('input[type="file"][accept^=".md,"]');
   await input.setInputFiles({
     name: "review-import.md",
     mimeType: "text/markdown",
@@ -30,8 +30,8 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
 
   await expect(page.getByText("已导入 1 篇笔记")).toBeVisible();
   await page.locator(".settings-close").click();
-  const viewSwitch = page.locator(".sidebar-view-switch");
-  if (await viewSwitch.getAttribute("data-target-view") === "tree") await viewSwitch.click();
+  const treeButton = page.getByRole("navigation", { name: "工作区面板" }).getByRole("button", { name: "文档树", exact: true });
+  if (await treeButton.getAttribute("aria-pressed") !== "true") await treeButton.click();
 
   await expect(page.locator(".doc-tree-name", { hasText: "references" })).toBeVisible();
   await expect(page.locator(".doc-tree-name", { hasText: "import-e2e" })).toBeVisible();
@@ -113,7 +113,9 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
   await expect.poll(() => page.locator(".ProseMirror").evaluate((element) => {
     const anchor = window.getSelection()?.anchorNode;
     const heading = anchor instanceof Element ? anchor.closest("h3") : anchor?.parentElement?.closest("h3");
-    return heading?.textContent ?? "";
+    const label = heading?.cloneNode(true) as HTMLElement | undefined;
+    label?.querySelectorAll("button").forEach(button => button.remove());
+    return label?.textContent ?? "";
   })).toBe("子项");
   await expect.poll(() => page.locator(".note-editor-scroll").evaluate(
     (element) => (element as HTMLElement).scrollTop,
@@ -131,6 +133,8 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
   await expect.poll(() => page.locator(".ProseMirror").evaluate((element) => {
     const anchor = window.getSelection()?.anchorNode;
     const heading = anchor instanceof Element ? anchor.closest("h2") : anchor?.parentElement?.closest("h2");
-    return heading?.textContent ?? "";
+    const label = heading?.cloneNode(true) as HTMLElement | undefined;
+    label?.querySelectorAll("button").forEach(button => button.remove());
+    return label?.textContent ?? "";
   })).toBe("VFIO/UIO接入层");
 });

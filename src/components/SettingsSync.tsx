@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   loadSyncConfig,
   saveSyncConfig,
-  pushToGitHub,
   pullFromGitHub,
   previewPullFromGitHub,
   formatBackupDevice,
@@ -19,10 +18,12 @@ import { useTransientMessage } from "../hooks/useTransientMessage";
 import { exportLocalJsonBackup } from "../lib/local-backup-export";
 import { BackupRestoreStatus } from "./BackupRestoreStatus";
 import { BackupExportStatus } from "./BackupExportStatus";
+import { startGitHubPush, useGitHubPushJob } from "../lib/sync/push-job";
 
 interface Props {
   /** 备份进行中回调 — 父组件用来 freeze 编辑区 */
   onBusyChange?: (busy: boolean) => void;
+  onBeforePush?: () => Promise<void>;
   /** Pull 完成后回调 — 通知父组件重新载入并应用恢复后的完整工作区 */
   onPullDone?: () => void;
 }
@@ -31,7 +32,7 @@ type BusyOperation = "check" | "push" | "pull-preview" | "pull-merge" | "pull-re
 
 const BUSY_MESSAGES: Record<BusyOperation, string> = {
   check: "正在检查 GitHub 连接，操作期间暂不可编辑",
-  push: "正在向 GitHub 推送备份，操作期间暂不可编辑",
+  push: "GitHub 上传任务正在进行，关闭设置页仍可继续；进度与结果见全局提示",
   "pull-preview": "正在读取远端备份并逐篇比较；预检完成前不会修改本地数据",
   "pull-merge": "正在安全合并 GitHub 备份，本地独有内容会保留",
   "pull-replace": "正在用 GitHub 快照覆盖本地数据库，操作期间暂不可编辑",
@@ -97,7 +98,7 @@ function SyncDocumentList({
   );
 }
 
-export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
+export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }: Props) {
   const { confirm, confirmationDialog } = useConfirmation();
   const [cfg, setCfg] = useState<SyncConfig>(loadSyncConfig);
   const [status, setStatus] = useState<SyncStatus | null>(null);
@@ -114,7 +115,10 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     return initial.owner && initial.repo ? `${initial.owner}/${initial.repo}` : initial.owner || initial.repo;
   });
   const [ownerRepoError, setOwnerRepoError] = useState("");
-  const busy = busyOperation !== null;
+  const pushRunning = useGitHubPushJob(job => job.status === "running");
+  const pushResult = useGitHubPushJob(job => job.result);
+  const busy = busyOperation !== null || pushRunning;
+  useEffect(() => { if (pushResult) setCfg(loadSyncConfig()); }, [pushResult]);
 
   const showMessage = useCallback((msg: string, type: "success" | "error") => {
     setMessageType(type);
@@ -137,7 +141,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
   // 自动检测连接状态
   useEffect(() => {
     const request = ++checkRequestRef.current;
-    if (!connectionConfig.token || !connectionConfig.owner || !connectionConfig.repo) {
+    if (pushRunning || !connectionConfig.token || !connectionConfig.owner || !connectionConfig.repo) {
       checkRef.current = null;
       setStatus(null);
       setAutoChecking(false);
@@ -157,12 +161,12 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
       if (!cancelled && request === checkRequestRef.current) setAutoChecking(false);
     });
     return () => { cancelled = true; };
-  }, [connectionConfig]);
+  }, [connectionConfig, pushRunning]);
 
   // busy 变化时通知父组件
   useEffect(() => {
-    onBusyChange?.(busy);
-  }, [busy, onBusyChange]);
+    onBusyChange?.(busyOperation !== null);
+  }, [busyOperation, onBusyChange]);
 
   // 设置面板可能在 Push/Pull 完成前关闭。此时组件卸载，
   // finally 中的本地 setBusy(false) 无法再把父级编辑器解冻。
@@ -235,19 +239,10 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
     }
   }, [cfg, clearMessage]);
 
-  const handlePush = useCallback(async () => {
-    setBusyOperation("push");
+  const handlePush = useCallback(() => {
     clearMessage();
-    try {
-      const updated = await pushToGitHub(cfg);
-      setCfg(updated);
-      showMessage(`备份已上传至 GitHub (${new Date().toLocaleTimeString()})`, "success");
-    } catch (e) {
-      showMessage(`推送失败：${(e as Error).message}`, "error");
-    } finally {
-      setBusyOperation(null);
-    }
-  }, [cfg, clearMessage, showMessage]);
+    void startGitHubPush(cfg, onBeforePush);
+  }, [cfg, clearMessage, onBeforePush]);
 
   const handlePullPreview = useCallback(async () => {
     setBusyOperation("pull-preview");
@@ -353,7 +348,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
         {busy ? (
           <div className="sync-banner">
             <div className="sync-banner-spinner" />
-            <span>{BUSY_MESSAGES[busyOperation]}</span>
+            <span>{BUSY_MESSAGES[busyOperation ?? "push"]}</span>
           </div>
         ) : message && messageType === "error" ? (
           <OperationError key={message} message={message} />
@@ -393,7 +388,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
               {busy ? (
                 <>
                   <div className="sync-banner-spinner" />
-                  <span>{BUSY_MESSAGES[busyOperation]}</span>
+                  <span>{BUSY_MESSAGES[busyOperation ?? "push"]}</span>
                 </>
               ) : message && messageType === "error" ? (
                 <OperationError key={message} message={message} />
@@ -582,6 +577,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
             className={`settings-input ${ownerRepoError ? "settings-input-err" : ""}`}
             placeholder="erocpil/nine-rings-backup"
             value={ownerRepoValue}
+            disabled={busy}
             onChange={(e) => { setOwnerRepoValue(e.target.value); setOwnerRepoError(""); }}
             onKeyDown={handleOwnerRepoKeyDown}
             onBlur={commitOwnerRepo}
@@ -596,6 +592,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
             className="settings-input"
             placeholder="nine-rings-backup.json"
             value={cfg.path}
+            disabled={busy}
             onChange={(e) => update({ path: e.target.value })}
           />
         </label>
@@ -607,6 +604,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
             className="settings-input"
             placeholder="ghp_..."
             value={cfg.token}
+            disabled={busy}
             onChange={(e) => update({ token: e.target.value })}
           />
         </label>
@@ -617,6 +615,7 @@ export default function SettingsSync({ onBusyChange, onPullDone }: Props) {
             <input
               type="checkbox"
               checked={cfg.rememberToken}
+              disabled={busy}
               onChange={(e) => handleRememberTokenChange(e.target.checked)}
             />
             <span>记住 Token（退出浏览器后保留）</span>

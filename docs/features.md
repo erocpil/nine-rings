@@ -331,7 +331,7 @@ daily/         ← 虚拟：所有随笔（storagePath = NULL）
 
 1. **JSON 导出**：Tauri 端用 `@tauri-apps/plugin-dialog` 原生保存对话框；Web 端用 Blob download
 2. **JSON 导入**：Tauri 端用原生打开对话框；Web 端用 `<input type="file">`
-3. **Markdown 导入**：`<input type="file" multiple accept=".md">` → 每个文件解析为 delta JSON → 写入笔记
+3. **Markdown / 纯文本导入**：多选文件或通过目录选择器递归导入 `.md`、`.markdown`、`.txt`、`.text`、`.log`、`.csv`、`.tsv`、`.rst`、`.adoc`。Markdown 解析格式，其余按纯文本保留；支持 UTF-8 和带 BOM 的 UTF-16，二进制内容及无法解码的文件明确报错。目录导入保留所选根目录与子目录，接在指定目标路径下；不导入空目录，跳过不支持的文件类型。按小批次读取、Worker 转换，逐篇创建文档且不覆盖已有文档，个别失败不阻断其它文件。手机目录选择受系统文件选择器支持限制，不支持时可多选文件或在桌面导入后同步。
 
 ---
 

@@ -39,7 +39,7 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await page.getByRole("button", { name: /^数据与导入/ }).click();
   await expect(page.getByRole("heading", { name: "数据与导入", exact: true })).toBeVisible();
   await expect(page.getByText("数据导出 / 导入", { exact: true })).toBeVisible();
-  await expect(page.getByText("Markdown 导入", { exact: true })).toBeVisible();
+  await expect(page.getByText("Markdown / 纯文本导入", { exact: true })).toBeVisible();
   await expect(page.getByText("快捷键", { exact: true })).toHaveCount(0);
 });
 

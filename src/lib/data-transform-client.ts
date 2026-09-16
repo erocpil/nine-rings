@@ -1,15 +1,10 @@
 import type { CreateNoteInput, DeltaOps } from "../types/models";
 import { deltaToProseMirror } from "./delta-converter";
-import type { MarkdownImportOptions } from "./markdown-import";
-import { buildMarkdownImportInput } from "./markdown-import";
+import type { MarkdownImportOptions, TextImportSource } from "./markdown-import";
+import { buildTextImportInput } from "./markdown-import";
 import { extractTitle, mdToDelta } from "./md-parser";
 
 type WorkerTask = "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "delta-to-prosemirror";
-
-interface MarkdownSource {
-  fileName: string;
-  source: string;
-}
 
 export interface MarkdownTransformResult {
   fileName: string;
@@ -91,13 +86,14 @@ export function deltaToProseMirrorAsync(delta: unknown): Promise<Record<string, 
 }
 
 export function transformMarkdownBatch(
-  sources: MarkdownSource[],
+  sources: TextImportSource[],
   options: MarkdownImportOptions,
 ): Promise<MarkdownTransformResult[]> {
   return runWorkerTask<MarkdownTransformResult[]>("markdown-batch", { sources, options }, () => (
-    sources.map(({ fileName, source }) => {
+    sources.map((file) => {
+      const { fileName } = file;
       try {
-        return { fileName, input: buildMarkdownImportInput(fileName, source, options) };
+        return { fileName, input: buildTextImportInput(file, options) };
       } catch (error) {
         return { fileName, error: error instanceof Error ? error.message : String(error) };
       }

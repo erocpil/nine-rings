@@ -5,7 +5,7 @@ import { localDateKey } from "../lib/local-date";
 import type { AppConfig, DocType, Note } from "../types/models";
 import { DEFAULT_HOTKEYS, HOTKEY_LABELS } from "../types/models";
 import { DAILY_NOTES_ENABLED, TODOS_ENABLED, isWorkspaceShortcutEnabled } from "../lib/workspace-features";
-import { parseMetadataList } from "../lib/markdown-import";
+import { decodeTextImport, isTextImportFile, parseMetadataList, TEXT_IMPORT_ACCEPT, type TextImportSource } from "../lib/markdown-import";
 import { transformMarkdownBatch } from "../lib/data-transform-client";
 import { isTauri, importWithDialog } from "../lib/tauri-desktop";
 import { exportLocalJsonBackup } from "../lib/local-backup-export";
@@ -35,6 +35,7 @@ interface Props {
   onMarkdownImport?: () => void;
   /** 同步进行中回调 — 用来 freeze 编辑区 */
   onSyncBusy?: (busy: boolean) => void;
+  onBeforePush?: () => Promise<void>;
   /** Pull 完成后回调 — 重新载入并应用恢复后的设置与工作区 */
   onPullDone?: () => void;
   webStorageStatus?: WebStorageStatus;
@@ -76,7 +77,7 @@ const SETTINGS_CATEGORIES: Array<{
   { id: "documents", title: "文档管理", description: "书签、标签与用户信息" },
   { id: "general", title: "工作流与快捷键", description: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "默认视图、待办继承和按键绑定" : "搜索、设置与窗口按键绑定" },
   { id: "sync", title: "同步与备份", description: "GitHub 仓库和同步操作" },
-  { id: "data", title: "数据与导入", description: "JSON 备份及 Markdown 批量导入" },
+  { id: "data", title: "数据与导入", description: "JSON 备份及 Markdown / 纯文本目录导入" },
   { id: "advanced", title: "高级", description: "回收站策略与开发服务端口" },
 ];
 
@@ -116,7 +117,7 @@ function yieldToNextFrame(): Promise<void> {
   return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
 }
 
-export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onNotesChanged, libraryError }: Props) {
+export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onBeforePush, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onNotesChanged, libraryError }: Props) {
   const [vimConfig, setVimConfig] = useState(() => normalizeVimConfig(localStorage.getItem(VIM_CONFIG_KEY) ?? "set number\nset tabstop=4\nset shiftwidth=4\nset expandtab"));
   const [panelOrder, setPanelOrder] = useState<string[]>(() => {
     const saved = localStorage.getItem("nr:sidebarOrder")?.split(",") ?? [];
@@ -193,6 +194,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
 
   // ── Markdown 导入状态 ──
   const mdInputRef = useRef<HTMLInputElement>(null);
+  const directoryInputRef = useRef<HTMLInputElement>(null);
+  const [directoryImportSupported] = useState(() => "webkitdirectory" in document.createElement("input"));
   const [mdImporting, setMdImporting] = useState(false);
   const [mdImportCount, setMdImportCount] = useState(0);
   const [mdImportTotal, setMdImportTotal] = useState(0);
@@ -556,59 +559,81 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
 
   // ── Markdown 导入 ──
   const handleMdImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    const input = e.currentTarget;
+    const files = Array.from(input.files ?? []);
+    input.value = "";
+    if (!files.length || mdImporting) return;
+    const directoryImport = input === directoryInputRef.current;
+    const fileList = files.filter(file => isTextImportFile(file.name))
+      .sort((left, right) => (left.webkitRelativePath || left.name).localeCompare(right.webkitRelativePath || right.name));
+    const skipped = files.length - fileList.length;
+    if (!fileList.length) {
+      showMessage(`未发现支持的文本文件，已跳过 ${skipped} 个非支持类型的文件`);
+      return;
+    }
     setMdImporting(true);
     setMdImportCount(0);
-    setMdImportTotal(files.length);
+    setMdImportTotal(fileList.length);
     setMdImportProgress(0);
     setMdImportCurrentFile("");
     const today = localDateKey();
     let count = 0;
     const failures: string[] = [];
     try {
-      const fileList = [...files];
-      const sources = await Promise.all(fileList.map(async (file) => ({
-        fileName: file.name,
-        source: await file.text(),
-      })));
-      const transformed = await transformMarkdownBatch(sources, {
+      const options = {
         date: today,
-        mode: mdImportMode,
+        mode: directoryImport ? "document" as const : mdImportMode,
         storagePath: mdImportPath,
         docType: mdImportDocType,
         tags: parseMetadataList(mdImportTags),
         concepts: parseMetadataList(mdImportConcepts),
-      });
-      for (let fi = 0; fi < transformed.length; fi++) {
-        const result = transformed[fi];
-        setMdImportCurrentFile(result.fileName);
-        try {
-          if (!result.input) throw new Error(result.error ?? "Markdown 转换失败");
-          await api.notes.create(result.input);
-          count++;
-        } catch (error) {
-          failures.push(`${result.fileName}: ${error instanceof Error ? error.message : String(error)}`);
+      };
+      // Bound both file reads and Worker conversion; don't hold the entire directory in RAM.
+      for (let offset = 0; offset < fileList.length; offset += MD_IMPORT_CHUNK_SIZE) {
+        const batch = fileList.slice(offset, offset + MD_IMPORT_CHUNK_SIZE);
+        const sources: TextImportSource[] = [];
+        for (const file of batch) {
+          const label = file.webkitRelativePath || file.name;
+          setMdImportCurrentFile(label);
+          try {
+            if (directoryImport && !file.webkitRelativePath) throw new Error("系统未提供目录结构，请改用文件选择导入");
+            sources.push({ fileName: file.name, source: decodeTextImport(new Uint8Array(await file.arrayBuffer())),
+              relativePath: directoryImport ? file.webkitRelativePath : undefined });
+          } catch (error) {
+            failures.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
+          }
         }
-        setMdImportProgress(fi + 1);
-        if ((fi + 1) % MD_IMPORT_CHUNK_SIZE === 0) {
-          await yieldToNextFrame();
+        const transformed = await transformMarkdownBatch(sources, options);
+        for (let index = 0; index < transformed.length; index++) {
+          const result = transformed[index];
+          const label = sources[index].relativePath || result.fileName;
+          setMdImportCurrentFile(label);
+          try {
+            if (!result.input) throw new Error(result.error ?? "文本转换失败");
+            await api.notes.create(result.input);
+            count++;
+          } catch (error) {
+            failures.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
+          }
         }
+        setMdImportProgress(offset + batch.length);
+        await yieldToNextFrame();
       }
       setMdImportCount(count);
       if (count > 0) onMarkdownImport?.();
       showMessage(failures.length > 0
-        ? `已导入 ${count} 篇，失败 ${failures.length} 篇：${failures[0]}`
-        : `Markdown 导入完成：${count} 篇${mdImportMode === "document" ? `，路径 ${mdImportPath}` : ""}`);
+        ? `已导入 ${count} 篇，跳过 ${skipped} 个非支持类型文件，失败 ${failures.length} 篇：${failures[0]}`
+        : `文本导入完成：${count} 篇${options.mode === "document" ? `，路径 ${mdImportPath}` : ""}${skipped ? `，跳过 ${skipped} 个非支持类型文件` : ""}`);
     } catch (err) {
-      showMessage(`导入失败: ${err}`);
+      if (count > 0) onMarkdownImport?.();
+      showMessage(`导入中断，已导入 ${count} 篇（已导入的文档会保留）: ${err}`);
     } finally {
       setMdImporting(false);
       setMdImportCurrentFile("");
       setMdImportTotal(0);
       setMdImportProgress(0);
       // 无论成功失败都允许再次选择同一批文件。
-      e.target.value = "";
+      input.value = "";
     }
   };
 
@@ -1196,7 +1221,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             {/* ═══════════════════════ */}
             {/* Markdown 导入 */}
             {/* ═══════════════════════ */}
-            <SettingsSection title="Markdown 导入" desc="导入一个或多个 .md 文件，并指定文档位置与元数据" visible={settingsPage === "data"}>
+            <SettingsSection title="Markdown / 纯文本导入" desc="导入文件或整个目录；支持 .md、.markdown、.txt、.text、.log、.csv、.tsv、.rst、.adoc。非 Markdown 文件保留纯文本，支持 UTF-8 及带 BOM 的 UTF-16。" visible={settingsPage === "data"}>
               <div className="markdown-import-form">
                 <div className="settings-radio-group markdown-import-mode" role="radiogroup" aria-label="Markdown 导入类型">
                   <button
@@ -1222,7 +1247,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                         value={mdImportPath}
                         onChange={(event) => setMdImportPath(event.target.value)}
                       />
-                      <small>所有选中文件将作为独立文档放入这个目录。</small>
+                      <small>单独选文件时直接放入目标路径；选择目录时保留所选目录及全部子目录，例如 资料/网络/a.txt → 目标路径/资料/网络。空目录不导入。</small>
                     </label>
                     <label className="markdown-import-field">
                       <span>文档类型</span>
@@ -1270,8 +1295,13 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                   >
                     {mdImporting
                       ? `导入中... ${mdImportProgress}/${mdImportTotal}`
-                      : "选择 .md 文件"}
+                      : "选择 .md / .txt 等文件"}
                   </button>
+                  {mdImportMode === "document" && <button
+                    className="settings-btn-secondary"
+                    onClick={() => directoryInputRef.current?.click()}
+                    disabled={!directoryImportSupported || mdImporting || !mdImportPath.trim()}
+                  >选择目录导入</button>}
                   {(mdImporting || mdImportProgress > 0) && (
                     <span className="settings-import-progress">
                       {mdImportTotal > 0 ? `${mdImportProgress} / ${mdImportTotal} 已处理` : ""}
@@ -1286,12 +1316,24 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                   <input
                     ref={mdInputRef}
                     type="file"
-                    accept=".md"
+                    accept={TEXT_IMPORT_ACCEPT}
+                    multiple
+                    style={{ display: "none" }}
+                    onChange={handleMdImport}
+                  />
+                  <input
+                    ref={directoryInputRef}
+                    type="file"
+                    aria-label="导入文本目录"
+                    {...{ webkitdirectory: "" }}
                     multiple
                     style={{ display: "none" }}
                     onChange={handleMdImport}
                   />
                 </div>
+                <small>{directoryImportSupported
+                  ? "目录选择取决于系统文件选择器；若手机版无法选择目录，可改用多选文件，或在桌面端导入后同步。"
+                  : "当前环境不支持目录选择，请改用多选文件，或在桌面端导入后同步。"}</small>
               </div>
             </SettingsSection>
 
@@ -1299,7 +1341,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             {/* GitHub 备份 */}
             {/* ═══════════════════════ */}
             {settingsPage === "sync" && (
-              <SettingsSync onBusyChange={onSyncBusy} onPullDone={onPullDone} />
+              <SettingsSync onBusyChange={onSyncBusy} onBeforePush={onBeforePush} onPullDone={onPullDone} />
             )}
 
             <Field label="只读正文局部渲染（实验）" desc="默认关闭，仅本设备生效。只读时按可见区域挂载正文；图片、表格、超大单块及 Vim 模式自动回退。跨全文选择、打印、书签管理请切回完整渲染。" visible={settingsPage === "advanced"}>

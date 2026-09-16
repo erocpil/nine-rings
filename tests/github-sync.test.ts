@@ -1,6 +1,7 @@
 import {
   checkStatus,
   githubApiFetch,
+  githubTransferTimeoutMs,
   githubContentsUrl,
   loadSyncConfig,
   remoteBackupNeedsMerge,
@@ -86,6 +87,29 @@ try {
   try { await githubApiFetch("https://api.github.com", {}, 10); }
   catch (error) { timedOut = (error as Error).message.includes("GitHub 请求超时"); }
   assert(timedOut, "a pending WebView request is aborted and reported as a timeout");
+
+  let bodyCancelled = false;
+  globalThis.fetch = (async () => new Response(new ReadableStream({
+    start(controller) { controller.enqueue(new TextEncoder().encode("partial")); },
+    cancel() { bodyCancelled = true; },
+  }))) as typeof fetch;
+  timedOut = false;
+  try { await githubApiFetch("https://api.github.com", {}, 10); }
+  catch (error) { timedOut = (error as Error).message.includes("GitHub 请求超时"); }
+  assert(timedOut, "deadline covers stalled response body even if mocked fetch ignores abort");
+  assert(bodyCancelled, "timed-out response body reader is cancelled and released");
+
+  let started = false;
+  globalThis.fetch = (async () => { started = true; return new Response("{}"); }) as typeof fetch;
+  const cancelled = new AbortController();
+  cancelled.abort();
+  let cancelledError = false;
+  try { await githubApiFetch("https://api.github.com", { signal: cancelled.signal }); }
+  catch (error) { cancelledError = (error as Error).message.includes("已取消"); }
+  assert(cancelledError && !started, "pre-aborted calls never start network requests");
+  assert(githubTransferTimeoutMs(0) === 120000, "upload budget is at least two minutes");
+  assert(githubTransferTimeoutMs(10 * 1024 * 1024) === 280000, "transfer budget grows with wire bytes");
+  assert(githubTransferTimeoutMs(100 * 1024 * 1024) === 600000, "transfer budget is bounded at ten minutes");
 
   globalThis.fetch = (async () => new Response(JSON.stringify({
     permissions: { pull: true, push: false, maintain: false, admin: false },

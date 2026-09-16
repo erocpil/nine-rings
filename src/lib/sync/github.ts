@@ -314,7 +314,27 @@ function authHeader(token: string): Record<string, string> {
   };
 }
 
-/** WebView2 偶尔会让 fetch 永久停在 pending；必须主动中止，避免同步界面永久锁定。 */
+/** 按实际传输字节预算：至少两分钟，以 64 KiB/s 留出余量，最多十分钟。 */
+export function githubTransferTimeoutMs(bytes = 0): number {
+  return Math.min(600_000, 120_000 + Math.ceil(Math.max(0, bytes) / 65_536) * 1000);
+}
+
+export interface PushProgress {
+  phase: "checking" | "exporting" | "uploading" | "publishing";
+  bytes?: number;
+  timeoutMs?: number;
+}
+
+export interface PushOptions {
+  signal?: AbortSignal;
+  onProgress?: (progress: PushProgress) => void;
+}
+
+function checkPushCancellation(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new Error("GitHub 请求已取消");
+}
+
+/** Deadline includes the response body, even when a WebView ignores abort. */
 export async function githubApiFetch(
   input: RequestInfo | URL,
   init: RequestInit = {},
@@ -324,15 +344,47 @@ export async function githubApiFetch(
   const timeout = globalThis.setTimeout(() => controller.abort("timeout"), timeoutMs);
   const abortFromCaller = () => controller.abort(init.signal?.reason);
   init.signal?.addEventListener("abort", abortFromCaller, { once: true });
+  if (init.signal?.aborted) abortFromCaller();
+  let rejectAbort: () => void = () => {};
   try {
-    const request = isTauriRuntime()
-      ? (await import("@tauri-apps/plugin-http")).fetch
-      : fetch;
-    return await request(input, { ...init, signal: controller.signal });
+    const aborted = new Promise<never>((_, reject) => {
+      rejectAbort = () => reject(new Error("Request aborted"));
+      controller.signal.addEventListener("abort", rejectAbort, { once: true });
+      if (controller.signal.aborted) rejectAbort();
+    });
+    return await Promise.race([aborted, (async () => {
+      checkPushCancellation(controller.signal);
+      const request = isTauriRuntime()
+        ? (await import("@tauri-apps/plugin-http")).fetch
+        : fetch;
+      checkPushCancellation(controller.signal);
+      const response = await request(input, { ...init, signal: controller.signal });
+      let body: Blob | null = null;
+      const reader = response.body?.getReader();
+      if (reader) {
+        const cancelBody = () => { void reader.cancel().catch(() => {}); };
+        controller.signal.addEventListener("abort", cancelBody, { once: true });
+        try {
+          const chunks: BlobPart[] = [];
+          while (true) {
+            checkPushCancellation(controller.signal);
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value.slice());
+          }
+          checkPushCancellation(controller.signal);
+          body = new Blob(chunks);
+        } finally {
+          controller.signal.removeEventListener("abort", cancelBody);
+          reader.releaseLock();
+        }
+      }
+      return new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers });
+    })()]);
   } catch (reason) {
     if (controller.signal.aborted) {
       if (init.signal?.aborted) throw new Error("GitHub 请求已取消");
-      throw new Error(`GitHub 请求超时（${Math.ceil(timeoutMs / 1000)} 秒）。请检查 Windows 网络、代理或防火墙是否允许访问 api.github.com`);
+      throw new Error(`GitHub 请求超时（${Math.ceil(timeoutMs / 1000)} 秒）。请检查网络、代理或防火墙是否允许访问 api.github.com；上传超时不代表远端一定未写入，请先检查远端状态`);
     }
     if (reason instanceof TypeError) {
       throw new Error("无法连接 GitHub API。请检查 Windows 网络、代理、防火墙及 WebView2 是否能访问 api.github.com");
@@ -340,6 +392,7 @@ export async function githubApiFetch(
     throw reason;
   } finally {
     globalThis.clearTimeout(timeout);
+    controller.signal.removeEventListener("abort", rejectAbort);
     init.signal?.removeEventListener("abort", abortFromCaller);
   }
 }
@@ -359,9 +412,9 @@ export function githubContentsUrl(owner: string, repo: string, path: string): st
 }
 
 /** 获取远端文件内容 + sha */
-async function fetchRemote(token: string, owner: string, repo: string, path: string): Promise<{ content: string; sha: string } | null> {
+async function fetchRemote(token: string, owner: string, repo: string, path: string, signal?: AbortSignal): Promise<{ content: string; sha: string } | null> {
   const url = githubContentsUrl(owner, repo, path);
-  const res = await githubApiFetch(url, { headers: authHeader(token) });
+  const res = await githubApiFetch(url, { headers: authHeader(token), signal }, path.endsWith("-latest") ? GITHUB_REQUEST_TIMEOUT_MS : githubTransferTimeoutMs());
   if (res.status === 404) return null; // 文件不存在
   if (!res.ok) {
     const body = await res.text();
@@ -397,10 +450,11 @@ async function fetchRemote(token: string, owner: string, repo: string, path: str
     const binaryStr = atob(content);
     decodedContent = decodeURIComponent(escape(binaryStr));
   } else {
-    // 大文件：用 Git Blobs API 拉取（无大小限制 + CORS 友好）
+    // 大文件：用 Git Blobs API 拉取。
     console.log(`[fetchRemote] 文件 >1MB，用 Git Blobs API (sha=${data.sha.slice(0, 7)})`);
     const blobUrl = `https://api.github.com/repos/${owner}/${repo}/git/blobs/${data.sha}`;
-    const blobRes = await githubApiFetch(blobUrl, { headers: authHeader(token) });
+    const blobRes = await githubApiFetch(blobUrl, { headers: authHeader(token), signal },
+      githubTransferTimeoutMs(typeof data.size === "number" ? Math.ceil(data.size * 4 / 3) : 0));
     if (!blobRes.ok) {
       throw new Error(`Git Blobs API ${blobRes.status}`);
     }
@@ -416,19 +470,24 @@ async function fetchRemote(token: string, owner: string, repo: string, path: str
 }
 
 /** 上传/更新远端文件 */
-async function putRemote(token: string, owner: string, repo: string, path: string, content: string, sha: string | null, message: string): Promise<string> {
+async function putRemote(token: string, owner: string, repo: string, path: string, content: string, sha: string | null, message: string, options: PushOptions = {}, phase: PushProgress["phase"] = "uploading"): Promise<string> {
   const url = githubContentsUrl(owner, repo, path);
   const body: Record<string, unknown> = {
     message,
     content: btoa(unescape(encodeURIComponent(content))), // 正确处理 UTF-8
   };
   if (sha) body.sha = sha;
-
+  const payload = JSON.stringify(body);
+  const bytes = new TextEncoder().encode(payload).byteLength;
+  const timeoutMs = githubTransferTimeoutMs(bytes);
+  checkPushCancellation(options.signal);
+  options.onProgress?.({ phase, bytes, timeoutMs });
   const res = await githubApiFetch(url, {
     method: "PUT",
     headers: { ...authHeader(token), "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+    body: payload,
+    signal: options.signal,
+  }, timeoutMs);
   if (!res.ok) {
     const err = await res.text();
     throw new Error(`GitHub PUT ${res.status}: ${err.slice(0, 200)}`);
@@ -676,12 +735,14 @@ function dumpDocTree(docNotes: BackupLogNote[]): void {
  *   1. {path}-{version}.json  — 全量数据快照（不可变，sha=null 即 create）
  *   2. {path}-latest           — 文本指针，内容为版本号（覆盖更新）
  */
-export async function pushToGitHub(config: SyncConfig, message?: string): Promise<SyncConfig> {
+export async function pushToGitHub(config: SyncConfig, message?: string, options: PushOptions = {}): Promise<SyncConfig> {
   if (!config.token || !config.owner || !config.repo) {
     throw new Error("请先配置 GitHub Token、Owner 和 Repo");
   }
 
   addLog("[Sync] ═══ Push → GitHub ═══");
+  checkPushCancellation(options.signal);
+  options.onProgress?.({ phase: "checking" });
   const ptrPath = latestPath(config.path);
 
   // Push 之前先确认本机确实见过远端 latest。否则旧设备可以直接把一个
@@ -689,7 +750,7 @@ export async function pushToGitHub(config: SyncConfig, message?: string): Promis
   // Pull 却看不到它。要求先安全 Pull，形成并集后才允许继续 Push。
   let currentPointer: { content: string; sha: string } | null = null;
   try {
-    currentPointer = await fetchRemote(config.token, config.owner, config.repo, ptrPath);
+    currentPointer = await fetchRemote(config.token, config.owner, config.repo, ptrPath, options.signal);
   } catch (reason) {
     addLog(`[Sync] 读取 latest 指针失败: ${(reason as Error).message}`);
     throw reason;
@@ -704,7 +765,10 @@ export async function pushToGitHub(config: SyncConfig, message?: string): Promis
     );
   }
 
+  checkPushCancellation(options.signal);
+  options.onProgress?.({ phase: "exporting" });
   const content = await exportFullDB();
+  checkPushCancellation(options.signal);
   dumpBundle("导出本地数据", content);
 
   const version = new Date().toISOString().replace(/[:-]/g, "").replace(/\.(\d{3})Z$/, "$1"); // "20260715T123000123"
@@ -714,7 +778,7 @@ export async function pushToGitHub(config: SyncConfig, message?: string): Promis
   addLog(`[Sync] 写入数据文件: ${dataPath}`);
   try {
     await putRemote(config.token, config.owner, config.repo, dataPath, content, null,
-      message || `backup: ${version}`);
+      message || `backup: ${version}`, options);
   } catch (e) {
     addLog(`[Sync] 数据文件写入失败: ${(e as Error).message}`);
     throw e;
@@ -726,7 +790,7 @@ export async function pushToGitHub(config: SyncConfig, message?: string): Promis
     // 使用上传数据前读取的 SHA。如果此间另一台设备更新了 latest，GitHub
     // 会拒绝旧 SHA，避免竞态覆盖。
     await putRemote(config.token, config.owner, config.repo, ptrPath, version, currentPointer?.sha ?? null,
-      `latest: ${version}`);
+      `latest: ${version}`, options, "publishing");
   } catch (e) {
     addLog(`[Sync] latest 指针写入失败: ${(e as Error).message}`);
     throw e;

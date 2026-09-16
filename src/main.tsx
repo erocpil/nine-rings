@@ -8,6 +8,7 @@ import "./styles.css";
 import { recordReaderDiagnostic } from "./lib/reader-diagnostics";
 import { DAILY_NOTES_ENABLED } from "./lib/workspace-features";
 import { PasswordDialogHost } from "./components/PasswordDialog";
+import { GitHubPushStatus } from "./components/GitHubPushStatus";
 
 // 根据 URL 参数判断窗口类型：?win=qc → Quick Capture，否则主窗口
 const params = new URLSearchParams(window.location.search);
@@ -27,6 +28,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
       <PasswordDialogHost />
+      {!isQuickCapture && <GitHubPushStatus />}
       <Suspense fallback={<div style={{ padding: "1rem", fontSize: 13, color: "var(--text-muted)" }}>加载中...</div>}>
         {isQuickCapture ? (DAILY_NOTES_ENABLED ? <QuickCapture /> : <div className="empty-state">随笔和快捷记录暂时隐藏，已有数据仍保留。</div>) : <App />}
       </Suspense>
