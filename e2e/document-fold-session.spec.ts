@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { seedReadingDocuments } from "./helpers/reading-fixtures";
 
 // This suite tests in-app navigation; service-worker activation/reload is
 // covered separately by the PWA tests and would discard the session itself.
@@ -19,42 +20,7 @@ for (const navigation of [
         await page.setViewportSize({ width: 390, height: 760 });
       await page.goto("/");
       await expect(page.locator(".ProseMirror")).toBeVisible();
-      const ids = await page.evaluate(async (locked) => {
-        const { api } = await import("/src/lib/api.ts");
-        const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
-        const a = await api.notes.create({
-          title: "折叠位置 A",
-          date: "2026-09-17",
-          storagePath: "references/fold-session",
-          content: {
-            ops: [
-              { insert: "首节" },
-              { insert: "\n", attributes: { header: 1 } },
-              { insert: "首节隐藏正文" },
-              { insert: "\n" },
-              { insert: "第二节" },
-              { insert: "\n", attributes: { header: 1 } },
-              { insert: "const example = 1;" },
-              { insert: "\n", attributes: { "code-block": true } },
-              ...Array.from({ length: 90 }, (_, i) => [
-                { insert: `阅读段落 ${i} ${"正文".repeat(30)}` },
-                { insert: "\n" },
-              ]).flat(),
-            ],
-          },
-        });
-        const b = await api.notes.create({
-          title: "折叠位置 B",
-          storagePath: "references/fold-session",
-          date: "2026-09-17",
-          content: { ops: [{ insert: "其它文档\n" }] },
-        });
-        const selected = locked
-          ? await api.notes.update(a.id, { readonly: true })
-          : a;
-        useNotesStore.getState().selectNote(selected);
-        return { a: a.id, b: b.id };
-      }, readonly);
+      const ids = await seedReadingDocuments(page, readonly);
       await expect
         .poll(() => page.evaluate(() => localStorage.getItem("nr:lastNote")))
         .toBe(ids.a);

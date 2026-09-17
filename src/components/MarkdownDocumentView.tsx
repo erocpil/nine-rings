@@ -10,11 +10,12 @@ import { DocumentTitlePreview } from "./DocumentTitlePreview";
 import { MarkdownEscapeRepair } from "./MarkdownEscapeRepair";
 import { api } from "../lib/api";
 import { useMarkdownViewPosition } from "../hooks/useMarkdownViewPosition";
+import { patchReadingState, readReadingState } from "../lib/reading-state";
 
 /** One visible editing surface, one canonical autosave stream for both views. */
 export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps; render: (props: NoteEditorProps) => ReactNode }) {
   const [source, setSource] = useState<string | null>(null);
-  const viewPosition = useMarkdownViewPosition(props.noteId, source !== null);
+  const viewPosition = useMarkdownViewPosition(props.noteId, source !== null, props.sensitive);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [snapshot, setSnapshot] = useState<{ base: DeltaOps; content: DeltaOps } | null>(null);
@@ -42,7 +43,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     latestReader.current = read;
     props.onContentChange(read);
   };
-  const changeView = async () => {
+  const changeView = async (restoreSourceTop?: number) => {
     if (busy) return;
     setBusy(true); setError("");
     try {
@@ -59,7 +60,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         // An edit during the worker conversion must never be replaced by its stale result.
         if ((latestReader.current?.() ?? latestProps.current.content) !== raw) throw new Error("转换期间正文已变化，请再次切换");
         initial.current = { text, content };
-        viewPosition.toSource(text, deltaToProseMirror(content));
+        viewPosition.toSource(text, deltaToProseMirror(content), restoreSourceTop);
         setSource(text);
       } else {
         viewPosition.toRendered(source, deltaToProseMirror(content));
@@ -74,6 +75,19 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       if (alive.current) setError(`切换失败，当前内容已保留：${cause instanceof Error ? cause.message : String(cause)}`);
     } finally { if (alive.current) setBusy(false); }
   };
+  const restoreViewRef = useRef(changeView);
+  restoreViewRef.current = changeView;
+  const restoredView = useRef(false);
+  useEffect(() => {
+    if (restoredView.current) return;
+    restoredView.current = true;
+    const saved = props.sensitive ? null : readReadingState(props.noteId);
+    if (supported && saved?.view === "source" && saved.source) void restoreViewRef.current(saved.source.scrollTop);
+  }, [props.noteId, props.sensitive, supported]);
+  useEffect(() => {
+    // Source cleanup runs before this effect; explicit return to rendered wins.
+    if (source === null && !props.sensitive && initial.current) patchReadingState(props.noteId, { view: "rendered" });
+  }, [source, props.noteId, props.sensitive]);
   if (!supported) return render(props);
   const toggle = <button type="button" className="markdown-view-toggle" disabled={busy}
     title={source === null ? "切换到 Markdown 源码" : "切换到渲染视图"}

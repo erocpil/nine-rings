@@ -7,6 +7,8 @@ import { resolveImageRefs, cleanupProtectedImages } from "./storage/db-images";
 import { invalidateWebSearchIndex } from "./web-search-index";
 import { clearEditorSessionCache } from "./editor-session-cache";
 import { clearReadingBlockSessions } from "./reading-block-session";
+import { clearReadingState } from "./reading-state";
+import { sessionHeadingFoldStore } from "./heading-fold";
 import { broadcastDataChange } from "./tab-coordination";
 import { isTauriRuntime } from "./runtime";
 
@@ -31,6 +33,7 @@ export async function commitProtectedChanges(before: ProtectionSnapshot, after: 
   clearReadingBlockSessions();
   invalidateWebSearchIndex();
   for (const note of after.notes) {
+    if (isEncrypted(note.content)) { sessionHeadingFoldStore.clear(note.id); clearReadingState(note.id); }
     if (JSON.stringify(note) !== JSON.stringify(before.notes.find(n => n.id === note.id))) broadcastDataChange({ type: "note-changed", noteId: note.id });
   }
   broadcastDataChange({ type: "data-imported" });

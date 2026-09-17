@@ -2286,7 +2286,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     }
   }, [editor, noteId]);
 
-  useEditorScrollPersistence({ noteId, scrollRef, scrollPositionRef, rendererHandoffRef, showStatusBar, isMobileToolbarViewport });
+  useEditorScrollPersistence({ noteId, sensitive, scrollRef, scrollPositionRef, rendererHandoffRef, showStatusBar, isMobileToolbarViewport });
 
   const { chars, words } = documentStats;
 

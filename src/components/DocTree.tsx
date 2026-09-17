@@ -271,8 +271,14 @@ function DocTree({
   useEffect(() => {
     if (contextMenu) {
       const close = () => setContextMenu(null);
+      const escape = (event: KeyboardEvent) => {
+        if (event.key !== "Escape") return;
+        event.preventDefault();
+        close();
+      };
       document.addEventListener("click", close);
-      return () => document.removeEventListener("click", close);
+      document.addEventListener("keydown", escape);
+      return () => { document.removeEventListener("click", close); document.removeEventListener("keydown", escape); };
     }
   }, [contextMenu]);
 

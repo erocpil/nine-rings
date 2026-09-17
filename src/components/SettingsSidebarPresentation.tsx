@@ -42,7 +42,7 @@ export function SettingsSidebarPresentation({
       <p className="sidebar-presentation-description">
         {mode === "split"
           ? "分栏与正文并排显示，占用窗口空间，适合同时查看。"
-          : "悬停分栏按钮时浮出预览，移入分栏可继续操作，移出后自动收起；点击按钮固定为并排显示，再次点击收起。"}
+          : "悬停分栏按钮时浮出预览，移出且无输入或菜单操作时自动收起；点击固定为并排显示，再次点击收起。Tab 聚焦按钮后可用右/下方向键进入，Esc 收起并返回按钮。"}
       </p>
       <p className="sidebar-presentation-description">
         仅对桌面版的文档树、文档列表与阅读分栏生效。手机版保持原有行为。

@@ -4,6 +4,9 @@
   font-size: 12px;
   line-height: 1.6;
 }
+.sidebar-hover-enabled .desktop-activity-bar [data-pinned=true] {
+  box-shadow: inset 3px 0 var(--accent);
+}
 
 /* Desktop only: the same panel floats while a spacer animates pinning. */
 .app-body.sidebar-hover-enabled {

@@ -40,6 +40,7 @@ import { bindViewportEdgeSwipe, swipeViewport } from "../lib/edge-swipe";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { isDocumentFindKeyEvent } from "../lib/shortcuts";
 import { readingBlockSession, type ReadingBlockState as BlockState } from "../lib/reading-block-session";
+import { patchReadingState, readReadingState } from "../lib/reading-state";
 
 function renderBlock(
   node: PMNode,
@@ -262,7 +263,7 @@ export function ReadonlyVirtualNote(
   const [revision, setRevision] = useState(0);
   const [viewport, setViewport] = useState({ top: 0, height: 800 });
   const [folds, setFolds] = useState(
-    () => new Set(sessionHeadingFoldStore.load(noteId)?.collapsedKeys ?? []),
+    () => new Set(props.sensitive ? [] : sessionHeadingFoldStore.load(noteId)?.collapsedKeys ?? []),
   );
   const states = useMemo(() => props.sensitive ? new Map<number, BlockState>() : readingBlockSession(noteId, contentVersion), [noteId, contentVersion, props.sensitive]);
   const sections = useMemo(() => extractHeadingSections(doc), [doc]);
@@ -383,11 +384,12 @@ export function ReadonlyVirtualNote(
     });
   };
   useEffect(() => {
+    if (props.sensitive) return;
     sessionHeadingFoldStore.save(noteId, {
       version: 1,
       collapsedKeys: [...folds],
     });
-  }, [noteId, folds]);
+  }, [noteId, folds, props.sensitive]);
   useEffect(() => {
     onOutlineAvailabilityChange?.(sections.length > 0);
     onStickyTitleChange?.(null);
@@ -395,9 +397,10 @@ export function ReadonlyVirtualNote(
 
   useLayoutEffect(() => {
     let initial = takeReadingAnchor(noteId);
-    if (!initial) {
+    if (!initial && !props.sensitive) {
       try {
-        const stored = JSON.parse(localStorage.getItem(anchorKey) ?? "null");
+        const saved = readReadingState(noteId).virtual;
+        const stored = saved ? { ...saved, version: saved.revision } : JSON.parse(localStorage.getItem(anchorKey) ?? "null");
         if (
           stored?.version === initialContentVersion.current &&
           Number.isFinite(stored.position) &&
@@ -409,7 +412,7 @@ export function ReadonlyVirtualNote(
       }
     }
     if (initial) jump(initial.position, initial.offset);
-  }, [anchorKey, jump, noteId]);
+  }, [anchorKey, jump, noteId, props.sensitive]);
 
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -434,7 +437,9 @@ export function ReadonlyVirtualNote(
       timer = 0;
     let width = root.clientWidth;
     const persist = () => {
+      if (props.sensitive) return;
       const anchor = savedAnchor.current;
+      patchReadingState(noteId, { virtual: { ...anchor, revision: contentVersion } });
       try {
         localStorage.setItem(
           anchorKey,
@@ -509,7 +514,7 @@ export function ReadonlyVirtualNote(
       window.removeEventListener("pagehide", persist);
       document.removeEventListener("visibilitychange", persist);
     };
-  }, [anchorKey, contentVersion, capture, preserve]);
+  }, [anchorKey, contentVersion, capture, preserve, noteId, props.sensitive]);
 
   const windowRange = layout.window(viewport.top, viewport.height);
   const start = selectionWindow

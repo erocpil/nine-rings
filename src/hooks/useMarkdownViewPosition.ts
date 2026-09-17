@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import type { JSONContent } from "@tiptap/core";
 import { handoffReadingAnchor } from "../lib/readonly-rendering";
+import { patchReadingState } from "../lib/reading-state";
 import {
   renderedTextblockMap,
   renderedTextblockSelector,
@@ -42,6 +43,7 @@ function blockElement(
 export function useMarkdownViewPosition(
   noteId: string,
   showingSource: boolean,
+  sensitive = false,
 ) {
   const host = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
@@ -60,6 +62,7 @@ export function useMarkdownViewPosition(
     source?: string;
     doc: JSONContent;
     sourceMap?: ReturnType<typeof sourcePositionMap>;
+    sourceTop?: number;
   } | null>(null);
   const lastSource = useRef<{
     source: string;
@@ -67,7 +70,7 @@ export function useMarkdownViewPosition(
     weight: number;
   } | null>(null);
 
-  const toSource = (source: string, doc: JSONContent) => {
+  const toSource = (source: string, doc: JSONContent, sourceTop?: number) => {
     const container = host.current;
     const root = container?.querySelector<HTMLElement>(".note-editor-scroll");
     let weight = 0;
@@ -111,7 +114,13 @@ export function useMarkdownViewPosition(
         }
       }
     }
-    pending.current = { weight, source, doc, sourceMap: mapFor(source) };
+    pending.current = {
+      weight,
+      source,
+      doc,
+      sourceMap: mapFor(source),
+      sourceTop,
+    };
   };
   const toRendered = (source: string, doc: JSONContent) => {
     const input = area.current;
@@ -165,15 +174,18 @@ export function useMarkdownViewPosition(
         const input = area.current;
         if (measuredWidth !== input.clientWidth) {
           measuredWidth = input.clientWidth;
-          sourceTop = textareaPosition(input, sourceOffset);
+          sourceTop = anchor.sourceTop ?? textareaPosition(input, sourceOffset);
         }
         input.scrollTop = sourceTop;
         top = input.scrollTop;
-        lastSource.current = {
-          source: anchor.source,
-          scrollTop: top,
-          weight: anchor.weight,
-        };
+        lastSource.current =
+          anchor.sourceTop !== undefined
+            ? null
+            : {
+                source: anchor.source,
+                scrollTop: top,
+                weight: anchor.weight,
+              };
       } else if (!showingSource) {
         const root = container.querySelector<HTMLElement>(
           ".note-editor-scroll",
@@ -217,5 +229,38 @@ export function useMarkdownViewPosition(
         container.removeEventListener(event, stop);
     };
   }, [showingSource, noteId]);
+  useLayoutEffect(() => {
+    if (sensitive) return;
+    if (!showingSource) return;
+    const input = area.current;
+    if (!input) return;
+    let top = input.scrollTop;
+    let timer = 0;
+    const flush = () => {
+      window.clearTimeout(timer);
+      timer = 0;
+      patchReadingState(noteId, { view: "source", source: { scrollTop: top } });
+    };
+    const scroll = () => {
+      top = input.scrollTop;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(flush, 220);
+    };
+    const hidden = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    flush();
+    input.addEventListener("scroll", scroll, { passive: true });
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("nine-rings:main-window-hide", flush);
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      input.removeEventListener("scroll", scroll);
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("nine-rings:main-window-hide", flush);
+      document.removeEventListener("visibilitychange", hidden);
+      flush();
+    };
+  }, [noteId, showingSource, sensitive]);
   return { host, area, toSource, toRendered };
 }

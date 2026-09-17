@@ -2,6 +2,91 @@ import { expect, test, type Page } from "@playwright/test";
 
 test.use({ serviceWorkers: "block" });
 
+test("面板边缘事件缺失时正文指针移动仍收起，阅读预览不抢焦点且支持 Esc", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nr:sidebarPresentation", "overlay"));
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  const reader = page.locator('[data-sidebar-panel="reader"]');
+  const sidebar = page.locator(".app-sidebar");
+  const editor = page.locator(".ProseMirror");
+  await editor.focus();
+  await reader.dispatchEvent("pointerover", { pointerType: "mouse" });
+  await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+  await expect(page.getByRole("region", { name: "阅读资料库", exact: true })).toBeVisible();
+  await expect(editor).toBeFocused();
+  // Deliberately omit pointerout/leave to cover a lost transition boundary.
+  await page.locator(".app-main").dispatchEvent("pointermove", { pointerType: "mouse" });
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
+  await reader.focus();
+  await reader.press("ArrowRight");
+  await expect.poll(() => sidebar.evaluate(el => el.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
+  await expect(reader).toBeFocused();
+});
+
+test("浮层键盘进入、Esc 返回按钮、固定标记与输入焦点边界", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nr:sidebarPresentation", "overlay"));
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  const tree = page.locator('[data-sidebar-panel="tree"]');
+  const sidebar = page.locator(".app-sidebar");
+  await tree.focus();
+  await tree.press("ArrowRight");
+  await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+  await expect.poll(() => sidebar.evaluate(el => el.contains(document.activeElement))).toBe(true);
+  await page.mouse.move(1200, 650);
+  await page.waitForTimeout(350);
+  await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+  await page.keyboard.press("Escape");
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
+  await expect(tree).toBeFocused();
+  await tree.press("Enter");
+  await expect(tree).toHaveAttribute("data-pinned", "true");
+  await expect(tree).toHaveAttribute("title", /已固定并排/);
+  await page.keyboard.press("Escape");
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
+  await tree.hover();
+  await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+  // Focused native controls and iframe focus are ownership boundaries, not
+  // evidence that the pointer has abandoned the current reading interaction.
+  for (const tag of ["input", "select", "iframe"]) {
+    await sidebar.evaluate((el, name) => {
+      const control = document.createElement(name);
+      control.id = "sidebar-focus-fixture";
+      el.append(control);
+      control.focus();
+    }, tag);
+    await page.mouse.move(1200, 650);
+    await page.waitForTimeout(350);
+    await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+    await page.locator("#sidebar-focus-fixture").evaluate(el => el.remove());
+    await expect(sidebar).toHaveClass(/sidebar-hidden/);
+    await tree.hover();
+    await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+  }
+});
+
+test("树内右键菜单优先处理 Esc，菜单操作期间浮层不收起", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nr:sidebarPresentation", "overlay"));
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  const sidebar = page.locator(".app-sidebar");
+  await page.locator('[data-sidebar-panel="tree"]').hover();
+  await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+  await sidebar.locator(".doc-tree .doc-tree-node").first().click({ button: "right" });
+  await expect(page.locator(".doc-context-menu")).toBeVisible();
+  await page.mouse.move(1200, 650);
+  await page.waitForTimeout(350);
+  await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".doc-context-menu")).toHaveCount(0);
+  await page.locator('[data-sidebar-panel="tree"]').hover();
+  await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+  await page.keyboard.press("Escape");
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
+});
+
 async function settings(page: Page) {
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByRole("button", { name: /^外观与排版/ }).click();

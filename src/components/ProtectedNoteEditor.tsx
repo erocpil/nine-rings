@@ -8,6 +8,7 @@ import { PasswordRequestCancelled, requestPassword } from "../lib/password-reque
 import { setDocumentPassword } from "../lib/document-protection";
 import { blockEditorSessionCache } from "../lib/editor-session-cache";
 import { sessionHeadingFoldStore } from "../lib/heading-fold";
+import { clearReadingState } from "../lib/reading-state";
 import "./DocumentSecurity.css";
 
 export function ProtectedNoteEditor({ props, render }: { props: NoteEditorProps; render: (props: NoteEditorProps) => ReactNode }) {
@@ -22,6 +23,7 @@ export function ProtectedNoteEditor({ props, render }: { props: NoteEditorProps;
   if (encrypted) blockEditorSessionCache(props.noteId);
   useEffect(() => {
     mounted.current = true;
+    if (encrypted) { sessionHeadingFoldStore.clear(props.noteId); clearReadingState(props.noteId); }
     return () => {
       mounted.current = false;
       const close = release.current;
@@ -33,7 +35,7 @@ export function ProtectedNoteEditor({ props, render }: { props: NoteEditorProps;
       });
       // Heading keys contain document text: discard them when an encrypted
       // session closes, but retain ordinary documents' reading state.
-      if (encrypted) sessionHeadingFoldStore.clear(props.noteId);
+      if (encrypted) { sessionHeadingFoldStore.clear(props.noteId); clearReadingState(props.noteId); }
     };
   }, [props.noteId, encrypted]);
   const run = async (action: () => Promise<void>) => {
@@ -51,6 +53,7 @@ export function ProtectedNoteEditor({ props, render }: { props: NoteEditorProps;
     await props.onFlush?.();
     release.current?.(); release.current = null;
     setPlain(null); sessionHeadingFoldStore.clear(props.noteId);
+    clearReadingState(props.noteId);
     props.onOutlineAvailabilityChange?.(false);
   };
   const manage = (remove = false) => run(async () => {

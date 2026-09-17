@@ -37,6 +37,7 @@ interface Props {
   onOpenPdf: (id: string) => void;
   onOpenEpub: (id: string) => void;
   showWorkspaceSwitch?: boolean;
+  autoFocusOnOpen?: boolean;
   onHide?: () => void;
 }
 
@@ -46,6 +47,7 @@ export default function ReadingLibrary({
   onOpenPdf,
   onOpenEpub,
   showWorkspaceSwitch = true,
+  autoFocusOnOpen = true,
   onHide,
 }: Props) {
   const [query, setQuery] = useState(session.query);
@@ -55,8 +57,8 @@ export default function ReadingLibrary({
   const searchRef = useRef<HTMLInputElement>(null);
   const headingRef = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
-    headingRef.current?.focus({ preventScroll: true });
-  }, []);
+    if (autoFocusOnOpen) headingRef.current?.focus({ preventScroll: true });
+  }, [autoFocusOnOpen]);
   const restoredRef = useRef(false);
   const [initialReady, setInitialReady] = useState(false);
   const coverRequestRef = useRef(0);

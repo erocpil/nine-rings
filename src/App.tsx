@@ -1485,7 +1485,10 @@ function App() {
               panel === 'tree' ? '文档树' : panel === 'list' ? '文档列表' : 'PDF / EPUB 阅读',
               panel === 'tree' ? 'folder' : panel === 'list' ? 'bullet' : 'document'] as const);
           })()).map(([panel, label, icon]) => <button key={panel} type="button" className="btn-icon"
-            title={label} aria-label={label} aria-pressed={!sidebarHidden && desktopPanel === panel}
+            title={`${label}${sidebarHoverEnabled ? sidebarHover.pinned && !sidebarHidden && desktopPanel === panel ? "（已固定并排，点击收起）" : "（悬停预览，点击固定，方向键进入）" : ""}`} aria-label={label} aria-pressed={!sidebarHidden && desktopPanel === panel}
+            data-sidebar-panel={panel} data-pinned={sidebarHoverEnabled && sidebarHover.pinned && !sidebarHidden && desktopPanel === panel || undefined}
+            aria-expanded={!sidebarHidden && desktopPanel === panel} aria-controls="workspace-sidebar"
+            onKeyDown={event => sidebarHover.keyDown(panel, event)}
             onPointerEnter={event => sidebarHover.enterButton(panel, event.pointerType)} onPointerLeave={sidebarHover.leave}
             onClick={() => sidebarHover.click(panel)}>
             <ToolbarIcon name={icon} />
@@ -1499,7 +1502,7 @@ function App() {
           </div>
         </nav>}
         {sidebarHoverEnabled && <div className="sidebar-pin-spacer" aria-hidden="true" style={{ width: sidebarHover.pinned && !sidebarHidden ? sidebarWidth + 4 : 0 }} />}
-        <aside ref={sidebarPanelRef} className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}
+        <aside id="workspace-sidebar" tabIndex={-1} ref={sidebarPanelRef} className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}
           onPointerEnter={sidebarHover.enterPanel} onPointerLeave={sidebarHover.leave}
           role={mobileDrawerViewport ? "dialog" : undefined} aria-label={mobileDrawerViewport ? "文档侧栏" : undefined}
           aria-modal={mobileDrawerViewport && !sidebarHidden || undefined}
@@ -1682,8 +1685,9 @@ function App() {
             {pdfReaderPanel ?? epubReaderPanel ?? (desktopPanel === 'reader' && <Suspense fallback={<div className="doc-tree-loading">正在加载阅读资料…</div>}>
               <ReadingLibrary session={readingLibrarySession.current}
                 showWorkspaceSwitch={false}
+                autoFocusOnOpen={!sidebarOverlay}
                 onHide={desktopWorkspace ? undefined : () => setSidebarHidden(true)}
-                onClose={() => setSidebarPanel('tree')}
+                onClose={sidebarOverlay ? sidebarHover.dismiss : () => setSidebarPanel('tree')}
                 onOpenPdf={id => { setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
                 onOpenEpub={id => { setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }} />
             </Suspense>)}

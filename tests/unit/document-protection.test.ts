@@ -28,6 +28,9 @@ import {
 } from "../../src/lib/password-request";
 import { NoteSearchIndex } from "../../src/lib/search-index-core";
 import { buildSafeMergedBackup } from "../../src/lib/sync/backup-merge";
+import { patchReadingState } from "../../src/lib/reading-state";
+import { sessionHeadingFoldStore } from "../../src/lib/heading-fold";
+import { readingBlockSession } from "../../src/lib/reading-block-session";
 
 const adapter = protectedAdapter(idbAdapter);
 const password = "密码 with spaces 123";
@@ -65,6 +68,38 @@ const create = (title = "公开标题", storagePath = "areas/private") =>
   adapter.createNote({ date: "2026-09-08", title, storagePath, content: body });
 
 describe("document encryption", () => {
+  it("encrypting a document removes persisted reading data and stale session writers", async () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    });
+    try {
+      const note = await create();
+      sessionHeadingFoldStore.save(note.id, {
+        version: 1,
+        collapsedKeys: ["private-heading"],
+      });
+      const oldBlocks = readingBlockSession(note.id, "1");
+      oldBlocks.set(5, { collapsed: true });
+      patchReadingState(note.id, {
+        view: "source",
+        source: { scrollTop: 600 },
+      });
+      values.set(`scrollPos:${note.id}`, "300");
+      values.set(`nr:readonlyAnchor:${note.id}`, "{}");
+      await setDocumentPassword(note.id);
+      expect(sessionHeadingFoldStore.load(note.id)).toBeNull();
+      expect([...values.keys()].filter((key) => key.endsWith(note.id))).toEqual(
+        [],
+      );
+      oldBlocks.set(5, { collapsed: false });
+      expect(values.has(`nr:readingState:${note.id}`)).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   it("cancelling path setup/removal or document setup leaves protection and content unchanged", async () => {
     const note = await create();
     const before = await readProtectionState();

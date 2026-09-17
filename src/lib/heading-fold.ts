@@ -1,4 +1,5 @@
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import { patchReadingState, readReadingState } from "./reading-state";
 
 export interface HeadingSection {
   key: string;
@@ -191,14 +192,21 @@ export interface HeadingFoldStore {
   clear(noteId: string): void;
 }
 
-/** 首版会话存储；接口可直接替换为 localStorage、SQLite 或同步适配器。 */
-export function createSessionHeadingFoldStore(): HeadingFoldStore {
+/** Device-local folds; the memory cache also survives unavailable/full storage. */
+export function createSessionHeadingFoldStore(persistent = false): HeadingFoldStore {
   const values = new Map<string, HeadingFoldSnapshot>();
   return {
-    load: (noteId) => values.get(noteId) ?? null,
-    save: (noteId, snapshot) => values.set(noteId, { version: 1, collapsedKeys: [...snapshot.collapsedKeys] }),
-    clear: (noteId) => { values.delete(noteId); },
+    load: (noteId) => {
+      if (values.has(noteId)) return values.get(noteId)!;
+      const keys = persistent ? readReadingState(noteId).headings : undefined;
+      return keys ? { version: 1, collapsedKeys: keys } : values.get(noteId) ?? null;
+    },
+    save: (noteId, snapshot) => {
+      values.set(noteId, { version: 1, collapsedKeys: [...snapshot.collapsedKeys] });
+      if (persistent) patchReadingState(noteId, { headings: snapshot.collapsedKeys });
+    },
+    clear: (noteId) => { values.delete(noteId); if (persistent) patchReadingState(noteId, { headings: undefined }); },
   };
 }
 
-export const sessionHeadingFoldStore = createSessionHeadingFoldStore();
+export const sessionHeadingFoldStore = createSessionHeadingFoldStore(true);

@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, type RefObject } from "react";
 import { addLog } from "../lib/debugLog";
 import type { ReadingAnchor } from "../lib/readonly-rendering";
+import { patchReadingState, readRenderedScrollTop } from "../lib/reading-state";
 
 interface Options {
   noteId: string;
+  sensitive?: boolean;
   scrollRef: RefObject<HTMLElement>;
   scrollPositionRef: RefObject<HTMLElement>;
   rendererHandoffRef: RefObject<ReadingAnchor | undefined>;
@@ -14,6 +16,7 @@ interface Options {
 /** Own only persistent scroll/position status; renderer handoffs take priority. */
 export function useEditorScrollPersistence({
   noteId,
+  sensitive = false,
   scrollRef,
   scrollPositionRef,
   rendererHandoffRef,
@@ -27,7 +30,7 @@ export function useEditorScrollPersistence({
     const el = scrollRef.current;
     if (!el) return;
     if (rendererHandoffRef.current) return;
-    const saved = localStorage.getItem("scrollPos:" + noteId);
+    const saved = sensitive ? null : readRenderedScrollTop(noteId);
     addLog(`[加载] id=${noteId.slice(0, 8)} 恢复位置=${saved ?? "无"}`);
     if (saved === null) {
       return;
@@ -108,7 +111,7 @@ export function useEditorScrollPersistence({
     mutationObserver?.observe(el, { childList: true, subtree: true });
     frame = requestAnimationFrame(restore);
     return stop;
-  }, [noteId, rendererHandoffRef, scrollRef]);
+  }, [noteId, sensitive, rendererHandoffRef, scrollRef]);
 
   // 滚动时保存位置 & 更新位置显示
   // 出处：TipTap #2342 https://github.com/ueberdosis/tiptap/issues/2342
@@ -119,11 +122,20 @@ export function useEditorScrollPersistence({
     let statusTimer = 0;
     let persistTimer = 0;
     let maximumScroll = Math.max(0, el.scrollHeight - el.clientHeight);
-    let lastKnownScrollTop =
-      Number(localStorage.getItem(`scrollPos:${noteId}`)) || 0;
+    let lastKnownScrollTop = sensitive
+      ? 0
+      : (readRenderedScrollTop(noteId) ?? 0);
     const showLivePosition = showStatusBar && !isMobileToolbarViewport;
     const persistPosition = () => {
-      localStorage.setItem(`scrollPos:${noteId}`, String(lastKnownScrollTop));
+      if (sensitive) return;
+      patchReadingState(noteId, {
+        rendered: { scrollTop: lastKnownScrollTop },
+      });
+      try {
+        localStorage.setItem(`scrollPos:${noteId}`, String(lastKnownScrollTop));
+      } catch {
+        /* best effort, like the unified reading-state record */
+      }
     };
     const updateStatusPosition = () => {
       const percentage =
@@ -194,6 +206,7 @@ export function useEditorScrollPersistence({
   }, [
     isMobileToolbarViewport,
     noteId,
+    sensitive,
     showStatusBar,
     scrollPositionRef,
     scrollRef,

@@ -55,13 +55,14 @@ test("局部阅读切换文档后保留代码和引用折叠及阅读锚点", as
     const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
     const id = useNotesStore.getState().selectedNote!.id;
     const other = await api.notes.create({ title: "局部阅读切换目标", date: "2026-09-17", content: { ops: [{ insert: "另一篇正文\n" }] } });
-    const root = document.querySelector<HTMLElement>("[data-virtual-reader]")!;
+    const root = document.querySelector<HTMLElement>("[data-virtual-reader] .note-editor-scroll")!;
     root.scrollTop = 400;
     root.dispatchEvent(new Event("scroll"));
     const top = root.scrollTop;
     useNotesStore.getState().selectNote(other);
     return { id, top };
   });
+  expect(saved.top).toBeGreaterThan(350);
   await expect(page.locator(".ProseMirror")).toHaveText("另一篇正文");
   await page.evaluate(async (id) => {
     const { api } = await import("/src/lib/api.ts");
@@ -69,8 +70,8 @@ test("局部阅读切换文档后保留代码和引用折叠及阅读锚点", as
     useNotesStore.getState().selectNote(await api.notes.get(id));
   }, saved.id);
   await expect(root).toBeVisible();
-  await expect.poll(() => root.evaluate(el => el.scrollTop)).toBeCloseTo(saved.top, 0);
-  await root.evaluate(el => { el.scrollTop = 0; });
+  await expect.poll(async () => Math.abs(await root.locator(".note-editor-scroll").evaluate(el => el.scrollTop) - saved.top)).toBeLessThanOrEqual(1);
+  await root.locator(".note-editor-scroll").evaluate(el => { el.scrollTop = 0; });
   await expect(root.getByRole("button", { name: "展开代码块", exact: true })).toBeVisible();
   await expect(root.getByRole("button", { name: "展开引用块", exact: true })).toBeVisible();
 });
