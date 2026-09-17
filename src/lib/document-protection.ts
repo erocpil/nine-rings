@@ -6,6 +6,7 @@ import { isPathUnder, normalizeStoragePath, now } from "./storage/core";
 import { resolveImageRefs, cleanupProtectedImages } from "./storage/db-images";
 import { invalidateWebSearchIndex } from "./web-search-index";
 import { clearEditorSessionCache } from "./editor-session-cache";
+import { clearReadingBlockSessions } from "./reading-block-session";
 import { broadcastDataChange } from "./tab-coordination";
 import { isTauriRuntime } from "./runtime";
 
@@ -27,6 +28,7 @@ export async function sealContent(content: DeltaOps, key: DocumentKey): Promise<
 export async function commitProtectedChanges(before: ProtectionSnapshot, after: ProtectionState): Promise<void> {
   await commitProtectionState(before, after);
   clearEditorSessionCache();
+  clearReadingBlockSessions();
   invalidateWebSearchIndex();
   for (const note of after.notes) {
     if (JSON.stringify(note) !== JSON.stringify(before.notes.find(n => n.id === note.id))) broadcastDataChange({ type: "note-changed", noteId: note.id });

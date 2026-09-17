@@ -11,6 +11,8 @@ import { ToolbarIcon } from "../components/ToolbarIcon";
 import { BLOCK_WORKSPACE_DISPLAY_EVENT, blockWorkspacePreferences, saveBlockWorkspacePreferences } from "../lib/block-display-settings";
 import { CODE_LANGUAGE_OPTIONS, highlightCode, normalizeCodeLanguage } from "../lib/code-highlight";
 
+import { editorReadingBlocks } from "./ReadingBlockSession";
+
 const codeHighlightPluginKey = new PluginKey<DecorationSet>("codeSyntaxHighlight");
 export const codeLineNumbersPluginKey = new PluginKey<boolean>("codeLineNumbersEnabled");
 const codeBlockDefaultWrapPluginKey = new PluginKey<boolean>("codeBlockDefaultWrap");
@@ -186,7 +188,10 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
   const [copyError, setCopyError] = useState(false);
   const [editable, setEditable] = useState(editor.isEditable);
   const [readonlyWrapOverride, setReadonlyWrapOverride] = useState<boolean | null>(null);
-  const [readonlyCollapsedOverride, setReadonlyCollapsedOverride] = useState<boolean | null>(null);
+  const [readonlyCollapsedOverride, setReadonlyCollapsedOverride] = useState<boolean | null>(() => {
+    const pos = getPos();
+    return typeof pos === "number" ? editorReadingBlocks(editor)?.get(pos)?.collapsed ?? null : null;
+  });
   const code = node.textContent;
   const codeTitle = typeof node.attrs.title === "string" ? node.attrs.title : "";
   const storedWrapEnabled = node.attrs.wrap !== false;
@@ -374,7 +379,12 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => {
                 if (editable) updateAttributes({ collapsed: !collapsed });
-                else setReadonlyCollapsedOverride(!collapsed);
+                else {
+                  const pos = getPos();
+                  const blocks = editorReadingBlocks(editor);
+                  if (typeof pos === "number") blocks?.set(pos, { ...blocks.get(pos), collapsed: !collapsed });
+                  setReadonlyCollapsedOverride(!collapsed);
+                }
               }}
               type="button"
               aria-label={collapsed ? "展开代码块" : "折叠代码块"}

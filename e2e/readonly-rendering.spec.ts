@@ -1,17 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
+import { createBlankDocument } from "./helpers/document";
 test.use({ actionTimeout: 10000 });
 
 async function createLongNote(page: Page, count = 1500, codeDescription?: string) {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(
-    page.getByRole("textbox", { name: "随心记 — 标题" }),
-  ).toHaveValue("新随笔");
-  await expect(
-    page.locator(".sidebar-item.active .sidebar-item-title"),
-  ).toHaveText("新随笔");
+  await createBlankDocument(page);
   const text = Array.from({ length: count }, (_, index) =>
     index === 1
       ? "```typescript\nconst first = 1;\nconst second = 2;\n```"
@@ -38,10 +30,7 @@ async function createLongNote(page: Page, count = 1500, codeDescription?: string
   await expect(page.locator(".save-status-saved")).toBeVisible({
     timeout: 15000,
   });
-  await page
-    .locator(".sidebar-item.active")
-    .getByTitle("设为只读")
-    .evaluate((button: HTMLButtonElement) => button.click());
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   await expect(page.locator(".ProseMirror")).toHaveAttribute(
     "contenteditable",
     "false",
@@ -55,6 +44,37 @@ async function enable(page: Page) {
   await expect(page.locator("[data-virtual-reader]")).toBeVisible();
 }
 
+test("局部阅读切换文档后保留代码和引用折叠及阅读锚点", async ({ page }) => {
+  await createLongNote(page, 90);
+  await enable(page);
+  const root = page.locator("[data-virtual-reader]");
+  await root.getByRole("button", { name: "折叠代码块", exact: true }).click();
+  await root.getByRole("button", { name: "折叠引用块", exact: true }).click();
+  const saved = await page.evaluate(async () => {
+    const { api } = await import("/src/lib/api.ts");
+    const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
+    const id = useNotesStore.getState().selectedNote!.id;
+    const other = await api.notes.create({ title: "局部阅读切换目标", date: "2026-09-17", content: { ops: [{ insert: "另一篇正文\n" }] } });
+    const root = document.querySelector<HTMLElement>("[data-virtual-reader]")!;
+    root.scrollTop = 400;
+    root.dispatchEvent(new Event("scroll"));
+    const top = root.scrollTop;
+    useNotesStore.getState().selectNote(other);
+    return { id, top };
+  });
+  await expect(page.locator(".ProseMirror")).toHaveText("另一篇正文");
+  await page.evaluate(async (id) => {
+    const { api } = await import("/src/lib/api.ts");
+    const { useNotesStore } = await import("/src/stores/useNotesStore.ts");
+    useNotesStore.getState().selectNote(await api.notes.get(id));
+  }, saved.id);
+  await expect(root).toBeVisible();
+  await expect.poll(() => root.evaluate(el => el.scrollTop)).toBeCloseTo(saved.top, 0);
+  await root.evaluate(el => { el.scrollTop = 0; });
+  await expect(root.getByRole("button", { name: "展开代码块", exact: true })).toBeVisible();
+  await expect(root.getByRole("button", { name: "展开引用块", exact: true })).toBeVisible();
+});
+
 test("代码简介在完整只读与局部阅读渲染之间切换时保留", async ({ page }) => {
   const description = "初始化和资源释放的示例说明";
   await createLongNote(page, 90, description);
@@ -62,9 +82,9 @@ test("代码简介在完整只读与局部阅读渲染之间切换时保留", as
   await expect(page.getByLabel("代码简介")).toHaveValue(description);
   await enable(page);
   const codeBlock = page.locator("[data-virtual-reader] .code-block-wrap").first();
-  await expect(codeBlock.locator(".vr-code-toolbar span")).toHaveText(description);
+  await expect(codeBlock.locator(".vr-code-toolbar > span")).toHaveText(description);
   await codeBlock.getByRole("button", { name: "折叠代码块" }).click();
-  await expect(codeBlock.locator(".vr-code-toolbar span")).toBeVisible();
+  await expect(codeBlock.locator(".vr-code-toolbar > span")).toBeVisible();
   await page.evaluate(() => {
     localStorage.setItem("nr:experimentalReadonlyRendering", "false");
     window.dispatchEvent(new Event("nine-rings:readonly-rendering-change"));

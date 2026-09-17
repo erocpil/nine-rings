@@ -112,7 +112,7 @@ export function useEditorScrollPersistence({
 
   // 滚动时保存位置 & 更新位置显示
   // 出处：TipTap #2342 https://github.com/ueberdosis/tiptap/issues/2342
-  // 滚动事件持续保存正确的位置；cleanup 不做覆写（防止编辑器销毁阶段 scrollTop 被复位为 0）
+  // cleanup 只写入滚动事件记录的位置，不读取销毁阶段可能已归零的 DOM。
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -185,10 +185,10 @@ export function useEditorScrollPersistence({
       window.removeEventListener("nine-rings:main-window-hide", flushPosition);
       document.removeEventListener("visibilitychange", persistWhenHidden);
       resizeObserver?.disconnect();
-      // cleanup 时 DOM 可能已进入销毁阶段并触发 scrollTop=0；用户滚动时的
-      // 防抖写入以及 pagehide/visibilitychange 已负责持久化，这里只取消定时器。
-      addLog(`[离开] ${noteId.slice(0, 8)} 保存位置=${el.scrollTop}`);
-      if (persistTimer) window.clearTimeout(persistTimer);
+      // 快速切换可能早于 220ms 防抖；必须提交最后一次已捕获的位置。
+      // 不从 DOM 重读，避免卸载时高度收缩把正确位置覆盖成零。
+      if (persistTimer) flushPosition();
+      addLog(`[离开] ${noteId.slice(0, 8)} 保存位置=${lastKnownScrollTop}`);
       if (statusTimer) window.clearTimeout(statusTimer);
     };
   }, [

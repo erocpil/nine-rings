@@ -53,6 +53,7 @@ import { EditorBlockGutter } from "./EditorBlockGutter";
 import { DocumentEditorContent } from "./DocumentEditorContent";
 import { useEditorScrollPersistence } from "../hooks/useEditorScrollPersistence";
 import { headingFoldAnchors } from "../lib/heading-fold-anchors";
+import { ReadingBlockSession } from "../extensions/ReadingBlockSession";
 import { DocumentOutlineList, type VisibleOutlineEntry } from "./DocumentOutlineList";
 import { EditorToolbarContents } from "./EditorToolbarContents";
 import { flushSync } from "react-dom";
@@ -895,6 +896,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         defaultWrap: defaultCodeBlockWrap,
       }),
       CollapsibleBlockquote,
+      ReadingBlockSession.configure({ noteId, version: contentVersion, sensitive }),
       createReadonlyDocumentGuard(() => readonlyRef.current),
       StructuredBlockExit,
       BlockSelectAll,

@@ -39,18 +39,7 @@ import { editorGutterWidth } from "../lib/editor-gutter";
 import { bindViewportEdgeSwipe, swipeViewport } from "../lib/edge-swipe";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { isDocumentFindKeyEvent } from "../lib/shortcuts";
-
-type BlockState = { collapsed?: boolean; wrap?: boolean; lineNumbers?: boolean };
-// Reading overrides belong to a document revision, not a mounted block.
-const sessions = new WeakMap<PMNode, Map<number, BlockState>>();
-function readingSession(key: PMNode) {
-  let session = sessions.get(key);
-  if (!session) {
-    session = new Map();
-    sessions.set(key, session);
-  }
-  return session;
-}
+import { readingBlockSession, type ReadingBlockState as BlockState } from "../lib/reading-block-session";
 
 function renderBlock(
   node: PMNode,
@@ -275,7 +264,7 @@ export function ReadonlyVirtualNote(
   const [folds, setFolds] = useState(
     () => new Set(sessionHeadingFoldStore.load(noteId)?.collapsedKeys ?? []),
   );
-  const states = useMemo(() => readingSession(doc), [doc]);
+  const states = useMemo(() => props.sensitive ? new Map<number, BlockState>() : readingBlockSession(noteId, contentVersion), [noteId, contentVersion, props.sensitive]);
   const sections = useMemo(() => extractHeadingSections(doc), [doc]);
   const sectionByPos = useMemo(
     () => new Map(sections.map((section) => [section.pos, section])),
@@ -464,6 +453,8 @@ export function ReadonlyVirtualNote(
       persist();
     };
     const scroll = () => {
+      // Capture before the next frame: a document switch can cancel that frame.
+      savedAnchor.current = capture();
       if (!frame)
         frame = requestAnimationFrame(() => {
           frame = 0;
