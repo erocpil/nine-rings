@@ -61,3 +61,13 @@ CI 门禁与本地复现（将 browser 分别设为 chromium / webkit）：
 npx playwright test e2e/document-fold-session.spec.ts e2e/reading-state-persistence.spec.ts e2e/sidebar-presentation.spec.ts e2e/edge-scrollbars.spec.ts e2e/markdown-view-position.spec.ts e2e/markdown-nested-position.spec.ts --browser=webkit --workers=1
 npx playwright test e2e/readonly-rendering.spec.ts --grep "切换文档后" --browser=webkit --workers=1
 ```
+
+## CI 后续修复：依赖安全审计
+
+`5f154ee` 的 Frontend Tests 在 `npm audit --audit-level=high` 失败；此前的类型、lint、格式、单元测试及两引擎阅读工作区门禁通过。
+
+- ESLint → `@eslint/eslintrc` 间接依赖的 `js-yaml` 锁定版本从 4.3.1 更新为 4.3.2，处于原有版本范围内；仅变更该包的版本、下载地址和完整性校验。
+- 对应 [GHSA-2883-xcg3-v3hh](https://github.com/advisories/GHSA-2883-xcg3-v3hh)：空映射的重复合并未消耗合并预算，可导致过量 CPU 消耗。新增 `tests/unit/dependency-security.test.ts`，验证超预算的空合并被拒绝，预算内的正常合并不受影响；不使用大规模或依赖耗时阈值的攻击样例。
+- 干净安装 `npm ci --no-audit` 后，`npm audit --audit-level=high` 退出码为 0；high / critical 为 0，仍报告 36 个 moderate 包条目（包含依赖传播，不等于 36 个独立漏洞）。未禁用审计、未降低门槛、未使用 `audit fix --force`。
+- 其余 Tiptap / Vitest 中危告警留待依赖迁移专项核实；Tiptap 的既有实现核查见 [9 月 6 日审查记录](audit-remediation-2026-09-06.md)。这次不将安全补丁扩展为编辑器/测试框架的大版本迁移。
+- 修复后的 `npm run check`、`npm run build` 通过，Vitest 为 41 个文件、251 项通过。构建仍有既有的大 chunk 提示；本轮没有变更应用运行时代码，也没有重跑全量浏览器 E2E。
