@@ -8,8 +8,8 @@ header.workspace-panel-heading {
   min-height: 41px;
   padding: 4px 6px;
   gap: 4px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, var(--bg));
+  background: var(--bg);
 }
 .workspace-panel-title {
   min-width: 0;

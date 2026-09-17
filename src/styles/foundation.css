@@ -438,7 +438,7 @@ body {
 
 .desktop-panel-content { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .desktop-panel-content[hidden], .sidebar-document-list.is-open[hidden], .desktop-reader-panel[hidden], .sidebar-footer[hidden] { display: none; }
-.desktop-activity-bar { display: flex; flex-direction: column; flex: 0 0 44px; align-items: center; gap: 6px; padding-block: 8px; border-right: 1px solid var(--border); background: var(--surface); }
+.desktop-activity-bar { display: flex; flex-direction: column; flex: 0 0 44px; align-items: center; gap: 6px; padding-block: 8px; border-right: 1px solid color-mix(in srgb, var(--border) 55%, var(--bg)); background: var(--bg); }
 .desktop-activity-bar .btn-icon { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 6px; color: var(--text-secondary); }
 .desktop-activity-footer { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; gap: 6px; margin-top: auto; }
 .desktop-activity-bar .btn-icon[aria-pressed="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
