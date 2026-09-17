@@ -12,6 +12,7 @@
 .editor-content-shell {
   --editor-gutter-width: 24px;
   --editor-gutter-text-gap: 0px;
+  --editor-gutter-control-width: 14px;
   position: relative;
   flex: 1;
   min-height: 200px;
@@ -145,7 +146,7 @@
 
 .editor-block-insert {
   position: absolute;
-  left: 2px;
+  left: calc((var(--editor-gutter-control-width) - 20px) / 2);
   width: 20px;
   height: 20px;
   padding: 0;
@@ -173,7 +174,7 @@
 
 .show-line-numbers .editor-block-insert {
   left: 0;
-  width: 14px;
+  width: var(--editor-gutter-control-width);
 }
 
 .editor-block-insert:active,
@@ -203,7 +204,7 @@
   position: absolute;
   left: 0;
   z-index: 2;
-  width: 14px;
+  width: var(--editor-gutter-control-width);
   height: var(--heading-fold-target-height);
   padding: 0;
   transform: none;
@@ -224,7 +225,7 @@
   position: absolute;
   /* Gutter hover hit area must not cover the actual heading fold control. */
   z-index: 5;
-  left: calc(-1 * var(--editor-gutter-width));
+  left: calc(-1 * (var(--editor-gutter-width) + var(--editor-gutter-text-gap)));
   top: 0;
   width: 22px;
   height: 1.5em;

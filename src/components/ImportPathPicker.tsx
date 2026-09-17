@@ -28,7 +28,7 @@ export function ImportPathPicker({ anchor, initialPath, onSelect, onClose }: {
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [reload]);
-  return <DocumentPathPicker anchor={anchor} paths={paths} protectedPaths={protectedPaths} initialPath={initialPath}
+  return <DocumentPathPicker inline anchor={anchor} paths={paths} protectedPaths={protectedPaths} initialPath={initialPath}
     selectDestination loading={loading} error={error} onRetry={() => setReload(value => value + 1)}
     onSelect={onSelect} onClose={onClose} />;
 }

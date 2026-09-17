@@ -762,6 +762,7 @@
 .markdown-import-path-field {
   grid-row: span 2;
 }
+.markdown-import-path-field.import-path-expanded { grid-column: 1 / -1; grid-row: auto; }
 
 @media (max-width: 680px) {
   .markdown-import-grid {

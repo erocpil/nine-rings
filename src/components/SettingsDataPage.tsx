@@ -136,7 +136,7 @@ export function SettingsDataPage({ visible, webStorageStatus, data }: Props) {
 
           {mdImportMode === "document" && (
             <div className="markdown-import-grid">
-              <div className="markdown-import-field markdown-import-path-field">
+              <div className={`markdown-import-field markdown-import-path-field${importPathPickerOpen ? " import-path-expanded" : ""}`}>
                 <span>目标路径</span>
                 <input
                   className="settings-input"
@@ -151,10 +151,20 @@ export function SettingsDataPage({ visible, webStorageStatus, data }: Props) {
                   type="button"
                   className="settings-btn-secondary"
                   disabled={mdImporting}
-                  onClick={() => setImportPathPickerOpen(true)}
+                  aria-expanded={importPathPickerOpen}
+                  onClick={() => setImportPathPickerOpen(value => !value)}
                 >
                   从文档树选择路径
                 </button>
+                {importPathPickerOpen && visible && <ImportPathPicker
+                  anchor={importPathTriggerRef.current}
+                  initialPath={mdImportPath}
+                  onClose={() => setImportPathPickerOpen(false)}
+                  onSelect={(path) => {
+                    setMdImportPath(path);
+                    setImportPathPickerOpen(false);
+                  }}
+                />}
                 <small>可从现有目录树选择，也可手动输入新路径。</small>
                 <small>
                   单独选文件时直接放入目标路径；选择目录时保留所选目录及全部子目录，例如
@@ -266,17 +276,6 @@ export function SettingsDataPage({ visible, webStorageStatus, data }: Props) {
         </div>
       </SettingsSection>
       {/* ═══════════════════════ */}
-      {importPathPickerOpen && visible && (
-        <ImportPathPicker
-          anchor={importPathTriggerRef.current}
-          initialPath={mdImportPath}
-          onClose={() => setImportPathPickerOpen(false)}
-          onSelect={(path) => {
-            setMdImportPath(path);
-            setImportPathPickerOpen(false);
-          }}
-        />
-      )}
     </>
   );
 }

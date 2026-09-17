@@ -312,6 +312,7 @@
      继续作为键盘打开或 gutter 暂时离屏时的备用操作。 */
   .editor-content-shell {
     margin-top: 16px;
+    --editor-gutter-control-width: 22px;
     /* Move the entire gutter with its text, not the text into the block-number
        column. The app's 4px left inset absorbs this small adjustment. */
     margin-left: -4px;

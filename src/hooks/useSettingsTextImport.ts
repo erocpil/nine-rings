@@ -68,6 +68,7 @@ export function useSettingsTextImport(
       return;
     }
     setMdImporting(true);
+    setImportPathPickerOpen(false);
     setMdImportCount(0);
     setMdImportTotal(fileList.length);
     setMdImportProgress(0);

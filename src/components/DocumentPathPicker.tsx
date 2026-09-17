@@ -4,7 +4,8 @@ import { documentFolderPaths } from "../lib/document-favorites";
 import { ToolbarIcon } from "./ToolbarIcon";
 import "./DocumentBrowser.css";
 
-export function DocumentPathPicker({ anchor, paths, protectedPaths, initialPath, onSelect, onClose, selectDestination = false, loading = false, error, onRetry }: {
+export function DocumentPathPicker({ anchor, paths, protectedPaths, initialPath, onSelect, onClose, selectDestination = false, loading = false, error, onRetry, inline = false }: {
+  inline?: boolean;
   anchor: HTMLElement | null;
   paths: string[];
   protectedPaths: string[];
@@ -19,6 +20,7 @@ export function DocumentPathPicker({ anchor, paths, protectedPaths, initialPath,
   const [current, setCurrent] = useState(initialPath);
   const [query, setQuery] = useState("");
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const inlineRef = useRef<HTMLElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const folders = useMemo(() => documentFolderPaths(selectDestination ? paths : [...paths, initialPath]), [paths, initialPath, selectDestination]);
   const [expanded, setExpanded] = useState(() => new Set(initialPath.split("/").map((_, index, parts) => parts.slice(0, index + 1).join("/"))));
@@ -49,6 +51,13 @@ export function DocumentPathPicker({ anchor, paths, protectedPaths, initialPath,
     : path.split("/").slice(0, -1).join("/") === current);
   useLayoutEffect(() => {
     const previous = document.activeElement;
+    if (inline) {
+      inlineRef.current?.focus({ preventScroll: true });
+      inlineRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
+      return () => {
+        if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
+      };
+    }
     const dialog = dialogRef.current!;
     const viewport = window.visualViewport;
     const position = () => {
@@ -78,20 +87,13 @@ export function DocumentPathPicker({ anchor, paths, protectedPaths, initialPath,
       dialog.close();
       if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
     };
-  }, [anchor]);
+  }, [anchor, inline]);
   const navigate = (path: string) => {
     setCurrent(path);
     setQuery("");
     if (listRef.current) listRef.current.scrollTop = 0;
   };
-  return createPortal(<dialog ref={dialogRef} tabIndex={-1} role="dialog" aria-label={selectDestination ? "选择导入路径" : "选择文档路径"} className="document-path-picker"
-    onCancel={event => { event.preventDefault(); onClose(); }}
-    onKeyDown={event => event.stopPropagation()}
-    onClick={event => {
-      event.stopPropagation();
-      const rect = event.currentTarget.getBoundingClientRect();
-      if (event.target === event.currentTarget && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) onClose();
-    }}>
+  const content = <>
     <div className="document-path-picker-heading"><strong>{selectDestination ? "选择导入路径" : "选择路径"}</strong><button onClick={onClose}>取消</button></div>
     <input aria-label="搜索路径" placeholder="搜索完整路径或目录名" value={query} onChange={event => setQuery(event.target.value)} />
     <div className="document-path-picker-location">
@@ -123,5 +125,17 @@ export function DocumentPathPicker({ anchor, paths, protectedPaths, initialPath,
       <span>{selectDestination ? "选择目标目录；这里只设置路径，不会移动或覆盖已有文档" : "包含所选路径下的所有子文档"}</span>
       <button className="settings-btn settings-btn-primary" disabled={selectDestination && (loading || !!error || !folders.includes(current))} onClick={() => onSelect(current)}>{selectDestination ? "使用此路径" : current ? "使用此路径" : "查看全部路径"}</button>
     </div>
-  </dialog>, document.body);
+  </>;
+  if (inline) return <section ref={inlineRef} tabIndex={-1} aria-label="选择导入路径" className="document-path-picker document-path-picker-inline"
+    onKeyDown={event => {
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose(); }
+    }}>{content}</section>;
+  return createPortal(<dialog ref={dialogRef} tabIndex={-1} role="dialog" aria-label={selectDestination ? "选择导入路径" : "选择文档路径"} className="document-path-picker"
+    onCancel={event => { event.preventDefault(); onClose(); }}
+    onKeyDown={event => event.stopPropagation()}
+    onClick={event => {
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      if (event.target === event.currentTarget && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) onClose();
+    }}>{content}</dialog>, document.body);
 }

@@ -1,5 +1,20 @@
 import { expect, test } from "@playwright/test";
 
+test("文档列表的路径筛选仍使用独立弹层", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("navigation", { name: "工作区面板" }).getByRole("button", { name: "文档列表", exact: true }).click();
+  const view = page.getByRole("region", { name: "文档列表", exact: true });
+  await view.getByRole("button", { name: "筛选", exact: true }).click();
+  const trigger = view.getByRole("button", { name: "筛选路径", exact: true });
+  await trigger.click();
+  const picker = page.getByRole("dialog", { name: "选择文档路径", exact: true });
+  await expect(picker).toBeVisible();
+  await expect(picker).toHaveCSS("position", "fixed");
+  await page.keyboard.press("Escape");
+  await expect(picker).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
 for (const mobile of [false, true]) {
   test.describe(mobile ? "mobile" : "desktop", () => {
     test.use({ hasTouch: mobile });
@@ -18,7 +33,22 @@ for (const mobile of [false, true]) {
       await input.fill("references/手动新目录");
       const trigger = page.getByRole("button", { name: "从文档树选择路径" });
       await trigger.click();
-      const picker = page.getByRole("dialog", { name: "选择导入路径" });
+      const picker = page.getByRole("region", { name: "选择导入路径" });
+      await expect(page.getByRole("dialog", { name: "选择导入路径" })).toHaveCount(0);
+      await expect(picker).toBeFocused();
+      await expect(picker).toHaveCSS("position", "relative");
+      await expect(picker.locator(".document-path-picker-list")).toBeVisible();
+      if (mobile) {
+        const geometry = await picker.evaluate(element => {
+          const rect = element.getBoundingClientRect();
+          const list = element.querySelector(".document-path-picker-list")!.getBoundingClientRect();
+          return { top: rect.top, bottom: rect.bottom, height: list.height, viewport: innerHeight };
+        });
+        expect(geometry.top).toBeLessThan(180);
+        expect(geometry.top).toBeGreaterThanOrEqual(40);
+        expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewport);
+        expect(geometry.height).toBeGreaterThan(240);
+      }
       await expect(picker.getByRole("button", { name: "使用此路径" })).toBeDisabled();
       await picker.getByRole("button", { name: "展开目录 references/资料", exact: true }).click();
       await picker.getByRole("button", { name: "选择路径 references/资料/网络", exact: true }).click();
@@ -61,7 +91,7 @@ test("目录加载失败可重试，不会清空手动填写的路径", async ({
     };
   });
   await page.getByRole("button", { name: "从文档树选择路径" }).click();
-  const picker = page.getByRole("dialog", { name: "选择导入路径" });
+  const picker = page.getByRole("region", { name: "选择导入路径" });
   await expect(picker.getByRole("alert")).toContainText("测试加载失败");
   await expect(picker.getByRole("button", { name: "使用此路径" })).toBeDisabled();
   await page.evaluate(() => { document.body.dataset.retryPathTree = "true"; });
