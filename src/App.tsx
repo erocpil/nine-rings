@@ -1,4 +1,5 @@
 import { EditorFoldIconContext } from "./components/EditorFoldIcon";
+import { useEdgeScrollbars } from "./hooks/useEdgeScrollbars";
 import { useWorkspaceSidebar } from "./hooks/useWorkspaceSidebar";
 import { useEditorStartup } from "./hooks/useEditorStartup";
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
@@ -113,6 +114,7 @@ function saveWorkspaceTarget(target: WorkspaceTarget): void {
 }
 
 function App() {
+  useEdgeScrollbars();
   const webPlatform = useWebPlatform();
   const [applyingWebUpdate, setApplyingWebUpdate] = useState(false);
   const webUpdateInFlight = useRef(false);
