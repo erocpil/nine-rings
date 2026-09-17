@@ -198,6 +198,9 @@ export async function importLocalPdf(file: File): Promise<LocalPdfEntry> {
   transaction.objectStore(PDF_STORE).put(record);
   transaction.objectStore(PDF_FILE_STORE).put({ id: record.id, bytes });
   await done;
+  // Opening immediately after import can reuse these bytes instead of cloning
+  // the entire file back out of IndexedDB. The normal cache budget still applies.
+  fileCache.remember(fileKey(record), bytes);
   void globalThis.navigator?.storage?.persist?.().catch(() => false);
   return publicEntry(record);
 }

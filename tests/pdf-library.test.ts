@@ -12,6 +12,7 @@ import {
   listLocalPdfBookmarks,
   listLocalPdfHighlights,
   listLocalPdfs,
+  loadLocalPdf,
   resetPdfLibraryConnectionForTests,
   updateLocalPdfProgress,
   updateLocalPdfHighlight,
@@ -42,6 +43,27 @@ async function run() {
   assert.equal(imported.name, "manual.pdf");
   assert.equal(imported.page, 1);
   assert.equal(imported.fitWidth, true);
+
+  const get = IDBObjectStore.prototype.get;
+  let fileReads = 0;
+  IDBObjectStore.prototype.get = function (key) {
+    if (this.name === "files") fileReads += 1;
+    return get.call(this, key);
+  };
+  try {
+    const warm = await loadLocalPdf(imported.id);
+    assert.equal(fileReads, 0, "first open reuses committed import bytes");
+    structuredClone(warm.data, { transfer: [warm.data] });
+    const again = await loadLocalPdf(imported.id);
+    assert.equal(fileReads, 0);
+    assert.match(new TextDecoder().decode(again.data), /^%PDF-/);
+    await resetPdfLibraryConnectionForTests();
+    const cold = await loadLocalPdf(imported.id);
+    assert.equal(fileReads, 1, "cold open still reads the persisted file");
+    assert.deepEqual(new Uint8Array(cold.data), new Uint8Array(again.data));
+  } finally {
+    IDBObjectStore.prototype.get = get;
+  }
 
   const listed = await listLocalPdfs();
   assert.equal(listed.length, 1);

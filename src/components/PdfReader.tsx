@@ -670,6 +670,9 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
       setLoading(true);
       setError(null);
       setPdf(null);
+      setOutline([]);
+      setOutlineMode("pages");
+      setPageLabels(null);
       bitmapCache.clear();
       thumbnailCacheRef.current.clear();
       setThumbnails({});
@@ -713,13 +716,6 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
       setFitHeight(Boolean(stored.entry.fitHeight));
       setViewMode(stored.entry.viewMode === "vertical" ? "vertical" : "horizontal");
 
-      const [storedHighlights, storedBookmarks] = await Promise.all([
-        listLocalPdfHighlights(documentId),
-        listLocalPdfBookmarks(documentId),
-      ]);
-      if (cancelled || documentRenderGenerationRef.current !== documentGeneration) return;
-      setHighlights(storedHighlights);
-      setBookmarks(storedBookmarks);
       loadingTask = getDocument({ data: stored.data });
       loadingTask.onPassword = (updatePassword: (password: string) => void, reason: number) => {
         const promptText = reason === PasswordResponses.INCORRECT_PASSWORD
@@ -732,11 +728,20 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
         }
         updatePassword(password);
       };
-      loadedDocument = await loadingTask.promise;
+      // Worker startup/parsing and local annotations are independent. Publish
+      // them together so editing cannot race late-arriving saved annotations.
+      const [document, storedHighlights, storedBookmarks] = await Promise.all([
+        loadingTask.promise,
+        listLocalPdfHighlights(documentId),
+        listLocalPdfBookmarks(documentId),
+      ]);
+      loadedDocument = document;
       if (cancelled || documentRenderGenerationRef.current !== documentGeneration) {
         await loadedDocument.destroy();
         return;
       }
+      setHighlights(storedHighlights);
+      setBookmarks(storedBookmarks);
       setPdf(loadedDocument);
       const restoredPage = clampPage(stored.entry.page, loadedDocument.numPages);
       pendingPageNavigationRef.current = restoredPage;
@@ -744,19 +749,32 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
       setPage(restoredPage);
       setVisibleVerticalPages(new Set([restoredPage]));
       setPageInput(String(restoredPage));
-      const [documentOutline, labels] = await Promise.all([
-        loadedDocument.getOutline(),
-        loadedDocument.getPageLabels(),
-      ]);
-      if (!cancelled) {
+      // Optional navigation metadata must not hold up the opening indicator or
+      // the saved reading-position restore. Failure here does not hide the PDF.
+      const metadataFailed = (reason: unknown) => {
+        if (!cancelled) showActionNotice(`PDF 已打开，部分目录信息加载失败：${pdfErrorMessage(reason)}`);
+      };
+      void loadedDocument.getOutline().then((documentOutline) => {
+        if (cancelled) return;
         const nextOutline = (documentOutline ?? []) as OutlineItem[];
         setOutline(nextOutline);
-        setOutlineMode(nextOutline.length > 0 ? "outline" : "pages");
+        setOutlineMode((mode) => mode === "pages" && nextOutline.length > 0 ? "outline" : mode);
+      }).catch(metadataFailed);
+      void loadedDocument.getPageLabels().then((labels) => {
+        if (cancelled) return;
         setPageLabels(labels);
-      }
+      }).catch(metadataFailed);
     };
     void open()
-      .catch((reason) => { if (!cancelled) setError(pdfErrorMessage(reason)); })
+      .catch((reason) => {
+        if (cancelled) return;
+        setError(pdfErrorMessage(reason));
+        // A failed annotation read may now happen after worker startup.
+        if (loadingTask) {
+          void trackPdfCleanup(documentId, loadingTask.destroy());
+          loadingTask = null;
+        }
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => {
       cancelled = true;
@@ -772,7 +790,7 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
       // file during parsing must release it too, not only a loaded document.
       if (loadingTask) void trackPdfCleanup(documentId, loadingTask.destroy());
     };
-  }, [documentId, initialHighlightId, initialTargetRange, setFitWidth, loadRevision]);
+  }, [documentId, initialHighlightId, initialTargetRange, setFitWidth, loadRevision, showActionNotice]);
 
   useLayoutEffect(() => {
     const element = viewportRef.current;
@@ -1132,13 +1150,16 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
             textLayerElement.dataset.pdfPage = String(pageNumber);
 
             let textLayer: TextLayer | null = null;
-            if (!previewOnly) {
+            let abandoned = false;
+            const renderText = async () => {
+              if (previewOnly || isStale() || abandoned) return;
               let textContent = textContentCacheRef.current.get(pageNumber);
               if (textContent) {
                 textContentCacheRef.current.delete(pageNumber);
                 textContentCacheRef.current.set(pageNumber, textContent);
               } else {
                 textContent = await pdfPage.getTextContent();
+                if (isStale() || abandoned) return;
                 textContentCacheRef.current.set(pageNumber, textContent);
                 while (textContentCacheRef.current.size > 12) {
                   const oldestPage = textContentCacheRef.current.keys().next().value;
@@ -1158,7 +1179,8 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
               });
               if (isStale()) return;
               textLayerRefs.current.set(pageNumber, textLayer);
-            }
+              await textLayer.render();
+            };
             // Borrow the bitmap until both raster and text layers commit. A
             // scroll/quality change can cancel while textLayer.render awaits;
             // consuming the cache here would lose the only full-quality copy.
@@ -1176,10 +1198,13 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
               background: "rgb(255,255,255)",
             });
             if (renderTask) renderTaskRefs.current.set(pageNumber, renderTask);
+            // Extract/selectable text and rasterization can run concurrently.
+            // Still commit the two layers together to keep zoom/selection safe.
+            const textLayerPromise = renderText();
 
             let completed = false;
             try {
-              await Promise.all([renderTask?.promise, textLayer?.render()]);
+              await Promise.all([renderTask?.promise, textLayerPromise]);
               if (isStale()) return;
               canvas.width = stagedCanvas.width;
               canvas.height = stagedCanvas.height;
@@ -1199,9 +1224,10 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
               completed = true;
             } finally {
               if (!completed) {
+                abandoned = true;
                 renderTask?.cancel();
-                textLayer?.cancel();
-                await renderTask?.promise.catch(() => {});
+                textLayers.get(pageNumber)?.cancel();
+                await Promise.allSettled([renderTask?.promise, textLayerPromise]);
               }
               if (renderTaskRefs.current.get(pageNumber) === renderTask) renderTaskRefs.current.delete(pageNumber);
               if (!completed && textLayerRefs.current.get(pageNumber) === textLayer) {

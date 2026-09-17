@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { createPdfFixture } from "./helpers/reader-fixtures";
 
-test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", async ({ page }) => {
+test("本地 PDF 从阅读资料库导入后在独立阅读器打开并可再次访问", async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 500 });
   await page.addInitScript(() => {
     let fullscreenElement: Element | null = null;
@@ -26,8 +26,7 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
     });
   });
   await page.goto("/");
-  await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^阅读资料库/ }).click();
+  await page.getByRole("button", { name: "PDF / EPUB 阅读", exact: true }).click();
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({
     name: "nine-rings-mvp.pdf",
@@ -89,14 +88,19 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
     const bounds = element.getBoundingClientRect();
     const currentX = bounds.left + anchor.ratioX * bounds.width;
     const currentY = bounds.top + anchor.ratioY * bounds.height;
-    return Math.max(Math.abs(currentX - anchor.x), Math.abs(currentY - anchor.y));
+    const viewport = element.parentElement!;
+    // A page shorter than the viewport stays centered; scroll bounds can make
+    // preserving the exact pointer position impossible. Check the reachable anchor.
+    const left = Math.max(0, Math.min(viewport.scrollWidth - viewport.clientWidth, viewport.scrollLeft + currentX - anchor.x));
+    const top = Math.max(0, Math.min(viewport.scrollHeight - viewport.clientHeight, viewport.scrollTop + currentY - anchor.y));
+    return Math.max(Math.abs(left - viewport.scrollLeft), Math.abs(top - viewport.scrollTop));
   }, anchorBeforeZoom)).toBeLessThan(3);
   await doubleClickSurface.dblclick({ position: doubleClickPoint });
   await expect(page.getByRole("button", { name: "适宽", includeHidden: true })).toHaveClass(/active/);
 
   const initialSurfaceWidth = await page.locator(".pdf-page-surface").evaluate((element) => element.clientWidth);
   await viewport.evaluate((element) => {
-    const touch = (identifier: number, clientX: number) => new Touch({
+    const touch = (identifier: number, clientX: number) => ({
       identifier,
       target: element,
       clientX,
@@ -110,22 +114,16 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
       rotationAngle: 0,
       force: 1,
     });
-    element.dispatchEvent(new TouchEvent("touchstart", {
-      bubbles: true,
-      cancelable: true,
-      touches: [touch(1, 150), touch(2, 250)],
-    }));
-    element.dispatchEvent(new TouchEvent("touchmove", {
-      bubbles: true,
-      cancelable: true,
-      touches: [touch(1, 180), touch(2, 220)],
-    }));
-    element.dispatchEvent(new TouchEvent("touchend", {
-      bubbles: true,
-      cancelable: true,
-      touches: [],
-      changedTouches: [touch(1, 180), touch(2, 220)],
-    }));
+    const dispatch = (type: string, touches: ReturnType<typeof touch>[], changedTouches = touches) => {
+      // WebKit does not expose a constructible Touch; match the touch-event
+      // shape without replacing browser APIs or the reader gesture handlers.
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(event, { touches: { value: touches }, changedTouches: { value: changedTouches } });
+      element.dispatchEvent(event);
+    };
+    dispatch("touchstart", [touch(1, 150), touch(2, 250)]);
+    dispatch("touchmove", [touch(1, 180), touch(2, 220)]);
+    dispatch("touchend", [], [touch(1, 180), touch(2, 220)]);
   });
   await expect(page.getByRole("button", { name: "适宽", includeHidden: true })).not.toHaveClass(/active/);
   await expect.poll(() => page.locator(".pdf-page-surface").evaluate((element) => element.clientWidth)).toBeLessThan(initialSurfaceWidth);
@@ -156,7 +154,7 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   await page.getByRole("button", { name: "关闭目录" }).click();
 
   const swipe = async (fromX: number, toX: number) => viewport.evaluate((element, points) => {
-    const touch = (clientX: number) => new Touch({
+    const touch = (clientX: number) => ({
       identifier: 1,
       target: element,
       clientX,
@@ -170,14 +168,20 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
       rotationAngle: 0,
       force: 1,
     });
-    element.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, touches: [touch(points.fromX)] }));
-    element.dispatchEvent(new TouchEvent("touchend", { bubbles: true, changedTouches: [touch(points.toX)] }));
+    const start = new Event("touchstart", { bubbles: true, cancelable: true });
+    Object.defineProperties(start, { touches: { value: [touch(points.fromX)] }, changedTouches: { value: [touch(points.fromX)] } });
+    element.dispatchEvent(start);
+    const end = new Event("touchend", { bubbles: true, cancelable: true });
+    Object.defineProperties(end, { touches: { value: [] }, changedTouches: { value: [touch(points.toX)] } });
+    element.dispatchEvent(end);
   }, { fromX, toX });
   await swipe(280, 120);
   await expect(page.getByLabel("PDF 页码")).toHaveValue("2");
   await swipe(120, 280);
   await expect(page.getByLabel("PDF 页码")).toHaveValue("1");
 
+  // The reader is a workspace pane; its shortcuts require focus in that pane.
+  await page.getByLabel("PDF 页码", { exact: true }).focus();
   await page.keyboard.press("Control+f");
   await expect(page.getByLabel("搜索 PDF")).toBeFocused();
   await page.getByLabel("搜索 PDF").fill("Nine Rings");
@@ -190,7 +194,7 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   await expect(page.getByLabel("PDF 页码")).toHaveValue("2");
   await expect(page.getByText("1/1 · 第 2 页", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "目录" }).click();
+  await reader.getByRole("button", { name: "目录", exact: true }).click();
   await expect(page.getByLabel("PDF 目录")).toBeVisible();
   await expect(page.getByRole("button", { name: "页面" })).toBeVisible();
   await page.getByRole("button", { name: "页面" }).click();
@@ -198,10 +202,7 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
 
   await page.getByTitle("返回 Nine Rings").click();
   await expect(reader).toHaveCount(0);
-  await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^阅读资料库/ }).click();
-  await expect(page.getByRole("button", { name: /打开 nine-rings-mvp.pdf/ })).toBeVisible();
-  await page.getByRole("button", { name: /打开 nine-rings-mvp.pdf/ }).click();
+  await page.getByRole("button", { name: "继续阅读", exact: true }).click();
   await expect(page.getByLabel("PDF 阅读器", { exact: true })).toBeVisible();
   const excerptSource = page.locator(".pdf-text-layer span").filter({ hasText: "Second page searchable target" }).first();
   await expect(excerptSource).toBeAttached();
@@ -214,7 +215,8 @@ test("本地 PDF 从设置导入后在独立阅读器打开并可再次访问", 
   });
   await expect(page.getByRole("button", { name: "摘录到笔记" })).toBeVisible();
   await page.getByRole("button", { name: "摘录到笔记" }).click();
-  await expect(page.getByLabel("PDF 阅读器", { exact: true })).toHaveCount(0);
+  // Desktop excerpts keep the reading pane alongside the new note.
+  await expect(reader).toBeVisible();
   await expect(page.locator(".note-title")).toHaveValue("PDF 摘录 · nine-rings-mvp.pdf · 第 2 页");
   await page.getByRole("button", { name: "PDF · 2" }).click();
   await expect(page.getByLabel("PDF 阅读器", { exact: true })).toBeVisible();
