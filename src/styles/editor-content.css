@@ -187,9 +187,10 @@
 /* Touch browsers may retain :hover after inserting/repositioning the button.
    Use our bounded press feedback, not WebKit's native tap-highlight overlay. */
 @media (hover: hover) and (pointer: fine) {
-  .editor-block-insert { opacity: 0.03; }
-  .editor-block-gutter:hover .editor-block-insert { opacity: 0.55; }
-  .editor-block-gutter .editor-block-insert:is(:hover, :active, :focus-visible) { opacity: 1; }
+  .editor-block-gutter { pointer-events: auto; }
+  .editor-block-insert { opacity: 0; pointer-events: none; }
+  .editor-block-insert.adjacent-to-hovered-block { opacity: 0.55; pointer-events: auto; }
+  .editor-block-gutter .editor-block-insert:is(:hover, :active, :focus-visible) { opacity: 1; pointer-events: auto; }
   .editor-block-insert:hover {
     border-color: var(--border);
     color: var(--accent);

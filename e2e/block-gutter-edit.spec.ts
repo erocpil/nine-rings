@@ -70,19 +70,30 @@ test.describe("桌面加号状态", () => {
   test("鼠标悬停和键盘导航仍显示加号反馈", async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true })));
     await page.goto("/");
+    await openTestNote(page, ["第一块", "第二块", "第三块", "第四块"]);
     const insert = page.getByRole("button", { name: "在第一块前插入段落", exact: true });
     await page.mouse.move(800, 40);
-    await expect(insert).toHaveCSS("opacity", "0.03");
+    await expect(insert).toHaveCSS("opacity", "0");
     const number = page.locator(".editor-block-number").first();
     await number.hover();
     await expect(insert).toHaveCSS("opacity", "0.55");
+    const visibleInsertLabels = () => page.locator(".editor-block-insert").evaluateAll(buttons =>
+      buttons.filter(button => Number(getComputedStyle(button).opacity) > 0).map(button => button.getAttribute("aria-label")));
+    await expect.poll(visibleInsertLabels).toEqual(["在第一块前插入段落", "在第 1 块后插入段落"]);
     const label = await number.evaluate(element => {
       const style = getComputedStyle(element, "::after");
       return { right: style.right, padding: style.paddingRight, align: style.textAlign, visible: style.visibility };
     });
     expect(label).toEqual({ right: "-2px", padding: "0px", align: "right", visible: "visible" });
     await page.mouse.move(800, 40);
-    await expect(insert).toHaveCSS("opacity", "0.03");
+    await expect(insert).toHaveCSS("opacity", "0");
+    await page.locator('.editor-block-number[data-block-index="3"]').hover();
+    await expect.poll(visibleInsertLabels).toEqual(["在第 2 块后插入段落", "在第 3 块后插入段落"]);
+    await page.getByRole("button", { name: "在第 3 块后插入段落", exact: true }).hover();
+    await expect.poll(visibleInsertLabels).toEqual(["在第 2 块后插入段落", "在第 3 块后插入段落"]);
+    await page.locator('.editor-block-number[data-block-index="4"]').hover();
+    await expect.poll(visibleInsertLabels).toEqual(["在第 3 块后插入段落", "在第 4 块后插入段落"]);
+    await number.hover();
     await insert.hover();
     await expect(insert).toHaveCSS("opacity", "1");
     await page.mouse.move(800, 40);
@@ -91,6 +102,10 @@ test.describe("桌面加号状态", () => {
     await expect(insert).toBeFocused();
     await expect(insert).toHaveCSS("opacity", "1");
     await expect.poll(() => insert.evaluate((button) => button.matches(":focus-visible"))).toBe(true);
+    await page.mouse.move(800, 40);
+    await number.hover();
+    await insert.click();
+    await expect(page.locator(".ProseMirror > *")).toHaveCount(5);
   });
 });
 

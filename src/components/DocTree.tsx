@@ -15,6 +15,7 @@ import {
 } from "../lib/move-to";
 
 interface DocTreeProps {
+  beforeExport?: () => Promise<void>;
   onSelect: (note: Note) => void;
   onFolderSelect?: (path: string) => void;
   selectedId: string | null;
@@ -122,7 +123,7 @@ function InlineRename({
 }
 
 function DocTree({
-  onSelect, onFolderSelect, selectedId, selectedTitle, selectedFolderPath, showDaily = false, onCreate, onPathSecurity, refreshKey,
+  beforeExport, onSelect, onFolderSelect, selectedId, selectedTitle, selectedFolderPath, showDaily = false, onCreate, onPathSecurity, refreshKey,
   onRename, onRenameFolder, onDelete, onToggleReadonly,
   onMoveDocument, onBatchMoveDocuments, onMoveFolder,
   onBatchDelete, onBatchSetReadonly,
@@ -130,6 +131,27 @@ function DocTree({
   disabled, toolbarHost, collapsed, setCollapsed,
 }: DocTreeProps) {
   const [tree, setTree] = useState<PathNode[]>([]);
+  const exportBusy = useRef(false);
+  const [exportProgress, setExportProgress] = useState<string | null>(null);
+  const handleExportPath = async (path: string) => {
+    if (disabled || exportBusy.current) return;
+    exportBusy.current = true;
+    setContextMenu(null);
+    setSelectionError(null);
+    clearPathNotice();
+    setExportProgress("正在保存并准备导出…");
+    try {
+      await beforeExport?.();
+      const { exportPathMarkdown } = await import("../lib/path-markdown-export");
+      const count = await exportPathMarkdown(path, setExportProgress);
+      showPathNotice(count === null ? "已取消导出" : `已导出 ${count} 篇文档（Markdown ZIP），请在保存位置或下载列表中查看`);
+    } catch (error) {
+      setSelectionError(`导出失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      exportBusy.current = false;
+      setExportProgress(null);
+    }
+  };
   const treeScrollRef = useRef<HTMLDivElement>(null);
   const [toolbarScroller, setToolbarScroller] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -813,6 +835,9 @@ function DocTree({
           <>
             <button className="btn-icon doc-tree-batch-btn" title={selectedDocument ? "复制所在路径" : "复制路径"}
               disabled={!selectedPath} onClick={() => { if (selectedPath) void handleCopyPath(selectedPath); }}><ToolbarIcon name="copy" /></button>
+            <button className="btn-icon doc-tree-batch-btn" title="导出路径下的文档（Markdown ZIP）"
+              disabled={disabled || !!exportProgress || !selectedFolder}
+              onClick={() => { if (selectedFolder) void handleExportPath(selectedFolder.path); }}><ToolbarIcon name="export" /></button>
             <button className="btn-icon doc-tree-batch-btn" title="删除选中目录"
               disabled={disabled || !selectedFolder || !(onBatchDelete && getDocIdsUnderPath(selectedFolder.path).length > 0 || onPathSecurity && selectedFolder.protectionRoot)}
               onClick={() => { if (selectedFolder) handleFolderDelete(selectedFolder.path); }}><ToolbarIcon name="trash" /></button>
@@ -852,6 +877,7 @@ function DocTree({
     <>
       {selectionError && <div role="alert" className="doc-tree-error-detail">{selectionError}</div>}
       {pathNotice && <div role="status" className="doc-tree-path-notice">{pathNotice}</div>}
+      {exportProgress && <div role="status" className="doc-tree-path-notice">{exportProgress}</div>}
       {toolbarHost === undefined
         ? <div className="doc-tree-toolbar-inline">{toolbar}</div>
         : toolbarHost
@@ -877,6 +903,7 @@ function DocTree({
           {contextMenu.type === 'folder' ? (
             <>
               <button className="doc-context-item" onClick={() => void handleCopyPath(contextMenu.path)}>复制路径</button>
+              <button className="doc-context-item" disabled={disabled || !!exportProgress} onClick={() => void handleExportPath(contextMenu.path)}>导出路径下的文档（Markdown ZIP）</button>
               {onPathSecurity && !contextMenu.path.startsWith("daily") && <>
                 <button className="doc-context-item" onClick={() => { const path = contextMenu.path; setContextMenu(null); void onPathSecurity(path, "set"); }}>
                   {tree.some(n => n.path === contextMenu.path && n.protectionRoot) ? "更改路径密码" : "设置路径密码"}

@@ -598,11 +598,13 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       .run();
   };
 
+  const [hoveredBlockIndex, setHoveredBlockIndex] = useState<number | null>(null);
+
   const boundaries = !showInsertButtons || blocks.length === 0
     ? []
     : [
         ...(blocks[0].index === 1
-          ? [{ key: "start", pos: blocks[0].pos, top: blocks[0].top, label: "在第一块前插入段落" }]
+          ? [{ key: "start", pos: blocks[0].pos, top: blocks[0].top, label: "在第一块前插入段落", adjacent: hoveredBlockIndex === blocks[0].index }]
           : []),
         ...blocks.map((block, index) => {
           const nextBlock = blocks[index + 1];
@@ -613,6 +615,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
             : block.marginBottom;
           return {
             key: `after-${block.pos}`,
+            adjacent: hoveredBlockIndex === block.index || hoveredBlockIndex === nextBlock?.index,
             pos: block.endPos,
             // DOMRect 不包含 margin。将按钮放在相邻块之间的视觉空隙中央，
             // 避免 horizontalRule 的“块后插入”按钮贴到分割线上方。
@@ -693,6 +696,19 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
     <div
       ref={rootRef}
       className="editor-block-gutter"
+      onPointerMove={(event) => {
+        if (event.pointerType !== "mouse") return;
+        // Keep the pair stable while moving from a number onto its +/- boundary.
+        if ((event.target as HTMLElement).closest(".editor-block-insert")) return;
+        const y = event.clientY - event.currentTarget.getBoundingClientRect().top;
+        const nearest = blocks.reduce<GutterBlock | null>((best, block) => {
+          const distance = Math.max(block.top - y, y - block.bottom, 0);
+          const bestDistance = best ? Math.max(best.top - y, y - best.bottom, 0) : Infinity;
+          return distance < bestDistance ? block : best;
+        }, null);
+        setHoveredBlockIndex(nearest && y >= blocks[0].top - 10 && y <= blocks[blocks.length - 1].bottom + 10 ? nearest.index : null);
+      }}
+      onPointerLeave={() => setHoveredBlockIndex(null)}
       aria-hidden={readonly && !showNumbers && !onHeadingFoldToggle && selectedBlockIndexes.length === 0}
     >
       {selectedBlockIndexes.length > 0 && onBlockSelect && blocks.map((block) => (
@@ -760,7 +776,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
         <button
           key={boundary.key}
           type="button"
-          className="editor-block-insert"
+          className={`editor-block-insert${boundary.adjacent ? " adjacent-to-hovered-block" : ""}`}
           style={{ top: boundary.top }}
           aria-label={boundary.label}
           title={boundary.label}

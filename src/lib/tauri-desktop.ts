@@ -48,6 +48,17 @@ export async function exportMarkdownWithDialog(data: string, defaultName: string
   return path;
 }
 
+/** 原生保存对话框 — 导出路径下的 Markdown ZIP。 */
+export async function exportZipWithDialog(data: Uint8Array, defaultName: string): Promise<string | null> {
+  if (!isTauri()) return null;
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  const { invoke } = await import("@tauri-apps/api/core");
+  const path = await save({ defaultPath: defaultName, filters: [{ name: "ZIP", extensions: ["zip"] }] });
+  if (!path) return null;
+  await invoke("export_binary_to_file", { path, content: Array.from(data) });
+  return path;
+}
+
 /** 原生保存对话框 — 导出二进制 PDF。 */
 export async function exportPdfWithDialog(data: Uint8Array, defaultName: string): Promise<string | null> {
   if (!isTauri()) return null;

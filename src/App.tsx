@@ -1589,6 +1589,7 @@ function App() {
             />
           ) : (
             <DocTree
+              beforeExport={flushAutoSave}
               onPathSecurity={handlePathSecurity}
               collapsed={docTreeCollapsed}
               setCollapsed={setDocTreeCollapsed}
