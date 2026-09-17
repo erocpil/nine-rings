@@ -56,7 +56,7 @@ test("列表显示偏好重启保留，关键词与筛选不落盘", async ({ pa
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
   const open = async () => {
     await page.getByRole("button", { name: "文档列表", exact: true }).click();
-    return page.getByRole("dialog", { name: "文档视图", exact: true });
+    return page.getByRole("region", { name: "文档列表分区", exact: true });
   };
   let dialog = await open();
   await dialog.getByRole("button", { name: "全部文档", exact: true }).click();
@@ -119,7 +119,7 @@ test("列表偏好存储失败不阻止使用，修改后可恢复保存", async
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
   await page.getByRole("button", { name: "文档列表", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "文档视图", exact: true });
+  const dialog = page.getByRole("region", { name: "文档列表分区", exact: true });
   await expect(
     dialog.getByText("列表偏好未能保存到本机，当前会话仍可使用。"),
   ).toBeVisible();

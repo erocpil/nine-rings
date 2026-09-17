@@ -114,6 +114,17 @@ for (const count of [300, 1500]) {
                 url: node.callFrame.url,
                 line: node.callFrame.lineNumber,
                 hits: node.hitCount,
+                callers: (() => {
+                  const callers: string[] = [];
+                  let id = node.id;
+                  for (let depth = 0; depth < 6; depth++) {
+                    const parent = profile.nodes.find(candidate => candidate.children?.includes(id));
+                    if (!parent) break;
+                    callers.push(`${parent.callFrame.functionName}@${parent.callFrame.url}:${parent.callFrame.lineNumber}`);
+                    id = parent.id;
+                  }
+                  return callers;
+                })(),
               })),
           ),
         );

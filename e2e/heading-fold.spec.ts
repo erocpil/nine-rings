@@ -1,12 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { createBlankDocument } from "./helpers/document";
 
 test("标题章节可按层级折叠，并从目录统一展开", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("新随笔");
-  await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
+  await createBlankDocument(page);
   await expect(page.locator(".ProseMirror")).toHaveText("");
   const editor = page.locator(".ProseMirror");
   await editor.click();
@@ -17,20 +13,20 @@ test("标题章节可按层级折叠，并从目录统一展开", async ({ page 
   });
   await page.getByRole("button", { name: "折叠第 1 块章节" }).click();
   await expect(editor.getByText("总览正文", { exact: true })).toBeHidden();
-  await expect(editor.getByText("子节", { exact: true })).toBeHidden();
+  await expect(editor.locator("h1,h2,h3,h4,h5,h6").filter({ hasText: /子节$/ })).toBeHidden();
   await expect(editor.getByText("子节正文", { exact: true })).toBeHidden();
-  await expect(editor.getByText("第二部分", { exact: true })).toBeVisible();
+  await expect(editor.locator("h1,h2,h3,h4,h5,h6").filter({ hasText: /第二部分$/ })).toBeVisible();
   await page.getByTitle("文档目录").click();
   const outline = page.getByRole("navigation", { name: "文档目录" });
   await expect(outline.getByTitle("子节", { exact: true })).toHaveCount(0);
   await expect(outline.locator(".document-outline-item")).toHaveCount(2);
   await outline.getByRole("button", { name: "全部展开" }).dblclick();
   await expect(editor.getByText("总览正文", { exact: true })).toBeVisible();
-  await expect(editor.getByText("子节", { exact: true })).toBeVisible();
+  await expect(editor.locator("h1,h2,h3,h4,h5,h6").filter({ hasText: /子节$/ })).toBeVisible();
   await expect(outline.getByTitle("子节", { exact: true })).toBeVisible();
   await outline.getByLabel("折叠章节 子节").click();
   await expect(editor.getByText("子节正文", { exact: true })).toBeHidden();
-  await expect(editor.getByText("第二部分", { exact: true })).toBeVisible();
+  await expect(editor.locator("h1,h2,h3,h4,h5,h6").filter({ hasText: /第二部分$/ })).toBeVisible();
 
   // 标题文字只负责跳转；折叠状态只能由前方三角切换。
   await outline.locator('.document-outline-item[title="子节"] .document-outline-link').click();
@@ -59,12 +55,7 @@ test("标题章节可按层级折叠，并从目录统一展开", async ({ page 
 });
 
 test("全部折叠在只有一个 H1 时保留 H2 总览", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("新随笔");
-  await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
+  await createBlankDocument(page);
   await expect(page.locator(".ProseMirror")).toHaveText("");
   const editor = page.locator(".ProseMirror");
   await editor.click();
@@ -89,12 +80,7 @@ test("全部折叠在只有一个 H1 时保留 H2 总览", async ({ page }) => {
 });
 
 test("目录全部折叠再全部展开后保持正文可视位置", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("新随笔");
-  await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
+  await createBlankDocument(page);
   await expect(page.locator(".ProseMirror")).toHaveText("");
 
   const editor = page.locator(".ProseMirror");
@@ -127,12 +113,7 @@ test("目录全部折叠再全部展开后保持正文可视位置", async ({ pa
 });
 
 test("全部折叠后文档尾部的标题三角在小幅滚动中保持显示", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("新随笔");
-  await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
+  await createBlankDocument(page);
   await expect(page.locator(".ProseMirror")).toHaveText("");
 
   const editor = page.locator(".ProseMirror");
@@ -145,7 +126,7 @@ test("全部折叠后文档尾部的标题三角在小幅滚动中保持显示",
     element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
   }, markdown);
 
-  const lastHeading = editor.getByText("尾部章节 40", { exact: true });
+  const lastHeading = editor.locator("h1,h2,h3,h4,h5,h6").filter({ hasText: /尾部章节 40$/ });
   await lastHeading.evaluate((element) => element.scrollIntoView({ block: "center" }));
   await page.getByTitle("文档目录").click();
   await page.getByRole("navigation", { name: "文档目录" })
@@ -226,12 +207,12 @@ test("手机端尾部逐节折叠不发布观察器中的陈旧块号", async ({
   }, markdown);
   await expect.poll(() => editor.locator(":scope > *").count()).toBeGreaterThanOrEqual(200);
 
-  const lastHeading = editor.getByText("尾部连续章节 25", { exact: true });
+  const lastHeading = editor.locator("h1,h2,h3,h4,h5,h6").filter({ hasText: /尾部连续章节 25$/ });
   await lastHeading.evaluate((element) => element.scrollIntoView({ block: "center" }));
   const tailBlocks = await editor.evaluate((element) => {
     const children = Array.from(element.children);
     return [23, 24, 25].map((section) => {
-      const heading = children.find((child) => child.textContent === `尾部连续章节 ${section}`);
+      const heading = children.find((child) => child.tagName === "H1" && child.textContent?.endsWith(`尾部连续章节 ${section}`));
       if (!heading) throw new Error(`tail heading ${section} missing`);
       const headingIndex = children.indexOf(heading) + 1;
       const nextHeading = children.findIndex((child, index) => (
@@ -359,12 +340,7 @@ test("手机端重新展开后标题三角不采用观察器的陈旧坐标", as
 
 test("千块文档全部展开后滚动不再逐块同步测量", async ({ page }) => {
   test.slow();
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("新随笔");
-  await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
+  await createBlankDocument(page);
   await expect(page.locator(".ProseMirror")).toHaveText("");
 
   const editor = page.locator(".ProseMirror");

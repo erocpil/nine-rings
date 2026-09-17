@@ -1,23 +1,19 @@
 import { HotkeyConfig } from "./SettingsHotkeys";
 import { Field, SettingsSection } from "./SettingsFields";
-import React, { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import "./settings-surfaces.css";
 import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
-import type { AppConfig, DocType, Note } from "../types/models";
+import type { AppConfig, Note } from "../types/models";
 import { DAILY_NOTES_ENABLED, TODOS_ENABLED } from "../lib/workspace-features";
-import { TEXT_IMPORT_ACCEPT } from "../lib/markdown-import";
-import { useSettingsTextImport } from "../hooks/useSettingsTextImport";
-import { isTauri, importWithDialog } from "../lib/tauri-desktop";
-import { exportLocalJsonBackup } from "../lib/local-backup-export";
+import { useSettingsData } from "../hooks/useSettingsData";
+import { SettingsDataPage } from "./SettingsDataPage";
+import { isTauri } from "../lib/tauri-desktop";
 import SettingsSync from "./SettingsSync";
 import { withTimeout } from "../lib/async";
 import { EditorAppearancePanel } from "./EditorAppearancePanel";
-import { ImportPathPicker } from "./ImportPathPicker";
-import { BackupRestoreStatus } from "./BackupRestoreStatus";
-import { BackupExportStatus } from "./BackupExportStatus";
 import type { WebStorageStatus } from "../hooks/useWebPlatform";
-import { pwaUpdateStatusText, type PwaUpdateStatus } from "../lib/pwa-updates";
+import { SettingsUpdateStatus, type SettingsWebUpdate } from "./SettingsUpdateStatus";
 import { useTransientMessage } from "../hooks/useTransientMessage";
 import { collectWebDiagnostics } from "../lib/web-diagnostics";
 import { rebuildWebSearchIndex } from "../lib/web-search-index";
@@ -40,7 +36,7 @@ interface Props {
   /** Pull 完成后回调 — 重新载入并应用恢复后的设置与工作区 */
   onPullDone?: () => void;
   webStorageStatus?: WebStorageStatus;
-  webUpdate?: PwaUpdateStatus & { onCheck: () => Promise<void>; onApply: () => void };
+  webUpdate?: SettingsWebUpdate;
   onBeforeBookmarkNoteUpdate?: (noteId: string) => Promise<void>;
   onBookmarkNoteUpdated?: (note: Note) => void;
   onNotesChanged?: () => void;
@@ -170,7 +166,6 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   }, [searchDestination]);
   const [localRendering, setLocalRendering] = useState(readonlyRenderingEnabled);
   const [rebuildingSearchIndex, setRebuildingSearchIndex] = useState(false);
-  const [showUpdateFailureDetails, setShowUpdateFailureDetails] = useState(false);
   const [bookmarkNotes, setBookmarkNotes] = useState<Note[]>([]);
   const [bookmarksLoading, setBookmarksLoading] = useState(false);
   const [deletingBookmarkId, setDeletingBookmarkId] = useState<string | null>(null);
@@ -183,10 +178,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [renameVal, setRenameVal] = useState("");
 
   // ── 导入状态 ──
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importing, setImporting] = useState(false);
-
-  const { mdInputRef, directoryInputRef, directoryImportSupported, mdImporting, mdImportCount, mdImportTotal, mdImportProgress, mdImportCurrentFile, mdImportMode, setMdImportMode, mdImportPath, setMdImportPath, importPathTriggerRef, importPathPickerOpen, setImportPathPickerOpen, mdImportDocType, setMdImportDocType, mdImportTags, setMdImportTags, mdImportConcepts, setMdImportConcepts, handleMdImport } = useSettingsTextImport(open, showMessage, onMarkdownImport);
+  const data = useSettingsData(open, showMessage, onImport, onMarkdownImport);
   const loadSettings = () => {
     setLoading(true);
     setLoadError(null);
@@ -211,17 +203,6 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     }
   };
 
-  const getUpdateStatusText = (status: NonNullable<Props["webUpdate"]>) => {
-    return pwaUpdateStatusText(status);
-  };
-
-  const getUpdateStatusClass = (status: NonNullable<Props["webUpdate"]>) => {
-    if (status.error) return "is-error";
-    if (status.available) return "is-ready";
-    if (status.checking || status.phase === "installing") return "is-checking";
-    if (status.checked) return "is-neutral";
-    return "is-idle";
-  };
 
   useEffect(() => {
     clearMessage();
@@ -246,33 +227,6 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     };
   }, [open]);
 
-  useEffect(() => {
-    if (!webUpdate?.error) setShowUpdateFailureDetails(false);
-    else if (webUpdate?.error && !webUpdate.errorDetails) setShowUpdateFailureDetails(false);
-  }, [webUpdate?.error, webUpdate?.errorDetails]);
-
-  const handleCopyUpdateFailureDetails = useCallback(async () => {
-    if (!webUpdate?.errorDetails) return;
-    try {
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(webUpdate.errorDetails);
-      } else {
-        const target = document.createElement("textarea");
-        target.value = webUpdate.errorDetails;
-        target.style.position = "fixed";
-        target.style.opacity = "0";
-        target.style.left = "-9999px";
-        document.body.appendChild(target);
-        target.focus();
-        target.select();
-        document.execCommand("copy");
-        document.body.removeChild(target);
-      }
-      showMessage("更新失败详情已复制到剪贴板");
-    } catch (error) {
-      showMessage(`复制失败：${error instanceof Error ? error.message : String(error)}`);
-    }
-  }, [showMessage, webUpdate?.errorDetails]);
 
   useEffect(() => {
     if (!open || settingsPage !== "bookmarks") return;
@@ -468,15 +422,6 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   };
 
   // ── 导出/导入 ──
-  const handleExport = async () => {
-    try {
-      const result = await exportLocalJsonBackup();
-      if (!result) return;
-      showMessage(result.desktop ? `备份文件已保存到 ${result.destination}` : "已发起备份下载，请确认文件已保存到下载目录");
-    } catch (e) {
-      showMessage(`导出失败: ${e}`);
-    }
-  };
 
   const handleDiagnosticExport = async () => {
     if (!webStorageStatus) return;
@@ -495,48 +440,6 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     }
   };
 
-  const handleImport = async () => {
-    setImporting(true);
-    try {
-      if (isTauri()) {
-        const text = await importWithDialog();
-        if (text) {
-          const result = await api.export.import(text);
-          const configTip = result.configs_imported ? "，配置已恢复" : "";
-          showMessage(`导入完成：${result.notes_imported} 篇笔记, ${result.pages_imported} 个页面${configTip}`);
-          onImport?.();
-        }
-      } else {
-        // Web 模式：触发隐藏的 file input
-        fileInputRef.current?.click();
-        return; // 后续由 handleImportFile 处理
-      }
-    } catch (e) {
-      showMessage(`导入失败: ${e}`);
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  /// Web 模式的 file input 回调（Tauri 模式不走这里）
-  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImporting(true);
-    try {
-      const text = await file.text();
-      const result = await api.export.import(text);
-      const configTip = result.configs_imported ? "，配置已恢复" : "";
-      showMessage(`导入完成：${result.notes_imported} 篇笔记, ${result.pages_imported} 个页面${configTip}`);
-      onImport?.();
-    } catch (e) {
-      showMessage(`导入失败: ${e}`);
-    } finally {
-      // Match native dialogs: a failed import can be retried with the same file.
-      e.target.value = "";
-      setImporting(false);
-    }
-  };
 
 
   if (!open) return null;
@@ -1077,172 +980,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             {/* 数据导出/导入 */}
             {/* ═══════════════════════ */}
 
-            {webStorageStatus?.supported && (
-              <SettingsSection title="浏览器存储" desc="Nine Rings 的本地数据保存在当前浏览器中" visible={settingsPage === "data"}>
-                <div className="web-storage-summary">
-                  <span>
-                    持久存储：
-                    <strong>{webStorageStatus.persisted ? "已授权" : "未授权"}</strong>
-                  </span>
-                  <span>
-                    已使用：
-                    <strong>{formatStorageBytes(webStorageStatus.usage)}</strong>
-                    {webStorageStatus.quota !== null && ` / ${formatStorageBytes(webStorageStatus.quota)}`}
-                  </span>
-                </div>
-                {!webStorageStatus.persisted && (
-                  <p className="web-storage-hint">浏览器可能在空间紧张时清理本站数据，建议定期导出或配置 GitHub 备份。</p>
-                )}
-              </SettingsSection>
-            )}
-            <SettingsSection title="数据导出 / 导入" desc="全量 JSON 包含笔记、待办、书签、应用配置及非敏感用户设置；Token、密码等凭据不导出" visible={settingsPage === "data"}>
-              <BackupExportStatus />
-              <BackupRestoreStatus />
-              <p className="settings-hint">恢复前请关闭其他编辑窗口；恢复锁只防止多个恢复同时执行，不隔离普通编辑。中断后请先导出本地数据并检查，再决定是否重新导入。</p>
-              <div className="settings-button-row">
-                <button className="settings-btn-primary" onClick={handleExport}>
-                  导出数据
-                </button>
-                <button
-                  className="settings-btn-secondary"
-                  onClick={handleImport}
-                  disabled={importing}
-                >
-                  {importing ? "导入中..." : "导入数据"}
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".json"
-                  style={{ display: "none" }}
-                  onChange={handleImportFile}
-                />
-              </div>
-            </SettingsSection>
-
-            {/* ═══════════════════════ */}
-            {/* Markdown 导入 */}
-            {/* ═══════════════════════ */}
-            <SettingsSection title="Markdown / 纯文本导入" desc="导入文件或整个目录；支持 .md、.markdown、.txt、.text、.log、.csv、.tsv、.rst、.adoc。非 Markdown 文件保留纯文本，支持 UTF-8 及带 BOM 的 UTF-16。" visible={settingsPage === "data"}>
-              <div className="markdown-import-form">
-                <div className="settings-radio-group markdown-import-mode" role="radiogroup" aria-label="Markdown 导入类型">
-                  <button
-                    className={`settings-radio ${mdImportMode === "document" ? "active" : ""}`}
-                    onClick={() => setMdImportMode("document")}
-                    type="button"
-                  >导入为文档</button>
-                  {DAILY_NOTES_ENABLED && <button
-                    className={`settings-radio ${mdImportMode === "note" ? "active" : ""}`}
-                    onClick={() => setMdImportMode("note")}
-                    type="button"
-                  >导入为随笔</button>}
-                </div>
-
-                {mdImportMode === "document" && (
-                  <div className="markdown-import-grid">
-                    <div className="markdown-import-field markdown-import-path-field">
-                      <span>目标路径</span>
-                      <input
-                        className="settings-input"
-                        aria-label="Markdown 导入目标路径"
-                        placeholder="例如 references/networking"
-                        value={mdImportPath}
-                        disabled={mdImporting}
-                        onChange={(event) => setMdImportPath(event.target.value)}
-                      />
-                      <button ref={importPathTriggerRef} type="button" className="settings-btn-secondary" disabled={mdImporting} onClick={() => setImportPathPickerOpen(true)}>从文档树选择路径</button>
-                      <small>可从现有目录树选择，也可手动输入新路径。</small>
-                      <small>单独选文件时直接放入目标路径；选择目录时保留所选目录及全部子目录，例如 资料/网络/a.txt → 目标路径/资料/网络。空目录不导入。</small>
-                    </div>
-                    <label className="markdown-import-field">
-                      <span>文档类型</span>
-                      <select
-                        className="settings-input"
-                        aria-label="Markdown 导入文档类型"
-                        value={mdImportDocType}
-                        onChange={(event) => setMdImportDocType(event.target.value as DocType)}
-                      >
-                        <option value="explanation">解释</option>
-                        <option value="how-to">指南</option>
-                        <option value="reference">参考</option>
-                        <option value="tutorial">教程</option>
-                      </select>
-                    </label>
-                    <label className="markdown-import-field">
-                      <span>概念标签</span>
-                      <input
-                        className="settings-input"
-                        aria-label="Markdown 导入概念标签"
-                        placeholder="逗号分隔，可选"
-                        value={mdImportConcepts}
-                        onChange={(event) => setMdImportConcepts(event.target.value)}
-                      />
-                    </label>
-                  </div>
-                )}
-
-                <label className="markdown-import-field">
-                  <span>普通标签</span>
-                  <input
-                    className="settings-input"
-                    aria-label="Markdown 导入普通标签"
-                    placeholder="逗号分隔，可选"
-                    value={mdImportTags}
-                    onChange={(event) => setMdImportTags(event.target.value)}
-                  />
-                </label>
-
-                <div className="settings-button-row">
-                  <button
-                    className="settings-btn-secondary"
-                    onClick={() => mdInputRef.current?.click()}
-                    disabled={mdImporting || (mdImportMode === "document" && !mdImportPath.trim())}
-                  >
-                    {mdImporting
-                      ? `导入中... ${mdImportProgress}/${mdImportTotal}`
-                      : "选择 .md / .txt 等文件"}
-                  </button>
-                  {mdImportMode === "document" && <button
-                    className="settings-btn-secondary"
-                    onClick={() => directoryInputRef.current?.click()}
-                    disabled={!directoryImportSupported || mdImporting || !mdImportPath.trim()}
-                  >选择目录导入</button>}
-                  {(mdImporting || mdImportProgress > 0) && (
-                    <span className="settings-import-progress">
-                      {mdImportTotal > 0 ? `${mdImportProgress} / ${mdImportTotal} 已处理` : ""}
-                      {mdImportCurrentFile ? ` · ${mdImportCurrentFile}` : ""}
-                    </span>
-                  )}
-                  {mdImportCount > 0 && !mdImporting && (
-                    <span className="settings-import-ok">
-                      已导入 {mdImportCount} 篇笔记
-                    </span>
-                  )}
-                  <input
-                    ref={mdInputRef}
-                    type="file"
-                    accept={TEXT_IMPORT_ACCEPT}
-                    multiple
-                    style={{ display: "none" }}
-                    onChange={handleMdImport}
-                  />
-                  <input
-                    ref={directoryInputRef}
-                    type="file"
-                    aria-label="导入文本目录"
-                    {...{ webkitdirectory: "" }}
-                    multiple
-                    style={{ display: "none" }}
-                    onChange={handleMdImport}
-                  />
-                </div>
-                <small>{directoryImportSupported
-                  ? "目录选择取决于系统文件选择器；若手机版无法选择目录，可改用多选文件，或在桌面端导入后同步。"
-                  : "当前环境不支持目录选择，请改用多选文件，或在桌面端导入后同步。"}</small>
-              </div>
-            </SettingsSection>
-
-            {/* ═══════════════════════ */}
+            <SettingsDataPage visible={settingsPage === "data"} webStorageStatus={webStorageStatus} data={data} />
             {/* GitHub 备份 */}
             {/* ═══════════════════════ */}
             {settingsPage === "sync" && (
@@ -1307,55 +1045,12 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             {settingsPage === "root" && (
               <>
                 <div className="settings-version">v{__APP_VERSION__}</div>
-                {webUpdate && (
-                  <div className="settings-web-update">
-                    <button type="button" className={`settings-update-check${webUpdate.checking ? " is-loading" : ""}`} disabled={webUpdate.checking}
-                      onClick={() => void webUpdate.onCheck().catch((error) => showMessage(String(error)))}>
-                      {webUpdate.checking ? <span className="settings-update-spinner" aria-hidden="true" /> : <span className="settings-update-icon" aria-hidden="true">↻</span>}
-                      {webUpdate.checking ? "检查中…" : "检查更新"}
-                    </button>
-                    {webUpdate.available && (
-                      <button type="button" className="settings-update-apply" onClick={webUpdate.onApply}>
-                        <ToolbarIcon name="check" />
-                        保存并刷新
-                      </button>
-                    )}
-                    <span role="status" className={`settings-update-status ${getUpdateStatusClass(webUpdate)}`}>
-                      <span className="settings-update-status-dot" aria-hidden="true" />
-                      {getUpdateStatusText(webUpdate)}
-                    </span>
-                    {webUpdate.error && webUpdate.errorDetails && (
-                      <button
-                        type="button"
-                        className="settings-update-error-details"
-                        onClick={() => setShowUpdateFailureDetails((value) => !value)}
-                      >
-                        {showUpdateFailureDetails ? "收起详情" : "查看详情"}
-                      </button>
-                    )}
-                    {showUpdateFailureDetails && webUpdate.error && webUpdate.errorDetails && (
-                      <>
-                        <pre className="settings-update-error-panel" role="status">
-                          {webUpdate.errorDetails}
-                        </pre>
-                        <button
-                          type="button"
-                          className="settings-update-error-copy"
-                          onClick={() => void handleCopyUpdateFailureDetails()}
-                        >
-                          一键复制详情
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
+                {webUpdate && <SettingsUpdateStatus webUpdate={webUpdate} showMessage={showMessage} />}
               </>
             )}
           </div>
         )}
       </div>
-      {importPathPickerOpen && settingsPage === "data" && <ImportPathPicker anchor={importPathTriggerRef.current} initialPath={mdImportPath}
-        onClose={() => setImportPathPickerOpen(false)} onSelect={path => { setMdImportPath(path); setImportPathPickerOpen(false); }} />}
       {editorAppearanceOpen && config && (
         <EditorAppearancePanel
           initialSearch={editorAppearanceSearch}
@@ -1368,17 +1063,4 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
       )}
     </div>
   );
-}
-
-function formatStorageBytes(bytes: number | null): string {
-  if (bytes === null) return "不可用";
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes / 1024;
-  let unit = units[0];
-  for (let i = 1; i < units.length && value >= 1024; i += 1) {
-    value /= 1024;
-    unit = units[i];
-  }
-  return `${value.toFixed(value >= 10 ? 1 : 2)} ${unit}`;
 }

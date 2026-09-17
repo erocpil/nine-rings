@@ -1,10 +1,12 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { createBlankNote } from "./helpers/editor-fixtures";
+import { createBlankDocument } from "./helpers/document";
 
 test.use({ hasTouch: true });
 
 async function insertImage(page: Page) {
-  const editor = await createBlankNote(page);
+  await createBlankDocument(page);
+  const editor = page.locator(".ProseMirror");
+  await editor.click();
   await editor.evaluate((element) => {
     const data = new DataTransfer();
     data.setData("text/html", '<img width="180px" src="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'240\' height=\'120\'%3E%3Crect width=\'240\' height=\'120\' fill=\'blue\'/%3E%3C/svg%3E">');
@@ -30,7 +32,7 @@ const selectionStyles = (page: Page) => page.evaluate(() =>
 for (const width of [390, 1280]) {
   test(`只读图片隐藏缩放手柄且普通和专注模式均不修改尺寸（${width}px）`, async ({ page }) => {
     const { editor, image, handle } = await insertImage(page);
-    await page.getByRole("button", { name: "隐藏侧栏", exact: true }).first().click();
+    await page.getByRole("navigation", { name: "工作区面板" }).getByRole("button", { name: "文档树", exact: true }).click();
     await page.setViewportSize({ width, height: 800 });
     await image.click();
     await expect(handle).toBeVisible();

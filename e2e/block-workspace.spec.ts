@@ -1,5 +1,18 @@
 import { expect, test, type Page } from "@playwright/test";
 
+type FixtureWindow = Window & { blockFixture?: {
+  task?: Promise<void>;
+  result?: { id: string } | { error: string };
+} };
+
+async function replaceCode(page: Page, text: string) {
+  const code = page.getByRole("dialog", { name: "代码块工作区" }).locator(".cm-content");
+  await expect(code).toHaveAttribute("contenteditable", "true");
+  await code.click();
+  await page.keyboard.type("ggVGc");
+  await page.keyboard.insertText(text);
+}
+
 async function displayPreferences(page: Page, values: { whitespace?: "all"; tabSize?: number; fontSize?: number; height?: number }) {
   await page.evaluate(async values => {
     const load = (path: string) => import(/* @vite-ignore */ path);
@@ -13,18 +26,31 @@ async function displayPreferences(page: Page, values: { whitespace?: "all"; tabS
 async function fixture(page: Page, readonly = false, secondCode = false) {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15000 });
-  const id = await page.evaluate(async ({ readonly, secondCode }) => {
-    const load = (path: string) => import(/* @vite-ignore */ path);
-    const { api } = await load("/src/lib/api.ts") as typeof import("../src/lib/api");
-    const { mdToDelta } = await load("/src/lib/md-parser.ts") as typeof import("../src/lib/md-parser");
-    const { useNotesStore } = await load("/src/stores/useNotesStore.ts") as typeof import("../src/stores/useNotesStore");
-    const note = await api.notes.create({ title: "块工作区测试", date: useNotesStore.getState().currentDate, content: mdToDelta("前文\n\n```js\nconst answer = 42;\nconsole.log(answer);\n```\n\n> 引用第一段\n>\n> 引用第二段\n\n后文" + (secondCode ? "\n\n```js\nconst second = 2;\n```" : "")) });
-    if (readonly) await api.notes.update(note.id, { readonly: true });
-    useNotesStore.getState().selectNote((await api.notes.get(note.id))!);
-    return note.id;
+  await page.evaluate(({ readonly, secondCode }) => {
+    // Keep the job in the page and poll a plain result. Awaiting the long task
+    // through CDP can report "Promise was collected" even with a rooted task.
+    const state: NonNullable<FixtureWindow["blockFixture"]> = {};
+    (window as FixtureWindow).blockFixture = state;
+    state.task = (async () => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api } = await load("/src/lib/api.ts") as typeof import("../src/lib/api");
+      const { mdToDelta } = await load("/src/lib/md-parser.ts") as typeof import("../src/lib/md-parser");
+      const { useNotesStore } = await load("/src/stores/useNotesStore.ts") as typeof import("../src/stores/useNotesStore");
+      const note = await api.notes.create({ title: "块工作区测试", date: useNotesStore.getState().currentDate, content: mdToDelta("前文\n\n```js\nconst answer = 42;\nconsole.log(answer);\n```\n\n> 引用第一段\n>\n> 引用第二段\n\n后文" + (secondCode ? "\n\n```js\nconst second = 2;\n```" : "")) });
+      if (readonly) await api.notes.update(note.id, { readonly: true });
+      useNotesStore.getState().selectNote((await api.notes.get(note.id))!);
+      state.result = { id: note.id };
+    })().catch(error => { state.result = { error: String(error) }; });
   }, { readonly, secondCode });
+  await expect.poll(() => page.evaluate(() => Boolean((window as FixtureWindow).blockFixture?.result))).toBe(true);
+  const result = await page.evaluate(() => {
+    const value = (window as FixtureWindow).blockFixture?.result;
+    delete (window as FixtureWindow).blockFixture;
+    return value;
+  });
+  if (!result || "error" in result) throw new Error(result?.error ?? "fixture did not complete");
   await expect(page.locator(".note-title")).toHaveValue("块工作区测试");
-  return id;
+  return result.id;
 }
 
 test("折叠代码块的弹层显示正文且保留原块折叠状态", async ({ page }) => {
@@ -38,13 +64,29 @@ test("折叠代码块的弹层显示正文且保留原块折叠状态", async ({
   expect((await inner.boundingBox())!.height).toBeGreaterThan(20);
   await expect(dialog.locator("pre code")).toContainText("const answer = 42;");
   await dialog.getByRole("button", { name: "编辑", exact: true }).click();
-  await dialog.locator("pre code").click();
-  await page.keyboard.press("Control+a");
-  await page.keyboard.insertText("const updated = 100;");
+  await replaceCode(page, "const updated = 100;");
   await dialog.getByRole("button", { name: "关闭块工作区" }).click();
   await expect(block).toHaveClass(/collapsed/);
   await block.getByRole("button", { name: "展开代码块", exact: true }).click();
   await expect(block.locator("pre code")).toHaveText("const updated = 100;");
+});
+
+test("清空代码块可撤销，键盘与工具栏共享原文历史", async ({ page }) => {
+  await fixture(page);
+  await page.getByRole("button", { name: "放大阅读代码块" }).click();
+  const dialog = page.getByRole("dialog", { name: "代码块工作区" });
+  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await replaceCode(page, "");
+  const source = page.locator(".note-editor pre code");
+  await expect(source).toHaveText("");
+  await page.keyboard.press("Control+z");
+  await expect(source).toContainText("const answer = 42;");
+  await expect(dialog.locator(".cm-content")).toContainText("const answer = 42;");
+  await page.keyboard.press("Control+Shift+z");
+  await expect(source).toHaveText("");
+  await expect(dialog.locator(".cm-content")).toHaveText("");
+  await dialog.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(dialog.locator(".cm-content")).toContainText("const answer = 42;");
 });
 
 test("块内换行现状：代码按钮禁用但快捷键可用，引用按钮可用", async ({ page }) => {
@@ -79,11 +121,8 @@ test("块工作区编辑只同步原块并共享撤销，模式不修改文档�
   await expect(dialog).toBeVisible();
   await expect(dialog.locator(".ProseMirror")).toHaveAttribute("contenteditable", "false");
   await dialog.getByRole("button", { name: "编辑", exact: true }).click();
-  const code = dialog.locator("pre code");
-  await expect(dialog.locator(".ProseMirror")).toHaveAttribute("contenteditable", "true");
-  await code.click();
-  await page.keyboard.press("Control+a");
-  await page.keyboard.insertText("const updated = 100;");
+  const code = dialog.locator(".cm-content");
+  await replaceCode(page, "const updated = 100;");
   await expect(source.locator("pre code")).toHaveText("const updated = 100;");
   await expect(source).toContainText("前文");
   await expect(source).toContainText("后文");
@@ -107,7 +146,7 @@ test("块工作区编辑只同步原块并共享撤销，模式不修改文档�
 
 for (const readonly of [false, true]) {
   for (const shortcut of ["Control+a", "Meta+a"]) {
-    test(`块内全选再全文全选，只读=${readonly}，${shortcut}`, async ({ page }) => {
+    test(`编辑时先选块，只读时直接选正文，只读=${readonly}，${shortcut}`, async ({ page }) => {
       await fixture(page, readonly);
       for (const [selector, expected] of [["pre code", "const answer = 42;"], [".blockquote-content p", "引用第一段"]]) {
         const content = page.locator(`.note-editor ${selector}`).first();
@@ -124,8 +163,13 @@ for (const readonly of [false, true]) {
         await page.keyboard.press(shortcut);
         const selected = await page.evaluate(() => window.getSelection()?.toString());
         expect(selected).toContain(expected);
-        expect(selected).not.toContain("前文");
-        expect(selected).not.toContain("后文");
+        if (readonly) {
+          expect(selected).toContain("前文");
+          expect(selected).toContain("后文");
+        } else {
+          expect(selected).not.toContain("前文");
+          expect(selected).not.toContain("后文");
+        }
         if (selector.includes("blockquote")) expect(selected).toContain("引用第二段");
         await page.keyboard.press(shortcut);
         const all = await page.evaluate(() => window.getSelection()?.toString());
@@ -138,7 +182,7 @@ for (const readonly of [false, true]) {
   }
 }
 
-test("局部只读渲染先选中块，再切换完整渲染全选", async ({ page }) => {
+test("局部只读渲染全选直接切换完整正文", async ({ page }) => {
   await fixture(page, true);
   await page.evaluate(async () => {
     const load = (path: string) => import(/* @vite-ignore */ path);
@@ -153,10 +197,9 @@ test("局部只读渲染先选中块，再切换完整渲染全选", async ({ pa
     window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
   });
   await page.keyboard.press("Control+a");
-  expect(await page.evaluate(() => window.getSelection()?.toString())).toContain("const answer = 42;");
-  expect(await page.evaluate(() => window.getSelection()?.toString())).not.toContain("前文");
-  await page.keyboard.press("Control+a");
   await expect(page.locator(".vr-note")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toContain("const answer = 42;");
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toContain("前文");
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toContain("后文");
 });
 
@@ -190,7 +233,8 @@ test("代码和引用折叠三角位于最右侧，所有工具间距一致", as
         const bounds = (await toolbar.boundingBox())!;
         const foldBounds = (await fold.boundingBox())!;
         const expandBounds = (await expand.boundingBox())!;
-        expect(foldBounds.x + foldBounds.width).toBeCloseTo(bounds.x + bounds.width, 1);
+        const rightInset = await toolbar.evaluate(element => parseFloat(getComputedStyle(element).paddingRight));
+        expect(foldBounds.x + foldBounds.width).toBeCloseTo(bounds.x + bounds.width - rightInset, 1);
         expect(foldBounds.x - expandBounds.x - expandBounds.width).toBeCloseTo(4, 1);
         const gaps = await toolbar.evaluate(element => {
           const controls = Array.from(element.querySelectorAll("button, select"))
@@ -220,7 +264,7 @@ test("手机横竖屏块弹层不超出可视范围", async ({ page }) => {
     }).toBe(true);
     await expect.poll(() => dialog.evaluate(element => {
       const editorTop = document.querySelector(".note-editor")!.getBoundingClientRect().top;
-      return Math.abs(element.getBoundingClientRect().top - (Math.max(0, editorTop - 24) + 8));
+      return Math.abs(element.getBoundingClientRect().top - (Math.max(0, editorTop - 24) + 16));
     })).toBeLessThan(1);
     await page.screenshot({ path: `/tmp/nr-block-workspace-${viewport.width}.png` });
   }
@@ -264,9 +308,7 @@ test("长代码正文限高而弹层保持单一纵向滚动区", async ({ page 
   await page.getByRole("button", { name: "放大阅读代码块" }).click();
   const dialog = page.getByRole("dialog", { name: "代码块工作区" });
   await dialog.getByRole("button", { name: "编辑", exact: true }).click();
-  await dialog.locator("pre code").click();
-  await page.keyboard.press("Control+a");
-  await page.keyboard.insertText(Array.from({ length: 150 }, (_, i) => `line${i}`).join("\n"));
+  await replaceCode(page, Array.from({ length: 150 }, (_, i) => `line${i}`).join("\n"));
   await dialog.getByRole("button", { name: "阅读", exact: true }).click();
   await dialog.getByRole("button", { name: "块内查找" }).click();
   const sourceInner = page.locator(".note-editor .code-block-inner");
@@ -294,15 +336,13 @@ test("同类块切换保留编辑且保存失败不关闭弹层", async ({ page 
     document.documentElement.dataset.failBlockSave = "true";
     api.notes.update = (id, changes) => document.documentElement.dataset.failBlockSave === "true" && changes.content ? Promise.reject(new Error("test: storage unavailable")) : update(id, changes);
   });
-  await dialog.locator("pre code").click();
-  await page.keyboard.press("Control+a");
-  await page.keyboard.insertText("const second = 200;");
+  await replaceCode(page, "const second = 200;");
   await dialog.getByRole("button", { name: "关闭块工作区" }).click();
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("保存失败");
   await page.evaluate(() => delete document.documentElement.dataset.failBlockSave);
   await dialog.getByRole("button", { name: "上一个代码块", exact: true }).click();
-  await expect(dialog.locator("pre code")).toContainText("const answer = 42;");
+  await expect(dialog.locator(".cm-content")).toContainText("const answer = 42;");
   await expect(page.locator(".note-editor .ProseMirror pre code").last()).toHaveText("const second = 200;");
 });
 
@@ -475,7 +515,7 @@ test.describe("触屏块工作区", () => {
     await page.getByRole("button", { name: "放大阅读代码块" }).click();
     const dialog = page.getByRole("dialog", { name: "代码块工作区" });
     await dialog.getByRole("button", { name: "编辑", exact: true }).click();
-    await dialog.locator("pre code").click();
+    await dialog.locator(".cm-content").click();
     await page.evaluate(() => {
       Object.defineProperty(window.visualViewport!, "height", { configurable: true, value: 260 });
       window.visualViewport!.dispatchEvent(new Event("resize"));

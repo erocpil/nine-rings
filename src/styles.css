@@ -4,6 +4,7 @@
 @import "./styles/workspace-surfaces.css";
 @import "./styles/editor-content.css";
 @import "./styles/workspace-panels.css";
+@import "./styles/editor-lists.css";
 @import "./styles/structured-blocks-and-desktop.css";
 @import "./styles/responsive.css";
 @import "./styles/readers-and-templates.css";

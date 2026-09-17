@@ -121,10 +121,10 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
     (element) => (element as HTMLElement).scrollTop,
   )).toBeGreaterThan(100);
 
-  // 专注模式下原始标题会随正文滚走；顶栏文件名接替为同一目录的入口。
+  // 专注模式使用顶栏独立的目录按钮；文件名用于查看完整标题。
   await page.getByTitle("专注模式").click();
   const stickyOutlineTrigger = page.getByRole("button", {
-    name: "Imported Review，打开文档目录",
+    name: "文档目录", exact: true,
   });
   await expect(stickyOutlineTrigger).toBeVisible();
   await stickyOutlineTrigger.click();

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { headingFoldAnchors, headingFoldAnchorsKey } from "../lib/heading-fold-anchors";
 import type { Editor } from "@tiptap/core";
 import type { Transaction } from "@tiptap/pm/state";
 import {
@@ -108,6 +107,7 @@ function blockFormat(typeName: string, attrs: Readonly<Record<string, unknown>>)
 
 interface EditorBlockGutterProps {
   editor: Editor;
+  foldHosts: Map<number, HTMLElement>;
   compact?: boolean;
   showNumbers: boolean;
   showInsertButtons: boolean;
@@ -127,7 +127,7 @@ interface EditorBlockGutterProps {
  * 用户意图。IntersectionObserver 只挂载视口及预读区域内的控件；
  * ResizeObserver 只重新测量这部分节点，避免长文档复制一整套 gutter DOM。
  */
-export function EditorBlockGutter({ editor, compact = false, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], highlightedBlockIndex, selectedBlockIndexes = [], onBlockSelect, onBlockCountChange, onHeadingFoldToggle }: EditorBlockGutterProps) {
+export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumbers, showInsertButtons, readonly, bookmarkPositions = [], highlightedBlockIndex, selectedBlockIndexes = [], onBlockSelect, onBlockCountChange, onHeadingFoldToggle }: EditorBlockGutterProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const suppressCompatibilityClickUntilRef = useRef(0);
   const lastTouchActionAtRef = useRef(0);
@@ -139,16 +139,6 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
   } | null>(null);
   const [blocks, setBlocks] = useState<GutterBlock[]>([]);
   const selectingBlocks = selectedBlockIndexes.length > 0;
-  const foldHosts = useRef(new Map<number, HTMLElement>());
-  useEffect(() => {
-    if (editor.isDestroyed) return;
-    const hosts = foldHosts.current;
-    editor.registerPlugin(headingFoldAnchors(hosts));
-    return () => {
-      if (!editor.isDestroyed) editor.unregisterPlugin(headingFoldAnchorsKey);
-      hosts.clear();
-    };
-  }, [editor]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -553,9 +543,23 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
     // A quote/code block can change height while the editor's total height
     // stays constant. IO does not report every position change of an already
     // visible heading. Observe only the bounded layout window, not the document.
+    const blockSizes = new WeakMap<Element, { width: number; height: number }>();
     const blockResizeObserver = typeof ResizeObserver === "undefined"
       ? null
-      : new ResizeObserver(scheduleVisibleMeasure);
+      : new ResizeObserver(entries => {
+          let changed = false;
+          for (const entry of entries) {
+            const previous = blockSizes.get(entry.target);
+            const box = entry.borderBoxSize[0];
+            const width = box?.inlineSize ?? entry.contentRect.width;
+            const height = box?.blockSize ?? entry.contentRect.height;
+            // observe() reports each newly windowed block once. IO/forced
+            // rebuild already positions it; only actual resizing needs a scan.
+            if (previous && (previous.width !== width || previous.height !== height)) changed = true;
+            blockSizes.set(entry.target, { width, height });
+          }
+          if (changed) scheduleVisibleMeasure();
+        });
     resizeObserver?.observe(root);
     resizeObserver?.observe(editor.view.dom);
     const mutationObserver = typeof MutationObserver === "undefined"
@@ -734,7 +738,7 @@ export function EditorBlockGutter({ editor, compact = false, showNumbers, showIn
         />
       ))}
       {selectedBlockIndexes.length === 0 && onHeadingFoldToggle && blocks.filter((block) => block.heading).map((block) => {
-        const host = foldHosts.current.get(block.pos);
+        const host = foldHosts.get(block.pos);
         if (!host?.isConnected) return null;
         return createPortal(
         <button

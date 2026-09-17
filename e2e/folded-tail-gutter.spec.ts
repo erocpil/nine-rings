@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { createBlankDocument } from "./helpers/document";
 
 for (const staleIntersection of [false, true]) {
   test(`手机专注模式稀疏折叠标题在长尾留白处保留块号和三角${staleIntersection ? "（延迟 false 回调）" : ""}`, async ({
@@ -35,16 +36,7 @@ for (const staleIntersection of [false, true]) {
         }
       };
     }, staleIntersection);
-    await page.goto("/");
-    await page.getByTitle("随笔").click();
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-    await expect(
-      page.getByRole("textbox", { name: "随心记 — 标题" }),
-    ).toHaveValue("新随笔");
-    await expect(
-      page.locator(".sidebar-item.active .sidebar-item-title"),
-    ).toHaveText("新随笔");
+    await createBlankDocument(page);
     const editor = page.locator(".ProseMirror");
     // 和实际故障相同：相邻可见标题的原始块号相隔数十块，而非每章只有几段。
     const headings = [
@@ -72,8 +64,7 @@ for (const staleIntersection of [false, true]) {
       .dblclick();
     await page.getByTitle("文档目录").click();
     await page
-      .locator(".sidebar-item.active")
-      .getByTitle("设为只读")
+      .getByRole("button", { name: "点击设为只读", exact: true })
       .evaluate((button: HTMLButtonElement) => button.click());
     await page.setViewportSize({ width: 390, height: 852 });
     await page
@@ -83,7 +74,7 @@ for (const staleIntersection of [false, true]) {
 
     const alignTail = async () => {
       await editor
-        .getByText("章节标题 252", { exact: true })
+        .locator("h1,h2,h3,h4,h5,h6").filter({ hasText: /章节标题 252$/ })
         .evaluate((element) => {
           const root = element.closest(".note-editor-scroll")!;
           root.scrollTop +=
@@ -97,7 +88,7 @@ for (const staleIntersection of [false, true]) {
     };
     const assertTailControls = async () => {
       for (const index of headings.filter((value) => value >= 252)) {
-        const heading = editor.getByText(`章节标题 ${index}`, { exact: true });
+        const heading = editor.locator("h1").filter({ hasText: new RegExp(`章节标题 ${index}$`) });
         const fold = page.getByRole("button", {
           name: new RegExp(`^(展开|折叠)第 ${index} 块章节$`),
         });
@@ -170,16 +161,7 @@ test("命中测试落空时仍定位真实可视块而不是光标所在块", as
       JSON.stringify({ editor_show_line_numbers: true }),
     );
   });
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(
-    page.getByRole("textbox", { name: "随心记 — 标题" }),
-  ).toHaveValue("新随笔");
-  await expect(
-    page.locator(".sidebar-item.active .sidebar-item-title"),
-  ).toHaveText("新随笔");
+  await createBlankDocument(page);
   const editor = page.locator(".ProseMirror");
   await editor.evaluate((element) => {
     const clipboardData = new DataTransfer();

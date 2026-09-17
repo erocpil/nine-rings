@@ -1,4 +1,5 @@
 import { expect, test, type Locator } from "@playwright/test";
+import { openMobileSettings } from "./helpers/mobile-settings";
 
 async function readGeometry(list: Locator) {
   return list.evaluate((element) => {
@@ -94,7 +95,8 @@ for (const mobile of [false, true]) {
       });
       await expect(list).toBeVisible();
       expect(await gapEm(list)).toBeCloseTo(0.35, 2);
-      await page.getByTitle("设置").click();
+      if (mobile) await openMobileSettings(page);
+      else await page.getByTitle("设置").click();
       await page.getByRole("button", { name: /^外观与排版/ }).click();
       await page.getByRole("button", { name: /打开排版设置/ }).click();
       const preview = page.getByLabel("编辑器排版预览").locator(":scope > ol");

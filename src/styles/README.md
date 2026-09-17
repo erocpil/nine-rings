@@ -14,6 +14,7 @@ override next to an earlier base rule without a separate cascade review.
 | `workspace-surfaces.css` | Empty/search states, settings shell, outline, bookmarks and splitters |
 | `editor-content.css` | Active-line feedback, Vim and ProseMirror typography |
 | `workspace-panels.css` | History, settings sections, document tree and property/dialog surfaces |
+| `editor-lists.css` | Shared document/appearance list markers, numbering columns, nesting, task controls and spacing; imported after panels to retain the former override order |
 | `structured-blocks-and-desktop.css` | Code/quote blocks, desktop title bar and hotkeys |
 | `responsive.css` | Safe areas and the existing tablet/mobile overrides |
 | `readers-and-templates.css` | PDF/EPUB surfaces, subsequent mobile overrides and templates |

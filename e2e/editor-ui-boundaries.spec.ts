@@ -30,6 +30,13 @@ async function selectLine(page: Page, text: string) {
   await editor.press("End");
   await editor.press("Shift+Home");
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe(text);
+  // Native selectionchange is asynchronous; context-menu commands consume
+  // ProseMirror's selection, not only the browser's temporary DOM range.
+  await expect.poll(() => editor.evaluate(element => {
+    const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    const { from, to } = instance.state.selection;
+    return instance.state.doc.textBetween(from, to);
+  })).toBe(text);
 }
 
 test("手机工具栏菜单互斥、重复点击与外部关闭，标题分页保留", async ({ page }) => {

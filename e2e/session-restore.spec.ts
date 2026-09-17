@@ -205,12 +205,10 @@ test.describe("会话位置恢复与编辑器查找", () => {
   test("重载后恢复文档树布局、目录视图和专注模式", async ({ page }) => {
     await createDocument(page, "工作区恢复测试文档");
 
-    const sidebarTabs = page.locator(".sidebar-tabs");
-    await expect(sidebarTabs.locator(".sidebar-view-switch")).toHaveAttribute("aria-label", "切换到随笔");
-    await expect(sidebarTabs.locator(".sidebar-view-switch")).toHaveCount(1);
-    await expect(sidebarTabs.getByTitle("折叠所有目录")).toBeVisible();
+    const workspace = page.getByRole("navigation", { name: "工作区面板" });
+    await expect(workspace.getByRole("button", { name: "文档树", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTitle("折叠所有目录")).toBeVisible();
     await expect(page.locator(".doc-tree-header, .doc-tree-title")).toHaveCount(0);
-    await expect(sidebarTabs.locator(".doc-tree-toolbar-host + .sidebar-tab-hide")).toBeVisible();
 
     const sidebar = page.locator(".app-sidebar");
     const divider = page.locator(".sidebar-divider");
@@ -231,7 +229,7 @@ test.describe("会话位置恢复与编辑器查找", () => {
 
     await page.getByTitle("折叠所有目录").click();
     const firstFolder = page.locator(".doc-tree-folder").first();
-    await expect(firstFolder.locator(".doc-tree-toggle")).toHaveText("▶");
+    await expect(firstFolder.locator(".doc-tree-toggle")).toHaveAttribute("aria-expanded", "false");
     const folderName = await firstFolder.locator(".doc-tree-name").innerText();
     await firstFolder.locator(".doc-tree-name").click();
     await expect(page.locator(".moc-breadcrumb")).toHaveText(folderName);
@@ -244,7 +242,7 @@ test.describe("会话位置恢复与编辑器查找", () => {
     await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
     await expect(page.locator(".moc-breadcrumb")).toHaveText(folderName);
     await expect(page.locator(".ProseMirror")).toHaveCount(0);
-    await expect(page.locator(".doc-tree-folder").first().locator(".doc-tree-toggle")).toHaveText("▶");
+    await expect(page.locator(".doc-tree-folder").first().locator(".doc-tree-toggle")).toHaveAttribute("aria-expanded", "false");
     await expect.poll(() => sidebar.evaluate((element) => element.getBoundingClientRect().width))
       .toBeGreaterThan(280);
   });

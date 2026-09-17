@@ -61,6 +61,61 @@ export function renderedPositionMap(doc: JSONContent) {
     return entry;
   });
 }
+
+export const renderedTextblockSelector = "p,h1,h2,h3,h4,h5,h6,pre";
+/** Keep top-level identity for virtual rows, but locate individual list/quote/
+ * table paragraphs instead of interpolating across an entire container. */
+export function renderedTextblockMap(doc: JSONContent) {
+  const entries: Array<{
+    index: number;
+    textblock: number | null;
+    position: number;
+    from: number;
+    to: number;
+  }> = [];
+  let weight = 0;
+  let position = 0;
+  (doc.content ?? []).forEach((root, index) => {
+    let textblock = 0;
+    const visit = (node: JSONContent, pos: number) => {
+      if (["paragraph", "heading", "codeBlock"].includes(node.type ?? "")) {
+        const size = nodeWeight(node);
+        entries.push({
+          index,
+          textblock: textblock++,
+          position: pos,
+          from: weight,
+          to: weight + size,
+        });
+        weight += size;
+      } else if (node.content?.length) {
+        const before = weight;
+        let childPos = pos + 1;
+        for (const child of node.content) {
+          visit(child, childPos);
+          childPos += nodeSize(child);
+        }
+        if (node.type === "table" && weight === before) {
+          weight++;
+          entries[entries.length - 1].to = weight;
+        }
+      } else {
+        const size = nodeWeight(node);
+        entries.push({
+          index,
+          textblock: null,
+          position: pos,
+          from: weight,
+          to: weight + size,
+        });
+        weight += size;
+      }
+    };
+    visit(root, position);
+    position += nodeSize(root);
+  });
+  return entries;
+}
 export function sourcePositionMap(source: string) {
   const spans: MarkdownSourceSpan[] = [];
   const delta = mdToDelta(source, spans);
@@ -71,22 +126,52 @@ export function sourcePositionMap(source: string) {
     ...endings.map((match) => match.index! + match[0].length),
   ];
   let weight = 0;
-  return spans.map((span) => {
+  return spans.flatMap((span) => {
     const from = offsets[span.fromLine] ?? source.length;
     const last = Math.max(span.fromLine, span.toLine - 1);
     const to = (offsets[last] ?? source.length) + (lines[last]?.length ?? 0);
-    const size = delta.ops
-      .slice(span.fromOp, span.toOp)
-      .reduce((sum, op) => sum + opWeight(op), 0);
+    const ops = delta.ops.slice(span.fromOp, span.toOp);
+    const table = ops.map((op) => getTableEmbed(op.insert)).find(Boolean);
+    if (table) {
+      const tableStart = weight;
+      return table.rows.map((row, index) => {
+        // Skip the separator row; it has syntax but no rendered text.
+        const line = span.fromLine + (index === 0 ? 0 : index + 1);
+        const from = offsets[line] ?? source.length;
+        let size = row.cells.reduce(
+          (sum, cell) =>
+            sum + cell.content.ops.reduce((sum, op) => sum + opWeight(op), 0),
+          0,
+        );
+        if (
+          index === table.rows.length - 1 &&
+          weight === tableStart &&
+          size === 0
+        )
+          size = 1;
+        const entry = {
+          from,
+          to: from + (lines[line]?.length ?? 0),
+          weightFrom: weight,
+          weightTo: weight + size,
+        };
+        weight += size;
+        return entry;
+      });
+    }
+    const size = ops.reduce((sum, op) => sum + opWeight(op), 0);
     const entry = { from, to, weightFrom: weight, weightTo: weight + size };
     weight += size;
-    return entry;
+    return [entry];
   });
 }
 const fraction = (value: number, from: number, to: number) =>
   Math.max(0, Math.min(1, (value - from) / Math.max(1, to - from)));
-export function sourceOffsetToWeight(source: string, offset: number): number {
-  const map = sourcePositionMap(source);
+export function sourceOffsetToWeight(
+  source: string,
+  offset: number,
+  map = sourcePositionMap(source),
+): number {
   const entry = map.find((item) => item.to >= offset) ?? map[map.length - 1];
   return entry
     ? entry.weightFrom +
@@ -94,8 +179,11 @@ export function sourceOffsetToWeight(source: string, offset: number): number {
           (entry.weightTo - entry.weightFrom)
     : 0;
 }
-export function weightToSourceOffset(source: string, weight: number): number {
-  const map = sourcePositionMap(source);
+export function weightToSourceOffset(
+  source: string,
+  weight: number,
+  map = sourcePositionMap(source),
+): number {
   const entry =
     map.find((item) => item.weightTo > weight) ?? map[map.length - 1];
   return entry

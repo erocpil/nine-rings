@@ -2,7 +2,9 @@ import { useLayoutEffect, useRef } from "react";
 import type { JSONContent } from "@tiptap/core";
 import { handoffReadingAnchor } from "../lib/readonly-rendering";
 import {
-  renderedPositionMap,
+  renderedTextblockMap,
+  renderedTextblockSelector,
+  sourcePositionMap,
   sourceOffsetToWeight,
   textareaPosition,
   weightToSourceOffset,
@@ -17,14 +19,22 @@ function viewportTop(root: HTMLElement) {
     ? Math.max(top, sticky.getBoundingClientRect().bottom)
     : top;
 }
-function blockElement(host: HTMLElement, index: number): HTMLElement | null {
-  if (host.querySelector(".vr-body"))
-    return host.querySelector(
-      `[data-reading-row][data-block-number="${index + 1}"]`,
-    );
+function blockElement(
+  host: HTMLElement,
+  index: number,
+  textblock: number | null,
+): HTMLElement | null {
+  const root = host.querySelector(".vr-body")
+    ? host.querySelector<HTMLElement>(
+        `[data-reading-row][data-block-number="${index + 1}"]`,
+      )
+    : ((host.querySelector(".editor-content .ProseMirror")?.children[index] as
+        HTMLElement | undefined) ?? null);
+  if (!root || textblock === null || root.matches(renderedTextblockSelector))
+    return root;
   return (
-    (host.querySelector(".editor-content .ProseMirror")?.children[index] as
-      HTMLElement | undefined) ?? null
+    root.querySelectorAll<HTMLElement>(renderedTextblockSelector)[textblock] ??
+    root
   );
 }
 
@@ -35,10 +45,21 @@ export function useMarkdownViewPosition(
 ) {
   const host = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
+  // One mapping per mounted document, never a global cache of private text.
+  const sourceMapRef = useRef<{
+    source: string;
+    map: ReturnType<typeof sourcePositionMap>;
+  }>();
+  const mapFor = (source: string) => {
+    if (sourceMapRef.current?.source !== source)
+      sourceMapRef.current = { source, map: sourcePositionMap(source) };
+    return sourceMapRef.current.map;
+  };
   const pending = useRef<{
     weight: number;
     source?: string;
     doc: JSONContent;
+    sourceMap?: ReturnType<typeof sourcePositionMap>;
   } | null>(null);
   const lastSource = useRef<{
     source: string;
@@ -52,24 +73,45 @@ export function useMarkdownViewPosition(
     let weight = 0;
     if (container && root) {
       const top = viewportTop(root);
-      const entries = renderedPositionMap(doc);
+      const entries = renderedTextblockMap(doc);
       const virtual = container.querySelector(".vr-body");
       const elements = virtual
         ? [...virtual.querySelectorAll<HTMLElement>("[data-reading-row]")]
-        : [...(container.querySelector(".editor-content .ProseMirror")?.children ?? [])];
-      for (const [index, element] of elements.entries()) {
-        const entry = entries[virtual ? Number(element.getAttribute("data-block-number")) - 1 : index];
-        if (!entry) continue;
-        const rect = element.getBoundingClientRect();
-        if (rect.height <= 0 || rect.bottom <= top + 1) continue;
-        weight =
-          entry.from +
-          Math.max(0, Math.min(1, (top - rect.top) / rect.height)) *
-            (entry.to - entry.from);
-        break;
+        : [
+            ...(container.querySelector(".editor-content .ProseMirror")
+              ?.children ?? []),
+          ];
+      const groups = new Map<number, typeof entries>();
+      for (const entry of entries) {
+        const group = groups.get(entry.index) ?? [];
+        group.push(entry);
+        groups.set(entry.index, group);
+      }
+      outer: for (const [index, rootElement] of elements.entries()) {
+        const rootRect = rootElement.getBoundingClientRect();
+        if (rootRect.height <= 0 || rootRect.bottom <= top + 1) continue;
+        const children = rootElement.matches(renderedTextblockSelector)
+          ? [rootElement]
+          : [...rootElement.querySelectorAll(renderedTextblockSelector)];
+        for (const entry of groups.get(
+          virtual
+            ? Number(rootElement.getAttribute("data-block-number")) - 1
+            : index,
+        ) ?? []) {
+          const element =
+            entry.textblock === null ? rootElement : children[entry.textblock];
+          if (!element) continue;
+          const rect = element.getBoundingClientRect();
+          if (rect.height <= 0 || rect.bottom <= top + 1) continue;
+          weight =
+            entry.from +
+            Math.max(0, Math.min(1, (top - rect.top) / rect.height)) *
+              (entry.to - entry.from);
+          break outer;
+        }
       }
     }
-    pending.current = { weight, source, doc };
+    pending.current = { weight, source, doc, sourceMap: mapFor(source) };
   };
   const toRendered = (source: string, doc: JSONContent) => {
     const input = area.current;
@@ -78,9 +120,9 @@ export function useMarkdownViewPosition(
       ? previous?.source === source &&
         Math.abs(previous.scrollTop - input.scrollTop) < 1
         ? previous.weight
-        : sourceOffsetToWeight(source, textareaPosition(input))
+        : sourceOffsetToWeight(source, textareaPosition(input), mapFor(source))
       : 0;
-    const blocks = renderedPositionMap(doc);
+    const blocks = renderedTextblockMap(doc);
     const target =
       blocks.find((block) => block.to > weight) ?? blocks[blocks.length - 1];
     // Both complete and windowed renderers consume this before their normal
@@ -95,14 +137,14 @@ export function useMarkdownViewPosition(
     const container = host.current;
     if (!anchor || !container) return;
     const started = performance.now();
-    const blocks = renderedPositionMap(anchor.doc);
+    const blocks = renderedTextblockMap(anchor.doc);
     const target =
       blocks.find((block) => block.to > anchor.weight) ??
       blocks[blocks.length - 1];
     const sourceOffset =
       anchor.source === undefined
         ? 0
-        : weightToSourceOffset(anchor.source, anchor.weight);
+        : weightToSourceOffset(anchor.source, anchor.weight, anchor.sourceMap);
     let measuredWidth = -1,
       sourceTop = 0;
     let frame = 0,
@@ -136,7 +178,8 @@ export function useMarkdownViewPosition(
         const root = container.querySelector<HTMLElement>(
           ".note-editor-scroll",
         );
-        const element = target && blockElement(container, target.index);
+        const element =
+          target && blockElement(container, target.index, target.textblock);
         if (root && element && target) {
           const rect = element.getBoundingClientRect();
           if (rect.height > 0) {

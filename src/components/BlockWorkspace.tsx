@@ -266,10 +266,16 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
     resize();
     element.showModal();
     element.focus({ preventScroll: true });
+    // Responsive editor chrome can finish relayout after the window resize
+    // event. Follow that geometry too, not only the viewport dimensions.
+    const sourceHost = source.view.dom.closest(".note-editor");
+    const observer = new ResizeObserver(resize);
+    if (sourceHost) observer.observe(sourceHost);
     window.addEventListener("resize", resize);
     window.visualViewport?.addEventListener("resize", resize);
     window.visualViewport?.addEventListener("scroll", resize);
     return () => {
+      observer.disconnect();
       element.close();
       window.removeEventListener("resize", resize);
       window.visualViewport?.removeEventListener("resize", resize);
@@ -445,8 +451,10 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
     <div ref={body} className="block-workspace-body editor-content" style={{ fontSize: `${fontSize}px`, tabSize }} onPasteCapture={event => { if (!editable) event.preventDefault(); }} onBeforeInputCapture={event => { if (!editable) event.preventDefault(); }}>
       {editable && rootType === "codeBlock" ? (
         <CodeMirrorBlockEditor
-          value={initial.textContent}
+          value={editor?.state.doc.firstChild?.textContent ?? initial.textContent}
           wrap={wrap}
+          onUndo={() => { source.commands.undo(); }}
+          onRedo={() => { source.commands.redo(); }}
           onModeChange={setVimMode}
           onChange={(value) => {
             const node = source.state.doc.nodeAt(position.current);
@@ -454,7 +462,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
             source.view.dispatch(source.state.tr.replaceWith(
               position.current + 1,
               position.current + node.nodeSize - 1,
-              source.schema.text(value),
+              value ? source.schema.text(value) : [],
             ));
           }}
         />
