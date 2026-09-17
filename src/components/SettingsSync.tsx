@@ -21,6 +21,9 @@ import { exportLocalJsonBackup } from "../lib/local-backup-export";
 import { BackupRestoreStatus } from "./BackupRestoreStatus";
 import { BackupExportStatus } from "./BackupExportStatus";
 import { startGitHubPush, useGitHubPushJob } from "../lib/sync/push-job";
+import type { ConflictResolution } from "../lib/sync/backup-merge";
+import { DocumentContentPreview } from "./DocumentContentPreview";
+import { SyncConflictReview } from "./SyncConflictReview";
 
 interface Props {
   /** 备份进行中回调 — 父组件用来 freeze 编辑区 */
@@ -110,6 +113,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
   const [pullPrecheck, setPullPrecheck] = useState<PullPrecheck | null>(null);
   const [ignoredRemoteIds, setIgnoredRemoteIds] = useState<Set<string>>(() => new Set());
   const [remotePreviewId, setRemotePreviewId] = useState<string | null>(null);
+  const [conflictResolutions, setConflictResolutions] = useState<Record<string, ConflictResolution>>({});
   const [exportingLocal, setExportingLocal] = useState(false);
 
   const [ownerRepoValue, setOwnerRepoValue] = useState(() => {
@@ -251,9 +255,11 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
     clearMessage();
     setPullPrecheck(null);
     try {
+      await onBeforePush?.();
       const pre = await previewPullFromGitHub(cfg);
       setPullPrecheck(pre);
       setIgnoredRemoteIds(new Set());
+      setConflictResolutions({});
       setRemotePreviewId(pre.remoteDocuments[0]?.id ?? null);
       showMessage(`预检完成：远端版本 ${pre.remote.version.slice(0, 15)}\n远端备份来源：${formatBackupDevice(pre.remote.backupDevice)}`, "success");
     } catch (e) {
@@ -261,10 +267,14 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
     } finally {
       setBusyOperation(null);
     }
-  }, [cfg, clearMessage, showMessage]);
+  }, [cfg, clearMessage, showMessage, onBeforePush]);
 
   const handlePull = useCallback(async (mode: PullMode) => {
     if (!pullPrecheck) return;
+    const singleVersionCount = Object.entries(conflictResolutions).filter(([id, resolution]) => !ignoredRemoteIds.has(id) && resolution.choice !== "both").length;
+    if (mode === "safe-merge" && singleVersionCount > 0 && !await confirm({
+      title: "确认冲突处理", description: `${singleVersionCount} 篇冲突文档将仅保留你选定的版本，不为另一版本生成副本。建议先导出本地 JSON。确认继续？`, confirmLabel: "按选择合并", danger: true,
+    })) return;
     if (mode === "replace") {
       const localOnly = pullPrecheck.comparison.localOnly.length;
       const overwritten = pullPrecheck.comparison.localChanged.length + pullPrecheck.comparison.conflicts.length;
@@ -279,18 +289,17 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
     setBusyOperation(mode === "safe-merge" ? "pull-merge" : "pull-replace");
     clearMessage();
     try {
+      await onBeforePush?.();
       const updated = await pullFromGitHub(cfg, {
         mode,
         expectedVersion: pullPrecheck.remote.version,
         ignoreRemoteNoteIds: mode === "safe-merge" ? [...ignoredRemoteIds] : [],
+        conflictResolutions: mode === "safe-merge" ? conflictResolutions : undefined,
       });
       setCfg(updated);
       if (mode === "safe-merge") {
-        const comparison = pullPrecheck.comparison;
         showMessage(
-          `安全合并完成：保留本地独有 ${comparison.localOnly.length} 篇，`
-          + `导入远端独有 ${comparison.remoteOnly.length} 篇，`
-          + `冲突副本 ${comparison.conflicts.length} 篇`,
+          "安全合并完成，已按所选规则处理冲突；可在文档树右键选择“与另一文档比较…”继续对比。",
           "success",
         );
       } else {
@@ -303,7 +312,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
     } finally {
       setBusyOperation(null);
     }
-  }, [cfg, clearMessage, ignoredRemoteIds, onPullDone, pullPrecheck, showMessage, confirm]);
+  }, [cfg, clearMessage, ignoredRemoteIds, conflictResolutions, onBeforePush, onPullDone, pullPrecheck, showMessage, confirm]);
 
   const handleLocalExport = useCallback(async () => {
     setExportingLocal(true);
@@ -471,7 +480,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
                     <>
                       <div className="sync-remote-preview-detail-title">{doc.title}</div>
                       <div className="settings-hint">{doc.storagePath || "随笔"} · {doc.updatedAt || doc.date || "无修改时间"}</div>
-                      <p>{doc.contentPreview || "（无可预览正文）"}</p>
+                      <DocumentContentPreview key={doc.id} content={doc.content} encrypted={doc.encrypted} />
                     </>
                   ) : <div className="settings-hint">选择一篇远端文档查看预览</div>;
                 })()}
@@ -506,12 +515,8 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
             items={pullPrecheck.comparison.remoteChanged}
             description="安全合并会采用远端版本。"
           />
-          <SyncDocumentList
-            title="双方冲突"
-            items={pullPrecheck.comparison.conflicts}
-            description="安全合并采用远端版本，并把本地内容另存为“本地同步冲突副本”。"
-            danger
-          />
+          <SyncConflictReview precheck={pullPrecheck} resolutions={conflictResolutions} ignoredIds={ignoredRemoteIds} disabled={busy}
+            onResolve={(id, resolution) => setConflictResolutions(previous => ({ ...previous, [id]: resolution }))} />
 
           {(pullPrecheck.comparison.pages.localOnly
             + pullPrecheck.comparison.pages.remoteOnly

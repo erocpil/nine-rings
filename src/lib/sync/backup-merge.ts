@@ -25,9 +25,21 @@ export interface SyncDocumentSummary {
 export interface SyncRemoteDocumentPreview extends SyncDocumentSummary {
   contentPreview: string;
   encrypted: boolean;
+  content: unknown;
+  /** Canonical identity, also used to reject stale conflict decisions. Never persisted. */
+  revision: string;
+  properties: string;
+}
+
+export type ConflictChoice = "both" | "local" | "remote";
+export interface ConflictResolution {
+  choice: ConflictChoice;
+  localRevision: string;
+  remoteRevision: string;
 }
 
 export interface SafeMergeOptions {
+  conflictResolutions?: Readonly<Record<string, ConflictResolution>>;
   /** Pull 时不导入这些远端文档；本地已有同 ID 文档时保留本地版本。 */
   ignoreRemoteNoteIds?: readonly string[];
   /** 可选的路径前缀忽略规则（包含该路径下的全部文档）。 */
@@ -200,22 +212,24 @@ function isEncryptedContent(content: unknown): boolean {
   return ["ciphertext", "encrypted", "iv", "nonce"].some((key) => key in value);
 }
 
+export function documentPreview(record: BackupRecord): SyncRemoteDocumentPreview {
+  const content = parseJsonValue(record.content, "");
+  const encrypted = isEncryptedContent(content);
+  const identity = noteIdentity(record);
+  const { content: _content, ...properties } = identity;
+  return {
+    ...documentSummary(record),
+    encrypted,
+    content: encrypted ? null : content,
+    contentPreview: encrypted ? "正文已加密，无法在预览中显示。" : extractPlainText(content),
+    revision: JSON.stringify(canonicalValue(identity)),
+    properties: JSON.stringify(canonicalValue(properties), null, 2),
+  };
+}
+
 export function extractRemoteDocumentPreviews(remoteJson: string): SyncRemoteDocumentPreview[] {
   const bundle = parseBundle(remoteJson);
-  return (bundle.notes ?? []).map((record) => {
-    const content = parseJsonValue(record.content, "");
-    const encrypted = isEncryptedContent(content);
-    let contentPreview = "";
-    if (encrypted) contentPreview = "正文已加密，无法在预览中显示。";
-    else {
-      try {
-        contentPreview = extractPlainText(content).replace(/\s+/g, " ").trim().slice(0, 800);
-      } catch {
-        contentPreview = typeof content === "string" ? content.slice(0, 800) : "";
-      }
-    }
-    return { ...documentSummary(record), contentPreview, encrypted };
-  }).sort((left, right) => `${left.storagePath ?? ""}/${left.title}`.localeCompare(`${right.storagePath ?? ""}/${right.title}`, "zh-CN"));
+  return (bundle.notes ?? []).map(documentPreview).sort((left, right) => `${left.storagePath ?? ""}/${left.title}`.localeCompare(`${right.storagePath ?? ""}/${right.title}`, "zh-CN"));
 }
 
 function sortSummaries(items: SyncDocumentSummary[]): SyncDocumentSummary[] {
@@ -356,6 +370,18 @@ export function buildSafeMergedBackup(localJson: string, remoteJson: string, bas
   const timestamp = now();
   let conflictCopies = 0;
 
+  for (const [id, resolution] of Object.entries(options.conflictResolutions ?? {})) {
+    if (isIgnored(remoteNotes.get(id), id)) continue;
+    const localNote = localNotes.get(id);
+    const remoteNote = remoteNotes.get(id);
+    if (!["both", "local", "remote"].includes(resolution.choice)
+      || !localNote || !remoteNote
+      || JSON.stringify(canonicalValue(noteIdentity(localNote))) !== resolution.localRevision
+      || JSON.stringify(canonicalValue(noteIdentity(remoteNote))) !== resolution.remoteRevision) {
+      throw new Error("冲突文档在预览后发生变化，请重新 Pull 预检并选择保留版本；尚未修改本地数据。");
+    }
+  }
+
   const noteIds = new Set([...remoteNotes.keys(), ...localNotes.keys()]);
   for (const id of noteIds) {
     const localNote = localNotes.get(id);
@@ -364,12 +390,15 @@ export function buildSafeMergedBackup(localJson: string, remoteJson: string, bas
       if (localNote) mergedNotes.push(localNote);
       continue;
     }
-    const category = classifyRecord(localNote, remoteNote, baseNotes.get(id), noteIdentity);
+    const category = Object.prototype.hasOwnProperty.call(options.conflictResolutions ?? {}, id)
+      ? "conflicts" : classifyRecord(localNote, remoteNote, baseNotes.get(id), noteIdentity);
     if (category === "localOnly" || category === "localChanged") {
       if (localNote) mergedNotes.push(localNote);
     } else if (category === "conflicts") {
-      if (remoteNote) mergedNotes.push(remoteNote);
-      if (localNote) {
+      const choice = options.conflictResolutions?.[id]?.choice ?? "both";
+      if (choice === "local" && localNote) mergedNotes.push(localNote);
+      if (choice !== "local" && remoteNote) mergedNotes.push(remoteNote);
+      if (choice === "both" && localNote) {
         mergedNotes.push(conflictCopy(localNote, timestamp));
         conflictCopies += 1;
       }

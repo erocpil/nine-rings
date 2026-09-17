@@ -37,9 +37,11 @@ export function useEdgeDrawer(open: boolean, side: "left" | "right", panelRef: R
       swipeButtonSelector: "[data-drawer-swipe-item], .document-outline-link, .document-bookmark-item:not(.swipe-open) .document-bookmark-jump",
     });
     const keydown = (event: KeyboardEvent) => {
+      // A portaled tree menu belongs to the drawer but handles Escape itself.
+      if (event.defaultPrevented || document.querySelector(".doc-context-menu[data-sidebar-owned]")) return;
       // A sidebar command may open a separate modal (rename/create/settings).
       // Let that foreground dialog own its keyboard navigation and Escape.
-      const foreground = document.activeElement?.closest("[role='dialog'], .dialog-overlay, .settings-panel");
+      const foreground = document.activeElement?.closest("dialog[open], [role='dialog'], .dialog-overlay, .settings-panel");
       if (foreground && foreground !== panel && !panel.contains(foreground)) return;
       if (event.key === "Escape") {
         event.preventDefault();

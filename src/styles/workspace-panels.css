@@ -3191,6 +3191,9 @@ button.doc-tree-toggle:focus-visible {
 .doc-context-menu {
   box-sizing: border-box;
   position: fixed;
+  /* Keep measurement independent of left: auto shrink-to-fit near an edge
+     otherwise changes width after every viewport-clamping update. */
+  width: max-content;
   z-index: 1000;
   background: var(--bg);
   border: 1px solid var(--border);

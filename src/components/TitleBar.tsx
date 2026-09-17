@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { toggleTauriFullscreen } from "../lib/fullscreen";
 
@@ -10,6 +10,42 @@ import { toggleTauriFullscreen } from "../lib/fullscreen";
  */
 export default function TitleBar() {
   const [fullscreen, setFullscreen] = useState(false);
+  const macOS = /Mac/i.test(navigator.platform);
+  const maximizePress = useRef<{ x: number; y: number } | null>(null);
+  const maximizing = useRef(false);
+
+  const isTitlebarBackground = (event: MouseEvent<HTMLDivElement>) =>
+    event.target instanceof Element
+    && !event.target.closest(".titlebar-controls, button, a, input, select, textarea, [contenteditable]");
+
+  const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+    if (!macOS) return;
+    maximizePress.current = null;
+    if (event.button !== 0 || event.detail !== 2 || !isTitlebarBackground(event)) return;
+    // macOS 的双击在第二次松开时处理。拦截默认 drag-region 处理，
+    // 防止同一次手势既触发我们的 toggleMaximize 又触发 Tauri 的内部切换。
+    event.preventDefault();
+    event.stopPropagation();
+    maximizePress.current = { x: event.clientX, y: event.clientY };
+  };
+
+  const handleMouseUp = (event: MouseEvent<HTMLDivElement>) => {
+    if (!macOS || event.button !== 0 || event.detail !== 2 || !isTitlebarBackground(event)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const press = maximizePress.current;
+    maximizePress.current = null;
+    // 容许轻微手抖，但双击后拖动仍取消最大化。
+    if (!press || Math.hypot(event.clientX - press.x, event.clientY - press.y) > 4 || maximizing.current) return;
+    maximizing.current = true;
+    void (async () => {
+      const appWindow = getCurrentWindow();
+      // 已在原生全屏时不改变 Space，也不修改退出全屏后的窗口状态。
+      if (!await appWindow.isFullscreen()) await appWindow.toggleMaximize();
+    })().catch(error => {
+      console.error("[TitleBar] 最大化/还原窗口失败:", error);
+    }).finally(() => { maximizing.current = false; });
+  };
 
   useEffect(() => {
     const appWindow = getCurrentWindow();
@@ -57,7 +93,8 @@ export default function TitleBar() {
   };
 
   return (
-    <div className="titlebar" data-tauri-drag-region="deep">
+    <div className="titlebar" data-tauri-drag-region="deep"
+      onMouseDownCapture={handleMouseDown} onMouseUpCapture={handleMouseUp}>
       <span className="titlebar-title">
         <img src="/app-icon.png" width="16" height="16" alt="" className="titlebar-logo" />
         Nine Rings

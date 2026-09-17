@@ -52,6 +52,7 @@ export function useSidebarHoverPreview({
       if (
         editing ||
         root?.querySelector(".doc-context-menu, [role=menu]") ||
+        document.querySelector(".doc-context-menu[data-sidebar-owned]") ||
         document.querySelector("[role=dialog][aria-modal=true]")
       ) {
         timer.current = setTimeout(check, 180);
@@ -92,7 +93,7 @@ export function useSidebarHoverPreview({
         return;
       if (
         event.target.closest(
-          "#workspace-sidebar, [data-sidebar-panel], .sidebar-divider",
+          "#workspace-sidebar, [data-sidebar-panel], [data-sidebar-owned], .sidebar-divider",
         )
       )
         return;

@@ -1,9 +1,28 @@
 import { expect, test, type Page } from "@playwright/test";
 
+test.use({ serviceWorkers: "block" });
+
+async function showDocumentView(page: Page) {
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  const treeButton = page.locator('[data-sidebar-panel="tree"]');
+  if (await treeButton.isVisible()) {
+    if (await treeButton.getAttribute("aria-pressed") !== "true") await treeButton.click();
+  } else {
+    await page.locator(".note-editor").evaluate(element => {
+      for (const [type, x] of [["touchstart", 8], ["touchmove", 110], ["touchend", 110]] as const) {
+        const touch = { identifier: 41, target: element, clientX: x, clientY: 150 };
+        const event = new Event(type, { bubbles: true, cancelable: true });
+        Object.defineProperties(event, { touches: { value: type === "touchend" ? [] : [touch] }, changedTouches: { value: [touch] } });
+        element.dispatchEvent(event);
+      }
+    });
+  }
+  await expect(page.locator(".app-sidebar")).not.toHaveClass(/sidebar-hidden/);
+}
+
 async function openDocumentView(page: Page) {
   await page.goto("/");
-  const switcher = page.locator(".sidebar-view-switch");
-  if (await switcher.getAttribute("data-target-view") === "tree") await switcher.click();
+  await showDocumentView(page);
 }
 
 async function createDocument(page: Page, title: string, path: string) {
@@ -63,8 +82,7 @@ async function seedViewportDocuments(page: Page, count = 36) {
     localStorage.setItem("nr:sidebarTab", "tree");
   }, count);
   await page.reload();
-  const switcher = page.locator(".sidebar-view-switch");
-  if (await switcher.getAttribute("data-target-view") === "tree") await switcher.click();
+  await showDocumentView(page);
   await expect(page.locator(".doc-tree-doc").filter({ hasText: "视口文档 35" })).toBeAttached();
 }
 
@@ -104,9 +122,8 @@ test.describe("多选入口始终可切换", () => {
   test.use({ hasTouch: true });
   test("手机文档弹层也能在原位取消多选", async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 760 });
-    await page.goto("/");
-    await page.getByTitle("文档视图", { exact: true }).click();
-    const popup = page.locator(".doc-tree-popup-overlay");
+    await openDocumentView(page);
+    const popup = page.locator(".app-sidebar");
     const toggle = popup.locator(".doc-tree-select-toggle");
     await expect(toggle).toBeVisible();
     // Compare fixed coordinates only after the popup's entrance slide settles.
@@ -127,8 +144,10 @@ test.describe("多选入口始终可切换", () => {
       await openDocumentView(page);
       await seedViewportDocuments(page);
       await page.setViewportSize({ width, height: 760 });
+      await showDocumentView(page);
       const toggle = page.locator(".doc-tree-select-toggle");
       await expect(toggle).toBeVisible();
+      await toggle.click({ trial: true });
       const initial = (await toggle.boundingBox())!;
       const tapSamePoint = () => width <= 768
         ? page.touchscreen.tap(initial.x + initial.width / 2, initial.y + initial.height / 2)
@@ -184,8 +203,7 @@ test("文档可从树顶部重命名且标题框修改会立即同步到树", as
 
   await page.waitForTimeout(700);
   await page.reload();
-  const switcher = page.locator(".sidebar-view-switch");
-  if (await switcher.getAttribute("data-target-view") === "tree") await switcher.click();
+  await showDocumentView(page);
   await expect(page.locator(".doc-tree-doc").filter({ hasText: "标题框同步" })).toBeVisible();
 });
 
@@ -227,8 +245,11 @@ test("文档树点击可见项不强制居中且底部右键菜单不越出视�
   const lastDocument = page.locator(".doc-tree-doc").filter({ hasText: "视口文档 35" });
   await expect(lastDocument).toBeVisible();
   const viewport = page.viewportSize()!;
-  const triggerBox = (await lastDocument.boundingBox())!;
-  await lastDocument.click({ button: "right" });
+  // Explicit bottom-right anchor keeps this collision test independent of
+  // sidebar toolbar height and selected-document auto-scroll restoration.
+  await lastDocument.evaluate((element, size) => element.dispatchEvent(new MouseEvent("contextmenu", {
+    bubbles: true, cancelable: true, clientX: size.width - 4, clientY: size.height - 4,
+  })), viewport);
 
   const menu = page.locator(".doc-context-menu");
   await expect(menu).toBeVisible();
@@ -241,8 +262,8 @@ test("文档树点击可见项不强制居中且底部右键菜单不越出视�
       && box.y + box.height <= viewport.height);
   }).toBe(true);
   const menuBox = (await menu.boundingBox())!;
-  // Playwright 默认在目标中心右键；若仍直接使用原始 clientY，菜单必然越过底边。
-  expect(triggerBox.y + triggerBox.height / 2 + menuBox.height).toBeGreaterThan(viewport.height);
+  expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(viewport.height - 8);
+  expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(viewport.width - 8);
   await expect(menu).toHaveCSS("overflow-y", "auto");
 });
 

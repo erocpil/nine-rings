@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import type { PathNode, Note } from "../types/models";
@@ -9,6 +9,7 @@ import MoveToDialog from "./MoveToDialog";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { copyToClipboard } from "../lib/clipboard";
 import { useTransientMessage } from "../hooks/useTransientMessage";
+const DocumentCompareDialog = lazy(() => import("./DocumentCompareDialog"));
 import {
   getDocumentFolderPath,
   type MoveToSubject,
@@ -179,6 +180,7 @@ function DocTree({
   }, [disabled, selectedId, selectedFolderPath]);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const [compareIds, setCompareIds] = useState<string[] | null>(null);
   const treeLongPressRef = useRef<TreeLongPressState | null>(null);
   const suppressTreeClickUntilRef = useRef(0);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -278,7 +280,14 @@ function DocTree({
       };
       document.addEventListener("click", close);
       document.addEventListener("keydown", escape);
-      return () => { document.removeEventListener("click", close); document.removeEventListener("keydown", escape); };
+      window.addEventListener("resize", close);
+      window.visualViewport?.addEventListener("resize", close);
+      return () => {
+        document.removeEventListener("click", close);
+        document.removeEventListener("keydown", escape);
+        window.removeEventListener("resize", close);
+        window.visualViewport?.removeEventListener("resize", close);
+      };
     }
   }, [contextMenu]);
 
@@ -380,8 +389,8 @@ function DocTree({
 
   const openContextMenu = (node: PathNode, x: number, y: number) => {
     setContextMenu({
-      x,
-      y,
+      x: Number.isFinite(x) ? x : 8,
+      y: Number.isFinite(y) ? y : 8,
       type: node.type,
       noteId: node.noteId,
       path: node.path,
@@ -401,6 +410,9 @@ function DocTree({
   };
 
   const handleTreePointerDown = (event: React.PointerEvent<HTMLDivElement>, node: PathNode) => {
+    // Suppress only the compatibility click from the long press, not a new tap
+    // immediately after closing its menu (including taps in batch selection).
+    if (event.button === 0 && !treeLongPressRef.current) suppressTreeClickUntilRef.current = 0;
     if (event.pointerType === "mouse" || event.button !== 0 || selectMode) return;
     if ((event.target as HTMLElement).closest("button, input")) return;
     clearTreeLongPress();
@@ -793,6 +805,8 @@ function DocTree({
         </button>
         {selectMode ? (
           <>
+            <button className="btn-icon doc-tree-batch-btn" title="比较所选文档" aria-label="比较所选文档" disabled={disabled || batchBusy || selectedIds.size !== 2}
+              onClick={() => setCompareIds([...selectedIds])}>⇄</button>
             <button
               className="btn-icon doc-tree-batch-btn"
               onClick={() => {
@@ -900,10 +914,11 @@ function DocTree({
         sortNodes(roots).map((root) => renderNode(root, 0))
       )}
 
-      {contextMenu && (
+      {contextMenu && createPortal(
         <div
           ref={contextMenuRef}
           className="doc-context-menu"
+          data-sidebar-owned="true"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
           {contextMenu.type === 'folder' ? (
@@ -937,6 +952,7 @@ function DocTree({
           ) : (
             <>
               <button className="doc-context-item" onClick={() => void handleCopyPath(getDocumentFolderPath(contextMenu.path, contextMenu.noteId!))}>复制所在路径</button>
+              <button className="doc-context-item" disabled={disabled} onClick={() => { setCompareIds([contextMenu.noteId!]); setContextMenu(null); }}>与另一文档比较…</button>
               {!contextMenu.path.startsWith("daily/") && (
                 <button className="doc-context-item" onClick={() => handleMoveDocument(contextMenu.noteId!, contextMenu.title, contextMenu.path)}>
                   移动到…
@@ -947,8 +963,10 @@ function DocTree({
               <button className="doc-context-item doc-context-danger" onClick={() => handleDelete(contextMenu.noteId!, contextMenu.title)}>删除</button>
             </>
           )}
-        </div>
+        </div>, document.body
       )}
+
+      {compareIds && <Suspense fallback={null}><DocumentCompareDialog initialIds={compareIds} documents={tree} beforeRead={beforeExport} onClose={() => setCompareIds(null)} /></Suspense>}
 
       {moveSubject && (
         <MoveToDialog

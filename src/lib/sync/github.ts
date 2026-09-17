@@ -20,6 +20,7 @@ import {
   extractRemoteDocumentPreviews,
   type BackupComparison,
   type SyncRemoteDocumentPreview,
+  type SafeMergeOptions,
 } from "./backup-merge";
 
 // ── 类型 ──
@@ -194,6 +195,7 @@ export interface PullPrecheck {
   /** 用于三方比较的上次 Push/Pull 快照；null 表示只能保守识别冲突。 */
   baseVersion: string | null;
   remoteDocuments: SyncRemoteDocumentPreview[];
+  localDocuments: SyncRemoteDocumentPreview[];
 }
 
 export function formatBackupDevice(device?: SyncSnapshotSummary["backupDevice"]): string {
@@ -225,7 +227,7 @@ function validateRemoteBackup(json: string, version: string): void {
 
 export type PullMode = "safe-merge" | "replace";
 
-export interface PullOptions {
+export interface PullOptions extends SafeMergeOptions {
   mode?: PullMode;
   /** 防止预检之后 latest 指针已变化却仍按旧摘要执行。 */
   expectedVersion?: string;
@@ -854,7 +856,7 @@ export async function pullFromGitHub(config: SyncConfig, options: PullOptions = 
 async function pullWithRestoreLock(config: SyncConfig, options: PullOptions, context: RestoreContext): Promise<SyncConfig> {
 
   addLog("[Sync] ═══ Pull ← GitHub ═══");
-  const restorePoint = await exportFullDB().catch((reason: unknown) => {
+  let restorePoint = await exportFullDB().catch((reason: unknown) => {
     throw backupError(reason, "失败阶段：本机导出恢复快照");
   });
 
@@ -892,6 +894,9 @@ async function pullWithRestoreLock(config: SyncConfig, options: PullOptions, con
   try {
     if (mode === "safe-merge") {
       const base = await fetchBaseSnapshot(config, version, remote.content);
+      // Downloads may be slow. Include edits made while they were in flight,
+      // and validate destructive conflict choices against this fresh snapshot.
+      restorePoint = await exportFullDB();
       const merged = buildSafeMergedBackup(restorePoint, remote.content, base.content, options);
       addLog(
         `[Sync] 安全合并: 保留本地独有 ${merged.comparison.localOnly.length}，`
@@ -985,6 +990,7 @@ export async function previewPullFromGitHub(config: SyncConfig): Promise<PullPre
     comparison,
     baseVersion: base.version,
     remoteDocuments: extractRemoteDocumentPreviews(remote.content),
+    localDocuments: extractRemoteDocumentPreviews(localSnapshot),
   };
 }
 
