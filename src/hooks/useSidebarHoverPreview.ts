@@ -52,7 +52,7 @@ export function useSidebarHoverPreview({
       if (
         editing ||
         root?.querySelector(".doc-context-menu, [role=menu]") ||
-        document.querySelector(".doc-context-menu[data-sidebar-owned]") ||
+        document.querySelector(".doc-context-menu[data-sidebar-owned], .document-filter-options[data-sidebar-owned]") ||
         document.querySelector("[role=dialog][aria-modal=true]")
       ) {
         timer.current = setTimeout(check, 180);
@@ -121,7 +121,7 @@ export function useSidebarHoverPreview({
       if (event.key !== "Escape" || event.defaultPrevented) return;
       if (
         document.querySelector(
-          ".doc-context-menu, [role=menu], [role=dialog][aria-modal=true]",
+          ".doc-context-menu, .document-filter-options[data-sidebar-owned], [role=menu], [role=dialog][aria-modal=true]",
         )
       )
         return;

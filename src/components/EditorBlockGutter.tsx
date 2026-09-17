@@ -23,33 +23,30 @@ interface GutterBlock {
   folded: boolean;
 }
 
-const HEADING_SIZE: Readonly<Record<number, number>> = {
-  1: 1.6,
-  2: 1.3,
-  3: 1.1,
-  4: 1.05,
-  5: 1,
-  6: 1,
-};
-
 /**
- * 找到块内第一段可见正文的首行中心。段落、标题和普通列表占绝大多数，
- * 它们直接复用编辑器行高，避免在长文档的每次输入中创建上千个 Range。
+ * 找到块内第一段可见正文的首行中心。段落和普通列表复用编辑器行高，
+ * 标题复用折叠标志的首行容器，避免在长文档中创建上千个 Range。
  * 只有结构复杂的块才读取首个实际文本矩形。
  */
 function firstLineTextCenter(
   dom: HTMLElement,
   fallbackRect: Pick<DOMRectReadOnly, "top" | "height">,
   typeName: string,
-  attrs: Readonly<Record<string, unknown>>,
   editorLineHeight: number,
 ): number {
   if (typeName === "paragraph" || typeName === "bulletList" || typeName === "orderedList") {
     return fallbackRect.top + editorLineHeight / 2;
   }
   if (typeName === "heading") {
-    const level = Number(attrs.level);
-    return fallbackRect.top + editorLineHeight * (HEADING_SIZE[level] ?? 1) / 2;
+    // Share the fold host's actual first-line box (1lh), including custom
+    // heading typography, instead of estimating it from heading-size ratios.
+    const host = dom.querySelector<HTMLElement>(".editor-fold-host");
+    if (host) {
+      const rect = host.getBoundingClientRect();
+      return rect.top + rect.height / 2;
+    }
+    const lineHeight = Number.parseFloat(getComputedStyle(dom).lineHeight) || editorLineHeight;
+    return fallbackRect.top + lineHeight / 2;
   }
   const textRoot = typeName === "codeBlock"
     ? (dom.matches("code") ? dom : dom.querySelector<HTMLElement>("code")) ?? dom
@@ -213,7 +210,6 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
           dom,
           rect,
           node.type.name,
-          node.attrs,
           editorLineHeight,
         ) - rootTop,
         bottom: rect.bottom - rootTop,

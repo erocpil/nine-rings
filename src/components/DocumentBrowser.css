@@ -64,7 +64,17 @@
   .document-browser-row:hover { background: color-mix(in srgb, var(--active-bg) 60%, var(--bg)); }
   .document-browser-row.selected:hover { background: var(--active-bg); }
 }
-.document-browser-filters .document-browser-native-select { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0; opacity: 0; cursor: pointer; }
+.document-browser-filter-control[aria-expanded="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
+.document-filter-options { position: fixed; z-index: 1100; box-sizing: border-box; width: max-content; max-width: calc(100vw - 16px); max-height: 320px; overflow: auto; overscroll-behavior: contain; padding: 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); box-shadow: 0 8px 24px #0003; }
+.document-filter-options > button { display: flex; align-items: center; gap: 12px; box-sizing: border-box; width: 100%; min-height: 40px; padding: 6px 10px; border: 0; border-radius: 4px; background: transparent; color: inherit; text-align: left; font: 13px/20px var(--font); cursor: pointer; }
+.document-filter-options > button > span { flex: 1; overflow-wrap: anywhere; }
+.document-filter-options .toolbar-icon { flex: none; width: 16px; height: 16px; }
+.document-filter-options > button[aria-selected="true"] { color: var(--accent); background: var(--active-bg); }
+.document-filter-options > button:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) {
+  .document-filter-options > button { min-height: 32px; }
+  .document-filter-options > button:hover { background: var(--active-bg); }
+}
 .document-path-picker { position: fixed; left: 50%; right: auto; bottom: auto; transform: translateX(-50%); box-sizing: border-box; width: min(420px, calc(100vw - 24px)); max-width: none; height: auto; max-height: calc(100dvh - 24px); margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--text); box-shadow: 0 12px 40px #0003; overflow: hidden; }
 .document-path-picker[open] { display: flex; flex-direction: column; }
 .document-path-picker-inline { position: relative; inset: auto; transform: none; display: flex; flex-direction: column; width: 100%; height: clamp(360px, 65dvh, 560px); max-height: none; box-shadow: none; scroll-margin-block-start: 72px; }

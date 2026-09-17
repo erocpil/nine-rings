@@ -448,9 +448,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   if (!open) return null;
 
   return (
-    <div className="settings-overlay" onClick={() => { onClose(); }}>
+    <div className={`settings-overlay${mobileSettingsViewport ? " settings-overlay-mobile" : ""}${settingsPage === "sync" ? " settings-sync-overlay" : ""}`} onClick={() => { onClose(); }}>
       <div
-        className="settings-panel"
+        className={`settings-panel${settingsPage === "sync" ? " settings-sync-panel" : ""}`}
         ref={settingsPanelRef}
         role="dialog"
         aria-modal="true"

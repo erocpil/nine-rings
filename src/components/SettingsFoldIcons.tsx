@@ -1,5 +1,6 @@
 import {
   DEFAULT_EDITOR_FOLD_ICONS,
+  outlineFoldStyle,
   type EditorFoldIconConfig,
 } from "../lib/editor-fold-icons";
 import { EditorFoldIcon, EditorFoldIconContext } from "./EditorFoldIcon";
@@ -27,6 +28,17 @@ export function SettingsFoldIcons({
         <option value="triangle">实心三角（原版）</option>
         <option value="custom">自定义符号</option>
       </select>
+      <label>
+        章节目录折叠标识
+        <select className="settings-input" aria-label="章节目录折叠标识" value={outlineFoldStyle(config)} onChange={event => {
+          const style = event.target.value;
+          if (style === "triangle" || style === "chevron" || style === "inherit") onChange({ editor_outline_fold_icon_style: style });
+        }}>
+          <option value="triangle">小三角（默认）</option>
+          <option value="chevron">线条箭头</option>
+          <option value="inherit">跟随正文折叠标识</option>
+        </select>
+      </label>
       {config.editor_fold_icon_style === "custom" && (
         <>
           <label>

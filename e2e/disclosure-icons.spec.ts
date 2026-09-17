@@ -2,6 +2,78 @@ import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
 import { openMobileSettings } from "./helpers/mobile-settings";
 
+for (const width of [1280, 390]) {
+  test(`正文折叠图标与块号共用首行中心 ${width}`, async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true })));
+    await createBlankDocument(page);
+    await page.setViewportSize({ width, height: 844 });
+    if (width === 390) await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
+    await page.locator(".ProseMirror").evaluate(element => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", "# 一级标题\n\n正文\n\n## 二级标题\n\n> 引用\n\n### 三级标题\n\n正文");
+      element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    });
+    const aligned = async () => {
+      await expect.poll(() => page.evaluate(() => {
+        const controls = [...document.querySelectorAll<HTMLElement>(".editor-heading-fold")];
+        if (controls.length !== 3) return Infinity;
+        return Math.max(...controls.map(control => {
+          const index = control.getAttribute("aria-label")?.match(/第 (\d+) 块/)?.[1];
+          const number = document.querySelector<HTMLElement>(`.editor-block-number[data-block-index="${index}"]`);
+          const icon = control.querySelector<HTMLElement>(".disclosure-icon, .editor-fold-symbol");
+          if (!number || !icon) return Infinity;
+          const numberRect = number.getBoundingClientRect();
+          const iconRect = icon.getBoundingClientRect();
+          return Math.abs(numberRect.top + numberRect.height / 2 - iconRect.top - iconRect.height / 2);
+        }));
+      })).toBeLessThan(1);
+    };
+    await aligned();
+    await page.locator(".ProseMirror").evaluate(element => {
+      const editor = element as HTMLElement;
+      editor.style.fontSize = "23px";
+      editor.style.lineHeight = "1.9";
+      editor.querySelector<HTMLElement>("h1")!.style.fontSize = "41px";
+    });
+    await aligned();
+    await page.getByRole("button", { name: "折叠第 1 块章节", exact: true }).click();
+    await expect(page.getByRole("button", { name: "展开第 1 块章节", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "展开第 1 块章节", exact: true }).click();
+    await aligned();
+  });
+}
+
+test("章节目录默认小三角，正文默认箭头，可独立设置并持久保存", async ({ page }) => {
+  await createBlankDocument(page);
+  await page.locator(".ProseMirror").evaluate(element => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "# 标题\n\n正文\n\n> 引用\n\n```text\n代码\n```");
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  });
+  const body = page.getByRole("button", { name: "折叠第 1 块章节", exact: true });
+  await expect(body.locator(".disclosure-icon")).toBeVisible();
+  await page.getByTitle("文档目录", { exact: true }).click();
+  await expect(page.getByRole("button", { name: "折叠章节 标题", exact: true })).toHaveText("▼");
+  await page.getByRole("button", { name: "折叠章节 标题", exact: true }).click();
+  await expect(page.getByRole("button", { name: "展开章节 标题", exact: true })).toHaveText("▶");
+  await page.getByRole("button", { name: "展开章节 标题", exact: true }).click();
+  await page.getByTitle("文档目录", { exact: true }).click();
+  await page.getByTitle("设置", { exact: true }).click();
+  await page.getByRole("button", { name: /^外观与排版/ }).click();
+  await page.getByRole("button", { name: /^编辑器设置/ }).click();
+  const style = page.getByRole("combobox", { name: "章节目录折叠标识", exact: true });
+  await expect(style).toHaveValue("triangle");
+  await style.selectOption("chevron");
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nine_rings_config") || "{}").editor_outline_fold_icon_style)).toBe("chevron");
+  await page.getByLabel("关闭设置").click();
+  await page.getByTitle("文档目录", { exact: true }).click();
+  await expect(page.getByRole("button", { name: "折叠章节 标题", exact: true }).locator(".disclosure-icon")).toBeVisible();
+  await page.reload();
+  await expect(body.locator(".disclosure-icon")).toBeVisible();
+  await page.getByTitle("文档目录", { exact: true }).click();
+  await expect(page.getByRole("button", { name: "折叠章节 标题", exact: true }).locator(".disclosure-icon")).toBeVisible();
+});
+
 test("文本区折叠箭头与文档树一致，方向跟随折叠状态", async ({ page }) => {
   await createBlankDocument(page);
   const editor = page.locator(".ProseMirror");

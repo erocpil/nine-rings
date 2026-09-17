@@ -3,9 +3,8 @@ import { expect, test } from "@playwright/test";
 test("桌面文档列表筛选紧凑排列，字段按需展开，路径选择对齐触发项", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
-  await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
-  await page.getByTitle("文档视图", { exact: true }).click();
-  const view = page.getByRole("dialog", { name: "文档视图", exact: true });
+  await page.getByRole("button", { name: "文档列表", exact: true }).click();
+  const view = page.getByRole("region", { name: "文档列表", exact: true });
   await view.getByRole("button", { name: "全部文档", exact: true }).click();
   await view.getByRole("button", { name: "筛选", exact: true }).click();
   const type = (await view.locator(".document-browser-type-trigger").boundingBox())!;

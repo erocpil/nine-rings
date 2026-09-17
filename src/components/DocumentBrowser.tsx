@@ -6,6 +6,7 @@ import { readDocumentFavorites, toggleDocumentFavorite } from "../lib/document-f
 import type { DocType, Note } from "../types/models";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { DocumentPathPicker } from "./DocumentPathPicker";
+import { DocumentFilterSelect } from "./DocumentFilterSelect";
 import { documentModifiedTime } from "../lib/document-modified-time";
 import { readDocumentBrowserPreferences, saveDocumentBrowserPreferences } from "../lib/document-browser-preferences";
 import "./DocumentBrowser.css";
@@ -61,6 +62,12 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
   const [view, setView] = useState(session.view ?? preferences.view);
   const [searchOpen, setSearchOpen] = useState(session.searchOpen ?? false);
   const [filtersOpen, setFiltersOpen] = useState(session.filtersOpen ?? false);
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const filterPopup = (key: string) => ({
+    open: openFilter === key,
+    // A previous popup's late focus/outside event cannot close its successor.
+    onOpenChange: (open: boolean) => setOpenFilter(current => open ? key : current === key ? null : current),
+  });
   const [fields, setFields] = useState<DisplayFields>(session.fields ?? (session.showDetails === undefined ? preferences.fields : { path: true, tags: session.showDetails, type: session.showDetails, modified: session.showDetails }));
   const [preferencesFailed, setPreferencesFailed] = useState(false);
   useEffect(() => {
@@ -89,6 +96,7 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
   }, [session, view]);
   const switchView = (next: string) => {
     if (next === view) return;
+    setOpenFilter(null);
     session.scrollPositions ??= {};
     session.scrollPositions[view] = scrollRef.current?.scrollTop ?? 0;
     setView(next);
@@ -150,38 +158,28 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
         <button aria-pressed={view === "all"} onClick={() => switchView("all")}>全部文档</button>
         <button aria-pressed={view === "favorites"} onClick={() => switchView("favorites")}>收藏</button>
         <span className="document-browser-count" aria-live="polite">{loading ? "…" : visible.length}</span>
-        <button className={`document-browser-filter-toggle${hasFilters ? " is-filtered" : ""}`} aria-label="筛选" title={hasFilters ? "已应用筛选" : "筛选文档"} aria-expanded={filtersOpen} onClick={() => setFiltersOpen(!filtersOpen)}><ToolbarIcon name="sliders" />筛选</button>
+        <button className={`document-browser-filter-toggle${hasFilters ? " is-filtered" : ""}`} aria-label="筛选" title={hasFilters ? "已应用筛选" : "筛选文档"} aria-expanded={filtersOpen} onClick={() => { setOpenFilter(null); setFiltersOpen(!filtersOpen); }}><ToolbarIcon name="sliders" />筛选</button>
       </div>
       {searchOpen && <label className="document-browser-search"><span className="search-scope-label">当前列表</span><input ref={searchRef} aria-label="查找文档" placeholder="标题、路径、标签或概念" title="仅筛选当前列表，不搜索正文" value={query} onChange={event => { setQuery(event.target.value); resetScroll(); }} /></label>}
       {filtersOpen && <div className="document-browser-filters">
         <button ref={pathTriggerRef} className="document-browser-filter-control document-browser-path-trigger" aria-label="筛选路径" title={path || "全部路径"} onClick={() => setPathPickerOpen(true)}><ToolbarIcon name="folder" /><span>{path || "全部路径"}</span><ToolbarIcon name="chevronRight" /></button>
-        <div className="document-browser-filter-control document-browser-type-trigger">
-          <ToolbarIcon name="document" /><span aria-hidden="true">{docType ? DOCUMENT_TYPES[docType] : "全部类型"}</span><ToolbarIcon name="chevronRight" />
-          <select className="document-browser-native-select" aria-label="文档类型筛选" value={docType} onChange={event => { setDocType(event.target.value as DocType | ""); resetScroll(); }}>
-          <option value="">全部类型</option>
-          {Object.entries(DOCUMENT_TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
-        </div>
-        <div className="document-browser-filter-control document-browser-tag-trigger">
-          <ToolbarIcon name="tag" /><span aria-hidden="true">{tag || "全部标签"}</span><ToolbarIcon name="chevronRight" />
-          <select className="document-browser-native-select" aria-label="文档标签筛选" value={tag} onChange={event => { setTag(event.target.value); resetScroll(); }}>
-            <option value="">全部标签</option>
-            {tag && !tags.includes(tag) && <option value={tag}>{tag}</option>}
-            {tags.map(value => <option key={value} value={value}>{value}</option>)}
-          </select>
-        </div>
+        <DocumentFilterSelect {...filterPopup("type")} className="document-browser-type-trigger" icon="document"
+          label="文档类型筛选" text={docType ? DOCUMENT_TYPES[docType] : "全部类型"} value={docType}
+          options={[{ value: "", label: "全部类型" }, ...Object.entries(DOCUMENT_TYPES).map(([value, label]) => ({ value, label }))]}
+          onChange={value => { setDocType(value as DocType | ""); resetScroll(); }} />
+        <DocumentFilterSelect {...filterPopup("tag")} className="document-browser-tag-trigger" icon="tag"
+          label="文档标签筛选" text={tag || "全部标签"} value={tag}
+          options={[{ value: "", label: "全部标签" }, ...(tag && !tags.includes(tag) ? [tag, ...tags] : tags).map(value => ({ value, label: value }))]}
+          onChange={value => { setTag(value); resetScroll(); }} />
         {view !== "recent" && <div className="document-browser-sort-controls">
-          <div className="document-browser-filter-control">
-          <ToolbarIcon name="ordered" /><span aria-hidden="true">{sort === "title" ? "按标题排序" : "按修改时间排序"}</span><ToolbarIcon name="chevronRight" />
-          <select className="document-browser-native-select" aria-label="文档排序" value={sort} onChange={event => { setSort(event.target.value); setSortDirection(event.target.value === "title" ? "asc" : "desc"); resetScroll(); }}>
-            <option value="updated">修改时间</option><option value="title">标题</option>
-          </select></div>
-          <div className="document-browser-filter-control">
-          <ToolbarIcon name={sortDirection === "asc" ? "pageTop" : "pageBottom"} /><span aria-hidden="true">{sort === "title" ? (sortDirection === "asc" ? "标题升序" : "标题降序") : (sortDirection === "asc" ? "最早修改在前" : "最新修改在前")}</span><ToolbarIcon name="chevronRight" />
-          <select className="document-browser-native-select" aria-label="文档排序方向" value={sortDirection} onChange={event => { setSortDirection(event.target.value as "asc" | "desc"); resetScroll(); }}>
-            <option value="asc">{sort === "title" ? "标题升序" : "最早修改在前"}</option>
-            <option value="desc">{sort === "title" ? "标题降序" : "最新修改在前"}</option>
-          </select></div>
+          <DocumentFilterSelect {...filterPopup("sort")} icon="ordered" label="文档排序"
+            text={sort === "title" ? "按标题排序" : "按修改时间排序"} value={sort}
+            options={[{ value: "updated", label: "修改时间" }, { value: "title", label: "标题" }]}
+            onChange={value => { setSort(value); setSortDirection(value === "title" ? "asc" : "desc"); resetScroll(); }} />
+          <DocumentFilterSelect {...filterPopup("direction")} icon={sortDirection === "asc" ? "pageTop" : "pageBottom"}
+            label="文档排序方向" text={sort === "title" ? (sortDirection === "asc" ? "标题升序" : "标题降序") : (sortDirection === "asc" ? "最早修改在前" : "最新修改在前")} value={sortDirection}
+            options={[{ value: "asc", label: sort === "title" ? "标题升序" : "最早修改在前" }, { value: "desc", label: sort === "title" ? "标题降序" : "最新修改在前" }]}
+            onChange={value => { setSortDirection(value as "asc" | "desc"); resetScroll(); }} />
         </div>}
         <details className="document-browser-display-options"><summary>显示字段</summary>
         <fieldset className="document-browser-display-fields" aria-label="显示字段">

@@ -1,5 +1,10 @@
 import { expect, test, type Locator } from "@playwright/test";
 
+async function selectBrowserFilter(view: Locator, name: string, option: string) {
+  await view.getByRole("button", { name, exact: true }).click();
+  await view.page().getByRole("listbox", { name, exact: true }).getByRole("option", { name: option, exact: true }).click();
+}
+
 async function createOutlineFixture(page: import("@playwright/test").Page, title: string) {
   await page.goto("/");
   const editor = page.locator(".ProseMirror");
@@ -315,16 +320,16 @@ test.describe("PWA 窄屏应用外壳", () => {
       const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");
       for (const suffix of ["B", "A"]) await api.notes.create({ title: `字段排序 ${suffix}`, date: "2026-09-09", storagePath: "projects/fields", docType: "reference", tags: ["字段"], content: { ops: [] } });
     });
-    const open = () => swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: 100, endX: 110, endY: 100 });
+    const open = () => swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: 380, endX: 110, endY: 380 });
     await open();
     const view = page.getByRole("dialog", { name: "文档视图", exact: true });
     await view.getByRole("button", { name: "全部文档", exact: true }).click();
     await view.getByRole("button", { name: "搜索文档", exact: true }).click();
     await view.getByRole("textbox", { name: "查找文档", exact: true }).fill("字段排序");
     await view.getByRole("button", { name: "筛选", exact: true }).click();
-    await view.getByLabel("文档排序", { exact: true }).selectOption("title");
+    await selectBrowserFilter(view, "文档排序", "标题");
     await expect(view.locator(".document-browser-title")).toHaveText(["字段排序 A", "字段排序 B"]);
-    await view.getByLabel("文档排序方向").selectOption("desc");
+    await selectBrowserFilter(view, "文档排序方向", "标题降序");
     await expect(view.locator(".document-browser-title")).toHaveText(["字段排序 B", "字段排序 A"]);
     await view.locator(".document-browser-display-options summary").click();
     await view.getByLabel("显示路径", { exact: true }).uncheck();
@@ -344,17 +349,17 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(timeBox.x + timeBox.width).toBeCloseTo(rowBox.x + rowBox.width, 0);
     await view.getByRole("button", { name: "关闭文档视图", exact: true }).click();
     await open();
-    await expect(view.getByLabel("文档排序方向")).toHaveValue("desc");
+    await expect(view.getByLabel("文档排序方向")).toContainText("标题降序");
     await expect(view.getByLabel("显示路径", { exact: true })).not.toBeChecked();
     await expect(view.getByLabel("显示标签", { exact: true })).toBeChecked();
     await view.getByRole("button", { name: "最近打开", exact: true }).click();
     await expect(view.getByLabel("文档排序方向")).toHaveCount(0);
     await view.getByRole("button", { name: "全部文档", exact: true }).click();
     await expect(view.locator(".document-browser-title")).toHaveText(["字段排序 B", "字段排序 A"]);
-    await view.getByLabel("文档排序", { exact: true }).selectOption("updated");
-    await expect(view.getByLabel("文档排序方向")).toHaveValue("desc");
+    await selectBrowserFilter(view, "文档排序", "修改时间");
+    await expect(view.getByLabel("文档排序方向")).toContainText("最新修改在前");
     const newestFirst = await view.locator(".document-browser-title").allTextContents();
-    await view.getByLabel("文档排序方向").selectOption("asc");
+    await selectBrowserFilter(view, "文档排序方向", "最早修改在前");
     await expect(view.locator(".document-browser-title")).toHaveText([...newestFirst].reverse());
   });
 
@@ -388,7 +393,7 @@ test.describe("PWA 窄屏应用外壳", () => {
         await api.notes.create({ title: `组合检索 ${docType}`, storagePath: "projects/network", date: "2026-09-09", docType, tags: ["work", docType], content: { ops: [] } });
       }
     });
-    await swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: 100, endX: 110, endY: 100 });
+    await swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: 380, endX: 110, endY: 380 });
     const view = page.getByRole("dialog", { name: "文档视图", exact: true });
     await view.getByRole("button", { name: "全部文档", exact: true }).click();
     await view.getByRole("button", { name: "搜索文档", exact: true }).click();
@@ -403,11 +408,11 @@ test.describe("PWA 窄屏应用外壳", () => {
     }));
     expect(styles).toHaveLength(5);
     for (const style of styles) expect(style).toEqual(styles[0]);
-    await view.getByLabel("文档标签筛选").selectOption("reference");
+    await selectBrowserFilter(view, "文档标签筛选", "reference");
     await expect(view.locator(".document-browser-row")).toHaveCount(1);
-    await view.getByLabel("文档标签筛选").selectOption("work");
+    await selectBrowserFilter(view, "文档标签筛选", "work");
     await expect(view.locator(".document-browser-row")).toHaveCount(2);
-    await view.getByLabel("文档类型筛选").selectOption("reference");
+    await selectBrowserFilter(view, "文档类型筛选", "参考");
     await expect(view.locator(".document-browser-type-trigger > span")).toHaveText("参考");
     await expect(view.locator(".document-browser-row")).toHaveCount(1);
     await expect(view.locator(".document-browser-row")).toContainText("reference");

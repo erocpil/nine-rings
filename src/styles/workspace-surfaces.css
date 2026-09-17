@@ -334,10 +334,12 @@
 }
 
 @media (min-width: 769px) {
-  .settings-overlay {
+  /* Touch landscape can exceed 768px while still using mobile edge gestures.
+     Share SettingsPanel's viewport classification instead of width alone. */
+  .settings-overlay:not(.settings-overlay-mobile):not(.settings-sync-overlay) {
     justify-content: flex-start;
   }
-  .settings-panel {
+  .settings-overlay:not(.settings-overlay-mobile):not(.settings-sync-overlay) .settings-panel {
     border-left: 0;
     border-right: 1px solid var(--border);
     animation-name: slideInFromLeft;

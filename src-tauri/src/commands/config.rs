@@ -50,6 +50,8 @@ pub struct AppConfig {
     pub editor_fold_icon_collapsed: String,
     #[serde(default = "default_editor_fold_icon_expanded")]
     pub editor_fold_icon_expanded: String,
+    #[serde(default)]
+    pub editor_outline_fold_icon_style: Option<String>,
     #[serde(default = "default_true")]
     pub editor_show_status_block_number: bool,
     #[serde(default = "default_true")]
@@ -176,6 +178,7 @@ impl Default for AppConfig {
             editor_fold_icon_style: default_editor_fold_icon_style(),
             editor_fold_icon_collapsed: default_editor_fold_icon_collapsed(),
             editor_fold_icon_expanded: default_editor_fold_icon_expanded(),
+            editor_outline_fold_icon_style: None,
             editor_show_status_block_number: true,
             editor_show_status_bar: true,
             editor_readonly_heading_fold: true,
@@ -315,6 +318,17 @@ mod tests {
     use super::AppConfig;
 
     #[test]
+    fn outline_fold_preference_round_trips_without_changing_body_style() {
+        for style in ["triangle", "chevron", "inherit"] {
+            let mut config = AppConfig::default();
+            config.editor_outline_fold_icon_style = Some(style.into());
+            let restored: AppConfig = serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
+            assert_eq!(restored.editor_outline_fold_icon_style.as_deref(), Some(style));
+            assert_eq!(restored.editor_fold_icon_style, "chevron");
+        }
+    }
+
+    #[test]
     fn legacy_config_keeps_existing_values_and_gets_appearance_defaults() {
         let legacy = r#"{
             "theme":"grace",
@@ -347,6 +361,7 @@ mod tests {
         assert_eq!(config.editor_fold_icon_style, "chevron");
         assert_eq!(config.editor_fold_icon_collapsed, "▶");
         assert_eq!(config.editor_fold_icon_expanded, "▼");
+        assert_eq!(config.editor_outline_fold_icon_style, None);
         assert!(config.editor_code_wrap_default);
         assert_eq!(config.user_default_language, "zh-CN");
         assert!(config.user_name.is_empty());
