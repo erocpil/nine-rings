@@ -8,6 +8,7 @@ const BACKED_UP_LOCAL_SETTINGS = [
   "nr:sidebarTab",
   "nr:todoSplit",
   "nr:sidebarW",
+  "nr:sidebarPresentation",
   "nr:sortMode",
   "nr:sidebarShowAll",
   "nr:codeLineNumbers",

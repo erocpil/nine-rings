@@ -1,5 +1,6 @@
 import { DisclosureIcon } from "./DisclosureIcon";
 import { SettingsFoldIcons } from "./SettingsFoldIcons";
+import { SettingsSidebarPresentation } from "./SettingsSidebarPresentation";
 import { HotkeyConfig } from "./SettingsHotkeys";
 import { Field, SettingsSection } from "./SettingsFields";
 import { useCallback, useEffect, useState, useRef } from "react";
@@ -634,17 +635,18 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </button>
             </Field>
 
-            <Field label="分栏设置" desc="调整文档树、文档列表和阅读分栏的顺序与宽度" visible={settingsPage === "appearance"}>
+            <Field label="分栏设置" desc="调整分栏打开方式、顺序与宽度" visible={settingsPage === "appearance"}>
               <button className="editor-appearance-entry" type="button" onClick={() => setSettingsPage("sidebar")}>
                 <span>
                   <strong>分栏设置</strong>
-                  <small>拖动排序，宽度会在切换回来时保留</small>
+                  <small>浮层或并排显示，调整顺序与宽度</small>
                 </span>
                 <span className="editor-appearance-entry-action">打开分栏设置 →</span>
               </button>
             </Field>
 
             {settingsPage === "sidebar" && <div className="sidebar-settings-page">
+              <SettingsSidebarPresentation onError={showMessage} />
               <div className="sidebar-settings-intro">
                 <strong>工作区分栏</strong>
                 <span>拖动项目调整显示顺序；分隔条调整后的宽度会自动记住。</span>

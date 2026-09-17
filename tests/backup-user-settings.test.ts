@@ -58,6 +58,9 @@ assert(typeof metadata?.device?.name === "string", "backup metadata includes dev
 assert(typeof source.value("nr:backup-device-id") === "string", "device id is persisted locally");
 
 const target = memoryStorage();
+const sidebarTarget = memoryStorage();
+restoreFrontendSettings(collectFrontendSettings(memoryStorage({ "nr:sidebarPresentation": "overlay" })), sidebarTarget);
+assert(sidebarTarget.value("nr:sidebarPresentation") === "overlay", "sidebar presentation survives backup and restore");
 const favoritesBackup = collectFrontendSettings(memoryStorage({ "nr:documentFavorites": '["doc-a","doc-b"]' }));
 const favoritesTarget = memoryStorage();
 restoreFrontendSettings(favoritesBackup, favoritesTarget);

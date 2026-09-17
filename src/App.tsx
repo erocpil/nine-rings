@@ -1,6 +1,8 @@
 import { EditorFoldIconContext } from "./components/EditorFoldIcon";
 import { useEdgeScrollbars } from "./hooks/useEdgeScrollbars";
 import { useWorkspaceSidebar } from "./hooks/useWorkspaceSidebar";
+import { useSidebarPresentation } from "./hooks/useSidebarPresentation";
+import { useSidebarHoverPreview } from "./hooks/useSidebarHoverPreview";
 import { useEditorStartup } from "./hooks/useEditorStartup";
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { useNoteSessionBoundary } from "./hooks/useNoteSessionBoundary";
@@ -1006,6 +1008,7 @@ function App() {
   };
 
   const { sidebarPanelRef, sidebarWidth, sidebarWidthHint, sidebarResizing, setSidebarPanel, handleSidePointerDown } = useWorkspaceSidebar({ desktopPanel, setDesktopPanel, sidebarHidden, setSidebarHidden });
+  const sidebarPresentation = useSidebarPresentation();
   const openReadingLibrary = useCallback(async () => {
     if (syncBusy) return;
     try {
@@ -1084,6 +1087,9 @@ function App() {
   // All platforms use the editor title row. Desktop retains an activity rail;
   // mobile retains edge drawers and its full-title preview interaction.
   const desktopWorkspace = !mobileDrawerViewport;
+  const sidebarHoverEnabled = desktopWorkspace && sidebarPresentation === "overlay";
+  const sidebarHover = useSidebarHoverPreview({ enabled: sidebarHoverEnabled, panel: desktopPanel, hidden: sidebarHidden, resizing: sidebarResizing, openPanel: setSidebarPanel, setHidden: setSidebarHidden });
+  const sidebarOverlay = sidebarHoverEnabled && !sidebarHover.pinned;
   const announcedErrorRef = useRef<string | null>(null);
   useEffect(() => {
     const message = error || (autoSave.status === "error" ? "保存失败" : null);
@@ -1467,7 +1473,7 @@ function App() {
       <BackupRestoreStatus compact onOpenSettings={() => setSettingsOpen(true)} />
       {readingLibraryError && <div role="alert" className="reading-library-message">{readingLibraryError}</div>}
 
-      <div className="app-body">
+      <div className={`app-body${sidebarHoverEnabled ? " sidebar-hover-enabled" : ""}${sidebarOverlay ? " sidebar-presentation-overlay" : ""}`} style={sidebarHoverEnabled ? { "--sidebar-pane-width": `${sidebarWidth}px` } as React.CSSProperties : undefined}>
         {sidebarWidthHint && <div className="sidebar-width-hint" role="status" aria-live="polite">{sidebarWidthHint}</div>}
         {!mobileDrawerViewport && <nav className="desktop-activity-bar" aria-label="工作区面板">
           {(error || autoSave.status === "error") && <button type="button" className="btn-icon workspace-error-indicator" aria-label="查看错误详情" title="查看错误详情" onClick={() => setErrorDetailsOpen(true)}><ToolbarIcon name="warning" /></button>}
@@ -1480,7 +1486,8 @@ function App() {
               panel === 'tree' ? 'folder' : panel === 'list' ? 'bullet' : 'document'] as const);
           })()).map(([panel, label, icon]) => <button key={panel} type="button" className="btn-icon"
             title={label} aria-label={label} aria-pressed={!sidebarHidden && desktopPanel === panel}
-            onClick={() => { setSidebarPanel(panel, true); }}>
+            onPointerEnter={event => sidebarHover.enterButton(panel, event.pointerType)} onPointerLeave={sidebarHover.leave}
+            onClick={() => sidebarHover.click(panel)}>
             <ToolbarIcon name={icon} />
           </button>)}
           <div className="desktop-activity-footer">
@@ -1491,11 +1498,13 @@ function App() {
             </button>
           </div>
         </nav>}
+        {sidebarHoverEnabled && <div className="sidebar-pin-spacer" aria-hidden="true" style={{ width: sidebarHover.pinned && !sidebarHidden ? sidebarWidth + 4 : 0 }} />}
         <aside ref={sidebarPanelRef} className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}
+          onPointerEnter={sidebarHover.enterPanel} onPointerLeave={sidebarHover.leave}
           role={mobileDrawerViewport ? "dialog" : undefined} aria-label={mobileDrawerViewport ? "文档侧栏" : undefined}
           aria-modal={mobileDrawerViewport && !sidebarHidden || undefined}
-          aria-hidden={mobileDrawerViewport && sidebarHidden || undefined}
-          {...(mobileDrawerViewport && sidebarHidden ? { inert: "" } : {})}>
+          aria-hidden={(mobileDrawerViewport || sidebarOverlay) && sidebarHidden || undefined}
+          {...((mobileDrawerViewport || sidebarOverlay) && sidebarHidden ? { inert: "" } : {})}>
           <div className="desktop-panel-content" style={mobileDrawerViewport ? { display: 'contents' } : undefined} hidden={!mobileDrawerViewport && desktopPanel !== 'tree'}>
           <WorkspacePanelHeading className="sidebar-tabs" title={DAILY_NOTES_ENABLED ? <button
               className="sidebar-tab sidebar-view-switch"
@@ -1693,9 +1702,9 @@ function App() {
           onOpenDate={(date) => { setQuery(""); setDocResults(null); setDate(date); }}
         />}
 
-        {!sidebarHidden && <div className="sidebar-divider" onPointerDown={handleSidePointerDown} />}
+        {!sidebarHidden && <div className="sidebar-divider" style={sidebarHoverEnabled ? { left: 44 + sidebarWidth } : undefined} onPointerEnter={sidebarHover.enterPanel} onPointerLeave={sidebarHover.leave} onPointerDown={handleSidePointerDown} />}
 
-        <main className={`app-main${!mobileDrawerViewport && !sidebarHidden && desktopPanel === "reader" ? " reader-companion-editor" : ""}`}>
+        <main className={`app-main${!mobileDrawerViewport && !sidebarOverlay && !sidebarHidden && desktopPanel === "reader" ? " reader-companion-editor" : ""}`}>
           {mobileDrawerViewport && !selectedNote && <div className="mobile-workspace-empty-actions" aria-label="工作区工具">
             <button type="button" className="btn-icon" aria-label="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>
             <button type="button" className="btn-icon" aria-label="设置" onClick={() => setSettingsOpen(true)}><ToolbarIcon name="sliders" /></button>

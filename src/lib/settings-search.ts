@@ -1,6 +1,7 @@
 export type SearchSettingsPage =
   | "root"
   | "appearance"
+  | "sidebar"
   | "editor"
   | "documents"
   | "bookmarks"
@@ -19,6 +20,12 @@ export interface SettingsSearchEntry {
   webOnly?: boolean;
 }
 const entries: SettingsSearchEntry[] = [
+  {
+    title: "分栏打开方式",
+    description: "外观与排版 › 分栏设置 · 浮层模式或并排模式",
+    keywords: "分栏 侧栏 弹出 覆盖 浮层 挤压 并排 文档树 文档列表 阅读 顺序 宽度",
+    page: "sidebar",
+  },
   {
     title: "主题",
     description: "外观与排版 · 切换整体配色",

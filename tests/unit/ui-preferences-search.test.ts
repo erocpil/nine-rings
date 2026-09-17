@@ -78,6 +78,7 @@ describe("static settings search", () => {
     expect(searchSettings("更新", options)[0].action).toBe("update");
     expect(searchSettings("ＶＩＭ", options)[0].page).toBe("editor");
     expect(searchSettings("不存在的关键词", options)).toEqual([]);
+    expect(searchSettings("浮层", options)[0].page).toBe("sidebar");
     expect(searchSettings("  ", options)).toEqual([]);
   });
   it("does not advertise unavailable platform features", () => {

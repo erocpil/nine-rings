@@ -1,0 +1,67 @@
+.sidebar-presentation-description {
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* Desktop only: the same panel floats while a spacer animates pinning. */
+.app-body.sidebar-hover-enabled {
+  position: relative;
+}
+.sidebar-hover-enabled > .app-main {
+  isolation: isolate;
+}
+.sidebar-hover-enabled > .desktop-activity-bar {
+  position: relative;
+  z-index: 42;
+}
+.sidebar-hover-enabled > .app-sidebar {
+  position: absolute;
+  inset: 0 auto 0 44px;
+  z-index: 40;
+  background: var(--bg);
+  opacity: 1;
+  transform: translateX(0);
+  visibility: visible;
+  transition:
+    transform 180ms ease,
+    opacity 180ms ease,
+    visibility 0s;
+}
+.sidebar-presentation-overlay > .app-sidebar {
+  box-shadow: 6px 0 20px rgb(0 0 0 / 15%);
+}
+.sidebar-hover-enabled > .app-sidebar.sidebar-hidden {
+  width: var(--sidebar-pane-width, 360px) !important;
+  transform: translateX(calc(-100% - 12px));
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 180ms ease,
+    opacity 180ms ease,
+    visibility 0s 180ms;
+}
+.sidebar-pin-spacer {
+  flex: 0 0 auto;
+  min-width: 0;
+  pointer-events: none;
+  transition: width 220ms ease;
+}
+.sidebar-hover-enabled > .sidebar-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 41;
+}
+body.app-sidebar-dragging .sidebar-pin-spacer {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-hover-enabled > .app-sidebar,
+  .sidebar-hover-enabled > .app-sidebar.sidebar-hidden,
+  .sidebar-pin-spacer {
+    transition: none;
+  }
+}
