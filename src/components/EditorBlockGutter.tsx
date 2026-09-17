@@ -604,7 +604,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
     ? []
     : [
         ...(blocks[0].index === 1
-          ? [{ key: "start", pos: blocks[0].pos, top: blocks[0].top, label: "在第一块前插入段落", adjacent: hoveredBlockIndex === blocks[0].index }]
+          ? [{ key: "start", pos: blocks[0].pos, top: blocks[0].top, label: "在第一块前插入段落", blockIndex: blocks[0].index, adjacent: hoveredBlockIndex === blocks[0].index }]
           : []),
         ...blocks.map((block, index) => {
           const nextBlock = blocks[index + 1];
@@ -615,6 +615,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
             : block.marginBottom;
           return {
             key: `after-${block.pos}`,
+            blockIndex: block.index,
             adjacent: hoveredBlockIndex === block.index || hoveredBlockIndex === nextBlock?.index,
             pos: block.endPos,
             // DOMRect 不包含 margin。将按钮放在相邻块之间的视觉空隙中央，
@@ -777,6 +778,11 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
           key={boundary.key}
           type="button"
           className={`editor-block-insert${boundary.adjacent ? " adjacent-to-hovered-block" : ""}`}
+          onPointerEnter={(event) => {
+            // Direct entry into an invisible insertion target reveals its pair.
+            // If reached from a block number, retain that block's existing pair.
+            if (event.pointerType === "mouse" && !boundary.adjacent) setHoveredBlockIndex(boundary.blockIndex);
+          }}
           style={{ top: boundary.top }}
           aria-label={boundary.label}
           title={boundary.label}

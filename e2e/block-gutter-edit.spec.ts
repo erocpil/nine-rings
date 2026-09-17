@@ -107,6 +107,33 @@ test.describe("桌面加号状态", () => {
     await insert.click();
     await expect(page.locator(".ProseMirror > *")).toHaveCount(5);
   });
+
+  test("不经过块号直接进入加号位置也显示对应块前后两个加号", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true })));
+    await page.goto("/");
+    await openTestNote(page, ["第一块", "第二块", "第三块", "第四块"]);
+    const visibleLabels = () => page.locator(".editor-block-insert").evaluateAll(buttons =>
+      buttons.filter(button => Number(getComputedStyle(button).opacity) > 0).map(button => button.getAttribute("aria-label")));
+    for (const [label, pair] of [
+      ["在第一块前插入段落", ["在第一块前插入段落", "在第 1 块后插入段落"]],
+      ["在第 3 块后插入段落", ["在第 2 块后插入段落", "在第 3 块后插入段落"]],
+      ["在第 4 块后插入段落", ["在第 3 块后插入段落", "在第 4 块后插入段落"]],
+    ] as const) {
+      await page.mouse.move(800, 40);
+      await expect.poll(visibleLabels).toEqual([]);
+      const target = page.getByRole("button", { name: label, exact: true });
+      const box = await target.boundingBox();
+      if (!box) throw new Error("插入按钮没有布局位置");
+      // One jump, no intermediate movement over the gutter/number. Exercise
+      // the first button's upper half outside the gutter's own bounds too.
+      await page.mouse.move(box.x + box.width / 2, box.y + 2);
+      await expect.poll(visibleLabels).toEqual([...pair]);
+      await expect(target).toHaveCSS("opacity", "1");
+    }
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect(page.locator(".ProseMirror > *")).toHaveCount(5);
+  });
 });
 
 for (const width of [1280, 390]) {

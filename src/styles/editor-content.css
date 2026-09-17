@@ -188,7 +188,7 @@
    Use our bounded press feedback, not WebKit's native tap-highlight overlay. */
 @media (hover: hover) and (pointer: fine) {
   .editor-block-gutter { pointer-events: auto; }
-  .editor-block-insert { opacity: 0; pointer-events: none; }
+  .editor-block-insert { opacity: 0; pointer-events: auto; }
   .editor-block-insert.adjacent-to-hovered-block { opacity: 0.55; pointer-events: auto; }
   .editor-block-gutter .editor-block-insert:is(:hover, :active, :focus-visible) { opacity: 1; pointer-events: auto; }
   .editor-block-insert:hover {
