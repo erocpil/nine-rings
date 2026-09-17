@@ -1,3 +1,4 @@
+import { DisclosureIcon } from "./DisclosureIcon";
 import { useEffect, useRef, useState } from "react";
 
 interface DatePickerProps {
@@ -56,7 +57,7 @@ export function DatePicker({ value, onChange }: DatePickerProps) {
         </div>
       ) : (
         <button type="button" className="date-display" onClick={toggle} title="切换日期" aria-label="切换日期">
-          📅<span className="date-arrow">▼</span>
+          📅<span className="date-arrow"><DisclosureIcon expanded /></span>
         </button>
       )}
     </div>

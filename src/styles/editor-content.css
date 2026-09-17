@@ -222,6 +222,8 @@
 .ProseMirror > .editor-fold-anchor { position: relative; }
 .editor-fold-host {
   position: absolute;
+  /* Gutter hover hit area must not cover the actual heading fold control. */
+  z-index: 5;
   left: calc(-1 * var(--editor-gutter-width));
   top: 0;
   width: 22px;

@@ -1,3 +1,4 @@
+import { EditorFoldIconContext } from "./components/EditorFoldIcon";
 import { useWorkspaceSidebar } from "./hooks/useWorkspaceSidebar";
 import { useEditorStartup } from "./hooks/useEditorStartup";
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
@@ -1428,7 +1429,7 @@ function App() {
   ) : null;
 
   return (
-    <>
+    <EditorFoldIconContext.Provider value={config}>
     <div
       className={`app app-unified-workspace ${focusMode ? "app-focus-mode" : ""}${desktopWorkspace ? " app-desktop-workspace" : " app-mobile-workspace"}`}
       style={editorAppearanceVariables(config ?? undefined)}
@@ -2066,7 +2067,7 @@ function App() {
         <p role="status">{errorCopyNotice}</p>
       </div>
     </WorkspaceDialog>}
-    </>
+    </EditorFoldIconContext.Provider>
   );
 }
 

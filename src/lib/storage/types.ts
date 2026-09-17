@@ -25,6 +25,9 @@ export interface AppConfig {
   dev_port: number; // 仅 web 模式生效
   highlight_active_line: boolean;
   editor_show_line_numbers: boolean;
+  editor_fold_icon_style: "chevron" | "triangle" | "custom";
+  editor_fold_icon_collapsed: string;
+  editor_fold_icon_expanded: string;
   editor_show_status_block_number: boolean;
   editor_show_status_bar: boolean;
   editor_readonly_heading_fold: boolean;
@@ -63,6 +66,9 @@ export const DEFAULT_CONFIG: AppConfig = {
   dev_port: 8000,
   highlight_active_line: true,
   editor_show_line_numbers: false,
+  editor_fold_icon_style: "chevron",
+  editor_fold_icon_collapsed: "▶",
+  editor_fold_icon_expanded: "▼",
   editor_show_status_block_number: true,
   editor_show_status_bar: true,
   editor_readonly_heading_fold: true,

@@ -129,6 +129,21 @@ AppConfig:
       default: false
       description: 在正文左侧显示顶层块编号
 
+    editor_fold_icon_style:
+      type: enum(chevron, triangle, custom)
+      default: chevron
+      description: 文本区、代码和引用块及文档目录的折叠标识样式
+
+    editor_fold_icon_collapsed:
+      type: string
+      default: "▶"
+      description: 自定义收起状态的符号（点击可展开）
+
+    editor_fold_icon_expanded:
+      type: string
+      default: "▼"
+      description: 自定义展开状态的符号（点击可收起）
+
     editor_show_status_block_number:
       type: boolean
       default: true

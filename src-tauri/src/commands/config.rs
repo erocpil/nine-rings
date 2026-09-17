@@ -44,6 +44,12 @@ pub struct AppConfig {
     pub highlight_active_line: bool,
     #[serde(default)]
     pub editor_show_line_numbers: bool,
+    #[serde(default = "default_editor_fold_icon_style")]
+    pub editor_fold_icon_style: String,
+    #[serde(default = "default_editor_fold_icon_collapsed")]
+    pub editor_fold_icon_collapsed: String,
+    #[serde(default = "default_editor_fold_icon_expanded")]
+    pub editor_fold_icon_expanded: String,
     #[serde(default = "default_true")]
     pub editor_show_status_block_number: bool,
     #[serde(default = "default_true")]
@@ -133,6 +139,16 @@ fn default_hotkeys() -> std::collections::HashMap<String, String> {
     ])
 }
 
+fn default_editor_fold_icon_style() -> String {
+    "chevron".into()
+}
+fn default_editor_fold_icon_collapsed() -> String {
+    "▶".into()
+}
+fn default_editor_fold_icon_expanded() -> String {
+    "▼".into()
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -157,6 +173,9 @@ impl Default for AppConfig {
             dev_port: 8000,
             highlight_active_line: true,
             editor_show_line_numbers: false,
+            editor_fold_icon_style: default_editor_fold_icon_style(),
+            editor_fold_icon_collapsed: default_editor_fold_icon_collapsed(),
+            editor_fold_icon_expanded: default_editor_fold_icon_expanded(),
             editor_show_status_block_number: true,
             editor_show_status_bar: true,
             editor_readonly_heading_fold: true,
@@ -325,6 +344,9 @@ mod tests {
         assert!(config.editor_show_status_block_number);
         assert!(config.editor_show_status_bar);
         assert!(config.editor_readonly_heading_fold);
+        assert_eq!(config.editor_fold_icon_style, "chevron");
+        assert_eq!(config.editor_fold_icon_collapsed, "▶");
+        assert_eq!(config.editor_fold_icon_expanded, "▼");
         assert!(config.editor_code_wrap_default);
         assert_eq!(config.user_default_language, "zh-CN");
         assert!(config.user_name.is_empty());

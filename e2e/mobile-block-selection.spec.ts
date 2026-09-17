@@ -160,7 +160,8 @@ test.describe("手机块级操作", () => {
     await page.getByRole("button", { name: "块级操作", exact: true }).first().tap();
     const toolbar = page.getByRole("toolbar", { name: "块级操作" });
     const headingGutter = page.getByRole("button", { name: "选择第 2 块" });
-    await expect(headingGutter).toHaveText("▼2");
+    await expect(headingGutter).toHaveText("2");
+    await expect(headingGutter.locator(".disclosure-icon")).toHaveClass(/expanded/);
     await expect(headingGutter).toHaveCSS("width", "36px");
     await headingGutter.locator(".editor-block-select-fold").tap();
     await expect(headingGutter).toHaveClass(/selected/);

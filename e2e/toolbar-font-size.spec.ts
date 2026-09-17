@@ -64,19 +64,19 @@ for (const mobile of [false, true]) {
     const size = page.locator(".editor-menu").getByTitle("字号", { exact: true });
     await selectText(page, "Default paragraph");
     const inherited = await editor.locator(":scope > p").evaluate(el => parseFloat(getComputedStyle(el).fontSize));
-    await expect(size).toHaveText(`${inherited}▾`);
+    await expect(size).toHaveText(`${inherited}`);
     await selectText(page, "Quoted first line");
-    await expect(size).toHaveText("18▾");
+    await expect(size).toHaveText("18");
     await selectText(page, "Quoted second line");
-    await expect(size).toHaveText("24▾");
+    await expect(size).toHaveText("24");
     await size.click();
     await page.locator("[data-toolbar-tool=size]").getByRole("button", { name: "20px", exact: true }).click();
-    await expect(size).toHaveText("20▾");
+    await expect(size).toHaveText("20");
     await size.click();
     await page.locator("[data-toolbar-tool=size]").getByRole("button", { name: "清除", exact: true }).click();
-    await expect(size).toHaveText(`${inherited}▾`);
+    await expect(size).toHaveText(`${inherited}`);
     await selectText(page, "Inherited heading");
     const headingSize = await editor.locator("h2").evaluate(el => parseFloat(getComputedStyle(el).fontSize));
-    await expect(size).toHaveText(`${Math.round(headingSize * 100) / 100}▾`);
+    await expect(size).toHaveText(`${Math.round(headingSize * 100) / 100}`);
   });
 }

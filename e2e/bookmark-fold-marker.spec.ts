@@ -50,7 +50,8 @@ for (const width of [390, 1280]) {
           .getState()
           .selectNote(await api.notes.update(note.id, { readonly: true }));
       });
-      await expect(page.locator(".note-title")).toHaveValue("书签下划线验证");
+      if (width < 768) await expect(page.getByRole("button", { name: "查看完整标题" })).toHaveText("书签下划线验证");
+      else await expect(page.locator(".note-title")).toHaveValue("书签下划线验证");
       for (const focus of [false, true]) {
         if (focus)
           await page
@@ -83,10 +84,10 @@ for (const width of [390, 1280]) {
           await expect(marker).toHaveCSS("pointer-events", "none");
         }
         await fold.click();
-        await expect(fold).toHaveText("▶");
+        await expect(fold.locator(".disclosure-icon")).not.toHaveClass(/expanded/);
         if (!numbers) await expect(marker).toBeVisible();
         await fold.click();
-        await expect(fold).toHaveText("▼");
+        await expect(fold.locator(".disclosure-icon")).toHaveClass(/expanded/);
       }
     });
   }

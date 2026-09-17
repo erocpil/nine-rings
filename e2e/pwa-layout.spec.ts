@@ -1745,7 +1745,7 @@ test.describe("PWA 窄屏应用外壳", () => {
 
     const orderedList = editor.locator(":scope > ol").first();
     await orderedList.locator("li").first().click();
-    await page.getByRole("button", { name: "块 ▾" }).click();
+    await page.getByRole("button", { name: "块", exact: true }).click();
     await page.getByRole("button", { name: "＋ 在当前块后插入空白块" }).click();
     await page.keyboard.type("手机插入块");
 

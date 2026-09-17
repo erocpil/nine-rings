@@ -1,3 +1,4 @@
+import { DisclosureIcon } from "./DisclosureIcon";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import type { Editor } from "@tiptap/core";
 import type { EditorToolbarProps } from "./EditorToolbarContents";
@@ -83,7 +84,7 @@ export function EditorContextMenu({ editor, readonly, contextMenu, contextMenuRe
               className="editor-context-item editor-context-parent"
               aria-expanded={contextSubmenu === "format"}
               onClick={() => setContextSubmenu((current) => current === "format" ? null : "format")}
-            ><span>格式</span><span aria-hidden="true">{contextSubmenu === "format" ? "▾" : "▸"}</span></button>
+            ><span>格式</span><span aria-hidden="true"><DisclosureIcon expanded={contextSubmenu === "format"} /></span></button>
             {contextSubmenu === "format" && (
               <div className="editor-context-submenu" role="group" aria-label="格式">
                 <button
@@ -122,7 +123,7 @@ export function EditorContextMenu({ editor, readonly, contextMenu, contextMenuRe
               className="editor-context-item editor-context-parent"
               aria-expanded={contextSubmenu === "paragraph"}
               onClick={() => setContextSubmenu((current) => current === "paragraph" ? null : "paragraph")}
-            ><span>段落</span><span aria-hidden="true">{contextSubmenu === "paragraph" ? "▾" : "▸"}</span></button>
+            ><span>段落</span><span aria-hidden="true"><DisclosureIcon expanded={contextSubmenu === "paragraph"} /></span></button>
             {contextSubmenu === "paragraph" && (
               <div className="editor-context-submenu" role="group" aria-label="段落">
                 <button
@@ -163,7 +164,7 @@ export function EditorContextMenu({ editor, readonly, contextMenu, contextMenuRe
               className="editor-context-item editor-context-parent"
               aria-expanded={contextSubmenu === "insert"}
               onClick={() => setContextSubmenu((current) => current === "insert" ? null : "insert")}
-            ><span>插入</span><span aria-hidden="true">{contextSubmenu === "insert" ? "▾" : "▸"}</span></button>
+            ><span>插入</span><span aria-hidden="true"><DisclosureIcon expanded={contextSubmenu === "insert"} /></span></button>
             {contextSubmenu === "insert" && (
               <div className="editor-context-submenu" role="group" aria-label="插入">
                 <button

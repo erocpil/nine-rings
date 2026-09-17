@@ -1,3 +1,4 @@
+import { EditorFoldIcon } from "./EditorFoldIcon";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
@@ -728,7 +729,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
           onTouchEnd={(event) => runGutterActionFromTouch(event, () => onBlockSelect(block.pos))}
           onClick={(event) => runGutterActionFromClick(event, () => onBlockSelect(block.pos))}
         >
-          <span className="editor-block-select-fold" aria-hidden="true">{block.heading ? block.folded ? "▶" : "▼" : ""}</span>
+          <span className="editor-block-select-fold" aria-hidden="true">{block.heading && <EditorFoldIcon expanded={!block.folded} />}</span>
           <span className={blockHasBookmark(block) ? "bookmarked" : ""} aria-hidden="true">{block.index}</span>
         </button>
       ))}
@@ -770,7 +771,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
           onTouchCancel={cancelGutterTouch}
           onTouchEnd={(event) => runGutterActionFromTouch(event, () => onHeadingFoldToggle(block.pos))}
           onClick={(event) => runGutterActionFromClick(event, () => onHeadingFoldToggle(block.pos))}
-        >{block.folded ? "▶" : "▼"}</button>
+        ><EditorFoldIcon expanded={!block.folded} /></button>
         , host, `fold-${block.pos}`);
       })}
       {selectedBlockIndexes.length === 0 && !readonly && showInsertButtons && boundaries.map((boundary) => (

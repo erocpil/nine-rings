@@ -1,3 +1,5 @@
+import { DisclosureIcon } from "./DisclosureIcon";
+import { SettingsFoldIcons } from "./SettingsFoldIcons";
 import { HotkeyConfig } from "./SettingsHotkeys";
 import { Field, SettingsSection } from "./SettingsFields";
 import { useCallback, useEffect, useState, useRef } from "react";
@@ -724,6 +726,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             </Field>
 
             {/* ── 显示块编号 ── */}
+            <Field label="折叠标识" desc="用于文本区标题、代码／引用块和文档目录；即时生效，不修改正文" visible={settingsPage === "editor"}>
+              <SettingsFoldIcons config={config} onChange={update} />
+            </Field>
+
             <Field label="显示块编号" desc="按顶层段落、列表、图片等内容块编号" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
                 <input
@@ -793,7 +799,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                     setVimConfig(next); localStorage.setItem(VIM_CONFIG_KEY, next);
                   }}><option value="2">2</option><option value="4">4</option><option value="8">8</option></select></label>
                 </div>
-                <details><summary>高级 set 配置</summary><textarea className="settings-input vim-config-editor" value={vimConfig} spellCheck={false} aria-label="Vim set 配置" onChange={(event) => { setVimConfig(event.target.value); localStorage.setItem(VIM_CONFIG_KEY, event.target.value); }} onBlur={() => { const next = normalizeVimConfig(vimConfig); setVimConfig(next); localStorage.setItem(VIM_CONFIG_KEY, next); }} rows={5} /><div className="settings-hint">支持 number、relativenumber、expandtab、tabstop、shiftwidth、ignorecase、smartcase；换行请在编辑器排版中设置。</div></details>
+                <details><summary className="disclosure-summary"><DisclosureIcon />高级 set 配置</summary><textarea className="settings-input vim-config-editor" value={vimConfig} spellCheck={false} aria-label="Vim set 配置" onChange={(event) => { setVimConfig(event.target.value); localStorage.setItem(VIM_CONFIG_KEY, event.target.value); }} onBlur={() => { const next = normalizeVimConfig(vimConfig); setVimConfig(next); localStorage.setItem(VIM_CONFIG_KEY, next); }} rows={5} /><div className="settings-hint">支持 number、relativenumber、expandtab、tabstop、shiftwidth、ignorecase、smartcase；换行请在编辑器排版中设置。</div></details>
               </div>
             </Field>
 

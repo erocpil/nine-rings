@@ -232,6 +232,9 @@ export interface AppConfig {
   dev_port: number;
   highlight_active_line: boolean;
   editor_show_line_numbers: boolean;
+  editor_fold_icon_style: "chevron" | "triangle" | "custom";
+  editor_fold_icon_collapsed: string;
+  editor_fold_icon_expanded: string;
   editor_show_status_block_number: boolean;
   editor_show_status_bar: boolean;
   editor_readonly_heading_fold: boolean;

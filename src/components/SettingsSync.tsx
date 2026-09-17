@@ -1,3 +1,4 @@
+import { DisclosureIcon } from "./DisclosureIcon";
 import { OperationError } from "./OperationError";
 import { syncErrorMessage } from "../lib/sync/errors";
 import { useConfirmation } from "./ConfirmationDialog";
@@ -83,7 +84,7 @@ function SyncDocumentList({
   const visible = items.slice(0, 50);
   return (
     <details className={`sync-diff-group ${danger ? "danger" : ""}`}>
-      <summary>{title} <strong>{items.length}</strong></summary>
+      <summary className="disclosure-summary"><DisclosureIcon />{title} <strong>{items.length}</strong></summary>
       <p>{description}</p>
       <ul>
         {visible.map((item) => (

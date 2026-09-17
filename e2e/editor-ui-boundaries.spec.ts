@@ -51,11 +51,11 @@ test("手机工具栏菜单互斥、重复点击与外部关闭，标题分页�
   await page.getByTitle("块", { exact: true }).click();
   await expect(dropdowns).toHaveCount(0);
   await page.getByTitle("标题", { exact: true }).click();
-  await page.getByRole("button", { name: "▶ H1–2 H6", exact: true }).click();
+  await page.getByRole("button", { name: "H1–2 H6", exact: true }).click();
   await page.locator(".ProseMirror").click();
   await expect(dropdowns).toHaveCount(0);
   await page.getByTitle("标题", { exact: true }).click();
-  await expect(page.getByRole("button", { name: "◀ H3–H5", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "H3–H5", exact: true })).toBeVisible();
   await page.getByTitle("更多编辑操作").click();
   await expect(dropdowns).toHaveCount(0);
   const more = page.getByRole("dialog", { name: "更多编辑操作", exact: true });

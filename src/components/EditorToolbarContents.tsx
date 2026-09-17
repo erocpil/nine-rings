@@ -1,3 +1,4 @@
+import { DisclosureIcon } from "./DisclosureIcon";
 import React, { type ReactNode, type RefObject } from "react";
 import type { Editor } from "@tiptap/core";
 import type { EditorToolbarMenu } from "../hooks/useEditorToolbarMenus";
@@ -89,7 +90,7 @@ const PRESET_COLORS = [
 ];
 
 const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32];
-const dropdownCaret = <span className="toolbar-dropdown-caret" aria-hidden="true">▾</span>;
+const dropdownCaret = <span className="toolbar-dropdown-caret" aria-hidden="true"><DisclosureIcon expanded /></span>;
 
 const btn = (label: ReactNode, action: () => void, active?: boolean, title?: string, disabled?: boolean) => (
   <button
@@ -259,7 +260,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
               type="button"
               title="切换 H3–5 / H1–2 H6"
             >
-              {headingPage === 0 ? "▶ H1–2 H6" : "◀ H3–H5"}
+              <ToolbarIcon name={headingPage === 0 ? "chevronRight" : "chevronLeft"} />{headingPage === 0 ? "H1–2 H6" : "H3–H5"}
             </button>
           </div>
         )}

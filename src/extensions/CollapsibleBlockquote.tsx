@@ -1,3 +1,4 @@
+import { EditorFoldIcon } from "../components/EditorFoldIcon";
 import Blockquote from "@tiptap/extension-blockquote";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useRef, useState } from "react";
@@ -106,7 +107,7 @@ function CollapsibleBlockquoteView({ node, editor, getPos }: NodeViewProps) {
           aria-label={collapsed ? "展开引用块" : "折叠引用块"}
           aria-expanded={!collapsed}
           title={collapsed ? "展开引用块" : "折叠引用块"}
-        ><span className="blockquote-fold-icon" aria-hidden="true">{collapsed ? "▶" : "▼"}</span></button>
+        ><span className="blockquote-fold-icon" aria-hidden="true"><EditorFoldIcon expanded={!collapsed} /></span></button>
       </div>
       <NodeViewContent className="blockquote-content" />
     </NodeViewWrapper>

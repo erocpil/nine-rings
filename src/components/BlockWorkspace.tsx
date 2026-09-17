@@ -1,3 +1,4 @@
+import { DisclosureIcon } from "./DisclosureIcon";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { preserveReadingPositions } from "../lib/reading-position";
 import { createPortal } from "react-dom";
@@ -404,7 +405,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
             if (event.target.value === "paragraph") editor.chain().focus().setParagraph().run();
             else editor.chain().focus().setHeading({ level: Number(event.target.value) as 1 | 2 | 3 | 4 | 5 | 6 }).run();
           }}><option value="paragraph">正文</option>{[1, 2, 3, 4, 5, 6].map(level => <option key={level} value={level}>H{level}</option>)}</select>
-          <span className="toolbar-dropdown-caret" aria-hidden="true">▾</span>
+          <span className="toolbar-dropdown-caret" aria-hidden="true"><DisclosureIcon expanded /></span>
         </span>
         <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => editor.chain().focus().toggleBold().run()} title="粗体"><strong>B</strong></button>
         <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => editor.chain().focus().toggleItalic().run()} title="斜体"><em>I</em></button>
@@ -438,7 +439,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
           <select aria-label="文字字号" defaultValue="" onChange={event => preserveReadingPositions(() => editor.chain().focus(undefined, { scrollIntoView: false }).setMark("textStyle", { fontSize: event.target.value || null }).run())}>
             <option value="">默认字号</option>{[12, 14, 16, 18, 20, 24, 32].map(size => <option key={size} value={size}>{size}</option>)}
           </select>
-          <span className="toolbar-dropdown-caret" aria-hidden="true">▾</span>
+          <span className="toolbar-dropdown-caret" aria-hidden="true"><DisclosureIcon expanded /></span>
         </span>
       </>}
     </div>}

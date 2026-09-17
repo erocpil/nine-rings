@@ -1,3 +1,4 @@
+import { EditorFoldIcon } from "./EditorFoldIcon";
 import React, {
   useCallback,
   useEffect,
@@ -180,7 +181,7 @@ function renderBlock(
               aria-expanded={!collapsed}
               onClick={() => update(pos, { collapsed: !collapsed })}
             >
-              {collapsed ? "▶" : "▼"}
+              <EditorFoldIcon expanded={!collapsed} />
             </button>
           </div>
           {!collapsed && <div className="blockquote-content">{children}</div>}
@@ -226,7 +227,7 @@ function renderBlock(
               aria-expanded={!collapsed}
               onClick={() => update(pos, { collapsed: !collapsed })}
             >
-              {collapsed ? "▶" : "▼"}
+              <EditorFoldIcon expanded={!collapsed} />
             </button>
           </div>
           {!collapsed && (
@@ -895,7 +896,7 @@ export function ReadonlyVirtualNote(
                       disabled={section.end <= section.headingEnd}
                       onClick={() => toggleHeading(section.pos)}
                     >
-                      {folds.has(section.key) ? "▶" : "▼"}
+                      <EditorFoldIcon expanded={!folds.has(section.key)} />
                     </button>
                     <button
                       type="button"
@@ -1072,7 +1073,7 @@ export function ReadonlyVirtualNote(
                       aria-expanded={!folds.has(section.key)}
                       onClick={() => toggleHeading(block.pos)}
                     >
-                      {folds.has(section.key) ? "▶" : "▼"}
+                      <EditorFoldIcon expanded={!folds.has(section.key)} />
                     </button>
                   )}
                   {props.showLineNumbers && <span>{block.number}</span>}

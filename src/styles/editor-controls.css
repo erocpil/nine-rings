@@ -68,6 +68,28 @@
   vertical-align: middle;
 }
 
+.disclosure-icon {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  pointer-events: none;
+}
+.disclosure-icon > .toolbar-icon { width: 14px; height: 14px; }
+.disclosure-icon.expanded { transform: rotate(90deg); }
+.editor-fold-symbol { display: inline-flex; width: 14px; height: 14px; align-items: center; justify-content: center; vertical-align: middle; line-height: 1; white-space: nowrap; pointer-events: none; }
+.settings-fold-icons { display: grid; gap: 8px; width: min(100%, 320px); }
+.settings-fold-icons label { display: grid; gap: 4px; }
+.settings-fold-preview { display: flex; gap: 20px; align-items: center; }
+summary.disclosure-summary { list-style: none; }
+summary.disclosure-summary::-webkit-details-marker { display: none; }
+summary.disclosure-summary::marker { content: ""; }
+summary.disclosure-summary > .disclosure-icon { margin-inline-end: 4px; }
+details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotate(90deg); }
+
 .toolbar-icon {
   width: 17px;
   height: 17px;

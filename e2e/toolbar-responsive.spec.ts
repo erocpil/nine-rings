@@ -86,7 +86,7 @@ test.describe("响应式编辑器工具栏", () => {
     await expect(toolbar).toHaveClass(/toolbar-compact/);
     await expectNoHorizontalOverflow(page);
 
-    await page.getByRole("button", { name: "块 ▾" }).click();
+    await page.getByRole("button", { name: "块", exact: true }).click();
     const insertTable = page.getByRole("button", { name: "▦ 插入表格" });
     await expect(insertTable).toBeVisible();
     await expect.poll(() => insertTable.evaluate((button) => {
@@ -168,7 +168,7 @@ test.describe("响应式编辑器工具栏", () => {
     await page.setViewportSize({ width: 1100, height: 700 });
     await createBlankNote(page);
 
-    await page.getByRole("button", { name: "块 ▾" }).click();
+    await page.getByRole("button", { name: "块", exact: true }).click();
     await page.getByRole("button", { name: "▦ 插入表格" }).click();
     const table = page.locator(".ProseMirror table");
     const firstCell = table.locator("th").first();

@@ -44,7 +44,7 @@ const entries: SettingsSearchEntry[] = [
     title: "编辑器行为",
     description: "外观与排版 › 编辑器 · 块编号、状态栏、Vim 与折叠",
     keywords:
-      "编辑器 光标 高亮 块号 编号 状态栏 只读 双击 标题 折叠 软换行 vim 右键 菜单",
+      "编辑器 光标 高亮 块号 编号 状态栏 只读 双击 标题 折叠 标识 箭头 三角 自定义 符号 软换行 vim 右键 菜单",
     page: "editor",
   },
   {

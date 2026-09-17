@@ -1,3 +1,4 @@
+import { EditorFoldIcon } from "./EditorFoldIcon";
 import {
   memo,
   useCallback,
@@ -262,7 +263,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
           type="button"
           aria-label={`${folded ? "展开" : "折叠"}章节 ${item.text}`}
           onClick={() => onToggleFold(item.pos)}
-        >{folded ? "▶" : "▼"}</button>
+        ><EditorFoldIcon expanded={!folded} /></button>
         <button className="document-outline-link" type="button" onClick={() => onJump(item)}>
           <span className="document-outline-level">H{item.level}</span>
           <span className="document-outline-text">{item.text}</span>

@@ -8,7 +8,7 @@ async function createBlankNote(page: Page) {
 }
 
 async function activateBlock(page: Page, name: "❝ 引用" | "⏹ 代码块") {
-  await page.getByRole("button", { name: "块 ▾" }).click();
+  await page.getByRole("button", { name: "块", exact: true }).click();
   await page.getByRole("button", { name, exact: true }).click();
 }
 
@@ -28,7 +28,7 @@ test.describe("结构块退出行为", () => {
     // 不会在首次打开时同步触发布局读取。
     await expect(editor.locator(".code-block-gutter span")).toHaveCount(0);
 
-    await page.getByRole("button", { name: "块 ▾" }).click();
+    await page.getByRole("button", { name: "块", exact: true }).click();
     await page.getByRole("button", { name: "□ 显示代码行号", exact: true }).click();
 
     const gutter = editor.locator(".code-block-gutter");
@@ -176,7 +176,7 @@ test.describe("触屏代码块退出行为", () => {
       await editor.press("Enter");
       await editor.type(line);
     }
-    await page.getByRole("button", { name: "块 ▾" }).click();
+    await page.getByRole("button", { name: "块", exact: true }).click();
     await page.getByRole("button", { name: "□ 显示代码行号", exact: true }).click();
 
     const block = editor.locator(".code-block-wrap");
@@ -261,7 +261,7 @@ test.describe("触屏代码块退出行为", () => {
     await editor.press("Enter");
     await editor.press("Enter");
 
-    await page.getByRole("button", { name: "块 ▾" }).click();
+    await page.getByRole("button", { name: "块", exact: true }).click();
     await page.getByRole("button", { name: /退出当前块/ }).click();
     await expect(editor.locator(":scope > p")).toHaveCount(1);
     await expect(editor.locator(".code-block-wrap code")).toHaveText("mobile-code\n\n");

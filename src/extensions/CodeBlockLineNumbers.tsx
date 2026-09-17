@@ -1,3 +1,4 @@
+import { EditorFoldIcon } from "../components/EditorFoldIcon";
 import { NodeViewWrapper, NodeViewContent, type NodeViewProps } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import { Plugin, PluginKey, type Transaction } from "@tiptap/pm/state";
@@ -379,7 +380,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
               aria-label={collapsed ? "展开代码块" : "折叠代码块"}
               aria-expanded={!collapsed}
               title={collapsed ? "展开代码块" : "折叠代码块"}
-            >{collapsed ? "▶" : "▼"}</button>
+            ><EditorFoldIcon expanded={!collapsed} /></button>
           </div>
         </div>
         <div className="code-block-inner">

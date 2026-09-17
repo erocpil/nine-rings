@@ -1,3 +1,4 @@
+import { EditorFoldIcon } from "./EditorFoldIcon";
 import { ReaderToolbar, type ReaderToolPanel } from "./ReaderToolbar";
 import { normalizeEpubWidth } from "../lib/reader-width";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -1244,7 +1245,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
               const next = new Set(current);
               if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId);
               return next;
-            })}>{collapsed ? "▸" : "▾"}</button>
+            })}><EditorFoldIcon expanded={!collapsed} /></button>
             : <span className="epub-toc-disclosure-placeholder" />}
           <button type="button" className={`epub-toc-link${itemChapter === chapter ? " active" : ""}`} onClick={() => { navigateTo(item.path, item.fragment); if (embedded) setTocOpen(false); }}>{item.label}</button>
         </div>
