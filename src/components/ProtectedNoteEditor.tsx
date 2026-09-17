@@ -31,9 +31,11 @@ export function ProtectedNoteEditor({ props, render }: { props: NoteEditorProps;
       void Promise.resolve().then(() => flush.current?.()).then(() => close?.()).catch(() => {
         // Keep the key only for retry/emergency encrypted export of failed saves.
       });
-      sessionHeadingFoldStore.clear(props.noteId);
+      // Heading keys contain document text: discard them when an encrypted
+      // session closes, but retain ordinary documents' reading state.
+      if (encrypted) sessionHeadingFoldStore.clear(props.noteId);
     };
-  }, [props.noteId]);
+  }, [props.noteId, encrypted]);
   const run = async (action: () => Promise<void>) => {
     if (busy) return;
     setBusy(true); setError("");
