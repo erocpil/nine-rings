@@ -1867,7 +1867,6 @@
 
 .doc-tree-selected {
   background: var(--active-bg) !important;
-  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .doc-tree-selected .doc-tree-name {

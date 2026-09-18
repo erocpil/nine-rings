@@ -1934,19 +1934,25 @@
   position: absolute;
   inset: 0 -8px;
 }
-/* 始终显示一条半透明线 */
+/* Keep the wide element as the drag target; its visible guide stays quiet
+   until the pointer reaches it. */
 .sidebar-divider::after {
   content: "";
   position: absolute;
-  inset: 0;
-  background: var(--border);
-  opacity: 0.3;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: color-mix(in srgb, var(--border) 45%, transparent);
+  opacity: 0.12;
   pointer-events: none;
+  transition: background-color 0.15s, opacity 0.15s;
 }
 
 .sidebar-divider:hover::after {
   background: var(--accent);
-  opacity: 0.5;
+  opacity: 0.58;
 }
 
 /* 侧栏完全隐藏 */
