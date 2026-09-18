@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod db;
 pub mod export;
+mod fullscreen;
 pub mod service;
 #[cfg(any(target_os = "windows", test))]
 mod webview_profile;
@@ -100,27 +101,34 @@ pub struct DataDir(pub std::path::PathBuf);
 /// 所需 window style mask，进入和退出均可靠。
 fn toggle_main_window_fullscreen(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        let is_fullscreen = window.is_fullscreen().unwrap_or(false);
-        if let Err(error) = window.set_fullscreen(!is_fullscreen) {
-            log::warn!("failed to toggle main window fullscreen: {}", error);
-            return;
+        let target = window.clone();
+        if let Err(error) = window.run_on_main_thread(move || toggle_window_fullscreen(&target)) {
+            log::warn!("failed to schedule main window fullscreen: {}", error);
         }
+    }
+}
 
-        // Linux frameless WebKitGTK 退出全屏后不会自动 reflow。
-        #[cfg(target_os = "linux")]
-        {
-            std::thread::sleep(std::time::Duration::from_millis(50));
-            if let Ok(size) = window.inner_size() {
-                let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(
-                    size.width + 1,
-                    size.height,
-                )));
-                std::thread::sleep(std::time::Duration::from_millis(16));
-                let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(
-                    size.width,
-                    size.height,
-                )));
-            }
+fn toggle_window_fullscreen(window: &tauri::WebviewWindow) {
+    let is_fullscreen = window.is_fullscreen().unwrap_or(false);
+    if let Err(error) = fullscreen::set_fullscreen(window, !is_fullscreen) {
+        log::warn!("failed to toggle main window fullscreen: {}", error);
+        return;
+    }
+
+    // Linux frameless WebKitGTK 退出全屏后不会自动 reflow。
+    #[cfg(target_os = "linux")]
+    {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        if let Ok(size) = window.inner_size() {
+            let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(
+                size.width + 1,
+                size.height,
+            )));
+            std::thread::sleep(std::time::Duration::from_millis(16));
+            let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(
+                size.width,
+                size.height,
+            )));
         }
     }
 }
@@ -551,6 +559,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            commands::window::set_window_fullscreen,
             commands::external_link::open_external_link,
             commands::doc_tree::get_document_source_formats,
             commands::protection::protection_snapshot,

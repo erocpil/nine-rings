@@ -19,7 +19,7 @@ for (const native of [false, true]) {
         mockWindows("main");
         mockIPC((command, args) => {
           if (command === "plugin:window|is_fullscreen") return fullscreen;
-          if (command === "plugin:window|set_fullscreen") fullscreen = Boolean((args as { value: boolean }).value);
+          if (command === "set_window_fullscreen") fullscreen = Boolean((args as { fullscreen: boolean }).fullscreen);
           return null;
         }, { shouldMockEvents: true });
         const { useNotesStore } = await load("/src/stores/useNotesStore.ts") as typeof import("../src/stores/useNotesStore");

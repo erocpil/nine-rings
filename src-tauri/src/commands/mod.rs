@@ -7,3 +7,4 @@ pub mod query;
 pub mod protection;
 pub mod quick_capture;
 pub mod template;
+pub mod window;

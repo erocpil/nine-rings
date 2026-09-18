@@ -66,8 +66,8 @@ def check_rust_command_exists(command_name: str) -> bool:
             fpath = os.path.join(root, fname)
             with open(fpath) as f:
                 content = f.read()
-            # 匹配 #[tauri::command] 或 #[command] 后跟 pub fn command_name
-            pattern = rf'#\[(?:tauri::)?command\]\s*\n\s*pub\s+fn\s+{re.escape(command_name)}\b'
+            # 匹配同步和异步的公开 Tauri command 函数。
+            pattern = rf'#\[(?:tauri::)?command\]\s*\n\s*pub\s+(?:async\s+)?fn\s+{re.escape(command_name)}\b'
             if re.search(pattern, content, re.MULTILINE):
                 return True
     return False

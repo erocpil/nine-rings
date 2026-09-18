@@ -19,12 +19,16 @@ async function mountTitlebar(page: Page, platform = "MacIntel", failOnce = false
     const commands: string[] = [];
     mockWindows("main");
     mockIPC((command, args) => {
+      if (command === "set_window_fullscreen") {
+        commands.push(command);
+        document.body.dataset.windowCommands = JSON.stringify(commands);
+        fullscreen = Boolean((args as { fullscreen: boolean }).fullscreen);
+      }
       if (command.startsWith("plugin:window|")) {
         commands.push(command.split("|")[1]);
         document.body.dataset.windowCommands = JSON.stringify(commands);
       }
       if (command === "plugin:window|is_fullscreen") return fullscreen;
-      if (command === "plugin:window|set_fullscreen") fullscreen = Boolean((args as { value: boolean }).value);
       if (command.endsWith("|toggle_maximize") || command.endsWith("|internal_toggle_maximize")) {
         if (rejectNext) { rejectNext = false; throw new Error("test maximize failure"); }
         maximized = !maximized;
@@ -67,7 +71,7 @@ test("macOS 双击标题文字和空白只最大化/还原，不进入全屏或�
   const log = await commands(page);
   expect(log.filter(command => command === "toggle_maximize")).toHaveLength(2);
   expect(log).not.toContain("internal_toggle_maximize");
-  expect(log).not.toContain("set_fullscreen");
+  expect(log).not.toContain("set_window_fullscreen");
   expect(log).toContain("start_dragging");
 });
 
@@ -87,7 +91,7 @@ test("macOS 双击容许轻微移动，拖动、右键及窗口按钮不触发�
   await bar.getByRole("button", { name: "退出全屏", exact: true }).waitFor();
   await bar.dblclick({ position: { x: 500, y: 18 } });
   expect((await commands(page)).filter(command => command === "toggle_maximize")).toHaveLength(1);
-  expect((await commands(page)).filter(command => command === "set_fullscreen")).toHaveLength(1);
+  expect((await commands(page)).filter(command => command === "set_window_fullscreen")).toHaveLength(1);
 });
 
 test("macOS 最大化请求失败后仍可再次双击", async ({ page }) => {
@@ -104,4 +108,16 @@ test("Windows 保留原来的默认标题栏处理", async ({ page }) => {
   await expect.poll(() => page.evaluate(() => document.body.dataset.maximized)).toBe("true");
   expect(await commands(page)).toContain("internal_toggle_maximize");
   expect(await commands(page)).not.toContain("toggle_maximize");
+});
+
+test("Windows 双击最大化后的全屏按钮通过原生统一入口进入和退出", async ({ page }) => {
+  await mountTitlebar(page, "Win32");
+  await page.locator(".titlebar-title").dblclick();
+  await expect.poll(() => page.evaluate(() => document.body.dataset.maximized)).toBe("true");
+  await page.getByRole("button", { name: "进入全屏", exact: true }).click();
+  await page.getByRole("button", { name: "退出全屏", exact: true }).click();
+  await expect(page.getByRole("button", { name: "进入全屏", exact: true })).toBeVisible();
+  const log = await commands(page);
+  expect(log.filter(command => command === "set_window_fullscreen")).toHaveLength(2);
+  expect(log).not.toContain("set_fullscreen");
 });

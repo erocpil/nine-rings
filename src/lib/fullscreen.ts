@@ -7,12 +7,13 @@ export async function toggleTauriFullscreen(): Promise<boolean | null> {
   if (!isTauriRuntime()) return null;
 
   const { getCurrentWindow } = await import("@tauri-apps/api/window");
+  const { invoke } = await import("@tauri-apps/api/core");
   const appWindow = getCurrentWindow();
   const fullscreen = await appWindow.isFullscreen();
 
   window.dispatchEvent(new CustomEvent(FULLSCREEN_WILL_CHANGE_EVENT, {
     detail: { fullscreen: !fullscreen },
   }));
-  await appWindow.setFullscreen(!fullscreen);
+  await invoke("set_window_fullscreen", { fullscreen: !fullscreen });
   return !fullscreen;
 }
