@@ -261,6 +261,7 @@
 .app-desktop-workspace :is(
   .note-title-row,
   .vr-title,
+  .vr-actions,
   .editor-menu,
   .document-panel-slot .document-outline-header,
   .document-panel-slot .document-bookmark-header,
