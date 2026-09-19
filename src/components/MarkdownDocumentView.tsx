@@ -11,6 +11,7 @@ import { MarkdownEscapeRepair } from "./MarkdownEscapeRepair";
 import { api } from "../lib/api";
 import { useMarkdownViewPosition } from "../hooks/useMarkdownViewPosition";
 import { patchReadingState, readReadingState } from "../lib/reading-state";
+import { isPrimaryShortcutModifier } from "../lib/shortcuts";
 
 /** One visible editing surface, one canonical autosave stream for both views. */
 export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps; render: (props: NoteEditorProps) => ReactNode }) {
@@ -139,7 +140,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       }} />
       <textarea ref={viewPosition.area} aria-label="Markdown 源码" value={source} readOnly={Boolean(props.readonly) || busy} spellCheck={false}
         onKeyDown={event => {
-          if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && !event.nativeEvent.isComposing && event.key.toLowerCase() === "a") {
+          if (isPrimaryShortcutModifier(event) && !event.altKey && !event.shiftKey && !event.nativeEvent.isComposing && event.key.toLowerCase() === "a") {
             event.preventDefault(); event.stopPropagation(); event.currentTarget.select();
           }
         }}

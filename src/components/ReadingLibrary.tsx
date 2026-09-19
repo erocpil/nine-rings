@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { isPrimaryShortcutModifier } from "../lib/shortcuts";
 import {
   deleteLocalPdf,
   importLocalPdf,
@@ -299,7 +300,7 @@ export default function ReadingLibrary({
       aria-label="阅读资料库"
       onKeyDown={(event) => {
         if (
-          (event.ctrlKey || event.metaKey) &&
+          isPrimaryShortcutModifier(event) &&
           event.key.toLowerCase() === "f"
         ) {
           event.preventDefault();

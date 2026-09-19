@@ -1,5 +1,6 @@
 import { ReaderToolbar, type ReaderToolPanel } from "./ReaderToolbar";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { isPrimaryShortcutModifier } from "../lib/shortcuts";
 import { recordReaderDiagnostic } from "../lib/reader-diagnostics";
 import { lockedPdfScale, normalizePdfWidth } from "../lib/reader-width";
 import { PdfPageCache } from "../lib/pdf-page-cache";
@@ -1328,7 +1329,7 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
       const sidebar = readerRef.current?.closest('.desktop-reader-panel');
       if (sidebar && (sidebar.closest('[hidden], .sidebar-hidden') || !(event.target instanceof Node) || !sidebar.contains(event.target))) return;
       if (!pdf || event.defaultPrevented) return;
-      if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === "f") {
+      if (isPrimaryShortcutModifier(event) && event.key.toLocaleLowerCase() === "f") {
         event.preventDefault();
         setOutlineOpen(false);
         setToolsPanel("search");

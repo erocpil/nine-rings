@@ -10,6 +10,24 @@ export interface ShortcutKeyEvent {
   altKey: boolean;
 }
 
+export function isMacPlatform(platform = typeof navigator === "undefined" ? "" : navigator.platform): boolean {
+  return /Mac|iPhone|iPad|iPod/i.test(platform);
+}
+
+/** macOS uses Command for app actions; Control belongs to native text editing. */
+export function isPrimaryShortcutModifier(e: Pick<ShortcutKeyEvent, "ctrlKey" | "metaKey">, platform?: string): boolean {
+  return isMacPlatform(platform) ? e.metaKey : e.ctrlKey || e.metaKey;
+}
+
+/** Keep Cocoa text commands out of system-wide configurable hotkeys. */
+export function isMacTextEditingShortcut(shortcut: string, platform?: string): boolean {
+  if (!isMacPlatform(platform)) return false;
+  const parts = shortcut.toLowerCase().replace(/\s+/g, "").split("+");
+  return parts.some(part => part === "ctrl" || part === "control")
+    && parts.every(part => ["ctrl", "control", "shift"].includes(part) || /^[abdefhklnoptvy]$/.test(part))
+    && parts.filter(part => /^[abdefhklnoptvy]$/.test(part)).length === 1;
+}
+
 export type ShortcutAction =
   | "fullscreen"
   | "openSettings"
@@ -31,7 +49,7 @@ export function isDocumentFindShortcut(shortcut: string): boolean {
   ].includes(normalized);
 }
 
-/** 识别编辑器内查找按键；Ctrl+F 专用于 Vim，搜索使用 Cmd+F 或 Alt+F。 */
+/** 查找使用 Cmd+F 或 Alt+F；Ctrl+F 留给 macOS 文本移动或 Vim 翻页。 */
 export function isDocumentFindKeyEvent(e: ShortcutKeyEvent): boolean {
   const isF = e.code === "KeyF" || e.key.toLocaleLowerCase() === "f";
   if (!isF || e.shiftKey) return false;
@@ -53,7 +71,7 @@ export function isEditorLineJumpKeyEvent(e: ShortcutKeyEvent): boolean {
  * 将一次按键解析为 App 级快捷键动作。
  * 返回 null 表示该按键不属于 App 级快捷键（应放行给编辑器/浏览器）。
  */
-export function resolveShortcut(e: ShortcutKeyEvent): ShortcutAction | null {
+export function resolveShortcut(e: ShortcutKeyEvent, platform?: string): ShortcutAction | null {
   // macOS 原生全屏快捷键。要求 Ctrl 与 Command 同时按下，避免占用
   // 编辑器常用的 Cmd+F / Ctrl+F。
   if (
@@ -76,7 +94,7 @@ export function resolveShortcut(e: ShortcutKeyEvent): ShortcutAction | null {
   if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === "e") {
     return "focusSearch"; // Alt+E 搜索
   }
-  const ctrl = e.ctrlKey || e.metaKey;
+  const ctrl = isPrimaryShortcutModifier(e, platform);
   if (!ctrl) return null;
   if (!e.shiftKey && !e.altKey && e.key.toLowerCase() === "p") {
     return "openQuickSwitcher";

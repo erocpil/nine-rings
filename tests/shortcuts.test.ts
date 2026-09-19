@@ -8,14 +8,21 @@
  */
 
 import {
-  resolveShortcut,
+  resolveShortcut as resolvePlatformShortcut,
   isDocumentFindShortcut,
   isDocumentFindKeyEvent,
   isEditorLineJumpKeyEvent,
   isEditorLineJumpShortcut,
   isEditableTarget,
   shouldIgnoreShortcut,
+  isMacPlatform,
+  isPrimaryShortcutModifier,
+  isMacTextEditingShortcut,
 } from "../src/lib/shortcuts";
+
+// Existing mappings describe Windows/Linux; do not depend on the test host OS.
+const resolveShortcut = (event: Parameters<typeof resolvePlatformShortcut>[0], platform = "Win32") =>
+  resolvePlatformShortcut(event, platform);
 
 let passed = 0;
 let failed = 0;
@@ -66,6 +73,24 @@ assert(resolveShortcut(key({ key: "b", ctrlKey: true })) === null, "Ctrl+B 放�
 assert(resolveShortcut(key({ key: "e" })) === null, "无修饰 e 不映射");
 assert(resolveShortcut(key({ key: "e", altKey: true })) === "focusSearch", "Alt+E → focusSearch");
 assert(resolveShortcut(key({ key: "E", altKey: true })) === "focusSearch", "Alt+E（大写）→ focusSearch");
+
+assert(isMacPlatform("MacIntel"), "识别 macOS 平台");
+assert(!isMacPlatform("Win32"), "Windows 不使用 macOS 文本键");
+for (const letter of ["a", "b", "d", "e", "f", "h", "k", "l", "n", "o", "p", "t", "v", "y"]) {
+  assert(resolveShortcut(key({ key: letter, ctrlKey: true }), "MacIntel") === null, `Mac Ctrl+${letter} 不触发应用动作`);
+  assert(isMacTextEditingShortcut(`Control+${letter}`, "MacIntel"), `Mac Ctrl+${letter} 禁止注册为全局热键`);
+  assert(!isMacTextEditingShortcut(`Control+${letter}`, "Win32"), `Windows Ctrl+${letter} 不受 Mac 保留规则影响`);
+}
+assert(resolveShortcut(key({ key: "p", metaKey: true }), "MacIntel") === "openQuickSwitcher", "Mac Cmd+P 打开文档切换器");
+assert(resolveShortcut(key({ key: "f", ctrlKey: true, shiftKey: true }), "MacIntel") === null, "Mac Ctrl+Shift+F 留给文本选择");
+assert(resolveShortcut(key({ key: "f", metaKey: true, shiftKey: true }), "MacIntel") === "focusSearch", "Mac Cmd+Shift+F 打开全局搜索");
+assert(resolveShortcut(key({ key: "p", ctrlKey: true }), "Win32") === "openQuickSwitcher", "Windows Ctrl+P 保持文档切换");
+assert(!isPrimaryShortcutModifier(key({ key: "a", ctrlKey: true }), "MacIntel"), "Mac Ctrl+A 不当作应用全选");
+assert(isPrimaryShortcutModifier(key({ key: "a", metaKey: true }), "MacIntel"), "Mac Cmd+A 保持应用全选");
+assert(isMacTextEditingShortcut("Shift + Ctrl + F", "MacIntel"), "Mac 扩展选择组合仍保留");
+assert(!isMacTextEditingShortcut("CommandOrControl+P", "MacIntel"), "Mac 可注册 CommandOrControl+P");
+assert(!isMacTextEditingShortcut("Control+Alt+P", "MacIntel"), "带 Option 的自定义组合不误拦截");
+assert(!isMacTextEditingShortcut("Control+Command+F", "MacIntel"), "原生全屏组合不误当作文本键");
 
 assert(isDocumentFindShortcut("CommandOrControl+F") === true, "CommandOrControl+F 仍是编辑器保留键");
 assert(isDocumentFindShortcut("Ctrl + F") === true, "Ctrl+F 保留给 Vim 翻页");

@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Annotation, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { vim } from "@replit/codemirror-vim";
+import { isPrimaryShortcutModifier } from "../lib/shortcuts";
 
 interface Props { value: string; onChange: (value: string) => void; onUndo: () => void; onRedo: () => void; onModeChange?: (mode: "normal" | "insert") => void; wrap: boolean; }
 const sourceSync = Annotation.define<boolean>();
@@ -44,7 +45,7 @@ export function CodeMirrorBlockEditor({ value, onChange, onUndo, onRedo, onModeC
   return <div ref={host} className="codemirror-block-editor" aria-label="代码块 Vim 编辑器" onKeyDownCapture={event => {
     // Vim's DOM handlers run before CodeMirror keymaps. Intercept document
     // history shortcuts here so neither editor can maintain a competing redo.
-    if (event.nativeEvent.isComposing || event.altKey || !(event.ctrlKey || event.metaKey)) return;
+    if (event.nativeEvent.isComposing || event.altKey || !isPrimaryShortcutModifier(event)) return;
     const key = event.key.toLowerCase();
     if (key !== "z" && key !== "y") return;
     event.preventDefault(); event.stopPropagation();

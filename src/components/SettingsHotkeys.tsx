@@ -6,6 +6,7 @@ import { isTauriRuntime } from "../lib/runtime";
 import {
   isDocumentFindShortcut,
   isEditorLineJumpShortcut,
+  isMacTextEditingShortcut,
 } from "../lib/shortcuts";
 
 // ── 快捷键配置 ──
@@ -115,9 +116,14 @@ export function HotkeyConfig({
     parts.push(key);
 
     const shortcut = parts.join("+");
+    if (isMacTextEditingShortcut(shortcut)) {
+      setRecordingError("此 Control 组合已保留给 macOS 文本编辑与 Vim 导航，请使用其他组合键。");
+      setRecordingId(null);
+      return;
+    }
     if (isDocumentFindShortcut(shortcut)) {
       setRecordingError(
-        "Ctrl+F 已保留给 Vim 翻页，Cmd+F 与 Alt+F 已保留给当前文档查找。",
+        "Ctrl+F 已保留给文本移动或 Vim 翻页，Cmd+F 与 Alt+F 已保留给当前文档查找。",
       );
       setRecordingId(null);
       return;
@@ -161,6 +167,7 @@ export function HotkeyConfig({
         )}
         Cmd+F、Alt+F：当前文档查找；Alt+G：跳转行号；Vim Normal/Visual
         会优先接管 Ctrl 导航键，格式快捷键只在 Insert 生效
+        {mac && <p>普通编辑及 Vim Insert 模式保留 macOS 的 Control 文本快捷键：Ctrl+F/B 前后移动，Ctrl+N/P 上下移动，Ctrl+A/E 到行首或行尾。应用操作使用 Command。</p>}
       </div>
       {recordingError && (
         <div className="hotkey-recording-error" role="status">

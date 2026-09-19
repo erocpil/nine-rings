@@ -1,5 +1,6 @@
 import { Extension } from "@tiptap/core";
 import { AllSelection, Plugin, TextSelection } from "@tiptap/pm/state";
+import { isPrimaryShortcutModifier } from "../lib/shortcuts";
 
 /** Select a structured block first, then the document. Native selection is
  * consulted too because readonly views do not always sync their caret to PM. */
@@ -9,7 +10,7 @@ export const BlockSelectAll = Extension.create({
     return [new Plugin({
       view(view) {
         const onKeyDown = (event: KeyboardEvent) => {
-          if (event.defaultPrevented || event.isComposing || !(event.ctrlKey || event.metaKey)
+          if (event.defaultPrevented || event.isComposing || !isPrimaryShortcutModifier(event)
             || event.altKey || event.shiftKey || event.key.toLowerCase() !== "a") return;
           if (view.dom.closest("[inert], .block-selection-active")) return;
           if (event.target instanceof Element && event.target.closest("input, textarea, select, [role=menu], dialog")) return;

@@ -1,6 +1,7 @@
 import { DisclosureIcon } from "./DisclosureIcon";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { preserveReadingPositions } from "../lib/reading-position";
+import { isPrimaryShortcutModifier } from "../lib/shortcuts";
 import { createPortal } from "react-dom";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { Extension, type Editor } from "@tiptap/core";
@@ -336,7 +337,17 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
   return createPortal(<dialog ref={dialog} tabIndex={-1} className="block-workspace" data-block-type={rootType} role="dialog" aria-modal="true" aria-label={`${name}工作区`}
     onCancel={event => { event.preventDefault(); if (!editor?.view.composing) void close(); }}
     onKeyDownCapture={event => {
+      // Handle block search before editor keymaps; Mac Control+F stays with
+      // native text editing or Vim navigation.
+      if (!event.nativeEvent.isComposing && !event.altKey && !event.shiftKey
+        && !(event.ctrlKey && event.metaKey) && isPrimaryShortcutModifier(event) && event.key.toLowerCase() === "f") {
+        event.preventDefault(); event.stopPropagation();
+        if (sensitive) { setNotice("加密正文不参与查找。"); return; }
+        setFindOpen(true); window.requestAnimationFrame(() => searchInput.current?.focus());
+        return;
+      }
       if (event.target instanceof Element && event.target.closest(".cm-editor")) return;
+      if (event.ctrlKey || event.metaKey || event.altKey || event.nativeEvent.isComposing) return;
       if (!editable) return;
       if (event.key === "Escape" && vimMode === "insert") {
         event.preventDefault(); event.stopPropagation(); setVimMode("normal"); return;
@@ -352,14 +363,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
         editor?.commands.keyboardShortcut(command);
       }
     }}
-    onKeyDown={event => {
-      event.stopPropagation();
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
-        event.preventDefault();
-        if (sensitive) { setNotice("加密正文不参与查找。"); return; }
-        setFindOpen(true); window.requestAnimationFrame(() => searchInput.current?.focus());
-      }
-    }}>
+    onKeyDown={event => event.stopPropagation()}>
     <header className="block-workspace-header">
       <strong>{name}</strong>
       {editable && <span className="block-workspace-vim-mode" role="status">VIM {vimMode === "normal" ? "NORMAL" : "INSERT"}</span>}

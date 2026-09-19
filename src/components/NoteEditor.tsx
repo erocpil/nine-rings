@@ -93,7 +93,7 @@ import {
   setCjkLatinSpacing,
   supportsNativeCjkLatinSpacing,
 } from "../extensions/CjkLatinSpacing";
-import { isDocumentFindKeyEvent, isEditorLineJumpKeyEvent } from "../lib/shortcuts";
+import { isDocumentFindKeyEvent, isEditorLineJumpKeyEvent, isMacPlatform } from "../lib/shortcuts";
 import {
   documentOutlineIndexAtPosition,
   extractDocumentOutline,
@@ -1806,7 +1806,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   }, [editor, outlineDock, scrollRef, isMobileToolbarViewport]);
 
   // 拦截 WebView 原生 Cmd+F，并为 Windows 提供 Alt+F。Ctrl+F 不再
-  // 触发搜索：Vim 模式用它向下翻页，非 Vim 模式也不唤起 WebView 查找框。
+  // 触发搜索：macOS 保留原生文本移动；Vim Normal/Visual 用它向下翻页。
+  // 其他平台非 Vim 模式也不唤起 WebView 查找框。
   // 原生查找框由
   // WebView 管理且主窗口 hide 后可能残留；应用内查找框与编辑器共用生命周期。
   useEffect(() => {
@@ -1814,14 +1815,14 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.isComposing || event.keyCode === 229) return;
       if (editor.view.dom.closest("[inert]")) return;
-      if (event.target instanceof Element && event.target.closest(".settings-overlay")) return;
+      if (event.target instanceof Element && event.target.closest(".settings-overlay, .block-workspace")) return;
+      // The adjacent PDF reader owns search and Escape while it has focus.
+      if (event.target instanceof Element && event.target.closest(".pdf-reader:not(.epub-reader)")) return;
       const isCtrlF = event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
         && (event.code === "KeyF" || event.key.toLocaleLowerCase() === "f");
       if (isCtrlF) {
+        if (isMacPlatform()) return;
         const target = event.target;
-        // A side-by-side reader owns its own search shortcut, including native
-        // fullscreen. Do not swallow it in the editor's window capture handler.
-        if (target instanceof Element && target.closest(".pdf-reader:not(.epub-reader)")) return;
         const vimMode = getVimEditorMode(editor);
         const isVimEditorTarget = target instanceof Node
           && editor.view.dom.contains(target)

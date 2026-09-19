@@ -38,7 +38,7 @@ import { copyToClipboard } from "../lib/clipboard";
 import { editorGutterWidth } from "../lib/editor-gutter";
 import { bindViewportEdgeSwipe, swipeViewport } from "../lib/edge-swipe";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
-import { isDocumentFindKeyEvent } from "../lib/shortcuts";
+import { isDocumentFindKeyEvent, isPrimaryShortcutModifier } from "../lib/shortcuts";
 import { readingBlockSession, type ReadingBlockState as BlockState } from "../lib/reading-block-session";
 import { patchReadingState, readReadingState } from "../lib/reading-state";
 
@@ -659,7 +659,7 @@ export function ReadonlyVirtualNote(
       }
       if (event.key === "Escape") setPanel(null);
       if (
-        (event.ctrlKey || event.metaKey) &&
+        isPrimaryShortcutModifier(event) &&
         !event.altKey && !event.shiftKey && !event.isComposing &&
         event.key.toLowerCase() === "a" &&
         !(event.target instanceof Element && event.target.closest("input, textarea, select, [role=menu], dialog")) &&
