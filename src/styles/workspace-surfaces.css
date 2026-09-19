@@ -1040,6 +1040,8 @@
   --text-secondary: #7a8fad;
   --accent: #3b6dcc;
   --accent-hover: #5a8de8;
+  --link-color: #8ab4ff;
+  --link-hover: #b7d1ff;
   --danger: #f25a6a;
   --success: #4ca868;
   --code-bg: #0b1524;
@@ -1055,6 +1057,8 @@
   --text-secondary: #d8dee9;
   --accent: #88c0d0;
   --accent-hover: #8fbcbb;
+  --link-color: #88c0d0;
+  --link-hover: #8fbcbb;
   --danger: #bf616a;
   --success: #a3be8c;
   --warning: #ebcb8b;
@@ -1073,6 +1077,8 @@
   --text-secondary: color-mix(in srgb, #f8f8f2 72%, #282a36);
   --accent: #bd93f9;
   --accent-hover: #ff79c6;
+  --link-color: #bd93f9;
+  --link-hover: #ff79c6;
   --danger: #ff5555;
   --success: #50fa7b;
   --warning: #f1fa8c;

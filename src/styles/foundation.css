@@ -37,6 +37,8 @@ html {
   --text-secondary: #656d76;
   --accent: #0969da;
   --accent-hover: #0550ae;
+  --link-color: #0969da;
+  --link-hover: #0550ae;
   --danger: #cf222e;
   --success: #1a7f37;
   --hover-bg: rgba(0, 0, 0, 0.04);
@@ -110,6 +112,16 @@ html {
   outline-offset: 2px;
 }
 
+/* 默认链接与已访问链接都跟随主题，避免暗色界面使用浏览器的深蓝／紫色。 */
+:where(a[href]) {
+  color: var(--link-color);
+  text-decoration-color: currentColor;
+  text-underline-offset: 0.15em;
+}
+:where(a[href]:hover) {
+  color: var(--link-hover);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -131,6 +143,8 @@ html {
   --text-secondary: #8b949e;
   --accent: #58a6ff;
   --accent-hover: #79c0ff;
+  --link-color: #79c0ff;
+  --link-hover: #a5d6ff;
   --danger: #f85149;
   --success: #3fb950;
   --hover-bg: rgba(255, 255, 255, 0.05);

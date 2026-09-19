@@ -154,15 +154,17 @@
 }
 .settings-content-page .settings-theme-mobile {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 4px;
+  grid-template-columns: repeat(5, 36px);
+  justify-content: space-between;
+  gap: 12px;
   width: 100%;
 }
 .settings-content-page .settings-theme-mobile .settings-radio {
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-  padding: 8px 2px;
+  height: 56px;
+  padding: 8px 0;
 }
 .settings-theme-mobile .theme-swatch {
   width: 20px;

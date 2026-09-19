@@ -9,7 +9,7 @@
 .document-content-preview table { border-collapse: collapse; width: 100%; }
 .document-content-preview td, .document-content-preview th { border: 1px solid var(--border); padding: .4em; }
 .document-preview-table { overflow-x: auto; }
-.document-preview-link { text-decoration: underline; color: var(--accent); }
+.document-preview-link { text-decoration: underline; color: var(--link-color); }
 .document-comparison-panes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin: 12px 0; }
 .document-comparison-panes section { min-width: 0; }
 .document-comparison-panes h4 { margin: 0 0 6px; overflow-wrap: anywhere; }
