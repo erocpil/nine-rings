@@ -1,4 +1,29 @@
 /* Shared settings surfaces for desktop dialogs and mobile drawers. */
+.settings-changelog {
+  grid-column: 1 / -1;
+  min-width: 0;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.settings-changelog-intro {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-bottom: 20px;
+}
+.settings-changelog-intro p { margin: 0 0 4px; }
+.settings-changelog-intro code { font-size: inherit; }
+.settings-changelog-entry {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--settings-input-bg);
+}
+.settings-changelog-entry + .settings-changelog-entry { margin-top: 16px; }
+.settings-changelog-entry time { color: var(--text-secondary); font-size: 12px; }
+.settings-changelog-entry h3 { margin: 4px 0 12px; font-size: 15px; }
+.settings-changelog-entry ul { margin: 0; padding-left: 20px; font-size: 13px; }
+.settings-changelog-entry li + li { margin-top: 8px; }
+
 .settings-overlay:not(.settings-overlay-mobile)
   .settings-body[data-settings-page="root"] > .settings-category-grid {
   display: grid;

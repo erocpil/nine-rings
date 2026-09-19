@@ -30,7 +30,7 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   })).toBeLessThanOrEqual(16);
 
   const categories = page.getByLabel("设置分类").getByRole("button");
-  await expect(categories).toHaveCount(7);
+  await expect(categories).toHaveCount(8);
   await expect(categories.locator("strong")).toHaveText([
     "外观与布局",
     "编辑器",
@@ -39,6 +39,7 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
     "云端同步",
     "备份与导入",
     "高级",
+    "更新记录",
   ]);
   await expect(page.getByRole("heading", { name: "设置", exact: true })).toBeVisible();
   await expect(page.locator(".settings-field")).toHaveCount(0);
@@ -58,7 +59,7 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await expect(page.locator(".settings-version")).toHaveCount(0);
 
   await page.getByLabel("返回设置分类").click();
-  await expect(categories).toHaveCount(7);
+  await expect(categories).toHaveCount(8);
   await expect(page.locator(".settings-version")).toBeVisible();
   await page.getByRole("button", { name: /^备份与导入/ }).click();
   await expect(page.getByRole("heading", { name: "备份与导入", exact: true })).toBeVisible();

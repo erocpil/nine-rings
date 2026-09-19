@@ -117,7 +117,7 @@ export function DocumentBookmarkRow({
           }
           onJump();
         }}
-        title={bookmark.preview}
+        title={bookmark.label ? `${bookmark.label}\n${bookmark.preview}` : bookmark.preview}
       >
         <span className="document-bookmark-index" title={`第 ${blockNumber} 块${current ? "（当前书签）" : ""}`}>
           {blockNumber}

@@ -878,6 +878,7 @@ export function ReadonlyVirtualNote(
                   <div
                     className="vr-outline-row"
                     key={section.key}
+                    title={section.text}
                     style={{ paddingLeft: (section.level - 1) * 12 }}
                   >
                     <button
@@ -911,6 +912,7 @@ export function ReadonlyVirtualNote(
                   <button
                     type="button"
                     className="vr-bookmark"
+                    title={bookmark.label ? `${bookmark.label}\n${bookmark.preview}` : bookmark.preview}
                     data-drawer-swipe-item
                     key={bookmark.id}
                     onClick={() => {

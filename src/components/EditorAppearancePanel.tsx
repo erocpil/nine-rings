@@ -75,11 +75,11 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
             <div className="editor-appearance-kicker">编辑器</div>
             <h2 id="editor-appearance-title">排版设置</h2>
             <p>调整只影响阅读和编辑外观，不会修改文档内容或 Markdown 导出结果。</p>
+            <p className="editor-appearance-error" role="alert" hidden={!applyError}>{applyError}</p>
           </div>
           <button className="settings-close" type="button" onClick={close} disabled={applying} aria-label="关闭编辑器排版">✕</button>
         </header>
 
-        <div className="settings-feedback-slot" role="status" aria-live="polite"><span className="settings-feedback-text">{applyError}</span></div>
         <div className="editor-appearance-workspace">
           <fieldset className="editor-appearance-controls" disabled={applying}>
             <AppearanceField label="正文字体" desc="选择编辑器正文的字体组合">

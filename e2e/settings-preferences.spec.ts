@@ -29,10 +29,14 @@ for (const width of [390, 1280]) {
       0,
     );
     await input.fill("更新");
-    // Vite development has no production PWA updater; do not advertise it.
-    await expect(page.locator(".settings-search-results")).toContainText(
-      "没有匹配",
-    );
+    // Release notes are available even without the production PWA updater.
+    await expect(page.getByRole("button", { name: /^检查更新/ })).toHaveCount(0);
+    await page.getByRole("button", { name: /^更新记录/ }).click();
+    await expect(page.locator("#settings-dialog-title")).toHaveText("更新记录");
+    await expect(page.locator(".settings-changelog")).toContainText("当前版本");
+    await expect(page.locator(".settings-changelog-entry").first()).toContainText("Markdown 源码");
+    expect(await page.locator(".settings-changelog").evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+    await page.getByRole("button", { name: "返回设置分类", exact: true }).click();
     await input.fill("不存在的设置xyz");
     await expect(page.locator(".settings-search-results")).toContainText(
       "没有匹配",

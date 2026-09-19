@@ -14,6 +14,7 @@ import type { AppConfig, Note } from "../types/models";
 import { DAILY_NOTES_ENABLED, TODOS_ENABLED } from "../lib/workspace-features";
 import { useSettingsData } from "../hooks/useSettingsData";
 import { SettingsDataPage } from "./SettingsDataPage";
+import { SettingsChangelog } from "./SettingsChangelog";
 import { isTauri } from "../lib/tauri-desktop";
 import SettingsSync from "./SettingsSync";
 import { withTimeout } from "../lib/async";
@@ -50,7 +51,7 @@ interface Props {
   libraryError?: string | null;
 }
 
-type SettingsPage = "root" | "appearance" | "editor" | "vim" | "sidebar" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced";
+type SettingsPage = "root" | "appearance" | "editor" | "vim" | "sidebar" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced" | "changelog";
 const EDITOR_APPEARANCE_KEYS: Array<keyof AppConfig> = [
   "note_font_size",
   "editor_font_family",
@@ -84,6 +85,7 @@ const SETTINGS_CATEGORIES: Array<{
   { id: "sync", title: "云端同步", description: "通过 GitHub 上传、拉取与合并远端数据" },
   { id: "data", title: "备份与导入", description: "本地 JSON 备份、恢复及 Markdown / 纯文本导入" },
   { id: "advanced", title: "高级", description: isTauri() ? "回收站清理与正文渲染" : "回收站清理、渲染与诊断" },
+  { id: "changelog", title: "更新记录", description: "查看近期功能改进与问题修复" },
 ];
 
 const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
@@ -100,6 +102,7 @@ const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   data: "备份与导入",
   sync: "云端同步",
   advanced: "高级",
+  changelog: "更新记录",
 };
 
 const VIM_CONFIG_KEY = "nr:vim-config";
@@ -1085,6 +1088,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </SettingsSection>
             )}
 
+
+            {settingsPage === "changelog" && <SettingsChangelog />}
 
             {/* ── 版本 ── */}
             {settingsPage === "root" && (

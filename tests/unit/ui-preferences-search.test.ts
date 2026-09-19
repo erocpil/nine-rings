@@ -75,7 +75,12 @@ describe("static settings search", () => {
     expect(searchSettings("行号", options)[0].action).toBe("typography");
     expect(searchSettings("列表 缩进", options)[0].action).toBe("typography");
     expect(searchSettings("密码", options)[0].action).toBe("help");
-    expect(searchSettings("更新", options)[0].action).toBe("update");
+    expect(searchSettings("更新", options)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ action: "update" }),
+        expect.objectContaining({ page: "changelog" }),
+      ]),
+    );
     expect(searchSettings("ＶＩＭ", options)[0].page).toBe("vim");
     expect(searchSettings("不存在的关键词", options)).toEqual([]);
     expect(searchSettings("浮层", options)[0].page).toBe("sidebar");
@@ -83,7 +88,11 @@ describe("static settings search", () => {
     expect(searchSettings("  ", options)).toEqual([]);
   });
   it("does not advertise unavailable platform features", () => {
-    expect(searchSettings("更新", { web: false, updates: false })).toEqual([]);
+    expect(
+      searchSettings("更新", { web: false, updates: false }).map(
+        (entry) => entry.page,
+      ),
+    ).toEqual(["changelog"]);
     expect(searchSettings("诊断", { web: false, updates: false })).toEqual([]);
   });
 });

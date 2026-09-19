@@ -11,7 +11,8 @@ export type SearchSettingsPage =
   | "tags"
   | "data"
   | "sync"
-  | "advanced";
+  | "advanced"
+  | "changelog";
 export interface SettingsSearchEntry {
   title: string;
   description: string;
@@ -22,6 +23,13 @@ export interface SettingsSearchEntry {
   target?: string;
 }
 const entries: SettingsSearchEntry[] = [
+  {
+    title: "更新记录",
+    description: "查看近期功能改进与问题修复",
+    keywords: "更新 记录 日志 版本 changelog commit release history",
+    page: "changelog",
+    target: ".settings-changelog",
+  },
   {
     title: "布局设置与分栏打开方式",
     target: ".sidebar-settings-page",

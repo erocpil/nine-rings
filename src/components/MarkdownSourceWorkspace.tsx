@@ -185,7 +185,7 @@ export function MarkdownSourceWorkspace({
                   <button
                     type="button"
                     className="document-bookmark-jump"
-                    title={bookmark.label || bookmark.preview}
+                    title={bookmark.label ? `${bookmark.label}\n${bookmark.preview}` : bookmark.preview}
                     onClick={() => jump(bookmark.offset)}
                   >
                     <span className="document-bookmark-index">
