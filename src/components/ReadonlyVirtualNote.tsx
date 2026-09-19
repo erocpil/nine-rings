@@ -42,6 +42,7 @@ import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { isDocumentFindKeyEvent, isPrimaryShortcutModifier } from "../lib/shortcuts";
 import { readingBlockSession, type ReadingBlockState as BlockState } from "../lib/reading-block-session";
 import { patchReadingState, readReadingState } from "../lib/reading-state";
+import { centerSearchMatch } from "../lib/search-scroll";
 
 function renderBlock(
   node: PMNode,
@@ -572,9 +573,13 @@ export function ReadonlyVirtualNote(
     if (!mark || !row || !root) return;
     // Resolve text geometry after mounting, including matches deep inside a
     // paragraph or a previously collapsed quote/code block.
-    const rect = mark.getBoundingClientRect();
-    const offset = rect.top - row.getBoundingClientRect().top - 12;
-    root.scrollTop += rect.top - root.getBoundingClientRect().top - 12;
+    const rect = mark.getClientRects()[0] ?? mark.getBoundingClientRect();
+    const rowTop = row.getBoundingClientRect().top;
+    const rootTop = root.getBoundingClientRect().top;
+    const previousTop = root.scrollTop;
+    centerSearchMatch(root, rect);
+    // 后续块高度测量仍以实际滚动位置为锚点，避免把居中的命中拉回顶部。
+    const offset = root.scrollTop - previousTop + rootTop - rowTop;
     pendingAnchor.current = { position: Number(row.dataset.position), offset };
     pendingMatch.current = null;
     savedAnchor.current = pendingAnchor.current;

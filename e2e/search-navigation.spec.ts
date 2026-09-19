@@ -231,3 +231,77 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     }
   });
 });
+
+async function expectSearchMatchCentered(page: Page) {
+  await expect.poll(() => page.locator(".search-match-active").first().evaluate(element => {
+    const root = element.closest<HTMLElement>(".note-editor-scroll")!;
+    const rect = element.getClientRects()[0] ?? element.getBoundingClientRect();
+    const bounds = root.getBoundingClientRect();
+    const sticky = root.querySelector(".note-editor-sticky");
+    const stickyBottom = sticky && getComputedStyle(sticky).position === "sticky"
+      ? sticky.getBoundingClientRect().bottom : bounds.top;
+    const viewport = window.visualViewport;
+    const top = Math.max(bounds.top, Math.min(stickyBottom, bounds.bottom), viewport?.offsetTop ?? 0);
+    const bottom = Math.min(bounds.bottom, (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight));
+    const distance = (rect.top + rect.bottom - top - bottom) / 2;
+    const atStart = root.scrollTop <= 1;
+    const atEnd = root.scrollHeight - root.clientHeight - root.scrollTop <= 1;
+    return rect.top >= top - 1 && rect.bottom <= bottom + 1
+      && (Math.abs(distance) <= 3 || (atStart && distance < 0) || (atEnd && distance > 0));
+  })).toBe(true);
+}
+
+for (const mode of ["编辑", "专注", "只读", "局部只读"] as const) {
+  test(`${mode}文档搜索上一处和下一处尽量居中，首尾正确限制滚动`, async ({ page }) => {
+    await createDocument(page, "搜索居中回归");
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate(element => {
+      const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      instance.commands.setContent({ type: "doc", content: Array.from({ length: 80 }, (_, index) => ({
+        type: "paragraph", content: [{ type: "text", text:
+          `${index === 45 ? "段内前文。".repeat(120) : ""}${[0, 20, 21, 45, 79].includes(index) ? "center-needle " : ""}第 ${index} 段。`,
+        }],
+      })) }, true);
+      instance.commands.setTextSelection(1);
+    });
+    if (mode === "专注") await page.getByTitle("专注模式", { exact: true }).click();
+    if (mode === "只读" || mode === "局部只读") {
+      await expect(page.locator(".save-status-saved")).toBeVisible();
+      await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+      await expect(editor).toHaveAttribute("contenteditable", "false");
+    }
+    if (mode === "局部只读") {
+      await page.evaluate(() => {
+        localStorage.setItem("nr:experimentalReadonlyRendering", "true");
+        window.dispatchEvent(new Event("nine-rings:readonly-rendering-change"));
+      });
+      await expect(page.locator("[data-virtual-reader]")).toBeVisible();
+      await page.locator(".vr-actions").getByRole("button", { name: "搜索", exact: true }).click();
+      await page.getByLabel("搜索正文").fill("center-needle");
+    } else {
+      await page.keyboard.press("Alt+f");
+      const findInput = page.getByLabel("在当前文档中查找");
+      await findInput.click();
+      await findInput.pressSequentially("center-needle");
+      await expect(findInput).toHaveValue("center-needle");
+      await page.getByRole("button", { name: "下一处匹配", exact: true }).click();
+    }
+    await expectSearchMatchCentered(page); // 首处
+    const next = page.getByRole("button", { name: mode === "局部只读" ? "下一个" : "下一处匹配", exact: true });
+    const previous = page.getByRole("button", { name: mode === "局部只读" ? "上一个" : "上一处匹配", exact: true });
+    for (let i = 0; i < 4; i++) {
+      await next.click();
+      await expectSearchMatchCentered(page); // 远处、已可见的相邻行、软换行段内、末处
+    }
+    for (let i = 0; i < 4; i++) {
+      await previous.click();
+      await expectSearchMatchCentered(page);
+    }
+    if (mode !== "局部只读") await expect(page.getByLabel("在当前文档中查找")).toBeFocused();
+    // 从顶部直接跳往远处，专注模式的标题随正文滚走，不应计入固定遮挡。
+    await page.locator(".note-editor-scroll").evaluate(element => { element.scrollTop = 0; });
+    await page.getByLabel(mode === "局部只读" ? "搜索正文" : "在当前文档中查找").fill("center-needle 第 20");
+    if (mode !== "局部只读") await next.click();
+    await expectSearchMatchCentered(page);
+  });
+}

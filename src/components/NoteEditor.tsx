@@ -75,6 +75,7 @@ import { BlockSelectAll } from "../extensions/BlockSelectAll";
 import { api } from "../lib/api";
 import { mdToDelta } from "../lib/md-parser";
 import { markdownToProseMirrorAsync } from "../lib/data-transform-client";
+import { centerSearchMatch } from "../lib/search-scroll";
 import {
   SearchHighlights,
   findSearchMatches,
@@ -1653,20 +1654,18 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     setSearchHighlights(editor, matches, index);
     expandHeadingFoldsAt(editor, match.from);
 
-    // 防止浏览器先把整个编辑器滚到不可预测的位置，再把命中放到
-    // 可视正文区域约 1/3 的高度，保留足够的前后文。
+    // 保留搜索输入框焦点，以命中所在行的中心对齐可视正文中心。
     if (focusEditor) editor.view.dom.focus({ preventScroll: true });
     editor.commands.setTextSelection({ from: match.from, to: match.to });
     requestAnimationFrame(() => {
       const root = scrollRef.current;
       if (!root || editor.isDestroyed) return;
-      const rootRect = root.getBoundingClientRect();
       const sticky = root.querySelector<HTMLElement>(".note-editor-sticky");
-      const stickyBottom = sticky?.getBoundingClientRect().bottom ?? rootRect.top;
-      const visibleTop = Math.max(rootRect.top, Math.min(stickyBottom, rootRect.bottom));
-      const targetTop = visibleTop + Math.max(24, (rootRect.bottom - visibleTop) * 0.30);
+      const stickyBottom = sticky && getComputedStyle(sticky).position === "sticky"
+        ? sticky.getBoundingClientRect().bottom
+        : undefined;
       const coords = editor.view.coordsAtPos(match.from);
-      root.scrollTop += coords.top - targetTop;
+      centerSearchMatch(root, coords, stickyBottom);
     });
   }, [editor]);
 
@@ -3482,6 +3481,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       onDrop={handleDrop}
       onBeforeInputCapture={(event) => {
         if (!readonlyRef.current) return;
+        // 正文只读不应阻止搜索框等独立输入框接收文字。
+        if (!(event.target instanceof Node) || !editor.view.dom.contains(event.target)) return;
         event.preventDefault();
         event.stopPropagation();
       }}
