@@ -5,6 +5,7 @@ import { Plugin, PluginKey, type Transaction } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { copyToClipboard } from "../lib/clipboard";
 import { openBlockWorkspace } from "../lib/block-workspace";
 import { ToolbarIcon } from "../components/ToolbarIcon";
@@ -16,6 +17,39 @@ import { editorReadingBlocks } from "./ReadingBlockSession";
 const codeHighlightPluginKey = new PluginKey<DecorationSet>("codeSyntaxHighlight");
 export const codeLineNumbersPluginKey = new PluginKey<boolean>("codeLineNumbersEnabled");
 const codeBlockDefaultWrapPluginKey = new PluginKey<boolean>("codeBlockDefaultWrap");
+// Only the active picker needs a full option tree. Hundreds of inactive native
+// selects otherwise make WebKit restyle thousands of options on mode changes.
+const codeLanguageOptions = CODE_LANGUAGE_OPTIONS.map((option) => (
+  <option key={option.value || "plaintext"} value={option.value}>{option.label}</option>
+));
+
+function CodeLanguageSelect({ editable, value, onChange }: {
+  editable: boolean;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [active, setActive] = useState(false);
+  const selected = CODE_LANGUAGE_OPTIONS.find(option => option.value === value) ?? CODE_LANGUAGE_OPTIONS[0];
+  const activate = () => {
+    // Native popup contents are sampled before the pointer event returns.
+    if (!active) flushSync(() => setActive(true));
+  };
+  return <select
+    className="code-block-language"
+    hidden={!editable}
+    disabled={!editable}
+    value={value}
+    onPointerDown={activate}
+    onFocus={activate}
+    onBlur={() => setActive(false)}
+    onMouseDown={event => event.stopPropagation()}
+    onChange={event => onChange(event.target.value)}
+    aria-label="代码语言"
+    title="代码语言 / 语法高亮"
+  >
+    {active && editable ? codeLanguageOptions : <option value={selected.value}>{selected.label}</option>}
+  </select>;
+}
 
 interface TextSpan {
   node: Text;
@@ -334,20 +368,11 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
               }}
               title="代码行号（仅改变显示）"
             >行号</button>
-            {editable && (
-              <select
-                className="code-block-language"
-                value={normalizeCodeLanguage(node.attrs.language) ?? ""}
-                onMouseDown={(event) => event.stopPropagation()}
-                onChange={(event) => updateAttributes({ language: event.target.value || null })}
-                aria-label="代码语言"
-                title="代码语言 / 语法高亮"
-              >
-                {CODE_LANGUAGE_OPTIONS.map((option) => (
-                  <option key={option.value || "plaintext"} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            )}
+            <CodeLanguageSelect
+              editable={editable}
+              value={normalizeCodeLanguage(node.attrs.language) ?? ""}
+              onChange={language => updateAttributes({ language: language || null })}
+            />
             <button
               className={`code-block-wrap-toggle ${wrapEnabled ? "active" : ""}`}
               onMouseDown={(event) => event.preventDefault()}

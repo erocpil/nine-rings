@@ -1,6 +1,7 @@
 /* ──── 代码块行号 ──── */
 
 .code-block-language {
+  width: 116px;
   max-width: 116px;
   height: 20px;
   padding: 0 4px;

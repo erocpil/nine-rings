@@ -873,8 +873,10 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     return () => observer.disconnect();
   }, [title, focusMode, onStickyTitleChange]);
 
-  // 检测 content 格式并转换
-  const tipTapContent = useMemo(() => {
+  // Only hydrate once per keyed editor session. Metadata saves (including the
+  // readonly flag) return a fresh content object/version, but the live document
+  // already owns the latest text, selection and undo history.
+  const [tipTapContent] = useState(() => {
     if (isProseMirror(content)) return content;
     if (isDelta(content)) {
       const cached = getCachedEditorDocument(noteId, contentVersion);
@@ -884,7 +886,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       return converted;
     }
     return content; // fallback
-  }, [content, contentVersion, noteId]);
+  });
 
   // Extensions belong to this keyed document session. Reconstructing their
   // configuration on every UI render makes useEditor call setOptions and
@@ -973,6 +975,9 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         onSearch: (direction) => vimSearchActionRef.current(direction),
       }),
     ]);
+  // Live preferences/editability are applied explicitly below. A stable session
+  // dependency also prevents useEditor from reapplying the old editable value
+  // immediately before our readonly effect updates it again.
   const editor = useEditor({
     shouldRerenderOnTransaction: false,
     extensions: sessionExtensions,
@@ -1055,7 +1060,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         wikiStartRef.current = null;
       }
     },
-  });
+  }, [noteId]);
 
   useEffect(() => () => {
     if (headingFoldRenderFrameRef.current !== null) {
@@ -1633,7 +1638,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
 
   // 只读和块选择都会锁定原编辑器。块选择期间只能通过显式的块工作区
   // 编辑，避免轻触正文意外改写内容或让移动端键盘抢走 gutter 手势。
-  useEffect(() => {
+  useLayoutEffect(() => {
     // useEditor already supplies the initial value. Reapplying it invokes
     // setOptions/updateState again while the initial document is mounting.
     const editable = !readonly && selectedBlockIndexes.size === 0;
@@ -2021,7 +2026,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         && !editingElsewhere
         && selection?.anchorNode && editor.view.dom.contains(selection.anchorNode)
         && selection.focusNode && editor.view.dom.contains(selection.focusNode);
-      const caretVisible = !readonly
+      const caretVisible = !readonlyRef.current
         && (editor.isFocused || retainedCaret)
         && coords.bottom >= viewport.top
         && coords.top <= viewport.bottom;
@@ -2222,7 +2227,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       clearSettleTimers();
       if (frame) cancelAnimationFrame(frame);
     };
-  }, [editor, readonly]);
+  }, [editor]);
 
   // 打开标题下拉时自动检测是否存在 H6（切换至页 1）
   useEffect(() => {

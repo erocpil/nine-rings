@@ -29,16 +29,34 @@ export function useToolbarOverflow(ref: RefObject<HTMLElement>, enabled: boolean
     setHiddenTools(optional.filter(el => el.hasAttribute("data-toolbar-overflow"))
       .map(el => el.dataset.toolbarTool).filter(Boolean).join(","));
   }, [ref, enabled]);
-  // Labels change with the selection, save state and text size.
-  useLayoutEffect(measure);
+  // Mode/selection renders usually leave every control's size unchanged.
+  // Revealing and hiding overflow tools on each render forces layout of the
+  // whole document, especially when contenteditable changes on a large note.
+  useLayoutEffect(measure, [measure]);
   useLayoutEffect(() => {
     const toolbar = ref.current;
     if (!toolbar) return;
-    const observer = new ResizeObserver(measure);
+    let frame = 0;
+    const scheduleMeasure = () => {
+      if (!frame) frame = requestAnimationFrame(() => {
+        frame = 0;
+        measure();
+      });
+    };
+    const observer = new ResizeObserver(scheduleMeasure);
     observer.observe(toolbar);
+    // Labels, added controls and font loading can change widths even if the
+    // toolbar itself stays the same size. Ignore our own overflow attributes.
+    const mutations = new MutationObserver(scheduleMeasure);
+    mutations.observe(toolbar, { childList: true, subtree: true, characterData: true });
     let disposed = false;
-    void document.fonts.ready.then(() => { if (!disposed) measure(); });
-    return () => { disposed = true; observer.disconnect(); };
+    void document.fonts.ready.then(() => { if (!disposed) scheduleMeasure(); });
+    return () => {
+      disposed = true;
+      observer.disconnect();
+      mutations.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+    };
   }, [ref, measure]);
   return hiddenTools.split(",");
 }

@@ -64,7 +64,7 @@ test("只读文档显示已保存代码简介，隐藏语法选项并保留查�
   await page.locator(".sidebar-item.active").getByTitle("设为只读")
     .evaluate((button: HTMLButtonElement) => button.click());
   await expect(editor).toHaveAttribute("contenteditable", "false");
-  await expect(codeBlock.getByLabel("代码语言")).toHaveCount(0);
+  await expect(codeBlock.getByLabel("代码语言")).toBeHidden();
   await expect(codeTitle).toBeVisible();
   await expect(codeTitle).toHaveValue(description);
   await expect(codeTitle).toBeDisabled();
@@ -91,7 +91,7 @@ test("只读文档显示已保存代码简介，隐藏语法选项并保留查�
   await expect(page.getByLabel("专注模式工具栏")).toBeVisible();
   await expect(codeTitle).toBeVisible();
   await expect(codeTitle).toHaveValue(description);
-  await expect(codeBlock.getByLabel("代码语言")).toHaveCount(0);
+  await expect(codeBlock.getByLabel("代码语言")).toBeHidden();
   await expect(codeBlock.getByRole("button", { name: "折叠代码块" })).toBeEnabled();
   await expect(codeBlock.getByRole("button", { name: "开启代码软换行" })).toBeEnabled();
   await expect(codeBlock.getByRole("button", { name: "复制代码" })).toBeEnabled();
