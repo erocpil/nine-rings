@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 for (const virtual of [false, true]) {
-  test(`阅读面板统一样式、按完整条目加宽且不超过正文区域一半 ${virtual ? "局部只读" : "编辑"}`, async ({
+  test(`阅读面板统一样式、窄区悬浮加宽且固定不超过正文区域一半 ${virtual ? "局部只读" : "编辑"}`, async ({
     page,
   }, testInfo) => {
     await page.setViewportSize({ width: 1800, height: 1000 });
@@ -75,6 +75,60 @@ for (const virtual of [false, true]) {
       await page.mouse.move(5, 5);
       await expect(panel).toHaveCount(0);
     }
+    // Model a narrow editor alongside wide sidebars, on either side of the window.
+    for (const side of ["left", "right"]) {
+      await editor.evaluate((element, side) => {
+        Object.assign((element as HTMLElement).style, {
+          maxWidth: "360px",
+          marginLeft: side === "right" ? "auto" : "0",
+          marginRight: side === "left" ? "auto" : "0",
+        });
+      }, side);
+      for (const trigger of triggers) {
+        await trigger.hover();
+        const panel = page.locator("[data-document-preview]");
+        await expect(panel).toBeVisible();
+        await expect
+          .poll(async () => (await panel.boundingBox())!.width)
+          .toBeCloseTo(420, 0);
+        const bounds = (await panel.boundingBox())!;
+        const owner = (await editor.boundingBox())!;
+        const button = (await trigger.boundingBox())!;
+        expect(bounds.width).toBeGreaterThan(owner.width);
+        expect(bounds.x).toBeGreaterThanOrEqual(8);
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(
+          page.viewportSize()!.width - 8,
+        );
+        expect(bounds.y).toBeGreaterThanOrEqual(button.y + button.height + 5);
+        // The overflowing part must actually be visible and receive pointer events.
+        expect(
+          await panel.evaluate((element, owner) => {
+            const rect = element.getBoundingClientRect();
+            const x = rect.left < owner.x ? rect.left + 2 : rect.right - 2;
+            return element.contains(
+              document.elementFromPoint(x, rect.top + 20),
+            );
+          }, owner),
+        ).toBe(true);
+        await trigger.click();
+        const pinned = page.getByRole("complementary", {
+          name: "固定阅读面板",
+        });
+        await expect(pinned).toBeVisible();
+        expect((await pinned.boundingBox())!.width).toBeLessThanOrEqual(
+          owner.width / 2 + 1,
+        );
+        if (virtual)
+          await pinned.getByRole("button", { name: "关闭阅读面板" }).click();
+        else await trigger.click();
+        await page.mouse.move(5, 5);
+        await expect(panel).toHaveCount(0);
+      }
+    }
+    await editor.evaluate((element) => {
+      for (const property of ["max-width", "margin-left", "margin-right"])
+        (element as HTMLElement).style.removeProperty(property);
+    });
     for (const trigger of triggers) await trigger.click();
     const dock = page.getByRole("complementary", { name: "固定阅读面板" });
     await expect(dock.locator(".document-panel-slot")).toHaveCount(2);

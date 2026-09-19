@@ -51,7 +51,14 @@ export function useDocumentPanelPosition({
         0,
         Math.min(
           width,
-          compact ? viewportWidth * 0.7 : (editor?.getBoundingClientRect().width ?? viewportWidth) / 2,
+          // Floating previews can extend beyond a narrow editor. The dock has
+          // its own 50% cap; keep previews readable without escaping the viewport.
+          compact
+            ? viewportWidth * 0.7
+            : Math.max(
+                420,
+                (editor?.getBoundingClientRect().width ?? viewportWidth) / 2,
+              ),
           viewportWidth - margin * 2,
         ),
       );
