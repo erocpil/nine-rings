@@ -43,10 +43,18 @@ test.describe("手机设置抽屉方向", () => {
   }
 });
 
-test("桌面设置仍从左侧进入", async ({ page }) => {
+test("桌面设置首页与子页使用相同居中弹层", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "设置", exact: true }).click();
   const panel = page.getByRole("dialog", { name: "设置", exact: true });
-  await expect(panel).toHaveCSS("animation-name", "slideInFromLeft");
-  await expect.poll(() => panel.evaluate(el => Math.abs(el.getBoundingClientRect().left))).toBeLessThan(1);
+  await expect(panel).toHaveCSS("animation-name", "fadeIn");
+  const box = (await panel.boundingBox())!;
+  expect(box).toEqual({ x: 100, y: 24, width: 1080, height: 752 });
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
+  const subpage = page.getByRole("dialog", { name: "外观与布局", exact: true });
+  expect(await subpage.boundingBox()).toEqual(box);
+  await page.getByLabel("返回设置分类").click();
+  expect(await panel.boundingBox()).toEqual(box);
+  await page.mouse.click(20, 20);
+  await expect(panel).toHaveCount(0);
 });

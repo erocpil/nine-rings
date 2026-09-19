@@ -515,12 +515,12 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
 
   if (!open) return null;
 
-  const expandedPage = settingsPage !== "root";
+  const expandedPanel = !mobileSettingsViewport || settingsPage !== "root";
 
   return (
-    <div className={`settings-overlay${mobileSettingsViewport ? " settings-overlay-mobile" : ""}${expandedPage ? " settings-expanded-overlay" : ""}`} onClick={() => { onClose(); }}>
+    <div className={`settings-overlay${mobileSettingsViewport ? " settings-overlay-mobile" : ""}${expandedPanel ? " settings-expanded-overlay" : ""}`} onClick={() => { onClose(); }}>
       <div
-        className={`settings-panel${expandedPage ? " settings-expanded-panel" : ""}`}
+        className={`settings-panel${expandedPanel ? " settings-expanded-panel" : ""}`}
         ref={settingsPanelRef}
         role="dialog"
         tabIndex={-1}

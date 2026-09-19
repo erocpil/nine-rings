@@ -314,11 +314,6 @@
   to   { transform: translateX(0); }
 }
 
-@keyframes slideInFromLeft {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(0); }
-}
-
 /* ── 面板本体 ── */
 
 .settings-panel {
@@ -331,19 +326,6 @@
   flex-direction: column;
   animation: slideIn 0.2s ease;
   overflow: hidden;
-}
-
-@media (min-width: 769px) {
-  /* Touch landscape can exceed 768px while still using mobile edge gestures.
-     Share SettingsPanel's viewport classification instead of width alone. */
-  .settings-overlay:not(.settings-overlay-mobile):not(.settings-expanded-overlay) {
-    justify-content: flex-start;
-  }
-  .settings-overlay:not(.settings-overlay-mobile):not(.settings-expanded-overlay) .settings-panel {
-    border-left: 0;
-    border-right: 1px solid var(--border);
-    animation-name: slideInFromLeft;
-  }
 }
 
 /* ── 头部 ── */

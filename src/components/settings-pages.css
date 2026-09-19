@@ -1,4 +1,10 @@
-/* Shared settings surfaces; keep the category drawer compact. */
+/* Shared settings surfaces for desktop dialogs and mobile drawers. */
+.settings-overlay:not(.settings-overlay-mobile)
+  .settings-body[data-settings-page="root"] > .settings-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
 .settings-panel .settings-section-title {
   margin: 0 0 5px;
 }
