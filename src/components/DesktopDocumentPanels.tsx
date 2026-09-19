@@ -11,20 +11,22 @@ import { saveWorkspaceLayout } from "../lib/workspace-layout";
 export function desktopPanelStyle(
   controller: DesktopDocumentPanelController,
 ): CSSProperties {
-  const p = controller.layout;
   return {
-    "--document-dock-width": `${p.panelsArrangement === "horizontal" ? p.horizontalPanelWidth : p.panelWidth}px`,
+    "--document-dock-width": `${controller.dockWidth}px`,
   } as CSSProperties;
 }
 export function desktopPanelClass(
   controller: DesktopDocumentPanelController,
   hasOutline: boolean,
 ): string {
-  return controller.enabled &&
+  if (!controller.enabled) return "";
+  return (
+    "desktop-document-panels " +
     ((hasOutline && controller.pinned("outline")) ||
-      controller.pinned("bookmark"))
-    ? `document-panels-pinned document-panels-${controller.layout.panelsSide}`
-    : "";
+    controller.pinned("bookmark")
+      ? `document-panels-pinned document-panels-${controller.layout.panelsSide}`
+      : "")
+  );
 }
 export function DesktopDocumentPanels({
   controller,
@@ -83,14 +85,16 @@ export function DesktopDocumentPanels({
     const move = (e: globalThis.PointerEvent) => {
       if (e.pointerId !== pointer) return;
       if (resizingWidth) {
-        nextWidth = Math.max(
-          horizontal ? 280 : 180,
-          Math.min(
-            horizontal ? 900 : 600,
-            (owner?.clientWidth ?? 1200) * 0.6,
-            rect.width +
-              (e.clientX - event.clientX) *
-                (controller.layout.panelsSide === "left" ? 1 : -1),
+        nextWidth = Math.min(
+          (owner?.clientWidth ?? 1200) * 0.5,
+          Math.max(
+            horizontal ? 280 : 180,
+            Math.min(
+              horizontal ? 900 : 600,
+              rect.width +
+                (e.clientX - event.clientX) *
+                  (controller.layout.panelsSide === "left" ? 1 : -1),
+            ),
           ),
         );
         setWidth(nextWidth);
@@ -129,7 +133,7 @@ export function DesktopDocumentPanels({
         ) {
           owner?.style.setProperty(
             "--document-dock-width",
-            `${horizontal ? controller.layout.horizontalPanelWidth : controller.layout.panelWidth}px`,
+            `${controller.dockWidth}px`,
           );
           setError("面板宽度保存失败，请重试。");
         }
@@ -155,7 +159,7 @@ export function DesktopDocumentPanels({
           className={`document-panel-dock dock-${controller.layout.panelsSide} dock-${horizontal ? "horizontal" : "vertical"}`}
           aria-label="固定阅读面板"
           style={{
-            ...(width === null ? {} : { width: `min(${width}px, 60%)` }),
+            ...(width === null ? {} : { width: `min(${width}px, 50%)` }),
             [horizontal ? "gridTemplateColumns" : "gridTemplateRows"]:
               first && second
                 ? `${ratio}fr 6px ${1 - ratio}fr`

@@ -35,6 +35,7 @@ export function useDocumentPanelPosition({
     const trigger = triggerRef.current,
       panel = panelRef.current;
     if (!trigger || !panel) return;
+    const editor = panel.closest(".note-editor");
     const viewport = window.visualViewport;
     let frame = 0;
     const update = () => {
@@ -50,7 +51,7 @@ export function useDocumentPanelPosition({
         0,
         Math.min(
           width,
-          compact ? viewportWidth * 0.7 : width,
+          compact ? viewportWidth * 0.7 : (editor?.getBoundingClientRect().width ?? viewportWidth) / 2,
           viewportWidth - margin * 2,
         ),
       );
@@ -96,7 +97,6 @@ export function useDocumentPanelPosition({
     const observer = new ResizeObserver(schedule);
     observer.observe(trigger);
     observer.observe(panel);
-    const editor = panel.closest(".note-editor");
     if (editor) observer.observe(editor);
     window.addEventListener("resize", schedule);
     document.addEventListener("scroll", schedule, true);

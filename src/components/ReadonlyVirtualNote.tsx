@@ -297,7 +297,7 @@ export function ReadonlyVirtualNote(
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
   const mobileDrawerViewport = useMobileViewport();
-  const desktopPanels = useDesktopDocumentPanels(!mobileDrawerViewport);
+  const desktopPanels = useDesktopDocumentPanels(!mobileDrawerViewport, sections, props.content.metadata?.bookmarks);
   const { openPreview, dismiss: dismissPreview, toggle: togglePinnedPanel } = desktopPanels;
   const [panel, setPanel] = useState<"outline" | "bookmarks" | "search" | null>(
     null,
@@ -710,7 +710,8 @@ export function ReadonlyVirtualNote(
   const documentPanelStyle = useDocumentPanelPosition({
     open: (preview === "outline" || preview === "bookmarks") && (!mobileDrawerViewport || presentation === "popover"),
     triggerRef: preview === "bookmarks" ? bookmarkTriggerRef : outlineTriggerRef,
-    panelRef, compact: mobileDrawerViewport, layoutKey: `${props.focusMode}:${preview}`, width: 380,
+    panelRef, compact: mobileDrawerViewport, layoutKey: `${props.focusMode}:${preview}`,
+    width: mobileDrawerViewport ? 380 : desktopPanels.widths[preview === "bookmarks" ? "bookmark" : "outline"],
   });
   const onOpenSettings = props.onOpenSettings;
   useEffect(
@@ -826,6 +827,7 @@ export function ReadonlyVirtualNote(
           <section
             ref={preview === kind ? panelRef : undefined}
             className="vr-panel"
+            data-document-kind={kind === "search" ? undefined : kind}
             style={kind !== "search" && desktopPanels.pinned(kind === "outline" ? "outline" : "bookmark") ? undefined : kind === "search" ? undefined : documentPanelStyle}
             data-document-preview={!mobileDrawerViewport && kind !== "search" && !desktopPanels.pinned(kind === "outline" ? "outline" : "bookmark") ? true : undefined}
             onPointerEnter={desktopPanels.cancel} onPointerLeave={desktopPanels.leave}
@@ -851,6 +853,7 @@ export function ReadonlyVirtualNote(
             {!mobileDrawerViewport && kind !== "search" && !desktopPanels.pinned(kind === "outline" ? "outline" : "bookmark") && <button type="button" onClick={() => togglePinnedPanel(kind === "outline" ? "outline" : "bookmark")}>固定{kind === "outline" ? "目录" : "书签"}</button>}
             {kind === "outline" && (
               <>
+                {!mobileDrawerViewport && <h3>目录</h3>}
                 <div>
                   <button
                     type="button"

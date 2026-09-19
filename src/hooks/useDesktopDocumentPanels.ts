@@ -1,11 +1,74 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspaceLayout } from "./useWorkspaceLayout";
-import { saveWorkspaceLayout } from "../lib/workspace-layout";
+import {
+  DEFAULT_WORKSPACE_LAYOUT,
+  saveWorkspaceLayout,
+} from "../lib/workspace-layout";
 export type DocumentPanelKind = "outline" | "bookmark";
-export function useDesktopDocumentPanels(enabled: boolean) {
+const EMPTY_ITEMS: never[] = [];
+export function useDesktopDocumentPanels(
+  enabled: boolean,
+  outline: readonly { text: string; level: number }[] = EMPTY_ITEMS,
+  bookmarks: readonly { label?: string; preview?: string }[] = EMPTY_ITEMS,
+) {
   const layout = useWorkspaceLayout();
   const [preview, setPreview] = useState<DocumentPanelKind | null>(null);
   const [error, setError] = useState("");
+  const visible =
+    enabled &&
+    Boolean(preview || layout.outlinePinned || layout.bookmarkPinned);
+  const widths = useMemo(() => {
+    const sizes = { outline: 280, bookmark: 280 };
+    if (!visible) return sizes;
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (!context) return sizes;
+    context.font = `400 13px ${getComputedStyle(document.documentElement).getPropertyValue("--font")}`;
+    // Measure the full data, including headings outside the virtual list window.
+    const base = outline.reduce(
+      (level, item) => Math.min(level, item.level),
+      6,
+    );
+    for (const item of outline)
+      sizes.outline = Math.max(
+        sizes.outline,
+        Math.ceil(context.measureText(item.text).width) +
+          76 +
+          (item.level - base) * 14,
+      );
+    for (const item of bookmarks)
+      sizes.bookmark = Math.max(
+        sizes.bookmark,
+        Math.ceil(
+          context.measureText(item.label || item.preview || "书签").width,
+        ) + 136,
+      );
+    return sizes;
+  }, [visible, outline, bookmarks]);
+  const autoWidth =
+    layout.panelsArrangement === "horizontal" &&
+    layout.outlinePinned &&
+    layout.bookmarkPinned
+      ? Math.max(
+          widths.outline / layout.panelRatio,
+          widths.bookmark / (1 - layout.panelRatio),
+        )
+      : Math.max(
+          layout.outlinePinned ? widths.outline : 0,
+          layout.bookmarkPinned ? widths.bookmark : 0,
+          280,
+        );
+  const savedWidth =
+    layout.panelsArrangement === "horizontal"
+      ? layout.horizontalPanelWidth
+      : layout.panelWidth;
+  const defaultWidth =
+    layout.panelsArrangement === "horizontal"
+      ? DEFAULT_WORKSPACE_LAYOUT.horizontalPanelWidth
+      : DEFAULT_WORKSPACE_LAYOUT.panelWidth;
+  // Default sizing follows content; preserve a width explicitly adjusted by dragging.
+  const dockWidth =
+    savedWidth === defaultWidth ? Math.max(savedWidth, autoWidth) : savedWidth;
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const pinned = useCallback(
     (kind: DocumentPanelKind) =>
@@ -88,6 +151,8 @@ export function useDesktopDocumentPanels(enabled: boolean) {
   return {
     enabled,
     layout,
+    widths,
+    dockWidth,
     preview: enabled && preview && !pinned(preview) ? preview : null,
     pinned,
     toggle,

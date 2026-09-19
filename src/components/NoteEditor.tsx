@@ -608,7 +608,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     if (typeof window === "undefined") return false;
     return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
   });
-  const desktopPanels = useDesktopDocumentPanels(!isMobileToolbarViewport);
+  const desktopPanels = useDesktopDocumentPanels(!isMobileToolbarViewport, documentOutline, bookmarks);
   const { openPreview, dismiss: dismissPreview, toggle: togglePinnedPanel } = desktopPanels;
   const outlineOpen = isMobileToolbarViewport ? mobileOutlineOpen : desktopPanels.pinned("outline") || desktopPanels.preview === "outline";
   const bookmarkOpen = isMobileToolbarViewport ? mobileBookmarkOpen : desktopPanels.pinned("bookmark") || desktopPanels.preview === "bookmark";
@@ -628,6 +628,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       : previewKind === "bookmark" ? bookmarkTriggerRef : outlineTriggerRef,
     panelRef: previewKind === "bookmark" ? bookmarkPanelRef : outlinePanelRef,
     compact: isMobileToolbarViewport, layoutKey: focusMode,
+    width: isMobileToolbarViewport ? undefined : desktopPanels.widths[previewKind === "bookmark" ? "bookmark" : "outline"],
   });
   // 桌面 Web 的编辑区通常会因侧栏被压缩到 700～900px；900px 阈值过于
   // 保守，会在仍有足够空间时提前切换精简工具栏。移动端仍始终使用精简布局。
