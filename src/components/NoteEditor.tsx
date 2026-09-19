@@ -1,3 +1,5 @@
+import { useDesktopDocumentPanels } from "../hooks/useDesktopDocumentPanels";
+import { DesktopDocumentPanels, desktopPanelClass, desktopPanelStyle } from "./DesktopDocumentPanels";
 import { NavigationButtons } from "./NavigationButtons";
 import { useEditorNavigation, setNavigationSelection } from "../hooks/useEditorNavigation";
 import { ActiveLinePlugin, activeLinePluginKey, type ActiveLinePluginMeta, ToolbarSelection, setToolbarSelectionHighlight } from "../extensions/EditorHighlights";
@@ -257,29 +259,6 @@ const AlignedTableHeader = TableHeader.extend({
   },
 });
 
-const OUTLINE_DOCK_KEY = "nr:documentOutlineDock";
-const OUTLINE_WIDTH_KEY = "nr:documentOutlineWidth";
-const DEFAULT_OUTLINE_DOCK_WIDTH = 280;
-const OUTLINE_DOCK_MIN_WIDTH = 220;
-const OUTLINE_DOCK_MAX_WIDTH = 560;
-
-function getSavedOutlineDock(): "floating" | "left" | "right" {
-  const saved = typeof localStorage === "undefined" ? null : localStorage.getItem(OUTLINE_DOCK_KEY);
-  return saved === "left" || saved === "right" ? saved : "floating";
-}
-
-function getSavedOutlineDockWidth(): number {
-  const raw = typeof localStorage === "undefined" ? null : localStorage.getItem(OUTLINE_WIDTH_KEY);
-  const parsed = Number.parseInt(raw ?? "", 10);
-  return Number.isFinite(parsed)
-    ? Math.min(OUTLINE_DOCK_MAX_WIDTH, Math.max(OUTLINE_DOCK_MIN_WIDTH, parsed))
-    : DEFAULT_OUTLINE_DOCK_WIDTH;
-}
-
-function clampOutlineDockWidth(width: number): number {
-  return Math.min(OUTLINE_DOCK_MAX_WIDTH, Math.max(OUTLINE_DOCK_MIN_WIDTH, Math.round(width)));
-}
-
 // ══════════════════════════════════════
 
 export interface NoteEditorProps {
@@ -524,13 +503,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const [lineJumpOpen, setLineJumpOpen] = useState(false);
   const [lineJumpValue, setLineJumpValue] = useState("");
   const [lineJumpError, setLineJumpError] = useState<string | null>(null);
-  const [outlineOpen, setOutlineOpen] = useState(() => {
-    const saved = getSavedOutlineDock();
-    return saved === "left" || saved === "right";
-  });
-  const [outlineDock, setOutlineDock] = useState<"floating" | "left" | "right">(getSavedOutlineDock);
-  const [outlineDockWidth, setOutlineDockWidth] = useState(getSavedOutlineDockWidth);
-  const [bookmarkOpen, setBookmarkOpen] = useState(false);
+  const [mobileOutlineOpen, setMobileOutlineOpen] = useState(false);
+  const [mobileBookmarkOpen, setMobileBookmarkOpen] = useState(false);
   const [panelPresentation, setPanelPresentation] = useState<DocumentPanelPresentation>("popover");
   const outlineTriggerRef = useRef<HTMLButtonElement>(null);
   const bookmarkTriggerRef = useRef<HTMLButtonElement>(null);
@@ -566,12 +540,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     y: number;
     pointerType: string;
   } | null>(null);
-  const outlineResizePointerIdRef = useRef<number | null>(null);
-  const outlineResizeStartXRef = useRef(0);
-  const outlineResizeStartWidthRef = useRef(DEFAULT_OUTLINE_DOCK_WIDTH);
-  const outlineResizeCurrentWidthRef = useRef(outlineDockWidth);
-  const outlineResizeFrameRef = useRef<number | null>(null);
-  const outlineResizeCleanupRef = useRef<(() => void) | null>(null);
   const outlineFoldLastTouchRef = useRef<{
     folded: boolean;
     time: number;
@@ -640,16 +608,26 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     if (typeof window === "undefined") return false;
     return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
   });
+  const desktopPanels = useDesktopDocumentPanels(!isMobileToolbarViewport);
+  const { openPreview, dismiss: dismissPreview, toggle: togglePinnedPanel } = desktopPanels;
+  const outlineOpen = isMobileToolbarViewport ? mobileOutlineOpen : desktopPanels.pinned("outline") || desktopPanels.preview === "outline";
+  const bookmarkOpen = isMobileToolbarViewport ? mobileBookmarkOpen : desktopPanels.pinned("bookmark") || desktopPanels.preview === "bookmark";
+  const setOutlineOpen = useCallback((open: boolean) => {
+    if (isMobileToolbarViewport) setMobileOutlineOpen(open);
+    else if (open) openPreview("outline"); else dismissPreview();
+  }, [isMobileToolbarViewport, openPreview, dismissPreview]);
+  const setBookmarkOpen = useCallback((open: boolean) => {
+    if (isMobileToolbarViewport) setMobileBookmarkOpen(open);
+    else if (open) openPreview("bookmark"); else dismissPreview();
+  }, [isMobileToolbarViewport, openPreview, dismissPreview]);
+  const previewKind = isMobileToolbarViewport ? bookmarkOpen ? "bookmark" : "outline" : desktopPanels.preview;
   const documentPanelStyle = useDocumentPanelPosition({
-    open: (bookmarkOpen || (outlineOpen && documentOutline.length > 0))
-      && (!isMobileToolbarViewport || panelPresentation === "popover")
-      && (bookmarkOpen || outlineDock === "floating" || isMobileToolbarViewport),
+    open: isMobileToolbarViewport ? (bookmarkOpen || outlineOpen) && panelPresentation === "popover" : Boolean(desktopPanels.preview),
     triggerRef: focusMode && !unifiedTitleBar
-      ? bookmarkOpen ? focusBookmarkTriggerRef : focusOutlineTriggerRef
-      : bookmarkOpen ? bookmarkTriggerRef : outlineTriggerRef,
-    panelRef: bookmarkOpen ? bookmarkPanelRef : outlinePanelRef,
-    compact: isMobileToolbarViewport,
-    layoutKey: focusMode,
+      ? previewKind === "bookmark" ? focusBookmarkTriggerRef : focusOutlineTriggerRef
+      : previewKind === "bookmark" ? bookmarkTriggerRef : outlineTriggerRef,
+    panelRef: previewKind === "bookmark" ? bookmarkPanelRef : outlinePanelRef,
+    compact: isMobileToolbarViewport, layoutKey: focusMode,
   });
   // 桌面 Web 的编辑区通常会因侧栏被压缩到 700～900px；900px 阈值过于
   // 保守，会在仍有足够空间时提前切换精简工具栏。移动端仍始终使用精简布局。
@@ -802,12 +780,12 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     if (!sizeOpen && !colorOpen && !headingOpen && !blockOpen && !styleOpen && !clipOpen && !linkOpen && !tableOpen && !moreOpen && !outlineOpen && !bookmarkOpen) return;
     const handler = () => {
       closeToolbarDropdowns();
-      if (outlineDock === "floating") setOutlineOpen(false);
+      setOutlineOpen(false);
       setBookmarkOpen(false);
     };
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
-  }, [sizeOpen, colorOpen, headingOpen, blockOpen, styleOpen, clipOpen, linkOpen, tableOpen, moreOpen, outlineOpen, outlineDock, bookmarkOpen, closeToolbarDropdowns]);
+  }, [sizeOpen, colorOpen, headingOpen, blockOpen, styleOpen, clipOpen, linkOpen, tableOpen, moreOpen, outlineOpen, bookmarkOpen, closeToolbarDropdowns, setOutlineOpen, setBookmarkOpen]);
 
   // 关闭编辑器右键菜单（点击外部 / Escape / 滚动 / 失焦）
   useEffect(() => {
@@ -1237,7 +1215,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       editor.off("update", scheduleRefresh);
       window.clearTimeout(refreshTimer);
     };
-  }, [editor]);
+  }, [editor, setOutlineOpen]);
 
   useEffect(() => {
     onOutlineAvailabilityChange?.(documentOutline.length > 0);
@@ -1259,19 +1237,20 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     setOutlineOverflow(false);
     setBookmarkOpen(false);
     setOutlineOpen(true);
-  }, [documentOutline, editor]);
+  }, [documentOutline, editor, setBookmarkOpen, setOutlineOpen]);
 
   const openDocumentBookmarks = useCallback((presentation: DocumentPanelPresentation = "popover") => {
     lastMobilePanel.current = "bookmark";
     setPanelPresentation(presentation);
     setOutlineOpen(false);
     setBookmarkOpen(true);
-  }, []);
+  }, [setOutlineOpen, setBookmarkOpen]);
 
   const toggleDocumentBookmarks = useCallback(() => {
+    if (!isMobileToolbarViewport) { togglePinnedPanel("bookmark"); return; }
     if (bookmarkOpen) setBookmarkOpen(false);
     else openDocumentBookmarks();
-  }, [bookmarkOpen, openDocumentBookmarks]);
+  }, [bookmarkOpen, openDocumentBookmarks, isMobileToolbarViewport, togglePinnedPanel, setBookmarkOpen]);
 
   useEffect(() => {
     if (!isMobileToolbarViewport) return;
@@ -1295,56 +1274,13 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   }, [isMobileToolbarViewport, documentOutline.length, onOpenSettings, openDocumentOutline, openDocumentBookmarks]);
 
   const toggleDocumentOutline = useCallback(() => {
+    if (!isMobileToolbarViewport) { togglePinnedPanel("outline"); return; }
     if (outlineOpen) {
       setOutlineOpen(false);
       return;
     }
     openDocumentOutline();
-  }, [openDocumentOutline, outlineOpen]);
-
-  const setDocumentOutlineDock = useCallback((dock: "floating" | "left" | "right") => {
-    setOutlineDock(dock);
-    localStorage.setItem(OUTLINE_DOCK_KEY, dock);
-    setOutlineOpen(true);
-    if (dock !== "floating") openDocumentOutline();
-  }, [openDocumentOutline]);
-
-  const updateOutlineResizeWidth = useCallback((width: number) => {
-    outlineResizeCurrentWidthRef.current = width;
-    if (outlineResizeFrameRef.current !== null) return;
-    outlineResizeFrameRef.current = requestAnimationFrame(() => {
-      outlineResizeFrameRef.current = null;
-      noteEditorRef.current?.style.setProperty(
-        "--note-outline-docked-width",
-        `${outlineResizeCurrentWidthRef.current}px`,
-      );
-    });
-  }, []);
-
-  const clearOutlineResize = useCallback(() => {
-    if (outlineResizeCleanupRef.current) {
-      outlineResizeCleanupRef.current();
-      outlineResizeCleanupRef.current = null;
-    }
-    if (outlineResizePointerIdRef.current !== null) {
-      if (outlineResizeFrameRef.current !== null) {
-        cancelAnimationFrame(outlineResizeFrameRef.current);
-        outlineResizeFrameRef.current = null;
-      }
-      noteEditorRef.current?.style.setProperty(
-        "--note-outline-docked-width",
-        `${outlineResizeCurrentWidthRef.current}px`,
-      );
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      document.body.style.webkitUserSelect = "";
-      setOutlineDockWidth(outlineResizeCurrentWidthRef.current);
-      localStorage.setItem(OUTLINE_WIDTH_KEY, String(outlineResizeCurrentWidthRef.current));
-      outlineResizePointerIdRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => () => clearOutlineResize(), [clearOutlineResize]);
+  }, [openDocumentOutline, outlineOpen, isMobileToolbarViewport, togglePinnedPanel, setOutlineOpen]);
 
   useEffect(() => () => {
     if (outlineFoldLongPressRef.current) {
@@ -1353,51 +1289,12 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     }
   }, []);
 
-  const startOutlineResizePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>, side: "left" | "right") => {
-    if (outlineDock === "floating" || (event.pointerType === "mouse" && event.button !== 0)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    clearOutlineResize();
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-    document.body.style.webkitUserSelect = "none";
-    outlineResizePointerIdRef.current = event.pointerId;
-    outlineResizeStartXRef.current = event.clientX;
-    outlineResizeStartWidthRef.current = outlineDockWidth;
-    outlineResizeCurrentWidthRef.current = outlineDockWidth;
-    const pointerId = event.pointerId;
-    try {
-      event.currentTarget.setPointerCapture(pointerId);
-    } catch {
-      // Synthetic events and older WebViews may not expose an active pointer to capture.
+
+  useLayoutEffect(() => {
+    if (outlineOpen && editor && !editor.isDestroyed) {
+      setActiveOutlineIndex(documentOutlineIndexAtPosition(documentOutline, editor.state.selection.from));
     }
-    const move = (moveEvent: PointerEvent) => {
-      if (moveEvent.pointerId !== pointerId) return;
-      if (moveEvent.cancelable) moveEvent.preventDefault();
-      const delta = moveEvent.clientX - outlineResizeStartXRef.current;
-      const next = side === "right"
-        ? outlineResizeStartWidthRef.current + delta
-        : outlineResizeStartWidthRef.current - delta;
-      updateOutlineResizeWidth(clampOutlineDockWidth(next));
-    };
-    const stop = (stopEvent: PointerEvent) => {
-      if (stopEvent.pointerId !== pointerId) return;
-      if (stopEvent.cancelable) stopEvent.preventDefault();
-      clearOutlineResize();
-    };
-    outlineResizeCleanupRef.current = () => {
-      document.removeEventListener("pointermove", move);
-      document.removeEventListener("pointerup", stop);
-      document.removeEventListener("pointercancel", stop);
-      document.body.style.userSelect = "";
-      document.body.style.webkitUserSelect = "";
-      document.body.style.cursor = "";
-    };
-    document.addEventListener("pointermove", move, { passive: false });
-    document.addEventListener("pointerup", stop);
-    document.addEventListener("pointercancel", stop);
-    move(event.nativeEvent);
-  }, [clearOutlineResize, outlineDock, outlineDockWidth, updateOutlineResizeWidth]);
+  }, [outlineOpen, editor, documentOutline]);
 
   // 目录打开后在首次绘制前完成溢出判断和当前项居中。快速滚动按钮始终
   // 保留相同占位，因此状态切换不会改变标题栏或列表高度。
@@ -1576,7 +1473,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       });
     });
     if (isMobileToolbarViewport) window.setTimeout(scrollBookmarkIntoView, 180);
-  }, [editor, isMobileToolbarViewport]);
+  }, [editor, isMobileToolbarViewport, setBookmarkOpen]);
 
   useEffect(() => () => {
     if (bookmarkJumpPulseTimerRef.current !== null) {
@@ -1688,7 +1585,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       lineJumpInputRef.current?.focus({ preventScroll: true });
       lineJumpInputRef.current?.select();
     });
-  }, [closeEditorFind, editor]);
+  }, [closeEditorFind, editor, setOutlineOpen]);
 
   const submitLineJump = useCallback(() => {
     if (!editor || editor.isDestroyed) return;
@@ -1792,7 +1689,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     const position = Math.min(item.pos + 1, editor.state.doc.content.size);
     setNavigationSelection(editor, position);
     editor.view.focus();
-    if (outlineDock === "floating" || isMobileToolbarViewport) setOutlineOpen(false);
+    setOutlineOpen(false);
     requestAnimationFrame(() => {
       const root = scrollRef.current;
       if (!root || editor.isDestroyed) return;
@@ -1803,7 +1700,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       const nextTop = root.scrollTop + coords.top - Math.max(rootRect.top, stickyBottom) - 12;
       root.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" });
     });
-  }, [editor, outlineDock, scrollRef, isMobileToolbarViewport]);
+  }, [editor, scrollRef, setOutlineOpen]);
 
   // 拦截 WebView 原生 Cmd+F，并为 Windows 提供 Alt+F。Ctrl+F 不再
   // 触发搜索：macOS 保留原生文本移动；其他平台也不唤起 WebView 查找框。
@@ -2227,7 +2124,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       });
     });
     return () => cancelAnimationFrame(frame);
-  }, [editor, selectAllOnOpen]);
+  }, [editor, selectAllOnOpen, setOutlineOpen]);
 
   const rendererHandoffRef = useRef<ReturnType<typeof takeReadingAnchor>>();
   const rendererHandoffNoteRef = useRef(noteId);
@@ -3432,11 +3329,116 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     event.stopPropagation();
   };
 
+  const outlinePanel = outlineOpen && documentOutline.length > 0 && (
+        <nav
+          ref={outlinePanelRef}
+          className="document-outline-panel"
+          style={desktopPanels.pinned("outline") ? undefined : documentPanelStyle}
+          data-document-preview={!isMobileToolbarViewport && !desktopPanels.pinned("outline") || undefined}
+          onPointerEnter={desktopPanels.cancel} onPointerLeave={desktopPanels.leave}
+          aria-label="文档目录"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="document-outline-header">
+            <div className="document-outline-header-primary">
+              <span>目录</span>
+              <button
+                type="button"
+                onClick={() => handleOutlineFoldClick(true)}
+                onDoubleClick={(event) => handleOutlineFoldDoubleClick(event, true)}
+                onTouchStart={(event) => handleOutlineFoldTouchStart(event, true)}
+                onTouchMove={handleOutlineFoldTouchMove}
+                onTouchCancel={cancelOutlineFoldLongPress}
+                onTouchEnd={(event) => handleOutlineFoldTouchEnd(event, true)}
+                aria-label="全部折叠"
+                title="单击折叠目录；双击或长按同时折叠正文"
+              >−</button>
+              <button
+                type="button"
+                onClick={() => handleOutlineFoldClick(false)}
+                onDoubleClick={(event) => handleOutlineFoldDoubleClick(event, false)}
+                onTouchStart={(event) => handleOutlineFoldTouchStart(event, false)}
+                onTouchMove={handleOutlineFoldTouchMove}
+                onTouchCancel={cancelOutlineFoldLongPress}
+                onTouchEnd={(event) => handleOutlineFoldTouchEnd(event, false)}
+                aria-label="全部展开"
+                title="单击展开目录；双击或长按同时展开正文"
+              >+</button>
+            </div>
+            <div className="document-outline-header-actions">
+              <div
+                className={`document-outline-jumps ${outlineOverflow ? "" : "is-placeholder"}`}
+                aria-label="目录快速滚动"
+                aria-hidden={!outlineOverflow}
+              >
+                <button type="button" onClick={() => scrollOutlineTo("top")} title="滚动至顶部">Top</button>
+                <button type="button" onClick={() => scrollOutlineTo("middle")} title="滚动至中部">Mid</button>
+                <button type="button" onClick={() => scrollOutlineTo("bottom")} title="滚动至底部">Bot</button>
+              </div>
+              <span className="document-outline-count">
+                {visibleOutlineEntries.length === documentOutline.length
+                  ? `${documentOutline.length} 项`
+                  : `${visibleOutlineEntries.length}/${documentOutline.length} 项`}
+              </span>
+              {!isMobileToolbarViewport && <button type="button" onClick={() => togglePinnedPanel("outline")} aria-label={desktopPanels.pinned("outline") ? "收起固定目录" : "固定目录"}>{desktopPanels.pinned("outline") ? "收起" : "固定"}</button>}
+            </div>
+          </div>
+          <DocumentOutlineList
+            entries={visibleOutlineEntries}
+            activeOutlineIndex={activeOutlineIndex}
+            outlineBaseLevel={outlineBaseLevel}
+            listRef={outlineListRef}
+            onToggleFold={toggleOutlineTreeHeading}
+            onJump={jumpToOutlineHeading}
+          />
+        </nav>
+      );
+  const bookmarkPanel = bookmarkOpen && (
+        <nav
+          ref={bookmarkPanelRef}
+          className="document-bookmark-panel"
+          style={desktopPanels.pinned("bookmark") ? undefined : documentPanelStyle}
+          data-document-preview={!isMobileToolbarViewport && !desktopPanels.pinned("bookmark") || undefined}
+          onPointerEnter={desktopPanels.cancel} onPointerLeave={desktopPanels.leave}
+          aria-label="文档书签"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="document-bookmark-header">
+            <span>书签</span>
+            <span>{bookmarks.length} 项</span>
+            {!isMobileToolbarViewport && <button type="button" onClick={() => togglePinnedPanel("bookmark")} aria-label={desktopPanels.pinned("bookmark") ? "收起固定书签" : "固定书签"}>{desktopPanels.pinned("bookmark") ? "收起" : "固定"}</button>}
+          </div>
+          <div className="document-bookmark-list">
+            {bookmarks.length === 0 ? (
+              <div className="document-bookmark-empty">当前文档还没有书签</div>
+            ) : bookmarks.map((bookmark) => (
+              <DocumentBookmarkRow
+                key={bookmark.id}
+                bookmark={bookmark}
+                blockNumber={bookmarkBlockNumber(bookmark)}
+                current={currentBookmark?.id === bookmark.id}
+                mobile={isMobileToolbarViewport}
+                open={openBookmarkActionsId === bookmark.id}
+                onOpenChange={setOpenBookmarkActionsId}
+                onJump={() => jumpToBookmark(bookmark)}
+                onEdit={() => editBookmarkLabel(bookmark)}
+                onDelete={() => removeBookmark(editor, bookmark.id)}
+              />
+            ))}
+          </div>
+          <button
+            className="document-bookmark-add"
+            type="button"
+            onClick={toggleCurrentBookmark}
+          >{currentBookmark ? "取消当前位置书签" : "添加当前位置书签"}</button>
+        </nav>
+      );
+
   return (
     <div
       ref={noteEditorRef}
-      className={`note-editor ${readonly ? "note-editor-readonly" : ""} ${cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${cjkLatinSpacing && !nativeCjkLatinSpacing ? "editor-cjk-spacing-fallback" : ""} ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${focusToolbarExpanded ? "focus-toolbar-expanded" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""} ${outlineDock !== "floating" ? `outline-docked-${outlineDock}` : ""} ${outlineOpen && outlineDock !== "floating" ? "outline-docked-open" : ""}`}
-      style={{ "--note-outline-docked-width": `${outlineDockWidth}px` } as React.CSSProperties}
+      className={`note-editor ${readonly ? "note-editor-readonly" : ""} ${cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${cjkLatinSpacing && !nativeCjkLatinSpacing ? "editor-cjk-spacing-fallback" : ""} ${showLineNumbers ? "show-line-numbers" : ""} ${focusMode ? "focus-mode" : ""} ${focusToolbarExpanded ? "focus-toolbar-expanded" : ""} ${!highlightActiveLine ? "no-active-line" : ""} ${showCodeLineNumbers ? "show-code-line-numbers" : ""} ${desktopPanelClass(desktopPanels, documentOutline.length > 0)}`}
+      style={desktopPanelStyle(desktopPanels)}
       onPasteCapture={handlePaste}
       onDrop={handleDrop}
       onBeforeInputCapture={(event) => {
@@ -3488,6 +3490,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           {documentOutline.length > 0 && (
             <button
               ref={focusOutlineTriggerRef}
+              data-document-panel-trigger="outline" data-pinned={desktopPanels.pinned("outline") || undefined}
+              onPointerEnter={event => desktopPanels.enter("outline", event.pointerType)} onPointerLeave={desktopPanels.leave}
               type="button"
               className={outlineOpen ? "active" : undefined}
               aria-expanded={outlineOpen}
@@ -3502,6 +3506,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           )}
           <button
             ref={focusBookmarkTriggerRef}
+            data-document-panel-trigger="bookmark" data-pinned={desktopPanels.pinned("bookmark") || undefined}
+            onPointerEnter={event => desktopPanels.enter("bookmark", event.pointerType)} onPointerLeave={desktopPanels.leave}
             type="button"
             className={bookmarkOpen ? "active" : undefined}
             aria-expanded={bookmarkOpen}
@@ -3628,119 +3634,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         }}
         onClose={() => { setOutlineOpen(false); setBookmarkOpen(false); }}
       >
-      {outlineOpen && documentOutline.length > 0 && (
-        <nav
-          ref={outlinePanelRef}
-          className="document-outline-panel"
-          style={documentPanelStyle ?? (outlineDock === "floating" ? undefined : { width: `var(--note-outline-docked-width, ${DEFAULT_OUTLINE_DOCK_WIDTH}px)` })}
-          aria-label="文档目录"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="document-outline-header">
-            <div className="document-outline-header-primary">
-              <span>目录</span>
-              <button
-                type="button"
-                onClick={() => handleOutlineFoldClick(true)}
-                onDoubleClick={(event) => handleOutlineFoldDoubleClick(event, true)}
-                onTouchStart={(event) => handleOutlineFoldTouchStart(event, true)}
-                onTouchMove={handleOutlineFoldTouchMove}
-                onTouchCancel={cancelOutlineFoldLongPress}
-                onTouchEnd={(event) => handleOutlineFoldTouchEnd(event, true)}
-                aria-label="全部折叠"
-                title="单击折叠目录；双击或长按同时折叠正文"
-              >−</button>
-              <button
-                type="button"
-                onClick={() => handleOutlineFoldClick(false)}
-                onDoubleClick={(event) => handleOutlineFoldDoubleClick(event, false)}
-                onTouchStart={(event) => handleOutlineFoldTouchStart(event, false)}
-                onTouchMove={handleOutlineFoldTouchMove}
-                onTouchCancel={cancelOutlineFoldLongPress}
-                onTouchEnd={(event) => handleOutlineFoldTouchEnd(event, false)}
-                aria-label="全部展开"
-                title="单击展开目录；双击或长按同时展开正文"
-              >+</button>
-            </div>
-            <div className="document-outline-header-actions">
-              <div
-                className={`document-outline-jumps ${outlineOverflow ? "" : "is-placeholder"}`}
-                aria-label="目录快速滚动"
-                aria-hidden={!outlineOverflow}
-              >
-                <button type="button" onClick={() => scrollOutlineTo("top")} title="滚动至顶部">Top</button>
-                <button type="button" onClick={() => scrollOutlineTo("middle")} title="滚动至中部">Mid</button>
-                <button type="button" onClick={() => scrollOutlineTo("bottom")} title="滚动至底部">Bot</button>
-              </div>
-              <span className="document-outline-count">
-                {visibleOutlineEntries.length === documentOutline.length
-                  ? `${documentOutline.length} 项`
-                  : `${visibleOutlineEntries.length}/${documentOutline.length} 项`}
-              </span>
-              {outlineDock !== "left" && (
-                <button type="button" onClick={() => setDocumentOutlineDock("left")} title="固定目录到左侧">⇤</button>
-              )}
-              {outlineDock !== "floating" && (
-                <button type="button" onClick={() => setDocumentOutlineDock("floating")} title="取消固定目录">↔</button>
-              )}
-              {outlineDock !== "right" && (
-                <button type="button" onClick={() => setDocumentOutlineDock("right")} title="固定目录到右侧">⇥</button>
-              )}
-            </div>
-          </div>
-          {outlineDock !== "floating" && (
-            <div
-              className={`document-outline-resize-handle ${outlineDock === "left" ? "right" : "left"}`}
-              onPointerDown={(event) => startOutlineResizePointerDown(event, outlineDock === "left" ? "right" : "left")}
-            />
-          )}
-          <DocumentOutlineList
-            entries={visibleOutlineEntries}
-            activeOutlineIndex={activeOutlineIndex}
-            outlineBaseLevel={outlineBaseLevel}
-            listRef={outlineListRef}
-            onToggleFold={toggleOutlineTreeHeading}
-            onJump={jumpToOutlineHeading}
-          />
-        </nav>
-      )}
-      {bookmarkOpen && (
-        <nav
-          ref={bookmarkPanelRef}
-          className="document-bookmark-panel"
-          style={documentPanelStyle}
-          aria-label="文档书签"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <div className="document-bookmark-header">
-            <span>书签</span>
-            <span>{bookmarks.length} 项</span>
-          </div>
-          <div className="document-bookmark-list">
-            {bookmarks.length === 0 ? (
-              <div className="document-bookmark-empty">当前文档还没有书签</div>
-            ) : bookmarks.map((bookmark) => (
-              <DocumentBookmarkRow
-                key={bookmark.id}
-                bookmark={bookmark}
-                blockNumber={bookmarkBlockNumber(bookmark)}
-                current={currentBookmark?.id === bookmark.id}
-                mobile={isMobileToolbarViewport}
-                open={openBookmarkActionsId === bookmark.id}
-                onOpenChange={setOpenBookmarkActionsId}
-                onJump={() => jumpToBookmark(bookmark)}
-                onEdit={() => editBookmarkLabel(bookmark)}
-                onDelete={() => removeBookmark(editor, bookmark.id)}
-              />
-            ))}
-          </div>
-          <button
-            className="document-bookmark-add"
-            type="button"
-            onClick={toggleCurrentBookmark}
-          >{currentBookmark ? "取消当前位置书签" : "添加当前位置书签"}</button>
-        </nav>
-      )}
+      {isMobileToolbarViewport ? <>{outlinePanel}{bookmarkPanel}</> : <DesktopDocumentPanels controller={desktopPanels} outline={outlinePanel} bookmark={bookmarkPanel} />}
       </DocumentPanelDrawer>
       {/* ── 标题 + 标签 + 工具栏 + 编辑器（滚动区域）── */}
       <div className="note-editor-scroll" ref={scrollRef}>
@@ -3817,6 +3711,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             <div className="document-outline-control">
               <button
                 ref={outlineTriggerRef}
+              data-document-panel-trigger="outline" data-pinned={desktopPanels.pinned("outline") || undefined}
+              onPointerEnter={event => desktopPanels.enter("outline", event.pointerType)} onPointerLeave={desktopPanels.leave}
                 className={`focus-btn document-outline-toggle ${outlineOpen ? "active" : ""}`}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -3831,6 +3727,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           )}
           <button
             ref={bookmarkTriggerRef}
+            data-document-panel-trigger="bookmark" data-pinned={desktopPanels.pinned("bookmark") || undefined}
+            onPointerEnter={event => desktopPanels.enter("bookmark", event.pointerType)} onPointerLeave={desktopPanels.leave}
             className={`focus-btn document-bookmark-toggle ${bookmarkOpen ? "active" : ""}`}
             onClick={(event) => {
               event.stopPropagation();

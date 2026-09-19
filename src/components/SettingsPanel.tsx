@@ -1,5 +1,6 @@
 import { DisclosureIcon } from "./DisclosureIcon";
 import { SettingsFoldIcons } from "./SettingsFoldIcons";
+import { SettingsWorkspaceLayout } from "./SettingsWorkspaceLayout";
 import { SettingsSidebarPresentation } from "./SettingsSidebarPresentation";
 import { HotkeyConfig } from "./SettingsHotkeys";
 import { Field, SettingsSection } from "./SettingsFields";
@@ -90,7 +91,7 @@ const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   appearance: "外观与布局",
   editor: "编辑器",
   vim: "代码块 Vim",
-  sidebar: "分栏设置",
+  sidebar: "布局设置",
   documents: "文档管理",
   bookmarks: "书签",
   general: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "工作流与快捷键" : "快捷键",
@@ -681,17 +682,18 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </button>
             </Field>
 
-            <Field label="分栏设置" desc="调整分栏打开方式、顺序与宽度" visible={settingsPage === "appearance"}>
+            <Field label="布局设置" desc="调整分栏位置、阅读面板排列、顺序与宽度" visible={settingsPage === "appearance"}>
               <button className="editor-appearance-entry" type="button" onClick={() => setSettingsPage("sidebar")}>
                 <span>
-                  <strong>分栏设置</strong>
-                  <small>浮层或并排显示，调整顺序与宽度</small>
+                  <strong>布局设置</strong>
+                  <small>左右布局、目录与书签排列、浮层或并排显示</small>
                 </span>
-                <span className="editor-appearance-entry-action">打开分栏设置 →</span>
+                <span className="editor-appearance-entry-action">打开布局设置 →</span>
               </button>
             </Field>
 
             {settingsPage === "sidebar" && <div className="sidebar-settings-page">
+              <SettingsWorkspaceLayout onError={showMessage} />
               <SettingsSidebarPresentation onError={showMessage} />
               <div className="sidebar-settings-intro">
                 <strong>工作区分栏</strong>

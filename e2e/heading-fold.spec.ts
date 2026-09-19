@@ -390,46 +390,6 @@ test("千块文档全部展开后滚动不再逐块同步测量", async ({ page 
   expect(geometryReads).toBeLessThan(600);
 });
 
-test("桌面目录可固定到左右两侧并记住选择", async ({ page }) => {
-  await page.goto("/");
-  const editor = page.locator(".ProseMirror");
-  await editor.click();
-  await editor.evaluate((element) => {
-    const clipboardData = new DataTransfer();
-    clipboardData.setData("text/plain", "# 固定目录标题\n\n正文");
-    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
-  });
-  await expect(page.getByTitle("文档目录")).toBeVisible();
-  await page.getByTitle("文档目录").click();
-
-  const outline = page.getByRole("navigation", { name: "文档目录" });
-  await outline.getByTitle("固定目录到左侧").click();
-  await expect(page.locator(".note-editor")).toHaveClass(/outline-docked-left/);
-  await expect(outline).toBeVisible();
-
-  await outline.getByTitle("固定目录到右侧").click();
-  await expect(page.locator(".note-editor")).toHaveClass(/outline-docked-right/);
-  await page.reload();
-  await expect(page.locator(".note-editor")).toHaveClass(/outline-docked-right/);
-  const dockedOutline = page.getByRole("navigation", { name: "文档目录" });
-  await expect(dockedOutline).toBeVisible();
-  const dockedOutlineTop = await dockedOutline.evaluate((element) => element.getBoundingClientRect().top);
-
-  await page.getByRole("button", { name: "文档书签", exact: true }).click();
-  const bookmarkPanel = page.getByRole("navigation", { name: "文档书签" });
-  await expect(bookmarkPanel).toBeVisible();
-  const bookmarkTop = await bookmarkPanel.evaluate((element) => element.getBoundingClientRect().top);
-  expect(Math.abs(bookmarkTop - dockedOutlineTop)).toBeLessThanOrEqual(1);
-
-  await page.evaluate(() => document.body.click());
-  await expect(bookmarkPanel).toHaveCount(0);
-  await page.getByRole("button", { name: "文档目录", exact: true }).click();
-  await expect(dockedOutline).toBeVisible();
-
-  await dockedOutline.getByTitle("取消固定目录").click();
-  await expect(page.locator(".note-editor")).not.toHaveClass(/outline-docked-/);
-});
-
 test.describe("触控目录宽度调整", () => {
   test.use({ viewport: { width: 1000, height: 760 }, hasTouch: true });
 
@@ -444,8 +404,7 @@ test.describe("触控目录宽度调整", () => {
     });
     await page.getByTitle("文档目录").click();
     const outline = page.getByRole("navigation", { name: "文档目录" });
-    await outline.getByTitle("固定目录到左侧").click();
-    const handle = outline.locator(".document-outline-resize-handle");
+    const handle = page.getByRole("separator", { name: "调整阅读面板宽度" });
     await expect(handle).toBeVisible();
 
     const before = await outline.evaluate((element) => element.getBoundingClientRect().width);
@@ -464,8 +423,8 @@ test.describe("触控目录宽度调整", () => {
       const startX = rect.left + rect.width / 2;
       const startAllowed = element.dispatchEvent(pointer("pointerdown", startX));
       const userSelectDuring = document.body.style.webkitUserSelect;
-      element.dispatchEvent(pointer("pointermove", startX + 50));
-      element.dispatchEvent(pointer("pointerup", startX + 50));
+      element.dispatchEvent(pointer("pointermove", startX - 50));
+      element.dispatchEvent(pointer("pointerup", startX - 50));
       return {
         startAllowed,
         userSelectDuring,

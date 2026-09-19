@@ -1,6 +1,7 @@
 import { isTauriRuntime } from "./runtime";
 
 const BACKED_UP_LOCAL_SETTINGS = [
+  "nr:workspaceLayout",
   "nine-rings:templates",
   "nr:github-sync",
   "nr:focusMode",

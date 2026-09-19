@@ -1,3 +1,5 @@
+import { useDesktopDocumentPanels } from "../hooks/useDesktopDocumentPanels";
+import { DesktopDocumentPanels, desktopPanelClass, desktopPanelStyle } from "./DesktopDocumentPanels";
 import { NavigationButtons } from "./NavigationButtons";
 import { useNavigationStore } from "../stores/useNavigationStore";
 import { EditorFoldIcon } from "./EditorFoldIcon";
@@ -294,6 +296,9 @@ export function ReadonlyVirtualNote(
   );
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
+  const mobileDrawerViewport = useMobileViewport();
+  const desktopPanels = useDesktopDocumentPanels(!mobileDrawerViewport);
+  const { openPreview, dismiss: dismissPreview, toggle: togglePinnedPanel } = desktopPanels;
   const [panel, setPanel] = useState<"outline" | "bookmarks" | "search" | null>(
     null,
   );
@@ -304,8 +309,11 @@ export function ReadonlyVirtualNote(
   const openPanel = useCallback((next: typeof panel, drawer = false) => {
     setPresentation(drawer ? "drawer" : "popover");
     if (next === "outline" || next === "bookmarks") lastMobilePanel.current = next;
-    setPanel(next);
-  }, []);
+    if (!mobileDrawerViewport && (next === "outline" || next === "bookmarks")) {
+      setPanel(null);
+      openPreview(next === "outline" ? "outline" : "bookmark");
+    } else { dismissPreview(); setPanel(next); }
+  }, [mobileDrawerViewport, openPreview, dismissPreview]);
   const [query, setQuery] = useState("");
   const [matchIndex, setMatchIndex] = useState(0);
   const matches = useMemo(() => findSearchMatches(doc, query), [doc, query]);
@@ -694,14 +702,15 @@ export function ReadonlyVirtualNote(
     if (found[0]) jump(found[0].from, 0, found[0]);
     onSearchTargetConsumed?.(target.requestId);
   }, [searchTarget, onSearchTargetConsumed, doc, noteId, jump, openPanel, props.content.metadata?.bookmarks]);
-  const mobileDrawerViewport = useMobileViewport();
+
   const outlineTriggerRef = useRef<HTMLButtonElement>(null);
   const bookmarkTriggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
+  const preview = mobileDrawerViewport ? panel : desktopPanels.preview === "bookmark" ? "bookmarks" : desktopPanels.preview;
   const documentPanelStyle = useDocumentPanelPosition({
-    open: (panel === "outline" || panel === "bookmarks") && (!mobileDrawerViewport || presentation === "popover"),
-    triggerRef: panel === "bookmarks" ? bookmarkTriggerRef : outlineTriggerRef,
-    panelRef, compact: mobileDrawerViewport, layoutKey: props.focusMode, width: 380,
+    open: (preview === "outline" || preview === "bookmarks") && (!mobileDrawerViewport || presentation === "popover"),
+    triggerRef: preview === "bookmarks" ? bookmarkTriggerRef : outlineTriggerRef,
+    panelRef, compact: mobileDrawerViewport, layoutKey: `${props.focusMode}:${preview}`, width: 380,
   });
   const onOpenSettings = props.onOpenSettings;
   useEffect(
@@ -783,8 +792,10 @@ export function ReadonlyVirtualNote(
         type="button"
         title="文档目录"
         aria-label="文档目录"
-        aria-expanded={panel === "outline"}
-        onClick={() => openPanel(panel === "outline" ? null : "outline")}
+        aria-expanded={mobileDrawerViewport ? panel === "outline" : desktopPanels.pinned("outline") || preview === "outline"}
+        data-document-panel-trigger="outline" data-pinned={desktopPanels.pinned("outline")}
+        onPointerEnter={event => desktopPanels.enter("outline", event.pointerType)} onPointerLeave={desktopPanels.leave}
+        onClick={() => mobileDrawerViewport ? openPanel(panel === "outline" ? null : "outline") : togglePinnedPanel("outline")}
       >
         <FocusModeIcon name="outline" />
       </button>
@@ -793,8 +804,10 @@ export function ReadonlyVirtualNote(
         type="button"
         title="文档书签"
         aria-label="文档书签"
-        aria-expanded={panel === "bookmarks"}
-        onClick={() => openPanel(panel === "bookmarks" ? null : "bookmarks")}
+        aria-expanded={mobileDrawerViewport ? panel === "bookmarks" : desktopPanels.pinned("bookmark") || preview === "bookmarks"}
+        data-document-panel-trigger="bookmark" data-pinned={desktopPanels.pinned("bookmark")}
+        onPointerEnter={event => desktopPanels.enter("bookmark", event.pointerType)} onPointerLeave={desktopPanels.leave}
+        onClick={() => mobileDrawerViewport ? openPanel(panel === "bookmarks" ? null : "bookmarks") : togglePinnedPanel("bookmark")}
       >
         <FocusModeIcon name="bookmark" />
         {bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}
@@ -809,9 +822,149 @@ export function ReadonlyVirtualNote(
       </button>
     </>
   );
+  const renderPanel = (kind: "outline" | "bookmarks" | "search") => (
+          <section
+            ref={preview === kind ? panelRef : undefined}
+            className="vr-panel"
+            style={kind !== "search" && desktopPanels.pinned(kind === "outline" ? "outline" : "bookmark") ? undefined : kind === "search" ? undefined : documentPanelStyle}
+            data-document-preview={!mobileDrawerViewport && kind !== "search" && !desktopPanels.pinned(kind === "outline" ? "outline" : "bookmark") ? true : undefined}
+            onPointerEnter={desktopPanels.cancel} onPointerLeave={desktopPanels.leave}
+            aria-label={
+              kind === "outline"
+                ? "文档目录"
+                : kind === "bookmarks"
+                  ? "文档书签"
+                  : "文内搜索"
+            }
+          >
+            <button
+              type="button"
+              className="vr-panel-close"
+              aria-label="关闭阅读面板"
+              onClick={() => {
+                if (!mobileDrawerViewport && kind !== "search" && desktopPanels.pinned(kind === "outline" ? "outline" : "bookmark")) togglePinnedPanel(kind === "outline" ? "outline" : "bookmark");
+                else { setPanel(null); dismissPreview(); }
+              }}
+            >
+              ×
+            </button>
+            {!mobileDrawerViewport && kind !== "search" && !desktopPanels.pinned(kind === "outline" ? "outline" : "bookmark") && <button type="button" onClick={() => togglePinnedPanel(kind === "outline" ? "outline" : "bookmark")}>固定{kind === "outline" ? "目录" : "书签"}</button>}
+            {kind === "outline" && (
+              <>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      preserve();
+                      setFolds(new Set(collapsedHeadingKeysForAll(sections)));
+                    }}
+                  >
+                    全部折叠
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      preserve();
+                      setFolds(new Set());
+                    }}
+                  >
+                    全部展开
+                  </button>
+                </div>
+                {sections.map((section) => (
+                  <div
+                    className="vr-outline-row"
+                    key={section.key}
+                    style={{ paddingLeft: (section.level - 1) * 12 }}
+                  >
+                    <button
+                      type="button"
+                      aria-label={`折叠切换 ${section.text}`}
+                      aria-expanded={!folds.has(section.key)}
+                      disabled={section.end <= section.headingEnd}
+                      onClick={() => toggleHeading(section.pos)}
+                    >
+                      <EditorFoldIcon expanded={!folds.has(section.key)} />
+                    </button>
+                    <button
+                      type="button"
+                      data-drawer-swipe-item
+                      onClick={() => {
+                        jump(section.pos);
+                        setPanel(null); dismissPreview();
+                      }}
+                    >
+                      {section.text}
+                    </button>
+                  </div>
+                ))}
+              </>
+            )}
+            {kind === "bookmarks" && (
+              <>
+                <h3>书签</h3>
+                {bookmarks.length === 0 && <p>暂无书签</p>}
+                {bookmarks.map((bookmark) => (
+                  <button
+                    type="button"
+                    className="vr-bookmark"
+                    data-drawer-swipe-item
+                    key={bookmark.id}
+                    onClick={() => {
+                      jump(bookmark.position);
+                      setPanel(null); dismissPreview();
+                    }}
+                  >
+                    {bookmark.label || bookmark.preview || "书签"}
+                  </button>
+                ))}
+                <button type="button" onClick={fallback}>
+                  管理书签（完整渲染）
+                </button>
+              </>
+            )}
+            {kind === "search" && (
+              <>
+                <input
+                  autoFocus
+                  aria-label="搜索正文"
+                  value={query}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setQuery(value);
+                    setMatchIndex(0);
+                    const match = findSearchMatches(doc, value)[0];
+                    if (match) jump(match.from, 0, match);
+                  }}
+                />
+                <span>
+                  {matches.length
+                    ? `${matchIndex + 1}/${matches.length}`
+                    : "无匹配"}
+                </span>
+                {[-1, 1].map((direction) => (
+                  <button
+                    type="button"
+                    key={direction}
+                    disabled={!matches.length}
+                    onClick={() => {
+                      const next =
+                        (matchIndex + direction + matches.length) %
+                        matches.length;
+                      setMatchIndex(next);
+                      jump(matches[next].from, 0, matches[next]);
+                    }}
+                  >
+                    {direction < 0 ? "上一个" : "下一个"}
+                  </button>
+                ))}
+              </>
+            )}
+          </section>
+  );
   return (
     <div
-      className={`note-editor note-editor-readonly vr-note ${props.cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${props.focusMode ? "focus-mode" : ""}`}
+      className={`note-editor note-editor-readonly vr-note ${desktopPanelClass(desktopPanels, sections.length > 0)} ${props.cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${props.focusMode ? "focus-mode" : ""}`}
       data-virtual-reader="true"
       onClick={event => {
         const trigger = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-workspace-position]") : null;
@@ -821,6 +974,7 @@ export function ReadonlyVirtualNote(
       }}
       style={
         {
+          ...desktopPanelStyle(desktopPanels),
           "--editor-font-size": `${props.editorFontSize}px`,
           "--editor-gutter-width": `${editorGutterWidth(doc.childCount, props.showLineNumbers, true)}px`,
           "--editor-gutter-text-gap": props.showLineNumbers ? "4px" : "0px",
@@ -908,141 +1062,14 @@ export function ReadonlyVirtualNote(
         }
         onClose={() => setPanel(null)}
       >
-        {panel && (
-          <section
-            ref={panelRef}
-            className="vr-panel"
-            style={documentPanelStyle}
-            aria-label={
-              panel === "outline"
-                ? "文档目录"
-                : panel === "bookmarks"
-                  ? "文档书签"
-                  : "文内搜索"
-            }
-          >
-            <button
-              type="button"
-              className="vr-panel-close"
-              aria-label="关闭阅读面板"
-              onClick={() => setPanel(null)}
-            >
-              ×
-            </button>
-            {panel === "outline" && (
-              <>
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      preserve();
-                      setFolds(new Set(collapsedHeadingKeysForAll(sections)));
-                    }}
-                  >
-                    全部折叠
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      preserve();
-                      setFolds(new Set());
-                    }}
-                  >
-                    全部展开
-                  </button>
-                </div>
-                {sections.map((section) => (
-                  <div
-                    className="vr-outline-row"
-                    key={section.key}
-                    style={{ paddingLeft: (section.level - 1) * 12 }}
-                  >
-                    <button
-                      type="button"
-                      aria-label={`折叠切换 ${section.text}`}
-                      aria-expanded={!folds.has(section.key)}
-                      disabled={section.end <= section.headingEnd}
-                      onClick={() => toggleHeading(section.pos)}
-                    >
-                      <EditorFoldIcon expanded={!folds.has(section.key)} />
-                    </button>
-                    <button
-                      type="button"
-                      data-drawer-swipe-item
-                      onClick={() => {
-                        jump(section.pos);
-                        setPanel(null);
-                      }}
-                    >
-                      {section.text}
-                    </button>
-                  </div>
-                ))}
-              </>
-            )}
-            {panel === "bookmarks" && (
-              <>
-                <h3>书签</h3>
-                {bookmarks.length === 0 && <p>暂无书签</p>}
-                {bookmarks.map((bookmark) => (
-                  <button
-                    type="button"
-                    className="vr-bookmark"
-                    data-drawer-swipe-item
-                    key={bookmark.id}
-                    onClick={() => {
-                      jump(bookmark.position);
-                      setPanel(null);
-                    }}
-                  >
-                    {bookmark.label || bookmark.preview || "书签"}
-                  </button>
-                ))}
-                <button type="button" onClick={fallback}>
-                  管理书签（完整渲染）
-                </button>
-              </>
-            )}
-            {panel === "search" && (
-              <>
-                <input
-                  autoFocus
-                  aria-label="搜索正文"
-                  value={query}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setQuery(value);
-                    setMatchIndex(0);
-                    const match = findSearchMatches(doc, value)[0];
-                    if (match) jump(match.from, 0, match);
-                  }}
-                />
-                <span>
-                  {matches.length
-                    ? `${matchIndex + 1}/${matches.length}`
-                    : "无匹配"}
-                </span>
-                {[-1, 1].map((direction) => (
-                  <button
-                    type="button"
-                    key={direction}
-                    disabled={!matches.length}
-                    onClick={() => {
-                      const next =
-                        (matchIndex + direction + matches.length) %
-                        matches.length;
-                      setMatchIndex(next);
-                      jump(matches[next].from, 0, matches[next]);
-                    }}
-                  >
-                    {direction < 0 ? "上一个" : "下一个"}
-                  </button>
-                ))}
-              </>
-            )}
-          </section>
-        )}
+        {mobileDrawerViewport && panel && renderPanel(panel)}
       </DocumentPanelDrawer>
+      {!mobileDrawerViewport && <>
+        <DesktopDocumentPanels controller={desktopPanels}
+          outline={(desktopPanels.pinned("outline") || preview === "outline") && sections.length > 0 ? renderPanel("outline") : null}
+          bookmark={(desktopPanels.pinned("bookmark") || preview === "bookmarks") ? renderPanel("bookmarks") : null} />
+        {panel === "search" && renderPanel("search")}
+      </>}
       <div className="note-editor-scroll vr-scroll" ref={rootRef}>
         <div
           className="editor-content vr-body"

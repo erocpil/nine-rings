@@ -23,11 +23,11 @@ export interface SettingsSearchEntry {
 }
 const entries: SettingsSearchEntry[] = [
   {
-    title: "分栏打开方式",
+    title: "布局设置与分栏打开方式",
     target: ".sidebar-settings-page",
-    description: "外观与布局 › 分栏设置 · 浮层模式或并排模式",
+    description: "外观与布局 › 布局设置 · 左右分栏、目录与书签排列、浮层或并排模式",
     keywords:
-      "分栏 侧栏 弹出 覆盖 浮层 挤压 并排 文档树 文档列表 阅读 顺序 宽度",
+      "分栏 侧栏 弹出 覆盖 浮层 挤压 并排 文档树 文档列表 阅读 顺序 宽度 左右 上下 目录 书签 固定 比例 pin",
     page: "sidebar",
   },
   {

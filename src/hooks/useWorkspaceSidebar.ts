@@ -1,3 +1,4 @@
+import { readWorkspaceLayout } from "../lib/workspace-layout";
 import {
   useCallback,
   useEffect,
@@ -188,6 +189,7 @@ export function useWorkspaceSidebar({
     // before pointerup; saving from the latest closure could then overwrite
     // another panel's preference.
     sideDragPanelRef.current = desktopPanel;
+    const direction = !window.matchMedia(MOBILE_VIEWPORT_QUERY).matches && readWorkspaceLayout().sidebarSide === "right" ? -1 : 1;
     sideStartXRef.current = e.clientX;
     sideStartWRef.current = sidebarWidth;
     sideDragWidthRef.current = sidebarWidth;
@@ -236,7 +238,7 @@ export function useWorkspaceSidebar({
     const handlePointerMove = (pe: PointerEvent) => {
       if (!sideDragRef.current || pe.pointerId !== pointerId) return;
       if (pe.cancelable) pe.preventDefault();
-      const delta = pe.clientX - sideStartXRef.current;
+      const delta = (pe.clientX - sideStartXRef.current) * direction;
       const minimum =
         sideDragPanelRef.current === "reader" ? READER_SIDEBAR_MIN_WIDTH : 0;
       const rawWidth = Math.min(

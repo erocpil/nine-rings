@@ -52,7 +52,13 @@ async function fixture(page: Page, virtual: boolean, platform: string) {
   await expect(page.locator(".ProseMirror")).toBeVisible();
   await page.evaluate(
     async ({ virtual }) => {
-      const load = (path: string) => import(/* @vite-ignore */ path);
+      const load = (path: string) =>
+        import(
+          /* @vite-ignore */ performance
+            .getEntriesByType("resource")
+            .map((entry) => entry.name)
+            .find((url) => new URL(url).pathname === path) ?? path
+        );
       const { api } = await load("/src/lib/api.ts");
       const { useNotesStore } = await load("/src/stores/useNotesStore.ts");
       const { mdToDelta } = await load("/src/lib/md-parser.ts");
@@ -77,7 +83,8 @@ async function fixture(page: Page, virtual: boolean, platform: string) {
       };
       const note = await api.notes.create({
         title: "目录和书签定位",
-        storagePath: "tests",
+        date: useNotesStore.getState().currentDate,
+        storagePath: "references/tests",
         content,
       });
       const selected = virtual
@@ -98,7 +105,13 @@ async function fixture(page: Page, virtual: boolean, platform: string) {
         configurable: true,
         value: platform,
       });
-      const load = (path: string) => import(/* @vite-ignore */ path);
+      const load = (path: string) =>
+        import(
+          /* @vite-ignore */ performance
+            .getEntriesByType("resource")
+            .map((entry) => entry.name)
+            .find((url) => new URL(url).pathname === path) ?? path
+        );
       const { mockIPC, mockWindows } = await load(
         "/node_modules/@tauri-apps/api/mocks.js",
       );
@@ -174,7 +187,8 @@ for (const item of cases) {
             name,
             exact: true,
           });
-          await trigger.click();
+          if (item.width >= 1000) await trigger.hover();
+          else await trigger.click();
           await expectAnchored(page, trigger, panel);
           await page.locator(".note-editor-scroll").evaluate((element) => {
             element.scrollTop = 160;
@@ -184,7 +198,8 @@ for (const item of cases) {
             await page.screenshot({
               path: testInfo.outputPath("bookmark-popover.png"),
             });
-          await trigger.click();
+          if (item.width >= 1000) await page.mouse.move(5, 5);
+          else await trigger.click();
           await expect(panel).toHaveCount(0);
         }
       }
@@ -192,11 +207,13 @@ for (const item of cases) {
         name: "文档目录",
         exact: true,
       });
-      await trigger.click();
+      if (item.width >= 1000) await trigger.hover();
+      else await trigger.click();
       await page.setViewportSize({
         width: item.width >= 1000 ? 1060 : item.width,
         height: item.height - 60,
       });
+      if (item.width >= 1000) await trigger.hover();
       await expectAnchored(
         page,
         trigger,
@@ -220,7 +237,7 @@ test("按钮下方空间不足时向上展开，仍留出按钮间隔", async ({
       zIndex: "71",
     });
   });
-  await trigger.click();
+  await trigger.hover();
   const panel = page.getByRole("navigation", { name: "文档书签", exact: true });
   await expect(panel).toBeVisible();
   await expect
@@ -230,18 +247,6 @@ test("按钮下方空间不足时向上展开，仍留出按钮间隔", async ({
       return Math.abs(button.y - popup.y - popup.height - 6);
     })
     .toBeLessThan(1);
-  await trigger.click();
+  await page.mouse.move(5, 5);
   await expect(panel).toHaveCount(0);
-});
-
-test("手动固定目录保留停靠，取消固定后回到按钮旁", async ({ page }) => {
-  await fixture(page, false, "");
-  const trigger = page.getByRole("button", { name: "文档目录", exact: true });
-  await trigger.click();
-  const panel = page.getByRole("navigation", { name: "文档目录", exact: true });
-  await panel.getByTitle("固定目录到左侧").click();
-  await expect(page.locator(".note-editor")).toHaveClass(/outline-docked-left/);
-  await expect(panel).toHaveCSS("position", "absolute");
-  await panel.getByTitle("取消固定目录").click();
-  await expectAnchored(page, trigger, panel);
 });

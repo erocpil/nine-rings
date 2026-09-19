@@ -136,7 +136,7 @@ test.describe("触屏设置导航", () => {
 
     await page.getByLabel("返回设置分类").tap();
     await page.getByRole("button", { name: /^外观与布局/ }).tap();
-    const editorEntry = page.getByRole("button", { name: /^分栏设置/ });
+    const editorEntry = page.getByRole("button", { name: /^布局设置/ });
     await expect(editorEntry).toBeVisible();
     await expect(editorEntry).not.toBeFocused();
     await expect(editorEntry).toHaveCSS("border-color", tagColors.expectedBorderColor);

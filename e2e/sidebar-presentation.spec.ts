@@ -90,7 +90,7 @@ test("树内右键菜单优先处理 Esc，菜单操作期间浮层不收起", a
 async function settings(page: Page) {
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByRole("button", { name: /^外观与布局/ }).click();
-  await page.getByRole("button", { name: /^分栏设置/ }).click();
+  await page.getByRole("button", { name: /^布局设置/ }).click();
 }
 
 test("桌面分栏悬停预览、离开收起、点击固定并排且支持宽度记忆", async ({

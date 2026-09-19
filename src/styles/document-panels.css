@@ -1,0 +1,151 @@
+/* Docked document tools share one resizable track; previews retain anchored positioning. */
+.document-panel-dock {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: grid;
+  width: min(var(--document-dock-width, 280px), 60%);
+  min-width: 0;
+  min-height: 0;
+  z-index: 25;
+  background: var(--bg);
+}
+.document-panel-dock.dock-right {
+  right: 0;
+  border-left: 1px solid var(--border);
+}
+.document-panel-dock.dock-left {
+  left: 0;
+  border-right: 1px solid var(--border);
+}
+.document-panels-right
+  > :is(.note-editor-scroll, .vr-title, .vr-actions, .vr-notice) {
+  margin-right: min(var(--document-dock-width, 280px), 60%);
+}
+.document-panels-left
+  > :is(.note-editor-scroll, .vr-title, .vr-actions, .vr-notice) {
+  margin-left: min(var(--document-dock-width, 280px), 60%);
+}
+.document-panel-slot {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.document-panel-slot
+  > :is(.document-outline-panel, .document-bookmark-panel, .vr-panel) {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  box-sizing: border-box;
+  overflow: auto;
+}
+.document-panel-slot :is(.document-outline-list, .document-bookmark-list) {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+}
+.document-panel-divider {
+  background: var(--border);
+  cursor: row-resize;
+  touch-action: none;
+}
+.dock-horizontal > .document-panel-divider {
+  cursor: col-resize;
+}
+.document-panel-divider:hover,
+.document-panel-divider:focus-visible {
+  background: var(--accent);
+  outline: none;
+}
+.document-dock-width-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  z-index: 2;
+  cursor: col-resize;
+  touch-action: none;
+}
+.dock-right > .document-dock-width-handle {
+  left: -3px;
+}
+.dock-left > .document-dock-width-handle {
+  right: -3px;
+}
+.document-dock-width-handle:hover {
+  background: var(--accent);
+}
+[data-document-panel-trigger][data-pinned="true"] {
+  color: var(--accent);
+  box-shadow: inset 0 -2px var(--accent);
+}
+.document-panel-error {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 100;
+  background: var(--bg);
+  color: var(--text);
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.app-body.workspace-sidebar-right {
+  flex-direction: row-reverse;
+}
+.workspace-sidebar-right > .app-sidebar {
+  border-right: 0;
+  border-left: 1px solid var(--border);
+}
+.workspace-sidebar-right.sidebar-hover-enabled:not(.app-reader-focus)
+  > .app-sidebar {
+  inset: 0 44px 0 auto;
+}
+.workspace-sidebar-right.sidebar-hover-enabled > .app-sidebar.sidebar-hidden {
+  transform: translateX(calc(100% + 12px));
+}
+.workspace-sidebar-right.sidebar-presentation-overlay > .app-sidebar {
+  box-shadow: -6px 0 20px rgb(0 0 0 / 15%);
+}
+.document-panel-slot .document-outline-header {
+  height: auto;
+  flex: 0 0 auto;
+  min-height: 37px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.document-panel-slot .document-outline-header-actions {
+  flex-wrap: wrap;
+  height: auto;
+}
+
+.vr-title [data-document-panel-trigger] {
+  flex: 0 0 auto;
+}
+.vr-title .focus-mode-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+.document-bookmark-header > button {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.document-bookmark-header > button:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}

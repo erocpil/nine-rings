@@ -26,7 +26,7 @@ export function useDocumentPanelPosition({
   triggerRef: RefObject<HTMLElement>;
   panelRef: RefObject<HTMLElement>;
   compact: boolean;
-  layoutKey?: boolean;
+  layoutKey?: boolean | string;
   width?: number;
 }): CSSProperties | undefined {
   const [position, setPosition] = useState<Position | null>(null);

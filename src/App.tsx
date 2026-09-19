@@ -1,3 +1,4 @@
+import { useWorkspaceLayout } from "./hooks/useWorkspaceLayout";
 import { useDocumentNavigation } from "./hooks/useDocumentNavigation";
 import { NavigationButtons } from "./components/NavigationButtons";
 import { EditorFoldIconContext } from "./components/EditorFoldIcon";
@@ -1089,6 +1090,8 @@ function App() {
   // All platforms use the editor title row. Desktop retains an activity rail;
   // mobile retains edge drawers and its full-title preview interaction.
   const desktopWorkspace = !mobileDrawerViewport;
+  const workspaceLayout = useWorkspaceLayout();
+  const sidebarOnRight = desktopWorkspace && workspaceLayout.sidebarSide === "right";
   const readerFocus = desktopWorkspace && desktopPanel === "reader" && !sidebarHidden
     && Boolean(pdfReaderDocumentId ? pdfReaderFullscreen : epubReaderDocumentId && epubReaderFullscreen);
   const sidebarHoverEnabled = desktopWorkspace && sidebarPresentation === "overlay";
@@ -1493,7 +1496,7 @@ function App() {
       <BackupRestoreStatus compact onOpenSettings={() => setSettingsOpen(true)} />
       {readingLibraryError && <div role="alert" className="reading-library-message">{readingLibraryError}</div>}
 
-      <div className={`app-body${readerFocus ? " app-reader-focus" : ""}${sidebarHoverEnabled ? " sidebar-hover-enabled" : ""}${sidebarOverlay ? " sidebar-presentation-overlay" : ""}`} style={sidebarHoverEnabled ? { "--sidebar-pane-width": `${sidebarWidth}px` } as React.CSSProperties : undefined}>
+      <div className={`app-body${sidebarOnRight ? " workspace-sidebar-right" : ""}${readerFocus ? " app-reader-focus" : ""}${sidebarHoverEnabled ? " sidebar-hover-enabled" : ""}${sidebarOverlay ? " sidebar-presentation-overlay" : ""}`} style={sidebarHoverEnabled ? { "--sidebar-pane-width": `${sidebarWidth}px` } as React.CSSProperties : undefined}>
         {sidebarWidthHint && <div className="sidebar-width-hint" role="status" aria-live="polite">{sidebarWidthHint}</div>}
         {!mobileDrawerViewport && <nav className="desktop-activity-bar" aria-label="工作区面板">
           {(error || autoSave.status === "error") && <button type="button" className="btn-icon workspace-error-indicator" aria-label="查看错误详情" title="查看错误详情" onClick={() => setErrorDetailsOpen(true)}><ToolbarIcon name="warning" /></button>}
@@ -1726,7 +1729,7 @@ function App() {
           onOpenDate={(date) => { setQuery(""); setDocResults(null); setDate(date); }}
         />}
 
-        {!sidebarHidden && <div className="sidebar-divider" style={sidebarHoverEnabled ? { left: 44 + sidebarWidth } : undefined} onPointerEnter={sidebarHover.enterPanel} onPointerLeave={sidebarHover.leave} onPointerDown={handleSidePointerDown} />}
+        {!sidebarHidden && <div className="sidebar-divider" style={sidebarHoverEnabled ? { [sidebarOnRight ? "right" : "left"]: 44 + sidebarWidth } : undefined} onPointerEnter={sidebarHover.enterPanel} onPointerLeave={sidebarHover.leave} onPointerDown={handleSidePointerDown} />}
 
         <main className={`app-main${!mobileDrawerViewport && !sidebarOverlay && !sidebarHidden && desktopPanel === "reader" ? " reader-companion-editor" : ""}`}>
           {mobileDrawerViewport && !selectedNote && <div className="mobile-workspace-empty-actions" aria-label="工作区工具">
