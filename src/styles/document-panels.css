@@ -255,3 +255,50 @@
   color: var(--accent);
   border-color: var(--accent);
 }
+
+/* Desktop header rules stop short of the splitters on either side. Keep the
+   full-width surfaces and drag targets; only inset their visible separators. */
+.app-desktop-workspace :is(
+  .note-title-row,
+  .vr-title,
+  .editor-menu,
+  .document-panel-slot .document-outline-header,
+  .document-panel-slot .document-bookmark-header,
+  .document-panel-slot .vr-panel[data-document-kind] > h3,
+  header.workspace-panel-heading,
+  .doc-tree-toolbar-inline,
+  .reader-toolbar.pdf-reader-toolbar
+) {
+  border-bottom: 1px solid transparent;
+  background-image: linear-gradient(var(--border), var(--border));
+  background-size: calc(100% - 24px) 1px;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+}
+.app-desktop-workspace .note-editor .note-editor-sticky {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.app-desktop-workspace :is(.note-title-row, .vr-title) {
+  box-sizing: border-box;
+  min-height: 37px;
+  padding: 2px 12px;
+  flex-shrink: 0;
+}
+.app-desktop-workspace .note-title-row .note-title {
+  margin-bottom: 0;
+  padding-block: 0;
+  line-height: 1.2;
+}
+.app-desktop-workspace .document-panel-slot .vr-panel[data-document-kind] {
+  padding-top: 0;
+}
+.app-desktop-workspace .document-panel-slot .vr-panel[data-document-kind] > h3 {
+  box-sizing: border-box;
+  min-height: 37px;
+  padding-block: 8px;
+  background-size: 100% 1px;
+}
+.app-desktop-workspace .document-panel-slot .vr-panel-close {
+  margin-top: 8px;
+}
