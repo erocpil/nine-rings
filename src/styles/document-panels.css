@@ -135,17 +135,37 @@
   overflow: auto;
 }
 .document-panel-divider {
-  background: var(--border);
+  position: relative;
+  background: transparent;
   cursor: row-resize;
   touch-action: none;
+}
+.document-panel-divider::after {
+  content: "";
+  position: absolute;
+  inset: calc(50% - 0.5px) 0;
+  background: var(--border);
+  opacity: 0.5;
+  pointer-events: none;
+  transition: inset 0.15s, background-color 0.15s, opacity 0.15s;
 }
 .dock-horizontal > .document-panel-divider {
   cursor: col-resize;
 }
-.document-panel-divider:hover,
+.dock-horizontal > .document-panel-divider::after {
+  inset: 0 calc(50% - 0.5px);
+}
 .document-panel-divider:focus-visible {
-  background: var(--accent);
   outline: none;
+}
+.document-panel-divider:is(:hover, :focus-visible, :active)::after {
+  inset: calc(50% - 1.5px) 0;
+  background: var(--accent);
+  opacity: 0.65;
+}
+.dock-horizontal
+  > .document-panel-divider:is(:hover, :focus-visible, :active)::after {
+  inset: 0 calc(50% - 1.5px);
 }
 .document-dock-width-handle {
   position: absolute;
