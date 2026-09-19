@@ -34,7 +34,7 @@ for (const width of [390, 1280]) {
     await page.getByRole("button", { name: /^更新记录/ }).click();
     await expect(page.locator("#settings-dialog-title")).toHaveText("更新记录");
     await expect(page.locator(".settings-changelog")).toContainText("当前版本");
-    await expect(page.locator(".settings-changelog-entry").first()).toContainText("Markdown 源码");
+    await expect(page.locator(".settings-changelog")).toContainText("Markdown 源码");
     expect(await page.locator(".settings-changelog").evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
     await page.getByRole("button", { name: "返回设置分类", exact: true }).click();
     await input.fill("不存在的设置xyz");

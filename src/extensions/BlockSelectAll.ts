@@ -1,6 +1,22 @@
-import { Extension } from "@tiptap/core";
+import { Extension, type Editor } from "@tiptap/core";
 import { AllSelection, Plugin, TextSelection } from "@tiptap/pm/state";
 import { isPrimaryShortcutModifier } from "../lib/shortcuts";
+
+/** Focus synchronously without TipTap's deferred caret scroll replacing a touch selection. */
+export function selectWholeDocument(editor: Editor) {
+  const { view, state } = editor;
+  const root = view.dom.closest(".note-editor-scroll");
+  const top = root?.scrollTop;
+  view.dom.focus({ preventScroll: true });
+  view.dispatch(state.tr.setSelection(new AllSelection(state.doc)));
+  view.focus();
+  const range = view.dom.ownerDocument.createRange();
+  range.selectNodeContents(view.dom);
+  const native = view.dom.ownerDocument.getSelection();
+  native?.removeAllRanges();
+  native?.addRange(range);
+  if (root && top !== undefined) root.scrollTop = top;
+}
 
 /** Select a structured block first, then the document. Native selection is
  * consulted too because readonly views do not always sync their caret to PM. */

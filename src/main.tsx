@@ -1,5 +1,6 @@
 import React, { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
+import { QuickTooltips } from "./components/QuickTooltips";
 import App from "./App";
 const QuickCapture = lazy(() => import("./components/QuickCapture"));
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -28,6 +29,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
       <PasswordDialogHost />
+      <QuickTooltips />
       {!isQuickCapture && <GitHubPushStatus />}
       <Suspense fallback={<div style={{ padding: "1rem", fontSize: 13, color: "var(--text-muted)" }}>加载中...</div>}>
         {isQuickCapture ? (DAILY_NOTES_ENABLED ? <QuickCapture /> : <div className="empty-state">随笔和快捷记录暂时隐藏，已有数据仍保留。</div>) : <App />}

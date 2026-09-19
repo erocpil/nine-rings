@@ -1,3 +1,4 @@
+import { selectWholeDocument } from "../extensions/BlockSelectAll";
 import { DisclosureIcon } from "./DisclosureIcon";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import type { Editor } from "@tiptap/core";
@@ -65,7 +66,7 @@ export function EditorContextMenu({ editor, readonly, contextMenu, contextMenuRe
         <button className="editor-context-item" onClick={() => { void actions.handleCopyBlock(); setContextMenu(null); }}>复制块</button>
         <button
           className="editor-context-item"
-          onClick={() => { editor.chain().focus().selectAll().run(); setContextMenu(null); }}
+          onClick={() => { selectWholeDocument(editor); setContextMenu(null); }}
         >全选</button>
         {bookmarkCount > 0 && (
           <button

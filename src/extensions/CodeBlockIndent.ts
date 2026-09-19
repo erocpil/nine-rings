@@ -1,4 +1,5 @@
 import { Extension } from "@tiptap/core";
+import { blockWorkspacePreferences } from "../lib/block-display-settings";
 import { codeIndentChanges } from "../lib/code-indent";
 import { exitCurrentStructuredBlock } from "./StructuredBlockExit";
 
@@ -13,7 +14,7 @@ export const CodeBlockIndent = Extension.create({
       if (!this.editor.isEditable) return false;
       if (!$from.sameParent($to)) return false;
       const start = $from.start();
-      const changes = codeIndentChanges($from.parent.textContent, $from.parentOffset, $to.parentOffset, outdent);
+      const changes = codeIndentChanges($from.parent.textContent, $from.parentOffset, $to.parentOffset, outdent, blockWorkspacePreferences().tabSize ?? 4);
       const transaction = state.tr;
       for (const change of changes.reverse()) transaction.insertText(change.insert, start + change.from, start + change.to);
       if (changes.length) view.dispatch(transaction.scrollIntoView());

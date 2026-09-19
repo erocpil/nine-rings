@@ -1,6 +1,6 @@
 import { Extension, type Editor } from "@tiptap/core";
 import { closeHistory } from "@tiptap/pm/history";
-import { TextSelection } from "@tiptap/pm/state";
+import { Plugin, TextSelection } from "@tiptap/pm/state";
 
 type ExitOptions = {
   deleteFrom?: number;
@@ -104,6 +104,18 @@ function handleBlockquoteEmptyParagraph(editor: Editor): boolean {
   });
 }
 
+function exitEmptyListTail(editor: Editor): boolean {
+  if (!editor.isEditable || !editor.state.selection.empty) return false;
+  const { $from } = editor.state.selection;
+  if ($from.parent.type.name !== "paragraph" || $from.parent.content.size !== 0 || $from.depth < 3) return false;
+  const item = $from.node($from.depth - 1);
+  const list = $from.node($from.depth - 2);
+  if (item.type.name !== "listItem" || item.childCount !== 1
+    || !["orderedList", "bulletList"].includes(list.type.name)
+    || $from.index($from.depth - 2) !== list.childCount - 1) return false;
+  return editor.commands.liftListItem("listItem");
+}
+
 export const StructuredBlockExit = Extension.create({
   name: "structuredBlockExit",
   priority: 1_000,
@@ -117,8 +129,19 @@ export const StructuredBlockExit = Extension.create({
         view.dispatch(state.tr.insertText("\n", from, to).scrollIntoView());
         return true;
       },
-      Enter: () => exitCodeBlockAfterEmptyLine(this.editor) || handleBlockquoteEmptyParagraph(this.editor),
+      Enter: () => exitEmptyListTail(this.editor) || exitCodeBlockAfterEmptyLine(this.editor) || handleBlockquoteEmptyParagraph(this.editor),
       "Mod-Enter": () => exitCurrentStructuredBlock(this.editor),
     };
+  },
+  addProseMirrorPlugins() {
+    const editor = this.editor;
+    return [new Plugin({ props: { handleDOMEvents: {
+      beforeinput: (_view, event) => {
+        if (event.inputType !== "insertParagraph" || event.isComposing || !event.cancelable) return false;
+        if (!exitEmptyListTail(editor)) return false;
+        event.preventDefault();
+        return true;
+      },
+    } } })];
   },
 });

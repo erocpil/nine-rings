@@ -1,8 +1,8 @@
 /* ──── 代码块行号 ──── */
 
 .code-block-language {
-  width: 116px;
-  max-width: 116px;
+  width: 80px;
+  max-width: 80px;
   height: 20px;
   padding: 0 4px;
   border: 1px solid var(--border);
@@ -26,6 +26,7 @@
 }
 
 .code-block-language:disabled {
+  width: auto;
   cursor: default;
   opacity: 1;
   color: var(--text-secondary);
@@ -628,3 +629,5 @@
 .hotkey-reset:disabled {
   visibility: hidden;
 }
+
+.code-block-inner, .vr-code-line { tab-size: var(--code-tab-size, 4); }

@@ -1,3 +1,6 @@
+import { blockWorkspacePreferences, saveBlockWorkspacePreferences, BLOCK_WORKSPACE_DISPLAY_EVENT } from "../lib/block-display-settings";
+import { useConfirmation } from "./ConfirmationDialog";
+import { useGitHubPushJob } from "../lib/sync/push-job";
 import { DisclosureIcon } from "./DisclosureIcon";
 import { SettingsFoldIcons } from "./SettingsFoldIcons";
 import { SettingsWorkspaceLayout } from "./SettingsWorkspaceLayout";
@@ -121,9 +124,24 @@ function normalizeVimConfig(value: string): string {
 export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onBeforePush, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onOpenBookmark, onNotesChanged, libraryError }: Props) {
   const [vimConfig, setVimConfig] = useState(() => normalizeVimConfig(localStorage.getItem(VIM_CONFIG_KEY) ?? "set tabstop=4"));
   const saveVimConfig = (next: string) => {
-    try { localStorage.setItem(VIM_CONFIG_KEY, next); setVimConfig(next); }
+    try {
+      localStorage.setItem(VIM_CONFIG_KEY, next); setVimConfig(next);
+      const tabSize = Number(next.match(/(?:^|\n)set tabstop=(\d+)(?:$|\n)/)?.[1]);
+      if (Number.isInteger(tabSize) && tabSize >= 1 && tabSize <= 16)
+        saveBlockWorkspacePreferences({ tabSize });
+    }
     catch { showMessage("Vim 配置保存失败，请检查本机存储权限。"); }
   };
+  useEffect(() => {
+    const sync = () => setVimConfig(current => {
+      const tabSize = blockWorkspacePreferences().tabSize ?? 4;
+      if (Number(current.match(/tabstop=(\d+)/)?.[1]) === tabSize) return current;
+      return [...normalizeVimConfig(current).split("\n").filter(line => line && !/^set tabstop(?:=|$)/.test(line)), `set tabstop=${tabSize}`].join("\n");
+    });
+    sync();
+    window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync);
+    return () => window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync);
+  }, []);
   const [panelOrder, setPanelOrder] = useState<string[]>(() => {
     const saved = localStorage.getItem("nr:sidebarOrder")?.split(",") ?? [];
     return [...new Set(saved.filter((item) => ["tree", "list", "reader"].includes(item))), ...["tree", "list", "reader"].filter((item) => !saved.includes(item))];
@@ -147,10 +165,25 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const parentPage: SettingsPage = settingsPage === "vim" ? "editor"
     : settingsPage === "sidebar" ? "appearance"
     : ["bookmarks", "tags", "profile"].includes(settingsPage) ? "documents" : "root";
-  const goBack = useCallback(() => {
+  const [syncBusy, setSyncBusy] = useState(false);
+  const pushRunning = useGitHubPushJob(state => state.status === "running");
+  const { confirm: confirmLeaveSync, confirmationDialog: leaveSyncDialog } = useConfirmation(open);
+  const reportSyncBusy = useCallback((busy: boolean) => {
+    setSyncBusy(busy);
+    onSyncBusy?.(busy);
+  }, [onSyncBusy]);
+  const guardLeave = useCallback(async (leave: () => void) => {
+    if (settingsPage === "sync" && (syncBusy || pushRunning)) {
+      const accepted = await confirmLeaveSync({ title: "GitHub 同步尚未完成", description: "正在执行 Pull / Push。建议留在此页等待结果；现在返回不会取消正在进行的操作。", confirmLabel: "仍然返回" });
+      if (!accepted) return;
+    }
+    leave();
+  }, [settingsPage, syncBusy, pushRunning, confirmLeaveSync]);
+  const requestClose = useCallback(() => { void guardLeave(onClose); }, [guardLeave, onClose]);
+  const goBack = useCallback(() => { void guardLeave(() => {
     if (settingsPage === "root") onClose();
     else setSettingsPage(parentPage);
-  }, [settingsPage, parentPage, onClose]);
+  }); }, [settingsPage, parentPage, onClose, guardLeave]);
   const [editorAppearanceSearch, setEditorAppearanceSearch] = useState("");
   const settingsSearchRef = useRef<HTMLInputElement>(null);
   const settingsPanelRef = useRef<HTMLDivElement>(null);
@@ -521,7 +554,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const expandedPanel = !mobileSettingsViewport || settingsPage !== "root";
 
   return (
-    <div className={`settings-overlay${mobileSettingsViewport ? " settings-overlay-mobile" : ""}${expandedPanel ? " settings-expanded-overlay" : ""}`} onClick={() => { onClose(); }}>
+    <div className={`settings-overlay${mobileSettingsViewport ? " settings-overlay-mobile" : ""}${expandedPanel ? " settings-expanded-overlay" : ""}`} onClick={requestClose}>
       <div
         className={`settings-panel${expandedPanel ? " settings-expanded-panel" : ""}`}
         ref={settingsPanelRef}
@@ -530,7 +563,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
         aria-modal="true"
         aria-labelledby="settings-dialog-title"
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}
+        onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); requestClose(); } }}
       >
         <div className="settings-header">
           <div className="settings-header-main">
@@ -550,7 +583,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               <button type="button" className="settings-feedback-close" aria-label="关闭提示" onClick={clearMessage}><ToolbarIcon name="close" /></button>
             </div>}
           </div>
-          <button ref={closeButtonRef} className="settings-close" onClick={onClose} aria-label="关闭设置"><ToolbarIcon name="exit" /></button>
+          <button ref={closeButtonRef} className="settings-close" onClick={requestClose} aria-label="关闭设置"><ToolbarIcon name="exit" /></button>
         </div>
 
         {loading ? (
@@ -845,9 +878,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            <Field label="代码块 Tab 显示" desc="下次打开代码块弹层生效，无论是否开启 Vim；只改变 Tab 的显示宽度，不替换原有字符。" visible={settingsPage === "vim"}>
+            <Field label="代码块 Tab 显示" desc="与编辑器排版中的 Tab 宽度共用，立即应用于正文代码块和块模式；不替换原有字符。" visible={settingsPage === "vim"}>
               <div className="vim-config-card">
-                <div className="vim-config-card-heading"><strong>代码块弹层</strong><span>Tab 缩进 · Shift+Tab 减少缩进</span></div>
+                <div className="vim-config-card-heading"><strong>代码块与块模式</strong><span>Tab 缩进 · Shift+Tab 减少缩进</span></div>
                 <div className="vim-config-grid">
                   <label>Tab 宽度<select value={Math.max(1, Math.min(16, Number(vimConfig.match(/tabstop=(\d+)/)?.[1] ?? 4)))} onChange={(event) => {
                     const next = [...normalizeVimConfig(vimConfig).split("\n").filter(line => line && !/^set tabstop(?:=|$)/.test(line)), `set tabstop=${event.target.value}`].join("\n");
@@ -1032,7 +1065,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             {/* GitHub 备份 */}
             {/* ═══════════════════════ */}
             {settingsPage === "sync" && (
-              <SettingsSync onBusyChange={onSyncBusy} onBeforePush={onBeforePush} onPullDone={onPullDone} />
+              <SettingsSync onBusyChange={reportSyncBusy} onBeforePush={onBeforePush} onPullDone={onPullDone} />
             )}
 
             <Field label="只读正文局部渲染（实验）" desc="默认关闭，仅本设备生效。只读时按可见区域挂载正文；图片、表格及超大单块自动回退。跨全文选择、打印、书签管理请切回完整渲染。" visible={settingsPage === "advanced"}>
@@ -1101,6 +1134,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
           </div>
         )}
       </div>
+      {leaveSyncDialog}
       {editorAppearanceOpen && config && (
         <EditorAppearancePanel
           initialSearch={editorAppearanceSearch}

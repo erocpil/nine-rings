@@ -1308,3 +1308,19 @@
 .rendered-link-menu button { display: block; width: 100%; min-height: 44px; text-align: left; background: transparent; border: 0; border-radius: 4px; color: inherit; padding: 8px; cursor: pointer; }
 .rendered-link-menu button:hover, .rendered-link-menu button:focus-visible { background: var(--hover-bg); outline: 2px solid var(--accent); }
 .rendered-link-notice { position: fixed; z-index: 10051; bottom: 48px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 32px); padding: 10px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); }
+
+.quick-tooltip {
+  position: fixed;
+  z-index: 10000;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 2px 8px #0002;
+  font: 12px/1.5 var(--font);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}

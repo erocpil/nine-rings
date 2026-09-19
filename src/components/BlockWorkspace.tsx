@@ -99,12 +99,12 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
   const [closing, setClosing] = useState(false);
   const [color, setColor] = useState("#333333");
   const [whitespace] = useState<WhitespaceMode>(() => blockWorkspacePreferences().whitespace ?? "off");
-  const [tabSize] = useState(() => blockWorkspacePreferences().tabSize ?? 4);
+  const [tabSize, setTabSize] = useState(() => blockWorkspacePreferences().tabSize ?? 4);
   const [wrap] = useState(() => blockWorkspacePreferences().wrap ?? true);
   const [fontSize] = useState(() => blockWorkspacePreferences().fontSize ?? (Math.round(parseFloat(getComputedStyle(source.view.dom).fontSize)) || 16));
   const [lineNumbers, setLineNumbers] = useState(codeLineNumbersEnabled);
   useEffect(() => {
-    const sync = () => setLineNumbers(codeLineNumbersEnabled());
+    const sync = () => { setLineNumbers(codeLineNumbersEnabled()); setTabSize(blockWorkspacePreferences().tabSize ?? 4); };
     window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync);
     window.addEventListener("storage", sync);
     return () => { window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync); window.removeEventListener("storage", sync); };

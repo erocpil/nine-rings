@@ -14,11 +14,13 @@ export function codeLineNumbersEnabled(): boolean {
 export function blockWorkspacePreferences(): WorkspacePreferences {
   const preferences: WorkspacePreferences = { lineNumbers: codeLineNumbersEnabled() };
   try {
+    const legacyTab = Number(localStorage.getItem("nr:vim-config")?.match(/(?:^|\n)\s*set\s+tabstop=(\d+)/)?.[1]);
+    if (Number.isInteger(legacyTab) && legacyTab >= 1 && legacyTab <= 16) preferences.tabSize = legacyTab;
     const parsed: unknown = JSON.parse(localStorage.getItem(WORKSPACE_KEY) ?? "{}");
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return preferences;
     const value = parsed as Record<string, unknown>;
     if (typeof value.fontSize === "number" && value.fontSize >= 12 && value.fontSize <= 32) preferences.fontSize = value.fontSize;
-    if (typeof value.tabSize === "number" && [2, 4, 8].includes(value.tabSize)) preferences.tabSize = value.tabSize;
+    if (typeof value.tabSize === "number" && Number.isInteger(value.tabSize) && value.tabSize >= 1 && value.tabSize <= 16) preferences.tabSize = value.tabSize;
     if (value.whitespace === "off" || value.whitespace === "all" || value.whitespace === "abnormal") preferences.whitespace = value.whitespace;
     if (typeof value.wrap === "boolean") preferences.wrap = value.wrap;
     return preferences;
@@ -30,6 +32,7 @@ export function saveBlockWorkspacePreferences(patch: WorkspacePreferences) {
     localStorage.setItem(WORKSPACE_KEY, JSON.stringify({ ...blockWorkspacePreferences(), ...patch }));
   }
   catch { /* Display controls remain usable if local storage is unavailable. */ }
+  apply();
   window.dispatchEvent(new Event(BLOCK_WORKSPACE_DISPLAY_EVENT));
 }
 export function codeBlockHeightPercent() {
@@ -37,6 +40,7 @@ export function codeBlockHeightPercent() {
   return [40, 60, 80, 100].includes(value) ? value : 60;
 }
 function apply() {
+  document.documentElement.style.setProperty("--code-tab-size", String(blockWorkspacePreferences().tabSize ?? 4));
   document.documentElement.style.setProperty("--code-block-height", `calc(var(--app-viewport-height, 100dvh) * ${codeBlockHeightPercent() / 100})`);
 }
 export function setCodeBlockHeightPercent(value: number) {

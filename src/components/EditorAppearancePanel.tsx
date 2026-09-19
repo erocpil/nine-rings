@@ -165,8 +165,8 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
                     <option value="off">关闭</option><option value="all">全部</option><option value="abnormal">仅异常</option>
                   </select>
                 </AppearanceField>
-                <AppearanceField label="Tab 显示宽度" desc="只改变显示宽度，不转换字符">
-                  <select className="settings-input editor-appearance-select" aria-label="Tab 显示宽度" value={blockDisplay.tabSize ?? 4} onChange={event => updateBlock({ tabSize: Number(event.target.value) })}>{[2, 4, 8].map(size => <option key={size}>{size}</option>)}</select>
+                <AppearanceField label="Tab 显示宽度" desc="正文代码块与块模式共用，默认 4 个空格宽；不转换已有 Tab 字符">
+                  <select className="settings-input editor-appearance-select" aria-label="Tab 显示宽度" value={blockDisplay.tabSize ?? 4} onChange={event => updateBlock({ tabSize: Number(event.target.value) })}>{Array.from({ length: 16 }, (_, i) => i + 1).map(size => <option key={size}>{size}</option>)}</select>
                 </AppearanceField>
                 <AppearanceField label="块弹层字号" desc="代码／引用独立阅读字号">
                   <select className="settings-input editor-appearance-select" aria-label="弹层字号" value={blockDisplay.fontSize ?? ""} onChange={event => updateBlock({ fontSize: event.target.value ? Number(event.target.value) : undefined })}><option value="">跟随正文</option>{Array.from({ length: 21 }, (_, i) => i + 12).map(size => <option key={size}>{size}</option>)}</select>

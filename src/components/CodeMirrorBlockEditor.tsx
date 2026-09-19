@@ -4,6 +4,7 @@ import { drawSelection, EditorView, keymap, lineNumbers as codeLineNumbers } fro
 import { defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { getCM, Vim, vim } from "@replit/codemirror-vim";
 import { isPrimaryShortcutModifier } from "../lib/shortcuts";
+import { blockWorkspacePreferences, BLOCK_WORKSPACE_DISPLAY_EVENT } from "../lib/block-display-settings";
 import { codeIndentChanges } from "../lib/code-indent";
 
 export type CodeVimMode = "normal" | "insert" | "visual";
@@ -20,12 +21,6 @@ for (const [key, action, redo] of [["u", "sourceUndo", false], ["<C-r>", "source
   Vim.mapCommand(key, "action", action, {}, { context: "normal" });
 }
 
-function readVimConfig() {
-  const text = localStorage.getItem("nr:vim-config") ?? "";
-  const get = (name: string, fallback: number) => Number(text.match(new RegExp(`(?:^|\\n)\\s*set\\s+${name}=(\\d+)`, "m"))?.[1] ?? fallback);
-  return { tabSize: Math.max(1, Math.min(16, get("tabstop", 4))) };
-}
-
 /** CodeMirror 6 编辑表面：仅用于代码块弹层，正文仍由 ProseMirror 管理。 */
 export function CodeMirrorBlockEditor({ vimEnabled, value, onChange, onUndo, onRedo, onExit, onModeChange, wrap, lineNumbers }: Props) {
   const host = useRef<HTMLDivElement>(null);
@@ -38,8 +33,9 @@ export function CodeMirrorBlockEditor({ vimEnabled, value, onChange, onUndo, onR
   const numbersRef = useRef(lineNumbers); numbersRef.current = lineNumbers;
   useEffect(() => {
     if (!host.current) return;
-    const config = readVimConfig();
-    const state = EditorState.create({ doc: valueRef.current, extensions: [vimEnabled ? vim() : [], drawSelection(), keymap.of([...defaultKeymap, indentWithTab]), numbers.current.of(numbersRef.current ? codeLineNumbers() : []), ...(wrap ? [EditorView.lineWrapping] : []), EditorState.tabSize.of(config.tabSize), EditorView.updateListener.of((update) => {
+    const tabs = new Compartment();
+    const tabSize = () => blockWorkspacePreferences().tabSize ?? 4;
+    const state = EditorState.create({ doc: valueRef.current, extensions: [vimEnabled ? vim() : [], drawSelection(), keymap.of([...defaultKeymap, indentWithTab]), numbers.current.of(numbersRef.current ? codeLineNumbers() : []), ...(wrap ? [EditorView.lineWrapping] : []), tabs.of(EditorState.tabSize.of(tabSize())), EditorView.updateListener.of((update) => {
       if (update.docChanged && !update.transactions.some(transaction => transaction.annotation(sourceSync))) changeRef.current(update.state.doc.toString());
     })] });
     const view = new EditorView({ state, parent: host.current });
@@ -55,7 +51,10 @@ export function CodeMirrorBlockEditor({ vimEnabled, value, onChange, onUndo, onR
     }
     reportMode();
     view.focus();
-    return () => { if (cm) { cm.off("vim-mode-change", reportMode); histories.delete(cm); } viewRef.current = null; view.destroy(); };
+    const syncTabs = () => view.dispatch({ effects: tabs.reconfigure(EditorState.tabSize.of(tabSize())) });
+    window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, syncTabs);
+    window.addEventListener("storage", syncTabs);
+    return () => { window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, syncTabs); window.removeEventListener("storage", syncTabs); if (cm) { cm.off("vim-mode-change", reportMode); histories.delete(cm); } viewRef.current = null; view.destroy(); };
   }, [wrap, vimEnabled]);
   useEffect(() => {
     viewRef.current?.dispatch({ effects: numbers.current.reconfigure(lineNumbers ? codeLineNumbers() : []) });

@@ -1093,7 +1093,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       if (frame) cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         const root = scrollRef.current;
-        if (!root || editor.isDestroyed || !editor.isFocused || readonly) return;
+        if (!root || editor.isDestroyed || !editor.isFocused || readonly || !editor.state.selection.empty
+          || !document.getSelection()?.isCollapsed) return;
         // Only compensate for a virtual keyboard. Applying this mobile margin
         // on desktop moves text even when a mouse click is already visible.
         if (!document.documentElement.classList.contains("web-keyboard-open")) return;
@@ -1885,7 +1886,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         && !editingElsewhere
         && selection?.anchorNode && editor.view.dom.contains(selection.anchorNode)
         && selection.focusNode && editor.view.dom.contains(selection.focusNode);
-      const caretVisible = !readonlyRef.current
+      const caretVisible = editor.state.selection.empty && !readonlyRef.current
         && (editor.isFocused || retainedCaret)
         && coords.bottom >= viewport.top
         && coords.top <= viewport.bottom;

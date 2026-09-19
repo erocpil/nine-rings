@@ -48,6 +48,15 @@ test("Vim 缺少 tabstop 时仍能设置宽度，状态栏关闭时禁用块号�
   expect(
     await page.evaluate(() => localStorage.getItem("nr:vim-config")),
   ).toContain("set tabstop=8");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        getComputedStyle(document.documentElement)
+          .getPropertyValue("--code-tab-size")
+          .trim(),
+      ),
+    )
+    .toBe("8");
   await page.getByLabel("返回编辑器").click();
   await page
     .getByRole("checkbox", { name: "编辑器状态栏", exact: true })
