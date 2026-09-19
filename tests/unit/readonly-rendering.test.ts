@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getSchema } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
+import { DocumentStarterKit } from "../../src/extensions/DocumentStarterKit";
 import {
   buildReadonlyDocument,
   ReadingLayout,
@@ -13,7 +13,7 @@ import {
   extractHeadingSections,
 } from "../../src/lib/heading-fold";
 
-const schema = getSchema([StarterKit]);
+const schema = getSchema([DocumentStarterKit]);
 const paragraph = (text: string) => ({
   type: "paragraph",
   content: [{ type: "text", text }],
@@ -25,6 +25,15 @@ const heading = (text: string) => ({
 });
 
 describe("readonly window model", () => {
+  it("accepts inline code combined with bold in the same document schema", () => {
+    const document = buildReadonlyDocument({ ops: [
+      { insert: "wait(lock, predicate)", attributes: { bold: true, code: true } },
+      { insert: "\n" },
+    ] }, schema);
+    expect(document).not.toBeNull();
+    expect(() => document!.check()).not.toThrow();
+    expect(document!.firstChild!.firstChild!.marks.map(mark => mark.type.name)).toEqual(["bold", "code"]);
+  });
   it("rejects unsupported nodes and marks instead of dropping content", () => {
     expect(
       buildReadonlyDocument(

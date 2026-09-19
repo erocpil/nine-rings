@@ -5,7 +5,8 @@
  */
 
 import { getSchema } from "@tiptap/core";
-import StarterKit from "@tiptap/starter-kit";
+import Link from "@tiptap/extension-link";
+import { DocumentStarterKit } from "../src/extensions/DocumentStarterKit";
 import { mdToDelta } from "../src/lib/md-parser";
 import { getTableEmbed } from "../src/lib/table-embed";
 import { deltaToProseMirror, proseMirrorToDelta, pxToNamed, namedToPx } from "../src/lib/delta-converter";
@@ -23,7 +24,7 @@ function assert(condition: boolean, msg: string): void {
 
 // A single invalid code node used to reject an entire large Markdown paste.
 {
-  const schema = getSchema([StarterKit]);
+  const schema = getSchema([DocumentStarterKit]);
   for (const code of ["", "\nconst value = 42;", "\n\nconst value = 42;\n", "\n\n"]) {
     const source = `之前\n\n\`\`\`text\n${code}\n\`\`\`\n\n之后`;
     const document = deltaToProseMirror(mdToDelta(source));
@@ -36,6 +37,29 @@ function assert(condition: boolean, msg: string): void {
     schema.nodeFromJSON(restored).check();
     assert(JSON.stringify(restored) === JSON.stringify(document), "code blank lines survive saving and reopening");
   }
+}
+
+// 附件的真实触发点：加粗范围内嵌行内代码。不能因 Code 的互斥规则拒绝全文。
+{
+  const schema = getSchema([DocumentStarterKit, Link]);
+  const cases = [
+    ["**Q2：为什么要写 `wait(lock, predicate)`？**", ["bold", "code"]],
+    ["*参数 `predicate`*", ["code", "italic"]],
+    ["~~旧接口 `wait(lock)`~~", ["code", "strike"]],
+    ["[`参考接口`](https://example.test/reference)", ["code", "link"]],
+  ] as const;
+  for (const [source, expectedMarks] of cases) {
+    const document = schema.nodeFromJSON(deltaToProseMirror(mdToDelta(source)));
+    document.check();
+    const code = document.firstChild?.content.content.find(node => node.marks.some(mark => mark.type.name === "code"));
+    assert(JSON.stringify(code?.marks.map(mark => mark.type.name).sort()) === JSON.stringify(expectedMarks),
+      "inline code retains surrounding Markdown marks in a valid schema");
+    const restored = schema.nodeFromJSON(deltaToProseMirror(proseMirrorToDelta(document.toJSON())));
+    restored.check();
+    assert(restored.eq(document), "combined code marks survive saving and reopening");
+  }
+  assert(!getSchema([DocumentStarterKit.configure({ code: false })]).marks.code,
+    "document starter kit preserves extension configuration");
 }
 
 // ═══════════════════════════════════════════════════════════════════

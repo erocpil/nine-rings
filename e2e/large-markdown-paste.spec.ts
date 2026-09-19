@@ -1,4 +1,7 @@
 import { expect, test, type Page, type Locator } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { mdToDelta } from "../src/lib/md-parser";
+import { deltaToProseMirror } from "../src/lib/delta-converter";
 
 async function openPasteDocument(page: Page) {
   await page.goto("/");
@@ -301,3 +304,61 @@ test("取消后台粘贴后，稍晚返回的结果不会再插入", async ({ pa
   await expect(editor).toHaveText("Original");
   await expect(page.locator(".markdown-paste-status")).toHaveCount(0);
 });
+
+// 可用 MARKDOWN_PASTE_FIXTURE 指定用户提供的原文进行本地回归，默认只保存最小复现。
+for (const entry of ["原生", "工具栏"] as const) {
+  test(`${entry}粘贴组合格式的行内代码，全文校验、撤销重做和保存恢复`, async ({ page }) => {
+    test.setTimeout(90000);
+    const source = process.env.MARKDOWN_PASTE_FIXTURE
+      ? await readFile(process.env.MARKDOWN_PASTE_FIXTURE, "utf8")
+      : [
+        "# 组合格式回归",
+        "**Q2：为什么要写 `wait(lock, predicate)`？**",
+        "*参数 `predicate`*",
+        "~~旧接口 `wait(lock)`~~",
+        "[`参考接口`](https://example.test/reference)",
+        "最后一段",
+      ].join("\n\n");
+    const expectedJson = deltaToProseMirror(mdToDelta(source));
+    const errors: string[] = [];
+    page.on("pageerror", error => errors.push(error.message));
+    const editor = await openPasteDocument(page);
+    if (entry === "原生") await pasteText(editor, source);
+    else {
+      await page.evaluate(text => {
+        Object.defineProperty(navigator.clipboard, "read", { configurable: true, value: async () => [{
+          types: ["text/plain"], getType: async () => new Blob([text], { type: "text/plain" }),
+        }] });
+      }, source);
+      await page.getByTitle("粘贴 (Ctrl+V)", { exact: true }).click();
+    }
+    await expect(page.getByText("已按 Markdown 格式化", { exact: true })).toBeVisible({ timeout: 30000 });
+    const snapshot = () => editor.evaluate(element => {
+      const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      instance.state.doc.check();
+      return instance.getJSON();
+    });
+    const expected = await editor.evaluate((element, content) => {
+      const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      return instance.schema.nodeFromJSON(content).toJSON();
+    }, expectedJson);
+    expect(await snapshot()).toEqual(expected);
+    const question = editor.locator("strong code, code strong").filter({ hasText: "wait(lock, predicate)" });
+    await expect(question).toHaveCount(1);
+    await page.keyboard.press("Control+z");
+    await expect(editor).toHaveText("");
+    await page.keyboard.press("Control+Shift+z");
+    expect(await snapshot()).toEqual(expected);
+    await expect.poll(() => page.evaluate(async () => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api } = await load("/src/lib/api.ts");
+      const note = await api.notes.get(localStorage.getItem("nr:lastNote"));
+      return JSON.stringify(note.content).includes("wait(lock, predicate)");
+    }), { timeout: 10000 }).toBe(true);
+    await page.reload();
+    await expect(page.locator(".note-title")).toHaveValue("大段粘贴回归", { timeout: 25000 });
+    await expect(question).toHaveCount(1);
+    expect(await snapshot()).toEqual(expected);
+    expect(errors).toEqual([]);
+  });
+}

@@ -7,7 +7,7 @@ import { useEditorToolbarMenus } from "../hooks/useEditorToolbarMenus";
 import { useBlockSelectionGestures } from "../hooks/useBlockSelectionGestures";
 import { MOBILE_VIEWPORT_QUERY } from "../hooks/useEdgeDrawer";
 import { useEditor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
+import { DocumentStarterKit } from "../extensions/DocumentStarterKit";
 import { OrderedListLayout } from "../extensions/OrderedListLayout";
 import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
 import { createToolbarSelectionCommands } from "../lib/editor-toolbar-commands";
@@ -477,7 +477,7 @@ function DocumentEditor(props: NoteEditorProps) {
   const readingDocument = useMemo(() => {
     if (!readingSource) return null;
     readonlySchema ??= getSchema([
-      StarterKit.configure({ codeBlock: false, blockquote: false }), TextStyle, Color, FontSize,
+      DocumentStarterKit.configure({ codeBlock: false, blockquote: false }), TextStyle, Color, FontSize,
       LinkExt, CodeBlockLineNumbers, CollapsibleBlockquote, BlockIndent, MarkdownTaskState,
     ]);
     const doc = buildReadonlyDocument(JSON.parse(readingSource), readonlySchema);
@@ -891,7 +891,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   // document callbacks read refs so autosave never captures an old handler.
   const [sessionExtensions] = useState(() => [
       Extension.create({ name: "headingFoldHosts", addProseMirrorPlugins: () => [headingFoldAnchors(foldHostsRef.current)] }),
-      StarterKit.configure({
+      DocumentStarterKit.configure({
         heading: { levels: [1, 2, 3, 4, 5, 6] },
         codeBlock: false,
         blockquote: false,
