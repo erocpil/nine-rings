@@ -262,12 +262,15 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     const previouslyFocused = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-    const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+    const frame = window.requestAnimationFrame(() => {
+      const target = mobileSettingsViewport ? settingsPanelRef.current : closeButtonRef.current;
+      target?.focus({ preventScroll: true });
+    });
     return () => {
       window.cancelAnimationFrame(frame);
       previouslyFocused?.focus();
     };
-  }, [open]);
+  }, [open, mobileSettingsViewport]);
 
 
   useEffect(() => {
@@ -520,6 +523,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
         className={`settings-panel${expandedPage ? " settings-expanded-panel" : ""}`}
         ref={settingsPanelRef}
         role="dialog"
+        tabIndex={-1}
         aria-modal="true"
         aria-labelledby="settings-dialog-title"
         onClick={(e) => e.stopPropagation()}
@@ -538,14 +542,14 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             )}
             <h2 id="settings-dialog-title" tabIndex={-1}>{SETTINGS_PAGE_TITLES[settingsPage]}</h2>
           </div>
+          <div className="settings-feedback-slot" role="status" aria-live="polite">
+            {message && <div className="settings-toast"><span className="settings-feedback-text">{message}</span>
+              <button type="button" className="settings-feedback-close" aria-label="关闭提示" onClick={clearMessage}><ToolbarIcon name="close" /></button>
+            </div>}
+          </div>
           <button ref={closeButtonRef} className="settings-close" onClick={onClose} aria-label="关闭设置"><ToolbarIcon name="exit" /></button>
         </div>
 
-        <div className="settings-feedback-slot" role="status" aria-live="polite">
-          {message && <div className="settings-toast"><span className="settings-feedback-text">{message}</span>
-            <button type="button" className="settings-feedback-close" aria-label="关闭提示" onClick={clearMessage}><ToolbarIcon name="close" /></button>
-          </div>}
-        </div>
         {loading ? (
           <div className="settings-loading">加载中...</div>
         ) : !config ? (

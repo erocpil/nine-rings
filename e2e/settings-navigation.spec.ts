@@ -15,11 +15,19 @@ async function openMobileSettings(page: import("@playwright/test").Page) {
     }
   });
   await expect(page.getByRole("heading", { name: "设置", exact: true })).toBeVisible();
+  await expect(page.getByLabel("关闭设置")).not.toBeFocused();
+  await expect(page.getByRole("dialog", { name: "设置", exact: true })).toBeFocused();
+  await expect(page.getByLabel("关闭设置")).toHaveCSS("outline-style", "none");
 }
 
 test("设置使用分类首页和二级页面精简内容", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("设置").click();
+  await expect(page.getByLabel("查找设置")).toBeVisible();
+  expect(await page.locator(".settings-search").evaluate(element => {
+    const header = element.closest(".settings-panel")!.querySelector(".settings-header")!;
+    return element.getBoundingClientRect().top - header.getBoundingClientRect().bottom;
+  })).toBeLessThanOrEqual(16);
 
   const categories = page.getByLabel("设置分类").getByRole("button");
   await expect(categories).toHaveCount(7);
