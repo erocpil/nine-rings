@@ -32,30 +32,6 @@ export function DocumentPanelDrawer({ enabled, presentation, panel, hasOutline, 
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [enabled, presentation, panel, onClose]);
   useLayoutEffect(() => {
-    if (!enabled || presentation !== "popover" || !panel) return;
-    const unified = document.querySelector<HTMLElement>(".app-mobile-workspace .note-title-row, .app-mobile-workspace .vr-title");
-    const anchor = unified ?? document.querySelector<HTMLElement>(".app:not(.app-focus-mode) .header-document-actions");
-    if (!anchor) return;
-    const root = document.documentElement;
-    const update = () => {
-      const rect = anchor.getBoundingClientRect();
-      root.style.setProperty("--document-panel-anchor-top", `${unified ? rect.bottom + 4 : rect.top}px`);
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(anchor);
-    window.addEventListener("resize", update);
-    window.visualViewport?.addEventListener("resize", update);
-    window.visualViewport?.addEventListener("scroll", update);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", update);
-      window.visualViewport?.removeEventListener("resize", update);
-      window.visualViewport?.removeEventListener("scroll", update);
-      root.style.removeProperty("--document-panel-anchor-top");
-    };
-  }, [enabled, presentation, panel]);
-  useLayoutEffect(() => {
     if (open) lastContent.current = children;
   }, [children, open]);
   useEffect(() => {

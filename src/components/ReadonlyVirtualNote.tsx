@@ -16,6 +16,7 @@ import { ToolbarIcon } from "./ToolbarIcon";
 import { DocumentTitlePreview } from "./DocumentTitlePreview";
 import { queueBlockWorkspace } from "../lib/block-workspace";
 import { DocumentPanelDrawer } from "./DocumentPanelDrawer";
+import { useDocumentPanelPosition } from "../hooks/useDocumentPanelPosition";
 import {
   ReadingLayout,
   readingBlocks,
@@ -636,6 +637,14 @@ export function ReadonlyVirtualNote(
     onSearchTargetConsumed?.(target.requestId);
   }, [searchTarget, onSearchTargetConsumed, doc, noteId, jump, openPanel]);
   const mobileDrawerViewport = useMobileViewport();
+  const outlineTriggerRef = useRef<HTMLButtonElement>(null);
+  const bookmarkTriggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const documentPanelStyle = useDocumentPanelPosition({
+    open: (panel === "outline" || panel === "bookmarks") && (!mobileDrawerViewport || presentation === "popover"),
+    triggerRef: panel === "bookmarks" ? bookmarkTriggerRef : outlineTriggerRef,
+    panelRef, compact: mobileDrawerViewport, layoutKey: props.focusMode, width: 380,
+  });
   const onOpenSettings = props.onOpenSettings;
   useEffect(
     () =>
@@ -711,6 +720,7 @@ export function ReadonlyVirtualNote(
       }}><ToolbarIcon name="copy" /></button>
       {props.documentViewToggle}
       <button
+        ref={outlineTriggerRef}
         type="button"
         title="文档目录"
         aria-label="文档目录"
@@ -720,6 +730,7 @@ export function ReadonlyVirtualNote(
         <FocusModeIcon name="outline" />
       </button>
       <button
+        ref={bookmarkTriggerRef}
         type="button"
         title="文档书签"
         aria-label="文档书签"
@@ -840,7 +851,9 @@ export function ReadonlyVirtualNote(
       >
         {panel && (
           <section
+            ref={panelRef}
             className="vr-panel"
+            style={documentPanelStyle}
             aria-label={
               panel === "outline"
                 ? "文档目录"

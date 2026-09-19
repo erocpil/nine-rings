@@ -66,6 +66,7 @@ import { BlockWorkspaceHost } from "./BlockWorkspace";
 import { openBlockWorkspace } from "../lib/block-workspace";
 import { saveBlockWorkspacePreferences, watchBlockDisplaySettings } from "../lib/block-display-settings";
 import { DocumentPanelDrawer, type DocumentPanelPresentation } from "./DocumentPanelDrawer";
+import { useDocumentPanelPosition } from "../hooks/useDocumentPanelPosition";
 import { storeImage } from "../lib/storage/db-images";
 import { blobToBase64 } from "../lib/storage/core";
 import { ProtectedNoteEditor } from "./ProtectedNoteEditor";
@@ -538,6 +539,12 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const [outlineDockWidth, setOutlineDockWidth] = useState(getSavedOutlineDockWidth);
   const [bookmarkOpen, setBookmarkOpen] = useState(false);
   const [panelPresentation, setPanelPresentation] = useState<DocumentPanelPresentation>("popover");
+  const outlineTriggerRef = useRef<HTMLButtonElement>(null);
+  const bookmarkTriggerRef = useRef<HTMLButtonElement>(null);
+  const focusOutlineTriggerRef = useRef<HTMLButtonElement>(null);
+  const focusBookmarkTriggerRef = useRef<HTMLButtonElement>(null);
+  const outlinePanelRef = useRef<HTMLElement>(null);
+  const bookmarkPanelRef = useRef<HTMLElement>(null);
   const [bookmarks, setBookmarks] = useState<DocumentBookmark[]>(bookmarksRef.current);
   useEffect(() => { onBookmarkCountChange?.(bookmarks.length); }, [bookmarks.length, onBookmarkCountChange]);
   useEffect(() => () => onBookmarkCountChange?.(0), [onBookmarkCountChange]);
@@ -639,6 +646,17 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const [isMobileToolbarViewport, setIsMobileToolbarViewport] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
+  });
+  const documentPanelStyle = useDocumentPanelPosition({
+    open: (bookmarkOpen || (outlineOpen && documentOutline.length > 0))
+      && (!isMobileToolbarViewport || panelPresentation === "popover")
+      && (bookmarkOpen || outlineDock === "floating" || isMobileToolbarViewport),
+    triggerRef: focusMode && !unifiedTitleBar
+      ? bookmarkOpen ? focusBookmarkTriggerRef : focusOutlineTriggerRef
+      : bookmarkOpen ? bookmarkTriggerRef : outlineTriggerRef,
+    panelRef: bookmarkOpen ? bookmarkPanelRef : outlinePanelRef,
+    compact: isMobileToolbarViewport,
+    layoutKey: focusMode,
   });
   // 桌面 Web 的编辑区通常会因侧栏被压缩到 700～900px；900px 阈值过于
   // 保守，会在仍有足够空间时提前切换精简工具栏。移动端仍始终使用精简布局。
@@ -3434,6 +3452,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           {documentViewToggle}
           {documentOutline.length > 0 && (
             <button
+              ref={focusOutlineTriggerRef}
               type="button"
               className={outlineOpen ? "active" : undefined}
               aria-expanded={outlineOpen}
@@ -3447,6 +3466,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             ><FocusModeIcon name="outline" /></button>
           )}
           <button
+            ref={focusBookmarkTriggerRef}
             type="button"
             className={bookmarkOpen ? "active" : undefined}
             aria-expanded={bookmarkOpen}
@@ -3575,8 +3595,9 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       >
       {outlineOpen && documentOutline.length > 0 && (
         <nav
+          ref={outlinePanelRef}
           className="document-outline-panel"
-          style={outlineDock === "floating" ? undefined : ({ width: `var(--note-outline-docked-width, ${DEFAULT_OUTLINE_DOCK_WIDTH}px)` } as React.CSSProperties)}
+          style={documentPanelStyle ?? (outlineDock === "floating" ? undefined : { width: `var(--note-outline-docked-width, ${DEFAULT_OUTLINE_DOCK_WIDTH}px)` })}
           aria-label="文档目录"
           onClick={(event) => event.stopPropagation()}
         >
@@ -3650,7 +3671,9 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       )}
       {bookmarkOpen && (
         <nav
+          ref={bookmarkPanelRef}
           className="document-bookmark-panel"
+          style={documentPanelStyle}
           aria-label="文档书签"
           onClick={(event) => event.stopPropagation()}
         >
@@ -3757,6 +3780,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           {documentOutline.length > 0 && (
             <div className="document-outline-control">
               <button
+                ref={outlineTriggerRef}
                 className={`focus-btn document-outline-toggle ${outlineOpen ? "active" : ""}`}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -3770,6 +3794,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             </div>
           )}
           <button
+            ref={bookmarkTriggerRef}
             className={`focus-btn document-bookmark-toggle ${bookmarkOpen ? "active" : ""}`}
             onClick={(event) => {
               event.stopPropagation();

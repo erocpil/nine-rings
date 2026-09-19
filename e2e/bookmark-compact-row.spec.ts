@@ -10,7 +10,7 @@ test("手机书签紧凑行和左划操作保持可用", async ({ page }) => {
   const row = page.locator(".document-bookmark-item").first();
   await expect(row).toBeVisible();
   await expect(row).toHaveCSS("height", "32px");
-  await expect(row.locator(".document-bookmark-jump")).toHaveCSS("font-size", "12px");
+  await expect(row.locator(".document-bookmark-jump")).toHaveCSS("font-size", "13px");
   await row.evaluate(el => {
     for (const [type, x] of [["pointerdown", 240], ["pointermove", 160], ["pointerup", 160]] as const) {
       el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 9,
