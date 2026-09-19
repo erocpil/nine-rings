@@ -48,6 +48,17 @@ function firstLineTextCenter(
     const lineHeight = Number.parseFloat(getComputedStyle(dom).lineHeight) || editorLineHeight;
     return fallbackRect.top + lineHeight / 2;
   }
+  if (typeName === "codeBlock") {
+    // Collapsed code retains its text DOM for editing, but that text is clipped.
+    // Anchor to the visible toolbar instead of measuring the hidden first line.
+    const collapsed = dom.matches(".code-block-wrap.collapsed")
+      ? dom : dom.querySelector<HTMLElement>(".code-block-wrap.collapsed");
+    if (collapsed) {
+      const toolbar = collapsed.querySelector<HTMLElement>(".code-block-toolbar");
+      const rect = toolbar?.getBoundingClientRect() ?? fallbackRect;
+      return rect.top + rect.height / 2;
+    }
+  }
   const textRoot = typeName === "codeBlock"
     ? (dom.matches("code") ? dom : dom.querySelector<HTMLElement>("code")) ?? dom
     : dom;
@@ -155,6 +166,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
     let rebuildFrame = 0;
     let windowFrame = 0;
     let documentMeasureTimer = 0;
+    let lastScrollTime = 0;
     let disposed = false;
     let observedWindow = { start: -1, end: -1 };
     let foldedHeadingPositions = getCollapsedHeadingPositions(editor);
@@ -272,8 +284,20 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
           const dom = entry.target;
           if (!(dom instanceof HTMLElement)) continue;
           if (!observedIndexes.has(dom)) continue;
+          // Scrolling does not change coordinates relative to the gutter. Keep
+          // measurements refreshed by resize/rebuild; queued IO must not replace
+          // them with old positions or delete them with a stale false entry.
+          // The bounded observation window handles eviction off screen.
+          if (measuredBlocks.has(dom)) continue;
           const blockIndex = observedIndexes.get(dom);
           const heading = blockIndex !== undefined && topLevelBlocks[blockIndex - 1]?.heading;
+          // Newly windowed text can use IO geometry only if no scroll happened
+          // since its snapshot. Coalesce stale batches into one idle remeasure
+          // instead of synchronously reading every new block on rapid scrolling.
+          if (!heading && entry.time < lastScrollTime) {
+            scheduleDocumentMeasure();
+            continue;
+          }
           // 正文沿用 IO 矩形，保留大文件性能；标题使用当前布局，避免
           // 延迟批次把折叠三角重新放到旧坐标。
           const rect = heading ? dom.getBoundingClientRect() : entry.boundingClientRect;
@@ -564,7 +588,12 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       : new MutationObserver(scheduleRebuild);
     mutationObserver?.observe(editor.view.dom, { childList: true });
     editor.on("transaction", onTransaction);
-    scrollRoot.addEventListener("scroll", scheduleWindowRefresh, { passive: true });
+    const onScroll = () => {
+      lastScrollTime = performance.now();
+      if (documentMeasureTimer) scheduleDocumentMeasure();
+      scheduleWindowRefresh();
+    };
+    scrollRoot.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", scheduleWindowRefresh);
     rebuildObservedBlocks();
 
@@ -572,7 +601,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       disposed = true;
       observerGeneration += 1;
       editor.off("transaction", onTransaction);
-      scrollRoot.removeEventListener("scroll", scheduleWindowRefresh);
+      scrollRoot.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", scheduleWindowRefresh);
       intersectionObserver?.disconnect();
       resizeObserver?.disconnect();
