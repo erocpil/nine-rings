@@ -9,3 +9,15 @@ html[data-edge-scrollbars] [data-scrollbar-visible] { scrollbar-color: var(--tex
 html[data-edge-scrollbars][data-scrollbar-visible]::-webkit-scrollbar-thumb,
 html[data-edge-scrollbars] [data-scrollbar-visible]::-webkit-scrollbar-thumb { background: var(--text-secondary); }
 html[data-edge-scrollbars] *::-webkit-scrollbar-corner { background: transparent; }
+
+/* Non-auto standard scrollbar properties override ::-webkit-scrollbar styling.
+   On macOS that can put visibility back under the system overlay scrollbar's
+   auto-hide policy. Use the styled WebKit track consistently when available. */
+@supports selector(::-webkit-scrollbar) {
+  html[data-edge-scrollbars],
+  html[data-edge-scrollbars] *,
+  html[data-edge-scrollbars][data-scrollbar-visible],
+  html[data-edge-scrollbars] [data-scrollbar-visible] {
+    scrollbar-color: auto;
+  }
+}

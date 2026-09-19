@@ -28,7 +28,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 
       await panel.getByLabel("Owner / Repo", { exact: true }).press("Tab");
       await panel.getByRole("button", { name: "返回设置分类", exact: true }).click();
       const root = page.getByRole("dialog", { name: "设置", exact: true });
-      await expect(root).not.toHaveClass(/settings-sync-panel/);
+      await expect(root).not.toHaveClass(/settings-expanded-panel/);
       await page.getByRole("button", { name: /^同步与备份/ }).click();
       await expect(panel.getByLabel("Owner / Repo", { exact: true })).toHaveValue("test/notes");
       await page.getByRole("button", { name: "关闭设置", exact: true }).click();

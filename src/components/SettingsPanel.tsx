@@ -447,10 +447,12 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
 
   if (!open) return null;
 
+  const expandedPage = settingsPage === "sync" || settingsPage === "data";
+
   return (
-    <div className={`settings-overlay${mobileSettingsViewport ? " settings-overlay-mobile" : ""}${settingsPage === "sync" ? " settings-sync-overlay" : ""}`} onClick={() => { onClose(); }}>
+    <div className={`settings-overlay${mobileSettingsViewport ? " settings-overlay-mobile" : ""}${expandedPage ? " settings-expanded-overlay" : ""}`} onClick={() => { onClose(); }}>
       <div
-        className={`settings-panel${settingsPage === "sync" ? " settings-sync-panel" : ""}`}
+        className={`settings-panel${expandedPage ? " settings-expanded-panel" : ""}`}
         ref={settingsPanelRef}
         role="dialog"
         aria-modal="true"
