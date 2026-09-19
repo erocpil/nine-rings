@@ -531,48 +531,52 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
 /** 将旧版本保存成 `| ... |` 普通段落的表格安全升级为 table embed。 */
 function migrateLegacyMarkdownTables(sourceOps: DeltaOp[]): DeltaOp[] {
   const result: DeltaOp[] = [];
-  const readLine = (start: number): { text: string; end: number } | null => {
-    let text = "";
-    let index = start;
-    for (; index < sourceOps.length; index++) {
-      const op = sourceOps[index];
-      if (typeof op?.insert !== "string") return null;
-      if (op.insert === "\n") {
-        if (Object.keys(op.attributes ?? {}).length > 0) return null;
-        return { text, end: index + 1 };
-      }
-      const attrs = op.attributes ?? {};
-      let part = op.insert;
-      if (attrs.code) part = `\`${part}\``;
-      if (attrs.bold) part = `**${part}**`;
-      if (attrs.italic) part = `*${part}*`;
-      if (attrs.link) part = `[${part}](${attrs.link})`;
-      text += part;
+  // 每个逻辑行只扫描一次。逐 op 调用 readLine 会反复拼接同一段的后缀，
+  // 数万行内格式片段的长段落会退化成 O(N²)，即使其中根本没有表格。
+  const lines: Array<{ text: string | null; from: number; to: number }> = [];
+  let from = 0;
+  let text = "";
+  for (let index = 0; index < sourceOps.length; index++) {
+    const op = sourceOps[index];
+    if (typeof op.insert !== "string" || op.insert === "\n") {
+      lines.push({
+        text: op.insert === "\n" && !Object.keys(op.attributes ?? {}).length ? text : null,
+        from, to: index + 1,
+      });
+      from = index + 1;
+      text = "";
+      continue;
     }
-    return null;
-  };
+    const attrs = op.attributes ?? {};
+    let part = op.insert;
+    if (attrs.code) part = `\`${part}\``;
+    if (attrs.bold) part = `**${part}**`;
+    if (attrs.italic) part = `*${part}*`;
+    if (attrs.link) part = `[${part}](${attrs.link})`;
+    text += part;
+  }
+  if (from < sourceOps.length) lines.push({ text: null, from, to: sourceOps.length });
 
   let index = 0;
-  while (index < sourceOps.length) {
-    const first = readLine(index);
-    if (first?.text.trim().startsWith("|")) {
-      const lines = [first.text];
-      let end = first.end;
-      while (end < sourceOps.length) {
-        const next = readLine(end);
-        if (!next?.text.trim().startsWith("|")) break;
-        lines.push(next.text);
-        end = next.end;
+  while (index < lines.length) {
+    const first = lines[index];
+    const second = lines[index + 1];
+    // 先验证表头和分隔行，避免连续的非表格 pipe 行被反复向后扫描。
+    if (first.text?.trim().startsWith("|") && second?.text?.trim().startsWith("|")
+      && markdownTableToEmbed([first.text, second.text])) {
+      const tableLines = [first.text, second.text];
+      let end = index + 2;
+      while (end < lines.length && lines[end].text?.trim().startsWith("|")) {
+        tableLines.push(lines[end].text!);
+        end++;
       }
-      const table = markdownTableToEmbed(lines);
-      if (table) {
-        result.push({ insert: { table } }, { insert: "\n" });
-        index = end;
-        continue;
-      }
+      const table = markdownTableToEmbed(tableLines)!;
+      result.push({ insert: { table } }, { insert: "\n" });
+      index = end;
+      continue;
     }
-    result.push(sourceOps[index]);
-    index += 1;
+    for (let opIndex = first.from; opIndex < first.to; opIndex++) result.push(sourceOps[opIndex]);
+    index++;
   }
   return result;
 }

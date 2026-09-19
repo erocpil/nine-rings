@@ -422,5 +422,13 @@ function assert(condition: boolean, msg: string): void {
   const code = deltaToProseMirror({ ops: [{ insert: "one\ntwo\nthree" }, { insert: "\n", attributes: { "code-block": true } }] });
   assert(code.content.length === 1 && code.content[0].type === "codeBlock" && code.content[0].content?.[0].text === "one\ntwo\nthree", "multiline code remains one code block");
 }
+// 高密度行内格式必须能走完整转换链路，旧表格迁移会重复扫描每个 op 的后缀。
+{
+  const delta = mdToDelta(Array(5000).fill("**粗体** 普通 ".repeat(14)).join("\n"));
+  const result = deltaToProseMirror(delta);
+  assert(result.content.length === 1, "large soft-wrapped paragraph remains a single block");
+  assert(result.content[0].content?.length === 140_000, "all inline fragments survive linear-time conversion");
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

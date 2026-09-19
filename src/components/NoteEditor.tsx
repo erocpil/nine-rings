@@ -38,9 +38,10 @@ import {
 // ── 自定义字体大小扩展 ──
 
 import { Extension, getSchema, type Editor } from "@tiptap/core";
-import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import { Fragment, Slice, type Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { readClipboardContent, shouldParseClipboardMarkdown } from "../lib/clipboard-content";
-import { Plugin, TextSelection } from "@tiptap/pm/state";
+import { Plugin, TextSelection, type Selection } from "@tiptap/pm/state";
+import { closeHistory } from "@tiptap/pm/history";
 import { CellSelection, deleteCellSelection, TableMap } from "@tiptap/pm/tables";
 import { addLog, toggleDebug } from "../lib/debugLog";
 import { copyToClipboard } from "../lib/clipboard";
@@ -669,6 +670,9 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   });
   const [markdownPasteText, setMarkdownPasteText] = useState<string | null>(null);
   const [markdownPasteStatus, setMarkdownPasteStatus] = useState("");
+  const [markdownPasteFailure, setMarkdownPasteFailure] = useState<{
+    text: string; doc: ProseMirrorNode; selection: Selection; details: string;
+  } | null>(null);
   const markdownPasteRequestRef = useRef(0);
   const [markdownSelectionNotice, setMarkdownSelectionNotice] = useState(false);
   const [readonlyChangeNotice, setReadonlyChangeNotice] = useState(false);
@@ -718,6 +722,12 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     const timer = window.setTimeout(() => setMarkdownPasteText(null), 6000);
     return () => window.clearTimeout(timer);
   }, [markdownPasteText]);
+
+  useEffect(() => {
+    if (!markdownPasteStatus || markdownPasteFailure || markdownPasteStatus === "正在粘贴 Markdown…") return;
+    const timer = window.setTimeout(() => setMarkdownPasteStatus(""), 6000);
+    return () => window.clearTimeout(timer);
+  }, [markdownPasteStatus, markdownPasteFailure]);
 
   useEffect(() => {
     if (!bookmarkOpen) setOpenBookmarkActionsId(null);
@@ -2331,16 +2341,28 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   };
 
 
-  const pasteMarkdown = useCallback(async (text: string) => {
+  const dismissMarkdownPaste = useCallback(() => {
+    markdownPasteRequestRef.current++;
+    setMarkdownPasteStatus("");
+    setMarkdownPasteFailure(null);
+  }, []);
+
+  const pasteMarkdown = useCallback(async (text: string, plainText = false) => {
     if (!editor || editor.isDestroyed || readonlyRef.current || !editor.isEditable) return;
     const request = ++markdownPasteRequestRef.current;
     const sourceDoc = editor.state.doc;
     const selection = editor.state.selection;
     const large = text.length >= 20_000 || text.split("\n", 501).length > 500;
     setMarkdownPasteText(null);
+    setMarkdownPasteFailure(null);
     setMarkdownPasteStatus(large ? "正在粘贴 Markdown…" : "");
+    let stage = plainText ? "准备纯文本" : "解析 Markdown";
     try {
-      const parsed = large
+      const parsed = plainText ? {
+        content: text.replace(/\r\n?/g, "\n").split("\n").map(line => ({
+          type: "paragraph", content: line ? [{ type: "text", text: line }] : [],
+        })),
+      } : large
         ? await markdownToProseMirrorAsync(text)
         : deltaToProseMirror(mdToDelta(text));
       if (editor.isDestroyed || request !== markdownPasteRequestRef.current) return;
@@ -2350,16 +2372,36 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         setMarkdownPasteStatus("正文或光标位置已变化，请重新粘贴");
         return;
       }
-      const inserted = editor.chain().focus().insertContentAt(
-        { from: selection.from, to: selection.to }, parsed.content, { errorOnInvalidContent: true },
-      ).run();
-      if (!inserted || editor.state.doc === sourceDoc) throw new Error("Markdown 未插入");
-      setMarkdownPasteStatus("");
-      setMarkdownPasteText(text);
+      // TipTap 会把 nodeFromJSON 的异常吞成 false。先逐块校验，保留
+      // 实际错误及块位置，并在校验全部通过之前不改动正文。
+      const fragment = Fragment.fromArray(parsed.content.map((block, index) => {
+        stage = `校验第 ${index + 1} 块（${block.type}）`;
+        const node = editor.schema.nodeFromJSON(block);
+        node.check();
+        return node;
+      }));
+      stage = "插入正文";
+      const chain = editor.chain().command(({ tr }) => { closeHistory(tr); return true; }).focus();
+      const inserted = (plainText ? chain.command(({ tr }) => {
+        // 与原生文本粘贴一致，让首尾段落接入原选区，避免额外生成空行。
+        tr.replaceSelection(new Slice(fragment, 1, 1));
+        return true;
+      }) : chain.insertContentAt(
+        { from: selection.from, to: selection.to }, fragment, { errorOnInvalidContent: true },
+      )).run();
+      if (!inserted || editor.state.doc === sourceDoc) throw new Error("编辑器未接受粘贴内容");
+      editor.view.dispatch(closeHistory(editor.state.tr));
+      setMarkdownPasteStatus(plainText ? "已按纯文本粘贴" : "");
+      if (!plainText) setMarkdownPasteText(text);
     } catch (error) {
       if (editor.isDestroyed || request !== markdownPasteRequestRef.current) return;
       console.error("[MarkdownPaste]", error);
-      setMarkdownPasteStatus("Markdown 粘贴失败，请重试");
+      const reason = error instanceof Error ? error.message : String(error);
+      const details = `${stage}：${reason.slice(0, 600)}\n${text.split(/\r\n?|\n/).length} 行，${text.length} 字符；版本 ${__APP_VERSION__}`;
+      setMarkdownPasteStatus(plainText ? "纯文本粘贴未完成" : "Markdown 粘贴未完成");
+      // 若插入后的其他回调报错，不能重试并重复插入。只在原文档快照
+      // 仍未变化时提供原文恢复操作；内容变化后点击也必须重新检查。
+      setMarkdownPasteFailure({ text, doc: sourceDoc, selection, details });
     }
   }, [editor]);
 
@@ -2440,7 +2482,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       // 仅源码包装按 Markdown 解析；真实富文本沿用原生粘贴链路。
       if (plainText && shouldParseClipboardMarkdown(plainText, rawHtml)) {
         e.preventDefault();
-        void pasteMarkdown(plainText);
+        void pasteMarkdown(rawPlainText);
         return;
       }
 
@@ -2986,7 +3028,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       if (text && isSelectionInsideCodeBlock(editor)) {
         insertCodeBlockPlainText(editor, text);
       } else if (shouldParseClipboardMarkdown(text.trim(), html)) {
-        await pasteMarkdown(text.trim());
+        await pasteMarkdown(text);
       } else {
         editor.view.focus();
         // Use the same parsing/normalization pipeline as native paste, not
@@ -3975,8 +4017,28 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           </div> : null;
         })()}
         {markdownPasteStatus && (
-          <div className="markdown-paste-notice" role="status">
+          <div className="markdown-paste-notice markdown-paste-status" role="status">
             <span>{markdownPasteStatus}</span>
+            {markdownPasteFailure && <>
+              <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => {
+                const failure = markdownPasteFailure;
+                if (readonlyRef.current || !editor.isEditable || editor.state.doc !== failure.doc
+                  || !editor.state.selection.eq(failure.selection)) {
+                  setMarkdownPasteFailure(null);
+                  setMarkdownPasteStatus("正文或光标位置已变化，请重新粘贴");
+                  return;
+                }
+                void pasteMarkdown(failure.text, true);
+              }}>按纯文本粘贴</button>
+              <details className="markdown-paste-details">
+                <summary>查看失败原因</summary>
+                <pre>{markdownPasteFailure.details}</pre>
+              </details>
+            </>}
+            <button type="button" aria-label={markdownPasteStatus === "正在粘贴 Markdown…" ? "取消粘贴" : "关闭粘贴提示"}
+              onMouseDown={event => event.preventDefault()} onClick={dismissMarkdownPaste}>
+              {markdownPasteStatus === "正在粘贴 Markdown…" ? "取消" : "关闭"}
+            </button>
           </div>
         )}
         {markdownPasteText && (
@@ -3984,13 +4046,9 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             <span>已按 Markdown 格式化</span>
             <button type="button" onClick={() => { editor.chain().focus().undo().run(); setMarkdownPasteText(null); }}>撤销</button>
             <button type="button" onClick={() => {
-              const blocks = markdownPasteText.split(/\r?\n/).map((line) => ({
-                type: "paragraph",
-                ...(line ? { content: [{ type: "text", text: line }] } : {}),
-              }));
+              const text = markdownPasteText;
               editor.chain().focus().undo().run();
-              editor.chain().focus().insertContent(blocks).run();
-              setMarkdownPasteText(null);
+              void pasteMarkdown(text, true);
             }}>改为纯文本</button>
           </div>
         )}

@@ -1218,6 +1218,29 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
   font: inherit;
 }
 
+.markdown-paste-status {
+  flex-wrap: wrap;
+  max-width: calc(100% - 24px);
+}
+
+.markdown-paste-details {
+  flex-basis: 100%;
+  min-width: 0;
+  order: 1;
+}
+
+.markdown-paste-details summary {
+  cursor: pointer;
+}
+
+.markdown-paste-details pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  margin: 6px 0 0;
+  font: inherit;
+}
+
 .readonly-change-notice {
   position: absolute;
   top: 50%;

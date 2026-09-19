@@ -57,6 +57,11 @@ function findInlineEnd(text: string, marker: string, from: number): number {
   return -1;
 }
 
+// 大段 Markdown 可能产生数万片段；push(...items) 会触发 WebView 的参数栈限制。
+function appendItems<T>(target: T[], items: readonly T[]): void {
+  for (const item of items) target.push(item);
+}
+
 function parseInline(text: string): InlineSegment[] {
   const result: InlineSegment[] = [];
   let i = 0;
@@ -83,7 +88,7 @@ function parseInline(text: string): InlineSegment[] {
     // [链接](url)
     const linkMatch = text.slice(i).match(/^\[((?:\\.|[^\]\\])+)\]\(([^)]+)\)/);
     if (linkMatch) {
-      result.push(...parseInline(linkMatch[1]).map(segment => ({ ...segment, attrs: { ...segment.attrs, link: linkMatch[2] } })));
+      appendItems(result, parseInline(linkMatch[1]).map(segment => ({ ...segment, attrs: { ...segment.attrs, link: linkMatch[2] } })));
       i += linkMatch[0].length;
       continue;
     }
@@ -92,7 +97,7 @@ function parseInline(text: string): InlineSegment[] {
     if (text.slice(i, i + 2) === "**") {
       const j = findInlineEnd(text, "**", i + 2);
       if (j !== -1) {
-        result.push(...parseInline(text.slice(i + 2, j)).map(segment => ({ ...segment, attrs: { ...segment.attrs, bold: true } })));
+        appendItems(result, parseInline(text.slice(i + 2, j)).map(segment => ({ ...segment, attrs: { ...segment.attrs, bold: true } })));
         i = j + 2;
         continue;
       }
@@ -104,7 +109,7 @@ function parseInline(text: string): InlineSegment[] {
       if (j !== -1) {
         const inner = text.slice(i + 1, j);
         if (inner) {
-          result.push(...parseInline(inner).map(segment => ({ ...segment, attrs: { ...segment.attrs, italic: true } })));
+          appendItems(result, parseInline(inner).map(segment => ({ ...segment, attrs: { ...segment.attrs, italic: true } })));
           i = j + 1;
           continue;
         }
@@ -114,7 +119,7 @@ function parseInline(text: string): InlineSegment[] {
     if (text.slice(i, i + 2) === "~~") {
       const end = findInlineEnd(text, "~~", i + 2);
       if (end !== -1) {
-        result.push(...parseInline(text.slice(i + 2, end)).map(segment => ({ ...segment, attrs: { ...segment.attrs, strike: true } })));
+        appendItems(result, parseInline(text.slice(i + 2, end)).map(segment => ({ ...segment, attrs: { ...segment.attrs, strike: true } })));
         i = end + 2;
         continue;
       }
@@ -328,7 +333,7 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
     isMarkdownTableRow(text);
 
   const appendParagraph = (paragraphLines: string[]) => {
-    ops.push(...inlineToDelta(paragraphLines.join(" ")));
+    appendItems(ops, inlineToDelta(paragraphLines.join(" ")));
     ops.push({ insert: "\n" });
   };
 
@@ -405,7 +410,7 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
       resetListIndent();
       const level = hMatch[1].length;
       const text = hMatch[2];
-      ops.push(...inlineToDelta(text));
+      appendItems(ops, inlineToDelta(text));
       ops.push({ insert: "\n", attributes: { header: level } });
       i++;
       continue;
@@ -427,7 +432,7 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
         i++;
       }
 
-      ops.push(...inlineToDelta(paragraphLines.join(" ")));
+      appendItems(ops, inlineToDelta(paragraphLines.join(" ")));
       ops.push({ insert: "\n", attributes: { blockquote: true } });
       continue;
     }
@@ -439,7 +444,7 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
       const list = /^\d/.test(listMatch[2]) ? "ordered" : "bullet";
       const listStart = list === "ordered" ? Number.parseInt(listMatch[2], 10) : undefined;
       const task = /^\[([ xX])\](?:[ \t]+(.*)|$)/.exec(listMatch[3]);
-      ops.push(...inlineToDelta(task ? task[2] ?? "" : listMatch[3]));
+      appendItems(ops, inlineToDelta(task ? task[2] ?? "" : listMatch[3]));
       i++;
 
       // 列表项的 lazy continuation（以及显式缩进的续行）仍属于当前项。
@@ -451,7 +456,8 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
         const continuationOps = inlineToDelta(continuation);
         const [first, ...rest] = continuationOps;
         if (first && typeof first.insert === "string") {
-          ops.push({ ...first, insert: `\n${first.insert}` }, ...rest);
+          ops.push({ ...first, insert: `\n${first.insert}` });
+          appendItems(ops, rest);
         }
         i++;
       }

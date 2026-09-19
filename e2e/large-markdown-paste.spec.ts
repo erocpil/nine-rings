@@ -208,3 +208,96 @@ for (const action of ["输入", "移动光标", "切换文档"] as const) {
     await expect(editor).toHaveText(action === "输入" ? "Original typed" : action === "移动光标" ? "Original" : "另一篇正文");
   });
 }
+
+async function simulateInvalidMarkdownResult(page: Page) {
+  await page.addInitScript(() => {
+    const send = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message, options) {
+      if (message?.task === "markdown-to-prosemirror") {
+        queueMicrotask(() => this.dispatchEvent(new MessageEvent("message", { data: {
+          id: message.id, result: { type: "doc", content: [{ type: "unsupportedMarkdownBlock" }] },
+        } })));
+        return;
+      }
+      send.call(this, message, options);
+    };
+  });
+}
+
+const recoverableSource = "\r\n  # 原始 Markdown\r\n" + "  **行内格式**\t内容\r\n".repeat(510) + "  末尾  \r\n";
+
+test("粘贴失败显示实际原因，关闭提示不会修改正文", async ({ page }) => {
+  await simulateInvalidMarkdownResult(page);
+  const editor = await openPasteDocument(page);
+  await page.keyboard.type("Original");
+  await pasteText(editor, recoverableSource);
+  await expect(page.getByText("Markdown 粘贴未完成", { exact: true })).toBeVisible();
+  await expect(editor).toHaveText("Original");
+  await page.getByText("查看失败原因", { exact: true }).click();
+  await expect(page.locator(".markdown-paste-details pre")).toContainText("校验第 1 块（unsupportedMarkdownBlock）");
+  await expect(page.locator(".markdown-paste-details pre")).toContainText("Unknown node type");
+  await page.getByRole("button", { name: "关闭粘贴提示" }).click();
+  await expect(page.locator(".markdown-paste-status")).toHaveCount(0);
+  await expect(editor).toHaveText("Original");
+});
+
+test("失败后按纯文本粘贴保留全部空行、缩进和尾部空格，可单步撤销", async ({ page }) => {
+  await simulateInvalidMarkdownResult(page);
+  const editor = await openPasteDocument(page);
+  await page.keyboard.type("Original");
+  await editor.evaluate(element => {
+    const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    instance.commands.setTextSelection({ from: 1, to: instance.state.doc.content.size - 1 });
+  });
+  await pasteText(editor, recoverableSource);
+  await expect(page.getByText("Markdown 粘贴未完成", { exact: true })).toBeVisible();
+  await expect(editor).toHaveText("Original");
+  await page.getByRole("button", { name: "按纯文本粘贴", exact: true }).click();
+  await expect(page.getByText("已按纯文本粘贴", { exact: true })).toBeVisible();
+  const text = await editor.evaluate(element => {
+    const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    return instance.state.doc.textBetween(0, instance.state.doc.content.size, "\n", "\n");
+  });
+  expect(text).toBe(recoverableSource.replace(/\r\n/g, "\n"));
+  await page.keyboard.press("Control+z");
+  await expect(editor).toHaveText("Original");
+});
+
+test("失败后继续输入，再点纯文本恢复不会覆盖新正文", async ({ page }) => {
+  await simulateInvalidMarkdownResult(page);
+  const editor = await openPasteDocument(page);
+  await page.keyboard.type("Original");
+  await pasteText(editor, recoverableSource);
+  await expect(page.getByText("Markdown 粘贴未完成", { exact: true })).toBeVisible();
+  await page.keyboard.type(" typed");
+  await page.getByRole("button", { name: "按纯文本粘贴", exact: true }).click();
+  await expect(page.getByText("正文或光标位置已变化，请重新粘贴", { exact: true })).toBeVisible();
+  await expect(editor).toHaveText("Original typed");
+  await page.getByRole("button", { name: "关闭粘贴提示" }).click();
+  await expect(page.locator(".markdown-paste-status")).toHaveCount(0);
+});
+
+test("取消后台粘贴后，稍晚返回的结果不会再插入", async ({ page }) => {
+  await page.addInitScript(() => {
+    const send = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message, options) {
+      if (message?.task === "markdown-to-prosemirror") {
+        Object.assign(window, { releaseMarkdown: () => send.call(this, message, options) });
+        this.addEventListener("message", event => {
+          if (event.data.id === message.id) Object.assign(window, { markdownDelivered: true });
+        });
+        return;
+      }
+      send.call(this, message, options);
+    };
+  });
+  const editor = await openPasteDocument(page);
+  await page.keyboard.type("Original");
+  await pasteText(editor, largeMarkdown);
+  await page.getByRole("button", { name: "取消粘贴" }).click();
+  await expect(page.locator(".markdown-paste-status")).toHaveCount(0);
+  await page.evaluate(() => (window as unknown as { releaseMarkdown: () => void }).releaseMarkdown());
+  await expect.poll(() => page.evaluate(() => (window as unknown as { markdownDelivered: boolean }).markdownDelivered)).toBe(true);
+  await expect(editor).toHaveText("Original");
+  await expect(page.locator(".markdown-paste-status")).toHaveCount(0);
+});

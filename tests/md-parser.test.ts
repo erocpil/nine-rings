@@ -458,5 +458,13 @@ This is a **bold** and *italic* text with \`code\`.
 // Results
 // ═══════════════════════════════════════════════════════════════════
 
+// 5000 连续源码行、每行多处行内格式，不能通过展开参数追加全部片段。
+{
+  const source = Array(5000).fill("**粗体** 普通 ".repeat(14)).join("\n");
+  const parsed = mdToDelta(source);
+  assert(parsed.ops.filter(op => op.attributes?.bold).length === 70_000,
+    "large inline fragment arrays do not overflow the argument stack");
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
