@@ -239,14 +239,14 @@ test("代码和引用折叠三角位于最右侧，所有工具间距一致", as
         const expandBounds = (await expand.boundingBox())!;
         const rightInset = await toolbar.evaluate(element => parseFloat(getComputedStyle(element).paddingRight));
         expect(foldBounds.x + foldBounds.width).toBeCloseTo(bounds.x + bounds.width - rightInset, 1);
-        expect(foldBounds.x - expandBounds.x - expandBounds.width).toBeCloseTo(4, 1);
+        expect(foldBounds.x - expandBounds.x - expandBounds.width).toBeCloseTo(2, 1);
         const gaps = await toolbar.evaluate(element => {
           const controls = Array.from(element.querySelectorAll("button, select"))
             .filter(control => control.getBoundingClientRect().width > 0);
           return controls.slice(1).map((control, index) =>
             control.getBoundingClientRect().left - controls[index].getBoundingClientRect().right);
         });
-        for (const gap of gaps) expect(gap).toBeCloseTo(4, 1);
+        for (const gap of gaps) expect(gap).toBeCloseTo(2, 1);
         await fold.click();
         await expect(toolbar.getByRole("button", { name: `展开${kind}块`, exact: true })).toBeVisible();
         await toolbar.getByRole("button", { name: `展开${kind}块`, exact: true }).click();

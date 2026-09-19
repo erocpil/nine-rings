@@ -78,7 +78,7 @@ html {
   --ui-shadow-dialog: 0 18px 48px rgba(0, 0, 0, 0.28);
   --ui-focus-ring: color-mix(in srgb, var(--accent) 28%, transparent);
   --code-bg: #f0f2f5;
-  --block-toolbar-gap: 4px;
+  --block-toolbar-gap: 2px;
   --activeline-bg: rgba(9, 105, 218, 0.06);
   --editor-font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
   --editor-font-size: 16px;
