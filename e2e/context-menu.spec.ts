@@ -18,7 +18,7 @@ async function createBlankNote(page: Page): Promise<Locator> {
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
   const editor = page.locator(".ProseMirror");
   await expect(editor).toBeVisible();
-  await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("新随笔");
+  await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("新随笔");
   await expect(editor).toHaveText("");
   return editor;
 }

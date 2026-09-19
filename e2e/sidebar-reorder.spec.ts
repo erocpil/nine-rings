@@ -7,8 +7,8 @@ async function createNamedNote(page: Page, title: string) {
   await page.getByTitle("从模板新建").click();
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
   await expect(noteItems).toHaveCount(previousCount + 1);
-  await expect(page.locator('[placeholder="随心记 — 标题"]')).toHaveValue("新随笔");
-  await page.locator('[placeholder="随心记 — 标题"]').fill(title);
+  await expect(page.locator('[placeholder="输入文档标题"]')).toHaveValue("新随笔");
+  await page.locator('[placeholder="输入文档标题"]').fill(title);
   await expect(page.locator(".save-status-dirty")).toBeVisible();
   await expect(page.locator(".save-status-saved")).toBeVisible();
   await expect(page.locator(".sidebar-item-title").filter({ hasText: title })).toBeVisible();

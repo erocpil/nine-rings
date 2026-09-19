@@ -15,7 +15,7 @@ test.describe('创建-编辑-保存-刷新', () => {
     await page.getByTitle('从模板新建').click();
     await page.getByRole('button', { name: /^📝 空白笔记/ }).click();
 
-    const titleInput = page.locator('[placeholder="随心记 — 标题"]');
+    const titleInput = page.locator('[placeholder="输入文档标题"]');
     await expect(titleInput).toBeVisible({ timeout: 5000 });
     await expect(titleInput).toHaveValue('新随笔');
 

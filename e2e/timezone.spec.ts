@@ -36,7 +36,7 @@ test.describe('时区与日期行为', () => {
     await page.getByTitle('随笔').click();
     await page.getByTitle('从模板新建').click();
     await page.getByRole('button', { name: /^📝 空白笔记/ }).click();
-    const titleInput = page.locator('[placeholder="随心记 — 标题"]');
+    const titleInput = page.locator('[placeholder="输入文档标题"]');
     await expect(titleInput).toBeVisible({ timeout: 5000 });
     await titleInput.fill('日期测试笔记');
 

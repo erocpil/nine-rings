@@ -24,7 +24,7 @@ for (const width of [1280, 390]) {
           const selectedNote = isReadonly ? await api.notes.update(note.id, { readonly: true }) : note;
           useNotesStore.getState().selectNote(selectedNote);
         }, readonly);
-        await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("书签布局验证");
+        await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("书签布局验证");
         await editor.getByText("第二条书签", { exact: true }).click();
         if (readonly) {
           await expect(page.getByTitle("点击设为可编辑", { exact: true })).toBeVisible();
@@ -120,7 +120,7 @@ test("设置中的书签列表包含文档书签", async ({ page }) => {
   // 若不等待对话框卸载，会越过遮罩修改仍挂载在背后的旧编辑器，继而把
   // 书签正确地保存到旧文档，却让集中管理看起来像是读错了标题。
   await expect(page.getByRole("dialog", { name: "新建文档" })).toHaveCount(0);
-  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("书签集中管理测试");
+  await expect(page.getByRole("textbox", { name: "文档标题", exact: true })).toHaveValue("书签集中管理测试");
 
   const editor = page.locator(".ProseMirror");
   await editor.fill("设置页应显示的文档书签");

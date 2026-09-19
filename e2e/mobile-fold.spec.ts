@@ -7,7 +7,7 @@ test("引用块折叠状态在切换文档后保持", async ({ page }) => {
   const createBlankNote = async (title: string) => {
     await page.getByTitle("从模板新建").click();
     await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-    const titleInput = page.getByRole("textbox", { name: "随心记 — 标题" });
+    const titleInput = page.getByRole("textbox", { name: "文档标题", exact: true });
     await expect(titleInput).toHaveValue("新随笔");
     await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
     await titleInput.fill(title);

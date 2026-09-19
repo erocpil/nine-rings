@@ -7,7 +7,7 @@ async function createBlankNote(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
   // The prior editor can remain mounted while the new note is loading. Wait
   // for the blank session before measuring styles or dispatching a paste.
-  await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("新随笔");
+  await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("新随笔");
   await expect(page.locator(".ProseMirror")).toHaveText("");
   await expect(page.locator(".ProseMirror")).toHaveAttribute("contenteditable", "true");
 }

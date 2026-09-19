@@ -35,7 +35,7 @@ async function seedViews(page: Page, view: "daily" | "tree" = "daily") {
   const switcher = page.locator(".sidebar-view-switch");
   if (await switcher.getAttribute("data-target-view") === "daily") await switcher.click();
   await page.locator(".sidebar-item").filter({ hasText: "按钮随笔乙" }).click();
-  await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("按钮随笔乙");
+  await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("按钮随笔乙");
   if (await page.getByTitle("显示侧栏", { exact: true }).isVisible()) await page.getByTitle("显示侧栏", { exact: true }).click();
   if (view === "tree") await page.getByTitle("切换到文档", { exact: true }).click();
   return ids;
@@ -58,7 +58,7 @@ test.describe("全部随笔菜单的实际移动", () => {
     await expect(page.getByTitle("返回当日随笔")).toBeVisible();
     const item = page.locator(".sidebar-item").filter({ hasText: "按钮随笔乙" });
     await expect(item).toBeVisible();
-    const selectedTitle = await page.getByPlaceholder("随心记 — 标题").inputValue();
+    const selectedTitle = await page.getByPlaceholder("输入文档标题").inputValue();
     // The all-notes cache remains populated even when the current day is empty.
     await page.evaluate(async () => {
       const load = (path: string) => import(/* @vite-ignore */ path);
@@ -77,7 +77,7 @@ test.describe("全部随笔菜单的实际移动", () => {
     const index = expected.indexOf("按钮随笔乙");
     [expected[index - 1], expected[index]] = [expected[index], expected[index - 1]];
     await expect.poll(titles).toEqual(expected);
-    await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue(selectedTitle);
+    await expect(page.getByPlaceholder("输入文档标题")).toHaveValue(selectedTitle);
     await page.reload();
     if (await page.getByTitle("显示侧栏", { exact: true }).isVisible()) await page.getByTitle("显示侧栏", { exact: true }).tap();
     await expect.poll(titles).toEqual(expected);
@@ -128,7 +128,7 @@ test.describe("全部随笔菜单的实际移动", () => {
     await expect(item).toBeVisible();
     await expect.poll(readDate).toBe("2001-02-03");
     await expect(item.locator(".sidebar-item-time")).toContainText("2001-02-03");
-    await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("按钮随笔乙");
+    await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("按钮随笔乙");
     await page.reload();
     await expect.poll(readDate).toBe("2001-02-03");
   });
@@ -166,7 +166,7 @@ for (const width of [1280, 390]) {
       const button = item.getByTitle("取消置顶");
       if (width < 768) await button.tap(); else await button.click();
       await expect(item.getByTitle("取消置顶")).toHaveCount(0);
-      await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("按钮随笔乙");
+      await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("按钮随笔乙");
       await expect(page.locator(".app-sidebar")).not.toHaveClass(/sidebar-hidden/);
     });
 
@@ -176,7 +176,7 @@ for (const width of [1280, 390]) {
       await expect(rename).toBeDisabled();
       const row = page.locator(".doc-tree-doc").filter({ hasText: "按钮文档甲" });
       await row.click();
-      await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("按钮文档甲");
+      await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("按钮文档甲");
       if (width < 768) await page.getByTitle("显示侧栏", { exact: true }).tap();
       await expect(rename).toBeEnabled();
       await rename.click();
@@ -255,7 +255,7 @@ test.describe("手机工具栏状态恢复", () => {
       await seedViews(page, view);
       if (view === "tree") {
         await page.locator(".doc-tree-doc").filter({ hasText: "按钮文档甲" }).click();
-        await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("按钮文档甲");
+        await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("按钮文档甲");
         await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
       } else await page.locator(".sidebar-tab-hide").click();
       const editor = page.locator(".ProseMirror");
@@ -309,16 +309,16 @@ test("桌面随笔行内只读、日期和删除按钮不切换当前笔记", as
   await item.hover();
   await item.getByTitle("设为只读", { exact: true }).click();
   await expect(item.locator(".sidebar-item-ro-icon")).toBeVisible();
-  await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("按钮随笔乙");
+  await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("按钮随笔乙");
   await item.getByTitle("移至其他日期").click();
   const dialog = page.getByRole("dialog", { name: "移至日期", exact: true });
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "取消", exact: true }).click();
-  await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("按钮随笔乙");
+  await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("按钮随笔乙");
   await item.hover();
   await item.getByTitle("删除", { exact: true }).click();
   await expect(item).toHaveCount(0);
-  await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("按钮随笔乙");
+  await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("按钮随笔乙");
 });
 
 for (const width of [1440, 390]) {
@@ -330,7 +330,7 @@ for (const width of [1440, 390]) {
         await seedViews(page, view);
         if (view === "tree") {
           await page.locator(".doc-tree-doc").filter({ hasText: "按钮文档甲" }).click();
-          await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("按钮文档甲");
+          await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("按钮文档甲");
         }
         if (!(await page.locator(".app-sidebar").getAttribute("class"))?.includes("sidebar-hidden")) await page.locator(".sidebar-tab-hide").click();
         const editor = page.locator(".ProseMirror");

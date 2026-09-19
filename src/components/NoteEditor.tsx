@@ -2311,6 +2311,9 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
 
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
+      // The outer capture listener also sees title and toolbar inputs. Leave
+      // those to their native paste behavior, regardless of the body selection.
+      if (!(e.target instanceof Node) || !editor?.view.dom.contains(e.target)) return;
       if (readonlyRef.current || !editor?.isEditable) {
         e.preventDefault();
         e.stopPropagation();
@@ -3723,7 +3726,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
               onKeyDown={unifiedTitleBar && focusMode ? event => {
                 if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpenProperties?.(); }
               } : undefined}
-              placeholder="随心记 — 标题"
+              placeholder="输入文档标题"
               value={localTitle}
               onChange={(e) => { setLocalTitle(e.target.value); onTitleChange(e.target.value); }}
               readOnly={readonly || (unifiedTitleBar && focusMode)}

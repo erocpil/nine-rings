@@ -184,7 +184,7 @@ async function seedNavigation(page: Page, daily: boolean) {
   await page.reload();
   // Establish the selection through the UI; startup restoration is tested separately.
   await page.locator(daily ? ".sidebar-item-title" : ".doc-tree-name").getByText("可靠乙", { exact: true }).click();
-  await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("可靠乙");
+  await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("可靠乙");
   return ids;
 }
 
@@ -216,12 +216,12 @@ test("文档树只接受最后选择，迟到响应及失败不会串页", async
     const load = (path: string) => import(/* @vite-ignore */ path);
     const { api } = await load("/src/lib/api.ts");
     await api.notes.get(id);
-    return document.querySelector<HTMLInputElement>('input[placeholder="随心记 — 标题"]')?.value;
+    return document.querySelector<HTMLInputElement>('input[placeholder="输入文档标题"]')?.value;
   }, second)).toBe("可靠乙");
   await page.evaluate(() => { (window as any).selectionTest.fail = true; });
   await a.click();
   await expect(page.getByRole("alert")).toContainText("模拟读取失败");
-  await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("可靠乙");
+  await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("可靠乙");
 });
 
 test("工作区恢复历史版本直接刷新当前文档，不切换随笔且重载后仍保留", async ({ page }) => {
@@ -238,7 +238,7 @@ test("工作区恢复历史版本直接刷新当前文档，不切换随笔且�
   await panel.getByRole("button", { name: "恢复", exact: true }).first().click();
   await page.locator(".ui-confirm-dialog").getByRole("button", { name: /永久删除|永久清理|恢复此版本/, exact: true }).click();
   await expect(panel).toHaveCount(0);
-  await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("可靠乙");
+  await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("可靠乙");
   await expect(editor).toHaveText("可靠乙");
   const versions = await page.evaluate(async (id) => {
     const load = (path: string) => import(/* @vite-ignore */ path);
@@ -247,7 +247,7 @@ test("工作区恢复历史版本直接刷新当前文档，不切换随笔且�
   }, id);
   expect(versions).toContain("恢复前的未保存正文");
   await page.reload();
-  await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("可靠乙");
+  await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("可靠乙");
   await expect(editor).toHaveText("可靠乙");
 });
 
@@ -274,7 +274,7 @@ test("随笔批量只读局部更新，保存最新内容且不刷新页面", as
   await page.getByRole("button", { name: "🔒 设为只读", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "已设为只读" })).toBeVisible();
   expect(await page.evaluate(() => (window as any).pageMarker)).toBe("same-page");
-  await expect(page.getByPlaceholder("随心记 — 标题")).toHaveValue("可靠乙");
+  await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("可靠乙");
   const notes = await page.evaluate(async (ids) => {
     const load = (path: string) => import(/* @vite-ignore */ path);
     const { api } = await load("/src/lib/api.ts");

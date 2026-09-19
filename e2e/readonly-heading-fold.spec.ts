@@ -5,7 +5,7 @@ test("只读文档拒绝 Windows WebView2 式粘贴事件", async ({ page }) => 
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("新随笔");
+  await expect(page.getByRole("textbox", { name: "文档标题", exact: true })).toHaveValue("新随笔");
   await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
   await expect(page.locator(".ProseMirror")).toHaveText("");
 
@@ -35,7 +35,7 @@ test("只读文档显示已保存代码简介，隐藏语法选项并保留查�
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("新随笔");
+  await expect(page.getByRole("textbox", { name: "文档标题", exact: true })).toHaveValue("新随笔");
   await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
   await expect(page.locator(".ProseMirror")).toHaveText("");
 
@@ -116,7 +116,7 @@ test("只有只读专注模式双击标题或正文才切换所属标题章节",
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("新随笔");
+  await expect(page.getByRole("textbox", { name: "文档标题", exact: true })).toHaveValue("新随笔");
   await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
   await expect(page.locator(".ProseMirror")).toHaveText("");
 
@@ -176,7 +176,7 @@ test("只读正文双击折叠后所属标题停留在双击位置附近", async
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("新随笔");
+  await expect(page.getByRole("textbox", { name: "文档标题", exact: true })).toHaveValue("新随笔");
   await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
   await expect(page.locator(".ProseMirror")).toHaveText("");
 
@@ -214,7 +214,7 @@ test("手机 PWA 只读专注模式可通过触摸双击折叠展开并受开关
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("新随笔");
+  await expect(page.getByRole("textbox", { name: "文档标题", exact: true })).toHaveValue("新随笔");
   await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
   await expect(page.locator(".ProseMirror")).toHaveText("");
 
@@ -296,7 +296,7 @@ test("手机文档末章的最后几个段落可反复折叠和展示", async ({
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("新随笔");
+  await expect(page.getByRole("textbox", { name: "文档标题", exact: true })).toHaveValue("新随笔");
   await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
   await expect(page.locator(".ProseMirror")).toHaveText("");
 
@@ -331,7 +331,7 @@ test("千块只读文档在专注模式下触摸双击可及时折叠", async ({
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
   await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "随心记 — 标题" })).toHaveValue("新随笔");
+  await expect(page.getByRole("textbox", { name: "文档标题", exact: true })).toHaveValue("新随笔");
   await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
   await expect(page.locator(".ProseMirror")).toHaveText("");
 
