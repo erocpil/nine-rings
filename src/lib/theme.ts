@@ -20,7 +20,8 @@ export function applyTheme(theme: string) {
   removeSystemThemeListener = null;
   root.classList.remove(
     "theme-light", "theme-dark", "theme-fu", "theme-grace",
-    "theme-sui", "theme-zhi", "theme-azure", "theme-azure-dark"
+    "theme-sui", "theme-zhi", "theme-azure", "theme-azure-dark",
+    "theme-nord", "theme-dracula"
   );
 
   if (theme === "system") {
@@ -51,5 +52,9 @@ export function applyTheme(theme: string) {
     root.classList.add("theme-azure");
   } else if (theme === "azure-dark") {
     root.classList.add("theme-azure-dark");
+  } else if (theme === "nord") {
+    root.classList.add("theme-nord");
+  } else if (theme === "dracula") {
+    root.classList.add("theme-dracula");
   }
 }

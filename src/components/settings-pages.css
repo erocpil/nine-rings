@@ -121,8 +121,9 @@
 }
 .settings-theme-grid {
   display: grid;
-  grid-template-columns: repeat(8, 48px);
-  gap: 12px;
+  grid-auto-flow: column;
+  grid-auto-columns: 48px;
+  gap: 8px;
 }
 .settings-theme-option {
   display: flex;
@@ -147,13 +148,13 @@
   outline-offset: 5px;
 }
 .settings-theme-option .theme-label {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 400;
   line-height: 1.4;
 }
 .settings-content-page .settings-theme-mobile {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 4px;
   width: 100%;
 }

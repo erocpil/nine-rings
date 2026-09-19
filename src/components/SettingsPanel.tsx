@@ -610,19 +610,22 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             {/* ── 主题 ── */}
             <Field label="主题" desc="切换整体配色" visible={settingsPage === "appearance"}>
               <div className={mobileSettingsViewport ? "settings-radio-group settings-theme-mobile" : "settings-theme-grid"} role="group" aria-label="主题">
-                {([["light", "浅", "#e2e2e2", "#1f2328"],
-                ["dark", "深", "#0d1117", "#e6edf3"],
-                ["azure-dark", "暗", "#1e3050", "#eef4ff"],
-                ["fu", "静", "#81D8D0", "#1a2c2a"],
-                ["azure", "蔚", "#3b6dcc", "#ffffff"],
-                ["sui", "粋", "#4a8a3a", "#081006"],
-                ["grace", "雅", "#7654b3", "#ffffff"],
-                ["zhi", "幟", "#c49a3c", "#2c2518"]] as const).map(([v, label, background, foreground]) => (
+                {([["light", "浅", "#e2e2e2", "浅色"],
+                ["dark", "深", "#0d1117", "深色"],
+                ["azure-dark", "暗", "#1e3050", "暗蓝"],
+                ["fu", "静", "#087e79", "静"],
+                ["azure", "蔚", "#3b6dcc", "蔚"],
+                ["sui", "粋", "#3d7230", "粋"],
+                ["grace", "雅", "#7654b3", "雅"],
+                ["zhi", "幟", "#916d22", "幟"],
+                ["nord", "北境", "#434c5e", "Nord · 北境"],
+                ["dracula", "德古拉", "#44475a", "Dracula · 德古拉"]] as const).map(([v, label, background, name]) => (
                   <button
                     key={v}
                     type="button"
                     className={`${mobileSettingsViewport ? `settings-radio ${config.theme === v ? "active" : ""}` : "settings-theme-option"} ${chk("theme", v)}`}
-                    style={mobileSettingsViewport ? undefined : { backgroundColor: background, color: foreground }}
+                    style={mobileSettingsViewport ? undefined : { backgroundColor: background, color: v === "light" ? "#1f2328" : "#ffffff" }}
+                    title={name}
                     aria-pressed={config.theme === v}
                     onClick={() => update({ theme: v })}
                   >

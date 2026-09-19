@@ -4,7 +4,7 @@ import type { TemplateStorage } from "./template-service";
 // ── 配置类型（与 schema/config.yaml 对齐）──
 
 export interface AppConfig {
-  theme: "system" | "light" | "dark" | "fu" | "azure" | "azure-dark" | "grace" | "sui" | "zhi";
+  theme: "system" | "light" | "dark" | "fu" | "azure" | "azure-dark" | "grace" | "sui" | "zhi" | "nord" | "dracula";
   default_view: "daily" | "list";
   todo_carryover_default: boolean;
   auto_clean_days: number;

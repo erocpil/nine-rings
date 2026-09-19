@@ -31,7 +31,7 @@ const entries: SettingsSearchEntry[] = [
   {
     title: "主题",
     description: "外观与排版 · 切换整体配色",
-    keywords: "外观 颜色 深色 浅色 theme",
+    keywords: "外观 颜色 深色 浅色 北境 德古拉 Nord Dracula theme",
     page: "appearance",
   },
   {

@@ -5,31 +5,7 @@ import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import { isTauriRuntime } from "../lib/runtime";
 import { quickCaptureTextToNote } from "../lib/quick-capture";
-
-/** 将主题名映射为 CSS class 并应用到 <html> */
-function applyQCTheme(theme: string) {
-  const root = document.documentElement;
-
-  if (theme === "system") {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    root.classList.add(mq.matches ? "theme-dark" : "theme-light");
-    return;
-  }
-
-  root.classList.remove(
-    "theme-light", "theme-dark", "theme-fu", "theme-grace",
-    "theme-sui", "theme-zhi", "theme-azure", "theme-azure-dark",
-  );
-
-  if (theme === "light") root.classList.add("theme-light");
-  else if (theme === "dark") root.classList.add("theme-dark");
-  else if (theme === "fu") root.classList.add("theme-fu");
-  else if (theme === "grace") root.classList.add("theme-grace");
-  else if (theme === "sui") root.classList.add("theme-sui");
-  else if (theme === "zhi") root.classList.add("theme-zhi");
-  else if (theme === "azure") root.classList.add("theme-azure");
-  else if (theme === "azure-dark") root.classList.add("theme-azure-dark");
-}
+import { applyTheme as applyQCTheme } from "../lib/theme";
 
 /**
  * Quick Capture 迷你输入窗

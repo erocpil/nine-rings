@@ -1046,6 +1046,47 @@
   --activeline-bg: rgba(59, 109, 204, 0.08);
 }
 
+/* Nord · 北境 — https://www.nordtheme.com/docs/colors-and-palettes/ */
+:root.theme-nord {
+  --bg: #2e3440;
+  --surface: #3b4252;
+  --border: #4c566a;
+  --text: #eceff4;
+  --text-secondary: #d8dee9;
+  --accent: #88c0d0;
+  --accent-hover: #8fbcbb;
+  --danger: #bf616a;
+  --success: #a3be8c;
+  --warning: #ebcb8b;
+  --hover-bg: rgba(216, 222, 233, 0.08);
+  --active-bg: rgba(136, 192, 208, 0.18);
+  --code-bg: #3b4252;
+  --activeline-bg: rgba(67, 76, 94, 0.65);
+}
+
+/* Dracula · 德古拉 — https://draculatheme.com/spec */
+:root.theme-dracula {
+  --bg: #282a36;
+  --surface: #343746;
+  --border: #44475a;
+  --text: #f8f8f2;
+  --text-secondary: color-mix(in srgb, #f8f8f2 72%, #282a36);
+  --accent: #bd93f9;
+  --accent-hover: #ff79c6;
+  --danger: #ff5555;
+  --success: #50fa7b;
+  --warning: #f1fa8c;
+  --hover-bg: rgba(248, 248, 242, 0.07);
+  --active-bg: #44475a;
+  --code-bg: #21222c;
+  --activeline-bg: rgba(98, 114, 164, 0.2);
+}
+
+:is(.theme-nord, .theme-dracula) .settings-toast {
+  background: color-mix(in srgb, var(--success) 18%, var(--surface));
+  color: var(--text);
+}
+
 /* ── Header 右侧浮动区域（sticky title + 专注按钮 在搜索左侧）── */
 
 .header-sticky-title {
