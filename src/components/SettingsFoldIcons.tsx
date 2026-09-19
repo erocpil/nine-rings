@@ -14,20 +14,23 @@ export function SettingsFoldIcons({
 }) {
   return (
     <div className="settings-fold-icons">
-      <select
-        className="settings-input"
-        aria-label="折叠标识样式"
-        value={config.editor_fold_icon_style ?? "chevron"}
-        onChange={(event) => {
-          const style = event.target.value;
-          if (style === "chevron" || style === "triangle" || style === "custom")
-            onChange({ editor_fold_icon_style: style });
-        }}
-      >
-        <option value="chevron">线条箭头（默认）</option>
-        <option value="triangle">实心三角（原版）</option>
-        <option value="custom">自定义符号</option>
-      </select>
+      <label>
+        正文折叠标识
+        <select
+          className="settings-input"
+          aria-label="折叠标识样式"
+          value={config.editor_fold_icon_style ?? "chevron"}
+          onChange={(event) => {
+            const style = event.target.value;
+            if (style === "chevron" || style === "triangle" || style === "custom")
+              onChange({ editor_fold_icon_style: style });
+          }}
+        >
+          <option value="chevron">线条箭头（默认）</option>
+          <option value="triangle">实心三角（原版）</option>
+          <option value="custom">自定义符号</option>
+        </select>
+      </label>
       <label>
         章节目录折叠标识
         <select className="settings-input" aria-label="章节目录折叠标识" value={outlineFoldStyle(config)} onChange={event => {

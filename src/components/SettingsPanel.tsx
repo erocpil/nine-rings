@@ -769,10 +769,6 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             </Field>
 
             {/* ── 显示块编号 ── */}
-            <Field label="折叠标识" desc="用于文本区标题、代码／引用块和文档目录；即时生效，不修改正文" visible={settingsPage === "editor"}>
-              <SettingsFoldIcons config={config} onChange={update} />
-            </Field>
-
             <Field label="显示块编号" desc="按顶层段落、列表、图片等内容块编号" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
                 <input
@@ -897,6 +893,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 <span className="toggle-track" />
                 <span className="toggle-label">{config.use_custom_context_menu ? "软件菜单" : "原生菜单"}</span>
               </label>
+            </Field>
+
+            <Field label="折叠标识" desc="用于文本区标题、代码／引用块和文档目录；即时生效，不修改正文" visible={settingsPage === "editor"}>
+              <SettingsFoldIcons config={config} onChange={update} />
             </Field>
 
             {/* ═══════════════════════ */}
