@@ -73,6 +73,7 @@ import { ProtectedNoteEditor } from "./ProtectedNoteEditor";
 import { BlockSelectAll } from "../extensions/BlockSelectAll";
 import { api } from "../lib/api";
 import { mdToDelta } from "../lib/md-parser";
+import { markdownToProseMirrorAsync } from "../lib/data-transform-client";
 import {
   SearchHighlights,
   findSearchMatches,
@@ -667,6 +668,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     return localStorage.getItem(CODE_LN_KEY) === "true";
   });
   const [markdownPasteText, setMarkdownPasteText] = useState<string | null>(null);
+  const [markdownPasteStatus, setMarkdownPasteStatus] = useState("");
+  const markdownPasteRequestRef = useRef(0);
   const [markdownSelectionNotice, setMarkdownSelectionNotice] = useState(false);
   const [readonlyChangeNotice, setReadonlyChangeNotice] = useState(false);
   const [copyBlockNotice, setCopyBlockNotice] = useState("");
@@ -2328,6 +2331,38 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   };
 
 
+  const pasteMarkdown = useCallback(async (text: string) => {
+    if (!editor || editor.isDestroyed || readonlyRef.current || !editor.isEditable) return;
+    const request = ++markdownPasteRequestRef.current;
+    const sourceDoc = editor.state.doc;
+    const selection = editor.state.selection;
+    const large = text.length >= 20_000 || text.split("\n", 501).length > 500;
+    setMarkdownPasteText(null);
+    setMarkdownPasteStatus(large ? "正在粘贴 Markdown…" : "");
+    try {
+      const parsed = large
+        ? await markdownToProseMirrorAsync(text)
+        : deltaToProseMirror(mdToDelta(text));
+      if (editor.isDestroyed || request !== markdownPasteRequestRef.current) return;
+      // 后台解析期间可以继续使用界面，但不能把结果写入新的正文/选区。
+      if (readonlyRef.current || !editor.isEditable || editor.state.doc !== sourceDoc
+        || !editor.state.selection.eq(selection)) {
+        setMarkdownPasteStatus("正文或光标位置已变化，请重新粘贴");
+        return;
+      }
+      const inserted = editor.chain().focus().insertContentAt(
+        { from: selection.from, to: selection.to }, parsed.content, { errorOnInvalidContent: true },
+      ).run();
+      if (!inserted || editor.state.doc === sourceDoc) throw new Error("Markdown 未插入");
+      setMarkdownPasteStatus("");
+      setMarkdownPasteText(text);
+    } catch (error) {
+      if (editor.isDestroyed || request !== markdownPasteRequestRef.current) return;
+      console.error("[MarkdownPaste]", error);
+      setMarkdownPasteStatus("Markdown 粘贴失败，请重试");
+    }
+  }, [editor]);
+
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
       // The outer capture listener also sees title and toolbar inputs. Leave
@@ -2405,9 +2440,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       // 仅源码包装按 Markdown 解析；真实富文本沿用原生粘贴链路。
       if (plainText && shouldParseClipboardMarkdown(plainText, rawHtml)) {
         e.preventDefault();
-        const parsed = deltaToProseMirror(mdToDelta(plainText));
-        editor.chain().focus().insertContent(parsed.content).run();
-        setMarkdownPasteText(plainText);
+        void pasteMarkdown(plainText);
         return;
       }
 
@@ -2430,7 +2463,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         }
       }
     },
-    [editor, vimModeEnabled, sensitive],
+    [editor, vimModeEnabled, sensitive, pasteMarkdown],
   );
 
   const handleDrop = useCallback(
@@ -2953,9 +2986,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       if (text && isSelectionInsideCodeBlock(editor)) {
         insertCodeBlockPlainText(editor, text);
       } else if (shouldParseClipboardMarkdown(text.trim(), html)) {
-        const parsed = deltaToProseMirror(mdToDelta(text.trim()));
-        editor.chain().focus().insertContent(parsed.content).run();
-        setMarkdownPasteText(text.trim());
+        await pasteMarkdown(text.trim());
       } else {
         editor.view.focus();
         // Use the same parsing/normalization pipeline as native paste, not
@@ -3943,6 +3974,11 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             <button type="button" aria-label="退出块选择" onClick={() => setSelectedBlockIndexes(new Set())}><ToolbarIcon name="close" /></button>
           </div> : null;
         })()}
+        {markdownPasteStatus && (
+          <div className="markdown-paste-notice" role="status">
+            <span>{markdownPasteStatus}</span>
+          </div>
+        )}
         {markdownPasteText && (
           <div className="markdown-paste-notice" role="status">
             <span>已按 Markdown 格式化</span>

@@ -4,6 +4,9 @@
  * 用法：npx tsx tests/delta-converter.test.ts
  */
 
+import { getSchema } from "@tiptap/core";
+import StarterKit from "@tiptap/starter-kit";
+import { mdToDelta } from "../src/lib/md-parser";
 import { getTableEmbed } from "../src/lib/table-embed";
 import { deltaToProseMirror, proseMirrorToDelta, pxToNamed, namedToPx } from "../src/lib/delta-converter";
 import { deltaToMarkdown } from "../src/lib/markdown-serializer";
@@ -16,6 +19,23 @@ function assert(condition: boolean, msg: string): void {
   if (condition) { passed++; return; }
   console.error(`  FAIL: ${msg}`);
   failed++;
+}
+
+// A single invalid code node used to reject an entire large Markdown paste.
+{
+  const schema = getSchema([StarterKit]);
+  for (const code of ["", "\nconst value = 42;", "\n\nconst value = 42;\n", "\n\n"]) {
+    const source = `之前\n\n\`\`\`text\n${code}\n\`\`\`\n\n之后`;
+    const document = deltaToProseMirror(mdToDelta(source));
+    schema.nodeFromJSON(document).check();
+    assert(document.content.length === 3, "code boundary blanks must not add or merge surrounding blocks");
+    assert(document.content[1].type === "codeBlock", "fenced code stays a code block");
+    assert((document.content[1].content ?? []).map(node => node.text ?? "").join("") === code,
+      "empty and leading-blank code preserves literal text");
+    const restored = deltaToProseMirror(proseMirrorToDelta(document));
+    schema.nodeFromJSON(restored).check();
+    assert(JSON.stringify(restored) === JSON.stringify(document), "code blank lines survive saving and reopening");
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════

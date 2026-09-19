@@ -5,7 +5,7 @@ import { buildTextImportInput } from "./markdown-import";
 import { extractTitle, mdToDelta } from "./md-parser";
 import { deltaToMarkdown } from "./markdown-serializer";
 
-type WorkerTask = "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "delta-to-prosemirror" | "delta-to-markdown";
+type WorkerTask = "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "markdown-to-prosemirror" | "delta-to-prosemirror" | "delta-to-markdown";
 
 export function deltaToMarkdownAsync(content: DeltaOps): Promise<string> {
   return runWorkerTask("delta-to-markdown", content, () => deltaToMarkdown(content));
@@ -69,8 +69,20 @@ function runWorkerTask<T>(task: WorkerTask, payload: unknown, fallback: () => T)
   const id = ++requestId;
   return new Promise<T>((resolve, reject) => {
     pending.set(id, { resolve: (value) => resolve(value as T), reject });
-    target.postMessage({ id, task, payload });
+    try {
+      target.postMessage({ id, task, payload });
+    } catch (error) {
+      pending.delete(id);
+      reject(error);
+    }
   });
+}
+
+/** 粘贴时把两阶段转换留在同一个 Worker，避免主线程解析及中间 Delta 拷贝。 */
+export function markdownToProseMirrorAsync(source: string): Promise<ReturnType<typeof deltaToProseMirror>> {
+  const fallback = () => deltaToProseMirror(mdToDelta(source));
+  // 某些 WebView 能创建 Worker，但无法加载其资源；仍允许粘贴。
+  return runWorkerTask("markdown-to-prosemirror", source, fallback).catch(fallback);
 }
 
 export function parseJsonAsync<T>(json: string): Promise<T> {

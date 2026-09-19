@@ -364,11 +364,22 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
     pendingListLines = [];
   }
 
-  for (const op of ops) {
+  for (const [index, op] of ops.entries()) {
     const insert = op.insert;
     const attrs = op.attributes ?? {};
 
     if (typeof insert === "string") {
+      // 空代码块会携带空字符串；ProseMirror 不允许空 text 节点，否则
+      // 整份 Markdown（而不只是该块）都会被 insertContent 拒绝。
+      if (!insert) continue;
+      const next = ops[index + 1];
+      // 代码正文与块结束符分开存储。以换行开头的正文必须保留为
+      // text，不能转换为 codeBlock schema 不允许的 hardBreak。
+      // 单独的无格式换行仍是段落结束符（后面可能紧跟空代码块）。
+      if (insert !== "\n" && next?.insert === "\n" && next.attributes?.["code-block"] && !Object.keys(attrs).length) {
+        currentParagraph.content.push({ type: "text", text: insert });
+        continue;
+      }
       if (insert === "\n") {
         if (attrs["hard-break"] === true) {
           skipEmptyLineAfterBlockEmbed = false;

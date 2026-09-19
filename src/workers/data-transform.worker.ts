@@ -7,7 +7,7 @@ import { deltaToMarkdown } from "../lib/markdown-serializer";
 
 interface WorkerRequest {
   id: number;
-  task: "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "delta-to-prosemirror" | "delta-to-markdown";
+  task: "parse-json" | "stringify-json" | "markdown-batch" | "markdown-source" | "markdown-to-prosemirror" | "delta-to-prosemirror" | "delta-to-markdown";
   payload: unknown;
 }
 
@@ -24,6 +24,8 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
       result = deltaToMarkdown(payload);
     } else if (task === "delta-to-prosemirror") {
       result = deltaToProseMirror(payload);
+    } else if (task === "markdown-to-prosemirror") {
+      result = deltaToProseMirror(mdToDelta(payload as string));
     } else if (task === "markdown-source") {
       const request = payload as { fileName: string; source: string };
       result = {
