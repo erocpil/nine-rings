@@ -26,9 +26,30 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 
       }
       await panel.getByLabel("Owner / Repo", { exact: true }).fill("test/notes");
       await panel.getByLabel("Owner / Repo", { exact: true }).press("Tab");
-      await panel.getByRole("button", { name: "返回设置分类", exact: true }).click();
+      if (mobile) {
+        await panel.evaluate(element => {
+          element.setAttribute("data-navigation-animation", "");
+          element.addEventListener("animationstart", event => {
+            if (event.target === element) element.setAttribute("data-navigation-animation", (event as AnimationEvent).animationName);
+          });
+          const target = element.querySelector(".settings-header-main")!;
+          const box = target.getBoundingClientRect();
+          for (const [type, offset] of [["touchstart", 5], ["touchmove", 110], ["touchend", 110]] as const) {
+            const touch = { identifier: 1, target, clientX: box.left + offset, clientY: box.top + 10 };
+            const event = new Event(type, { bubbles: true, cancelable: true });
+            Object.defineProperties(event, { touches: { value: type === "touchend" ? [] : [touch] }, changedTouches: { value: [touch] } });
+            target.dispatchEvent(event);
+          }
+        });
+      } else await panel.getByRole("button", { name: "返回设置分类", exact: true }).click();
       const root = page.getByRole("dialog", { name: "设置", exact: true });
-      if (mobile) await expect(root).not.toHaveClass(/settings-expanded-panel/);
+      if (mobile) {
+        await expect(root).not.toHaveClass(/settings-expanded-panel/);
+        // Observe animation events across frames; waiting only for stable geometry hides a replay.
+        await root.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+        await expect(root).toHaveAttribute("data-navigation-animation", "");
+        await expect(root).toHaveCSS("transform", "none");
+      }
       else expect(await root.boundingBox()).toEqual(box);
       await page.getByRole("button", { name: /^云端同步/ }).click();
       await expect(panel.getByLabel("Owner / Repo", { exact: true })).toHaveValue("test/notes");

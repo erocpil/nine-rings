@@ -412,6 +412,10 @@
 }
 
 /* Match the gesture viewport, including a phone's wide landscape layout. */
+.settings-overlay-mobile > .settings-panel {
+  /* Keep the same animation across pages so returning does not replay entry. */
+  animation: slideIn 0.2s ease;
+}
 .settings-overlay-mobile.settings-expanded-overlay { padding: 0; }
 .settings-overlay-mobile > .settings-panel.settings-expanded-panel {
   width: 100%;
