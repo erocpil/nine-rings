@@ -47,6 +47,7 @@ export function useMarkdownViewPosition(
 ) {
   const host = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
+  const stopHandoff = useRef<() => void>();
   // One mapping per mounted document, never a global cache of private text.
   const sourceMapRef = useRef<{
     source: string;
@@ -164,6 +165,7 @@ export function useMarkdownViewPosition(
       stopped = true;
       cancelAnimationFrame(frame);
     };
+    stopHandoff.current = stop;
     // Never fight user scrolling or move focus to make a viewport visible.
     for (const event of ["wheel", "touchstart", "pointerdown", "keydown"])
       container.addEventListener(event, stop, { passive: true });
@@ -262,5 +264,5 @@ export function useMarkdownViewPosition(
       flush();
     };
   }, [noteId, showingSource, sensitive]);
-  return { host, area, toSource, toRendered, cancelHandoff: () => { pending.current = null; } };
+  return { host, area, toSource, toRendered, cancelHandoff: () => { pending.current = null; stopHandoff.current?.(); } };
 }

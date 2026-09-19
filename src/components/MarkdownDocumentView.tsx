@@ -4,7 +4,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { NoteEditorProps } from "./NoteEditor";
 import type { DeltaOps } from "../types/models";
 import { deltaToMarkdownAsync } from "../lib/data-transform-client";
-import { mdToDelta } from "../lib/md-parser";
+import { SourceNavigationSession, type SourceEditRange } from "../lib/markdown-source-navigation";
+import { textareaPosition } from "../lib/markdown-view-position";
+import { MarkdownSourceWorkspace } from "./MarkdownSourceWorkspace";
 import { invalidateEditorDocument } from "../lib/editor-session-cache";
 import { deltaToProseMirror, isProseMirror, proseMirrorToDelta } from "../lib/delta-converter";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -27,23 +29,25 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   latestProps.current = props;
   const latestReader = useRef<(() => DeltaOps) | null>(null);
   const initial = useRef<{ text: string; content: DeltaOps } | null>(null);
+  const sourceSession = useRef<SourceNavigationSession | null>(null);
+  const sourceInputRange = useRef<(SourceEditRange & { text: string }) | null>(null);
+  const showingSource = source !== null;
+  useEffect(() => {
+    const area = viewPosition.area.current;
+    if (!showingSource || !area) return;
+    const capture = () => { sourceInputRange.current = { from: area.selectionStart, to: area.selectionEnd, text: area.value }; };
+    area.addEventListener("beforeinput", capture);
+    return () => { area.removeEventListener("beforeinput", capture); sourceInputRange.current = null; };
+  }, [showingSource, viewPosition.area]);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const supported = props.content.metadata?.sourceFormat !== "text" && !props.pdfExcerptSource && !props.epubExcerptSource;
-  const editSource = (text: string) => {
+  const editSource = (text: string, range?: SourceEditRange) => {
     setSource(text);
-    const original = initial.current;
-    if (!original) return;
-    let cached: DeltaOps | undefined;
-    const read = () => {
-      if (cached) return cached;
-      if (text === original.text) return original.content;
-      const metadata = { ...latestProps.current.content.metadata, sourceFormat: "markdown" as const, markdownSource: text };
-      delete metadata.bookmarks;
-      cached = { ...mdToDelta(text), metadata };
-      invalidateEditorDocument(props.noteId);
-      return cached;
-    };
+    const revision = sourceSession.current?.update(text, range);
+    if (!revision) return;
+    const read = () => revision.read();
+    invalidateEditorDocument(props.noteId);
     latestReader.current = read;
     props.onContentChange(read);
   };
@@ -64,6 +68,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         // An edit during the worker conversion must never be replaced by its stale result.
         if ((latestReader.current?.() ?? latestProps.current.content) !== raw) throw new Error("转换期间正文已变化，请再次切换");
         initial.current = { text, content };
+        sourceSession.current = new SourceNavigationSession(text, content);
         viewPosition.toSource(text, deltaToProseMirror(content), restoreSourceTop);
         setSource(text);
       } else {
@@ -91,17 +96,38 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     if (!useNavigationStore.getState().target && !props.searchTarget?.bookmarkId && supported && saved?.view === "source" && saved.source) void restoreViewRef.current(saved.source.scrollTop);
   }, [props.noteId, props.sensitive, props.searchTarget?.bookmarkId, supported]);
   const bookmarkViewRequest = useRef<number>();
+  const onSearchTargetConsumed = props.onSearchTargetConsumed;
+  const jumpSourceRef = useRef<(offset: number, record?: boolean) => void>(() => {});
+  jumpSourceRef.current = (offset, record = true) => {
+    const area = viewPosition.area.current, revision = sourceSession.current?.current;
+    if (!area || !revision) return;
+    viewPosition.cancelHandoff();
+    const target = Math.max(0, Math.min(revision.source.length, offset));
+    if (record) {
+      const history = useNavigationStore.getState();
+      const before = (revision.blockAt(area.selectionStart)?.position ?? 0) + 1;
+      const after = (revision.blockAt(target)?.position ?? 0) + 1;
+      history.record({ noteId: props.noteId, from: before, to: before });
+      history.record({ noteId: props.noteId, from: after, to: after }, true);
+    }
+    area.focus({ preventScroll: true });
+    area.setSelectionRange(target, target);
+    area.scrollTop = Math.max(0, textareaPosition(area, target) - area.clientHeight / 2);
+  };
   useEffect(() => {
     const target = props.searchTarget;
     if (!target?.bookmarkId || source === null || busy || bookmarkViewRequest.current === target.requestId) return;
     bookmarkViewRequest.current = target.requestId;
-    void restoreViewRef.current();
-  }, [props.searchTarget, source, busy]);
+    const bookmark = sourceSession.current?.current.bookmarks.find(item => item.id === target.bookmarkId);
+    if (bookmark) jumpSourceRef.current(bookmark.offset);
+    onSearchTargetConsumed?.(target.requestId);
+  }, [props.searchTarget, onSearchTargetConsumed, source, busy]);
   const historyViewRequest = useRef<number>();
   useEffect(() => {
     if (navigationTarget && source !== null && !busy && historyViewRequest.current !== navigationTarget.requestId) {
       historyViewRequest.current = navigationTarget.requestId;
-      void restoreViewRef.current();
+      jumpSourceRef.current(sourceSession.current?.current.offsetAt(navigationTarget.from) ?? 0, false);
+      useNavigationStore.getState().consumed(navigationTarget.requestId);
     }
   }, [navigationTarget, source, busy]);
   useEffect(() => {
@@ -132,7 +158,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         latestReader.current = read;
         props.onContentChange(read);
       },
-    }) : <section className="note-editor markdown-source-editor" aria-label="Markdown 源码编辑区">
+    }) : <MarkdownSourceWorkspace revision={sourceSession.current!.current} areaRef={viewPosition.area} onJump={offset => jumpSourceRef.current(offset)}>{controls => <>
       <div className="note-title-row markdown-source-title-row">
         {props.titleSecurityAction}
         {props.onReadonlyChange && <button type="button" className="note-readonly-badge note-readonly-action" disabled={busy}
@@ -141,6 +167,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         <div className="note-title-field"><DocumentTitlePreview title={props.title || "无标题"} /></div>
         <NavigationButtons />
         {toggle}
+        {controls}
         {props.onFocusModeChange && <button type="button" className="focus-btn" aria-label={props.focusMode ? "退出专注模式" : "专注模式"}
           onClick={() => props.onFocusModeChange?.(!props.focusMode)}><ToolbarIcon name={props.focusMode ? "compress" : "expand"} /></button>}
       </div>
@@ -165,8 +192,10 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           }
         }}
         onChange={event => {
-          editSource(event.target.value);
+          const captured = sourceInputRange.current;
+          sourceInputRange.current = null;
+          editSource(event.target.value, captured?.text === source ? captured : undefined);
         }} />
-    </section>}
+    </>}</MarkdownSourceWorkspace>}
   </div>;
 }

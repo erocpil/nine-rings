@@ -1,5 +1,5 @@
 import type { JSONContent } from "@tiptap/core";
-import type { DeltaOp } from "../types/models";
+import type { DeltaOp, DeltaOps } from "../types/models";
 import { mdToDelta, type MarkdownSourceSpan } from "./md-parser";
 import { getTableEmbed } from "./table-embed";
 
@@ -46,6 +46,11 @@ function nodeSize(node: JSONContent): number {
     2 + (node.content ?? []).reduce((sum, child) => sum + nodeSize(child), 0)
   );
 }
+export function renderedNodeText(node: JSONContent): string {
+  if (node.type === "text") return node.text ?? "";
+  if (node.type === "hardBreak") return "\n";
+  return (node.content ?? []).map(renderedNodeText).join("");
+}
 export function renderedPositionMap(doc: JSONContent) {
   let weight = 0,
     position = 0;
@@ -72,6 +77,7 @@ export function renderedTextblockMap(doc: JSONContent) {
     position: number;
     from: number;
     to: number;
+    text: string;
   }> = [];
   let weight = 0;
   let position = 0;
@@ -86,6 +92,7 @@ export function renderedTextblockMap(doc: JSONContent) {
           position: pos,
           from: weight,
           to: weight + size,
+          text: renderedNodeText(node),
         });
         weight += size;
       } else if (node.content?.length) {
@@ -107,6 +114,7 @@ export function renderedTextblockMap(doc: JSONContent) {
           position: pos,
           from: weight,
           to: weight + size,
+          text: renderedNodeText(node),
         });
         weight += size;
       }
@@ -116,9 +124,9 @@ export function renderedTextblockMap(doc: JSONContent) {
   });
   return entries;
 }
-export function sourcePositionMap(source: string) {
-  const spans: MarkdownSourceSpan[] = [];
-  const delta = mdToDelta(source, spans);
+export function sourcePositionMap(source: string, parsed?: { delta: DeltaOps; spans: MarkdownSourceSpan[] }) {
+  const spans: MarkdownSourceSpan[] = parsed?.spans ?? [];
+  const delta = parsed?.delta ?? mdToDelta(source, spans);
   const lines = source.split(/\r\n|\r|\n/);
   const endings = [...source.matchAll(/\r\n|\r|\n/g)];
   const offsets = [

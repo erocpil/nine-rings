@@ -16,7 +16,7 @@
 .desktop-document-panels :is(.document-outline-list, .document-bookmark-list) {
   padding: 4px 0;
 }
-.desktop-document-panels :is(.document-outline-header-primary, .document-outline-header-actions, .document-bookmark-header) > button {
+.desktop-document-panels :is(.document-outline-header, .document-outline-header-primary, .document-outline-header-actions, .document-bookmark-header) > button {
   font: 400 11px/14px var(--font);
 }
 .desktop-document-panels :is(.document-outline-header-primary, .document-outline-header-actions) {
@@ -102,11 +102,11 @@
   border-right: 1px solid var(--border);
 }
 .document-panels-right
-  > :is(.note-editor-scroll, .vr-title, .vr-actions, .vr-notice) {
+  > :is(.note-editor-scroll, .vr-title, .vr-actions, .vr-notice, .markdown-source-content) {
   margin-right: min(var(--document-dock-width, 280px), 50%);
 }
 .document-panels-left
-  > :is(.note-editor-scroll, .vr-title, .vr-actions, .vr-notice) {
+  > :is(.note-editor-scroll, .vr-title, .vr-actions, .vr-notice, .markdown-source-content) {
   margin-left: min(var(--document-dock-width, 280px), 50%);
 }
 .document-panel-slot {
@@ -218,6 +218,7 @@
   width: 18px;
   height: 18px;
 }
+.document-outline-header > button,
 .document-bookmark-header > button {
   flex: 0 0 auto;
   padding: 2px 5px;
@@ -229,6 +230,7 @@
   font-size: 11px;
   cursor: pointer;
 }
+.document-outline-header > button:hover,
 .document-bookmark-header > button:hover {
   color: var(--accent);
   border-color: var(--accent);
