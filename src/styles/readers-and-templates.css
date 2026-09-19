@@ -38,31 +38,18 @@
   color: var(--text);
 }
 
-.pdf-reader:fullscreen,
-.pdf-reader:-webkit-full-screen,
 .pdf-reader.pdf-reader-fullscreen {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  width: 100vw;
-  height: 100vh;
-  min-height: 100vh;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
 }
 
 .pdf-fullscreen-button {
   font-size: 17px !important;
 }
 
-/* 全屏阅读使用可自动隐藏的最小悬浮控制条；iOS 主屏幕 Web App 没有
-   元素 Fullscreen API 时，同一布局作为沉浸式回退。 */
-.pdf-reader.pdf-reader-immersive {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  width: 100vw;
-  height: 100dvh;
-  min-height: 100dvh;
-}
+/* 全屏阅读使用可自动隐藏的悬浮控制条，不改变系统窗口全屏状态。 */
 
 .pdf-reader-fullscreen .pdf-reader-toolbar {
   position: absolute;
@@ -989,13 +976,10 @@
 }
 
 .epub-reader-focus {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  width: 100vw;
-  width: 100dvw;
-  height: 100vh;
-  height: 100dvh;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
 }
 
 .epub-reader-focus .epub-bottom-navigation {

@@ -14,7 +14,9 @@ pub fn set_fullscreen(window: &tauri::WebviewWindow, fullscreen: bool) -> tauri:
             state.set(window, fullscreen)
         })
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    return crate::macos_window::set_fullscreen(window, fullscreen);
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     window.set_fullscreen(fullscreen)
 }
 

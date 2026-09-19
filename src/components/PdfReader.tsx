@@ -34,7 +34,6 @@ import {
   type LocalPdfEntry,
   type LocalPdfHighlight,
 } from "../lib/pdf-library";
-import { toggleTauriFullscreen } from "../lib/fullscreen";
 import { isTauriRuntime } from "../lib/runtime";
 import { useTransientMessage } from "../hooks/useTransientMessage";
 import type { PdfHighlightGeometry } from "../lib/pdf-annotation-export";
@@ -160,15 +159,6 @@ function annotationKindLabel(kind: LocalPdfHighlight["kind"]): string {
     line: "直线",
     arrow: "箭头",
   }[kind ?? "highlight"];
-}
-
-interface WebkitFullscreenDocument extends Document {
-  webkitFullscreenElement?: Element | null;
-  webkitExitFullscreen?: () => Promise<void> | void;
-}
-
-interface WebkitFullscreenElement extends HTMLDivElement {
-  webkitRequestFullscreen?: () => Promise<void> | void;
 }
 
 type PdfViewMode = "horizontal" | "vertical";
@@ -326,7 +316,6 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
   const [completedSearchQuery, setCompletedSearchQuery] = useState("");
   const [textLayerRevision, setTextLayerRevision] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
-  const [immersiveFallback, setImmersiveFallback] = useState(false);
   const [fullscreenControlsVisible, setFullscreenControlsVisible] = useState(true);
   const fullscreenHoverRef = useRef(false);
   const fullscreenHideTimerRef = useRef<number | null>(null);
@@ -342,7 +331,6 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
 
   const applyFullscreenState = useCallback((next: boolean) => {
-    if (!next) setImmersiveFallback(false);
     if (next) { setToolsPanel(null); setOutlineOpen(false); setAnnotationTool(null); }
     setFullscreenControlsVisible(true);
     setFullscreen(next);
@@ -527,6 +515,7 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
         start: selectionAnchor.start,
         end: selectionAnchor.end,
       });
+      applyFullscreenState(false);
       window.getSelection()?.removeAllRanges();
       setSelectionAnchor(null);
     } catch (reason) {
@@ -538,62 +527,17 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
     } finally {
       setExcerptSaving(false);
     }
-  }, [ensureSelectionHighlight, entry, excerptSaving, onCreateExcerpt, selectionAnchor, showActionNotice]);
+  }, [applyFullscreenState, ensureSelectionHighlight, entry, excerptSaving, onCreateExcerpt, selectionAnchor, showActionNotice]);
 
-  const enterImmersiveFallback = useCallback(() => {
-    setImmersiveFallback(true);
-    applyFullscreenState(true);
+  // Reader focus is local to the workspace on every platform. The title bar
+  // alone controls native fullscreen; entering it must not hide the companion.
+  const exitFullscreen = useCallback(() => {
+    applyFullscreenState(false);
   }, [applyFullscreenState]);
 
-  const exitFullscreen = useCallback(async () => {
-    if (isTauriRuntime()) {
-      if (fullscreen) await toggleTauriFullscreen();
-      applyFullscreenState(false);
-      return;
-    }
-    const fullscreenDocument = document as WebkitFullscreenDocument;
-    if (document.fullscreenElement) await document.exitFullscreen();
-    else if (fullscreenDocument.webkitFullscreenElement) await fullscreenDocument.webkitExitFullscreen?.();
-    applyFullscreenState(false);
+  const toggleFullscreen = useCallback(() => {
+    applyFullscreenState(!fullscreen);
   }, [applyFullscreenState, fullscreen]);
-
-  const toggleFullscreen = useCallback(async () => {
-    try {
-      // iOS 沉浸式回退没有 document.fullscreenElement，必须优先使用
-      // 阅读器自身状态判断退出，否则按钮会再次执行“进入全屏”。
-      if (fullscreen) {
-        await exitFullscreen();
-        return;
-      }
-      if (isTauriRuntime()) {
-        const next = await toggleTauriFullscreen();
-        if (next !== null) applyFullscreenState(next);
-        return;
-      }
-      const fullscreenDocument = document as WebkitFullscreenDocument;
-      const element = readerRef.current as WebkitFullscreenElement | null;
-      if (document.fullscreenElement || fullscreenDocument.webkitFullscreenElement) {
-        await exitFullscreen();
-      } else if (element?.requestFullscreen) {
-        await element.requestFullscreen();
-        if (!document.fullscreenElement && !fullscreenDocument.webkitFullscreenElement) {
-          enterImmersiveFallback();
-        }
-      } else if (element?.webkitRequestFullscreen) {
-        await element.webkitRequestFullscreen();
-        if (!document.fullscreenElement && !fullscreenDocument.webkitFullscreenElement) {
-          enterImmersiveFallback();
-        }
-      } else {
-        // iOS 主屏幕 Web App 不提供元素 Fullscreen API。此时应用本身已经
-        // 占据系统允许的全部视口，改用隐藏非必要控件的沉浸式阅读回退。
-        enterImmersiveFallback();
-      }
-    } catch (reason) {
-      if (!isTauriRuntime()) enterImmersiveFallback();
-      else showActionNotice(`全屏切换失败：${pdfErrorMessage(reason)}`);
-    }
-  }, [applyFullscreenState, enterImmersiveFallback, exitFullscreen, fullscreen, showActionNotice]);
 
   const closeReader = useCallback(async () => {
     if (closingRef.current) return;
@@ -621,39 +565,7 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
     }
   }, [captureProgress, exitFullscreen, fullscreen, onClose, showActionNotice]);
 
-  useEffect(() => {
-    if (isTauriRuntime()) {
-      let disposed = false;
-      let unlisten: (() => void) | undefined;
-      void import("@tauri-apps/api/window").then(async ({ getCurrentWindow }) => {
-        const appWindow = getCurrentWindow();
-        const sync = async () => {
-          const next = await appWindow.isFullscreen();
-          if (!disposed) applyFullscreenState(next);
-        };
-        await sync();
-        unlisten = await appWindow.onResized(() => { void sync().catch(() => {}); });
-        if (disposed) unlisten();
-      }).catch(() => {});
-      return () => {
-        disposed = true;
-        unlisten?.();
-        onFullscreenChange?.(false);
-      };
-    }
-
-    const sync = () => {
-      const fullscreenDocument = document as WebkitFullscreenDocument;
-      applyFullscreenState(Boolean(document.fullscreenElement || fullscreenDocument.webkitFullscreenElement));
-    };
-    document.addEventListener("fullscreenchange", sync);
-    document.addEventListener("webkitfullscreenchange", sync);
-    return () => {
-      document.removeEventListener("fullscreenchange", sync);
-      document.removeEventListener("webkitfullscreenchange", sync);
-      onFullscreenChange?.(false);
-    };
-  }, [applyFullscreenState, onFullscreenChange]);
+  useEffect(() => () => onFullscreenChange?.(false), [onFullscreenChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2250,7 +2162,7 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
   return (
     <div
       ref={readerRef}
-      className={`pdf-reader ${fullscreen ? "pdf-reader-fullscreen" : ""} ${immersiveFallback ? "pdf-reader-immersive" : ""} ${fullscreen && !fullscreenControlsVisible && !outlineOpen && toolsPanel === null ? "pdf-fullscreen-controls-hidden" : ""}`}
+      className={`pdf-reader ${fullscreen ? "pdf-reader-fullscreen" : ""} ${fullscreen && !fullscreenControlsVisible && !outlineOpen && toolsPanel === null ? "pdf-fullscreen-controls-hidden" : ""}`}
       aria-label="PDF 阅读器"
       data-pdf-scroll-quality={fastScrolling ? "preview" : "full"}
       data-pdf-resizing={resizing ? "true" : undefined}

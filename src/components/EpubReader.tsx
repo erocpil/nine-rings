@@ -4,8 +4,6 @@ import { normalizeEpubWidth } from "../lib/reader-width";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { toggleTauriFullscreen } from "../lib/fullscreen";
-import { isTauriRuntime } from "../lib/runtime";
 import {
   addLocalEpubBookmark,
   addLocalEpubHighlight,
@@ -449,7 +447,6 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const chapterProgressRef = useRef<Record<string, number>>({});
   const pendingTargetScrollRef = useRef<"highlight" | "search" | null>(initialHighlightId ? "highlight" : null);
   const fullscreenRef = useRef(false);
-  const tauriNativeFullscreenRef = useRef(false);
   const [entry, setEntry] = useState<LocalEpubEntry | null>(null);
   const [book, setBook] = useState<ParsedEpub | null>(null);
   const [chapter, setChapter] = useState(0);
@@ -487,7 +484,11 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const navigationPinned = tocOpen || toolsPanel !== null;
   const previousNavigationPinnedRef = useRef(false);
 
-  useEffect(() => { fullscreenRef.current = fullscreen; }, [fullscreen]);
+  const applyFullscreenState = useCallback((next: boolean) => {
+    fullscreenRef.current = next;
+    setFullscreen(next);
+    onFullscreenChange?.(next);
+  }, [onFullscreenChange]);
 
   const hideFocusControls = useCallback(() => {
     if (focusControlsTimerRef.current !== null) window.clearTimeout(focusControlsTimerRef.current);
@@ -792,7 +793,8 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
       }
       else if (event.key === "Escape" && tocOpen) { event.preventDefault(); setTocOpen(false); }
       else if (event.key === "Escape" && fullscreen) {
-        if (!document.fullscreenElement) { setFullscreen(false); onFullscreenChange?.(false); }
+        event.preventDefault();
+        applyFullscreenState(false);
       }
       else if (event.key === "Escape") closeReader();
       else if (event.key === "ArrowLeft" || event.key === "PageUp") changeChapter(chapter - 1);
@@ -800,7 +802,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [changeChapter, chapter, closeReader, fullscreen, lineMergePanelOpen, onFullscreenChange, tocOpen]);
+  }, [applyFullscreenState, changeChapter, chapter, closeReader, fullscreen, lineMergePanelOpen, tocOpen]);
 
   const showSwipeNotice = useCallback((message: string) => {
     if (swipeNoticeTimerRef.current !== null) window.clearTimeout(swipeNoticeTimerRef.current);
@@ -1108,8 +1110,9 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
         highlightId: highlight.id,
         anchor: selection.anchor,
       });
+      applyFullscreenState(false);
     } finally { setActionBusy(false); }
-  }, [book, chapter, ensureHighlight, entry, onCreateExcerpt, selection]);
+  }, [applyFullscreenState, book, chapter, ensureHighlight, entry, onCreateExcerpt, selection]);
 
   const rememberViewportForReflow = useCallback(() => {
     const frameDocument = iframeRef.current?.contentDocument;
@@ -1155,63 +1158,18 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     setBookmarks((current) => [...current, created]);
   }, [book, bookmarks, chapter, entry, scrollProgress]);
 
-  const toggleFullscreen = useCallback(async () => {
-    const reader = readerRef.current;
-    if (!reader) return;
+  const toggleFullscreen = useCallback(() => {
     if (!fullscreen) {
       setTocOpen(false);
       setToolsPanel(null);
       setAnnotationOpen(false);
       setLineMergePanelOpen(false);
-      hideFocusControls();
     }
-    if (fullscreen && !document.fullscreenElement && !tauriNativeFullscreenRef.current) {
-      hideFocusControls();
-      fullscreenRef.current = false;
-      setFullscreen(false);
-      onFullscreenChange?.(false);
-      return;
-    }
-    const standalone = window.matchMedia("(display-mode: standalone)").matches
-      || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
-    if (!fullscreen && (standalone || window.matchMedia("(max-width: 768px)").matches)) {
-      fullscreenRef.current = true;
-      setFullscreen(true);
-      onFullscreenChange?.(true);
-      return;
-    }
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else if (isTauriRuntime()) {
-        const active = await toggleTauriFullscreen();
-        if (active === null) throw new Error("Tauri fullscreen unavailable");
-        tauriNativeFullscreenRef.current = active;
-        fullscreenRef.current = active;
-        setFullscreen(active);
-        onFullscreenChange?.(active);
-      }
-      else if (reader.requestFullscreen) await reader.requestFullscreen();
-      else throw new Error("Fullscreen API unavailable");
-    } catch {
-      setFullscreen((value) => {
-        fullscreenRef.current = !value;
-        onFullscreenChange?.(!value);
-        return !value;
-      });
-    }
-  }, [fullscreen, hideFocusControls, onFullscreenChange]);
+    hideFocusControls();
+    applyFullscreenState(!fullscreen);
+  }, [applyFullscreenState, fullscreen, hideFocusControls]);
 
-  useEffect(() => {
-    const update = () => {
-      const active = document.fullscreenElement === readerRef.current;
-      if (!active) hideFocusControls();
-      fullscreenRef.current = active;
-      setFullscreen(active);
-      onFullscreenChange?.(active);
-    };
-    document.addEventListener("fullscreenchange", update);
-    return () => document.removeEventListener("fullscreenchange", update);
-  }, [hideFocusControls, onFullscreenChange]);
+  useEffect(() => () => onFullscreenChange?.(false), [onFullscreenChange]);
 
   const activeHighlight = highlights.find((item) => item.id === targetHighlightId) ?? null;
   const currentBookmark = bookmarks.some((item) => item.chapter === chapter);

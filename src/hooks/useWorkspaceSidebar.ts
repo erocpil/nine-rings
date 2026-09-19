@@ -20,6 +20,12 @@ const SIDEBAR_MIN_WIDTH = 360;
 const SIDEBAR_MOBILE_MIN_WIDTH = 240;
 const READER_SIDEBAR_MIN_WIDTH = 240;
 const READER_SIDEBAR_WIDTH_KEY = "nr:readerSidebarW";
+const READER_SIDEBAR_RATIO_KEY = "nr:readerSidebarRatio";
+const readerAvailableWidth = () =>
+  Math.max(
+    READER_SIDEBAR_MIN_WIDTH,
+    window.innerWidth - DESKTOP_ACTIVITY_BAR_WIDTH - 4,
+  );
 const TREE_SIDEBAR_WIDTH_KEY = "nr:treeSidebarW";
 const LIST_SIDEBAR_WIDTH_KEY = "nr:listSidebarW";
 const sidebarWidthKey = (panel: "tree" | "list" | "reader") =>
@@ -36,6 +42,9 @@ export function useWorkspaceSidebar({
   setSidebarHidden,
 }: Options) {
   const sidebarPanelRef = useRef<HTMLElement>(null);
+  // Keep the preferred ratio through intermediate native fullscreen animation
+  // sizes and minimum-width clamps. Only dragging changes the preference.
+  const readerRatioRef = useRef<number | null>(null);
   // ── 侧栏可拖拽分隔条 ──
   const computeDefaultSidebarWidth = useCallback(() => {
     const mobile = window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
@@ -51,13 +60,19 @@ export function useWorkspaceSidebar({
     return Math.max(safeMin, Math.min(maxWidth, width));
   }, []);
   const computeReaderSidebarWidth = useCallback(() => {
-    const saved = Number(localStorage.getItem(READER_SIDEBAR_WIDTH_KEY));
-    // 0 仅表示运行时已隐藏分栏，不应成为下次启动的永久宽度；否则
-    // Tauri 重新安装/恢复存储后会得到零宽面板，分隔条和展开按钮都无法命中。
-    const width =
-      Number.isFinite(saved) && saved > 0
-        ? saved
-        : Math.round((window.innerWidth - DESKTOP_ACTIVITY_BAR_WIDTH) / 2);
+    const available = readerAvailableWidth();
+    if (readerRatioRef.current === null) {
+      const ratio = Number(localStorage.getItem(READER_SIDEBAR_RATIO_KEY));
+      const saved = Number(localStorage.getItem(READER_SIDEBAR_WIDTH_KEY));
+      // Migrate the old pixel preference at the first desktop opening.
+      readerRatioRef.current =
+        Number.isFinite(ratio) && ratio > 0 && ratio <= 1
+          ? ratio
+          : Number.isFinite(saved) && saved > 0
+            ? Math.min(1, saved / available)
+            : 0.5;
+    }
+    const width = Math.round(available * readerRatioRef.current);
     return clampSidebarWidth(width, READER_SIDEBAR_MIN_WIDTH);
   }, [clampSidebarWidth]);
   const computePanelSidebarWidth = useCallback(
@@ -137,6 +152,8 @@ export function useWorkspaceSidebar({
   useEffect(() => {
     const reset = () => {
       localStorage.removeItem(READER_SIDEBAR_WIDTH_KEY);
+      localStorage.removeItem(READER_SIDEBAR_RATIO_KEY);
+      readerRatioRef.current = null;
       localStorage.removeItem(TREE_SIDEBAR_WIDTH_KEY);
       localStorage.removeItem(LIST_SIDEBAR_WIDTH_KEY);
       applyPanelSidebarWidth(desktopPanel);
@@ -274,6 +291,14 @@ export function useWorkspaceSidebar({
       document.body.style.webkitUserSelect = previousWebkitUserSelect;
       const key = sidebarWidthKey(sideDragPanelRef.current);
       localStorage.setItem(key, String(sideDragWidthRef.current));
+      if (sideDragPanelRef.current === "reader") {
+        readerRatioRef.current =
+          sideDragWidthRef.current / readerAvailableWidth();
+        localStorage.setItem(
+          READER_SIDEBAR_RATIO_KEY,
+          String(readerRatioRef.current),
+        );
+      }
       sideDragCleanupRef.current = null;
     };
 

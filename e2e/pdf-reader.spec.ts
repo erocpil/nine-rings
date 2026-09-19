@@ -62,10 +62,10 @@ test("本地 PDF 从阅读资料库导入后在独立阅读器打开并可再次
     delete (document as unknown as { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen;
   });
   await page.getByRole("button", { name: "进入全屏阅读" }).click();
-  await expect(reader).toHaveClass(/pdf-reader-immersive/);
+  await expect(reader).toHaveClass(/pdf-reader-fullscreen/);
   await expect(page.getByRole("button", { name: "退出全屏阅读" })).toBeVisible();
   await page.getByRole("button", { name: "退出全屏阅读" }).click();
-  await expect(reader).not.toHaveClass(/pdf-reader-immersive/);
+  await expect(reader).not.toHaveClass(/pdf-reader-fullscreen/);
   await expect(reader).toBeVisible();
 
   const doubleClickSurface = page.locator(".pdf-page-surface").first();

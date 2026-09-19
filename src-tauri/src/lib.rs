@@ -2,6 +2,10 @@ pub mod commands;
 pub mod db;
 pub mod export;
 mod fullscreen;
+#[cfg(target_os = "macos")]
+mod macos_window;
+#[cfg(any(target_os = "macos", test))]
+mod window_placement;
 pub mod service;
 #[cfg(any(target_os = "windows", test))]
 mod webview_profile;
@@ -560,6 +564,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::window::set_window_fullscreen,
+            commands::window::toggle_window_maximize,
             commands::external_link::open_external_link,
             commands::doc_tree::get_document_source_formats,
             commands::protection::protection_snapshot,

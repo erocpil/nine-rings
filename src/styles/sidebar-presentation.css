@@ -52,6 +52,22 @@
   pointer-events: none;
   transition: width 220ms ease;
 }
+
+/* Reading fullscreen belongs to the workspace, below the native title bar.
+   Keep the editor mounted and its split preference intact for exit. */
+.app-body.app-reader-focus > :is(.app-main, .desktop-activity-bar, .sidebar-divider, .sidebar-pin-spacer) {
+  display: none;
+}
+.app-body.app-reader-focus > .app-sidebar {
+  position: relative;
+  inset: auto;
+  flex: 1;
+  width: 100% !important;
+  max-width: none;
+  border: 0;
+  box-shadow: none;
+  transition: none;
+}
 .sidebar-hover-enabled > .sidebar-divider {
   position: absolute;
   top: 0;

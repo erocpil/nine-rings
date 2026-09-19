@@ -1087,8 +1087,10 @@ function App() {
   // All platforms use the editor title row. Desktop retains an activity rail;
   // mobile retains edge drawers and its full-title preview interaction.
   const desktopWorkspace = !mobileDrawerViewport;
+  const readerFocus = desktopWorkspace && desktopPanel === "reader" && !sidebarHidden
+    && Boolean(pdfReaderDocumentId ? pdfReaderFullscreen : epubReaderDocumentId && epubReaderFullscreen);
   const sidebarHoverEnabled = desktopWorkspace && sidebarPresentation === "overlay";
-  const sidebarHover = useSidebarHoverPreview({ enabled: sidebarHoverEnabled, panel: desktopPanel, hidden: sidebarHidden, resizing: sidebarResizing, openPanel: setSidebarPanel, setHidden: setSidebarHidden });
+  const sidebarHover = useSidebarHoverPreview({ enabled: sidebarHoverEnabled, panel: desktopPanel, hidden: sidebarHidden, resizing: sidebarResizing || readerFocus, openPanel: setSidebarPanel, setHidden: setSidebarHidden });
   const sidebarOverlay = sidebarHoverEnabled && !sidebarHover.pinned;
   const announcedErrorRef = useRef<string | null>(null);
   useEffect(() => {
@@ -1473,7 +1475,7 @@ function App() {
       <BackupRestoreStatus compact onOpenSettings={() => setSettingsOpen(true)} />
       {readingLibraryError && <div role="alert" className="reading-library-message">{readingLibraryError}</div>}
 
-      <div className={`app-body${sidebarHoverEnabled ? " sidebar-hover-enabled" : ""}${sidebarOverlay ? " sidebar-presentation-overlay" : ""}`} style={sidebarHoverEnabled ? { "--sidebar-pane-width": `${sidebarWidth}px` } as React.CSSProperties : undefined}>
+      <div className={`app-body${readerFocus ? " app-reader-focus" : ""}${sidebarHoverEnabled ? " sidebar-hover-enabled" : ""}${sidebarOverlay ? " sidebar-presentation-overlay" : ""}`} style={sidebarHoverEnabled ? { "--sidebar-pane-width": `${sidebarWidth}px` } as React.CSSProperties : undefined}>
         {sidebarWidthHint && <div className="sidebar-width-hint" role="status" aria-live="polite">{sidebarWidthHint}</div>}
         {!mobileDrawerViewport && <nav className="desktop-activity-bar" aria-label="工作区面板">
           {(error || autoSave.status === "error") && <button type="button" className="btn-icon workspace-error-indicator" aria-label="查看错误详情" title="查看错误详情" onClick={() => setErrorDetailsOpen(true)}><ToolbarIcon name="warning" /></button>}

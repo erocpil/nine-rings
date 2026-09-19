@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
 import { toggleTauriFullscreen } from "../lib/fullscreen";
 
 /**
@@ -23,7 +24,7 @@ export default function TitleBar() {
     maximizePress.current = null;
     if (event.button !== 0 || event.detail !== 2 || !isTitlebarBackground(event)) return;
     // macOS 的双击在第二次松开时处理。拦截默认 drag-region 处理，
-    // 防止同一次手势既触发我们的 toggleMaximize 又触发 Tauri 的内部切换。
+    // 防止同一次手势既触发我们的最大化逻辑又触发 Tauri 的内部切换。
     event.preventDefault();
     event.stopPropagation();
     maximizePress.current = { x: event.clientX, y: event.clientY };
@@ -41,7 +42,7 @@ export default function TitleBar() {
     void (async () => {
       const appWindow = getCurrentWindow();
       // 已在原生全屏时不改变 Space，也不修改退出全屏后的窗口状态。
-      if (!await appWindow.isFullscreen()) await appWindow.toggleMaximize();
+      if (!await appWindow.isFullscreen()) await invoke("toggle_window_maximize");
     })().catch(error => {
       console.error("[TitleBar] 最大化/还原窗口失败:", error);
     }).finally(() => { maximizing.current = false; });

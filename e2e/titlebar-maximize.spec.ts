@@ -4,7 +4,7 @@ test.use({ serviceWorkers: "block" });
 
 async function mountTitlebar(page: Page, platform = "MacIntel", failOnce = false) {
   await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible();
+  await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
   await page.evaluate(async ({ platform, failOnce }) => {
     Object.defineProperty(navigator, "platform", { configurable: true, value: platform });
     const load = (path: string) => import(/* @vite-ignore */ path);
@@ -24,12 +24,16 @@ async function mountTitlebar(page: Page, platform = "MacIntel", failOnce = false
         document.body.dataset.windowCommands = JSON.stringify(commands);
         fullscreen = Boolean((args as { fullscreen: boolean }).fullscreen);
       }
+      if (command === "toggle_window_maximize") {
+        commands.push(command);
+        document.body.dataset.windowCommands = JSON.stringify(commands);
+      }
       if (command.startsWith("plugin:window|")) {
         commands.push(command.split("|")[1]);
         document.body.dataset.windowCommands = JSON.stringify(commands);
       }
       if (command === "plugin:window|is_fullscreen") return fullscreen;
-      if (command.endsWith("|toggle_maximize") || command.endsWith("|internal_toggle_maximize")) {
+      if (command === "toggle_window_maximize" || command.endsWith("|internal_toggle_maximize")) {
         if (rejectNext) { rejectNext = false; throw new Error("test maximize failure"); }
         maximized = !maximized;
         document.body.dataset.maximized = String(maximized);
@@ -69,7 +73,7 @@ test("macOS 双击标题文字和空白只最大化/还原，不进入全屏或�
   await page.locator(".titlebar").dblclick({ position: { x: 500, y: 18 } });
   await expect.poll(() => page.evaluate(() => document.body.dataset.maximized)).toBe("false");
   const log = await commands(page);
-  expect(log.filter(command => command === "toggle_maximize")).toHaveLength(2);
+  expect(log.filter(command => command === "toggle_window_maximize")).toHaveLength(2);
   expect(log).not.toContain("internal_toggle_maximize");
   expect(log).not.toContain("set_window_fullscreen");
   expect(log).toContain("start_dragging");
@@ -90,14 +94,14 @@ test("macOS 双击容许轻微移动，拖动、右键及窗口按钮不触发�
   await bar.getByRole("button", { name: "进入全屏", exact: true }).click();
   await bar.getByRole("button", { name: "退出全屏", exact: true }).waitFor();
   await bar.dblclick({ position: { x: 500, y: 18 } });
-  expect((await commands(page)).filter(command => command === "toggle_maximize")).toHaveLength(1);
+  expect((await commands(page)).filter(command => command === "toggle_window_maximize")).toHaveLength(1);
   expect((await commands(page)).filter(command => command === "set_window_fullscreen")).toHaveLength(1);
 });
 
 test("macOS 最大化请求失败后仍可再次双击", async ({ page }) => {
   await mountTitlebar(page, "MacIntel", true);
   await page.locator(".titlebar-title").dblclick();
-  await expect.poll(async () => (await commands(page)).filter(command => command === "toggle_maximize").length).toBe(1);
+  await expect.poll(async () => (await commands(page)).filter(command => command === "toggle_window_maximize").length).toBe(1);
   await page.locator(".titlebar-title").dblclick();
   await expect.poll(() => page.evaluate(() => document.body.dataset.maximized)).toBe("true");
 });
@@ -107,7 +111,7 @@ test("Windows 保留原来的默认标题栏处理", async ({ page }) => {
   await page.locator(".titlebar-title").dblclick();
   await expect.poll(() => page.evaluate(() => document.body.dataset.maximized)).toBe("true");
   expect(await commands(page)).toContain("internal_toggle_maximize");
-  expect(await commands(page)).not.toContain("toggle_maximize");
+  expect(await commands(page)).not.toContain("toggle_window_maximize");
 });
 
 test("Windows 双击最大化后的全屏按钮通过原生统一入口进入和退出", async ({ page }) => {
@@ -120,4 +124,16 @@ test("Windows 双击最大化后的全屏按钮通过原生统一入口进入和
   const log = await commands(page);
   expect(log.filter(command => command === "set_window_fullscreen")).toHaveLength(2);
   expect(log).not.toContain("set_fullscreen");
+});
+
+test("macOS 放大后进入/退出全屏，仍可双击还原", async ({ page }) => {
+  await mountTitlebar(page);
+  const title = page.locator(".titlebar-title");
+  await title.dblclick();
+  await expect.poll(() => page.evaluate(() => document.body.dataset.maximized)).toBe("true");
+  await page.getByRole("button", { name: "进入全屏", exact: true }).click();
+  await page.getByRole("button", { name: "退出全屏", exact: true }).click();
+  await title.dblclick();
+  await expect.poll(() => page.evaluate(() => document.body.dataset.maximized)).toBe("false");
+  expect((await commands(page)).filter(command => command === "toggle_window_maximize")).toHaveLength(2);
 });
