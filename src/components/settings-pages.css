@@ -1,0 +1,354 @@
+/* Shared settings surfaces; keep the category drawer compact. */
+.settings-panel .settings-section-title {
+  margin: 0 0 5px;
+}
+.settings-panel .settings-section-desc {
+  line-height: 1.65;
+}
+.settings-panel .settings-category-card {
+  border-radius: 12px;
+  padding: 16px;
+  min-height: 78px;
+}
+.settings-panel .settings-category-card small {
+  line-height: 1.55;
+}
+.settings-panel .settings-category-card:hover {
+  transform: none;
+}
+.settings-panel .settings-category-arrow {
+  color: var(--accent);
+}
+.settings-panel .settings-search-input-row {
+  min-height: 44px;
+  border: 1px solid var(--border);
+}
+.settings-panel .settings-search-help {
+  border: 1px solid var(--border);
+  line-height: 1.6;
+}
+.settings-panel .settings-content-page {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-content: start;
+  align-items: stretch;
+  padding: 20px;
+}
+.settings-content-page > .settings-field,
+.settings-content-page > .settings-section,
+.settings-content-page > .settings-section:first-child {
+  min-width: 0;
+  margin: 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--settings-input-bg);
+}
+.settings-content-page > .settings-field {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+.settings-content-page .settings-label {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.settings-content-page .settings-desc {
+  margin: 0;
+  line-height: 1.65;
+}
+.settings-content-page .settings-control {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.settings-content-page
+  .settings-control
+  > :not(.settings-toggle):not(.settings-stepper):not(button) {
+  max-width: 100%;
+}
+.settings-content-page .settings-toggle {
+  min-height: 32px;
+  gap: 10px;
+}
+.settings-toggle:has(input:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.settings-toggle input:focus-visible + .toggle-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.settings-content-page .editor-appearance-entry {
+  min-height: 68px;
+  gap: 14px;
+  border-radius: 9px;
+}
+.settings-content-page .editor-appearance-entry-action {
+  font-size: 12px;
+}
+.settings-content-page .settings-radio-group {
+  flex-wrap: wrap;
+  gap: 6px;
+  border: 0;
+  overflow: visible;
+}
+.settings-content-page .settings-radio {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-height: 40px;
+  padding: 8px 12px;
+}
+.settings-content-page[data-settings-page="appearance"]
+  .settings-field:first-child {
+  grid-column: 1 / -1;
+}
+.settings-content-page[data-settings-page="appearance"]
+  .settings-field:first-child
+  .settings-radio-group {
+  width: 100%;
+}
+.settings-content-page[data-settings-page="appearance"] .theme-swatch {
+  width: 20px;
+  height: 20px;
+}
+.settings-content-page > .settings-category-grid,
+.settings-content-page > .sidebar-settings-page,
+.settings-content-page > .settings-toast,
+.settings-content-page > .reading-library-message {
+  grid-column: 1 / -1;
+}
+.settings-content-page > .settings-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.settings-content-page[data-settings-page="profile"] > .settings-section,
+.settings-content-page[data-settings-page="general"] > .settings-section,
+.settings-content-page[data-settings-page="tags"] > .settings-section {
+  grid-column: 1 / -1;
+}
+.settings-content-page .user-profile-grid {
+  gap: 18px 24px;
+  margin: 20px 0;
+}
+.settings-content-page .user-profile-grid .settings-label {
+  display: grid;
+  gap: 8px;
+}
+.settings-content-page .settings-input {
+  min-height: 38px;
+}
+.settings-content-page .sidebar-settings-page {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.settings-content-page .sidebar-settings-intro {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+.settings-content-page .sidebar-settings-card,
+.settings-content-page .sidebar-width-reset-card {
+  padding: 20px;
+  border-radius: 12px;
+  background: var(--settings-input-bg);
+}
+.settings-content-page .sidebar-settings-card-heading > div {
+  display: grid;
+  gap: 5px;
+}
+.settings-content-page .sidebar-settings-card-heading span {
+  white-space: normal;
+}
+.settings-content-page .sidebar-width-reset-card {
+  grid-column: 1 / -1;
+}
+.settings-content-page .hotkey-list {
+  display: grid;
+  gap: 8px;
+}
+.settings-content-page .hotkey-row {
+  padding: 12px;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.settings-content-page .hotkey-btn,
+.settings-content-page .hotkey-input {
+  min-height: 36px;
+}
+.settings-content-page .hotkey-reserved-note {
+  margin-bottom: 10px;
+  padding: 12px;
+  background: var(--settings-card-bg);
+  border-radius: 8px;
+  line-height: 1.65;
+}
+.settings-content-page .settings-tag-list {
+  display: grid;
+  gap: 8px;
+}
+.settings-content-page .settings-tag-row {
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.settings-content-page .settings-tag-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.settings-content-page .settings-tag-actions {
+  flex-shrink: 0;
+}
+.settings-content-page .settings-sm-btn {
+  min-width: 32px;
+  min-height: 32px;
+}
+.settings-content-page .settings-inline-edit {
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  margin-bottom: 14px;
+  border-radius: 8px;
+  background: var(--settings-card-bg);
+}
+.settings-content-page .settings-inline-edit input {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.settings-content-page .bookmark-help {
+  line-height: 1.75;
+}
+.settings-content-page .bookmark-help p {
+  margin: 0 0 12px;
+}
+.settings-content-page .settings-empty {
+  padding: 28px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  line-height: 1.6;
+}
+.settings-error-state {
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  color: var(--danger);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.settings-error-state p {
+  margin: 0 0 8px;
+}
+.settings-panel .sync-config-section {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--settings-input-bg);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 24px;
+}
+.settings-panel .sync-config-section > h4,
+.settings-panel .sync-config-section > p,
+.settings-panel .sync-config-section > .settings-inline {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.settings-panel .sync-config-section > .settings-label {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+}
+.settings-panel .sync-config-section input.settings-input {
+  width: 100%;
+  min-height: 38px;
+}
+.settings-panel .sync-settings-section > h3 {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+.settings-panel .sync-actions {
+  padding: 16px;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--settings-card-bg);
+}
+.settings-panel .sync-actions button {
+  min-height: 38px;
+}
+.settings-panel .sync-settings-section > .settings-hint {
+  line-height: 1.7;
+  margin: 16px 0;
+}
+.settings-panel .sync-settings-section > .backup-export-status {
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  line-height: 1.65;
+}
+.settings-panel .sync-settings-section > .backup-export-status p {
+  margin: 0 0 6px;
+}
+@media (max-width: 760px) {
+  .settings-panel .settings-content-page,
+  .settings-content-page > .settings-category-grid,
+  .settings-content-page .sidebar-settings-page,
+  .settings-panel .sync-config-section {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-content-page > .settings-field,
+  .settings-content-page > .settings-section,
+  .settings-content-page > .settings-section:first-child {
+    padding: 16px;
+  }
+  .settings-content-page .hotkey-row {
+    flex-wrap: wrap;
+  }
+  .settings-content-page .hotkey-label {
+    flex-basis: 100%;
+  }
+  .settings-content-page .editor-appearance-entry {
+    flex-wrap: wrap;
+  }
+}
+.hotkey-fixed {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.hotkey-fixed small {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.settings-content-page .hotkey-reserved-note p {
+  margin: 0 0 8px;
+}
+.settings-content-page .settings-empty-state {
+  padding: 24px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--text-secondary);
+}
+/* Keep switches keyboard-accessible while drawing the visual track ourselves. */
+.settings-panel .settings-toggle {
+  position: relative;
+}
+.settings-panel .settings-toggle input {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+  z-index: 1;
+}

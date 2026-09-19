@@ -44,8 +44,12 @@ export function SettingsUpdateStatus({ webUpdate, showMessage }: Props) {
         document.body.appendChild(target);
         target.focus();
         target.select();
-        document.execCommand("copy");
-        document.body.removeChild(target);
+        try {
+          if (!document.execCommand("copy"))
+            throw new Error("浏览器未允许复制，请手动选择详情复制");
+        } finally {
+          target.remove();
+        }
       }
       showMessage("更新失败详情已复制到剪贴板");
     } catch (error) {

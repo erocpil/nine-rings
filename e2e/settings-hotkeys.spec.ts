@@ -14,9 +14,7 @@ test("快捷键录制、取消和恢复默认跨设置页保留", async ({ page 
   await expect(row.locator("kbd")).toHaveText(original);
   await row.locator(".hotkey-btn").click();
   await row.locator("input").press("Escape");
-  await expect(page.locator(".settings-overlay")).toHaveCount(0);
-  await page.getByTitle("设置", { exact: true }).click();
-  await openHotkeys();
+  await expect(page.getByRole("dialog", { name: "工作流与快捷键", exact: true })).toBeVisible();
   await expect(row.locator("kbd")).toHaveText(original);
   await row.locator(".hotkey-btn").click();
   await row.locator("input").press("Control+Alt+9");

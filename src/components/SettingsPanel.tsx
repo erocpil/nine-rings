@@ -5,6 +5,7 @@ import { HotkeyConfig } from "./SettingsHotkeys";
 import { Field, SettingsSection } from "./SettingsFields";
 import { useCallback, useEffect, useState, useRef } from "react";
 import "./settings-surfaces.css";
+import "./settings-pages.css";
 import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import type { AppConfig, Note } from "../types/models";
@@ -78,7 +79,7 @@ const SETTINGS_CATEGORIES: Array<{
   { id: "general", title: "工作流与快捷键", description: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "默认视图、待办继承和按键绑定" : "搜索、设置与窗口按键绑定" },
   { id: "sync", title: "同步与备份", description: "GitHub 仓库和同步操作" },
   { id: "data", title: "数据与导入", description: "JSON 备份及 Markdown / 纯文本目录导入" },
-  { id: "advanced", title: "高级", description: "回收站策略与开发服务端口" },
+  { id: "advanced", title: "高级", description: isTauri() ? "回收站清理与正文渲染" : "回收站清理、渲染与诊断" },
 ];
 
 const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
@@ -111,10 +112,14 @@ function normalizeVimConfig(value: string): string {
 
 
 export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onBeforePush, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onNotesChanged, libraryError }: Props) {
-  const [vimConfig, setVimConfig] = useState(() => normalizeVimConfig(localStorage.getItem(VIM_CONFIG_KEY) ?? "set number\nset tabstop=4\nset shiftwidth=4\nset expandtab"));
+  const [vimConfig, setVimConfig] = useState(() => normalizeVimConfig(localStorage.getItem(VIM_CONFIG_KEY) ?? "set tabstop=4"));
+  const saveVimConfig = (next: string) => {
+    try { localStorage.setItem(VIM_CONFIG_KEY, next); setVimConfig(next); }
+    catch { showMessage("Vim 配置保存失败，请检查本机存储权限。"); }
+  };
   const [panelOrder, setPanelOrder] = useState<string[]>(() => {
     const saved = localStorage.getItem("nr:sidebarOrder")?.split(",") ?? [];
-    return [...saved.filter((item) => ["tree", "list", "reader"].includes(item)), ...["tree", "list", "reader"].filter((item) => !saved.includes(item))];
+    return [...new Set(saved.filter((item) => ["tree", "list", "reader"].includes(item))), ...["tree", "list", "reader"].filter((item) => !saved.includes(item))];
   });
   const [draggedPanel, setDraggedPanel] = useState<string | null>(null);
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -139,9 +144,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [searchDestination, setSearchDestination] = useState<SettingsSearchEntry | null>(null);
   const settingsResults = searchSettings(settingsQuery, { web: !isTauri(), updates: Boolean(webUpdate) });
   const persistPanelOrder = (next: string[]) => {
-    setPanelOrder(next);
-    localStorage.setItem("nr:sidebarOrder", next.join(","));
-    window.dispatchEvent(new Event("nr:sidebar-order-change"));
+    try {
+      localStorage.setItem("nr:sidebarOrder", next.join(","));
+      setPanelOrder(next);
+      window.dispatchEvent(new Event("nr:sidebar-order-change"));
+    } catch { showMessage("分栏顺序保存失败，请检查本机存储权限。"); }
   };
   const movePanel = (index: number, offset: -1 | 1) => {
     const target = index + offset;
@@ -171,11 +178,17 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [rebuildingSearchIndex, setRebuildingSearchIndex] = useState(false);
   const [bookmarkNotes, setBookmarkNotes] = useState<Note[]>([]);
   const [bookmarksLoading, setBookmarksLoading] = useState(false);
+  const [bookmarksError, setBookmarksError] = useState<string | null>(null);
+  const [bookmarkReload, setBookmarkReload] = useState(0);
+  const bookmarkBusyRef = useRef(false);
   const [deletingBookmarkId, setDeletingBookmarkId] = useState<string | null>(null);
 
   // ── 标签管理状态 ──
   const [allTags, setAllTags] = useState<string[]>([]);
   const [tagsLoading, setTagsLoading] = useState(false);
+  const [tagsError, setTagsError] = useState<string | null>(null);
+  const [tagBusy, setTagBusy] = useState(false);
+  const tagBusyRef = useRef(false);
   const tagsLoadedRef = useRef(false);
   const [renameTag, setRenameTag] = useState<string | null>(null);
   const [renameVal, setRenameVal] = useState("");
@@ -235,12 +248,15 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     if (!open || settingsPage !== "bookmarks") return;
     let cancelled = false;
     setBookmarksLoading(true);
+    setBookmarksError(null);
+    setBookmarkNotes([]);
     Promise.allSettled([api.notes.all(), api.docs.search({})])
       .then(([dailyResult, documentsResult]) => {
         if (cancelled) return;
         if (dailyResult.status === "rejected" && documentsResult.status === "rejected") {
           throw dailyResult.reason;
         }
+        if (dailyResult.status === "rejected" || documentsResult.status === "rejected") setBookmarksError("部分书签未能加载，请重试以查看完整列表。");
         const notesById = new Map<string, Note>();
         const dailyNotes = dailyResult.status === "fulfilled" ? dailyResult.value : [];
         const documents = documentsResult.status === "fulfilled" ? documentsResult.value : [];
@@ -249,15 +265,16 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
           .filter((note) => (note.content.metadata?.bookmarks?.length ?? 0) > 0));
       })
       .catch((error) => {
-        if (!cancelled) showMessage(`加载书签失败：${error instanceof Error ? error.message : String(error)}`);
+        if (!cancelled) setBookmarksError(`加载书签失败：${error instanceof Error ? error.message : String(error)}`);
       })
       .finally(() => { if (!cancelled) setBookmarksLoading(false); });
     return () => { cancelled = true; };
-  }, [open, settingsPage, showMessage]);
+  }, [open, settingsPage, bookmarkReload]);
 
   const deleteManagedBookmark = async (note: Note, bookmarkId: string) => {
     const bookmark = note.content.metadata?.bookmarks?.find((candidate) => candidate.id === bookmarkId);
-    if (!bookmark || !window.confirm(`删除“${bookmark.label || bookmark.preview}”书签？`)) return;
+    if (bookmarkBusyRef.current || !bookmark || !window.confirm(`删除“${bookmark.label || bookmark.preview}”书签？`)) return;
+    bookmarkBusyRef.current = true;
     setDeletingBookmarkId(bookmarkId);
     try {
       await onBeforeBookmarkNoteUpdate?.(note.id);
@@ -279,15 +296,19 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     } catch (error) {
       showMessage(`删除书签失败：${error instanceof Error ? error.message : String(error)}`);
     } finally {
+      bookmarkBusyRef.current = false;
       setDeletingBookmarkId(null);
     }
   };
 
   const refreshTags = useCallback(() => {
     setTagsLoading(true);
+    setTagsError(null);
     api.tags.listAll().then((tags) => {
       setAllTags(tags);
-    }).catch(() => {}).finally(() => {
+    }).catch((error) => {
+      setTagsError(`加载标签失败：${error instanceof Error ? error.message : String(error)}`);
+    }).finally(() => {
       tagsLoadedRef.current = true;
       setTagsLoading(false);
     });
@@ -406,22 +427,39 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const chk = (key: keyof AppConfig, _val: unknown) => saving === key ? "saving" : "";
 
   // ── 标签操作 ──
-  const handleRename = async () => {
-    if (!renameTag || !renameVal.trim()) return;
-    const result = await api.tags.rename(renameTag, renameVal.trim());
-    showMessage(`已重命名，影响 ${result.affected} 篇笔记`);
-    setRenameTag(null);
-    setRenameVal("");
-    refreshTags();
-    onNotesChanged?.();
+  const runTagAction = async (action: () => Promise<{ affected: number }>, verb: string) => {
+    if (tagBusyRef.current) return;
+    tagBusyRef.current = true;
+    setTagBusy(true);
+    setTagsError(null);
+    try {
+      const result = await action();
+      showMessage(`${verb}，影响 ${result.affected} 篇文档或随笔`);
+      setRenameTag(null);
+      setRenameVal("");
+      refreshTags();
+      onNotesChanged?.();
+    } catch (error) {
+      setTagsError(`操作失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      tagBusyRef.current = false;
+      setTagBusy(false);
+    }
   };
-
+  const handleRename = async () => {
+    const target = renameVal.trim();
+    if (!renameTag || !target || target === renameTag) return;
+    await runTagAction(() => api.tags.rename(renameTag, target), "已重命名");
+  };
+  const handleMergeTag = async (name: string) => {
+    if (tagBusyRef.current) return;
+    const target = prompt(`将「${name}」合并到哪个标签？输入目标标签名：`)?.trim();
+    if (!target || target === name) return;
+    await runTagAction(() => api.tags.merge(name, target), "已合并");
+  };
   const handleRemoveTag = async (name: string) => {
-    if (!confirm(`确认从所有笔记中移除标签「${name}」？`)) return;
-    const result = await api.tags.remove(name);
-    showMessage(`已移除，影响 ${result.affected} 篇笔记`);
-    refreshTags();
-    onNotesChanged?.();
+    if (tagBusyRef.current || !confirm(`从所有文档和随笔中移除标签「${name}」？正文不会被删除。`)) return;
+    await runTagAction(() => api.tags.remove(name), "已移除标签");
   };
 
   // ── 导出/导入 ──
@@ -447,7 +485,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
 
   if (!open) return null;
 
-  const expandedPage = settingsPage === "sync" || settingsPage === "data";
+  const expandedPage = settingsPage !== "root";
 
   return (
     <div className={`settings-overlay${mobileSettingsViewport ? " settings-overlay-mobile" : ""}${expandedPage ? " settings-expanded-overlay" : ""}`} onClick={() => { onClose(); }}>
@@ -498,7 +536,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             <button className="settings-retry" onClick={loadSettings}>重试</button>
           </div>
         ) : (
-          <div className="settings-body">
+          <div className={`settings-body${!["root", "data", "sync"].includes(settingsPage) ? " settings-content-page" : ""}`} data-settings-page={settingsPage}>
             {libraryError && <div className="reading-library-message" role="alert">{libraryError}</div>}
             {settingsPage === "root" && (
               <div className="settings-search">
@@ -583,6 +621,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                   <button
                     key={v}
                     className={`settings-radio ${config.theme === v ? "active" : ""} ${chk("theme", v)}`}
+                    aria-pressed={config.theme === v}
                     onClick={() => update({ theme: v })}
                   >
                     <span
@@ -627,11 +666,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </button>
             </Field>
 
-            <Field label="Vim 编辑" desc="集中管理 Vim 模式、快捷键和代码块弹层配置" visible={settingsPage === "appearance"}>
+            <Field label="Vim 编辑" desc="正文 Vim 模式与代码块弹层的 Tab 显示宽度" visible={settingsPage === "appearance"}>
               <button className="editor-appearance-entry" type="button" onClick={() => setSettingsPage("vim")}>
                 <span>
                   <strong>Vim 设置</strong>
-                  <small>模式、快捷键和代码块 Vim 配置</small>
+                  <small>正文模式与代码块 Tab 宽度</small>
                 </span>
                 <span className="editor-appearance-entry-action">打开 Vim 设置 →</span>
               </button>
@@ -655,12 +694,12 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </div>
               <div className="sidebar-settings-card">
                 <div className="sidebar-settings-card-heading">
-                  <div><strong>显示顺序</strong><span>按住右侧把手拖动</span></div>
+                  <div><strong>显示顺序</strong><span>拖动排序，或用上下按钮调整</span></div>
                   <span className="sidebar-settings-count">{panelOrder.length} 个分栏</span>
                 </div>
                 <div className="sidebar-panel-order" aria-label="分栏显示顺序">
                   {panelOrder.map((panel, index) => (
-                    <div key={panel} className="sidebar-panel-order-item" draggable onDragStart={() => setDraggedPanel(panel)} onDragOver={(event) => event.preventDefault()} onDrop={() => {
+                    <div key={panel} className="sidebar-panel-order-item" draggable onDragEnd={() => setDraggedPanel(null)} onDragStart={() => setDraggedPanel(panel)} onDragOver={(event) => event.preventDefault()} onDrop={() => {
                       if (!draggedPanel || draggedPanel === panel) return;
                       const next = [...panelOrder];
                       next.splice(next.indexOf(draggedPanel), 1);
@@ -692,6 +731,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                   <button
                     key={v}
                     className={`settings-radio ${config.default_view === v ? "active" : ""} ${chk("default_view", v)}`}
+                    aria-pressed={config.default_view === v}
                     onClick={() => {
                       localStorage.setItem("nr:defaultViewConfigured", "1");
                       update({ default_view: v });
@@ -708,7 +748,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               <label className="settings-toggle">
                 <input
                   type="checkbox"
-                  checked={config.todo_carryover_default}
+                  aria-label="待办跨日继承" checked={config.todo_carryover_default}
                   onChange={(e) => update({ todo_carryover_default: e.target.checked })}
                 />
                 <span className="toggle-track" />
@@ -721,7 +761,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               <label className="settings-toggle">
                 <input
                   type="checkbox"
-                  checked={config.highlight_active_line}
+                  aria-label="高亮当前行" checked={config.highlight_active_line}
                   onChange={(e) => update({ highlight_active_line: e.target.checked })}
                 />
                 <span className="toggle-track" />
@@ -738,7 +778,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               <label className="settings-toggle">
                 <input
                   type="checkbox"
-                  checked={config.editor_show_line_numbers}
+                  aria-label="显示块编号" checked={config.editor_show_line_numbers}
                   onChange={(e) => update({ editor_show_line_numbers: e.target.checked })}
                 />
                 <span className="toggle-track" />
@@ -746,11 +786,12 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            <Field label="状态栏块号" desc="显示光标所在的顶层块编号，并与正文左侧块号保持一致" visible={settingsPage === "editor"}>
+            <Field label="状态栏块号" desc={config.editor_show_status_bar ? "显示光标所在的顶层块编号；与正文左侧块号使用同一套编号" : "请先开启状态栏；此选项的当前设置会保留"} visible={settingsPage === "editor"}>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
-                  checked={config.editor_show_status_block_number}
+                  aria-label="状态栏块号" checked={config.editor_show_status_block_number}
+                  disabled={!config.editor_show_status_bar}
                   onChange={(e) => update({ editor_show_status_block_number: e.target.checked })}
                 />
                 <span className="toggle-track" />
@@ -762,7 +803,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               <label className="settings-toggle">
                 <input
                   type="checkbox"
-                  checked={config.editor_show_status_bar}
+                  aria-label="编辑器状态栏" checked={config.editor_show_status_bar}
                   onChange={(e) => update({ editor_show_status_bar: e.target.checked })}
                 />
                 <span className="toggle-track" />
@@ -774,7 +815,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               <label className="settings-toggle">
                 <input
                   type="checkbox"
-                  checked={config.editor_readonly_heading_fold}
+                  aria-label="只读文档双击标题折叠" checked={config.editor_readonly_heading_fold}
                   onChange={(e) => update({ editor_readonly_heading_fold: e.target.checked })}
                 />
                 <span className="toggle-track" />
@@ -786,7 +827,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               <label className="settings-toggle">
                 <input
                   type="checkbox"
-                  checked={config.editor_vim_mode}
+                  aria-label="Vim 模式（实验性）" checked={config.editor_vim_mode}
                   onChange={(e) => update({ editor_vim_mode: e.target.checked })}
                 />
                 <span className="toggle-track" />
@@ -794,22 +835,22 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            <Field label="Vim 配置" desc="代码块弹层仅解析安全的 set 选项；换行由编辑器排版统一控制，不会执行 VimScript 或插件命令" visible={settingsPage === "vim"}>
+            <Field label="Vim 配置" desc="仅用于代码块 Vim 弹层，下次打开弹层生效；正文排版不受影响。" visible={settingsPage === "vim"}>
               <div className="vim-config-card">
                 <div className="vim-config-card-heading"><strong>代码块弹层</strong><span>CodeMirror · Vim 键位</span></div>
                 <div className="vim-config-grid">
-                  <label>Tab 宽度<select value={Number(vimConfig.match(/tabstop=(\d+)/)?.[1] ?? 4)} onChange={(event) => {
-                    const next = vimConfig.replace(/set\s+tabstop=\d+/g, `set tabstop=${event.target.value}`);
-                    setVimConfig(next); localStorage.setItem(VIM_CONFIG_KEY, next);
-                  }}><option value="2">2</option><option value="4">4</option><option value="8">8</option></select></label>
+                  <label>Tab 宽度<select value={Math.max(1, Math.min(16, Number(vimConfig.match(/tabstop=(\d+)/)?.[1] ?? 4)))} onChange={(event) => {
+                    const next = [...normalizeVimConfig(vimConfig).split("\n").filter(line => line && !/^set tabstop(?:=|$)/.test(line)), `set tabstop=${event.target.value}`].join("\n");
+                    saveVimConfig(next);
+                  }}>{Array.from({ length: 16 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}</option>)}</select></label>
                 </div>
-                <details><summary className="disclosure-summary"><DisclosureIcon />高级 set 配置</summary><textarea className="settings-input vim-config-editor" value={vimConfig} spellCheck={false} aria-label="Vim set 配置" onChange={(event) => { setVimConfig(event.target.value); localStorage.setItem(VIM_CONFIG_KEY, event.target.value); }} onBlur={() => { const next = normalizeVimConfig(vimConfig); setVimConfig(next); localStorage.setItem(VIM_CONFIG_KEY, next); }} rows={5} /><div className="settings-hint">支持 number、relativenumber、expandtab、tabstop、shiftwidth、ignorecase、smartcase；换行请在编辑器排版中设置。</div></details>
+                <details><summary className="disclosure-summary"><DisclosureIcon />高级 set 配置</summary><textarea className="settings-input vim-config-editor" value={vimConfig} spellCheck={false} aria-label="Vim set 配置" onChange={(event) => { saveVimConfig(event.target.value); }} onBlur={() => { const next = normalizeVimConfig(vimConfig); saveVimConfig(next); }} rows={5} /><div className="settings-hint">当前仅应用 tabstop（1–16）；其他 set 行只保留，不会生效。代码行号与换行请在编辑器排版中设置。</div></details>
               </div>
             </Field>
 
             <SettingsSection title="使用方法" desc="书签随文档和备份保存；只读文档也可以查看和跳转" visible={settingsPage === "bookmarks"}>
               <div className="bookmark-help">
-                <p><strong>普通模式：</strong>把光标放到目标位置，点击标题旁“书签”后选择“添加当前位置书签”；也可从工具栏“更多”、正文右键菜单添加，或按 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> 切换当前位置书签。</p>
+                <p><strong>普通模式：</strong>把光标放到目标位置，点击标题旁“书签”后选择“添加当前位置书签”；也可从工具栏“更多”、正文右键菜单添加，或按 <kbd>{/Mac/i.test(navigator.platform) ? "⌘" : "Ctrl"}</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> 切换当前位置书签。</p>
                 <p><strong>删除：</strong>在当前文档书签面板点击 ×，或在下方集中管理列表中删除。普通书签不要求开启 Vim 模式。</p>
                 <p><strong>Vim 模式：</strong>Normal 模式按 <kbd>m</kbd> 后接 a–z 设置命名书签，按 <kbd>'</kbd> 后接同一字母跳转。</p>
                 <p><strong>专注模式：</strong>使用顶部“书签”按钮打开当前文档的书签列表。</p>
@@ -817,9 +858,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             </SettingsSection>
 
             <SettingsSection title="所有书签" desc="按文档集中查看和删除书签" visible={settingsPage === "bookmarks"}>
+              {bookmarksError && <div className="settings-error-state" role="alert"><p>{bookmarksError}</p><button type="button" className="settings-btn-secondary" disabled={bookmarksLoading} onClick={() => setBookmarkReload(value => value + 1)}>重新加载书签</button></div>}
               {bookmarksLoading ? (
                 <div className="settings-loading-inline">正在加载书签…</div>
-              ) : bookmarkNotes.length === 0 ? (
+              ) : bookmarkNotes.length === 0 && !bookmarksError ? (
                 <div className="settings-empty-state">还没有书签</div>
               ) : (
                 <div className="bookmark-manager-list">
@@ -832,7 +874,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                           <span className="bookmark-manager-label" title={bookmark.preview}>{bookmark.label || bookmark.preview}</span>
                           <button
                             type="button"
-                            disabled={deletingBookmarkId === bookmark.id}
+                            disabled={deletingBookmarkId !== null}
                             onClick={() => void deleteManagedBookmark(note, bookmark.id)}
                             aria-label={`删除书签 ${bookmark.label || bookmark.preview}`}
                             title="删除书签"
@@ -850,7 +892,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               <label className="settings-toggle">
                 <input
                   type="checkbox"
-                  checked={config.use_custom_context_menu}
+                  aria-label="正文右键菜单" checked={config.use_custom_context_menu}
                   onChange={(e) => update({ use_custom_context_menu: e.target.checked })}
                 />
                 <span className="toggle-track" />
@@ -858,34 +900,17 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            {/* ── 开发端口 ── */}
-            <Field label="Dev 端口" desc="Web 开发服务器端口（需重启 dev server 生效）" visible={settingsPage === "advanced"}>
-              <div className="settings-stepper">
-                <button
-                  className="settings-step-btn"
-                  onClick={() => update({ dev_port: Math.max(1024, config.dev_port - 1) })}
-                >−</button>
-                <span className={`settings-value ${chk("dev_port", 0)}`}>
-                  {config.dev_port}
-                </span>
-                <button
-                  className="settings-step-btn"
-                  onClick={() => update({ dev_port: Math.min(65535, config.dev_port + 1) })}
-                >+</button>
-              </div>
-            </Field>
-
             {/* ═══════════════════════ */}
             {/* 快捷键 */}
             {/* ═══════════════════════ */}
-            <SettingsSection title="快捷键" desc="点击快捷键后按下新组合键即可修改" visible={settingsPage === "general"}>
+            <SettingsSection title="快捷键" desc="点击快捷键录制新组合，Esc 取消；设置用于桌面版全局热键。" visible={settingsPage === "general"}>
               <HotkeyConfig
                 config={config}
                 onUpdate={(hk) => update({ hotkeys: hk })}
               />
             </SettingsSection>
 
-            <SettingsSection title="用户信息" desc="作为文档属性和 PDF 导出的默认值；单篇文档可以覆盖" visible={settingsPage === "profile"}>
+            <SettingsSection title="用户信息" desc="用于文档属性和导出的默认信息；单篇文档可以单独设置，不会改写已有正文。" visible={settingsPage === "profile"}>
               <div className="user-profile-grid">
                 <label className="settings-label">
                   <span>姓名 / 作者</span>
@@ -904,8 +929,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                   <input className="settings-input" type="url" autoComplete="url" value={config.user_website} onChange={(event) => update({ user_website: event.target.value })} placeholder="https://example.com" />
                 </label>
                 <label className="settings-label">
-                  <span>默认语言</span>
-                  <input className="settings-input" value={config.user_default_language} onChange={(event) => update({ user_default_language: event.target.value })} placeholder="zh-CN" />
+                  <span>默认语言（文档）</span>
+                  <input className="settings-input" value={config.user_default_language} onChange={(event) => update({ user_default_language: event.target.value })} placeholder="例如 zh-CN，不改变界面语言" />
                 </label>
                 <label className="settings-label">
                   <span>默认许可证</span>
@@ -922,32 +947,34 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             {/* ═══════════════════════ */}
             {/* 标签管理 */}
             {/* ═══════════════════════ */}
-            <SettingsSection title="标签管理" desc="管理所有笔记中的标签" visible={settingsPage === "tags"}>
+            <SettingsSection title="标签管理" desc="管理文档和随笔的普通标签；移除标签不会删除正文。概念标签在文档属性中管理。" visible={settingsPage === "tags"}>
 
+              {tagsError && <div className="settings-error-state" role="alert"><p>{tagsError}</p><button type="button" className="settings-btn-secondary" disabled={tagsLoading || tagBusy} onClick={refreshTags}>重新加载标签</button></div>}
               {/* 重命名输入框 */}
               {renameTag && (
                 <div className="settings-inline-edit">
                   <span className="settings-inline-label">重命名「{renameTag}」→</span>
                   <input
                     className="settings-input"
+                    aria-label="新标签名" disabled={tagBusy}
                     value={renameVal}
                     onChange={(e) => setRenameVal(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") handleRename();
-                      if (e.key === "Escape") { setRenameTag(null); setRenameVal(""); }
+                      if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); void handleRename(); }
+                      if (e.key === "Escape") { e.stopPropagation(); setRenameTag(null); setRenameVal(""); }
                     }}
                     autoFocus
                     placeholder="新标签名"
                   />
-                  <button className="settings-sm-btn" onClick={handleRename}>确认</button>
-                  <button className="settings-sm-btn" onClick={() => { setRenameTag(null); setRenameVal(""); }}>取消</button>
+                  <button className="settings-sm-btn" disabled={tagBusy || !renameVal.trim() || renameVal.trim() === renameTag} onClick={() => void handleRename()}>{tagBusy ? "保存中…" : "确认"}</button>
+                  <button className="settings-sm-btn" disabled={tagBusy} onClick={() => { setRenameTag(null); setRenameVal(""); }}>取消</button>
                 </div>
               )}
 
               {/* 标签列表 */}
               {tagsLoading ? (
                 <div className="settings-empty">正在加载标签…</div>
-              ) : allTags.length === 0 ? (
+              ) : allTags.length === 0 && !tagsError ? (
                 <div className="settings-empty">暂无标签</div>
               ) : (
                 <div className="settings-tag-list">
@@ -958,23 +985,19 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                         <button
                           className="settings-sm-btn"
                           onClick={() => { setRenameTag(t); setRenameVal(t); }}
+                          disabled={tagBusy || tagsLoading} aria-label={`重命名标签 ${t}`}
                           title="重命名"
                         >✎</button>
                         <button
                           className="settings-sm-btn"
-                          onClick={async () => {
-                            const target = prompt(`将「${t}」合并到哪个标签？输入目标标签名：`);
-                            if (!target || target === t) return;
-                            const result = await api.tags.merge(t, target);
-                            showMessage(`已合并，影响 ${result.affected} 篇笔记`);
-                            refreshTags();
-                            onNotesChanged?.();
-                          }}
+                          onClick={() => void handleMergeTag(t)}
+                          disabled={tagBusy || tagsLoading} aria-label={`合并标签 ${t}`}
                           title="合并到其他标签"
                         >⊕</button>
                         <button
                           className="settings-sm-btn danger"
                           onClick={() => handleRemoveTag(t)}
+                          disabled={tagBusy || tagsLoading} aria-label={`删除标签 ${t}`}
                           title="删除标签"
                         >×</button>
                       </div>
@@ -999,7 +1022,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
 
             <Field label="只读正文局部渲染（实验）" desc="默认关闭，仅本设备生效。只读时按可见区域挂载正文；图片、表格、超大单块及 Vim 模式自动回退。跨全文选择、打印、书签管理请切回完整渲染。" visible={settingsPage === "advanced"}>
               <label className="settings-toggle">
-                <input type="checkbox" checked={localRendering} onChange={event => {
+                <input type="checkbox" aria-label="只读正文局部渲染（实验）" checked={localRendering} onChange={event => {
                   try { setReadonlyRenderingEnabled(event.target.checked); setLocalRendering(event.target.checked); }
                   catch { showMessage("无法保存本地实验设置"); }
                 }} />
@@ -1008,10 +1031,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             </Field>
 
             {/* ── 回收站自动清理：设置项末尾 ── */}
-            <Field label="回收站自动清理" desc="超过此天数的已删除笔记自动清除。0=不自动清理" visible={settingsPage === "advanced"}>
+            <Field label="回收站自动清理" desc="打开应用或修改此设置时，永久清理已在回收站超过指定天数的内容。设为 0 关闭自动清理。" visible={settingsPage === "advanced"}>
               <div className="settings-stepper">
                 <button
                   className="settings-step-btn"
+                  aria-label="减少回收站保留天数" disabled={config.auto_clean_days === 0}
                   onClick={() => update({ auto_clean_days: Math.max(0, config.auto_clean_days - 7) })}
                 >−</button>
                 <span className={`settings-value ${chk("auto_clean_days", 0)}`}>
@@ -1019,13 +1043,14 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 </span>
                 <button
                   className="settings-step-btn"
+                  aria-label="增加回收站保留天数" disabled={config.auto_clean_days >= 365}
                   onClick={() => update({ auto_clean_days: Math.min(365, config.auto_clean_days + 7) })}
                 >+</button>
               </div>
             </Field>
 
             {!isTauri() && (
-              <Field label="Web 搜索索引" desc="索引可随时从 IndexedDB 原始笔记重新生成，不会修改笔记数据" visible={settingsPage === "advanced"}>
+              <Field label="Web 搜索索引" desc="搜索结果不完整时可尝试重建；仅更新搜索索引，不修改正文。" visible={settingsPage === "advanced"}>
                 <button
                   className="settings-btn-secondary"
                   type="button"

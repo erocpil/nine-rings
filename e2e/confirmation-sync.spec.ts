@@ -35,7 +35,7 @@ test("Token 保存确认可取消，Esc 不关闭设置，确认后才修改配�
   await page.goto("/");
   await page.getByTitle("设置").click();
   await page.getByRole("button", { name: /^同步与备份/ }).click();
-  const remember = page.getByLabel("记住 Token（退出浏览器后保留）");
+  const remember = page.getByLabel("在此设备记住 Token");
   await remember.click();
   const dialog = page.getByRole("dialog", { name: "在此设备保存 Token" });
   await expect(dialog.getByRole("button", { name: "取消" })).toBeFocused();

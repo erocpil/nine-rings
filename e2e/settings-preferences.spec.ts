@@ -41,8 +41,8 @@ for (const width of [390, 1280]) {
     await expect(input).toBeFocused();
     await expect(page.getByLabel("设置分类", { exact: true })).toBeVisible();
     await input.fill("vim");
-    await page.getByRole("button", { name: /编辑器行为/ }).click();
-    await expect(page.locator("#settings-dialog-title")).toHaveText("编辑器");
+    await page.getByRole("button", { name: /Vim 编辑/ }).click();
+    await expect(page.locator("#settings-dialog-title")).toHaveText("Vim 编辑");
     await expect(page.locator("#settings-dialog-title")).toBeFocused();
     await page.getByRole("button", { name: "关闭设置", exact: true }).click();
     await page.keyboard.press("Alt+,");

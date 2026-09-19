@@ -124,6 +124,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
   const pushRunning = useGitHubPushJob(job => job.status === "running");
   const pushResult = useGitHubPushJob(job => job.result);
   const busy = busyOperation !== null || pushRunning;
+  const connectionReady = OWNER_REPO_RE.test(ownerRepoValue.trim()) && !!cfg.token.trim() && !!cfg.path.trim();
   useEffect(() => { if (pushResult) setCfg(loadSyncConfig()); }, [pushResult]);
 
   const showMessage = useCallback((msg: string, type: "success" | "error") => {
@@ -190,7 +191,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
 
   const handleRememberTokenChange = useCallback(async (rememberToken: boolean) => {
     if (rememberToken) {
-      const accepted = await confirm({ title: "在此设备保存 Token", description: "持久保存会把 GitHub Token 写入此浏览器的本地存储。任何能访问本机浏览器数据或在本站执行的脚本都可能读取它。", confirmLabel: "仍然保存" });
+      const accepted = await confirm({ title: "在此设备保存 Token", description: "持久保存会把 GitHub Token 写入此设备的本地存储。任何能访问本机浏览器数据或在本站执行的脚本都可能读取它。", confirmLabel: "仍然保存" });
       if (!accepted) return;
     }
     update({ rememberToken });
@@ -225,7 +226,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
 
   const handleOwnerRepoKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") { e.preventDefault(); commitOwnerRepo(); }
-    if (e.key === "Escape") { e.preventDefault(); resetOwnerRepo(); }
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); resetOwnerRepo(); }
   };
 
   // ── GitHub 备份操作 ──
@@ -343,16 +344,18 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
 
       {/* 高频操作置顶，打开页面后无需越过低频配置即可执行。 */}
       <div className="settings-row sync-actions">
-        <button className="settings-btn" onClick={handleCheck} disabled={busy}>
+        <button className="settings-btn" onClick={handleCheck} disabled={busy || exportingLocal || !connectionReady}>
           测试连接
         </button>
-        <button className="settings-btn settings-btn-primary" onClick={handlePush} disabled={busy}>
+        <button className="settings-btn settings-btn-primary" onClick={handlePush} disabled={busy || exportingLocal || !connectionReady}>
           Push ↑
         </button>
-        <button className="settings-btn settings-btn-danger" onClick={handlePullPreview} disabled={busy || !!pullPrecheck}>
+        <button className="settings-btn" onClick={handlePullPreview} disabled={busy || exportingLocal || !connectionReady || !!pullPrecheck}>
           Pull ↓
         </button>
       </div>
+
+      {!connectionReady && <p className="settings-hint">请先填写有效的 Owner / Repo、备份文件路径和 Token，再测试连接或同步。</p>}
 
       {/* 同一反馈区：进行中 > 操作结果 > 连接状态，避免重复及冲突提示。 */}
       <div className="sync-feedback" aria-live="polite" aria-atomic="true">
@@ -567,13 +570,13 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
       <p className="settings-hint">
         Pull 会先按文档 UUID 比较本地、远端和上次同步基线，不会自动修改数据；默认使用保留本地独有内容的安全合并。
         Push 若发现远端存在本机尚未合并的新版本会停止上传，需先安全 Pull，避免旧设备覆盖远端新增内容。
-        恢复前请关闭其他编辑窗口；恢复锁只防止多个恢复同时执行，不隔离普通编辑。
+        恢复前请关闭其他编辑窗口，避免同时修改数据。
       </p>
 
       <div className="sync-config-section">
         <h4>连接设置</h4>
         <p className="settings-hint">
-          全量 JSON 快照包含随笔/文档及其正文书签、待办、模板、应用配置及非敏感用户设置；Token 不进入备份。需要 GitHub Personal Access Token（repo 权限）。
+          全量 JSON 快照包含随笔/文档及其正文书签、待办、模板、应用配置及非敏感用户设置；Token 不进入备份。需要能读写目标仓库的 GitHub Token；细粒度 Token 需授权该仓库的 Contents 读写权限。
         </p>
         <p className="settings-hint">备份范围提醒：PDF/EPUB 原文件及其阅读数据暂不包含在此 JSON 备份中。可在“阅读资料库”逐本导出阅读数据备份，原文件请另行保留。</p>
 
@@ -582,7 +585,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
           <input
             type="text"
             className={`settings-input ${ownerRepoError ? "settings-input-err" : ""}`}
-            placeholder="erocpil/nine-rings-backup"
+            placeholder="你的用户名/备份仓库"
             value={ownerRepoValue}
             disabled={busy}
             onChange={(e) => { setOwnerRepoValue(e.target.value); setOwnerRepoError(""); }}
@@ -609,7 +612,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
           <input
             type="password"
             className="settings-input"
-            placeholder="ghp_..."
+            placeholder="粘贴 GitHub Token"
             value={cfg.token}
             disabled={busy}
             onChange={(e) => update({ token: e.target.value })}
@@ -625,12 +628,12 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
               disabled={busy}
               onChange={(e) => handleRememberTokenChange(e.target.checked)}
             />
-            <span>记住 Token（退出浏览器后保留）</span>
+            <span>在此设备记住 Token</span>
           </label>
           <span className={`settings-hint ${cfg.rememberToken ? "settings-token-warning" : ""}`}>
             {cfg.rememberToken
-              ? "Token 已持久保存在此浏览器；请仅在可信的个人设备上启用。"
-              : "默认仅保留到当前浏览器会话，关闭浏览器后清除。"}
+              ? "Token 已保存在此设备的本地存储；请仅在可信的个人设备上启用。"
+              : "未勾选时使用会话存储；新会话需要重新填写，浏览器恢复会话时可能保留。"}
           </span>
         </div>
       </div>

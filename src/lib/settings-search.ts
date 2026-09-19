@@ -3,6 +3,7 @@ export type SearchSettingsPage =
   | "appearance"
   | "sidebar"
   | "editor"
+  | "vim"
   | "documents"
   | "bookmarks"
   | "general"
@@ -23,7 +24,8 @@ const entries: SettingsSearchEntry[] = [
   {
     title: "分栏打开方式",
     description: "外观与排版 › 分栏设置 · 浮层模式或并排模式",
-    keywords: "分栏 侧栏 弹出 覆盖 浮层 挤压 并排 文档树 文档列表 阅读 顺序 宽度",
+    keywords:
+      "分栏 侧栏 弹出 覆盖 浮层 挤压 并排 文档树 文档列表 阅读 顺序 宽度",
     page: "sidebar",
   },
   {
@@ -49,10 +51,16 @@ const entries: SettingsSearchEntry[] = [
   },
   {
     title: "编辑器行为",
-    description: "外观与排版 › 编辑器 · 块编号、状态栏、Vim 与折叠",
+    description: "外观与排版 › 编辑器 · 块编号、状态栏与折叠",
     keywords:
-      "编辑器 光标 高亮 块号 编号 状态栏 只读 双击 标题 章节 目录 折叠 标识 箭头 三角 自定义 符号 软换行 vim 右键 菜单",
+      "编辑器 光标 高亮 块号 编号 状态栏 只读 双击 标题 章节 目录 折叠 标识 箭头 三角 自定义 符号 右键 菜单",
     page: "editor",
+  },
+  {
+    title: "Vim 编辑",
+    description: "外观与排版 › Vim 编辑 · 正文模式与代码块 Tab 宽度",
+    keywords: "vim normal insert visual tabstop 键位 模式",
+    page: "vim",
   },
   {
     title: "书签",
@@ -86,21 +94,28 @@ const entries: SettingsSearchEntry[] = [
   },
   {
     title: "数据导出与导入",
-    description: "数据与导入 · JSON 备份、恢复与 Markdown 导入",
-    keywords: "数据 导出 导入 json markdown md 备份 恢复 图片",
+    description: "数据与导入 · JSON 备份、恢复与 Markdown / 纯文本导入",
+    keywords: "数据 导出 导入 json markdown md txt 文本 目录 备份 恢复 图片",
     page: "data",
   },
   {
-    title: "浏览器存储与诊断",
+    title: "浏览器存储",
+    description: "数据与导入 · 存储用量与持久存储状态",
+    keywords: "浏览器 存储 配额 空间 容量",
+    page: "data",
+    webOnly: true,
+  },
+  {
+    title: "搜索索引与诊断",
     description: "高级 · 搜索索引重建和本机诊断",
-    keywords: "浏览器 存储 诊断 索引 重建 搜索 空间",
+    keywords: "浏览器 诊断 索引 重建 搜索",
     page: "advanced",
     webOnly: true,
   },
   {
     title: "高级设置",
-    description: "回收站、开发端口与只读正文局部渲染",
-    keywords: "高级 回收站 清理 开发 端口 dev 渲染 性能 只读",
+    description: "回收站清理与只读正文局部渲染",
+    keywords: "高级 回收站 清理 渲染 性能 只读",
     page: "advanced",
   },
   {

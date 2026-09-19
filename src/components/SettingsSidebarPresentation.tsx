@@ -45,7 +45,7 @@ export function SettingsSidebarPresentation({
           : "悬停分栏按钮时浮出预览，移出且无输入或菜单操作时自动收起；点击固定为并排显示，再次点击收起。Tab 聚焦按钮后可用右/下方向键进入，Esc 收起并返回按钮。"}
       </p>
       <p className="sidebar-presentation-description">
-        仅对桌面版的文档树、文档列表与阅读分栏生效。手机版保持原有行为。
+        适用于桌面布局的文档树、文档列表与阅读分栏。手机版仍使用抽屉，可在桌面查看此设置的效果。
       </p>
     </div>
   );

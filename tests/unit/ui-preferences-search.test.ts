@@ -76,9 +76,10 @@ describe("static settings search", () => {
     expect(searchSettings("列表 缩进", options)[0].action).toBe("typography");
     expect(searchSettings("密码", options)[0].action).toBe("help");
     expect(searchSettings("更新", options)[0].action).toBe("update");
-    expect(searchSettings("ＶＩＭ", options)[0].page).toBe("editor");
+    expect(searchSettings("ＶＩＭ", options)[0].page).toBe("vim");
     expect(searchSettings("不存在的关键词", options)).toEqual([]);
     expect(searchSettings("浮层", options)[0].page).toBe("sidebar");
+    expect(searchSettings("存储", options)[0].page).toBe("data");
     expect(searchSettings("  ", options)).toEqual([]);
   });
   it("does not advertise unavailable platform features", () => {

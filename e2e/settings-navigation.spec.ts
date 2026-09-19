@@ -75,7 +75,9 @@ test("设置子页首个分组没有多余顶部留白和分割线", async ({ pa
         paddingTop: style.paddingTop,
         borderTopWidth: style.borderTopWidth,
       };
-    })).toEqual({ marginTop: "0px", paddingTop: "0px", borderTopWidth: "0px" });
+    })).toEqual(pageName === "用户信息"
+      ? { marginTop: "0px", paddingTop: "20px", borderTopWidth: "1px" }
+      : { marginTop: "0px", paddingTop: "0px", borderTopWidth: "0px" });
 
     if (pageName === "用户信息") await page.getByLabel("返回文档管理").click();
     await page.getByLabel("返回设置分类").click();
@@ -93,7 +95,7 @@ test("设置子页首个分组没有多余顶部留白和分割线", async ({ pa
       paddingTop: style.paddingTop,
       borderTopWidth: style.borderTopWidth,
     };
-  })).toEqual({ marginTop: "0px", paddingTop: "0px", borderTopWidth: "0px" });
+  })).toEqual({ marginTop: "0px", paddingTop: "20px", borderTopWidth: "1px" });
   await page.getByLabel("返回文档管理").click();
   await expect(page.getByRole("heading", { name: "文档管理", exact: true })).toBeVisible();
 });
