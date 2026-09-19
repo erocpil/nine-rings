@@ -172,6 +172,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
     let foldedHeadingPositions = getCollapsedHeadingPositions(editor);
     let hiddenFoldBlockPositions = getHiddenHeadingFoldBlockPositions(editor);
     let topLevelBlocks: Array<{ pos: number; index: number; heading: boolean }> = [];
+    let indexedDoc = editor.state.doc;
     // 窗口和预读按折叠后的布局顺序计算；原始 index 只用于显示块号。
     let layoutBlocks: typeof topLevelBlocks = [];
     const layoutIndexByPosition = new Map<number, number>();
@@ -409,9 +410,29 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       }
     };
 
+    const refreshBlockIndex = (force = false) => {
+      if (!force && indexedDoc === editor.state.doc) return false;
+      indexedDoc = editor.state.doc;
+      foldedHeadingPositions = getCollapsedHeadingPositions(editor);
+      hiddenFoldBlockPositions = getHiddenHeadingFoldBlockPositions(editor);
+      topLevelBlocks = [];
+      indexedDoc.forEach((node, pos, index) => {
+        topLevelBlocks.push({ pos, index: index + 1, heading: node.type.name === "heading" });
+      });
+      layoutBlocks = topLevelBlocks.filter((block) => !hiddenFoldBlockPositions.has(block.pos));
+      layoutIndexByPosition.clear();
+      layoutBlocks.forEach((block, index) => layoutIndexByPosition.set(block.pos, index));
+      return true;
+    };
+
     const refreshObservedWindow = (force = false) => {
       windowFrame = 0;
       if (disposed || editor.isDestroyed || !root.isConnected) return;
+      // Editing within a block shifts later positions even when childCount is
+      // unchanged. Refresh the model index before nodeDOM/hit testing so a
+      // stale offset cannot point inside the preceding code block. Coalesce
+      // this work with idle measurement/scrolling, not every input transaction.
+      force = refreshBlockIndex() || force;
       const visible = viewportBlockRange();
       // 只让 WebKit 跟踪当前视口附近的顶层块。旧实现会对大文档中的
       // 每个块调用 nodeDOM + IntersectionObserver.observe，首次布局成本
@@ -423,7 +444,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       observedWindow = { start, end };
       const nextObservedIndexes = new Map<HTMLElement, number>();
       const nextLayoutElements = new Set<HTMLElement>();
-      // 强制重建发生在折叠事务之后。此时不能只等待 IntersectionObserver：
+      // 折叠或文档位置索引变化后，不能只等待 IntersectionObserver：
       // WebView / WebKit 可能要到下一次滚动才回调，已经隐藏的正文块号便会
       // 暂留在旧坐标。force 时同步读取当前布局，立即淘汰高度为 0 的块。
       const measureImmediately = force || !intersectionObserver;
@@ -476,15 +497,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       intersectionObserver = createIntersectionObserver(observerGeneration);
       observedIndexes.clear();
       measuredBlocks.clear();
-      foldedHeadingPositions = getCollapsedHeadingPositions(editor);
-      hiddenFoldBlockPositions = getHiddenHeadingFoldBlockPositions(editor);
-      topLevelBlocks = [];
-      editor.state.doc.forEach((node, pos, index) => {
-        topLevelBlocks.push({ pos, index: index + 1, heading: node.type.name === "heading" });
-      });
-      layoutBlocks = topLevelBlocks.filter((block) => !hiddenFoldBlockPositions.has(block.pos));
-      layoutIndexByPosition.clear();
-      layoutBlocks.forEach((block, index) => layoutIndexByPosition.set(block.pos, index));
+      refreshBlockIndex(true);
       onBlockCountChange?.(editor.state.doc.childCount);
       refreshObservedWindow(true);
       // iOS WebKit 在文档尾部收缩、scrollTop 被浏览器自动钳制时，首帧可能
