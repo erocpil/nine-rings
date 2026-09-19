@@ -1,13 +1,21 @@
 /* Transparent, not zero-width: reveal never changes wrapping or scroll position.
    Enabled only for desktop mouse input; native touch/high-contrast UI stays intact. */
 html[data-edge-scrollbars],
-html[data-edge-scrollbars] * { scrollbar-color: transparent transparent; }
+html[data-edge-scrollbars] * {
+  --edge-scrollbar-thumb: transparent;
+  scrollbar-color: transparent transparent;
+}
 html[data-edge-scrollbars]::-webkit-scrollbar-thumb,
-html[data-edge-scrollbars] *::-webkit-scrollbar-thumb { background: transparent; }
+html[data-edge-scrollbars] *::-webkit-scrollbar-thumb { background: var(--edge-scrollbar-thumb); }
+/* Update the scroller's own computed style as well as its pseudo-element.
+   WebKit otherwise may defer repainting the thumb until the thumb itself is
+   hovered, even when the pointer is already inside the full-height edge strip.
+   https://developer.chrome.com/docs/css-ui/scrollbar-styling */
 html[data-edge-scrollbars][data-scrollbar-visible],
-html[data-edge-scrollbars] [data-scrollbar-visible] { scrollbar-color: var(--text-secondary) transparent; }
-html[data-edge-scrollbars][data-scrollbar-visible]::-webkit-scrollbar-thumb,
-html[data-edge-scrollbars] [data-scrollbar-visible]::-webkit-scrollbar-thumb { background: var(--text-secondary); }
+html[data-edge-scrollbars] [data-scrollbar-visible] {
+  --edge-scrollbar-thumb: var(--text-secondary);
+  scrollbar-color: var(--text-secondary) transparent;
+}
 html[data-edge-scrollbars] *::-webkit-scrollbar-corner { background: transparent; }
 
 /* Non-auto standard scrollbar properties override ::-webkit-scrollbar styling.

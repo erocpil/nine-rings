@@ -93,6 +93,25 @@ for (const readonly of [false, true]) {
     const rect = (await pane.boundingBox())!;
     const dimensions = await pane.evaluate(el => [el.clientWidth, el.clientHeight]);
     const x = rect.x + rect.width - 2, y = rect.y + 80;
+    // Sample the thumb at the top while hovering elsewhere in the same column.
+    // Checking only data-scrollbar-visible misses WebKit's deferred repaint bug.
+    const thumbPixels = () => page.screenshot({
+      clip: { x: rect.x + rect.width - 6, y: rect.y + 4, width: 6, height: 16 },
+      animations: "disabled", caret: "hide",
+    });
+    await page.mouse.move(rect.x + 100, y);
+    await expect(pane).not.toHaveAttribute("data-scrollbar-visible");
+    const hiddenThumb = await thumbPixels();
+    for (const fraction of [0.5, 0.9]) {
+      // The 18px hover column includes the space beside the 6px native track.
+      await page.mouse.move(rect.x + rect.width - 12, rect.y + rect.height * fraction);
+      await expect(pane).toHaveAttribute("data-scrollbar-visible", "");
+      await expect.poll(async () => (await thumbPixels()).equals(hiddenThumb)).toBe(false);
+      expect(await pane.evaluate(el => el.scrollTop)).toBe(0);
+      await page.mouse.move(rect.x + 100, y);
+      await expect(pane).not.toHaveAttribute("data-scrollbar-visible");
+      await expect.poll(async () => (await thumbPixels()).equals(hiddenThumb)).toBe(true);
+    }
     const nativeMouse = async (type: string, clientX = x, buttons = 0) => {
       // Model WKWebView's native gutter delivering mouse events to an ancestor,
       // rather than pointer events whose target is inside the scrollable pane.
