@@ -2275,6 +2275,10 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       // The outer capture listener also sees title and toolbar inputs. Leave
       // those to their native paste behavior, regardless of the body selection.
       if (!(e.target instanceof Node) || !editor?.view.dom.contains(e.target)) return;
+      const target = e.target instanceof Element ? e.target : e.target.parentElement;
+      // NodeView controls (for example the code description) live inside the
+      // ProseMirror DOM, but still own their native input selection/clipboard.
+      if (target?.closest("input, textarea, select")) return;
       if (readonlyRef.current || !editor?.isEditable) {
         e.preventDefault();
         e.stopPropagation();

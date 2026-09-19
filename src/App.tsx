@@ -1814,6 +1814,9 @@ function App() {
                       focusMode={focusMode}
                       readonly={selectedNote.readonly || syncBusy}
                       onReadonlyChange={!syncBusy ? async (readonly) => {
+                        // Persist pending text and block folds before switching
+                        // renderers, so the readonly view never mounts old content.
+                        await flushAutoSave();
                         // 只读切换后必须同步更新当前选中对象；否则 NoteEditor 仍
                         // 持有旧的 readonly prop，取消只读时工具栏（包括查找）
                         // 会继续按只读状态隐藏。
