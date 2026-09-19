@@ -312,3 +312,5 @@ nine-rings/
 ## License
 
 MIT © [erocpil](https://github.com/erocpil)
+
+Nord（北境）与 Dracula Classic（德古拉）配色依照各自的 MIT 许可证使用；原作者版权声明与许可全文见 [主题第三方许可声明](public/third-party-theme-licenses.txt)。该文件会随 Web 和 Tauri 桌面版的前端资源一起打包。
