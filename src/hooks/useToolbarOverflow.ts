@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useState, type RefObject } from "react";
+import { useCallback, useEffect, useState, type RefObject } from "react";
 
 /** Measure live controls (including current labels/fonts), without cloning editor UI. */
 export function useToolbarOverflow(ref: RefObject<HTMLElement>, enabled: boolean) {
@@ -32,10 +32,13 @@ export function useToolbarOverflow(ref: RefObject<HTMLElement>, enabled: boolean
   // Mode/selection renders usually leave every control's size unchanged.
   // Revealing and hiding overflow tools on each render forces layout of the
   // whole document, especially when contenteditable changes on a large note.
-  useLayoutEffect(measure, [measure]);
-  useLayoutEffect(() => {
+  // This hook lives in the toolbar's child. Its layout effect can run before
+  // React attaches the parent's ref; production does not replay that effect.
+  // Passive effects run after refs are attached, including readonly -> edit.
+  useEffect(() => {
     const toolbar = ref.current;
     if (!toolbar) return;
+    measure();
     let frame = 0;
     const scheduleMeasure = () => {
       if (!frame) frame = requestAnimationFrame(() => {

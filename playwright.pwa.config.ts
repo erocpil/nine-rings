@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: ['**/pwa-offline.spec.ts', '**/pwa-update.spec.ts', '**/settings-search-production.spec.ts'],
+  testMatch: ['**/pwa-offline.spec.ts', '**/pwa-update.spec.ts', '**/settings-search-production.spec.ts', '**/toolbar-overflow-production.spec.ts'],
   timeout: 45000,
   use: {
     baseURL: 'http://localhost:8001',

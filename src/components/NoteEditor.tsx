@@ -464,7 +464,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const titleInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const foldHostsRef = useRef(new Map<number, HTMLElement>());
-  const toolbarRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement | null>(null);
+  const toolbarResizeObserver = useRef<ResizeObserver | null>(null);
   const toolbarSelectionRef = useRef<{ from: number; to: number } | null>(null);
   const toolbarCellSelectionRef = useRef<CellSelection | null>(null);
   const toolbarInteractingRef = useRef(false);
@@ -725,14 +726,16 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
 
   // 工具栏的可用空间取决于侧栏、属性面板和窗口宽度，不能使用 window
   // 作为断点来源。直接观察工具栏容器，布局变化时立即切换分组模式。
-  useEffect(() => {
-    const element = toolbarRef.current;
+  const attachToolbar = useCallback((element: HTMLDivElement | null) => {
+    toolbarResizeObserver.current?.disconnect();
+    toolbarResizeObserver.current = null;
+    toolbarRef.current = element;
     if (!element) return;
     const updateWidth = () => setToolbarWidth(element.clientWidth);
     updateWidth();
     const observer = new ResizeObserver(updateWidth);
     observer.observe(element);
-    return () => observer.disconnect();
+    toolbarResizeObserver.current = observer;
   }, []);
 
   useEffect(() => {
@@ -3779,7 +3782,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         </div>}
         {/* ── 工具栏 ── */}
         {!readonly && (<div
-          ref={toolbarRef}
+          ref={attachToolbar}
           className={`editor-menu ${isNarrow ? "toolbar-compact" : "toolbar-full"} ${isMinimalToolbar ? "toolbar-minimal" : ""}`}
           onPointerDownCapture={(event) => {
             // Portaled sheets own native touch/scroll handling. React still
