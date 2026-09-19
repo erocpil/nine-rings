@@ -802,13 +802,6 @@
   gap: 6px;
 }
 
-/* 含色块的主题按钮：圆点在上，文字在下 */
-.settings-radio:has(.theme-swatch) {
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 6px;
-}
-
 .settings-radio:last-child {
   border-right: none;
 }

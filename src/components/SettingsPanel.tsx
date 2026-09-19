@@ -609,26 +609,29 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
 
             {/* ── 主题 ── */}
             <Field label="主题" desc="切换整体配色" visible={settingsPage === "appearance"}>
-              <div className="settings-radio-group">
-                {([["light", "浅", "#e2e2e2"],
-                ["dark", "深", "#0d1117"],
-                ["azure-dark", "暗", "#1e3050"],
-                ["fu", "静", "#81D8D0"],
-                ["azure", "蔚", "#3b6dcc"],
-                ["sui", "粋", "#4a8a3a"],
-                ["grace", "雅", "#7654b3"],
-                ["zhi", "幟", "#c49a3c"]] as const).map(([v, label, color]) => (
+              <div className="settings-theme-grid" role="group" aria-label="主题">
+                {([["light", "浅", "#e2e2e2", "#1f2328"],
+                ["dark", "深", "#0d1117", "#e6edf3"],
+                ["azure-dark", "暗", "#1e3050", "#eef4ff"],
+                ["fu", "静", "#81D8D0", "#1a2c2a"],
+                ["azure", "蔚", "#3b6dcc", "#ffffff"],
+                ["sui", "粋", "#4a8a3a", "#081006"],
+                ["grace", "雅", "#7654b3", "#ffffff"],
+                ["zhi", "幟", "#c49a3c", "#2c2518"]] as const).map(([v, label, background, foreground]) => (
                   <button
                     key={v}
-                    className={`settings-radio ${config.theme === v ? "active" : ""} ${chk("theme", v)}`}
+                    type="button"
+                    className={`settings-theme-option ${chk("theme", v)}`}
+                    style={{ backgroundColor: background, color: foreground }}
                     aria-pressed={config.theme === v}
                     onClick={() => update({ theme: v })}
                   >
-                    <span
-                      className="theme-swatch"
-                      style={{ backgroundColor: color }}
-                    />
                     <span className="theme-label">{label}</span>
+                    {config.theme === v && (
+                      <svg className="settings-theme-check" aria-hidden="true" viewBox="0 0 16 16" fill="none">
+                        <path d="m3 8 3 3 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
                   </button>
                 ))}
               </div>
