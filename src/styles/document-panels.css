@@ -258,6 +258,33 @@
 
 /* Desktop header rules stop short of the splitters on either side. Keep the
    full-width surfaces and drag targets; only inset their visible separators. */
+.app-desktop-workspace {
+  --desktop-header-height: max(37px, calc(var(--editor-font-size, 16px) * 1.65 + 5px));
+  --document-outline-leading-inset: 4px;
+}
+.app-desktop-workspace .app-main {
+  padding-top: 0;
+  padding-inline: 4px;
+}
+.app-desktop-workspace header.workspace-panel-heading {
+  height: var(--desktop-header-height);
+  min-height: var(--desktop-header-height);
+  padding-block: 2px;
+}
+.app-desktop-workspace :is(.document-outline-header, .document-bookmark-header) {
+  min-height: var(--desktop-header-height);
+}
+.app-desktop-workspace .document-outline-item {
+  padding-inline-end: 4px;
+}
+.app-desktop-workspace .document-panel-slot .vr-panel[data-document-kind] {
+  padding-inline: 4px;
+}
+@media (pointer: coarse) {
+  .app-desktop-workspace {
+    --desktop-header-height: max(45px, calc(var(--editor-font-size, 16px) * 1.65 + 5px));
+  }
+}
 .app-desktop-workspace :is(
   .note-title-row,
   .vr-title,
@@ -282,7 +309,7 @@
 }
 .app-desktop-workspace :is(.note-title-row, .vr-title) {
   box-sizing: border-box;
-  min-height: 37px;
+  min-height: var(--desktop-header-height);
   padding: 2px 12px;
   flex-shrink: 0;
 }
@@ -296,7 +323,7 @@
 }
 .app-desktop-workspace .document-panel-slot .vr-panel[data-document-kind] > h3 {
   box-sizing: border-box;
-  min-height: 37px;
+  min-height: var(--desktop-header-height);
   padding-block: 8px;
   background-size: 100% 1px;
 }

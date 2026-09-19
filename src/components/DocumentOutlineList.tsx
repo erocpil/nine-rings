@@ -246,7 +246,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
         key={`${item.pos}-${index}`}
         className={`document-outline-item ${index === activeOutlineIndex ? "current" : ""}`}
         style={{
-          paddingInlineStart: `${10 + (item.level - outlineBaseLevel) * 14}px`,
+          paddingInlineStart: `calc(var(--document-outline-leading-inset, 10px) + ${(item.level - outlineBaseLevel) * 14}px)`,
           // Reserve the complete one/two-line row before it enters the DOM.
           // Measuring newly mounted rows must not keep shifting the scroll range.
           ...(virtualized ? { top: `${rowLayout.tops[visibleIndex]}px`, height: `${rowLayout.heights[visibleIndex]}px` } : {}),
