@@ -38,7 +38,9 @@ for (const [width, height, touch] of [
           .getState()
           .selectNote(await api.notes.update(note.id, { readonly: true }));
       });
-      await expect(page.locator(".note-title")).toHaveValue("块工具对齐");
+      await expect.poll(() => page.locator(".note-title").evaluate(element =>
+        element instanceof HTMLInputElement ? element.value : element.textContent,
+      )).toBe("块工具对齐");
       for (const focus of [false, true]) {
         if (focus)
           await page

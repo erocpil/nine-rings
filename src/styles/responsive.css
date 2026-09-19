@@ -322,6 +322,20 @@
   .note-editor .code-block-inner { --code-line-number-padding: 4px; }
   .note-editor .code-block-gutter { margin-right: 1px; }
   .note-editor .ProseMirror .code-block-inner pre code { padding-right: 8px; }
+  .code-block-language { width: 80px; max-width: 80px; min-width: 0; }
+  .code-block-language:disabled { width: auto; }
+  /* On very narrow screens keep the title readable and move the actions to
+     their own row instead of clipping the fold control at the frame edge. */
+  .code-block-toolbar { flex-wrap: wrap; }
+  .code-block-title { min-width: 40px; }
+  .code-block-actions { max-width: 100%; margin-left: auto; }
+  .code-block-actions > button { flex-shrink: 0; }
+  .code-block-collapse-toggle,
+  .vr-code-toolbar > button:last-child {
+    border: 0;
+    background: transparent;
+  }
+  .vr-code-toolbar > span[aria-label="代码语言"] { flex: 0 0 auto; }
   .vr-note .vr-body { margin-left: -4px; margin-right: 4px; }
 
   .editor-block-insert,
