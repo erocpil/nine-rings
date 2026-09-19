@@ -165,9 +165,9 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           aria-label={props.readonly ? "切换为可编辑" : "设置只读"} title={props.readonly ? "切换为可编辑" : "设置只读"}
           onClick={() => props.onReadonlyChange?.(!props.readonly)}><ToolbarIcon name={props.readonly ? "lock" : "unlock"} /></button>}
         <div className="note-title-field"><DocumentTitlePreview title={props.title || "无标题"} /></div>
-        <NavigationButtons />
         {toggle}
         {controls}
+        <NavigationButtons />
         {props.onFocusModeChange && <button type="button" className="focus-btn" aria-label={props.focusMode ? "退出专注模式" : "专注模式"}
           onClick={() => props.onFocusModeChange?.(!props.focusMode)}><ToolbarIcon name={props.focusMode ? "compress" : "expand"} /></button>}
       </div>

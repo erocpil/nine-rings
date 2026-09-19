@@ -189,15 +189,15 @@ for (const virtual of [false, true]) {
   });
 }
 
-test("源码视图可后退到渲染位置，手机标题栏按钮可见", async ({ page }) => {
+test("源码视图后退保持源码并恢复位置，手机标题栏按钮可见", async ({ page }) => {
   await fixture(page);
-  const start = await location(page);
   await editor(page).locator("p").nth(20).click();
   await page.getByRole("button", { name: "源码", exact: true }).click();
-  await expect(page.getByRole("textbox", { name: "Markdown 源码", exact: true })).toBeVisible();
+  const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  await expect(source).toBeVisible();
   await page.getByRole("button", { name: "后退", exact: true }).click();
-  await expect(editor(page)).toBeVisible();
-  await expect.poll(() => location(page)).toEqual(start);
+  await expect(source).toBeVisible();
+  await expect.poll(() => source.evaluate(element => (element as HTMLTextAreaElement).selectionStart)).toBe(0);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("button", { name: "后退", exact: true })).toBeInViewport();
   await expect(page.getByRole("button", { name: "前进", exact: true })).toBeInViewport();

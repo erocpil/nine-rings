@@ -3486,7 +3486,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           {epubExcerptSource && onOpenEpubExcerpt && (
             <button type="button" onClick={() => onOpenEpubExcerpt(epubExcerptSource)} title={`返回 ${epubExcerptSource.epubName} · ${epubExcerptSource.chapterTitle}`} aria-label={`返回 EPUB 第 ${epubExcerptSource.chapter} 章`}><FocusModeIcon name="epub" /><span className="focus-source-position" aria-hidden="true">{epubExcerptSource.chapter}</span></button>
           )}
-          <NavigationButtons />
           {documentViewToggle}
           {documentOutline.length > 0 && (
             <button
@@ -3535,6 +3534,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
               aria-label="更多编辑工具"
             ><FocusModeIcon name="tools" /></button>
           )}
+          <NavigationButtons />
           <button
             type="button"
             onClick={() => {
@@ -3706,7 +3706,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           {epubExcerptSource && onOpenEpubExcerpt && (
             <button type="button" className="focus-btn pdf-excerpt-source-button" onClick={() => onOpenEpubExcerpt(epubExcerptSource)} title={`返回 ${epubExcerptSource.epubName} · ${epubExcerptSource.chapterTitle}`}>EPUB · {epubExcerptSource.chapter}</button>
           )}
-          <NavigationButtons />
           {documentViewToggle}
           {documentOutline.length > 0 && (
             <div className="document-outline-control">
@@ -3741,6 +3740,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             type="button"
           >{mobileTitleBar ? <><ToolbarIcon name="bookmark" />{bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}</> : <>书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</>}</button>
           {unifiedTitleBar && focusMode && !readonly && <button type="button" className="focus-btn" title="更多编辑工具" aria-label="更多编辑工具" aria-expanded={focusToolbarExpanded} onClick={() => setFocusToolbarExpanded(value => !value)}><ToolbarIcon name="annotate" /></button>}
+          <NavigationButtons />
           <button
             className={`focus-btn ${focusMode ? "active" : ""}`}
             onClick={() => { onFocusModeChange?.(!focusMode); }}

@@ -786,7 +786,6 @@ export function ReadonlyVirtualNote(
           catch { setNotice("复制块失败，请检查剪贴板权限后重试"); }
         }
       }}><ToolbarIcon name="copy" /></button>
-      <NavigationButtons />
       {props.documentViewToggle}
       <button
         ref={outlineTriggerRef}
@@ -813,6 +812,7 @@ export function ReadonlyVirtualNote(
         <FocusModeIcon name="bookmark" />
         {bookmarks.length > 0 && <span className="focus-bookmark-count" aria-hidden="true">{bookmarks.length > 99 ? "99+" : bookmarks.length}</span>}
       </button>
+      <NavigationButtons />
       <button
         type="button"
         title={props.focusMode ? "退出专注模式" : "专注模式"}
