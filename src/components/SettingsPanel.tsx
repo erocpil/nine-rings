@@ -609,7 +609,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
 
             {/* ── 主题 ── */}
             <Field label="主题" desc="切换整体配色" visible={settingsPage === "appearance"}>
-              <div className="settings-theme-grid" role="group" aria-label="主题">
+              <div className={mobileSettingsViewport ? "settings-radio-group settings-theme-mobile" : "settings-theme-grid"} role="group" aria-label="主题">
                 {([["light", "浅", "#e2e2e2", "#1f2328"],
                 ["dark", "深", "#0d1117", "#e6edf3"],
                 ["azure-dark", "暗", "#1e3050", "#eef4ff"],
@@ -621,17 +621,13 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                   <button
                     key={v}
                     type="button"
-                    className={`settings-theme-option ${chk("theme", v)}`}
-                    style={{ backgroundColor: background, color: foreground }}
+                    className={`${mobileSettingsViewport ? `settings-radio ${config.theme === v ? "active" : ""}` : "settings-theme-option"} ${chk("theme", v)}`}
+                    style={mobileSettingsViewport ? undefined : { backgroundColor: background, color: foreground }}
                     aria-pressed={config.theme === v}
                     onClick={() => update({ theme: v })}
                   >
+                    {mobileSettingsViewport && <span className="theme-swatch" style={{ backgroundColor: background }} aria-hidden="true" />}
                     <span className="theme-label">{label}</span>
-                    {config.theme === v && (
-                      <svg className="settings-theme-check" aria-hidden="true" viewBox="0 0 16 16" fill="none">
-                        <path d="m3 8 3 3 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
                   </button>
                 ))}
               </div>
