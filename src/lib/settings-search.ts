@@ -65,10 +65,10 @@ const entries: SettingsSearchEntry[] = [
     target: `[data-settings-label="${title}"]`,
   })),
   {
-    title: "Vim 编辑",
-    target: "[data-settings-label=\"Vim 模式（实验性）\"]",
-    description: "编辑器 › Vim 编辑 · 正文模式与代码块 Tab 宽度",
-    keywords: "vim normal insert visual tabstop 键位 模式",
+    title: "代码块 Vim",
+    target: "[data-settings-label=\"代码块 Vim 模式（实验性）\"]",
+    description: "编辑器 › 代码块 Vim · 独立代码块编辑弹层的 Vim 开关与 Tab 显示宽度",
+    keywords: "vim normal insert visual tabstop 代码块 弹层 键位 模式",
     page: "vim",
   },
   {

@@ -3,6 +3,10 @@ import type { Editor } from "@tiptap/core";
 import { createBlankDocument } from "./helpers/document";
 
 async function codeDocument(page: Page) {
+  await page.addInitScript(() => {
+    const config = JSON.parse(localStorage.getItem("nine_rings_config") ?? "{}");
+    localStorage.setItem("nine_rings_config", JSON.stringify({ ...config, editor_vim_mode: true }));
+  });
   await createBlankDocument(page);
   await page.locator('.note-editor .ProseMirror').evaluate(element => {
     const editor = (element as HTMLElement & { editor: Editor }).editor;

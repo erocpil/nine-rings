@@ -7,7 +7,7 @@ import { isPrimaryShortcutModifier } from "../lib/shortcuts";
 import { codeIndentChanges } from "../lib/code-indent";
 
 export type CodeVimMode = "normal" | "insert" | "visual";
-interface Props { value: string; onChange: (value: string) => void; onUndo: () => void; onRedo: () => void; onExit: () => void; onModeChange?: (mode: CodeVimMode) => void; wrap: boolean; lineNumbers: boolean; }
+interface Props { vimEnabled: boolean; value: string; onChange: (value: string) => void; onUndo: () => void; onRedo: () => void; onExit: () => void; onModeChange?: (mode: CodeVimMode) => void; wrap: boolean; lineNumbers: boolean; }
 const sourceSync = Annotation.define<boolean>();
 const histories = new WeakMap<object, { onUndo: () => void; onRedo: () => void }>();
 for (const [key, action, redo] of [["u", "sourceUndo", false], ["<C-r>", "sourceRedo", true]] as const) {
@@ -27,7 +27,7 @@ function readVimConfig() {
 }
 
 /** CodeMirror 6 编辑表面：仅用于代码块弹层，正文仍由 ProseMirror 管理。 */
-export function CodeMirrorBlockEditor({ value, onChange, onUndo, onRedo, onExit, onModeChange, wrap, lineNumbers }: Props) {
+export function CodeMirrorBlockEditor({ vimEnabled, value, onChange, onUndo, onRedo, onExit, onModeChange, wrap, lineNumbers }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const historyRef = useRef({ onUndo, onRedo }); historyRef.current = { onUndo, onRedo };
@@ -39,7 +39,7 @@ export function CodeMirrorBlockEditor({ value, onChange, onUndo, onRedo, onExit,
   useEffect(() => {
     if (!host.current) return;
     const config = readVimConfig();
-    const state = EditorState.create({ doc: valueRef.current, extensions: [vim(), drawSelection(), keymap.of([...defaultKeymap, indentWithTab]), numbers.current.of(numbersRef.current ? codeLineNumbers() : []), ...(wrap ? [EditorView.lineWrapping] : []), EditorState.tabSize.of(config.tabSize), EditorView.updateListener.of((update) => {
+    const state = EditorState.create({ doc: valueRef.current, extensions: [vimEnabled ? vim() : [], drawSelection(), keymap.of([...defaultKeymap, indentWithTab]), numbers.current.of(numbersRef.current ? codeLineNumbers() : []), ...(wrap ? [EditorView.lineWrapping] : []), EditorState.tabSize.of(config.tabSize), EditorView.updateListener.of((update) => {
       if (update.docChanged && !update.transactions.some(transaction => transaction.annotation(sourceSync))) changeRef.current(update.state.doc.toString());
     })] });
     const view = new EditorView({ state, parent: host.current });
@@ -56,7 +56,7 @@ export function CodeMirrorBlockEditor({ value, onChange, onUndo, onRedo, onExit,
     reportMode();
     view.focus();
     return () => { if (cm) { cm.off("vim-mode-change", reportMode); histories.delete(cm); } viewRef.current = null; view.destroy(); };
-  }, [wrap]);
+  }, [wrap, vimEnabled]);
   useEffect(() => {
     viewRef.current?.dispatch({ effects: numbers.current.reconfigure(lineNumbers ? codeLineNumbers() : []) });
   }, [lineNumbers]);
@@ -65,7 +65,7 @@ export function CodeMirrorBlockEditor({ value, onChange, onUndo, onRedo, onExit,
     if (!view || view.state.doc.toString() === value) return;
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value }, annotations: sourceSync.of(true) });
   }, [value]);
-  return <div ref={host} className="codemirror-block-editor" aria-label="代码块 Vim 编辑器" onKeyDownCapture={event => {
+  return <div ref={host} className="codemirror-block-editor" aria-label={vimEnabled ? "代码块 Vim 编辑器" : "代码块编辑器"} onKeyDownCapture={event => {
     const view = viewRef.current;
     if (!view || event.nativeEvent.isComposing || !view.contentDOM.contains(event.target as Node)) return;
     if (event.key === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey) {

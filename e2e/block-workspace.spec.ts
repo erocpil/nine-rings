@@ -24,6 +24,10 @@ async function displayPreferences(page: Page, values: { whitespace?: "all"; tabS
 }
 
 async function fixture(page: Page, readonly = false, secondCode = false) {
+  await page.addInitScript(() => {
+    const config = JSON.parse(localStorage.getItem("nine_rings_config") ?? "{}");
+    localStorage.setItem("nine_rings_config", JSON.stringify({ ...config, editor_vim_mode: true }));
+  });
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15000 });
   await page.evaluate(({ readonly, secondCode }) => {

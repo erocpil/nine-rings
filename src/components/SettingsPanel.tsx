@@ -89,7 +89,7 @@ const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   root: "设置",
   appearance: "外观与布局",
   editor: "编辑器",
-  vim: "Vim 编辑",
+  vim: "代码块 Vim",
   sidebar: "分栏设置",
   documents: "文档管理",
   bookmarks: "书签",
@@ -671,11 +671,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </button>
             </Field>
 
-            <Field label="Vim 编辑" desc="正文 Vim 模式与代码块弹层的 Tab 显示宽度" visible={settingsPage === "editor"}>
+            <Field label="代码块 Vim" desc="仅在代码块独立编辑弹层中使用 Vim 键位" visible={settingsPage === "editor"}>
               <button className="editor-appearance-entry" type="button" onClick={() => setSettingsPage("vim")}>
                 <span>
                   <strong>Vim 设置</strong>
-                  <small>正文模式与代码块 Tab 宽度</small>
+                  <small>代码块 Vim 开关与 Tab 显示宽度</small>
                 </span>
                 <span className="editor-appearance-entry-action">打开 Vim 设置 →</span>
               </button>
@@ -824,11 +824,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            <Field label="Vim 模式（实验性）" desc="Normal/Visual 优先使用 Vim 键位；i 进入输入，Esc 返回 Normal；Ctrl+F/B 整页、Ctrl+D/U 半页、Ctrl+E/Y 单行滚动" visible={settingsPage === "vim"}>
+            <Field label="代码块 Vim 模式（实验性）" desc="仅在代码块独立编辑弹层中启用：i 进入输入，Esc 返回 Normal，v 选择，u 撤销。关闭后直接输入；正文和引用块始终使用普通编辑。" visible={settingsPage === "vim"}>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
-                  aria-label="Vim 模式（实验性）" checked={config.editor_vim_mode}
+                  aria-label="代码块 Vim 模式（实验性）" checked={config.editor_vim_mode}
                   onChange={(e) => update({ editor_vim_mode: e.target.checked })}
                 />
                 <span className="toggle-track" />
@@ -836,9 +836,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </label>
             </Field>
 
-            <Field label="Vim 配置" desc="仅用于代码块 Vim 弹层，下次打开弹层生效；正文排版不受影响。" visible={settingsPage === "vim"}>
+            <Field label="代码块 Tab 显示" desc="下次打开代码块弹层生效，无论是否开启 Vim；只改变 Tab 的显示宽度，不替换原有字符。" visible={settingsPage === "vim"}>
               <div className="vim-config-card">
-                <div className="vim-config-card-heading"><strong>代码块弹层</strong><span>CodeMirror · Vim 键位</span></div>
+                <div className="vim-config-card-heading"><strong>代码块弹层</strong><span>Tab 缩进 · Shift+Tab 减少缩进</span></div>
                 <div className="vim-config-grid">
                   <label>Tab 宽度<select value={Math.max(1, Math.min(16, Number(vimConfig.match(/tabstop=(\d+)/)?.[1] ?? 4)))} onChange={(event) => {
                     const next = [...normalizeVimConfig(vimConfig).split("\n").filter(line => line && !/^set tabstop(?:=|$)/.test(line)), `set tabstop=${event.target.value}`].join("\n");
@@ -851,9 +851,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
 
             <SettingsSection title="使用方法" desc="书签随文档和备份保存；只读文档也可以查看和跳转" visible={settingsPage === "bookmarks"}>
               <div className="bookmark-help">
-                <p><strong>普通模式：</strong>把光标放到目标位置，点击标题旁“书签”后选择“添加当前位置书签”；也可从工具栏“更多”、正文右键菜单添加，或按 <kbd>{/Mac/i.test(navigator.platform) ? "⌘" : "Ctrl"}</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> 切换当前位置书签。</p>
-                <p><strong>删除：</strong>在当前文档书签面板点击 ×，或在下方集中管理列表中删除。普通书签不要求开启 Vim 模式。</p>
-                <p><strong>Vim 模式：</strong>Normal 模式按 <kbd>m</kbd> 后接 a–z 设置命名书签，按 <kbd>'</kbd> 后接同一字母跳转。</p>
+                <p><strong>添加：</strong>把光标放到目标位置，点击标题旁“书签”后选择“添加当前位置书签”；也可从工具栏“更多”、正文右键菜单添加，或按 <kbd>{/Mac/i.test(navigator.platform) ? "⌘" : "Ctrl"}</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> 切换当前位置书签。</p>
+                <p><strong>删除：</strong>在当前文档书签面板点击 ×，或在下方集中管理列表中删除。</p>
                 <p><strong>专注模式：</strong>使用顶部“书签”按钮打开当前文档的书签列表。</p>
               </div>
             </SettingsSection>
@@ -1027,7 +1026,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               <SettingsSync onBusyChange={onSyncBusy} onBeforePush={onBeforePush} onPullDone={onPullDone} />
             )}
 
-            <Field label="只读正文局部渲染（实验）" desc="默认关闭，仅本设备生效。只读时按可见区域挂载正文；图片、表格、超大单块及 Vim 模式自动回退。跨全文选择、打印、书签管理请切回完整渲染。" visible={settingsPage === "advanced"}>
+            <Field label="只读正文局部渲染（实验）" desc="默认关闭，仅本设备生效。只读时按可见区域挂载正文；图片、表格及超大单块自动回退。跨全文选择、打印、书签管理请切回完整渲染。" visible={settingsPage === "advanced"}>
               <label className="settings-toggle">
                 <input type="checkbox" aria-label="只读正文局部渲染（实验）" checked={localRendering} onChange={event => {
                   try { setReadonlyRenderingEnabled(event.target.checked); setLocalRendering(event.target.checked); }

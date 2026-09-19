@@ -1,3 +1,4 @@
+import { createBlankDocument } from "./helpers/document";
 import { expect, test } from "@playwright/test";
 
 for (const width of [1280, 390]) {
@@ -74,9 +75,7 @@ for (const width of [1280, 390]) {
 }
 
 async function createBlankNote(page: import("@playwright/test").Page) {
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  await createBlankDocument(page);
 }
 
 async function enableVimMode(page: import("@playwright/test").Page) {
@@ -135,7 +134,7 @@ test("设置中的书签列表包含文档书签", async ({ page }) => {
   await expect(bookmarkManager).toContainText("设置页应显示的文档书签");
 });
 
-test("Vim m{a-z} 设置命名书签，'{a-z} 跳转", async ({ page }) => {
+test("开启代码块 Vim 后正文仍使用普通书签", async ({ page }) => {
   await page.goto("/");
   await createBlankNote(page);
   const editor = page.locator(".ProseMirror");
@@ -145,12 +144,10 @@ test("Vim m{a-z} 设置命名书签，'{a-z} 跳转", async ({ page }) => {
   await page.keyboard.type("第二段");
   await enableVimMode(page);
   await editor.getByText("第二段", { exact: true }).click();
-  await page.keyboard.press("m");
-  await page.keyboard.press("a");
-  await page.keyboard.press("g");
-  await page.keyboard.press("g");
-  await page.keyboard.press("'");
-  await page.keyboard.press("a");
+  await page.keyboard.press("Control+Shift+m");
+  await editor.getByText("第一段", { exact: true }).click();
+  await page.getByRole("button", { name: "文档书签" }).click();
+  await page.locator(".document-bookmark-jump").click();
 
   await expect.poll(() => page.evaluate(() => {
     const anchor = window.getSelection()?.anchorNode;

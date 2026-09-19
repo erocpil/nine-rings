@@ -29,7 +29,7 @@ import { CodeMirrorBlockEditor, type CodeVimMode } from "./CodeMirrorBlockEditor
 
 type Request = { position: number; trigger: HTMLElement; restoreFocus?: boolean; startInEditMode?: boolean; selectedPositions?: number[] };
 type Navigate = (position: number, selectedPositions: number[] | undefined, startInEditMode: boolean) => void;
-type Props = { source: Editor; noteId?: string; readonly?: boolean; sensitive?: boolean; saveStatus?: string; onFlush?: () => Promise<void> };
+type Props = { source: Editor; vimModeEnabled?: boolean; noteId?: string; readonly?: boolean; sensitive?: boolean; saveStatus?: string; onFlush?: () => Promise<void> };
 
 export function BlockWorkspaceHost(props: Props) {
   const [request, setRequest] = useState<Request | null>(null);
@@ -74,7 +74,7 @@ export function BlockWorkspaceHost(props: Props) {
 
 /** A scoped view of the original block. Edits are mapped into the source
  * transaction stream; only the source owns undo history and persistence. */
-function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, request, onClose, onNavigate }: Props & { request: Request; onClose: () => void; onNavigate: Navigate }) {
+function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, saveStatus, onFlush, request, onClose, onNavigate }: Props & { request: Request; onClose: () => void; onNavigate: Navigate }) {
   const initial = useMemo(() => source.state.doc.nodeAt(request.position)!, [source, request]);
   const position = useRef(request.position);
   // Track document positions through every edit, including this workspace's
@@ -363,27 +363,11 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
         setFindOpen(true); window.requestAnimationFrame(() => searchInput.current?.focus());
         return;
       }
-      if (rootType === "codeBlock") return;
-      if (event.ctrlKey || event.metaKey || event.altKey || event.nativeEvent.isComposing) return;
-      if (!editable) return;
-      if (event.key === "Escape" && vimMode === "insert") {
-        event.preventDefault(); event.stopPropagation(); setVimMode("normal"); return;
-      }
-      if (vimMode !== "normal") return;
-      const key = event.key.toLowerCase();
-      if (["i", "a", "o"].includes(key)) {
-        event.preventDefault(); event.stopPropagation(); setVimMode("insert");
-        window.requestAnimationFrame(() => editor?.commands.focus());
-      } else if (["h", "j", "k", "l"].includes(key)) {
-        event.preventDefault(); event.stopPropagation();
-        const command = key === "h" ? "ArrowLeft" : key === "j" ? "ArrowDown" : key === "k" ? "ArrowUp" : "ArrowRight";
-        editor?.commands.keyboardShortcut(command);
-      }
     }}
     onKeyDown={event => event.stopPropagation()}>
     <header className="block-workspace-header">
       <strong>{name}</strong>
-      {editable && <span className="block-workspace-vim-mode" role="status">VIM {vimMode.toUpperCase()}</span>}
+      {editable && rootType === "codeBlock" && vimModeEnabled && <span className="block-workspace-vim-mode" role="status">VIM {vimMode.toUpperCase()}</span>}
       {editable && rootType === "codeBlock" && <CodeLanguageSelect editable value={normalizeCodeLanguage(editor?.state.doc.firstChild?.attrs.language) ?? ""} onChange={language => editor?.commands.updateAttributes("codeBlock", { language: language || null })} />}
       <div role="group" aria-label="块模式">
         <button type="button" aria-pressed={!editable} onClick={() => preservePosition(() => setMode("read"))}>阅读</button>
@@ -473,7 +457,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
     <CopyBlockNotice message={copyNotice} onClose={() => setCopyNotice("")} withinDialog />
     <div ref={body} className="block-workspace-body editor-content" style={{ fontSize: `${fontSize}px`, tabSize }} onPasteCapture={event => { if (!editable) event.preventDefault(); }} onBeforeInputCapture={event => { if (!editable) event.preventDefault(); }}>
       {editable && rootType === "codeBlock" ? (
-        <CodeMirrorBlockEditor
+        <CodeMirrorBlockEditor vimEnabled={vimModeEnabled}
           value={editor?.state.doc.firstChild?.textContent ?? initial.textContent}
           wrap={wrap}
           lineNumbers={lineNumbers}

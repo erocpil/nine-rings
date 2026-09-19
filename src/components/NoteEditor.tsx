@@ -104,12 +104,6 @@ import {
   type DocumentOutlineItem,
 } from "../lib/document-outline";
 import {
-  getVimEditorMode,
-  setVimModeEnabled,
-  VimMode,
-  type VimEditorMode,
-} from "../extensions/VimMode";
-import {
   HeadingFold,
   expandHeadingFoldsAt,
   getCollapsedHeadingKeys,
@@ -261,12 +255,6 @@ const AlignedTableHeader = TableHeader.extend({
   },
 });
 
-const VIM_MODE_LABELS: Record<VimEditorMode, string> = {
-  normal: "NORMAL",
-  insert: "INSERT",
-  visual: "VISUAL",
-  "visual-line": "V-LINE",
-};
 const OUTLINE_DOCK_KEY = "nr:documentOutlineDock";
 const OUTLINE_WIDTH_KEY = "nr:documentOutlineWidth";
 const DEFAULT_OUTLINE_DOCK_WIDTH = 280;
@@ -471,11 +459,11 @@ function DocumentEditor(props: NoteEditorProps) {
     return () => { window.removeEventListener(READONLY_RENDERING_EVENT, sync); window.removeEventListener("storage", sync); };
   }, []);
   const readingSource = useMemo(() => {
-    if (!experimental || !props.readonly || props.vimModeEnabled || props.pdfExcerptSource || props.epubExcerptSource) return null;
+    if (!experimental || !props.readonly || props.pdfExcerptSource || props.epubExcerptSource) return null;
     // Readonly/metadata saves update updated_at too. They must not remount a
     // reader with identical text and discard an open panel or native selection.
     return JSON.stringify(isDelta(props.content) ? { ops: props.content.ops, metadata: { sourceFormat: props.content.metadata?.sourceFormat } } : props.content);
-  }, [experimental, props.readonly, props.vimModeEnabled, props.pdfExcerptSource, props.epubExcerptSource, props.content]);
+  }, [experimental, props.readonly, props.pdfExcerptSource, props.epubExcerptSource, props.content]);
   const readingDocument = useMemo(() => {
     if (!readingSource) return null;
     readonlySchema ??= getSchema([
@@ -511,7 +499,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const editorFindOriginRef = useRef(0);
   const editorFindInputRef = useRef<HTMLInputElement>(null);
   const editorReplaceInputRef = useRef<HTMLInputElement>(null);
-  const vimSearchActionRef = useRef<(direction: 1 | -1 | 0) => void>(() => undefined);
   const lineJumpInputRef = useRef<HTMLInputElement>(null);
   const outlineListRef = useRef<HTMLDivElement>(null);
   const bookmarksRef = useRef<DocumentBookmark[]>(content.metadata?.bookmarks ?? []);
@@ -702,7 +689,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const [bookmarkCursorPosition, setBookmarkCursorPosition] = useState(1);
   const [selectedTableCellCount, setSelectedTableCellCount] = useState(0);
   const [, setEditorUiSignature] = useState("");
-  const [vimEditorMode, setVimEditorMode] = useState<VimEditorMode>("normal");
   const [documentStats, setDocumentStats] = useState({ chars: 0, words: 0 });
   const documentStatsTimerRef = useRef<number | null>(null);
   const nativeCjkLatinSpacing = useMemo(supportsNativeCjkLatinSpacing, []);
@@ -973,12 +959,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           });
         },
       }),
-      VimMode.configure({
-        enabled: vimModeEnabled,
-        readOnly: Boolean(readonly),
-        onModeChange: setVimEditorMode,
-        onSearch: (direction) => vimSearchActionRef.current(direction),
-      }),
     ]);
   // Live preferences/editability are applied explicitly below. A stable session
   // dependency also prevents useEditor from reapplying the old editable value
@@ -1182,11 +1162,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     if (!editor) return;
     setCodeBlockDefaultWrap(editor, defaultCodeBlockWrap);
   }, [defaultCodeBlockWrap, editor]);
-
-  useEffect(() => {
-    if (!editor) return;
-    setVimModeEnabled(editor, vimModeEnabled, Boolean(readonly));
-  }, [editor, readonly, vimModeEnabled]);
 
   useEffect(() => {
     if (!editor) return;
@@ -1809,24 +1784,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     editorFindInputRef.current?.focus({ preventScroll: true });
   }, [activeSearchMatch, revealSearchMatch]);
 
-  useEffect(() => {
-    vimSearchActionRef.current = (direction) => {
-      const matches = searchMatchesRef.current;
-      if (direction === 0 || matches.length === 0) {
-        openEditorFind();
-        return;
-      }
-      const requestedIndex = activeSearchMatch < 0
-        ? searchMatchIndexFromPosition(matches, editorFindOriginRef.current, direction)
-        : activeSearchMatch + direction;
-      revealSearchMatch(requestedIndex, matches);
-      requestAnimationFrame(() => editor?.commands.focus());
-    };
-    return () => {
-      vimSearchActionRef.current = () => undefined;
-    };
-  }, [activeSearchMatch, editor, openEditorFind, revealSearchMatch]);
-
   const jumpToOutlineHeading = useCallback((item: DocumentOutlineItem) => {
     if (!editor || editor.isDestroyed) return;
     allHeadingFoldRoundTripRef.current = null;
@@ -1847,8 +1804,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   }, [editor, outlineDock, scrollRef, isMobileToolbarViewport]);
 
   // 拦截 WebView 原生 Cmd+F，并为 Windows 提供 Alt+F。Ctrl+F 不再
-  // 触发搜索：macOS 保留原生文本移动；Vim Normal/Visual 用它向下翻页。
-  // 其他平台非 Vim 模式也不唤起 WebView 查找框。
+  // 触发搜索：macOS 保留原生文本移动；其他平台也不唤起 WebView 查找框。
   // 原生查找框由
   // WebView 管理且主窗口 hide 后可能残留；应用内查找框与编辑器共用生命周期。
   useEffect(() => {
@@ -1863,15 +1819,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         && (event.code === "KeyF" || event.key.toLocaleLowerCase() === "f");
       if (isCtrlF) {
         if (isMacPlatform()) return;
-        const target = event.target;
-        const vimMode = getVimEditorMode(editor);
-        const isVimEditorTarget = target instanceof Node
-          && editor.view.dom.contains(target)
-          && vimMode !== null
-          && vimMode !== "insert";
-        // ProseMirror 会忽略在捕获阶段已 preventDefault 的事件。Normal/Visual
-        // 模式必须先交给 Vim 插件处理；插件返回 true 后会自行阻止浏览器查找。
-        if (isVimEditorTarget) return;
         event.preventDefault();
         return;
       }
@@ -2433,10 +2380,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       }
       const items = e.clipboardData?.items;
       if (!items || !editor) return;
-      if (vimModeEnabled && getVimEditorMode(editor) !== "insert") {
-        e.preventDefault();
-        return;
-      }
 
       // The user explicitly chose a code block, so paste literal text before
       // considering URL enrichment or automatic Markdown conversion.
@@ -2521,7 +2464,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         }
       }
     },
-    [editor, vimModeEnabled, sensitive, pasteMarkdown],
+    [editor, sensitive, pasteMarkdown],
   );
 
   const handleDrop = useCallback(
@@ -2533,10 +2476,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       }
       const files = e.dataTransfer?.files;
       if (!files || !editor) return;
-      if (vimModeEnabled && getVimEditorMode(editor) !== "insert") {
-        e.preventDefault();
-        return;
-      }
       for (const file of Array.from(files)) {
         if (file.type.startsWith("image/")) {
           e.preventDefault();
@@ -2547,7 +2486,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         }
       }
     },
-    [editor, vimModeEnabled, sensitive],
+    [editor, sensitive],
   );
 
   const insertImageUrl = () => {
@@ -4102,11 +4041,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             onPointerMove={handleReadonlyHeadingPointerMove}
             onPointerCancel={handleReadonlyHeadingPointerCancel}
             onPointerUp={handleReadonlyHeadingPointerUp}
-            onClick={() => {
-              if (readonly && vimModeEnabled) {
-                editor.view.dom.focus({ preventScroll: true });
-              }
-            }}
             onContextMenu={handleEditorContextMenu}
           />
         </div>
@@ -4154,12 +4088,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             >×</button>
           </span>
         )}
-        {vimModeEnabled && (
-          <>
-            <span className={`editor-vim-status vim-${vimEditorMode}`}>{VIM_MODE_LABELS[vimEditorMode]}</span>
-            <span className="stat-sep">|</span>
-          </>
-        )}
         {showStatusBlockNumber && (
           <>
             <span className="editor-status-block">块 {currentStatusBlock} / {totalBlocks}</span>
@@ -4174,9 +4102,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           <span>{words} 词</span>
           <span className="stat-sep">|</span>
           <span className="stat-hint">
-            {vimModeEnabled
-              ? readonly ? "NORMAL · 只读导航 · Ctrl+F/B 翻页" : "Esc Normal · i Insert · Ctrl+F/B 翻页"
-              : "Ctrl+Z · 粘贴/拖入图片"}
+            Ctrl+Z · 粘贴/拖入图片
           </span>
         </span>
         {onVersionOpen && (
@@ -4200,7 +4126,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         )}
       </div>}
 
-      <BlockWorkspaceHost key={noteId} noteId={noteId} source={editor} readonly={readonly} sensitive={sensitive} saveStatus={saveStatus} onFlush={onFlush} />
+      <BlockWorkspaceHost vimModeEnabled={vimModeEnabled} key={noteId} noteId={noteId} source={editor} readonly={readonly} sensitive={sensitive} saveStatus={saveStatus} onFlush={onFlush} />
       <EditorContextMenu
         editor={editor} readonly={readonly}
         contextMenu={contextMenu} contextMenuRef={contextMenuRef}

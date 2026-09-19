@@ -241,6 +241,7 @@ export interface AppConfig {
   editor_show_status_block_number: boolean;
   editor_show_status_bar: boolean;
   editor_readonly_heading_fold: boolean;
+  /** Vim keybindings in the standalone code block editor only. */
   editor_vim_mode: boolean;
   editor_code_wrap_default: boolean;
   use_custom_context_menu: boolean;

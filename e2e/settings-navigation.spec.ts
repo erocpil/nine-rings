@@ -45,7 +45,7 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await expect(page.locator(".settings-field")).toHaveCount(9);
   await expect(page.getByText("状态栏块号", { exact: true })).toBeVisible();
   await expect(page.getByText("只读文档双击标题折叠", { exact: true })).toBeVisible();
-  await expect(page.getByText("Vim 模式（实验性）", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("代码块 Vim 模式（实验性）", { exact: true })).toHaveCount(0);
   await expect(page.getByText("主题", { exact: true })).toHaveCount(0);
   await expect(page.locator(".settings-version")).toHaveCount(0);
 

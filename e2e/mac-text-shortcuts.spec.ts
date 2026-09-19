@@ -1,3 +1,4 @@
+import { createBlankDocument } from "./helpers/document";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { createPdfFixture } from "./helpers/reader-fixtures";
 
@@ -5,26 +6,18 @@ async function fixture(page: Page, platform = "MacIntel") {
   await page.addInitScript((platform) => {
     Object.defineProperty(navigator, "platform", { value: platform });
   }, platform);
-  await page.goto("/");
-  await expect(page.locator(".ProseMirror")).toBeVisible();
-  await page.evaluate(async () => {
+  await createBlankDocument(page);
+  await page.getByRole("textbox", { name: "文档标题", exact: true }).fill("Mac 文本编辑");
+  await page.locator(".note-editor .ProseMirror").evaluate(async element => {
     const load = (path: string) => import(/* @vite-ignore */ path);
-    const { api } = await load("/src/lib/api.ts");
     const { mdToDelta } = await load("/src/lib/md-parser.ts");
-    const { useNotesStore } = await load("/src/stores/useNotesStore.ts");
-    const note = await api.notes.create({
-      title: "Mac 文本编辑",
-      storagePath: "tests",
-      content: mdToDelta(
-        "第一行 alpha\n\n第二行 beta\n\n```text\ncode text\n```\n\n" +
-          "后续段落用于验证 Vim 翻页。\n\n".repeat(40),
-      ),
-    });
-    useNotesStore.getState().selectNote(note);
+    const { deltaToProseMirror } = await load("/src/lib/delta-converter.ts");
+    const editor = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    editor.commands.setContent(deltaToProseMirror(mdToDelta(
+      "第一行 alpha\n\n第二行 beta\n\n```text\ncode text\n```\n\n" +
+      "后续段落用于验证文本移动。\n\n".repeat(40),
+    )), true);
   });
-  await expect(
-    page.getByRole("textbox", { name: "文档标题", exact: true }),
-  ).toHaveValue("Mac 文本编辑");
   return page.locator(".note-editor .ProseMirror");
 }
 
@@ -142,34 +135,17 @@ test("Mac 正文放行原生移动，代码块 Ctrl+A/E 移动光标而 Command+
   await expect.poll(selection).toEqual({ from: start, to: start + 9 });
 });
 
-test("Mac Vim Normal 保留 Control 翻页，Insert 恢复原生前后移动", async ({
-  page,
-}) => {
+test("Mac 开启代码块 Vim 后正文仍保留原生 Control 文本移动", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_vim_mode: true })));
   const editor = await fixture(page);
-  await editor.evaluate(async (element) => {
-    const load = (path: string) => import(/* @vite-ignore */ path);
-    const { setVimModeEnabled } = await load("/src/extensions/VimMode.ts");
-    const editor = (
-      element as HTMLElement & { editor: import("@tiptap/core").Editor }
-    ).editor;
-    setVimModeEnabled(editor, true);
-    editor.commands.setTextSelection(4);
-    editor.view.focus();
+  await editor.evaluate(element => {
+    const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    instance.commands.setTextSelection(4);
+    instance.view.focus();
   });
-  await expect(editor).toHaveAttribute("data-vim-mode", "normal");
-  expect(await nativeControlAllowed(editor, "f")).toBe(false);
-  expect(await nativeControlAllowed(editor, "p")).toBe(false);
-  await expect(
-    page.locator(".quick-switcher-overlay, .editor-find-bar"),
-  ).toHaveCount(0);
-  await editor.press("i");
-  await expect(editor).toHaveAttribute("data-vim-mode", "insert");
-  await editor.evaluate((element) =>
-    (
-      element as HTMLElement & { editor: import("@tiptap/core").Editor }
-    ).editor.commands.setTextSelection(4),
-  );
-  expect(await nativeControlAllowed(editor, "f")).toBe(true);
+  await expect(editor).not.toHaveAttribute("data-vim-mode", /.+/);
+  for (const key of ["f", "b", "n", "p"]) expect(await nativeControlAllowed(editor, key)).toBe(true);
+  await expect(page.locator(".quick-switcher-overlay, .editor-find-bar")).toHaveCount(0);
 });
 
 test("Mac 资料库和 PDF 查找输入保留 Ctrl+F，Cmd+F 仍打开搜索", async ({
@@ -218,6 +194,7 @@ test("Mac 快捷键设置拒绝占用原生 Control 文本组合", async ({ page
 test("Mac 代码弹层保留 Control 导航，Command 处理查找和撤销重做", async ({
   page,
 }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_vim_mode: true })));
   await fixture(page);
   await page
     .getByRole("button", { name: "放大阅读代码块", exact: true })
