@@ -11,7 +11,7 @@ test("目录导入保留所选根目录、嵌套层级和纯文本格式，跳�
   await page
     .getByLabel("导入文本目录")
     .setInputFiles(path.resolve("e2e/fixtures/text-import-tree"));
-  await expect(page.getByText("已导入 3 篇笔记")).toBeVisible();
+  await expect(page.getByText("已导入 3 篇文档")).toBeVisible();
   await expect(page.getByText(/文本导入完成：3 篇.*跳过 1/)).toBeVisible();
   const notes = await page.evaluate(async () => {
     const load = (file: string) => import(/* @vite-ignore */ file);
@@ -73,8 +73,10 @@ test("多选纯文本允许个别失败，UTF-16 正确解码且同一批文件�
     },
   ];
   await input.setInputFiles(files);
-  await expect(page.getByText("已导入 2 篇笔记")).toBeVisible();
+  await expect(page.getByText("已导入 2 篇文档")).toBeVisible();
   await expect(page.getByText(/失败 1 篇：binary.txt.*二进制/)).toBeVisible();
+  await expect(page.locator(".data-import-feedback")).toContainText("1 个文件导入失败");
+  await expect(page.locator(".data-import-feedback")).toContainText("建议只重试失败的文件");
   await input.setInputFiles(files);
-  await expect(page.getByText("已导入 2 篇笔记")).toBeVisible();
+  await expect(page.getByText("已导入 2 篇文档")).toBeVisible();
 });

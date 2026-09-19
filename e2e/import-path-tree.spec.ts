@@ -66,7 +66,7 @@ for (const mobile of [false, true]) {
       await picker.getByRole("button", { name: "使用此路径" }).click();
       await expect(input).toHaveValue("references/资料/网络");
       await page.locator('input[type=file][accept^=".md,"]').setInputFiles({ name: "树选导入.txt", mimeType: "text/plain", buffer: Buffer.from("content\n") });
-      await expect(page.getByText("已导入 1 篇笔记")).toBeVisible();
+      await expect(page.getByText("已导入 1 篇文档")).toBeVisible();
       const imported = await page.evaluate(async () => {
         const load = (path: string) => import(/* @vite-ignore */ path);
         const { api } = await load("/src/lib/api.ts");

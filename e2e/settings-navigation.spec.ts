@@ -39,7 +39,7 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await expect(page.getByRole("heading", { name: "外观与排版", exact: true })).toBeVisible();
   await page.getByRole("button", { name: /^编辑器设置/ }).click();
   await expect(page.getByRole("heading", { name: "编辑器", exact: true })).toBeVisible();
-  await expect(page.locator(".settings-field")).toHaveCount(6);
+  await expect(page.locator(".settings-field")).toHaveCount(7);
   await expect(page.getByText("状态栏块号", { exact: true })).toBeVisible();
   await expect(page.getByText("只读文档双击标题折叠", { exact: true })).toBeVisible();
   await expect(page.getByText("Vim 模式（实验性）", { exact: true })).toHaveCount(0);
@@ -52,7 +52,7 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await expect(page.locator(".settings-version")).toBeVisible();
   await page.getByRole("button", { name: /^数据与导入/ }).click();
   await expect(page.getByRole("heading", { name: "数据与导入", exact: true })).toBeVisible();
-  await expect(page.getByText("数据导出 / 导入", { exact: true })).toBeVisible();
+  await expect(page.getByText("JSON 备份与恢复", { exact: true })).toBeVisible();
   await expect(page.getByText("Markdown / 纯文本导入", { exact: true })).toBeVisible();
   await expect(page.getByText("快捷键", { exact: true })).toHaveCount(0);
 });
@@ -66,7 +66,7 @@ test("设置子页首个分组没有多余顶部留白和分割线", async ({ pa
     if (pageName === "用户信息") await page.getByRole("button", { name: /^文档管理/ }).click();
     await page.getByRole("button", { name: new RegExp(`^${pageName}`) }).click();
 
-    const firstSection = page.locator(".settings-body > .settings-section").first();
+    const firstSection = page.locator(pageName === "数据与导入" ? ".settings-body > .settings-data-page" : ".settings-body > .settings-section").first();
     await expect(firstSection).toBeVisible();
     await expect.poll(() => firstSection.evaluate((element) => {
       const style = getComputedStyle(element);

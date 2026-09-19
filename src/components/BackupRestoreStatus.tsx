@@ -41,7 +41,7 @@ export function BackupRestoreStatus({ compact = false, onOpenSettings }: { compa
     <span>{message}</span>
     {compact ? <button type="button" onClick={onOpenSettings}>打开设置检查</button> : <>
       {record && <small>{record.source === "github" ? "GitHub Pull" : "JSON 导入"} · {record.mode === "replace" ? "全量覆盖" : "合并"} · 开始于 {new Date(record.startedAt).toLocaleString()}</small>}
-      <p className="settings-hint">恢复锁只协调同源窗口的备份恢复，不替代普通编辑的跨窗口隔离。恢复前请关闭其他编辑窗口。记录不含正文、Token 或备份内容。</p>
+      <p className="settings-hint">恢复期间请关闭其他编辑窗口，避免同时修改数据。若恢复中断，请先导出当前数据并检查结果，再决定是否重新导入。</p>
       {!!needsReview && !status?.active && <div className="settings-button-row">
         <button type="button" className="settings-btn" disabled={!!busy} onClick={() => void exportLocal()}>{busy === "export" ? "正在导出…" : "导出当前本地备份"}</button>
         {(!error || canClearRecord) && <button type="button" className="settings-btn" disabled={!!busy} onClick={() => void acknowledge()}>{canClearRecord ? "清理损坏的恢复记录" : "确认已检查本地数据"}</button>}

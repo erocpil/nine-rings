@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import { isTauri, importWithDialog } from "../lib/tauri-desktop";
 import { exportLocalJsonBackup } from "../lib/local-backup-export";
 import { useSettingsTextImport } from "./useSettingsTextImport";
+import { withBackupRestoreReadLock } from "../lib/backup-restore-coordination";
 export function useSettingsData(
   open: boolean,
   showMessage: (message: string) => void,
@@ -11,11 +12,16 @@ export function useSettingsData(
 ) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const operationRef = useRef(false);
 
   const textImport = useSettingsTextImport(open, showMessage, onMarkdownImport);
   const handleExport = async () => {
+    if (operationRef.current || textImport.mdImporting) return;
+    operationRef.current = true;
+    setExporting(true);
     try {
-      const result = await exportLocalJsonBackup();
+      const result = await withBackupRestoreReadLock(exportLocalJsonBackup);
       if (!result) return;
       showMessage(
         result.desktop
@@ -24,10 +30,15 @@ export function useSettingsData(
       );
     } catch (e) {
       showMessage(`导出失败: ${e}`);
+    } finally {
+      operationRef.current = false;
+      setExporting(false);
     }
   };
 
   const handleImport = async () => {
+    if (operationRef.current || textImport.mdImporting) return;
+    operationRef.current = true;
     setImporting(true);
     try {
       if (isTauri()) {
@@ -48,14 +59,18 @@ export function useSettingsData(
     } catch (e) {
       showMessage(`导入失败: ${e}`);
     } finally {
+      operationRef.current = false;
       setImporting(false);
     }
   };
 
   /// Web 模式的 file input 回调（Tauri 模式不走这里）
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const input = e.currentTarget;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file || operationRef.current || textImport.mdImporting) return;
+    operationRef.current = true;
     setImporting(true);
     try {
       const text = await file.text();
@@ -69,7 +84,8 @@ export function useSettingsData(
       showMessage(`导入失败: ${e}`);
     } finally {
       // Match native dialogs: a failed import can be retried with the same file.
-      e.target.value = "";
+      input.value = "";
+      operationRef.current = false;
       setImporting(false);
     }
   };
@@ -78,6 +94,7 @@ export function useSettingsData(
     ...textImport,
     fileInputRef,
     importing,
+    exporting,
     handleExport,
     handleImport,
     handleImportFile,

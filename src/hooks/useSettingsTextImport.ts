@@ -10,6 +10,14 @@ import {
 } from "../lib/markdown-import";
 import { transformMarkdownBatch } from "../lib/data-transform-client";
 const MD_IMPORT_CHUNK_SIZE = 4;
+interface TextImportResult {
+  count: number;
+  failed: number;
+  skipped: number;
+  mode: "document" | "note";
+  interrupted: boolean;
+  error?: string;
+}
 function yieldToNextFrame(): Promise<void> {
   if (typeof window === "undefined") {
     return new Promise((resolve) => setTimeout(resolve, 0));
@@ -32,7 +40,9 @@ export function useSettingsTextImport(
     () => "webkitdirectory" in document.createElement("input"),
   );
   const [mdImporting, setMdImporting] = useState(false);
-  const [mdImportCount, setMdImportCount] = useState(0);
+  const [mdImportResult, setMdImportResult] = useState<TextImportResult | null>(
+    null,
+  );
   const [mdImportTotal, setMdImportTotal] = useState(0);
   const [mdImportProgress, setMdImportProgress] = useState(0);
   const [mdImportCurrentFile, setMdImportCurrentFile] = useState("");
@@ -55,6 +65,12 @@ export function useSettingsTextImport(
     input.value = "";
     if (!files.length || mdImporting) return;
     const directoryImport = input === directoryInputRef.current;
+    const mode = directoryImport ? "document" : mdImportMode;
+    if (mode === "document" && !mdImportPath.trim()) {
+      showMessage("请先填写目标路径，再选择文件或目录");
+      return;
+    }
+    setMdImportResult(null);
     const fileList = files
       .filter((file) => isTextImportFile(file.name))
       .sort((left, right) =>
@@ -64,12 +80,18 @@ export function useSettingsTextImport(
       );
     const skipped = files.length - fileList.length;
     if (!fileList.length) {
+      setMdImportResult({
+        count: 0,
+        failed: 0,
+        skipped,
+        mode,
+        interrupted: false,
+      });
       showMessage(`未发现支持的文本文件，已跳过 ${skipped} 个非支持类型的文件`);
       return;
     }
     setMdImporting(true);
     setImportPathPickerOpen(false);
-    setMdImportCount(0);
     setMdImportTotal(fileList.length);
     setMdImportProgress(0);
     setMdImportCurrentFile("");
@@ -79,8 +101,8 @@ export function useSettingsTextImport(
     try {
       const options = {
         date: today,
-        mode: directoryImport ? ("document" as const) : mdImportMode,
-        storagePath: mdImportPath,
+        mode,
+        storagePath: mdImportPath.trim(),
         docType: mdImportDocType,
         tags: parseMetadataList(mdImportTags),
         concepts: parseMetadataList(mdImportConcepts),
@@ -132,14 +154,29 @@ export function useSettingsTextImport(
         setMdImportProgress(offset + batch.length);
         await yieldToNextFrame();
       }
-      setMdImportCount(count);
+      setMdImportResult({
+        count,
+        failed: failures.length,
+        skipped,
+        mode,
+        interrupted: false,
+        error: failures[0],
+      });
       if (count > 0) onMarkdownImport?.();
       showMessage(
         failures.length > 0
           ? `已导入 ${count} 篇，跳过 ${skipped} 个非支持类型文件，失败 ${failures.length} 篇：${failures[0]}`
-          : `文本导入完成：${count} 篇${options.mode === "document" ? `，路径 ${mdImportPath}` : ""}${skipped ? `，跳过 ${skipped} 个非支持类型文件` : ""}`,
+          : `文本导入完成：${count} 篇${options.mode === "document" ? `，路径 ${options.storagePath}` : ""}${skipped ? `，跳过 ${skipped} 个非支持类型文件` : ""}`,
       );
     } catch (err) {
+      setMdImportResult({
+        count,
+        failed: failures.length,
+        skipped,
+        mode,
+        interrupted: true,
+        error: err instanceof Error ? err.message : String(err),
+      });
       if (count > 0) onMarkdownImport?.();
       showMessage(`导入中断，已导入 ${count} 篇（已导入的文档会保留）: ${err}`);
     } finally {
@@ -157,7 +194,7 @@ export function useSettingsTextImport(
     directoryInputRef,
     directoryImportSupported,
     mdImporting,
-    mdImportCount,
+    mdImportResult,
     mdImportTotal,
     mdImportProgress,
     mdImportCurrentFile,

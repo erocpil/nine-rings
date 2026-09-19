@@ -28,7 +28,7 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
     ),
   });
 
-  await expect(page.getByText("已导入 1 篇笔记")).toBeVisible();
+  await expect(page.getByText("已导入 1 篇文档")).toBeVisible();
   await page.locator(".settings-close").click();
   const treeButton = page.getByRole("navigation", { name: "工作区面板" }).getByRole("button", { name: "文档树", exact: true });
   if (await treeButton.getAttribute("aria-pressed") !== "true") await treeButton.click();
