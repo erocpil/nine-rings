@@ -156,7 +156,9 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-start;
-  gap: 12px;
+  row-gap: 12px;
+  /* Fit eight 36px buttons where space permits, keeping narrow screens wrapped. */
+  column-gap: clamp(4px, calc((100% - 288px) / 7), 8px);
   width: 100%;
 }
 .settings-content-page .settings-theme-mobile .settings-radio {
