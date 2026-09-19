@@ -6,6 +6,7 @@ import {
   type KeyboardEvent,
 } from "react";
 
+import { readDesktopSidebarState, saveDesktopSidebarState } from "../lib/desktop-sidebar-state";
 type Panel = "tree" | "list" | "reader";
 interface Options {
   enabled: boolean;
@@ -25,7 +26,10 @@ export function useSidebarHoverPreview({
   openPanel,
   setHidden,
 }: Options) {
-  const [pinned, setPinned] = useState(false);
+  const [pinned, setPinned] = useState(() => readDesktopSidebarState().pinned);
+  const openPanelRef = useRef(openPanel);
+  openPanelRef.current = openPanel;
+  const previousHidden = useRef(hidden);
   const pointerInside = useRef(false);
   const keyboardInside = useRef(false);
   const focusFrame = useRef(0);
@@ -65,19 +69,26 @@ export function useSidebarHoverPreview({
   }, [cancel, enabled, pinned, resizing, setHidden]);
   useEffect(() => {
     cancel();
-    setPinned(false);
-    if (enabled) setHidden(true);
+    if (enabled) {
+      const saved = readDesktopSidebarState();
+      setPinned(saved.pinned && !saved.hidden);
+      if (saved.pinned && !saved.hidden) openPanelRef.current(saved.panel);
+      else setHidden(true);
+    }
     return () => {
       cancel();
       cancelAnimationFrame(focusFrame.current);
     };
   }, [enabled, cancel, setHidden]);
   useEffect(() => {
-    if (hidden) {
+    const closed = hidden && !previousHidden.current;
+    previousHidden.current = hidden;
+    if (enabled && closed && pinned) {
       setPinned(false);
+      saveDesktopSidebarState({ hidden: true, pinned: false });
       keyboardInside.current = false;
     }
-  }, [hidden]);
+  }, [enabled, hidden, pinned]);
   useEffect(() => {
     if (enabled && !pinned && !hidden && !resizing && !pointerInside.current) {
       scheduleHide();
@@ -110,11 +121,12 @@ export function useSidebarHoverPreview({
     cancelAnimationFrame(focusFrame.current);
     keyboardInside.current = false;
     setPinned(false);
+    saveDesktopSidebarState({ ...(pinned ? { panel } : {}), hidden: true, pinned: false });
     setHidden(true);
     document
       .querySelector<HTMLElement>(`[data-sidebar-panel="${panel}"]`)
       ?.focus({ preventScroll: true });
-  }, [cancel, panel, setHidden]);
+  }, [cancel, panel, pinned, setHidden]);
   useEffect(() => {
     if (!enabled || hidden) return;
     const escape = (event: globalThis.KeyboardEvent) => {
@@ -171,9 +183,11 @@ export function useSidebarHoverPreview({
     if (pinned && !hidden && panel === next) {
       setPinned(false);
       setHidden(true);
+      saveDesktopSidebarState({ panel: next, hidden: true, pinned: false });
     } else {
       setPinned(true);
       openPanel(next);
+      saveDesktopSidebarState({ panel: next, hidden: false, pinned: true });
     }
   };
   const enterPanel = () => {

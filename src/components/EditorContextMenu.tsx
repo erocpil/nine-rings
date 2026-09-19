@@ -154,11 +154,11 @@ export function EditorContextMenu({ editor, readonly, contextMenu, contextMenuRe
                 <button
                   className="editor-context-item editor-context-subitem"
                   onClick={() => { changeSelectedBlockIndent(1); setContextMenu(null); }}
-                >增加块缩进 <span>Tab</span></button>
+                >增加块缩进 {!editor.isActive("codeBlock") && <span>Tab</span>}</button>
                 <button
                   className="editor-context-item editor-context-subitem"
                   onClick={() => { changeSelectedBlockIndent(-1); setContextMenu(null); }}
-                >减少块缩进 <span>Shift+Tab</span></button>
+                >减少块缩进 {!editor.isActive("codeBlock") && <span>Shift+Tab</span>}</button>
               </div>
             )}
             <button

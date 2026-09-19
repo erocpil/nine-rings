@@ -133,7 +133,7 @@ export const CollapsibleBlockquote = Blockquote.extend({
       as: "blockquote",
       className: "blockquote-wrap",
       attrs: ({ node }) => ({
-        ...(node.attrs.indent > 0 ? { "data-indent": String(node.attrs.indent) } : {}),
+        "data-indent": String(node.attrs.indent ?? 0),
         "data-collapsed": node.attrs.collapsed === true ? "true" : "false",
       }),
     });

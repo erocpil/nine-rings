@@ -422,14 +422,14 @@
   margin-bottom: 0;
 }
 
-.editor-content .ProseMirror > [data-indent="1"] { margin-inline-start: calc(var(--editor-list-indent) * 1); }
-.editor-content .ProseMirror > [data-indent="2"] { margin-inline-start: calc(var(--editor-list-indent) * 2); }
-.editor-content .ProseMirror > [data-indent="3"] { margin-inline-start: calc(var(--editor-list-indent) * 3); }
-.editor-content .ProseMirror > [data-indent="4"] { margin-inline-start: calc(var(--editor-list-indent) * 4); }
-.editor-content .ProseMirror > [data-indent="5"] { margin-inline-start: calc(var(--editor-list-indent) * 5); }
-.editor-content .ProseMirror > [data-indent="6"] { margin-inline-start: calc(var(--editor-list-indent) * 6); }
-.editor-content .ProseMirror > [data-indent="7"] { margin-inline-start: calc(var(--editor-list-indent) * 7); }
-.editor-content .ProseMirror > [data-indent="8"] { margin-inline-start: calc(var(--editor-list-indent) * 8); }
+.editor-content .ProseMirror > [data-indent="1"] { margin-inline-start: calc(var(--editor-block-indent-step, var(--editor-list-indent)) * 1); }
+.editor-content .ProseMirror > [data-indent="2"] { margin-inline-start: calc(var(--editor-block-indent-step, var(--editor-list-indent)) * 2); }
+.editor-content .ProseMirror > [data-indent="3"] { margin-inline-start: calc(var(--editor-block-indent-step, var(--editor-list-indent)) * 3); }
+.editor-content .ProseMirror > [data-indent="4"] { margin-inline-start: calc(var(--editor-block-indent-step, var(--editor-list-indent)) * 4); }
+.editor-content .ProseMirror > [data-indent="5"] { margin-inline-start: calc(var(--editor-block-indent-step, var(--editor-list-indent)) * 5); }
+.editor-content .ProseMirror > [data-indent="6"] { margin-inline-start: calc(var(--editor-block-indent-step, var(--editor-list-indent)) * 6); }
+.editor-content .ProseMirror > [data-indent="7"] { margin-inline-start: calc(var(--editor-block-indent-step, var(--editor-list-indent)) * 7); }
+.editor-content .ProseMirror > [data-indent="8"] { margin-inline-start: calc(var(--editor-block-indent-step, var(--editor-list-indent)) * 8); }
 
 /* Markdown 空白行是块分隔符，不会生成空段落。正文之间保留稳定分隔，
    标题与相邻块的节奏则由排版设置独立控制。 */
@@ -565,4 +565,23 @@
 .todo-dot.done {
   text-decoration: line-through;
   opacity: 0.6;
+}
+
+/* List continuations remain independent blocks; manual indentation takes precedence. */
+.editor-content .ProseMirror > [data-list-followup]:is(:not([data-indent]), [data-indent="0"]) {
+  margin-inline-start: calc(var(--list-followup-indent-enabled, 1) * var(--editor-list-indent, 1em));
+}
+.editor-appearance-preview > .list-followup-preview {
+  margin-inline-start: calc(var(--list-followup-indent-enabled, 1) * var(--editor-list-indent, 1em));
+}
+@media (max-width: 768px), (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
+  .editor-content .ProseMirror > :is(.code-block-wrap, .node-codeBlock, blockquote) {
+    --editor-block-indent-step: 4px;
+  }
+  .editor-content .ProseMirror > [data-list-followup]:is(:not([data-indent]), [data-indent="0"]) {
+    margin-inline-start: min(4px, calc(var(--list-followup-indent-enabled, 1) * var(--editor-list-indent, 1em)));
+  }
+  .editor-appearance-preview > .list-followup-preview {
+    margin-inline-start: min(4px, calc(var(--list-followup-indent-enabled, 1) * var(--editor-list-indent, 1em)));
+  }
 }

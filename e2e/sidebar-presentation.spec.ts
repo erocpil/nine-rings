@@ -167,14 +167,15 @@ test("桌面分栏悬停预览、离开收起、点击固定并排且支持宽�
   expect(paneWidth).toBeGreaterThan(400);
   await page.reload();
   await expect(page.locator(".ProseMirror")).toBeVisible();
-  await expect(sidebar).toHaveClass(/sidebar-hidden/);
-  await tree.hover();
   await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+  await expect(tree).toHaveAttribute("data-pinned", "true");
   await expect
     .poll(() => sidebar.evaluate((el) => el.getBoundingClientRect().width))
     .toBeCloseTo(paneWidth, 0);
-  await expect.poll(width).toBeCloseTo(fullWidth, 0);
   await page.mouse.move(1200, 650);
+  await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+  await tree.click();
+  await expect.poll(width).toBeCloseTo(fullWidth, 0);
   await expect(sidebar).toHaveClass(/sidebar-hidden/);
   await settings(page);
   await page.getByRole("button", { name: "并排模式", exact: true }).click();

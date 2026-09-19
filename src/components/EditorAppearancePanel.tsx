@@ -160,6 +160,9 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
               <h3>代码／引用块显示</h3>
               <p>保存在当前设备；空白字符仅在弹层阅读模式显示，不修改正文。</p>
               <div className="editor-appearance-control-grid">
+                <AppearanceField label="列表后的块缩进" desc="紧接列表的引用块和代码块在桌面适度缩进，手机最多 4px；不改变块结构。手动块缩进优先，代码内 Tab 仍用于代码缩进。">
+                  <label className="block-display-toggle"><input type="checkbox" aria-label="列表后的块自动缩进" checked={blockDisplay.listFollowupIndent ?? true} onChange={event => updateBlock({ listFollowupIndent: event.target.checked })} /><span>{blockDisplay.listFollowupIndent === false ? "关闭" : "开启"}</span></label>
+                </AppearanceField>
                 <AppearanceField label="空白字符" desc="区分空格、Tab 和实际换行">
                   <select className="settings-input editor-appearance-select" aria-label="显示空白字符" value={blockDisplay.whitespace ?? "off"} onChange={event => updateBlock({ whitespace: event.target.value as "off" | "all" | "abnormal" })}>
                     <option value="off">关闭</option><option value="all">全部</option><option value="abnormal">仅异常</option>
@@ -206,7 +209,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
               <span>实时预览</span>
               <small>{config.note_font_size}px · {config.editor_line_height.toFixed(1)} 行距</small>
             </div>
-            <article className={`editor-appearance-preview editor-appearance-document ${config.editor_cjk_spacing ? "editor-auto-cjk-spacing" : ""}`} style={variables} aria-label="编辑器排版预览">
+            <article className={`editor-appearance-preview editor-appearance-document ${config.editor_cjk_spacing ? "editor-auto-cjk-spacing" : ""}`} style={{ ...variables, "--list-followup-indent-enabled": blockDisplay.listFollowupIndent === false ? "0" : "1" } as React.CSSProperties} aria-label="编辑器排版预览">
               <h1>把想法整理成可读的结构</h1>
               <p>Nine Rings支持Markdown编辑，排版不改变内容本身，却会直接影响阅读节奏。</p>
               <h2>清晰的层级</h2>
@@ -222,13 +225,14 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
                 </li>
                 <li>调整时两种列表同步变化</li>
               </ol>
+              <blockquote className="list-followup-preview">列表的补充说明可以使用适度缩进，保留独立的引用块。</blockquote>
+              <pre className="list-followup-preview"><code>const keep = "Readable layout";</code></pre>
               <h3>紧凑的小节</h3>
               <p>标题上下间距会在这里实时呈现。</p>
               <p>相邻正文段落之间使用独立的正文块间距。</p>
               <p className="standalone-strong-label"><strong>概念标签</strong></p>
               <p>纯粗体标签后的正文沿用紧凑的标题下间距。</p>
               <blockquote>引用块缩进帮助补充说明与正文形成清楚的层次。</blockquote>
-              <pre><code>const keep = "Readable layout";</code></pre>
               <hr />
               <p>代码块和引用块样式也会随着预览中的字号/行距同步变化。</p>
               <p>使用 <mark>Alt+F 搜索关键字</mark> 时，匹配内容会采用所选的高亮颜色。</p>

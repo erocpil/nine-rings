@@ -1,4 +1,5 @@
 import { useWorkspaceLayout } from "./hooks/useWorkspaceLayout";
+import { readDesktopSidebarState, saveDesktopSidebarState } from "./lib/desktop-sidebar-state";
 import { useDocumentNavigation } from "./hooks/useDocumentNavigation";
 import { NavigationButtons } from "./components/NavigationButtons";
 import { EditorFoldIconContext } from "./components/EditorFoldIcon";
@@ -362,7 +363,7 @@ function App() {
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
   const documentBrowserSession = useRef<DocumentBrowserSession>({});
   const [browserToolbarHost, setBrowserToolbarHost] = useState<HTMLDivElement | null>(null);
-  const [desktopPanel, setDesktopPanel] = useState<'tree' | 'list' | 'reader'>('tree');
+  const [desktopPanel, setDesktopPanel] = useState(() => readDesktopSidebarState().panel);
   const [sidebarBrowserToolbarHost, setSidebarBrowserToolbarHost] = useState<HTMLDivElement | null>(null);
   const [docTreeToolbarHost, setDocTreeToolbarHost] = useState<HTMLDivElement | null>(null);
   useDateRollover(setDate);
@@ -419,6 +420,7 @@ function App() {
     headerSearchInputRef.current?.focus({ preventScroll: true });
   }, []);
   const [sidebarHidden, setSidebarHidden] = useState(() => {
+    if (!window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return readDesktopSidebarState().hidden;
     const persisted = localStorage.getItem(HIDDEN_KEY);
     if (persisted !== null) return persisted === "true";
     return typeof window !== "undefined" && window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
@@ -1097,6 +1099,19 @@ function App() {
   const sidebarHoverEnabled = desktopWorkspace && sidebarPresentation === "overlay";
   const sidebarHover = useSidebarHoverPreview({ enabled: sidebarHoverEnabled, panel: desktopPanel, hidden: sidebarHidden, resizing: sidebarResizing || readerFocus, openPanel: setSidebarPanel, setHidden: setSidebarHidden });
   const sidebarOverlay = sidebarHoverEnabled && !sidebarHover.pinned;
+  const previousDesktopWorkspace = useRef(desktopWorkspace);
+  useEffect(() => {
+    const returningToDesktop = desktopWorkspace && !previousDesktopWorkspace.current;
+    previousDesktopWorkspace.current = desktopWorkspace;
+    if (returningToDesktop) {
+      const saved = readDesktopSidebarState();
+      setDesktopPanel(saved.panel);
+      setSidebarHidden(saved.hidden);
+      return;
+    }
+    if (desktopWorkspace && !sidebarHoverEnabled)
+      saveDesktopSidebarState({ panel: desktopPanel, hidden: sidebarHidden });
+  }, [desktopWorkspace, sidebarHoverEnabled, desktopPanel, sidebarHidden]);
   const announcedErrorRef = useRef<string | null>(null);
   useEffect(() => {
     const message = error || (autoSave.status === "error" ? "保存失败" : null);

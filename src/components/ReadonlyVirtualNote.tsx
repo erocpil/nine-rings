@@ -1,4 +1,5 @@
 import { useDesktopDocumentPanels } from "../hooks/useDesktopDocumentPanels";
+import { listFollowupBlocks } from "../lib/list-followup-blocks";
 import { DesktopDocumentPanels, desktopPanelClass, desktopPanelStyle } from "./DesktopDocumentPanels";
 import { NavigationButtons } from "./NavigationButtons";
 import { useNavigationStore } from "../stores/useNavigationStore";
@@ -57,6 +58,7 @@ function renderBlock(
   update: (pos: number, value: BlockState) => void,
   match: SearchMatch | undefined,
   defaultWrap: boolean,
+  followsList = false,
 ): React.ReactNode {
   if (node.isText) {
     const text = node.text ?? "";
@@ -132,7 +134,7 @@ function renderBlock(
     ),
   );
   const state = states.get(pos) ?? {};
-  const attrs = { "data-indent": node.attrs.indent || undefined };
+  const attrs = { "data-indent": node.attrs.indent || undefined, "data-list-followup": followsList || undefined };
   switch (node.type.name) {
     case "hardBreak":
       return <br />;
@@ -283,6 +285,7 @@ export function ReadonlyVirtualNote(
   );
   const states = useMemo(() => props.sensitive ? new Map<number, BlockState>() : readingBlockSession(noteId, contentVersion), [noteId, contentVersion, props.sensitive]);
   const sections = useMemo(() => extractHeadingSections(doc), [doc]);
+  const followupBlocks = useMemo(() => listFollowupBlocks(doc), [doc]);
   const sectionByPos = useMemo(
     () => new Map(sections.map((section) => [section.pos, section])),
     [sections],
@@ -1186,6 +1189,7 @@ export function ReadonlyVirtualNote(
                     updateBlock,
                     activeMatch,
                     props.defaultCodeBlockWrap,
+                    followupBlocks.has(block.pos),
                   )}
                 </div>
               </div>

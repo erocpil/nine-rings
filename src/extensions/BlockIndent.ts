@@ -1,6 +1,9 @@
 import { Extension } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { EditorState, Transaction } from "@tiptap/pm/state";
+import { Plugin } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { listFollowupBlocks } from "../lib/list-followup-blocks";
 
 export const MAX_BLOCK_INDENT = 8;
 
@@ -82,6 +85,28 @@ declare module "@tiptap/core" {
 export const BlockIndent = Extension.create({
   name: "blockIndent",
   priority: 110,
+
+  addProseMirrorPlugins() {
+    const decorate = (doc: ProseMirrorNode) => {
+      const followups = listFollowupBlocks(doc);
+      const decorations: Decoration[] = [];
+      doc.forEach((node, pos) => {
+        if (node.type.name !== "codeBlock" && node.type.name !== "blockquote") return;
+        // React node views have an outer layout wrapper separate from their
+        // editable content. Apply indentation to that wrapper, including zero
+        // so outdent cannot leave an old node-view attribute behind.
+        decorations.push(Decoration.node(pos, pos + node.nodeSize, {
+          "data-indent": String(normalizeIndent(node.attrs.indent)),
+          ...(followups.has(pos) ? { "data-list-followup": "true" } : {}),
+        }));
+      });
+      return DecorationSet.create(doc, decorations);
+    };
+    return [new Plugin<DecorationSet>({
+      state: { init: (_, state) => decorate(state.doc), apply: (tr, previous) => tr.docChanged ? decorate(tr.doc) : previous },
+      props: { decorations(state) { return this.getState(state); } },
+    })];
+  },
 
   addGlobalAttributes() {
     return [{

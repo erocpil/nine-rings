@@ -370,8 +370,8 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     {btn(<ToolbarIcon name="quote" />, () => editor.chain().focus().toggleBlockquote().run(), editor.isActive("blockquote"), "引用 (Ctrl+Shift+B)", readonly)}
     {btn(<ToolbarIcon name="bullet" />, () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"), "无序列表 (Ctrl+Shift+8)", readonly)}
     {btn(<ToolbarIcon name="ordered" />, () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"), "有序列表 (Ctrl+Shift+7)", readonly)}
-    {btn(<ToolbarIcon name="indent" />, () => changeSelectedBlockIndent(1), false, "增加块缩进 (Tab)", readonly || editor.isActive("table"))}
-    {btn(<ToolbarIcon name="outdent" />, () => changeSelectedBlockIndent(-1), false, "减少块缩进 (Shift+Tab)", readonly || editor.isActive("table"))}
+    {btn(<ToolbarIcon name="indent" />, () => changeSelectedBlockIndent(1), false, editor.isActive("codeBlock") ? "增加块缩进（代码内 Tab 仅缩进代码）" : "增加块缩进 (Tab)", readonly || editor.isActive("table"))}
+    {btn(<ToolbarIcon name="outdent" />, () => changeSelectedBlockIndent(-1), false, editor.isActive("codeBlock") ? "减少块缩进（代码内 Shift+Tab 仅减少代码缩进）" : "减少块缩进 (Shift+Tab)", readonly || editor.isActive("table"))}
     {btn(<ToolbarIcon name="code" />, handleToggleCodeBlock, editor.isActive("codeBlock"), "代码块 (Ctrl+Alt+C)", readonly)}
     {btn(<ToolbarIcon name="table" />, () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), editor.isActive("table"), "插入 3×3 表格", readonly || editor.isActive("table"))}
     {btn("M↓", convertSelectionFromMarkdown, false, "转换所选 Markdown", readonly || !hasSelection())}

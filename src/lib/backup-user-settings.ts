@@ -2,6 +2,15 @@ import { isTauriRuntime } from "./runtime";
 
 const BACKED_UP_LOCAL_SETTINGS = [
   "nr:workspaceLayout",
+  "nr:desktopSidebar",
+  "nr:sidebarOrder",
+  "nr:treeSidebarW",
+  "nr:listSidebarW",
+  "nr:readerSidebarW",
+  "nr:readerSidebarRatio",
+  "nr:blockWorkspaceDisplay",
+  "nr:codeBlockHeightPercent",
+  "nr:vim-config",
   "nine-rings:templates",
   "nr:github-sync",
   "nr:focusMode",
