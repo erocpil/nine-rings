@@ -27,7 +27,12 @@
 
 .code-block-language:disabled {
   cursor: default;
-  opacity: 0.45;
+  opacity: 1;
+  color: var(--text-secondary);
+  border-color: transparent;
+  background: transparent;
+  appearance: none;
+  -webkit-text-fill-color: currentColor;
 }
 
 .code-block-copy {

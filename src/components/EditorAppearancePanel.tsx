@@ -174,8 +174,8 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
                 <AppearanceField label="正文代码高度" desc="长代码块内部滚动，最高不超过可视区">
                   <select className="settings-input editor-appearance-select" aria-label="正文代码最大高度" value={codeHeight} onChange={event => { setCodeHeight(Number(event.target.value)); setBlockDirty(true); }}>{[40, 60, 80, 100].map(value => <option value={value} key={value}>{value}% 可视区</option>)}</select>
                 </AppearanceField>
-                <AppearanceField label="代码行号" desc="弹层内也可随时显示或隐藏">
-                  <label className="block-display-toggle"><input type="checkbox" aria-label="块弹层显示代码行号" checked={blockDisplay.lineNumbers ?? false} onChange={event => updateBlock({ lineNumbers: event.target.checked })} /><span>{blockDisplay.lineNumbers ? "显示行号" : "隐藏行号"}</span></label>
+                <AppearanceField label="代码行号" desc="正文代码块与块弹层共用；在任一处切换都会同步">
+                  <label className="block-display-toggle"><input type="checkbox" aria-label="显示代码行号" checked={blockDisplay.lineNumbers ?? false} onChange={event => updateBlock({ lineNumbers: event.target.checked })} /><span>{blockDisplay.lineNumbers ? "显示行号" : "隐藏行号"}</span></label>
                 </AppearanceField>
                 <AppearanceField label="代码自动换行" desc="块弹层默认显示方式">
                   <label className="block-display-toggle"><input type="checkbox" aria-label="块弹层代码自动换行" checked={blockDisplay.wrap ?? true} onChange={event => updateBlock({ wrap: event.target.checked })} /><span>{(blockDisplay.wrap ?? true) ? "自动换行" : "横向滚动"}</span></label>

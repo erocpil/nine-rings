@@ -14,7 +14,7 @@ for (const width of [390, 1280]) {
       page.getByRole("dialog", { name: "排版设置", exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByRole("checkbox", { name: "块弹层显示代码行号" }),
+      page.getByRole("checkbox", { name: "显示代码行号", exact: true }),
     ).toBeInViewport();
     await page.getByRole("button", { name: "关闭编辑器排版" }).click();
     await page

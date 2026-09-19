@@ -18,12 +18,13 @@ import { WorkspaceWhitespace, setWorkspaceWhitespace } from "../extensions/Works
 import type { WhitespaceMode } from "../lib/whitespace-markers";
 import { SearchHighlights, findSearchMatches, setSearchHighlights } from "../extensions/SearchHighlights";
 import { createReplacementTransaction } from "../lib/editor-replace";
-import { blockWorkspacePreferences, saveBlockWorkspacePreferences } from "../lib/block-display-settings";
-import { codeLineNumbersPluginKey } from "../extensions/CodeBlockLineNumbers";
+import { BLOCK_WORKSPACE_DISPLAY_EVENT, blockWorkspacePreferences, codeLineNumbersEnabled, saveBlockWorkspacePreferences } from "../lib/block-display-settings";
+import { CodeLanguageSelect } from "../extensions/CodeBlockLineNumbers";
+import { normalizeCodeLanguage } from "../lib/code-highlight";
 import { storeImage } from "../lib/storage/db-images";
 import { blobToBase64 } from "../lib/storage/core";
 import { normalizePastedHTML, normalizeSingleParagraphPaste } from "../extensions/NormalizeSingleParagraphPaste";
-import { CodeMirrorBlockEditor } from "./CodeMirrorBlockEditor";
+import { CodeMirrorBlockEditor, type CodeVimMode } from "./CodeMirrorBlockEditor";
 
 type Request = { position: number; trigger: HTMLElement; restoreFocus?: boolean; startInEditMode?: boolean; selectedPositions?: number[] };
 type Navigate = (position: number, selectedPositions: number[] | undefined, startInEditMode: boolean) => void;
@@ -84,7 +85,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
   const body = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<"read" | "edit">(() => request.startInEditMode && !readonly ? "edit" : "read");
   const editable = mode === "edit" && !readonly;
-  const [vimMode, setVimMode] = useState<"normal" | "insert">("normal");
+  const [vimMode, setVimMode] = useState<CodeVimMode>("normal");
   const editableRef = useRef(editable);
   editableRef.current = editable;
   const [notice, setNotice] = useState("");
@@ -100,7 +101,13 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
   const [tabSize] = useState(() => blockWorkspacePreferences().tabSize ?? 4);
   const [wrap] = useState(() => blockWorkspacePreferences().wrap ?? true);
   const [fontSize] = useState(() => blockWorkspacePreferences().fontSize ?? (Math.round(parseFloat(getComputedStyle(source.view.dom).fontSize)) || 16));
-  const [lineNumbers, setLineNumbers] = useState(() => blockWorkspacePreferences().lineNumbers ?? codeLineNumbersPluginKey.getState(source.state) ?? false);
+  const [lineNumbers, setLineNumbers] = useState(codeLineNumbersEnabled);
+  useEffect(() => {
+    const sync = () => setLineNumbers(codeLineNumbersEnabled());
+    window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => { window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync); window.removeEventListener("storage", sync); };
+  }, []);
   const [findOpen, setFindOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [replacement, setReplacement] = useState("");
@@ -346,7 +353,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
         setFindOpen(true); window.requestAnimationFrame(() => searchInput.current?.focus());
         return;
       }
-      if (event.target instanceof Element && event.target.closest(".cm-editor")) return;
+      if (rootType === "codeBlock") return;
       if (event.ctrlKey || event.metaKey || event.altKey || event.nativeEvent.isComposing) return;
       if (!editable) return;
       if (event.key === "Escape" && vimMode === "insert") {
@@ -366,7 +373,8 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
     onKeyDown={event => event.stopPropagation()}>
     <header className="block-workspace-header">
       <strong>{name}</strong>
-      {editable && <span className="block-workspace-vim-mode" role="status">VIM {vimMode === "normal" ? "NORMAL" : "INSERT"}</span>}
+      {editable && <span className="block-workspace-vim-mode" role="status">VIM {vimMode.toUpperCase()}</span>}
+      {editable && rootType === "codeBlock" && <CodeLanguageSelect editable value={normalizeCodeLanguage(editor?.state.doc.firstChild?.attrs.language) ?? ""} onChange={language => editor?.commands.updateAttributes("codeBlock", { language: language || null })} />}
       <div role="group" aria-label="块模式">
         <button type="button" aria-pressed={!editable} onClick={() => preservePosition(() => setMode("read"))}>阅读</button>
         {!readonly && <button type="button" aria-pressed={editable} onClick={() => preservePosition(() => setMode("edit"))}>编辑</button>}
@@ -458,10 +466,12 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
         <CodeMirrorBlockEditor
           value={editor?.state.doc.firstChild?.textContent ?? initial.textContent}
           wrap={wrap}
+          lineNumbers={lineNumbers}
           onUndo={() => { source.commands.undo(); }}
           onRedo={() => { source.commands.redo(); }}
           onModeChange={setVimMode}
           onChange={(value) => {
+            if (!editableRef.current || !source.isEditable) return;
             const node = source.state.doc.nodeAt(position.current);
             if (!node || node.textContent === value) return;
             source.view.dispatch(source.state.tr.replaceWith(

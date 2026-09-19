@@ -15,7 +15,7 @@ test("块显示设置迁移到排版页，取消不保存且应用后重载保�
   await page.getByLabel("弹层字号").selectOption("20");
   await page.getByLabel("显示空白字符").selectOption("all");
   await page.getByLabel("正文代码最大高度").selectOption("40");
-  await page.getByLabel("块弹层显示代码行号").locator("..").click();
+  await page.getByRole("checkbox", { name: "显示代码行号", exact: true }).locator("..").click();
   await page.getByRole("button", { name: "应用到编辑器", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "排版设置" })).toHaveCount(0);
   await page.reload();
@@ -26,7 +26,7 @@ test("块显示设置迁移到排版页，取消不保存且应用后重载保�
   await expect(page.getByLabel("弹层字号")).toHaveValue("20");
   await expect(page.getByLabel("显示空白字符")).toHaveValue("all");
   await expect(page.getByLabel("正文代码最大高度")).toHaveValue("40");
-  await expect(page.getByLabel("块弹层显示代码行号")).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "显示代码行号", exact: true })).toBeChecked();
 });
 
 test("排版设置中的调整即时生效并在重载后保持", async ({ page }) => {

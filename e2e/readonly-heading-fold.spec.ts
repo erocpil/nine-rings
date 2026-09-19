@@ -30,7 +30,7 @@ test("只读文档拒绝 Windows WebView2 式粘贴事件", async ({ page }) => 
   await expect(editor.getByRole("heading", { name: "不应粘贴的标题" })).toHaveCount(0);
 });
 
-test("只读文档显示已保存代码简介，隐藏语法选项并保留查看操作", async ({ page }) => {
+test("只读文档显示已保存代码简介和只读语言，并保留查看操作", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("随笔").click();
   await page.getByTitle("从模板新建").click();
@@ -64,7 +64,8 @@ test("只读文档显示已保存代码简介，隐藏语法选项并保留查�
   await page.locator(".sidebar-item.active").getByTitle("设为只读")
     .evaluate((button: HTMLButtonElement) => button.click());
   await expect(editor).toHaveAttribute("contenteditable", "false");
-  await expect(codeBlock.getByLabel("代码语言")).toBeHidden();
+  await expect(codeBlock.getByLabel("代码语言")).toBeVisible();
+  await expect(codeBlock.getByLabel("代码语言")).toBeDisabled();
   await expect(codeTitle).toBeVisible();
   await expect(codeTitle).toHaveValue(description);
   await expect(codeTitle).toBeDisabled();
@@ -91,7 +92,8 @@ test("只读文档显示已保存代码简介，隐藏语法选项并保留查�
   await expect(page.getByLabel("专注模式工具栏")).toBeVisible();
   await expect(codeTitle).toBeVisible();
   await expect(codeTitle).toHaveValue(description);
-  await expect(codeBlock.getByLabel("代码语言")).toBeHidden();
+  await expect(codeBlock.getByLabel("代码语言")).toBeVisible();
+  await expect(codeBlock.getByLabel("代码语言")).toBeDisabled();
   await expect(codeBlock.getByRole("button", { name: "折叠代码块" })).toBeEnabled();
   await expect(codeBlock.getByRole("button", { name: "开启代码软换行" })).toBeEnabled();
   await expect(codeBlock.getByRole("button", { name: "复制代码" })).toBeEnabled();

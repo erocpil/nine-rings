@@ -35,7 +35,8 @@ test("大文档切换只读保留正文、光标、代码控件和撤销记录",
   });
   await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   await expect(editor).toHaveAttribute("contenteditable", "false");
-  await expect(editor.getByLabel("代码语言").first()).toBeHidden();
+  await expect(editor.getByLabel("代码语言").first()).toBeVisible();
+  await expect(editor.getByLabel("代码语言").first()).toBeDisabled();
   await editor.evaluate(element => {
     const data = new DataTransfer();
     data.setData("text/plain", "READONLY_MUST_NOT_CHANGE");

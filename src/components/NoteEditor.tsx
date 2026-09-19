@@ -65,7 +65,7 @@ import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { BlockWorkspaceHost } from "./BlockWorkspace";
 import { openBlockWorkspace } from "../lib/block-workspace";
-import { saveBlockWorkspacePreferences, watchBlockDisplaySettings } from "../lib/block-display-settings";
+import { BLOCK_WORKSPACE_DISPLAY_EVENT, codeLineNumbersEnabled, saveBlockWorkspacePreferences, watchBlockDisplaySettings } from "../lib/block-display-settings";
 import { DocumentPanelDrawer, type DocumentPanelPresentation } from "./DocumentPanelDrawer";
 import { useDocumentPanelPosition } from "../hooks/useDocumentPanelPosition";
 import { storeImage } from "../lib/storage/db-images";
@@ -665,10 +665,13 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   // 保守，会在仍有足够空间时提前切换精简工具栏。移动端仍始终使用精简布局。
   const isNarrow = toolbarWidth < 720 || isMobileToolbarViewport;
   const isMinimalToolbar = isNarrow;
-  const CODE_LN_KEY = "nr:codeLineNumbers";
-  const [showCodeLineNumbers, setShowCodeLineNumbers] = useState(() => {
-    return localStorage.getItem(CODE_LN_KEY) === "true";
-  });
+  const [showCodeLineNumbers, setShowCodeLineNumbers] = useState(codeLineNumbersEnabled);
+  useEffect(() => {
+    const sync = () => setShowCodeLineNumbers(codeLineNumbersEnabled());
+    window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => { window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync); window.removeEventListener("storage", sync); };
+  }, []);
   const [markdownPasteText, setMarkdownPasteText] = useState<string | null>(null);
   const [markdownPasteStatus, setMarkdownPasteStatus] = useState("");
   const [markdownPasteFailure, setMarkdownPasteFailure] = useState<{
@@ -1171,8 +1174,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   useEffect(() => {
     if (!editor) return;
     setCodeBlockLineNumbersEnabled(editor, showCodeLineNumbers);
-    // Opening a document must not overwrite the separately saved popup display
-    // preference. Only an explicit toolbar action updates both preferences.
   }, [editor, showCodeLineNumbers]);
 
   useEffect(() => {
@@ -3996,7 +3997,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             showCodeLineNumbers={showCodeLineNumbers}
             onCodeLineNumbersChange={(next) => {
               setShowCodeLineNumbers(next);
-              localStorage.setItem(CODE_LN_KEY, String(next));
               // 代码块弹层复用此显示设置；同步写入共享偏好后，已打开的
               // 弹层和下次打开的弹层都会立即采用文档中的行号设置。
               saveBlockWorkspacePreferences({ lineNumbers: next });

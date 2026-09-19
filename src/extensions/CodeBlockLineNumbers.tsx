@@ -9,7 +9,7 @@ import { flushSync } from "react-dom";
 import { copyToClipboard } from "../lib/clipboard";
 import { openBlockWorkspace } from "../lib/block-workspace";
 import { ToolbarIcon } from "../components/ToolbarIcon";
-import { BLOCK_WORKSPACE_DISPLAY_EVENT, blockWorkspacePreferences, saveBlockWorkspacePreferences } from "../lib/block-display-settings";
+import { BLOCK_WORKSPACE_DISPLAY_EVENT, blockWorkspacePreferences, codeLineNumbersEnabled, saveBlockWorkspacePreferences } from "../lib/block-display-settings";
 import { CODE_LANGUAGE_OPTIONS, highlightCode, normalizeCodeLanguage } from "../lib/code-highlight";
 
 import { editorReadingBlocks } from "./ReadingBlockSession";
@@ -23,7 +23,7 @@ const codeLanguageOptions = CODE_LANGUAGE_OPTIONS.map((option) => (
   <option key={option.value || "plaintext"} value={option.value}>{option.label}</option>
 ));
 
-function CodeLanguageSelect({ editable, value, onChange }: {
+export function CodeLanguageSelect({ editable, value, onChange }: {
   editable: boolean;
   value: string;
   onChange: (value: string) => void;
@@ -36,7 +36,6 @@ function CodeLanguageSelect({ editable, value, onChange }: {
   };
   return <select
     className="code-block-language"
-    hidden={!editable}
     disabled={!editable}
     value={value}
     onPointerDown={activate}
@@ -234,34 +233,21 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
   const wrapEnabled = editable && !inWorkspace ? storedWrapEnabled : readonlyWrapOverride ?? storedWrapEnabled;
   const collapsed = editable ? storedCollapsed : readonlyCollapsedOverride ?? storedCollapsed;
   const lineCount = code.split("\n").length;
-  const [lineNumbersEnabled, setLineNumbersEnabled] = useState(
-    () => codeLineNumbersPluginKey.getState(editor.state) ?? false,
-  );
-  const [lineNumbersOverride, setLineNumbersOverride] = useState<boolean | null>(null);
-  const showLineNumbers = lineNumbersOverride ?? lineNumbersEnabled;
+  const [showLineNumbers, setShowLineNumbers] = useState(codeLineNumbersEnabled);
   useEffect(() => {
-    if (!editor.view.dom.closest(".block-workspace")) return;
     const syncPreferences = () => {
+      setShowLineNumbers(codeLineNumbersEnabled());
+      if (!editor.view.dom.closest(".block-workspace")) return;
       const preferences = blockWorkspacePreferences();
-      if (preferences.lineNumbers !== undefined) setLineNumbersOverride(preferences.lineNumbers);
       if (preferences.wrap !== undefined) setReadonlyWrapOverride(preferences.wrap);
     };
     syncPreferences();
     window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, syncPreferences);
-    return () => window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, syncPreferences);
+    window.addEventListener("storage", syncPreferences);
+    return () => { window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, syncPreferences); window.removeEventListener("storage", syncPreferences); };
   }, [editor]);
   const [lineHeights, setLineHeights] = useState<number[]>(() => Array(lineCount).fill(0));
 
-  useEffect(() => {
-    const syncLineNumbers = () => {
-      const enabled = codeLineNumbersPluginKey.getState(editor.state) ?? false;
-      setLineNumbersEnabled((current) => current === enabled ? current : enabled);
-    };
-    editor.on("transaction", syncLineNumbers);
-    return () => {
-      editor.off("transaction", syncLineNumbers);
-    };
-  }, [editor]);
 
   useEffect(() => {
     if (!showLineNumbers) {
@@ -363,8 +349,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
               aria-pressed={showLineNumbers}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => {
-                setLineNumbersOverride(!showLineNumbers);
-                if (inWorkspace) saveBlockWorkspacePreferences({ lineNumbers: !showLineNumbers });
+                saveBlockWorkspacePreferences({ lineNumbers: !showLineNumbers });
               }}
               title="代码行号（仅改变显示）"
             >行号</button>

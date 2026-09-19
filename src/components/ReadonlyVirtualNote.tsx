@@ -9,6 +9,8 @@ import React, {
 } from "react";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { CopyBlockNotice } from "./CopyBlockNotice";
+import { BLOCK_WORKSPACE_DISPLAY_EVENT, codeLineNumbersEnabled, saveBlockWorkspacePreferences } from "../lib/block-display-settings";
+import { CODE_LANGUAGE_OPTIONS, normalizeCodeLanguage } from "../lib/code-highlight";
 import { DOMSerializer, Slice } from "@tiptap/pm/model";
 import type { NoteEditorProps } from "./NoteEditor";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
@@ -182,7 +184,7 @@ function renderBlock(
     }
     case "codeBlock": {
       const collapsed = state.collapsed ?? node.attrs.collapsed === true;
-      const lineNumbers = state.lineNumbers ?? false;
+      const lineNumbers = codeLineNumbersEnabled();
       const lines = node.textContent.split("\n");
       let linePosition = pos + 1;
       const wrap =
@@ -197,8 +199,9 @@ function renderBlock(
           data-code-wrap={String(wrap)}
         >
           <div className="vr-code-toolbar" contentEditable={false}>
-            <span>{node.attrs.title || node.attrs.language || "代码"}</span>
-            <button type="button" aria-label={lineNumbers ? "隐藏代码行号" : "显示代码行号"} aria-pressed={lineNumbers} onClick={() => update(pos, { lineNumbers: !lineNumbers })}>行号</button>
+            <span>{node.attrs.title || "代码"}</span>
+            <span aria-label="代码语言">{CODE_LANGUAGE_OPTIONS.find(option => option.value === (normalizeCodeLanguage(node.attrs.language) ?? ""))?.label}</span>
+            <button type="button" aria-label={lineNumbers ? "隐藏代码行号" : "显示代码行号"} aria-pressed={lineNumbers} onClick={() => saveBlockWorkspacePreferences({ lineNumbers: !lineNumbers })}>行号</button>
             <button
               type="button"
               onClick={() => void copyToClipboard(node.textContent)}
@@ -264,6 +267,12 @@ export function ReadonlyVirtualNote(
   const pendingMatch = useRef<SearchMatch | null>(null);
   const pendingBookmark = useRef<number | null>(null);
   const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    const sync = () => setRevision(value => value + 1);
+    window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => { window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync); window.removeEventListener("storage", sync); };
+  }, []);
   const [viewport, setViewport] = useState({ top: 0, height: 800 });
   const [folds, setFolds] = useState(
     () => new Set(props.sensitive ? [] : sessionHeadingFoldStore.load(noteId)?.collapsedKeys ?? []),
