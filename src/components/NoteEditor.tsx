@@ -125,6 +125,7 @@ import {
   type HeadingSection,
 } from "../lib/heading-fold";
 import { BlockIndent } from "../extensions/BlockIndent";
+import { CodeBlockIndent } from "../extensions/CodeBlockIndent";
 import {
   blockquoteFoldTransactionMeta,
   CollapsibleBlockquote,
@@ -936,6 +937,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       ReadingBlockSession.configure({ noteId, version: contentVersion, sensitive }),
       createReadonlyDocumentGuard(() => readonlyRef.current),
       StructuredBlockExit,
+      CodeBlockIndent,
       BlockSelectAll,
       MarkdownLinkInput,
       CjkLatinSpacing,

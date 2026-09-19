@@ -1,7 +1,7 @@
 import { DisclosureIcon } from "./DisclosureIcon";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { preserveReadingPositions } from "../lib/reading-position";
-import { isPrimaryShortcutModifier } from "../lib/shortcuts";
+import { isMacPlatform, isPrimaryShortcutModifier } from "../lib/shortcuts";
 import { createPortal } from "react-dom";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { Extension, type Editor } from "@tiptap/core";
@@ -21,6 +21,7 @@ import { createReplacementTransaction } from "../lib/editor-replace";
 import { BLOCK_WORKSPACE_DISPLAY_EVENT, blockWorkspacePreferences, codeLineNumbersEnabled, saveBlockWorkspacePreferences } from "../lib/block-display-settings";
 import { CodeLanguageSelect } from "../extensions/CodeBlockLineNumbers";
 import { normalizeCodeLanguage } from "../lib/code-highlight";
+import { exitCurrentStructuredBlock } from "../extensions/StructuredBlockExit";
 import { storeImage } from "../lib/storage/db-images";
 import { blobToBase64 } from "../lib/storage/core";
 import { normalizePastedHTML, normalizeSingleParagraphPaste } from "../extensions/NormalizeSingleParagraphPaste";
@@ -132,7 +133,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
   const peerIndex = peers.indexOf(position.current);
   const extensions = useMemo(() => [
     ...source.extensionManager.extensions.filter(extension =>
-      extension.type === "node" || extension.type === "mark" || ["blockIndent", "fontSize", "orderedListLayout", "blockSelectAll"].includes(extension.name),
+      extension.type === "node" || extension.type === "mark" || ["blockIndent", "codeBlockIndent", "fontSize", "orderedListLayout", "blockSelectAll"].includes(extension.name),
     ).map(extension => extension.name === "doc"
       ? extension.extend({ content: rootType })
       : extension.configure({ ...extension.options })),
@@ -295,10 +296,19 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
     };
   }, [source, request]);
 
-  const close = async () => {
+  const close = async (exitCode = false) => {
     if (closing) return;
     setClosing(true);
-    try { await onFlush?.(); onClose(); }
+    try {
+      await onFlush?.(); onClose();
+      if (exitCode) window.requestAnimationFrame(() => {
+        if (source.isDestroyed || !source.isEditable) return;
+        if (source.state.doc.nodeAt(position.current)?.type.name !== "codeBlock") return;
+        source.commands.setTextSelection(position.current + 1);
+        exitCurrentStructuredBlock(source);
+        source.commands.focus();
+      });
+    }
     catch { setNotice("保存失败，内容仍保留在原文中，请重试保存。"); }
     finally { setClosing(false); }
   };
@@ -377,7 +387,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
       {editable && rootType === "codeBlock" && <CodeLanguageSelect editable value={normalizeCodeLanguage(editor?.state.doc.firstChild?.attrs.language) ?? ""} onChange={language => editor?.commands.updateAttributes("codeBlock", { language: language || null })} />}
       <div role="group" aria-label="块模式">
         <button type="button" aria-pressed={!editable} onClick={() => preservePosition(() => setMode("read"))}>阅读</button>
-        {!readonly && <button type="button" aria-pressed={editable} onClick={() => preservePosition(() => setMode("edit"))}>编辑</button>}
+        {!readonly && <button type="button" aria-pressed={editable} title={rootType === "codeBlock" ? `Tab 缩进，Shift+Tab 减少缩进；${isMacPlatform() ? "Cmd" : "Ctrl"}+Enter 退出到正文` : undefined} onClick={() => preservePosition(() => setMode("edit"))}>编辑</button>}
       </div>
       <span className="block-workspace-save" data-error={saveStatus === "error"} role="status" title="本机保存状态，不代表已完成备份">{saveStatus === "error" ? "保存失败" : saveStatus === "saving" || saveStatus === "dirty" ? "保存中…" : "已存本机"}</span>
       {iconButton("复制块", "copy", () => void copy())}
@@ -469,6 +479,7 @@ function BlockWorkspace({ source, readonly, sensitive, saveStatus, onFlush, requ
           lineNumbers={lineNumbers}
           onUndo={() => { source.commands.undo(); }}
           onRedo={() => { source.commands.redo(); }}
+          onExit={() => void close(true)}
           onModeChange={setVimMode}
           onChange={(value) => {
             if (!editableRef.current || !source.isEditable) return;

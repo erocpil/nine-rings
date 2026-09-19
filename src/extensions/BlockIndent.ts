@@ -109,11 +109,13 @@ export const BlockIndent = Extension.create({
   addKeyboardShortcuts() {
     return {
       Tab: () => {
+        if (!this.editor.isEditable) return false;
         if (this.editor.isActive("table")) return false;
         if (this.editor.isActive("listItem")) return this.editor.commands.sinkListItem("listItem");
         return this.editor.commands.indentBlocks();
       },
       "Shift-Tab": () => {
+        if (!this.editor.isEditable) return false;
         if (this.editor.isActive("table")) return false;
         if (this.editor.isActive("listItem")) return this.editor.commands.liftListItem("listItem");
         return this.editor.commands.outdentBlocks();

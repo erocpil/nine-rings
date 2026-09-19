@@ -17,6 +17,17 @@ test('只读代码块显示语言且不可修改，弹层保持相同语言', as
   await expect(block.getByLabel('代码语言')).toBeVisible();
   await expect(block.getByLabel('代码语言')).toBeDisabled();
   await expect(block.getByLabel('代码语言')).toHaveValue('typescript');
+  const editor = page.locator('.note-editor .ProseMirror');
+  await editor.evaluate(element => {
+    const instance = (element as HTMLElement & { editor: Editor }).editor;
+    instance.commands.setTextSelection(1);
+    instance.view.focus();
+  });
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Control+Enter');
+  await expect(block.locator('pre code')).toHaveText('alpha\nbeta\ngamma');
+  await expect(editor.locator(':scope > p')).toHaveCount(0);
   await block.getByRole('button', { name: '放大阅读代码块' }).click();
   const dialog = page.getByRole('dialog', { name: '代码块工作区' });
   await expect(dialog.getByLabel('代码语言')).toBeVisible();
@@ -109,3 +120,63 @@ test('已有正文行号设置优先于旧弹层偏好，虚拟只读也显示�
   await expect(reader.locator('.vr-code-line-number')).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem('nr:codeLineNumbers'))).toBe('false');
 });
+
+for (const mac of [false, true]) {
+  test(`正文代码 Tab 缩进、选中行缩进与组合键退出 ${mac ? 'Mac' : 'Windows'}`, async ({ page }) => {
+    if (mac) await page.addInitScript(() => Object.defineProperty(navigator, 'platform', { value: 'MacIntel' }));
+    const block = await codeDocument(page);
+    const editor = page.locator('.note-editor .ProseMirror');
+    await editor.evaluate(element => {
+      const instance = (element as HTMLElement & { editor: Editor }).editor;
+      instance.commands.setTextSelection({ from: 1, to: 7 }); // End at the next line's start.
+      instance.view.focus();
+    });
+    await page.keyboard.press('Tab');
+    await expect(block.locator('pre code')).toHaveText('\talpha\nbeta\ngamma');
+    await page.keyboard.press('Shift+Tab');
+    await expect(block.locator('pre code')).toHaveText('alpha\nbeta\ngamma');
+    await editor.evaluate(element => (element as HTMLElement & { editor: Editor }).editor.commands.setTextSelection(1));
+    await page.keyboard.press('Shift+Tab'); // No indentation to remove: keep focus.
+    await expect(editor).toBeFocused();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await expect(block.locator('pre code')).toHaveText('\t\talpha\nbeta\ngamma');
+    await expect(editor).toBeFocused();
+    expect(await editor.evaluate(element => (element as HTMLElement & { editor: Editor }).editor.state.doc.firstChild?.attrs.indent)).toBe(0);
+    await page.keyboard.press(mac ? 'Meta+Enter' : 'Control+Enter');
+    await page.keyboard.type('outside');
+    await expect(editor.locator(':scope > p')).toHaveText('outside');
+    await expect(block.locator('pre code')).toHaveText('\t\talpha\nbeta\ngamma');
+  });
+
+  test(`Vim 退出插入模式后 Tab 仍缩进，组合键关闭弹层并回到正文 ${mac ? 'Mac' : 'Windows'}`, async ({ page }) => {
+    if (mac) await page.addInitScript(() => Object.defineProperty(navigator, 'platform', { value: 'MacIntel' }));
+    const block = await codeDocument(page);
+    await block.getByRole('button', { name: '放大阅读代码块' }).click();
+    const dialog = page.getByRole('dialog', { name: '代码块工作区' });
+    await dialog.getByRole('button', { name: '编辑', exact: true }).click();
+    const code = dialog.locator('.cm-content');
+    await page.keyboard.type('ggi');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Tab');
+    await expect(code).toBeFocused();
+    await expect(block.locator('pre code')).toHaveText('\t\talpha\nbeta\ngamma');
+    await expect(dialog.locator('.block-workspace-vim-mode')).toHaveText('VIM NORMAL');
+    await page.keyboard.press('Shift+Tab');
+    await expect(block.locator('pre code')).toHaveText('\talpha\nbeta\ngamma');
+    await page.keyboard.type('ggVj');
+    await page.keyboard.press('Tab');
+    await expect(block.locator('pre code')).toHaveText('\t\talpha\n\tbeta\ngamma');
+    await page.keyboard.press('Shift+Tab');
+    await expect(block.locator('pre code')).toHaveText('\talpha\nbeta\ngamma');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press(mac ? 'Meta+Enter' : 'Control+Enter');
+    await expect(dialog).toHaveCount(0);
+    const editor = page.locator('.note-editor .ProseMirror');
+    await expect(editor).toBeFocused();
+    await page.keyboard.type('outside');
+    await expect(editor.locator(':scope > p')).toHaveText('outside');
+    await expect(block.locator('pre code')).toHaveText('\talpha\nbeta\ngamma');
+  });
+}

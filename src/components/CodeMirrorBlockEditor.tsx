@@ -4,9 +4,10 @@ import { drawSelection, EditorView, keymap, lineNumbers as codeLineNumbers } fro
 import { defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { getCM, Vim, vim } from "@replit/codemirror-vim";
 import { isPrimaryShortcutModifier } from "../lib/shortcuts";
+import { codeIndentChanges } from "../lib/code-indent";
 
 export type CodeVimMode = "normal" | "insert" | "visual";
-interface Props { value: string; onChange: (value: string) => void; onUndo: () => void; onRedo: () => void; onModeChange?: (mode: CodeVimMode) => void; wrap: boolean; lineNumbers: boolean; }
+interface Props { value: string; onChange: (value: string) => void; onUndo: () => void; onRedo: () => void; onExit: () => void; onModeChange?: (mode: CodeVimMode) => void; wrap: boolean; lineNumbers: boolean; }
 const sourceSync = Annotation.define<boolean>();
 const histories = new WeakMap<object, { onUndo: () => void; onRedo: () => void }>();
 for (const [key, action, redo] of [["u", "sourceUndo", false], ["<C-r>", "sourceRedo", true]] as const) {
@@ -26,7 +27,7 @@ function readVimConfig() {
 }
 
 /** CodeMirror 6 编辑表面：仅用于代码块弹层，正文仍由 ProseMirror 管理。 */
-export function CodeMirrorBlockEditor({ value, onChange, onUndo, onRedo, onModeChange, wrap, lineNumbers }: Props) {
+export function CodeMirrorBlockEditor({ value, onChange, onUndo, onRedo, onExit, onModeChange, wrap, lineNumbers }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const historyRef = useRef({ onUndo, onRedo }); historyRef.current = { onUndo, onRedo };
@@ -65,6 +66,19 @@ export function CodeMirrorBlockEditor({ value, onChange, onUndo, onRedo, onModeC
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value }, annotations: sourceSync.of(true) });
   }, [value]);
   return <div ref={host} className="codemirror-block-editor" aria-label="代码块 Vim 编辑器" onKeyDownCapture={event => {
+    const view = viewRef.current;
+    if (!view || event.nativeEvent.isComposing || !view.contentDOM.contains(event.target as Node)) return;
+    if (event.key === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault(); event.stopPropagation();
+      const text = view.state.doc.toString();
+      const changes = view.state.selection.ranges.flatMap(range => codeIndentChanges(text, range.from, range.to, event.shiftKey, view.state.tabSize));
+      const unique = [...new Map(changes.map(change => [`${change.from}:${change.to}`, change])).values()].sort((a, b) => a.from - b.from);
+      if (unique.length) view.dispatch({ changes: unique, scrollIntoView: true, userEvent: "input.indent" });
+      return;
+    }
+    if (event.key === "Enter" && isPrimaryShortcutModifier(event) && !event.shiftKey && !event.altKey) {
+      event.preventDefault(); event.stopPropagation(); onExit(); return;
+    }
     // Vim's DOM handlers run before CodeMirror keymaps. Intercept document
     // history shortcuts here so neither editor can maintain a competing redo.
     if (event.nativeEvent.isComposing || event.altKey || !isPrimaryShortcutModifier(event)) return;
