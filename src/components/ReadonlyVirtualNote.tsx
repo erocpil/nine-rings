@@ -1,3 +1,5 @@
+import { NavigationButtons } from "./NavigationButtons";
+import { useNavigationStore } from "../stores/useNavigationStore";
 import { EditorFoldIcon } from "./EditorFoldIcon";
 import React, {
   useCallback,
@@ -348,6 +350,7 @@ export function ReadonlyVirtualNote(
   ]);
   const jump = useCallback(
     (position: number, offset = 0, match?: SearchMatch) => {
+      useNavigationStore.getState().record({ noteId, from: position, to: position }, true);
       // Explicit navigation supersedes an earlier scroll-settle timer. Native
       // inertia tracking must not swallow search/bookmark/button requests.
       scrollBusy.current = false;
@@ -371,8 +374,20 @@ export function ReadonlyVirtualNote(
       });
       setRevision((value) => value + 1);
     },
-    [sections, doc, states],
+    [sections, doc, states, noteId],
   );
+  const navigationTarget = useNavigationStore(state => state.target?.noteId === noteId ? state.target : null);
+  useEffect(() => {
+    const history = useNavigationStore.getState();
+    history.activate(noteId);
+    const position = capture().position;
+    history.record({ noteId, from: position, to: position });
+  }, [noteId, capture]);
+  useEffect(() => {
+    if (!navigationTarget) return;
+    jump(Math.max(0, Math.min(navigationTarget.from, doc.content.size)));
+    useNavigationStore.getState().consumed(navigationTarget.requestId);
+  }, [navigationTarget, jump, doc]);
   const fallback = useCallback(() => {
     handoffReadingAnchor(noteId, capture());
     onFallback();
@@ -761,6 +776,7 @@ export function ReadonlyVirtualNote(
           catch { setNotice("复制块失败，请检查剪贴板权限后重试"); }
         }
       }}><ToolbarIcon name="copy" /></button>
+      <NavigationButtons />
       {props.documentViewToggle}
       <button
         ref={outlineTriggerRef}

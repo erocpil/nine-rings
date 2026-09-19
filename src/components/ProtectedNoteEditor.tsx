@@ -1,3 +1,4 @@
+import { NavigationButtons } from "./NavigationButtons";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -68,6 +69,7 @@ export function ProtectedNoteEditor({ props, render }: { props: NoteEditorProps;
     }
   });
   if (encrypted && !plain) return <section className="protected-document" aria-label="加密文档">
+    <NavigationButtons />
     <h2>🔒 {props.title || "加密文档"}</h2>
     <p>输入密码后才能查看正文。搜索不会显示正文内容。</p>
     <button type="button" disabled={busy} onClick={() => void run(async () => {

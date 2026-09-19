@@ -1,3 +1,4 @@
+import { isDocumentNavigationShortcut } from "../lib/document-navigation";
 import React, { useState } from "react";
 import type { AppConfig } from "../types/models";
 import { DEFAULT_HOTKEYS, HOTKEY_LABELS } from "../types/models";
@@ -130,6 +131,11 @@ export function HotkeyConfig({
     }
     if (isEditorLineJumpShortcut(shortcut)) {
       setRecordingError("Alt+G 已保留给当前文档跳转行号，请使用其他组合键。");
+      setRecordingId(null);
+      return;
+    }
+    if (isDocumentNavigationShortcut(shortcut)) {
+      setRecordingError("此组合已保留给文档位置后退／前进，请使用其他组合键。");
       setRecordingId(null);
       return;
     }

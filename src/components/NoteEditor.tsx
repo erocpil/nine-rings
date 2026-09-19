@@ -1,3 +1,5 @@
+import { NavigationButtons } from "./NavigationButtons";
+import { useEditorNavigation, setNavigationSelection } from "../hooks/useEditorNavigation";
 import { ActiveLinePlugin, activeLinePluginKey, type ActiveLinePluginMeta, ToolbarSelection, setToolbarSelectionHighlight } from "../extensions/EditorHighlights";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CopyBlockNotice } from "./CopyBlockNotice";
@@ -1494,7 +1496,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     editor.view.dom.focus({ preventScroll: true });
     // 部分移动 WebKit 会在 contenteditable 重新 focus 时恢复旧 DOM 选区，
     // 因此必须在 focus 之后再设置 ProseMirror 选区。
-    editor.commands.setTextSelection(position);
+    setNavigationSelection(editor, position);
     setBookmarkOpen(false);
 
     const pulseBookmarkTarget = () => {
@@ -1642,7 +1644,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
 
     // 保留搜索输入框焦点，以命中所在行的中心对齐可视正文中心。
     if (focusEditor) editor.view.dom.focus({ preventScroll: true });
-    editor.commands.setTextSelection({ from: match.from, to: match.to });
+    setNavigationSelection(editor, { from: match.from, to: match.to });
     requestAnimationFrame(() => {
       const root = scrollRef.current;
       if (!root || editor.isDestroyed) return;
@@ -1711,7 +1713,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     );
     expandHeadingFoldsAt(editor, resolved.pos);
     const selection = TextSelection.near(resolved, 1);
-    editor.view.dispatch(editor.state.tr.setSelection(selection));
+    editor.view.dispatch(editor.state.tr.setSelection(selection).setMeta("navigation-jump", true));
     // Synchronize the browser caret with the model when leaving the input.
     // Native DOM focus alone may restore the old caret during selectionchange.
     // ProseMirror does not focus a non-editable DOM node on its own.
@@ -1788,7 +1790,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     if (!editor || editor.isDestroyed) return;
     allHeadingFoldRoundTripRef.current = null;
     const position = Math.min(item.pos + 1, editor.state.doc.content.size);
-    editor.commands.setTextSelection(position);
+    setNavigationSelection(editor, position);
     editor.view.focus();
     if (outlineDock === "floating" || isMobileToolbarViewport) setOutlineOpen(false);
     requestAnimationFrame(() => {
@@ -2282,6 +2284,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   }, [editor, noteId]);
 
   useEditorScrollPersistence({ noteId, sensitive, scrollRef, scrollPositionRef, rendererHandoffRef, showStatusBar, isMobileToolbarViewport });
+
+  useEditorNavigation(editor, noteId, scrollRef);
 
   const { chars, words } = documentStats;
 
@@ -3479,6 +3483,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           {epubExcerptSource && onOpenEpubExcerpt && (
             <button type="button" onClick={() => onOpenEpubExcerpt(epubExcerptSource)} title={`返回 ${epubExcerptSource.epubName} · ${epubExcerptSource.chapterTitle}`} aria-label={`返回 EPUB 第 ${epubExcerptSource.chapter} 章`}><FocusModeIcon name="epub" /><span className="focus-source-position" aria-hidden="true">{epubExcerptSource.chapter}</span></button>
           )}
+          <NavigationButtons />
           {documentViewToggle}
           {documentOutline.length > 0 && (
             <button
@@ -3806,6 +3811,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           {epubExcerptSource && onOpenEpubExcerpt && (
             <button type="button" className="focus-btn pdf-excerpt-source-button" onClick={() => onOpenEpubExcerpt(epubExcerptSource)} title={`返回 ${epubExcerptSource.epubName} · ${epubExcerptSource.chapterTitle}`}>EPUB · {epubExcerptSource.chapter}</button>
           )}
+          <NavigationButtons />
           {documentViewToggle}
           {documentOutline.length > 0 && (
             <div className="document-outline-control">

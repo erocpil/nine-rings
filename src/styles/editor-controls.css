@@ -1359,3 +1359,14 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
   .app .app-sidebar,
   .app .sidebar-overlay { transition: none; }
 }
+
+.document-navigation {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+.document-navigation button:disabled {
+  opacity: .32;
+  cursor: default;
+}

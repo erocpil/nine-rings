@@ -1,3 +1,5 @@
+import { NavigationButtons } from "./NavigationButtons";
+import { useNavigationStore } from "../stores/useNavigationStore";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { NoteEditorProps } from "./NoteEditor";
 import type { DeltaOps } from "../types/models";
@@ -15,6 +17,7 @@ import { isPrimaryShortcutModifier } from "../lib/shortcuts";
 
 /** One visible editing surface, one canonical autosave stream for both views. */
 export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps; render: (props: NoteEditorProps) => ReactNode }) {
+  const navigationTarget = useNavigationStore(state => state.target?.noteId === props.noteId ? state.target : null);
   const [source, setSource] = useState<string | null>(null);
   const viewPosition = useMarkdownViewPosition(props.noteId, source !== null, props.sensitive);
   const [busy, setBusy] = useState(false);
@@ -85,7 +88,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     if (restoredView.current) return;
     restoredView.current = true;
     const saved = props.sensitive ? null : readReadingState(props.noteId);
-    if (!props.searchTarget?.bookmarkId && supported && saved?.view === "source" && saved.source) void restoreViewRef.current(saved.source.scrollTop);
+    if (!useNavigationStore.getState().target && !props.searchTarget?.bookmarkId && supported && saved?.view === "source" && saved.source) void restoreViewRef.current(saved.source.scrollTop);
   }, [props.noteId, props.sensitive, props.searchTarget?.bookmarkId, supported]);
   const bookmarkViewRequest = useRef<number>();
   useEffect(() => {
@@ -94,6 +97,13 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     bookmarkViewRequest.current = target.requestId;
     void restoreViewRef.current();
   }, [props.searchTarget, source, busy]);
+  const historyViewRequest = useRef<number>();
+  useEffect(() => {
+    if (navigationTarget && source !== null && !busy && historyViewRequest.current !== navigationTarget.requestId) {
+      historyViewRequest.current = navigationTarget.requestId;
+      void restoreViewRef.current();
+    }
+  }, [navigationTarget, source, busy]);
   useEffect(() => {
     // Source cleanup runs before this effect; explicit return to rendered wins.
     if (source === null && !props.sensitive && initial.current) patchReadingState(props.noteId, { view: "rendered" });
@@ -129,6 +139,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           aria-label={props.readonly ? "切换为可编辑" : "设置只读"} title={props.readonly ? "切换为可编辑" : "设置只读"}
           onClick={() => props.onReadonlyChange?.(!props.readonly)}><ToolbarIcon name={props.readonly ? "lock" : "unlock"} /></button>}
         <div className="note-title-field"><DocumentTitlePreview title={props.title || "无标题"} /></div>
+        <NavigationButtons />
         {toggle}
         {props.onFocusModeChange && <button type="button" className="focus-btn" aria-label={props.focusMode ? "退出专注模式" : "专注模式"}
           onClick={() => props.onFocusModeChange?.(!props.focusMode)}><ToolbarIcon name={props.focusMode ? "compress" : "expand"} /></button>}

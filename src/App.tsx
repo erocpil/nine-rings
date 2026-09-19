@@ -1,3 +1,5 @@
+import { useDocumentNavigation } from "./hooks/useDocumentNavigation";
+import { NavigationButtons } from "./components/NavigationButtons";
 import { EditorFoldIconContext } from "./components/EditorFoldIcon";
 import { useEdgeScrollbars } from "./hooks/useEdgeScrollbars";
 import { useWorkspaceSidebar } from "./hooks/useWorkspaceSidebar";
@@ -1195,6 +1197,13 @@ function App() {
     setDate,
   ]);
 
+  useDocumentNavigation({
+    noteId: selectedNoteId,
+    enabled: !settingsOpen && !readingLibraryOpen && !protectionBusy && !applyingWebUpdate && !syncBusy,
+    flush: flushAutoSave,
+    select: note => clearSearchAndSelect(note),
+  });
+
   const handleSearchTargetConsumed = useCallback((requestId: number) => {
     setEditorSearchTarget((current) => current?.requestId === requestId ? null : current);
   }, []);
@@ -1879,6 +1888,7 @@ function App() {
                   </Suspense>
                 ) : (
                   <div className="empty-state">
+                    <NavigationButtons />
                     {selectedNote ? "正在打开文档..." : loading ? "加载中..." : "选择或新建一篇笔记"}
                   </div>
                 )}

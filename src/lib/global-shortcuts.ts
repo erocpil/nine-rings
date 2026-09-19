@@ -1,3 +1,4 @@
+import { isDocumentNavigationShortcut } from "./document-navigation";
 /**
  * Tauri 全局热键模块
  *
@@ -82,7 +83,7 @@ export async function registerShortcuts(
       const handler = makeHandler(id, actions, invoke);
       if (!handler) continue;
       if (!shortcut || shortcut.trim() === "") continue;
-      if (isDocumentFindShortcut(shortcut) || isEditorLineJumpShortcut(shortcut) || isMacTextEditingShortcut(shortcut)) {
+      if (isDocumentNavigationShortcut(shortcut) || isDocumentFindShortcut(shortcut) || isEditorLineJumpShortcut(shortcut) || isMacTextEditingShortcut(shortcut)) {
         console.warn(`[GlobalShortcut] ${shortcut} 已保留给编辑器，跳过全局注册`);
         continue;
       }
