@@ -121,7 +121,7 @@ for (const mobile of [false, true]) {
           page.getByRole("dialog", { name: "设置", exact: true }),
         ).toBeVisible();
       } else await page.getByTitle("设置").click();
-      await page.getByRole("button", { name: /^外观与排版/ }).click();
+      await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
       await page.getByRole("button", { name: /打开排版设置/ }).click();
       await page.getByLabel("正文字体").selectOption("monospace");
       for (let index = 0; index < 5; index++)

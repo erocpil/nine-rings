@@ -97,7 +97,7 @@ for (const mobile of [false, true]) {
       expect(await gapEm(list)).toBeCloseTo(0.35, 2);
       if (mobile) await openMobileSettings(page);
       else await page.getByTitle("设置").click();
-      await page.getByRole("button", { name: /^外观与排版/ }).click();
+      await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
       await page.getByRole("button", { name: /打开排版设置/ }).click();
       const preview = page.getByLabel("编辑器排版预览").locator(":scope > ol");
       const decrease = page.getByRole("button", { name: "减小标记文字间距" });

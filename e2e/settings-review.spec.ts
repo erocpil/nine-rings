@@ -10,7 +10,7 @@ test("快捷键拒绝重复和普通输入，固定窗口按键不伪装为可�
   page,
 }) => {
   await openSettings(page);
-  await page.getByRole("button", { name: /^工作流与快捷键/ }).click();
+  await page.getByRole("button", { name: /^快捷键/ }).click();
   const row = page.locator(".hotkey-row").filter({ hasText: "聚焦搜索" });
   await row.locator(".hotkey-btn").click();
   await row.locator("input").press("a");
@@ -42,14 +42,13 @@ test("Vim 缺少 tabstop 时仍能设置宽度，状态栏关闭时禁用块号�
     localStorage.setItem("nr:vim-config", "set number"),
   );
   await openSettings(page);
-  await page.getByRole("button", { name: /^外观与排版/ }).click();
+  await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   await page.getByRole("button", { name: /^Vim 设置/ }).click();
   await page.getByLabel("Tab 宽度").selectOption("8");
   expect(
     await page.evaluate(() => localStorage.getItem("nr:vim-config")),
   ).toContain("set tabstop=8");
-  await page.getByLabel("返回外观与排版").click();
-  await page.getByRole("button", { name: /^编辑器设置/ }).click();
+  await page.getByLabel("返回编辑器").click();
   await page
     .getByRole("checkbox", { name: "编辑器状态栏", exact: true })
     .uncheck();
@@ -146,7 +145,7 @@ test("同步配置不完整时不能操作，取消仓库编辑保留页面", as
     route.fulfill({ status: 404, body: "{}" }),
   );
   await openSettings(page);
-  await page.getByRole("button", { name: /^同步与备份/ }).click();
+  await page.getByRole("button", { name: /^云端同步/ }).click();
   await expect(
     page.getByRole("button", { name: "Push ↑", exact: true }),
   ).toBeDisabled();
@@ -164,7 +163,7 @@ test("同步配置不完整时不能操作，取消仓库编辑保留页面", as
   await repo.press("Escape");
   await expect(repo).toHaveValue("owner/repo");
   await expect(
-    page.getByRole("dialog", { name: "同步与备份", exact: true }),
+    page.getByRole("dialog", { name: "云端同步", exact: true }),
   ).toBeVisible();
 });
 
@@ -173,7 +172,7 @@ test("Mac 快捷键保留 Control 与 Command 的区别", async ({ page }) => {
     Object.defineProperty(navigator, "platform", { value: "MacIntel" }),
   );
   await openSettings(page);
-  await page.getByRole("button", { name: /^工作流与快捷键/ }).click();
+  await page.getByRole("button", { name: /^快捷键/ }).click();
   const row = page.locator(".hotkey-row").filter({ hasText: "聚焦搜索" });
   await row.locator(".hotkey-btn").click();
   await row.locator("input").press("Control+Alt+9");

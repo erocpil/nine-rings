@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, type RefObject } from "react";
 import { addLog } from "../lib/debugLog";
 import type { ReadingAnchor } from "../lib/readonly-rendering";
 import { patchReadingState, readRenderedScrollTop } from "../lib/reading-state";
+export const EDITOR_NAVIGATION_EVENT = "nr:editor-navigation";
 
 interface Options {
   noteId: string;
@@ -54,6 +55,7 @@ export function useEditorScrollPersistence({
       el.removeEventListener("touchstart", stop);
       el.removeEventListener("pointerdown", stop);
       el.removeEventListener("keydown", onKeyDown);
+      el.removeEventListener(EDITOR_NAVIGATION_EVENT, stop);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (
@@ -73,6 +75,7 @@ export function useEditorScrollPersistence({
     el.addEventListener("touchstart", stop, { passive: true });
     el.addEventListener("pointerdown", stop, { passive: true });
     el.addEventListener("keydown", onKeyDown);
+    el.addEventListener(EDITOR_NAVIGATION_EVENT, stop);
     const restore = () => {
       if (stopped) return;
       const maximum = Math.max(0, el.scrollHeight - el.clientHeight);

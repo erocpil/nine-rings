@@ -28,7 +28,7 @@ for (const mobile of [false, true]) {
       });
       await page.getByTitle("设置", { exact: true }).click();
       if (mobile) await page.setViewportSize({ width: 390, height: 844 });
-      await page.getByRole("button", { name: /^数据与导入/ }).click();
+      await page.getByRole("button", { name: /^备份与导入/ }).click();
       const input = page.getByLabel("Markdown 导入目标路径");
       await input.fill("references/手动新目录");
       const trigger = page.getByRole("button", { name: "从文档树选择路径" });
@@ -59,7 +59,7 @@ for (const mobile of [false, true]) {
       await trigger.click();
       await page.keyboard.press("Escape");
       await expect(picker).toHaveCount(0);
-      await expect(page.getByRole("heading", { name: "数据与导入", exact: true })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "备份与导入", exact: true })).toBeVisible();
       await trigger.click();
       await picker.getByLabel("搜索路径").fill("网络");
       await picker.getByRole("button", { name: "选择路径 references/资料/网络", exact: true }).click();
@@ -80,7 +80,7 @@ for (const mobile of [false, true]) {
 test("目录加载失败可重试，不会清空手动填写的路径", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("设置", { exact: true }).click();
-  await page.getByRole("button", { name: /^数据与导入/ }).click();
+  await page.getByRole("button", { name: /^备份与导入/ }).click();
   await page.evaluate(async () => {
     const load = (path: string) => import(/* @vite-ignore */ path);
     const { api } = await load("/src/lib/api.ts");

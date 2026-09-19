@@ -262,6 +262,7 @@ export function ReadonlyVirtualNote(
   const heights = useRef(new Map<number, number>());
   const pendingAnchor = useRef<ReadingAnchor | null>(null);
   const pendingMatch = useRef<SearchMatch | null>(null);
+  const pendingBookmark = useRef<number | null>(null);
   const [revision, setRevision] = useState(0);
   const [viewport, setViewport] = useState({ top: 0, height: 800 });
   const [folds, setFolds] = useState(
@@ -563,6 +564,25 @@ export function ReadonlyVirtualNote(
   ]);
 
   useLayoutEffect(() => {
+    const position = pendingBookmark.current;
+    const root = rootRef.current;
+    if (position === null || !root) return;
+    const block = layout.blocks[layout.atPosition(position)];
+    const row = block && bodyRef.current?.querySelector<HTMLElement>(`[data-reading-row][data-position="${block.pos}"]`);
+    if (!row) return;
+    // Estimated heights can shift during mounting. Refine the explicit bookmark
+    // destination once its real row is available, then preserve that viewport.
+    const rowRect = row.getBoundingClientRect();
+    const previousTop = root.scrollTop;
+    centerSearchMatch(root, rowRect);
+    const offset = root.scrollTop - previousTop + root.getBoundingClientRect().top - rowRect.top;
+    pendingAnchor.current = { position: block.pos, offset };
+    savedAnchor.current = pendingAnchor.current;
+    pendingBookmark.current = null;
+    setViewport({ top: root.scrollTop, height: root.clientHeight });
+  }, [start, end, layout]);
+
+  useLayoutEffect(() => {
     const target = pendingMatch.current;
     if (!target || activeMatch?.from !== target.from) return;
     const mark = bodyRef.current?.querySelector<HTMLElement>(
@@ -634,13 +654,22 @@ export function ReadonlyVirtualNote(
   useEffect(() => {
     const target = searchTarget;
     if (!target || target.noteId !== noteId) return;
+    if (target.bookmarkId) {
+      const bookmark = props.content.metadata?.bookmarks?.find(item => item.id === target.bookmarkId);
+      if (bookmark) {
+        pendingBookmark.current = bookmark.position;
+        jump(bookmark.position);
+      }
+      onSearchTargetConsumed?.(target.requestId);
+      return;
+    }
     const found = findSearchMatches(doc, target.query);
     setQuery(target.query);
     setMatchIndex(0);
     openPanel("search");
     if (found[0]) jump(found[0].from, 0, found[0]);
     onSearchTargetConsumed?.(target.requestId);
-  }, [searchTarget, onSearchTargetConsumed, doc, noteId, jump, openPanel]);
+  }, [searchTarget, onSearchTargetConsumed, doc, noteId, jump, openPanel, props.content.metadata?.bookmarks]);
   const mobileDrawerViewport = useMobileViewport();
   const outlineTriggerRef = useRef<HTMLButtonElement>(null);
   const bookmarkTriggerRef = useRef<HTMLButtonElement>(null);

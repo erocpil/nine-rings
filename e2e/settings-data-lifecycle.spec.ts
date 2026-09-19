@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("导入跨设置分页及关闭重开继续完成，目标路径保持不变", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^数据与导入/ }).click();
+  await page.getByRole("button", { name: /^备份与导入/ }).click();
   await page.getByLabel("Markdown 导入目标路径").fill("tests/background-import");
   await page.evaluate(() => {
     const original = File.prototype.arrayBuffer;
@@ -31,7 +31,7 @@ test("导入跨设置分页及关闭重开继续完成，目标路径保持不�
   await page.getByRole("button", { name: /^高级/ }).click();
   await page.getByLabel("关闭设置").click();
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^数据与导入/ }).click();
+  await page.getByRole("button", { name: /^备份与导入/ }).click();
   await expect(page.getByLabel("Markdown 导入目标路径")).toHaveValue("tests/background-import");
   await page.evaluate(() => (window as Window & { releaseSettingsImport: () => void }).releaseSettingsImport());
   await expect(page.getByText("已导入 1 篇文档", { exact: true })).toBeVisible();

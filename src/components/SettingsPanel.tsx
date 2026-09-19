@@ -6,6 +6,7 @@ import { Field, SettingsSection } from "./SettingsFields";
 import { useCallback, useEffect, useState, useRef } from "react";
 import "./settings-surfaces.css";
 import "./settings-pages.css";
+import { saveEditorAppearance, type BlockDisplayDraft } from "../lib/save-editor-appearance";
 import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import type { AppConfig, Note } from "../types/models";
@@ -43,6 +44,7 @@ interface Props {
   webUpdate?: SettingsWebUpdate;
   onBeforeBookmarkNoteUpdate?: (noteId: string) => Promise<void>;
   onBookmarkNoteUpdated?: (note: Note) => void;
+  onOpenBookmark?: (noteId: string, bookmarkId: string) => Promise<void>;
   onNotesChanged?: () => void;
   libraryError?: string | null;
 }
@@ -74,27 +76,28 @@ const SETTINGS_CATEGORIES: Array<{
   title: string;
   description: string;
 }> = [
-  { id: "appearance", title: "外观与排版", description: "主题、字体、字号与内容间距" },
-  { id: "documents", title: "文档管理", description: "书签、标签与用户信息" },
-  { id: "general", title: "工作流与快捷键", description: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "默认视图、待办继承和按键绑定" : "搜索、设置与窗口按键绑定" },
-  { id: "sync", title: "同步与备份", description: "GitHub 仓库和同步操作" },
-  { id: "data", title: "数据与导入", description: "JSON 备份及 Markdown / 纯文本目录导入" },
+  { id: "appearance", title: "外观与布局", description: "主题与分栏布局" },
+  { id: "editor", title: "编辑器", description: "字体排版、编辑行为、折叠与 Vim" },
+  { id: "documents", title: "文档管理", description: "书签、标签和文档默认信息" },
+  { id: "general", title: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "工作流与快捷键" : "快捷键", description: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "默认视图、待办继承和按键绑定" : "搜索、设置与窗口按键绑定" },
+  { id: "sync", title: "云端同步", description: "通过 GitHub 上传、拉取与合并远端数据" },
+  { id: "data", title: "备份与导入", description: "本地 JSON 备份、恢复及 Markdown / 纯文本导入" },
   { id: "advanced", title: "高级", description: isTauri() ? "回收站清理与正文渲染" : "回收站清理、渲染与诊断" },
 ];
 
 const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   root: "设置",
-  appearance: "外观与排版",
+  appearance: "外观与布局",
   editor: "编辑器",
   vim: "Vim 编辑",
   sidebar: "分栏设置",
   documents: "文档管理",
   bookmarks: "书签",
-  general: "工作流与快捷键",
-  profile: "用户信息",
+  general: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "工作流与快捷键" : "快捷键",
+  profile: "作者与文档默认值",
   tags: "标签管理",
-  data: "数据与导入",
-  sync: "同步与备份",
+  data: "备份与导入",
+  sync: "云端同步",
   advanced: "高级",
 };
 
@@ -111,7 +114,7 @@ function normalizeVimConfig(value: string): string {
 }
 
 
-export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onBeforePush, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onNotesChanged, libraryError }: Props) {
+export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkdownImport, onSyncBusy, onBeforePush, onPullDone, webStorageStatus, webUpdate, onBeforeBookmarkNoteUpdate, onBookmarkNoteUpdated, onOpenBookmark, onNotesChanged, libraryError }: Props) {
   const [vimConfig, setVimConfig] = useState(() => normalizeVimConfig(localStorage.getItem(VIM_CONFIG_KEY) ?? "set tabstop=4"));
   const saveVimConfig = (next: string) => {
     try { localStorage.setItem(VIM_CONFIG_KEY, next); setVimConfig(next); }
@@ -137,6 +140,13 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [editorAppearanceDraft, setEditorAppearanceDraft] = useState<AppConfig | null>(null);
   const [settingsPage, setSettingsPage] = useState<SettingsPage>("root");
   const [settingsQuery, setSettingsQuery] = useState("");
+  const parentPage: SettingsPage = settingsPage === "vim" ? "editor"
+    : settingsPage === "sidebar" ? "appearance"
+    : ["bookmarks", "tags", "profile"].includes(settingsPage) ? "documents" : "root";
+  const goBack = useCallback(() => {
+    if (settingsPage === "root") onClose();
+    else setSettingsPage(parentPage);
+  }, [settingsPage, parentPage, onClose]);
   const [editorAppearanceSearch, setEditorAppearanceSearch] = useState("");
   const settingsSearchRef = useRef<HTMLInputElement>(null);
   const settingsPanelRef = useRef<HTMLDivElement>(null);
@@ -160,16 +170,22 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   useEffect(() => {
     const panel = settingsPanelRef.current;
     if (!open || !mobileSettingsViewport || !panel) return;
-    return bindEdgeSwipe(panel, () => ({ direction: "right", run: onClose }), { withinPanel: true });
-  }, [open, mobileSettingsViewport, onClose]);
+    return bindEdgeSwipe(panel, () => ({ direction: "right", run: goBack }), { withinPanel: true });
+  }, [open, mobileSettingsViewport, goBack]);
   useEffect(() => {
     if (!searchDestination) return;
     const frame = requestAnimationFrame(() => {
       const target = searchDestination.action === "update"
         ? settingsPanelRef.current?.querySelector<HTMLElement>(".settings-update-check")
-        : settingsPanelRef.current?.querySelector<HTMLElement>("#settings-dialog-title");
-      target?.focus({ preventScroll: true });
-      target?.scrollIntoView({ block: "nearest" });
+        : settingsPanelRef.current?.querySelector<HTMLElement>(searchDestination.target ?? "#settings-dialog-title");
+      if (target) {
+        target.tabIndex = -1;
+        target.focus({ preventScroll: true });
+        target.scrollIntoView({ block: "center" });
+        target.classList.add("settings-search-target");
+        const removeHighlight = () => target.classList.remove("settings-search-target");
+        target.addEventListener("blur", removeHighlight, { once: true });
+      }
       setSearchDestination(null);
     });
     return () => cancelAnimationFrame(frame);
@@ -182,6 +198,15 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [bookmarkReload, setBookmarkReload] = useState(0);
   const bookmarkBusyRef = useRef(false);
   const [deletingBookmarkId, setDeletingBookmarkId] = useState<string | null>(null);
+  const [openingBookmark, setOpeningBookmark] = useState(false);
+  const openManagedBookmark = async (noteId: string, bookmarkId: string) => {
+    if (!onOpenBookmark || bookmarkBusyRef.current) return;
+    bookmarkBusyRef.current = true;
+    setOpeningBookmark(true);
+    try { await onOpenBookmark(noteId, bookmarkId); onClose(); }
+    catch (error) { setBookmarksError(`打开书签失败：${error instanceof Error ? error.message : String(error)}`); }
+    finally { bookmarkBusyRef.current = false; setOpeningBookmark(false); }
+  };
 
   // ── 标签管理状态 ──
   const [allTags, setAllTags] = useState<string[]>([]);
@@ -327,7 +352,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     });
   };
 
-  const applyEditorAppearance = async () => {
+  const applyEditorAppearance = async (display?: BlockDisplayDraft) => {
     if (!editorAppearanceDraft) return;
     const pending = {
       ...pendingConfigRef.current,
@@ -346,7 +371,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     saveQueueRef.current = saveQueueRef.current
       .catch(() => undefined)
       .then(async () => {
-        persisted = await api.config.set(pending);
+        persisted = await saveEditorAppearance(api.config, pending, display);
       });
     try {
       await saveQueueRef.current;
@@ -361,7 +386,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     } catch (error) {
       if (saveVersion !== updateVersionRef.current) return;
       setSaving(null);
-      showMessage(`保存失败: ${error}`);
+      // The nested panel owns errors so they remain visible with the draft.
+      throw error;
     }
   };
 
@@ -504,23 +530,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               <button
                 className="settings-back"
                 type="button"
-                onClick={() => setSettingsPage(
-                  settingsPage === "editor" || settingsPage === "vim" || settingsPage === "sidebar"
-                    ? "appearance"
-                    : settingsPage === "bookmarks" || settingsPage === "tags" || settingsPage === "profile"
-                      ? "documents"
-                      : "root",
-                )}
-                aria-label={settingsPage === "editor" || settingsPage === "vim" || settingsPage === "sidebar"
-                  ? "返回外观与排版"
-                  : settingsPage === "bookmarks" || settingsPage === "tags" || settingsPage === "profile"
-                    ? "返回文档管理"
-                    : "返回设置分类"}
-                title={settingsPage === "editor" || settingsPage === "vim" || settingsPage === "sidebar"
-                  ? "返回外观与排版"
-                  : settingsPage === "bookmarks" || settingsPage === "tags" || settingsPage === "profile"
-                    ? "返回文档管理"
-                    : "返回设置分类"}
+                onClick={goBack}
+                aria-label={`返回${parentPage === "root" ? "设置分类" : SETTINGS_PAGE_TITLES[parentPage]}`}
+                title={`返回${parentPage === "root" ? "设置分类" : SETTINGS_PAGE_TITLES[parentPage]}`}
               >←</button>
             )}
             <h2 id="settings-dialog-title" tabIndex={-1}>{SETTINGS_PAGE_TITLES[settingsPage]}</h2>
@@ -528,6 +540,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
           <button ref={closeButtonRef} className="settings-close" onClick={onClose} aria-label="关闭设置"><ToolbarIcon name="exit" /></button>
         </div>
 
+        <div className="settings-feedback-slot" role="status" aria-live="polite">
+          {message && <div className="settings-toast"><span className="settings-feedback-text">{message}</span>
+            <button type="button" className="settings-feedback-close" aria-label="关闭提示" onClick={clearMessage}><ToolbarIcon name="close" /></button>
+          </div>}
+        </div>
         {loading ? (
           <div className="settings-loading">加载中...</div>
         ) : !config ? (
@@ -601,7 +618,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                   <span className="settings-category-arrow">→</span>
                 </button>
                 <button className="settings-category-card" type="button" onClick={() => setSettingsPage("profile")}>
-                  <span><strong>用户信息</strong><small>文档作者、组织与发布默认值</small></span>
+                  <span><strong>作者与文档默认值</strong><small>文档作者、组织与发布默认值</small></span>
                   <span className="settings-category-arrow">→</span>
                 </button>
               </div>
@@ -636,7 +653,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </div>
             </Field>
 
-            <Field label="编辑器排版" desc="集中调整字体、行距、缩进和搜索高亮" visible={settingsPage === "appearance"}>
+            <Field label="编辑器排版" desc="集中调整字体、行距、缩进和搜索高亮" visible={settingsPage === "editor"}>
               <button
                 className="editor-appearance-entry"
                 type="button"
@@ -654,21 +671,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </button>
             </Field>
 
-            <Field label="编辑器" desc="块编号、状态栏与右键菜单" visible={settingsPage === "appearance"}>
-              <button
-                className="editor-appearance-entry"
-                type="button"
-                onClick={() => setSettingsPage("editor")}
-              >
-                <span>
-                  <strong>编辑器设置</strong>
-                  <small>行为、导航与辅助显示</small>
-                </span>
-                <span className="editor-appearance-entry-action">打开编辑器设置 →</span>
-              </button>
-            </Field>
-
-            <Field label="Vim 编辑" desc="正文 Vim 模式与代码块弹层的 Tab 显示宽度" visible={settingsPage === "appearance"}>
+            <Field label="Vim 编辑" desc="正文 Vim 模式与代码块弹层的 Tab 显示宽度" visible={settingsPage === "editor"}>
               <button className="editor-appearance-entry" type="button" onClick={() => setSettingsPage("vim")}>
                 <span>
                   <strong>Vim 设置</strong>
@@ -855,7 +858,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </div>
             </SettingsSection>
 
-            <SettingsSection title="所有书签" desc="按文档集中查看和删除书签" visible={settingsPage === "bookmarks"}>
+            <SettingsSection title="所有书签" desc="点击书签打开所属文档并定位；右侧 × 仅删除书签" visible={settingsPage === "bookmarks"}>
               {bookmarksError && <div className="settings-error-state" role="alert"><p>{bookmarksError}</p><button type="button" className="settings-btn-secondary" disabled={bookmarksLoading} onClick={() => setBookmarkReload(value => value + 1)}>重新加载书签</button></div>}
               {bookmarksLoading ? (
                 <div className="settings-loading-inline">正在加载书签…</div>
@@ -869,10 +872,12 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                       {(note.content.metadata?.bookmarks ?? []).map((bookmark, index) => (
                         <div className="bookmark-manager-item" key={bookmark.id}>
                           <span className="bookmark-manager-index">{bookmark.key ? `'${bookmark.key}` : index + 1}</span>
-                          <span className="bookmark-manager-label" title={bookmark.preview}>{bookmark.label || bookmark.preview}</span>
+                          <button type="button" className="bookmark-manager-label bookmark-manager-link" title={bookmark.preview}
+                            disabled={openingBookmark || deletingBookmarkId !== null || !onOpenBookmark}
+                            onClick={() => void openManagedBookmark(note.id, bookmark.id)}>{bookmark.label || bookmark.preview}</button>
                           <button
                             type="button"
-                            disabled={deletingBookmarkId !== null}
+                            disabled={openingBookmark || deletingBookmarkId !== null}
                             onClick={() => void deleteManagedBookmark(note, bookmark.id)}
                             aria-label={`删除书签 ${bookmark.label || bookmark.preview}`}
                             title="删除书签"
@@ -912,7 +917,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               />
             </SettingsSection>
 
-            <SettingsSection title="用户信息" desc="用于文档属性和导出的默认信息；单篇文档可以单独设置，不会改写已有正文。" visible={settingsPage === "profile"}>
+            <SettingsSection title="作者与文档默认值" desc="用于文档属性和导出的默认信息；单篇文档可以单独设置，不会改写已有正文。" visible={settingsPage === "profile"}>
               <div className="user-profile-grid">
                 <label className="settings-label">
                   <span>姓名 / 作者</span>
@@ -1075,8 +1080,6 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </SettingsSection>
             )}
 
-            {/* ── 保存反馈 ── */}
-            {message && <div className="settings-toast" role="status" aria-live="polite">{message}</div>}
 
             {/* ── 版本 ── */}
             {settingsPage === "root" && (

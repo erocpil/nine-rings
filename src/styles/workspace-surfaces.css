@@ -919,15 +919,18 @@
 /* ── Toast ── */
 
 .settings-toast {
-  position: sticky;
-  bottom: 0;
-  text-align: center;
-  padding: 8px;
-  background: var(--success);
-  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 8px;
+  background: var(--hover-bg);
+  color: var(--text);
   font-size: 13px;
   border-radius: var(--radius);
-  margin-top: 16px;
+  margin: 0;
   animation: fadeIn 0.15s ease;
 }
 
@@ -1086,11 +1089,6 @@
   --active-bg: #44475a;
   --code-bg: #21222c;
   --activeline-bg: rgba(98, 114, 164, 0.2);
-}
-
-:is(.theme-nord, .theme-dracula) .settings-toast {
-  background: color-mix(in srgb, var(--success) 18%, var(--surface));
-  color: var(--text);
 }
 
 /* ── Header 右侧浮动区域（sticky title + 专注按钮 在搜索左侧）── */

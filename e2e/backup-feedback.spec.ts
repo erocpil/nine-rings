@@ -4,7 +4,7 @@ test("浏览器备份只记录下载发起，不误报文件已保存", async ({
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
   await page.keyboard.press("Alt+,");
-  await page.getByRole("button", { name: /数据与导入.*JSON/ }).click();
+  await page.getByRole("button", { name: /备份与导入.*JSON/ }).click();
   const status = page.getByRole("status", { name: "本机备份导出记录" });
   await expect(status).toContainText("暂无可用");
   const download = page.waitForEvent("download");
@@ -16,7 +16,7 @@ test("浏览器备份只记录下载发起，不误报文件已保存", async ({
   await page.reload();
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
   await page.keyboard.press("Alt+,");
-  await page.getByRole("button", { name: /数据与导入.*JSON/ }).click();
+  await page.getByRole("button", { name: /备份与导入.*JSON/ }).click();
   await expect(status).toContainText("浏览器已发起下载");
 });
 
@@ -24,7 +24,7 @@ test("备份导出期间阻止重复操作，失败后恢复按钮", async ({ pa
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
   await page.getByRole("button", { name: "设置", exact: true }).click();
-  await page.getByRole("button", { name: /^数据与导入/ }).click();
+  await page.getByRole("button", { name: /^备份与导入/ }).click();
   await page.evaluate(async () => {
     const load = (path: string) => import(/* @vite-ignore */ path);
     const { api } = await load("/src/lib/api.ts");

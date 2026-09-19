@@ -59,8 +59,7 @@ test("章节目录默认小三角，正文默认箭头，可独立设置并持�
   await page.getByRole("button", { name: "展开章节 标题", exact: true }).click();
   await page.getByTitle("文档目录", { exact: true }).click();
   await page.getByTitle("设置", { exact: true }).click();
-  await page.getByRole("button", { name: /^外观与排版/ }).click();
-  await page.getByRole("button", { name: /^编辑器设置/ }).click();
+  await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   const style = page.getByRole("combobox", { name: "章节目录折叠标识", exact: true });
   await expect(style).toHaveValue("triangle");
   await style.selectOption("chevron");
@@ -106,7 +105,7 @@ test("文本区折叠箭头与文档树一致，方向跟随折叠状态", async
 test("设置原生详情项使用统一箭头，点击与键盘仍可展开收起", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("设置", { exact: true }).click();
-  await page.getByRole("button", { name: /^外观与排版/ }).click();
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
   await page.getByRole("button", { name: /^Vim 设置/ }).click();
   const summary = page.locator("summary").filter({ hasText: "高级 set 配置" });
   const icon = summary.locator(".disclosure-icon");
@@ -131,8 +130,7 @@ test("编辑器折叠标识支持预设、自定义、立即应用及重启保�
   });
   const openSettings = async () => {
     await page.getByTitle("设置", { exact: true }).click();
-    await page.getByRole("button", { name: /^外观与排版/ }).click();
-    await page.getByRole("button", { name: /^编辑器设置/ }).click();
+    await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   };
   await openSettings();
   const style = page.getByRole("combobox", { name: "折叠标识样式" });
@@ -192,8 +190,7 @@ test("手机自定义折叠符号在只读正文和目录中生效", async ({ pa
   await page.getByRole("button", { name: "展开章节 标题", exact: true }).click();
   await page.getByTitle("文档目录", { exact: true }).click();
   await openMobileSettings(page);
-  await page.getByRole("button", { name: /^外观与排版/ }).click();
-  await page.getByRole("button", { name: /^编辑器设置/ }).click();
+  await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   await expect(page.getByRole("combobox", { name: "折叠标识样式" })).toHaveValue("custom");
   await expect(page.getByLabel("折叠标识预览").locator(".editor-fold-symbol")).toHaveText(["+", "−"]);
 });

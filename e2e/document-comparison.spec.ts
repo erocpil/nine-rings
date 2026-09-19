@@ -117,7 +117,7 @@ for (const choice of ["both", "local", "remote", "stale"] as const) {
       return route.fulfill({ json: { sha: "test-sha", encoding: "base64", content: Buffer.from(content).toString("base64") } });
     });
     await page.getByTitle("设置", { exact: true }).click();
-    await page.getByRole("button", { name: /^同步与备份/ }).click();
+    await page.getByRole("button", { name: /^云端同步/ }).click();
     await page.getByRole("button", { name: /Pull/ }).first().click();
     const preview = page.getByRole("dialog", { name: "GitHub Pull 预览" });
     await preview.locator(".sync-remote-preview-select").filter({ hasText: "对比甲" }).click();

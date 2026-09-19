@@ -18,6 +18,7 @@ export function Field({
   return (
     <div
       className="settings-field"
+      data-settings-label={label}
       role="group"
       aria-labelledby={`${id}-label`}
       aria-describedby={`${id}-desc`}
@@ -48,7 +49,7 @@ export function SettingsSection({
 }) {
   if (!visible) return null;
   return (
-    <div className="settings-section">
+    <div className="settings-section" data-settings-label={title}>
       <div className="settings-section-header">
         <div className="settings-section-title">{title}</div>
         <div className="settings-section-desc">{desc}</div>

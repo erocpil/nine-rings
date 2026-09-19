@@ -10,8 +10,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 
       await expect(page.locator(".ProseMirror")).toBeVisible();
       if (mobile) await openMobileSettings(page);
       else await page.getByRole("button", { name: "设置", exact: true }).click();
-      await page.getByRole("button", { name: /^同步与备份/ }).click();
-      const panel = page.getByRole("dialog", { name: "同步与备份", exact: true });
+      await page.getByRole("button", { name: /^云端同步/ }).click();
+      const panel = page.getByRole("dialog", { name: "云端同步", exact: true });
       await expect(panel).toBeVisible();
       const box = (await panel.boundingBox())!;
       if (mobile) {
@@ -29,7 +29,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 
       await panel.getByRole("button", { name: "返回设置分类", exact: true }).click();
       const root = page.getByRole("dialog", { name: "设置", exact: true });
       await expect(root).not.toHaveClass(/settings-expanded-panel/);
-      await page.getByRole("button", { name: /^同步与备份/ }).click();
+      await page.getByRole("button", { name: /^云端同步/ }).click();
       await expect(panel.getByLabel("Owner / Repo", { exact: true })).toHaveValue("test/notes");
       await page.getByRole("button", { name: "关闭设置", exact: true }).click();
       await expect(panel).toHaveCount(0);

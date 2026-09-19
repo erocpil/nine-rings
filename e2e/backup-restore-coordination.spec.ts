@@ -59,7 +59,7 @@ test("关闭恢复窗口后检测中断，刷新保留提醒，确认不改数�
   });
   expect(rejected).toContain("上次恢复中断");
   await warning.getByRole("button", { name: "打开设置检查" }).click();
-  await other.getByRole("button", { name: /^数据与导入/ }).click();
+  await other.getByRole("button", { name: /^备份与导入/ }).click();
   const panel = other.locator(".backup-restore-status");
   const recordBeforeExport = await other.evaluate(() => localStorage.getItem("nr:backup-restore-journal:v1"));
   const downloadPromise = other.waitForEvent("download");
@@ -231,7 +231,7 @@ test("无法访问恢复锁时不提供清理日志，恢复能力后可重新�
   const warning = page.locator(".web-status-banner").filter({ hasText: "无法核对恢复记录" });
   await expect(warning).toBeVisible();
   await warning.getByRole("button", { name: "打开设置检查" }).click();
-  await page.getByRole("button", { name: /^数据与导入/ }).click();
+  await page.getByRole("button", { name: /^备份与导入/ }).click();
   const panel = page.locator(".backup-restore-status");
   await expect(panel.getByRole("button", { name: "清理损坏的恢复记录" })).toHaveCount(0);
   await expect(panel.getByRole("button", { name: "确认已检查本地数据" })).toHaveCount(0);

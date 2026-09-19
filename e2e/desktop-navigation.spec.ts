@@ -17,7 +17,7 @@ test("阅读分栏默认半宽并记住拖动比例，三个分栏工具栏一�
   await page.setViewportSize({ width: 1600, height: 900 });
   await expect.poll(width).toBeCloseTo(776, 0);
   await page.getByTitle("设置", { exact: true }).filter({ visible: true }).first().click();
-  await page.getByRole("button", { name: /^外观与排版/ }).click();
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
   const ratio = page.locator(".settings-field").filter({ hasText: "阅读分栏占比" });
   await expect(ratio).toHaveCount(0);
   await page.locator('.settings-close').click();

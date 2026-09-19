@@ -5,10 +5,10 @@ test("设置入口归类与文档属性关系字段顺序", async ({ page }) => 
   await expect(page.locator(".ProseMirror")).toBeVisible();
   await page.getByTitle("设置", { exact: true }).click();
   const categories = page.getByLabel("设置分类");
-  await expect(categories.locator("strong").filter({ hasText: /^(阅读资料库|用户信息)$/ })).toHaveCount(0);
+  await expect(categories.locator("strong").filter({ hasText: /^(阅读资料库|作者与文档默认值)$/ })).toHaveCount(0);
   await categories.getByRole("button", { name: /^文档管理/ }).click();
-  await page.getByLabel("文档管理分类").getByRole("button", { name: /^用户信息/ }).click();
-  await expect(page.getByRole("heading", { name: "用户信息", exact: true })).toBeVisible();
+  await page.getByLabel("文档管理分类").getByRole("button", { name: /^作者与文档默认值/ }).click();
+  await expect(page.getByRole("heading", { name: "作者与文档默认值", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "返回文档管理", exact: true }).click();
   await expect(page.getByLabel("文档管理分类")).toBeVisible();
   await page.getByRole("button", { name: "关闭设置", exact: true }).click();

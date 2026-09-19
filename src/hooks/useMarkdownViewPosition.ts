@@ -262,5 +262,5 @@ export function useMarkdownViewPosition(
       flush();
     };
   }, [noteId, showingSource, sensitive]);
-  return { host, area, toSource, toRendered };
+  return { host, area, toSource, toRendered, cancelHandoff: () => { pending.current = null; } };
 }

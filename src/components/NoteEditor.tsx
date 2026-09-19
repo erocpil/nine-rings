@@ -52,7 +52,7 @@ import {
 } from "../extensions/CodeBlockLineNumbers";
 import { EditorBlockGutter } from "./EditorBlockGutter";
 import { DocumentEditorContent } from "./DocumentEditorContent";
-import { useEditorScrollPersistence } from "../hooks/useEditorScrollPersistence";
+import { EDITOR_NAVIGATION_EVENT, useEditorScrollPersistence } from "../hooks/useEditorScrollPersistence";
 import { headingFoldAnchors } from "../lib/heading-fold-anchors";
 import { ReadingBlockSession } from "../extensions/ReadingBlockSession";
 import { DocumentOutlineList, type VisibleOutlineEntry } from "./DocumentOutlineList";
@@ -1171,7 +1171,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   useEffect(() => {
     if (!editor) return;
     setCodeBlockLineNumbersEnabled(editor, showCodeLineNumbers);
-    saveBlockWorkspacePreferences({ lineNumbers: showCodeLineNumbers });
+    // Opening a document must not overwrite the separately saved popup display
+    // preference. Only an explicit toolbar action updates both preferences.
   }, [editor, showCodeLineNumbers]);
 
   useEffect(() => {
@@ -1507,6 +1508,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
 
   const jumpToBookmark = useCallback((bookmark: DocumentBookmark) => {
     if (!editor || editor.isDestroyed) return;
+    // An explicit destination wins over the opening session's old scroll offset.
+    scrollRef.current?.dispatchEvent(new Event(EDITOR_NAVIGATION_EVENT));
     allHeadingFoldRoundTripRef.current = null;
     const position = Math.max(0, Math.min(editor.state.doc.content.size, bookmark.position));
     expandHeadingFoldsAt(editor, position);
@@ -1930,6 +1933,12 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   // 多词 AND 查询若没有连续短语，则回退到各个词的命中位置。
   useEffect(() => {
     if (!editor || !searchTarget || searchTarget.noteId !== noteId) return;
+    if (searchTarget.bookmarkId) {
+      const bookmark = bookmarksRef.current.find(item => item.id === searchTarget.bookmarkId);
+      if (bookmark) requestAnimationFrame(() => { if (!editor.isDestroyed) jumpToBookmark(bookmark); });
+      onSearchTargetConsumed?.(searchTarget.requestId);
+      return;
+    }
     let matches = findSearchMatches(editor.state.doc, searchTarget.query);
     if (matches.length === 0) {
       const terms = Array.from(new Set(searchTarget.query.trim().split(/\s+/).filter(Boolean)));
@@ -1968,7 +1977,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       }
     }
     onSearchTargetConsumed?.(searchTarget.requestId);
-  }, [editor, noteId, onSearchTargetConsumed, revealSearchMatch, searchTarget, title]);
+  }, [editor, jumpToBookmark, noteId, onSearchTargetConsumed, revealSearchMatch, searchTarget, title]);
 
   // 宽度变化会让软换行重排。编辑且光标可见时锚定光标；布局按钮暂时
   // 获得焦点时延续该锚点。只读或光标移出视口后改用顶部第一个可见块。
@@ -3502,7 +3511,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     >
       {focusMode && !unifiedTitleBar && (
         <FocusModeBar key={noteId} target={focusToolbarTarget} onOpenProperties={onOpenProperties} title={localTitle || "无标题"} leading={onReadonlyChange && (
-          <button type="button" className="focus-readonly-toggle" aria-pressed={readonly}
+          <button type="button" className={`focus-readonly-toggle${readonlyChangeNotice ? " readonly-change-confirmed" : ""}`} aria-pressed={readonly}
             title={readonly ? "点击设为可编辑" : "点击设为只读"}
             aria-label={readonly ? "点击设为可编辑" : "点击设为只读"}
             disabled={readonlyChangeBusy}
@@ -3795,7 +3804,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           {onReadonlyChange ? (
             <button
               type="button"
-              className="note-readonly-badge note-readonly-action"
+              className={`note-readonly-badge note-readonly-action${readonlyChangeNotice ? " readonly-change-confirmed" : ""}`}
               aria-pressed={readonly}
               disabled={readonlyChangeBusy}
               onClick={async () => {
@@ -3835,7 +3844,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
               readOnly={readonly || (unifiedTitleBar && focusMode)}
             />}
             {readonlyChangeNotice && (
-              <div className="markdown-paste-notice readonly-change-notice" role="status">
+              <div className="readonly-change-notice" role="status" aria-live="polite">
                 <span>{readonly ? "已设置为只读" : "已设置为可编辑"}</span>
               </div>
             )}

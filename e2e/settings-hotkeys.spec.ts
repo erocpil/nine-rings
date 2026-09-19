@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("快捷键录制、取消和恢复默认跨设置页保留", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("设置", { exact: true }).click();
-  const openHotkeys = () => page.getByRole("button", { name: /^工作流与快捷键/ }).click();
+  const openHotkeys = () => page.getByRole("button", { name: /^快捷键/ }).click();
   await openHotkeys();
   const row = page.locator(".hotkey-row").first();
   const original = await row.locator("kbd").innerText();
@@ -14,7 +14,7 @@ test("快捷键录制、取消和恢复默认跨设置页保留", async ({ page 
   await expect(row.locator("kbd")).toHaveText(original);
   await row.locator(".hotkey-btn").click();
   await row.locator("input").press("Escape");
-  await expect(page.getByRole("dialog", { name: "工作流与快捷键", exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "快捷键", exact: true })).toBeVisible();
   await expect(row.locator("kbd")).toHaveText(original);
   await row.locator(".hotkey-btn").click();
   await row.locator("input").press("Control+Alt+9");

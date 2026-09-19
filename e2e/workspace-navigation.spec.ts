@@ -38,7 +38,7 @@ for (const width of [390, 1280]) {
     await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:todoSplit"))).toBe("4");
     if (width < 768) await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
     await page.getByTitle("设置", { exact: true }).click();
-    await page.getByRole("button", { name: /^工作流与快捷键/ }).click();
+    await page.getByRole("button", { name: /^快捷键/ }).click();
     await expect(page.getByText("待办跨日继承", { exact: true })).toHaveCount(0);
     await expect(page.getByText("默认视图", { exact: true })).toHaveCount(0);
     await expect(page.locator(".hotkey-label").filter({ hasText: /新建随笔|快捷记录|打开每日列表/ })).toHaveCount(0);

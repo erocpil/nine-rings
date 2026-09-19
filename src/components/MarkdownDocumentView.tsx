@@ -64,7 +64,9 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         viewPosition.toSource(text, deltaToProseMirror(content), restoreSourceTop);
         setSource(text);
       } else {
-        viewPosition.toRendered(source, deltaToProseMirror(content));
+        // A bookmark destination takes priority over the source viewport.
+        if (latestProps.current.searchTarget?.bookmarkId) viewPosition.cancelHandoff();
+        else viewPosition.toRendered(source, deltaToProseMirror(content));
         invalidateEditorDocument(props.noteId);
         setSnapshot({ base: latestProps.current.content, content });
         setSource(null);
@@ -83,8 +85,15 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     if (restoredView.current) return;
     restoredView.current = true;
     const saved = props.sensitive ? null : readReadingState(props.noteId);
-    if (supported && saved?.view === "source" && saved.source) void restoreViewRef.current(saved.source.scrollTop);
-  }, [props.noteId, props.sensitive, supported]);
+    if (!props.searchTarget?.bookmarkId && supported && saved?.view === "source" && saved.source) void restoreViewRef.current(saved.source.scrollTop);
+  }, [props.noteId, props.sensitive, props.searchTarget?.bookmarkId, supported]);
+  const bookmarkViewRequest = useRef<number>();
+  useEffect(() => {
+    const target = props.searchTarget;
+    if (!target?.bookmarkId || source === null || busy || bookmarkViewRequest.current === target.requestId) return;
+    bookmarkViewRequest.current = target.requestId;
+    void restoreViewRef.current();
+  }, [props.searchTarget, source, busy]);
   useEffect(() => {
     // Source cleanup runs before this effect; explicit return to rendered wins.
     if (source === null && !props.sensitive && initial.current) patchReadingState(props.noteId, { view: "rendered" });

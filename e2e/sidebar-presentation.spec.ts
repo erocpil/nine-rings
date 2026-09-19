@@ -89,7 +89,7 @@ test("树内右键菜单优先处理 Esc，菜单操作期间浮层不收起", a
 
 async function settings(page: Page) {
   await page.getByRole("button", { name: "设置", exact: true }).click();
-  await page.getByRole("button", { name: /^外观与排版/ }).click();
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
   await page.getByRole("button", { name: /^分栏设置/ }).click();
 }
 

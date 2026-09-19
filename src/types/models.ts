@@ -31,6 +31,8 @@ export interface SearchNavigationTarget {
   noteId: string;
   query: string;
   requestId: number;
+  /** Navigate to a saved bookmark instead of searching text. */
+  bookmarkId?: string;
 }
 
 // ── PathNode: 文档树节点 ──

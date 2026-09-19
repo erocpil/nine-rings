@@ -277,8 +277,7 @@ test("手机 PWA 只读专注模式可通过触摸双击折叠展开并受开关
 
   await page.keyboard.press("Alt+,");
   await expect(page.getByRole("dialog", { name: "设置" })).toBeVisible();
-  await page.getByRole("button", { name: /^外观与排版/ }).click();
-  await page.getByRole("button", { name: /^编辑器设置/ }).click();
+  await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   const foldSetting = page.locator(".settings-field").filter({ hasText: "只读文档双击标题折叠" });
   const foldToggle = foldSetting.locator('input[type="checkbox"]');
   await expect(foldToggle).toBeChecked();

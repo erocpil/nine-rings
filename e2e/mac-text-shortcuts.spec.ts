@@ -205,7 +205,7 @@ test("Mac 资料库和 PDF 查找输入保留 Ctrl+F，Cmd+F 仍打开搜索", a
 test("Mac 快捷键设置拒绝占用原生 Control 文本组合", async ({ page }) => {
   await fixture(page);
   await page.getByTitle("设置", { exact: true }).click();
-  await page.getByRole("button", { name: /^工作流与快捷键/ }).click();
+  await page.getByRole("button", { name: /^快捷键/ }).click();
   const row = page.locator(".hotkey-row").filter({ hasText: "聚焦搜索" });
   await row.locator(".hotkey-btn").click();
   await row.locator("input").press("Control+p");

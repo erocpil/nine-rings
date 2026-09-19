@@ -43,7 +43,7 @@ for (const width of [390, 1280]) {
     await input.fill("vim");
     await page.getByRole("button", { name: /Vim 编辑/ }).click();
     await expect(page.locator("#settings-dialog-title")).toHaveText("Vim 编辑");
-    await expect(page.locator("#settings-dialog-title")).toBeFocused();
+    await expect(page.locator('[data-settings-label="Vim 模式（实验性）"]')).toBeFocused();
     await page.getByRole("button", { name: "关闭设置", exact: true }).click();
     await page.keyboard.press("Alt+,");
     await expect(input).toHaveValue("");
@@ -61,8 +61,10 @@ test("列表显示偏好重启保留，关键词与筛选不落盘", async ({ pa
   let dialog = await open();
   await dialog.getByRole("button", { name: "全部文档", exact: true }).click();
   await dialog.getByRole("button", { name: "筛选", exact: true }).click();
-  await dialog.getByLabel("文档排序", { exact: true }).selectOption("title");
-  await dialog.getByLabel("文档排序方向").selectOption("desc");
+  await dialog.getByLabel("文档排序", { exact: true }).click();
+  await page.getByRole("option", { name: "标题", exact: true }).click();
+  await dialog.getByLabel("文档排序方向").click();
+  await page.getByRole("option", { name: "标题降序", exact: true }).click();
   await dialog.locator("summary").click();
   await dialog.getByRole("checkbox", { name: "显示修改时间" }).check();
   await dialog.getByRole("button", { name: "搜索文档", exact: true }).click();
@@ -86,10 +88,10 @@ test("列表显示偏好重启保留，关键词与筛选不落盘", async ({ pa
     dialog.getByRole("button", { name: "全部文档", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await dialog.getByRole("button", { name: "筛选", exact: true }).click();
-  await expect(dialog.getByLabel("文档排序", { exact: true })).toHaveValue(
-    "title",
+  await expect(dialog.getByLabel("文档排序", { exact: true })).toHaveText(
+    "按标题排序",
   );
-  await expect(dialog.getByLabel("文档排序方向")).toHaveValue("desc");
+  await expect(dialog.getByLabel("文档排序方向")).toHaveText("标题降序");
   await dialog.locator("summary").click();
   await expect(
     dialog.getByRole("checkbox", { name: "显示修改时间" }),

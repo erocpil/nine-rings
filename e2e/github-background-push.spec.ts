@@ -18,7 +18,7 @@ async function configure(page: Page) {
     });
   });
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^同步与备份/ }).click();
+  await page.getByRole("button", { name: /^云端同步/ }).click();
 }
 
 test("关闭及重开设置页后继续上传，禁止重复 Push，完成后显示全局结果", async ({
@@ -51,7 +51,7 @@ test("关闭及重开设置页后继续上传，禁止重复 Push，完成后显
     "true",
   );
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^同步与备份/ }).click();
+  await page.getByRole("button", { name: /^云端同步/ }).click();
   await expect(page.getByRole("button", { name: "Push ↑" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Pull ↓" })).toBeDisabled();
   await expect(page.getByLabel("备份文件路径", { exact: true })).toBeDisabled();
@@ -63,7 +63,7 @@ test("关闭及重开设置页后继续上传，禁止重复 Push，完成后显
   expect(uploads[1]).toMatch(/-latest$/);
   await expect(job.getByRole("progressbar")).toHaveCount(0);
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^同步与备份/ }).click();
+  await page.getByRole("button", { name: /^云端同步/ }).click();
   await expect(page.getByText(/上次上传备份版本:/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Push ↑" })).toBeEnabled();
   await job.getByRole("button", { name: "关闭提示" }).click();

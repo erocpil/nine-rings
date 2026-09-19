@@ -1567,8 +1567,7 @@ test.describe("PWA 窄屏应用外壳", () => {
   test("移动端块编号使用紧凑且可随位数扩展的 gutter", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("设置").click();
-    await page.getByRole("button", { name: /^外观与排版/ }).click();
-    await page.getByRole("button", { name: /^编辑器设置/ }).click();
+    await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
     const lineNumberSetting = page.locator(".settings-field").filter({ hasText: "显示块编号" });
     await lineNumberSetting.locator(".settings-toggle").click();
     await page.getByLabel("关闭设置").click();
@@ -1617,8 +1616,7 @@ test.describe("PWA 窄屏应用外壳", () => {
         await page.setViewportSize({ width: 390, height: 760 });
         await swipeNoteEditor(page.locator(".note-editor"), { startX: 380, startY: 160, endX: 280, endY: 160 });
         await page.getByRole("dialog", { name: "阅读侧栏" }).getByRole("button", { name: "设置", exact: true }).click();
-        await page.getByRole("button", { name: /^外观与排版/ }).click();
-        await page.getByRole("button", { name: /^编辑器设置/ }).click();
+        await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
         await page.locator(".settings-field").filter({ hasText: "显示块编号" }).locator(".settings-toggle").click();
         await page.getByLabel("关闭设置").click();
       }
@@ -2022,8 +2020,7 @@ test.describe("PWA 窄屏应用外壳", () => {
       };
     });
     await page.getByTitle("设置").click();
-    await page.getByRole("button", { name: /^外观与排版/ }).click();
-    await page.getByRole("button", { name: /^编辑器设置/ }).click();
+    await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
     const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
       .locator('input[type="checkbox"]');
     if (!(await lineNumberToggle.isChecked())) {
@@ -2833,8 +2830,7 @@ test.describe("PWA 窄屏应用外壳", () => {
   test("编辑状态下光标不会被底部边界遮挡", async ({ page }) => {
     await page.goto("/");
     await page.getByTitle("设置").click();
-    await page.getByRole("button", { name: /^外观与排版/ }).click();
-    await page.getByRole("button", { name: /^编辑器设置/ }).click();
+    await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
     const statusSetting = page.locator(".settings-field").filter({ hasText: "编辑器状态栏" });
     await statusSetting.locator(".settings-toggle").click();
     await page.getByLabel("关闭设置").click();

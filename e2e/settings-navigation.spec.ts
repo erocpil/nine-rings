@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+import { createBlankDocument } from "./helpers/document";
 
 async function openMobileSettings(page: import("@playwright/test").Page) {
   await expect(page.locator(".ProseMirror")).toBeVisible();
@@ -21,13 +22,14 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await page.getByTitle("设置").click();
 
   const categories = page.getByLabel("设置分类").getByRole("button");
-  await expect(categories).toHaveCount(6);
+  await expect(categories).toHaveCount(7);
   await expect(categories.locator("strong")).toHaveText([
-    "外观与排版",
+    "外观与布局",
+    "编辑器",
     "文档管理",
-    "工作流与快捷键",
-    "同步与备份",
-    "数据与导入",
+    "快捷键",
+    "云端同步",
+    "备份与导入",
     "高级",
   ]);
   await expect(page.getByRole("heading", { name: "设置", exact: true })).toBeVisible();
@@ -35,23 +37,23 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await expect(page.locator(".settings-section")).toHaveCount(0);
   await expect(page.locator(".settings-version")).toHaveText(/^v\w+\./);
 
-  await page.getByRole("button", { name: /^外观与排版/ }).click();
-  await expect(page.getByRole("heading", { name: "外观与排版", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /^编辑器设置/ }).click();
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
+  await expect(page.getByRole("heading", { name: "外观与布局", exact: true })).toBeVisible();
+  await page.getByLabel("返回设置分类").click();
+  await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   await expect(page.getByRole("heading", { name: "编辑器", exact: true })).toBeVisible();
-  await expect(page.locator(".settings-field")).toHaveCount(7);
+  await expect(page.locator(".settings-field")).toHaveCount(9);
   await expect(page.getByText("状态栏块号", { exact: true })).toBeVisible();
   await expect(page.getByText("只读文档双击标题折叠", { exact: true })).toBeVisible();
   await expect(page.getByText("Vim 模式（实验性）", { exact: true })).toHaveCount(0);
   await expect(page.getByText("主题", { exact: true })).toHaveCount(0);
   await expect(page.locator(".settings-version")).toHaveCount(0);
 
-  await page.getByLabel("返回外观与排版").click();
   await page.getByLabel("返回设置分类").click();
-  await expect(categories).toHaveCount(6);
+  await expect(categories).toHaveCount(7);
   await expect(page.locator(".settings-version")).toBeVisible();
-  await page.getByRole("button", { name: /^数据与导入/ }).click();
-  await expect(page.getByRole("heading", { name: "数据与导入", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /^备份与导入/ }).click();
+  await expect(page.getByRole("heading", { name: "备份与导入", exact: true })).toBeVisible();
   await expect(page.getByText("JSON 备份与恢复", { exact: true })).toBeVisible();
   await expect(page.getByText("Markdown / 纯文本导入", { exact: true })).toBeVisible();
   await expect(page.getByText("快捷键", { exact: true })).toHaveCount(0);
@@ -62,11 +64,11 @@ test("设置子页首个分组没有多余顶部留白和分割线", async ({ pa
   await expect(page.locator(".ProseMirror")).toBeVisible();
   await page.getByTitle("设置").click();
 
-  for (const pageName of ["用户信息", "数据与导入", "同步与备份"]) {
-    if (pageName === "用户信息") await page.getByRole("button", { name: /^文档管理/ }).click();
+  for (const pageName of ["作者与文档默认值", "备份与导入", "云端同步"]) {
+    if (pageName === "作者与文档默认值") await page.getByRole("button", { name: /^文档管理/ }).click();
     await page.getByRole("button", { name: new RegExp(`^${pageName}`) }).click();
 
-    const firstSection = page.locator(pageName === "数据与导入" ? ".settings-body > .settings-data-page" : ".settings-body > .settings-section").first();
+    const firstSection = page.locator(pageName === "备份与导入" ? ".settings-body > .settings-data-page" : ".settings-body > .settings-section").first();
     await expect(firstSection).toBeVisible();
     await expect.poll(() => firstSection.evaluate((element) => {
       const style = getComputedStyle(element);
@@ -75,11 +77,11 @@ test("设置子页首个分组没有多余顶部留白和分割线", async ({ pa
         paddingTop: style.paddingTop,
         borderTopWidth: style.borderTopWidth,
       };
-    })).toEqual(pageName === "用户信息"
+    })).toEqual(pageName === "作者与文档默认值"
       ? { marginTop: "0px", paddingTop: "20px", borderTopWidth: "1px" }
       : { marginTop: "0px", paddingTop: "0px", borderTopWidth: "0px" });
 
-    if (pageName === "用户信息") await page.getByLabel("返回文档管理").click();
+    if (pageName === "作者与文档默认值") await page.getByLabel("返回文档管理").click();
     await page.getByLabel("返回设置分类").click();
   }
 
@@ -133,8 +135,8 @@ test.describe("触屏设置导航", () => {
     expect(tagColors.borderColor).toBe(tagColors.expectedBorderColor);
 
     await page.getByLabel("返回设置分类").tap();
-    await page.getByRole("button", { name: /^外观与排版/ }).tap();
-    const editorEntry = page.getByRole("button", { name: /^编辑器设置/ });
+    await page.getByRole("button", { name: /^外观与布局/ }).tap();
+    const editorEntry = page.getByRole("button", { name: /^分栏设置/ });
     await expect(editorEntry).toBeVisible();
     await expect(editorEntry).not.toBeFocused();
     await expect(editorEntry).toHaveCSS("border-color", tagColors.expectedBorderColor);
@@ -173,8 +175,7 @@ test("编辑器状态栏紧凑且可以关闭并持久化", async ({ page }) => 
   })).toBeGreaterThan(0.5);
 
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^外观与排版/ }).click();
-  await page.getByRole("button", { name: /^编辑器设置/ }).click();
+  await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   const statusSetting = page.locator(".settings-field").filter({ hasText: "编辑器状态栏" });
   const toggle = statusSetting.locator('input[type="checkbox"]');
   await expect(toggle).toBeChecked();
@@ -190,8 +191,7 @@ test("编辑器状态栏紧凑且可以关闭并持久化", async ({ page }) => 
 test("PWA 可关闭只读专注模式双击折叠并持久化", async ({ page }) => {
   const openSetting = async () => {
     await page.getByTitle("设置").click();
-    await page.getByRole("button", { name: /^外观与排版/ }).click();
-    await page.getByRole("button", { name: /^编辑器设置/ }).click();
+    await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
     return page.locator(".settings-field").filter({ hasText: "只读文档双击标题折叠" });
   };
 
@@ -220,18 +220,8 @@ test("新代码块遵循已保存的默认软换行配置且说明不修改内�
     const { api } = await load("/src/lib/api.ts");
     await api.config.set({ editor_code_wrap_default: false });
   });
-  await page.reload();
-
+  await createBlankDocument(page);
   const editor = page.locator(".ProseMirror");
-  await expect(editor).toBeVisible();
-  await page.evaluate(async () => {
-    const load = (path: string) => import(/* @vite-ignore */ path);
-    const { api } = await load("/src/lib/api.ts");
-    const { useNotesStore } = await load("/src/stores/useNotesStore.ts");
-    const note = await api.notes.create({ title: "软换行测试", date: "2026-09-17", storagePath: "tests", content: { ops: [{ insert: "\n" }] } });
-    useNotesStore.getState().selectNote(note);
-  });
-  await expect(page.locator(".note-title")).toHaveValue("软换行测试");
   await editor.fill("new-code");
   await editor.press("Control+Alt+c");
   const codeBlock = editor.locator(".code-block-wrap");
@@ -273,7 +263,7 @@ test.describe("移动端设置", () => {
   test("Owner / Repo 字段始终可编辑", async ({ page }) => {
     await page.goto("/");
     await openMobileSettings(page);
-    await page.getByRole("button", { name: /^同步与备份/ }).click();
+    await page.getByRole("button", { name: /^云端同步/ }).click();
 
     const ownerRepoInput = page.getByRole("textbox", { name: "Owner / Repo" });
     const box = await ownerRepoInput.boundingBox();
@@ -291,7 +281,7 @@ test.describe("移动端设置", () => {
 test("Owner / Repo 与 Token 一样直接显示输入框", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^同步与备份/ }).click();
+  await page.getByRole("button", { name: /^云端同步/ }).click();
 
   await expect(page.getByRole("textbox", { name: "Owner / Repo" })).toBeVisible();
   await expect(page.locator('input[type="password"]')).toBeVisible();
@@ -396,7 +386,7 @@ test("Web/PWA 从 GitHub Pull 后自动应用设置并恢复最后文档位置",
     };
   }));
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^同步与备份/ }).click();
+  await page.getByRole("button", { name: /^云端同步/ }).click();
   await expect(page.getByText(/Pull 会先按文档 UUID 比较本地、远端和上次同步基线/)).toBeVisible();
   await page.getByRole("button", { name: "Pull ↓" }).click();
   await expect(page.getByText("Pull 文档级预检")).toBeVisible();

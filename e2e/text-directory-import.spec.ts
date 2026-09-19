@@ -6,7 +6,7 @@ test("目录导入保留所选根目录、嵌套层级和纯文本格式，跳�
 }) => {
   await page.goto("/");
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^数据与导入/ }).click();
+  await page.getByRole("button", { name: /^备份与导入/ }).click();
   await page.getByLabel("Markdown 导入目标路径").fill("references/folder-test");
   await page
     .getByLabel("导入文本目录")
@@ -50,7 +50,7 @@ test("多选纯文本允许个别失败，UTF-16 正确解码且同一批文件�
 }) => {
   await page.goto("/");
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^数据与导入/ }).click();
+  await page.getByRole("button", { name: /^备份与导入/ }).click();
   const input = page.locator('input[type="file"][accept^=".md,"]');
   const files = [
     {

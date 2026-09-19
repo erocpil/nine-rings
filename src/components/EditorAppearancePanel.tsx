@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useRef } from "react";
 import type { AppConfig } from "../types/models";
 import { DEFAULT_EDITOR_APPEARANCE, editorAppearanceVariables } from "../lib/editor-appearance";
-import { blockWorkspacePreferences, saveBlockWorkspacePreferences, codeBlockHeightPercent, setCodeBlockHeightPercent } from "../lib/block-display-settings";
+import { blockWorkspacePreferences, codeBlockHeightPercent } from "../lib/block-display-settings";
+
+import type { BlockDisplayDraft } from "../lib/save-editor-appearance";
 
 interface Props {
   config: AppConfig;
   onClose: () => void;
-  onApply: () => void;
+  onApply: (display?: BlockDisplayDraft) => Promise<void>;
   dirty: boolean;
   onUpdate: (partial: Partial<AppConfig>) => void;
   initialSearch?: string;
@@ -14,6 +16,19 @@ interface Props {
 
 export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdate, initialSearch }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const [applying, setApplying] = useState(false);
+  const applyingRef = useRef(false);
+  const [applyError, setApplyError] = useState("");
+  const close = () => { if (!applyingRef.current) onClose(); };
+  const applyDraft = async () => {
+    if (applyingRef.current) return;
+    applyingRef.current = true;
+    setApplying(true);
+    setApplyError("");
+    try { await onApply(blockDirty ? { preferences: blockDisplay, height: codeHeight } : undefined); }
+    catch (error) { setApplyError(`保存失败，调整已保留，请重试：${error instanceof Error ? error.message : String(error)}`); }
+    finally { applyingRef.current = false; setApplying(false); }
+  };
   useEffect(() => {
     if (!initialSearch?.trim()) return;
     const terms = initialSearch.normalize("NFKC").toLocaleLowerCase().trim().split(/\s+/);
@@ -37,7 +52,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
-      onClose();
+      if (!applyingRef.current) onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -51,7 +66,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
       aria-labelledby="editor-appearance-title"
       onClick={(event) => {
         event.stopPropagation();
-        if (event.target === event.currentTarget) onClose();
+        if (event.target === event.currentTarget) close();
       }}
     >
       <div ref={panelRef} className="editor-appearance-panel" onClick={(event) => event.stopPropagation()}>
@@ -61,11 +76,12 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
             <h2 id="editor-appearance-title">排版设置</h2>
             <p>调整只影响阅读和编辑外观，不会修改文档内容或 Markdown 导出结果。</p>
           </div>
-          <button className="settings-close" type="button" onClick={onClose} aria-label="关闭编辑器排版">✕</button>
+          <button className="settings-close" type="button" onClick={close} disabled={applying} aria-label="关闭编辑器排版">✕</button>
         </header>
 
+        <div className="settings-feedback-slot" role="status" aria-live="polite"><span className="settings-feedback-text">{applyError}</span></div>
         <div className="editor-appearance-workspace">
-          <div className="editor-appearance-controls">
+          <fieldset className="editor-appearance-controls" disabled={applying}>
             <AppearanceField label="正文字体" desc="选择编辑器正文的字体组合">
               <select
                 className="settings-input editor-appearance-select"
@@ -173,17 +189,17 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
               onClick={() => { onUpdate({ ...DEFAULT_EDITOR_APPEARANCE }); setBlockDisplay({ fontSize: undefined, whitespace: "off", tabSize: 4, lineNumbers: false, wrap: true }); setCodeHeight(60); setBlockDirty(true); }}
             >恢复默认排版</button>
             <div className="editor-appearance-actions">
-              <button className="settings-btn-secondary editor-appearance-cancel" type="button" onClick={onClose}>取消</button>
+              <button className="settings-btn-secondary editor-appearance-cancel" type="button" onClick={close} disabled={applying}>取消</button>
               <button
                 className="settings-btn-primary editor-appearance-apply"
                 type="button"
                 disabled={!dirty && !blockDirty}
-                onClick={() => { if (blockDirty) { saveBlockWorkspacePreferences(blockDisplay); setCodeBlockHeightPercent(codeHeight); } onApply(); }}
+                onClick={() => void applyDraft()}
               >
-                应用到编辑器
+                {applying ? "保存中…" : "应用到编辑器"}
               </button>
             </div>
-          </div>
+          </fieldset>
 
           <div className="editor-appearance-preview-pane">
             <div className="editor-appearance-preview-label">

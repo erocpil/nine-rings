@@ -116,6 +116,10 @@
   list-style: none;
 }
 
+.editor-appearance-preview.editor-appearance-document > :is(ul, ol) {
+  margin: var(--editor-list-margin-top) 0 var(--editor-list-margin-bottom);
+}
+
 .editor-appearance-preview ol > li {
   counter-increment: editor-list-item;
 }

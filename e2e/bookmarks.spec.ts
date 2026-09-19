@@ -81,8 +81,8 @@ async function createBlankNote(page: import("@playwright/test").Page) {
 
 async function enableVimMode(page: import("@playwright/test").Page) {
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^外观与排版/ }).click();
-  await page.getByRole("button", { name: /^编辑器设置/ }).click();
+  await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
+  await page.getByRole("button", { name: /打开 Vim 设置/ }).click();
   const field = page.locator(".settings-field").filter({ hasText: "Vim 模式（实验性）" });
   if (!(await field.locator('input[type="checkbox"]').isChecked())) await field.locator(".settings-toggle").click();
   await page.locator(".settings-close").click();

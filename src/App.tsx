@@ -1395,6 +1395,15 @@ function App() {
     } : undefined}
     onClose={() => setSettingsOpen(false)}
     onConfigChange={handleConfigChange}
+    onOpenBookmark={async (noteId, bookmarkId) => {
+      await flushAutoSave();
+      const note = await api.notes.get(noteId);
+      if (!note || !note.content.metadata?.bookmarks?.some(bookmark => bookmark.id === bookmarkId)) {
+        throw new Error("文档或书签已不存在，请重新加载书签列表。");
+      }
+      clearSearchAndSelect(note);
+      setEditorSearchTarget({ noteId, bookmarkId, query: "", requestId: ++searchRequestIdRef.current });
+    }}
     libraryError={readingLibraryError}
     onBeforeBookmarkNoteUpdate={async (noteId) => {
       if (selectedNoteRef.current?.id === noteId) await autoSave.flush();

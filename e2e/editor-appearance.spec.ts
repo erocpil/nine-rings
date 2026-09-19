@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { createBlankNote } from "./helpers/editor-fixtures";
+import { createBlankDocument } from "./helpers/document";
 
 test("块显示设置迁移到排版页，取消不保存且应用后重载保留", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^外观与排版/ }).click();
+  await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   const open = page.getByRole("button", { name: /打开排版设置/ });
   await open.click();
   await page.getByLabel("Tab 显示宽度").selectOption("8");
@@ -20,7 +20,7 @@ test("块显示设置迁移到排版页，取消不保存且应用后重载保�
   await expect(page.getByRole("dialog", { name: "排版设置" })).toHaveCount(0);
   await page.reload();
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^外观与排版/ }).click();
+  await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   await page.getByRole("button", { name: /打开排版设置/ }).click();
   await expect(page.getByLabel("Tab 显示宽度")).toHaveValue("8");
   await expect(page.getByLabel("弹层字号")).toHaveValue("20");
@@ -32,7 +32,7 @@ test("块显示设置迁移到排版页，取消不保存且应用后重载保�
 test("排版设置中的调整即时生效并在重载后保持", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^外观与排版/ }).click();
+  await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   await expect(page.getByText("编辑器排版", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /打开排版设置/ }).click();
   await expect(page.getByRole("dialog", { name: "排版设置" })).toBeVisible();
@@ -161,7 +161,7 @@ test("中英文自动间距只改变渲染且开关可以持久化", async ({ pa
   await expect(editor).toHaveText("中文Codex中文，ABC。第3章");
 
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^外观与排版/ }).click();
+  await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   await page.getByRole("button", { name: /打开排版设置/ }).click();
   const toggle = page.getByLabel("中英文自动间距");
   await expect(toggle).toBeChecked();
@@ -177,14 +177,15 @@ test("中英文自动间距只改变渲染且开关可以持久化", async ({ pa
 test("Alt-E 聚焦全局搜索而 Ctrl-E 不再占用", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible();
-  const search = page.getByPlaceholder("搜索笔记...");
+  const search = page.getByRole("textbox", { name: "全局搜索", exact: true });
 
   await page.keyboard.press("Alt+e");
   await expect(search).toBeFocused();
 
+  await page.keyboard.press("Escape");
   await page.locator(".ProseMirror").click();
   await page.keyboard.press("Control+e");
-  await expect(search).not.toBeFocused();
+  await expect(page.getByRole("dialog", { name: "全局搜索", exact: true })).toHaveCount(0);
 });
 
 test("四至六级标题字号不小于正文", async ({ page }) => {
@@ -229,7 +230,7 @@ test("四至六级标题字号不小于正文", async ({ page }) => {
   expect(sizes.h6).toBeGreaterThanOrEqual(sizes.paragraph);
 
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^外观与排版/ }).click();
+  await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   await page.getByRole("button", { name: /打开排版设置/ }).click();
   await page.getByRole("button", { name: "增大正文与标题字号" }).click();
   await page.getByRole("button", { name: "应用到编辑器" }).click();
@@ -244,10 +245,7 @@ test("四至六级标题字号不小于正文", async ({ page }) => {
 });
 
 test("纯粗体小节标签与下一段正文保持紧凑间距", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  await createBlankDocument(page);
 
   const editor = page.locator(".ProseMirror");
   await editor.evaluate((element) => {
@@ -282,7 +280,8 @@ test("纯粗体小节标签与下一段正文保持紧凑间距", async ({ page 
 });
 
 test("局部加粗正文不会改变其后分割线间距", async ({ page }) => {
-  const editor = await createBlankNote(page);
+  await createBlankDocument(page);
+  const editor = page.locator(".ProseMirror");
   await editor.evaluate((element) => {
     const clipboardData = new DataTransfer();
     clipboardData.setData(

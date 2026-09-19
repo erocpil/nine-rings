@@ -18,7 +18,7 @@ test("Pull 预检显示字符串请求错误和失败阶段，不显示 undefine
     } });
   });
   await page.getByTitle("设置", { exact: true }).click();
-  await page.getByRole("button", { name: /^同步与备份/ }).click();
+  await page.getByRole("button", { name: /^云端同步/ }).click();
   await page.getByRole("button", { name: /Pull/ }).first().click();
   const error = page.locator(".ui-operation-error");
   await expect(error).toContainText("native transport: connection reset");
@@ -34,7 +34,7 @@ test("Pull 预检显示字符串请求错误和失败阶段，不显示 undefine
 test("Token 保存确认可取消，Esc 不关闭设置，确认后才修改配置", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^同步与备份/ }).click();
+  await page.getByRole("button", { name: /^云端同步/ }).click();
   const remember = page.getByLabel("在此设备记住 Token");
   await remember.click();
   const dialog = page.getByRole("dialog", { name: "在此设备保存 Token" });
@@ -42,7 +42,7 @@ test("Token 保存确认可取消，Esc 不关闭设置，确认后才修改配�
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
   await expect(remember).not.toBeChecked();
-  await expect(page.getByRole("heading", { name: "同步与备份", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "云端同步", exact: true })).toBeVisible();
   await remember.click();
   await dialog.getByRole("button", { name: "仍然保存" }).click();
   await expect(remember).toBeChecked();
@@ -63,7 +63,7 @@ test("预检错误保留长文档路径与设备信息，允许复制", async ({
     } });
   });
   await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^同步与备份/ }).click();
+  await page.getByRole("button", { name: /^云端同步/ }).click();
   await page.getByRole("button", { name: /Pull/ }).first().click();
   const error = page.locator(".ui-operation-error");
   await expect(error).toContainText("失败阶段：本机导出预检快照");
