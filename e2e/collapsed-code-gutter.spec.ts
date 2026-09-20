@@ -152,12 +152,13 @@ for (const width of [1280, 390])
         await code
           .getByRole("button", { name: "折叠代码块", exact: true })
           .click();
-        await align();
+        await page.waitForTimeout(450);
         await check();
+        // Do not scroll after switching: it could mask a missing layout refresh.
         await page
           .getByRole("button", { name: "点击设为只读", exact: true })
           .click();
-        await align();
+        await page.waitForTimeout(450);
         await check();
         await code
           .getByRole("button", { name: "展开代码块", exact: true })
@@ -165,7 +166,7 @@ for (const width of [1280, 390])
         await code
           .getByRole("button", { name: "折叠代码块", exact: true })
           .click();
-        await align();
+        await page.waitForTimeout(450);
         await check();
       });
   });
