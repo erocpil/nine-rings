@@ -45,6 +45,7 @@ import { Extension, getSchema, type Editor } from "@tiptap/core";
 import { Fragment, Slice, type Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { readClipboardContent, shouldParseClipboardMarkdown } from "../lib/clipboard-content";
 import { Plugin, TextSelection, type Selection } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
 import { closeHistory } from "@tiptap/pm/history";
 import { CellSelection, deleteCellSelection, TableMap } from "@tiptap/pm/tables";
 import { addLog, toggleDebug } from "../lib/debugLog";
@@ -94,7 +95,7 @@ import { FULLSCREEN_WILL_CHANGE_EVENT } from "../lib/fullscreen";
 import { preserveReadingPositions } from "../lib/reading-position";
 import { editorGutterWidth } from "../lib/editor-gutter";
 import { bindViewportEdgeSwipe, swipeViewport } from "../lib/edge-swipe";
-import { clipboardSliceToPlainText } from "../lib/clipboard-plain-text";
+import { clipboardSliceToPlainText, flattenPartialStructuredClipboard } from "../lib/clipboard-plain-text";
 import { StructuredBlockExit } from "../extensions/StructuredBlockExit";
 import {
   CjkLatinSpacing,
@@ -409,6 +410,12 @@ const documentEditorProps = {
   attributes: { tabindex: "0" },
   transformPastedHTML: normalizePastedHTML,
   transformPasted: normalizeSingleParagraphPaste,
+  transformCopied: (slice: Slice, view: EditorView) => {
+    const { $from } = view.state.selection;
+    const structuredContext = Array.from({ length: $from.depth + 1 }, (_, depth) => $from.node(depth).type.name)
+      .some((name) => name === "codeBlock" || name === "blockquote");
+    return flattenPartialStructuredClipboard(slice, view.state.schema, structuredContext);
+  },
   clipboardTextSerializer: clipboardSliceToPlainText,
 };
 

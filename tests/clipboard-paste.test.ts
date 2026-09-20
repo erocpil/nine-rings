@@ -1,6 +1,6 @@
 import { Fragment, Schema, Slice } from "@tiptap/pm/model";
 import { normalizeSingleParagraphPaste } from "../src/extensions/NormalizeSingleParagraphPaste";
-import { clipboardSliceToPlainText } from "../src/lib/clipboard-plain-text";
+import { clipboardSliceToPlainText, flattenPartialStructuredClipboard } from "../src/lib/clipboard-plain-text";
 
 let passed = 0;
 let failed = 0;
@@ -18,6 +18,8 @@ const schema = new Schema({
   nodes: {
     doc: { content: "block+" },
     paragraph: { content: "inline*", group: "block" },
+    codeBlock: { content: "text*", group: "block", code: true },
+    blockquote: { content: "block+", group: "block" },
     heading: {
       attrs: { level: { default: 1 } },
       content: "inline*",
@@ -60,6 +62,13 @@ console.log("\n── clipboardSliceToPlainText ──");
     clipboardSliceToPlainText(complete) === "- 尾延迟和公平性之间要用实",
     "complete list copy keeps its bullet marker",
   );
+}
+
+{
+  const partialCode = new Slice(Fragment.from(schema.text("二行代码")), 0, 0);
+  const flattened = flattenPartialStructuredClipboard(partialCode, schema, true);
+  assert(flattened.content.firstChild?.type.name === "paragraph", "partial structured copy becomes plain paragraph HTML");
+  assert(flattened.content.firstChild?.textContent === "二行代码", "partial structured copy keeps exact text");
 }
 
 {

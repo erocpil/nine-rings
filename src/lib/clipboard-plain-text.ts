@@ -1,4 +1,4 @@
-import type { Fragment, Node as ProseMirrorNode, Slice } from "@tiptap/pm/model";
+import { Fragment, Slice, type Node as ProseMirrorNode, type Schema } from "@tiptap/pm/model";
 
 function inlineText(node: ProseMirrorNode): string {
   let result = "";
@@ -135,4 +135,29 @@ export function clipboardSliceToPlainText(slice: Slice): string {
   // 序号和引用符并不属于实际选中文本，不应由序列化器额外合成。
   const includeBlockSyntax = slice.openStart === 0 && slice.openEnd === 0;
   return renderFragment(slice.content, includeBlockSyntax);
+}
+
+/**
+ * A selection taken from inside a structured block should paste as text.
+ * ProseMirror also places HTML on the clipboard; without this transform that
+ * HTML can recreate a code block or blockquote when pasted into another one.
+ * Complete blocks keep their rich clipboard representation.
+ */
+export function flattenPartialStructuredClipboard(slice: Slice, schema: Schema, structuredContext = false): Slice {
+  let structured = structuredContext;
+  slice.content.descendants((node) => {
+    if (node.type.name === "codeBlock" || node.type.name === "blockquote") {
+      structured = true;
+      return false;
+    }
+    return true;
+  });
+  if (!structuredContext && slice.openStart === 0 && slice.openEnd === 0) return slice;
+  if (!structured) return slice;
+  const text = clipboardSliceToPlainText(slice);
+  const paragraph = schema.nodes.paragraph.create(
+    null,
+    text ? schema.text(text) : undefined,
+  );
+  return new Slice(Fragment.from(paragraph), 0, 0);
 }

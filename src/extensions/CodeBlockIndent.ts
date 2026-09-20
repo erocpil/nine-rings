@@ -1,6 +1,7 @@
 import { Extension } from "@tiptap/core";
 import { blockWorkspacePreferences } from "../lib/block-display-settings";
 import { codeIndentChanges } from "../lib/code-indent";
+import { isMacPlatform } from "../lib/shortcuts";
 import { exitCurrentStructuredBlock } from "./StructuredBlockExit";
 
 export const CodeBlockIndent = Extension.create({
@@ -24,6 +25,13 @@ export const CodeBlockIndent = Extension.create({
     return {
       Tab: () => indent(false),
       "Shift-Tab": () => indent(true),
+      "Control-a": () => {
+        if (!isMacPlatform() || !this.editor.isActive("codeBlock")) return false;
+        const { $from } = this.editor.state.selection;
+        const lineStart = $from.parent.textContent.lastIndexOf("\n", $from.parentOffset - 1) + 1;
+        this.editor.commands.setTextSelection($from.start() + lineStart);
+        return true;
+      },
       "Mod-Enter": () => {
         if (!this.editor.isActive("codeBlock")) return false;
         if (!this.editor.isEditable) return true;

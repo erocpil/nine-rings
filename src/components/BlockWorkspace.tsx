@@ -9,7 +9,7 @@ import { Plugin, TextSelection } from "@tiptap/pm/state";
 import { Step, StepMap } from "@tiptap/pm/transform";
 import { closeHistory } from "@tiptap/pm/history";
 import { OPEN_BLOCK_WORKSPACE, queueBlockWorkspace, takeBlockWorkspace } from "../lib/block-workspace";
-import { clipboardSliceToPlainText } from "../lib/clipboard-plain-text";
+import { clipboardSliceToPlainText, flattenPartialStructuredClipboard } from "../lib/clipboard-plain-text";
 import { copyToClipboard } from "../lib/clipboard";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { CopyBlockNotice } from "./CopyBlockNotice";
@@ -156,7 +156,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
     extensions,
     content: { type: "doc", content: [initial.toJSON()] },
     editable: false,
-    editorProps: { attributes: { "aria-label": "块内容", tabindex: "0" }, clipboardTextSerializer: clipboardSliceToPlainText, transformPastedHTML: normalizePastedHTML, transformPasted: normalizeSingleParagraphPaste },
+    editorProps: { attributes: { "aria-label": "块内容", tabindex: "0" }, clipboardTextSerializer: clipboardSliceToPlainText, transformCopied: (slice, view) => { const { $from } = view.state.selection; const structuredContext = $from.parent.type.name === "codeBlock" || Array.from({ length: $from.depth + 1 }, (_, depth) => $from.node(depth).type.name).includes("blockquote"); return flattenPartialStructuredClipboard(slice, view.state.schema, structuredContext); }, transformPastedHTML: normalizePastedHTML, transformPasted: normalizeSingleParagraphPaste },
     onUpdate: ({ editor: local, transaction }) => {
       if (!transaction.docChanged || bridging.current || !editableRef.current || !source.isEditable) return;
       const sourceNode = source.state.doc.nodeAt(position.current);
