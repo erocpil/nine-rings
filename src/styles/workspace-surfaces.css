@@ -1340,6 +1340,18 @@
   box-shadow: 0 8px 24px var(--shadow-color, rgba(0, 0, 0, 0.18));
 }
 
+.document-outline-panel,
+.document-bookmark-panel {
+  font-size: var(--navigation-font-size, 14px);
+  color: var(--navigation-text, var(--text));
+  background: var(--navigation-bg, var(--surface));
+}
+
+.document-outline-panel .document-outline-item,
+.document-bookmark-panel .document-bookmark-item {
+  color: inherit;
+}
+
 .focus-mode .document-outline-panel {
   top: 8px;
 }

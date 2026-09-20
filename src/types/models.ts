@@ -230,6 +230,9 @@ export interface AppConfig {
   editor_list_marker_gap: number;
   editor_blockquote_indent: number;
   editor_search_highlight_color: string;
+  navigation_font_size: number;
+  navigation_text_color: string;
+  navigation_background_color: string;
   editor_cjk_spacing: boolean;
   dev_port: number;
   highlight_active_line: boolean;

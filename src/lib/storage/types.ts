@@ -21,6 +21,9 @@ export interface AppConfig {
   editor_list_marker_gap: number;
   editor_blockquote_indent: number;
   editor_search_highlight_color: string;
+  navigation_font_size: number;
+  navigation_text_color: string;
+  navigation_background_color: string;
   editor_cjk_spacing: boolean;
   dev_port: number; // 仅 web 模式生效
   highlight_active_line: boolean;
@@ -64,6 +67,9 @@ export const DEFAULT_CONFIG: AppConfig = {
   editor_list_marker_gap: 0.35,
   editor_blockquote_indent: 8,
   editor_search_highlight_color: "#ffd54f",
+  navigation_font_size: 14,
+  navigation_text_color: "#333333",
+  navigation_background_color: "#f5f1e8",
   editor_cjk_spacing: true,
   dev_port: 8000,
   highlight_active_line: true,

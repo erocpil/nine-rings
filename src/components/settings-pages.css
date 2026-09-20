@@ -1,4 +1,19 @@
 /* Shared settings surfaces for desktop dialogs and mobile drawers. */
+.navigation-style-settings {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto;
+  gap: 10px 16px;
+  align-items: center;
+}
+.navigation-style-settings label { display: inline-flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 13px; }
+.navigation-style-settings input[type="range"] { width: 140px; accent-color: var(--accent); }
+.navigation-style-settings input[type="color"] { width: 34px; height: 28px; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+.navigation-style-settings output { min-width: 40px; color: var(--text); }
+@media (max-width: 600px) {
+  .navigation-style-settings { grid-template-columns: 1fr 1fr; }
+  .navigation-style-settings label:first-child { grid-column: 1 / -1; }
+}
+
 .settings-changelog {
   grid-column: 1 / -1;
   min-width: 0;

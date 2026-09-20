@@ -14,8 +14,24 @@ export const DEFAULT_EDITOR_APPEARANCE = {
   editor_list_marker_gap: 0.35,
   editor_blockquote_indent: 8,
   editor_search_highlight_color: "#ffd54f",
+  navigation_font_size: 14,
+  navigation_text_color: "#333333",
+  navigation_background_color: "#f5f1e8",
   editor_cjk_spacing: true,
 } as const;
+
+/** Stable subset reserved for a future appearance export/import flow. */
+export const NAVIGATION_APPEARANCE_KEYS = [
+  "navigation_font_size",
+  "navigation_text_color",
+  "navigation_background_color",
+] as const;
+
+export type NavigationAppearance = Pick<AppConfig, typeof NAVIGATION_APPEARANCE_KEYS[number]>;
+
+export function pickNavigationAppearance(config: Partial<AppConfig>): Partial<NavigationAppearance> {
+  return Object.fromEntries(NAVIGATION_APPEARANCE_KEYS.map((key) => [key, config[key]])) as Partial<NavigationAppearance>;
+}
 
 const FONT_STACKS: Record<AppConfig["editor_font_family"], string> = {
   system: '"Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif',
@@ -39,6 +55,9 @@ export function editorAppearanceVariables(config?: Partial<AppConfig>): Record<s
   const resolvedFamily = family === "sans" || family === "serif" || family === "monospace"
     ? family
     : "system";
+  const navigationFontSize = clamp(config?.navigation_font_size, 11, 22, 14);
+  const navigationText = safeAppearanceColor(config?.navigation_text_color, "#333333");
+  const navigationBackground = safeAppearanceColor(config?.navigation_background_color, "#f5f1e8");
   return {
     "--editor-font-family": FONT_STACKS[resolvedFamily],
     "--editor-font-size": `${clamp(config?.note_font_size, 12, 32, 16)}px`,
@@ -53,5 +72,13 @@ export function editorAppearanceVariables(config?: Partial<AppConfig>): Record<s
     "--editor-list-marker-gap": `${clamp(config?.editor_list_marker_gap, 0.1, 0.8, 0.35)}em`,
     "--editor-blockquote-indent": `${clamp(config?.editor_blockquote_indent, 4, 32, 8)}px`,
     "--editor-search-highlight": safeColor(config?.editor_search_highlight_color),
+    "--navigation-font-size": `${navigationFontSize}px`,
+    "--navigation-text": navigationText,
+    "--navigation-bg": navigationBackground,
   };
+}
+
+function safeAppearanceColor(value: unknown, fallback: string): string {
+  const color = String(value ?? "");
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
 }

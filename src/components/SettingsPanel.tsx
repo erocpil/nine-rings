@@ -732,6 +732,14 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </button>
             </Field>
 
+            <Field label="导航区样式" desc="统一调整目录、书签、文件树和文件列表的字体与颜色；后续可导出为外观配置" visible={settingsPage === "appearance"}>
+              <div className="navigation-style-settings">
+                <label>字号 <input type="range" min="11" max="22" step="1" value={config.navigation_font_size} onChange={event => update({ navigation_font_size: Number(event.target.value) })} /> <output>{config.navigation_font_size}px</output></label>
+                <label>文字颜色 <input type="color" value={config.navigation_text_color} onChange={event => update({ navigation_text_color: event.target.value })} /></label>
+                <label>背景颜色 <input type="color" value={config.navigation_background_color} onChange={event => update({ navigation_background_color: event.target.value })} /></label>
+              </div>
+            </Field>
+
             {settingsPage === "sidebar" && <div className="sidebar-settings-page">
               <SettingsWorkspaceLayout onError={showMessage} />
               <SettingsSidebarPresentation onError={showMessage} />
