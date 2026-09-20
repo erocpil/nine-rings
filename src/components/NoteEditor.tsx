@@ -197,6 +197,27 @@ function isSelectionInsideCodeBlock(editor: Editor): boolean {
   return $from.parent === $to.parent && $from.parent.type.name === "codeBlock";
 }
 
+/**
+ * WebKit treats the ProseMirror root as the editing host, even when the DOM
+ * selection sits in a nested code NodeView. Toggle the host attributes with
+ * the active block so macOS cannot replace literal code punctuation while
+ * leaving normal prose input untouched.
+ */
+function syncNativeCodeInputBehavior(editor: Editor): void {
+  const root = editor.view.dom;
+  const codeActive = editor.isActive("codeBlock");
+  const attributes = {
+    spellcheck: "false",
+    autocorrect: "off",
+    autocapitalize: "off",
+    autocomplete: "off",
+  } as const;
+  for (const [name, value] of Object.entries(attributes)) {
+    if (codeActive) root.setAttribute(name, value);
+    else root.removeAttribute(name);
+  }
+}
+
 function insertCodeBlockPlainText(editor: Editor, text: string): void {
   if (!text) return;
   const { from, to } = editor.state.selection;
@@ -961,9 +982,13 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     extensions: sessionExtensions,
     content: tipTapContent,
     editable: !readonly,
-    onCreate: ({ editor: ed }) => scheduleDocumentStats(ed, true),
+    onCreate: ({ editor: ed }) => {
+      syncNativeCodeInputBehavior(ed);
+      scheduleDocumentStats(ed, true);
+    },
     editorProps: documentEditorProps,
     onSelectionUpdate: ({ editor: ed }) => {
+      syncNativeCodeInputBehavior(ed);
       const { from, to } = ed.state.selection;
       if (ed.isFocused && !toolbarInteractingRef.current) {
         toolbarCellSelectionRef.current = null;

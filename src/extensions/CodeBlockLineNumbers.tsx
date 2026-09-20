@@ -421,7 +421,16 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
             ))}
           </div>
           <pre>
-            <NodeViewContent as="code" />
+            <NodeViewContent
+              as="code"
+              // Code is a literal input surface. In macOS WKWebView, turning
+              // off spell checking also suppresses the native smart-quote and
+              // replacement path for this contenteditable subtree.
+              spellCheck={false}
+              autoCorrect="off"
+              autoCapitalize="off"
+              autoComplete="off"
+            />
           </pre>
         </div>
       </div>

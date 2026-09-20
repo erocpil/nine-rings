@@ -40,6 +40,35 @@ test('只读代码块显示语言且不可修改，弹层保持相同语言', as
   await expect(dialog.getByRole('button', { name: '编辑', exact: true })).toHaveCount(0);
 });
 
+test('代码输入表面关闭自动替换与拼写检查', async ({ page }) => {
+  const block = await codeDocument(page);
+  const editor = page.locator('.note-editor .ProseMirror');
+  await editor.evaluate(element => {
+    const instance = (element as HTMLElement & { editor: Editor }).editor;
+    instance.commands.setTextSelection(2);
+    instance.view.focus();
+  });
+  await expect(editor).toHaveAttribute('spellcheck', 'false');
+  await expect(editor).toHaveAttribute('autocorrect', 'off');
+  await expect(editor).toHaveAttribute('autocapitalize', 'off');
+  await expect(editor).toHaveAttribute('autocomplete', 'off');
+
+  const inlineCode = block.locator('pre code');
+  await expect(inlineCode).toHaveAttribute('spellcheck', 'false');
+  await expect(inlineCode).toHaveAttribute('autocorrect', 'off');
+  await expect(inlineCode).toHaveAttribute('autocapitalize', 'off');
+  await expect(inlineCode).toHaveAttribute('autocomplete', 'off');
+
+  await block.getByRole('button', { name: '放大阅读代码块' }).click();
+  const dialog = page.getByRole('dialog', { name: '代码块工作区' });
+  await dialog.getByRole('button', { name: '编辑', exact: true }).click();
+  const code = dialog.locator('.cm-content');
+  await expect(code).toHaveAttribute('spellcheck', 'false');
+  await expect(code).toHaveAttribute('autocorrect', 'off');
+  await expect(code).toHaveAttribute('autocapitalize', 'off');
+  await expect(code).toHaveAttribute('autocomplete', 'off');
+});
+
 test('代码块编辑可直接使用 Vim，插入换行退格、可视模式和撤销重做生效', async ({ page }) => {
   const block = await codeDocument(page);
   await block.getByRole('button', { name: '放大阅读代码块' }).click();

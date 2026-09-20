@@ -35,7 +35,12 @@ export function CodeMirrorBlockEditor({ vimEnabled, value, onChange, onUndo, onR
     if (!host.current) return;
     const tabs = new Compartment();
     const tabSize = () => blockWorkspacePreferences().tabSize ?? 4;
-    const state = EditorState.create({ doc: valueRef.current, extensions: [vimEnabled ? vim() : [], drawSelection(), keymap.of([...defaultKeymap, indentWithTab]), numbers.current.of(numbersRef.current ? codeLineNumbers() : []), ...(wrap ? [EditorView.lineWrapping] : []), tabs.of(EditorState.tabSize.of(tabSize())), EditorView.updateListener.of((update) => {
+    const state = EditorState.create({ doc: valueRef.current, extensions: [vimEnabled ? vim() : [], drawSelection(), EditorView.contentAttributes.of({
+      spellcheck: "false",
+      autocorrect: "off",
+      autocapitalize: "off",
+      autocomplete: "off",
+    }), keymap.of([...defaultKeymap, indentWithTab]), numbers.current.of(numbersRef.current ? codeLineNumbers() : []), ...(wrap ? [EditorView.lineWrapping] : []), tabs.of(EditorState.tabSize.of(tabSize())), EditorView.updateListener.of((update) => {
       if (update.docChanged && !update.transactions.some(transaction => transaction.annotation(sourceSync))) changeRef.current(update.state.doc.toString());
     })] });
     const view = new EditorView({ state, parent: host.current });
