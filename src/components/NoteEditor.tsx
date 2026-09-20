@@ -1099,9 +1099,24 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   useEffect(() => {
     if (!editor) return;
     let frame = 0;
+    // A keyboard/viewport correction is asynchronous. On mobile the user can
+    // dismiss the keyboard, scroll, and tap a second position before that
+    // frame runs. Treat that interaction as a new editing session so a stale
+    // correction cannot pull the reading viewport back to the old caret.
+    let interactionGeneration = 0;
+    const cancelPendingReveal = () => {
+      interactionGeneration += 1;
+      if (frame) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
+    };
     const revealCaret = () => {
       if (frame) cancelAnimationFrame(frame);
+      const generation = interactionGeneration;
       frame = requestAnimationFrame(() => {
+        frame = 0;
+        if (generation !== interactionGeneration) return;
         const root = scrollRef.current;
         if (!root || editor.isDestroyed || !editor.isFocused || readonly || !editor.state.selection.empty
           || !document.getSelection()?.isCollapsed) return;
@@ -1127,6 +1142,13 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(revealCaret);
     const scrollRoot = scrollRef.current;
     if (scrollRoot) observer?.observe(scrollRoot);
+    // pointerdown precedes ProseMirror's selection update. Cancel the old
+    // correction first; the subsequent selection update will schedule one for
+    // the newly tapped position. touchstart/wheel cover WebKit and trackpad
+    // paths where pointer events are not delivered consistently.
+    scrollRoot?.addEventListener("pointerdown", cancelPendingReveal, { passive: true });
+    scrollRoot?.addEventListener("touchstart", cancelPendingReveal, { passive: true });
+    scrollRoot?.addEventListener("wheel", cancelPendingReveal, { passive: true });
     editor.on("selectionUpdate", revealCaret);
     editor.on("focus", revealCaret);
     viewport?.addEventListener("resize", revealCaret);
@@ -1135,6 +1157,9 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     return () => {
       if (frame) cancelAnimationFrame(frame);
       observer?.disconnect();
+      scrollRoot?.removeEventListener("pointerdown", cancelPendingReveal);
+      scrollRoot?.removeEventListener("touchstart", cancelPendingReveal);
+      scrollRoot?.removeEventListener("wheel", cancelPendingReveal);
       editor.off("selectionUpdate", revealCaret);
       editor.off("focus", revealCaret);
       viewport?.removeEventListener("resize", revealCaret);
