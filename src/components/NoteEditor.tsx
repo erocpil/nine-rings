@@ -1812,6 +1812,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     let adjusting = false;
     let lastObservedWidth = root.clientWidth;
     let lastWindowWidth = window.innerWidth;
+    const isMobileViewport = () => window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
     let anchor: {
       kind: "caret" | "block";
       pos: number;
@@ -1967,6 +1968,16 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
 
     const stabilizeWidthChange = (force = false) => {
       const nextWidth = root.clientWidth;
+      // iOS/WKWebView changes a nested scroller's width by fractional pixels
+      // while opening or dismissing the keyboard. That is not a document
+      // reflow to compensate: restoring this anchor can pull a reader back to
+      // the previous caret. Mobile browsers maintain their own viewport on
+      // keyboard and rotation changes, so this desktop-only compensation must
+      // never run there.
+      if (isMobileViewport()) {
+        lastObservedWidth = nextWidth;
+        return false;
+      }
       if ((!force && Math.abs(nextWidth - lastObservedWidth) < 24) || !anchor) return false;
       if (Math.abs(nextWidth - lastObservedWidth) >= 24) lastObservedWidth = nextWidth;
       const previous = anchor;
@@ -1988,6 +1999,14 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     };
 
     const observer = new ResizeObserver(() => {
+      if (isMobileViewport()) {
+        // The window resize path above owns actual rotation. A mobile
+        // ResizeObserver notification is normally keyboard/safe-area chrome,
+        // which must never restore an old caret or reading anchor.
+        lastObservedWidth = root.clientWidth;
+        scheduleCapture();
+        return;
+      }
       if (stabilizeWidthChange() || adjusting) return;
       const nextWidth = root.clientWidth;
       if (!anchor || Math.abs(nextWidth - anchor.width) < 0.5) {
@@ -2009,6 +2028,12 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     const onWindowResize = () => {
       const windowWidthChanged = Math.abs(window.innerWidth - lastWindowWidth) >= 24;
       lastWindowWidth = window.innerWidth;
+      if (isMobileViewport()) {
+        lastObservedWidth = root.clientWidth;
+        clearSettleTimers();
+        scheduleCapture();
+        return;
+      }
       if (!stabilizeWidthChange(windowWidthChanged)) scheduleCapture();
     };
 

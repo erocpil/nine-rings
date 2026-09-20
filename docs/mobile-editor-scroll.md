@@ -17,6 +17,7 @@
 - 通过 ProseMirror 的公开 handleScrollToSelection 接口协调自动滚动，包含焦点恢复路径；不修改框架内部字段。
 - 拖动阅读/选区或取消触摸时撤销待执行的避让；下一次输入、点按或显式导航可以重新启用。
 - 软键盘关闭以视口高度恢复为准。单独残留的 offsetTop 不代表键盘打开；缩放不当作软键盘。
+- 桌面的阅读锚点恢复不用于移动端。iOS/WKWebView 在键盘、安全区或浏览器工具栏变化时会通知嵌套滚动容器尺寸，哪怕只差一个像素；移动端若按旧锚点回填 scrollTop，就会把用户拉回上一次光标。移动端仅重新采集当前阅读位置，由浏览器处理旋转和可视区变化。
 
 实现入口：`src/hooks/useMobileEditorScroll.ts`、`src/hooks/useWebPlatform.ts`。
 

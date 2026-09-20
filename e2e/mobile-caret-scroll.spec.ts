@@ -149,6 +149,22 @@ test("键盘已打开时拖动阅读不被布局变化拉回旧光标，下一�
   })).toBe(true);
 });
 
+test("移动端容器尺寸轻微抖动不恢复旧阅读锚点", async ({ page }) => {
+  await prepare(page);
+  // Keep the selection near block 21, then start reading much farther down.
+  // The resize is deliberately sent before the settled-scroll capture runs:
+  // this is the same ordering produced by iOS keyboard safe-area updates.
+  const before = await scrollToTarget(page, 70, 48);
+  await page.locator(".note-editor-scroll").evaluate(root => {
+    const element = root as HTMLElement;
+    const width = element.clientWidth;
+    element.style.width = `${width - 1}px`;
+    requestAnimationFrame(() => { element.style.width = ""; });
+  });
+  await settle(page);
+  expect(Math.abs(await page.locator(".note-editor-scroll").evaluate(el => el.scrollTop) - before)).toBeLessThanOrEqual(2);
+});
+
 test("原生多行选区保留，键盘变化不会将选区折叠或滚回旧光标", async ({ page }) => {
   await prepare(page);
   const before = await scrollToTarget(page, 60, 30);
