@@ -42,7 +42,7 @@ function CollapsibleBlockquoteView({ node, editor, getPos }: NodeViewProps) {
       data-workspace-collapsed={readingCollapsed === null ? undefined : String(readingCollapsed)}
     >
       <div className="blockquote-toolbar" data-pdf-exclude contentEditable={false}>
-        <span>引用</span>
+        <span>引用{collapsed && node.textContent.trim() ? ` ${node.textContent.trim().replace(/\s+/g, " ").slice(0, 24)}` : ""}</span>
         <button type="button" className="block-workspace-open" title="放大阅读引用块" aria-label="放大阅读引用块"
           onMouseDown={event => event.preventDefault()}
           onClick={event => openBlockWorkspace(editor, getPos(), event.currentTarget)}><ToolbarIcon name="expand" /></button>

@@ -110,9 +110,11 @@ function exitEmptyListTail(editor: Editor): boolean {
   if ($from.parent.type.name !== "paragraph" || $from.parent.content.size !== 0 || $from.depth < 3) return false;
   const item = $from.node($from.depth - 1);
   const list = $from.node($from.depth - 2);
-  if (item.type.name !== "listItem" || item.childCount !== 1
+  if (item.type.name !== "listItem" || item.childCount < 1
     || !["orderedList", "bulletList"].includes(list.type.name)
     || $from.index($from.depth - 2) !== list.childCount - 1) return false;
+  const lastChild = item.lastChild;
+  if (!lastChild || lastChild.type.name !== "paragraph" || lastChild.content.size !== 0) return false;
   return editor.commands.liftListItem("listItem");
 }
 

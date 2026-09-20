@@ -125,6 +125,14 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     handleCopy, handleCut, handleClipboardPaste, handleExportMarkdown, handleExportPdf,
     setLinkDialogUrl, setLinkDialog, setImageDialog,
   } = actions;
+  const toggleBlockquote = () => {
+    const before = editor.state.doc;
+    editor.chain().focus().toggleBlockquote().run();
+    if (editor.state.doc === before) editor.chain().focus().setNode("blockquote").run();
+  };
+  const clearTextFormatting = () => {
+    editor.chain().focus().unsetAllMarks().run();
+  };
   const moreActions = (<>
     {isMobileToolbarViewport && <button className="menu-dropdown-item" disabled={readonly} onClick={() => { closeMore(); actions.openEditorReplace(); }} type="button"><ToolbarIcon name="search" />查找与替换</button>}
     {hiddenTools.includes("clipboard") && <>
@@ -214,6 +222,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
               onClick={() => { runToolbarFormat("strike"); setStyleOpen(false); }}
               type="button"
             ><s>S 删除线</s></button>
+            <button className="menu-dropdown-item" onClick={() => { clearTextFormatting(); setStyleOpen(false); }} type="button">清除格式</button>
           </div>
         )}
       </div>
@@ -221,6 +230,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     {btn(<b>B</b>, () => editor.chain().focus().toggleBold().run(), editor.isActive("bold"), "加粗 (Ctrl+B)", readonly)}
     {btn(<i>I</i>, () => editor.chain().focus().toggleItalic().run(), editor.isActive("italic"), "斜体 (Ctrl+I)", readonly)}
     {btn(<s>S</s>, () => editor.chain().focus().toggleStrike().run(), editor.isActive("strike"), "删除线 (Ctrl+Shift+X)", readonly)}
+    {btn("清除", clearTextFormatting, false, "清除格式", readonly)}
     </>)}
     <span className="menu-sep" />
     {isNarrow ? (
@@ -294,7 +304,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
           <div className="menu-dropdown-list">
             <button
               className={`menu-dropdown-item ${editor.isActive("blockquote") ? "active" : ""}`}
-              onClick={() => { editor.chain().focus().toggleBlockquote().run(); setBlockOpen(false); }}
+              onClick={() => { toggleBlockquote(); setBlockOpen(false); }}
               type="button"
             >❝ 引用</button>
             <button
@@ -369,7 +379,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
         )}
       </div>
     ) : (<>
-    {btn(<ToolbarIcon name="quote" />, () => editor.chain().focus().toggleBlockquote().run(), editor.isActive("blockquote"), "引用 (Ctrl+Shift+B)", readonly)}
+    {btn(<ToolbarIcon name="quote" />, toggleBlockquote, editor.isActive("blockquote"), "引用 (Ctrl+Shift+B)", readonly)}
     {btn(<ToolbarIcon name="bullet" />, () => editor.chain().focus().toggleBulletList().run(), editor.isActive("bulletList"), "无序列表 (Ctrl+Shift+8)", readonly)}
     {btn(<ToolbarIcon name="ordered" />, () => editor.chain().focus().toggleOrderedList().run(), editor.isActive("orderedList"), "有序列表 (Ctrl+Shift+7)", readonly)}
     {btn(<ToolbarIcon name="indent" />, () => changeSelectedBlockIndent(1), false, editor.isActive("codeBlock") ? "增加块缩进（代码内 Tab 仅缩进代码）" : "增加块缩进 (Tab)", readonly || editor.isActive("table"))}

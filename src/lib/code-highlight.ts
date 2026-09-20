@@ -32,23 +32,23 @@ const MAX_HIGHLIGHT_CACHE_ENTRIES = 32;
 const highlightCache = new Map<string, SyntaxToken[]>();
 
 export const CODE_LANGUAGE_OPTIONS: readonly CodeLanguageOption[] = [
-  { value: "", label: "纯文本" },
-  { value: "javascript", label: "JavaScript" },
-  { value: "typescript", label: "TypeScript" },
-  { value: "json", label: "JSON" },
-  { value: "xml", label: "HTML / XML" },
+  { value: "c", label: "C" },
+  { value: "csharp", label: "C#" },
+  { value: "cpp", label: "C++" },
   { value: "css", label: "CSS" },
-  { value: "bash", label: "Shell / Bash" },
+  { value: "go", label: "Go" },
+  { value: "xml", label: "HTML / XML" },
+  { value: "java", label: "Java" },
+  { value: "javascript", label: "JavaScript" },
+  { value: "json", label: "JSON" },
+  { value: "markdown", label: "Markdown" },
   { value: "python", label: "Python" },
   { value: "rust", label: "Rust" },
-  { value: "go", label: "Go" },
-  { value: "java", label: "Java" },
-  { value: "c", label: "C" },
-  { value: "cpp", label: "C++" },
-  { value: "csharp", label: "C#" },
+  { value: "bash", label: "Shell / Bash" },
   { value: "sql", label: "SQL" },
+  { value: "typescript", label: "TypeScript" },
   { value: "yaml", label: "YAML" },
-  { value: "markdown", label: "Markdown" },
+  { value: "", label: "纯文本" },
 ] as const;
 
 const lowlight = createLowlight({

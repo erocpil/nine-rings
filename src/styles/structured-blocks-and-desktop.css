@@ -242,6 +242,9 @@
 
 .blockquote-wrap {
   position: relative;
+  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 88%, var(--text) 12%);
+  border-radius: var(--radius);
 }
 
 /* NodeView 的工具栏禁止进入选区，但引用正文必须显式允许跨段落选择；
