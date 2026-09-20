@@ -54,7 +54,7 @@ interface Props {
   libraryError?: string | null;
 }
 
-type SettingsPage = "root" | "appearance" | "editor" | "vim" | "sidebar" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced" | "changelog";
+type SettingsPage = "root" | "appearance" | "navigation" | "editor" | "vim" | "sidebar" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced" | "changelog";
 const EDITOR_APPEARANCE_KEYS: Array<keyof AppConfig> = [
   "note_font_size",
   "editor_font_family",
@@ -82,6 +82,7 @@ const SETTINGS_CATEGORIES: Array<{
   description: string;
 }> = [
   { id: "appearance", title: "外观与布局", description: "主题与分栏布局" },
+  { id: "navigation", title: "导航区样式", description: "目录、书签、文件树和文件列表" },
   { id: "editor", title: "编辑器", description: "字体排版、编辑行为、折叠与 Vim" },
   { id: "documents", title: "文档管理", description: "书签、标签和文档默认信息" },
   { id: "general", title: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "工作流与快捷键" : "快捷键", description: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "默认视图、待办继承和按键绑定" : "搜索、设置与窗口按键绑定" },
@@ -94,6 +95,7 @@ const SETTINGS_CATEGORIES: Array<{
 const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   root: "设置",
   appearance: "外观与布局",
+  navigation: "导航区样式",
   editor: "编辑器",
   vim: "代码块 Vim",
   sidebar: "布局设置",
@@ -164,6 +166,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [settingsQuery, setSettingsQuery] = useState("");
   const parentPage: SettingsPage = settingsPage === "vim" ? "editor"
     : settingsPage === "sidebar" ? "appearance"
+    : settingsPage === "navigation" ? "appearance"
     : ["bookmarks", "tags", "profile"].includes(settingsPage) ? "documents" : "root";
   const [syncBusy, setSyncBusy] = useState(false);
   const pushRunning = useGitHubPushJob(state => state.status === "running");
@@ -732,13 +735,22 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </button>
             </Field>
 
-            <Field label="导航区样式" desc="统一调整目录、书签、文件树和文件列表的字体与颜色；后续可导出为外观配置" visible={settingsPage === "appearance"}>
-              <div className="navigation-style-settings">
-                <label>字号 <input type="range" min="11" max="22" step="1" value={config.navigation_font_size} onChange={event => update({ navigation_font_size: Number(event.target.value) })} /> <output>{config.navigation_font_size}px</output></label>
-                <label>文字颜色 <input type="color" value={config.navigation_text_color} onChange={event => update({ navigation_text_color: event.target.value })} /></label>
-                <label>背景颜色 <input type="color" value={config.navigation_background_color} onChange={event => update({ navigation_background_color: event.target.value })} /></label>
-              </div>
+            <Field label="导航区样式" desc="分别调整目录、书签、文件树和文件列表的字体与颜色；后续可导出为外观配置" visible={settingsPage === "appearance"}>
+              <button className="editor-appearance-entry" type="button" onClick={() => setSettingsPage("navigation")}><span><strong>导航区样式</strong><small>目录、书签、文件树和文件列表分别设置</small></span><span className="editor-appearance-entry-action">打开详细设置 →</span></button>
             </Field>
+
+            {settingsPage === "navigation" && <SettingsSection title="导航区样式" desc="分别调整目录、书签、文件树和文件列表；设置会即时应用，未来可导出为外观配置。" visible>
+              <div className="navigation-style-settings-detail">
+                {([
+                  ["目录", "navigation_outline"], ["书签", "navigation_bookmark"],
+                  ["文件树", "navigation_tree"], ["文件列表", "navigation_list"],
+                ] as const).map(([label, prefix]) => <fieldset key={prefix} className="navigation-style-card"><legend>{label}</legend>
+                  <label>字号 <input type="range" min="11" max="22" value={config[`${prefix}_font_size` as keyof AppConfig] as number} onChange={event => update({ [`${prefix}_font_size`]: Number(event.target.value) } as Partial<AppConfig>)} /><output>{config[`${prefix}_font_size` as keyof AppConfig] as number}px</output></label>
+                  <label>文字颜色 <input type="color" value={config[`${prefix}_text_color` as keyof AppConfig] as string} onChange={event => update({ [`${prefix}_text_color`]: event.target.value } as Partial<AppConfig>)} /></label>
+                  <label>背景颜色 <input type="color" value={config[`${prefix}_background_color` as keyof AppConfig] as string} onChange={event => update({ [`${prefix}_background_color`]: event.target.value } as Partial<AppConfig>)} /></label>
+                </fieldset>)}
+              </div>
+            </SettingsSection>}
 
             {settingsPage === "sidebar" && <div className="sidebar-settings-page">
               <SettingsWorkspaceLayout onError={showMessage} />

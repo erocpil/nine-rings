@@ -1111,8 +1111,11 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         try {
           const rootRect = root.getBoundingClientRect();
           const caret = editor.view.coordsAtPos(editor.state.selection.head);
-          const visibleTop = rootRect.top + 16;
-          const visibleBottom = rootRect.bottom - 24;
+          const viewport = window.visualViewport;
+          const viewportTop = viewport?.offsetTop ?? rootRect.top;
+          const viewportBottom = viewport ? viewport.offsetTop + viewport.height : rootRect.bottom;
+          const visibleTop = Math.max(rootRect.top, viewportTop) + 16;
+          const visibleBottom = Math.min(rootRect.bottom, viewportBottom) - 24;
           if (caret.top < visibleTop) root.scrollTop -= visibleTop - caret.top;
           else if (caret.bottom > visibleBottom) root.scrollTop += caret.bottom - visibleBottom;
         } catch {

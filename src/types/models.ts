@@ -233,6 +233,18 @@ export interface AppConfig {
   navigation_font_size: number;
   navigation_text_color: string;
   navigation_background_color: string;
+  navigation_outline_font_size: number;
+  navigation_outline_text_color: string;
+  navigation_outline_background_color: string;
+  navigation_bookmark_font_size: number;
+  navigation_bookmark_text_color: string;
+  navigation_bookmark_background_color: string;
+  navigation_tree_font_size: number;
+  navigation_tree_text_color: string;
+  navigation_tree_background_color: string;
+  navigation_list_font_size: number;
+  navigation_list_text_color: string;
+  navigation_list_background_color: string;
   editor_cjk_spacing: boolean;
   dev_port: number;
   highlight_active_line: boolean;

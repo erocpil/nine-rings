@@ -243,7 +243,7 @@
 .blockquote-wrap {
   position: relative;
   background: var(--surface);
-  background: color-mix(in srgb, var(--surface) 88%, var(--text) 12%);
+  background: var(--code-bg);
   border-radius: var(--radius);
 }
 

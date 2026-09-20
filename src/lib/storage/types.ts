@@ -24,6 +24,18 @@ export interface AppConfig {
   navigation_font_size: number;
   navigation_text_color: string;
   navigation_background_color: string;
+  navigation_outline_font_size: number;
+  navigation_outline_text_color: string;
+  navigation_outline_background_color: string;
+  navigation_bookmark_font_size: number;
+  navigation_bookmark_text_color: string;
+  navigation_bookmark_background_color: string;
+  navigation_tree_font_size: number;
+  navigation_tree_text_color: string;
+  navigation_tree_background_color: string;
+  navigation_list_font_size: number;
+  navigation_list_text_color: string;
+  navigation_list_background_color: string;
   editor_cjk_spacing: boolean;
   dev_port: number; // 仅 web 模式生效
   highlight_active_line: boolean;
@@ -70,6 +82,18 @@ export const DEFAULT_CONFIG: AppConfig = {
   navigation_font_size: 14,
   navigation_text_color: "#333333",
   navigation_background_color: "#f5f1e8",
+  navigation_outline_font_size: 14,
+  navigation_outline_text_color: "#333333",
+  navigation_outline_background_color: "#f5f1e8",
+  navigation_bookmark_font_size: 14,
+  navigation_bookmark_text_color: "#333333",
+  navigation_bookmark_background_color: "#f5f1e8",
+  navigation_tree_font_size: 14,
+  navigation_tree_text_color: "#333333",
+  navigation_tree_background_color: "#f5f1e8",
+  navigation_list_font_size: 14,
+  navigation_list_text_color: "#333333",
+  navigation_list_background_color: "#f5f1e8",
   editor_cjk_spacing: true,
   dev_port: 8000,
   highlight_active_line: true,

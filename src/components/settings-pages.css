@@ -9,9 +9,16 @@
 .navigation-style-settings input[type="range"] { width: 140px; accent-color: var(--accent); }
 .navigation-style-settings input[type="color"] { width: 34px; height: 28px; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
 .navigation-style-settings output { min-width: 40px; color: var(--text); }
+.navigation-style-settings-detail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.navigation-style-card { display: grid; gap: 10px; min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
+.navigation-style-card legend { padding: 0 5px; color: var(--text); font-weight: 600; }
+.navigation-style-card label { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text-secondary); font-size: 13px; }
+.navigation-style-card input[type="range"] { flex: 1; min-width: 80px; accent-color: var(--accent); }
+.navigation-style-card input[type="color"] { width: 34px; height: 28px; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
 @media (max-width: 600px) {
   .navigation-style-settings { grid-template-columns: 1fr 1fr; }
   .navigation-style-settings label:first-child { grid-column: 1 / -1; }
+  .navigation-style-settings-detail { grid-template-columns: 1fr; }
 }
 
 .settings-changelog {

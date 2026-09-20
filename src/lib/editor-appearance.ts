@@ -25,6 +25,10 @@ export const NAVIGATION_APPEARANCE_KEYS = [
   "navigation_font_size",
   "navigation_text_color",
   "navigation_background_color",
+  "navigation_outline_font_size", "navigation_outline_text_color", "navigation_outline_background_color",
+  "navigation_bookmark_font_size", "navigation_bookmark_text_color", "navigation_bookmark_background_color",
+  "navigation_tree_font_size", "navigation_tree_text_color", "navigation_tree_background_color",
+  "navigation_list_font_size", "navigation_list_text_color", "navigation_list_background_color",
 ] as const;
 
 export type NavigationAppearance = Pick<AppConfig, typeof NAVIGATION_APPEARANCE_KEYS[number]>;
@@ -58,6 +62,15 @@ export function editorAppearanceVariables(config?: Partial<AppConfig>): Record<s
   const navigationFontSize = clamp(config?.navigation_font_size, 11, 22, 14);
   const navigationText = safeAppearanceColor(config?.navigation_text_color, "#333333");
   const navigationBackground = safeAppearanceColor(config?.navigation_background_color, "#f5f1e8");
+  const style = (prefix: string) => ({
+    font: `${clamp(config?.[`${prefix}_font_size` as keyof AppConfig], 11, 22, 14)}px`,
+    text: safeAppearanceColor(config?.[`${prefix}_text_color` as keyof AppConfig], navigationText),
+    background: safeAppearanceColor(config?.[`${prefix}_background_color` as keyof AppConfig], navigationBackground),
+  });
+  const outline = style("navigation_outline");
+  const bookmark = style("navigation_bookmark");
+  const tree = style("navigation_tree");
+  const list = style("navigation_list");
   return {
     "--editor-font-family": FONT_STACKS[resolvedFamily],
     "--editor-font-size": `${clamp(config?.note_font_size, 12, 32, 16)}px`,
@@ -75,6 +88,10 @@ export function editorAppearanceVariables(config?: Partial<AppConfig>): Record<s
     "--navigation-font-size": `${navigationFontSize}px`,
     "--navigation-text": navigationText,
     "--navigation-bg": navigationBackground,
+    "--navigation-outline-font-size": outline.font, "--navigation-outline-text": outline.text, "--navigation-outline-bg": outline.background,
+    "--navigation-bookmark-font-size": bookmark.font, "--navigation-bookmark-text": bookmark.text, "--navigation-bookmark-bg": bookmark.background,
+    "--navigation-tree-font-size": tree.font, "--navigation-tree-text": tree.text, "--navigation-tree-bg": tree.background,
+    "--navigation-list-font-size": list.font, "--navigation-list-text": list.text, "--navigation-list-bg": list.background,
   };
 }
 

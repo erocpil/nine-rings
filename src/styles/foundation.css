@@ -475,13 +475,18 @@ body.app-sidebar-dragging .desktop-reader-panel:not([hidden]) {
 .desktop-reader-panel .reading-library-content { padding: 10px; }
 .desktop-reader-panel .reader-library-imports { flex-wrap: wrap; }
 .desktop-activity-bar + .app-sidebar { max-width: calc(100vw - 48px); }
-.sidebar-document-list { flex: 0 0 auto; min-height: 0; font-size: var(--navigation-font-size, 14px); color: var(--navigation-text, var(--text)); background: var(--navigation-bg, var(--surface)); }
+.sidebar-document-list { flex: 0 0 auto; min-height: 0; font-size: var(--navigation-list-font-size, var(--navigation-font-size, 14px)); color: var(--navigation-list-text, var(--navigation-text, var(--text))); background: var(--navigation-list-bg, var(--navigation-bg, var(--surface))); }
 .sidebar-document-list.is-open { display: flex; flex-direction: column; flex: 1 1 50%; overflow: hidden; }
 .sidebar-document-list-body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .sidebar-document-list-search { display: flex; flex-shrink: 0; padding-inline: 6px; }
 .sidebar-document-list-search > .btn-icon { height: 28px; flex: 0 0 28px; }
 .sidebar-document-list-body > .document-browser { min-width: 0; }
 .doc-tree { overflow-anchor: none; }
+.sidebar-document-list .doc-tree {
+  font-size: var(--navigation-tree-font-size, var(--navigation-list-font-size, 14px));
+  color: var(--navigation-tree-text, var(--navigation-list-text, var(--text)));
+  background: var(--navigation-tree-bg, var(--navigation-list-bg, transparent));
+}
 .sidebar-document-list .document-browser-tabs { flex-wrap: wrap; gap: 2px; }
 .sidebar-document-list .document-browser-tabs button { min-height: 30px; padding: 3px 4px; font-size: 12px; }
 .sidebar-document-list .document-browser-controls { padding-inline: 6px; }
@@ -1067,8 +1072,9 @@ body.app-sidebar-dragging .desktop-reader-panel:not([hidden]) {
   cursor: pointer;
   border-left: 2px solid transparent;
   min-height: 36px;
-  font-size: var(--navigation-font-size, 14px);
-  color: var(--navigation-text, var(--text));
+  font-size: var(--navigation-list-font-size, var(--navigation-font-size, 14px));
+  color: var(--navigation-list-text, var(--navigation-text, var(--text)));
+  background: var(--navigation-list-bg, transparent);
 }
 
 .sidebar-item:hover {

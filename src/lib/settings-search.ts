@@ -1,6 +1,7 @@
 export type SearchSettingsPage =
   | "root"
   | "appearance"
+  | "navigation"
   | "sidebar"
   | "editor"
   | "vim"
@@ -44,6 +45,13 @@ const entries: SettingsSearchEntry[] = [
     description: "外观与布局 · 切换整体配色",
     keywords: "外观 颜色 深色 浅色 北境 德古拉 Nord Dracula theme",
     page: "appearance",
+  },
+  {
+    title: "导航区样式",
+    description: "外观与布局 › 导航区样式 · 目录、书签、文件树和文件列表",
+    keywords: "导航区 目录 书签 文件树 文件列表 字体 字号 文字颜色 背景颜色 外观",
+    page: "navigation",
+    target: ".navigation-style-settings-detail",
   },
   {
     title: "字体与间距",

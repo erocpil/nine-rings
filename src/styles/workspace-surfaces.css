@@ -1342,9 +1342,15 @@
 
 .document-outline-panel,
 .document-bookmark-panel {
-  font-size: var(--navigation-font-size, 14px);
-  color: var(--navigation-text, var(--text));
-  background: var(--navigation-bg, var(--surface));
+  font-size: var(--navigation-outline-font-size, var(--navigation-font-size, 14px));
+  color: var(--navigation-outline-text, var(--navigation-text, var(--text)));
+  background: var(--navigation-outline-bg, var(--navigation-bg, var(--surface)));
+}
+
+.document-bookmark-panel {
+  font-size: var(--navigation-bookmark-font-size, var(--navigation-font-size, 14px));
+  color: var(--navigation-bookmark-text, var(--navigation-text, var(--text)));
+  background: var(--navigation-bookmark-bg, var(--navigation-bg, var(--surface)));
 }
 
 .document-outline-panel .document-outline-item,
