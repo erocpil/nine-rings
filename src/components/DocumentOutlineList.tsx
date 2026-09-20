@@ -28,8 +28,10 @@ interface DocumentOutlineListProps {
 
 const VIRTUALIZE_AFTER = 100;
 const SINGLE_ROW_HEIGHT = 26;
-// Two lines at 13px × 1.35 plus 6px vertical padding, rounded up.
-const WRAPPED_ROW_HEIGHT = 42;
+// Two lines at the mobile navigation line-height plus vertical padding. Keep
+// enough room before the first measurement arrives; a fixed 42px row lets a
+// wrapped title paint over the following virtualized row on WebKit.
+const WRAPPED_ROW_HEIGHT = 48;
 const DEFAULT_LIST_WIDTH = 360;
 const OVERSCAN_PX = SINGLE_ROW_HEIGHT * 8;
 // Session objects only: reopening an unchanged outline reuses size estimates.
@@ -248,8 +250,9 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
         style={{
           paddingInlineStart: `calc(var(--document-outline-leading-inset, 10px) + ${(item.level - outlineBaseLevel) * 14}px)`,
           // Reserve the complete one/two-line row before it enters the DOM.
-          // Measuring newly mounted rows must not keep shifting the scroll range.
-          ...(virtualized ? { top: `${rowLayout.tops[visibleIndex]}px`, height: `${rowLayout.heights[visibleIndex]}px` } : {}),
+          // Use min-height so a title that wraps slightly beyond the estimate
+          // expands and can be measured instead of painting over the next row.
+          ...(virtualized ? { top: `${rowLayout.tops[visibleIndex]}px`, minHeight: `${rowLayout.heights[visibleIndex]}px` } : {}),
         }}
         data-level={item.level}
         data-outline-index={index}

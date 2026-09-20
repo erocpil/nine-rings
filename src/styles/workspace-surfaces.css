@@ -1457,6 +1457,8 @@
   min-height: 26px;
   padding-block: 3px;
   padding-inline-end: 10px;
+  box-sizing: border-box;
+  line-height: 1.35;
   border: 0;
   background: transparent;
   color: var(--text);
@@ -1496,6 +1498,13 @@
   gap: 3px;
   padding: 0;
   text-align: start;
+  line-height: 1.35;
+}
+
+.document-outline-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .document-outline-header-actions > button,

@@ -1104,12 +1104,73 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     // frame runs. Treat that interaction as a new editing session so a stale
     // correction cannot pull the reading viewport back to the old caret.
     let interactionGeneration = 0;
+    let tapRestoreFrame = 0;
+    let tapScrollTop: number | null = null;
+    let tapPointerId: number | null = null;
+    let tapStartX = 0;
+    let tapStartY = 0;
+    let tapGeneration = 0;
+    let tapMoved = false;
     const cancelPendingReveal = () => {
       interactionGeneration += 1;
       if (frame) {
         cancelAnimationFrame(frame);
         frame = 0;
       }
+      if (tapRestoreFrame) {
+        cancelAnimationFrame(tapRestoreFrame);
+        tapRestoreFrame = 0;
+      }
+      tapScrollTop = null;
+      tapPointerId = null;
+      tapGeneration += 1;
+    };
+    const cancelRevealOnly = () => {
+      interactionGeneration += 1;
+      if (frame) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      const root = scrollRef.current;
+      const target = event.target;
+      if (!root || !(target instanceof Node) || !editor.view.dom.contains(target)) return;
+      cancelPendingReveal();
+      tapScrollTop = root.scrollTop;
+      tapPointerId = event.pointerId;
+      tapStartX = event.clientX;
+      tapStartY = event.clientY;
+      tapMoved = false;
+      const generation = interactionGeneration;
+      const tapToken = ++tapGeneration;
+      // WebKit can restore the old contenteditable selection while focusing it.
+      // Capture the user's current reading position before that happens and
+      // restore it once after the tap. The new selection correction, if needed,
+      // then runs against the new caret and the current visual viewport.
+      tapRestoreFrame = requestAnimationFrame(() => {
+        tapRestoreFrame = 0;
+        if (generation !== interactionGeneration || tapToken !== tapGeneration || tapMoved || tapScrollTop === null) return;
+        root.scrollTop = Math.min(tapScrollTop, Math.max(0, root.scrollHeight - root.clientHeight));
+        tapScrollTop = null;
+        tapPointerId = null;
+        tapGeneration += 1;
+      });
+    };
+    const onPointerMove = (event: PointerEvent) => {
+      if (tapPointerId !== event.pointerId) return;
+      if (Math.abs(event.clientX - tapStartX) > 4 || Math.abs(event.clientY - tapStartY) > 4) {
+        tapMoved = true;
+        tapScrollTop = null;
+        tapGeneration += 1;
+        if (tapRestoreFrame) cancelAnimationFrame(tapRestoreFrame);
+        tapRestoreFrame = 0;
+      }
+    };
+    const clearTap = (event: PointerEvent) => {
+      if (tapPointerId !== event.pointerId) return;
+      tapPointerId = null;
+      tapScrollTop = null;
     };
     const revealCaret = () => {
       if (frame) cancelAnimationFrame(frame);
@@ -1146,9 +1207,12 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     // correction first; the subsequent selection update will schedule one for
     // the newly tapped position. touchstart/wheel cover WebKit and trackpad
     // paths where pointer events are not delivered consistently.
-    scrollRoot?.addEventListener("pointerdown", cancelPendingReveal, { passive: true });
-    scrollRoot?.addEventListener("touchstart", cancelPendingReveal, { passive: true });
-    scrollRoot?.addEventListener("wheel", cancelPendingReveal, { passive: true });
+    scrollRoot?.addEventListener("pointerdown", onPointerDown, { capture: true, passive: true });
+    scrollRoot?.addEventListener("pointermove", onPointerMove, { capture: true, passive: true });
+    scrollRoot?.addEventListener("pointerup", clearTap, { capture: true, passive: true });
+    scrollRoot?.addEventListener("pointercancel", clearTap, { capture: true, passive: true });
+    scrollRoot?.addEventListener("touchstart", cancelRevealOnly, { passive: true });
+    scrollRoot?.addEventListener("wheel", cancelRevealOnly, { passive: true });
     editor.on("selectionUpdate", revealCaret);
     editor.on("focus", revealCaret);
     viewport?.addEventListener("resize", revealCaret);
@@ -1156,10 +1220,14 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     window.addEventListener("resize", revealCaret);
     return () => {
       if (frame) cancelAnimationFrame(frame);
+      if (tapRestoreFrame) cancelAnimationFrame(tapRestoreFrame);
       observer?.disconnect();
-      scrollRoot?.removeEventListener("pointerdown", cancelPendingReveal);
-      scrollRoot?.removeEventListener("touchstart", cancelPendingReveal);
-      scrollRoot?.removeEventListener("wheel", cancelPendingReveal);
+      scrollRoot?.removeEventListener("pointerdown", onPointerDown, { capture: true });
+      scrollRoot?.removeEventListener("pointermove", onPointerMove, { capture: true });
+      scrollRoot?.removeEventListener("pointerup", clearTap, { capture: true });
+      scrollRoot?.removeEventListener("pointercancel", clearTap, { capture: true });
+      scrollRoot?.removeEventListener("touchstart", cancelRevealOnly);
+      scrollRoot?.removeEventListener("wheel", cancelRevealOnly);
       editor.off("selectionUpdate", revealCaret);
       editor.off("focus", revealCaret);
       viewport?.removeEventListener("resize", revealCaret);
