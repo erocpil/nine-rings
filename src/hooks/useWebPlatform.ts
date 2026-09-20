@@ -68,17 +68,20 @@ function syncViewportCSS() {
   // 不是软键盘，若误判会把应用外壳锁成旧尺寸，露出大块页面背景。
   // 宽度可能先恢复、而高度仍停在横屏值；仅比较宽度会把只读浏览误判为键盘。
   const orientationSettling = Math.abs(viewportWidth - window.innerWidth) >= 24;
-  const useKeyboardViewport = acceptsKeyboard && !orientationSettling;
-  const offsetTop = useKeyboardViewport ? (viewport?.offsetTop ?? 0) : 0;
-  const offsetLeft = useKeyboardViewport ? (viewport?.offsetLeft ?? 0) : 0;
+  const useKeyboardViewport = acceptsKeyboard && !orientationSettling && Math.abs((viewport?.scale ?? 1) - 1) < 0.05;
   const keyboardHeight = !useKeyboardViewport ? 0 : Math.max(
     0,
     Math.round(window.innerHeight - Math.min(viewportHeight, window.innerHeight)),
   );
+  // iOS may retain offsetTop after keyboard dismissal. Panning alone is not
+  // evidence of a keyboard; once the height recovers, release its layout too.
+  const keyboardOpen = keyboardHeight >= 80;
+  const offsetTop = keyboardOpen ? (viewport?.offsetTop ?? 0) : 0;
+  const offsetLeft = keyboardOpen ? (viewport?.offsetLeft ?? 0) : 0;
   // Fixed-position overlays are laid out against the layout viewport on iOS.
   // This is the exact hidden area below the visual viewport; unlike keyboardHeight,
   // it also accounts for Safari panning the visual viewport upward.
-  const viewportBottomInset = !useKeyboardViewport ? 0 : Math.max(
+  const viewportBottomInset = !keyboardOpen ? 0 : Math.max(
     0,
     Math.round(window.innerHeight - Math.min(offsetTop + viewportHeight, window.innerHeight)),
   );
@@ -96,7 +99,6 @@ function syncViewportCSS() {
     const pixels = `${value}px`;
     if (root.style.getPropertyValue(name) !== pixels) root.style.setProperty(name, pixels);
   };
-  const keyboardOpen = status.keyboardHeight >= 80 || status.offsetTop >= 80;
   // 宽高变量只服务于软键盘布局。普通浏览/旋转时继续写根变量会让长文档
   // 整棵样式树失效，而应用外壳已经由 CSS 动态视口即时覆盖。
   if (keyboardOpen) {

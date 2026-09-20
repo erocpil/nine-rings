@@ -1,6 +1,7 @@
 import { useDesktopDocumentPanels } from "../hooks/useDesktopDocumentPanels";
 import { DesktopDocumentPanels, desktopPanelClass, desktopPanelStyle } from "./DesktopDocumentPanels";
 import { NavigationButtons } from "./NavigationButtons";
+import { useMobileEditorScroll, handleMobileEditorScroll } from "../hooks/useMobileEditorScroll";
 import { useEditorNavigation, setNavigationSelection } from "../hooks/useEditorNavigation";
 import { ActiveLinePlugin, activeLinePluginKey, type ActiveLinePluginMeta, ToolbarSelection, setToolbarSelectionHighlight } from "../extensions/EditorHighlights";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -407,6 +408,7 @@ function restoreEditorViewportAnchor(
 let _lastSaveLog = 0;
 
 const documentEditorProps = {
+  handleScrollToSelection: handleMobileEditorScroll,
   attributes: { tabindex: "0" },
   transformPastedHTML: normalizePastedHTML,
   transformPasted: normalizeSingleParagraphPaste,
@@ -1092,149 +1094,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     if (editor && showStatusBar) scheduleDocumentStats(editor, true);
   }, [editor, scheduleDocumentStats, showStatusBar]);
 
-  // Mobile browsers resize the visual viewport after the keyboard animation. ProseMirror's
-  // native selection scrolling can run before that resize and leave the caret underneath
-  // the bottom edge (with or without the optional status bar), so correct it after both
-  // selection and viewport/layout changes.
-  useEffect(() => {
-    if (!editor) return;
-    let frame = 0;
-    // A keyboard/viewport correction is asynchronous. On mobile the user can
-    // dismiss the keyboard, scroll, and tap a second position before that
-    // frame runs. Treat that interaction as a new editing session so a stale
-    // correction cannot pull the reading viewport back to the old caret.
-    let interactionGeneration = 0;
-    let tapRestoreFrame = 0;
-    let tapScrollTop: number | null = null;
-    let tapPointerId: number | null = null;
-    let tapStartX = 0;
-    let tapStartY = 0;
-    let tapGeneration = 0;
-    let tapMoved = false;
-    const cancelPendingReveal = () => {
-      interactionGeneration += 1;
-      if (frame) {
-        cancelAnimationFrame(frame);
-        frame = 0;
-      }
-      if (tapRestoreFrame) {
-        cancelAnimationFrame(tapRestoreFrame);
-        tapRestoreFrame = 0;
-      }
-      tapScrollTop = null;
-      tapPointerId = null;
-      tapGeneration += 1;
-    };
-    const cancelRevealOnly = () => {
-      interactionGeneration += 1;
-      if (frame) {
-        cancelAnimationFrame(frame);
-        frame = 0;
-      }
-    };
-    const onPointerDown = (event: PointerEvent) => {
-      const root = scrollRef.current;
-      const target = event.target;
-      if (!root || !(target instanceof Node) || !editor.view.dom.contains(target)) return;
-      cancelPendingReveal();
-      tapScrollTop = root.scrollTop;
-      tapPointerId = event.pointerId;
-      tapStartX = event.clientX;
-      tapStartY = event.clientY;
-      tapMoved = false;
-      const generation = interactionGeneration;
-      const tapToken = ++tapGeneration;
-      // WebKit can restore the old contenteditable selection while focusing it.
-      // Capture the user's current reading position before that happens and
-      // restore it once after the tap. The new selection correction, if needed,
-      // then runs against the new caret and the current visual viewport.
-      tapRestoreFrame = requestAnimationFrame(() => {
-        tapRestoreFrame = 0;
-        if (generation !== interactionGeneration || tapToken !== tapGeneration || tapMoved || tapScrollTop === null) return;
-        root.scrollTop = Math.min(tapScrollTop, Math.max(0, root.scrollHeight - root.clientHeight));
-        tapScrollTop = null;
-        tapPointerId = null;
-        tapGeneration += 1;
-      });
-    };
-    const onPointerMove = (event: PointerEvent) => {
-      if (tapPointerId !== event.pointerId) return;
-      if (Math.abs(event.clientX - tapStartX) > 4 || Math.abs(event.clientY - tapStartY) > 4) {
-        tapMoved = true;
-        tapScrollTop = null;
-        tapGeneration += 1;
-        if (tapRestoreFrame) cancelAnimationFrame(tapRestoreFrame);
-        tapRestoreFrame = 0;
-      }
-    };
-    const clearTap = (event: PointerEvent) => {
-      if (tapPointerId !== event.pointerId) return;
-      tapPointerId = null;
-      tapScrollTop = null;
-    };
-    const revealCaret = () => {
-      if (frame) cancelAnimationFrame(frame);
-      const generation = interactionGeneration;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        if (generation !== interactionGeneration) return;
-        const root = scrollRef.current;
-        if (!root || editor.isDestroyed || !editor.isFocused || readonly || !editor.state.selection.empty
-          || !document.getSelection()?.isCollapsed) return;
-        // Only compensate for a virtual keyboard. Applying this mobile margin
-        // on desktop moves text even when a mouse click is already visible.
-        if (!document.documentElement.classList.contains("web-keyboard-open")) return;
-        try {
-          const rootRect = root.getBoundingClientRect();
-          const caret = editor.view.coordsAtPos(editor.state.selection.head);
-          const viewport = window.visualViewport;
-          const viewportTop = viewport?.offsetTop ?? rootRect.top;
-          const viewportBottom = viewport ? viewport.offsetTop + viewport.height : rootRect.bottom;
-          const visibleTop = Math.max(rootRect.top, viewportTop) + 16;
-          const visibleBottom = Math.min(rootRect.bottom, viewportBottom) - 24;
-          if (caret.top < visibleTop) root.scrollTop -= visibleTop - caret.top;
-          else if (caret.bottom > visibleBottom) root.scrollTop += caret.bottom - visibleBottom;
-        } catch {
-          // The view may be between transactions while the visual viewport is resizing.
-        }
-      });
-    };
-    const viewport = window.visualViewport;
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(revealCaret);
-    const scrollRoot = scrollRef.current;
-    if (scrollRoot) observer?.observe(scrollRoot);
-    // pointerdown precedes ProseMirror's selection update. Cancel the old
-    // correction first; the subsequent selection update will schedule one for
-    // the newly tapped position. touchstart/wheel cover WebKit and trackpad
-    // paths where pointer events are not delivered consistently.
-    scrollRoot?.addEventListener("pointerdown", onPointerDown, { capture: true, passive: true });
-    scrollRoot?.addEventListener("pointermove", onPointerMove, { capture: true, passive: true });
-    scrollRoot?.addEventListener("pointerup", clearTap, { capture: true, passive: true });
-    scrollRoot?.addEventListener("pointercancel", clearTap, { capture: true, passive: true });
-    scrollRoot?.addEventListener("touchstart", cancelRevealOnly, { passive: true });
-    scrollRoot?.addEventListener("wheel", cancelRevealOnly, { passive: true });
-    editor.on("selectionUpdate", revealCaret);
-    editor.on("focus", revealCaret);
-    viewport?.addEventListener("resize", revealCaret);
-    viewport?.addEventListener("scroll", revealCaret);
-    window.addEventListener("resize", revealCaret);
-    return () => {
-      if (frame) cancelAnimationFrame(frame);
-      if (tapRestoreFrame) cancelAnimationFrame(tapRestoreFrame);
-      observer?.disconnect();
-      scrollRoot?.removeEventListener("pointerdown", onPointerDown, { capture: true });
-      scrollRoot?.removeEventListener("pointermove", onPointerMove, { capture: true });
-      scrollRoot?.removeEventListener("pointerup", clearTap, { capture: true });
-      scrollRoot?.removeEventListener("pointercancel", clearTap, { capture: true });
-      scrollRoot?.removeEventListener("touchstart", cancelRevealOnly);
-      scrollRoot?.removeEventListener("wheel", cancelRevealOnly);
-      editor.off("selectionUpdate", revealCaret);
-      editor.off("focus", revealCaret);
-      viewport?.removeEventListener("resize", revealCaret);
-      viewport?.removeEventListener("scroll", revealCaret);
-      window.removeEventListener("resize", revealCaret);
-    };
-  }, [editor, readonly]);
+  useMobileEditorScroll(editor, scrollRef, readonly);
 
   useEffect(() => {
     if (!editor) return;
