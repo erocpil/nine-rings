@@ -55,6 +55,13 @@ test("更多菜单跟随实际工具溢出，不重复工具栏入口", async ({
     const color = sheet.getByLabel("文字颜色", { exact: true });
     await expect(color).toHaveCSS("opacity", "0");
     expect((await color.boundingBox())!.width).toBeGreaterThan(32);
+    const colorControl = sheet.locator(".toolbar-more-color-actions");
+    const clearColor = sheet.getByRole("button", { name: "清除文字颜色", exact: true });
+    const colorBox = await colorControl.boundingBox();
+    const clearBox = await clearColor.boundingBox();
+    expect(colorBox).not.toBeNull();
+    expect(clearBox).not.toBeNull();
+    expect(Math.abs(colorBox!.y - clearBox!.y)).toBeLessThan(2);
     await page.keyboard.press("Escape");
   }
 });

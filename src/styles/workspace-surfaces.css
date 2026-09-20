@@ -453,7 +453,14 @@
 .settings-body {
   flex: 1;
   overflow-y: auto;
+  /* Keep the settings surface clean on touch devices while preserving scrolling. */
+  scrollbar-width: none;
   padding: 16px 20px 40px;
+}
+
+.settings-body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .settings-category-grid {

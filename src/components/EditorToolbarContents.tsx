@@ -158,15 +158,17 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
         {FONT_SIZES.map((size) => <option key={size} value={size}>{size}px</option>)}
       </select>
     </label>}
-    <label className="menu-dropdown-control toolbar-more-color-picker">
-      <span><ToolbarIcon name="color" />文字颜色</span>
-      <input
-        type="color"
-        value={editor.getAttributes("textStyle").color || "#333333"}
-        onChange={(event) => editor.chain().focus().setColor(event.target.value).run()}
-      />
-    </label>
-    <button className="menu-dropdown-item toolbar-more-clear-color" onClick={() => editor.chain().focus().unsetColor().run()} type="button"><ToolbarIcon name="erase" />清除文字颜色</button>
+    <div className="toolbar-more-color-actions">
+      <label className="menu-dropdown-control toolbar-more-color-picker">
+        <span><ToolbarIcon name="color" />文字颜色</span>
+        <input
+          type="color"
+          value={editor.getAttributes("textStyle").color || "#333333"}
+          onChange={(event) => editor.chain().focus().setColor(event.target.value).run()}
+        />
+      </label>
+      <button className="menu-dropdown-item toolbar-more-clear-color" onClick={() => editor.chain().focus().unsetColor().run()} type="button"><ToolbarIcon name="erase" />清除文字颜色</button>
+    </div>
     <div className="menu-dropdown-sep" />
     {hiddenTools.includes("font") && <>
     <button className="menu-dropdown-item" disabled={editorFontSize <= 12} onClick={() => onEditorFontSizeChange(Math.max(12, editorFontSize - 1))} type="button"><ToolbarIcon name="minus" />缩小编辑器字号</button>

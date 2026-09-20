@@ -687,6 +687,14 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
   gap: 4px;
 }
 
+.toolbar-more-sheet .toolbar-more-color-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  min-width: 0;
+}
+
 .toolbar-more-sheet .menu-dropdown-item,
 .toolbar-more-list .menu-dropdown-item,
 .toolbar-more-sheet .menu-dropdown-control > span,
@@ -735,7 +743,7 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
 }
 
 .toolbar-more-sheet .toolbar-more-clear-color {
-  grid-column: 1 / -1;
+  grid-column: auto;
 }
 
 .menu-dropdown-sep {
