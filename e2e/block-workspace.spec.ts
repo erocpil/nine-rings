@@ -267,8 +267,12 @@ test("手机横竖屏块弹层不超出可视范围", async ({ page }) => {
       return !!box && box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width && box.y + box.height <= viewport.height;
     }).toBe(true);
     await expect.poll(() => dialog.evaluate(element => {
-      const editorTop = document.querySelector(".note-editor")!.getBoundingClientRect().top;
-      return Math.abs(element.getBoundingClientRect().top - (Math.max(0, editorTop - 24) + 16));
+      const viewport = window.visualViewport;
+      const top = viewport?.offsetTop ?? 0;
+      const height = viewport?.height ?? window.innerHeight;
+      const safeTop = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--safe-top")) || 0;
+      const rect = element.getBoundingClientRect();
+      return Math.abs(rect.top + rect.height / 2 - (top + (height + safeTop) / 2));
     })).toBeLessThan(1);
     await page.screenshot({ path: `/tmp/nr-block-workspace-${viewport.width}.png` });
   }

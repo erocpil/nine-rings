@@ -82,7 +82,6 @@ const SETTINGS_CATEGORIES: Array<{
   description: string;
 }> = [
   { id: "appearance", title: "外观与布局", description: "主题与分栏布局" },
-  { id: "navigation", title: "导航区样式", description: "目录、书签、文件树和文件列表" },
   { id: "editor", title: "编辑器", description: "字体排版、编辑行为、折叠与 Vim" },
   { id: "documents", title: "文档管理", description: "书签、标签和文档默认信息" },
   { id: "general", title: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "工作流与快捷键" : "快捷键", description: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "默认视图、待办继承和按键绑定" : "搜索、设置与窗口按键绑定" },

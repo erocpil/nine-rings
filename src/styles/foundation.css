@@ -429,6 +429,8 @@ body {
   transition: border-color var(--transition);
   display: flex;
   flex-direction: column;
+  color: var(--navigation-tree-text, var(--navigation-text, var(--text)));
+  background: var(--navigation-tree-bg, var(--navigation-bg, var(--surface)));
 }
 
 .sidebar {
@@ -475,7 +477,7 @@ body.app-sidebar-dragging .desktop-reader-panel:not([hidden]) {
 .desktop-reader-panel .reading-library-content { padding: 10px; }
 .desktop-reader-panel .reader-library-imports { flex-wrap: wrap; }
 .desktop-activity-bar + .app-sidebar { max-width: calc(100vw - 48px); }
-.sidebar-document-list { flex: 0 0 auto; min-height: 0; font-size: var(--navigation-list-font-size, var(--navigation-font-size, 14px)); color: var(--navigation-list-text, var(--navigation-text, var(--text))); background: var(--navigation-list-bg, var(--navigation-bg, var(--surface))); }
+.sidebar-document-list { flex: 0 0 auto; min-height: 0; font-size: var(--navigation-list-font-size, var(--navigation-font-size, 14px)); color: var(--navigation-list-text, var(--navigation-text, var(--text))); background: var(--navigation-tree-bg, var(--navigation-bg, var(--surface))); }
 .sidebar-document-list.is-open { display: flex; flex-direction: column; flex: 1 1 50%; overflow: hidden; }
 .sidebar-document-list-body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .sidebar-document-list-search { display: flex; flex-shrink: 0; padding-inline: 6px; }

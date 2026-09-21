@@ -60,12 +60,19 @@ export function editorAppearanceVariables(config?: Partial<AppConfig>): Record<s
     ? family
     : "system";
   const navigationFontSize = clamp(config?.navigation_font_size, 11, 22, 14);
-  const navigationText = safeAppearanceColor(config?.navigation_text_color, "#333333");
-  const navigationBackground = safeAppearanceColor(config?.navigation_background_color, "#f5f1e8");
+  // Older configurations stored fixed light-theme navigation colours. Treat
+  // those shipped defaults as “follow the theme”, while retaining every
+  // explicitly chosen colour as an inline variable.
+  const appearanceColor = (value: unknown, legacyDefault: string) => {
+    const color = safeAppearanceColor(value, legacyDefault);
+    return color.toLowerCase() === legacyDefault ? undefined : color;
+  };
+  const navigationText = appearanceColor(config?.navigation_text_color, "#333333");
+  const navigationBackground = appearanceColor(config?.navigation_background_color, "#f5f1e8");
   const style = (prefix: string) => ({
     font: `${clamp(config?.[`${prefix}_font_size` as keyof AppConfig], 11, 22, 14)}px`,
-    text: safeAppearanceColor(config?.[`${prefix}_text_color` as keyof AppConfig], navigationText),
-    background: safeAppearanceColor(config?.[`${prefix}_background_color` as keyof AppConfig], navigationBackground),
+    text: appearanceColor(config?.[`${prefix}_text_color` as keyof AppConfig], "#333333") ?? navigationText,
+    background: appearanceColor(config?.[`${prefix}_background_color` as keyof AppConfig], "#f5f1e8") ?? navigationBackground,
   });
   const outline = style("navigation_outline");
   const bookmark = style("navigation_bookmark");
@@ -86,12 +93,20 @@ export function editorAppearanceVariables(config?: Partial<AppConfig>): Record<s
     "--editor-blockquote-indent": `${clamp(config?.editor_blockquote_indent, 4, 32, 8)}px`,
     "--editor-search-highlight": safeColor(config?.editor_search_highlight_color),
     "--navigation-font-size": `${navigationFontSize}px`,
-    "--navigation-text": navigationText,
-    "--navigation-bg": navigationBackground,
-    "--navigation-outline-font-size": outline.font, "--navigation-outline-text": outline.text, "--navigation-outline-bg": outline.background,
-    "--navigation-bookmark-font-size": bookmark.font, "--navigation-bookmark-text": bookmark.text, "--navigation-bookmark-bg": bookmark.background,
-    "--navigation-tree-font-size": tree.font, "--navigation-tree-text": tree.text, "--navigation-tree-bg": tree.background,
-    "--navigation-list-font-size": list.font, "--navigation-list-text": list.text, "--navigation-list-bg": list.background,
+    ...(navigationText ? { "--navigation-text": navigationText } : {}),
+    ...(navigationBackground ? { "--navigation-bg": navigationBackground } : {}),
+    "--navigation-outline-font-size": outline.font,
+    ...(outline.text ? { "--navigation-outline-text": outline.text } : {}),
+    ...(outline.background ? { "--navigation-outline-bg": outline.background } : {}),
+    "--navigation-bookmark-font-size": bookmark.font,
+    ...(bookmark.text ? { "--navigation-bookmark-text": bookmark.text } : {}),
+    ...(bookmark.background ? { "--navigation-bookmark-bg": bookmark.background } : {}),
+    "--navigation-tree-font-size": tree.font,
+    ...(tree.text ? { "--navigation-tree-text": tree.text } : {}),
+    ...(tree.background ? { "--navigation-tree-bg": tree.background } : {}),
+    "--navigation-list-font-size": list.font,
+    ...(list.text ? { "--navigation-list-text": list.text } : {}),
+    ...(list.background ? { "--navigation-list-bg": list.background } : {}),
   };
 }
 

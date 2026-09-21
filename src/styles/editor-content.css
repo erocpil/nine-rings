@@ -10,9 +10,9 @@
 }
 
 .editor-content-shell {
-  --editor-gutter-width: 24px;
+  --editor-gutter-width: 28px;
   --editor-gutter-text-gap: 0px;
-  --editor-gutter-control-width: 14px;
+  --editor-gutter-control-width: 20px;
   position: relative;
   flex: 1;
   min-height: 200px;
@@ -146,9 +146,9 @@
 
 .editor-block-insert {
   position: absolute;
-  left: calc((var(--editor-gutter-control-width) - 20px) / 2);
-  width: 20px;
-  height: 20px;
+  left: calc((var(--editor-gutter-control-width) - 24px) / 2);
+  width: 24px;
+  height: 24px;
   padding: 0;
   transform: translateY(-50%);
   border: 1px solid transparent;
@@ -159,7 +159,7 @@
   font-family: inherit;
   font-size: 14px;
   font-weight: 700;
-  line-height: 18px;
+  line-height: 22px;
   text-align: center;
   cursor: pointer;
   pointer-events: auto;
@@ -246,6 +246,22 @@
   color: var(--accent);
   opacity: 0.75;
   outline: none;
+}
+
+/* Desktop gutter controls are deliberately larger than their visual glyphs.
+   This keeps the fold chevron and insertion affordance easy to acquire without
+   pushing the document text farther away. */
+@media (min-width: 769px) {
+  .editor-heading-fold {
+    --heading-fold-target-height: 24px;
+    font-size: 13px;
+    line-height: 24px;
+  }
+
+  .editor-fold-host {
+    width: 26px;
+    min-height: 24px;
+  }
 }
 
 .editor-heading-fold.folded {

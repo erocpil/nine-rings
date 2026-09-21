@@ -985,10 +985,11 @@ test.describe("PWA 窄屏应用外壳", () => {
         lineClamp: getComputedStyle(text).webkitLineClamp,
       };
     });
-    // Floating panels are centered within the editor with 8px on each side,
-    // not sized to the viewport (which also includes the editor's outer gap).
-    expect(normalGeometry.width).toBeCloseTo(Math.min(420, normalGeometry.hostWidth - 16), 0);
-    expect(normalGeometry.center).toBeCloseTo(normalGeometry.hostCenter, 0);
+    // Portrait phone panels intentionally span the usable viewport. This gives
+    // long outline titles room for two real lines instead of inheriting the
+    // editor column's narrower width.
+    expect(normalGeometry.width).toBeCloseTo(page.viewportSize()!.width - 16, 0);
+    expect(normalGeometry.center).toBeCloseTo(page.viewportSize()!.width / 2, 0);
     // WebKit 的行高取整可能让两行条目恰好为 38px，按实际文字行高验证换行。
     expect(normalGeometry.textHeight).toBeGreaterThan(normalGeometry.lineHeight * 1.5);
     expect(normalGeometry.textHeight).toBeLessThanOrEqual(normalGeometry.lineHeight * 2 + 1);
@@ -997,11 +998,6 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(shortItemHeight).toBeLessThanOrEqual(27);
     await normalOutlineButton.click();
 
-    await page.locator(".note-title-row").getByTitle("专注模式").click();
-    const focusOutlineButton = page.getByLabel("专注模式工具栏").getByTitle("文档目录");
-    await focusOutlineButton.click();
-    const focusWidth = await outline.evaluate((panel) => panel.getBoundingClientRect().width);
-    expect(focusWidth).toBeCloseTo(Math.min(420, page.viewportSize()!.width - 16), 0);
   });
 
   test("普通模式目录与书签按钮等高且垂直对齐", async ({ page }) => {

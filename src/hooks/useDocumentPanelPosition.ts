@@ -54,7 +54,10 @@ export function useDocumentPanelPosition({
           // Floating previews can extend beyond a narrow editor. The dock has
           // its own 50% cap; keep previews readable without escaping the viewport.
           compact
-            ? viewportWidth * 0.7
+            // Phone portrait popovers should keep the former near-full-width
+            // reading surface. Landscape leaves room beside the panel so it
+            // does not cover every line of the document.
+            ? viewportHeight >= viewportWidth ? viewportWidth : viewportWidth * 0.78
             : Math.max(
                 420,
                 (editor?.getBoundingClientRect().width ?? viewportWidth) / 2,

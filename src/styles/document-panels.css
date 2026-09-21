@@ -1,8 +1,14 @@
 /* Docked document tools share one resizable track; previews retain anchored positioning. */
 .desktop-document-panels :is(.document-outline-panel, .document-bookmark-panel, .vr-panel[data-document-kind]) {
-  background: var(--bg);
-  color: var(--text);
   font: 400 13px/1.35 var(--font);
+}
+.desktop-document-panels .document-outline-panel {
+  background: var(--navigation-outline-bg, var(--bg));
+  color: var(--navigation-outline-text, var(--text));
+}
+.desktop-document-panels .document-bookmark-panel {
+  background: var(--navigation-bookmark-bg, var(--bg));
+  color: var(--navigation-bookmark-text, var(--text));
 }
 .desktop-document-panels :is(.document-outline-header, .document-bookmark-header) {
   min-height: 37px;

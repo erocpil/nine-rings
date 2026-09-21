@@ -46,9 +46,9 @@ export const CODE_LANGUAGE_OPTIONS: readonly CodeLanguageOption[] = [
   { value: "rust", label: "Rust" },
   { value: "bash", label: "Shell / Bash" },
   { value: "sql", label: "SQL" },
+  { value: "", label: "text" },
   { value: "typescript", label: "TypeScript" },
   { value: "yaml", label: "YAML" },
-  { value: "", label: "纯文本" },
 ] as const;
 
 const lowlight = createLowlight({

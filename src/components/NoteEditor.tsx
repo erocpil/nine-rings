@@ -17,6 +17,7 @@ import { OrderedListLayout } from "../extensions/OrderedListLayout";
 import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
 import { createToolbarSelectionCommands } from "../lib/editor-toolbar-commands";
 import Placeholder from "@tiptap/extension-placeholder";
+import Heading from "@tiptap/extension-heading";
 import TextStyle from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import { ResizableImage } from "../extensions/ResizableImage";
@@ -98,6 +99,7 @@ import { editorGutterWidth } from "../lib/editor-gutter";
 import { bindViewportEdgeSwipe, swipeViewport } from "../lib/edge-swipe";
 import { clipboardSliceToPlainText, flattenPartialStructuredClipboard } from "../lib/clipboard-plain-text";
 import { StructuredBlockExit } from "../extensions/StructuredBlockExit";
+import { promoteDeferredHeading } from "../extensions/DeferredHeadingInput";
 import {
   CjkLatinSpacing,
   setCjkLatinSpacing,
@@ -899,10 +901,12 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const [sessionExtensions] = useState(() => [
       Extension.create({ name: "headingFoldHosts", addProseMirrorPlugins: () => [headingFoldAnchors(foldHostsRef.current)] }),
       DocumentStarterKit.configure({
-        heading: { levels: [1, 2, 3, 4, 5, 6] },
+        // `# ` is handled after IME text commits by the deferred heading hook.
+        heading: false,
         codeBlock: false,
         blockquote: false,
       }),
+      Heading.configure({ levels: [1, 2, 3, 4, 5, 6] }).extend({ addInputRules: () => [] }),
       OrderedListLayout,
       MarkdownTaskState,
       // 仅使用扩展的 is-editor-empty class 识别空段落；不在 gutter
@@ -1064,6 +1068,44 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       }
     },
   }, [noteId]);
+
+  // Keep the composing paragraph intact until the IME has committed its text.
+  // WebKit may write composition updates without ProseMirror's text-input
+  // hook, so coordinate through the editor's final update event instead.
+  useEffect(() => {
+    if (!editor) return;
+    let composing = false;
+    let frame = 0;
+    let retryTimer = 0;
+    const schedule = (attempt = 0) => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        if (composing) return;
+        // ProseMirror keeps `view.composing` for one or two frames after the
+        // browser's final input event. Recheck rather than losing that final
+        // heading conversion; never dispatch while the IME is still active.
+        if (editor.view.composing) {
+          if (attempt < 4) retryTimer = window.setTimeout(() => schedule(attempt + 1), 24);
+          return;
+        }
+        promoteDeferredHeading(editor);
+      });
+    };
+    const onUpdate = () => schedule();
+    const onCompositionStart = () => { composing = true; };
+    const onCompositionEnd = () => { composing = false; schedule(); };
+    editor.on("update", onUpdate);
+    editor.view.dom.addEventListener("compositionstart", onCompositionStart);
+    editor.view.dom.addEventListener("compositionend", onCompositionEnd);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      if (retryTimer) window.clearTimeout(retryTimer);
+      editor.off("update", onUpdate);
+      editor.view.dom.removeEventListener("compositionstart", onCompositionStart);
+      editor.view.dom.removeEventListener("compositionend", onCompositionEnd);
+    };
+  }, [editor]);
 
   useEffect(() => () => {
     if (headingFoldRenderFrameRef.current !== null) {
