@@ -246,7 +246,8 @@
   height: 18px;
 }
 .document-outline-header > button,
-.document-bookmark-header > button {
+.document-bookmark-header > button,
+.document-bookmark-header-actions > button {
   flex: 0 0 auto;
   padding: 2px 5px;
   border: 1px solid var(--border);
@@ -258,7 +259,8 @@
   cursor: pointer;
 }
 .document-outline-header > button:hover,
-.document-bookmark-header > button:hover {
+.document-bookmark-header > button:hover,
+.document-bookmark-header-actions > button:hover {
   color: var(--accent);
   border-color: var(--accent);
 }

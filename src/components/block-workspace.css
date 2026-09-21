@@ -19,7 +19,8 @@
 .block-workspace button[aria-pressed="true"] { color: var(--accent); background: var(--active-bg); }
 .block-workspace button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .block-workspace .toolbar-icon { width: 18px; height: 18px; }
-.block-workspace-save { margin-left: auto; font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+.block-workspace-header-spacer { margin-left: auto; }
+.block-workspace-save { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
 .block-workspace-tools { display: flex; align-items: center; gap: 4px; padding: 2px 8px; flex-shrink: 0; overflow-x: auto; }
 .block-workspace-tools button, .block-workspace-tools select { font-family: inherit; font-size: 13px; line-height: 1.4; }
 .block-workspace-select { position: relative; display: inline-flex; flex-shrink: 0; color: var(--text-secondary); }

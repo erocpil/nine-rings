@@ -1533,6 +1533,8 @@ function App() {
           </button>)}
           <div className="desktop-activity-footer">
             <button type="button" className="btn-icon" title="全局搜索" aria-label="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>
+            <button type="button" className="btn-icon desktop-activity-recycle" title="回收站" aria-label="回收站"
+              onClick={() => setRecycleOpen(true)}><ToolbarIcon name="trash" /></button>
             <button type="button" className="btn-icon desktop-activity-settings" title="设置" aria-label="设置"
               onClick={() => setSettingsOpen(true)}>
               <ToolbarIcon name="sliders" />
@@ -1730,11 +1732,11 @@ function App() {
                 onOpenEpub={id => { setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }} />
             </Suspense>)}
           </section>}
-          <div className="sidebar-footer" hidden={!mobileDrawerViewport && desktopPanel === 'reader'}>
+          {mobileDrawerViewport && <div className="sidebar-footer">
             <button type="button" className="sidebar-recycle-btn" onClick={() => setRecycleOpen(true)}>
               🗑 回收站
             </button>
-          </div>
+          </div>}
         </aside>
 
         {TODOS_ENABLED && <OverdueTodos

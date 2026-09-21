@@ -46,6 +46,7 @@ export function QuickTooltips() {
         return;
       clear();
       if (!element || !element.title.trim()) return;
+      const suppressDocumentPanelHint = element.matches("[data-document-panel-trigger]") && element.dataset.pinned !== "true";
       // Touch/click focus must not leave a hover hint covering mobile controls.
       if (event.type === "focusin" && !element.matches(":focus-visible"))
         return;
@@ -58,6 +59,7 @@ export function QuickTooltips() {
       // Suppress the browser's slower, duplicate tooltip while retaining the
       // original title when the pointer leaves the control.
       element.removeAttribute("title");
+      if (suppressDocumentPanelHint) return;
       const show = () => {
         if (!element.isConnected) {
           clear();
@@ -69,9 +71,10 @@ export function QuickTooltips() {
           "aria-describedby",
           [describedBy, id].filter(Boolean).join(" "),
         );
+        const estimatedWidth = Math.min(320, Math.max(44, Array.from(title).length * 12 + 18));
         setHint({
           text: title,
-          left: Math.max(8, Math.min(box.left, window.innerWidth - 328)),
+          left: Math.max(8, Math.min(box.left + (box.width - estimatedWidth) / 2, window.innerWidth - estimatedWidth - 8)),
           top: above ? box.top - 6 : box.bottom + 6,
           above,
           host: element.closest("dialog[open]") ?? document.body,

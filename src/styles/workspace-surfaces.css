@@ -1687,7 +1687,14 @@
   font-weight: 600;
 }
 
-.document-bookmark-header span:last-child {
+.document-bookmark-heading,
+.document-bookmark-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.document-bookmark-heading span:last-child {
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 400;
@@ -1864,8 +1871,8 @@
 }
 
 .document-bookmark-add {
-  margin: 4px 8px 8px;
-  padding: 6px 8px;
+  margin: 0;
+  padding: 2px 7px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--surface);

@@ -236,7 +236,8 @@ test("新代码块遵循已保存的默认软换行配置且说明不修改内�
   const codeBlock = editor.locator(".code-block-wrap");
   await expect(codeBlock).toHaveAttribute("data-code-wrap", "false");
   const wrapButton = codeBlock.getByRole("button", { name: "开启代码软换行" });
-  await expect(wrapButton).toHaveText("软换行");
+  await expect(wrapButton.locator("svg")).toBeVisible();
+  await expect(wrapButton).not.toContainText("软换行");
   await expect(wrapButton).toHaveAttribute("title", /仅改变显示，不修改代码/);
 });
 

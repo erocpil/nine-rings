@@ -474,6 +474,18 @@ test("弹层剪贴板降级在模态内部选择纯文本", async ({ page }) => 
   await expect(page.locator("html")).toHaveAttribute("data-fallback-copy", "const answer = 42;\nconsole.log(answer);");
 });
 
+test("代码块编辑模式保持语法高亮且不显示空闲保存提示", async ({ page }) => {
+  await fixture(page);
+  const sourceCopy = page.locator(".note-editor .code-block-wrap").getByRole("button", { name: "复制代码", exact: true });
+  const copyBounds = (await sourceCopy.boundingBox())!;
+  expect(copyBounds.width).toBeCloseTo(copyBounds.height, 0);
+  await page.getByRole("button", { name: "放大阅读代码块" }).click();
+  const dialog = page.getByRole("dialog", { name: "代码块工作区" });
+  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await expect(dialog.locator(".cm-content .hljs-keyword").filter({ hasText: "const" }).first()).toBeVisible();
+  await expect(dialog.getByText("已存本机", { exact: true })).toHaveCount(0);
+});
+
 test.describe("触屏块工作区", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
   test("背景和块空白不关闭，行号开关可用且入口不残留焦点", async ({ page }) => {

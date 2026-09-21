@@ -370,16 +370,16 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
               aria-label={wrapEnabled ? "关闭代码软换行" : "开启代码软换行"}
               aria-pressed={wrapEnabled}
               title={`视觉软换行：${wrapEnabled ? "开" : "关"}（仅改变显示，不修改代码）`}
-            >软换行</button>
+            ><ToolbarIcon name="lineBreak" /></button>
             <button
               className="code-block-copy"
               onMouseDown={(event) => event.preventDefault()}
               onClick={handleCopy}
               type="button"
               title="复制代码"
-              aria-label="复制代码"
+              aria-label={copyError ? "复制代码失败" : copied ? "代码已复制" : "复制代码"}
             >
-              {copyError ? "复制失败" : copied ? "已复制" : "⎘"}
+              {copyError ? "!" : copied ? "✓" : "⎘"}
             </button>
             <button type="button" className="block-workspace-open" title="放大阅读代码块" aria-label="放大阅读代码块"
               onMouseDown={event => event.preventDefault()}

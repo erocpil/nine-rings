@@ -178,6 +178,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
   });
 
   const documentNode = editor?.state.doc;
+  const codeLanguage = normalizeCodeLanguage(documentNode?.firstChild?.attrs.language);
   const matches = useMemo(() => documentNode && !sensitive ? findSearchMatches(documentNode, query, true) : [], [documentNode, query, sensitive]);
   useEffect(() => {
     if (editor) setSearchHighlights(editor, matches, Math.min(matchIndex, Math.max(0, matches.length - 1)));
@@ -374,7 +375,8 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
         <button type="button" aria-pressed={!editable} onClick={() => preservePosition(() => setMode("read"))}>阅读</button>
         {!readonly && <button type="button" aria-pressed={editable} title={rootType === "codeBlock" ? `Tab 缩进，Shift+Tab 减少缩进；${isMacPlatform() ? "Cmd" : "Ctrl"}+Enter 退出到正文` : undefined} onClick={() => preservePosition(() => setMode("edit"))}>编辑</button>}
       </div>
-      <span className="block-workspace-save" data-error={saveStatus === "error"} role="status" title="本机保存状态，不代表已完成备份">{saveStatus === "error" ? "保存失败" : saveStatus === "saving" || saveStatus === "dirty" ? "保存中…" : "已存本机"}</span>
+      <span className="block-workspace-header-spacer" aria-hidden="true" />
+      {(saveStatus === "error" || saveStatus === "saving" || saveStatus === "dirty") && <span className="block-workspace-save" data-error={saveStatus === "error"} role="status" title="本机保存状态，不代表已完成备份">{saveStatus === "error" ? "保存失败" : "保存中…"}</span>}
       {iconButton("复制块", "copy", () => void copy())}
       {!sensitive && iconButton("块内查找", "search", () => { setFindOpen(!findOpen); window.requestAnimationFrame(() => searchInput.current?.focus()); })}
       {rootType === "codeBlock" && <button type="button" aria-label={lineNumbers ? "隐藏代码行号" : "显示代码行号"} aria-pressed={lineNumbers} title="代码行号" onMouseDown={event => event.preventDefault()} onClick={() => {
@@ -460,6 +462,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
       {editable && rootType === "codeBlock" ? (
         <CodeMirrorBlockEditor vimEnabled={vimModeEnabled}
           value={editor?.state.doc.firstChild?.textContent ?? initial.textContent}
+          language={codeLanguage}
           wrap={wrap}
           lineNumbers={lineNumbers}
           onUndo={() => { source.commands.undo(); }}

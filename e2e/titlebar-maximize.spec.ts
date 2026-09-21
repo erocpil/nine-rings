@@ -114,6 +114,21 @@ test("Windows 保留原来的默认标题栏处理", async ({ page }) => {
   expect(await commands(page)).not.toContain("toggle_window_maximize");
 });
 
+test("关闭到托盘提示紧贴关闭按钮", async ({ page }) => {
+  await mountTitlebar(page);
+  const close = page.getByRole("button", { name: "关闭", exact: true });
+  await close.hover();
+  const tooltip = page.getByRole("tooltip").filter({ hasText: "关闭到托盘" });
+  await expect(tooltip).toBeVisible();
+  const buttonBounds = (await close.boundingBox())!;
+  const tooltipBounds = (await tooltip.boundingBox())!;
+  expect(tooltipBounds.x + tooltipBounds.width).toBeGreaterThan(buttonBounds.x);
+  expect(Math.min(
+    Math.abs(tooltipBounds.y - (buttonBounds.y + buttonBounds.height)),
+    Math.abs(buttonBounds.y - (tooltipBounds.y + tooltipBounds.height)),
+  )).toBeLessThanOrEqual(8);
+});
+
 test("Windows 双击最大化后的全屏按钮通过原生统一入口进入和退出", async ({ page }) => {
   await mountTitlebar(page, "Win32");
   await page.locator(".titlebar-title").dblclick();

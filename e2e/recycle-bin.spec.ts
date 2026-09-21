@@ -157,7 +157,7 @@ test("实际文档树在永久删除和旧记录清理后不重载，恢复文�
     const load = api.docs.tree;
     api.docs.tree = (...args) => { (window as unknown as { recycleTreeLoads: number }).recycleTreeLoads++; return load(...args); };
   }, ids[1]);
-  await page.getByRole("button", { name: "🗑 回收站", exact: true }).click();
+  await page.getByRole("button", { name: "回收站", exact: true }).click();
   await row(page, 1).getByRole("button", { name: "永久删除", exact: true }).click();
   await accept(page);
   await expect(row(page, 1)).toHaveCount(0);

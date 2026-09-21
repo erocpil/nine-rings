@@ -1,14 +1,15 @@
 import { useEffect, useRef } from "react";
 import { Annotation, Compartment, EditorState } from "@codemirror/state";
-import { drawSelection, EditorView, keymap, lineNumbers as codeLineNumbers } from "@codemirror/view";
+import { Decoration, drawSelection, EditorView, keymap, lineNumbers as codeLineNumbers, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { defaultKeymap, indentWithTab } from "@codemirror/commands";
 import { getCM, Vim, vim } from "@replit/codemirror-vim";
 import { isPrimaryShortcutModifier } from "../lib/shortcuts";
 import { blockWorkspacePreferences, BLOCK_WORKSPACE_DISPLAY_EVENT } from "../lib/block-display-settings";
 import { codeIndentChanges } from "../lib/code-indent";
+import { highlightCode } from "../lib/code-highlight";
 
 export type CodeVimMode = "normal" | "insert" | "visual";
-interface Props { vimEnabled: boolean; value: string; onChange: (value: string) => void; onUndo: () => void; onRedo: () => void; onExit: () => void; onModeChange?: (mode: CodeVimMode) => void; wrap: boolean; lineNumbers: boolean; }
+interface Props { vimEnabled: boolean; value: string; language: string | null; onChange: (value: string) => void; onUndo: () => void; onRedo: () => void; onExit: () => void; onModeChange?: (mode: CodeVimMode) => void; wrap: boolean; lineNumbers: boolean; }
 const sourceSync = Annotation.define<boolean>();
 const histories = new WeakMap<object, { onUndo: () => void; onRedo: () => void }>();
 for (const [key, action, redo] of [["u", "sourceUndo", false], ["<C-r>", "sourceRedo", true]] as const) {
@@ -21,15 +22,33 @@ for (const [key, action, redo] of [["u", "sourceUndo", false], ["<C-r>", "source
   Vim.mapCommand(key, "action", action, {}, { context: "normal" });
 }
 
+function syntaxDecorations(view: EditorView, language: string | null): DecorationSet {
+  return Decoration.set(highlightCode(view.state.doc.toString(), language).map(token =>
+    Decoration.mark({ class: token.classes.join(" ") }).range(token.from, token.to),
+  ), true);
+}
+
+function codeHighlighting(language: string | null) {
+  return ViewPlugin.fromClass(class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) { this.decorations = syntaxDecorations(view, language); }
+    update(update: ViewUpdate) {
+      if (update.docChanged) this.decorations = syntaxDecorations(update.view, language);
+    }
+  }, { decorations: value => value.decorations });
+}
+
 /** CodeMirror 6 编辑表面：仅用于代码块弹层，正文仍由 ProseMirror 管理。 */
-export function CodeMirrorBlockEditor({ vimEnabled, value, onChange, onUndo, onRedo, onExit, onModeChange, wrap, lineNumbers }: Props) {
+export function CodeMirrorBlockEditor({ vimEnabled, value, language, onChange, onUndo, onRedo, onExit, onModeChange, wrap, lineNumbers }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const historyRef = useRef({ onUndo, onRedo }); historyRef.current = { onUndo, onRedo };
   const changeRef = useRef(onChange); changeRef.current = onChange;
   const modeRef = useRef(onModeChange); modeRef.current = onModeChange;
   const valueRef = useRef(value); valueRef.current = value;
+  const languageRef = useRef(language); languageRef.current = language;
   const numbers = useRef(new Compartment());
+  const highlighting = useRef(new Compartment());
   const numbersRef = useRef(lineNumbers); numbersRef.current = lineNumbers;
   useEffect(() => {
     if (!host.current) return;
@@ -40,7 +59,7 @@ export function CodeMirrorBlockEditor({ vimEnabled, value, onChange, onUndo, onR
       autocorrect: "off",
       autocapitalize: "off",
       autocomplete: "off",
-    }), keymap.of([...defaultKeymap, indentWithTab]), numbers.current.of(numbersRef.current ? codeLineNumbers() : []), ...(wrap ? [EditorView.lineWrapping] : []), tabs.of(EditorState.tabSize.of(tabSize())), EditorView.updateListener.of((update) => {
+    }), keymap.of([...defaultKeymap, indentWithTab]), numbers.current.of(numbersRef.current ? codeLineNumbers() : []), highlighting.current.of(codeHighlighting(languageRef.current)), ...(wrap ? [EditorView.lineWrapping] : []), tabs.of(EditorState.tabSize.of(tabSize())), EditorView.updateListener.of((update) => {
       if (update.docChanged && !update.transactions.some(transaction => transaction.annotation(sourceSync))) changeRef.current(update.state.doc.toString());
     })] });
     const view = new EditorView({ state, parent: host.current });
@@ -65,11 +84,14 @@ export function CodeMirrorBlockEditor({ vimEnabled, value, onChange, onUndo, onR
     viewRef.current?.dispatch({ effects: numbers.current.reconfigure(lineNumbers ? codeLineNumbers() : []) });
   }, [lineNumbers]);
   useEffect(() => {
+    viewRef.current?.dispatch({ effects: highlighting.current.reconfigure(codeHighlighting(language)) });
+  }, [language]);
+  useEffect(() => {
     const view = viewRef.current;
     if (!view || view.state.doc.toString() === value) return;
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value }, annotations: sourceSync.of(true) });
   }, [value]);
-  return <div ref={host} className="codemirror-block-editor" aria-label={vimEnabled ? "代码块 Vim 编辑器" : "代码块编辑器"} onKeyDownCapture={event => {
+  return <div ref={host} className="codemirror-block-editor code-syntax-highlighted" aria-label={vimEnabled ? "代码块 Vim 编辑器" : "代码块编辑器"} onKeyDownCapture={event => {
     const view = viewRef.current;
     if (!view || event.nativeEvent.isComposing || !view.contentDOM.contains(event.target as Node)) return;
     if (event.key === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey) {

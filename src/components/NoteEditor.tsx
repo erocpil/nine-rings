@@ -3315,6 +3315,41 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     event.stopPropagation();
   };
 
+  const handleEditorDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (readonly) {
+      handleReadonlyHeadingDoubleClick(event);
+      return;
+    }
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+    const target = event.target instanceof Element ? event.target.closest("h1, h2, h3, h4, h5, h6") : null;
+    if (!target || !editor.view.dom.contains(target)) return;
+    const coordinates = { left: event.clientX, top: event.clientY };
+    // WKWebView occasionally collapses an English-heading double click at the
+    // end of the first word. Let the native selection settle, then repair only
+    // a still-collapsed selection. Chromium/Safari's successful selection is
+    // left untouched.
+    window.requestAnimationFrame(() => {
+      if (editor.isDestroyed || !editor.state.selection.empty) return;
+      const hit = editor.view.posAtCoords(coordinates);
+      if (!hit) return;
+      const $pos = editor.state.doc.resolve(hit.pos);
+      if ($pos.parent.type.name !== "heading") return;
+      const text = $pos.parent.textContent;
+      let pivot = Math.min($pos.parentOffset, text.length);
+      const isWord = (character: string | undefined) => Boolean(character && /[\p{L}\p{N}_'-]/u.test(character));
+      if (!isWord(text[pivot]) && isWord(text[pivot - 1])) pivot -= 1;
+      if (!isWord(text[pivot])) return;
+      let start = pivot;
+      let end = pivot + 1;
+      while (start > 0 && isWord(text[start - 1])) start -= 1;
+      while (end < text.length && isWord(text[end])) end += 1;
+      const from = $pos.start() + start;
+      const to = $pos.start() + end;
+      editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, from, to)));
+      editor.view.focus();
+    });
+  };
+
   const handleReadonlyHeadingPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (
       !readonly
@@ -3468,9 +3503,12 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           onClick={(event) => event.stopPropagation()}
         >
           <div className="document-bookmark-header">
-            <span>书签</span>
-            <span>{bookmarks.length} 项</span>
-            {!isMobileToolbarViewport && <button type="button" onClick={() => togglePinnedPanel("bookmark")} aria-label={desktopPanels.pinned("bookmark") ? "收起固定书签" : "固定书签"}>{desktopPanels.pinned("bookmark") ? "收起" : "固定"}</button>}
+            <div className="document-bookmark-heading"><span>书签</span><span>{bookmarks.length} 项</span></div>
+            <div className="document-bookmark-header-actions">
+              <button className="document-bookmark-add" type="button" onClick={toggleCurrentBookmark}
+                aria-label={currentBookmark ? "取消当前位置书签" : "添加当前位置书签"}>{currentBookmark ? "取消" : "添加"}</button>
+              {!isMobileToolbarViewport && <button type="button" onClick={() => togglePinnedPanel("bookmark")} aria-label={desktopPanels.pinned("bookmark") ? "收起固定书签" : "固定书签"}>{desktopPanels.pinned("bookmark") ? "收起" : "固定"}</button>}
+            </div>
           </div>
           <div className="document-bookmark-list">
             {bookmarks.length === 0 ? (
@@ -3490,11 +3528,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
               />
             ))}
           </div>
-          <button
-            className="document-bookmark-add"
-            type="button"
-            onClick={toggleCurrentBookmark}
-          >{currentBookmark ? "取消当前位置书签" : "添加当前位置书签"}</button>
         </nav>
       );
 
@@ -4004,7 +4037,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             editor={editor}
             className="editor-content"
             onPointerDownCapture={closeToolbarDropdowns}
-            onDoubleClick={handleReadonlyHeadingDoubleClick}
+            onDoubleClick={handleEditorDoubleClick}
             onPointerDown={handleReadonlyHeadingPointerDown}
             onPointerMove={handleReadonlyHeadingPointerMove}
             onPointerCancel={handleReadonlyHeadingPointerCancel}
