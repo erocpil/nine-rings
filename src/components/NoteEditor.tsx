@@ -553,6 +553,9 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const [activeOutlineIndex, setActiveOutlineIndex] = useState(-1);
   const [outlineOverflow, setOutlineOverflow] = useState(false);
   const [documentOutline, setDocumentOutline] = useState<DocumentOutlineItem[]>([]);
+  const outlineOpenRef = useRef(false);
+  const documentOutlineRef = useRef<DocumentOutlineItem[]>([]);
+  documentOutlineRef.current = documentOutline;
   const [outlineCollapsedHeadingKeys, setOutlineCollapsedHeadingKeys] = useState<Set<string>>(
     () => new Set(),
   );
@@ -644,6 +647,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const desktopPanels = useDesktopDocumentPanels(!isMobileToolbarViewport, documentOutline, bookmarks);
   const { openPreview, dismiss: dismissPreview, toggle: togglePinnedPanel } = desktopPanels;
   const outlineOpen = isMobileToolbarViewport ? mobileOutlineOpen : desktopPanels.pinned("outline") || desktopPanels.preview === "outline";
+  outlineOpenRef.current = outlineOpen;
   const bookmarkOpen = isMobileToolbarViewport ? mobileBookmarkOpen : desktopPanels.pinned("bookmark") || desktopPanels.preview === "bookmark";
   const setOutlineOpen = useCallback((open: boolean) => {
     if (isMobileToolbarViewport) setMobileOutlineOpen(open);
@@ -1000,6 +1004,12 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         else closeToolbarDropdowns();
       }
       localStorage.setItem(`selectionPos:${noteId}`, JSON.stringify({ from, to }));
+      // 目录打开（含固定）时，光标移动到其它标题需同步高亮当前章节。
+      if (outlineOpenRef.current && documentOutlineRef.current.length > 0) {
+        setActiveOutlineIndex(documentOutlineIndexAtPosition(
+          documentOutlineRef.current, from,
+        ));
+      }
     },
     onUpdate: ({ editor: ed, transaction }) => {
       // TipTap can emit update for setEditable without changing the document.
