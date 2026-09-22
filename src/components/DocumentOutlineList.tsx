@@ -32,6 +32,9 @@ const SINGLE_ROW_HEIGHT = 26;
 // enough room before the first measurement arrives; a fixed 42px row lets a
 // wrapped title paint over the following virtualized row on WebKit.
 const WRAPPED_ROW_HEIGHT = 48;
+// .document-outline-item 的 padding-block 固定为 3px（上下各 3px）。测量内容
+// 元素的自然高度后需加回这段固定垂直内边距，才是行的真实自然高度。
+const VERTICAL_PADDING = 6;
 const DEFAULT_LIST_WIDTH = 360;
 const OVERSCAN_PX = SINGLE_ROW_HEIGHT * 8;
 // Session objects only: reopening an unchanged outline reuses size estimates.
@@ -201,12 +204,15 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
         const key = row.dataset.outlineRowKey;
         const visibleIndex = Number(row.dataset.visibleIndex);
         if (!key || !Number.isInteger(visibleIndex) || visibleIndex < 0) continue;
-        const borderBox = Array.isArray(record.borderBoxSize)
-          ? record.borderBoxSize[0]
-          : record.borderBoxSize;
+        const content = row.querySelector<HTMLElement>(".document-outline-link");
+        // min-height 会把「高估预留」的行撑高，直接测 row 高度得到的是被撑高
+        // 的假值（自我实现预言），单行文本因此永远留白。改测内容元素（link）
+        // 的自然高度 + 固定垂直 padding，高估的行才能被实测值回缩。
         const measured = Math.max(
           SINGLE_ROW_HEIGHT,
-          Math.round((borderBox?.blockSize ?? row.getBoundingClientRect().height) * 2) / 2,
+          Math.round((content
+            ? content.getBoundingClientRect().height + VERTICAL_PADDING
+            : row.getBoundingClientRect().height) * 2) / 2,
         );
         const previous = measuredHeightsRef.current.get(key) ?? layout.heights[visibleIndex];
         measuredHeightsRef.current.set(key, measured);
@@ -252,6 +258,8 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
           // Reserve the complete one/two-line row before it enters the DOM.
           // Use min-height so a title that wraps slightly beyond the estimate
           // expands and can be measured instead of painting over the next row.
+          // 高估（判两行实为一行）时行的真实高度由 ResizeObserver 测内容元素
+          // 回缩，min-height 只是首帧预留，不会把空白固化成永久行高。
           ...(virtualized ? { top: `${rowLayout.tops[visibleIndex]}px`, minHeight: `${rowLayout.heights[visibleIndex]}px` } : {}),
         }}
         data-level={item.level}
