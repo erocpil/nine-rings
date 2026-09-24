@@ -59,8 +59,8 @@ function addContrastStyles(svg: string, palette: MermaidPalette) {
   const text = nodeTextColor(palette);
   const style = `<style>
     text,.nodeLabel,.edgeLabel,.cluster-label,.labelText,.messageText,.loopText,.noteText{fill:${text} !important;color:${text} !important;}
-    .node rect,.node polygon,.node circle,.node ellipse,.node path,.basic.label-container,.note rect{fill:${palette.nodeBackground} !important;}
-    .cluster rect{fill:${palette.nodeBackgroundTertiary} !important;}
+    rect,circle,ellipse,polygon,.node path,.basic.label-container,.note rect,.stateGroup rect,.statediagram-state rect,.actor,.actor-man,.actor-woman,.entityBox,.classBox{fill:${palette.nodeBackground} !important;stroke:${palette.border} !important;}
+    .cluster rect,.section,.task,.classGroup rect{fill:${palette.nodeBackgroundTertiary} !important;stroke:${palette.border} !important;}
   </style>`;
   return svg.replace(/(<svg\b[^>]*>)/i, `$1${style}`);
 }
