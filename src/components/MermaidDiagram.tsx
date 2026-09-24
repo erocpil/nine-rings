@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { mermaidPalette, renderMermaid } from "../lib/mermaid-render";
+import { renderMermaid } from "../lib/mermaid-render";
 
 export type MermaidViewTransform = { scale: number; x: number; y: number };
 type PointerPosition = { x: number; y: number };
@@ -25,7 +25,6 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
   const initialViewRef = useRef(initialView);
   const [view, setView] = useState<MermaidViewTransform>(initialView);
   const [result, setResult] = useState<{ svg?: string; error?: string }>({});
-  const [themeKey, setThemeKey] = useState(() => JSON.stringify(mermaidPalette(document.documentElement)));
 
   const applyView = useCallback((next: MermaidViewTransform) => {
     viewRef.current = next;
@@ -92,35 +91,26 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
   };
 
   useEffect(() => {
-    const observer = new MutationObserver(() => {
-      const next = JSON.stringify(mermaidPalette(document.documentElement));
-      setThemeKey(current => current === next ? current : next);
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
     let cancelled = false;
     const element = rootRef.current;
     if (!element) return;
     applyView(initialViewRef.current);
     setResult({});
-    void renderMermaid(source, mermaidPalette(element)).then(
+    void renderMermaid(source).then(
       svg => { if (!cancelled) setResult({ svg }); },
       error => {
         if (!cancelled) setResult({ error: error instanceof Error ? error.message.split("\n")[0].slice(0, 200) : "无法渲染图表" });
       },
     );
     return () => { cancelled = true; };
-  }, [source, themeKey, applyView]);
+  }, [source, applyView]);
 
   return <div ref={rootRef} className={`mermaid-diagram ${interactive ? "mermaid-diagram-interactive" : ""}`} contentEditable={false} aria-label="Mermaid 图表">
     {interactive && result.svg && <div className="mermaid-diagram-controls" role="toolbar" aria-label="图表缩放">
       <button type="button" aria-label="缩小图表" disabled={view.scale <= MIN_SCALE} onClick={() => zoomAt(1 / ZOOM_STEP)}>−</button>
       <span role="status">{Math.round(view.scale * 100)}%</span>
       <button type="button" aria-label="放大图表" disabled={view.scale >= MAX_SCALE} onClick={() => zoomAt(ZOOM_STEP)}>+</button>
-      <button type="button" aria-label="适应窗口" onClick={() => applyView(initialView)}>适应</button>
+      <button type="button" aria-label="适应窗口" onClick={() => applyView(defaultView)}>适应</button>
     </div>}
     {result.svg
       ? interactive

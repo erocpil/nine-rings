@@ -171,8 +171,9 @@
   min-height: 52px;
   padding: 14px;
   overflow: auto;
-  background: var(--code-bg);
-  color: var(--text);
+  background: #ffffff;
+  color-scheme: light;
+  color: #202124;
   text-align: center;
   -webkit-user-select: text;
   user-select: text;
