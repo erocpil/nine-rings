@@ -275,7 +275,7 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata }: PdfExportO
   const diagramReady = Promise.all(diagrams.map(async pre => {
     try {
       const svg = await renderMermaid(pre.textContent ?? "", {
-        background: "#fff", text: "#202124", accent: "#356ae6", border: "#bfc3ca",
+        background: "#fff", text: "#202124", accent: "#356ae6", border: "#bfc3ca", darkMode: false,
       });
       const figure = printDocument.createElement("div");
       figure.className = "print-mermaid";
