@@ -13,6 +13,7 @@
 .block-workspace-header strong { font-size: 14px; white-space: nowrap; }
 .block-workspace-vim-mode { padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; color: var(--text-secondary); font: 11px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .04em; }
 .block-workspace-header [role="group"] { display: flex; background: var(--hover-bg); border-radius: 6px; }
+.block-workspace-view-controls { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .block-workspace button { color: var(--text-secondary); border: 0; background: transparent; cursor: pointer; border-radius: 6px; }
 .block-workspace-header button, .block-workspace-tools button { min-width: 32px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; padding: 4px 6px; flex-shrink: 0; }
 .block-workspace button:hover { background: var(--hover-bg); }
@@ -54,10 +55,11 @@
 .block-workspace .code-block-actions { max-width: 100%; overflow-x: auto; }
 .block-workspace-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 8px; }
 .block-workspace-body .ProseMirror { min-height: 80px; outline: none; }
-.codemirror-block-editor { min-height: 160px; padding: 8px; font: 14px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; background: var(--code-bg); }
+.codemirror-block-editor { min-height: 160px; padding: 8px 0; font: 14px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; background: var(--code-bg); }
 .codemirror-block-editor .cm-editor { min-height: 160px; outline: none; }
 .codemirror-block-editor .cm-scroller { overflow: auto; }
 .codemirror-block-editor .cm-gutters { color: var(--text-secondary); background: var(--code-bg); border-color: var(--border); }
+.codemirror-block-editor .cm-lineNumbers .cm-gutterElement { min-width: 3ch; padding: 0 6px 0 4px; text-align: right; }
 .codemirror-block-editor .cm-cursor { border-left-color: var(--text); }
 .codemirror-block-editor .cm-fat-cursor { background: var(--text); color: var(--bg); }
 .block-workspace-body .block-workspace-open { display: none; }

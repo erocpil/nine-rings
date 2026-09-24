@@ -115,6 +115,27 @@ test('代码行号在正文、弹层阅读与 Vim 编辑之间同步并持久化
   await expect(dialog.locator('.code-block-gutter')).toBeVisible();
   await dialog.getByRole('button', { name: '编辑', exact: true }).click();
   await expect(dialog.locator('.cm-lineNumbers')).toBeVisible();
+  const lineGeometry = await dialog.evaluate(element => {
+    const numbers = [...element.querySelectorAll<HTMLElement>('.cm-lineNumbers .cm-gutterElement')]
+      .filter(number => number.textContent?.trim() && getComputedStyle(number).visibility !== 'hidden').slice(0, 3);
+    const lines = [...element.querySelectorAll<HTMLElement>('.cm-content .cm-line')].slice(0, 3);
+    return {
+      offsets: numbers.map((number, index) => Math.abs(number.getBoundingClientRect().top - lines[index].getBoundingClientRect().top)),
+      gutterRight: element.querySelector<HTMLElement>('.cm-gutters')!.getBoundingClientRect().right,
+      contentLeft: element.querySelector<HTMLElement>('.cm-content')!.getBoundingClientRect().left,
+    };
+  });
+  expect(Math.max(...lineGeometry.offsets)).toBeLessThan(2);
+  expect(lineGeometry.gutterRight).toBeLessThanOrEqual(lineGeometry.contentLeft + 1);
+  const language = dialog.getByLabel('代码语言');
+  const lineNumberButton = dialog.getByRole('button', { name: '隐藏代码行号', exact: true });
+  const modeGroup = dialog.getByRole('group', { name: '块模式', exact: true });
+  const [headerBox, languageBox, lineNumberBox, modeBox] = await Promise.all([
+    dialog.locator('.block-workspace-header').boundingBox(), language.boundingBox(), lineNumberButton.boundingBox(), modeGroup.boundingBox(),
+  ]);
+  expect(languageBox!.x).toBeGreaterThan(headerBox!.x + headerBox!.width / 2);
+  expect(lineNumberBox!.x).toBeGreaterThan(languageBox!.x + languageBox!.width - 1);
+  expect(modeBox!.x).toBeGreaterThan(lineNumberBox!.x + lineNumberBox!.width - 1);
   await page.keyboard.press('i');
   await dialog.getByRole('button', { name: '隐藏代码行号', exact: true }).click();
   await expect(dialog.locator('.cm-lineNumbers')).toHaveCount(0);

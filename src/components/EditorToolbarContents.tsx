@@ -135,6 +135,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
   };
   const moreActions = (<>
     {isMobileToolbarViewport && <button className="menu-dropdown-item" disabled={readonly} onClick={() => { closeMore(); actions.openEditorReplace(); }} type="button"><ToolbarIcon name="search" />查找与替换</button>}
+    {isMobileToolbarViewport && <button className="menu-dropdown-item" disabled={readonly} onClick={() => { clearTextFormatting(); closeMore(); }} type="button"><ToolbarIcon name="erase" />清除格式</button>}
     {hiddenTools.includes("clipboard") && <>
     <button className="menu-dropdown-item" onClick={() => { handleCopy(); closeMore(); }} type="button"><ToolbarIcon name="copy" />复制</button>
     <button className="menu-dropdown-item" onClick={() => { handleCut(); closeMore(); }} type="button"><ToolbarIcon name="cut" />剪切</button>

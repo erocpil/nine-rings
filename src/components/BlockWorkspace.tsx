@@ -370,18 +370,20 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
     <header className="block-workspace-header">
       <strong>{name}</strong>
       {editable && rootType === "codeBlock" && vimModeEnabled && <span className="block-workspace-vim-mode" role="status">VIM {vimMode.toUpperCase()}</span>}
-      {editable && rootType === "codeBlock" && <CodeLanguageSelect editable value={normalizeCodeLanguage(editor?.state.doc.firstChild?.attrs.language) ?? ""} onChange={language => editor?.commands.updateAttributes("codeBlock", { language: language || null })} />}
-      <div role="group" aria-label="块模式">
-        <button type="button" aria-pressed={!editable} onClick={() => preservePosition(() => setMode("read"))}>阅读</button>
-        {!readonly && <button type="button" aria-pressed={editable} title={rootType === "codeBlock" ? `Tab 缩进，Shift+Tab 减少缩进；${isMacPlatform() ? "Cmd" : "Ctrl"}+Enter 退出到正文` : undefined} onClick={() => preservePosition(() => setMode("edit"))}>编辑</button>}
-      </div>
       <span className="block-workspace-header-spacer" aria-hidden="true" />
+      <div className="block-workspace-view-controls">
+        {editable && rootType === "codeBlock" && <CodeLanguageSelect editable value={normalizeCodeLanguage(editor?.state.doc.firstChild?.attrs.language) ?? ""} onChange={language => editor?.commands.updateAttributes("codeBlock", { language: language || null })} />}
+        {rootType === "codeBlock" && <button type="button" aria-label={lineNumbers ? "隐藏代码行号" : "显示代码行号"} aria-pressed={lineNumbers} title="代码行号" onMouseDown={event => event.preventDefault()} onClick={() => {
+          preservePosition(() => { setLineNumbers(!lineNumbers); saveBlockWorkspacePreferences({ lineNumbers: !lineNumbers }); });
+        }}>行号</button>}
+        <div role="group" aria-label="块模式">
+          <button type="button" aria-pressed={!editable} onClick={() => preservePosition(() => setMode("read"))}>阅读</button>
+          {!readonly && <button type="button" aria-pressed={editable} title={rootType === "codeBlock" ? `Tab 缩进，Shift+Tab 减少缩进；${isMacPlatform() ? "Cmd" : "Ctrl"}+Enter 退出到正文` : undefined} onClick={() => preservePosition(() => setMode("edit"))}>编辑</button>}
+        </div>
+      </div>
       {(saveStatus === "error" || saveStatus === "saving" || saveStatus === "dirty") && <span className="block-workspace-save" data-error={saveStatus === "error"} role="status" title="本机保存状态，不代表已完成备份">{saveStatus === "error" ? "保存失败" : "保存中…"}</span>}
       {iconButton("复制块", "copy", () => void copy())}
       {!sensitive && iconButton("块内查找", "search", () => { setFindOpen(!findOpen); window.requestAnimationFrame(() => searchInput.current?.focus()); })}
-      {rootType === "codeBlock" && <button type="button" aria-label={lineNumbers ? "隐藏代码行号" : "显示代码行号"} aria-pressed={lineNumbers} title="代码行号" onMouseDown={event => event.preventDefault()} onClick={() => {
-        preservePosition(() => { setLineNumbers(!lineNumbers); saveBlockWorkspacePreferences({ lineNumbers: !lineNumbers }); });
-      }}>行号</button>}
       <button type="button" aria-label="关闭块工作区" title="关闭" disabled={closing} onClick={() => void close()}><ToolbarIcon name="compress" /></button>
     </header>
     {findOpen && !sensitive && <div className="block-workspace-find" role="search" aria-label="当前块查找">

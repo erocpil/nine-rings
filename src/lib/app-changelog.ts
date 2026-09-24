@@ -1,6 +1,14 @@
 /** User-facing highlights shipped with the app, newest first. Keep dates in ISO format. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-09-24",
+    title: "代码块模式与手机格式操作",
+    changes: [
+      "调整代码块模式的行号列位置，并将语言、行号和阅读/编辑控件归入右侧显示组。",
+      "手机更多编辑操作新增清除格式入口，与样式菜单和桌面工具栏使用相同处理。",
+    ],
+  },
+  {
     date: "2026-09-21",
     title: "标题输入与导航外观",
     changes: [

@@ -50,6 +50,7 @@ test("更多菜单跟随实际工具溢出，不重复工具栏入口", async ({
       await expect(sheet.getByText(label, { exact: true })).toHaveCount(hidden ? 1 : 0);
     }
     await expect(sheet.getByText(/书签/)).toHaveCount(0);
+    await expect(sheet.getByRole("button", { name: "清除格式", exact: true })).toBeVisible();
     await expect(sheet.getByRole("button", { name: "导出 PDF", exact: true })).toBeVisible();
     expect(await sheet.locator(".menu-dropdown-item").evaluateAll(items => items.every(el => el.querySelector("svg.toolbar-icon")))).toBe(true);
     const color = sheet.getByLabel("文字颜色", { exact: true });

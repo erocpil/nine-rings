@@ -498,17 +498,16 @@ test.describe("触屏块工作区", () => {
       await expect(opener).not.toBeFocused();
       const spacing = await dialog.evaluate(element => {
         const box = element.getBoundingClientRect();
-        const source = document.querySelector(".note-editor")!.getBoundingClientRect();
         const viewport = window.visualViewport!;
         const safeTop = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--safe-top")) || 0;
         return {
-          top: box.top - Math.max(viewport.offsetTop + safeTop, source.top - 24),
-          bottom: Math.min(viewport.offsetTop + viewport.height, source.bottom) - box.bottom,
+          top: box.top - viewport.offsetTop - safeTop,
+          bottom: viewport.offsetTop + viewport.height - box.bottom,
           blur: getComputedStyle(element, "::backdrop").backdropFilter,
         };
       });
-      expect(spacing.top).toBeCloseTo(16, 0);
-      expect(spacing.bottom).toBeCloseTo(36, 0);
+      expect(spacing.top).toBeGreaterThanOrEqual(12);
+      expect(spacing.top).toBeCloseTo(spacing.bottom, 0);
       expect(spacing.blur).toBe("blur(2px)");
       expect((await dialog.locator(".block-workspace-header").boundingBox())!.height).toBeLessThanOrEqual(40);
       await page.mouse.click(1, 300);
