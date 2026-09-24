@@ -55,14 +55,38 @@ function nodeTextColor(palette: MermaidPalette) {
   return isDarkColor(palette.nodeBackground) ? palette.text : "#202124";
 }
 
+function parseColor(value: string | null | undefined) {
+  if (!value) return null;
+  const hex = value.match(/^#([0-9a-f]{6})$/i);
+  if (hex) return [0, 2, 4].map(offset => Number.parseInt(hex[1].slice(offset, offset + 2), 16));
+  const rgb = value.match(/^rgba?\(\s*([\d.]+)[, ]+\s*([\d.]+)[, ]+\s*([\d.]+)/i);
+  return rgb ? [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])] : null;
+}
+
+function contrastTextForShape(shape: Element | null, fallback: string) {
+  const fill = shape?.getAttribute("fill") || shape?.getAttribute("style")?.match(/fill\s*:\s*([^;]+)/i)?.[1];
+  const channels = parseColor(fill);
+  if (!channels) return fallback;
+  const linear = channels.map(channel => {
+    const value = channel / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+  return luminance < 0.42 ? "#f8f8f2" : "#202124";
+}
+
 function addContrastStyles(svg: string, palette: MermaidPalette) {
-  const text = nodeTextColor(palette);
-  const style = `<style>
-    text,.nodeLabel,.edgeLabel,.cluster-label,.labelText,.messageText,.loopText,.noteText{fill:${text} !important;color:${text} !important;}
-    rect,circle,ellipse,polygon,.node path,.basic.label-container,.note rect,.stateGroup rect,.statediagram-state rect,.actor,.actor-man,.actor-woman,.entityBox,.classBox{fill:${palette.nodeBackground} !important;stroke:${palette.border} !important;}
-    .cluster rect,.section,.task,.classGroup rect{fill:${palette.nodeBackgroundTertiary} !important;stroke:${palette.border} !important;}
-  </style>`;
-  return svg.replace(/(<svg\b[^>]*>)/i, `$1${style}`);
+  if (typeof DOMParser === "undefined" || typeof XMLSerializer === "undefined") return svg;
+  const document = new DOMParser().parseFromString(svg, "image/svg+xml");
+  const labels = document.querySelectorAll("text,.nodeLabel,.edgeLabel,.cluster-label,.labelText,.messageText,.loopText,.noteText");
+  labels.forEach(label => {
+    const container = label.closest(".node,.cluster,.stateGroup,.statediagram-state,.actor,.actor-man,.actor-woman,.entityBox,.classGroup,.note,.section,.task");
+    const shape = container?.querySelector("rect,circle,ellipse,polygon,path") ?? null;
+    const color = contrastTextForShape(shape, nodeTextColor(palette));
+    const current = label.getAttribute("style") ?? "";
+    label.setAttribute("style", `${current};fill:${color} !important;color:${color} !important;`);
+  });
+  return new XMLSerializer().serializeToString(document.documentElement);
 }
 
 function isDarkColor(color: string) {
