@@ -29,6 +29,16 @@ for (const width of [1280, 390]) {
       })).toBeLessThan(1);
     };
     await aligned();
+    if (width === 1280) {
+      const hitTest = await page.getByRole("button", { name: "折叠第 1 块章节", exact: true }).evaluate(button => {
+        const fold = button.getBoundingClientRect();
+        const number = document.querySelector<HTMLElement>('.editor-block-number[data-block-index="1"]')!.getBoundingClientRect();
+        const target = document.elementFromPoint(fold.right - 1, fold.top + fold.height / 2);
+        return { gap: number.left - fold.right, targetIsFold: target === button || button.contains(target) };
+      });
+      expect(hitTest.gap).toBeGreaterThanOrEqual(2);
+      expect(hitTest.targetIsFold).toBe(true);
+    }
     await page.locator(".ProseMirror").evaluate(element => {
       const editor = element as HTMLElement;
       editor.style.fontSize = "23px";

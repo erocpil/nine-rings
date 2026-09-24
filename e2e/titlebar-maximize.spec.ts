@@ -2,10 +2,10 @@ import { expect, test, type Page } from "@playwright/test";
 
 test.use({ serviceWorkers: "block" });
 
-async function mountTitlebar(page: Page, platform = "MacIntel", failOnce = false) {
+async function mountTitlebar(page: Page, platform = "MacIntel", failOnce = false, hangOnce = false) {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
-  await page.evaluate(async ({ platform, failOnce }) => {
+  await page.evaluate(async ({ platform, failOnce, hangOnce }) => {
     Object.defineProperty(navigator, "platform", { configurable: true, value: platform });
     const load = (path: string) => import(/* @vite-ignore */ path);
     const React = (await load("/node_modules/.vite/deps/react.js")).default;
@@ -16,6 +16,7 @@ async function mountTitlebar(page: Page, platform = "MacIntel", failOnce = false
     let fullscreen = false;
     let maximized = false;
     let rejectNext = failOnce;
+    let hangNext = hangOnce;
     const commands: string[] = [];
     mockWindows("main");
     mockIPC((command, args) => {
@@ -34,6 +35,10 @@ async function mountTitlebar(page: Page, platform = "MacIntel", failOnce = false
       }
       if (command === "plugin:window|is_fullscreen") return fullscreen;
       if (command === "toggle_window_maximize" || command.endsWith("|internal_toggle_maximize")) {
+        if (command === "toggle_window_maximize" && hangNext) {
+          hangNext = false;
+          return new Promise(() => {});
+        }
         if (rejectNext) { rejectNext = false; throw new Error("test maximize failure"); }
         maximized = !maximized;
         document.body.dataset.maximized = String(maximized);
@@ -58,7 +63,7 @@ async function mountTitlebar(page: Page, platform = "MacIntel", failOnce = false
     Object.assign(host.style, { position: "fixed", inset: "0 0 auto", zIndex: "99999" });
     document.body.append(host);
     createRoot(host).render(React.createElement(TitleBar));
-  }, { platform, failOnce });
+  }, { platform, failOnce, hangOnce });
   await expect(page.locator(".titlebar")).toBeVisible();
 }
 
@@ -102,6 +107,14 @@ test("macOS 最大化请求失败后仍可再次双击", async ({ page }) => {
   await mountTitlebar(page, "MacIntel", true);
   await page.locator(".titlebar-title").dblclick();
   await expect.poll(async () => (await commands(page)).filter(command => command === "toggle_window_maximize").length).toBe(1);
+  await page.locator(".titlebar-title").dblclick();
+  await expect.poll(() => page.evaluate(() => document.body.dataset.maximized)).toBe("true");
+});
+
+test("macOS 最大化回复丢失后不会永久禁用双击", async ({ page }) => {
+  await mountTitlebar(page, "MacIntel", false, true);
+  await page.locator(".titlebar-title").dblclick();
+  await page.waitForTimeout(1600);
   await page.locator(".titlebar-title").dblclick();
   await expect.poll(() => page.evaluate(() => document.body.dataset.maximized)).toBe("true");
 });

@@ -14,6 +14,7 @@ export default function TitleBar() {
   const macOS = /Mac/i.test(navigator.platform);
   const maximizePress = useRef<{ x: number; y: number } | null>(null);
   const maximizing = useRef(false);
+  const maximizeGuardTimer = useRef<number | null>(null);
 
   const isTitlebarBackground = (event: MouseEvent<HTMLDivElement>) =>
     event.target instanceof Element
@@ -39,13 +40,24 @@ export default function TitleBar() {
     // 容许轻微手抖，但双击后拖动仍取消最大化。
     if (!press || Math.hypot(event.clientX - press.x, event.clientY - press.y) > 4 || maximizing.current) return;
     maximizing.current = true;
+    // Native window calls normally settle immediately. Do not let one lost IPC
+    // reply disable titlebar double-clicks for the rest of this app session.
+    if (maximizeGuardTimer.current !== null) window.clearTimeout(maximizeGuardTimer.current);
+    maximizeGuardTimer.current = window.setTimeout(() => {
+      maximizing.current = false;
+      maximizeGuardTimer.current = null;
+    }, 1500);
     void (async () => {
       const appWindow = getCurrentWindow();
       // 已在原生全屏时不改变 Space，也不修改退出全屏后的窗口状态。
       if (!await appWindow.isFullscreen()) await invoke("toggle_window_maximize");
     })().catch(error => {
       console.error("[TitleBar] 最大化/还原窗口失败:", error);
-    }).finally(() => { maximizing.current = false; });
+    }).finally(() => {
+      maximizing.current = false;
+      if (maximizeGuardTimer.current !== null) window.clearTimeout(maximizeGuardTimer.current);
+      maximizeGuardTimer.current = null;
+    });
   };
 
   useEffect(() => {
@@ -70,6 +82,7 @@ export default function TitleBar() {
 
     return () => {
       disposed = true;
+      if (maximizeGuardTimer.current !== null) window.clearTimeout(maximizeGuardTimer.current);
       unlistenResize?.();
     };
   }, []);

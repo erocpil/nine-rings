@@ -8,12 +8,18 @@ pub struct WindowPlacement<T> {
 
 impl<T: Copy> WindowPlacement<T> {
     pub fn toggle_zoom(&mut self, current: T, maximized: T, is_maximized: bool) -> T {
-        if is_maximized {
-            self.normal.take().unwrap_or(current)
-        } else {
-            self.normal = Some(current);
-            maximized
+        // Our saved normal frame is the authoritative zoom state. AppKit can
+        // adjust a zoomed frame later (Dock/menu-bar/work-area changes), so an
+        // exact comparison with the current visibleFrame eventually becomes
+        // false and used to overwrite the only restore frame.
+        if let Some(normal) = self.normal.take() {
+            return normal;
         }
+        if is_maximized {
+            return current;
+        }
+        self.normal = Some(current);
+        maximized
     }
 
     pub fn begin_fullscreen(&mut self, current: T) {
@@ -56,7 +62,9 @@ mod tests {
         assert_eq!(frames.finish_fullscreen(), Some(100));
         assert_eq!(frames.finish_fullscreen(), None);
         frames.toggle_zoom(100, 500, false);
-        // User manually resized the zoomed window before double-clicking again.
+        // AppKit may change the zoomed frame after a work-area change. The
+        // original normal frame remains the target of the next double-click.
+        assert_eq!(frames.toggle_zoom(200, 500, false), 100);
         assert_eq!(frames.toggle_zoom(200, 500, false), 500);
         assert_eq!(frames.toggle_zoom(500, 500, true), 200);
     }

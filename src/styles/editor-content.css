@@ -82,8 +82,9 @@
 }
 
 .show-line-numbers .editor-block-number {
-  left: 14px;
-  width: calc(var(--editor-gutter-width) - 14px);
+  /* Keep the number outside the heading fold button's 20px hit target. */
+  left: 22px;
+  width: calc(var(--editor-gutter-width) - 22px);
 }
 
 .editor-block-number::after {

@@ -10,5 +10,6 @@ export function editorGutterWidth(blockCount: number, showNumbers: boolean, comp
   // 桌面块号左侧保留“+”/折叠列；手机端保留 22px 触摸列，数字列
   // 继续按位数紧凑扩展，避免折叠按钮、块号和正文互相覆盖。
   if (compact) return 22 + Math.max(14, 4 + digits * 6);
-  return Math.max(26, 18 + digits * 8);
+  // Reserve the first 20px for +/- and heading-fold controls, plus a 2px gap.
+  return Math.max(30, 22 + digits * 8);
 }
