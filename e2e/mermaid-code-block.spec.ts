@@ -181,3 +181,42 @@ test("Mermaid 自定义颜色与多行标签在主题切换后保持完整", asy
   await expect(workspace.locator("svg .node")).toHaveCount(3);
   await expect(workspace.locator(".mermaid-diagram")).toHaveCSS("background-color", "rgb(11, 21, 36)");
 });
+
+test("多行分组标题与跨分组连线标签不被图形遮挡", async ({ page }) => {
+  await createBlankDocument(page);
+  await page.locator(".note-editor .ProseMirror").evaluate(element => {
+    const editor = (element as HTMLElement & { editor: Editor }).editor;
+    editor.commands.setContent({ type: "doc", content: [{
+      type: "codeBlock", attrs: { language: "mermaid" },
+      content: [{ type: "text", text: 'flowchart LR\nsubgraph K["内核态 / Kernel Space<br/>绕过内核网络栈"]\n A["kernel networking stack<br/>largely bypassed"]\nend\nsubgraph S["Scale"]\n B["clusters"] --> C["Elastic IPs"]\nend\nsubgraph N["NIC 硬件层"]\n D["RX Queue"] --> E["Offload Boundary"]\nend\nS -.->|集群上下文| N' }],
+    }] }, true);
+  });
+  const diagram = page.locator(".note-editor .mermaid-diagram");
+  await expect(diagram.locator("svg .cluster")).toHaveCount(3);
+  const checkCollisions = (target: typeof diagram) => target.evaluate(root => {
+    const overlap = (a: DOMRect, b: DOMRect) =>
+      Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 &&
+      Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
+    const nodes = [...root.querySelectorAll(".node .label-container")].map(node => node.getBoundingClientRect());
+    const titles = [...root.querySelectorAll(".cluster-label")];
+    const clusters = [...root.querySelectorAll(".cluster > rect")].map(node => node.getBoundingClientRect());
+    const edges = [...root.querySelectorAll(".edgeLabel .label")];
+    return [
+      ...titles.filter(title => nodes.some(node => overlap(title.getBoundingClientRect(), node))),
+      ...edges.filter(label => clusters.some(cluster => overlap(label.getBoundingClientRect(), cluster))),
+    ].map(label => label.textContent);
+  });
+  expect(await checkCollisions(diagram)).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 400 } });
+  await page.locator(".note-editor .code-block-wrap").getByRole("button", { name: "放大阅读代码块" }).click();
+  const workspace = page.getByRole("dialog", { name: "图像工作区" });
+  await expect(workspace.locator("svg .cluster")).toHaveCount(3);
+  const viewport = workspace.locator(".mermaid-diagram-viewport");
+  await viewport.dispatchEvent("wheel", { deltaY: -100 });
+  for (let step = 0; step < 32; step++) {
+    await viewport.dispatchEvent("wheel", { deltaY: -100 });
+  }
+  await expect(workspace.locator(".mermaid-diagram-controls [role=status]")).toHaveText("500%");
+  expect(await checkCollisions(workspace)).toEqual([]);
+});

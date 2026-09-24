@@ -44,6 +44,14 @@ export function renderMermaid(source: string, palette: MermaidPalette = MERMAID_
       securityLevel: "strict",
       suppressErrorRendering: true,
       theme: "base",
+      // Reserve space for multiline subgraph titles before routing edges and
+      // placing children; scaling the finished SVG cannot repair overlaps.
+      flowchart: {
+        subGraphTitleMargin: { top: 8, bottom: 32 },
+        nodeSpacing: 60,
+        rankSpacing: 80,
+        diagramPadding: 16,
+      },
       darkMode: palette.darkMode,
       themeVariables: {
         darkMode: false,
