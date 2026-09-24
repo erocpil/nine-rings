@@ -1,5 +1,5 @@
 import type { Node as PMNode, Schema } from "@tiptap/pm/model";
-import { deltaToProseMirror, isDelta, isProseMirror } from "./delta-converter";
+import { editorDocumentFromContent } from "./editor-content-model";
 import { collapsedHeadingContentRanges } from "./heading-fold";
 
 export const READONLY_RENDERING_KEY = "nr:experimentalReadonlyRendering";
@@ -44,11 +44,7 @@ export function buildReadonlyDocument(
   schema: Schema,
 ): PMNode | null {
   try {
-    const json = isProseMirror(content)
-      ? content
-      : isDelta(content)
-        ? deltaToProseMirror(content)
-        : null;
+    const json = editorDocumentFromContent(content);
     const supported = (node: {
       type?: string;
       content?: (typeof node)[];

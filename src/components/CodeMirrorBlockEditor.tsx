@@ -9,7 +9,7 @@ import { codeIndentChanges } from "../lib/code-indent";
 import { highlightCode } from "../lib/code-highlight";
 
 export type CodeVimMode = "normal" | "insert" | "visual";
-interface Props { vimEnabled: boolean; value: string; language: string | null; onChange: (value: string) => void; onUndo: () => void; onRedo: () => void; onExit: () => void; onModeChange?: (mode: CodeVimMode) => void; wrap: boolean; lineNumbers: boolean; }
+interface Props { vimEnabled: boolean; value: string; language: string | null; onChange: (value: string, base: string) => void; onUndo: () => void; onRedo: () => void; onExit: () => void; onModeChange?: (mode: CodeVimMode) => void; wrap: boolean; lineNumbers: boolean; }
 const sourceSync = Annotation.define<boolean>();
 const histories = new WeakMap<object, { onUndo: () => void; onRedo: () => void }>();
 for (const [key, action, redo] of [["u", "sourceUndo", false], ["<C-r>", "sourceRedo", true]] as const) {
@@ -60,7 +60,7 @@ export function CodeMirrorBlockEditor({ vimEnabled, value, language, onChange, o
       autocapitalize: "off",
       autocomplete: "off",
     }), keymap.of([...defaultKeymap, indentWithTab]), numbers.current.of(numbersRef.current ? codeLineNumbers() : []), highlighting.current.of(codeHighlighting(languageRef.current)), ...(wrap ? [EditorView.lineWrapping] : []), tabs.of(EditorState.tabSize.of(tabSize())), EditorView.updateListener.of((update) => {
-      if (update.docChanged && !update.transactions.some(transaction => transaction.annotation(sourceSync))) changeRef.current(update.state.doc.toString());
+      if (update.docChanged && !update.transactions.some(transaction => transaction.annotation(sourceSync))) changeRef.current(update.state.doc.toString(), update.startState.doc.toString());
     })] });
     const view = new EditorView({ state, parent: host.current });
     viewRef.current = view;

@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { Extension, type Editor } from "@tiptap/core";
 import { Plugin, TextSelection } from "@tiptap/pm/state";
-import { Step, StepMap } from "@tiptap/pm/transform";
+import { workspaceTransaction } from "../lib/block-workspace-sync";
 import { closeHistory } from "@tiptap/pm/history";
 import { OPEN_BLOCK_WORKSPACE, queueBlockWorkspace, takeBlockWorkspace } from "../lib/block-workspace";
 import { clipboardSliceToPlainText, flattenPartialStructuredClipboard } from "../lib/clipboard-plain-text";
@@ -95,6 +95,8 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
   const editableRef = useRef(editable);
   editableRef.current = editable;
   const [notice, setNotice] = useState("");
+  const [codeConflict, setCodeConflict] = useState<string | null>(null);
+  const conflictRef = useRef(false);
   const [copyNotice, setCopyNotice] = useState("");
   useEffect(() => {
     if (!copyNotice.startsWith("已复制")) return;
@@ -155,9 +157,17 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
         "Mod-y": () => { if (editableRef.current) source.commands.redo(); return true; },
       }),
       addProseMirrorPlugins: () => [new Plugin({
-        filterTransaction: transaction => !transaction.docChanged || Boolean(transaction.getMeta("workspace-sync")) || (
-          editableRef.current && source.isEditable && transaction.doc.childCount === 1 && transaction.doc.firstChild?.type.name === rootType
-        ),
+        filterTransaction: transaction => {
+          if (!transaction.docChanged || transaction.getMeta("workspace-sync")) return true;
+          if (!editableRef.current || source.isDestroyed || !source.isEditable) return false;
+          try {
+            workspaceTransaction(source.state, position.current, currentNode.current, transaction);
+            return true;
+          } catch {
+            setNotice("原块已更新或编辑超出块范围，此次操作未写入。请重新打开工作区。");
+            return false;
+          }
+        },
       })],
     }),
   ], [source, rootType]);
@@ -169,14 +179,9 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
     onUpdate: ({ editor: local, transaction }) => {
       if (!transaction.docChanged || bridging.current || !editableRef.current || !source.isEditable) return;
       const sourceNode = source.state.doc.nodeAt(position.current);
-      if (!sourceNode || sourceNode !== currentNode.current) { setNotice("原块已发生变化，请关闭后重新打开。"); return; }
+      if (!sourceNode || !sourceNode.eq(currentNode.current)) { setNotice("原块已发生变化，请关闭后重新打开。"); return; }
       try {
-        const mapped = source.state.tr;
-        for (const step of transaction.steps) {
-          const translated = Step.fromJSON(source.schema, step.toJSON()).map(StepMap.offset(position.current));
-          if (!translated) throw new Error("无法映射编辑位置");
-          mapped.step(translated);
-        }
+        const mapped = workspaceTransaction(source.state, position.current, currentNode.current, transaction);
         mapped.setSelection(TextSelection.near(mapped.doc.resolve(position.current + local.state.selection.from)));
         bridging.current = true;
         source.view.dispatch(mapped);
@@ -315,10 +320,13 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
   }, [source, request, rootType]);
 
   const close = async (exitCode = false) => {
+    if (conflictRef.current) { setNotice("请先复制保留的草稿，或重新载入原块后关闭。"); return; }
     if (closing) return;
     setClosing(true);
     try {
-      await onFlush?.(); onClose();
+      await onFlush?.();
+      if (conflictRef.current) { setNotice("保存等待期间产生了编辑冲突，请先处理草稿。"); return; }
+      onClose();
       if (exitCode) window.requestAnimationFrame(() => {
         if (source.isDestroyed || !source.isEditable) return;
         if (source.state.doc.nodeAt(position.current)?.type.name !== "codeBlock") return;
@@ -331,10 +339,12 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
     finally { setClosing(false); }
   };
   const nextBlock = async (direction: number) => {
+    if (conflictRef.current) { setNotice("请先处理当前块的编辑冲突。"); return; }
     if (closing) return;
     setClosing(true);
     try {
       await onFlush?.();
+      if (conflictRef.current) { setNotice("保存等待期间产生了编辑冲突，请先处理草稿。"); return; }
       const currentPeers = selectedPositions.current ?? peers;
       const currentIndex = currentPeers.indexOf(position.current);
       const target = currentIndex < 0 ? undefined : currentPeers[currentIndex + direction];
@@ -355,6 +365,11 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
   };
   const copy = async () => {
     if (!editor) return;
+    if (codeConflict !== null) {
+      try { await copyToClipboard(codeConflict, { reportFailure: true }); setCopyNotice("已复制冲突草稿"); }
+      catch { setCopyNotice("复制失败，请重试。"); }
+      return;
+    }
     const slice = editor.state.doc.slice(0);
     const text = clipboardSliceToPlainText(slice);
     try {
@@ -393,8 +408,8 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
         {rootType === "codeBlock" && (!mermaidCodeBlock || showMermaidSource) && <button type="button" aria-label={lineNumbers ? "隐藏代码行号" : "显示代码行号"} aria-pressed={lineNumbers} title="代码行号" onMouseDown={event => event.preventDefault()} onClick={() => {
           preservePosition(() => { setLineNumbers(!lineNumbers); saveBlockWorkspacePreferences({ lineNumbers: !lineNumbers }); });
         }}>行号</button>}
-        {!mermaidCodeBlock && <div role="group" aria-label="块模式">
-          <button type="button" disabled={readonly} aria-pressed={editable} aria-label={editable ? "切换到阅读模式" : "切换到编辑模式"} title={rootType === "codeBlock" ? `Tab 缩进，Shift+Tab 减少缩进；${isMacPlatform() ? "Cmd" : "Ctrl"}+Enter 退出到正文` : undefined} onClick={() => preservePosition(() => setMode(editable ? "read" : "edit"))}>{editable ? "阅读" : "编辑"}</button>
+        {!mermaidCodeBlock && !readonly && <div role="group" aria-label="块模式">
+          <button type="button" disabled={readonly || codeConflict !== null} aria-pressed={editable} aria-label={editable ? "切换到阅读模式" : "切换到编辑模式"} title={rootType === "codeBlock" ? `Tab 缩进，Shift+Tab 减少缩进；${isMacPlatform() ? "Cmd" : "Ctrl"}+Enter 退出到正文` : undefined} onClick={() => preservePosition(() => setMode(editable ? "read" : "edit"))}>{editable ? "阅读" : "编辑"}</button>
         </div>}
         {mermaidCodeBlock && !editable && <div role="group" aria-label="Mermaid 视图">
           <button type="button" aria-label={showMermaidSource ? "显示 Mermaid 图形" : "显示 Mermaid 源码"} aria-pressed={showMermaidSource} onClick={() => { setFindOpen(false); setShowMermaidSource(current => !current); }}>{showMermaidSource ? "图形" : "源码"}</button>
@@ -478,11 +493,15 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
       <button type="submit">插入</button><button type="button" onClick={() => setInsertKind(null)}>取消</button>
     </form>}
     {notice && <div className="block-workspace-notice" data-error={notice.includes("失败")} role="status">{notice}</div>}
+    {codeConflict !== null && <div className="block-workspace-notice" role="alert">
+      <button type="button" onClick={() => void copy()}>复制草稿</button>
+      <button type="button" onClick={() => { conflictRef.current = false; setCodeConflict(null); setNotice(""); }}>放弃草稿并重新载入原块</button>
+    </div>}
     <CopyBlockNotice message={copyNotice} onClose={() => setCopyNotice("")} withinDialog />
     <div ref={body} className="block-workspace-body editor-content" style={{ fontSize: `${fontSize}px`, tabSize }} onPasteCapture={event => { if (!editable) event.preventDefault(); }} onBeforeInputCapture={event => { if (!editable) event.preventDefault(); }}>
       {editable && rootType === "codeBlock" ? (
         <CodeMirrorBlockEditor vimEnabled={vimModeEnabled}
-          value={editor?.state.doc.firstChild?.textContent ?? initial.textContent}
+          value={codeConflict ?? editor?.state.doc.firstChild?.textContent ?? initial.textContent}
           language={codeLanguage}
           wrap={wrap}
           lineNumbers={lineNumbers}
@@ -490,10 +509,17 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
           onRedo={() => { source.commands.redo(); }}
           onExit={() => void close(true)}
           onModeChange={setVimMode}
-          onChange={(value) => {
-            if (!editableRef.current || !source.isEditable) return;
-            const node = source.state.doc.nodeAt(position.current);
-            if (!node || node.textContent === value) return;
+          onChange={(value, base) => {
+            if (!editableRef.current || source.isDestroyed || !source.isEditable) return;
+            const node = position.current < source.state.doc.content.size
+              ? source.state.doc.nodeAt(position.current) : null;
+            if (!node || node.type.name !== rootType || conflictRef.current || node.textContent !== base) {
+              conflictRef.current = true;
+              setCodeConflict(value);
+              setNotice("原块已更新，已保留草稿并暂停写回。请复制草稿或重新载入原块。");
+              return;
+            }
+            if (node.textContent === value) return;
             source.view.dispatch(source.state.tr.replaceWith(
               position.current + 1,
               position.current + node.nodeSize - 1,

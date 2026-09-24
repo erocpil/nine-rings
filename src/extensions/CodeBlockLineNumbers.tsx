@@ -9,7 +9,9 @@ import { flushSync } from "react-dom";
 import { copyToClipboard } from "../lib/clipboard";
 import { openBlockWorkspace } from "../lib/block-workspace";
 import { ToolbarIcon } from "../components/ToolbarIcon";
-import { MermaidDiagram } from "../components/MermaidDiagram";
+import { DeferredMermaidDiagram } from "../components/DeferredMermaidDiagram";
+import { useNearViewport } from "../hooks/useNearViewport";
+import { codeBlockDisplay } from "../lib/structured-block-display";
 import { BLOCK_WORKSPACE_DISPLAY_EVENT, blockWorkspacePreferences, codeLineNumbersEnabled, saveBlockWorkspacePreferences } from "../lib/block-display-settings";
 import { CODE_LANGUAGE_OPTIONS, highlightCode, normalizeCodeLanguage } from "../lib/code-highlight";
 
@@ -226,13 +228,15 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
     const pos = getPos();
     return typeof pos === "number" ? editorReadingBlocks(editor)?.get(pos)?.collapsed ?? null : null;
   });
+  const nearViewport = useNearViewport(wrapperRef);
+  const display = codeBlockDisplay(node.attrs);
   const code = node.textContent;
-  const isMermaid = normalizeCodeLanguage(node.attrs.language) === "mermaid";
+  const isMermaid = display.isMermaid;
   const inWorkspace = Boolean(editor.view?.dom.closest(".block-workspace"));
   const [showDiagram, setShowDiagram] = useState(!inWorkspace);
-  const codeTitle = typeof node.attrs.title === "string" ? node.attrs.title : "";
-  const storedWrapEnabled = node.attrs.wrap !== false;
-  const storedCollapsed = node.attrs.collapsed === true;
+  const codeTitle = display.title;
+  const storedWrapEnabled = display.wrap;
+  const storedCollapsed = display.collapsed;
   const wrapEnabled = editable && !inWorkspace ? storedWrapEnabled : readonlyWrapOverride ?? storedWrapEnabled;
   const collapsed = editable ? storedCollapsed : readonlyCollapsedOverride ?? storedCollapsed;
   const lineCount = code.split("\n").length;
@@ -253,7 +257,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
 
 
   useEffect(() => {
-    if (isMermaid && showDiagram) return;
+    if (!nearViewport || collapsed || (isMermaid && showDiagram)) return;
     if (!showLineNumbers) {
       setLineHeights((current) => current.length === lineCount && current.every((height) => height === 0)
         ? current
@@ -291,7 +295,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
       resizeObserver?.disconnect();
       mutationObserver.disconnect();
     };
-  }, [code, lineCount, showLineNumbers, isMermaid, showDiagram]);
+  }, [code, lineCount, showLineNumbers, isMermaid, showDiagram, nearViewport, collapsed]);
 
   useEffect(() => {
     const syncEditable = () => {
@@ -415,7 +419,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
             ><EditorFoldIcon expanded={!collapsed} /></button>
           </div>
         </div>
-        {isMermaid && showDiagram && !collapsed && <MermaidDiagram source={code} />}
+        {isMermaid && showDiagram && !collapsed && <DeferredMermaidDiagram source={code} />}
         <div className={`code-block-inner ${isMermaid && showDiagram ? "mermaid-source-hidden" : ""}`}>
           <div
             className="code-block-gutter"

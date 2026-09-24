@@ -1,3 +1,4 @@
+import { BlockquoteToolbar } from "./BlockquoteToolbar";
 import { useDesktopDocumentPanels } from "../hooks/useDesktopDocumentPanels";
 import { listFollowupBlocks } from "../lib/list-followup-blocks";
 import { DesktopDocumentPanels, desktopPanelClass, desktopPanelStyle } from "./DesktopDocumentPanels";
@@ -20,7 +21,8 @@ import { DOMSerializer, Slice } from "@tiptap/pm/model";
 import type { NoteEditorProps } from "./NoteEditor";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
 import { ToolbarIcon } from "./ToolbarIcon";
-import { MermaidDiagram } from "./MermaidDiagram";
+import { DeferredMermaidDiagram } from "./DeferredMermaidDiagram";
+import { codeBlockDisplay } from "../lib/structured-block-display";
 import { DocumentTitlePreview } from "./DocumentTitlePreview";
 import { queueBlockWorkspace } from "../lib/block-workspace";
 import { DocumentPanelDrawer } from "./DocumentPanelDrawer";
@@ -173,34 +175,17 @@ function renderBlock(
           className="blockquote-wrap"
           data-collapsed={String(collapsed)}
         >
-          <div className="blockquote-toolbar" contentEditable={false}>
-            <span>引用</span>
-            <button type="button" className="block-workspace-open" data-workspace-position={pos} title="放大阅读引用块" aria-label="放大阅读引用块"><ToolbarIcon name="expand" /></button>
-            <button
-              type="button"
-              aria-label={collapsed ? "展开引用块" : "折叠引用块"}
-              aria-expanded={!collapsed}
-              onClick={() => update(pos, { collapsed: !collapsed })}
-            >
-              <EditorFoldIcon expanded={!collapsed} />
-            </button>
-          </div>
+          <BlockquoteToolbar text={node.textContent} collapsed={collapsed}
+            position={pos} toggle={() => update(pos, { collapsed: !collapsed })} />
           {!collapsed && <div className="blockquote-content">{children}</div>}
         </blockquote>
       );
     }
     case "codeBlock": {
-      const collapsed = state.collapsed ?? node.attrs.collapsed === true;
-      const isMermaid = normalizeCodeLanguage(node.attrs.language) === "mermaid";
-      const showDiagram = isMermaid && state.diagram !== false;
+      const { collapsed, isMermaid, showDiagram, wrap } = codeBlockDisplay(node.attrs, state, defaultWrap);
       const lineNumbers = codeLineNumbersEnabled();
       const lines = node.textContent.split("\n");
       let linePosition = pos + 1;
-      const wrap =
-        state.wrap ??
-        (node.attrs.wrap === undefined
-          ? defaultWrap
-          : node.attrs.wrap !== false);
       return (
         <div
           {...attrs}
@@ -236,7 +221,7 @@ function renderBlock(
             </button>
           </div>
           {!collapsed && (
-            showDiagram ? <MermaidDiagram source={node.textContent} /> : <div className="code-block-inner">
+            showDiagram ? <DeferredMermaidDiagram source={node.textContent} /> : <div className="code-block-inner">
               <pre>
                 <code>{lineNumbers ? lines.map((line, index) => {
                   const position = linePosition;

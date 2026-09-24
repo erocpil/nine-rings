@@ -83,9 +83,9 @@ test("代码简介在完整只读与局部阅读渲染之间切换时保留", as
   await expect(page.getByLabel("代码简介")).toHaveValue(description);
   await enable(page);
   const codeBlock = page.locator("[data-virtual-reader] .code-block-wrap").first();
-  await expect(codeBlock.locator(".vr-code-toolbar > span")).toHaveText(description);
+  await expect(codeBlock.locator(".vr-code-toolbar > span").first()).toHaveText(description);
   await codeBlock.getByRole("button", { name: "折叠代码块" }).click();
-  await expect(codeBlock.locator(".vr-code-toolbar > span")).toBeVisible();
+  await expect(codeBlock.locator(".vr-code-toolbar > span").first()).toBeVisible();
   await page.evaluate(() => {
     localStorage.setItem("nr:experimentalReadonlyRendering", "false");
     window.dispatchEvent(new Event("nine-rings:readonly-rendering-change"));

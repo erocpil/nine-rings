@@ -67,7 +67,7 @@ test("折叠代码块的弹层显示正文且保留原块折叠状态", async ({
   await expect(inner).toHaveCSS("opacity", "1");
   expect((await inner.boundingBox())!.height).toBeGreaterThan(20);
   await expect(dialog.locator("pre code")).toContainText("const answer = 42;");
-  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
   await replaceCode(page, "const updated = 100;");
   await dialog.getByRole("button", { name: "关闭块工作区" }).click();
   await expect(block).toHaveClass(/collapsed/);
@@ -79,7 +79,7 @@ test("清空代码块可撤销，键盘与工具栏共享原文历史", async ({
   await fixture(page);
   await page.getByRole("button", { name: "放大阅读代码块" }).click();
   const dialog = page.getByRole("dialog", { name: "代码块工作区" });
-  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
   await replaceCode(page, "");
   const source = page.locator(".note-editor pre code");
   await expect(source).toHaveText("");
@@ -124,7 +124,7 @@ test("块工作区编辑只同步原块并共享撤销，模式不修改文档�
   const dialog = page.getByRole("dialog", { name: "代码块工作区" });
   await expect(dialog).toBeVisible();
   await expect(dialog.locator(".ProseMirror")).toHaveAttribute("contenteditable", "false");
-  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
   const code = dialog.locator(".cm-content");
   await replaceCode(page, "const updated = 100;");
   await expect(source.locator("pre code")).toHaveText("const updated = 100;");
@@ -134,7 +134,7 @@ test("块工作区编辑只同步原块并共享撤销，模式不修改文档�
   await expect(code).toContainText("const answer = 42;");
   await dialog.getByRole("button", { name: "重做", exact: true }).click();
   await expect(code).toHaveText("const updated = 100;");
-  await dialog.getByRole("button", { name: "阅读", exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到阅读模式", exact: true }).click();
   await expect(source).toHaveAttribute("contenteditable", "true");
   await expect(dialog.locator(".ProseMirror")).toHaveAttribute("contenteditable", "false");
   await dialog.getByRole("button", { name: "关闭块工作区" }).click();
@@ -212,7 +212,7 @@ test("只读引用弹层没有编辑入口且粘贴无效", async ({ page }) => 
   await page.getByRole("button", { name: "放大阅读引用块" }).click();
   const dialog = page.getByRole("dialog", { name: "引用块工作区" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "编辑", exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "切换到编辑模式", exact: true })).toHaveCount(0);
   await dialog.locator(".ProseMirror").evaluate(el => {
     const data = new DataTransfer(); data.setData("text/plain", "不允许写入");
     el.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data }));
@@ -296,7 +296,7 @@ test("阅读空白标记不进入复制，查找替换仅影响当前块", async
   expect(await dialog.locator(".block-workspace-body").boundingBox()).toEqual(contentBeforeCopy);
   await expect(dialog.locator(".copy-block-feedback")).toHaveCSS("position", "absolute");
   await expect(dialog.getByText("已复制块（保留格式）")).toHaveCount(0, { timeout: 4000 });
-  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
   await expect(dialog.getByLabel("显示空白字符")).toHaveCount(0);
   await expect(dialog.locator(".workspace-ws-space")).toHaveCount(0);
   await dialog.getByRole("button", { name: "块内查找", exact: true }).click();
@@ -305,7 +305,7 @@ test("阅读空白标记不进入复制，查找替换仅影响当前块", async
   await dialog.getByRole("button", { name: "替换本块全部", exact: true }).click();
   await expect(page.locator(".note-editor .ProseMirror pre code")).toHaveText("const result = 42;\nconsole.log(result);");
   await expect(page.locator(".note-editor .ProseMirror")).toContainText("引用第一段");
-  await dialog.getByRole("button", { name: "阅读", exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到阅读模式", exact: true }).click();
   await expect(dialog.getByRole("button", { name: "块显示设置" })).toHaveCount(0);
   await expect(dialog.locator(".workspace-ws-space").first()).toBeVisible();
 });
@@ -315,9 +315,9 @@ test("长代码正文限高而弹层保持单一纵向滚动区", async ({ page 
   await displayPreferences(page, { height: 40 });
   await page.getByRole("button", { name: "放大阅读代码块" }).click();
   const dialog = page.getByRole("dialog", { name: "代码块工作区" });
-  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
   await replaceCode(page, Array.from({ length: 150 }, (_, i) => `line${i}`).join("\n"));
-  await dialog.getByRole("button", { name: "阅读", exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到阅读模式", exact: true }).click();
   await dialog.getByRole("button", { name: "块内查找" }).click();
   const sourceInner = page.locator(".note-editor .code-block-inner");
   await expect.poll(async () => (await sourceInner.boundingBox())!.height).toBeLessThanOrEqual(321);
@@ -336,7 +336,7 @@ test("同类块切换保留编辑且保存失败不关闭弹层", async ({ page 
   await dialog.getByRole("button", { name: "下一个代码块", exact: true }).click();
   await expect(dialog.locator("pre code")).toHaveText("const second = 2;");
   await expect(dialog.getByRole("button", { name: "下一个代码块", exact: true })).toBeDisabled();
-  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
   await page.evaluate(async () => {
     const load = (path: string) => import(/* @vite-ignore */ path);
     const { api } = await load("/src/lib/api.ts") as typeof import("../src/lib/api");
@@ -365,7 +365,7 @@ test("实验只读渲染可进入块工作区", async ({ page }) => {
   const dialog = page.getByRole("dialog", { name: "引用块工作区" });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("引用第一段");
-  await expect(dialog.getByRole("button", { name: "编辑", exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "切换到编辑模式", exact: true })).toHaveCount(0);
 });
 
 test("外部替换目标块后旧弹层失效，不覆盖新正文", async ({ page }) => {
@@ -390,7 +390,7 @@ test("桌面块选择入口随专注模式和只读状态显示", async ({ page 
   await entry.click();
   const toolbar = page.getByRole("toolbar", { name: "块级操作" });
   await expect(toolbar).toBeVisible();
-  await expect(toolbar.getByRole("button", { name: "编辑", exact: true })).toHaveCount(0);
+  await expect(toolbar.getByRole("button", { name: "切换到编辑模式", exact: true })).toHaveCount(0);
   await toolbar.getByRole("button", { name: "退出块选择" }).click();
   await page.getByRole("button", { name: "点击设为可编辑" }).click();
   await expect(entry).toHaveCount(0);
@@ -404,7 +404,7 @@ for (const width of [1280, 390]) {
     await fixture(page);
     await page.getByRole("button", { name: "放大阅读引用块" }).click();
     const dialog = page.getByRole("dialog", { name: "引用块工作区" });
-    await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+    await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
     const button = dialog.getByRole("button", { name: "撤销", exact: true });
     for (const theme of ["light", "dark"]) {
       await page.evaluate(theme => {
@@ -437,14 +437,14 @@ test("引用编辑复用格式工具，显示偏好在重新打开后保留", as
   await fixture(page);
   await page.getByRole("button", { name: "放大阅读引用块" }).click();
   const dialog = page.getByRole("dialog", { name: "引用块工作区" });
-  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
   await dialog.locator(".ProseMirror p").first().click();
   await dialog.getByLabel("段落样式").selectOption("2");
   await expect(dialog.locator("h2")).toHaveText("引用第一段");
   await expect(page.locator(".note-editor blockquote h2")).toHaveText("引用第一段");
   await dialog.getByRole("button", { name: "增加缩进", exact: true }).click();
   await expect(page.locator(".note-editor blockquote")).toHaveAttribute("data-indent", "1");
-  await dialog.getByRole("button", { name: "阅读", exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到阅读模式", exact: true }).click();
   await dialog.getByRole("button", { name: "关闭块工作区" }).click();
   await displayPreferences(page, { tabSize: 8, fontSize: 20 });
   await page.getByRole("button", { name: "放大阅读引用块" }).click();
@@ -481,7 +481,7 @@ test("代码块编辑模式保持语法高亮且不显示空闲保存提示", as
   expect(copyBounds.width).toBeCloseTo(copyBounds.height, 0);
   await page.getByRole("button", { name: "放大阅读代码块" }).click();
   const dialog = page.getByRole("dialog", { name: "代码块工作区" });
-  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
   await expect(dialog.locator(".cm-content .hljs-keyword").filter({ hasText: "const" }).first()).toBeVisible();
   await expect(dialog.getByText("已存本机", { exact: true })).toHaveCount(0);
 });
@@ -521,7 +521,7 @@ test.describe("触屏块工作区", () => {
         await dialog.getByRole("button", { name: "隐藏代码行号", exact: true }).click();
         await expect(dialog.locator(".code-block-gutter")).toBeHidden();
       }
-      await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+      await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
       await page.mouse.click(1, 300);
       await expect(dialog).toBeVisible();
       await page.keyboard.press("Escape");
@@ -533,7 +533,7 @@ test.describe("触屏块工作区", () => {
     await fixture(page);
     await page.getByRole("button", { name: "放大阅读代码块" }).click();
     const dialog = page.getByRole("dialog", { name: "代码块工作区" });
-    await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+    await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
     await dialog.locator(".cm-content").click();
     await page.evaluate(() => {
       Object.defineProperty(window.visualViewport!, "height", { configurable: true, value: 260 });
@@ -552,4 +552,32 @@ test.describe("触屏块工作区", () => {
     await close.click();
     await expect(dialog).toHaveCount(0);
   });
+});
+
+test("过期代码草稿保留并阻止覆盖外部更新，重新载入后可继续编辑", async ({ page }) => {
+  await fixture(page);
+  await page.getByRole("button", { name: "放大阅读代码块" }).click();
+  const dialog = page.getByRole("dialog", { name: "代码块工作区" });
+  await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
+  await expect(dialog.locator(".cm-content")).toBeVisible();
+  await page.evaluate(async () => {
+    const source = (document.querySelector(".note-editor .ProseMirror") as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { EditorView } = await load("/node_modules/@codemirror/view/dist/index.js") as typeof import("@codemirror/view");
+    const cm = EditorView.findFromDOM(document.querySelector(".block-workspace .cm-editor")!)!;
+    let position = -1;
+    source.state.doc.descendants((node, pos) => { if (position < 0 && node.type.name === "codeBlock") position = pos; });
+    const node = source.state.doc.nodeAt(position)!;
+    source.view.dispatch(source.state.tr.replaceWith(position + 1, position + node.nodeSize - 1, source.schema.text("external content")));
+    // Input arriving before React delivers the new source value.
+    cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: "local draft" } });
+  });
+  await expect(dialog.getByRole("alert")).toContainText("复制草稿");
+  await expect(dialog.locator(".cm-content")).toHaveText("local draft");
+  await expect(page.locator(".note-editor pre code")).toHaveText("external content");
+  await dialog.getByRole("button", { name: "关闭块工作区" }).click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "放弃草稿并重新载入原块" }).click();
+  await expect(dialog.locator(".cm-content")).toHaveText("external content");
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
 });

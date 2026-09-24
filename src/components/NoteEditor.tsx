@@ -1,3 +1,4 @@
+import { editorDocumentFromContent } from "../lib/editor-content-model";
 import { useDesktopDocumentPanels } from "../hooks/useDesktopDocumentPanels";
 import { DesktopDocumentPanels, desktopPanelClass, desktopPanelStyle } from "./DesktopDocumentPanels";
 import { NavigationButtons } from "./NavigationButtons";
@@ -37,7 +38,6 @@ import { DocumentBookmarkRow } from "./DocumentBookmarkRow";
 import {
   proseMirrorToDelta,
   deltaToProseMirror,
-  isProseMirror,
   isDelta,
 } from "../lib/delta-converter";
 
@@ -887,15 +887,14 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   // readonly flag) return a fresh content object/version, but the live document
   // already owns the latest text, selection and undo history.
   const [tipTapContent] = useState(() => {
-    if (isProseMirror(content)) return content;
     if (isDelta(content)) {
       const cached = getCachedEditorDocument(noteId, contentVersion);
       if (cached) return cached;
-      const converted = deltaToProseMirror(content);
+      const converted = editorDocumentFromContent(content)!;
       cacheEditorDocument(noteId, contentVersion, converted);
       return converted;
     }
-    return content; // fallback
+    return editorDocumentFromContent(content) ?? content; // legacy HTML fallback
   });
 
   // Extensions belong to this keyed document session. Reconstructing their
