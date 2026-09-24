@@ -48,6 +48,19 @@ function mixColor(foreground: string, background: string, amount: number) {
   return `#${fg.map((channel, index) => Math.round(channel * amount + bg[index] * (1 - amount)).toString(16).padStart(2, "0")).join("")}`;
 }
 
+function nodeTextColor(palette: MermaidPalette) {
+  // A diagram may contain an explicit light/pink classDef even in a dark app
+  // theme. Use the node fill, rather than the app background, to choose a
+  // readable label color in that case.
+  return isDarkColor(palette.nodeBackground) ? palette.text : "#202124";
+}
+
+function addContrastStyles(svg: string, palette: MermaidPalette) {
+  const text = nodeTextColor(palette);
+  const style = `<style>text,.nodeLabel,.edgeLabel,.cluster-label,.labelText,.messageText,.loopText,.noteText{fill:${text} !important;color:${text} !important;}</style>`;
+  return svg.replace(/(<svg\b[^>]*>)/i, `$1${style}`);
+}
+
 function isDarkColor(color: string) {
   const match = color.match(/^#([0-9a-f]{3,8})$/i);
   if (!match) return false;
@@ -106,7 +119,7 @@ export function renderMermaid(source: string, palette: MermaidPalette): Promise<
     const parsed = await mermaid.parse(source, { suppressErrors: true });
     if (!parsed) throw new Error("图表语法有误");
     const { svg } = await mermaid.render(`nine-rings-mermaid-${++nextId}`, source);
-    return svg;
+    return addContrastStyles(svg, palette);
   };
   const result = renderQueue.then(render);
   renderQueue = result.catch(() => undefined);
