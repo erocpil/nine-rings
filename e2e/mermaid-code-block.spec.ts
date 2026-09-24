@@ -173,11 +173,11 @@ test("Mermaid 自定义颜色与多行标签在主题切换后保持完整", asy
   expect(original[0].fill).toBe("rgb(255, 221, 221)");
   expect(original[0].text).toBe("rgb(32, 33, 36)");
   await page.evaluate(() => { document.documentElement.className = "theme-azure-dark"; });
-  await expect(diagram).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(diagram).toHaveCSS("background-color", "rgb(11, 21, 36)");
   expect(await colors()).toEqual(original);
   await expect(diagram.locator("svg")).toHaveAttribute("id", before!);
   await page.locator(".note-editor .code-block-wrap").getByRole("button", { name: "放大阅读代码块" }).click();
   const workspace = page.getByRole("dialog", { name: "图像工作区" });
   await expect(workspace.locator("svg .node")).toHaveCount(3);
-  await expect(workspace.locator(".mermaid-diagram")).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(workspace.locator(".mermaid-diagram")).toHaveCSS("background-color", "rgb(11, 21, 36)");
 });
