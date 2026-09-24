@@ -21,6 +21,15 @@ if (!fs.existsSync(assetsDir)) {
 
 function getLimit(fileName, kind) {
   if (kind === "js") {
+    if (/^mermaid-/.test(fileName)) {
+      return Number(process.env.WEB_BUNDLE_MAX_MERMAID_GZIP_KB ?? 300);
+    }
+    // Mermaid shares its parser dependencies with the application vendor
+    // graph. Keep that expected shared cost explicit instead of hiding it in
+    // the general budget for every future dependency.
+    if (/^vendor-/.test(fileName)) {
+      return Number(process.env.WEB_BUNDLE_MAX_VENDOR_GZIP_KB ?? 700);
+    }
     if (/^index-/.test(fileName)) {
       return Number(process.env.WEB_BUNDLE_MAX_MAIN_GZIP_KB ?? 340);
     }
