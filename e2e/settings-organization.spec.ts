@@ -4,7 +4,8 @@ import { createBlankDocument } from "./helpers/document";
 
 async function settings(page: Page) {
   await page.keyboard.press("Alt+,");
-  await expect(page.getByLabel("查找设置")).toBeVisible();
+  await page.getByRole("button", { name: "打开设置查找" }).click();
+  await expect(page.getByRole("textbox", { name: "查找设置", exact: true })).toBeVisible();
 }
 
 for (const width of [390, 1280]) test(`设置提示不改变主题和折叠选项布局 ${width}px`, async ({ page }) => {
@@ -45,7 +46,7 @@ test("设置搜索定位具体选项，手机返回与右滑遵循分类层级",
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await settings(page);
-  await page.getByLabel("查找设置").fill("折叠标识");
+  await page.getByRole("textbox", { name: "查找设置", exact: true }).fill("折叠标识");
   await page.locator('.settings-search-results').getByRole('button', { name: /^折叠标识/ }).click();
   await expect(page.locator('[data-settings-label="折叠标识"]')).toBeFocused();
   await expect(page.getByLabel("折叠标识样式")).toBeInViewport();
@@ -63,7 +64,8 @@ test("设置搜索定位具体选项，手机返回与右滑遵循分类层级",
   });
   await expect(page.getByRole('heading', { name: '编辑器', exact: true })).toBeVisible();
   await page.getByLabel("返回设置分类").click();
-  await expect(page.getByLabel("查找设置")).toBeVisible();
+  await expect(page.getByRole("button", { name: "打开设置查找" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "查找设置", exact: true })).toBeHidden();
 });
 
 test("排版应用失败保留草稿及原有块显示设置，重试完整保存", async ({ page }) => {

@@ -7,6 +7,7 @@ for (const width of [390, 1280]) {
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
     await page.keyboard.press("Alt+,");
+    await page.getByRole("button", { name: "打开设置查找" }).click();
     const input = page.getByRole("textbox", { name: "查找设置", exact: true });
     await input.fill("行号");
     await page.getByRole("button", { name: /代码与引用块显示/ }).click();
@@ -34,7 +35,7 @@ for (const width of [390, 1280]) {
     await page.getByRole("button", { name: /^更新记录/ }).click();
     await expect(page.locator("#settings-dialog-title")).toHaveText("更新记录");
     await expect(page.locator(".settings-changelog")).toContainText("当前版本");
-    await expect(page.locator(".settings-changelog")).toContainText("Markdown 源码");
+    await expect(page.locator(".settings-changelog")).toContainText("标题折叠标识");
     expect(await page.locator(".settings-changelog").evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
     await page.getByRole("button", { name: "返回设置分类", exact: true }).click();
     await input.fill("不存在的设置xyz");
@@ -50,6 +51,7 @@ for (const width of [390, 1280]) {
     await expect(page.locator('[data-settings-label="代码块 Vim 模式（实验性）"]')).toBeFocused();
     await page.getByRole("button", { name: "关闭设置", exact: true }).click();
     await page.keyboard.press("Alt+,");
+    await page.getByRole("button", { name: "打开设置查找" }).click();
     await expect(input).toHaveValue("");
   });
 }

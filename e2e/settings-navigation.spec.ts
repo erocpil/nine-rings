@@ -23,11 +23,14 @@ async function openMobileSettings(page: import("@playwright/test").Page) {
 test("设置使用分类首页和二级页面精简内容", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("设置").click();
-  await expect(page.getByLabel("查找设置")).toBeVisible();
-  expect(await page.locator(".settings-search").evaluate(element => {
-    const header = element.closest(".settings-panel")!.querySelector(".settings-header")!;
-    return element.getBoundingClientRect().top - header.getBoundingClientRect().bottom;
-  })).toBeLessThanOrEqual(16);
+  await expect(page.getByRole("button", { name: "打开设置查找" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "查找设置" })).toBeHidden();
+  await page.getByRole("button", { name: "打开设置查找" }).click();
+  await expect(page.getByRole("textbox", { name: "查找设置" })).toBeVisible();
+  expect(await page.locator(".settings-header-search").evaluate(element => {
+    const exit = element.parentElement!.querySelector(".settings-close")!;
+    return element.getBoundingClientRect().right <= exit.getBoundingClientRect().left;
+  })).toBe(true);
 
   const categories = page.getByLabel("设置分类").getByRole("button");
   await expect(categories).toHaveCount(8);
@@ -66,6 +69,12 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await expect(page.getByText("JSON 备份与恢复", { exact: true })).toBeVisible();
   await expect(page.getByText("Markdown / 纯文本导入", { exact: true })).toBeVisible();
   await expect(page.getByText("快捷键", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "打开设置查找" }).click();
+  await expect(page.getByRole("heading", { name: "设置", exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "查找设置" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("textbox", { name: "查找设置" })).toBeHidden();
+  await expect(page.getByRole("dialog", { name: "设置", exact: true })).toBeVisible();
 });
 
 test("设置子页首个分组没有多余顶部留白和分割线", async ({ page }) => {

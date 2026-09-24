@@ -72,10 +72,6 @@
 .settings-panel .settings-category-arrow {
   color: var(--accent);
 }
-.settings-panel .settings-search-input-row {
-  min-height: 44px;
-  border: 1px solid var(--border);
-}
 .settings-panel .settings-search-help {
   border: 1px solid var(--border);
   line-height: 1.6;

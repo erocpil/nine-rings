@@ -163,6 +163,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [editorAppearanceDraft, setEditorAppearanceDraft] = useState<AppConfig | null>(null);
   const [settingsPage, setSettingsPage] = useState<SettingsPage>("root");
   const [settingsQuery, setSettingsQuery] = useState("");
+  const [settingsSearchOpen, setSettingsSearchOpen] = useState(false);
   const parentPage: SettingsPage = settingsPage === "vim" ? "editor"
     : settingsPage === "sidebar" ? "appearance"
     : settingsPage === "navigation" ? "appearance"
@@ -184,14 +185,38 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const requestClose = useCallback(() => { void guardLeave(onClose); }, [guardLeave, onClose]);
   const goBack = useCallback(() => { void guardLeave(() => {
     if (settingsPage === "root") onClose();
-    else setSettingsPage(parentPage);
-  }); }, [settingsPage, parentPage, onClose, guardLeave]);
+    else {
+      setSettingsPage(parentPage);
+      if (parentPage === "root" && settingsQuery.trim()) setSettingsSearchOpen(true);
+    }
+  }); }, [settingsPage, parentPage, settingsQuery, onClose, guardLeave]);
   const [editorAppearanceSearch, setEditorAppearanceSearch] = useState("");
   const settingsSearchRef = useRef<HTMLInputElement>(null);
+  const settingsSearchButtonRef = useRef<HTMLButtonElement>(null);
   const settingsPanelRef = useRef<HTMLDivElement>(null);
   const mobileSettingsViewport = useMobileViewport();
   const [searchDestination, setSearchDestination] = useState<SettingsSearchEntry | null>(null);
   const settingsResults = searchSettings(settingsQuery, { web: !isTauri(), updates: Boolean(webUpdate) });
+  const closeSettingsSearch = () => {
+    setSettingsQuery("");
+    setSettingsSearchOpen(false);
+    settingsSearchButtonRef.current?.focus({ preventScroll: true });
+  };
+  const toggleSettingsSearch = () => {
+    if (settingsSearchOpen) { closeSettingsSearch(); return; }
+    void guardLeave(() => {
+      setSettingsPage("root");
+      setSettingsSearchOpen(true);
+    });
+  };
+  useEffect(() => {
+    if (!open || !settingsSearchOpen || settingsPage !== "root") return;
+    const frame = requestAnimationFrame(() => settingsSearchRef.current?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(frame);
+  }, [open, settingsSearchOpen, settingsPage]);
+  useEffect(() => {
+    if (settingsPage !== "root") setSettingsSearchOpen(false);
+  }, [settingsPage]);
   const persistPanelOrder = (next: string[]) => {
     try {
       localStorage.setItem("nr:sidebarOrder", next.join(","));
@@ -289,6 +314,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     if (open) {
       setSettingsPage("root");
       setSettingsQuery("");
+      setSettingsSearchOpen(false);
       tagsLoadedRef.current = false;
       loadSettings();
     }
@@ -565,9 +591,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
         aria-modal="true"
         aria-labelledby="settings-dialog-title"
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); requestClose(); } }}
+        onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); if (settingsSearchOpen) closeSettingsSearch(); else requestClose(); } }}
       >
-        <div className="settings-header">
+        <div className={`settings-header${settingsSearchOpen ? " settings-header-search-open" : ""}`}>
           <div className="settings-header-main">
             {settingsPage !== "root" && (
               <button
@@ -585,6 +611,31 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               <button type="button" className="settings-feedback-close" aria-label="关闭提示" onClick={clearMessage}><ToolbarIcon name="close" /></button>
             </div>}
           </div>
+          <div className={`settings-header-search${settingsSearchOpen ? " expanded" : ""}`}>
+            <div className="settings-header-search-field">
+              <input
+                ref={settingsSearchRef}
+                type="text"
+                aria-label="查找设置"
+                aria-hidden={!settingsSearchOpen}
+                tabIndex={settingsSearchOpen ? 0 : -1}
+                placeholder="查找设置…"
+                value={settingsQuery}
+                onChange={event => setSettingsQuery(event.target.value)}
+                onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); closeSettingsSearch(); } }}
+              />
+              {settingsSearchOpen && settingsQuery && <button type="button" className="settings-search-clear" aria-label="清除设置查找" onClick={() => { setSettingsQuery(""); settingsSearchRef.current?.focus(); }}><ToolbarIcon name="close" /></button>}
+            </div>
+            <button
+              ref={settingsSearchButtonRef}
+              type="button"
+              className="settings-search-toggle"
+              aria-label={settingsSearchOpen ? "收起设置查找" : "打开设置查找"}
+              aria-expanded={settingsSearchOpen}
+              title={settingsSearchOpen ? "收起设置查找" : "查找设置"}
+              onClick={toggleSettingsSearch}
+            ><ToolbarIcon name="search" /></button>
+          </div>
           <button ref={closeButtonRef} className="settings-close" onClick={requestClose} aria-label="关闭设置"><ToolbarIcon name="exit" /></button>
         </div>
 
@@ -598,23 +649,17 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
         ) : (
           <div className={`settings-body${!["root", "data", "sync"].includes(settingsPage) ? " settings-content-page" : ""}`} data-settings-page={settingsPage}>
             {libraryError && <div className="reading-library-message" role="alert">{libraryError}</div>}
-            {settingsPage === "root" && (
-              <div className="settings-search">
-                <div className="settings-search-input-row">
-                  <ToolbarIcon name="search" />
-                  <input ref={settingsSearchRef} aria-label="查找设置" placeholder="查找设置：行号、缩进、更新…" value={settingsQuery} onChange={event => setSettingsQuery(event.target.value)} />
-                  {settingsQuery && <button className="btn-icon" aria-label="清除设置查找" onClick={() => { setSettingsQuery(""); settingsSearchRef.current?.focus(); }}><ToolbarIcon name="close" /></button>}
-                </div>
-                {settingsQuery.trim() && <div className="settings-search-results" aria-label="设置查找结果">
-                  <p role="status">{settingsResults.length ? `找到 ${settingsResults.length} 项设置或说明` : "没有匹配的设置，请尝试其他关键词。"}</p>
-                  {settingsResults.map(result => result.action === "help"
-                    ? <div key={result.title} className="settings-search-help"><strong>{result.title}</strong><p>{result.description}</p></div>
-                    : <button key={result.title} className="settings-category-card" onClick={() => {
-                      setSettingsPage(result.page);
-                      if (result.action === "typography") { setEditorAppearanceSearch(settingsQuery); setEditorAppearanceDraft({ ...config }); setEditorAppearanceOpen(true); }
-                      else setSearchDestination(result);
-                    }}><span><strong>{result.title}</strong><small>{result.description}</small></span><ToolbarIcon name="chevronRight" /></button>)}
-                </div>}
+            {settingsPage === "root" && settingsSearchOpen && settingsQuery.trim() && (
+              <div className="settings-search-results" aria-label="设置查找结果">
+                <p role="status">{settingsResults.length ? `找到 ${settingsResults.length} 项设置或说明` : "没有匹配的设置，请尝试其他关键词。"}</p>
+                {settingsResults.map(result => result.action === "help"
+                  ? <div key={result.title} className="settings-search-help"><strong>{result.title}</strong><p>{result.description}</p></div>
+                  : <button key={result.title} className="settings-category-card" onClick={() => {
+                    setSettingsSearchOpen(false);
+                    setSettingsPage(result.page);
+                    if (result.action === "typography") { setEditorAppearanceSearch(settingsQuery); setEditorAppearanceDraft({ ...config }); setEditorAppearanceOpen(true); }
+                    else setSearchDestination(result);
+                  }}><span><strong>{result.title}</strong><small>{result.description}</small></span><ToolbarIcon name="chevronRight" /></button>)}
               </div>
             )}
             {settingsPage === "root" && !settingsQuery.trim() && (

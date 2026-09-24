@@ -26,13 +26,23 @@ const heading = (text: string) => ({
 
 describe("readonly window model", () => {
   it("accepts inline code combined with bold in the same document schema", () => {
-    const document = buildReadonlyDocument({ ops: [
-      { insert: "wait(lock, predicate)", attributes: { bold: true, code: true } },
-      { insert: "\n" },
-    ] }, schema);
+    const document = buildReadonlyDocument(
+      {
+        ops: [
+          {
+            insert: "wait(lock, predicate)",
+            attributes: { bold: true, code: true },
+          },
+          { insert: "\n" },
+        ],
+      },
+      schema,
+    );
     expect(document).not.toBeNull();
     expect(() => document!.check()).not.toThrow();
-    expect(document!.firstChild!.firstChild!.marks.map(mark => mark.type.name)).toEqual(["bold", "code"]);
+    expect(
+      document!.firstChild!.firstChild!.marks.map((mark) => mark.type.name),
+    ).toEqual(["bold", "code"]);
   });
   it("rejects unsupported nodes and marks instead of dropping content", () => {
     expect(

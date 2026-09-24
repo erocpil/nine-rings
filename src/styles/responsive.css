@@ -386,6 +386,15 @@
     user-select: text;
   }
 
+  /* The fold widget sits inside a heading but is painted in the gutter.
+     Keep it out of iOS cross-heading selections, including its child button. */
+  .note-editor .ProseMirror .editor-fold-host,
+  .note-editor .ProseMirror .editor-fold-host * {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
   .editor-status-secondary,
   .editor-stats .btn-debug-toggle-wrapper {
     display: none;

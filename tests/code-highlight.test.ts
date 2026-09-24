@@ -13,7 +13,7 @@ assert.equal(normalizeCodeLanguage("unsupported-language"), null);
 assert(CODE_LANGUAGE_OPTIONS.length <= 18, "only the curated common language set is exposed");
 assert.deepEqual(
   CODE_LANGUAGE_OPTIONS.map((option) => option.label),
-  ["C", "C#", "C++", "CSS", "Go", "HTML / XML", "Java", "JavaScript", "JSON", "Markdown", "Python", "Rust", "Shell / Bash", "SQL", "TypeScript", "YAML", "纯文本"],
+  ["C", "C#", "C++", "CSS", "Go", "HTML / XML", "Java", "JavaScript", "JSON", "Markdown", "Python", "Rust", "Shell / Bash", "SQL", "text", "TypeScript", "YAML"],
   "code languages stay alphabetically ordered",
 );
 
