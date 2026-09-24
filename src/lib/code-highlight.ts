@@ -42,6 +42,7 @@ export const CODE_LANGUAGE_OPTIONS: readonly CodeLanguageOption[] = [
   { value: "javascript", label: "JavaScript" },
   { value: "json", label: "JSON" },
   { value: "markdown", label: "Markdown" },
+  { value: "mermaid", label: "Mermaid" },
   { value: "python", label: "Python" },
   { value: "rust", label: "Rust" },
   { value: "bash", label: "Shell / Bash" },
@@ -101,6 +102,7 @@ export function normalizeCodeLanguage(language: unknown): string | null {
   const normalized = language.trim().toLowerCase();
   if (PLAIN_TEXT_ALIASES.has(normalized)) return null;
   const canonical = LANGUAGE_ALIASES[normalized] ?? normalized;
+  if (canonical === "mermaid") return canonical;
   return lowlight.registered(canonical) ? canonical : null;
 }
 
@@ -111,7 +113,7 @@ function classNames(value: unknown): string[] {
 
 export function highlightCode(code: string, language: unknown): SyntaxToken[] {
   const normalized = normalizeCodeLanguage(language);
-  if (!normalized || !code || code.length > MAX_HIGHLIGHT_CODE_LENGTH) return [];
+  if (!normalized || normalized === "mermaid" || !code || code.length > MAX_HIGHLIGHT_CODE_LENGTH) return [];
   const cacheKey = `${normalized}\0${code}`;
   const cached = highlightCache.get(cacheKey);
   if (cached) {

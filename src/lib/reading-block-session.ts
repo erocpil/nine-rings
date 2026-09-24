@@ -4,6 +4,7 @@ export type ReadingBlockState = {
   collapsed?: boolean;
   wrap?: boolean;
   lineNumbers?: boolean;
+  diagram?: boolean;
 };
 const sessions = new Map<
   string,

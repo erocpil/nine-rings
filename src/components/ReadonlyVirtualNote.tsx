@@ -20,6 +20,7 @@ import { DOMSerializer, Slice } from "@tiptap/pm/model";
 import type { NoteEditorProps } from "./NoteEditor";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { MermaidDiagram } from "./MermaidDiagram";
 import { DocumentTitlePreview } from "./DocumentTitlePreview";
 import { queueBlockWorkspace } from "../lib/block-workspace";
 import { DocumentPanelDrawer } from "./DocumentPanelDrawer";
@@ -190,6 +191,8 @@ function renderBlock(
     }
     case "codeBlock": {
       const collapsed = state.collapsed ?? node.attrs.collapsed === true;
+      const isMermaid = normalizeCodeLanguage(node.attrs.language) === "mermaid";
+      const showDiagram = isMermaid && state.diagram !== false;
       const lineNumbers = codeLineNumbersEnabled();
       const lines = node.textContent.split("\n");
       let linePosition = pos + 1;
@@ -207,6 +210,7 @@ function renderBlock(
           <div className="vr-code-toolbar" contentEditable={false}>
             <span>{node.attrs.title || "代码"}</span>
             <span aria-label="代码语言">{CODE_LANGUAGE_OPTIONS.find(option => option.value === (normalizeCodeLanguage(node.attrs.language) ?? ""))?.label}</span>
+            {isMermaid && <button type="button" aria-label={showDiagram ? "显示 Mermaid 源码" : "显示 Mermaid 图形"} aria-pressed={showDiagram} onClick={() => update(pos, { diagram: !showDiagram })}>{showDiagram ? "源码" : "图形"}</button>}
             <button type="button" aria-label={lineNumbers ? "隐藏代码行号" : "显示代码行号"} aria-pressed={lineNumbers} onClick={() => saveBlockWorkspacePreferences({ lineNumbers: !lineNumbers })}>行号</button>
             <button
               type="button"
@@ -232,7 +236,7 @@ function renderBlock(
             </button>
           </div>
           {!collapsed && (
-            <div className="code-block-inner">
+            showDiagram ? <MermaidDiagram source={node.textContent} /> : <div className="code-block-inner">
               <pre>
                 <code>{lineNumbers ? lines.map((line, index) => {
                   const position = linePosition;

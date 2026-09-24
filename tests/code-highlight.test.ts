@@ -9,11 +9,12 @@ import {
 assert.equal(normalizeCodeLanguage("TS"), "typescript");
 assert.equal(normalizeCodeLanguage("html"), "xml");
 assert.equal(normalizeCodeLanguage("plaintext"), null);
+assert.equal(normalizeCodeLanguage("MERMAID"), "mermaid");
 assert.equal(normalizeCodeLanguage("unsupported-language"), null);
-assert(CODE_LANGUAGE_OPTIONS.length <= 18, "only the curated common language set is exposed");
+assert(CODE_LANGUAGE_OPTIONS.length <= 19, "only the curated common language set is exposed");
 assert.deepEqual(
   CODE_LANGUAGE_OPTIONS.map((option) => option.label),
-  ["C", "C#", "C++", "CSS", "Go", "HTML / XML", "Java", "JavaScript", "JSON", "Markdown", "Python", "Rust", "Shell / Bash", "SQL", "text", "TypeScript", "YAML"],
+  ["C", "C#", "C++", "CSS", "Go", "HTML / XML", "Java", "JavaScript", "JSON", "Markdown", "Mermaid", "Python", "Rust", "Shell / Bash", "SQL", "text", "TypeScript", "YAML"],
   "code languages stay alphabetically ordered",
 );
 
@@ -22,6 +23,7 @@ assert(tokens.some((token) => token.classes.includes("hljs-keyword")), "TypeScri
 assert(tokens.some((token) => token.classes.includes("hljs-number")), "number highlighted");
 assert(tokens.some((token) => token.classes.includes("hljs-comment")), "comment highlighted");
 assert.deepEqual(highlightCode("const answer = 42", "plaintext"), []);
+assert.deepEqual(highlightCode("flowchart LR; A-->B", "mermaid"), []);
 assert.deepEqual(highlightCode("x".repeat(MAX_HIGHLIGHT_CODE_LENGTH + 1), "javascript"), [],
   "oversized code blocks fall back to plain text");
 

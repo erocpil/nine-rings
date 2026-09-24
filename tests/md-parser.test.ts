@@ -123,6 +123,10 @@ function assert(condition: boolean | undefined, msg: string): void {
   const codeBlockOps = result.ops.filter((o) => o.attributes?.["code-block"]);
   assert(codeBlockOps.length >= 1, "code block with lang exists");
   assert(codeBlockOps[0].attributes?.language === "typescript", "code fence language is preserved");
+
+  const diagram = mdToDelta("```mermaid\nflowchart LR\n  A --> B\n```");
+  const diagramOps = diagram.ops.filter((o) => o.attributes?.["code-block"]);
+  assert(diagramOps[0].attributes?.language === "mermaid", "Mermaid fence stays editable source");
 }
 
 // ═══════════════════════════════════════════════════════════════════

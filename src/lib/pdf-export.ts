@@ -1,6 +1,7 @@
 import type { DocumentMetadata } from "../types/models";
 import { applyCodeHighlighting } from "./code-highlight";
 import { isTauriRuntime } from "./runtime";
+import { renderMermaid } from "./mermaid-render";
 
 export interface PdfDocumentInfo extends DocumentMetadata {
   documentType?: string;
@@ -88,6 +89,8 @@ const PRINT_STYLES = `
     overflow-wrap: anywhere;
     break-inside: avoid-page;
   }
+  .document-content .print-mermaid { margin: 1em 0; padding: 12px; break-inside: avoid-page; text-align: center; }
+  .document-content .print-mermaid svg { display: block; max-width: 100%; height: auto; margin: auto; }
   .document-content code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.9em; }
   .document-content .hljs-comment, .document-content .hljs-quote { color: #6a737d; font-style: italic; }
   .document-content :is(.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-section, .hljs-link) { color: #b42318; }
@@ -192,6 +195,7 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata }: PdfExportO
   printButton.type = "button";
   printButton.className = "primary";
   printButton.textContent = "打印 / 存储为 PDF";
+  printButton.disabled = true;
   printButton.addEventListener("click", () => printWindow.print());
   actions.append(closeButton, printButton);
 
@@ -266,6 +270,22 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata }: PdfExportO
   });
   content.append(template.content.cloneNode(true));
 
+  const diagrams = [...content.querySelectorAll<HTMLPreElement>("pre[data-language]")]
+    .filter(pre => pre.getAttribute("data-language")?.toLowerCase() === "mermaid");
+  const diagramReady = Promise.all(diagrams.map(async pre => {
+    try {
+      const svg = await renderMermaid(pre.textContent ?? "", {
+        background: "#fff", text: "#202124", accent: "#356ae6", border: "#bfc3ca",
+      });
+      const figure = printDocument.createElement("div");
+      figure.className = "print-mermaid";
+      figure.innerHTML = svg;
+      pre.replaceWith(figure);
+    } catch {
+      // Preserve the source in the PDF when a diagram has invalid syntax.
+    }
+  }));
+
   // Chromium can turn semantic heading levels into the PDF viewer's clickable
   // outline/bookmark sidebar. Keep those headings in the document structure and
   // give every destination a stable id, but do not insert a visible TOC page in
@@ -298,7 +318,11 @@ export function exportDocumentAsPdf({ title, contentHtml, metadata }: PdfExportO
   }));
   const fontsReady = printDocument.fonts?.ready ?? Promise.resolve();
   const timeout = new Promise<void>((resolve) => window.setTimeout(resolve, 1800));
-  void Promise.race([Promise.all([imageReady, fontsReady]), timeout]).then(() => {
+  void Promise.race([diagramReady, new Promise<void>(resolve => window.setTimeout(resolve, 10_000))])
+    .then(() => {
+      printButton.disabled = false;
+      return Promise.race([Promise.all([imageReady, fontsReady]), timeout]);
+    }).then(() => {
     if ((!printFrame && printWindow.closed) || (printFrame && !printFrame.isConnected)) return;
     if (printFrame) {
       printWindow.addEventListener("afterprint", closePrintView, { once: true });

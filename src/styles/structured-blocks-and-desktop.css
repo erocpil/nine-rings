@@ -163,6 +163,34 @@
   line-height: 1.5;
 }
 
+.code-block-inner.mermaid-source-hidden {
+  display: none;
+}
+
+.mermaid-diagram {
+  min-height: 52px;
+  padding: 14px;
+  overflow: auto;
+  background: var(--code-bg);
+  color: var(--text);
+  text-align: center;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.mermaid-diagram-svg svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: auto;
+}
+
+.mermaid-diagram-error,
+.mermaid-diagram-loading {
+  color: var(--text-secondary);
+  font: 12px/1.5 var(--font);
+}
+
 .code-block-wrap.collapsed .code-block-inner {
   max-height: 0;
   overflow: hidden;

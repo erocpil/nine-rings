@@ -26,6 +26,7 @@ import { storeImage } from "../lib/storage/db-images";
 import { blobToBase64 } from "../lib/storage/core";
 import { normalizePastedHTML, normalizeSingleParagraphPaste } from "../extensions/NormalizeSingleParagraphPaste";
 import { CodeMirrorBlockEditor, type CodeVimMode } from "./CodeMirrorBlockEditor";
+import { MermaidDiagram } from "./MermaidDiagram";
 
 type Request = { position: number; trigger: HTMLElement; restoreFocus?: boolean; startInEditMode?: boolean; selectedPositions?: number[] };
 type Navigate = (position: number, selectedPositions: number[] | undefined, startInEditMode: boolean) => void;
@@ -85,6 +86,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
   const dialog = useRef<HTMLDialogElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<"read" | "edit">(() => request.startInEditMode && !readonly ? "edit" : "read");
+  const [showMermaidSource, setShowMermaidSource] = useState(false);
   const editable = mode === "edit" && !readonly;
   const [vimMode, setVimMode] = useState<CodeVimMode>("normal");
   const editableRef = useRef(editable);
@@ -179,6 +181,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
 
   const documentNode = editor?.state.doc;
   const codeLanguage = normalizeCodeLanguage(documentNode?.firstChild?.attrs.language);
+  const mermaidCodeBlock = rootType === "codeBlock" && codeLanguage === "mermaid";
   const matches = useMemo(() => documentNode && !sensitive ? findSearchMatches(documentNode, query, true) : [], [documentNode, query, sensitive]);
   useEffect(() => {
     if (editor) setSearchHighlights(editor, matches, Math.min(matchIndex, Math.max(0, matches.length - 1)));
@@ -362,6 +365,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
         && !(event.ctrlKey && event.metaKey) && isPrimaryShortcutModifier(event) && event.key.toLowerCase() === "f") {
         event.preventDefault(); event.stopPropagation();
         if (sensitive) { setNotice("加密正文不参与查找。"); return; }
+        if (mermaidCodeBlock && !editable) setShowMermaidSource(true);
         setFindOpen(true); window.requestAnimationFrame(() => searchInput.current?.focus());
         return;
       }
@@ -380,10 +384,14 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
           <button type="button" aria-pressed={!editable} onClick={() => preservePosition(() => setMode("read"))}>阅读</button>
           {!readonly && <button type="button" aria-pressed={editable} title={rootType === "codeBlock" ? `Tab 缩进，Shift+Tab 减少缩进；${isMacPlatform() ? "Cmd" : "Ctrl"}+Enter 退出到正文` : undefined} onClick={() => preservePosition(() => setMode("edit"))}>编辑</button>}
         </div>
+        {mermaidCodeBlock && !editable && <div role="group" aria-label="Mermaid 视图">
+          <button type="button" aria-pressed={!showMermaidSource} onClick={() => { setFindOpen(false); setShowMermaidSource(false); }}>图形</button>
+          <button type="button" aria-pressed={showMermaidSource} onClick={() => setShowMermaidSource(true)}>源码</button>
+        </div>}
       </div>
       {(saveStatus === "error" || saveStatus === "saving" || saveStatus === "dirty") && <span className="block-workspace-save" data-error={saveStatus === "error"} role="status" title="本机保存状态，不代表已完成备份">{saveStatus === "error" ? "保存失败" : "保存中…"}</span>}
       {iconButton("复制块", "copy", () => void copy())}
-      {!sensitive && iconButton("块内查找", "search", () => { setFindOpen(!findOpen); window.requestAnimationFrame(() => searchInput.current?.focus()); })}
+      {!sensitive && iconButton("块内查找", "search", () => { if (mermaidCodeBlock && !editable) setShowMermaidSource(true); setFindOpen(!findOpen); window.requestAnimationFrame(() => searchInput.current?.focus()); })}
       <button type="button" aria-label="关闭块工作区" title="关闭" disabled={closing} onClick={() => void close()}><ToolbarIcon name="compress" /></button>
     </header>
     {findOpen && !sensitive && <div className="block-workspace-find" role="search" aria-label="当前块查找">
@@ -482,7 +490,8 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
             ));
           }}
         />
-      ) : <EditorContent editor={editor} />}
+      ) : mermaidCodeBlock && !showMermaidSource ? <MermaidDiagram source={editor?.state.doc.firstChild?.textContent ?? initial.textContent} interactive />
+        : <EditorContent editor={editor} />}
     </div>
     {peers.length > 1 && <nav className="block-workspace-navigation" aria-label={request.selectedPositions ? "所选块导航" : "同类块导航"}>
       <button type="button" disabled={closing || peerIndex <= 0} onClick={() => void nextBlock(-1)}><ToolbarIcon name="chevronLeft" />上一个{request.selectedPositions ? "块" : name}</button>
