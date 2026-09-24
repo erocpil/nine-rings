@@ -6,6 +6,7 @@ type PointerPosition = { x: number; y: number };
 const defaultView: MermaidViewTransform = { scale: 1, x: 0, y: 0 };
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 8;
+const ZOOM_STEP = 1.05;
 
 function distance(a: PointerPosition, b: PointerPosition) {
   return Math.hypot(a.x - b.x, a.y - b.y);
@@ -21,6 +22,7 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
   const viewportRef = useRef<HTMLDivElement>(null);
   const pointers = useRef(new Map<number, PointerPosition>());
   const viewRef = useRef<MermaidViewTransform>(initialView);
+  const initialViewRef = useRef(initialView);
   const [view, setView] = useState<MermaidViewTransform>(initialView);
   const [result, setResult] = useState<{ svg?: string; error?: string }>({});
   const [themeKey, setThemeKey] = useState(() => JSON.stringify(mermaidPalette(document.documentElement)));
@@ -47,7 +49,7 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
     if (!interactive || !viewport) return;
     const wheel = (event: WheelEvent) => {
       event.preventDefault();
-      zoomAt(Math.exp(-event.deltaY * 0.0015), { x: event.clientX, y: event.clientY });
+      zoomAt(event.deltaY > 0 ? 1 / ZOOM_STEP : ZOOM_STEP, { x: event.clientX, y: event.clientY });
     };
     viewport.addEventListener("wheel", wheel, { passive: false });
     return () => viewport.removeEventListener("wheel", wheel);
@@ -61,6 +63,10 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const pointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && event.buttons === 0) {
+      pointers.current.clear();
+      return;
+    }
     const previous = pointers.current.get(event.pointerId);
     if (!previous) return;
     event.preventDefault();
@@ -98,7 +104,7 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
     let cancelled = false;
     const element = rootRef.current;
     if (!element) return;
-    applyView(initialView);
+    applyView(initialViewRef.current);
     setResult({});
     void renderMermaid(source, mermaidPalette(element)).then(
       svg => { if (!cancelled) setResult({ svg }); },
@@ -107,13 +113,13 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
       },
     );
     return () => { cancelled = true; };
-  }, [source, themeKey, initialView, applyView]);
+  }, [source, themeKey, applyView]);
 
   return <div ref={rootRef} className={`mermaid-diagram ${interactive ? "mermaid-diagram-interactive" : ""}`} contentEditable={false} aria-label="Mermaid 图表">
     {interactive && result.svg && <div className="mermaid-diagram-controls" role="toolbar" aria-label="图表缩放">
-      <button type="button" aria-label="缩小图表" disabled={view.scale <= MIN_SCALE} onClick={() => zoomAt(1 / 1.25)}>−</button>
+      <button type="button" aria-label="缩小图表" disabled={view.scale <= MIN_SCALE} onClick={() => zoomAt(1 / ZOOM_STEP)}>−</button>
       <span role="status">{Math.round(view.scale * 100)}%</span>
-      <button type="button" aria-label="放大图表" disabled={view.scale >= MAX_SCALE} onClick={() => zoomAt(1.25)}>+</button>
+      <button type="button" aria-label="放大图表" disabled={view.scale >= MAX_SCALE} onClick={() => zoomAt(ZOOM_STEP)}>+</button>
       <button type="button" aria-label="适应窗口" onClick={() => applyView(initialView)}>适应</button>
     </div>}
     {result.svg

@@ -312,7 +312,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
       if (opener.isConnected && request.restoreFocus) opener.focus({ preventScroll: true });
       else if (document.activeElement === opener) opener.blur();
     };
-  }, [source, request]);
+  }, [source, request, rootType]);
 
   const close = async (exitCode = false) => {
     if (closing) return;
@@ -394,8 +394,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
           preservePosition(() => { setLineNumbers(!lineNumbers); saveBlockWorkspacePreferences({ lineNumbers: !lineNumbers }); });
         }}>行号</button>}
         {!mermaidCodeBlock && <div role="group" aria-label="块模式">
-          <button type="button" aria-pressed={!editable} onClick={() => preservePosition(() => setMode("read"))}>阅读</button>
-          {!readonly && <button type="button" aria-pressed={editable} title={rootType === "codeBlock" ? `Tab 缩进，Shift+Tab 减少缩进；${isMacPlatform() ? "Cmd" : "Ctrl"}+Enter 退出到正文` : undefined} onClick={() => preservePosition(() => setMode("edit"))}>编辑</button>}
+          <button type="button" disabled={readonly} aria-pressed={editable} aria-label={editable ? "切换到阅读模式" : "切换到编辑模式"} title={rootType === "codeBlock" ? `Tab 缩进，Shift+Tab 减少缩进；${isMacPlatform() ? "Cmd" : "Ctrl"}+Enter 退出到正文` : undefined} onClick={() => preservePosition(() => setMode(editable ? "read" : "edit"))}>{editable ? "阅读" : "编辑"}</button>
         </div>}
         {mermaidCodeBlock && !editable && <div role="group" aria-label="Mermaid 视图">
           <button type="button" aria-label={showMermaidSource ? "显示 Mermaid 图形" : "显示 Mermaid 源码"} aria-pressed={showMermaidSource} onClick={() => { setFindOpen(false); setShowMermaidSource(current => !current); }}>{showMermaidSource ? "图形" : "源码"}</button>
