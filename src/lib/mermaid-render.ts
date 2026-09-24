@@ -57,7 +57,11 @@ function nodeTextColor(palette: MermaidPalette) {
 
 function addContrastStyles(svg: string, palette: MermaidPalette) {
   const text = nodeTextColor(palette);
-  const style = `<style>text,.nodeLabel,.edgeLabel,.cluster-label,.labelText,.messageText,.loopText,.noteText{fill:${text} !important;color:${text} !important;}</style>`;
+  const style = `<style>
+    text,.nodeLabel,.edgeLabel,.cluster-label,.labelText,.messageText,.loopText,.noteText{fill:${text} !important;color:${text} !important;}
+    .node rect,.node polygon,.node circle,.node ellipse,.node path,.basic.label-container,.note rect{fill:${palette.nodeBackground} !important;}
+    .cluster rect{fill:${palette.nodeBackgroundTertiary} !important;}
+  </style>`;
   return svg.replace(/(<svg\b[^>]*>)/i, `$1${style}`);
 }
 
