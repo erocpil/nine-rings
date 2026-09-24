@@ -2788,14 +2788,15 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     documentOutline
       .map((item, index) => ({ item, index }))
       .filter(({ item }) => outlineVisibleHeadingPositions.has(item.pos))
-      .map(({ item, index }) => ({
-        item,
-        index,
-        folded: Boolean(
-          headingSectionByPosition.get(item.pos)
-          && outlineCollapsedHeadingKeys.has(headingSectionByPosition.get(item.pos)!.key)
-        ),
-      }))
+      .map(({ item, index }) => {
+        const section = headingSectionByPosition.get(item.pos);
+        return {
+          item,
+          index,
+          foldable: Boolean(section && section.end > section.headingEnd),
+          folded: Boolean(section && outlineCollapsedHeadingKeys.has(section.key)),
+        };
+      })
   ), [documentOutline, headingSectionByPosition, outlineCollapsedHeadingKeys, outlineVisibleHeadingPositions]);
 
   if (!editor) return <div className="note-editor"><div className="empty-state">加载中...</div></div>;

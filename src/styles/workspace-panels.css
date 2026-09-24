@@ -1484,6 +1484,7 @@
 .vr-panel-close { float: right; }
 .mobile-document-drawer-panel .vr-panel { position: static; width: auto; max-height: none; flex: 1; min-height: 0; box-shadow: none; }
 .vr-outline-row { display: flex; align-items: center; gap: 4px; margin: 4px 0; }
+.vr-outline-fold-placeholder { flex: 0 0 22px; width: 22px; }
 .vr-outline-row button:last-child { flex: 1; text-align: left; }
 .vr-bookmark { display: block; width: 100%; text-align: left; margin: 4px 0; }
 @media print {

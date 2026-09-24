@@ -15,6 +15,7 @@ export interface VisibleOutlineEntry {
   /** 在完整目录中的索引，用于当前章节定位。 */
   index: number;
   folded: boolean;
+  foldable: boolean;
 }
 
 interface DocumentOutlineListProps {
@@ -269,13 +270,14 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
         aria-current={index === activeOutlineIndex ? "location" : undefined}
         title={item.text}
       >
-        <button
+        {entry.foldable ? <button
           className="document-outline-fold"
           type="button"
           aria-label={`${folded ? "展开" : "折叠"}章节 ${item.text}`}
           onClick={() => onToggleFold(item.pos)}
           aria-expanded={!folded}
         ><EditorFoldIcon outline expanded={!folded} /></button>
+          : <span className="document-outline-fold-placeholder" aria-hidden="true" />}
         <button className="document-outline-link" type="button" onClick={() => onJump(item)}>
           <span className="document-outline-level">H{item.level}</span>
           <span className="document-outline-text">{item.text}</span>

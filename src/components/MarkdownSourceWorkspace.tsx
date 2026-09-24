@@ -90,7 +90,7 @@ export function MarkdownSourceWorkspace({
     return outline.flatMap((item, index) => {
       if (item.level > hiddenBelow) return [];
       hiddenBelow = folds.has(item.pos) ? item.level : 7;
-      return [{ item, index, folded: folds.has(item.pos) }];
+      return [{ item, index, folded: folds.has(item.pos), foldable: outline[index + 1]?.level > item.level }];
     });
   }, [outline, folds]);
   const jump = (target: number) => {

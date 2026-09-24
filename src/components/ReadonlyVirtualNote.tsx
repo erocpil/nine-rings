@@ -884,15 +884,14 @@ export function ReadonlyVirtualNote(
                     title={section.text}
                     style={{ paddingLeft: (section.level - 1) * 12 }}
                   >
-                    <button
+                    {section.end > section.headingEnd ? <button
                       type="button"
                       aria-label={`折叠切换 ${section.text}`}
                       aria-expanded={!folds.has(section.key)}
-                      disabled={section.end <= section.headingEnd}
                       onClick={() => toggleHeading(section.pos)}
                     >
                       <EditorFoldIcon expanded={!folds.has(section.key)} />
-                    </button>
+                    </button> : <span className="vr-outline-fold-placeholder" aria-hidden="true" />}
                     <button
                       type="button"
                       data-drawer-swipe-item

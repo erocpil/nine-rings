@@ -1482,9 +1482,13 @@
   cursor: pointer;
 }
 
-.document-outline-fold {
+.document-outline-fold,
+.document-outline-fold-placeholder {
   flex: 0 0 18px;
   width: 18px;
+}
+
+.document-outline-fold {
   padding: 2px 0;
   color: var(--text-secondary);
   font-size: 10px;

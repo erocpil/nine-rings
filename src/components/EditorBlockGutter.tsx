@@ -4,6 +4,10 @@ import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
 import type { Transaction } from "@tiptap/pm/state";
 import {
+  extractHeadingSections,
+  headingSectionAtPosition,
+} from "../lib/heading-fold";
+import {
   getCollapsedHeadingPositions,
   getHiddenHeadingFoldBlockPositions,
   headingFoldPluginKey,
@@ -20,6 +24,7 @@ interface GutterBlock {
   marginBottom: number;
   active: boolean;
   heading: boolean;
+  foldable: boolean;
   folded: boolean;
 }
 
@@ -213,6 +218,9 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       // DOM 身份没有变化不代表块号没变，编号必须取当前文档中的位置。
       const index = editor.state.doc.resolve(pos).index(0) + 1;
       const selectionPos = editor.state.selection.from;
+      const section = node.type.name === "heading"
+        ? headingSectionAtPosition(extractHeadingSections(editor.state.doc), pos)
+        : null;
       return {
         index,
         pos,
@@ -231,6 +239,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
           : 0,
         active: selectionPos >= pos && selectionPos < pos + node.nodeSize,
         heading: node.type.name === "heading",
+        foldable: Boolean(section && section.pos === pos && section.end > section.headingEnd),
         folded: node.type.name === "heading" && foldedHeadingPositions.has(pos),
       };
     };
@@ -793,7 +802,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
           title={`第 ${block.index} 块有书签`}
         />
       ))}
-      {selectedBlockIndexes.length === 0 && onHeadingFoldToggle && blocks.filter((block) => block.heading).map((block) => {
+      {selectedBlockIndexes.length === 0 && onHeadingFoldToggle && blocks.filter((block) => block.foldable).map((block) => {
         const host = foldHosts.get(block.pos);
         if (!host?.isConnected) return null;
         return createPortal(

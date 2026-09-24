@@ -1,6 +1,43 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
 
+test("只有 H1 与普通正文时正文和目录都能折叠章节", async ({ page }) => {
+  await createBlankDocument(page);
+  const editor = page.locator(".ProseMirror");
+  await editor.evaluate(element => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "# 第一章\n\n普通正文\n\n# 第二章\n\n第二章正文");
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  });
+  await page.getByRole("button", { name: "折叠第 1 块章节", exact: true }).click();
+  await expect(editor.getByText("普通正文", { exact: true })).toBeHidden();
+  await page.getByRole("button", { name: "展开第 1 块章节", exact: true }).click();
+  await page.getByTitle("文档目录").click();
+  const outline = page.getByRole("navigation", { name: "文档目录" });
+  await outline.getByRole("button", { name: "折叠章节 第一章", exact: true }).click();
+  await expect(editor.getByText("普通正文", { exact: true })).toBeHidden();
+});
+
+test("没有下属块的 H1 不显示无法操作的折叠箭头", async ({ page }) => {
+  await createBlankDocument(page);
+  const editor = page.locator(".ProseMirror");
+  await editor.evaluate(element => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "# 空章节\n\n# 有内容\n\n普通正文\n\n# 末章");
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  });
+  await expect(editor.locator(":scope > *")).toHaveCount(4);
+  await expect(page.getByRole("button", { name: "折叠第 1 块章节", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "折叠第 4 块章节", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "折叠第 2 块章节", exact: true })).toBeVisible();
+  await page.getByTitle("文档目录").click();
+  const outline = page.getByRole("navigation", { name: "文档目录" });
+  await expect(outline.getByRole("button", { name: "折叠章节 空章节", exact: true })).toHaveCount(0);
+  await expect(outline.getByRole("button", { name: "折叠章节 末章", exact: true })).toHaveCount(0);
+  await outline.getByRole("button", { name: "折叠章节 有内容", exact: true }).click();
+  await expect(editor.getByText("普通正文", { exact: true })).toBeHidden();
+});
+
 test("标题章节可按层级折叠，并从目录统一展开", async ({ page }) => {
   await createBlankDocument(page);
   await expect(page.locator(".ProseMirror")).toHaveText("");
