@@ -269,11 +269,19 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
       // complete visual viewport so a docked outline or sidebar cannot shift
       // its centre. On a keyboard-constrained viewport it still shrinks first.
       const availableHeight = Math.max(1, height - safeTop);
-      const dialogWidth = Math.max(1, Math.min(960, width - 16));
-      const dialogHeight = Math.max(1, Math.min(720, availableHeight - 24));
+      const compactViewport = width <= 700 || window.matchMedia("(pointer: coarse)").matches;
+      const codeWorkspace = rootType === "codeBlock";
+      const dialogWidth = Math.max(1, Math.min(codeWorkspace ? 1120 : 960, width - 16));
+      // Keep the mobile bottom edge stable while giving the code workspace a
+      // little more room above it. This avoids moving the navigation footer
+      // when the graph/editor needs extra vertical space.
+      const topInset = compactViewport && codeWorkspace ? 4 : 12;
+      const bottomInset = 12;
+      const maxDialogHeight = compactViewport && codeWorkspace ? availableHeight - topInset - bottomInset : 720;
+      const dialogHeight = Math.max(1, Math.min(maxDialogHeight, availableHeight - topInset - bottomInset));
       Object.assign(element.style, {
         left: `${x + Math.max(8, (width - dialogWidth) / 2)}px`,
-        top: `${y + safeTop + Math.max(12, (availableHeight - dialogHeight) / 2)}px`,
+        top: `${y + safeTop + Math.max(topInset, (availableHeight - dialogHeight) / 2)}px`,
         width: `${dialogWidth}px`,
         height: `${dialogHeight}px`,
       });
