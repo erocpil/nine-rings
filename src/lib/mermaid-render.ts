@@ -6,6 +6,9 @@ export interface MermaidPalette {
   accent: string;
   border: string;
   darkMode: boolean;
+  nodeBackground: string;
+  nodeBackgroundAlt: string;
+  nodeBackgroundTertiary: string;
 }
 
 let mermaidPromise: Promise<typeof mermaidType> | undefined;
@@ -21,14 +24,28 @@ export function mermaidPalette(element: Element): MermaidPalette {
   const style = getComputedStyle(element);
   const background = style.getPropertyValue("--code-bg").trim() || "#f3f4f6";
   const text = style.getPropertyValue("--text").trim() || "#202124";
+  const accent = style.getPropertyValue("--accent").trim() || "#356ae6";
   const darkMode = isDarkColor(background);
   return {
     background,
     text,
-    accent: style.getPropertyValue("--accent").trim() || "#356ae6",
+    accent,
     border: style.getPropertyValue("--border").trim() || "#bfc3ca",
     darkMode,
+    nodeBackground: mixColor(accent, background, darkMode ? 0.34 : 0.18),
+    nodeBackgroundAlt: mixColor(accent, background, darkMode ? 0.48 : 0.28),
+    nodeBackgroundTertiary: mixColor(accent, background, darkMode ? 0.24 : 0.12),
   };
+}
+
+function mixColor(foreground: string, background: string, amount: number) {
+  const parse = (value: string) => {
+    const match = value.match(/^#([0-9a-f]{6})$/i);
+    return match ? [0, 2, 4].map(offset => Number.parseInt(match[1].slice(offset, offset + 2), 16)) : null;
+  };
+  const fg = parse(foreground), bg = parse(background);
+  if (!fg || !bg) return foreground;
+  return `#${fg.map((channel, index) => Math.round(channel * amount + bg[index] * (1 - amount)).toString(16).padStart(2, "0")).join("")}`;
 }
 
 function isDarkColor(color: string) {
@@ -60,28 +77,28 @@ export function renderMermaid(source: string, palette: MermaidPalette): Promise<
       darkMode: palette.darkMode,
       themeVariables: {
         background: palette.background,
-        primaryColor: palette.background,
+        primaryColor: palette.nodeBackground,
         primaryTextColor: palette.text,
         primaryBorderColor: palette.border,
-        nodeBkg: palette.background,
+        nodeBkg: palette.nodeBackground,
         nodeTextColor: palette.text,
         nodeBorder: palette.border,
         labelTextColor: palette.text,
         actorTextColor: palette.text,
         mainContrastColor: palette.text,
-        secondaryColor: palette.background,
+        secondaryColor: palette.nodeBackgroundAlt,
         secondaryTextColor: palette.text,
         secondaryBorderColor: palette.border,
-        tertiaryColor: palette.background,
+        tertiaryColor: palette.nodeBackgroundTertiary,
         tertiaryTextColor: palette.text,
         tertiaryBorderColor: palette.border,
         lineColor: palette.accent,
         textColor: palette.text,
-        mainBkg: palette.background,
-        clusterBkg: palette.background,
+        mainBkg: palette.nodeBackground,
+        clusterBkg: palette.nodeBackgroundTertiary,
         clusterBorder: palette.border,
         edgeLabelBackground: palette.background,
-        noteBkgColor: palette.background,
+        noteBkgColor: palette.nodeBackgroundAlt,
         noteTextColor: palette.text,
         titleColor: palette.text,
       },
