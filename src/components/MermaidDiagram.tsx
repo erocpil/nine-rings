@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { mermaidPalette, renderMermaid } from "../lib/mermaid-render";
 
-type ViewTransform = { scale: number; x: number; y: number };
+export type MermaidViewTransform = { scale: number; x: number; y: number };
 type PointerPosition = { x: number; y: number };
-const initialView: ViewTransform = { scale: 1, x: 0, y: 0 };
+const defaultView: MermaidViewTransform = { scale: 1, x: 0, y: 0 };
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 8;
 
@@ -11,19 +11,25 @@ function distance(a: PointerPosition, b: PointerPosition) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-export function MermaidDiagram({ source, interactive = false }: { source: string; interactive?: boolean }) {
+export function MermaidDiagram({ source, interactive = false, initialView = defaultView, onViewChange }: {
+  source: string;
+  interactive?: boolean;
+  initialView?: MermaidViewTransform;
+  onViewChange?: (view: MermaidViewTransform) => void;
+}) {
   const rootRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const pointers = useRef(new Map<number, PointerPosition>());
-  const viewRef = useRef<ViewTransform>(initialView);
-  const [view, setView] = useState<ViewTransform>(initialView);
+  const viewRef = useRef<MermaidViewTransform>(initialView);
+  const [view, setView] = useState<MermaidViewTransform>(initialView);
   const [result, setResult] = useState<{ svg?: string; error?: string }>({});
   const [themeKey, setThemeKey] = useState(() => JSON.stringify(mermaidPalette(document.documentElement)));
 
-  const applyView = useCallback((next: ViewTransform) => {
+  const applyView = useCallback((next: MermaidViewTransform) => {
     viewRef.current = next;
     setView(next);
-  }, []);
+    onViewChange?.(next);
+  }, [onViewChange]);
 
   const zoomAt = useCallback((factor: number, point?: PointerPosition) => {
     const rect = viewportRef.current?.getBoundingClientRect();
@@ -101,7 +107,7 @@ export function MermaidDiagram({ source, interactive = false }: { source: string
       },
     );
     return () => { cancelled = true; };
-  }, [source, themeKey, applyView]);
+  }, [source, themeKey, initialView, applyView]);
 
   return <div ref={rootRef} className={`mermaid-diagram ${interactive ? "mermaid-diagram-interactive" : ""}`} contentEditable={false} aria-label="Mermaid 图表">
     {interactive && result.svg && <div className="mermaid-diagram-controls" role="toolbar" aria-label="图表缩放">
