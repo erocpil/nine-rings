@@ -73,15 +73,20 @@
 .block-workspace-body .ProseMirror > .blockquote-wrap > .blockquote-node-view > .blockquote-toolbar > button:not(.block-workspace-open) { display: none; }
 .block-workspace-body .code-block-inner { max-height: none; overflow: visible; }
 .block-workspace-body:has(.mermaid-diagram-interactive) { display: flex; flex-direction: column; overflow: hidden; }
-.mermaid-diagram-interactive { position: relative; display: flex; flex: 1 1 auto; min-height: 0; padding: 0; overflow: hidden; }
-.mermaid-diagram-viewport { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; overflow: hidden; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.mermaid-diagram-interactive { position: relative; display: flex; flex: 1 1 auto; min-height: 0; padding: 44px 8px 8px; overflow: hidden; }
+.mermaid-diagram-viewport { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
 .mermaid-diagram-viewport:active { cursor: grabbing; }
 .mermaid-diagram-canvas { flex: 0 1 auto; max-width: 100%; max-height: 100%; transform-origin: center center; pointer-events: none; will-change: transform; }
-.mermaid-diagram-canvas svg { max-height: calc(var(--app-viewport-height, 100dvh) - 160px); }
+.mermaid-diagram-canvas svg { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; }
 .mermaid-diagram-controls { position: absolute; z-index: 1; top: 8px; right: 8px; display: flex; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); box-shadow: 0 2px 10px #0002; }
 .mermaid-diagram-controls button { min-width: 30px; min-height: 30px; padding: 3px 6px; font: 13px var(--font); }
 .mermaid-diagram-controls span { min-width: 44px; font: 11px var(--font); color: var(--text-secondary); text-align: center; }
 @media (pointer: coarse) {
   .block-workspace-open { width: 32px; height: 32px; flex-basis: 32px; }
   .block-workspace-header button, .block-workspace-tools button { min-height: 32px; }
+  /* Keep the zoom controls out of the diagram's hit area. Without this
+     reserved strip, a zoomed graph can be painted underneath the controls
+     and its labels become difficult to inspect on a narrow screen. */
+  .mermaid-diagram-interactive { padding: 50px 8px 10px; }
+  .mermaid-diagram-controls { top: 6px; right: 6px; }
 }
