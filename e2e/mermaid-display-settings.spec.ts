@@ -36,13 +36,14 @@ for (const width of [390, 1280])
       tall = diagrams.nth(1);
     await expect(wide.locator("svg")).toBeVisible();
     const svgId = await wide.locator("svg").getAttribute("id");
+    const controls = page.locator(".code-block-wrap").first().locator("[data-mermaid-controls]");
     const originalWidth = (await wide.locator("svg").boundingBox())!.width;
-    await wide.getByRole("button", { name: "放大图表", exact: true }).click();
-    await expect(wide.getByRole("status")).toHaveText("105%");
+    await controls.getByRole("button", { name: "放大图表", exact: true }).click();
+    await expect(controls.getByRole("status")).toHaveText("105%");
     await expect.poll(async () => (await wide.locator("svg").boundingBox())!.width / originalWidth).toBeCloseTo(1.05, 2);
     expect(await wide.locator("svg").getAttribute("id")).toBe(svgId);
     await expect(wide.locator(".mermaid-diagram-loading")).toHaveCount(0);
-    await wide.getByRole("button", { name: "适应窗口", exact: true }).click();
+    await controls.getByRole("button", { name: "适应窗口", exact: true }).click();
 
     expect(
       await wide

@@ -336,6 +336,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
       <div ref={wrapperRef} className="code-block-frame">
         <div
           className="code-block-toolbar"
+          data-diagram={isMermaid && showDiagram && !inWorkspace ? "true" : undefined}
           data-pdf-exclude
           contentEditable={false}
         >
@@ -350,6 +351,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
             aria-label="代码简介"
           />
           <div className="code-block-actions">
+            {isMermaid && <span data-mermaid-controls hidden={!showDiagram || collapsed} />}
             {isMermaid && !inWorkspace && <button
               type="button"
               className={`code-block-wrap-toggle ${showDiagram ? "active" : ""}`}
@@ -419,7 +421,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
             ><EditorFoldIcon expanded={!collapsed} /></button>
           </div>
         </div>
-        {isMermaid && showDiagram && !collapsed && <DeferredMermaidDiagram source={code} />}
+        {isMermaid && <DeferredMermaidDiagram source={code} visible={showDiagram && !collapsed} />}
         <div className={`code-block-inner ${isMermaid && showDiagram ? "mermaid-source-hidden" : ""}`}>
           <div
             className="code-block-gutter"

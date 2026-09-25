@@ -687,14 +687,18 @@
 
 .code-block-inner, .vr-code-line { tab-size: var(--code-tab-size, 4); }
 
-.mermaid-diagram:not(.mermaid-diagram-interactive) .mermaid-diagram-controls {
-  position: sticky;
-  top: 0;
-  left: 0;
-  right: auto;
-  width: max-content;
-  margin: 0 0 8px auto;
+[data-mermaid-controls]:not([hidden]) { display: inline-flex; }
+[data-mermaid-controls] .mermaid-diagram-controls {
+  position: static;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
 }
+[data-mermaid-controls] .mermaid-diagram-controls span { min-width: 32px; }
+.mermaid-diagram:not(.mermaid-diagram-interactive) { touch-action: pan-x pan-y; }
+.deferred-mermaid-diagram[hidden] { display: none !important; }
 .mermaid-diagram.mermaid-diagram-zoomed .mermaid-diagram-svg svg {
   width: var(--mermaid-zoom-width) !important;
   max-width: none !important;
@@ -705,4 +709,17 @@
     width: var(--mermaid-natural-width, 100%) !important;
     max-width: 100% !important;
   }
+}
+
+.code-block-toolbar[data-diagram="true"] .code-block-language,
+.code-block-toolbar[data-diagram="true"] button[aria-label$="代码行号"],
+.code-block-toolbar[data-diagram="true"] button[aria-label$="代码软换行"],
+.vr-code-toolbar[data-diagram="true"] > span[aria-label="代码语言"] { display: none; }
+.vr-code-toolbar[data-diagram="true"] { flex-wrap: wrap; }
+.vr-code-toolbar > [data-mermaid-controls] { flex: 0 0 auto; }
+[data-mermaid-controls] .mermaid-diagram-controls button {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 2px 4px;
+  font-size: 11px;
 }

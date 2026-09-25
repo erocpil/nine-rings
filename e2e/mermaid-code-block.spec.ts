@@ -21,15 +21,27 @@ test("Mermaid 代码块保留源码并可在图形与源码间切换", async ({ 
   await block.getByRole("button", { name: "显示 Mermaid 图形" }).click();
   await expect(block.locator(".mermaid-diagram svg")).toBeVisible();
   await expect(block.locator("pre code")).toHaveText(source);
+  const svgId = await block.locator(".mermaid-diagram svg").getAttribute("id");
   await block.getByRole("button", { name: "折叠代码块" }).click();
-  await expect(block.locator(".mermaid-diagram")).toHaveCount(0);
+  await expect(block.locator(".mermaid-diagram")).toBeHidden();
   await block.getByRole("button", { name: "展开代码块" }).click();
   await expect(block.locator(".mermaid-diagram svg")).toBeVisible();
+  expect(await block.locator(".mermaid-diagram svg").getAttribute("id")).toBe(svgId);
   await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   await expect(block.locator(".mermaid-diagram svg")).toBeVisible();
   await block.getByRole("button", { name: "显示 Mermaid 源码" }).click();
   await expect(block.locator("pre code")).toBeVisible();
   await expect(block.locator("pre code")).toHaveText(source);
+  await block.getByRole("button", { name: "显示 Mermaid 图形" }).click();
+  const readonlyControls = block.locator("[data-mermaid-controls]");
+  await readonlyControls.getByRole("button", { name: "放大图表", exact: true }).click();
+  await expect(readonlyControls.getByRole("status")).toHaveText("105%");
+  const readonlySvg = await block.locator(".mermaid-diagram svg").getAttribute("id");
+  await block.getByRole("button", { name: "折叠代码块", exact: true }).click();
+  await expect(block.locator(".mermaid-diagram")).toBeHidden();
+  await block.getByRole("button", { name: "展开代码块", exact: true }).click();
+  expect(await block.locator(".mermaid-diagram svg").getAttribute("id")).toBe(readonlySvg);
+  await expect(readonlyControls.getByRole("status")).toHaveText("105%");
 });
 
 test("无效 Mermaid 保留切回源码的入口", async ({ page }) => {
@@ -100,7 +112,26 @@ test("Mermaid 弹层支持滚轮缩放、拖动和适应窗口", async ({ page }
   await page.mouse.down();
   await page.mouse.move(x + 80, y + 35, { steps: 5 });
   await page.mouse.up();
-  await expect(viewport.locator(".mermaid-diagram-canvas")).not.toHaveAttribute("style", beforeDrag!);
+  // Small diagrams remain centered; zoom past the viewport before panning.
+  await expect(viewport.locator(".mermaid-diagram-canvas")).toHaveAttribute("style", beforeDrag!);
+  await viewport.evaluate(el => {
+    const box = el.getBoundingClientRect();
+    for (let i = 0; i < 45; i++) el.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: box.x + box.width / 2, clientY: box.y + box.height / 2, cancelable: true }));
+  });
+  await expect(dialog.locator(".mermaid-diagram-controls [role=status]")).toHaveText("800%");
+  for (const direction of [1, -1]) {
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await viewport.dispatchEvent("pointermove", { pointerId: 1, pointerType: "mouse", buttons: 1, clientX: x + direction * 10000, clientY: y + direction * 10000 });
+    await page.mouse.up();
+    const imageBox = (await viewport.locator("svg").boundingBox())!;
+    for (const [start, size, frameStart, frameSize] of [[imageBox.x, imageBox.width, box!.x, box!.width], [imageBox.y, imageBox.height, box!.y, box!.height]]) {
+      if (size >= frameSize) {
+        expect(start).toBeLessThanOrEqual(frameStart + 1);
+        expect(start + size).toBeGreaterThanOrEqual(frameStart + frameSize - 1);
+      } else expect(Math.abs(start + size / 2 - frameStart - frameSize / 2)).toBeLessThan(2);
+    }
+  }
   await dialog.getByRole("button", { name: "适应窗口" }).click();
   await expect(dialog.getByRole("status").filter({ hasText: "100%" })).toBeVisible();
   await expect(viewport.locator(".mermaid-diagram-canvas")).toHaveAttribute("style", /translate\(0px(?:, 0px)?\) scale\(1\)/);
@@ -124,6 +155,26 @@ test("手机 Mermaid 弹层支持双指缩放和单指拖动", async ({ browser,
         type: "codeBlock", attrs: { language: "mermaid" }, content: [{ type: "text", text: "flowchart LR\nA --> B" }],
       }] }, true);
     });
+    const inline = page.locator(".note-editor .mermaid-diagram");
+    await expect(inline.locator("svg")).toBeVisible();
+    const inlineBox = (await inline.boundingBox())!;
+    const inlineId = await inline.locator("svg").getAttribute("id");
+    const inlineCdp = await context.newCDPSession(page);
+    const ix = inlineBox.x + inlineBox.width / 2, iy = inlineBox.y + inlineBox.height / 2;
+    await inlineCdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 1, x: ix - 25, y: iy }, { id: 2, x: ix + 25, y: iy }] });
+    await inlineCdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ id: 1, x: ix - 60, y: iy }, { id: 2, x: ix + 60, y: iy }] });
+    await inlineCdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    const inlineControls = page.locator(".note-editor [data-mermaid-controls]");
+    await expect.poll(async () => parseInt((await inlineControls.getByRole("status").textContent())!)).toBeGreaterThan(100);
+    expect(await inline.locator("svg").getAttribute("id")).toBe(inlineId);
+    expect(await page.evaluate(() => visualViewport?.scale)).toBe(1);
+    const savedScale = await inlineControls.getByRole("status").textContent();
+    await page.getByRole("button", { name: "折叠代码块", exact: true }).click();
+    await expect(inline).toBeHidden();
+    await page.getByRole("button", { name: "展开代码块", exact: true }).click();
+    await expect(inline.locator("svg")).toBeVisible();
+    expect(await inline.locator("svg").getAttribute("id")).toBe(inlineId);
+    await expect(inlineControls.getByRole("status")).toHaveText(savedScale!);
     await page.locator(".note-editor .code-block-wrap").getByRole("button", { name: "放大阅读代码块" }).click();
     const viewport = page.getByRole("dialog", { name: "图像工作区" }).locator(".mermaid-diagram-viewport");
     await expect(viewport.locator("svg")).toBeVisible();

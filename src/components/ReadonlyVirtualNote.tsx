@@ -192,11 +192,12 @@ function renderBlock(
           className={`code-block-wrap ${collapsed ? "collapsed" : ""}`}
           data-code-wrap={String(wrap)}
         >
-          <div className="vr-code-toolbar" contentEditable={false}>
+          <div className="vr-code-toolbar" contentEditable={false} data-diagram={isMermaid && showDiagram ? "true" : undefined}>
             <span>{node.attrs.title || "代码"}</span>
             <span aria-label="代码语言">{CODE_LANGUAGE_OPTIONS.find(option => option.value === (normalizeCodeLanguage(node.attrs.language) ?? ""))?.label}</span>
             {isMermaid && <button type="button" aria-label={showDiagram ? "显示 Mermaid 源码" : "显示 Mermaid 图形"} aria-pressed={showDiagram} onClick={() => update(pos, { diagram: !showDiagram })}>{showDiagram ? "源码" : "图形"}</button>}
-            <button type="button" aria-label={lineNumbers ? "隐藏代码行号" : "显示代码行号"} aria-pressed={lineNumbers} onClick={() => saveBlockWorkspacePreferences({ lineNumbers: !lineNumbers })}>行号</button>
+            {isMermaid && <span data-mermaid-controls hidden={!showDiagram || collapsed} />}
+            <button hidden={isMermaid && showDiagram} type="button" aria-label={lineNumbers ? "隐藏代码行号" : "显示代码行号"} aria-pressed={lineNumbers} onClick={() => saveBlockWorkspacePreferences({ lineNumbers: !lineNumbers })}>行号</button>
             <button
               type="button"
               onClick={() => void copyToClipboard(node.textContent)}
@@ -206,6 +207,7 @@ function renderBlock(
             <button
               type="button"
               aria-pressed={wrap}
+              hidden={isMermaid && showDiagram}
               onClick={() => update(pos, { wrap: !wrap })}
             >
               换行
@@ -220,8 +222,9 @@ function renderBlock(
               <EditorFoldIcon expanded={!collapsed} />
             </button>
           </div>
-          {!collapsed && (
-            showDiagram ? <DeferredMermaidDiagram source={node.textContent} /> : <div className="code-block-inner">
+          {isMermaid && <DeferredMermaidDiagram source={node.textContent} visible={showDiagram && !collapsed} />}
+          {!collapsed && !showDiagram && (
+            <div className="code-block-inner">
               <pre>
                 <code>{lineNumbers ? lines.map((line, index) => {
                   const position = linePosition;
