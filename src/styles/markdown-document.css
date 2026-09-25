@@ -57,3 +57,18 @@
   line-height: inherit;
 }
 .markdown-cm-host .cm-lineNumbers .cm-gutterElement { padding-left: 2px; }
+
+.markdown-cm-host .cm-content[aria-readonly="true"],
+.markdown-cm-host .cm-content[aria-readonly="true"] * {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+.markdown-cm-host .cm-content[aria-readonly="true"]::selection,
+.markdown-cm-host .cm-content[aria-readonly="true"] ::selection {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.markdown-cm-host .cm-gutters {
+  -webkit-user-select: none;
+  user-select: none;
+}

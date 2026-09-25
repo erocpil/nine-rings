@@ -162,8 +162,33 @@ test("只读源码点击高亮且折叠命中区与行号对齐", async ({ page 
   for (const text of ["first body", "second body"]) {
     await area.locator(".cm-line").filter({ hasText: text }).click();
     await expect(area.locator(".cm-activeLine")).toHaveText(text);
+    await expect(page.locator(".markdown-cm-host .cm-cursor")).toBeVisible();
+    const animation = await page.locator(".markdown-cm-host .cm-cursorLayer").evaluate(el => getComputedStyle(el).animationName);
+    expect(animation).toMatch(/^cm-blink/);
+
   }
+  await expect(area).toHaveAttribute("contenteditable", "false");
+  await expect(page.locator(".markdown-cm-host .cm-selectionLayer")).toHaveCount(0);
+  const copied = await area.evaluate(el => {
+    const lines = [...el.querySelectorAll(".cm-line")];
+    const first = lines.find(line => line.textContent === "first body")!;
+    const last = lines.find(line => line.textContent === "second body")!;
+    const start = document.createTreeWalker(first, NodeFilter.SHOW_TEXT).nextNode()!;
+    const end = document.createTreeWalker(last, NodeFilter.SHOW_TEXT).nextNode()!;
+    // Native mobile handles can extend a selection in either direction.
+    const selection = window.getSelection()!;
+    selection.setBaseAndExtent(end, 6, start, 2);
+    const clipboardData = new DataTransfer();
+    el.dispatchEvent(new ClipboardEvent("copy", { clipboardData, bubbles: true, cancelable: true }));
+    return { text: clipboardData.getData("text/plain"), selected: selection.toString(), color: getComputedStyle(first, "::selection").backgroundColor, selectable: getComputedStyle(first).getPropertyValue("user-select") || getComputedStyle(first).getPropertyValue("-webkit-user-select") };
+  });
+  expect(copied.text).toBe("rst body\n\n## Child\n\nsecond");
+  expect(copied.selected).toContain("rst body");
+  expect(copied.selectable).toBe("text");
+  expect(copied.color).not.toBe("rgba(0, 0, 0, 0)");
+  await expect(page.locator(".markdown-cm-host .cm-cursor")).toHaveCount(0);
   expect((await sourceInfo(area)).value).toBe(value);
+  await area.evaluate(() => window.getSelection()?.removeAllRanges());
   const marker = page.locator(".cm-foldGutter .cm-gutterElement").filter({ hasText: "⌄" }).first();
   const number = page.locator(".cm-lineNumbers .cm-gutterElement").filter({ hasText: /^1$/ });
   const m = (await marker.boundingBox())!, n = (await number.boundingBox())!;
@@ -174,4 +199,9 @@ test("只读源码点击高亮且折叠命中区与行号对齐", async ({ page 
   expect(n.x - m.x - m.width).toBeLessThan(3);
   await marker.click({ position: { x: 3, y: 10 } });
   await expect(page.locator(".cm-foldPlaceholder")).toBeVisible();
+  await page.getByRole("button", { name: "切换为可编辑", exact: true }).click();
+  await expect(area).toHaveAttribute("contenteditable", "true");
+  await expect(page.locator(".markdown-cm-host .cm-selectionLayer")).toHaveCount(1);
+  await expect(area).toHaveAttribute("aria-readonly", "false");
+
 });

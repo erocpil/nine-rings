@@ -1,3 +1,4 @@
+import { readonlySourceSelection } from "../lib/readonly-source-selection";
 import {
   useLayoutEffect,
   useEffect,
@@ -151,20 +152,8 @@ export function MarkdownSourceEditor({
     if (!host.current) return;
     const extensions = [
       history(),
-      drawSelection(),
       scrollPastEnd(),
       foldGutter(),
-      EditorView.domEventHandlers({
-        click(event, editor) {
-          if (!editor.state.readOnly || !editor.contentDOM.contains(event.target as Node)) return false;
-          // Non-editable content uses native selection. Preserve drag selections,
-          // but synchronize a plain click with CM's active-line decorations.
-          if (!window.getSelection()?.isCollapsed) return false;
-          const pos = editor.posAtCoords({ x: event.clientX, y: event.clientY });
-          if (pos !== null) editor.dispatch({ selection: { anchor: pos } });
-          return false;
-        },
-      }),
       bracketMatching(),
       closeBrackets(),
       markdown({
@@ -266,6 +255,8 @@ export function MarkdownSourceEditor({
       access.current.of([
         EditorState.readOnly.of(initial.current.readonly),
         EditorView.editable.of(!initial.current.readonly),
+        initial.current.readonly ? readonlySourceSelection : drawSelection(),
+        EditorView.contentAttributes.of({ "aria-readonly": String(initial.current.readonly) }),
       ]),
       display.current.of(displayRef.current()),
       EditorView.contentAttributes.of({
@@ -327,6 +318,8 @@ export function MarkdownSourceEditor({
       effects: access.current.reconfigure([
         EditorState.readOnly.of(readonly),
         EditorView.editable.of(!readonly),
+        readonly ? readonlySourceSelection : drawSelection(),
+        EditorView.contentAttributes.of({ "aria-readonly": String(readonly) }),
       ]),
     });
   }, [readonly]);
