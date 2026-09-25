@@ -123,12 +123,19 @@ test("局部阅读沿用可视视口手势，目录和书签文字上右划只�
     dispatch("touchmove", points.x + points.dx);
     dispatch("touchend", points.x + points.dx);
   }, { x, y, dx });
-  // y=300 is in the lower half of the visual viewport, but upper half of innerHeight.
+  // y=300 is below visualViewport.middleY (270), although above innerHeight / 2.
+  // The current gesture contract opens settings in the lower half.
+  await swipe(page.locator(".app-main"), 345, 300, -90);
+  const settings = page.getByRole("dialog", { name: "设置", exact: true });
+  await expect(settings).toBeVisible();
+  await settings.getByRole("button", { name: "关闭设置", exact: true }).click();
+  await expect(settings).not.toBeVisible();
   const drawer = page.getByRole("dialog", { name: "阅读侧栏" });
-  for (const y of [300, 190]) {
-    await swipe(page.locator(".app-main"), 345, y, -90);
+  for (const kind of ["outline", "bookmark"] as const) {
+    await swipe(page.locator(".app-main"), 345, 190, -90);
     await expect(drawer).toBeVisible();
-    const item = drawer.locator(y === 300 ? ".vr-outline-row [data-drawer-swipe-item]" : ".vr-bookmark").first();
+    await drawer.getByRole("button", { name: kind === "outline" ? "切换到目录" : "切换到书签", exact: true }).click();
+    const item = drawer.locator(kind === "outline" ? ".vr-outline-row [data-drawer-swipe-item]" : ".vr-bookmark").first();
     await expect(item).toBeVisible();
     const position = await page.locator(".vr-scroll").evaluate((element) => element.scrollTop);
     await swipe(item, 190, 190, 90);
@@ -156,7 +163,7 @@ test("局部阅读默认关闭，1500 块搜索与折叠末章，再回退完整
   await expect(page.locator(".vr-body mark")).toBeInViewport();
   await page
     .locator(".vr-title")
-    .getByRole("button", { name: "目录", exact: true })
+    .getByRole("button", { name: "文档目录", exact: true })
     .click();
   await page.getByRole("button", { name: "全部折叠", exact: true }).click();
   await page.getByLabel("关闭阅读面板").click();
@@ -254,17 +261,24 @@ test("窗口外书签跳转和跨窗口原生选区不会丢失", async ({ page 
     page.getByRole("button", { name: "取消当前位置书签", exact: true }),
   ).toBeVisible();
   await enable(page);
+  // The full editor pinned this panel during setup; the reader preserves that layout.
+  const bookmarkTrigger = page.locator(".vr-title").getByRole("button", { name: "文档书签", exact: true });
+  await expect(bookmarkTrigger).toHaveAttribute("data-pinned", "true");
+  await expect(page.locator(".vr-bookmark")).toHaveCount(1);
+  await bookmarkTrigger.click();
+  await expect(page.locator(".vr-bookmark")).toHaveCount(0);
   await page
     .locator(".vr-actions")
     .getByRole("button", { name: "顶端", exact: true })
     .click();
   await page
     .locator(".vr-title")
-    .getByRole("button", { name: "书签", exact: true })
+    .getByRole("button", { name: "文档书签", exact: true })
     .click();
   await expect(page.locator(".vr-bookmark")).toHaveCount(1);
   await page.locator(".vr-bookmark").click();
   await expect(page.locator('[data-block-number="300"]')).toBeInViewport();
+  await page.getByRole("region", { name: "文档书签", exact: true }).getByLabel("关闭阅读面板").click();
   await page
     .locator(".vr-actions")
     .getByRole("button", { name: "顶端", exact: true })
@@ -310,7 +324,7 @@ test.describe("触屏局部阅读", () => {
       .locator(".vr-title")
       .getByRole("button", { name: "专注模式", exact: true })
       .click();
-    await page.getByRole("button", { name: "目录", exact: true }).click();
+    await page.getByRole("button", { name: "文档目录", exact: true }).click();
     await page.getByRole("button", { name: "全部折叠", exact: true }).click();
     await page.getByLabel("关闭阅读面板").click();
     await page
@@ -325,7 +339,7 @@ test.describe("触屏局部阅读", () => {
       "true",
     );
     await expect(
-      page.getByRole("button", { name: "退出专注", exact: true }),
+      page.getByRole("button", { name: "退出专注模式", exact: true }),
     ).toBeInViewport();
     await page.locator(".vr-scroll").evaluate((element) => {
       // WebKit does not expose a constructible Touch. Replay the shared
@@ -339,7 +353,7 @@ test.describe("触屏局部阅读", () => {
           identifier: 1,
           target: element,
           clientX: x,
-          clientY: 650,
+          clientY: 200,
         };
         const event = new Event(type, { bubbles: true, cancelable: true });
         Object.defineProperties(event, {
@@ -350,8 +364,8 @@ test.describe("触屏局部阅读", () => {
       }
     });
     await expect(page.getByRole("dialog", { name: "阅读侧栏" })).toBeVisible();
-    await page.getByRole("button", { name: "关闭阅读侧栏" }).click();
-    await page.getByRole("button", { name: "目录", exact: true }).click();
+    await page.getByRole("button", { name: "关闭阅读面板" }).click();
+    await page.getByRole("button", { name: "文档目录", exact: true }).click();
     await expect(page.locator(".vr-note > .vr-panel")).toBeVisible();
     await page.getByLabel("关闭阅读面板").click();
     await expect(
