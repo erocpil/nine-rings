@@ -1,3 +1,4 @@
+import { sourceInfo, selectSource } from "./helpers/source-editor";
 import { createBlankDocument } from "./helpers/document";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { createPdfFixture } from "./helpers/reader-fixtures";
@@ -79,15 +80,14 @@ test("Mac 标题和源码保留原生 Control 文本键，Command 仍可打开�
     exact: true,
   });
   await source.focus();
-  for (const key of ["a", "f", "b", "n", "p", "e"])
-    expect(await nativeControlAllowed(source, key), key).toBe(true);
+  await selectSource(source, 4);
+  await source.press("Control+a");
+  expect((await sourceInfo(source)).selectionStart).toBe(0);
+  await source.press("Control+e");
+  expect((await sourceInfo(source)).selectionStart).toBe("第一行 alpha".length);
   await source.press("Meta+a");
-  expect(
-    await source.evaluate((element) => {
-      const area = element as HTMLTextAreaElement;
-      return area.selectionEnd - area.selectionStart === area.value.length;
-    }),
-  ).toBe(true);
+  const info = await sourceInfo(source);
+  expect(info.selectionEnd - info.selectionStart).toBe(info.value.length);
 });
 
 test("Mac 正文放行原生移动，代码块 Ctrl+A/E 移动光标而 Command+A 选择内容", async ({
@@ -203,7 +203,7 @@ test("Mac 代码弹层保留 Control 导航，Command 处理查找和撤销重�
     name: "代码块工作区",
     exact: true,
   });
-  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
   const code = dialog.locator(".cm-content");
   await code.click();
   await code.pressSequentially("ggVGc");

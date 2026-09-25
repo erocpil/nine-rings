@@ -1,3 +1,4 @@
+import { sourceInfo, scrollSourceTo } from "./helpers/source-editor";
 import { expect, test } from "@playwright/test";
 
 for (const kind of ["list", "quote", "table"]) {
@@ -23,13 +24,7 @@ for (const kind of ["list", "quote", "table"]) {
       await page.reload();
       await page.getByRole("button", { name: "源码", exact: true }).click();
       const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
-      await area.evaluate(async element => {
-        const load = (path: string) => import(/* @vite-ignore */ path);
-        const { textareaPosition } = await load("/src/lib/markdown-view-position.ts");
-        const input = element as HTMLTextAreaElement;
-        input.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
-        input.scrollTop = textareaPosition(input, input.value.indexOf("条目61：") - 2);
-      });
+      await scrollSourceTo(area, "条目61：");
       const target = page.locator(".editor-content p").filter({ hasText: /^条目61：/ });
       for (let round = 0; round < 3; round++) {
         await page.getByRole("button", { name: "渲染", exact: true }).click();
@@ -40,12 +35,8 @@ for (const kind of ["list", "quote", "table"]) {
           return Math.abs(element.getBoundingClientRect().top - Math.max(root.getBoundingClientRect().top, sticky?.getBoundingClientRect().bottom ?? 0));
         })).toBeLessThan(80);
         await page.getByRole("button", { name: "源码", exact: true }).click();
-        const visible = await area.evaluate(async element => {
-          const load = (path: string) => import(/* @vite-ignore */ path);
-          const { textareaPosition } = await load("/src/lib/markdown-view-position.ts");
-          const input = element as HTMLTextAreaElement;
-          return input.value.slice(textareaPosition(input), textareaPosition(input) + 60);
-        });
+        const info = await sourceInfo(area);
+        const visible = info.value.slice(info.offset, info.offset + 60);
         expect(visible).toContain("条目61：");
       }
     });

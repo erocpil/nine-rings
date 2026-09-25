@@ -1,3 +1,4 @@
+import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import { useLayoutEffect, useRef } from "react";
 import type { JSONContent } from "@tiptap/core";
 import { handoffReadingAnchor } from "../lib/readonly-rendering";
@@ -7,7 +8,6 @@ import {
   renderedTextblockSelector,
   sourcePositionMap,
   sourceOffsetToWeight,
-  textareaPosition,
   weightToSourceOffset,
 } from "../lib/markdown-view-position";
 
@@ -46,7 +46,7 @@ export function useMarkdownViewPosition(
   sensitive = false,
 ) {
   const host = useRef<HTMLDivElement>(null);
-  const area = useRef<HTMLTextAreaElement>(null);
+  const area = useRef<SourceEditorHandle | null>(null);
   const stopHandoff = useRef<() => void>();
   // One mapping per mounted document, never a global cache of private text.
   const sourceMapRef = useRef<{
@@ -130,7 +130,7 @@ export function useMarkdownViewPosition(
       ? previous?.source === source &&
         Math.abs(previous.scrollTop - input.scrollTop) < 1
         ? previous.weight
-        : sourceOffsetToWeight(source, textareaPosition(input), mapFor(source))
+        : sourceOffsetToWeight(source, input.position(), mapFor(source))
       : 0;
     const blocks = renderedTextblockMap(doc);
     const target =
@@ -155,8 +155,7 @@ export function useMarkdownViewPosition(
       anchor.source === undefined
         ? 0
         : weightToSourceOffset(anchor.source, anchor.weight, anchor.sourceMap);
-    let measuredWidth = -1,
-      sourceTop = 0;
+
     let frame = 0,
       stopped = false,
       settled = 0;
@@ -174,11 +173,8 @@ export function useMarkdownViewPosition(
       let top: number | undefined;
       if (showingSource && area.current && anchor.source !== undefined) {
         const input = area.current;
-        if (measuredWidth !== input.clientWidth) {
-          measuredWidth = input.clientWidth;
-          sourceTop = anchor.sourceTop ?? textareaPosition(input, sourceOffset);
-        }
-        input.scrollTop = sourceTop;
+        if (anchor.sourceTop !== undefined) input.scrollTop = anchor.sourceTop;
+        else input.scrollToOffset(sourceOffset);
         top = input.scrollTop;
         lastSource.current =
           anchor.sourceTop !== undefined

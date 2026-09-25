@@ -1,3 +1,4 @@
+import { sourceInfo, scrollSourceTo } from "./helpers/source-editor";
 import { expect, test } from "@playwright/test";
 import { seedReadingDocuments } from "./helpers/reading-fixtures";
 
@@ -132,18 +133,16 @@ test("源码模式和源码视口跨刷新恢复，显式返回渲染后不再�
     name: "Markdown 源码",
     exact: true,
   });
-  await expect(source).toContainText("阅读段落 89");
+  await expect.poll(async () => (await sourceInfo(source)).value).toContain("阅读段落 89");
   await page.waitForTimeout(250);
-  const before = await source.evaluate((el) => {
-    el.scrollTop = 1300;
-    el.dispatchEvent(new Event("scroll"));
-    return el.scrollTop;
-  });
+  await scrollSourceTo(source, "阅读段落 40");
+  const before = (await sourceInfo(source)).scrollTop;
   expect(before).toBeGreaterThan(1000);
+  await expect.poll(() => page.evaluate(id => JSON.parse(localStorage.getItem(`nr:readingState:${id}`)!).source?.scrollTop, a)).toBe(before);
   await page.reload();
   await expect(source).toBeVisible();
   await expect
-    .poll(() => source.evaluate((el) => el.scrollTop))
+    .poll(async () => (await sourceInfo(source)).scrollTop)
     .toBeCloseTo(before, 0);
   await page.getByRole("button", { name: "渲染", exact: true }).click();
   await expect(page.locator(".ProseMirror")).toBeVisible();

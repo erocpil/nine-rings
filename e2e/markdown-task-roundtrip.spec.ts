@@ -1,3 +1,4 @@
+import { sourceInfo, replaceSource } from "./helpers/source-editor";
 import { expect, test, type Page } from "@playwright/test";
 
 async function seed(page: Page, readonly = false) {
@@ -46,12 +47,12 @@ for (const width of [390, 1280]) {
     for (let i = 0; i < 5; i++) {
       await page.getByRole("button", { name: "源码", exact: true }).click();
       await expect(editor).toHaveCount(0);
-      const value = await source.inputValue();
+      const value = (await sourceInfo(source)).value;
       expect(value).toContain("- [ ] 待处理");
       expect(value).toContain("  - [x] 已完成");
       expect(value).not.toContain("\\\\[");
       expect(value).not.toContain("- \\[ ");
-      await source.fill(value.replace(/已完成[！]*/, "已完成" + "！".repeat(i + 1)));
+      await replaceSource(source, value.replace(/已完成[！]*/, "已完成" + "！".repeat(i + 1)));
       await page.getByRole("button", { name: "渲染", exact: true }).click();
       await expect(unchecked).toHaveCount(1);
       await expect(checked).toHaveCount(1);
@@ -75,7 +76,7 @@ test("只读局部渲染保留任务标记及源码", async ({ page }) => {
   await expect(content.locator('li[data-task-checked="false"]')).toHaveCount(1);
   await expect(content.locator('li[data-task-checked="true"]')).toHaveCount(1);
   await page.getByRole("button", { name: "源码", exact: true }).click();
-  await expect(page.getByRole("textbox", { name: "Markdown 源码", exact: true })).toHaveValue(/- \[ \] 待处理/);
+  await expect.poll(async () => (await sourceInfo(page.getByRole("textbox", { name: "Markdown 源码", exact: true }))).value).toMatch(/- \[ \] 待处理/);
   await page.getByRole("button", { name: "渲染", exact: true }).click();
   await expect(content.locator('li[data-task-checked="true"]')).toHaveCount(1);
 });
@@ -85,7 +86,7 @@ test("历史任务转义必须确认并保存快照，快照失败不改正文",
   await page.getByRole("button", { name: "源码", exact: true }).click();
   const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
   const polluted = String.raw`- \[ \] 待修复`;
-  await source.fill(polluted);
+  await replaceSource(source, polluted);
   await page.getByRole("button", { name: "扫描历史任务转义" }).click();
   const preview = page.getByRole("region", { name: "转义修复预览" });
   const apply = page.getByRole("button", { name: "保存快照并修复所选项" });
@@ -99,10 +100,10 @@ test("历史任务转义必须确认并保存快照，快照失败不改正文",
   });
   await apply.click();
   await expect(preview.getByRole("alert")).toContainText("快照测试失败");
-  await expect(source).toHaveValue(polluted);
+  await expect.poll(async () => (await sourceInfo(source)).value).toEqual(polluted);
   await apply.click();
   await expect(preview).toHaveCount(0);
-  await expect(source).toHaveValue("- [ ] 待修复");
+  await expect.poll(async () => (await sourceInfo(source)).value).toEqual("- [ ] 待修复");
   const snapshots = await page.evaluate(async () => {
     const load = (path: string) => import(/* @vite-ignore */ path);
     const { api } = await load("/src/lib/api.ts");

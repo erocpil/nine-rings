@@ -7,13 +7,34 @@
 .markdown-source-content { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 .markdown-source-title-row .focus-mode-icon { width: 18px; height: 18px; }
 .markdown-source-hint { padding: 6px 12px; font-size: 12px; color: var(--text-secondary); }
-.markdown-source-editor textarea { flex: 1; min-height: 100px; width: 100%; box-sizing: border-box; resize: none; border: 0; padding: 16px; outline: none; font: 16px/1.65 monospace; tab-size: 4; color: var(--text); background: var(--bg); }
 @media (max-width: 768px) { .app .markdown-view-toggle { min-height: 36px; } }
 
 .markdown-escape-repair { padding: 4px 12px; font-size: 12px; max-height: 40dvh; overflow: auto; flex-shrink: 0; }
 .markdown-escape-repair button { min-height: 36px; margin: 2px 6px 2px 0; }
 .markdown-escape-repair pre { overflow-wrap: anywhere; }
 
-/* Keep textarea padding inside a fixed viewport, including during resize. */
 .markdown-source-input { flex: 1; min-height: 0; position: relative; }
-.markdown-source-input textarea { position: absolute; inset: 0; height: 100%; min-height: 0; }
+
+.markdown-cm-source { display: flex; flex-direction: column; overflow: hidden; }
+.markdown-source-tools { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 4px 8px; flex: 0 0 auto; border-bottom: 1px solid var(--border); font-size: 12px; }
+.markdown-source-tools button { padding: 4px 7px; border: 1px solid transparent; border-radius: 4px; background: var(--bg-secondary); color: var(--text); }
+.markdown-source-tools button:hover, .markdown-source-tools button[aria-pressed="true"] { border-color: var(--border); background: var(--bg-active, var(--bg-secondary)); }
+.markdown-source-tools button:disabled { opacity: .45; }
+.markdown-source-cursor { margin-left: auto; color: var(--text-secondary); white-space: nowrap; }
+.markdown-cm-host { flex: 1; min-height: 0; overflow: hidden; }
+.markdown-cm-host .cm-editor { height: 100%; color: var(--text); background: var(--bg); font-size: inherit; }
+.markdown-cm-host .cm-editor.cm-focused { outline: none; }
+.markdown-cm-host .cm-scroller { overflow: auto; font-family: var(--editor-font-family, monospace); line-height: var(--editor-line-height, 1.65); }
+.markdown-cm-host .cm-content { padding: 16px 0; caret-color: var(--text); }
+.markdown-cm-host .cm-line { padding: 0 12px; }
+.markdown-cm-host .cm-gutters { background: var(--bg); color: var(--text-secondary); border-color: var(--border); }
+.markdown-cm-host .cm-activeLine, .markdown-cm-host .cm-activeLineGutter { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.markdown-cm-host .cm-cursor { border-left-color: var(--text); }
+.markdown-cm-host .cm-selectionBackground, .markdown-cm-host .cm-focused .cm-selectionBackground { background: color-mix(in srgb, var(--accent) 25%, transparent); }
+.markdown-cm-host .cm-panels { background: var(--bg-secondary); color: var(--text); }
+.markdown-cm-host .cm-textfield, .markdown-cm-host .cm-button { color: var(--text); background: var(--bg); border-color: var(--border); }
+@media (max-width: 768px) {
+  .markdown-source-tools { flex-wrap: nowrap; overflow-x: auto; min-height: 40px; }
+  .markdown-source-tools button { flex-shrink: 0; min-height: 32px; }
+  .markdown-source-cursor { flex-shrink: 0; }
+}

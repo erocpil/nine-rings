@@ -1,13 +1,10 @@
+import { sourceInfo, selectSource } from "./helpers/source-editor";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 async function replace(page: Page, area: Locator, old: string, value: string) {
-  await area.evaluate((element, old) => {
-    const input = element as HTMLTextAreaElement;
-    const from = old ? input.value.indexOf(old) : 0;
-    if (from < 0) throw new Error(`Missing text ${old}`);
-    input.focus();
-    input.setSelectionRange(from, from + old.length);
-  }, old);
+  const from = old ? (await sourceInfo(area)).value.indexOf(old) : 0;
+  if (from < 0) throw new Error(`Missing text ${old}`);
+  await selectSource(area, from, from + old.length);
   await page.keyboard.insertText(value);
 }
 
@@ -92,42 +89,42 @@ for (const virtual of [false, true])
     await expect(dock).toHaveClass(
       virtual ? /dock-left dock-horizontal/ : /dock-right dock-vertical/,
     );
-    const source = await area.inputValue();
-    await dock
-      .locator(".document-outline-text")
-      .filter({ hasText: /^章节30$/ })
-      .click();
+    const source = (await sourceInfo(area)).value;
+    const heading = dock.locator(".document-outline-text").filter({ hasText: /^章节30$/ });
+    await dock.locator(".document-outline-list").hover();
+    await page.mouse.wheel(0, 1000);
+    await heading.click();
     await expect
       .poll(() =>
-        area.evaluate((el) => (el as HTMLTextAreaElement).selectionStart),
+        sourceInfo(area).then(info => info.selectionStart),
       )
       .toBe(source.indexOf("## 章节30"));
-    expect(await area.evaluate((el) => el.scrollTop)).toBeGreaterThan(100);
+    expect((await sourceInfo(area)).scrollTop).toBeGreaterThan(100);
     await dock.locator(".document-bookmark-jump").click();
     await expect
       .poll(() =>
-        area.evaluate((el) => (el as HTMLTextAreaElement).selectionStart),
+        sourceInfo(area).then(info => info.selectionStart),
       )
       .toBe(source.indexOf("目标书签正文"));
     await page.getByRole("button", { name: "后退", exact: true }).click();
     await expect(area).toBeVisible();
     await expect
       .poll(() =>
-        area.evaluate((el) => (el as HTMLTextAreaElement).selectionStart),
+        sourceInfo(area).then(info => info.selectionStart),
       )
       .toBe(source.indexOf("## 章节30"));
     await page.getByRole("button", { name: "前进", exact: true }).click();
     await expect
       .poll(() =>
-        area.evaluate((el) => (el as HTMLTextAreaElement).selectionStart),
+        sourceInfo(area).then(info => info.selectionStart),
       )
       .toBe(source.indexOf("目标书签正文"));
     if (virtual) {
-      await expect(area).toHaveAttribute("readonly", "");
+      expect((await sourceInfo(area)).readonly).toBe(true);
       await page
         .getByRole("button", { name: "切换为可编辑", exact: true })
         .click();
-      await expect(area).not.toHaveAttribute("readonly", "");
+      await expect.poll(async () => (await sourceInfo(area)).readonly).toBe(false);
     }
     await replace(page, area, "", "# 新增章节\n\n新增正文\n\n");
     await replace(page, area, "旧标题", "更新标题");
@@ -145,10 +142,10 @@ for (const virtual of [false, true])
       "目标书签正文已经更新",
     );
     await dock.locator(".document-bookmark-jump").click();
-    const changed = await area.inputValue();
+    const changed = (await sourceInfo(area)).value;
     await expect
       .poll(() =>
-        area.evaluate((el) => (el as HTMLTextAreaElement).selectionStart),
+        sourceInfo(area).then(info => info.selectionStart),
       )
       .toBe(changed.indexOf("目标书签正文已经更新"));
     await page.getByRole("button", { name: "渲染", exact: true }).click();

@@ -5,7 +5,8 @@ import type { NoteEditorProps } from "./NoteEditor";
 import type { DeltaOps } from "../types/models";
 import { deltaToMarkdownAsync } from "../lib/data-transform-client";
 import { SourceNavigationSession, type SourceEditRange } from "../lib/markdown-source-navigation";
-import { textareaPosition } from "../lib/markdown-view-position";
+import { MarkdownSourceEditor } from "./MarkdownSourceEditor";
+import type { EditorState } from "@codemirror/state";
 import { MarkdownSourceWorkspace } from "./MarkdownSourceWorkspace";
 import { invalidateEditorDocument } from "../lib/editor-session-cache";
 import { deltaToProseMirror, isProseMirror, proseMirrorToDelta } from "../lib/delta-converter";
@@ -15,7 +16,6 @@ import { MarkdownEscapeRepair } from "./MarkdownEscapeRepair";
 import { api } from "../lib/api";
 import { useMarkdownViewPosition } from "../hooks/useMarkdownViewPosition";
 import { patchReadingState, readReadingState } from "../lib/reading-state";
-import { isPrimaryShortcutModifier } from "../lib/shortcuts";
 
 /** One visible editing surface, one canonical autosave stream for both views. */
 export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps; render: (props: NoteEditorProps) => ReactNode }) {
@@ -30,15 +30,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   const latestReader = useRef<(() => DeltaOps) | null>(null);
   const initial = useRef<{ text: string; content: DeltaOps } | null>(null);
   const sourceSession = useRef<SourceNavigationSession | null>(null);
-  const sourceInputRange = useRef<(SourceEditRange & { text: string }) | null>(null);
-  const showingSource = source !== null;
-  useEffect(() => {
-    const area = viewPosition.area.current;
-    if (!showingSource || !area) return;
-    const capture = () => { sourceInputRange.current = { from: area.selectionStart, to: area.selectionEnd, text: area.value }; };
-    area.addEventListener("beforeinput", capture);
-    return () => { area.removeEventListener("beforeinput", capture); sourceInputRange.current = null; };
-  }, [showingSource, viewPosition.area]);
+  const sourceEditorState = useRef<EditorState | null>(null);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const supported = props.content.metadata?.sourceFormat !== "text" && !props.pdfExcerptSource && !props.epubExcerptSource;
@@ -110,9 +102,9 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       history.record({ noteId: props.noteId, from: before, to: before });
       history.record({ noteId: props.noteId, from: after, to: after }, true);
     }
-    area.focus({ preventScroll: true });
+    area.focus();
     area.setSelectionRange(target, target);
-    area.scrollTop = Math.max(0, textareaPosition(area, target) - area.clientHeight / 2);
+    area.scrollToOffset(target, true);
   };
   useEffect(() => {
     const target = props.searchTarget;
@@ -185,17 +177,9 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           await latestProps.current.onFlush?.();
         } finally { if (alive.current) setBusy(false); }
       }} />
-      <div className="markdown-source-input"><textarea ref={viewPosition.area} aria-label="Markdown 源码" value={source} readOnly={Boolean(props.readonly) || busy} spellCheck={false}
-        onKeyDown={event => {
-          if (isPrimaryShortcutModifier(event) && !event.altKey && !event.shiftKey && !event.nativeEvent.isComposing && event.key.toLowerCase() === "a") {
-            event.preventDefault(); event.stopPropagation(); event.currentTarget.select();
-          }
-        }}
-        onChange={event => {
-          const captured = sourceInputRange.current;
-          sourceInputRange.current = null;
-          editSource(event.target.value, captured?.text === source ? captured : undefined);
-        }} /></div>
+      <MarkdownSourceEditor value={source} readonly={Boolean(props.readonly) || busy}
+        areaRef={viewPosition.area} session={sourceEditorState} onChange={editSource}
+        fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine} />
     </>}</MarkdownSourceWorkspace>}
   </div>;
 }

@@ -1,6 +1,15 @@
 /** User-facing highlights shipped with the app, newest first. Keep dates in ISO format. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-09-25",
+    title: "Markdown 源码编辑",
+    changes: [
+      "源码编辑新增语法高亮、查找替换、跳转行、语法折叠与行列提示，保留无焦点轮廓的外观。",
+      "支持列表和引用续写、空项退出、Tab 缩进及粗体、行内代码、链接标记；字体、主题和 Tab 长度沿用已有设置。",
+      "大文档源码按视口挂载，保留末行顶部滚动、固定目录与书签，以及视图往返位置和独立撤销历史。",
+    ],
+  },
+  {
     date: "2026-09-24",
     title: "窗口、标题、编辑与设置",
     changes: [

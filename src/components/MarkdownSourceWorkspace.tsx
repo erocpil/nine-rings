@@ -6,6 +6,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { useDesktopDocumentPanels } from "../hooks/useDesktopDocumentPanels";
 import { useDocumentPanelPosition } from "../hooks/useDocumentPanelPosition";
@@ -28,23 +29,10 @@ export function MarkdownSourceWorkspace({
   children,
 }: {
   revision: SourceNavigationDocument;
-  areaRef: RefObject<HTMLTextAreaElement>;
+  areaRef: RefObject<SourceEditorHandle>;
   onJump: (offset: number) => void;
   children: (controls: ReactNode) => ReactNode;
 }) {
-  useEffect(() => {
-    const area = areaRef.current;
-    if (!area) return;
-    const update = () => {
-      const style = getComputedStyle(area);
-      const tail = Math.max(0, area.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.lineHeight));
-      area.style.paddingBottom = `${tail}px`;
-    };
-    const observer = new ResizeObserver(update);
-    observer.observe(area, { box: "border-box" });
-    update();
-    return () => { observer.disconnect(); area.style.removeProperty("padding-bottom"); };
-  }, [areaRef]);
   const mobile = useMobileViewport();
   const [snapshot, setSnapshot] = useState(revision);
   const [offset, setOffset] = useState(0);

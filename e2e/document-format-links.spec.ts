@@ -1,3 +1,4 @@
+import { sourceInfo, replaceSource } from "./helpers/source-editor";
 import { expect, test, type Page } from "@playwright/test";
 
 async function fixture(page: Page, options: { text?: boolean; readonly?: boolean; virtual?: boolean; legacy?: boolean } = {}) {
@@ -47,11 +48,11 @@ for (const mobile of [false, true]) {
     expect(Math.abs(toggleBox.y - outlineBox.y)).toBeLessThan(10);
     await page.getByRole("button", { name: "源码", exact: true }).click();
     const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
-    await expect(source).toHaveValue(/最后一段\n$/);
+    await expect.poll(async () => (await sourceInfo(source)).value).toMatch(/最后一段\n$/);
     await expect(page.locator(".note-title-row").getByRole("button", { name: "渲染", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: /^(源码|渲染)$/ })).toHaveCount(1);
     await expect(page.locator(".ProseMirror")).toHaveCount(0);
-    await source.fill("# 新标题\n\n**源码修改**\n\n[链接](https://example.org/)\n");
+    await replaceSource(source, "# 新标题\n\n**源码修改**\n\n[链接](https://example.org/)\n");
     await page.getByRole("button", { name: "渲染", exact: true }).click();
     await expect(page.locator(".ProseMirror strong")).toHaveText("源码修改");
     await expect(source).toHaveCount(0);
@@ -60,16 +61,15 @@ for (const mobile of [false, true]) {
     await page.keyboard.type(" rendered-edit");
     await expect(page.locator(".ProseMirror")).toContainText("rendered-edit");
     await page.getByRole("button", { name: "源码", exact: true }).click();
-    await expect(source).toHaveValue(/rendered-edit/);
-    await source.fill("# 持久保存\n\n源码最后修改\n");
+    await expect.poll(async () => (await sourceInfo(source)).value).toMatch(/rendered-edit/);
+    await replaceSource(source, "# 持久保存\n\n源码最后修改\n");
     await expect.poll(() => page.evaluate(async id => {
       const { api } = await import(/* @vite-ignore */ "/src/lib/api.ts");
       return (await api.notes.get(id))?.content.metadata?.markdownSource;
     }, id)).toBe("# 持久保存\n\n源码最后修改\n");
     await page.reload();
-    await expect(page.locator(".ProseMirror")).toContainText("源码最后修改");
-    await page.getByRole("button", { name: "源码", exact: true }).click();
-    await expect(source).toHaveValue("# 持久保存\n\n源码最后修改\n");
+    await expect(source).toBeVisible();
+    await expect.poll(async () => (await sourceInfo(source)).value).toEqual("# 持久保存\n\n源码最后修改\n");
   });
 }
 
@@ -81,7 +81,7 @@ test("仅切换视图不改写导入源码或文档，源码遵守只读", async
   }, id);
   const before = await read();
   await page.getByRole("button", { name: "源码", exact: true }).click();
-  await expect(page.getByRole("textbox", { name: "Markdown 源码", exact: true })).toHaveAttribute("readonly", "");
+  expect((await sourceInfo(page.getByRole("textbox", { name: "Markdown 源码", exact: true }))).readonly).toBe(true);
   await page.getByRole("button", { name: "渲染", exact: true }).click();
   expect(await read()).toEqual(before);
 });
@@ -115,7 +115,7 @@ for (const virtual of [false, true]) {
     await page.getByRole("button", { name: "源码", exact: true }).click();
     const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
     await source.focus(); await source.press("Control+a");
-    expect(await source.evaluate((el: HTMLTextAreaElement) => el.selectionEnd - el.selectionStart)).toBeGreaterThan(20);
+    expect(await sourceInfo(source).then(info => info.selectionEnd - info.selectionStart)).toBeGreaterThan(20);
   });
 }
 

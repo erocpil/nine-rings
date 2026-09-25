@@ -1,3 +1,4 @@
+import { sourceInfo, scrollSourceTo } from "./helpers/source-editor";
 import { expect, test, type Page } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
 import { createBlankDocument } from "./helpers/document";
@@ -113,7 +114,7 @@ for (const mode of ["full", "source", "virtual"]) test(`集中书签打开并定
   if (mode === "source") {
     await page.getByTitle("切换到 Markdown 源码").click();
     await expect(page.getByRole("textbox", { name: "Markdown 源码", exact: true })).toBeVisible();
-    await page.getByRole("textbox", { name: "Markdown 源码", exact: true }).evaluate(element => { element.scrollTop = 0; });
+    await scrollSourceTo(page.getByRole("textbox", { name: "Markdown 源码", exact: true }), "目标段落 0");
   } else {
     if (mode === "virtual") await page.evaluate(() => localStorage.setItem("nr:experimentalReadonlyRendering", "true"));
     await createBlankDocument(page);
@@ -126,6 +127,16 @@ for (const mode of ["full", "source", "virtual"]) test(`集中书签打开并定
   if (mode === "virtual") {
     await expect(page.locator('[data-virtual-reader]')).toBeVisible();
     await expect(page.locator('.vr-body').getByText('目标段落 80', { exact: true })).toBeInViewport();
+    return;
+  }
+  if (mode === "source") {
+    const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+    await expect.poll(async () => {
+      const info = await sourceInfo(source);
+      return info.value.slice(info.selectionStart, info.selectionStart + "目标段落 80".length);
+    }).toBe("目标段落 80");
+    expect((await sourceInfo(source)).readonly).toBe(true);
+    await expect(source.getByText("目标段落 80", { exact: true })).toBeInViewport();
     return;
   }
   await expect(page.locator('.note-title')).toHaveValue('书签目标文档');

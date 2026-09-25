@@ -1,3 +1,4 @@
+import { sourceInfo, replaceSource } from "./helpers/source-editor";
 import { expect, test, type Page } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
 import { createBlankDocument } from "./helpers/document";
@@ -197,7 +198,7 @@ test("源码视图后退保持源码并恢复位置，手机标题栏按钮可�
   await expect(source).toBeVisible();
   await page.getByRole("button", { name: "后退", exact: true }).click();
   await expect(source).toBeVisible();
-  await expect.poll(() => source.evaluate(element => (element as HTMLTextAreaElement).selectionStart)).toBe(0);
+  await expect.poll(() => sourceInfo(source).then(info => info.selectionStart)).toBe(0);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("button", { name: "后退", exact: true })).toBeInViewport();
   await expect(page.getByRole("button", { name: "前进", exact: true })).toBeInViewport();

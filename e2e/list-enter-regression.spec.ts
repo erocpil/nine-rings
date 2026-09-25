@@ -1,3 +1,4 @@
+import { scrollSourceTo } from "./helpers/source-editor";
 import { test, expect } from "@playwright/test";
 import type { Editor, JSONContent } from "@tiptap/core";
 import { createBlankDocument } from "./helpers/document";
@@ -71,22 +72,12 @@ test("源码最后一行可以滚到视口顶部，缩小窗口后仍有尾部�
   const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
   for (const height of [800, 600]) {
     await page.setViewportSize({ width: 1280, height });
-    await expect.poll(() => area.evaluate(el => {
-      const style = getComputedStyle(el);
-      return Math.abs(parseFloat(style.paddingBottom) - (el.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.lineHeight)));
-    })).toBeLessThan(2);
-    const metrics = await area.evaluate((el: HTMLTextAreaElement) => {
-      el.scrollTop = el.scrollHeight;
-      const style = getComputedStyle(el);
-      // WebKit rounds textarea line layout differently from computed line-height.
-      // Measure native text extent rather than accumulating fractional CSS pixels.
-      const measure = el.cloneNode(false) as HTMLTextAreaElement;
-      measure.value = el.value;
-      measure.style.cssText = `position:fixed;visibility:hidden;width:${el.clientWidth}px;height:1px;min-height:0;padding:0;border:0;font:${style.font};`;
-      document.body.append(measure);
-      const lastLine = parseFloat(style.paddingTop) + measure.scrollHeight - parseFloat(style.lineHeight);
-      measure.remove();
-      return { top: el.scrollTop, lastLine, height: el.clientHeight };
+    await scrollSourceTo(area, "line 79");
+    const metrics = await area.evaluate(async el => {
+      const { EditorView } = await import("/node_modules/@codemirror/view/dist/index.js");
+      const view = EditorView.findFromDOM(el)!;
+      const offset = view.state.doc.toString().indexOf("line 79");
+      return { top: view.scrollDOM.scrollTop, lastLine: view.lineBlockAt(offset).top, height: view.scrollDOM.clientHeight };
     });
     expect(metrics.height).toBeGreaterThan(200);
     expect(Math.abs(metrics.lastLine - metrics.top)).toBeLessThan(35);

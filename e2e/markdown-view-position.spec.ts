@@ -1,3 +1,4 @@
+import { sourceInfo, replaceSource, scrollSourceTo } from "./helpers/source-editor";
 import { expect, test } from "@playwright/test";
 
 for (const mode of ["desktop", "mobile", "readonly", "virtual"]) {
@@ -22,13 +23,7 @@ for (const mode of ["desktop", "mobile", "readonly", "virtual"]) {
     // Start from source to exercise mounting an off-screen virtual block too.
     await page.getByRole("button", { name: "源码", exact: true }).click();
     const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
-    await source.evaluate(async (element) => {
-      const load = (path: string) => import(/* @vite-ignore */ path);
-      const { textareaPosition } = await load("/src/lib/markdown-view-position.ts");
-      const area = element as HTMLTextAreaElement;
-      area.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
-      area.scrollTop = textareaPosition(area, area.value.indexOf("# 段落60"));
-    });
+    await scrollSourceTo(source, "# 段落60");
     await page.getByRole("button", { name: "渲染", exact: true }).click();
     const heading = page.locator(".editor-content h1").filter({ hasText: /段落60$/ });
     await expect(heading).toBeVisible();
@@ -43,12 +38,8 @@ for (const mode of ["desktop", "mobile", "readonly", "virtual"]) {
     await expect.poll(distance).toBeGreaterThan(-80);
     for (let round = 0; round < 3; round++) {
       await page.getByRole("button", { name: "源码", exact: true }).click();
-      const visible = await source.evaluate(async element => {
-        const load = (path: string) => import(/* @vite-ignore */ path);
-        const { textareaPosition } = await load("/src/lib/markdown-view-position.ts");
-        const area = element as HTMLTextAreaElement;
-        return { top: area.scrollTop, text: area.value.slice(textareaPosition(area), textareaPosition(area) + 80) };
-      });
+      const info = await sourceInfo(source);
+      const visible = { top: info.scrollTop, text: info.value.slice(info.offset, info.offset + 80) };
       expect(visible.top).toBeGreaterThan(1000);
       expect(visible.text).toMatch(/段落60|正文60/);
       await page.getByRole("button", { name: "渲染", exact: true }).click();
@@ -62,23 +53,14 @@ for (const mode of ["desktop", "mobile", "readonly", "virtual"]) {
       root.scrollTop += 80;
     });
     await page.getByRole("button", { name: "源码", exact: true }).click();
-    const visibleOffset = await source.evaluate(async element => {
-      const load = (path: string) => import(/* @vite-ignore */ path);
-      const { textareaPosition } = await load("/src/lib/markdown-view-position.ts");
-      const area = element as HTMLTextAreaElement;
-      return textareaPosition(area);
-    });
-    const text = await source.inputValue();
+    const info = await sourceInfo(source);
+    const visibleOffset = info.offset;
+    const text = info.value;
     expect(visibleOffset).toBeGreaterThanOrEqual(text.indexOf("# 段落60"));
     expect(visibleOffset).toBeLessThan(text.indexOf("# 段落61"));
     if (mode === "desktop" || mode === "mobile") {
-      await source.fill("新增一段正文\n\n" + text);
-      await source.evaluate(async element => {
-        const load = (path: string) => import(/* @vite-ignore */ path);
-        const { textareaPosition } = await load("/src/lib/markdown-view-position.ts");
-        const area = element as HTMLTextAreaElement;
-        area.scrollTop = textareaPosition(area, area.value.indexOf("# 段落60"));
-      });
+      await replaceSource(source, "新增一段正文\n\n" + text);
+      await scrollSourceTo(source, "# 段落60");
       await page.getByRole("button", { name: "渲染", exact: true }).click();
       await expect.poll(distance).toBeLessThan(100);
       await expect.poll(distance).toBeGreaterThan(-80);

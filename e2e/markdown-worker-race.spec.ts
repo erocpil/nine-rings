@@ -1,3 +1,4 @@
+import { sourceInfo, replaceSource } from "./helpers/source-editor";
 import { expect, test } from "@playwright/test";
 
 test("源码 Worker 返回旧结果时保留后来输入，重试可同步", async ({ page }) => {
@@ -34,5 +35,5 @@ test("源码 Worker 返回旧结果时保留后来输入，重试可同步", asy
   await expect(editor).toContainText("后来输入");
   await expect(page.getByRole("textbox", { name: "Markdown 源码", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "源码", exact: true }).click();
-  await expect(page.getByRole("textbox", { name: "Markdown 源码", exact: true })).toHaveValue(/后来输入/);
+  await expect.poll(async () => (await sourceInfo(page.getByRole("textbox", { name: "Markdown 源码", exact: true }))).value).toMatch(/后来输入/);
 });
