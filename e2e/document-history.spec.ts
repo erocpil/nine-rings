@@ -223,3 +223,20 @@ test("连续历史位置所属文档已删除时仍能返回更早文档", async
   await page.getByRole("button", { name: "后退", exact: true }).click();
   await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:lastNote"))).toBe(first);
 });
+
+test("同段落附近点击合并历史，显式跳转仍可后退", async ({ page }) => {
+  await fixture(page);
+  const paragraph = editor(page).locator("p").nth(8);
+  await paragraph.click({ position: { x: 10, y: 10 } });
+  const count = (await history(page)).entries.length;
+  await paragraph.click({ position: { x: 50, y: 10 } });
+  expect((await history(page)).entries).toHaveLength(count);
+  const previous = await location(page);
+  await editor(page).evaluate(element => {
+    const instance = (element as HTMLElement & { editor: Editor }).editor;
+    instance.chain().setTextSelection(instance.state.selection.from + 1).command(({ tr }) => { tr.setMeta("navigation-jump", true); return true; }).run();
+  });
+  expect((await history(page)).entries).toHaveLength(count + 1);
+  await page.getByRole("button", { name: "后退", exact: true }).click();
+  await expect.poll(() => location(page)).toEqual(previous);
+});

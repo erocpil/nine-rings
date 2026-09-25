@@ -1,3 +1,4 @@
+import { isReadingPositionRestoring } from "../lib/reading-position";
 import { IncrementalDocumentSerializer } from "../lib/incremental-document-serializer";
 import { editorDocumentFromContent } from "../lib/editor-content-model";
 import { useDesktopDocumentPanels } from "../hooks/useDesktopDocumentPanels";
@@ -45,7 +46,7 @@ import {
 import { Extension, getSchema, type Editor } from "@tiptap/core";
 import { Fragment, Slice, type Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { readClipboardContent, shouldParseClipboardMarkdown } from "../lib/clipboard-content";
-import { Plugin, TextSelection, type Selection } from "@tiptap/pm/state";
+import { Plugin, TextSelection, type Selection, type Transaction } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { closeHistory } from "@tiptap/pm/history";
 import { CellSelection, deleteCellSelection, TableMap } from "@tiptap/pm/tables";
@@ -1067,7 +1068,17 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         promoteDeferredHeading(editor);
       });
     };
-    const onUpdate = () => schedule();
+    const onUpdate = ({ transaction }: { transaction: Transaction }) => {
+      // Rich clipboard content is already parsed. Do not reinterpret a literal
+      // "# " paragraph as typed Markdown after native or toolbar paste.
+      if (transaction.getMeta("paste") || ["paste", "drop"].includes(transaction.getMeta("uiEvent"))) {
+        cancelAnimationFrame(frame);
+        window.clearTimeout(retryTimer);
+        frame = retryTimer = 0;
+        return;
+      }
+      schedule();
+    };
     const onCompositionStart = () => { composing = true; };
     const onCompositionEnd = () => { composing = false; schedule(); };
     editor.on("update", onUpdate);
@@ -2040,7 +2051,14 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       return true;
     };
 
-    const observer = new ResizeObserver(() => {
+    const observer = new ResizeObserver((entries) => {
+      if (isReadingPositionRestoring(root)) {
+        clearSettleTimers();
+        adjusting = false;
+        anchor = null;
+        scheduleCapture();
+        return;
+      }
       if (isMobileViewport()) {
         // The window resize path above owns actual rotation. A mobile
         // ResizeObserver notification is normally keyboard/safe-area chrome,
@@ -2051,7 +2069,11 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       }
       if (stabilizeWidthChange() || adjusting) return;
       const nextWidth = root.clientWidth;
-      if (!anchor || Math.abs(nextWidth - anchor.width) < 0.5) {
+      const contentResized = entries.some(entry => entry.target === editor.view.dom);
+      // Intrinsic image/diagram height changes need the same anchor correction.
+      // Never fight an active scroll gesture or an IME composition.
+      if (!anchor || scrollGestureActive || editor.view.composing
+        || (Math.abs(nextWidth - anchor.width) < 0.5 && !contentResized)) {
         scheduleCapture();
         return;
       }
@@ -2059,7 +2081,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       if (smallRestoreFrame) cancelAnimationFrame(smallRestoreFrame);
       smallRestoreFrame = requestAnimationFrame(() => {
         smallRestoreFrame = 0;
-        if (editor.isDestroyed || !root.isConnected) return;
+        if (editor.isDestroyed || !root.isConnected || isReadingPositionRestoring(root)) return;
         adjusting = true;
         restoreAnchor(previous);
         adjusting = false;
@@ -2107,6 +2129,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     window.addEventListener("resize", onWindowResize);
     window.addEventListener(FULLSCREEN_WILL_CHANGE_EVENT, captureBeforeFullscreen);
     observer.observe(root);
+    observer.observe(editor.view.dom);
     scheduleCapture();
     return () => {
       editor.off("selectionUpdate", userNavigation);

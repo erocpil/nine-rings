@@ -94,6 +94,11 @@ function capture(root: HTMLElement): (() => void) | null {
 }
 
 const pending = new WeakMap<HTMLElement, () => void>();
+
+/** Explicit typography changes own restoration until both layout frames settle. */
+export function isReadingPositionRestoring(root: HTMLElement): boolean {
+  return pending.has(root);
+}
 const settled = new WeakMap<
   HTMLElement,
   {

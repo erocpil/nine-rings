@@ -13,15 +13,27 @@ export function shouldParseClipboardMarkdown(text: string, html = ""): boolean {
 
 /** Keep the two representations together; the destination determines which
  * one to use. readText remains a fallback for older WebViews. */
-export async function readClipboardContent(): Promise<{ text: string; html: string }> {
+export async function readClipboardContent(): Promise<{
+  text: string;
+  html: string;
+}> {
   if (navigator.clipboard.read) {
-    const items = await navigator.clipboard.read();
-    for (const item of items) {
-      const [text, html] = await Promise.all([
-        item.types.includes("text/plain") ? item.getType("text/plain").then((blob) => blob.text()) : "",
-        item.types.includes("text/html") ? item.getType("text/html").then((blob) => blob.text()) : "",
-      ]);
-      if (text || html) return { text, html };
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const [text, html] = await Promise.all([
+          item.types.includes("text/plain")
+            ? item.getType("text/plain").then((blob) => blob.text())
+            : "",
+          item.types.includes("text/html")
+            ? item.getType("text/html").then((blob) => blob.text())
+            : "",
+        ]);
+        if (text || html) return { text, html };
+      }
+    } catch {
+      // Some WebViews expose read() but only permit readText(). Preserve the
+      // native text permission/error rather than failing the toolbar outright.
     }
   }
   return { text: await navigator.clipboard.readText(), html: "" };

@@ -108,3 +108,7 @@ UI 分批优化的范围与验收记录见 [UI 统一与交互打磨计划](ui-p
 - 表格按内容自动分配列宽，手动宽度优先，表格菜单可恢复自动布局；窄屏保留内部横向滚动。
 - 桌面源码提供可选并排预览及滚动同步，手机单区；详情见 [Markdown 编辑计划](markdown-editing-plan.md)。
 - 增量转换基准：`npx tsx scripts/benchmarks/document-serialization.ts`。性能数据与限制见 [性能基线](search-performance-baseline.md)。
+
+## 编辑可靠性后续（2026-09-25）
+
+已完善附近点按历史合并、桌面异步内容高度锚点、列表复制顺序及 WebView 剪贴板回退，并增加固定回归入口。保存恢复与多窗口写入审计、后续原子版本校验计划见 [编辑可靠性记录](editor-reliability-followup.md)。

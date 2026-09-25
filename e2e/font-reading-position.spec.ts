@@ -149,3 +149,23 @@ test("工具栏连续改变编辑器字号，顶部文字位置不累计漂移",
     await expectPreserved(page, anchor);
   }
 });
+
+test("桌面上方内容异步变高后保持阅读锚点，用户滚动后不拉回旧位置", async ({ page }) => {
+  await prepare(page);
+  await page.addStyleTag({ content: ".note-editor-scroll { overflow-anchor: none; }" });
+  const before = await measureTop(page);
+  // Model a late image/diagram resize above the viewport without a document edit.
+  await page.addStyleTag({ content: ".note-editor .ProseMirror > p:first-child { padding-bottom: 350px; }" });
+  await expect.poll(async () => (await measureTop(page)).pos).toBe(before.pos);
+  await expect.poll(async () => Math.abs((await measureTop(page)).offset - before.offset)).toBeLessThan(3);
+  const root = page.locator(".note-editor-scroll");
+  await root.hover();
+  await page.mouse.wheel(0, 600);
+  await expect.poll(async () => (await measureTop(page)).pos).not.toBe(before.pos);
+  // WebKit wheel scrolling continues after the input event; wait for the
+  // gesture and the editor's 140ms settled-anchor capture to finish.
+  await page.waitForTimeout(700);
+  const next = await measureTop(page);
+  await page.addStyleTag({ content: ".note-editor .ProseMirror > p:first-child { padding-bottom: 650px; }" });
+  await expect.poll(async () => (await measureTop(page)).pos).toBe(next.pos);
+});

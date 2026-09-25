@@ -41,7 +41,7 @@ export function useEditorNavigation(editor: Editor | null, noteId: string, scrol
         const pointer = Boolean(tr.getMeta("pointer")) || dragging;
         const jump = moved && !tr.docChanged && !tr.getMeta("navigation-history") && !keyboardMovement
           && !(selection instanceof AllSelection)
-          && (tr.getMeta("navigation-jump") || (pointer ? !pointerRecorded : differentBlock || Math.abs(selection.from - previous.from) > 80));
+          && (tr.getMeta("navigation-jump") || (pointer ? !pointerRecorded && (differentBlock || Math.abs(selection.from - previous.from) > 80) : differentBlock || Math.abs(selection.from - previous.from) > 80));
         state.record(location(), jump);
         if (pointer && moved) pointerRecorded = true;
       }

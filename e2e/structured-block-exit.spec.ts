@@ -1,11 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-async function createBlankNote(page: Page) {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-}
+import { createBlankNote } from "./helpers/editor-fixtures";
 
 async function activateBlock(page: Page, name: "❝ 引用" | "⏹ 代码块") {
   await page.getByRole("button", { name: "块", exact: true }).click();

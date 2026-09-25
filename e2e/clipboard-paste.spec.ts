@@ -116,8 +116,9 @@ test.describe("编辑器复制粘贴", () => {
         await expect(editor).toHaveAttribute("contenteditable", "false");
       } else {
         const previous = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
-        await page.getByTitle("从模板新建").click();
-        await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+        await page.getByTitle("新建文档").click();
+        await page.getByPlaceholder("文档标题...").fill("异步粘贴的新文档");
+        await page.getByRole("button", { name: "创建", exact: true }).click();
         await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:lastNote"))).not.toBe(previous);
         await expect(editor).toHaveText("");
       }

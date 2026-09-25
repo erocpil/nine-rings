@@ -190,5 +190,13 @@ console.log("\n── clipboardSliceToPlainText ──");
   assert(clipboardSliceToPlainText(new Slice(Fragment.from(quote), 0, 0)) === "> one\n> two", "quote paragraphs retain line breaks");
 }
 
+{
+  const p = (text: string) => schema.node("paragraph", null, schema.text(text));
+  const nested = schema.node("bulletList", null, schema.node("listItem", null, p("nested")));
+  const item = schema.node("listItem", null, [p("first"), nested, p("after nested"), schema.node("codeBlock", null, schema.text("line1\n\nline3"))]);
+  const list = schema.node("orderedList", { start: 15 }, item);
+  assert(clipboardSliceToPlainText(new Slice(Fragment.from(list), 0, 0)) === "15. first\n  - nested\n    after nested\n    line1\n    \n    line3", "nested list and following code/paragraph preserve original order and blank lines");
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

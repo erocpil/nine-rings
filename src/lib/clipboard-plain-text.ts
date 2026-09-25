@@ -33,20 +33,17 @@ function renderListItem(
   }
   const indent = "  ".repeat(depth);
   const continuationIndent = `${indent}${" ".repeat(marker.length)}`;
-  const ownBlocks: string[] = [];
-  const nestedLists: ProseMirrorNode[] = [];
-
-  item.forEach((child) => {
-    if (child.type.name === "orderedList" || child.type.name === "bulletList") nestedLists.push(child);
-    else ownBlocks.push(renderNode(child, depth, includeBlockSyntax));
+  const lines: string[] = [];
+  item.forEach((child, _offset, index) => {
+    if (child.type.name === "orderedList" || child.type.name === "bulletList") {
+      lines.push(renderNode(child, depth + 1, includeBlockSyntax));
+      return;
+    }
+    const rendered = renderNode(child, depth, includeBlockSyntax).split("\n");
+    rendered.forEach((line, lineIndex) => {
+      lines.push(`${index === 0 && lineIndex === 0 ? indent + marker : continuationIndent}${line}`);
+    });
   });
-
-  const first = ownBlocks.shift() ?? "";
-  const lines = [`${indent}${marker}${first}`];
-  for (const block of ownBlocks) {
-    lines.push(...block.split("\n").map((line) => `${continuationIndent}${line}`));
-  }
-  for (const list of nestedLists) lines.push(renderNode(list, depth + 1, includeBlockSyntax));
   return lines.join("\n");
 }
 
