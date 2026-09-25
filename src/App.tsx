@@ -41,6 +41,7 @@ import { DocumentBrowser, type DocumentBrowserSession } from "./components/Docum
 import { DocMOC } from "./components/DocMOC";
 import type { DeltaOps, DocumentMetadata, ExternalMarkdownSource, Note, DocType, SearchNavigationTarget } from "./types/models";
 import { pushSnapshotBusy, useGitHubPushJob } from "./lib/sync/push-job";
+import { ExhibitionWorkspace, ExhibitionWelcome } from "./components/ExhibitionWorkspace";
 import { ensureAestheticStyleSample } from "./lib/aesthetic-style-sample";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
 import type { Template } from "./lib/storage/template-store";
@@ -1478,8 +1479,17 @@ function App() {
     </div>
   ) : null;
 
+  const exhibitionEnabled = config?.workspace_layout === "exhibition" && config.interface_style !== "classic";
   return (
     <EditorFoldIconContext.Provider value={config}>
+    <ExhibitionWorkspace enabled={exhibitionEnabled} focus={focusMode} config={config}
+      blocked={protectionBusy || applyingWebUpdate || syncBusy || searchExpanded || errorDetailsOpen || settingsOpen || mobileReadingLibraryOpen || docCreateOpen || quickSwitcherOpen || (mobileDrawerViewport && !sidebarHidden)}
+      path={selectedFolderPath ?? selectedNote?.storagePath ?? ""} noteId={selectedNote?.id} refreshKey={docTreeKey}
+      onAppearance={async patch => handleConfigChange(await api.config.set(patch))}
+      onOpen={async note => { await flushAutoSave(); setQuery(""); setDocResults(null); handleSelectNote(note); closeSidebarOnNarrowScreen(); }}
+      onHome={async () => { await flushAutoSave(); setSelectedFolderPath(null); setSelectedConcept(null); handleSelectNote(null); setReadingLibraryOpen(false); }}
+      onCreate={() => setDocCreateOpen(true)} onSearch={openGlobalSearch} onSettings={() => setSettingsOpen(true)}>
+
     <div
       className={`app app-unified-workspace ${focusMode ? "app-focus-mode" : ""}${desktopWorkspace ? " app-desktop-workspace" : " app-mobile-workspace"}`}
       style={editorAppearanceVariables(config ?? undefined)}
@@ -1757,7 +1767,9 @@ function App() {
             <button type="button" className="btn-icon" aria-label="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>
             <button type="button" className="btn-icon" aria-label="设置" onClick={() => setSettingsOpen(true)}><ToolbarIcon name="sliders" /></button>
           </div>}
-          {selectedConcept && !selectedNote ? (
+          {exhibitionEnabled && !selectedNote && !selectedConcept && !selectedFolderPath ? (
+            <ExhibitionWelcome disabled={syncBusy} onCreate={() => setDocCreateOpen(true)} onSearch={openGlobalSearch} />
+          ) : selectedConcept && !selectedNote ? (
             <DocMOC
               concept={selectedConcept}
               refreshKey={docTreeKey}
@@ -2100,6 +2112,7 @@ function App() {
       />
 
     </div>
+    </ExhibitionWorkspace>
     {mobileReadingLibraryPanel}
     {searchExpanded && <WorkspaceDialog title="全局搜索" onClose={dismissSearchResults} initialFocusRef={headerSearchInputRef}>
       <SearchBar inputRef={headerSearchInputRef} cancelRequestId={searchCancelRequestId}

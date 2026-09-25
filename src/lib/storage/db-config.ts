@@ -21,7 +21,7 @@ export async function getConfig(): Promise<AppConfig> {
   try {
     const parsed = { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
     console.log("[getConfig]", "highlight_active_line:", parsed.highlight_active_line, "editor_show_line_numbers:", parsed.editor_show_line_numbers);
-    return { ...parsed, interface_style: normalizeInterfaceStyle(parsed.interface_style), interface_color_mode: normalizeInterfaceColorMode(parsed.interface_color_mode) };
+    return { ...parsed, workspace_layout: parsed.workspace_layout === "exhibition" ? "exhibition" : "standard", interface_style: normalizeInterfaceStyle(parsed.interface_style), interface_color_mode: normalizeInterfaceColorMode(parsed.interface_color_mode) };
   } catch {
     return { ...DEFAULT_CONFIG };
   }
@@ -30,6 +30,7 @@ export async function getConfig(): Promise<AppConfig> {
 export async function setConfig(partial: Partial<AppConfig>): Promise<AppConfig> {
   const current = await getConfig();
   const merged = { ...current, ...partial };
+  merged.workspace_layout = merged.workspace_layout === "exhibition" ? "exhibition" : "standard";
   merged.interface_style = normalizeInterfaceStyle(merged.interface_style);
   merged.interface_color_mode = normalizeInterfaceColorMode(merged.interface_color_mode);
   if (typeof localStorage !== "undefined") {

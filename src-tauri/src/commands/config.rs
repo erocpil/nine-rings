@@ -12,6 +12,8 @@ pub struct AppConfig {
     pub interface_style: String,
     #[serde(default = "default_interface_color_mode")]
     pub interface_color_mode: String,
+    #[serde(default = "default_workspace_layout")]
+    pub workspace_layout: String,
     pub theme: String,        // "system" | "light" | "dark" | "fu" | ...
     pub default_view: String, // "daily" | "list"
     pub todo_carryover_default: bool,
@@ -155,6 +157,7 @@ fn default_editor_fold_icon_expanded() -> String {
     "▼".into()
 }
 
+fn default_workspace_layout() -> String { "standard".into() }
 fn default_interface_color_mode() -> String { "system".into() }
 
 fn default_interface_style() -> String {
@@ -167,6 +170,7 @@ impl Default for AppConfig {
             theme: "light".into(),
             interface_style: default_interface_style(),
             interface_color_mode: default_interface_color_mode(),
+            workspace_layout: default_workspace_layout(),
             default_view: "daily".into(),
             todo_carryover_default: false,
             auto_clean_days: 30,
@@ -328,6 +332,18 @@ pub fn set_config(
 #[cfg(test)]
 mod tests {
     use super::AppConfig;
+
+    #[test]
+    fn workspace_layout_migrates_and_round_trips() {
+        let mut value = serde_json::to_value(AppConfig::default()).unwrap();
+        value.as_object_mut().unwrap().remove("workspace_layout");
+        let migrated: AppConfig = serde_json::from_value(value).unwrap();
+        assert_eq!(migrated.workspace_layout, "standard");
+        let mut config = migrated;
+        config.workspace_layout = "exhibition".into();
+        let restored: AppConfig = serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
+        assert_eq!(restored.workspace_layout, "exhibition");
+    }
 
     #[test]
     fn interface_styles_round_trip_independently_of_theme() {

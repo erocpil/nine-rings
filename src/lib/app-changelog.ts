@@ -1,6 +1,14 @@
 /** User-facing highlights shipped with the app, newest first. Keep dates in ISO format. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-09-26",
+    title: "展陈工作区布局",
+    changes: [
+      "非经典风格新增独立的展陈布局：顶部工作区标识与配色切换、中央工作区外框，以及继续阅读、常用文档、最近修改、快捷操作四栏概览。",
+      "打开文档时概览默认收起，返回首页展开；专注模式隐藏外围区域，窄屏切换两栏或单栏；经典风格保留布局选择但暂不应用。",
+    ],
+  },
+  {
     date: "2026-09-25",
     title: "Markdown 源码编辑与图形排版",
     changes: [

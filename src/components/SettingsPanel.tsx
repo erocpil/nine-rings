@@ -725,6 +725,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             </Field>
 
             {/* ── 主题 ── */}
+            <Field label="工作区布局" desc={config.interface_style === "classic" ? "经典风格使用标准布局；切换其他风格后可启用展陈布局" : "展陈布局增加工作区标识、中央外框与四栏概览；专注模式隐藏外围区域"} visible={settingsPage === "appearance"}>
+              <div className="settings-radio-group">
+                {([["standard", "标准"], ["exhibition", "展陈"]] as const).map(([value, label]) => <button type="button" key={value} className={`settings-radio${config.workspace_layout === value ? " active" : ""}`} aria-pressed={config.workspace_layout === value} disabled={config.interface_style === "classic"} onClick={() => update({ workspace_layout: value })}>{label}</button>)}
+              </div>
+            </Field>
             <Field label="风格配色" desc="当前风格的浅色、深色或跟随系统配色，不改变经典主题。字体、字号、行距与导航外观由当前风格统一管理。" visible={settingsPage === "appearance" && config.interface_style !== "classic"}>
               <div className="settings-radio-group">{([["light", "浅色"], ["dark", "深色"], ["system", "跟随系统"]] as const).map(([value, label]) => <button type="button" className={`settings-radio${(config.interface_color_mode ?? "system") === value ? " active" : ""}`} key={value} aria-pressed={(config.interface_color_mode ?? "system") === value} onClick={() => update({ interface_color_mode: value })}>{label}</button>)}</div>
             </Field>

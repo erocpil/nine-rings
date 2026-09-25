@@ -86,3 +86,15 @@ test("paper and minimal project typography without rewriting saved preferences",
     expect(original.editor_font_family).toBe("monospace");
   }
 });
+
+
+test("workspace layout defaults safely and survives classic style changes", async () => {
+  let value = "{}";
+  vi.stubGlobal("localStorage", { getItem: () => value, setItem: (_key: string, next: string) => { value = next; } });
+  expect((await getConfig()).workspace_layout).toBe("standard");
+  await setConfig({ workspace_layout: "exhibition", interface_style: "yugen" });
+  await setConfig({ interface_style: "classic" });
+  expect((await getConfig()).workspace_layout).toBe("exhibition");
+  value = JSON.stringify({ workspace_layout: "unknown" });
+  expect((await getConfig()).workspace_layout).toBe("standard");
+});

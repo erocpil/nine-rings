@@ -1,0 +1,127 @@
+import { expect, test } from "@playwright/test";
+
+for (const style of ["calm", "mono-aware"] as const) {
+  test(`${style} 展陈工作区首页、文档与专注布局`, async ({ page }) => {
+    await page.addInitScript((style) => {
+      const config = JSON.parse(
+        localStorage.getItem("nine_rings_config") || "{}",
+      );
+      if (!config.workspace_layout)
+        localStorage.setItem(
+          "nine_rings_config",
+          JSON.stringify({
+            ...config,
+            interface_style: style,
+            workspace_layout: "exhibition",
+            interface_color_mode: "light",
+          }),
+        );
+    }, style);
+    await page.goto("/");
+    const sample = page.getByRole("button", {
+      name: "物哀、幽玄与侘寂：风格设计与验证",
+      exact: true,
+    });
+    await expect(sample).toBeVisible();
+    await sample.click();
+    await expect(page.locator(".exhibition-masthead")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "展开概览", exact: true }),
+    ).toBeVisible();
+    await page
+      .locator(".note-editor .ProseMirror")
+      .fill("展陈布局切换前的编辑应当保存。");
+    await page.getByRole("button", { name: "返回工作区首页" }).click();
+    await expect(page.locator(".exhibition-welcome")).toBeVisible();
+    await expect(page.locator(".exhibition-columns > section")).toHaveCount(4);
+    await expect(
+      page
+        .locator(".exhibition-columns")
+        .getByRole("button", {
+          name: "物哀、幽玄与侘寂：风格设计与验证",
+          exact: true,
+        })
+        .first(),
+    ).toBeVisible();
+    await page.screenshot({
+      path: `/tmp/nr-exhibition-${style}-home.png`,
+      animations: "disabled",
+    });
+    await page
+      .locator(".exhibition-columns")
+      .getByRole("button", {
+        name: "物哀、幽玄与侘寂：风格设计与验证",
+        exact: true,
+      })
+      .first()
+      .click();
+    await expect(page.locator(".note-title")).toHaveValue(
+      "物哀、幽玄与侘寂：风格设计与验证",
+    );
+    await expect(page.locator(".exhibition-columns")).toHaveCount(0);
+    await expect(page.locator(".note-editor .ProseMirror")).toContainText(
+      "展陈布局切换前的编辑应当保存。",
+    );
+    await page.getByLabel("工作区风格").selectOption("yugen");
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-interface-style",
+      "yugen",
+    );
+    await page.getByLabel("工作区配色").selectOption("dark");
+    await page.reload();
+    await expect(page.locator(".exhibition-masthead")).toBeVisible();
+    await expect(page.locator("html")).toHaveClass(/theme-dark/);
+    await page.getByRole("button", { name: "专注模式", exact: true }).click();
+    await expect(page.locator(".exhibition-masthead")).toHaveCount(0);
+    await page.getByRole("button", { name: /退出专注/ }).click();
+    await expect(page.locator(".exhibition-masthead")).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    const overlay = page.locator(".sidebar-overlay.active");
+    if (await overlay.isVisible())
+      await overlay.click({ position: { x: 380, y: 400 } });
+    await page.getByRole("button", { name: "展开概览", exact: true }).click();
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      )
+      .toBe(true);
+    await expect(page.locator(".exhibition-columns")).toHaveCSS(
+      "grid-template-columns",
+      /^(\d+(\.\d+)?px)$/,
+    );
+    await page.screenshot({
+      path: `/tmp/nr-exhibition-${style}-mobile.png`,
+      animations: "disabled",
+    });
+  });
+}
+
+test("布局设置可切换，经典暂时停用且保留展陈选择", async ({ page }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "nine_rings_config",
+      JSON.stringify({
+        interface_style: "calm",
+        workspace_layout: "exhibition",
+      }),
+    ),
+  );
+  await page.goto("/");
+  await expect(page.locator(".exhibition-masthead")).toBeVisible();
+  await page.getByTitle("设置", { exact: true }).click();
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
+  const layout = page.getByRole("group", { name: "工作区布局", exact: true });
+  await expect(
+    layout.getByRole("button", { name: "展陈", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  const styles = page.getByRole("group", { name: "界面风格", exact: true });
+  await styles.getByRole("button", { name: /^经典/ }).click();
+  await expect(page.locator(".exhibition-masthead")).toHaveCount(0);
+  await expect(
+    layout.getByRole("button", { name: "展陈", exact: true }),
+  ).toBeDisabled();
+  await styles.getByRole("button", { name: /^纸页/ }).click();
+  await expect(page.locator(".exhibition-masthead")).toBeVisible();
+  await layout.getByRole("button", { name: "标准", exact: true }).click();
+  await expect(page.locator(".exhibition-masthead")).toHaveCount(0);
+});
