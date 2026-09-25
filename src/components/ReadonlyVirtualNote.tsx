@@ -1158,13 +1158,14 @@ export function ReadonlyVirtualNote(
           }}
         >
           <div aria-hidden="true" style={{ height: layout.offsets[start] }} />
-          {blocks.slice(start, end).map((block) => {
+          {blocks.slice(start, end).map((block, visibleIndex) => {
             const section = sectionByPos.get(block.pos);
             return (
               <div
                 className="vr-row"
                 key={block.pos}
                 data-reading-row
+                data-next-heading={blocks[start + visibleIndex + 1]?.node.type.name === "heading" || undefined}
                 data-position={block.pos}
                 data-block-number={block.number}
               >

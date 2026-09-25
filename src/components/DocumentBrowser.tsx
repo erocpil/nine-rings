@@ -149,7 +149,7 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
     }}><ToolbarIcon name="filter" /></button>
     <button className="btn-icon" aria-label="新建文档" title="在当前路径新建文档" disabled={disabled || opening} onClick={() => onCreate(path)}><ToolbarIcon name="plus" /></button>
   </>;
-  return <section className="document-browser" aria-label="文档列表">
+  return <section className="document-browser" aria-label="文档列表" aria-busy={loading}>
     {toolbarHost && createPortal(actions, toolbarHost)}
     <div className="document-browser-controls">
       {preferencesFailed && <p role="status" className="document-browser-empty">列表偏好未能保存到本机，当前会话仍可使用。</p>}
@@ -207,8 +207,10 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
       {loadError && <div className="document-browser-empty"><p role="alert">列表加载失败：{loadError}</p><button className="settings-btn" onClick={() => { setLoading(true); setReloadKey(key => key + 1); }}>重试加载</button></div>}
       {error && <p role="alert">操作失败：{error}</p>}
       {view === "favorites" && <p className="document-browser-favorites-hint">文档收藏，与正文书签独立；保存在本机，可随全量备份恢复。</p>}
-      {!loading && !loadError && visible.length === 0 ? <div className="document-browser-empty">
-        <p>{view === "recent" ? "暂无匹配的最近文档" : view === "favorites" ? "暂无匹配的收藏，点击文档右侧星标即可收藏" : "没有符合条件的文档"}</p>
+      {loading && visible.length === 0 && <p role="status">正在加载文档…</p>}
+      {!loading && !loadError && visible.length === 0 ? <div className="document-browser-empty" role="status">
+        <strong>{hasFilters ? "没有匹配的文档" : view === "recent" ? "还没有最近访问的文档" : view === "favorites" ? "还没有收藏的文档" : "这里还没有文档"}</strong>
+        <p>{hasFilters ? "尝试缩短关键词，或清除筛选条件。" : view === "favorites" ? "点击文档右侧的星标，将常用文档收集到这里。" : view === "recent" ? "打开文档后，可在这里快速返回。" : "新建一篇文档，开始记录。"}</p>
         {hasFilters && <button className="settings-btn" onClick={clearFilters}>清除筛选</button>}
         {view !== "all" && <button className="settings-btn" onClick={() => switchView("all")}>浏览全部文档</button>}
         <button className="settings-btn" disabled={disabled || opening} onClick={() => onCreate(path)}>在此路径新建文档</button>
@@ -223,7 +225,7 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
             onSelect(current);
           } catch (reason) { setError(String(reason)); }
           finally { setOpening(false); }
-        }} aria-current={note.id === selectedId ? "page" : undefined}>
+        }} aria-label={note.title || "未命名文档"} aria-current={note.id === selectedId ? "page" : undefined}>
         <ToolbarIcon name={note.readonly || note.content.encrypted ? "lock" : "document"} />
         <span className="document-browser-details">
           <span className="document-browser-title" title={note.title || "未命名文档"}>{note.title || "未命名文档"}</span>

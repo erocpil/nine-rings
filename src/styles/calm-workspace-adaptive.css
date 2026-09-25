@@ -1,0 +1,268 @@
+/* Long-document rhythm and actual reading-column adaptation, desktop calm only. */
+@media (min-width: 769px) and (pointer: fine) {
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .editor-content
+    .ProseMirror
+    > :is(p, ul, ol, .code-block-wrap, .blockquote-wrap, .tableWrapper) {
+    margin-block: 0 16px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .editor-content
+    .ProseMirror
+    > :is(h1, h2, h3, h4, h5, h6) {
+    margin-block: 0 12px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .editor-content
+    .ProseMirror:not(.vr-block)
+    > :has(+ :is(h1, h2, h3, h4, h5, h6)) {
+    margin-bottom: 28px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .editor-content
+    .vr-row[data-next-heading="true"]
+    .vr-block
+    > :last-child {
+    margin-bottom: 28px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .editor-content
+    li
+    :is(.code-block-wrap, .blockquote-wrap) {
+    margin-block: 8px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    :is(.note-editor-scroll, .markdown-source-content) {
+    container-type: inline-size;
+    container-name: nr-reading;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .markdown-source-tools {
+    padding: 6px 12px;
+    border-color: var(--style-rule);
+    gap: 4px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .markdown-source-tools
+    button {
+    background: transparent;
+    border-radius: 5px;
+    min-height: 28px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .markdown-source-tools
+    button[aria-pressed="true"] {
+    background: var(--active-bg);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .markdown-cm-host
+    .cm-content {
+    padding-block: 24px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .markdown-cm-host
+    .cm-gutters {
+    border-color: var(--style-rule);
+  }
+  @container nr-reading (max-width: 480px) {
+    html:is(
+        [data-interface-style="calm"],
+        [data-interface-style="calm-compact"]
+      )
+      .editor-content
+      :is(h1) {
+      font-size: 27px;
+      letter-spacing: -0.3px;
+    }
+    html:is(
+        [data-interface-style="calm"],
+        [data-interface-style="calm-compact"]
+      )
+      .editor-content
+      :is(h2) {
+      font-size: 19px;
+    }
+    html:is(
+        [data-interface-style="calm"],
+        [data-interface-style="calm-compact"]
+      )
+      .editor-content
+      :is(h3) {
+      font-size: 17px;
+    }
+    html:is(
+        [data-interface-style="calm"],
+        [data-interface-style="calm-compact"]
+      )
+      .editor-content
+      .ProseMirror
+      > :has(+ :is(h1, h2, h3, h4, h5, h6)) {
+      margin-bottom: 22px;
+    }
+    html:is(
+        [data-interface-style="calm"],
+        [data-interface-style="calm-compact"]
+      )
+      .editor-content
+      .vr-row[data-next-heading="true"]
+      .vr-block
+      > :last-child {
+      margin-bottom: 22px;
+    }
+    html:is(
+        [data-interface-style="calm"],
+        [data-interface-style="calm-compact"]
+      )
+      .editor-menu {
+      gap: 2px;
+      padding-block: 4px;
+    }
+    html:is(
+        [data-interface-style="calm"],
+        [data-interface-style="calm-compact"]
+      )
+      .editor-menu
+      .menu-btn {
+      padding-inline: 3px;
+    }
+    html:is(
+        [data-interface-style="calm"],
+        [data-interface-style="calm-compact"]
+      )
+      .editor-content
+      :is(th, td) {
+      padding: 6px 8px;
+    }
+    html:is(
+        [data-interface-style="calm"],
+        [data-interface-style="calm-compact"]
+      )
+      .markdown-source-tools {
+      padding-inline: 6px;
+      gap: 2px;
+    }
+    html:is(
+        [data-interface-style="calm"],
+        [data-interface-style="calm-compact"]
+      )
+      .markdown-cm-host
+      .cm-line {
+      padding-inline: 8px;
+    }
+  }
+}
+
+@media (min-width: 769px) and (pointer: fine) {
+  html:is(
+      [data-interface-style="calm"],
+      [data-interface-style="calm-compact"]
+    ):not(.theme-dark) {
+    --text-secondary: #5f655b;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .document-browser-details {
+    gap: 4px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .document-browser-title {
+    line-height: 1.5;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .document-browser-tags {
+    gap: 4px;
+    max-height: 2.4em;
+    overflow: hidden;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .document-browser-tags
+    > span {
+    background: transparent;
+    border: 1px solid var(--style-rule);
+    border-radius: 4px;
+    font-size: 10px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .document-browser-open:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .document-browser-row:focus-within {
+    background: var(--hover-bg);
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .document-browser-row.selected:focus-within {
+    background: var(--active-bg);
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .document-browser-empty {
+    padding: 24px 14px;
+    line-height: 1.7;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .document-browser-empty
+    strong {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text);
+    font-weight: 500;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .document-browser-empty
+    .settings-btn {
+    background: var(--surface);
+    border-color: var(--style-rule);
+    border-radius: 5px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .doc-tree-doc:focus-within {
+    background: var(--hover-bg);
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    :is(
+      .settings-toast,
+      .sync-status,
+      .sync-toast,
+      .sync-banner,
+      .ui-operation-error,
+      .block-workspace-notice
+    ) {
+    font-size: 12px;
+    line-height: 1.6;
+    border-radius: 6px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    :is(.settings-toast, .sync-status, .sync-toast, .sync-banner) {
+    background: var(--surface);
+    color: var(--text);
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    :is(.sync-ok, .sync-toast.success, .save-status-saved) {
+    color: var(--success);
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    :is(.sync-err, .sync-toast.error, .save-status-error) {
+    color: var(--danger);
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    .save-status-saving {
+    color: var(--accent);
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    :is(.settings-feedback-close, .ui-operation-error button):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    :is(.sync-banner-spinner, .save-status-saving) {
+    animation: none !important;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    :is(.note-editor-scroll, .markdown-cm-host .cm-scroller) {
+    scroll-behavior: auto !important;
+  }
+}
