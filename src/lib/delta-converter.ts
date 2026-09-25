@@ -225,13 +225,21 @@ function appendListOps(listNode: JSONContent, ops: DeltaOp[], depth: number): vo
         continue;
       }
 
-      if (child.type === "paragraph") {
-        extractInlineOps(child, ops);
-        ops.push({
-          insert: "\n",
-          attributes: lineAttributes,
-        });
-        emittedItemLine = true;
+      if (["paragraph", "codeBlock", "blockquote"].includes(child.type ?? "")) {
+        // Keep normal Delta text/formatting for older readers, with explicit
+        // continuation metadata so a multi-block item is not flattened into items.
+        const childOps = child.type === "paragraph"
+          ? (() => { const result: DeltaOp[] = []; extractInlineOps(child, result); result.push({ insert: "\n" }); return result; })()
+          : proseMirrorToDelta({ type: "doc", content: [child] }).ops;
+        for (const op of childOps) {
+          if (op.insert === "\n" && op.attributes?.["hard-break"] !== true) {
+            ops.push({ ...op, attributes: { ...op.attributes, ...lineAttributes,
+              ...(emittedItemLine ? { "list-continuation": true } : {}),
+              ...(!emittedItemLine && itemIndex === 0 ? { "list-block-start": true } : {}),
+            } });
+            emittedItemLine = true;
+          } else ops.push(op);
+        }
       }
     }
 
@@ -302,6 +310,8 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
     start?: number;
     taskChecked?: boolean;
     paragraph: JSONContent;
+    continuation?: boolean;
+    blockStart?: boolean;
   }> = [];
 
   function flushParagraph() {
@@ -335,11 +345,25 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
         content: [] as JSONContent[],
       };
 
+      const firstIndex = index;
       while (index < normalized.length) {
         const line = normalized[index];
+        if (index > firstIndex && line.indent === depth && line.blockStart) break;
         if (line.indent < depth || line.indent === depth && line.type !== type) break;
         if (line.indent > depth) break;
 
+        if (line.continuation && list.content.length) {
+          const previous = list.content[list.content.length - 1];
+          const tail = previous.content![previous.content!.length - 1];
+          if (tail?.type === "blockquote" && line.paragraph.type === "blockquote") tail.content!.push(...(line.paragraph.content ?? []));
+          else previous.content!.push(line.paragraph);
+          index += 1;
+          while (index < normalized.length && normalized[index].indent > depth) {
+            const child = normalized[index];
+            previous.content!.push(parseList(child.indent, child.type));
+          }
+          continue;
+        }
         const item: JSONContent & { content: JSONContent[] } = {
           type: "listItem", content: [line.paragraph],
           ...(typeof line.taskChecked === "boolean" ? { attrs: { taskChecked: line.taskChecked } } : {}),
@@ -405,7 +429,15 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
             ...(attrs.list === "ordered" && Number.isFinite(Number(attrs.listStart))
               ? { start: Math.max(1, Math.floor(Number(attrs.listStart))) }
               : {}),
-            paragraph: { type: "paragraph", content: currentParagraph.content },
+            continuation: attrs["list-continuation"] === true,
+            blockStart: attrs["list-block-start"] === true,
+            paragraph: attrs["code-block"] ? {
+              type: "codeBlock", content: currentParagraph.content,
+              attrs: { language: attrs.language || null, title: attrs["code-title"] || "", wrap: attrs["code-wrap"] !== false, collapsed: attrs["code-collapsed"] === true },
+            } : attrs.blockquote ? {
+              type: "blockquote", attrs: { collapsed: attrs["blockquote-collapsed"] === true },
+              content: [{ type: "paragraph", content: currentParagraph.content }],
+            } : { type: "paragraph", content: currentParagraph.content },
           });
           currentParagraph = { type: "paragraph", content: [] };
           isImageBlock = false;

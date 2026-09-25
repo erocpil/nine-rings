@@ -13,3 +13,7 @@
 .markdown-escape-repair { padding: 4px 12px; font-size: 12px; max-height: 40dvh; overflow: auto; flex-shrink: 0; }
 .markdown-escape-repair button { min-height: 36px; margin: 2px 6px 2px 0; }
 .markdown-escape-repair pre { overflow-wrap: anywhere; }
+
+/* Keep textarea padding inside a fixed viewport, including during resize. */
+.markdown-source-input { flex: 1; min-height: 0; position: relative; }
+.markdown-source-input textarea { position: absolute; inset: 0; height: 100%; min-height: 0; }

@@ -1,4 +1,5 @@
 import { Extension, type Editor } from "@tiptap/core";
+import { canSplit } from "@tiptap/pm/transform";
 import { closeHistory } from "@tiptap/pm/history";
 import { Plugin, TextSelection } from "@tiptap/pm/state";
 
@@ -104,18 +105,37 @@ function handleBlockquoteEmptyParagraph(editor: Editor): boolean {
   });
 }
 
-function exitEmptyListTail(editor: Editor): boolean {
-  if (!editor.isEditable || !editor.state.selection.empty) return false;
-  const { $from } = editor.state.selection;
-  if ($from.parent.type.name !== "paragraph" || $from.parent.content.size !== 0 || $from.depth < 3) return false;
-  const item = $from.node($from.depth - 1);
-  const list = $from.node($from.depth - 2);
-  if (item.type.name !== "listItem" || item.childCount < 1
-    || !["orderedList", "bulletList"].includes(list.type.name)
-    || $from.index($from.depth - 2) !== list.childCount - 1) return false;
-  const lastChild = item.lastChild;
-  if (!lastChild || lastChild.type.name !== "paragraph" || lastChild.content.size !== 0) return false;
-  return editor.commands.liftListItem("listItem");
+function handleListEnter(editor: Editor): boolean {
+  if (!editor.isEditable || editor.view.composing) return false;
+  const { state, view } = editor;
+  const { $from, $to } = state.selection;
+  if (!$from.sameParent($to) || $from.parent.type.name !== "paragraph" || $from.depth < 3) return false;
+  const item = $from.node(-1);
+  if (item.type.name !== "listItem") return false;
+  let emptyItem = true;
+  item.forEach(child => { if (child.type.name !== "paragraph" || child.content.size) emptyItem = false; });
+  if (state.selection.empty && emptyItem && item.childCount > 1) {
+    // Backspace can join empty paragraphs into one item. Collapse that empty
+    // structure before lifting, otherwise successive Enter keeps splitting it.
+    return editor.chain().command(({ tr }) => {
+      const start = $from.before($from.depth - 1) + 1;
+      tr.replaceWith(start, start + item.content.size, state.schema.nodes.paragraph.create());
+      tr.setSelection(TextSelection.near(tr.doc.resolve(start + 1)));
+      return true;
+    }).command(({ commands }) => commands.splitListItem("listItem") || commands.liftListItem("listItem")).run();
+  }
+  // An empty continuation after code/quote belongs to a non-empty item.
+  // Split off a new item instead of lifting all of its existing content.
+  if (state.selection.empty && !$from.parent.content.size && item.childCount > 1
+    && $from.index(-1) === item.childCount - 1 && canSplit(state.doc, $from.pos, 2)) {
+    view.dispatch(state.tr.split($from.pos, 2).scrollIntoView());
+    return true;
+  }
+  if (editor.commands.splitListItem("listItem")) return true;
+  // Only a genuinely empty item may leave the list. Never lift a populated
+  // item just because its final paragraph happens to be empty.
+  return state.selection.empty && item.childCount === 1 && !$from.parent.content.size
+    ? editor.commands.liftListItem("listItem") : false;
 }
 
 export const StructuredBlockExit = Extension.create({
@@ -131,7 +151,7 @@ export const StructuredBlockExit = Extension.create({
         view.dispatch(state.tr.insertText("\n", from, to).scrollIntoView());
         return true;
       },
-      Enter: () => exitEmptyListTail(this.editor) || exitCodeBlockAfterEmptyLine(this.editor) || handleBlockquoteEmptyParagraph(this.editor),
+      Enter: () => handleListEnter(this.editor) || exitCodeBlockAfterEmptyLine(this.editor) || handleBlockquoteEmptyParagraph(this.editor),
       "Mod-Enter": () => exitCurrentStructuredBlock(this.editor),
     };
   },
@@ -140,7 +160,7 @@ export const StructuredBlockExit = Extension.create({
     return [new Plugin({ props: { handleDOMEvents: {
       beforeinput: (_view, event) => {
         if (event.inputType !== "insertParagraph" || event.isComposing || !event.cancelable) return false;
-        if (!exitEmptyListTail(editor)) return false;
+        if (!handleListEnter(editor)) return false;
         event.preventDefault();
         return true;
       },

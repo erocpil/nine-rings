@@ -185,7 +185,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           await latestProps.current.onFlush?.();
         } finally { if (alive.current) setBusy(false); }
       }} />
-      <textarea ref={viewPosition.area} aria-label="Markdown 源码" value={source} readOnly={Boolean(props.readonly) || busy} spellCheck={false}
+      <div className="markdown-source-input"><textarea ref={viewPosition.area} aria-label="Markdown 源码" value={source} readOnly={Boolean(props.readonly) || busy} spellCheck={false}
         onKeyDown={event => {
           if (isPrimaryShortcutModifier(event) && !event.altKey && !event.shiftKey && !event.nativeEvent.isComposing && event.key.toLowerCase() === "a") {
             event.preventDefault(); event.stopPropagation(); event.currentTarget.select();
@@ -195,7 +195,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           const captured = sourceInputRange.current;
           sourceInputRange.current = null;
           editSource(event.target.value, captured?.text === source ? captured : undefined);
-        }} />
+        }} /></div>
     </>}</MarkdownSourceWorkspace>}
   </div>;
 }

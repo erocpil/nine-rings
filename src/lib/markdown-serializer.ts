@@ -80,14 +80,24 @@ export function deltaToMarkdown(content: unknown): string {
   const flushLine = (attrs: Record<string, unknown> = {}) => {
     const value = inline;
     inline = "";
+    const continuation = attrs["list-continuation"] === true && (attrs.list === "ordered" || attrs.list === "bullet");
+    const continuationPrefix = " ".repeat(2 * Math.max(0, Math.floor(Number(attrs.indent) || 0))
+      + (attrs.list === "ordered" ? `${Math.max(1, Number(attrs.listStart) || 1)}. `.length : 2));
+    const pushContinuation = (text: string) => push("list", "\n" + text.split("\n").map(line => continuationPrefix + line).join("\n"));
     if (attrs["code-block"]) {
       const language = typeof attrs.language === "string" ? attrs.language : "";
       const fence = "`".repeat((raw.match(/`+/g) ?? []).reduce((max, run) => Math.max(max, run.length + 1), 3));
-      push("code", `${fence}${language}\n${raw}\n${fence}`);
+      const code = `${fence}${language}\n${raw}\n${fence}`;
+      if (continuation) pushContinuation(code);
+      else push("code", code);
       raw = "";
       return;
     }
     raw = "";
+    if (continuation) {
+      pushContinuation(attrs.blockquote ? `> ${value}` : value);
+      return;
+    }
     if (typeof attrs.header === "number") {
       push("heading", `${"#".repeat(Math.min(6, Math.max(1, attrs.header)))} ${value}`);
       return;

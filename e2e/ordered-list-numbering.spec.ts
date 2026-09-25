@@ -1,3 +1,4 @@
+import { createBlankDocument } from "./helpers/document";
 import { expect, test } from "@playwright/test";
 
 test("包含段落和代码块的松散有序列表保持连续编号", async ({ page }) => {
@@ -47,14 +48,11 @@ test("包含段落和代码块的松散有序列表保持连续编号", async ({
 });
 
 test("有序列表的续行和后续列表项保持同一正文缩进", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  await createBlankDocument(page);
 
   const editor = page.locator(".ProseMirror");
   await editor.fill("aaa");
-  await page.getByTitle("有序列表 (Ctrl+Shift+7)").click();
+  await editor.press("Control+Shift+7");
   await editor.press("End");
   await editor.press("Shift+Enter");
   await editor.type("bbb");
@@ -89,10 +87,7 @@ test("有序列表的续行和后续列表项保持同一正文缩进", async ({
 });
 
 test("两位数及以上的有序列表编号右边缘与正文起点对齐且不侵入 gutter", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  await createBlankDocument(page);
   const editor = page.locator(".ProseMirror");
   await expect(editor).toBeEditable();
   await editor.click();
@@ -131,10 +126,7 @@ test("两位数及以上的有序列表编号右边缘与正文起点对齐且�
 });
 
 test("粘贴 Markdown 时列表 lazy continuation 保留为对齐的续行", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
+  await createBlankDocument(page);
 
   const editor = page.locator(".ProseMirror");
   await expect(editor).toBeEditable();
