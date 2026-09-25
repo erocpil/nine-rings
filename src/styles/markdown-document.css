@@ -72,3 +72,5 @@
   -webkit-user-select: none;
   user-select: none;
 }
+
+.markdown-cm-host .cm-content[aria-readonly="true"] { caret-color: transparent; }

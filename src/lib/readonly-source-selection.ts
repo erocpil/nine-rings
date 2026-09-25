@@ -1,22 +1,7 @@
-import { EditorView, layer, RectangleMarker } from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
 
-/** Keep native selection/callouts in readonly source; draw only its caret. */
+/** Keep native selection/callouts and current-line navigation, without a caret. */
 export const readonlySourceSelection = [
-  layer({
-    above: true,
-    class: "cm-cursorLayer",
-    markers(view) {
-      const range = view.state.selection.main;
-      return range.empty
-        ? RectangleMarker.forRange(view, "cm-cursor cm-cursor-primary", range)
-        : [];
-    },
-    update(update, dom) {
-      if (update.selectionSet)
-        dom.style.animationName = dom.style.animationName === "cm-blink" ? "cm-blink2" : "cm-blink";
-      return update.docChanged || update.selectionSet || update.focusChanged;
-    },
-  }),
   EditorView.domEventHandlers({
     click(event, view) {
       if (!view.contentDOM.contains(event.target as Node)) return false;

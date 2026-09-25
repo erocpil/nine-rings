@@ -162,9 +162,8 @@ test("只读源码点击高亮且折叠命中区与行号对齐", async ({ page 
   for (const text of ["first body", "second body"]) {
     await area.locator(".cm-line").filter({ hasText: text }).click();
     await expect(area.locator(".cm-activeLine")).toHaveText(text);
-    await expect(page.locator(".markdown-cm-host .cm-cursor")).toBeVisible();
-    const animation = await page.locator(".markdown-cm-host .cm-cursorLayer").evaluate(el => getComputedStyle(el).animationName);
-    expect(animation).toMatch(/^cm-blink/);
+    await expect(page.locator(".markdown-cm-host .cm-cursorLayer")).toHaveCount(0);
+    expect(await area.evaluate(el => getComputedStyle(el).caretColor)).toBe("rgba(0, 0, 0, 0)");
 
   }
   await expect(area).toHaveAttribute("contenteditable", "false");
@@ -203,5 +202,6 @@ test("只读源码点击高亮且折叠命中区与行号对齐", async ({ page 
   await expect(area).toHaveAttribute("contenteditable", "true");
   await expect(page.locator(".markdown-cm-host .cm-selectionLayer")).toHaveCount(1);
   await expect(area).toHaveAttribute("aria-readonly", "false");
+  await expect(page.locator(".markdown-cm-host .cm-cursorLayer")).toHaveCount(1);
 
 });
