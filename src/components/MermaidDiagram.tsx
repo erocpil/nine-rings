@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { renderMermaid } from "../lib/mermaid-render";
 
 export type MermaidViewTransform = { scale: number; x: number; y: number };
@@ -104,6 +104,15 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
     );
     return () => { cancelled = true; };
   }, [source, applyView]);
+
+  useLayoutEffect(() => {
+    if (interactive) return;
+    const root = rootRef.current;
+    const svg = root?.querySelector("svg");
+    const width = svg?.viewBox.baseVal.width;
+    if (root && width && Number.isFinite(width) && width > 0)
+      root.style.setProperty("--mermaid-natural-width", `${width}px`);
+  }, [interactive, result.svg]);
 
   return <div ref={rootRef} className={`mermaid-diagram ${interactive ? "mermaid-diagram-interactive" : ""}`} contentEditable={false} aria-label="Mermaid 图表">
     {interactive && result.svg && <div className="mermaid-diagram-controls" role="toolbar" aria-label="图表缩放">

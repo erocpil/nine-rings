@@ -179,7 +179,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
       }} />
       <MarkdownSourceEditor value={source} readonly={Boolean(props.readonly) || busy}
         areaRef={viewPosition.area} session={sourceEditorState} onChange={editSource}
-        fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine} />
+        showLineNumbers={props.showLineNumbers} fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine} />
     </>}</MarkdownSourceWorkspace>}
   </div>;
 }

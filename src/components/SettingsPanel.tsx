@@ -868,7 +868,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             </Field>
 
             {/* ── 高亮当前行 ── */}
-            <Field label="高亮当前行" desc="编辑器光标所在行显示浅色背景" visible={settingsPage === "editor"}>
+            <Field label="高亮当前行" desc="正文与 Markdown 源码中，光标所在行显示浅色背景" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
                 <input
                   type="checkbox"
@@ -881,7 +881,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             </Field>
 
             {/* ── 显示块编号 ── */}
-            <Field label="显示块编号" desc="按顶层段落、列表、图片等内容块编号" visible={settingsPage === "editor"}>
+            <Field label="显示块编号" desc="正文按顶层内容块编号；Markdown 源码按文本行显示行号" visible={settingsPage === "editor"}>
               <label className="settings-toggle">
                 <input
                   type="checkbox"

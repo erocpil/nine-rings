@@ -18,6 +18,7 @@ import {
   lineNumbers,
   drawSelection,
   highlightActiveLine as activeLine,
+  highlightActiveLineGutter,
   scrollPastEnd,
 } from "@codemirror/view";
 import {
@@ -112,6 +113,7 @@ export function MarkdownSourceEditor({
   onChange,
   fontSize,
   highlightActiveLine,
+  showLineNumbers,
 }: {
   value: string;
   readonly: boolean;
@@ -120,6 +122,7 @@ export function MarkdownSourceEditor({
   onChange: (value: string, range?: SourceEditRange) => void;
   fontSize: number;
   highlightActiveLine: boolean;
+  showLineNumbers: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -135,11 +138,11 @@ export function MarkdownSourceEditor({
   const displayExtensions = () => {
     const prefs = blockWorkspacePreferences();
     return [
-      prefs.lineNumbers ? lineNumbers() : [],
+      showLineNumbers ? lineNumbers() : [],
       prefs.wrap !== false ? EditorView.lineWrapping : [],
       EditorState.tabSize.of(prefs.tabSize ?? 4),
       indentUnit.of(" ".repeat(prefs.tabSize ?? 4)),
-      highlightActiveLine ? activeLine() : [],
+      highlightActiveLine ? [activeLine(), highlightActiveLineGutter()] : [],
     ];
   };
   const displayRef = useRef(displayExtensions);
@@ -330,7 +333,7 @@ export function MarkdownSourceEditor({
       window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync);
       window.removeEventListener("storage", sync);
     };
-  }, [highlightActiveLine]);
+  }, [highlightActiveLine, showLineNumbers]);
   useEffect(() => {
     if (lastValue.current === value) return;
     lastValue.current = value;
@@ -360,17 +363,6 @@ export function MarkdownSourceEditor({
         </button>
         <button type="button" onClick={() => run(gotoLine)}>
           跳转行
-        </button>
-        <button
-          type="button"
-          aria-pressed={preferences.lineNumbers === true}
-          onClick={() =>
-            saveBlockWorkspacePreferences({
-              lineNumbers: !preferences.lineNumbers,
-            })
-          }
-        >
-          行号
         </button>
         <button
           type="button"

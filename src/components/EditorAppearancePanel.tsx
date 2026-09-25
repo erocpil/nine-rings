@@ -186,10 +186,18 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
               </div>
             </section>
 
+            <AppearanceField label="Mermaid 图形显示" desc="仅影响正文中的图形，图形弹层保持现有缩放与拖动方式；保存在当前设备。">
+              <select className="settings-input editor-appearance-select" aria-label="Mermaid 图形显示" value={blockDisplay.mermaidDisplay ?? "fit"} onChange={event => updateBlock({ mermaidDisplay: event.target.value as "fit" | "scroll" })}>
+                <option value="fit">完整显示：适应宽度，保留完整高度</option>
+                <option value="scroll">原始比例滚动：保持文字尺寸</option>
+              </select>
+              <p className="settings-hint">滚动模式不缩放图形，最高占可视区的 60%，超出时可横向或纵向滚动；源码自定义字号仍会保留。</p>
+            </AppearanceField>
+
             <button
               className="settings-btn-secondary editor-appearance-reset"
               type="button"
-              onClick={() => { onUpdate({ ...DEFAULT_EDITOR_APPEARANCE }); setBlockDisplay({ fontSize: undefined, whitespace: "off", tabSize: 4, lineNumbers: false, wrap: true }); setCodeHeight(60); setBlockDirty(true); }}
+              onClick={() => { onUpdate({ ...DEFAULT_EDITOR_APPEARANCE }); setBlockDisplay({ mermaidDisplay: "fit", fontSize: undefined, whitespace: "off", tabSize: 4, lineNumbers: false, wrap: true }); setCodeHeight(60); setBlockDirty(true); }}
             >恢复默认排版</button>
             <div className="editor-appearance-actions">
               <button className="settings-btn-secondary editor-appearance-cancel" type="button" onClick={close} disabled={applying}>取消</button>

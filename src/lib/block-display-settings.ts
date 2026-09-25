@@ -1,7 +1,7 @@
 const KEY = "nr:codeBlockHeightPercent";
 const EVENT = "nine-rings:block-display-change";
 export const BLOCK_WORKSPACE_DISPLAY_EVENT = "nine-rings:block-workspace-display-change";
-export type WorkspacePreferences = { fontSize?: number; tabSize?: number; whitespace?: "off" | "all" | "abnormal"; lineNumbers?: boolean; wrap?: boolean; listFollowupIndent?: boolean };
+export type WorkspacePreferences = { mermaidDisplay?: "fit" | "scroll"; fontSize?: number; tabSize?: number; whitespace?: "off" | "all" | "abnormal"; lineNumbers?: boolean; wrap?: boolean; listFollowupIndent?: boolean };
 const WORKSPACE_KEY = "nr:blockWorkspaceDisplay";
 const CODE_LINE_NUMBERS_KEY = "nr:codeLineNumbers";
 export function codeLineNumbersEnabled(): boolean {
@@ -22,6 +22,7 @@ export function blockWorkspacePreferences(): WorkspacePreferences {
     if (typeof value.fontSize === "number" && value.fontSize >= 12 && value.fontSize <= 32) preferences.fontSize = value.fontSize;
     if (typeof value.tabSize === "number" && Number.isInteger(value.tabSize) && value.tabSize >= 1 && value.tabSize <= 16) preferences.tabSize = value.tabSize;
     if (value.whitespace === "off" || value.whitespace === "all" || value.whitespace === "abnormal") preferences.whitespace = value.whitespace;
+    if (value.mermaidDisplay === "fit" || value.mermaidDisplay === "scroll") preferences.mermaidDisplay = value.mermaidDisplay;
     if (typeof value.wrap === "boolean") preferences.wrap = value.wrap;
     if (typeof value.listFollowupIndent === "boolean") preferences.listFollowupIndent = value.listFollowupIndent;
     return preferences;
@@ -41,6 +42,9 @@ export function codeBlockHeightPercent() {
   return [40, 60, 80, 100].includes(value) ? value : 60;
 }
 function apply() {
+  const scrollDiagrams = blockWorkspacePreferences().mermaidDisplay === "scroll";
+  document.documentElement.style.setProperty("--mermaid-inline-max-width", scrollDiagrams ? "none" : "100%");
+  document.documentElement.style.setProperty("--mermaid-inline-max-height", scrollDiagrams ? "60dvh" : "none");
   document.documentElement.style.setProperty("--list-followup-indent-enabled", blockWorkspacePreferences().listFollowupIndent === false ? "0" : "1");
   document.documentElement.style.setProperty("--code-tab-size", String(blockWorkspacePreferences().tabSize ?? 4));
   document.documentElement.style.setProperty("--code-block-height", `calc(var(--app-viewport-height, 100dvh) * ${codeBlockHeightPercent() / 100})`);

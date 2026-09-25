@@ -186,6 +186,21 @@
   margin: auto;
 }
 
+.mermaid-diagram:not(.mermaid-diagram-interactive) {
+  max-height: var(--mermaid-inline-max-height, none);
+}
+.mermaid-diagram:not(.mermaid-diagram-interactive) .mermaid-diagram-svg svg {
+  width: var(--mermaid-natural-width, 100%) !important;
+  max-width: var(--mermaid-inline-max-width, 100%) !important;
+  height: auto !important;
+}
+@media print {
+  .mermaid-diagram:not(.mermaid-diagram-interactive) {
+    max-height: none;
+    --mermaid-inline-max-width: 100%;
+  }
+}
+
 .mermaid-diagram-error,
 .mermaid-diagram-loading {
   color: var(--text-secondary);

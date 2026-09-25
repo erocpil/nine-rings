@@ -68,9 +68,16 @@ const entries: SettingsSearchEntry[] = [
     page: "editor",
     action: "typography",
   },
+  {
+    title: "Mermaid 图形显示",
+    description: "编辑器 › 排版设置 · 完整显示或原始比例滚动",
+    keywords: "mermaid 图形 图表 文字大小 宽度 高度 滚动条 完整显示 缩放",
+    page: "editor",
+    action: "typography",
+  },
   ...[
-    ["高亮当前行", "光标 当前行 高亮 背景"],
-    ["显示块编号", "块号 编号 行号 顶层 段落"],
+    ["高亮当前行", "光标 当前行 高亮 背景 Markdown 源码"],
+    ["显示块编号", "块号 编号 行号 顶层 段落 Markdown 源码"],
     ["编辑器状态栏", "底部 状态栏 位置 字数 版本"],
     ["状态栏块号", "状态栏 块号 编号"],
     ["只读文档双击标题折叠", "只读 双击 标题 章节 正文 折叠"],
