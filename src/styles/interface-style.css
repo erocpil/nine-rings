@@ -1,5 +1,5 @@
-/* Orthogonal to theme: only semantic colour tokens, no palette replacement.
-   Classic has no overrides. Explicit typography/navigation preferences win. */
+/* Classic has no overrides. Calm presets own colour and typography;
+   saved classic preferences remain unchanged. */
 .interface-style-options {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -309,4 +309,103 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
 html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
   .document-bookmark-panel {
   background: var(--navigation-bookmark-bg, var(--navigation-bg, var(--bg)));
+}
+
+/* Complete calm presets. Theme classes only select the light/dark variant. */
+:root:is([data-interface-style="calm"], [data-interface-style="calm-compact"]) {
+  --bg: #fcfbf8;
+  --surface: #f0efea;
+  --border: #dedfd7;
+  --text: #30342f;
+  --text-secondary: #787c73;
+  --accent: #53734f;
+  --accent-hover: #405c3c;
+  --link-color: #53734f;
+  --link-hover: #405c3c;
+  --hover-bg: #e8eae2;
+  --active-bg: #e4ecdf;
+  --accent-bg: #e4ecdf;
+  --code-bg: #f0f1eb;
+  --activeline-bg: #e8eae280;
+  --drawer-surface: #f0efea;
+  --style-content-width: 788px;
+  --style-content-inset: 40px;
+  --style-content-top: 40px;
+  color-scheme: light;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+}
+:root.theme-dark:is(
+    [data-interface-style="calm"],
+    [data-interface-style="calm-compact"]
+  ) {
+  --bg: #252a24;
+  --surface: #20251f;
+  --border: #3a4237;
+  --text: #e0e4da;
+  --text-secondary: #a0a899;
+  --accent: #b1c99e;
+  --accent-hover: #c9deb8;
+  --link-color: #b1c99e;
+  --link-hover: #c9deb8;
+  --hover-bg: #333b2f;
+  --active-bg: #36432f;
+  --accent-bg: #36432f;
+  --code-bg: #2c3229;
+  --activeline-bg: #36432f80;
+  --drawer-surface: #20251f;
+  color-scheme: dark;
+}
+:root[data-interface-style="calm-compact"] {
+  --style-content-width: 690px;
+  --style-content-inset: 28px;
+  --style-content-top: 28px;
+}
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  :is(.editor-content, .vr-block)
+  h1 {
+  font-size: 34px;
+  line-height: 1.3;
+  font-weight: 650;
+  letter-spacing: -0.6px;
+}
+html[data-interface-style="calm-compact"] :is(.editor-content, .vr-block) h1 {
+  font-size: 30px;
+}
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  :is(.editor-content, .vr-block)
+  h2 {
+  font-size: 21px;
+  line-height: 1.5;
+  letter-spacing: -0.4px;
+}
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  :is(.editor-content, .vr-block)
+  h3 {
+  font-size: 18px;
+}
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  :is(.editor-content, .vr-block)
+  :is(h4, h5, h6) {
+  font-size: 16px;
+}
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  :is([data-toolbar-tool="font"], .style-managed-font-action) {
+  display: none;
+}
+@media (max-width: 768px) {
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    :is(.editor-content, .vr-block)
+    h1 {
+    font-size: 27px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    :is(.editor-content, .vr-block)
+    h2 {
+    font-size: 19px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+    :is(.editor-content, .vr-block) {
+    font-size: 14px;
+  }
 }

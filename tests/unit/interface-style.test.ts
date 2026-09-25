@@ -2,6 +2,8 @@ import { afterEach, expect, test, vi } from "vitest";
 import {
   applyInterfaceStyle,
   normalizeInterfaceStyle,
+  resolveInterfaceConfig,
+  normalizeInterfaceColorMode,
 } from "../../src/lib/interface-style";
 import { getConfig, setConfig } from "../../src/lib/storage/db-config";
 
@@ -39,4 +41,31 @@ test("persisted style changes preserve theme and explicit typography; legacy con
   });
   await setConfig({ theme: "light" });
   expect((await getConfig()).interface_style).toBe("calm-compact");
+});
+
+test("calm projection leaves stored appearance and editor behaviours intact", () => {
+  const saved = {
+    interface_style: "calm" as const,
+    theme: "dracula",
+    note_font_size: 23,
+    editor_line_height: 2.2,
+    navigation_outline_text_color: "#ff0000",
+    editor_show_line_numbers: true,
+    highlight_active_line: false,
+  };
+  const snapshot = JSON.stringify(saved);
+  const display = resolveInterfaceConfig(saved);
+  expect(display.note_font_size).toBe(15);
+  expect(display.editor_line_height).toBe(1.9);
+  expect(display.navigation_outline_text_color).toBe("#333333");
+  expect(display.editor_show_line_numbers).toBe(true);
+  expect(display.highlight_active_line).toBe(false);
+  expect(JSON.stringify(saved)).toBe(snapshot);
+  const classic = { ...saved, interface_style: "classic" as const };
+  expect(resolveInterfaceConfig(classic)).toBe(classic);
+  expect(
+    resolveInterfaceConfig({ ...saved, interface_style: "calm-compact" })
+      .note_font_size,
+  ).toBe(14);
+  expect(normalizeInterfaceColorMode("invalid")).toBe("system");
 });

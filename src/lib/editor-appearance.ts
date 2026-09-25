@@ -79,7 +79,7 @@ export function editorAppearanceVariables(config?: Partial<AppConfig>): Record<s
   const tree = style("navigation_tree");
   const list = style("navigation_list");
   return {
-    "--editor-font-family": FONT_STACKS[resolvedFamily],
+    "--editor-font-family": config?.interface_style && config.interface_style !== "classic" ? '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif' : FONT_STACKS[resolvedFamily],
     "--editor-font-size": `${clamp(config?.note_font_size, 12, 32, 16)}px`,
     "--editor-line-height": String(clamp(config?.editor_line_height, 1.2, 2.2, 1.6)),
     "--editor-block-spacing": `${clamp(config?.editor_block_spacing, 0, 3, 1)}em`,

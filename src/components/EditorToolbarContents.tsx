@@ -181,8 +181,8 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     </div>
     <div className="menu-dropdown-sep" />
     {hiddenTools.includes("font") && <>
-    <button className="menu-dropdown-item" disabled={editorFontSize <= 12} onClick={() => onEditorFontSizeChange(Math.max(12, editorFontSize - 1))} type="button"><ToolbarIcon name="minus" />缩小编辑器字号</button>
-    <button className="menu-dropdown-item" disabled={editorFontSize >= 32} onClick={() => onEditorFontSizeChange(Math.min(32, editorFontSize + 1))} type="button"><ToolbarIcon name="plus" />放大编辑器字号</button>
+    <button className="menu-dropdown-item style-managed-font-action" disabled={editorFontSize <= 12} onClick={() => onEditorFontSizeChange(Math.max(12, editorFontSize - 1))} type="button"><ToolbarIcon name="minus" />缩小编辑器字号</button>
+    <button className="menu-dropdown-item style-managed-font-action" disabled={editorFontSize >= 32} onClick={() => onEditorFontSizeChange(Math.min(32, editorFontSize + 1))} type="button"><ToolbarIcon name="plus" />放大编辑器字号</button>
     </>}
   </>);
 

@@ -5,6 +5,7 @@ import type { TemplateStorage } from "./template-service";
 
 export interface AppConfig {
   interface_style: "classic" | "calm" | "calm-compact";
+  interface_color_mode: "light" | "dark" | "system";
   theme: "system" | "light" | "dark" | "fu" | "azure" | "azure-dark" | "grace" | "sui" | "zhi" | "nord" | "dracula";
   default_view: "daily" | "list";
   todo_carryover_default: boolean;
@@ -64,6 +65,7 @@ export interface AppConfig {
 
 export const DEFAULT_CONFIG: AppConfig = {
   interface_style: "classic",
+  interface_color_mode: "system",
   theme: "light",
   default_view: "daily",
   todo_carryover_default: false,

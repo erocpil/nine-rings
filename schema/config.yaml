@@ -8,7 +8,12 @@ AppConfig:
     interface_style:
       type: enum(classic, calm, calm-compact)
       default: classic
-      description: Web/Tauri 界面风格，独立于主题颜色；不覆盖自定义排版
+      description: Web/Tauri 界面风格，经典采用自定义外观，清雅系列采用完整外观预设
+
+    interface_color_mode:
+      type: enum(light, dark, system)
+      default: system
+      description: 清雅系列独立配色模式，不改变经典主题
 
     theme:
       type: enum(light, dark, fu, azure, azure-dark, grace, sui, zhi)

@@ -1,12 +1,11 @@
-import { applyInterfaceStyle } from "../lib/interface-style";
+import { applyInterfaceAppearance, resolveInterfaceConfig } from "../lib/interface-style";
 /**
  * useSettings — 配置加载与主题管理。
  */
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { api } from "../lib/api";
 import type { AppConfig } from "../lib/storage/types";
 import { addLog } from "../lib/debugLog";
-import { applyTheme } from "../lib/theme";
 import { withTimeout } from "../lib/async";
 import { DEFAULT_EDITOR_APPEARANCE } from "../lib/editor-appearance";
 import { preserveReadingPositions } from "../lib/reading-position";
@@ -35,8 +34,7 @@ export function useSettings() {
           c = await api.config.set({ note_font_size: legacyFontSize });
           localStorage.removeItem("nr:editorFontSize");
         }
-        applyTheme(c.theme);
-        applyInterfaceStyle(c.interface_style);
+        applyInterfaceAppearance(c);
         addLog(`[启动] 九环 v${__APP_VERSION__} | 主题: ${c.theme}`);
         configRef.current = c;
         setConfig(c);
@@ -51,9 +49,8 @@ export function useSettings() {
   const handleConfigChange = (c: AppConfig) => {
     const previous = configRef.current;
     configRef.current = c;
-    if (!previous || c.theme !== previous.theme) applyTheme(c.theme);
-    const styleChanged = !previous || c.interface_style !== previous.interface_style;
-    if (styleChanged) preserveReadingPositions(() => applyInterfaceStyle(c.interface_style));
+    const styleChanged = !previous || c.interface_style !== previous.interface_style || c.interface_color_mode !== previous.interface_color_mode;
+    if (styleChanged || c.theme !== previous?.theme) preserveReadingPositions(() => applyInterfaceAppearance(c));
     // 主题只由根节点 CSS 变量驱动。仅主题变化时无需让包含长文档的整个 App
     // React 树重新渲染；设置面板自身仍维护并持久化最新选择。
     if (previous && c.theme !== previous.theme) {
@@ -63,9 +60,10 @@ export function useSettings() {
     }
     const appearanceChanged = previous && (Object.keys(DEFAULT_EDITOR_APPEARANCE) as Array<keyof typeof DEFAULT_EDITOR_APPEARANCE>)
       .some(key => previous[key] !== c[key]);
-    if (appearanceChanged) preserveReadingPositions(() => setConfig(c));
+    if (appearanceChanged || styleChanged) preserveReadingPositions(() => setConfig(c));
     else setConfig(c);
   };
 
-  return { config, settingsOpen, setSettingsOpen, handleConfigChange };
+  const displayConfig = useMemo(() => config ? resolveInterfaceConfig(config) : null, [config]);
+  return { config: displayConfig, settingsOpen, setSettingsOpen, handleConfigChange };
 }

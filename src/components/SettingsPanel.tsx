@@ -197,7 +197,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const settingsPanelRef = useRef<HTMLDivElement>(null);
   const mobileSettingsViewport = useMobileViewport();
   const [searchDestination, setSearchDestination] = useState<SettingsSearchEntry | null>(null);
-  const settingsResults = searchSettings(settingsQuery, { web: !isTauri(), updates: Boolean(webUpdate) });
+  const settingsResults = searchSettings(settingsQuery, { web: !isTauri(), updates: Boolean(webUpdate) }).map(result =>
+    config && config.interface_style !== "classic" && (result.page === "navigation" || result.title === "主题" || (result.action === "typography" && !/Tab|行号|换行|Mermaid|空白|代码|图形/.test(result.title)))
+      ? { ...result, description: "由清雅风格统一管理；切回经典可自定义", page: "appearance" as const, action: undefined, target: '[data-settings-label="界面风格"]' } : result);
   const closeSettingsSearch = () => {
     setSettingsQuery("");
     setSettingsSearchOpen(false);
@@ -713,7 +715,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </div>
             )}
 
-            <Field label="界面风格" desc="风格控制留白与控件外观，主题控制配色；保留自定义字体、字号、行距与导航颜色" visible={settingsPage === "appearance"}>
+            <Field label="界面风格" desc="经典使用自定义主题与排版；清雅系列统一管理配色与排版，切回经典可恢复原设置" visible={settingsPage === "appearance"}>
               <div className="interface-style-options">
                 {INTERFACE_STYLES.map(style => <button key={style.value} type="button" className="interface-style-option" aria-pressed={normalizeInterfaceStyle(config.interface_style) === style.value} onClick={() => update({ interface_style: style.value })}>
                   <span className={`interface-style-preview preview-${style.value}`} aria-hidden="true"><i /><span><b /><i /><i /><em /></span></span>
@@ -723,7 +725,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             </Field>
 
             {/* ── 主题 ── */}
-            <Field label="主题" desc="切换整体配色" visible={settingsPage === "appearance"}>
+            <Field label="清雅配色" desc="清雅系列的独立配色，不改变经典主题。字体、字号、行距与导航外观由当前风格统一管理。" visible={settingsPage === "appearance" && config.interface_style !== "classic"}>
+              <div className="settings-radio-group">{([["light", "浅色"], ["dark", "深色"], ["system", "跟随系统"]] as const).map(([value, label]) => <button type="button" className={`settings-radio${(config.interface_color_mode ?? "system") === value ? " active" : ""}`} key={value} aria-pressed={(config.interface_color_mode ?? "system") === value} onClick={() => update({ interface_color_mode: value })}>{label}</button>)}</div>
+            </Field>
+            <Field label="主题" desc="切换整体配色" visible={settingsPage === "appearance" && config.interface_style === "classic"}>
               <div className={mobileSettingsViewport ? "settings-radio-group settings-theme-mobile" : "settings-theme-grid"} role="group" aria-label="主题">
                 {([["light", "浅", "#e2e2e2", "浅色"],
                 ["dark", "深", "#0d1117", "深色"],
@@ -762,8 +767,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 }}
               >
                 <span>
-                  <strong>{config.note_font_size}px</strong>
-                  <small>{config.editor_font_family === "system" ? "系统字体" : config.editor_font_family} · {config.editor_line_height.toFixed(1)} 行距</small>
+                  <strong>{config.interface_style === "classic" ? `${config.note_font_size}px` : "块显示与编辑功能"}</strong>
+                  <small>{config.interface_style === "classic" ? `${config.editor_font_family === "system" ? "系统字体" : config.editor_font_family} · ${config.editor_line_height.toFixed(1)} 行距` : "外观由风格管理；仍可调整行号、Tab 与图形显示"}</small>
                 </span>
                 <span className="editor-appearance-entry-action">打开排版设置 →</span>
               </button>
@@ -789,11 +794,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </button>
             </Field>
 
-            <Field label="导航区样式" desc="分别调整目录、书签、文件树和文件列表的字体与颜色；后续可导出为外观配置" visible={settingsPage === "appearance"}>
+            <Field label="导航区样式" desc="分别调整目录、书签、文件树和文件列表的字体与颜色；后续可导出为外观配置" visible={settingsPage === "appearance" && config.interface_style === "classic"}>
               <button className="editor-appearance-entry" type="button" onClick={() => setSettingsPage("navigation")}><span><strong>导航区样式</strong><small>目录、书签、文件树和文件列表分别设置</small></span><span className="editor-appearance-entry-action">打开详细设置 →</span></button>
             </Field>
 
-            {settingsPage === "navigation" && <SettingsSection title="导航区样式" desc="分别调整目录、书签、文件树和文件列表；设置会即时应用，未来可导出为外观配置。" visible>
+            {settingsPage === "navigation" && config.interface_style === "classic" && <SettingsSection title="导航区样式" desc="分别调整目录、书签、文件树和文件列表；设置会即时应用，未来可导出为外观配置。" visible>
               <div className="navigation-style-settings-detail">
                 {([
                   ["目录", "navigation_outline"], ["书签", "navigation_bookmark"],

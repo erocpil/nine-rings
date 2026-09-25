@@ -1,3 +1,4 @@
+import { resolveInterfaceConfig } from "../lib/interface-style";
 import React, { useEffect, useState, useRef } from "react";
 import type { AppConfig } from "../types/models";
 import { DEFAULT_EDITOR_APPEARANCE, editorAppearanceVariables } from "../lib/editor-appearance";
@@ -42,7 +43,9 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
     });
     return () => cancelAnimationFrame(frame);
   }, [initialSearch]);
-  const variables = editorAppearanceVariables(config) as React.CSSProperties;
+  const managed = config.interface_style !== "classic";
+  const displayConfig = resolveInterfaceConfig(config);
+  const variables = editorAppearanceVariables(displayConfig) as React.CSSProperties;
   const [blockDisplay, setBlockDisplay] = useState(blockWorkspacePreferences);
   const [codeHeight, setCodeHeight] = useState(codeBlockHeightPercent);
   const [blockDirty, setBlockDirty] = useState(false);
@@ -82,6 +85,8 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
 
         <div className="editor-appearance-workspace">
           <fieldset className="editor-appearance-controls" disabled={applying}>
+            {managed && <p className="settings-hint">配色与排版由当前风格统一管理；经典设置已保留，切回经典可继续调整。下方编辑功能仍然有效。</p>}
+            {!managed && <>
             <AppearanceField label="正文字体" desc="选择编辑器正文的字体组合">
               <select
                 className="settings-input editor-appearance-select"
@@ -156,6 +161,7 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
               </label>
             </AppearanceField>
 
+            </>}
             <section aria-label="块显示设置">
               <h3>代码／引用块显示</h3>
               <p>保存在当前设备；空白字符仅在弹层阅读模式显示，不修改正文。</p>
@@ -197,8 +203,8 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
             <button
               className="settings-btn-secondary editor-appearance-reset"
               type="button"
-              onClick={() => { onUpdate({ ...DEFAULT_EDITOR_APPEARANCE }); setBlockDisplay({ mermaidDisplay: "fit", fontSize: undefined, whitespace: "off", tabSize: 4, lineNumbers: false, wrap: true }); setCodeHeight(60); setBlockDirty(true); }}
-            >恢复默认排版</button>
+              onClick={() => { if (!managed) onUpdate({ ...DEFAULT_EDITOR_APPEARANCE }); setBlockDisplay({ mermaidDisplay: "fit", fontSize: undefined, whitespace: "off", tabSize: 4, lineNumbers: false, wrap: true }); setCodeHeight(60); setBlockDirty(true); }}
+            >{managed ? "恢复默认块显示" : "恢复默认排版"}</button>
             <div className="editor-appearance-actions">
               <button className="settings-btn-secondary editor-appearance-cancel" type="button" onClick={close} disabled={applying}>取消</button>
               <button
@@ -215,9 +221,9 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
           <div className="editor-appearance-preview-pane">
             <div className="editor-appearance-preview-label">
               <span>实时预览</span>
-              <small>{config.note_font_size}px · {config.editor_line_height.toFixed(1)} 行距</small>
+              <small>{displayConfig.note_font_size}px · {displayConfig.editor_line_height.toFixed(1)} 行距</small>
             </div>
-            <article className={`editor-appearance-preview editor-appearance-document ${config.editor_cjk_spacing ? "editor-auto-cjk-spacing" : ""}`} style={{ ...variables, "--list-followup-indent-enabled": blockDisplay.listFollowupIndent === false ? "0" : "1" } as React.CSSProperties} aria-label="编辑器排版预览">
+            <article className={`editor-appearance-preview editor-appearance-document ${displayConfig.editor_cjk_spacing ? "editor-auto-cjk-spacing" : ""}`} style={{ ...variables, "--list-followup-indent-enabled": blockDisplay.listFollowupIndent === false ? "0" : "1" } as React.CSSProperties} aria-label="编辑器排版预览">
               <h1>把想法整理成可读的结构</h1>
               <p>Nine Rings支持Markdown编辑，排版不改变内容本身，却会直接影响阅读节奏。</p>
               <h2>清晰的层级</h2>

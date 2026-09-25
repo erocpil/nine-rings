@@ -399,10 +399,11 @@ function App() {
     updatedAt: selectedNote.updated_at,
   } : undefined;
   const handleEditorFontSizeChange = useCallback((size: number) => {
+    if (config && config.interface_style !== "classic") return;
     void api.config.set({ note_font_size: Math.min(32, Math.max(12, size)) })
       .then(handleConfigChange)
       .catch((error) => console.error("[App] 保存编辑器字号失败:", error));
-  }, [handleConfigChange]);
+  }, [handleConfigChange, config]);
   const FOCUS_KEY = "nr:focusMode";
   const [focusMode, setFocusMode] = useState(() => {
     return localStorage.getItem(FOCUS_KEY) === "true";
