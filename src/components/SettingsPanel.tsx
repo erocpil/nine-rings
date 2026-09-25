@@ -199,7 +199,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [searchDestination, setSearchDestination] = useState<SettingsSearchEntry | null>(null);
   const settingsResults = searchSettings(settingsQuery, { web: !isTauri(), updates: Boolean(webUpdate) }).map(result =>
     config && config.interface_style !== "classic" && (result.page === "navigation" || result.title === "主题" || (result.action === "typography" && !/Tab|行号|换行|Mermaid|空白|代码|图形/.test(result.title)))
-      ? { ...result, description: "由清雅风格统一管理；切回经典可自定义", page: "appearance" as const, action: undefined, target: '[data-settings-label="界面风格"]' } : result);
+      ? { ...result, description: "由当前风格统一管理；切回经典可自定义", page: "appearance" as const, action: undefined, target: '[data-settings-label="界面风格"]' } : result);
   const closeSettingsSearch = () => {
     setSettingsQuery("");
     setSettingsSearchOpen(false);
@@ -715,7 +715,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </div>
             )}
 
-            <Field label="界面风格" desc="经典使用自定义主题与排版；清雅系列统一管理配色与排版，切回经典可恢复原设置" visible={settingsPage === "appearance"}>
+            <Field label="界面风格" desc="经典使用自定义主题与排版；独立风格统一管理配色与排版，切回经典可恢复原设置" visible={settingsPage === "appearance"}>
               <div className="interface-style-options">
                 {INTERFACE_STYLES.map(style => <button key={style.value} type="button" className="interface-style-option" aria-pressed={normalizeInterfaceStyle(config.interface_style) === style.value} onClick={() => update({ interface_style: style.value })}>
                   <span className={`interface-style-preview preview-${style.value}`} aria-hidden="true"><i /><span><b /><i /><i /><em /></span></span>
@@ -725,7 +725,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             </Field>
 
             {/* ── 主题 ── */}
-            <Field label="清雅配色" desc="清雅系列的独立配色，不改变经典主题。字体、字号、行距与导航外观由当前风格统一管理。" visible={settingsPage === "appearance" && config.interface_style !== "classic"}>
+            <Field label="风格配色" desc="当前风格的浅色、深色或跟随系统配色，不改变经典主题。字体、字号、行距与导航外观由当前风格统一管理。" visible={settingsPage === "appearance" && config.interface_style !== "classic"}>
               <div className="settings-radio-group">{([["light", "浅色"], ["dark", "深色"], ["system", "跟随系统"]] as const).map(([value, label]) => <button type="button" className={`settings-radio${(config.interface_color_mode ?? "system") === value ? " active" : ""}`} key={value} aria-pressed={(config.interface_color_mode ?? "system") === value} onClick={() => update({ interface_color_mode: value })}>{label}</button>)}</div>
             </Field>
             <Field label="主题" desc="切换整体配色" visible={settingsPage === "appearance" && config.interface_style === "classic"}>

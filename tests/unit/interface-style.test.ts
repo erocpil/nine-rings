@@ -13,7 +13,7 @@ test("legacy and unknown styles use classic, known styles remain independent of 
   expect(normalizeInterfaceStyle("unknown")).toBe("classic");
   const root = { dataset: {}, className: "theme-nord" };
   vi.stubGlobal("document", { documentElement: root });
-  for (const style of ["classic", "calm", "calm-compact"]) {
+  for (const style of ["classic", "calm", "calm-compact", "paper", "minimal"]) {
     applyInterfaceStyle(style);
     expect(root.dataset).toEqual({ interfaceStyle: style });
     expect(root.className).toBe("theme-nord");
@@ -68,4 +68,21 @@ test("calm projection leaves stored appearance and editor behaviours intact", ()
       .note_font_size,
   ).toBe(14);
   expect(normalizeInterfaceColorMode("invalid")).toBe("system");
+});
+
+test("paper and minimal project typography without rewriting saved preferences", () => {
+  for (const style of ["paper", "minimal"] as const) {
+    const original = {
+      interface_style: style,
+      note_font_size: 23,
+      editor_font_family: "monospace" as const,
+    };
+    const display = resolveInterfaceConfig(original);
+    expect(display.editor_font_family).toBe(
+      style === "paper" ? "serif" : "system",
+    );
+    expect(display.note_font_size).toBe(style === "paper" ? 16 : 14);
+    expect(original.note_font_size).toBe(23);
+    expect(original.editor_font_family).toBe("monospace");
+  }
 });

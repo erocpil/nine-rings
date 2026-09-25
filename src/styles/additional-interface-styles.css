@@ -1,0 +1,125 @@
+/* Independent palettes share the preset interaction and responsive foundations. */
+:root[data-interface-style="paper"]:not(.theme-dark) {
+  --bg: #faf6ed;
+  --surface: #f0e9dc;
+  --border: #d8cebd;
+  --text: #39342d;
+  --text-secondary: #6d6255;
+  --accent: #876044;
+  --accent-hover: #69462f;
+  --hover-bg: #eee5d6;
+  --active-bg: #e8dcc8;
+  --code-bg: #f1ebdf;
+  --drawer-surface: #f0e9dc;
+}
+:root[data-interface-style="paper"].theme-dark {
+  --bg: #28241f;
+  --surface: #211e1a;
+  --border: #51473b;
+  --text: #e9dfce;
+  --text-secondary: #b9ab96;
+  --accent: #d8b58a;
+  --accent-hover: #ecd0aa;
+  --hover-bg: #383127;
+  --active-bg: #473a2b;
+  --code-bg: #302b24;
+  --drawer-surface: #211e1a;
+}
+:root[data-interface-style="minimal"]:not(.theme-dark) {
+  --bg: #fafafa;
+  --surface: #f0f0f1;
+  --border: #d5d7db;
+  --text: #292d33;
+  --text-secondary: #5b626c;
+  --accent: #345d8b;
+  --accent-hover: #23466d;
+  --hover-bg: #e9ecf0;
+  --active-bg: #dce6f2;
+  --code-bg: #eef0f3;
+  --drawer-surface: #f0f0f1;
+}
+:root[data-interface-style="minimal"].theme-dark {
+  --bg: #202226;
+  --surface: #191b1e;
+  --border: #40454e;
+  --text: #e1e5eb;
+  --text-secondary: #aab2bf;
+  --accent: #a0bee7;
+  --accent-hover: #c2d6f2;
+  --hover-bg: #2c3139;
+  --active-bg: #303f53;
+  --code-bg: #272c33;
+  --drawer-surface: #191b1e;
+}
+:root:is([data-interface-style="paper"], [data-interface-style="minimal"]) {
+  --link-color: var(--accent);
+  --link-hover: var(--accent-hover);
+  --accent-bg: var(--active-bg);
+  --activeline-bg: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+:root[data-interface-style="paper"] {
+  --style-content-width: 820px;
+  --style-content-inset: 44px;
+}
+:root[data-interface-style="minimal"] {
+  --style-control-height: 28px;
+  --style-header-height: 42px;
+  --style-panel-gap: 10px;
+  --ui-control-height: 28px;
+  --style-content-width: 740px;
+  --style-content-inset: 24px;
+  --style-content-top: 24px;
+}
+html[data-interface-style="paper"] :is(.editor-content, .vr-block) h1 {
+  font-weight: 600;
+  letter-spacing: 0;
+}
+@media (min-width: 769px) and (pointer: fine) {
+  html[data-interface-style="minimal"] :is(.editor-content, .vr-block) h1 {
+    font-size: 28px;
+  }
+  html[data-interface-style="minimal"] :is(.editor-content, .vr-block) h2 {
+    font-size: 20px;
+  }
+  html[data-interface-style="minimal"]
+    :is(
+      .menu-btn,
+      .document-browser-row,
+      .document-outline-item,
+      .document-bookmark-item
+    ) {
+    border-radius: 3px;
+  }
+}
+@media (max-width: 768px) {
+  html[data-interface-style="paper"] :is(.editor-content, .vr-block) {
+    font-size: 15px;
+  }
+}
+.preview-paper {
+  background: #faf6ed;
+  border-color: #d8cebd;
+}
+.preview-paper > i {
+  background: #f0e9dc;
+}
+.preview-paper b {
+  background: #876044;
+}
+.preview-paper > span {
+  gap: 7px;
+}
+.preview-minimal {
+  background: #fafafa;
+  border-color: #d5d7db;
+}
+.preview-minimal > i {
+  background: #e9ecf0;
+}
+.preview-minimal b {
+  background: #345d8b;
+}
+.preview-minimal > span {
+  gap: 3px;
+  padding-inline: 3px;
+}

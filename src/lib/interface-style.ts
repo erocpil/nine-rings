@@ -4,7 +4,8 @@ import {
   NAVIGATION_APPEARANCE_KEYS,
 } from "./editor-appearance";
 import { applyTheme } from "./theme";
-export type InterfaceStyle = "classic" | "calm" | "calm-compact";
+export type InterfaceStyle =
+  "classic" | "calm" | "calm-compact" | "paper" | "minimal";
 export const INTERFACE_STYLES: ReadonlyArray<{
   value: InterfaceStyle;
   label: string;
@@ -25,9 +26,24 @@ export const INTERFACE_STYLES: ReadonlyArray<{
     label: "清雅·紧凑",
     description: "清雅的视觉层级，更紧凑的空间",
   },
+  {
+    value: "paper",
+    label: "纸页",
+    description: "暖色纸面、衬线正文，适合长文阅读与写作",
+  },
+  {
+    value: "minimal",
+    label: "精简",
+    description: "中性配色、紧凑层级，适合多栏技术笔记",
+  },
 ];
 export function normalizeInterfaceStyle(value: unknown): InterfaceStyle {
-  return value === "calm" || value === "calm-compact" ? value : "classic";
+  return value === "calm" ||
+    value === "calm-compact" ||
+    value === "paper" ||
+    value === "minimal"
+    ? value
+    : "classic";
 }
 /** Root style marker; classic preferences are never rewritten. */
 export function applyInterfaceStyle(value: unknown): void {
@@ -57,7 +73,11 @@ export function resolveInterfaceConfig<T extends Partial<AppConfig>>(
 ): T {
   if (normalizeInterfaceStyle(config.interface_style) === "classic")
     return config;
-  const compact = config.interface_style === "calm-compact";
+  const compact =
+    config.interface_style === "calm-compact" ||
+    config.interface_style === "minimal";
+  const paper = config.interface_style === "paper";
+  const size = paper ? 16 : compact ? 14 : 15;
   const navigation = Object.fromEntries(
     NAVIGATION_APPEARANCE_KEYS.map((key) => [
       key,
@@ -72,10 +92,15 @@ export function resolveInterfaceConfig<T extends Partial<AppConfig>>(
     ...config,
     ...DEFAULT_EDITOR_APPEARANCE,
     ...navigation,
-    note_font_size: compact ? 14 : 15,
-    editor_line_height: 1.9,
-    editor_block_spacing: 16 / (compact ? 14 : 15),
-    editor_heading_margin_top: 28 / (compact ? 14 : 15),
-    editor_heading_margin_bottom: 12 / (compact ? 14 : 15),
+    editor_font_family: paper ? "serif" : "system",
+    note_font_size: size,
+    editor_line_height: paper
+      ? 1.95
+      : config.interface_style === "minimal"
+        ? 1.7
+        : 1.9,
+    editor_block_spacing: 16 / size,
+    editor_heading_margin_top: 28 / size,
+    editor_heading_margin_bottom: 12 / size,
   };
 }

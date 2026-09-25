@@ -98,7 +98,7 @@
   padding: 1px 3px;
 }
 
-:root:is([data-interface-style="calm"], [data-interface-style="calm-compact"]) {
+:root:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"]) {
   --style-control-height: 32px;
   --style-header-height: 48px;
   --style-panel-gap: 16px;
@@ -113,22 +113,22 @@
   --style-panel-gap: 10px;
   --ui-control-height: 28px;
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(.note-title, .document-title-preview) {
   font-weight: 500;
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(.editor-content, .vr-block)
   :is(h1, h2, h3, h4, h5, h6) {
   font-weight: 600;
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   .editor-menu {
   --toolbar-button-bg: transparent;
   border-bottom-color: transparent;
   gap: 4px;
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(
     .editor-menu .menu-btn,
     .toolbar-history-actions,
@@ -139,7 +139,7 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
   border-color: transparent;
   border-radius: 6px;
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(
     .editor-menu .menu-btn,
     .vr-actions button,
@@ -148,7 +148,7 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
   background: var(--hover-bg);
   border-color: var(--style-rule);
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(
     .editor-menu .menu-btn.active,
     .editor-menu .menu-btn[aria-expanded="true"],
@@ -158,37 +158,37 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
   background: var(--active-bg);
   color: var(--accent);
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(.code-block-frame, .vr-block .code-block-wrap, .blockquote-wrap) {
   border-color: transparent;
   border-radius: 8px;
   background: var(--code-bg);
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(.code-block-toolbar, .vr-code-toolbar, .blockquote-toolbar) {
   padding: 6px 10px;
   gap: 3px;
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(.code-block-toolbar, .vr-code-toolbar, .blockquote-toolbar)
   button {
   border-color: transparent;
   background: transparent;
   border-radius: 4px;
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(.code-block-toolbar, .vr-code-toolbar, .blockquote-toolbar)
   button:hover:not(:disabled) {
   background: var(--hover-bg);
   border-color: var(--style-rule);
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(.code-block-toolbar, .vr-code-toolbar, .blockquote-toolbar)
   button[aria-pressed="true"] {
   background: var(--active-bg);
   color: var(--accent);
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(
     .document-outline-item,
     .document-bookmark-item,
@@ -198,36 +198,36 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
   border-radius: 5px;
   font-weight: 400;
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(.document-outline-header, .document-bookmark-header) {
   font-weight: 500;
   border-bottom-color: var(--style-rule);
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   .editor-stats {
   color: var(--text-secondary);
   border-top-color: var(--style-rule);
   font-size: 11px;
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(.settings-section, .settings-field) {
   border-color: var(--style-rule);
   box-shadow: none;
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(.settings-category-card, .editor-appearance-entry) {
   border-color: transparent;
   background: var(--surface);
   border-radius: 8px;
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(.settings-category-card, .editor-appearance-entry):hover {
   border-color: var(--style-rule);
   background: var(--hover-bg);
 }
 /* Geometry changes only on desktop; touch controls never shrink with density. */
 @media (min-width: 769px) and (pointer: fine) {
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .note-editor-scroll
     > .editor-content-shell {
     width: calc(100% - clamp(8px, 4%, var(--style-content-inset)) * 2);
@@ -235,29 +235,29 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
     margin-inline: auto;
     margin-top: var(--style-content-top);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .vr-note
     .vr-body {
     width: calc(100% - clamp(8px, 4%, var(--style-content-inset)) * 2);
     max-width: var(--style-content-width);
     margin-inline: auto;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     :is(.note-title-row, .vr-title) {
     min-height: var(--style-header-height);
     padding-block: 6px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .editor-menu
     .menu-btn {
     min-height: var(--style-control-height);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .desktop-document-panels
     :is(.document-outline-list, .document-bookmark-list) {
     padding-block: var(--style-panel-gap);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     :is(.doc-tree-node, .note-list-item) {
     border-radius: 5px;
   }
@@ -282,7 +282,7 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
   }
 }
 
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(.code-block-toolbar, .vr-code-toolbar)
   .active {
   background: var(--active-bg);
@@ -296,17 +296,17 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
   white-space: normal;
   overflow-wrap: anywhere;
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   .document-outline-panel {
   background: var(--navigation-outline-bg, var(--navigation-bg, var(--bg)));
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   .document-bookmark-panel {
   background: var(--navigation-bookmark-bg, var(--navigation-bg, var(--bg)));
 }
 
 /* Complete calm presets. Theme classes only select the light/dark variant. */
-:root:is([data-interface-style="calm"], [data-interface-style="calm-compact"]) {
+:root:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"]) {
   --bg: #fcfbf8;
   --surface: #f0efea;
   --border: #dedfd7;
@@ -330,8 +330,7 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
     -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
 }
 :root.theme-dark:is(
-    [data-interface-style="calm"],
-    [data-interface-style="calm-compact"]
+    [data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"]
   ) {
   --bg: #252a24;
   --surface: #20251f;
@@ -355,7 +354,7 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
   --style-content-inset: 28px;
   --style-content-top: 28px;
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(.editor-content, .vr-block)
   h1 {
   font-size: 34px;
@@ -366,39 +365,39 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
 html[data-interface-style="calm-compact"] :is(.editor-content, .vr-block) h1 {
   font-size: 30px;
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(.editor-content, .vr-block)
   h2 {
   font-size: 21px;
   line-height: 1.5;
   letter-spacing: -0.4px;
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(.editor-content, .vr-block)
   h3 {
   font-size: 18px;
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is(.editor-content, .vr-block)
   :is(h4, h5, h6) {
   font-size: 16px;
 }
-html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
   :is([data-toolbar-tool="font"], .style-managed-font-action) {
   display: none;
 }
 @media (max-width: 768px) {
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     :is(.editor-content, .vr-block)
     h1 {
     font-size: 27px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     :is(.editor-content, .vr-block)
     h2 {
     font-size: 19px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     :is(.editor-content, .vr-block) {
     font-size: 14px;
   }
@@ -407,20 +406,20 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
 /* Desktop rhythm: common header baseline, quieter navigation, intact hit targets.
    Document list row heights belong to its virtualizer and must not change here. */
 @media (min-width: 769px) and (pointer: fine) {
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace {
     --desktop-header-height: var(--style-header-height);
     --font:
       -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     :is(.note-title-row, .vr-title, header.workspace-panel-heading) {
     height: var(--style-header-height);
     min-height: var(--style-header-height);
     padding-block: 4px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     :is(
       .note-title-row,
@@ -434,14 +433,14 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
     background-image: linear-gradient(var(--style-rule), var(--style-rule));
     background-size: calc(100% - 24px) 1px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     :is(.note-title, .document-title-preview) {
     font-size: 18px;
     font-weight: 500;
     letter-spacing: -0.2px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     :is(.note-title-row, .vr-title)
     :is(.focus-btn, .note-readonly-badge, .document-outline-toggle) {
@@ -450,14 +449,14 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
     color: var(--text-secondary);
     border-radius: 6px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     :is(.note-title-row, .vr-title)
     button:hover:not(:disabled) {
     background-color: var(--hover-bg);
     color: var(--text);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     :is(.note-title-row, .vr-title)
     :is(
@@ -468,13 +467,13 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
     background-color: var(--active-bg);
     color: var(--accent);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     header.workspace-panel-heading {
     --panel-action-height: var(--style-control-height);
     background-color: var(--surface);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     header.workspace-panel-heading
     .btn-icon {
@@ -483,27 +482,27 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
     background-color: transparent;
     color: var(--text-secondary);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     header.workspace-panel-heading
     .btn-icon:hover:not(:disabled) {
     background-color: var(--hover-bg);
     color: var(--text);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     header.workspace-panel-heading
     .btn-icon[aria-pressed="true"] {
     background-color: var(--active-bg);
     color: var(--accent);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     .editor-menu {
     padding-block: 6px;
     column-gap: 4px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     .editor-menu
     .menu-sep {
@@ -511,12 +510,12 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
     height: 14px;
     margin-inline: 5px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     .doc-tree {
     padding: 8px 6px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     .doc-tree-node {
     min-height: var(--style-control-height);
@@ -525,46 +524,46 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
     gap: 5px;
     border-radius: 6px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     .doc-tree-type {
     background: transparent;
     font-size: 10px;
     font-weight: 400;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     .doc-tree-count {
     font-variant-numeric: tabular-nums;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     .doc-tree-selected {
     box-shadow: inset 2px 0 var(--accent);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     .document-browser-controls {
     padding-inline: 10px;
     border-bottom-color: var(--style-rule);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     .document-browser-row {
     border-bottom-color: transparent;
     border-radius: 6px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     .document-browser-row.selected {
     box-shadow: inset 2px 0 var(--accent);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     .document-browser-title {
     font-weight: 500;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     :is(
       .document-browser-path,
@@ -574,28 +573,28 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
     font-size: 11px;
     color: var(--text-secondary);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     :is(.document-outline-list, .document-bookmark-list) {
     padding-inline: 6px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     :is(.document-outline-item, .document-bookmark-item) {
     border-radius: 6px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     :is(.document-outline-item.current, .document-bookmark-item.is-current) {
     box-shadow: inset 2px 0 var(--accent);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     :is(.document-outline-header, .document-bookmark-header) {
     padding-inline: 10px;
     font-weight: 500;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     :is(.document-outline-header, .document-bookmark-header)
     button {
@@ -603,19 +602,19 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
     border-radius: 4px;
     background: transparent;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     :is(.document-outline-header, .document-bookmark-header)
     button:hover {
     background: var(--hover-bg);
     color: var(--accent);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     :is(.document-outline-level, .document-bookmark-index) {
     font-variant-numeric: tabular-nums;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     .editor-stats {
     min-height: 26px;
@@ -624,12 +623,12 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
   }
 }
 @media (min-width: 769px) and (pointer: fine) {
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     .code-block-toolbar {
     flex-wrap: wrap;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
     .app-desktop-workspace
     .code-block-actions {
     max-width: 100%;

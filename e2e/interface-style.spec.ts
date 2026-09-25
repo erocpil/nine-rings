@@ -83,7 +83,7 @@ test("清雅采用完整预设，跟随系统；经典配置在切回后恢复",
     "background-color",
     "rgb(37, 42, 36)",
   );
-  const colors = page.getByRole("group", { name: "清雅配色", exact: true });
+  const colors = page.getByRole("group", { name: "风格配色", exact: true });
   await colors.getByRole("button", { name: "浅色", exact: true }).click();
   await expect(page.locator("body")).toHaveCSS(
     "background-color",

@@ -122,7 +122,7 @@ for (const style of ["calm", "calm-compact"] as const) {
     await page.getByTitle("设置", { exact: true }).click();
     await page.getByRole("button", { name: /^外观与布局/ }).click();
     await page
-      .getByRole("group", { name: "清雅配色", exact: true })
+      .getByRole("group", { name: "风格配色", exact: true })
       .getByRole("button", { name: "深色", exact: true })
       .click();
     await page.locator(".settings-close").click();

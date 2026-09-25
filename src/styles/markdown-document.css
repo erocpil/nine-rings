@@ -83,3 +83,6 @@
 .markdown-preview-block { overflow-wrap: anywhere; }
 .markdown-preview-pane .block-workspace-open { display: none; }
 .markdown-preview-pane .tableWrapper table { table-layout: auto; }
+
+/* Source numbers must not inherit proportional document typography. */
+.markdown-cm-host .cm-lineNumbers { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
