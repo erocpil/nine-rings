@@ -1,3 +1,4 @@
+import { mobileSourceInput } from "../lib/mobile-source-input";
 import { readonlySourceSelection } from "../lib/readonly-source-selection";
 import {
   useLayoutEffect,
@@ -152,6 +153,7 @@ export function MarkdownSourceEditor({
     if (!host.current) return;
     const extensions = [
       history(),
+      mobileSourceInput(),
       scrollPastEnd(),
       foldGutter(),
       bracketMatching(),
@@ -350,7 +352,10 @@ export function MarkdownSourceEditor({
     });
   }, [value]);
   const run = (command: (editor: EditorView) => boolean) => {
-    if (view.current) command(view.current);
+    if (view.current) {
+      view.current.contentDOM.dispatchEvent(new Event("nr:editor-navigation"));
+      command(view.current);
+    }
   };
   return (
     <div

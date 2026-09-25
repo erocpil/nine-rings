@@ -1,3 +1,4 @@
+import { resetTableColumnWidths } from "../extensions/ContentSizedTable";
 import { DisclosureIcon } from "./DisclosureIcon";
 import React, { type ReactNode, type RefObject } from "react";
 import type { Editor } from "@tiptap/core";
@@ -429,6 +430,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
             <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().addColumnBefore().run(); setTableOpen(false); }} type="button">在左侧添加列</button>
             <button className="menu-dropdown-item" onClick={() => { editor.chain().focus().addColumnAfter().run(); setTableOpen(false); }} type="button">在右侧添加列</button>
             <div className="menu-dropdown-sep" />
+            <button className="menu-dropdown-item" onClick={() => { resetTableColumnWidths(editor); setTableOpen(false); }} type="button">按内容调整列宽</button>
             <button className="menu-dropdown-item" onClick={() => { setTableCellAlignment("left"); setTableOpen(false); }} type="button">{selectedTableCellCount > 0 ? "所选单元格左对齐" : "当前列左对齐"}</button>
             <button className="menu-dropdown-item" onClick={() => { setTableCellAlignment("center"); setTableOpen(false); }} type="button">{selectedTableCellCount > 0 ? "所选单元格居中" : "当前列居中"}</button>
             <button className="menu-dropdown-item" onClick={() => { setTableCellAlignment("right"); setTableOpen(false); }} type="button">{selectedTableCellCount > 0 ? "所选单元格右对齐" : "当前列右对齐"}</button>

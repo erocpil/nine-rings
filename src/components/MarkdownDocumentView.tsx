@@ -1,3 +1,5 @@
+import { MarkdownSplitPreview } from "./MarkdownSplitPreview";
+import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { NavigationButtons } from "./NavigationButtons";
 import { useNavigationStore } from "../stores/useNavigationStore";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -20,6 +22,8 @@ import { patchReadingState, readReadingState } from "../lib/reading-state";
 /** One visible editing surface, one canonical autosave stream for both views. */
 export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps; render: (props: NoteEditorProps) => ReactNode }) {
   const navigationTarget = useNavigationStore(state => state.target?.noteId === props.noteId ? state.target : null);
+  const mobile = useMobileViewport();
+  const [preview, setPreview] = useState(() => localStorage.getItem("nr:markdownSplitPreview") === "true");
   const [source, setSource] = useState<string | null>(null);
   const viewPosition = useMarkdownViewPosition(props.noteId, source !== null, props.sensitive);
   const [busy, setBusy] = useState(false);
@@ -158,6 +162,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           onClick={() => props.onReadonlyChange?.(!props.readonly)}><ToolbarIcon name={props.readonly ? "lock" : "unlock"} /></button>}
         <div className="note-title-field"><DocumentTitlePreview title={props.title || "无标题"} /></div>
         {toggle}
+        {!mobile && <button type="button" className="markdown-view-toggle" aria-pressed={preview} onClick={() => { setPreview(!preview); localStorage.setItem("nr:markdownSplitPreview", String(!preview)); }}>并排预览</button>}
         {controls}
         <NavigationButtons />
         {props.onFocusModeChange && <button type="button" className="focus-btn" aria-label={props.focusMode ? "退出专注模式" : "专注模式"}
@@ -177,9 +182,11 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
           await latestProps.current.onFlush?.();
         } finally { if (alive.current) setBusy(false); }
       }} />
+      <MarkdownSplitPreview enabled={preview && !mobile} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
       <MarkdownSourceEditor value={source} readonly={Boolean(props.readonly) || busy}
         areaRef={viewPosition.area} session={sourceEditorState} onChange={editSource}
         showLineNumbers={props.showLineNumbers} fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine} />
+      </MarkdownSplitPreview>
     </>}</MarkdownSourceWorkspace>}
   </div>;
 }

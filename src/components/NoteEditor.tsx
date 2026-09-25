@@ -1,3 +1,4 @@
+import { IncrementalDocumentSerializer } from "../lib/incremental-document-serializer";
 import { editorDocumentFromContent } from "../lib/editor-content-model";
 import { useDesktopDocumentPanels } from "../hooks/useDesktopDocumentPanels";
 import { DesktopDocumentPanels, desktopPanelClass, desktopPanelStyle } from "./DesktopDocumentPanels";
@@ -23,10 +24,8 @@ import TextStyle from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import { ResizableImage } from "../extensions/ResizableImage";
 import LinkExt from "@tiptap/extension-link";
-import Table from "@tiptap/extension-table";
+import { ContentSizedTable as Table, AlignedTableCell, AlignedTableHeader } from "../extensions/ContentSizedTable";
 import TableRow from "@tiptap/extension-table-row";
-import TableHeader from "@tiptap/extension-table-header";
-import TableCell from "@tiptap/extension-table-cell";
 import { MarkdownLinkInput } from "../extensions/MarkdownLinkInput";
 import {
   normalizePastedHTML,
@@ -252,38 +251,6 @@ function createReadonlyDocumentGuard(isReadonly: () => boolean) {
   });
 }
 
-const AlignedTableCell = TableCell.extend({
-  content: "paragraph",
-  addAttributes() {
-    return {
-      ...this.parent?.(),
-      textAlign: {
-        default: null,
-        parseHTML: (element) => element.style.textAlign || null,
-        renderHTML: (attributes) => attributes.textAlign
-          ? { style: `text-align: ${attributes.textAlign}` }
-          : {},
-      },
-    };
-  },
-});
-
-const AlignedTableHeader = TableHeader.extend({
-  content: "paragraph",
-  addAttributes() {
-    return {
-      ...this.parent?.(),
-      textAlign: {
-        default: null,
-        parseHTML: (element) => element.style.textAlign || null,
-        renderHTML: (attributes) => attributes.textAlign
-          ? { style: `text-align: ${attributes.textAlign}` }
-          : {},
-      },
-    };
-  },
-});
-
 // ══════════════════════════════════════
 
 export interface NoteEditorProps {
@@ -491,6 +458,7 @@ function DocumentEditor(props: NoteEditorProps) {
 }
 
 function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
+  const [documentSerializer] = useState(() => new IncrementalDocumentSerializer());
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -973,9 +941,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             : Object.fromEntries(Object.entries(currentMetadata).filter(([key]) => key !== "bookmarks"));
           documentMetadataRef.current = metadata;
           contentChangeRef.current(() => {
-            const editorDocument = docSnapshot.toJSON();
+            const { json: editorDocument, delta } = documentSerializer.read(docSnapshot);
             cacheEditorDocument(noteId, contentVersionRef.current, editorDocument);
-            const delta = proseMirrorToDelta(editorDocument) as unknown as DeltaOps;
             return Object.keys(metadata).length > 0 ? { ...delta, metadata } : delta;
           });
         },
@@ -1029,12 +996,11 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       // current JSON immediately so a rapid A → B → A switch cannot recreate
       // A from the pre-fold autosave revision while the write is still queued.
       if (transaction.getMeta(blockquoteFoldTransactionMeta)) {
-        cacheEditorDocument(noteId, contentVersionRef.current, docSnapshot.toJSON());
+        cacheEditorDocument(noteId, contentVersionRef.current, documentSerializer.read(docSnapshot).json);
       }
       onContentChange(() => {
-        const editorDocument = docSnapshot.toJSON();
+        const { json: editorDocument, delta } = documentSerializer.read(docSnapshot);
         cacheEditorDocument(noteId, contentVersionRef.current, editorDocument);
-        const delta = proseMirrorToDelta(editorDocument) as unknown as DeltaOps;
         const currentMetadata = documentMetadataRef.current ?? {};
         const metadata = bookmarksRef.current.length > 0
           ? { ...currentMetadata, bookmarks: bookmarksRef.current }

@@ -24,6 +24,7 @@ export class SourceEditorHandle extends EventTarget {
     this.view.dispatch({ selection: { anchor, head } });
   }
   scrollToOffset(offset: number, center = false) {
+    this.view.contentDOM.dispatchEvent(new Event("nr:editor-navigation"));
     this.view.dispatch({
       effects: EditorView.scrollIntoView(
         Math.max(0, Math.min(this.view.state.doc.length, offset)),

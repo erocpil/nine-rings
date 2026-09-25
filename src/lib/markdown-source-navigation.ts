@@ -145,6 +145,7 @@ export class SourceNavigationDocument {
   private get model() {
     return (this.parsed ??= parse(this.source));
   }
+  get document() { return this.model.doc; }
   get outline() {
     return this.model.outline;
   }

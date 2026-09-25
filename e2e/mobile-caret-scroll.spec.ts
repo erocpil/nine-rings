@@ -183,3 +183,22 @@ test("原生多行选区保留，键盘变化不会将选区折叠或滚回旧�
   expect(await page.evaluate(() => window.getSelection()!.toString())).toBe(selected);
   expect(Math.abs(await page.locator(".note-editor-scroll").evaluate(el => el.scrollTop) - before)).toBeLessThanOrEqual(2);
 });
+
+test("输入法组合期间键盘变化不追踪旧光标，失焦后取消待执行滚动", async ({page}) => {
+  await prepare(page);
+  await scrollToTarget(page,60,70);
+  const before=await page.locator(".note-editor-scroll").evaluate(el=>el.scrollTop);
+  await page.locator(".ProseMirror").evaluate(el=>el.dispatchEvent(new CompositionEvent("compositionstart",{bubbles:true,data:"中"})));
+  await page.evaluate(()=>{
+    Object.defineProperty(window.visualViewport!,"height",{configurable:true,value:380});
+    window.visualViewport!.dispatchEvent(new Event("resize"));
+  });
+  await settle(page);
+  expect(Math.abs(await page.locator(".note-editor-scroll").evaluate(el=>el.scrollTop)-before)).toBeLessThanOrEqual(2);
+  await page.locator(".ProseMirror").evaluate(el=>{
+    el.dispatchEvent(new CompositionEvent("compositionend",{bubbles:true,data:"中"}));
+    (el as HTMLElement).blur();
+  });
+  await settle(page);
+  expect(Math.abs(await page.locator(".note-editor-scroll").evaluate(el=>el.scrollTop)-before)).toBeLessThanOrEqual(2);
+});

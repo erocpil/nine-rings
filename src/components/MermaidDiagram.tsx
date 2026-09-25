@@ -147,11 +147,11 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
     const element = rootRef.current;
     if (!element) return;
     applyView(initialViewRef.current);
-    setResult({});
+    setResult(previous => ({ svg: previous.svg }));
     void renderMermaid(source).then(
       svg => { if (!cancelled) setResult({ svg }); },
       error => {
-        if (!cancelled) setResult({ error: error instanceof Error ? error.message.split("\n")[0].slice(0, 200) : "无法渲染图表" });
+        if (!cancelled) setResult(previous => ({ ...previous, error: error instanceof Error ? error.message.split("\n")[0].slice(0, 200) : "无法渲染图表" }));
       },
     );
     return () => { cancelled = true; };
@@ -205,6 +205,7 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
     </div> : null;
   return <div ref={rootRef} className={`mermaid-diagram ${interactive ? "mermaid-diagram-interactive" : view.scale !== 1 ? "mermaid-diagram-zoomed" : ""}`} contentEditable={false} aria-label="Mermaid 图表">
     {interactive ? controls : toolbar && controls ? createPortal(controls, toolbar) : null}
+    {result.svg && result.error && <div className="mermaid-diagram-error" role="status">图表无法更新，保留上一次图形：{result.error}</div>}
     {result.svg
       ? interactive
         ? <div ref={viewportRef} className="mermaid-diagram-viewport" aria-label="可拖动图表" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerEnd} onPointerCancel={pointerEnd}>

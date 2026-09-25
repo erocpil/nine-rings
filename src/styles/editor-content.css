@@ -602,3 +602,8 @@
     margin-inline-start: min(4px, calc(var(--list-followup-indent-enabled, 1) * var(--editor-list-indent, 1em)));
   }
 }
+
+/* Automatic widths are visual only; explicit dragged widths stay authoritative. */
+.editor-content .tableWrapper table[data-column-layout="auto"] { table-layout: auto; }
+.editor-content .tableWrapper table[data-column-layout="manual"] { max-width: none; }
+.editor-content .tableWrapper th, .editor-content .tableWrapper td { min-width: 48px; }

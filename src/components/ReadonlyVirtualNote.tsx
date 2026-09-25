@@ -1,3 +1,4 @@
+import { ReadonlyImage } from "./ReadonlyImage";
 import { BlockquoteToolbar } from "./BlockquoteToolbar";
 import { useDesktopDocumentPanels } from "../hooks/useDesktopDocumentPanels";
 import { listFollowupBlocks } from "../lib/list-followup-blocks";
@@ -54,7 +55,7 @@ import { readingBlockSession, type ReadingBlockState as BlockState } from "../li
 import { patchReadingState, readReadingState } from "../lib/reading-state";
 import { centerSearchMatch } from "../lib/search-scroll";
 
-function renderBlock(
+export function renderReadonlyBlock(
   node: PMNode,
   pos: number,
   states: Map<number, BlockState>,
@@ -125,7 +126,7 @@ function renderBlock(
   node.forEach((child, offset) =>
     children.push(
       <React.Fragment key={offset}>
-        {renderBlock(
+        {renderReadonlyBlock(
           child,
           pos + offset + 1,
           states,
@@ -165,6 +166,14 @@ function renderBlock(
           {children}
         </ol>
       );
+    case "resizableImage":
+    case "image":
+      return <ReadonlyImage src={String(node.attrs.src || "")} alt={node.attrs.alt} title={node.attrs.title} />;
+    case "table":
+      return <div className="tableWrapper"><table><tbody>{children}</tbody></table></div>;
+    case "tableRow": return <tr>{children}</tr>;
+    case "tableHeader": return <th colSpan={node.attrs.colspan} rowSpan={node.attrs.rowspan} style={{ textAlign: node.attrs.textAlign || undefined }}>{children}</th>;
+    case "tableCell": return <td colSpan={node.attrs.colspan} rowSpan={node.attrs.rowspan} style={{ textAlign: node.attrs.textAlign || undefined }}>{children}</td>;
     case "listItem":
       return <li data-task-checked={typeof node.attrs.taskChecked === "boolean" ? String(node.attrs.taskChecked) : undefined}>{children}</li>;
     case "blockquote": {
@@ -231,7 +240,7 @@ function renderBlock(
                   linePosition += line.length + 1;
                   return <span className="vr-code-line" key={index} style={{ gridTemplateColumns: `calc(${String(lines.length).length}ch + var(--code-line-number-padding, 8px)) minmax(0, 1fr)` }}>
                     <span className="vr-code-line-number" aria-hidden="true">{index + 1}</span>
-                    <span>{line ? renderBlock(node.type.schema.text(line), position, states, update, match, defaultWrap) : "\n"}</span>
+                    <span>{line ? renderReadonlyBlock(node.type.schema.text(line), position, states, update, match, defaultWrap) : "\n"}</span>
                   </span>;
                 }) : children}</code>
               </pre>
@@ -1173,7 +1182,7 @@ export function ReadonlyVirtualNote(
                   {props.showLineNumbers && <span>{block.number}</span>}
                 </div>
                 <div className="ProseMirror vr-block" contentEditable={false}>
-                  {renderBlock(
+                  {renderReadonlyBlock(
                     block.node,
                     block.pos,
                     states,

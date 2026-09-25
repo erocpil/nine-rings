@@ -1,3 +1,4 @@
+import { MobileInputSession } from "../lib/mobile-input-session";
 import { useEffect, type RefObject } from "react";
 import type { Editor } from "@tiptap/core";
 import type { EditorView } from "@tiptap/pm/view";
@@ -26,11 +27,10 @@ export function useMobileEditorScroll(editor: Editor | null, scrollRef: RefObjec
     const mobile = window.matchMedia(MOBILE_VIEWPORT_QUERY);
     let frame = 0;
     let layoutFrame = 0;
-    let needsReveal = false;
+    const session = new MobileInputSession();
     let lastHeight = viewport.height;
     let waitingForSelection: typeof view.state.selection | null = null;
     let gesture: { x: number; y: number; moved: boolean } | null = null;
-    let reading = false;
 
     const keyboardOpen = () => mobile.matches && Math.abs(viewport.width - window.innerWidth) < 24
       && Math.abs(viewport.scale - 1) < 0.05 && window.innerHeight - viewport.height >= 80;
@@ -39,7 +39,7 @@ export function useMobileEditorScroll(editor: Editor | null, scrollRef: RefObjec
       cancelAnimationFrame(frame);
       cancelAnimationFrame(layoutFrame);
       frame = layoutFrame = 0;
-      needsReveal = false;
+      session.cancel();
     };
 
     const nativeCaretMatches = () => {
@@ -52,9 +52,9 @@ export function useMobileEditorScroll(editor: Editor | null, scrollRef: RefObjec
 
     const reveal = () => {
       frame = 0;
-      if (!needsReveal || reading || gesture || waitingForSelection || editor.isDestroyed
+      if (!session.pending || session.blocked || gesture || waitingForSelection || editor.isDestroyed
         || !view.hasFocus() || !view.state.selection.empty || !nativeCaretMatches() || !keyboardOpen()) return;
-      needsReveal = false;
+      session.cancel();
       const rect = root.getBoundingClientRect();
       const sticky = root.querySelector<HTMLElement>(":scope > .note-editor-sticky");
       const stickyBottom = sticky && getComputedStyle(sticky).position === "sticky"
@@ -70,7 +70,7 @@ export function useMobileEditorScroll(editor: Editor | null, scrollRef: RefObjec
     };
 
     const schedule = () => {
-      if (!needsReveal || frame || layoutFrame) return;
+      if (!session.pending || frame || layoutFrame) return;
       // useWebPlatform writes the shell size in rAF. Measure in the following
       // frame, once those CSS changes have been laid out.
       layoutFrame = requestAnimationFrame(() => {
@@ -84,11 +84,12 @@ export function useMobileEditorScroll(editor: Editor | null, scrollRef: RefObjec
       cancel();
       waitingForSelection = null;
       gesture = null;
-      reading = false;
+      session.release();
       if (!(target instanceof HTMLElement) || !view.dom.contains(target)
         || target.closest('button, input, textarea, select, [contenteditable="false"]')) return;
       waitingForSelection = view.state.selection;
       gesture = { x, y, moved: false };
+      session.touch();
     };
     const pointerDown = (event: PointerEvent) => {
       if (event.pointerType === "mouse" || !event.isPrimary) return;
@@ -104,7 +105,7 @@ export function useMobileEditorScroll(editor: Editor | null, scrollRef: RefObjec
     const move = (x: number, y: number) => {
       if (!gesture || Math.hypot(x - gesture.x, y - gesture.y) <= 6) return;
       gesture.moved = true;
-      reading = true;
+      session.read();
       cancel();
     };
     const pointerMove = (event: PointerEvent) => move(event.clientX, event.clientY);
@@ -121,21 +122,30 @@ export function useMobileEditorScroll(editor: Editor | null, scrollRef: RefObjec
         if (hit?.pos === view.state.selection.head) waitingForSelection = null;
       }
       gesture = null;
+      session.release();
       schedule();
     };
     const stopReading = () => {
       cancel();
       gesture = null;
       waitingForSelection = null;
-      reading = true;
+      session.read();
     };
-    const input = () => {
+    const input = (event?: Event) => {
       gesture = null;
       waitingForSelection = null;
-      reading = false;
+      if (event?.type === EDITOR_NAVIGATION_EVENT) session.navigate();
+      else session.input(view.composing || (event instanceof InputEvent && event.isComposing));
     };
+    const compositionStart = () => { session.input(true); cancel(); };
+    const compositionEnd = () => {
+      session.input();
+      if (keyboardOpen()) { session.request(); schedule(); }
+    };
+    const blur = () => { cancel(); session.blur(); waitingForSelection = null; gesture = null; };
     const selectionChanged = () => {
-      if (!view.state.selection.empty) { cancel(); return; }
+      if (!view.state.selection.empty) { session.select(); cancel(); return; }
+      if (session.phase === "selection") session.phase = "idle";
       if (waitingForSelection && !view.state.selection.eq(waitingForSelection) && nativeCaretMatches()) {
         waitingForSelection = null;
       }
@@ -145,8 +155,8 @@ export function useMobileEditorScroll(editor: Editor | null, scrollRef: RefObjec
     };
     const transaction = ({ transaction: tr }: { transaction: Transaction }) => {
       if (!tr.docChanged && !tr.scrolledIntoView) return;
-      if (!keyboardOpen() || waitingForSelection || reading) return;
-      needsReveal = true;
+      if (!keyboardOpen() || waitingForSelection || session.phase === "reading") return;
+      session.request();
       schedule();
     };
     const resize = () => {
@@ -155,17 +165,17 @@ export function useMobileEditorScroll(editor: Editor | null, scrollRef: RefObjec
       const growing = height > lastHeight + 1;
       lastHeight = height;
       if (growing || !keyboardOpen()) { cancel(); return; }
-      if (shrinking && !reading) {
-        needsReveal = true;
+      if (shrinking && session.phase !== "reading") {
+        session.request();
         schedule();
       }
     };
 
     scrollHandlers.set(view, () => {
       if (!mobile.matches) return false;
-      if (waitingForSelection || gesture || reading) return true;
+      if (waitingForSelection || gesture || session.blocked) return true;
       if (!keyboardOpen()) return false;
-      needsReveal = true;
+      session.request();
       schedule();
       return true;
     });
@@ -181,7 +191,9 @@ export function useMobileEditorScroll(editor: Editor | null, scrollRef: RefObjec
     root.addEventListener(EDITOR_NAVIGATION_EVENT, input);
     view.dom.addEventListener("beforeinput", input, true);
     view.dom.addEventListener("keydown", input, true);
-    view.dom.addEventListener("blur", cancel);
+    view.dom.addEventListener("blur", blur);
+    view.dom.addEventListener("compositionstart", compositionStart);
+    view.dom.addEventListener("compositionend", compositionEnd);
     editor.on("selectionUpdate", selectionChanged);
     editor.on("transaction", transaction);
     viewport.addEventListener("resize", resize);
@@ -200,7 +212,9 @@ export function useMobileEditorScroll(editor: Editor | null, scrollRef: RefObjec
       root.removeEventListener(EDITOR_NAVIGATION_EVENT, input);
       view.dom.removeEventListener("beforeinput", input, true);
       view.dom.removeEventListener("keydown", input, true);
-      view.dom.removeEventListener("blur", cancel);
+      view.dom.removeEventListener("blur", blur);
+      view.dom.removeEventListener("compositionstart", compositionStart);
+      view.dom.removeEventListener("compositionend", compositionEnd);
       editor.off("selectionUpdate", selectionChanged);
       editor.off("transaction", transaction);
       viewport.removeEventListener("resize", resize);

@@ -42,7 +42,7 @@ for (const count of [300, 1500, 5000]) {
       await profiler.send("Profiler.enable");
       await profiler.send("Profiler.start");
     }
-    const paste = await editor.evaluate(async (element, content) => {
+    const paste = await editor.evaluate(async (element, { content, expectedCount }) => {
       const data = new DataTransfer();
       data.setData("text/plain", content);
       const instance = (
@@ -80,23 +80,32 @@ for (const count of [300, 1500, 5000]) {
             clipboardData: data,
           }),
         );
+        // Paste now parses asynchronously. Keep instrumentation installed until
+        // the real content transaction arrives, not merely until the event returns.
+        const eventReturnMs = performance.now() - start;
+        while (instance.state.doc.childCount !== expectedCount) {
+          if (performance.now() - start > 20000) throw new Error("Paste did not finish");
+          await new Promise(requestAnimationFrame);
+        }
+        const pasteMs = performance.now() - start;
+        await new Promise(requestAnimationFrame);
+        await new Promise(requestAnimationFrame);
+        element.lastElementChild!.getBoundingClientRect();
+        return {
+          eventReturnMs,
+          pasteMs,
+          dispatchMs,
+          updateStateMs,
+          transactionCount,
+          outsideDispatchMs: pasteMs - dispatchMs,
+          layoutReadyMs: performance.now() - start,
+        };
       } finally {
         view.dispatch = dispatch;
         view.updateState = updateState;
       }
-      const pasteMs = performance.now() - start;
-      await new Promise(requestAnimationFrame);
-      await new Promise(requestAnimationFrame);
-      element.lastElementChild!.getBoundingClientRect();
-      return {
-        pasteMs,
-        dispatchMs,
-        updateStateMs,
-        transactionCount,
-        outsideDispatchMs: pasteMs - dispatchMs,
-        layoutReadyMs: performance.now() - start,
-      };
-    }, markdown);
+    }, { content: markdown, expectedCount: count });
+    expect(paste.transactionCount).toBeGreaterThan(0);
     if (profiler) {
       const { profile } = await profiler.send("Profiler.stop");
       console.log(

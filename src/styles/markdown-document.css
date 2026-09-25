@@ -74,3 +74,12 @@
 }
 
 .markdown-cm-host .cm-content[aria-readonly="true"] { caret-color: transparent; }
+
+.markdown-split-preview { display: flex; flex: 1; min-width: 0; min-height: 0; }
+.markdown-split-source { display: flex; flex-direction: column; flex: 1 1 50%; min-width: 0; min-height: 0; }
+.markdown-preview-pane { display: flex; flex-direction: column; flex: 1 1 50%; min-width: 0; min-height: 0; border-left: 1px solid var(--border); }
+.markdown-preview-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; font-size: 12px; color: var(--text-secondary); border-bottom: 1px solid var(--border); }
+.markdown-preview-scroll { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px 55dvh; background: var(--bg); }
+.markdown-preview-block { overflow-wrap: anywhere; }
+.markdown-preview-pane .block-workspace-open { display: none; }
+.markdown-preview-pane .tableWrapper table { table-layout: auto; }
