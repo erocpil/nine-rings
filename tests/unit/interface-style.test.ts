@@ -13,7 +13,7 @@ test("legacy and unknown styles use classic, known styles remain independent of 
   expect(normalizeInterfaceStyle("unknown")).toBe("classic");
   const root = { dataset: {}, className: "theme-nord" };
   vi.stubGlobal("document", { documentElement: root });
-  for (const style of ["classic", "calm", "calm-compact", "paper", "minimal"]) {
+  for (const style of ["classic", "calm", "calm-compact", "paper", "minimal", "mono-aware", "yugen", "wabi-sabi"]) {
     applyInterfaceStyle(style);
     expect(root.dataset).toEqual({ interfaceStyle: style });
     expect(root.className).toBe("theme-nord");

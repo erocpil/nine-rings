@@ -2,14 +2,14 @@
    Tables retain column sizing, selection overlays and resize handles. */
 @media (min-width: 769px) and (pointer: fine) {
   html:is(
-    [data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"]
+    [data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"]
   ) {
     --ui-shadow-popover:
       0 8px 28px color-mix(in srgb, var(--text) 12%, transparent),
       0 1px 4px color-mix(in srgb, var(--text) 6%, transparent);
     --ui-shadow-dialog: 0 20px 64px #0003;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     :is(
       .menu-dropdown-list,
       .doc-context-menu,
@@ -22,7 +22,7 @@
     border-radius: 8px;
     box-shadow: var(--ui-shadow-popover);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     :is(
       .menu-dropdown-list,
       .doc-context-menu,
@@ -31,7 +31,7 @@
     ) {
     padding: 6px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     :is(
       .menu-dropdown-item,
       .doc-context-item,
@@ -45,7 +45,7 @@
     font-size: 13px;
     line-height: 1.5;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     :is(
       .menu-dropdown-item,
       .doc-context-item,
@@ -54,7 +54,7 @@
     ):hover:not(:disabled) {
     background: var(--hover-bg);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     :is(
       .menu-dropdown-item.active,
       .document-filter-options > button[aria-selected="true"]
@@ -62,53 +62,53 @@
     background: var(--active-bg);
     color: var(--accent);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     :is(.doc-context-danger, .editor-context-danger) {
     color: var(--danger);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     :is(.doc-context-danger, .editor-context-danger):hover:not(:disabled) {
     background: var(--danger-bg);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-find-bar {
     padding: 8px;
     gap: 6px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     :is(.editor-find-count, .table-selection-hint) {
     font-size: 11px;
     font-variant-numeric: tabular-nums;
     color: var(--text-secondary);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     :is(.block-workspace, .image-dialog) {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 12px;
     box-shadow: var(--ui-shadow-dialog);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     :is(.block-workspace-header, .image-dialog-header) {
     min-height: var(--style-header-height);
     padding-inline: 14px;
     border-bottom-color: var(--style-rule);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     :is(.block-workspace-header strong, .image-dialog-header h3) {
     font-size: 14px;
     font-weight: 500;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .block-workspace-navigation {
     border-top-color: var(--style-rule);
     padding-inline: 14px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .block-workspace::backdrop {
     background: #15202055;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     :is(th, td) {
     padding: 9px 12px;
@@ -116,24 +116,24 @@
     border-inline-color: var(--style-rule);
     line-height: 1.7;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     th {
     background: var(--code-bg);
     font-weight: 600;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     td {
     background: transparent;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     tr:nth-child(even)
     td {
     background: color-mix(in srgb, var(--code-bg) 35%, var(--bg));
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     :not(pre)
     > code {
@@ -145,31 +145,31 @@
     box-decoration-break: clone;
     -webkit-box-decoration-break: clone;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     blockquote {
     border-left-width: 2px;
     border-left-color: color-mix(in srgb, var(--accent) 45%, var(--border));
     color: var(--text);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     li {
     margin-block: 3px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     li
     > :is(ul, ol) {
     margin-block: 4px;
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     :is(ul, ol)
     > li::before {
     color: var(--text-secondary);
   }
-  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"])
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     .ProseMirror
     > :is(.code-block-wrap, .blockquote-wrap, .tableWrapper) {

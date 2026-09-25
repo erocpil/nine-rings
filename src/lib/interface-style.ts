@@ -5,7 +5,14 @@ import {
 } from "./editor-appearance";
 import { applyTheme } from "./theme";
 export type InterfaceStyle =
-  "classic" | "calm" | "calm-compact" | "paper" | "minimal";
+  | "classic"
+  | "calm"
+  | "calm-compact"
+  | "paper"
+  | "minimal"
+  | "mono-aware"
+  | "yugen"
+  | "wabi-sabi";
 export const INTERFACE_STYLES: ReadonlyArray<{
   value: InterfaceStyle;
   label: string;
@@ -36,12 +43,30 @@ export const INTERFACE_STYLES: ReadonlyArray<{
     label: "精简",
     description: "中性配色、紧凑层级，适合多栏技术笔记",
   },
+  {
+    value: "mono-aware",
+    label: "物哀",
+    description: "樱灰与玫瑰、舒展衬线，温柔的阅读余韵",
+  },
+  {
+    value: "yugen",
+    label: "幽玄",
+    description: "墨蓝与烟青、集中阅读，含蓄而清晰的层次",
+  },
+  {
+    value: "wabi-sabi",
+    label: "侘寂",
+    description: "砂岩与苔色、朴素边界，自然安定的纸石感",
+  },
 ];
 export function normalizeInterfaceStyle(value: unknown): InterfaceStyle {
   return value === "calm" ||
     value === "calm-compact" ||
     value === "paper" ||
-    value === "minimal"
+    value === "minimal" ||
+    value === "mono-aware" ||
+    value === "yugen" ||
+    value === "wabi-sabi"
     ? value
     : "classic";
 }
@@ -77,7 +102,12 @@ export function resolveInterfaceConfig<T extends Partial<AppConfig>>(
     config.interface_style === "calm-compact" ||
     config.interface_style === "minimal";
   const paper = config.interface_style === "paper";
-  const size = paper ? 16 : compact ? 14 : 15;
+  const literary =
+    paper ||
+    config.interface_style === "mono-aware" ||
+    config.interface_style === "wabi-sabi";
+  const size =
+    paper || config.interface_style === "mono-aware" ? 16 : compact ? 14 : 15;
   const navigation = Object.fromEntries(
     NAVIGATION_APPEARANCE_KEYS.map((key) => [
       key,
@@ -92,13 +122,18 @@ export function resolveInterfaceConfig<T extends Partial<AppConfig>>(
     ...config,
     ...DEFAULT_EDITOR_APPEARANCE,
     ...navigation,
-    editor_font_family: paper ? "serif" : "system",
+    editor_font_family: literary ? "serif" : "system",
     note_font_size: size,
-    editor_line_height: paper
-      ? 1.95
-      : config.interface_style === "minimal"
-        ? 1.7
-        : 1.9,
+    editor_line_height:
+      config.interface_style === "mono-aware"
+        ? 2
+        : config.interface_style === "wabi-sabi"
+          ? 1.8
+          : paper
+            ? 1.95
+            : config.interface_style === "minimal"
+              ? 1.7
+              : 1.9,
     editor_block_spacing: 16 / size,
     editor_heading_margin_top: 28 / size,
     editor_heading_margin_bottom: 12 / size,

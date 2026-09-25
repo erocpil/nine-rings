@@ -4,7 +4,7 @@ import type { TemplateStorage } from "./template-service";
 // ── 配置类型（与 schema/config.yaml 对齐）──
 
 export interface AppConfig {
-  interface_style: "classic" | "calm" | "calm-compact" | "paper" | "minimal";
+  interface_style: "classic" | "calm" | "calm-compact" | "paper" | "minimal" | "mono-aware" | "yugen" | "wabi-sabi";
   interface_color_mode: "light" | "dark" | "system";
   theme: "system" | "light" | "dark" | "fu" | "azure" | "azure-dark" | "grace" | "sui" | "zhi" | "nord" | "dracula";
   default_view: "daily" | "list";

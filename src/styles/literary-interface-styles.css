@@ -1,0 +1,186 @@
+/* Literary presets: readable palettes, shared behaviour, distinct reading rhythm. */
+:root[data-interface-style="mono-aware"]:not(.theme-dark) {
+  --bg: #faf4f3;
+  --surface: #f1e7e7;
+  --border: #dac9cc;
+  --text: #423538;
+  --text-secondary: #756168;
+  --accent: #8c4f62;
+  --accent-hover: #703c4d;
+  --hover-bg: #eee0e4;
+  --active-bg: #ead5dd;
+  --code-bg: #f2e9ec;
+  --drawer-surface: var(--surface);
+}
+:root[data-interface-style="mono-aware"].theme-dark {
+  --bg: #292327;
+  --surface: #231e22;
+  --border: #514049;
+  --text: #eadfe4;
+  --text-secondary: #bfabb5;
+  --accent: #dbabc0;
+  --accent-hover: #efd0de;
+  --hover-bg: #382c34;
+  --active-bg: #4a3440;
+  --code-bg: #30282e;
+  --drawer-surface: var(--surface);
+}
+:root[data-interface-style="yugen"]:not(.theme-dark) {
+  --bg: #f2f5f6;
+  --surface: #e7edf0;
+  --border: #c6d2d9;
+  --text: #293943;
+  --text-secondary: #586c79;
+  --accent: #365e79;
+  --accent-hover: #23465f;
+  --hover-bg: #e0e8ed;
+  --active-bg: #d4e2ec;
+  --code-bg: #e6edf1;
+  --drawer-surface: var(--surface);
+}
+:root[data-interface-style="yugen"].theme-dark {
+  --bg: #18232f;
+  --surface: #141e29;
+  --border: #354958;
+  --text: #e0e8ee;
+  --text-secondary: #a3b5c5;
+  --accent: #a0c3d5;
+  --accent-hover: #c7deeb;
+  --hover-bg: #243645;
+  --active-bg: #2c465b;
+  --code-bg: #1f2e3c;
+  --drawer-surface: var(--surface);
+}
+:root[data-interface-style="wabi-sabi"]:not(.theme-dark) {
+  --bg: #f4f0e6;
+  --surface: #eae4d7;
+  --border: #cec7b6;
+  --text: #393a30;
+  --text-secondary: #666657;
+  --accent: #626a45;
+  --accent-hover: #4a5232;
+  --hover-bg: #e5e2d4;
+  --active-bg: #dce0ca;
+  --code-bg: #ebe7dc;
+  --drawer-surface: var(--surface);
+}
+:root[data-interface-style="wabi-sabi"].theme-dark {
+  --bg: #282820;
+  --surface: #21221b;
+  --border: #494b3b;
+  --text: #e3e1cf;
+  --text-secondary: #b0b19a;
+  --accent: #bec79b;
+  --accent-hover: #d6ddb8;
+  --hover-bg: #36382b;
+  --active-bg: #414733;
+  --code-bg: #2e3025;
+  --drawer-surface: var(--surface);
+}
+
+:root:is(
+  [data-interface-style="mono-aware"],
+  [data-interface-style="yugen"],
+  [data-interface-style="wabi-sabi"]
+):is(.theme-dark, :not(.theme-dark)) {
+  --link-color: var(--accent);
+  --link-hover: var(--accent-hover);
+  --accent-bg: var(--active-bg);
+  --activeline-bg: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+:root[data-interface-style="mono-aware"] {
+  --style-content-width: 820px;
+  --style-content-inset: 44px;
+}
+:root[data-interface-style="yugen"] {
+  --style-content-width: 740px;
+  --style-content-inset: 36px;
+}
+:root[data-interface-style="wabi-sabi"] {
+  --style-content-width: 780px;
+  --style-content-inset: 32px;
+  --ui-shadow-popover: 0 3px 12px #0002;
+  --ui-shadow-dialog: 0 6px 24px #0002;
+  --ui-radius-small: 2px;
+  --ui-radius-medium: 3px;
+}
+html[data-interface-style="mono-aware"]
+  :is(.editor-content, .vr-block)
+  :is(h1, h2, h3) {
+  font-weight: 500;
+  letter-spacing: 0;
+}
+html[data-interface-style="wabi-sabi"]
+  :is(.editor-content, .vr-block)
+  :is(h1, h2, h3) {
+  font-weight: 600;
+  letter-spacing: 0;
+}
+html:is(
+    [data-interface-style="mono-aware"],
+    [data-interface-style="yugen"],
+    [data-interface-style="wabi-sabi"]
+  )
+  .editor-content
+  .blockquote-wrap {
+  border-left: 2px solid var(--accent);
+}
+html[data-interface-style="wabi-sabi"]
+  :is(
+    .menu-btn,
+    .document-browser-row,
+    .document-outline-item,
+    .document-bookmark-item,
+    .code-block-wrap,
+    .blockquote-wrap
+  ) {
+  border-radius: 2px;
+}
+@media (min-width: 769px) and (pointer: fine) {
+  html[data-interface-style="mono-aware"]
+    .editor-content
+    .ProseMirror:not(.vr-block)
+    > :has(+ :is(h1, h2, h3, h4, h5, h6)),
+  html[data-interface-style="mono-aware"]
+    .editor-content
+    .vr-row[data-next-heading="true"]
+    .vr-block
+    > :last-child {
+    margin-bottom: 32px;
+  }
+}
+@media (max-width: 768px) {
+  html[data-interface-style="mono-aware"] :is(.editor-content, .vr-block) {
+    font-size: 15px;
+  }
+}
+.preview-mono-aware {
+  background: #faf4f3;
+  border-color: #dac9cc;
+}
+.preview-mono-aware > i {
+  background: #f1e7e7;
+}
+.preview-mono-aware b {
+  background: #8c4f62;
+}
+.preview-yugen {
+  background: #f2f5f6;
+  border-color: #c6d2d9;
+}
+.preview-yugen > i {
+  background: #e7edf0;
+}
+.preview-yugen b {
+  background: #365e79;
+}
+.preview-wabi-sabi {
+  background: #f4f0e6;
+  border-color: #cec7b6;
+}
+.preview-wabi-sabi > i {
+  background: #eae4d7;
+}
+.preview-wabi-sabi b {
+  background: #626a45;
+}

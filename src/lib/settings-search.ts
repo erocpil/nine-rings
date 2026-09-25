@@ -25,7 +25,7 @@ export interface SettingsSearchEntry {
 }
 const entries: SettingsSearchEntry[] = [
   { title: "风格配色", description: "独立风格 · 浅色、深色或跟随系统", keywords: "清雅 深色 浅色 系统 风格 配色", page: "appearance", target: '[data-settings-label="界面风格"]' },
-  { title: "界面风格", description: "外观与布局 · 经典自定义外观，独立风格统一配色与排版", keywords: "风格 纸页 精简 清雅 紧凑 经典 demo 界面 留白 密度 样式 style", page: "appearance", target: '[data-settings-label="界面风格"]' },
+  { title: "界面风格", description: "外观与布局 · 经典自定义外观，独立风格统一配色与排版", keywords: "风格 物哀 幽玄 侘寂 诧寂 纸页 精简 清雅 紧凑 经典 demo 界面 留白 密度 样式 style", page: "appearance", target: '[data-settings-label="界面风格"]' },
   {
     title: "更新记录",
     description: "查看近期功能改进与问题修复",

@@ -41,6 +41,7 @@ import { DocumentBrowser, type DocumentBrowserSession } from "./components/Docum
 import { DocMOC } from "./components/DocMOC";
 import type { DeltaOps, DocumentMetadata, ExternalMarkdownSource, Note, DocType, SearchNavigationTarget } from "./types/models";
 import { pushSnapshotBusy, useGitHubPushJob } from "./lib/sync/push-job";
+import { ensureAestheticStyleSample } from "./lib/aesthetic-style-sample";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
 import type { Template } from "./lib/storage/template-store";
 import { templateStore } from "./lib/storage/template-store";
@@ -1048,6 +1049,7 @@ function App() {
         if (dailyNotes.length > 0 || documents.length > 0) {
           // 已有笔记，标记已播种
           localStorage.setItem(SEED_KEY, "1");
+          if (await ensureAestheticStyleSample()) refreshNoteViews();
           return;
         }
         // 整个工作区为空 → 写入示例笔记
@@ -1064,6 +1066,7 @@ function App() {
           refreshNoteViews();
         }
         setDate(dateStr); // 刷新
+        if (await ensureAestheticStyleSample()) refreshNoteViews();
       } catch {
         // 静默忽略——非首次运行或环境问题
       }
