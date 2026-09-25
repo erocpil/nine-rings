@@ -147,3 +147,31 @@ test("手机源码引用续写、围栏高亮、折叠、跳转与只读保护",
     page.getByRole("button", { name: "加粗", exact: true }),
   ).toBeDisabled();
 });
+
+
+test("只读源码点击高亮且折叠命中区与行号对齐", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true, highlight_active_line: true })));
+  await createBlankDocument(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  const value = "# Heading\n\nfirst body\n\n## Child\n\nsecond body";
+  await replaceSource(area, value);
+  await page.getByRole("button", { name: "设置只读", exact: true }).click();
+  for (const text of ["first body", "second body"]) {
+    await area.locator(".cm-line").filter({ hasText: text }).click();
+    await expect(area.locator(".cm-activeLine")).toHaveText(text);
+  }
+  expect((await sourceInfo(area)).value).toBe(value);
+  const marker = page.locator(".cm-foldGutter .cm-gutterElement").filter({ hasText: "⌄" }).first();
+  const number = page.locator(".cm-lineNumbers .cm-gutterElement").filter({ hasText: /^1$/ });
+  const m = (await marker.boundingBox())!, n = (await number.boundingBox())!;
+  expect(Math.abs(m.y - n.y)).toBeLessThan(1);
+  expect(m.width).toBeGreaterThanOrEqual(28);
+  const arrow = (await marker.locator("span").boundingBox())!;
+  expect(Math.abs(arrow.height - n.height)).toBeLessThan(1);
+  expect(n.x - m.x - m.width).toBeLessThan(3);
+  await marker.click({ position: { x: 3, y: 10 } });
+  await expect(page.locator(".cm-foldPlaceholder")).toBeVisible();
+});

@@ -180,5 +180,15 @@ console.log("\n── clipboardSliceToPlainText ──");
   assert(output.content.size === 0, "all-empty pasted paragraphs produce no content");
 }
 
+{
+  const code = "flowchart TD\n\nA --> B\nB --> C\n";
+  const block = schema.node("codeBlock", null, schema.text(code));
+  assert(clipboardSliceToPlainText(new Slice(Fragment.from(block), 0, 0)) === code, "Mermaid/code copy preserves interior, empty and final newlines exactly");
+  const paragraph = schema.node("paragraph", null, schema.text("after"));
+  assert(clipboardSliceToPlainText(new Slice(Fragment.fromArray([block, paragraph]), 0, 0)) === code + "\n\nafter", "multiple blocks retain blank separators");
+  const quote = schema.node("blockquote", null, [schema.node("paragraph", null, schema.text("one")), schema.node("paragraph", null, schema.text("two"))]);
+  assert(clipboardSliceToPlainText(new Slice(Fragment.from(quote), 0, 0)) === "> one\n> two", "quote paragraphs retain line breaks");
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

@@ -686,3 +686,23 @@
 }
 
 .code-block-inner, .vr-code-line { tab-size: var(--code-tab-size, 4); }
+
+.mermaid-diagram:not(.mermaid-diagram-interactive) .mermaid-diagram-controls {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: auto;
+  width: max-content;
+  margin: 0 0 8px auto;
+}
+.mermaid-diagram.mermaid-diagram-zoomed .mermaid-diagram-svg svg {
+  width: var(--mermaid-zoom-width) !important;
+  max-width: none !important;
+}
+@media print {
+  .mermaid-diagram-controls { display: none !important; }
+  .mermaid-diagram.mermaid-diagram-zoomed .mermaid-diagram-svg svg {
+    width: var(--mermaid-natural-width, 100%) !important;
+    max-width: 100% !important;
+  }
+}

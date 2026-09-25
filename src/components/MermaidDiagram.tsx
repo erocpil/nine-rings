@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { BLOCK_WORKSPACE_DISPLAY_EVENT } from "../lib/block-display-settings";
 import { renderMermaid } from "../lib/mermaid-render";
 
 export type MermaidViewTransform = { scale: number; x: number; y: number };
@@ -33,6 +34,11 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
   }, [onViewChange]);
 
   const zoomAt = useCallback((factor: number, point?: PointerPosition) => {
+    if (!interactive) {
+      const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, viewRef.current.scale * factor));
+      applyView({ scale, x: 0, y: 0 });
+      return;
+    }
     const rect = viewportRef.current?.getBoundingClientRect();
     if (!rect) return;
     const current = viewRef.current;
@@ -41,12 +47,13 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
     const x = (point?.x ?? rect.left + rect.width / 2) - (rect.left + rect.width / 2);
     const y = (point?.y ?? rect.top + rect.height / 2) - (rect.top + rect.height / 2);
     applyView({ scale, x: x - (x - current.x) * ratio, y: y - (y - current.y) * ratio });
-  }, [applyView]);
+  }, [applyView, interactive]);
 
   useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!interactive || !viewport) return;
+    const viewport = interactive ? viewportRef.current : rootRef.current;
+    if (!viewport) return;
     const wheel = (event: WheelEvent) => {
+      if (!interactive && !event.ctrlKey && !event.metaKey) return;
       event.preventDefault();
       zoomAt(event.deltaY > 0 ? 1 / ZOOM_STEP : ZOOM_STEP, { x: event.clientX, y: event.clientY });
     };
@@ -110,12 +117,29 @@ export function MermaidDiagram({ source, interactive = false, initialView = defa
     const root = rootRef.current;
     const svg = root?.querySelector("svg");
     const width = svg?.viewBox.baseVal.width;
-    if (root && width && Number.isFinite(width) && width > 0)
-      root.style.setProperty("--mermaid-natural-width", `${width}px`);
-  }, [interactive, result.svg]);
+    if (!root || !width || !Number.isFinite(width) || width <= 0) return;
+    root.style.setProperty("--mermaid-natural-width", `${width}px`);
+    const resize = () => {
+      const style = getComputedStyle(root);
+      const available = root.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      const base = style.getPropertyValue("--mermaid-inline-max-width").trim() === "none"
+        ? width : Math.min(width, available);
+      root.style.setProperty("--mermaid-zoom-width", `${base * view.scale}px`);
+    };
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(root);
+    window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, resize);
+    window.addEventListener("storage", resize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, resize);
+      window.removeEventListener("storage", resize);
+    };
+  }, [interactive, result.svg, view.scale]);
 
-  return <div ref={rootRef} className={`mermaid-diagram ${interactive ? "mermaid-diagram-interactive" : ""}`} contentEditable={false} aria-label="Mermaid 图表">
-    {interactive && result.svg && <div className="mermaid-diagram-controls" role="toolbar" aria-label="图表缩放">
+  return <div ref={rootRef} className={`mermaid-diagram ${interactive ? "mermaid-diagram-interactive" : view.scale !== 1 ? "mermaid-diagram-zoomed" : ""}`} contentEditable={false} aria-label="Mermaid 图表">
+    {result.svg && <div className="mermaid-diagram-controls" role="toolbar" aria-label="图表缩放">
       <button type="button" aria-label="缩小图表" disabled={view.scale <= MIN_SCALE} onClick={() => zoomAt(1 / ZOOM_STEP)}>−</button>
       <span role="status">{Math.round(view.scale * 100)}%</span>
       <button type="button" aria-label="放大图表" disabled={view.scale >= MAX_SCALE} onClick={() => zoomAt(ZOOM_STEP)}>+</button>
