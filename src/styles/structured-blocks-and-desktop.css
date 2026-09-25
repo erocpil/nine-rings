@@ -700,7 +700,7 @@
 .mermaid-diagram:not(.mermaid-diagram-interactive) { touch-action: pan-x pan-y; }
 .deferred-mermaid-diagram[hidden] { display: none !important; }
 .mermaid-diagram.mermaid-diagram-zoomed .mermaid-diagram-svg svg {
-  width: var(--mermaid-zoom-width) !important;
+  width: var(--mermaid-zoom-width, 100%) !important;
   max-width: none !important;
 }
 @media print {

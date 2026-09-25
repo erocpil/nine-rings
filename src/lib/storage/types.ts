@@ -4,6 +4,7 @@ import type { TemplateStorage } from "./template-service";
 // ── 配置类型（与 schema/config.yaml 对齐）──
 
 export interface AppConfig {
+  interface_style: "classic" | "calm" | "calm-compact";
   theme: "system" | "light" | "dark" | "fu" | "azure" | "azure-dark" | "grace" | "sui" | "zhi" | "nord" | "dracula";
   default_view: "daily" | "list";
   todo_carryover_default: boolean;
@@ -62,6 +63,7 @@ export interface AppConfig {
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
+  interface_style: "classic",
   theme: "light",
   default_view: "daily",
   todo_carryover_default: false,

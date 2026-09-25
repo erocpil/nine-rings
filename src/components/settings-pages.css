@@ -150,7 +150,7 @@
   padding: 8px 12px;
 }
 .settings-content-page[data-settings-page="appearance"]
-  .settings-field:first-child {
+  > .settings-field:has(.interface-style-options, .settings-theme-grid, .settings-theme-mobile) {
   grid-column: 1 / -1;
 }
 .settings-content-page > .settings-field:has(.settings-theme-grid) {

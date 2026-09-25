@@ -5,6 +5,11 @@ AppConfig:
   description: 应用全局配置
   persistence: 本地持久化，各端独立。不参与同步
   fields:
+    interface_style:
+      type: enum(classic, calm, calm-compact)
+      default: classic
+      description: Web/Tauri 界面风格，独立于主题颜色；不覆盖自定义排版
+
     theme:
       type: enum(light, dark, fu, azure, azure-dark, grace, sui, zhi)
       default: dark

@@ -1,3 +1,4 @@
+import { INTERFACE_STYLES, normalizeInterfaceStyle } from "../lib/interface-style";
 import { blockWorkspacePreferences, saveBlockWorkspacePreferences, BLOCK_WORKSPACE_DISPLAY_EVENT } from "../lib/block-display-settings";
 import { useConfirmation } from "./ConfirmationDialog";
 import { useGitHubPushJob } from "../lib/sync/push-job";
@@ -81,7 +82,7 @@ const SETTINGS_CATEGORIES: Array<{
   title: string;
   description: string;
 }> = [
-  { id: "appearance", title: "外观与布局", description: "主题与分栏布局" },
+  { id: "appearance", title: "外观与布局", description: "主题、风格与分栏布局" },
   { id: "editor", title: "编辑器", description: "字体排版、编辑行为、折叠与 Vim" },
   { id: "documents", title: "文档管理", description: "书签、标签和文档默认信息" },
   { id: "general", title: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "工作流与快捷键" : "快捷键", description: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "默认视图、待办继承和按键绑定" : "搜索、设置与窗口按键绑定" },
@@ -711,6 +712,15 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 </button>
               </div>
             )}
+
+            <Field label="界面风格" desc="风格控制留白与控件外观，主题控制配色；保留自定义字体、字号、行距与导航颜色" visible={settingsPage === "appearance"}>
+              <div className="interface-style-options">
+                {INTERFACE_STYLES.map(style => <button key={style.value} type="button" className="interface-style-option" aria-pressed={normalizeInterfaceStyle(config.interface_style) === style.value} onClick={() => update({ interface_style: style.value })}>
+                  <span className={`interface-style-preview preview-${style.value}`} aria-hidden="true"><i /><span><b /><i /><i /><em /></span></span>
+                  <strong>{style.label}</strong><small>{style.description}</small>
+                </button>)}
+              </div>
+            </Field>
 
             {/* ── 主题 ── */}
             <Field label="主题" desc="切换整体配色" visible={settingsPage === "appearance"}>

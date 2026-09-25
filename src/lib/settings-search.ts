@@ -24,6 +24,7 @@ export interface SettingsSearchEntry {
   target?: string;
 }
 const entries: SettingsSearchEntry[] = [
+  { title: "界面风格", description: "外观与布局 · 经典、清雅、清雅·紧凑，可搭配任意主题", keywords: "风格 清雅 紧凑 经典 demo 界面 留白 密度 样式 style", page: "appearance", target: '[data-settings-label="界面风格"]' },
   {
     title: "更新记录",
     description: "查看近期功能改进与问题修复",

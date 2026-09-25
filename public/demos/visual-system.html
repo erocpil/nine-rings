@@ -1,0 +1,1103 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nine Rings · 视觉规则预览</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --canvas: #f5f4f0;
+        --paper: #fcfbf8;
+        --panel: #f0efea;
+        --text: #30342f;
+        --muted: #787c73;
+        --line: #dedfd7;
+        --hover: #e8eae2;
+        --accent: #53734f;
+        --active: #e4ecdf;
+        --code: #f0f1eb;
+        --shadow: 0 12px 40px #20282012;
+        --radius: 6px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--text);
+        font:
+          14px/1.6 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          "PingFang SC",
+          sans-serif;
+      }
+      body.dark {
+        color-scheme: dark;
+        --canvas: #20241f;
+        --paper: #252a24;
+        --panel: #20251f;
+        --text: #e0e4da;
+        --muted: #a0a899;
+        --line: #3a4237;
+        --hover: #333b2f;
+        --accent: #b1c99e;
+        --active: #36432f;
+        --code: #2c3229;
+        --shadow: 0 12px 40px #0003;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+        border: 1px solid transparent;
+        border-radius: var(--radius);
+        background: transparent;
+        min-height: 32px;
+        padding: 4px 9px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+      }
+      button:hover {
+        background: var(--hover);
+        border-color: var(--line);
+      }
+      button:focus-visible,
+      a:focus-visible,
+      summary:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
+      button[aria-pressed="true"] {
+        color: var(--accent);
+        background: var(--active);
+      }
+      svg {
+        width: 18px;
+        height: 18px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.65;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      .demo-bar {
+        height: 58px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 28px;
+        color: var(--muted);
+        gap: 16px;
+      }
+      .demo-label {
+        font-size: 11px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+      }
+      .demo-actions {
+        display: flex;
+        gap: 8px;
+      }
+      .demo-actions button {
+        font-size: 12px;
+      }
+      .app {
+        margin: 0 24px 24px;
+        min-height: calc(100vh - 82px);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+        background: var(--paper);
+        box-shadow: var(--shadow);
+        display: grid;
+        grid-template-columns: 56px 228px minmax(0, 1fr);
+        grid-template-rows: 52px auto;
+      }
+      .app-header {
+        grid-column: 1/-1;
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+        border-bottom: 1px solid var(--line);
+        gap: 24px;
+      }
+      .brand {
+        font-weight: 600;
+        letter-spacing: -0.3px;
+        display: flex;
+        gap: 9px;
+        align-items: center;
+        width: 246px;
+      }
+      .brand-mark {
+        color: var(--accent);
+      }
+      .crumb {
+        font-size: 12px;
+        color: var(--muted);
+        display: flex;
+        gap: 12px;
+      }
+      .right {
+        margin-left: auto;
+        display: flex;
+        gap: 4px;
+        align-items: center;
+      }
+      .saved {
+        font-size: 11px;
+        color: var(--muted);
+        margin-right: 12px;
+      }
+      .rail {
+        display: flex;
+        align-items: center;
+        flex-direction: column;
+        gap: 12px;
+        padding: 20px 7px 16px;
+        background: var(--panel);
+      }
+      .rail button {
+        width: 36px;
+        height: 36px;
+        padding: 0;
+      }
+      .rail .bottom {
+        margin-top: auto;
+      }
+      .toc {
+        padding: 25px 14px 24px 16px;
+        background: var(--paper);
+        position: relative;
+      }
+      .toc:after {
+        content: "";
+        position: absolute;
+        right: 0;
+        top: 24px;
+        bottom: 24px;
+        width: 1px;
+        background: var(--line);
+      }
+      .toc-top {
+        display: flex;
+        align-items: center;
+        padding: 0 4px 14px 12px;
+        margin-bottom: 8px;
+        gap: 8px;
+      }
+      .section-label {
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .toc-top small {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .toc-top button {
+        margin-left: auto;
+        color: var(--muted);
+      }
+      .toc a {
+        display: block;
+        padding: 8px 12px;
+        border-radius: 5px;
+        line-height: 1.5;
+        font-size: 13px;
+        color: var(--muted);
+        margin: 2px 0;
+      }
+      .toc a:hover {
+        background: var(--hover);
+      }
+      .toc a.active {
+        color: var(--accent);
+        background: var(--active);
+      }
+      .toc a.sub {
+        padding-left: 27px;
+        font-size: 12px;
+      }
+      .toc a .num {
+        font-size: 11px;
+        display: inline-block;
+        min-width: 22px;
+        color: var(--muted);
+      }
+      .toc-note {
+        font-size: 11px;
+        line-height: 1.9;
+        color: var(--muted);
+        padding: 26px 12px;
+        border-top: 1px solid var(--line);
+        margin-top: 38px;
+      }
+      .workspace {
+        min-width: 0;
+      }
+      .document-header {
+        height: 64px;
+        margin: 0 24px;
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid var(--line);
+        gap: 10px;
+      }
+      .document-header strong {
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .document-header .lock {
+        color: var(--muted);
+      }
+      .document-header button {
+        color: var(--muted);
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin: 10px 24px 0;
+        color: var(--muted);
+        height: 36px;
+      }
+      .toolbar > * {
+        flex-shrink: 0;
+        white-space: nowrap;
+      }
+      .toolbar button {
+        min-width: 32px;
+        font-size: 12px;
+      }
+      .divider {
+        height: 15px;
+        width: 1px;
+        background: var(--line);
+        margin: 0 8px;
+      }
+      .editor {
+        max-width: 790px;
+        padding: 40px 54px 48px;
+        margin: 0 auto;
+      }
+      .eyebrow {
+        font-size: 10px;
+        letter-spacing: 2px;
+        color: var(--accent);
+        margin-bottom: 12px;
+      }
+      h1 {
+        font-size: 34px;
+        line-height: 1.3;
+        letter-spacing: -1px;
+        margin: 0 0 18px;
+        font-weight: 650;
+      }
+      .lead {
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.85;
+        max-width: 580px;
+        margin: 0 0 30px;
+      }
+      .meta {
+        font-size: 11px;
+        color: var(--muted);
+        display: flex;
+        gap: 14px;
+        margin-bottom: 36px;
+      }
+      h2 {
+        font-size: 21px;
+        letter-spacing: -0.4px;
+        line-height: 1.5;
+        font-weight: 600;
+        margin: 28px 0 12px;
+      }
+      p {
+        font-size: 15px;
+        line-height: 1.9;
+        margin: 0 0 16px;
+      }
+      .block {
+        position: relative;
+      }
+      .gutter {
+        position: absolute;
+        right: calc(100% + 13px);
+        top: 6px;
+        display: flex;
+        gap: 5px;
+        align-items: center;
+        color: var(--muted);
+        opacity: 0.4;
+        font-size: 10px;
+        white-space: nowrap;
+        user-select: none;
+      }
+      .gutter button {
+        padding: 0;
+        min-height: 20px;
+        width: 20px;
+      }
+      .gutter svg {
+        width: 12px;
+        height: 12px;
+      }
+      .block:hover > .gutter,
+      .block:focus-within > .gutter {
+        opacity: 1;
+      }
+      .insert {
+        visibility: hidden;
+      }
+      .block:hover .insert,
+      .block:focus-within .insert {
+        visibility: visible;
+      }
+      .code {
+        background: var(--code);
+        border-radius: 8px;
+        margin: 20px 0 22px;
+        overflow: hidden;
+      }
+      .code-header {
+        height: 42px;
+        display: flex;
+        align-items: center;
+        padding: 0 14px;
+        gap: 8px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .code-header .code-title {
+        color: var(--text);
+        font-size: 12px;
+      }
+      .code-tools {
+        margin-left: auto;
+        display: flex;
+        gap: 2px;
+      }
+      .code-tools button {
+        width: 28px;
+        min-height: 28px;
+        padding: 0;
+      }
+      .code-tools svg {
+        width: 15px;
+        height: 15px;
+      }
+      pre {
+        font:
+          12px/1.9 ui-monospace,
+          SFMono-Regular,
+          Consolas,
+          monospace;
+        margin: 0;
+        padding: 6px 18px 21px;
+        overflow: auto;
+        tab-size: 4;
+      }
+      .ln {
+        color: var(--muted);
+        opacity: 0.5;
+        display: inline-block;
+        width: 27px;
+        user-select: none;
+      }
+      .kw {
+        color: var(--accent);
+      }
+      .comment {
+        color: var(--muted);
+      }
+      .string {
+        color: #947444;
+      }
+      .dark .string {
+        color: #d2b17e;
+      }
+      .callout {
+        border-left: 2px solid var(--accent);
+        padding: 8px 0 8px 18px;
+        margin: 20px 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.85;
+      }
+      .check-list {
+        padding: 0;
+        list-style: none;
+        line-height: 2.1;
+        font-size: 14px;
+      }
+      .check-list li {
+        display: flex;
+        gap: 10px;
+        align-items: baseline;
+      }
+      .check-list span {
+        color: var(--accent);
+        font-size: 12px;
+      }
+      .footer {
+        padding: 14px 24px;
+        border-top: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        font-size: 10px;
+        color: var(--muted);
+      }
+      .app.no-toc {
+        grid-template-columns: 56px minmax(0, 1fr);
+      }
+      .no-toc .toc {
+        display: none;
+      }
+      .app.focus {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .focus .rail,
+      .focus .toc {
+        display: none;
+      }
+      .focus .editor {
+        max-width: 830px;
+      }
+      .rules {
+        max-width: 1100px;
+        margin: 40px auto 64px;
+        padding: 0 28px;
+      }
+      .rules h2 {
+        font-size: 22px;
+      }
+      .rules-intro {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .tokens {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 24px;
+        margin: 28px 0;
+      }
+      .token {
+        border-top: 1px solid var(--line);
+        padding-top: 16px;
+      }
+      .token strong {
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .token p {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 10px;
+        line-height: 1.9;
+      }
+      .swatches {
+        display: flex;
+        gap: 6px;
+        margin-top: 12px;
+      }
+      .swatches i {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 1px solid var(--line);
+      }
+      .status {
+        min-height: 22px;
+        font-size: 12px;
+        color: var(--accent);
+      }
+      .mobile-toc {
+        display: none;
+      }
+      .demo-bar a {
+        font-size: 12px;
+      }
+      .disclaimer {
+        font-size: 11px;
+        color: var(--muted);
+        margin: 12px 0 0;
+      }
+      .toolbar .not-implemented {
+        cursor: default;
+      }
+      .toolbar .not-implemented:hover {
+        background: transparent;
+        border-color: transparent;
+      }
+      body.compact .editor {
+        max-width: 690px;
+      }
+      body.compact .editor p {
+        font-size: 14px;
+      }
+      body.compact .editor h1 {
+        font-size: 30px;
+      }
+      @media (min-width: 1400px) {
+        .app {
+          max-width: 1392px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+        .editor {
+          padding-top: 48px;
+        }
+      }
+      @media (max-width: 850px) {
+        .app {
+          grid-template-columns: 48px minmax(0, 1fr);
+        }
+        .toc {
+          display: none;
+        }
+        .brand {
+          width: auto;
+        }
+        .crumb {
+          display: none;
+        }
+        .editor {
+          padding: 32px 38px;
+        }
+        .mobile-toc {
+          display: inline-flex;
+        }
+        .app.mobile-open .toc {
+          display: block;
+          position: absolute;
+          z-index: 5;
+          top: 164px;
+          left: 32px;
+          right: 32px;
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          box-shadow: var(--shadow);
+        }
+        .tokens {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .saved {
+          display: none;
+        }
+      }
+      @media (max-width: 520px) {
+        .demo-bar {
+          padding: 0 12px;
+          height: 52px;
+        }
+        .demo-label {
+          font-size: 9px;
+          letter-spacing: 1px;
+        }
+        .demo-actions {
+          gap: 0;
+        }
+        .demo-actions button {
+          padding: 4px 7px;
+        }
+        .app {
+          margin: 0 8px 12px;
+          min-height: calc(100vh - 64px);
+          border-radius: 8px;
+          display: block;
+        }
+        .app-header {
+          height: 46px;
+          padding: 0 14px;
+        }
+        .brand {
+          font-size: 13px;
+        }
+        .rail {
+          display: none;
+        }
+        .document-header {
+          height: 50px;
+          margin: 0 16px;
+        }
+        .document-header strong {
+          font-size: 12px;
+        }
+        .document-header .lock {
+          display: none;
+        }
+        .toolbar {
+          margin: 8px 16px 0;
+          gap: 0;
+          overflow: auto;
+        }
+        .editor {
+          padding: 28px 24px 32px 38px;
+        }
+        .editor h1 {
+          font-size: 27px;
+          letter-spacing: -0.5px;
+        }
+        .editor p,
+        .lead {
+          font-size: 14px;
+        }
+        h2 {
+          font-size: 19px;
+        }
+        .meta {
+          margin-bottom: 28px;
+          gap: 9px;
+          font-size: 10px;
+        }
+        .gutter {
+          right: calc(100% + 7px);
+          gap: 0;
+        }
+        .gutter .insert {
+          display: none;
+        }
+        .code-header {
+          padding: 0 10px;
+        }
+        .code-header .code-title {
+          font-size: 11px;
+        }
+        pre {
+          font-size: 11px;
+          padding-left: 10px;
+        }
+        .ln {
+          width: 23px;
+        }
+        .footer {
+          padding: 12px 16px;
+        }
+        .tokens {
+          gap: 18px;
+        }
+        .demo-bar a {
+          display: none;
+        }
+        .rules {
+          padding: 0 22px;
+          margin-top: 32px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <svg style="display: none" aria-hidden="true">
+      <defs>
+        <symbol id="rings" viewBox="0 0 24 24">
+          <circle cx="9" cy="9" r="5" />
+          <circle cx="15" cy="15" r="5" />
+        </symbol>
+        <symbol id="folder" viewBox="0 0 24 24">
+          <path d="M3 7V5h6l2 2h10v13H3Z" />
+        </symbol>
+        <symbol id="file" viewBox="0 0 24 24">
+          <path d="M5 3h9l5 5v13H5Z M14 3v6h5 M9 13h6 M9 17h6" />
+        </symbol>
+        <symbol id="search" viewBox="0 0 24 24">
+          <circle cx="10" cy="10" r="6" />
+          <path d="m15 15 5 5" />
+        </symbol>
+        <symbol id="settings" viewBox="0 0 24 24">
+          <path d="M4 7h16M4 17h16" />
+          <circle cx="9" cy="7" r="2" />
+          <circle cx="15" cy="17" r="2" />
+        </symbol>
+        <symbol id="toc" viewBox="0 0 24 24">
+          <path d="M8 6h12M8 12h12M8 18h12M4 6h.1M4 12h.1M4 18h.1" />
+        </symbol>
+        <symbol id="bookmark" viewBox="0 0 24 24">
+          <path d="M6 3h12v18l-6-4-6 4Z" />
+        </symbol>
+        <symbol id="back" viewBox="0 0 24 24">
+          <path d="m14 6-6 6 6 6" />
+        </symbol>
+        <symbol id="forward" viewBox="0 0 24 24">
+          <path d="m10 6 6 6-6 6" />
+        </symbol>
+        <symbol id="focus" viewBox="0 0 24 24">
+          <path d="M8 3H3v5m13-5h5v5M3 16v5h5m8 0h5v-5" />
+        </symbol>
+        <symbol id="copy" viewBox="0 0 24 24">
+          <rect x="8" y="8" width="12" height="12" rx="2" />
+          <path d="M15 8V4H4v11h4" />
+        </symbol>
+        <symbol id="chevron" viewBox="0 0 24 24">
+          <path d="m7 10 5 5 5-5" />
+        </symbol>
+        <symbol id="lock" viewBox="0 0 24 24">
+          <rect x="6" y="10" width="12" height="10" rx="2" />
+          <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+        </symbol>
+        <symbol id="more" viewBox="0 0 24 24">
+          <circle cx="5" cy="12" r=".8" />
+          <circle cx="12" cy="12" r=".8" />
+          <circle cx="19" cy="12" r=".8" />
+        </symbol>
+      </defs>
+    </svg>
+    <div class="demo-bar">
+      <span class="demo-label">Design study / 01</span>
+      <div class="demo-actions">
+        <a href="#rules">视觉规则 ↗</a
+        ><button id="density" aria-pressed="false">紧凑</button
+        ><button id="theme" aria-pressed="false">深色</button>
+      </div>
+    </div>
+    <div class="app" id="app">
+      <header class="app-header">
+        <div class="brand">
+          <svg class="brand-mark"><use href="#rings" /></svg>Nine Rings
+        </div>
+        <div class="crumb">
+          工作区 <span>/</span> 研究笔记 <span>/</span> 编辑体验
+        </div>
+        <div class="right"><span class="demo-label">交互概念稿</span></div>
+      </header>
+      <nav class="rail" aria-label="演示工作区">
+        <button
+          aria-label="目录"
+          aria-pressed="true"
+          class="toc-toggle"
+          title="显示或隐藏目录"
+        >
+          <svg><use href="#toc" /></svg></button
+        ><button
+          aria-label="书签示意"
+          data-hint="书签的视觉样式示意；本轮重点为目录与正文。"
+        >
+          <svg><use href="#bookmark" /></svg></button
+        ><button aria-label="文档树示意" data-hint="文档树入口样式示意。">
+          <svg><use href="#folder" /></svg></button
+        ><button aria-label="搜索示意" data-hint="搜索入口样式示意。">
+          <svg><use href="#search" /></svg></button
+        ><button
+          class="bottom"
+          aria-label="查看视觉规则"
+          onclick="
+            document
+              .querySelector('#rules')
+              .scrollIntoView({ behavior: 'smooth' })
+          "
+        >
+          <svg><use href="#settings" /></svg>
+        </button>
+      </nav>
+      <aside class="toc" aria-label="文档目录">
+        <div class="toc-top">
+          <span class="section-label">目录</span><small>4 节</small
+          ><button class="toc-toggle" aria-label="收起目录">
+            <svg><use href="#back" /></svg>
+          </button>
+        </div>
+        <a href="#intro" class="active"
+          ><span class="num">01</span>让内容成为界面的中心</a
+        ><a href="#rhythm"><span class="num">02</span>建立稳定的阅读节奏</a
+        ><a class="sub" href="#code">用代码表达一个想法</a
+        ><a href="#details"><span class="num">03</span>细节应当安静而明确</a
+        ><a href="#next"><span class="num">04</span>下一步，从这里开始</a>
+        <div class="toc-note">
+          清楚的层级，克制的控件。<br />把更多空间留给思考。
+        </div>
+      </aside>
+      <main class="workspace">
+        <div class="document-header">
+          <svg class="lock"><use href="#file" /></svg
+          ><strong>关于一个更安静的工作区</strong>
+          <div class="right">
+            <button class="toc-toggle mobile-toc" aria-label="打开目录">
+              <svg><use href="#toc" /></svg></button
+            ><button id="backBtn" aria-label="上一节" title="上一节">
+              <svg><use href="#back" /></svg></button
+            ><button id="nextBtn" aria-label="下一节" title="下一节">
+              <svg><use href="#forward" /></svg></button
+            ><button
+              id="focusBtn"
+              aria-label="专注模式"
+              aria-pressed="false"
+              title="专注模式"
+            >
+              <svg><use href="#focus" /></svg>
+            </button>
+          </div>
+        </div>
+        <div class="toolbar" aria-label="编辑工具栏样式示意">
+          <span style="font-size: 11px; margin-right: 12px">阅读预览</span
+          ><span class="divider"></span
+          ><button data-hint="文字样式入口示意，demo 不修改文档。">
+            正文 <svg style="width: 12px"><use href="#chevron" /></svg></button
+          ><button data-hint="粗体按钮样式示意。"><b>B</b></button
+          ><button data-hint="斜体按钮样式示意。"><i>I</i></button
+          ><button data-hint="链接按钮样式示意。">↗</button
+          ><span class="divider"></span
+          ><button data-hint="块插入入口样式示意。">＋ 插入</button
+          ><button data-hint="低频操作统一收纳在更多菜单。">
+            <svg><use href="#more" /></svg>
+          </button>
+        </div>
+        <article class="editor">
+          <div class="eyebrow">WORKSPACE NOTES</div>
+          <div class="block" id="intro">
+            <span class="gutter">01</span>
+            <h1>给思考留一点空间</h1>
+          </div>
+          <p class="lead">
+            一个好的写作空间，应当让你首先看到内容。<br />工具随时可用，但不必每时每刻都在提醒它们的存在。
+          </p>
+          <div class="meta">
+            <span>研究笔记</span><span>·</span><span>4 分钟阅读</span
+            ><span>·</span><span>视觉探索 · 第一版</span>
+          </div>
+          <section id="rhythm">
+            <div class="block">
+              <span class="gutter"
+                ><button
+                  class="insert"
+                  aria-label="段落操作示意"
+                  data-hint="段落插入按钮仅在悬浮或键盘聚焦时突出显示。"
+                >
+                  ＋</button
+                >02</span
+              >
+              <h2>建立稳定的阅读节奏</h2>
+            </div>
+            <div class="block">
+              <span class="gutter">03</span>
+              <p>
+                标题负责组织结构，段落负责展开想法。用一致的行距和适量的留白建立秩序，让不同类型的内容自然地连接起来。
+              </p>
+            </div>
+            <div class="block" id="code">
+              <span class="gutter">04</span>
+              <div class="code">
+                <div class="code-header">
+                  <span class="code-title">保留重要的内容</span>
+                  <div class="code-tools">
+                    <span style="align-self: center; margin-right: 6px"
+                      >Python</span
+                    ><button
+                      id="copyBtn"
+                      aria-label="复制代码"
+                      title="复制代码"
+                    >
+                      <svg><use href="#copy" /></svg></button
+                    ><button
+                      id="foldBtn"
+                      aria-label="折叠代码"
+                      aria-expanded="true"
+                      title="折叠代码"
+                    >
+                      <svg><use href="#chevron" /></svg>
+                    </button>
+                  </div>
+                </div>
+                <pre
+                  id="codeBody"
+                ><code><span class="ln">1</span><span class="kw">def</span> keep_what_matters(notes):
+<span class="ln">2</span>    <span class="comment"># Less noise, more meaning.</span>
+<span class="ln">3</span>    <span class="kw">return</span> [note <span class="kw">for</span> note <span class="kw">in</span> notes
+<span class="ln">4</span>            <span class="kw">if</span> note.has(<span class="string">"meaning"</span>)]</code></pre>
+              </div>
+            </div>
+          </section>
+          <section id="details">
+            <div class="block">
+              <span class="gutter">05</span>
+              <h2>细节应当安静而明确</h2>
+            </div>
+            <div class="block">
+              <span class="gutter">06</span>
+              <p>
+                目录与正文使用相同的底色，以留白界定区域。辅助文字轻一些，当前项明确一些；按钮在需要时响应，而不是为每一个操作都画上醒目的框。
+              </p>
+            </div>
+            <div class="callout">
+              界面不需要变得空旷，而是让每一种视觉强调都有明确的理由。
+            </div>
+          </section>
+          <section id="next">
+            <div class="block">
+              <span class="gutter">07</span>
+              <h2>下一步，从这里开始</h2>
+            </div>
+            <ul class="check-list">
+              <li><span>✓</span>统一文字层级、间距与控件状态</li>
+              <li><span>✓</span>保留块号与导航，降低默认视觉重量</li>
+              <li><span>○</span>确认样板后，再推广到其他工作区</li>
+            </ul>
+          </section>
+        </article>
+        <footer class="footer">
+          <span>样板文档 · 不会修改真实资料</span
+          ><span>正文 / 目录 / 代码块</span>
+        </footer>
+      </main>
+    </div>
+    <section class="rules" id="rules">
+      <div class="demo-label">THE VISUAL SYSTEM</div>
+      <h2>清晰优先，装饰退后。</h2>
+      <p class="rules-intro">
+        这是一个可讨论的视觉方向，不是新的功能界面。支持主题、密度、目录、章节跳转、专注模式和代码折叠。
+      </p>
+      <div class="tokens">
+        <div class="token">
+          <strong>01 / 颜色有职责</strong>
+          <div class="swatches">
+            <i style="background: var(--paper)"></i
+            ><i style="background: var(--code)"></i
+            ><i style="background: var(--active)"></i
+            ><i style="background: var(--accent)"></i>
+          </div>
+          <p>正文与目录同底色。<br />强调色只用于当前项与交互状态。</p>
+        </div>
+        <div class="token">
+          <strong>02 / 留白形成分组</strong>
+          <p>
+            4 · 8 · 12 · 16 · 24 · 32<br />不用反复套框组织信息。<br />分隔线在边缘留出呼吸空间。
+          </p>
+        </div>
+        <div class="token">
+          <strong>03 / 文字建立层级</strong>
+          <p>
+            标题 34 / 21，正文 15。<br />辅助文字 11–13，正文行高 1.9。<br />字重以
+            400 / 500 / 600 为主。
+          </p>
+        </div>
+        <div class="token">
+          <strong>04 / 操作按需突出</strong>
+          <p>
+            控件高 32，圆角 6。<br />悬浮显示底色，选中使用强调色。<br />键盘焦点始终清晰可见。
+          </p>
+        </div>
+      </div>
+      <div class="status" id="status" role="status" aria-live="polite"></div>
+      <p class="disclaimer">
+        未实现真实编辑、保存、搜索或文档切换。工具栏中的样式按钮仅用于观察外观。
+      </p>
+    </section>
+    <script>
+      const $ = (s) => document.querySelector(s);
+      const app = $("#app");
+      const status = $("#status");
+      let timer;
+      function message(text) {
+        status.textContent = text;
+        clearTimeout(timer);
+        timer = setTimeout(() => (status.textContent = ""), 4500);
+      }
+      $("#theme").onclick = (e) => {
+        const on = document.body.classList.toggle("dark");
+        e.currentTarget.setAttribute("aria-pressed", on);
+        e.currentTarget.textContent = on ? "浅色" : "深色";
+      };
+      $("#density").onclick = (e) => {
+        const on = document.body.classList.toggle("compact");
+        e.currentTarget.setAttribute("aria-pressed", on);
+      };
+      document.querySelectorAll(".toc-toggle").forEach(
+        (b) =>
+          (b.onclick = () => {
+            if (innerWidth <= 850) app.classList.toggle("mobile-open");
+            else app.classList.toggle("no-toc");
+            document
+              .querySelector(".rail .toc-toggle")
+              .setAttribute("aria-pressed", !app.classList.contains("no-toc"));
+          }),
+      );
+      $("#focusBtn").onclick = (e) => {
+        const on = app.classList.toggle("focus");
+        app.classList.remove("mobile-open");
+        e.currentTarget.setAttribute("aria-pressed", on);
+      };
+      $("#foldBtn").onclick = (e) => {
+        const body = $("#codeBody");
+        body.hidden = !body.hidden;
+        e.currentTarget.setAttribute("aria-expanded", !body.hidden);
+        e.currentTarget.setAttribute(
+          "aria-label",
+          body.hidden ? "展开代码" : "折叠代码",
+        );
+        e.currentTarget.title = body.hidden ? "展开代码" : "折叠代码";
+        e.currentTarget.querySelector("svg").style.transform = body.hidden
+          ? "rotate(-90deg)"
+          : "";
+      };
+      $("#copyBtn").onclick = async (e) => {
+        const b = e.currentTarget;
+        try {
+          await navigator.clipboard.writeText(
+            'def keep_what_matters(notes):\n    # Less noise, more meaning.\n    return [note for note in notes\n            if note.has("meaning")]',
+          );
+          b.title = "已复制";
+          b.setAttribute("aria-label", "已复制");
+          setTimeout(() => {
+            b.title = "复制代码";
+            b.setAttribute("aria-label", "复制代码");
+          }, 1500);
+        } catch {
+          message("浏览器未允许复制；可以直接选择代码文本。");
+        }
+      };
+      let current = 0;
+      const links = [...document.querySelectorAll(".toc a")];
+      function select(i, scroll = true) {
+        current = Math.max(0, Math.min(links.length - 1, i));
+        links.forEach((a, n) => {
+          a.classList.toggle("active", n === current);
+          if (n === current) a.setAttribute("aria-current", "location");
+          else a.removeAttribute("aria-current");
+        });
+        if (scroll)
+          document
+            .querySelector(links[current].getAttribute("href"))
+            .scrollIntoView({
+              behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+                ? "instant"
+                : "smooth",
+              block: "start",
+            });
+        app.classList.remove("mobile-open");
+      }
+      links.forEach(
+        (a, i) =>
+          (a.onclick = (e) => {
+            e.preventDefault();
+            select(i);
+          }),
+      );
+      $("#backBtn").onclick = () => select(current - 1);
+      $("#nextBtn").onclick = () => select(current + 1);
+      select(0, false);
+      document.querySelectorAll("[data-hint]").forEach(
+        (b) =>
+          (b.onclick = () => {
+            message(b.dataset.hint);
+            $("#rules").scrollIntoView({ behavior: "smooth" });
+          }),
+      );
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          app.classList.remove("mobile-open", "focus");
+          $("#focusBtn").setAttribute("aria-pressed", "false");
+        }
+      });
+    </script>
+  </body>
+</html>

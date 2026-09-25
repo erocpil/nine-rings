@@ -8,6 +8,8 @@ use tauri::{command, State};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct AppConfig {
+    #[serde(default = "default_interface_style")]
+    pub interface_style: String,
     pub theme: String,        // "system" | "light" | "dark" | "fu" | ...
     pub default_view: String, // "daily" | "list"
     pub todo_carryover_default: bool,
@@ -151,10 +153,15 @@ fn default_editor_fold_icon_expanded() -> String {
     "▼".into()
 }
 
+fn default_interface_style() -> String {
+    "classic".into()
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
             theme: "light".into(),
+            interface_style: default_interface_style(),
             default_view: "daily".into(),
             todo_carryover_default: false,
             auto_clean_days: 30,
@@ -318,6 +325,18 @@ mod tests {
     use super::AppConfig;
 
     #[test]
+    fn interface_styles_round_trip_independently_of_theme() {
+        for style in ["classic", "calm", "calm-compact"] {
+            let mut config = AppConfig::default();
+            config.interface_style = style.into();
+            config.theme = "nord".into();
+            let restored: AppConfig = serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
+            assert_eq!(restored.interface_style, style);
+            assert_eq!(restored.theme, "nord");
+        }
+    }
+
+    #[test]
     fn outline_fold_preference_round_trips_without_changing_body_style() {
         for style in ["triangle", "chevron", "inherit"] {
             let mut config = AppConfig::default();
@@ -344,6 +363,7 @@ mod tests {
         }"#;
         let config: AppConfig = serde_json::from_str(legacy).expect("legacy config should migrate");
         assert_eq!(config.theme, "grace");
+        assert_eq!(config.interface_style, "classic");
         assert_eq!(config.note_font_size, 19);
         assert_eq!(config.editor_font_family, "system");
         assert_eq!(config.editor_line_height, 1.6);

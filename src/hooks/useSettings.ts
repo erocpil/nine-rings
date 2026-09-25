@@ -1,3 +1,4 @@
+import { applyInterfaceStyle } from "../lib/interface-style";
 /**
  * useSettings — 配置加载与主题管理。
  */
@@ -35,6 +36,7 @@ export function useSettings() {
           localStorage.removeItem("nr:editorFontSize");
         }
         applyTheme(c.theme);
+        applyInterfaceStyle(c.interface_style);
         addLog(`[启动] 九环 v${__APP_VERSION__} | 主题: ${c.theme}`);
         configRef.current = c;
         setConfig(c);
@@ -50,6 +52,8 @@ export function useSettings() {
     const previous = configRef.current;
     configRef.current = c;
     if (!previous || c.theme !== previous.theme) applyTheme(c.theme);
+    const styleChanged = !previous || c.interface_style !== previous.interface_style;
+    if (styleChanged) preserveReadingPositions(() => applyInterfaceStyle(c.interface_style));
     // 主题只由根节点 CSS 变量驱动。仅主题变化时无需让包含长文档的整个 App
     // React 树重新渲染；设置面板自身仍维护并持久化最新选择。
     if (previous && c.theme !== previous.theme) {
