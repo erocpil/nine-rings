@@ -23,7 +23,7 @@ AppConfig:
     exhibition_text_width:
       type: enum(narrow, standard, wide)
       default: standard
-      description: 桌面展陈正文宽度（690px、788px、铺满可用宽度），手机不应用
+      description: 桌面展陈正文宽度（690px、窄幅与宽幅的中点、铺满可用宽度），手机不应用
 
     exhibition_density:
       type: enum(comfortable, compact) | null

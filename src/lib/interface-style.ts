@@ -42,7 +42,7 @@ export const INTERFACE_STYLES: ReadonlyArray<{
   {
     value: "nine-rings",
     label: "九环",
-    description: "紫晶主调、柔和莓粉与蓝紫，明亮而有层次",
+    description: "雾紫底色、灰紫强调与豆沙粉，柔和而有层次",
   },
   {
     value: "mono-aware",

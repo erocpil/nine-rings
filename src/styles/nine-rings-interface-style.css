@@ -1,34 +1,35 @@
-/* 九环: violet ink, lilac paper, berry and periwinkle accents.
+/* 九环: muted violet, mauve neutrals, dusty rose and periwinkle accents.
+   Use low-chroma surfaces and reserve colour for interaction (Radix scale roles).
    Previews use the same palettes as the workspace. */
 :root[data-interface-style="nine-rings"]:not(.theme-dark),
 :root:not(.theme-dark) .interface-style-preview.preview-nine-rings {
-  --bg: #faf7ff;
-  --surface: #f0e7fa;
-  --border: #d9c9ed;
-  --text: #352345;
-  --text-secondary: #725c89;
-  --accent: #7839c2;
-  --accent-hover: #5e259f;
-  --hover-bg: #eae5ff;
-  --active-bg: #ead8fc;
-  --code-bg: #f0eafd;
-  --nr-rose: #b54887;
-  --nr-blue: #5859be;
+  --bg: #faf9fc;
+  --surface: #f1eef5;
+  --border: #ddd6e5;
+  --text: #37313f;
+  --text-secondary: #746b7e;
+  --accent: #80659b;
+  --accent-hover: #695080;
+  --hover-bg: #ece8f2;
+  --active-bg: #e5dded;
+  --code-bg: #efebf4;
+  --nr-rose: #a77894;
+  --nr-blue: #7c7b9f;
 }
 :root[data-interface-style="nine-rings"].theme-dark,
 :root.theme-dark .interface-style-preview.preview-nine-rings {
-  --bg: #21172f;
-  --surface: #291e3c;
-  --border: #4f3968;
-  --text: #f1e9ff;
-  --text-secondary: #bcabcf;
-  --accent: #c6a0ff;
-  --accent-hover: #dfc6ff;
-  --hover-bg: #34305a;
-  --active-bg: #493061;
-  --code-bg: #2e2242;
-  --nr-rose: #ec9ed2;
-  --nr-blue: #b5b5ff;
+  --bg: #211e27;
+  --surface: #27232f;
+  --border: #494151;
+  --text: #e7e1ee;
+  --text-secondary: #aea4bb;
+  --accent: #b49acc;
+  --accent-hover: #c9b2dc;
+  --hover-bg: #35303e;
+  --active-bg: #403649;
+  --code-bg: #2d2836;
+  --nr-rose: #bb93aa;
+  --nr-blue: #a7a3c4;
 }
 :root[data-interface-style="nine-rings"] {
   --link-color: var(--accent);
@@ -42,7 +43,7 @@
   --ui-radius-medium: 8px;
 }
 html[data-interface-style="nine-rings"] :is(.editor-content, .vr-block) :is(h1, h2) {
-  color: var(--accent);
+  color: var(--text);
 }
 html[data-interface-style="nine-rings"] .editor-content .blockquote-wrap {
   border-left: 2px solid var(--nr-rose);

@@ -43,6 +43,11 @@ for (const style of ["calm", "mono-aware"] as const) {
       .fill("展陈布局切换前的编辑应当保存。");
     await page.getByRole("button", { name: "返回工作区首页" }).click();
     await expect(page.locator(".exhibition-welcome")).toBeVisible();
+    await page.getByRole("button", { name: "返回上一页面", exact: true }).click();
+    await expect(page.locator(".note-title")).toHaveValue("物哀、幽玄与侘寂：风格设计与验证");
+    await expect(page.locator(".note-editor .ProseMirror")).toContainText("展陈布局切换前的编辑应当保存。");
+    await page.getByRole("button", { name: "返回工作区首页", exact: true }).click();
+    await expect(page.locator(".exhibition-welcome")).toBeVisible();
     await expect(page.locator(".exhibition-columns > section")).toHaveCount(4);
     await expect(
       page
@@ -199,10 +204,19 @@ test("桌面展陈宽度和密度独立持久化，手机保持原布局", async
   await expect(content).toHaveCSS("max-width", "690px");
   const narrow = (await content.boundingBox())!.width;
   await page.getByLabel("文本宽度", { exact: true }).selectOption("standard");
-  await expect(content).toHaveCSS("max-width", "788px");
-  expect((await content.boundingBox())!.width).toBeGreaterThan(narrow);
+  const standard = (await content.boundingBox())!.width;
+  expect(standard).toBeGreaterThan(narrow);
   await page.getByLabel("文本宽度", { exact: true }).selectOption("wide");
   await expect(content).toHaveCSS("max-width", "100%");
+  const wide = (await content.boundingBox())!.width;
+  expect(Math.abs(standard - (narrow + wide) / 2)).toBeLessThan(1);
+  await page.setViewportSize({ width: 1800, height: 1000 });
+  const resizedWide = (await content.boundingBox())!.width;
+  await page.getByLabel("文本宽度", { exact: true }).selectOption("narrow");
+  const resizedNarrow = (await content.boundingBox())!.width;
+  await page.getByLabel("文本宽度", { exact: true }).selectOption("standard");
+  await expect.poll(async () => Math.abs((await content.boundingBox())!.width - (resizedNarrow + resizedWide) / 2)).toBeLessThan(1);
+  await page.getByLabel("文本宽度", { exact: true }).selectOption("wide");
   await page.getByLabel("紧凑程度", { exact: true }).selectOption("compact");
   await expect(header).toHaveCSS("height", "42px");
   await expect(page.locator("html")).toHaveAttribute(

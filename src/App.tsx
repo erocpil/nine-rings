@@ -352,6 +352,7 @@ function App() {
 
   const [recycleOpen, setRecycleOpen] = useState(false);
   const [readingLibraryOpen, setReadingLibraryOpen] = useState(false);
+  const [exhibitionReturnTarget, setExhibitionReturnTarget] = useState<{ noteId: string | null; folder: string | null; concept: string | null } | null>(null);
   const [readingLibraryError, setReadingLibraryError] = useState<string | null>(null);
   const readingLibrarySession = useRef<ReadingLibrarySession>({ format: "all", query: "", scrollTop: 0 });
   const [pdfReaderDocumentId, setPdfReaderDocumentId] = useState<string | null>(null);
@@ -1487,7 +1488,27 @@ function App() {
       path={selectedFolderPath ?? selectedNote?.storagePath ?? ""} noteId={selectedNote?.id} refreshKey={docTreeKey}
       onAppearance={async patch => handleConfigChange(await api.config.set(patch))}
       onOpen={async note => { await flushAutoSave(); setQuery(""); setDocResults(null); handleSelectNote(note); closeSidebarOnNarrowScreen(); }}
-      onHome={async () => { await flushAutoSave(); setSelectedFolderPath(null); setSelectedConcept(null); handleSelectNote(null); setReadingLibraryOpen(false); }}
+      canReturn={!selectedNote && !selectedFolderPath && !selectedConcept && Boolean(exhibitionReturnTarget)}
+      onHome={async () => {
+        await flushAutoSave();
+        if (!selectedNote && !selectedFolderPath && !selectedConcept) {
+          if (!exhibitionReturnTarget) return;
+          const target = exhibitionReturnTarget;
+          const note = target.noteId ? await api.notes.get(target.noteId) : null;
+          if (target.noteId && !note) {
+            setExhibitionReturnTarget(null);
+            throw new Error("之前的文档已不存在，请从工作区选择其他文档。");
+          }
+          handleSelectNote(note);
+          setSelectedFolderPath(target.folder);
+          setSelectedConcept(target.concept);
+          setExhibitionReturnTarget(null);
+          closeSidebarOnNarrowScreen();
+          return;
+        }
+        setExhibitionReturnTarget({ noteId: selectedNote?.id ?? null, folder: selectedFolderPath, concept: selectedConcept });
+        setSelectedFolderPath(null); setSelectedConcept(null); handleSelectNote(null); setReadingLibraryOpen(false);
+      }}
       onCreate={() => setDocCreateOpen(true)} onSearch={openGlobalSearch} onSettings={() => setSettingsOpen(true)}>
 
     <div

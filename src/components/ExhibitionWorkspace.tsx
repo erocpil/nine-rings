@@ -23,6 +23,7 @@ interface Props {
   onAppearance: (patch: Partial<AppConfig>) => Promise<void>;
   onOpen: (note: Note) => Promise<void>;
   onHome: () => Promise<void>;
+  canReturn: boolean;
   onCreate: () => void;
   onSearch: () => void;
   onSettings: () => void;
@@ -116,7 +117,8 @@ export function ExhibitionWorkspace(props: Props) {
       className="exhibition-identity"
       onClick={() => void run(props.onHome)}
       disabled={busy || blocked}
-      aria-label="返回工作区首页"
+      aria-label={props.canReturn ? "返回上一页面" : "返回工作区首页"}
+      title={props.canReturn ? "返回上一页面" : "返回工作区首页"}
     >
       <span>NINE RINGS / WORKSPACE</span>
       <strong title={path}>{path || "我的工作区"}</strong>
