@@ -98,3 +98,15 @@ test("workspace layout defaults safely and survives classic style changes", asyn
   value = JSON.stringify({ workspace_layout: "unknown" });
   expect((await getConfig()).workspace_layout).toBe("standard");
 });
+
+
+test("exhibition display preferences migrate, persist and validate independently", async () => {
+  let value = "{}";
+  vi.stubGlobal("localStorage", { getItem: () => value, setItem: (_key: string, next: string) => { value = next; } });
+  expect(await getConfig()).toMatchObject({ exhibition_text_width: "standard", exhibition_density: null });
+  await setConfig({ exhibition_text_width: "wide", exhibition_density: "compact" });
+  await setConfig({ interface_style: "paper" });
+  expect(await getConfig()).toMatchObject({ exhibition_text_width: "wide", exhibition_density: "compact", interface_style: "paper" });
+  value = JSON.stringify({ exhibition_text_width: "invalid", exhibition_density: "invalid" });
+  expect(await getConfig()).toMatchObject({ exhibition_text_width: "standard", exhibition_density: null });
+});

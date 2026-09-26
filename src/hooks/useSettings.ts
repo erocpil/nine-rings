@@ -49,7 +49,7 @@ export function useSettings() {
   const handleConfigChange = (c: AppConfig) => {
     const previous = configRef.current;
     configRef.current = c;
-    const styleChanged = !previous || c.interface_style !== previous.interface_style || c.interface_color_mode !== previous.interface_color_mode || c.workspace_layout !== previous.workspace_layout;
+    const styleChanged = !previous || c.interface_style !== previous.interface_style || c.interface_color_mode !== previous.interface_color_mode || c.workspace_layout !== previous.workspace_layout || c.exhibition_text_width !== previous.exhibition_text_width || c.exhibition_density !== previous.exhibition_density;
     if (styleChanged || c.theme !== previous?.theme) preserveReadingPositions(() => applyInterfaceAppearance(c));
     // 主题只由根节点 CSS 变量驱动。仅主题变化时无需让包含长文档的整个 App
     // React 树重新渲染；设置面板自身仍维护并持久化最新选择。

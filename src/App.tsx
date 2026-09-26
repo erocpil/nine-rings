@@ -1500,7 +1500,7 @@ function App() {
       {/* 展陈桌面窗口操作位于外围；专注模式恢复紧凑标题栏。 */}
       {(isTauriRuntime() ? !(exhibitionEnabled && desktopWorkspace && !focusMode) : exhibitionEnabled && desktopWorkspace && focusMode) && (
         <Suspense fallback={null}>
-          <TitleBar />
+          <TitleBar wordmark={desktopWorkspace && focusMode} />
         </Suspense>
       )}
       {!isTauriRuntime() && (

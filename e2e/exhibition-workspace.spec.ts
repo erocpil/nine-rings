@@ -27,7 +27,10 @@ for (const style of ["calm", "mono-aware"] as const) {
     await expect(page.locator(".exhibition-masthead")).toBeVisible();
     await expect(
       page.locator(".exhibition-masthead .titlebar-title"),
-    ).toContainText("Nine Rings");
+    ).toHaveCount(0);
+    await expect(page.locator(".exhibition-identity > span")).toHaveText(
+      "NINE RINGS / WORKSPACE",
+    );
     await expect(page.locator(".app > .titlebar")).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: "关闭", exact: true }),
@@ -169,4 +172,73 @@ test("Web 展陈全屏按钮同步进入与退出状态", async ({ page }) => {
   await expect(
     header.getByRole("button", { name: "关闭", exact: true }),
   ).toHaveCount(0);
+});
+
+test("桌面展陈宽度和密度独立持久化，手机保持原布局", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.addInitScript(() => {
+    if (!localStorage.getItem("nine_rings_config"))
+      localStorage.setItem(
+        "nine_rings_config",
+        JSON.stringify({
+          interface_style: "calm",
+          workspace_layout: "exhibition",
+        }),
+      );
+  });
+  await page.goto("/");
+  await page
+    .getByRole("button", {
+      name: "物哀、幽玄与侘寂：风格设计与验证",
+      exact: true,
+    })
+    .click();
+  const content = page.locator(".note-editor-scroll > .editor-content-shell");
+  const header = page.locator(".note-title-row");
+  await page.getByLabel("文本宽度", { exact: true }).selectOption("narrow");
+  await expect(content).toHaveCSS("max-width", "690px");
+  const narrow = (await content.boundingBox())!.width;
+  await page.getByLabel("文本宽度", { exact: true }).selectOption("standard");
+  await expect(content).toHaveCSS("max-width", "788px");
+  expect((await content.boundingBox())!.width).toBeGreaterThan(narrow);
+  await page.getByLabel("文本宽度", { exact: true }).selectOption("wide");
+  await expect(content).toHaveCSS("max-width", "100%");
+  await page.getByLabel("紧凑程度", { exact: true }).selectOption("compact");
+  await expect(header).toHaveCSS("height", "42px");
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-interface-style",
+    "calm",
+  );
+  await page.reload();
+  await expect(page.getByLabel("文本宽度", { exact: true })).toHaveValue(
+    "wide",
+  );
+  await expect(page.getByLabel("紧凑程度", { exact: true })).toHaveValue(
+    "compact",
+  );
+  await page
+    .getByLabel("紧凑程度", { exact: true })
+    .selectOption("comfortable");
+  await expect(header).toHaveCSS("height", "48px");
+  await page.getByRole("button", { name: "专注模式", exact: true }).click();
+  await expect(page.locator(".titlebar-wordmark")).toHaveText("NINE RINGS");
+  await expect(page.locator(".titlebar-logo")).toHaveCount(0);
+  await expect(page.locator(".titlebar-wordmark > span").first()).toHaveCSS(
+    "font-size",
+    "14px",
+  );
+  await page.getByRole("button", { name: /退出专注/ }).click();
+  await expect.poll(async () => {
+    const leading = await page.locator(".titlebar-leading").boundingBox();
+    const workspace = await page.locator(".titlebar-workspace").boundingBox();
+    return leading!.width - workspace!.width;
+  }).toBeGreaterThan(100);
+  await page.screenshot({ path: "/tmp/nr-exhibition-controls-desktop.png" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByLabel("文本宽度", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("紧凑程度", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".exhibition-shell[data-density]")).toHaveCount(0);
+  await expect(page.locator(".exhibition-shell[data-text-width]")).toHaveCount(
+    0,
+  );
 });

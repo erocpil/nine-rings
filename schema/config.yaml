@@ -20,6 +20,16 @@ AppConfig:
       default: standard
       description: 非经典风格可使用展陈布局，经典暂用标准布局但保留选择
 
+    exhibition_text_width:
+      type: enum(narrow, standard, wide)
+      default: standard
+      description: 桌面展陈正文宽度（690px、788px、铺满可用宽度），手机不应用
+
+    exhibition_density:
+      type: enum(comfortable, compact) | null
+      default: null
+      description: 桌面展陈控件与留白密度；null 沿用风格默认密度，手机不应用
+
     theme:
       type: enum(light, dark, fu, azure, azure-dark, grace, sui, zhi)
       default: dark

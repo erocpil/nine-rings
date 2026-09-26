@@ -14,6 +14,10 @@ pub struct AppConfig {
     pub interface_color_mode: String,
     #[serde(default = "default_workspace_layout")]
     pub workspace_layout: String,
+    #[serde(default = "default_exhibition_text_width")]
+    pub exhibition_text_width: String,
+    #[serde(default)]
+    pub exhibition_density: Option<String>,
     pub theme: String,        // "system" | "light" | "dark" | "fu" | ...
     pub default_view: String, // "daily" | "list"
     pub todo_carryover_default: bool,
@@ -157,6 +161,7 @@ fn default_editor_fold_icon_expanded() -> String {
     "▼".into()
 }
 
+fn default_exhibition_text_width() -> String { "standard".into() }
 fn default_workspace_layout() -> String { "standard".into() }
 fn default_interface_color_mode() -> String { "system".into() }
 
@@ -171,6 +176,8 @@ impl Default for AppConfig {
             interface_style: default_interface_style(),
             interface_color_mode: default_interface_color_mode(),
             workspace_layout: default_workspace_layout(),
+            exhibition_text_width: default_exhibition_text_width(),
+            exhibition_density: None,
             default_view: "daily".into(),
             todo_carryover_default: false,
             auto_clean_days: 30,
@@ -337,12 +344,20 @@ mod tests {
     fn workspace_layout_migrates_and_round_trips() {
         let mut value = serde_json::to_value(AppConfig::default()).unwrap();
         value.as_object_mut().unwrap().remove("workspace_layout");
+        value.as_object_mut().unwrap().remove("exhibition_text_width");
+        value.as_object_mut().unwrap().remove("exhibition_density");
         let migrated: AppConfig = serde_json::from_value(value).unwrap();
         assert_eq!(migrated.workspace_layout, "standard");
+        assert_eq!(migrated.exhibition_text_width, "standard");
+        assert_eq!(migrated.exhibition_density, None);
         let mut config = migrated;
         config.workspace_layout = "exhibition".into();
+        config.exhibition_text_width = "wide".into();
+        config.exhibition_density = Some("compact".into());
         let restored: AppConfig = serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
         assert_eq!(restored.workspace_layout, "exhibition");
+        assert_eq!(restored.exhibition_text_width, "wide");
+        assert_eq!(restored.exhibition_density.as_deref(), Some("compact"));
     }
 
     #[test]

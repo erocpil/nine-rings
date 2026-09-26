@@ -297,7 +297,8 @@ test("展陈标题栏保留窗口操作，工作区和配色控件不触发最�
   page,
 }) => {
   await mountTitlebar(page, "MacIntel", false, false, true);
-  await page.locator(".titlebar-title").dblclick();
+  await page.locator(".titlebar-exhibition").dispatchEvent("mousedown", { button: 0, detail: 2 });
+  await page.locator(".titlebar-exhibition").dispatchEvent("mouseup", { button: 0, detail: 2 });
   expect(
     (await commands(page)).filter(
       (command) => command === "toggle_window_maximize",

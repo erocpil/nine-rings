@@ -4,26 +4,26 @@
     .editor-content
     .ProseMirror
     > :is(p, ul, ol, .code-block-wrap, .blockquote-wrap, .tableWrapper) {
-    margin-block: 0 16px;
+    margin-block: 0 var(--style-block-gap, 16px);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     .ProseMirror
     > :is(h1, h2, h3, h4, h5, h6) {
-    margin-block: 0 12px;
+    margin-block: 0 var(--style-heading-bottom, 12px);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     .ProseMirror:not(.vr-block)
     > :has(+ :is(h1, h2, h3, h4, h5, h6)) {
-    margin-bottom: 28px;
+    margin-bottom: var(--style-heading-gap, 28px);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     .vr-row[data-next-heading="true"]
     .vr-block
     > :last-child {
-    margin-bottom: 28px;
+    margin-bottom: var(--style-heading-gap, 28px);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content

@@ -263,14 +263,23 @@
   height: auto;
   margin-left: 0;
 }
-.titlebar-exhibition .exhibition-identity > span {
-  display: none;
-}
 .titlebar-exhibition .exhibition-identity {
   padding-block: 0;
 }
 .titlebar-exhibition .exhibition-identity strong {
-  font-size: 11px;
+  max-width: 100%;
+}
+.titlebar-exhibition .titlebar-leading {
+  flex: 1 1 0;
+  overflow: hidden;
+}
+.titlebar-exhibition .titlebar-workspace {
+  min-width: 0;
+  width: fit-content;
+  max-width: 100%;
+}
+.titlebar-exhibition .titlebar-appearance {
+  flex-shrink: 0;
 }
 .titlebar-exhibition .titlebar-appearance {
   margin-left: auto;
@@ -299,4 +308,45 @@
 
 .titlebar-exhibition > .titlebar-controls:empty {
   display: none;
+}
+
+.titlebar-wordmark {
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+.titlebar-wordmark > span {
+  font-size: 14px;
+}
+
+/* Desktop-only attributes are removed on mobile, even after preferences restore. */
+.exhibition-shell[data-text-width="narrow"] {
+  --style-content-width: 690px;
+}
+.exhibition-shell[data-text-width="standard"] {
+  --style-content-width: 788px;
+}
+.exhibition-shell[data-text-width="wide"] {
+  --style-content-width: 100%;
+}
+.exhibition-shell[data-density="comfortable"] {
+  --style-control-height: 32px;
+  --style-header-height: 48px;
+  --style-panel-gap: 16px;
+  --ui-control-height: 32px;
+  --style-content-inset: 40px;
+  --style-content-top: 40px;
+  --style-block-gap: 16px;
+  --style-heading-gap: 28px;
+  --style-heading-bottom: 12px;
+}
+.exhibition-shell[data-density="compact"] {
+  --style-control-height: 28px;
+  --style-header-height: 42px;
+  --style-panel-gap: 10px;
+  --ui-control-height: 28px;
+  --style-content-inset: 28px;
+  --style-content-top: 28px;
+  --style-block-gap: 10px;
+  --style-heading-gap: 20px;
+  --style-heading-bottom: 8px;
 }

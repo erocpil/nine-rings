@@ -215,6 +215,8 @@ export interface NoteVersion {
 export interface AppConfig {
   interface_style: "classic" | "calm" | "calm-compact" | "paper" | "minimal" | "mono-aware" | "yugen" | "wabi-sabi";
   workspace_layout: "standard" | "exhibition";
+  exhibition_text_width: "narrow" | "standard" | "wide";
+  exhibition_density: "comfortable" | "compact" | null;
   interface_color_mode: "light" | "dark" | "system";
   theme: "system" | "light" | "dark" | "fu" | "azure" | "azure-dark" | "grace" | "sui" | "zhi" | "nord" | "dracula";
   default_view: "daily" | "list";

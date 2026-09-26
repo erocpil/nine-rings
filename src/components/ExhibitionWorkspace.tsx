@@ -31,6 +31,12 @@ interface Props {
 export function ExhibitionWorkspace(props: Props) {
   const { enabled, focus, blocked, config, noteId, path, refreshKey } = props;
   const active = enabled && !focus;
+  const density =
+    config?.exhibition_density ??
+    (config?.interface_style === "calm-compact" ||
+    config?.interface_style === "minimal"
+      ? "compact"
+      : "comfortable");
   const [expanded, setExpanded] = useState(false);
   const showOverview = active && (!noteId || expanded);
   const [documents, setDocuments] = useState<Summary[]>([]);
@@ -153,10 +159,59 @@ export function ExhibitionWorkspace(props: Props) {
           <option value="system">跟随系统</option>
         </select>
       </label>
+      {props.desktop && (
+        <>
+          <label>
+            <select
+              aria-label="文本宽度"
+              title="文本宽度"
+              disabled={busy || blocked}
+              value={config?.exhibition_text_width ?? "standard"}
+              onChange={(event) => {
+                const value = event.target
+                  .value as AppConfig["exhibition_text_width"];
+                void run(() =>
+                  props.onAppearance({ exhibition_text_width: value }),
+                );
+              }}
+            >
+              <option value="narrow">窄幅</option>
+              <option value="standard">标准宽度</option>
+              <option value="wide">宽幅</option>
+            </select>
+          </label>
+          <label>
+            <select
+              aria-label="紧凑程度"
+              title="紧凑程度"
+              disabled={busy || blocked}
+              value={density}
+              onChange={(event) => {
+                const value = event.target
+                  .value as AppConfig["exhibition_density"];
+                void run(() =>
+                  props.onAppearance({ exhibition_density: value }),
+                );
+              }}
+            >
+              <option value="comfortable">舒适</option>
+              <option value="compact">紧凑</option>
+            </select>
+          </label>
+        </>
+      )}
     </div>
   );
   return (
-    <div className={`exhibition-shell${active ? " is-exhibition" : ""}`}>
+    <div
+      className={`exhibition-shell${active ? " is-exhibition" : ""}`}
+      data-text-width={
+        enabled && props.desktop
+          ? (config?.exhibition_text_width ?? "standard")
+          : undefined
+      }
+      data-density={enabled && props.desktop ? density : undefined}
+    >
       {active && (
         <header className="exhibition-masthead">
           {props.desktop ? (

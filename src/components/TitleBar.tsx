@@ -21,10 +21,12 @@ import {
  */
 export default function TitleBar({
   exhibition = false,
+  wordmark = false,
   workspace,
   children,
 }: {
   exhibition?: boolean;
+  wordmark?: boolean;
   workspace?: ReactNode;
   children?: ReactNode;
 }) {
@@ -177,16 +179,28 @@ export default function TitleBar({
       onMouseUpCapture={handleMouseUp}
     >
       <div className="titlebar-leading">
-        <span className="titlebar-title">
-          <img
-            src="/app-icon.png"
-            width="16"
-            height="16"
-            alt=""
-            className="titlebar-logo"
-          />
-          Nine Rings
-        </span>
+        {!exhibition && (
+          <span
+            className={`titlebar-title${wordmark ? " titlebar-wordmark" : ""}`}
+          >
+            {wordmark ? (
+              <>
+                <span>N</span>INE <span>R</span>INGS
+              </>
+            ) : (
+              <>
+                <img
+                  src="/app-icon.png"
+                  width="16"
+                  height="16"
+                  alt=""
+                  className="titlebar-logo"
+                />
+                Nine Rings
+              </>
+            )}
+          </span>
+        )}
         {workspace && (
           <div className="titlebar-controls titlebar-workspace">
             {workspace}

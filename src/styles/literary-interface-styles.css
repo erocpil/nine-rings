@@ -146,7 +146,7 @@ html[data-interface-style="wabi-sabi"]
     .vr-row[data-next-heading="true"]
     .vr-block
     > :last-child {
-    margin-bottom: 32px;
+    margin-bottom: var(--style-heading-gap, 32px);
   }
 }
 @media (max-width: 768px) {
