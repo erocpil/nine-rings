@@ -5,7 +5,7 @@ import { createBlankDocument } from "./helpers/document";
 for (const [style, label, background] of [
   ["paper", "纸页", "rgb(250, 246, 237)"],
   ["minimal", "精简", "rgb(250, 250, 250)"],
-  ["nine-rings", "九环", "rgb(250, 249, 252)"],
+  ["nine-rings", "九环", "rgb(234, 227, 241)"],
 ] as const) {
   test(`${label}可选择、持久化、切换配色，源码行号保持等宽`, async ({
     page,
@@ -26,6 +26,7 @@ for (const [style, label, background] of [
       "background-color",
       background,
     );
+    if (style === "nine-rings") await page.screenshot({ path: "/tmp/nr-nine-rings-settings-light.png" });
     await colors.getByRole("button", { name: "深色", exact: true }).click();
     await expect(page.locator("html")).toHaveClass(/theme-dark/);
     await expect
