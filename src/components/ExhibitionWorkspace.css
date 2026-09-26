@@ -62,10 +62,6 @@
   align-items: center;
   gap: 5px;
 }
-.exhibition-label {
-  font-size: 11px;
-  color: var(--text-secondary);
-}
 .exhibition-shell
   :is(.exhibition-masthead, .exhibition-overview, .exhibition-welcome)
   :is(button, select) {
@@ -94,7 +90,7 @@
   cursor: default;
 }
 .exhibition-overview {
-  width: min(100%, 1120px);
+  width: 100%;
   align-self: center;
   flex: 0 1 auto;
   min-height: 44px;
@@ -202,9 +198,6 @@
   .exhibition-appearance {
     gap: 2px;
   }
-  .exhibition-label {
-    display: none;
-  }
   .exhibition-appearance select {
     max-width: 92px;
     min-height: 36px;
@@ -240,4 +233,10 @@
   .is-exhibition > .app {
     min-height: 120px;
   }
+}
+
+/* The outer exhibition shell owns the screen's bottom safe area. The framed
+   editor is above the overview, so it must not reserve that area a second time. */
+@media (max-width: 768px), (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
+  .is-exhibition > .app .app-main { padding-bottom: 0; }
 }

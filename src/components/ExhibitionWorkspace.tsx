@@ -120,7 +120,6 @@ export function ExhibitionWorkspace(props: Props) {
           </button>
           <div className="exhibition-appearance">
             <label>
-              <span className="exhibition-label">风格</span>
               <select
                 aria-label="工作区风格"
                 disabled={busy}
@@ -143,7 +142,6 @@ export function ExhibitionWorkspace(props: Props) {
               </select>
             </label>
             <label>
-              <span className="exhibition-label">配色</span>
               <select
                 aria-label="工作区配色"
                 disabled={busy}
