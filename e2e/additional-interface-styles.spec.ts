@@ -1,14 +1,19 @@
 import { expect, test } from "@playwright/test";
+import type { Editor } from "@tiptap/core";
 import { createBlankDocument } from "./helpers/document";
 
 for (const [style, label, background] of [
   ["paper", "纸页", "rgb(250, 246, 237)"],
   ["minimal", "精简", "rgb(250, 250, 250)"],
+  ["nine-rings", "九环", "rgb(250, 247, 255)"],
 ] as const) {
   test(`${label}可选择、持久化、切换配色，源码行号保持等宽`, async ({
     page,
   }) => {
     await createBlankDocument(page);
+    if (style === "nine-rings") {
+      await page.locator(".ProseMirror").evaluate(el => (el as HTMLElement & { editor: Editor }).editor.commands.setContent("<h1>九环 · 给思考一点色彩</h1><p>紫晶主调，柔和莓粉与蓝紫。让文字清晰，让空间明亮。</p><h2>连接想法，留下灵感</h2><p>阅读、记录与整理，在同一个安静的工作区发生。</p><blockquote><p>保留色彩的鲜活，也保留长时间阅读的舒适。</p></blockquote><pre><code>const inspiration = [ '紫晶', '莓粉', '蓝紫' ];</code></pre>", true));
+    }
     await page.getByTitle("设置", { exact: true }).click();
     await page.getByRole("button", { name: /^外观与布局/ }).click();
     await page
@@ -45,6 +50,7 @@ for (const [style, label, background] of [
       style,
     );
     await expect(page.locator("html")).toHaveClass(/theme-dark/);
+    if (style === "nine-rings") await page.screenshot({ path: "/tmp/nr-nine-rings-desktop-dark.png" });
     await page.getByRole("button", { name: "源码", exact: true }).click();
     await expect(page.locator(".markdown-cm-host")).toBeVisible();
     const numbers = page.locator(".markdown-cm-host .cm-lineNumbers");

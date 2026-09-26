@@ -6,7 +6,7 @@ AppConfig:
   persistence: 本地持久化，各端独立。不参与同步
   fields:
     interface_style:
-      type: enum(classic, calm, calm-compact, paper, minimal, mono-aware, yugen, wabi-sabi)
+      type: enum(classic, calm, calm-compact, paper, minimal, nine-rings, mono-aware, yugen, wabi-sabi)
       default: classic
       description: Web/Tauri 界面风格，经典采用自定义外观，清雅系列采用完整外观预设
 

@@ -362,7 +362,7 @@ mod tests {
 
     #[test]
     fn interface_styles_round_trip_independently_of_theme() {
-        for style in ["classic", "calm", "calm-compact"] {
+        for style in ["classic", "calm", "calm-compact", "nine-rings"] {
             let mut config = AppConfig::default();
             config.interface_style = style.into();
             config.theme = "nord".into();

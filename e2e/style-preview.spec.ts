@@ -17,7 +17,8 @@ test("风格预览跟随深浅配色，桌面四列，旧紧凑配置仍可识�
   await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^外观与布局/ }).click();
   const styles = page.getByRole("group", { name: "界面风格", exact: true });
-  await expect(styles.getByRole("button")).toHaveCount(7);
+  await expect(styles.getByRole("button")).toHaveCount(8);
+  await expect(styles.locator(".interface-style-option > strong")).toHaveText(["经典", "清雅", "纸页", "精简", "九环", "物哀", "幽玄", "侘寂"]);
   await expect(styles.getByRole("button", { name: /^清雅 / })).toHaveAttribute(
     "aria-pressed",
     "true",
@@ -37,6 +38,7 @@ test("风格预览跟随深浅配色，桌面四列，旧紧凑配置仍可识�
     ["calm", "rgb(252, 251, 248)", "rgb(37, 42, 36)"],
     ["paper", "rgb(250, 246, 237)", "rgb(40, 36, 31)"],
     ["minimal", "rgb(250, 250, 250)", "rgb(32, 34, 38)"],
+    ["nine-rings", "rgb(250, 247, 255)", "rgb(33, 23, 47)"],
     ["mono-aware", "rgb(250, 244, 243)", "rgb(41, 35, 39)"],
     ["yugen", "rgb(242, 245, 246)", "rgb(24, 35, 47)"],
     ["wabi-sabi", "rgb(244, 240, 230)", "rgb(40, 40, 32)"],

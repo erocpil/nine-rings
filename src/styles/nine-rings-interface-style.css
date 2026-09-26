@@ -1,0 +1,54 @@
+/* 九环: violet ink, lilac paper, berry and periwinkle accents.
+   Previews use the same palettes as the workspace. */
+:root[data-interface-style="nine-rings"]:not(.theme-dark),
+:root:not(.theme-dark) .interface-style-preview.preview-nine-rings {
+  --bg: #faf7ff;
+  --surface: #f0e7fa;
+  --border: #d9c9ed;
+  --text: #352345;
+  --text-secondary: #725c89;
+  --accent: #7839c2;
+  --accent-hover: #5e259f;
+  --hover-bg: #eae5ff;
+  --active-bg: #ead8fc;
+  --code-bg: #f0eafd;
+  --nr-rose: #b54887;
+  --nr-blue: #5859be;
+}
+:root[data-interface-style="nine-rings"].theme-dark,
+:root.theme-dark .interface-style-preview.preview-nine-rings {
+  --bg: #21172f;
+  --surface: #291e3c;
+  --border: #4f3968;
+  --text: #f1e9ff;
+  --text-secondary: #bcabcf;
+  --accent: #c6a0ff;
+  --accent-hover: #dfc6ff;
+  --hover-bg: #34305a;
+  --active-bg: #493061;
+  --code-bg: #2e2242;
+  --nr-rose: #ec9ed2;
+  --nr-blue: #b5b5ff;
+}
+:root[data-interface-style="nine-rings"] {
+  --link-color: var(--accent);
+  --link-hover: var(--accent-hover);
+  --accent-bg: var(--active-bg);
+  --activeline-bg: color-mix(in srgb, var(--accent) 12%, transparent);
+  --drawer-surface: var(--surface);
+  --style-content-width: 800px;
+  --style-content-inset: 40px;
+  --ui-radius-small: 5px;
+  --ui-radius-medium: 8px;
+}
+html[data-interface-style="nine-rings"] :is(.editor-content, .vr-block) :is(h1, h2) {
+  color: var(--accent);
+}
+html[data-interface-style="nine-rings"] .editor-content .blockquote-wrap {
+  border-left: 2px solid var(--nr-rose);
+}
+html[data-interface-style="nine-rings"] :is(.editor-content, .vr-block) a {
+  text-decoration-color: var(--nr-blue);
+}
+.preview-nine-rings b { background: var(--accent); }
+.preview-nine-rings em { border-left: 2px solid var(--nr-rose); }

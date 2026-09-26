@@ -10,6 +10,7 @@ export type InterfaceStyle =
   | "calm-compact"
   | "paper"
   | "minimal"
+  | "nine-rings"
   | "mono-aware"
   | "yugen"
   | "wabi-sabi";
@@ -39,6 +40,11 @@ export const INTERFACE_STYLES: ReadonlyArray<{
     description: "中性配色、紧凑层级，适合多栏技术笔记",
   },
   {
+    value: "nine-rings",
+    label: "九环",
+    description: "紫晶主调、柔和莓粉与蓝紫，明亮而有层次",
+  },
+  {
     value: "mono-aware",
     label: "物哀",
     description: "樱灰与玫瑰、舒展衬线，温柔的阅读余韵",
@@ -59,6 +65,7 @@ export function normalizeInterfaceStyle(value: unknown): InterfaceStyle {
     value === "calm-compact" ||
     value === "paper" ||
     value === "minimal" ||
+    value === "nine-rings" ||
     value === "mono-aware" ||
     value === "yugen" ||
     value === "wabi-sabi"
