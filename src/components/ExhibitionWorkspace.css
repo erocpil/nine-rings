@@ -310,8 +310,8 @@
   display: none;
 }
 
-.titlebar-wordmark {
-  font-size: 11px;
+.titlebar-title.titlebar-wordmark {
+  font-size: 10.5px;
   letter-spacing: 1px;
 }
 .titlebar-wordmark > span {

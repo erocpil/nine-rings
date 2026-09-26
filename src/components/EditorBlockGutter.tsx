@@ -55,11 +55,11 @@ function firstLineTextCenter(
   }
   if (typeName === "codeBlock") {
     // Collapsed code retains its text DOM for editing, but that text is clipped.
-    // Anchor to the visible toolbar instead of measuring the hidden first line.
+    // Graph mode also retains hidden source. Anchor both to the visible toolbar.
     const collapsed = dom.matches(".code-block-wrap.collapsed")
       ? dom : dom.querySelector<HTMLElement>(".code-block-wrap.collapsed");
-    if (collapsed) {
-      const toolbar = collapsed.querySelector<HTMLElement>(".code-block-toolbar");
+    if (collapsed || dom.querySelector(".mermaid-source-hidden")) {
+      const toolbar = (collapsed ?? dom).querySelector<HTMLElement>(".code-block-toolbar");
       const rect = toolbar?.getBoundingClientRect() ?? fallbackRect;
       return rect.top + rect.height / 2;
     }
@@ -609,6 +609,12 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       ? null
       : new MutationObserver(scheduleRebuild);
     mutationObserver?.observe(editor.view.dom, { childList: true });
+    const diagramObserver = typeof MutationObserver === "undefined"
+      ? null
+      : new MutationObserver(scheduleVisibleMeasure);
+    diagramObserver?.observe(editor.view.dom, {
+      attributes: true, attributeFilter: ["data-diagram"], subtree: true,
+    });
     editor.on("transaction", onTransaction);
     const onScroll = () => {
       lastScrollTime = performance.now();
@@ -629,6 +635,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       resizeObserver?.disconnect();
       blockResizeObserver?.disconnect();
       mutationObserver?.disconnect();
+      diagramObserver?.disconnect();
       if (documentMeasureTimer) window.clearTimeout(documentMeasureTimer);
       if (measureFrame) cancelAnimationFrame(measureFrame);
       if (rebuildFrame) cancelAnimationFrame(rebuildFrame);

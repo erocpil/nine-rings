@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { addLog } from "../lib/debugLog";
 import type { ReadingAnchor } from "../lib/readonly-rendering";
 import { patchReadingState, readRenderedScrollTop } from "../lib/reading-state";
@@ -24,10 +24,13 @@ export function useEditorScrollPersistence({
   showStatusBar,
   isMobileToolbarViewport,
 }: Options) {
+  const restoration = useRef({ pending: false });
   // 挂载时恢复滚动位置
   // 出处：SO #54195164 https://stackoverflow.com/questions/54195164
   // useLayoutEffect 在浏览器绘制前执行，比 useEffect 更早恢复位置
   useLayoutEffect(() => {
+    const state = { pending: false };
+    restoration.current = state;
     const el = scrollRef.current;
     if (!el) return;
     if (rendererHandoffRef.current) return;
@@ -36,6 +39,7 @@ export function useEditorScrollPersistence({
     if (saved === null) {
       return;
     }
+    state.pending = true;
     const scrollTop = Math.max(0, Number(saved) || 0);
     const startedAt = performance.now();
     const deadline = performance.now() + 10000;
@@ -51,11 +55,17 @@ export function useEditorScrollPersistence({
       cancelAnimationFrame(frame);
       observer?.disconnect();
       mutationObserver?.disconnect();
-      el.removeEventListener("wheel", stop);
-      el.removeEventListener("touchstart", stop);
-      el.removeEventListener("pointerdown", stop);
+      el.removeEventListener("wheel", finish);
+      el.removeEventListener("touchstart", finish);
+      el.removeEventListener("pointerdown", finish);
       el.removeEventListener("keydown", onKeyDown);
-      el.removeEventListener(EDITOR_NAVIGATION_EVENT, stop);
+      el.removeEventListener(EDITOR_NAVIGATION_EVENT, finish);
+    };
+    const finish = () => {
+      stop();
+      state.pending = false;
+      // Publish the final position even when the last frame did not scroll.
+      el.dispatchEvent(new Event("scroll"));
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (
@@ -69,13 +79,13 @@ export function useEditorScrollPersistence({
           " ",
         ].includes(event.key)
       )
-        stop();
+        finish();
     };
-    el.addEventListener("wheel", stop, { passive: true });
-    el.addEventListener("touchstart", stop, { passive: true });
-    el.addEventListener("pointerdown", stop, { passive: true });
+    el.addEventListener("wheel", finish, { passive: true });
+    el.addEventListener("touchstart", finish, { passive: true });
+    el.addEventListener("pointerdown", finish, { passive: true });
     el.addEventListener("keydown", onKeyDown);
-    el.addEventListener(EDITOR_NAVIGATION_EVENT, stop);
+    el.addEventListener(EDITOR_NAVIGATION_EVENT, finish);
     const restore = () => {
       if (stopped) return;
       const maximum = Math.max(0, el.scrollHeight - el.clientHeight);
@@ -89,7 +99,7 @@ export function useEditorScrollPersistence({
         (settledFrames >= 4 && minimumRestoreWindowElapsed) ||
         performance.now() >= deadline
       ) {
-        stop();
+        finish();
         return;
       }
       frame = requestAnimationFrame(restore);
@@ -122,6 +132,7 @@ export function useEditorScrollPersistence({
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    const state = restoration.current;
     let statusTimer = 0;
     let persistTimer = 0;
     let maximumScroll = Math.max(0, el.scrollHeight - el.clientHeight);
@@ -174,6 +185,9 @@ export function useEditorScrollPersistence({
       persistPosition();
     };
     const handler = () => {
+      // Mounting may clamp the target while NodeViews are still taking shape.
+      // Never replace the saved target with those intermediate positions.
+      if (state.pending) return;
       lastKnownScrollTop = el.scrollTop;
       scheduleStatusPosition();
       if (persistTimer) window.clearTimeout(persistTimer);

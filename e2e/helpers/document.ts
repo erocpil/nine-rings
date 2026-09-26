@@ -2,6 +2,7 @@ import { expect, type Page } from "@playwright/test";
 
 export async function createBlankDocument(page: Page) {
   await page.goto("/");
+  await expect(page.locator(".note-editor .ProseMirror")).toBeVisible();
   const previousNoteId = await page.evaluate(() =>
     localStorage.getItem("nr:lastNote"),
   );

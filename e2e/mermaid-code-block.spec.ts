@@ -3,6 +3,7 @@ import type { Editor } from "@tiptap/core";
 import { createBlankDocument } from "./helpers/document";
 
 test("Mermaid 代码块保留源码并可在图形与源码间切换", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true })));
   await createBlankDocument(page);
   const source = "flowchart LR\n  A[开始] --> B[完成]";
   await page.locator(".note-editor .ProseMirror").evaluate((element, value) => {
@@ -14,6 +15,14 @@ test("Mermaid 代码块保留源码并可在图形与源码间切换", async ({ 
   const block = page.locator(".note-editor .code-block-wrap");
   await expect(block.getByLabel("代码语言")).toHaveValue("mermaid");
   await expect(block.locator(".mermaid-diagram svg")).toBeVisible();
+  const assertGutter = async () => {
+    await expect.poll(() => page.evaluate(() => {
+      const number = document.querySelector(".editor-block-number")?.getBoundingClientRect();
+      const toolbar = document.querySelector(".code-block-toolbar")?.getBoundingClientRect();
+      return number && toolbar ? Math.abs(number.top + number.height / 2 - toolbar.top - toolbar.height / 2) : 999;
+    })).toBeLessThan(3);
+  };
+  await assertGutter();
   await expect(block.locator("pre code")).toHaveText(source);
   await block.getByRole("button", { name: "显示 Mermaid 源码" }).click();
   await expect(block.locator("pre code")).toBeVisible();
@@ -21,6 +30,7 @@ test("Mermaid 代码块保留源码并可在图形与源码间切换", async ({ 
   await block.getByRole("button", { name: "显示 Mermaid 图形" }).click();
   await expect(block.locator(".mermaid-diagram svg")).toBeVisible();
   await expect(block.locator("pre code")).toHaveText(source);
+  await assertGutter();
   const svgId = await block.locator(".mermaid-diagram svg").getAttribute("id");
   await block.getByRole("button", { name: "折叠代码块" }).click();
   await expect(block.locator(".mermaid-diagram")).toBeHidden();
@@ -33,6 +43,7 @@ test("Mermaid 代码块保留源码并可在图形与源码间切换", async ({ 
   await expect(block.locator("pre code")).toBeVisible();
   await expect(block.locator("pre code")).toHaveText(source);
   await block.getByRole("button", { name: "显示 Mermaid 图形" }).click();
+  await assertGutter();
   const readonlyControls = block.locator("[data-mermaid-controls]");
   await readonlyControls.getByRole("button", { name: "放大图表", exact: true }).click();
   await expect(readonlyControls.getByRole("status")).toHaveText("105%");
