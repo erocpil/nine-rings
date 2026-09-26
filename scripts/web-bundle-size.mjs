@@ -26,9 +26,11 @@ function getLimit(fileName, kind) {
     }
     // Mermaid shares its parser dependencies with the application vendor
     // graph. Keep that expected shared cost explicit instead of hiding it in
-    // the general budget for every future dependency.
+    // the general budget for every future dependency. This is intentionally
+    // separate from the per-feature chunks because the shared graph is larger
+    // than an ordinary lazy feature chunk.
     if (/^vendor-/.test(fileName)) {
-      return Number(process.env.WEB_BUNDLE_MAX_VENDOR_GZIP_KB ?? 700);
+      return Number(process.env.WEB_BUNDLE_MAX_VENDOR_GZIP_KB ?? 1200);
     }
     if (/^index-/.test(fileName)) {
       return Number(process.env.WEB_BUNDLE_MAX_MAIN_GZIP_KB ?? 340);
