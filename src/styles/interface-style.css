@@ -6,6 +6,9 @@
   gap: 12px;
   width: 100%;
 }
+.interface-style-options-desktop {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
 .interface-style-option {
   display: flex;
   flex-direction: column;
@@ -306,7 +309,8 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
 }
 
 /* Complete calm presets. Theme classes only select the light/dark variant. */
-:root:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"]) {
+:root:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"]),
+.interface-style-preview.preview-calm {
   --bg: #fcfbf8;
   --surface: #f0efea;
   --border: #dedfd7;
@@ -331,7 +335,8 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
 }
 :root.theme-dark:is(
     [data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"]
-  ) {
+  ),
+:root.theme-dark .interface-style-preview.preview-calm {
   --bg: #252a24;
   --surface: #20251f;
   --border: #3a4237;

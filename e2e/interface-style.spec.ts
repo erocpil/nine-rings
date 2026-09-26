@@ -115,7 +115,7 @@ test("清雅采用完整预设，跟随系统；经典配置在切回后恢复",
   await page.locator(".settings-close").click();
   await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^外观与布局/ }).click();
-  await styles.getByRole("button").nth(2).click();
+  await styles.getByRole("button", { name: /^精简/ }).click();
   await expect(editor).toHaveCSS("font-size", "14px");
   await page.setViewportSize({ width: 390, height: 844 });
   await expect

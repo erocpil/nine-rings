@@ -716,8 +716,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             )}
 
             <Field label="界面风格" desc="经典使用自定义主题与排版；独立风格统一管理配色与排版，切回经典可恢复原设置" visible={settingsPage === "appearance"}>
-              <div className="interface-style-options">
-                {INTERFACE_STYLES.map(style => <button key={style.value} type="button" className="interface-style-option" aria-pressed={normalizeInterfaceStyle(config.interface_style) === style.value} onClick={() => update({ interface_style: style.value })}>
+              <div className={`interface-style-options${mobileSettingsViewport ? "" : " interface-style-options-desktop"}`}>
+                {INTERFACE_STYLES.map(style => <button key={style.value} type="button" className="interface-style-option" aria-pressed={(config.interface_style === "calm-compact" ? "calm" : normalizeInterfaceStyle(config.interface_style)) === style.value} onClick={() => update({ interface_style: style.value })}>
                   <span className={`interface-style-preview preview-${style.value}`} aria-hidden="true"><i /><span><b /><i /><i /><em /></span></span>
                   <strong>{style.label}</strong><small>{style.description}</small>
                 </button>)}

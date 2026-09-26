@@ -29,11 +29,6 @@ export const INTERFACE_STYLES: ReadonlyArray<{
     description: "舒适留白、轻边框，让正文更突出",
   },
   {
-    value: "calm-compact",
-    label: "清雅·紧凑",
-    description: "清雅的视觉层级，更紧凑的空间",
-  },
-  {
     value: "paper",
     label: "纸页",
     description: "暖色纸面、衬线正文，适合长文阅读与写作",

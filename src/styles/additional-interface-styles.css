@@ -1,5 +1,6 @@
 /* Independent palettes share the preset interaction and responsive foundations. */
-:root[data-interface-style="paper"]:not(.theme-dark) {
+:root[data-interface-style="paper"]:not(.theme-dark),
+:root:not(.theme-dark) .interface-style-preview.preview-paper {
   --bg: #faf6ed;
   --surface: #f0e9dc;
   --border: #d8cebd;
@@ -12,7 +13,8 @@
   --code-bg: #f1ebdf;
   --drawer-surface: #f0e9dc;
 }
-:root[data-interface-style="paper"].theme-dark {
+:root[data-interface-style="paper"].theme-dark,
+:root.theme-dark .interface-style-preview.preview-paper {
   --bg: #28241f;
   --surface: #211e1a;
   --border: #51473b;
@@ -25,7 +27,8 @@
   --code-bg: #302b24;
   --drawer-surface: #211e1a;
 }
-:root[data-interface-style="minimal"]:not(.theme-dark) {
+:root[data-interface-style="minimal"]:not(.theme-dark),
+:root:not(.theme-dark) .interface-style-preview.preview-minimal {
   --bg: #fafafa;
   --surface: #f0f0f1;
   --border: #d5d7db;
@@ -38,7 +41,8 @@
   --code-bg: #eef0f3;
   --drawer-surface: #f0f0f1;
 }
-:root[data-interface-style="minimal"].theme-dark {
+:root[data-interface-style="minimal"].theme-dark,
+:root.theme-dark .interface-style-preview.preview-minimal {
   --bg: #202226;
   --surface: #191b1e;
   --border: #40454e;
@@ -97,27 +101,27 @@ html[data-interface-style="paper"] :is(.editor-content, .vr-block) h1 {
   }
 }
 .preview-paper {
-  background: #faf6ed;
-  border-color: #d8cebd;
+  background: var(--bg);
+  border-color: var(--border);
 }
 .preview-paper > i {
-  background: #f0e9dc;
+  background: var(--surface);
 }
 .preview-paper b {
-  background: #876044;
+  background: var(--accent);
 }
 .preview-paper > span {
   gap: 7px;
 }
 .preview-minimal {
-  background: #fafafa;
-  border-color: #d5d7db;
+  background: var(--bg);
+  border-color: var(--border);
 }
 .preview-minimal > i {
-  background: #e9ecf0;
+  background: var(--surface);
 }
 .preview-minimal b {
-  background: #345d8b;
+  background: var(--accent);
 }
 .preview-minimal > span {
   gap: 3px;

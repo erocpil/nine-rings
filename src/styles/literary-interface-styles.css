@@ -1,5 +1,6 @@
 /* Literary presets: readable palettes, shared behaviour, distinct reading rhythm. */
-:root[data-interface-style="mono-aware"]:not(.theme-dark) {
+:root[data-interface-style="mono-aware"]:not(.theme-dark),
+:root:not(.theme-dark) .interface-style-preview.preview-mono-aware {
   --bg: #faf4f3;
   --surface: #f1e7e7;
   --border: #dac9cc;
@@ -12,7 +13,8 @@
   --code-bg: #f2e9ec;
   --drawer-surface: var(--surface);
 }
-:root[data-interface-style="mono-aware"].theme-dark {
+:root[data-interface-style="mono-aware"].theme-dark,
+:root.theme-dark .interface-style-preview.preview-mono-aware {
   --bg: #292327;
   --surface: #231e22;
   --border: #514049;
@@ -25,7 +27,8 @@
   --code-bg: #30282e;
   --drawer-surface: var(--surface);
 }
-:root[data-interface-style="yugen"]:not(.theme-dark) {
+:root[data-interface-style="yugen"]:not(.theme-dark),
+:root:not(.theme-dark) .interface-style-preview.preview-yugen {
   --bg: #f2f5f6;
   --surface: #e7edf0;
   --border: #c6d2d9;
@@ -38,7 +41,8 @@
   --code-bg: #e6edf1;
   --drawer-surface: var(--surface);
 }
-:root[data-interface-style="yugen"].theme-dark {
+:root[data-interface-style="yugen"].theme-dark,
+:root.theme-dark .interface-style-preview.preview-yugen {
   --bg: #18232f;
   --surface: #141e29;
   --border: #354958;
@@ -51,7 +55,8 @@
   --code-bg: #1f2e3c;
   --drawer-surface: var(--surface);
 }
-:root[data-interface-style="wabi-sabi"]:not(.theme-dark) {
+:root[data-interface-style="wabi-sabi"]:not(.theme-dark),
+:root:not(.theme-dark) .interface-style-preview.preview-wabi-sabi {
   --bg: #f4f0e6;
   --surface: #eae4d7;
   --border: #cec7b6;
@@ -64,7 +69,8 @@
   --code-bg: #ebe7dc;
   --drawer-surface: var(--surface);
 }
-:root[data-interface-style="wabi-sabi"].theme-dark {
+:root[data-interface-style="wabi-sabi"].theme-dark,
+:root.theme-dark .interface-style-preview.preview-wabi-sabi {
   --bg: #282820;
   --surface: #21221b;
   --border: #494b3b;
@@ -155,32 +161,32 @@ html[data-interface-style="wabi-sabi"]
   }
 }
 .preview-mono-aware {
-  background: #faf4f3;
-  border-color: #dac9cc;
+  background: var(--bg);
+  border-color: var(--border);
 }
 .preview-mono-aware > i {
-  background: #f1e7e7;
+  background: var(--surface);
 }
 .preview-mono-aware b {
-  background: #8c4f62;
+  background: var(--accent);
 }
 .preview-yugen {
-  background: #f2f5f6;
-  border-color: #c6d2d9;
+  background: var(--bg);
+  border-color: var(--border);
 }
 .preview-yugen > i {
-  background: #e7edf0;
+  background: var(--surface);
 }
 .preview-yugen b {
-  background: #365e79;
+  background: var(--accent);
 }
 .preview-wabi-sabi {
-  background: #f4f0e6;
-  border-color: #cec7b6;
+  background: var(--bg);
+  border-color: var(--border);
 }
 .preview-wabi-sabi > i {
-  background: #eae4d7;
+  background: var(--surface);
 }
 .preview-wabi-sabi b {
-  background: #626a45;
+  background: var(--accent);
 }

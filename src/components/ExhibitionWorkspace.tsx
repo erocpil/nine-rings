@@ -128,7 +128,7 @@ export function ExhibitionWorkspace(props: Props) {
         <select
           aria-label="工作区风格"
           disabled={busy || blocked}
-          value={config?.interface_style}
+          value={config?.interface_style === "calm-compact" ? "calm" : config?.interface_style}
           onChange={(event) => {
             const style = event.target.value as AppConfig["interface_style"];
             void run(() => props.onAppearance({ interface_style: style }));
