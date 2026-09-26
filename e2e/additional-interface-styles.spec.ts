@@ -5,7 +5,7 @@ import { createBlankDocument } from "./helpers/document";
 for (const [style, label, background] of [
   ["paper", "纸页", "rgb(250, 246, 237)"],
   ["minimal", "精简", "rgb(250, 250, 250)"],
-  ["nine-rings", "九环", "rgb(234, 227, 241)"],
+  ["nine-rings", "九环", "rgb(240, 235, 245)"],
 ] as const) {
   test(`${label}可选择、持久化、切换配色，源码行号保持等宽`, async ({
     page,
@@ -51,10 +51,16 @@ for (const [style, label, background] of [
       style,
     );
     await expect(page.locator("html")).toHaveClass(/theme-dark/);
-    if (style === "nine-rings") await page.screenshot({ path: "/tmp/nr-nine-rings-desktop-dark.png" });
+    let renderedHighlight: string | undefined;
+    if (style === "nine-rings") {
+      await page.locator(".note-editor .ProseMirror p").first().click();
+      renderedHighlight = await page.locator(".ProseMirror-activeline").first().evaluate(el => getComputedStyle(el).backgroundColor);
+      await page.screenshot({ path: "/tmp/nr-nine-rings-desktop-dark.png" });
+    }
     await page.getByRole("button", { name: "源码", exact: true }).click();
     await expect(page.locator(".markdown-cm-host")).toBeVisible();
     const numbers = page.locator(".markdown-cm-host .cm-lineNumbers");
+    if (renderedHighlight) await expect(page.locator(".markdown-cm-host .cm-activeLine").first()).toHaveCSS("background-color", renderedHighlight);
 
     await expect(numbers).toHaveCSS("font-family", /monospace/);
     await expect(numbers).toHaveCSS("font-variant-numeric", "tabular-nums");

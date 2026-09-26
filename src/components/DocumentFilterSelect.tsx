@@ -5,7 +5,8 @@ import { ToolbarIcon } from "./ToolbarIcon";
 interface Props {
   label: string;
   text: string;
-  icon: ComponentProps<typeof ToolbarIcon>["name"];
+  disabled?: boolean;
+  icon?: ComponentProps<typeof ToolbarIcon>["name"];
   className?: string;
   value: string;
   options: { value: string; label: string }[];
@@ -15,7 +16,7 @@ interface Props {
 }
 
 /** One controlled popup per DocumentBrowser, without native select click capture. */
-export function DocumentFilterSelect({ label, text, icon, className = "", value, options, open, onOpenChange, onChange }: Props) {
+export function DocumentFilterSelect({ label, text, icon, disabled = false, className = "", value, options, open, onOpenChange, onChange }: Props) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -82,7 +83,7 @@ export function DocumentFilterSelect({ label, text, icon, className = "", value,
   }, [open]);
 
   return <>
-    <button ref={trigger} type="button" className={`document-browser-filter-control ${className}`}
+    <button ref={trigger} type="button" className={`document-browser-filter-control ${className}`} disabled={disabled} data-value={value}
       aria-label={label} aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? id : undefined} aria-owns={open ? id : undefined}
       onClick={() => onOpenChange(!open)}
       onKeyDown={event => {
@@ -90,7 +91,7 @@ export function DocumentFilterSelect({ label, text, icon, className = "", value,
           event.preventDefault(); event.stopPropagation(); onOpenChange(true);
         }
       }}>
-      <ToolbarIcon name={icon} /><span>{text}</span><ToolbarIcon name="chevronRight" />
+      {icon && <ToolbarIcon name={icon} />}<span>{text}</span><ToolbarIcon name="chevronRight" />
     </button>
     {open && createPortal(<div id={id} ref={menu} role="listbox" aria-label={label} data-sidebar-owned
       className="document-filter-options" onClick={event => event.stopPropagation()}
@@ -119,7 +120,7 @@ export function DocumentFilterSelect({ label, text, icon, className = "", value,
           match?.scrollIntoView({ block: "nearest" });
         }
       }}>
-      {options.map(option => <button key={option.value} type="button" role="option" tabIndex={-1}
+      {options.map(option => <button key={option.value} type="button" role="option" value={option.value} tabIndex={-1}
         aria-selected={option.value === value} onClick={() => { handlers.current.onChange(option.value); close(true); }}>
         <span>{option.label}</span>{option.value === value && <ToolbarIcon name="check" />}
       </button>)}

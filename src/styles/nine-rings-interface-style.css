@@ -3,8 +3,8 @@
    Previews use the same palettes as the workspace. */
 :root[data-interface-style="nine-rings"]:not(.theme-dark),
 :root:not(.theme-dark) .interface-style-preview.preview-nine-rings {
-  --bg: #eae3f1;
-  --surface: #ded4e8;
+  --bg: #f0ebf5;
+  --surface: #e6ddec;
   --border: #c6b6d4;
   --text: #383040;
   --text-secondary: #5f526a;
@@ -12,7 +12,7 @@
   --accent-hover: #5e4275;
   --hover-bg: #d9cee5;
   --active-bg: #d9cde5;
-  --code-bg: #e2d9ec;
+  --code-bg: #e9e1f0;
   --nr-rose: #a77894;
   --nr-blue: #7c7b9f;
 }
@@ -53,3 +53,7 @@ html[data-interface-style="nine-rings"] :is(.editor-content, .vr-block) a {
 }
 .preview-nine-rings b { background: var(--accent); }
 .preview-nine-rings em { border-left: 2px solid var(--nr-rose); }
+
+:root[data-interface-style="nine-rings"].theme-dark {
+  --activeline-bg: color-mix(in srgb, var(--accent) 8%, transparent);
+}

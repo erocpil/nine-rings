@@ -350,3 +350,11 @@
   --style-heading-gap: 20px;
   --style-heading-bottom: 8px;
 }
+
+.exhibition-masthead .exhibition-select {
+  width: auto;
+  min-height: 32px;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.exhibition-select > .toolbar-icon:last-child { transform: rotate(90deg); }

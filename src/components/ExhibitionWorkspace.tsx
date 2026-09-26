@@ -1,4 +1,6 @@
 import { useEffect, useState, lazy, Suspense, type ReactNode } from "react";
+import { DocumentFilterSelect } from "./DocumentFilterSelect";
+import "./DocumentBrowser.css";
 import { api } from "../lib/api";
 import { INTERFACE_STYLES } from "../lib/interface-style";
 import type { AppConfig } from "../lib/storage/types";
@@ -39,6 +41,7 @@ export function ExhibitionWorkspace(props: Props) {
       ? "compact"
       : "comfortable");
   const [expanded, setExpanded] = useState(false);
+  const [openAppearance, setOpenAppearance] = useState<string | null>(null);
   const showOverview = active && (!noteId || expanded);
   const [documents, setDocuments] = useState<Summary[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -124,84 +127,35 @@ export function ExhibitionWorkspace(props: Props) {
       <strong title={path}>{path || "我的工作区"}</strong>
     </button>
   );
+  useEffect(() => {
+    if (busy || blocked || !active || !props.desktop) setOpenAppearance(null);
+  }, [busy, blocked, active, props.desktop]);
+  const choose = (label: string, value: string, options: { value: string; label: string }[], patch: (value: string) => Partial<AppConfig>) =>
+    props.desktop ? <DocumentFilterSelect key={label} label={label}
+      text={options.find(option => option.value === value)?.label ?? value}
+      className="exhibition-select" value={value} options={options} disabled={busy || blocked}
+      open={openAppearance === label && !busy && !blocked}
+      onOpenChange={open => setOpenAppearance(current => open ? label : current === label ? null : current)}
+      onChange={value => void run(() => props.onAppearance(patch(value)))} />
+    : <label key={label}><select aria-label={label} disabled={busy || blocked} value={value}
+        onChange={event => void run(() => props.onAppearance(patch(event.target.value)))}>
+        {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select></label>;
   const appearance = (
     <div className="exhibition-appearance">
-      <label>
-        <select
-          aria-label="工作区风格"
-          disabled={busy || blocked}
-          value={config?.interface_style === "calm-compact" ? "calm" : config?.interface_style}
-          onChange={(event) => {
-            const style = event.target.value as AppConfig["interface_style"];
-            void run(() => props.onAppearance({ interface_style: style }));
-          }}
-        >
-          {INTERFACE_STYLES.filter((style) => style.value !== "classic").map(
-            (style) => (
-              <option key={style.value} value={style.value}>
-                {style.label}
-              </option>
-            ),
-          )}
-        </select>
-      </label>
-      <label>
-        <select
-          aria-label="工作区配色"
-          disabled={busy || blocked}
-          value={config?.interface_color_mode ?? "system"}
-          onChange={(event) => {
-            const mode = event.target
-              .value as AppConfig["interface_color_mode"];
-            void run(() => props.onAppearance({ interface_color_mode: mode }));
-          }}
-        >
-          <option value="light">浅色</option>
-          <option value="dark">深色</option>
-          <option value="system">跟随系统</option>
-        </select>
-      </label>
-      {props.desktop && (
-        <>
-          <label>
-            <select
-              aria-label="文本宽度"
-              title="文本宽度"
-              disabled={busy || blocked}
-              value={config?.exhibition_text_width ?? "standard"}
-              onChange={(event) => {
-                const value = event.target
-                  .value as AppConfig["exhibition_text_width"];
-                void run(() =>
-                  props.onAppearance({ exhibition_text_width: value }),
-                );
-              }}
-            >
-              <option value="narrow">窄幅</option>
-              <option value="standard">标准宽度</option>
-              <option value="wide">宽幅</option>
-            </select>
-          </label>
-          <label>
-            <select
-              aria-label="紧凑程度"
-              title="紧凑程度"
-              disabled={busy || blocked}
-              value={density}
-              onChange={(event) => {
-                const value = event.target
-                  .value as AppConfig["exhibition_density"];
-                void run(() =>
-                  props.onAppearance({ exhibition_density: value }),
-                );
-              }}
-            >
-              <option value="comfortable">舒适</option>
-              <option value="compact">紧凑</option>
-            </select>
-          </label>
-        </>
-      )}
+      {choose("工作区风格", config?.interface_style === "calm-compact" ? "calm" : config?.interface_style ?? "calm",
+        INTERFACE_STYLES.filter(style => style.value !== "classic"), value => ({ interface_style: value as AppConfig["interface_style"] }))}
+      {choose("工作区配色", config?.interface_color_mode ?? "system",
+        [{ value: "light", label: "浅色" }, { value: "dark", label: "深色" }, { value: "system", label: "跟随系统" }],
+        value => ({ interface_color_mode: value as AppConfig["interface_color_mode"] }))}
+      {props.desktop && <>
+        {choose("文本宽度", config?.exhibition_text_width ?? "standard",
+          [{ value: "narrow", label: "窄幅" }, { value: "standard", label: "标准" }, { value: "wide", label: "宽幅" }],
+          value => ({ exhibition_text_width: value as AppConfig["exhibition_text_width"] }))}
+        {choose("紧凑程度", density,
+          [{ value: "comfortable", label: "舒适" }, { value: "compact", label: "紧凑" }],
+          value => ({ exhibition_density: value as AppConfig["exhibition_density"] }))}
+      </>}
     </div>
   );
   return (

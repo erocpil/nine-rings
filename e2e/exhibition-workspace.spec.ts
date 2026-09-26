@@ -1,4 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+
+async function selectAppearance(page: Page, label: string, value: string) {
+  await page.getByRole("button", { name: label, exact: true }).click();
+  await page.getByRole("listbox", { name: label, exact: true }).locator(`[role="option"][value="${value}"]`).click();
+}
+
 
 for (const style of ["calm", "mono-aware"] as const) {
   test(`${style} 展陈工作区首页、文档与专注布局`, async ({ page }) => {
@@ -77,12 +83,12 @@ for (const style of ["calm", "mono-aware"] as const) {
     await expect(page.locator(".note-editor .ProseMirror")).toContainText(
       "展陈布局切换前的编辑应当保存。",
     );
-    await page.getByLabel("工作区风格").selectOption("yugen");
+    await selectAppearance(page, "工作区风格", "yugen");
     await expect(page.locator("html")).toHaveAttribute(
       "data-interface-style",
       "yugen",
     );
-    await page.getByLabel("工作区配色").selectOption("dark");
+    await selectAppearance(page, "工作区配色", "dark");
     await page.reload();
     await expect(page.locator(".exhibition-masthead")).toBeVisible();
     await expect(page.locator("html")).toHaveClass(/theme-dark/);
@@ -200,39 +206,37 @@ test("桌面展陈宽度和密度独立持久化，手机保持原布局", async
     .click();
   const content = page.locator(".note-editor-scroll > .editor-content-shell");
   const header = page.locator(".note-title-row");
-  await page.getByLabel("文本宽度", { exact: true }).selectOption("narrow");
+  await selectAppearance(page, "文本宽度", "narrow");
   await expect(content).toHaveCSS("max-width", "690px");
   const narrow = (await content.boundingBox())!.width;
-  await page.getByLabel("文本宽度", { exact: true }).selectOption("standard");
+  await selectAppearance(page, "文本宽度", "standard");
   const standard = (await content.boundingBox())!.width;
   expect(standard).toBeGreaterThan(narrow);
-  await page.getByLabel("文本宽度", { exact: true }).selectOption("wide");
+  await selectAppearance(page, "文本宽度", "wide");
   await expect(content).toHaveCSS("max-width", "100%");
   const wide = (await content.boundingBox())!.width;
   expect(Math.abs(standard - (narrow + wide) / 2)).toBeLessThan(1);
   await page.setViewportSize({ width: 1800, height: 1000 });
   const resizedWide = (await content.boundingBox())!.width;
-  await page.getByLabel("文本宽度", { exact: true }).selectOption("narrow");
+  await selectAppearance(page, "文本宽度", "narrow");
   const resizedNarrow = (await content.boundingBox())!.width;
-  await page.getByLabel("文本宽度", { exact: true }).selectOption("standard");
+  await selectAppearance(page, "文本宽度", "standard");
   await expect.poll(async () => Math.abs((await content.boundingBox())!.width - (resizedNarrow + resizedWide) / 2)).toBeLessThan(1);
-  await page.getByLabel("文本宽度", { exact: true }).selectOption("wide");
-  await page.getByLabel("紧凑程度", { exact: true }).selectOption("compact");
+  await selectAppearance(page, "文本宽度", "wide");
+  await selectAppearance(page, "紧凑程度", "compact");
   await expect(header).toHaveCSS("height", "42px");
   await expect(page.locator("html")).toHaveAttribute(
     "data-interface-style",
     "calm",
   );
   await page.reload();
-  await expect(page.getByLabel("文本宽度", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("文本宽度", { exact: true })).toHaveAttribute("data-value",
     "wide",
   );
-  await expect(page.getByLabel("紧凑程度", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("紧凑程度", { exact: true })).toHaveAttribute("data-value",
     "compact",
   );
-  await page
-    .getByLabel("紧凑程度", { exact: true })
-    .selectOption("comfortable");
+  await selectAppearance(page, "紧凑程度", "comfortable");
   await expect(header).toHaveCSS("height", "48px");
   await page.getByRole("button", { name: "专注模式", exact: true }).click();
   await expect(page.locator(".titlebar-wordmark")).toHaveText("NINE RINGS");
@@ -255,4 +259,27 @@ test("桌面展陈宽度和密度独立持久化，手机保持原布局", async
   await expect(page.locator(".exhibition-shell[data-text-width]")).toHaveCount(
     0,
   );
+});
+
+
+test("桌面顶部菜单一次点击切换，取消不修改配置，手机仍为原生选择", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "nine-rings", interface_color_mode: "light", workspace_layout: "exhibition" })));
+  await page.goto("/");
+  const before = await page.evaluate(() => localStorage.getItem("nine_rings_config"));
+  for (const label of ["工作区风格", "工作区配色", "文本宽度", "紧凑程度", "工作区风格"]) {
+    await page.getByRole("button", { name: label, exact: true }).click();
+    await expect(page.getByRole("listbox")).toHaveCount(1);
+    await expect(page.getByRole("listbox", { name: label, exact: true })).toBeVisible();
+  }
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "工作区风格", exact: true })).toBeFocused();
+  expect(await page.evaluate(() => localStorage.getItem("nine_rings_config"))).toBe(before);
+  await expect(page.getByRole("button", { name: "文本宽度", exact: true })).toHaveText("标准");
+  await selectAppearance(page, "工作区配色", "dark");
+  await expect(page.locator("html")).toHaveClass(/theme-dark/);
+  await page.getByRole("button", { name: "工作区风格", exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(page.locator('select[aria-label="工作区风格"]')).toBeVisible();
 });
