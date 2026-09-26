@@ -181,6 +181,7 @@ function DocTree({
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
   const [compareIds, setCompareIds] = useState<string[] | null>(null);
+  const [compareSelection, setCompareSelection] = useState<string[] | null>(null);
   const treeLongPressRef = useRef<TreeLongPressState | null>(null);
   const suppressTreeClickUntilRef = useRef(0);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -335,6 +336,15 @@ function DocTree({
     if (disabled || !node.noteId) return;
     const request = ++selectionRequestRef.current;
     setSelectionError(null);
+    if (compareSelection) {
+      if (compareSelection[0] === node.noteId) {
+        setSelectionError("请选择另一篇文档作为右侧文档");
+        return;
+      }
+      setCompareSelection(null);
+      setCompareIds([compareSelection[0], node.noteId]);
+      return;
+    }
     if (selectMode) {
       toggleSelectId(node.noteId);
       return;
@@ -805,7 +815,7 @@ function DocTree({
         {selectMode ? (
           <>
             <button className="btn-icon doc-tree-batch-btn" title="比较所选文档" aria-label="比较所选文档" disabled={disabled || batchBusy || selectedIds.size !== 2}
-              onClick={() => setCompareIds([...selectedIds])}>⇄</button>
+            onClick={() => { setCompareSelection(null); setCompareIds([...selectedIds]); }}>⇄</button>
             <button
               className="btn-icon doc-tree-batch-btn"
               onClick={() => {
@@ -895,6 +905,10 @@ function DocTree({
   return (
     <>
       {selectionError && <div role="alert" className="doc-tree-error-detail">{selectionError}</div>}
+      {compareSelection && <div className="doc-tree-compare-hint" role="status">
+        已选择左侧文档，请在文档树中点击另一篇文档作为右侧文档。
+        <button type="button" onClick={() => setCompareSelection(null)}>取消</button>
+      </div>}
       {pathNotice && <div role="status" className="doc-tree-path-notice">{pathNotice}</div>}
       {exportProgress && <div role="status" className="doc-tree-path-notice">{exportProgress}</div>}
       {toolbarHost === undefined
@@ -951,7 +965,7 @@ function DocTree({
           ) : (
             <>
               <button className="doc-context-item" onClick={() => void handleCopyPath(getDocumentFolderPath(contextMenu.path, contextMenu.noteId!))}>复制所在路径</button>
-              <button className="doc-context-item" disabled={disabled} onClick={() => { setCompareIds([contextMenu.noteId!]); setContextMenu(null); }}>与另一文档比较…</button>
+              <button className="doc-context-item" disabled={disabled} onClick={() => { setCompareSelection([contextMenu.noteId!]); setCompareIds(null); setContextMenu(null); }}>与另一文档比较…</button>
               {!contextMenu.path.startsWith("daily/") && (
                 <button className="doc-context-item" onClick={() => handleMoveDocument(contextMenu.noteId!, contextMenu.title, contextMenu.path)}>
                   移动到…

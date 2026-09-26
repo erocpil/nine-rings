@@ -31,7 +31,7 @@ async function seed(page: Page) {
 }
 
 test("右键菜单跨越分栏边界仍可点击，并能独立比较两篇文档", async ({ page }) => {
-  const ids = await seed(page);
+  await seed(page);
   const target = page.locator(".doc-tree-doc").filter({ hasText: "对比甲" });
   const box = (await target.boundingBox())!;
   await target.click({ button: "right", position: { x: box.width - 10, y: box.height / 2 } });
@@ -44,8 +44,10 @@ test("右键菜单跨越分栏边界仍可点击，并能独立比较两篇文�
     return el.contains(document.elementFromPoint(box.right - 8, box.top + box.height / 2));
   })).toBe(true);
   await option.click();
+  await expect(page.getByRole("status")).toContainText("已选择左侧文档");
+  await page.locator(".doc-tree-doc").filter({ hasText: "对比乙" }).click();
   const dialog = page.getByRole("dialog", { name: "文档对比" });
-  await dialog.getByLabel("右侧文档").selectOption(ids[1]);
+  await expect(dialog).toBeVisible();
   await expect(dialog.locator(".document-diff-line.removed")).toContainText(["本地内容"]);
   await expect(dialog.locator(".document-diff-line.added")).toContainText(["远端内容"]);
   await expect(dialog.locator(".document-content-preview h2")).toHaveCount(2);

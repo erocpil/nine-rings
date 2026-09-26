@@ -1772,6 +1772,8 @@
 }
 
 /* ──── DocTree ──── */
+.doc-tree-compare-hint { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); color: var(--text); font-size: 12px; }
+.doc-tree-compare-hint button { margin-left: auto; border: 0; background: transparent; color: var(--link-color); cursor: pointer; }
 
 .doc-tree {
   flex: 1;
