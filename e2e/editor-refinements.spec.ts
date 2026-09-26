@@ -188,6 +188,35 @@ test("代码 Tab 宽度在正文和块编辑器即时共用", async ({ page }) =
   );
 });
 
+test("代码块与后续引用、代码块和正文保持间隔", async ({ page }) => {
+  await fixture(page, "code");
+  const editor = page.locator(".ProseMirror");
+  await editor.evaluate((el) => {
+    const ed = (el as HTMLElement & { editor: Editor }).editor;
+    ed.commands.setContent({
+      type: "doc",
+      content: [
+        { type: "codeBlock", content: [{ type: "text", text: "const first = true;" }] },
+        { type: "blockquote", content: [{ type: "paragraph", content: [{ type: "text", text: "引用内容" }] }] },
+        { type: "codeBlock", content: [{ type: "text", text: "const second = true;" }] },
+        { type: "paragraph", content: [{ type: "text", text: "普通文本" }] },
+      ],
+    });
+  });
+  await expect(editor.locator(".code-block-wrap")).toHaveCount(2);
+  await expect(editor.locator(".blockquote-wrap")).toHaveCount(1);
+  await expect(editor.locator("p").filter({ hasText: "普通文本" })).toHaveCount(1);
+  const gaps = await editor.evaluate((el) => {
+    const blocks = [...el.children] as HTMLElement[];
+    return blocks.slice(0, -1).map((block, index) => {
+      const next = blocks[index + 1];
+      return next.getBoundingClientRect().top - block.getBoundingClientRect().bottom;
+    });
+  });
+  expect(gaps).toHaveLength(3);
+  for (const gap of gaps) expect(gap).toBeGreaterThan(0);
+});
+
 test("首次工具提示快速显示并在离开后消失", async ({ page }) => {
   await fixture(page);
   const button = page.locator(".editor-menu .menu-btn[title]").first();

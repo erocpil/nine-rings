@@ -434,9 +434,12 @@
   color: var(--text-secondary);
 }
 
-.editor-content .ProseMirror > .code-block-wrap {
+.editor-content .ProseMirror > :is(.code-block-wrap, .node-codeBlock) {
   margin-top: 0;
-  margin-bottom: 0;
+  /* Keep the following block visually separate. The code NodeView owns its
+     frame, so without an outer margin adjacent blocks and active-line
+     backgrounds touch the frame directly. */
+  margin-bottom: var(--editor-block-spacing);
 }
 
 .editor-content .ProseMirror > [data-indent="1"] { margin-inline-start: calc(var(--editor-block-indent-step, var(--editor-list-indent)) * 1); }
