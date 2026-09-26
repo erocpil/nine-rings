@@ -1482,7 +1482,7 @@ function App() {
   const exhibitionEnabled = config?.workspace_layout === "exhibition" && config.interface_style !== "classic";
   return (
     <EditorFoldIconContext.Provider value={config}>
-    <ExhibitionWorkspace enabled={exhibitionEnabled} focus={focusMode} config={config}
+    <ExhibitionWorkspace desktop={desktopWorkspace} enabled={exhibitionEnabled} focus={focusMode} config={config}
       blocked={protectionBusy || applyingWebUpdate || syncBusy || searchExpanded || errorDetailsOpen || settingsOpen || mobileReadingLibraryOpen || docCreateOpen || quickSwitcherOpen || (mobileDrawerViewport && !sidebarHidden)}
       path={selectedFolderPath ?? selectedNote?.storagePath ?? ""} noteId={selectedNote?.id} refreshKey={docTreeKey}
       onAppearance={async patch => handleConfigChange(await api.config.set(patch))}
@@ -1497,8 +1497,8 @@ function App() {
       {...(protectionBusy || applyingWebUpdate ? { inert: "", "aria-busy": true } : {})}
       {...(searchExpanded || errorDetailsOpen ? { inert: "" } : {})}
     >
-      {/* 桌面版（Tauri）才需要自定义标题栏；web 版无窗口概念 */}
-      {isTauriRuntime() && (
+      {/* 展陈桌面窗口操作位于外围；专注模式恢复紧凑标题栏。 */}
+      {(isTauriRuntime() ? !(exhibitionEnabled && desktopWorkspace && !focusMode) : exhibitionEnabled && desktopWorkspace && focusMode) && (
         <Suspense fallback={null}>
           <TitleBar />
         </Suspense>

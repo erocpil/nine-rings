@@ -86,7 +86,9 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-.exhibition-shell :is(.exhibition-masthead, .exhibition-overview, .exhibition-welcome) :is(button, select):disabled {
+.exhibition-shell
+  :is(.exhibition-masthead, .exhibition-overview, .exhibition-welcome)
+  :is(button, select):disabled {
   cursor: default;
 }
 .exhibition-overview {
@@ -237,6 +239,64 @@
 
 /* The outer exhibition shell owns the screen's bottom safe area. The framed
    editor is above the overview, so it must not reserve that area a second time. */
-@media (max-width: 768px), (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
-  .is-exhibition > .app .app-main { padding-bottom: 0; }
+@media (max-width: 768px),
+  (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
+  .is-exhibition > .app .app-main {
+    padding-bottom: 0;
+  }
+}
+
+/* One shared titlebar owns native window interactions in the outer desktop band. */
+.exhibition-masthead .titlebar-exhibition {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  background: transparent;
+}
+.titlebar-exhibition .titlebar-leading {
+  min-width: 0;
+}
+.titlebar-exhibition .titlebar-title {
+  padding-left: 6px;
+}
+.titlebar-exhibition .titlebar-workspace {
+  height: auto;
+  margin-left: 0;
+}
+.titlebar-exhibition .exhibition-identity > span {
+  display: none;
+}
+.titlebar-exhibition .exhibition-identity {
+  padding-block: 0;
+}
+.titlebar-exhibition .exhibition-identity strong {
+  font-size: 11px;
+}
+.titlebar-exhibition .titlebar-appearance {
+  margin-left: auto;
+  padding-right: 16px;
+  align-items: center;
+}
+.titlebar-exhibition > .titlebar-controls:last-child {
+  margin-left: 0;
+  height: 30px;
+  border-left: 1px solid var(--border);
+  padding-left: 12px;
+  gap: 4px;
+}
+.exhibition-masthead .titlebar-exhibition .titlebar-btn {
+  width: 32px;
+  padding: 0;
+}
+.exhibition-masthead .titlebar-exhibition .titlebar-btn-close:hover {
+  background: #e81123;
+  color: white;
+}
+.titlebar-workspace,
+.titlebar-appearance {
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-exhibition > .titlebar-controls:empty {
+  display: none;
 }

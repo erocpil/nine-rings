@@ -1,7 +1,17 @@
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
-import { toggleTauriFullscreen } from "../lib/fullscreen";
+import { isTauriRuntime } from "../lib/runtime";
+import {
+  toggleTauriFullscreen,
+  FULLSCREEN_WILL_CHANGE_EVENT,
+} from "../lib/fullscreen";
 
 /**
  * 自定义标题栏（Frameless 模式）
@@ -9,7 +19,16 @@ import { toggleTauriFullscreen } from "../lib/fullscreen";
  * 提供拖拽手柄、窗口标题、全屏与关闭按钮。
  * 关闭按钮隐藏到托盘，与 CloseRequested 事件行为一致。
  */
-export default function TitleBar() {
+export default function TitleBar({
+  exhibition = false,
+  workspace,
+  children,
+}: {
+  exhibition?: boolean;
+  workspace?: ReactNode;
+  children?: ReactNode;
+}) {
+  const native = isTauriRuntime();
   const [fullscreen, setFullscreen] = useState(false);
   const macOS = /Mac/i.test(navigator.platform);
   const maximizePress = useRef<{ x: number; y: number } | null>(null);
@@ -17,13 +36,20 @@ export default function TitleBar() {
   const maximizeGuardTimer = useRef<number | null>(null);
 
   const isTitlebarBackground = (event: MouseEvent<HTMLDivElement>) =>
-    event.target instanceof Element
-    && !event.target.closest(".titlebar-controls, button, a, input, select, textarea, [contenteditable]");
+    event.target instanceof Element &&
+    !event.target.closest(
+      ".titlebar-controls, button, a, input, select, textarea, [contenteditable]",
+    );
 
   const handleMouseDown = (event: MouseEvent<HTMLDivElement>) => {
-    if (!macOS) return;
+    if (!native || !macOS) return;
     maximizePress.current = null;
-    if (event.button !== 0 || event.detail !== 2 || !isTitlebarBackground(event)) return;
+    if (
+      event.button !== 0 ||
+      event.detail !== 2 ||
+      !isTitlebarBackground(event)
+    )
+      return;
     // macOS 的双击在第二次松开时处理。拦截默认 drag-region 处理，
     // 防止同一次手势既触发我们的最大化逻辑又触发 Tauri 的内部切换。
     event.preventDefault();
@@ -32,17 +58,30 @@ export default function TitleBar() {
   };
 
   const handleMouseUp = (event: MouseEvent<HTMLDivElement>) => {
-    if (!macOS || event.button !== 0 || event.detail !== 2 || !isTitlebarBackground(event)) return;
+    if (
+      !native ||
+      !macOS ||
+      event.button !== 0 ||
+      event.detail !== 2 ||
+      !isTitlebarBackground(event)
+    )
+      return;
     event.preventDefault();
     event.stopPropagation();
     const press = maximizePress.current;
     maximizePress.current = null;
     // 容许轻微手抖，但双击后拖动仍取消最大化。
-    if (!press || Math.hypot(event.clientX - press.x, event.clientY - press.y) > 4 || maximizing.current) return;
+    if (
+      !press ||
+      Math.hypot(event.clientX - press.x, event.clientY - press.y) > 4 ||
+      maximizing.current
+    )
+      return;
     maximizing.current = true;
     // Native window calls normally settle immediately. Do not let one lost IPC
     // reply disable titlebar double-clicks for the rest of this app session.
-    if (maximizeGuardTimer.current !== null) window.clearTimeout(maximizeGuardTimer.current);
+    if (maximizeGuardTimer.current !== null)
+      window.clearTimeout(maximizeGuardTimer.current);
     maximizeGuardTimer.current = window.setTimeout(() => {
       maximizing.current = false;
       maximizeGuardTimer.current = null;
@@ -50,17 +89,27 @@ export default function TitleBar() {
     void (async () => {
       const appWindow = getCurrentWindow();
       // 已在原生全屏时不改变 Space，也不修改退出全屏后的窗口状态。
-      if (!await appWindow.isFullscreen()) await invoke("toggle_window_maximize");
-    })().catch(error => {
-      console.error("[TitleBar] 最大化/还原窗口失败:", error);
-    }).finally(() => {
-      maximizing.current = false;
-      if (maximizeGuardTimer.current !== null) window.clearTimeout(maximizeGuardTimer.current);
-      maximizeGuardTimer.current = null;
-    });
+      if (!(await appWindow.isFullscreen()))
+        await invoke("toggle_window_maximize");
+    })()
+      .catch((error) => {
+        console.error("[TitleBar] 最大化/还原窗口失败:", error);
+      })
+      .finally(() => {
+        maximizing.current = false;
+        if (maximizeGuardTimer.current !== null)
+          window.clearTimeout(maximizeGuardTimer.current);
+        maximizeGuardTimer.current = null;
+      });
   };
 
   useEffect(() => {
+    if (!native) {
+      const sync = () => setFullscreen(Boolean(document.fullscreenElement));
+      sync();
+      document.addEventListener("fullscreenchange", sync);
+      return () => document.removeEventListener("fullscreenchange", sync);
+    }
     const appWindow = getCurrentWindow();
     let disposed = false;
     let unlistenResize: (() => void) | undefined;
@@ -71,24 +120,38 @@ export default function TitleBar() {
     };
 
     void syncFullscreen().catch(() => {});
-    void appWindow.onResized(() => {
-      // macOS 原生全屏会经过异步 Space 动画；读取真实状态，避免按钮
-      // 依赖 setFullscreen 的瞬时返回值。
-      void syncFullscreen().catch(() => {});
-    }).then((unlisten) => {
-      if (disposed) unlisten();
-      else unlistenResize = unlisten;
-    }).catch(() => {});
+    void appWindow
+      .onResized(() => {
+        // macOS 原生全屏会经过异步 Space 动画；读取真实状态，避免按钮
+        // 依赖 setFullscreen 的瞬时返回值。
+        void syncFullscreen().catch(() => {});
+      })
+      .then((unlisten) => {
+        if (disposed) unlisten();
+        else unlistenResize = unlisten;
+      })
+      .catch(() => {});
 
     return () => {
       disposed = true;
-      if (maximizeGuardTimer.current !== null) window.clearTimeout(maximizeGuardTimer.current);
+      if (maximizeGuardTimer.current !== null)
+        window.clearTimeout(maximizeGuardTimer.current);
       unlistenResize?.();
     };
-  }, []);
+  }, [native]);
 
   const handleFullscreen = async () => {
     try {
+      if (!native) {
+        window.dispatchEvent(
+          new CustomEvent(FULLSCREEN_WILL_CHANGE_EVENT, {
+            detail: { fullscreen: !document.fullscreenElement },
+          }),
+        );
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else await document.documentElement.requestFullscreen();
+        return;
+      }
       const next = await toggleTauriFullscreen();
       if (next !== null) setFullscreen(next);
     } catch (error) {
@@ -107,46 +170,98 @@ export default function TitleBar() {
   };
 
   return (
-    <div className="titlebar" data-tauri-drag-region="deep"
-      onMouseDownCapture={handleMouseDown} onMouseUpCapture={handleMouseUp}>
-      <span className="titlebar-title">
-        <img src="/app-icon.png" width="16" height="16" alt="" className="titlebar-logo" />
-        Nine Rings
-      </span>
+    <div
+      className={`titlebar${exhibition ? " titlebar-exhibition" : ""}`}
+      data-tauri-drag-region={native ? "deep" : undefined}
+      onMouseDownCapture={handleMouseDown}
+      onMouseUpCapture={handleMouseUp}
+    >
+      <div className="titlebar-leading">
+        <span className="titlebar-title">
+          <img
+            src="/app-icon.png"
+            width="16"
+            height="16"
+            alt=""
+            className="titlebar-logo"
+          />
+          Nine Rings
+        </span>
+        {workspace && (
+          <div className="titlebar-controls titlebar-workspace">
+            {workspace}
+          </div>
+        )}
+      </div>
+      {children && (
+        <div className="titlebar-controls titlebar-appearance">{children}</div>
+      )}
       <div className="titlebar-controls">
-        <button
-          className="titlebar-btn titlebar-btn-fullscreen"
-          type="button"
-          onClick={handleFullscreen}
-          aria-label={fullscreen ? "退出全屏" : "进入全屏"}
-          title={`${fullscreen ? "退出全屏" : "进入全屏"}（macOS: ⌃⌘F；Windows/Linux: F11）`}
-        >
-          {fullscreen ? (
-            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-              <path d="M5.5 1v4.5H1M8.5 1v4.5H13M5.5 13V8.5H1M8.5 13V8.5H13" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+        {(native || document.fullscreenEnabled) && (
+          <button
+            className="titlebar-btn titlebar-btn-fullscreen"
+            type="button"
+            onClick={handleFullscreen}
+            aria-label={fullscreen ? "退出全屏" : "进入全屏"}
+            title={
+              native
+                ? `${fullscreen ? "退出全屏" : "进入全屏"}（macOS: ⌃⌘F；Windows/Linux: F11）`
+                : fullscreen
+                  ? "退出浏览器全屏"
+                  : "进入浏览器全屏"
+            }
+          >
+            {fullscreen ? (
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                aria-hidden="true"
+              >
+                <path
+                  d="M5.5 1v4.5H1M8.5 1v4.5H13M5.5 13V8.5H1M8.5 13V8.5H13"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            ) : (
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                aria-hidden="true"
+              >
+                <path
+                  d="M5.5 1H1v4.5M8.5 1H13v4.5M5.5 13H1V8.5M8.5 13H13V8.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+          </button>
+        )}
+        {native && (
+          <button
+            className="titlebar-btn titlebar-btn-close"
+            type="button"
+            onClick={handleClose}
+            aria-label="关闭"
+            title="关闭到托盘"
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13">
+              <path
+                d="M3 3l7 7M10 3l-7 7"
+                stroke="currentColor"
+                strokeWidth="1.3"
+                strokeLinecap="round"
+              />
             </svg>
-          ) : (
-            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-              <path d="M5.5 1H1v4.5M8.5 1H13v4.5M5.5 13H1V8.5M8.5 13H13V8.5" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-            </svg>
-          )}
-        </button>
-        <button
-          className="titlebar-btn titlebar-btn-close"
-          type="button"
-          onClick={handleClose}
-          aria-label="关闭"
-          title="关闭到托盘"
-        >
-          <svg width="13" height="13" viewBox="0 0 13 13">
-            <path
-              d="M3 3l7 7M10 3l-7 7"
-              stroke="currentColor"
-              strokeWidth="1.3"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
+          </button>
+        )}
       </div>
     </div>
   );

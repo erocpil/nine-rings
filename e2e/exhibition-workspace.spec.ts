@@ -26,6 +26,13 @@ for (const style of ["calm", "mono-aware"] as const) {
     await sample.click();
     await expect(page.locator(".exhibition-masthead")).toBeVisible();
     await expect(
+      page.locator(".exhibition-masthead .titlebar-title"),
+    ).toContainText("Nine Rings");
+    await expect(page.locator(".app > .titlebar")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "关闭", exact: true }),
+    ).toHaveCount(0);
+    await expect(
       page.getByRole("button", { name: "展开概览", exact: true }),
     ).toBeVisible();
     await page
@@ -124,4 +131,42 @@ test("布局设置可切换，经典暂时停用且保留展陈选择", async ({
   await expect(page.locator(".exhibition-masthead")).toBeVisible();
   await layout.getByRole("button", { name: "标准", exact: true }).click();
   await expect(page.locator(".exhibition-masthead")).toHaveCount(0);
+});
+
+test("Web 展陈全屏按钮同步进入与退出状态", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "nine_rings_config",
+      JSON.stringify({
+        interface_style: "calm",
+        workspace_layout: "exhibition",
+      }),
+    );
+    let fullscreen: Element | null = null;
+    Object.defineProperty(document, "fullscreenEnabled", { get: () => true });
+    Object.defineProperty(document, "fullscreenElement", {
+      get: () => fullscreen,
+    });
+    Element.prototype.requestFullscreen = async () => {
+      fullscreen = document.documentElement;
+      document.dispatchEvent(new Event("fullscreenchange"));
+    };
+    document.exitFullscreen = async () => {
+      fullscreen = null;
+      document.dispatchEvent(new Event("fullscreenchange"));
+    };
+  });
+  await page.goto("/");
+  const header = page.locator(".exhibition-masthead");
+  await header.getByRole("button", { name: "进入全屏", exact: true }).click();
+  await expect(
+    header.getByRole("button", { name: "退出全屏", exact: true }),
+  ).toBeVisible();
+  await header.getByRole("button", { name: "退出全屏", exact: true }).click();
+  await expect(
+    header.getByRole("button", { name: "进入全屏", exact: true }),
+  ).toBeVisible();
+  await expect(
+    header.getByRole("button", { name: "关闭", exact: true }),
+  ).toHaveCount(0);
 });

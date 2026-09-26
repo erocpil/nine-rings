@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, lazy, Suspense, type ReactNode } from "react";
 import { api } from "../lib/api";
 import { INTERFACE_STYLES } from "../lib/interface-style";
 import type { AppConfig } from "../lib/storage/types";
@@ -7,10 +7,13 @@ import { readRecentNoteIds } from "../lib/quick-switcher";
 import type { Note } from "../types/models";
 import "./ExhibitionWorkspace.css";
 
+const TitleBar = lazy(() => import("./TitleBar"));
+
 type Summary = Awaited<ReturnType<typeof api.docs.searchSummaries>>[number];
 interface Props {
   children: ReactNode;
   enabled: boolean;
+  desktop: boolean;
   focus: boolean;
   blocked: boolean;
   config: AppConfig | null;
@@ -101,65 +104,73 @@ export function ExhibitionWorkspace(props: Props) {
     ) : (
       <p className="exhibition-muted">{loading ? "正在加载…" : empty}</p>
     );
+  const identity = (
+    <button
+      type="button"
+      className="exhibition-identity"
+      onClick={() => void run(props.onHome)}
+      disabled={busy || blocked}
+      aria-label="返回工作区首页"
+    >
+      <span>NINE RINGS / WORKSPACE</span>
+      <strong title={path}>{path || "我的工作区"}</strong>
+    </button>
+  );
+  const appearance = (
+    <div className="exhibition-appearance">
+      <label>
+        <select
+          aria-label="工作区风格"
+          disabled={busy || blocked}
+          value={config?.interface_style}
+          onChange={(event) => {
+            const style = event.target.value as AppConfig["interface_style"];
+            void run(() => props.onAppearance({ interface_style: style }));
+          }}
+        >
+          {INTERFACE_STYLES.filter((style) => style.value !== "classic").map(
+            (style) => (
+              <option key={style.value} value={style.value}>
+                {style.label}
+              </option>
+            ),
+          )}
+        </select>
+      </label>
+      <label>
+        <select
+          aria-label="工作区配色"
+          disabled={busy || blocked}
+          value={config?.interface_color_mode ?? "system"}
+          onChange={(event) => {
+            const mode = event.target
+              .value as AppConfig["interface_color_mode"];
+            void run(() => props.onAppearance({ interface_color_mode: mode }));
+          }}
+        >
+          <option value="light">浅色</option>
+          <option value="dark">深色</option>
+          <option value="system">跟随系统</option>
+        </select>
+      </label>
+    </div>
+  );
   return (
     <div className={`exhibition-shell${active ? " is-exhibition" : ""}`}>
       {active && (
-        <header
-          className="exhibition-masthead"
-          {...(blocked ? { inert: "" } : {})}
-        >
-          <button
-            type="button"
-            className="exhibition-identity"
-            onClick={() => void run(props.onHome)}
-            disabled={busy}
-            aria-label="返回工作区首页"
-          >
-            <span>NINE RINGS / WORKSPACE</span>
-            <strong title={path}>{path || "我的工作区"}</strong>
-          </button>
-          <div className="exhibition-appearance">
-            <label>
-              <select
-                aria-label="工作区风格"
-                disabled={busy}
-                value={config?.interface_style}
-                onChange={(event) => {
-                  const style = event.target
-                    .value as AppConfig["interface_style"];
-                  void run(() =>
-                    props.onAppearance({ interface_style: style }),
-                  );
-                }}
-              >
-                {INTERFACE_STYLES.filter(
-                  (style) => style.value !== "classic",
-                ).map((style) => (
-                  <option key={style.value} value={style.value}>
-                    {style.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <select
-                aria-label="工作区配色"
-                disabled={busy}
-                value={config?.interface_color_mode ?? "system"}
-                onChange={(event) => {
-                  const mode = event.target
-                    .value as AppConfig["interface_color_mode"];
-                  void run(() =>
-                    props.onAppearance({ interface_color_mode: mode }),
-                  );
-                }}
-              >
-                <option value="light">浅色</option>
-                <option value="dark">深色</option>
-                <option value="system">跟随系统</option>
-              </select>
-            </label>
-          </div>
+        <header className="exhibition-masthead">
+          {props.desktop ? (
+            <Suspense fallback={null}>
+              <TitleBar exhibition workspace={identity}>
+                {appearance}
+              </TitleBar>
+            </Suspense>
+          ) : (
+            <>
+              {identity}
+              {appearance}
+            </>
+          )}
         </header>
       )}
       {props.children}
