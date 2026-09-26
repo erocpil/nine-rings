@@ -95,13 +95,13 @@ test("文档树支持批量取消只读并移动到新目录", async ({ page }) 
   await selectDocuments(page, titles);
   await page.getByTitle("批量设为只读").click();
   for (const title of titles) {
-    await expect(page.locator(".doc-tree-doc").filter({ hasText: title }).locator(".doc-tree-icon")).toHaveText("🔒");
+    await expect(page.locator(".doc-tree-doc").filter({ hasText: title }).locator(".doc-tree-icon")).toHaveText("📖");
   }
 
   await selectDocuments(page, titles);
   await page.getByTitle("批量取消只读").click();
   for (const title of titles) {
-    await expect(page.locator(".doc-tree-doc").filter({ hasText: title }).locator(".doc-tree-icon")).not.toHaveText("🔒");
+    await expect(page.locator(".doc-tree-doc").filter({ hasText: title }).locator(".doc-tree-icon")).toHaveText("📖");
   }
 
   await selectDocuments(page, titles);

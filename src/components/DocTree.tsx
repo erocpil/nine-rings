@@ -732,8 +732,7 @@ function DocTree({
         onClickCapture={suppressTreeClickAfterLongPress}
       >
         <span className="doc-tree-toggle" />
-        <span className="doc-tree-icon" title={node.sourceFormat === "text" ? "纯文本文档" : undefined}>{node.sourceFormat === "text" ? "📄" : node.readonly ? "🔒" : (node.docType && DOC_TYPE_ICONS[node.docType]) || "🧩"}</span>
-        {node.sourceFormat === "text" && node.readonly && <span title="只读" aria-label="只读">🔒</span>}
+        <span className="doc-tree-icon" title={node.sourceFormat === "text" ? "纯文本文档" : undefined}>{node.sourceFormat === "text" ? "📄" : (node.docType && DOC_TYPE_ICONS[node.docType]) || "🧩"}</span>
         {selectMode && node.noteId && (
           <input
             type="checkbox"

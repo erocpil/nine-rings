@@ -412,7 +412,7 @@ class _DocTreeScreenState extends State<DocTreeScreen> {
                     dense: true,
                     visualDensity: VisualDensity.compact,
                     leading: Text(
-                      note.readonly ? '🔒' : (docTypeIcons[note.docType] ?? '🧩'),
+                      docTypeIcons[note.docType] ?? '🧩',
                       style: const TextStyle(fontSize: 14),
                     ),
                     title: Text(
