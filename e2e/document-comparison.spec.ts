@@ -48,6 +48,11 @@ test("右键菜单跨越分栏边界仍可点击，并能独立比较两篇文�
   await page.locator(".doc-tree-doc").filter({ hasText: "对比乙" }).click();
   const dialog = page.getByRole("dialog", { name: "文档对比" });
   await expect(dialog).toBeVisible();
+  const dialogBox = await dialog.boundingBox();
+  expect(dialogBox).not.toBeNull();
+  const viewport = page.viewportSize()!;
+  expect(Math.abs((dialogBox!.x + dialogBox!.width / 2) - viewport.width / 2)).toBeLessThanOrEqual(2);
+  expect(Math.abs((dialogBox!.y + dialogBox!.height / 2) - viewport.height / 2)).toBeLessThanOrEqual(2);
   await expect(dialog.locator(".document-diff-line.removed")).toContainText(["本地内容"]);
   await expect(dialog.locator(".document-diff-line.added")).toContainText(["远端内容"]);
   await expect(dialog.locator(".document-content-preview h2")).toHaveCount(2);

@@ -30,7 +30,7 @@
 .document-diff-line.added { background: color-mix(in srgb, #36b36b 18%, transparent); }
 .document-diff-line.removed { background: color-mix(in srgb, #e45757 18%, transparent); }
 .document-diff-collapsed { display: block; width: 100%; min-height: 22px; border: 0; border-bottom: 1px dashed var(--border); background: var(--hover); color: var(--text-muted); font: inherit; font-size: 12px; cursor: pointer; }
-.document-compare-dialog { box-sizing: border-box; width: min(1180px, calc(100vw - 32px)); height: min(800px, calc(100dvh - 32px)); overflow: hidden; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+.document-compare-dialog { box-sizing: border-box; position: fixed; inset: 50% auto auto 50%; transform: translate(-50%, -50%); margin: 0; width: min(1180px, calc(100vw - 32px)); height: min(800px, calc(100dvh - 32px)); overflow: hidden; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: var(--ui-shadow-dialog, 0 18px 48px rgb(0 0 0 / 28%)); }
 .document-compare-dialog::backdrop { background: #0006; }
 .document-compare-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .document-compare-dialog > .document-comparison, .document-compare-dialog > p { overflow: auto; }
