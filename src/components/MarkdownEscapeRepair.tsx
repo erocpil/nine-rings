@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ToolbarIcon } from "./ToolbarIcon";
 import {
   scanMarkdownEscapes,
   applyMarkdownEscapeRepairs,
@@ -21,6 +22,9 @@ export function MarkdownEscapeRepair({
     <div className="markdown-escape-repair">
       <button
         type="button"
+        className="markdown-escape-repair-trigger"
+        aria-label="扫描历史任务转义"
+        title="扫描历史任务转义"
         disabled={disabled}
         onClick={() => {
           setPreview(source);
@@ -28,7 +32,7 @@ export function MarkdownEscapeRepair({
           setError("");
         }}
       >
-        扫描历史任务转义
+        <ToolbarIcon name="erase" />
       </button>
       {preview !== null && (
         <section aria-label="转义修复预览">

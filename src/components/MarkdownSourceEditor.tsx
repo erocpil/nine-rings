@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type MutableRefObject,
+  type ReactNode,
 } from "react";
 import {
   Compartment,
@@ -116,6 +117,7 @@ export function MarkdownSourceEditor({
   fontSize,
   highlightActiveLine,
   showLineNumbers,
+  escapeRepair,
 }: {
   value: string;
   readonly: boolean;
@@ -125,6 +127,7 @@ export function MarkdownSourceEditor({
   fontSize: number;
   highlightActiveLine: boolean;
   showLineNumbers: boolean;
+  escapeRepair?: ReactNode;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -409,6 +412,7 @@ export function MarkdownSourceEditor({
         >
           链接
         </button>
+        {escapeRepair}
         <span className="markdown-source-cursor" aria-label="光标位置">
           行 {cursor.line}，列 {cursor.column}
         </span>

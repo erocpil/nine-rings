@@ -93,6 +93,12 @@ test("桌面并排预览复用源码会话、更新图表及保留错误前的�
   await expect(
     preview.getByRole("heading", { name: "Preview", exact: true }),
   ).toBeVisible();
+  await expect(page.locator(".markdown-source-hint")).toHaveCount(0);
+  const sourceTools = page.locator(".markdown-source-tools");
+  await expect(sourceTools.getByRole("button", { name: "扫描历史任务转义", exact: true })).toBeVisible();
+  const sourceLine = (await sourceTools.boundingBox())!.y + (await sourceTools.boundingBox())!.height;
+  const previewLine = (await preview.locator(".markdown-preview-header").boundingBox())!.y + (await preview.locator(".markdown-preview-header").boundingBox())!.height;
+  expect(Math.abs(sourceLine - previewLine)).toBeLessThanOrEqual(1);
   await expect(preview.locator("table")).toBeVisible();
   await expect(preview.locator(".mermaid-diagram svg")).toBeVisible();
   expect((await sourceInfo(area)).value).toBe(value);

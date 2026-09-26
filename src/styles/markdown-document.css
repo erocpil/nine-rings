@@ -16,11 +16,15 @@
 .markdown-source-input { flex: 1; min-height: 0; position: relative; }
 
 .markdown-cm-source { display: flex; flex-direction: column; overflow: hidden; }
-.markdown-source-tools { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 4px 8px; flex: 0 0 auto; border-bottom: 1px solid var(--border); font-size: 12px; }
+.markdown-source-tools { position: relative; display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; overflow-x: auto; height: 36px; min-height: 36px; max-height: 36px; box-sizing: border-box; padding: 4px 8px; flex: 0 0 auto; border-bottom: 1px solid var(--border); font-size: 12px; }
 .markdown-source-tools button { padding: 4px 7px; border: 1px solid transparent; border-radius: 4px; background: var(--bg-secondary); color: var(--text); }
 .markdown-source-tools button:hover, .markdown-source-tools button[aria-pressed="true"] { border-color: var(--border); background: var(--bg-active, var(--bg-secondary)); }
 .markdown-source-tools button:disabled { opacity: .45; }
 .markdown-source-cursor { margin-left: auto; color: var(--text-secondary); white-space: nowrap; }
+.markdown-source-tools > .markdown-escape-repair { display: contents; }
+.markdown-source-tools .markdown-escape-repair-trigger { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 4px; }
+.markdown-source-tools .markdown-escape-repair-trigger .toolbar-icon { width: 16px; height: 16px; }
+.markdown-source-tools .markdown-escape-repair > section { position: absolute; z-index: 20; top: 100%; left: 0; right: 0; padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--bg); box-shadow: 0 6px 16px color-mix(in srgb, var(--text) 10%, transparent); }
 .markdown-cm-host { flex: 1; min-height: 0; overflow: hidden; }
 .markdown-cm-host .cm-editor { height: 100%; color: var(--text); background: var(--bg); font-size: inherit; }
 .markdown-cm-host .cm-editor.cm-focused { outline: none; }
@@ -34,7 +38,7 @@
 .markdown-cm-host .cm-panels { background: var(--bg-secondary); color: var(--text); }
 .markdown-cm-host .cm-textfield, .markdown-cm-host .cm-button { color: var(--text); background: var(--bg); border-color: var(--border); }
 @media (max-width: 768px) {
-  .markdown-source-tools { flex-wrap: nowrap; overflow-x: auto; min-height: 40px; }
+  .markdown-source-tools { height: 40px; min-height: 40px; max-height: none; }
   .markdown-source-tools button { flex-shrink: 0; min-height: 32px; }
   .markdown-source-cursor { flex-shrink: 0; }
 }

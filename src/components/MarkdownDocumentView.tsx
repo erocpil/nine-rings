@@ -130,6 +130,19 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
     // Source cleanup runs before this effect; explicit return to rendered wins.
     if (source === null && !props.sensitive && initial.current) patchReadingState(props.noteId, { view: "rendered" });
   }, [source, props.noteId, props.sensitive]);
+  const applyEscapeRepair = async (before: string, after: string) => {
+    if (before !== source || busy || latestProps.current.readonly) throw new Error("文档状态已变化，请重新扫描");
+    if (!latestProps.current.onFlush) throw new Error("无法确认保存状态，已取消修复");
+    setBusy(true);
+    try {
+      await latestProps.current.onFlush?.();
+      if (!alive.current || latestProps.current.readonly) throw new Error("文档已关闭或设为只读");
+      await api.versions.checkpoint(props.noteId);
+      if (!alive.current || latestProps.current.readonly) throw new Error("文档已关闭或设为只读");
+      editSource(after);
+      await latestProps.current.onFlush?.();
+    } finally { if (alive.current) setBusy(false); }
+  };
   if (!supported) return render(props);
   const toggle = <button type="button" className="markdown-view-toggle" disabled={busy}
     title={source === null ? "切换到 Markdown 源码" : "切换到渲染视图"}
@@ -168,24 +181,11 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         {props.onFocusModeChange && <button type="button" className="focus-btn" aria-label={props.focusMode ? "退出专注模式" : "专注模式"}
           onClick={() => props.onFocusModeChange?.(!props.focusMode)}><ToolbarIcon name={props.focusMode ? "compress" : "expand"} /></button>}
       </div>
-      <div className="markdown-source-hint"><span role="status">{busy ? "正在同步…" : props.saveStatus === "error" ? "保存失败" : props.saveStatus === "dirty" || props.saveStatus === "saving" ? "待保存" : "已同步"}</span> · 修改源码后按 Markdown 保存，不保留字体、颜色等额外富文本样式；仅切换视图不会改写内容。</div>
-      <MarkdownEscapeRepair source={source} disabled={busy || Boolean(props.readonly)} onApply={async (before, after) => {
-        if (before !== source || busy || latestProps.current.readonly) throw new Error("文档状态已变化，请重新扫描");
-        if (!latestProps.current.onFlush) throw new Error("无法确认保存状态，已取消修复");
-        setBusy(true);
-        try {
-          await latestProps.current.onFlush?.();
-          if (!alive.current || latestProps.current.readonly) throw new Error("文档已关闭或设为只读");
-          await api.versions.checkpoint(props.noteId);
-          if (!alive.current || latestProps.current.readonly) throw new Error("文档已关闭或设为只读");
-          editSource(after);
-          await latestProps.current.onFlush?.();
-        } finally { if (alive.current) setBusy(false); }
-      }} />
       <MarkdownSplitPreview enabled={preview && !mobile} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
       <MarkdownSourceEditor value={source} readonly={Boolean(props.readonly) || busy}
         areaRef={viewPosition.area} session={sourceEditorState} onChange={editSource}
-        showLineNumbers={props.showLineNumbers} fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine} />
+        showLineNumbers={props.showLineNumbers} fontSize={props.editorFontSize} highlightActiveLine={props.highlightActiveLine}
+        escapeRepair={<MarkdownEscapeRepair source={source} disabled={busy || Boolean(props.readonly)} onApply={applyEscapeRepair} />} />
       </MarkdownSplitPreview>
     </>}</MarkdownSourceWorkspace>}
   </div>;

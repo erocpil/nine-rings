@@ -2,6 +2,13 @@ import { test, expect, type Page } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
 test.use({ actionTimeout: 10000 });
 
+test("空文档不显示开始记录占位提示", async ({ page }) => {
+  await createBlankDocument(page);
+  const editor = page.locator(".ProseMirror");
+  await expect(editor).not.toHaveAttribute("data-placeholder", /开始记录/);
+  await expect(editor).not.toContainText("开始记录");
+});
+
 async function createLongNote(page: Page, count = 1500, codeDescription?: string) {
   await createBlankDocument(page);
   const text = Array.from({ length: count }, (_, index) =>

@@ -31,6 +31,12 @@ for (const style of ["calm", "mono-aware"] as const) {
     await expect(sample).toBeVisible();
     await sample.click();
     await expect(page.locator(".exhibition-masthead")).toBeVisible();
+    const framedApp = page.locator(".is-exhibition > .app");
+    await expect(framedApp).toHaveCSS("overflow", "hidden");
+    await expect(framedApp).toHaveCSS("border-top-left-radius", "10px");
+    await expect(framedApp).toHaveCSS("border-bottom-left-radius", "10px");
+    await expect(framedApp).toHaveCSS("border-top-right-radius", "10px");
+    await expect(framedApp).toHaveCSS("border-bottom-right-radius", "10px");
     await expect(
       page.locator(".exhibition-masthead .titlebar-title"),
     ).toHaveCount(0);
