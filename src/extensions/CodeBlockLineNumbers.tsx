@@ -238,7 +238,11 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
   const storedWrapEnabled = display.wrap;
   const storedCollapsed = display.collapsed;
   const wrapEnabled = editable && !inWorkspace ? storedWrapEnabled : readonlyWrapOverride ?? storedWrapEnabled;
-  const collapsed = editable ? storedCollapsed : readonlyCollapsedOverride ?? storedCollapsed;
+  // Fold state is a document-session preference shared by the editable and
+  // readonly renderers.  Keep the session value in front of the node
+  // attribute so switching modes cannot reopen a block that was just folded
+  // in the other renderer.
+  const collapsed = readonlyCollapsedOverride ?? storedCollapsed;
   const lineCount = code.split("\n").length;
   const [showLineNumbers, setShowLineNumbers] = useState(codeLineNumbersEnabled);
   useEffect(() => {
@@ -303,7 +307,6 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
       setEditable((current) => current === nextEditable ? current : nextEditable);
       if (nextEditable && !editor.view.dom.closest(".block-workspace")) {
         setReadonlyWrapOverride(null);
-        setReadonlyCollapsedOverride(null);
       }
     };
     syncEditable();
@@ -406,13 +409,12 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
               className="code-block-collapse-toggle"
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => {
-                if (editable) updateAttributes({ collapsed: !collapsed });
-                else {
-                  const pos = getPos();
-                  const blocks = editorReadingBlocks(editor);
-                  if (typeof pos === "number") blocks?.set(pos, { ...blocks.get(pos), collapsed: !collapsed });
-                  setReadonlyCollapsedOverride(!collapsed);
-                }
+                const nextCollapsed = !collapsed;
+                const pos = getPos();
+                const blocks = editorReadingBlocks(editor);
+                if (typeof pos === "number") blocks?.set(pos, { ...blocks.get(pos), collapsed: nextCollapsed });
+                setReadonlyCollapsedOverride(nextCollapsed);
+                if (editable) updateAttributes({ collapsed: nextCollapsed });
               }}
               type="button"
               aria-label={collapsed ? "展开代码块" : "折叠代码块"}

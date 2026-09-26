@@ -3,20 +3,31 @@ import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewP
 import { useState } from "react";
 import { openBlockWorkspace } from "../lib/block-workspace";
 import { BlockquoteToolbar } from "../components/BlockquoteToolbar";
+import { editorReadingBlocks } from "./ReadingBlockSession";
 
 export const blockquoteFoldTransactionMeta = "nine-rings:blockquote-fold";
 
 function CollapsibleBlockquoteView({ node, editor, getPos }: NodeViewProps) {
-  const [readingCollapsed, setReadingCollapsed] = useState<boolean | null>(null);
+  const [readingCollapsed, setReadingCollapsed] = useState<boolean | null>(() => {
+    const pos = getPos();
+    return typeof pos === "number" ? editorReadingBlocks(editor)?.get(pos)?.collapsed ?? null : null;
+  });
   const collapsed = readingCollapsed ?? node.attrs.collapsed === true;
   const toggle = () => {
     if (editor.isDestroyed) return;
+    const nextCollapsed = !collapsed;
+    const position = getPos();
+    if (typeof position === "number") {
+      editorReadingBlocks(editor)?.set(position, {
+        ...editorReadingBlocks(editor)?.get(position),
+        collapsed: nextCollapsed,
+      });
+    }
     if (!editor.isEditable && editor.view.dom.closest(".block-workspace")) {
-      setReadingCollapsed(!collapsed);
+      setReadingCollapsed(nextCollapsed);
       return;
     }
-    setReadingCollapsed(null);
-    const position = getPos();
+    setReadingCollapsed(nextCollapsed);
     if (typeof position !== "number") return;
     const current = editor.state.doc.nodeAt(position);
     if (!current || current.type.name !== "blockquote") return;
@@ -26,7 +37,7 @@ function CollapsibleBlockquoteView({ node, editor, getPos }: NodeViewProps) {
       editor.state.tr
         .setNodeMarkup(position, undefined, {
           ...current.attrs,
-          collapsed: current.attrs.collapsed !== true,
+          collapsed: nextCollapsed,
         })
         .setMeta(blockquoteFoldTransactionMeta, true),
     );

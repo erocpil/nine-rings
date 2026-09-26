@@ -93,6 +93,22 @@ test("代码简介在完整只读与局部阅读渲染之间切换时保留", as
   await expect(page.locator("[data-virtual-reader]")).toHaveCount(0);
   await expect(page.getByLabel("代码简介")).toBeVisible();
   await expect(page.getByLabel("代码简介")).toHaveValue(description);
+  await page.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
+  await expect(page.getByRole("button", { name: "展开代码块", exact: true })).toBeVisible();
+});
+
+test("编辑模式折叠代码和引用后切换只读仍保持折叠", async ({ page }) => {
+  await createLongNote(page, 90);
+  await page.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
+  await expect(page.locator(".ProseMirror")).toHaveAttribute("contenteditable", "true");
+  await page.getByRole("button", { name: "折叠代码块", exact: true }).click();
+  await page.getByRole("button", { name: "折叠引用块", exact: true }).click();
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+  await expect(page.locator(".ProseMirror")).toHaveAttribute("contenteditable", "false");
+  await enable(page);
+  const root = page.locator("[data-virtual-reader]");
+  await expect(root.getByRole("button", { name: "展开代码块", exact: true })).toBeVisible();
+  await expect(root.getByRole("button", { name: "展开引用块", exact: true })).toBeVisible();
 });
 
 test("局部阅读沿用可视视口手势，目录和书签文字上右划只关闭侧栏", async ({ page }) => {
