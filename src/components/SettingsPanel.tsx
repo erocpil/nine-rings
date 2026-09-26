@@ -853,6 +853,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 <div><strong>分栏宽度</strong><span>恢复文档树、文档列表和阅读分栏的默认宽度</span></div>
                 <button type="button" className="settings-btn settings-btn-compact" onClick={() => window.dispatchEvent(new Event("nr:reset-sidebar-widths"))}>恢复默认</button>
               </div>
+              <div className="sidebar-width-reset-card">
+                <div><strong>阅读分栏边界</strong><span>EPUB / PDF 分栏拖动异常时，恢复到可用边界与默认比例</span></div>
+                <button type="button" className="settings-btn settings-btn-compact" onClick={() => window.dispatchEvent(new Event("nr:reset-reader-sidebar-boundary"))}>恢复边界</button>
+              </div>
             </div>}
 
             {/* ── 默认视图 ── */}

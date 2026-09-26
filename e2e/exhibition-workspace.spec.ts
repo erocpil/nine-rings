@@ -55,6 +55,10 @@ for (const style of ["calm", "mono-aware"] as const) {
       .fill("展陈布局切换前的编辑应当保存。");
     await page.getByRole("button", { name: "返回工作区首页" }).click();
     await expect(page.locator(".exhibition-welcome")).toBeVisible();
+    const activityBar = page.locator(".desktop-activity-bar");
+    await expect(activityBar).toHaveCSS("opacity", "0");
+    await activityBar.hover();
+    await expect(activityBar).toHaveCSS("opacity", "1");
     await page.getByRole("button", { name: "返回上一页面", exact: true }).click();
     await expect(page.locator(".note-title")).toHaveValue("物哀、幽玄与侘寂：风格设计与验证");
     await expect(page.locator(".note-editor .ProseMirror")).toContainText("展陈布局切换前的编辑应当保存。");

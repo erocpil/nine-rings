@@ -22,6 +22,7 @@ const SIDEBAR_MOBILE_MIN_WIDTH = 240;
 const READER_SIDEBAR_MIN_WIDTH = 240;
 const READER_SIDEBAR_WIDTH_KEY = "nr:readerSidebarW";
 const READER_SIDEBAR_RATIO_KEY = "nr:readerSidebarRatio";
+export const RESET_READER_SIDEBAR_BOUNDARY_EVENT = "nr:reset-reader-sidebar-boundary";
 const readerAvailableWidth = () =>
   Math.max(
     READER_SIDEBAR_MIN_WIDTH,
@@ -160,7 +161,17 @@ export function useWorkspaceSidebar({
       applyPanelSidebarWidth(desktopPanel);
     };
     window.addEventListener("nr:reset-sidebar-widths", reset);
-    return () => window.removeEventListener("nr:reset-sidebar-widths", reset);
+    const resetReaderBoundary = () => {
+      localStorage.removeItem(READER_SIDEBAR_WIDTH_KEY);
+      localStorage.removeItem(READER_SIDEBAR_RATIO_KEY);
+      readerRatioRef.current = null;
+      if (desktopPanel === "reader") applyPanelSidebarWidth("reader");
+    };
+    window.addEventListener(RESET_READER_SIDEBAR_BOUNDARY_EVENT, resetReaderBoundary);
+    return () => {
+      window.removeEventListener("nr:reset-sidebar-widths", reset);
+      window.removeEventListener(RESET_READER_SIDEBAR_BOUNDARY_EVENT, resetReaderBoundary);
+    };
   }, [applyPanelSidebarWidth, desktopPanel]);
   useEffect(
     () => () => {
@@ -256,7 +267,7 @@ export function useWorkspaceSidebar({
       }
       if (sideDragPanelRef.current === "reader" && rawWidth < minimum)
         showSidebarWidthHint();
-      const newW = Math.max(minimum, rawWidth);
+      const newW = clampSidebarWidth(rawWidth, minimum);
       sideDragWidthRef.current = Math.round(newW);
       if (!widthFrame)
         widthFrame = window.requestAnimationFrame(() => {
@@ -270,6 +281,7 @@ export function useWorkspaceSidebar({
       finished = true;
       sideDragRef.current = false;
       window.cancelAnimationFrame(widthFrame);
+      sideDragWidthRef.current = clampSidebarWidth(sideDragWidthRef.current, sideDragPanelRef.current === "reader" ? READER_SIDEBAR_MIN_WIDTH : 0);
       setSidebarWidth(sideDragWidthRef.current);
       setSidebarResizing(false);
       document.removeEventListener("pointermove", handlePointerMove);
@@ -294,8 +306,8 @@ export function useWorkspaceSidebar({
       const key = sidebarWidthKey(sideDragPanelRef.current);
       localStorage.setItem(key, String(sideDragWidthRef.current));
       if (sideDragPanelRef.current === "reader") {
-        readerRatioRef.current =
-          sideDragWidthRef.current / readerAvailableWidth();
+        readerRatioRef.current = Math.min(1, Math.max(0.1,
+          sideDragWidthRef.current / readerAvailableWidth()));
         localStorage.setItem(
           READER_SIDEBAR_RATIO_KEY,
           String(readerRatioRef.current),

@@ -1,5 +1,6 @@
 import { useWorkspaceLayout } from "./hooks/useWorkspaceLayout";
 import { readDesktopSidebarState, saveDesktopSidebarState } from "./lib/desktop-sidebar-state";
+import { readWorkspaceLayout, saveWorkspaceLayout, type WorkspaceLayout } from "./lib/workspace-layout";
 import { useDocumentNavigation } from "./hooks/useDocumentNavigation";
 import { NavigationButtons } from "./components/NavigationButtons";
 import { EditorFoldIconContext } from "./components/EditorFoldIcon";
@@ -352,7 +353,17 @@ function App() {
 
   const [recycleOpen, setRecycleOpen] = useState(false);
   const [readingLibraryOpen, setReadingLibraryOpen] = useState(false);
-  const [exhibitionReturnTarget, setExhibitionReturnTarget] = useState<{ noteId: string | null; folder: string | null; concept: string | null } | null>(null);
+  const [exhibitionReturnTarget, setExhibitionReturnTarget] = useState<{
+    noteId: string | null;
+    folder: string | null;
+    concept: string | null;
+    desktopSidebar: ReturnType<typeof readDesktopSidebarState>;
+    workspaceLayout: WorkspaceLayout;
+    readingLibraryOpen: boolean;
+    pdfReaderDocumentId: string | null;
+    epubReaderDocumentId: string | null;
+  } | null>(null);
+  const [workspaceHomeChromeHidden, setWorkspaceHomeChromeHidden] = useState(false);
   const [readingLibraryError, setReadingLibraryError] = useState<string | null>(null);
   const readingLibrarySession = useRef<ReadingLibrarySession>({ format: "all", query: "", scrollTop: 0 });
   const [pdfReaderDocumentId, setPdfReaderDocumentId] = useState<string | null>(null);
@@ -1481,6 +1492,8 @@ function App() {
   ) : null;
 
   const exhibitionEnabled = config?.workspace_layout === "exhibition" && config.interface_style !== "classic";
+  const workspaceHome = !selectedNote && !selectedFolderPath && !selectedConcept;
+  const homeReaderOpen = desktopWorkspace && workspaceHome && Boolean(pdfReaderPanel || epubReaderPanel);
   return (
     <EditorFoldIconContext.Provider value={config}>
     <ExhibitionWorkspace desktop={desktopWorkspace} enabled={exhibitionEnabled} focus={focusMode} config={config}
@@ -1502,17 +1515,45 @@ function App() {
           handleSelectNote(note);
           setSelectedFolderPath(target.folder);
           setSelectedConcept(target.concept);
+          if (desktopWorkspace) {
+            saveWorkspaceLayout(target.workspaceLayout);
+            saveDesktopSidebarState(target.desktopSidebar);
+            setDesktopPanel(target.desktopSidebar.panel);
+            setSidebarHidden(target.desktopSidebar.hidden);
+          }
+          setReadingLibraryOpen(target.readingLibraryOpen);
+          setPdfReaderDocumentId(target.pdfReaderDocumentId);
+          setEpubReaderDocumentId(target.epubReaderDocumentId);
+          setWorkspaceHomeChromeHidden(false);
           setExhibitionReturnTarget(null);
           closeSidebarOnNarrowScreen();
           return;
         }
-        setExhibitionReturnTarget({ noteId: selectedNote?.id ?? null, folder: selectedFolderPath, concept: selectedConcept });
-        setSelectedFolderPath(null); setSelectedConcept(null); handleSelectNote(null); setReadingLibraryOpen(false);
+        setExhibitionReturnTarget({
+          noteId: selectedNote?.id ?? null,
+          folder: selectedFolderPath,
+          concept: selectedConcept,
+          desktopSidebar: readDesktopSidebarState(),
+          workspaceLayout: readWorkspaceLayout(),
+          readingLibraryOpen,
+          pdfReaderDocumentId,
+          epubReaderDocumentId,
+        });
+        if (desktopWorkspace) {
+          saveWorkspaceLayout({ outlinePinned: false, bookmarkPinned: false });
+          saveDesktopSidebarState({ panel: desktopPanel, hidden: true, pinned: false });
+          setSidebarHidden(true);
+        }
+        setWorkspaceHomeChromeHidden(desktopWorkspace);
+        setSelectedFolderPath(null); setSelectedConcept(null); handleSelectNote(null);
+        setReadingLibraryOpen(false);
+        setPdfReaderDocumentId(null); setEpubReaderDocumentId(null);
+        setPdfReaderFullscreen(false); setEpubReaderFullscreen(false);
       }}
       onCreate={() => setDocCreateOpen(true)} onSearch={openGlobalSearch} onSettings={() => setSettingsOpen(true)}>
 
-    <div
-      className={`app app-unified-workspace ${focusMode ? "app-focus-mode" : ""}${desktopWorkspace ? " app-desktop-workspace" : " app-mobile-workspace"}`}
+      <div
+      className={`app app-unified-workspace ${focusMode ? "app-focus-mode" : ""}${desktopWorkspace ? " app-desktop-workspace" : " app-mobile-workspace"}${homeReaderOpen ? " app-home-reader" : ""}`}
       style={editorAppearanceVariables(config ?? undefined)}
       {...(mobileReadingLibraryOpen ? { inert: "", "aria-hidden": true } : {})}
       {...(protectionBusy || applyingWebUpdate ? { inert: "", "aria-busy": true } : {})}
@@ -1548,7 +1589,11 @@ function App() {
 
       <div className={`app-body${sidebarOnRight ? " workspace-sidebar-right" : ""}${readerFocus ? " app-reader-focus" : ""}${sidebarHoverEnabled ? " sidebar-hover-enabled" : ""}${sidebarOverlay ? " sidebar-presentation-overlay" : ""}`} style={sidebarHoverEnabled ? { "--sidebar-pane-width": `${sidebarWidth}px` } as React.CSSProperties : undefined}>
         {sidebarWidthHint && <div className="sidebar-width-hint" role="status" aria-live="polite">{sidebarWidthHint}</div>}
-        {!mobileDrawerViewport && <nav className="desktop-activity-bar" aria-label="工作区面板">
+        {!mobileDrawerViewport && <nav
+          className={`desktop-activity-bar${workspaceHomeChromeHidden ? " desktop-activity-bar-home-hidden" : ""}`}
+          aria-label="工作区面板"
+          onPointerMove={() => { if (workspaceHomeChromeHidden) setWorkspaceHomeChromeHidden(false); }}
+        >
           {(error || autoSave.status === "error") && <button type="button" className="btn-icon workspace-error-indicator" aria-label="查看错误详情" title="查看错误详情" onClick={() => setErrorDetailsOpen(true)}><ToolbarIcon name="warning" /></button>}
           {((() => {
             const fallback = ['tree', 'list', 'reader'] as const;
@@ -1757,7 +1802,7 @@ function App() {
             onPointerDownCapture={event => {
               if (event.target instanceof Element && !event.target.closest('button, input, textarea, select, a, [contenteditable=true]')) event.currentTarget.focus({ preventScroll: true });
             }}>
-            {pdfReaderPanel ?? epubReaderPanel ?? (desktopPanel === 'reader' && <Suspense fallback={<div className="doc-tree-loading">正在加载阅读资料…</div>}>
+            {!homeReaderOpen && (pdfReaderPanel ?? epubReaderPanel ?? (desktopPanel === 'reader' && <Suspense fallback={<div className="doc-tree-loading">正在加载阅读资料…</div>}>
               <ReadingLibrary session={readingLibrarySession.current}
                 showWorkspaceSwitch={false}
                 autoFocusOnOpen={!sidebarOverlay}
@@ -1765,7 +1810,7 @@ function App() {
                 onClose={sidebarOverlay ? sidebarHover.dismiss : () => setSidebarPanel('tree')}
                 onOpenPdf={id => { setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
                 onOpenEpub={id => { setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }} />
-            </Suspense>)}
+            </Suspense>))}
           </section>}
           {mobileDrawerViewport && <div className="sidebar-footer">
             <button type="button" className="sidebar-recycle-btn" onClick={() => setRecycleOpen(true)}>
@@ -1788,7 +1833,7 @@ function App() {
             <button type="button" className="btn-icon" aria-label="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>
             <button type="button" className="btn-icon" aria-label="设置" onClick={() => setSettingsOpen(true)}><ToolbarIcon name="sliders" /></button>
           </div>}
-          {exhibitionEnabled && !selectedNote && !selectedConcept && !selectedFolderPath ? (
+          {homeReaderOpen ? (pdfReaderPanel ?? epubReaderPanel) : exhibitionEnabled && workspaceHome ? (
             <ExhibitionWelcome disabled={syncBusy} onCreate={() => setDocCreateOpen(true)} onSearch={openGlobalSearch} />
           ) : selectedConcept && !selectedNote ? (
             <DocMOC

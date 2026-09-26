@@ -11,6 +11,13 @@
   background: #34373c;
 }
 
+/* On the exhibition home screen the reader owns the whole content area. */
+.app-home-reader .app-main > .pdf-reader-app {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
 /* Opening the mobile library must not unmount/reflow the document underneath. */
 .pdf-reader-app.mobile-reading-library-layer {
   position: fixed;
