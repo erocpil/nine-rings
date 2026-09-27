@@ -314,5 +314,9 @@ Python Markdown 转换脚本已验证默认 references 路径及仅包含文档�
 
 修正 Markdown 导入与长目录回归的视口/交互契约：将视口高度限制到目录实际溢出，以验证仅溢出时可见的 Top/Mid/Bot 控件；固定目录在跳转后按当前行为显式收起；居中及 Mid/Bot 定位以一行项目高度作为容差，适配 WebKit 的滚动与字体尺寸取整，Top 仍需回到起点。保留导入路径、标签、层级、段落间距、目录快速滚动、跳转定位及专注模式检查。Chromium、WebKit 各 1/1 通过。累计处理 98 项、剩余 72 项；生产 PWA 离线冷启动仍单独未解决。
 
+## 全量基线后的第 31 批调整（2026-09-27）
+
+将 `pdf-export.spec.ts` 的 Chromium 专属部分明确限制在 Chromium：WebKit 仍执行打印视图内容、折叠标题、无正文目录和书签锚点结构检查，随后因 Playwright `page.pdf()` 仅支持 Chromium 而跳过二进制 PDF 生成。Chromium 完整生成 PDF 并验证 `/Outlines`，1/1 通过；WebKit 1 项跳过，不计通过。该原始 WebKit 失败从剩余清单关闭，累计处理 99 项、剩余 71 项；生产 PWA 离线冷启动仍单独未解决。
+
 初始全量基线仍是移除前的 849 项，不能用作当前失败数：Chromium 535 通过/305 失败/9 跳过，WebKit 524 通过/310 失败/15 跳过。
 历史运行产物在 `/tmp/nine-rings-full-e2e-20260927/`。近期分批日志保存在 `.local-tools/e2e/repair-batchN/`。

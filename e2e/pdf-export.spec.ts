@@ -1,7 +1,7 @@
 import { pressLineBoundary } from "./helpers/keyboard";
 import { expect, test } from "@playwright/test";
 
-test("PDF 打印视图用语义标题生成侧栏书签且不在正文插入目录", async ({ page }) => {
+test("PDF 打印视图用语义标题生成侧栏书签且不在正文插入目录", async ({ page, browserName }) => {
   await page.goto("/");
   await page.getByTitle("新建文档").click();
   await page.getByPlaceholder("文档标题...").fill("书签大纲导出测试");
@@ -44,6 +44,7 @@ test("PDF 打印视图用语义标题生成侧栏书签且不在正文插入目�
   await expect(outlineHeadings.nth(1)).toHaveAttribute("id", /\S+/);
   await expect(outlineHeadings.nth(2)).toHaveAttribute("id", /\S+/);
 
+  test.skip(browserName !== "chromium", "Playwright 的 page.pdf 仅支持 Chromium；打印视图结构已跨浏览器验证");
   const pdf = await printPage.pdf({ format: "A4", outline: true, tagged: true });
   expect(pdf.toString("latin1")).toContain("/Outlines");
 });
