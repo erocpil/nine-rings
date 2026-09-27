@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createBlankDocument } from "./helpers/document";
+import { createBlankDocument, waitForSavedText } from "./helpers/document";
 import { openMobileSettings } from "./helpers/mobile-settings";
 
 for (const width of [1280, 390]) {
@@ -67,6 +67,7 @@ test("章节目录默认小三角，正文默认箭头，可独立设置并持�
   await page.getByRole("button", { name: "折叠章节 标题", exact: true }).click();
   await expect(page.getByRole("button", { name: "展开章节 标题", exact: true })).toHaveText("▶");
   await page.getByRole("button", { name: "展开章节 标题", exact: true }).click();
+  await waitForSavedText(page, "代码");
   await page.getByTitle("文档目录", { exact: true }).click();
   await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
@@ -76,11 +77,13 @@ test("章节目录默认小三角，正文默认箭头，可独立设置并持�
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nine_rings_config") || "{}").editor_outline_fold_icon_style)).toBe("chevron");
   await page.getByLabel("关闭设置").click();
   await page.getByTitle("文档目录", { exact: true }).click();
-  await expect(page.getByRole("button", { name: "折叠章节 标题", exact: true }).locator(".disclosure-icon")).toBeVisible();
+  await expect(page.getByRole("button", { name: "折叠章节 标题", exact: true }).locator(".editor-fold-symbol, .disclosure-icon")).toBeVisible();
   await page.reload();
+  await expect(page.locator(".note-title")).toHaveValue("折叠回归");
+  await expect(page.locator(".ProseMirror h1")).toHaveText("标题");
   await expect(body.locator(".disclosure-icon")).toBeVisible();
-  await page.getByTitle("文档目录", { exact: true }).click();
-  await expect(page.getByRole("button", { name: "折叠章节 标题", exact: true }).locator(".disclosure-icon")).toBeVisible();
+  await expect(page.getByTitle("文档目录", { exact: true })).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("button", { name: /^(折叠|展开)章节 标题$/ }).locator(".editor-fold-symbol, .disclosure-icon")).toBeVisible();
 });
 
 test("文本区折叠箭头与文档树一致，方向跟随折叠状态", async ({ page }) => {
@@ -115,7 +118,7 @@ test("文本区折叠箭头与文档树一致，方向跟随折叠状态", async
 test("设置原生详情项使用统一箭头，点击与键盘仍可展开收起", async ({ page }) => {
   await page.goto("/");
   await page.getByTitle("设置", { exact: true }).click();
-  await page.getByRole("button", { name: /^外观与布局/ }).click();
+  await page.getByRole("button", { name: /^编辑器/ }).click();
   await page.getByRole("button", { name: /^Vim 设置/ }).click();
   const summary = page.locator("summary").filter({ hasText: "高级 set 配置" });
   const icon = summary.locator(".disclosure-icon");

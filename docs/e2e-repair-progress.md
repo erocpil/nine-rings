@@ -414,3 +414,7 @@ Python Markdown 转换脚本已验证默认 references 路径及仅包含文档�
 ## 全量基线后的第 54 批修复（2026-09-27）
 
 更新 `doc-tree-selection-layout.spec.ts` 检查选中背景的属性。当前通用样式使用 `background-color` 绘制选中底色；旧断言只检查 Calm 等特定主题才有的 inset `box-shadow`。文字粗细、文字宽度和行高保持不变的断言保留，背景现验证为非透明色。Chromium、WebKit 各 1/1 通过。累计处理 157 项、剩余 13 项；生产 PWA WebKit 离线冷启动仍单独未解决。
+
+## 全量基线后的第 55 批修复（2026-09-27）
+
+修复 `disclosure-icons.spec.ts` 两项过期断言：章节目录和正文折叠图标现覆盖三角/箭头两种 DOM 表现；重载前等待正文保存，并验证目录展开状态及折叠状态确实持久化；原生详情项的设置入口改为当前“编辑器 / Vim 设置”层级。整组 Chromium、WebKit 各 7/7 通过。累计处理 159 项、剩余 11 项；生产 PWA WebKit 离线冷启动仍单独未解决。
