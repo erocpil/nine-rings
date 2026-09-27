@@ -410,3 +410,7 @@ Python Markdown 转换脚本已验证默认 references 路径及仅包含文档�
 ## 全量基线后的第 53 批修复（2026-09-27）
 
 修正 `dialog-layout.spec.ts` 手机新建文档用例仍点击已移除的“文档视图”入口的问题，改用共享 `openMobileDocumentPopup` 手势夹具打开文档弹层。保留新建与快速切换的焦点环、主题、截图及弹窗焦点顺序检查。手机亮/暗两项 Chromium 各 1/1 通过；WebKit 整组 10/10 通过；Chromium 整组中的其余 8 项也通过。累计处理 156 项、剩余 14 项；生产 PWA WebKit 离线冷启动仍单独未解决。
+
+## 全量基线后的第 54 批修复（2026-09-27）
+
+更新 `doc-tree-selection-layout.spec.ts` 检查选中背景的属性。当前通用样式使用 `background-color` 绘制选中底色；旧断言只检查 Calm 等特定主题才有的 inset `box-shadow`。文字粗细、文字宽度和行高保持不变的断言保留，背景现验证为非透明色。Chromium、WebKit 各 1/1 通过。累计处理 157 项、剩余 13 项；生产 PWA WebKit 离线冷启动仍单独未解决。

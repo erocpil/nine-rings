@@ -24,5 +24,5 @@ test("文档树选中前后字重及文字尺寸不变，保留选中背景", as
   await expect(name.locator("..")).toHaveClass(/doc-tree-selected/);
   expect(await geometry()).toEqual(before);
   expect(before.weight).toBe("400");
-  expect(await name.locator("..").evaluate(row => getComputedStyle(row).boxShadow)).not.toBe("none");
+  expect(await name.locator("..").evaluate(row => getComputedStyle(row).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
 });
