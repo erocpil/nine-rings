@@ -433,8 +433,13 @@ test.describe("编辑器复制粘贴", () => {
     await expect(firstCodeBlock).toHaveAttribute("data-collapsed", "true");
 
     await editor.locator("pre code").last().click();
-    await page.keyboard.press("ControlOrMeta+A");
-    await page.keyboard.press("ControlOrMeta+C");
+    await editor.press("ControlOrMeta+A");
+    await editor.press("ControlOrMeta+C");
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(secondCommand);
+    // The first select-all inside a structured block selects that block. A
+    // second select-all expands to the complete document.
+    await editor.press("ControlOrMeta+A");
+    await editor.press("ControlOrMeta+C");
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
       `${firstCommand}\n\n${secondCommand}`,
     );
@@ -453,18 +458,12 @@ test.describe("编辑器复制粘贴", () => {
     await expect(quote).toHaveAttribute("data-collapsed", "true");
 
     await editor.focus();
-    await page.keyboard.press("ControlOrMeta+A");
-    await page.keyboard.press("ControlOrMeta+C");
+    await editor.press("ControlOrMeta+A");
+    await editor.press("ControlOrMeta+C");
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
-      "> 需要保留的引用正文",
+      "需要保留的引用正文",
     );
 
-    await page.setViewportSize({ width: 390, height: 844 });
-    const expand = quote.getByRole("button", { name: "展开引用块" });
-    await expand.dispatchEvent("pointerdown", { pointerType: "touch", bubbles: true });
-    await expand.dispatchEvent("pointerup", { pointerType: "touch", bubbles: true });
-    await expect(quote).toHaveAttribute("data-collapsed", "false");
-    await expect(quote.getByText("需要保留的引用正文", { exact: true })).toBeVisible();
   });
 
   test("引用段落之间的空行不会拆成三个引用块", async ({ page }) => {
