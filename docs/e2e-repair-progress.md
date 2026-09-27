@@ -1,5 +1,11 @@
 # E2E 清理进度（2026-09-28）
 
+## 第 70 批：移动端键盘与旋转布局
+
+更新移动交互和横屏用例以匹配当前应用布局：旧 `.app-header` / 独立 `.mobile-focus-bar` 已由统一标题行取代，键盘视口模拟需要让编辑区先获得焦点，且打开侧栏会移走焦点并收起键盘。现在验证应用外壳跟随 visual viewport、侧栏在键盘收起后恢复整屏，以及专注模式统一标题行和横屏目录/书签触控目标在安全区内可用。
+
+`mobile-interaction-recovery.spec.ts`、`mobile-rotation-viewport.spec.ts` 在 Chromium 与 WebKit 各 **3/3 通过**。关闭原始失败清单 3 项，剩余 **29 项**；生产 PWA WebKit 离线冷启动另行跟踪。日志位于 `.local-tools/e2e/repair-batch70/`。
+
 ## 第 69 批：PDF 打开与渲染用例
 
 修正三项原失败用例并复跑相关 PDF 文件。`pdf-render-stability.spec.ts` 的控制台断言忽略与 PDF 无关、由 TipTap React 开发适配器在编辑器挂载时输出的 `flushSync` 生命周期警告，仍捕获其他全部控制台错误；`pdf-scroll-stress.spec.ts` 的文件上传定位器限定到当前可见的“阅读资料库”，避免 WebKit 命中保留文档实例中的隐藏副本。`pdf-open-performance.spec.ts` 目录与批注并行、失败重试等用例没有产品缺陷，重新运行全部通过。

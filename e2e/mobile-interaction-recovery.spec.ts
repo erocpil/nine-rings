@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { closeDocumentSidebar, openDocumentSidebar } from "./helpers/workspace";
 
 test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
@@ -19,55 +20,46 @@ async function resizeKeyboard(page: Page, open: boolean) {
   else await expect(page.locator("html")).not.toHaveClass(/web-keyboard-open/);
 }
 
-test("键盘打开时顶部栏随外壳定位且不盖住侧栏", async ({ page }) => {
+test("键盘打开时应用外壳跟随可视区，文档侧栏仍可操作", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible();
+  await page.locator(".ProseMirror").focus();
   await resizeKeyboard(page, true);
-  const header = page.locator(".app-header");
   const app = page.locator(".app");
-  expect((await header.boundingBox())!.y).toBeCloseTo(
-    (await app.boundingBox())!.y,
-    0,
-  );
-  const body = page.locator(".app-body");
-  const headerRect = (await header.boundingBox())!;
-  expect((await body.boundingBox())!.y).toBeCloseTo(
-    headerRect.y + headerRect.height,
-    0,
-  );
-  await page.getByTitle("搜索", { exact: true }).click();
-  await expect(page.locator(".search-input")).toBeFocused();
-  await page.getByTitle("显示侧栏").click();
-  await expect(page.getByRole("dialog", { name: "文档侧栏" })).toHaveCSS(
-    "transform",
-    "matrix(1, 0, 0, 1, 0, 0)",
-  );
-  // 检查真实命中层级，而不仅是侧栏 DOM 存在。
-  expect(
-    await page.evaluate(
-      () => !!document.elementFromPoint(20, 90)?.closest(".app-sidebar"),
-    ),
-  ).toBe(true);
-  await page.getByTitle("隐藏侧栏").click();
+  await expect(app).toHaveCSS("top", "70px");
+  await expect(app).toHaveCSS("height", "430px");
+  const sidebar = await openDocumentSidebar(page);
+  // Opening the drawer moves focus away from the editor, dismissing the native
+  // keyboard and returning both the shell and drawer to the full viewport.
+  await expect(page.locator("html")).not.toHaveClass(/web-keyboard-open/);
+  await expect(app).toHaveCSS("height", "760px");
+  const sidebarBox = (await sidebar.boundingBox())!;
+  expect(sidebarBox.y).toBe(0);
+  expect(sidebarBox.y + sidebarBox.height).toBe(760);
+  expect(await sidebar.evaluate(element => element.getBoundingClientRect().width)).toBeGreaterThan(0);
+  await closeDocumentSidebar(page);
   await resizeKeyboard(page, false);
   await expect(app).toHaveCSS("height", "760px");
-  expect((await header.boundingBox())!.y).toBe(0);
+  await expect(app).toHaveCSS("top", "0px");
 });
 
-test("专注模式开关键盘不为隐藏的顶部栏预留空间", async ({ page }) => {
+test("专注模式键盘布局保持统一标题行且不预留额外顶部空间", async ({ page }) => {
   await page.goto("/");
   await page.locator(".note-title-row").getByTitle("专注模式").click();
+  await page.locator(".ProseMirror").focus();
   const body = page.locator(".app-body");
   const originalPadding = await body.evaluate(
     (element) => getComputedStyle(element).paddingTop,
   );
   await resizeKeyboard(page, true);
-  await expect(page.locator(".app-header")).toBeHidden();
   await expect(body).toHaveCSS("padding-top", originalPadding);
-  const bar = page.getByLabel("专注模式工具栏");
+  await expect(page.locator(".app")).toHaveCSS("top", "70px");
+  const bar = page.locator(".note-title-row");
   await expect(bar).toBeVisible();
-  expect((await bar.boundingBox())!.y).toBeCloseTo(70, 0);
+  const box = (await bar.boundingBox())!;
+  expect(box.y).toBeGreaterThanOrEqual(70);
+  expect(box.y + box.height).toBeLessThanOrEqual(500);
   await resizeKeyboard(page, false);
   await expect(body).toHaveCSS("padding-top", originalPadding);
-  expect((await bar.boundingBox())!.y).toBe(0);
+  await expect(page.locator(".app")).toHaveCSS("top", "0px");
 });

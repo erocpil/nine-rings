@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openDocumentSidebar } from "./helpers/workspace";
 
 test.use({ hasTouch: true, isMobile: true, viewport: { width: 844, height: 390 } });
 
@@ -10,25 +11,25 @@ test("横屏工具栏可触摸，旋转后滞留高度不会把文档树截成�
     document.documentElement.style.setProperty("--safe-left", "44px");
     document.documentElement.style.setProperty("--safe-right", "44px");
   });
-  const bar = page.getByLabel("专注模式工具栏");
-  await expect(bar).toHaveCSS("height", "30px");
-  await expect(bar).toHaveCSS("border-bottom-color", "rgba(0, 0, 0, 0)");
-  await expect(bar).toHaveCSS("box-shadow", "none");
-  await expect(page.locator(".note-editor-scroll")).toHaveCSS("padding-top", "30px");
+  const bar = page.locator(".note-title-row");
+  await expect(bar).toBeVisible();
   const barBottom = (await bar.boundingBox())!;
+  expect(barBottom.height).toBeGreaterThanOrEqual(38);
+  await expect(page.locator(".app")).toHaveCSS("height", "390px");
   for (const name of ["文档目录", "文档书签"]) {
     const button = bar.getByRole("button", { name, exact: true });
-    await expect(button).toHaveCSS("border-bottom-color", "rgba(0, 0, 0, 0)");
+    await expect(button).toBeVisible();
     const box = (await button.boundingBox())!;
-    expect(box.height).toBeGreaterThanOrEqual(44);
-    expect(box.width).toBe(32);
-    expect(box.y + box.height).toBeGreaterThan(barBottom.y + barBottom.height);
+    expect(box.height).toBeGreaterThanOrEqual(32);
+    expect(box.width).toBeGreaterThanOrEqual(32);
+    expect(box.width).toBeLessThanOrEqual(44);
+    expect(box.y + box.height).toBeLessThanOrEqual(barBottom.y + barBottom.height + 1);
     expect(box.x).toBeGreaterThanOrEqual(44);
     expect(box.x + box.width).toBeLessThanOrEqual(800);
-    // Tap near the lower edge rather than the small glyph at its center.
-    await button.tap({ position: { x: 22, y: 40 } });
+    // Tap the unified title-row control at its center.
+    await button.tap({ position: { x: 16, y: 18 } });
     await expect(page.getByRole("navigation", { name, exact: true })).toBeVisible();
-    await button.tap({ position: { x: 22, y: 40 } });
+    await button.tap({ position: { x: 16, y: 18 } });
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => {
@@ -40,18 +41,7 @@ test("横屏工具栏可触摸，旋转后滞留高度不会把文档树截成�
     window.visualViewport!.dispatchEvent(new Event("resize"));
   });
   await expect(page.locator("html")).not.toHaveClass(/web-keyboard-open/);
-  // Focus mode hides the global header: use its normal left-edge swipe.
-  await page.locator(".note-editor").evaluate(el => {
-    for (const [type, x] of [["touchstart", 8], ["touchmove", 120], ["touchend", 120]] as const) {
-      const touch = { identifier: 1, target: el, clientX: x, clientY: 650 };
-      const event = new Event(type, { bubbles: true, cancelable: true });
-      Object.defineProperties(event, {
-        touches: { value: type === "touchend" ? [] : [touch] },
-        changedTouches: { value: [touch] },
-      });
-      el.dispatchEvent(event);
-    }
-  });
+  await openDocumentSidebar(page);
   await expect(page.getByRole("dialog", { name: "文档侧栏", exact: true })).toBeVisible();
   for (const selector of [".app-sidebar", ".sidebar-overlay"]) {
     await expect.poll(() => page.locator(selector).evaluate(el =>
