@@ -406,3 +406,7 @@ Python Markdown 转换脚本已验证默认 references 路径及仅包含文档�
 ## 全量基线后的第 52 批修复（2026-09-27）
 
 更新 `desktop-workspace-parity.spec.ts` 活动栏几何断言以包含当前新增的“回收站”按钮，并检查全局搜索、回收站、设置三项工具的连续 42px 间距。普通 Web 与 Tauri API 模拟两项在 Chromium、WebKit 各 2/2 通过；专注模式下活动栏及工具栏尺寸、搜索对话框和面板切换断言保留。累计处理 154 项、剩余 16 项；生产 PWA WebKit 离线冷启动仍单独未解决。
+
+## 全量基线后的第 53 批修复（2026-09-27）
+
+修正 `dialog-layout.spec.ts` 手机新建文档用例仍点击已移除的“文档视图”入口的问题，改用共享 `openMobileDocumentPopup` 手势夹具打开文档弹层。保留新建与快速切换的焦点环、主题、截图及弹窗焦点顺序检查。手机亮/暗两项 Chromium 各 1/1 通过；WebKit 整组 10/10 通过；Chromium 整组中的其余 8 项也通过。累计处理 156 项、剩余 14 项；生产 PWA WebKit 离线冷启动仍单独未解决。

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openMobileDocumentPopup } from "./helpers/workspace";
 
 for (const viewport of [
   { width: 1280, height: 800 },
@@ -23,11 +24,8 @@ for (const viewport of [
           applyTheme(theme);
         }, theme);
         if (viewport.width === 390) {
-          await page.getByTitle("文档视图").click();
-          await page
-            .locator(".doc-tree-popup-overlay")
-            .getByTitle("新建文档")
-            .click();
+          await openMobileDocumentPopup(page);
+          await page.locator(".doc-tree-popup-overlay").getByTitle("新建文档").click();
         } else {
           await page.getByTitle("新建文档").click();
         }
