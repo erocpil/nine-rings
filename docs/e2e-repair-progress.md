@@ -241,10 +241,14 @@ Python Markdown 转换脚本已验证默认 references 路径及仅包含文档�
 
 ## 后续 E2E 批次
 
-1. `readonly-heading-fold`：双击长章节内容后，所属标题位置偏移约 1,000px；当前两个引擎都能复现，继续定位渲染路径及滚动时序。
-2. WebKit 生产 PWA 离线冷启动：此前最小 Service Worker 复现仍报引擎内部错误，待专项处理。
-3. 隔离 Node 22/WebKit 核心集迁移验证中，`document-memory` 首页等待出现一次失败；单项重复两次通过，继续关注初始化竞态。
-4. 其余初始全量失败仍按分类推进；完整 813 项现已重跑，结果见上方最新基线；Linux/Windows 原生矩阵仍未执行。
+1. WebKit 生产 PWA 离线冷启动：Playwright 的 `context.setOffline(true)` 在受 Service Worker 控制的页面重载时报 WebKit 内部错误。使用本地代理切断源站的尝试中，WebKit 定向用例通过，但 Chromium 只恢复启动壳、没有加载编辑器，因此该方案未采纳；继续查明预缓存资源在该夹具中的命中情况。
+2. 其余初始全量失败仍按分类推进；完整 813 项现已重跑，结果见上方最新基线；Linux/Windows 原生矩阵仍未执行。
+
+## 全量基线后的第 15 批核查（2026-09-27）
+
+`document-memory` 的首页往返用例在重复运行中暴露启动竞态：仅等待 store 的 `startupReady` 后就点击首页入口，偶尔会在演示文档尚未就绪时执行，WebKit 4/5 通过、Chromium 5/5 通过。测试现在同时等待初始文档标题和首页按钮可见，再切换到首页；修复后 Chromium、WebKit 各重复 5 次均通过。完整的实例保留、撤销历史、LRU 淘汰、源码模式实例及外部更新断言均保留。
+
+`readonly-heading-fold` 已由第 13 批双浏览器各 7/7 通过，从剩余清单移除。本批文档内存用例再关闭 1 个原失败项，累计处理 80 项、剩余 90 项；生产 PWA WebKit 离线冷启动仍单独未解决。日志位于 `.local-tools/e2e/repair-batch15/`。`git diff --check` 通过。
 
 初始全量基线仍是移除前的 849 项，不能用作当前失败数：Chromium 535 通过/305 失败/9 跳过，WebKit 524 通过/310 失败/15 跳过。
 历史运行产物在 `/tmp/nine-rings-full-e2e-20260927/`。近期分批日志保存在 `.local-tools/e2e/repair-batchN/`。

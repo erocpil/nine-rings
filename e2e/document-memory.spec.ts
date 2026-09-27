@@ -13,7 +13,9 @@ test("最近三份文档保留实例和撤销历史，首页往返不卸载，�
     return useNotesStore.getState().startupReady;
   })).toBe(true);
   const home = page.getByRole("button", { name: "返回工作区首页", exact: true });
-  if (await home.isVisible()) await home.click();
+  await expect(page.locator(".note-title")).toBeVisible();
+  await expect(home).toBeVisible();
+  await home.click();
   await expect(page.locator(".exhibition-welcome")).toBeVisible();
   const ids = await page.evaluate(async () => {
     const path = "/src/lib/api.ts";

@@ -176,7 +176,6 @@
 | [reading-library.spec.ts:21](../e2e/reading-library.spec.ts#L21) | 独立阅读入口保留筛选与滚动位置，摘录返回笔记 1280 | chromium, webkit |
 | [reading-library.spec.ts:21](../e2e/reading-library.spec.ts#L21) | 独立阅读入口保留筛选与滚动位置，摘录返回笔记 390 | chromium, webkit |
 | [reading-state-persistence.spec.ts:51](../e2e/reading-state-persistence.spec.ts#L51) | 局部只读渲染刷新后恢复折叠和块锚点 | chromium, webkit |
-| [readonly-heading-fold.spec.ts:158](../e2e/readonly-heading-fold.spec.ts#L158) | 只读正文双击折叠后所属标题停留在双击位置附近（批 13 已通过） | chromium, webkit |
 | [recycle-bin.spec.ts:200](../e2e/recycle-bin.spec.ts#L200) | 回收站卡片与固定操作区布局 1280x800 light | chromium, webkit |
 | [recycle-bin.spec.ts:200](../e2e/recycle-bin.spec.ts#L200) | 回收站卡片与固定操作区布局 320x480 light | chromium, webkit |
 | [recycle-bin.spec.ts:200](../e2e/recycle-bin.spec.ts#L200) | 回收站卡片与固定操作区布局 390x844 dark | chromium, webkit |
