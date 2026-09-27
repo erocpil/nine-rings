@@ -3343,12 +3343,11 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     const target = event.target instanceof Element ? event.target.closest("h1, h2, h3, h4, h5, h6") : null;
     if (!target || !editor.view.dom.contains(target)) return;
     const coordinates = { left: event.clientX, top: event.clientY };
-    // WKWebView occasionally collapses an English-heading double click at the
-    // end of the first word. Let the native selection settle, then repair only
-    // a still-collapsed selection. Chromium/Safari's successful selection is
-    // left untouched.
+    // WebKit can collapse a word selection or include the preceding block
+    // boundary when selecting a heading's first word. Repair only those two
+    // shapes after native selection settles; preserve other native selections.
     window.requestAnimationFrame(() => {
-      if (editor.isDestroyed || !editor.state.selection.empty) return;
+      if (editor.isDestroyed) return;
       const hit = editor.view.posAtCoords(coordinates);
       if (!hit) return;
       const $pos = editor.state.doc.resolve(hit.pos);
@@ -3364,6 +3363,13 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       while (end < text.length && isWord(text[end])) end += 1;
       const from = $pos.start() + start;
       const to = $pos.start() + end;
+      const selection = editor.state.selection;
+      const includesPreviousBoundary = start === 0
+        && selection.from === from - 2
+        && selection.to === to
+        && selection.$from.parent.isTextblock
+        && selection.$from.parentOffset === selection.$from.parent.content.size;
+      if (!selection.empty && !includesPreviousBoundary) return;
       editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, from, to)));
       editor.view.focus();
     });
