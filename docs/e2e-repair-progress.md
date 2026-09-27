@@ -354,3 +354,7 @@ Python Markdown 转换脚本已验证默认 references 路径及仅包含文档�
 ## 全量基线后的第 39 批核查（2026-09-27）
 
 重跑 `clipboard-paste.spec.ts` 的 Markdown 多级混合列表渲染，Chromium、WebKit 各 1/1 通过，列表节点类型、层级和标记断言均通过。累计处理 114 项、剩余 56 项；生产 PWA WebKit 离线冷启动仍单独未解决。
+
+## 全量基线后的第 40 批核查（2026-09-27）
+
+复跑引用空行粘贴结构回归，Chromium、WebKit 各 1/1 通过，空行未将引用拆成多块。累计处理 115 项、剩余 55 项；生产 PWA WebKit 离线冷启动仍单独未解决。
