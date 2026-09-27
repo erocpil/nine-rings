@@ -1,3 +1,4 @@
+import { scrollEditorBlockTo } from "./helpers/editor-scroll";
 import type { Editor } from "@tiptap/core";
 import { expect, test } from "@playwright/test";
 
@@ -109,17 +110,7 @@ for (const width of [1280, 390])
         const editor = page.locator(".ProseMirror");
         const code = editor.locator(".code-block-wrap").first();
         const align = async () => {
-          await editor
-            .locator(":scope > *")
-            .nth(405)
-            .evaluate((el) => {
-              const scroll = el.closest(".note-editor-scroll")!;
-              scroll.scrollTop +=
-                el.getBoundingClientRect().top -
-                scroll.getBoundingClientRect().top -
-                170;
-              scroll.dispatchEvent(new Event("scroll"));
-            });
+          await scrollEditorBlockTo(page, editor.locator(":scope > *").nth(405), 170);
           await page.waitForTimeout(450);
         };
         const check = async () => {

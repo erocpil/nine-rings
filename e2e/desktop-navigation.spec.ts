@@ -54,7 +54,7 @@ test("阅读分栏默认半宽并记住拖动比例，三个分栏工具栏一�
   await expect.poll(width).toBeCloseTo(900, 0);
   await page.reload();
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
-  await reader.click();
+  await expect(reader).toHaveAttribute("aria-expanded", "true");
   await expect.poll(width).toBeCloseTo(900, 0);
 });
 
