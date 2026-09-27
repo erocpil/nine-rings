@@ -35,12 +35,6 @@
 | [block-workspace.spec.ts:259](../e2e/block-workspace.spec.ts#L259) | 手机横竖屏块弹层不超出可视范围 | chromium, webkit |
 | [block-workspace.spec.ts:491](../e2e/block-workspace.spec.ts#L491) | 触屏块工作区 / 背景和块空白不关闭，行号开关可用且入口不残留焦点 | chromium, webkit |
 | [block-workspace.spec.ts:532](../e2e/block-workspace.spec.ts#L532) | 触屏块工作区 / 键盘压缩可视区域后关闭按钮仍可点击 | chromium, webkit |
-| [bookmarks.spec.ts:9](../e2e/bookmarks.spec.ts#L9) | 书签当前项 1280px 只读 / 紧凑行高与当前项提示跟随光标、跳转和取消书签 | chromium, webkit |
-| [bookmarks.spec.ts:9](../e2e/bookmarks.spec.ts#L9) | 书签当前项 1280px 编辑 / 紧凑行高与当前项提示跟随光标、跳转和取消书签 | chromium, webkit |
-| [bookmarks.spec.ts:9](../e2e/bookmarks.spec.ts#L9) | 书签当前项 390px 只读 / 紧凑行高与当前项提示跟随光标、跳转和取消书签 | chromium, webkit |
-| [bookmarks.spec.ts:9](../e2e/bookmarks.spec.ts#L9) | 书签当前项 390px 编辑 / 紧凑行高与当前项提示跟随光标、跳转和取消书签 | chromium, webkit |
-| [bookmarks.spec.ts:187](../e2e/bookmarks.spec.ts#L187) | 移动端书签操作 / 轻触书签条目跳转到对应文档块 | chromium |
-| [bookmarks.spec.ts:253](../e2e/bookmarks.spec.ts#L253) | 移动端书签操作 / 向左滑动书签行后显示重命名和删除操作 | chromium, webkit |
 | [calm-settings-toolbar.spec.ts:5](../e2e/calm-settings-toolbar.spec.ts#L5) | calm 设置层级与工具栏格式、窄区入口 | webkit |
 | [calm-settings-toolbar.spec.ts:5](../e2e/calm-settings-toolbar.spec.ts#L5) | calm-compact 设置层级与工具栏格式、窄区入口 | webkit |
 | [clipboard-paste.spec.ts:207](../e2e/clipboard-paste.spec.ts#L207) | 编辑器复制粘贴 / 长 shell 参数自动换行时不会让前导空格单独占据视觉行 | webkit |

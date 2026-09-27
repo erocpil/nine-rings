@@ -260,5 +260,9 @@ Python Markdown 转换脚本已验证默认 references 路径及仅包含文档�
 
 `bookmark-fold-marker` 在前序 CSS 修正后已不再复现：390/1280px、块号开启/关闭及普通/专注模式都保留原有居中、间隔和实际折叠断言，Chromium、WebKit 各 4/4 通过。无需新增产品或测试修改。该项从失败清单关闭，累计处理 83 项、剩余 87 项；日志位于 `.local-tools/e2e/repair-batch17/`。
 
+## 全量基线后的第 18 批核查（2026-09-27）
+
+重新运行 `bookmarks.spec.ts` 整组，Chromium 和 WebKit 各 10/10 通过，覆盖四种视口/只读组合、普通书签、设置列表、Vim、定位高亮及手机点按/滑动操作。该组已在第 8 批处理，但初始失败表尚未清除对应的 6 条旧记录；现已同步删除。此项是清理过期清单，不增加已处理数：累计处理仍为 83 项、剩余 87 项。日志位于 `.local-tools/e2e/repair-batch18/`。
+
 初始全量基线仍是移除前的 849 项，不能用作当前失败数：Chromium 535 通过/305 失败/9 跳过，WebKit 524 通过/310 失败/15 跳过。
 历史运行产物在 `/tmp/nine-rings-full-e2e-20260927/`。近期分批日志保存在 `.local-tools/e2e/repair-batchN/`。
