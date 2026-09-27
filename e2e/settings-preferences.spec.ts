@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { APP_CHANGELOG } from "../src/lib/app-changelog";
 
 for (const width of [390, 1280]) {
   test(`设置关键词定位与密码说明 ${width}`, async ({ page }) => {
@@ -35,7 +36,7 @@ for (const width of [390, 1280]) {
     await page.getByRole("button", { name: /^更新记录/ }).click();
     await expect(page.locator("#settings-dialog-title")).toHaveText("更新记录");
     await expect(page.locator(".settings-changelog")).toContainText("当前版本");
-    await expect(page.locator(".settings-changelog")).toContainText("标题折叠标识");
+    await expect(page.locator(".settings-changelog")).toContainText(APP_CHANGELOG[0].changes[0]);
     expect(await page.locator(".settings-changelog").evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
     await page.getByRole("button", { name: "返回设置分类", exact: true }).click();
     await input.fill("不存在的设置xyz");
@@ -61,7 +62,8 @@ test("列表显示偏好重启保留，关键词与筛选不落盘", async ({ pa
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
   const open = async () => {
-    await page.getByRole("button", { name: "文档列表", exact: true }).click();
+    const trigger = page.getByRole("button", { name: "文档列表", exact: true });
+    if (await trigger.getAttribute("aria-expanded") !== "true") await trigger.click();
     return page.getByRole("region", { name: "文档列表分区", exact: true });
   };
   let dialog = await open();

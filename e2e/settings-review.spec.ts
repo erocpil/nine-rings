@@ -21,7 +21,8 @@ test("快捷键拒绝重复和普通输入，固定窗口按键不伪装为可�
   await expect(page.locator(".hotkey-recording-error")).toContainText(
     "显示主窗口",
   );
-  await expect(row.locator("kbd")).toHaveText("Alt + E");
+  const altLabel = await page.evaluate(() => navigator.platform.includes("Mac") ? "⌥" : "Alt");
+  await expect(row.locator("kbd")).toHaveText(`${altLabel} + E`);
   await expect(
     page
       .locator(".hotkey-row")
@@ -32,7 +33,7 @@ test("快捷键拒绝重复和普通输入，固定窗口按键不伪装为可�
   await row
     .locator("input")
     .dispatchEvent("keydown", { key: "ø", code: "KeyO", altKey: true });
-  await expect(row.locator("kbd")).toHaveText("Alt + O");
+  await expect(row.locator("kbd")).toHaveText(`${altLabel} + O`);
 });
 
 test("Vim 缺少 tabstop 时仍能设置宽度，状态栏关闭时禁用块号选项", async ({

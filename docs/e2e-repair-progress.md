@@ -1,5 +1,11 @@
 # E2E 清理进度（2026-09-27）
 
+## 第 66 批：设置测试与平台差异
+
+关闭 settings-preferences 的两种宽度关键词定位及列表偏好重载三项、settings-review 快捷键一项，共 4 项，剩余 **42 项**。
+
+更新记录检查最新实际条目，避免依赖已移出最近三批的历史文案；快捷键按浏览器平台核对 Alt/⌥ 显示，同时保留冲突拒绝与修改断言；列表重载后先检查活动按钮的展开状态，避免误关闭已恢复侧栏。整文件 Chromium / WebKit 各 **10/10 通过**，diff 检查通过。仅测试修改，日志 `.local-tools/e2e/repair-batch66/`。
+
 ## 第 65 批：搜索交互
 
 关闭 filtered-search 的多条件查询、search-navigation 的首次查找起点、search-scope-ui 的桌面搜索范围，共 3 项，剩余 **46 项**。
