@@ -34,7 +34,9 @@
 
 第 70 批关闭 mobile-interaction-recovery 的两项键盘布局，以及 mobile-rotation-viewport 的横屏触控/视口用例；两个文件在 Chromium / WebKit 各 3/3 通过。
 
-原始 56 项中目前剩余 **29 项**。以下表格保留第 60 批复核快照，以上二十七项已由后续验证关闭。
+第 71 批复核 `mobile-toolbar-fit` 与 `mobile-unified-title`，含三个标题布局模式的整文件回归在 Chromium / WebKit 各 6/6 通过，关闭原失败快照中的两项。
+
+原始 56 项中目前剩余 **27 项**。以下表格保留第 60 批复核快照，以上二十九项已由后续验证关闭。
 
 ## 第 60 批失败快照
 
