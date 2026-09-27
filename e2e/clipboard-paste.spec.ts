@@ -806,7 +806,14 @@ test.describe("编辑器复制粘贴", () => {
     await expect(table.locator("tr")).toHaveCount(3);
 
     const downloadPromise = page.waitForEvent("download");
-    await page.getByTitle("导出 Markdown").click();
+    const clipboardToolbar = page.locator('[data-toolbar-tool="clipboard"]');
+    const directExport = clipboardToolbar.getByTitle("导出 Markdown", { exact: true });
+    if (await directExport.isVisible()) {
+      await directExport.click();
+    } else {
+      await clipboardToolbar.getByRole("button", { name: "剪贴", exact: true }).click();
+      await clipboardToolbar.getByRole("button", { name: /导出 Markdown/ }).click();
+    }
     const download = await downloadPromise;
     const path = await download.path();
     expect(path).not.toBeNull();

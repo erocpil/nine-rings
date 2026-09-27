@@ -370,3 +370,7 @@ Python Markdown 转换脚本已验证默认 references 路径及仅包含文档�
 ## 全量基线后的第 43 批核查（2026-09-27）
 
 复跑合成粘贴的 Markdown 标题、HTML 携带 Markdown 的完整格式化及 Markdown 表格转换三项用例。Chromium、WebKit 各 3/3 通过，标题、引用、分隔线、表格结构和单元格内容断言均保留。累计处理 122 项、剩余 48 项；生产 PWA WebKit 离线冷启动仍单独未解决。
+
+## 全量基线后的第 44 批修复（2026-09-27）
+
+修复 `clipboard-paste.spec.ts` 的 Markdown 表格导出测试仍查找已隐藏的独立工具栏按钮的问题。宽工具栏使用原按钮，窄工具栏改从“剪贴”菜单导出；继续验证表格单元格格式、居中、添加行及下载文件中的 Markdown 内容。大型 Markdown 替换测试同批复核。Chromium、WebKit 各 2/2 通过。累计处理 124 项、剩余 46 项；生产 PWA WebKit 离线冷启动仍单独未解决。
