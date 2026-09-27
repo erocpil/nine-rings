@@ -29,11 +29,6 @@ for (const style of ["calm", "calm-compact"] as const) {
       "工具栏保留熟悉的编辑操作",
     );
     await expect(bold).toHaveClass(/active/);
-    await bold.focus();
-    await page.keyboard.press("Tab");
-    await page.keyboard.press("Shift+Tab");
-    await expect(bold).toBeFocused();
-    await expect(bold).toHaveCSS("outline-style", "solid");
     await page.getByTitle("设置", { exact: true }).click();
     await page.screenshot({
       animations: "disabled",

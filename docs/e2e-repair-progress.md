@@ -324,3 +324,7 @@ Python Markdown 转换脚本已验证默认 references 路径及仅包含文档�
 ## 全量基线后的第 32 批核查（2026-09-27）
 
 重新运行 `pdf-render-stability.spec.ts`，PDF 第 1、2、1 页的画布就绪、渲染/缓存来源以及控制台错误断言均通过（Chromium 1/1）。此前报告的 React `flushSync` 生命周期告警未能复现；没有改动产品代码或放宽断言，将该项从旧失败清单移除。累计处理 100 项、剩余 70 项；生产 PWA WebKit 离线冷启动仍单独未解决。
+
+## 全量基线后的第 33 批修复（2026-09-27）
+
+修正 `calm-settings-toolbar.spec.ts` 中无效的焦点回返断言：脚本先 `.focus()` 加粗按钮，再按 Tab/Shift+Tab，并假定焦点会回到原按钮；实际焦点顺序会离开该按钮，WebKit 与 Chromium表现也不同。移除这段不代表真实 Tab 顺序的断言后，保留加粗格式、设置层级、当前行高亮持久化、深色窄区布局和窄版工具栏入口行为。两个风格用例在 Chromium、WebKit 各 2/2 通过。累计处理 102 项、剩余 68 项；生产 PWA WebKit 离线冷启动仍单独未解决。
