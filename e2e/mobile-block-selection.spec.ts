@@ -74,7 +74,7 @@ test.describe("手机块级操作", () => {
     await selectionToolbar.getByRole("button", { name: "编辑", exact: true }).tap();
     await expect(page.getByRole("dialog", { name: "正文块工作区" })).toBeVisible();
     await expect(page.getByRole("toolbar", { name: "块编辑工具" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "切换到编辑模式", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "切换到阅读模式", exact: true })).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("button", { name: "关闭块工作区" }).tap();
     await expect(page.locator(".block-workspace")).toHaveCount(0);
     await expect(selectionToolbar).toHaveCount(0);
@@ -115,7 +115,7 @@ test.describe("手机块级操作", () => {
     await workspace.getByRole("button", { name: "下一个块", exact: true }).tap();
     await expect(workspace).toHaveAttribute("data-block-type", "heading");
     await expect(content).toHaveText("已选标题");
-    await expect(workspace.getByRole("button", { name: "切换到编辑模式", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(workspace.getByRole("button", { name: "切换到阅读模式", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(workspace.getByRole("button", { name: "下一个块", exact: true })).toBeDisabled();
     await content.fill("修改后的标题");
     await workspace.getByRole("button", { name: "上一个块", exact: true }).tap();

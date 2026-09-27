@@ -306,5 +306,9 @@ Python Markdown 转换脚本已验证默认 references 路径及仅包含文档�
 
 更新 `line-numbers.spec.ts` 的只读块号用例，使其匹配当前 gutter 尺寸与只读控制：两块文档的编号 gutter 为动态计算的 30px，切换只读使用标题为“点击设为只读”的编辑器按钮，锁图标由 SVG 绘制。断言改为验证按钮 `aria-pressed` 状态和 SVG 存在，继续检查只读块号可见、插入按钮消失、解锁提示及恢复编辑状态。Chromium、WebKit 各 1/1 通过。累计处理 95 项、剩余 75 项；生产 PWA 离线冷启动仍单独未解决。
 
+## 全量基线后的第 29 批修复（2026-09-27）
+
+更新 `mobile-block-selection.spec.ts` 两个选块编辑用例对模式按钮的可访问名称。编辑模式开启时按钮现名为“切换到阅读模式”，旧测试仍查找“切换到编辑模式”；其 `aria-pressed="true"` 状态断言和块选择/切换/编辑行为均保留。两项用例在 Chromium、WebKit 各 2/2 通过。累计处理 97 项、剩余 73 项；生产 PWA 离线冷启动仍单独未解决。
+
 初始全量基线仍是移除前的 849 项，不能用作当前失败数：Chromium 535 通过/305 失败/9 跳过，WebKit 524 通过/310 失败/15 跳过。
 历史运行产物在 `/tmp/nine-rings-full-e2e-20260927/`。近期分批日志保存在 `.local-tools/e2e/repair-batchN/`。
