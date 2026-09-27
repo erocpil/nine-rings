@@ -164,7 +164,7 @@ test.describe("触屏设置导航", () => {
 test("设置弹窗具有语义并在键盘关闭后恢复焦点", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
-  const trigger = page.getByTitle("设置");
+  const trigger = page.getByRole("button", { name: "设置", exact: true });
   await trigger.focus();
   await page.keyboard.press("Enter");
 
