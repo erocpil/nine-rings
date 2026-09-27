@@ -8,7 +8,10 @@ name = "nine_rings_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+# Tauri 2.11 lacks the Windows icon-resource API emitted by codegen 2.7.
+# Keep the build/codegen pair on 2.6 until the runtime and JS API move together.
+tauri-build = { version = "=2.6.3", features = [] }
+tauri-codegen = "=2.6.3"
 
 [dependencies]
 # Keep these minor versions aligned with the JS packages in package-lock.json.
