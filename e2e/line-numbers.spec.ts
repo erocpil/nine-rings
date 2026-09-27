@@ -95,9 +95,9 @@ test.describe("编辑器块级 gutter", () => {
     await expect(lineNumberToggle).toBeChecked();
     await page.locator(".settings-close").click();
     await expect(page.locator(".note-editor")).toHaveClass(/show-line-numbers/);
-    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "26px");
+    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", "30px");
 
-    const readonlyButton = page.locator(".sidebar-item.active").getByTitle("设为只读");
+    const readonlyButton = page.getByTitle("点击设为只读");
     await readonlyButton.evaluate((button: HTMLButtonElement) => button.click());
     await expect(editor).toHaveAttribute("contenteditable", "false");
 
@@ -105,11 +105,12 @@ test.describe("编辑器块级 gutter", () => {
     await expect(page.locator(".editor-block-insert")).toHaveCount(0);
 
     const unlockButton = page.getByRole("button", { name: "点击设为可编辑" });
-    await expect(unlockButton).toHaveText("🔒");
+    await expect(unlockButton).toHaveAttribute("aria-pressed", "true");
+    await expect(unlockButton.locator("svg")).toHaveCount(1);
     await unlockButton.click();
     await expect(editor).toHaveAttribute("contenteditable", "true");
     await expect(page.getByRole("status").filter({ hasText: "已设置为可编辑" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "点击设为只读" })).toHaveText("🔓");
+    await expect(page.getByRole("button", { name: "点击设为只读" })).toHaveAttribute("aria-pressed", "false");
   });
 
   test("悬停块编号会在原位置显示块格式", async ({ page }) => {
