@@ -68,8 +68,8 @@ test("标题章节可按层级折叠，并从目录统一展开", async ({ page 
   // 标题文字只负责跳转；折叠状态只能由前方三角切换。
   await outline.locator('.document-outline-item[title="子节"] .document-outline-link').click();
   await expect(editor.getByText("子节正文", { exact: true })).toBeHidden();
-  await expect(outline).toHaveCount(0);
-  await page.getByTitle("文档目录").click();
+  // 固定目录在跳转后保持打开，章节仍由三角控制展开。
+  await expect(outline).toBeVisible();
   await expect(outline.getByLabel("展开章节 子节")).toBeVisible();
 
   await outline.getByRole("button", { name: "全部折叠" }).dblclick();
@@ -428,7 +428,8 @@ test("千块文档全部展开后滚动不再逐块同步测量", async ({ page 
 });
 
 test.describe("触控目录宽度调整", () => {
-  test.use({ viewport: { width: 1000, height: 760 }, hasTouch: true });
+  // 为 50px 拖动留出空间；面板最大宽度是编辑区的一半。
+  test.use({ viewport: { width: 1280, height: 760 }, hasTouch: true });
 
   test("宽屏触控通过 pointer 拖动固定目录且清理选择状态", async ({ page }) => {
     await page.goto("/");
