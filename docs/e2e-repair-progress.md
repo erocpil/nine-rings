@@ -320,3 +320,7 @@ Python Markdown 转换脚本已验证默认 references 路径及仅包含文档�
 
 初始全量基线仍是移除前的 849 项，不能用作当前失败数：Chromium 535 通过/305 失败/9 跳过，WebKit 524 通过/310 失败/15 跳过。
 历史运行产物在 `/tmp/nine-rings-full-e2e-20260927/`。近期分批日志保存在 `.local-tools/e2e/repair-batchN/`。
+
+## 全量基线后的第 32 批核查（2026-09-27）
+
+重新运行 `pdf-render-stability.spec.ts`，PDF 第 1、2、1 页的画布就绪、渲染/缓存来源以及控制台错误断言均通过（Chromium 1/1）。此前报告的 React `flushSync` 生命周期告警未能复现；没有改动产品代码或放宽断言，将该项从旧失败清单移除。累计处理 100 项、剩余 70 项；生产 PWA WebKit 离线冷启动仍单独未解决。
