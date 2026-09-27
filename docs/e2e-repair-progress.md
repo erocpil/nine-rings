@@ -1,5 +1,11 @@
 # E2E 清理进度（2026-09-28）
 
+## 第 72 批：有序列表布局
+
+原失败清单中的桌面/手机编号起点、标记间距和换行缩进用例在整组复核中均已通过。另修复同文件跨两位/三位编号测试的夹具：`locator.fill("")` 没有清空整个 TipTap 文档，改用 `editor.commands.clearContent()` 并等待文档为空后再输入，避免把默认文档残留块计入列表。
+
+`ordered-list-layout.spec.ts` 在 Chromium、WebKit 各 **10/10 通过**；类型检查和 `git diff --check` 通过。关闭原始失败清单 4 项，剩余 **23 项**。日志位于 `.local-tools/e2e/repair-batch72/`。
+
 ## 第 71 批：移动工具栏与统一标题行复核
 
 整组重跑 `mobile-toolbar-fit.spec.ts` 和 `mobile-unified-title.spec.ts`，覆盖横屏工具入口与浮层、编辑/只读/虚拟渲染下标题行横竖屏切换、左右边缘手势及软键盘时的标题/工具/正文避让。此前失败清单中的两项在当前代码和夹具下均未复现。

@@ -70,7 +70,10 @@ for (const mobile of [false, true]) {
       await page.goto("/");
       const editor = page.locator(".ProseMirror");
       for (const start of [9, 99]) {
-        await editor.fill("");
+        await editor.evaluate((element) => {
+          (element as HTMLElement & { editor: { commands: { clearContent: () => void } } }).editor.commands.clearContent();
+        });
+        await expect(editor).toHaveText("");
         await editor.type(`${start}. `);
         await page.keyboard.insertText("内容");
         const list = editor.locator(":scope > ol");
