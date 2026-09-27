@@ -207,7 +207,8 @@ for (const { width, height, theme } of [
     }, theme);
     const bin = panel(page);
     await expect(bin.locator(".recycle-total")).toHaveText("3 项");
-    await expect(bin.locator(".recycle-item-path").filter({ hasText: "随笔 · 2026-09-08" })).toHaveCount(1);
+    // Documents created without an explicit path now use the default references folder.
+    await expect(bin.locator(".recycle-item-path").filter({ hasText: /^references$/ })).toHaveCount(1);
     const item = bin.locator(".recycle-item").first();
     const originalColor = await item.evaluate((element) => getComputedStyle(element).backgroundColor);
     // The whole 44px label is a touch target, not only the small checkbox.
