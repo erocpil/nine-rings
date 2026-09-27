@@ -31,8 +31,6 @@
 | 文件 | 用例及参数 | 失败于 |
 | --- | --- | --- |
 | [additional-interface-styles.spec.ts:10](../e2e/additional-interface-styles.spec.ts#L10) | 九环可选择、持久化、切换配色，源码行号保持等宽 | chromium |
-| [block-title-paste.spec.ts:39](../e2e/block-title-paste.spec.ts#L39) | 代码简介原生粘贴保留选区，正文和引用粘贴仍正常 1280 | chromium |
-| [block-title-paste.spec.ts:39](../e2e/block-title-paste.spec.ts#L39) | 代码简介原生粘贴保留选区，正文和引用粘贴仍正常 390 | chromium |
 | [block-workspace.spec.ts:225](../e2e/block-workspace.spec.ts#L225) | 代码和引用折叠三角位于最右侧，所有工具间距一致 | chromium |
 | [block-workspace.spec.ts:259](../e2e/block-workspace.spec.ts#L259) | 手机横竖屏块弹层不超出可视范围 | chromium, webkit |
 | [block-workspace.spec.ts:491](../e2e/block-workspace.spec.ts#L491) | 触屏块工作区 / 背景和块空白不关闭，行号开关可用且入口不残留焦点 | chromium, webkit |

@@ -250,5 +250,11 @@ Python Markdown 转换脚本已验证默认 references 路径及仅包含文档�
 
 `readonly-heading-fold` 已由第 13 批双浏览器各 7/7 通过，从剩余清单移除。本批文档内存用例再关闭 1 个原失败项，累计处理 80 项、剩余 90 项；生产 PWA WebKit 离线冷启动仍单独未解决。日志位于 `.local-tools/e2e/repair-batch15/`。`git diff --check` 通过。
 
+## 全量基线后的第 16 批修复（2026-09-27）
+
+修复 `block-title-paste` 中两项 Chromium 失败：原夹具先从代码简介输入框复制，再通过点击引用段落定位，Chromium 中编辑器选区仍停在代码块开头；直接派发合成 `ClipboardEvent` 也不能代表真实原生粘贴。夹具现在将 TipTap 光标明确定位到引用段落及代码块内部，再通过系统剪贴板快捷键粘贴；代码简介保留选区、正文/引用/代码块内容断言继续保留。粘贴子组 Chromium、WebKit 各 2/2 通过；同文件折叠后立即切换只读的 4 项在上一轮整组验证中两浏览器均通过。日志位于 `.local-tools/e2e/repair-batch16/`，`git diff --check` 通过。
+
+本批再关闭 2 个原失败项，累计处理 82 项、剩余 88 项；生产 PWA 离线冷启动仍单独未解决。
+
 初始全量基线仍是移除前的 849 项，不能用作当前失败数：Chromium 535 通过/305 失败/9 跳过，WebKit 524 通过/310 失败/15 跳过。
 历史运行产物在 `/tmp/nine-rings-full-e2e-20260927/`。近期分批日志保存在 `.local-tools/e2e/repair-batchN/`。

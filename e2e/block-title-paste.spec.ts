@@ -84,31 +84,59 @@ for (const width of [390, 1280]) {
     await expect(page.locator(".ProseMirror pre code")).toHaveText(
       "const original = 42;",
     );
-    await page.locator(".blockquote-content p").click();
-    await page.locator(".blockquote-content p").evaluate((element) => {
-      const clipboardData = new DataTransfer();
-      clipboardData.setData("text/plain", "引用粘贴");
-      element.dispatchEvent(
-        new ClipboardEvent("paste", {
-          bubbles: true,
-          cancelable: true,
-          clipboardData,
-        }),
-      );
+    await page.evaluate(() => {
+      const input = document.createElement("input");
+      input.id = "blockquote-clipboard-fixture";
+      input.value = "引用粘贴";
+      document.body.appendChild(input);
+      input.select();
     });
+    await page.keyboard.press("ControlOrMeta+c");
+    await page.locator("#blockquote-clipboard-fixture").evaluate((element) =>
+      element.remove(),
+    );
+    await page.locator(".ProseMirror").evaluate((element) => {
+      const editor = (element as HTMLElement & { editor: Editor }).editor;
+      let paragraphPosition = -1;
+      editor.state.doc.descendants((node, position) => {
+        if (node.type.name === "paragraph" && node.textContent === "引用原文") {
+          paragraphPosition = position + 1;
+          return false;
+        }
+        return true;
+      });
+      if (paragraphPosition < 0) throw new Error("blockquote paragraph missing");
+      editor.commands.setTextSelection(paragraphPosition + 2);
+      editor.view.focus();
+    });
+    await page.keyboard.press("ControlOrMeta+v");
     await expect(page.locator(".blockquote-content")).toContainText("引用粘贴");
-    await page.locator(".ProseMirror pre code").click();
-    await page.locator(".ProseMirror pre code").evaluate((element) => {
-      const clipboardData = new DataTransfer();
-      clipboardData.setData("text/plain", "\n# literal code");
-      element.dispatchEvent(
-        new ClipboardEvent("paste", {
-          bubbles: true,
-          cancelable: true,
-          clipboardData,
-        }),
-      );
+    await page.evaluate(() => {
+      const input = document.createElement("input");
+      input.id = "code-clipboard-fixture";
+      input.value = "\n# literal code";
+      document.body.appendChild(input);
+      input.select();
     });
+    await page.keyboard.press("ControlOrMeta+c");
+    await page.locator("#code-clipboard-fixture").evaluate((element) =>
+      element.remove(),
+    );
+    await page.locator(".ProseMirror").evaluate((element) => {
+      const editor = (element as HTMLElement & { editor: Editor }).editor;
+      let codePosition = -1;
+      editor.state.doc.descendants((node, position) => {
+        if (node.type.name === "codeBlock") {
+          codePosition = position + 1;
+          return false;
+        }
+        return true;
+      });
+      if (codePosition < 0) throw new Error("code block missing");
+      editor.commands.setTextSelection(codePosition + 2);
+      editor.view.focus();
+    });
+    await page.keyboard.press("ControlOrMeta+v");
     await expect(page.locator(".ProseMirror pre code")).toContainText(
       "# literal code",
     );
