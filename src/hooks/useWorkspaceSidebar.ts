@@ -134,6 +134,7 @@ export function useWorkspaceSidebar({
       : clampSidebarWidth(candidate, 0);
   });
   const [sidebarWidthHint, setSidebarWidthHint] = useState<string | null>(null);
+  const [readerCompanionCollapsed, setReaderCompanionCollapsed] = useState(false);
   const sidebarHintTimerRef = useRef<number | null>(null);
   const showSidebarWidthHint = useCallback(() => {
     setSidebarWidthHint(`阅读分栏最小宽度为 ${READER_SIDEBAR_MIN_WIDTH}px`);
@@ -145,8 +146,11 @@ export function useWorkspaceSidebar({
     );
   }, []);
   useEffect(() => {
+    if (sidebarHidden || desktopPanel !== "reader") setReaderCompanionCollapsed(false);
     if (sidebarHidden) return;
-    const resize = () => applyPanelSidebarWidth(desktopPanel);
+    const resize = () => {
+      applyPanelSidebarWidth(desktopPanel);
+    };
     resize();
     window.addEventListener("resize", resize);
     return () => window.removeEventListener("resize", resize);
@@ -162,6 +166,7 @@ export function useWorkspaceSidebar({
     };
     window.addEventListener("nr:reset-sidebar-widths", reset);
     const resetReaderBoundary = () => {
+      setReaderCompanionCollapsed(false);
       localStorage.removeItem(READER_SIDEBAR_WIDTH_KEY);
       localStorage.removeItem(READER_SIDEBAR_RATIO_KEY);
       readerRatioRef.current = null;
@@ -256,6 +261,11 @@ export function useWorkspaceSidebar({
         window.innerWidth - DESKTOP_ACTIVITY_BAR_WIDTH - 4,
         sideStartWRef.current + delta,
       );
+      const edgeLimit = Math.max(240, window.innerWidth - DESKTOP_ACTIVITY_BAR_WIDTH - 4);
+      if (sideDragPanelRef.current === "reader") {
+        const nearEdge = rawWidth >= edgeLimit - 18;
+        setReaderCompanionCollapsed(nearEdge);
+      }
       // Once the handle is dragged clearly past the usable edge, collapse the
       // panel instead of leaving a narrow sliver that cannot be operated.
       const collapseThreshold =
@@ -341,6 +351,7 @@ export function useWorkspaceSidebar({
     sidebarWidth,
     sidebarWidthHint,
     sidebarResizing,
+    readerCompanionCollapsed,
     setSidebarPanel,
     handleSidePointerDown,
   };

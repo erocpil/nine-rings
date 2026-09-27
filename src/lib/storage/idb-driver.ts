@@ -17,7 +17,7 @@
 
 import type { Note, CreateNoteInput, PathNode, DocType } from "../../types/models";
 import type { Op, SelectOp, InsertOp, UpdateOp, DeleteOp } from "./ops";
-import { noteToDB, noteFromDB, type StoredNote, buildDocTree, extractPlainText, type FlatDocRecord, type FlatDailyRecord } from "./core";
+import { noteToDB, noteFromDB, type StoredNote, buildDocTree, extractPlainText, type FlatDocRecord } from "./core";
 import { localDateKey } from "../local-date";
 
 // IDB can store structured note content directly; SQL mutation values stay scalar.
@@ -360,7 +360,7 @@ export const idbDriver = {
       sort_order: 0,
       created_at: now(),
       updated_at: now(),
-      storagePath: data.storagePath,
+      storagePath: data.storagePath || "references",
       docType: data.docType,
       concepts: data.concepts,
       linkedDocIds: data.linkedDocIds,
@@ -484,19 +484,6 @@ export const idbDriver = {
     };
     const docRecords = await compileSelect(ctx.db, docsOp);
 
-    // Part B: 随笔/日记（storage_path IS NULL）
-    const dailyOp: SelectOp = {
-      type: "select",
-      table: "notes",
-      columns: ["id", "date", "title", "updated_at"],
-      where: [{ col: "storage_path", op: "IS", val: null }],
-      orderBy: [
-        { col: "date", desc: true },
-        { col: "updated_at", desc: true },
-      ],
-    };
-    const dailyRecords = await compileSelect(ctx.db, dailyOp);
-
     // 转换为树构建器的输入类型
     const docs: FlatDocRecord[] = docRecords.map((r) => ({
       id: r.id,
@@ -508,13 +495,6 @@ export const idbDriver = {
       readonly: r.readonly === 1 || r.readonly === true,
     }));
 
-    const dailies: FlatDailyRecord[] = dailyRecords.map((r) => ({
-      id: r.id,
-      date: r.date,
-      title: r.title,
-      updated_at: r.updated_at,
-    }));
-
-    return buildDocTree(docs, dailies);
+    return buildDocTree(docs);
   },
 };

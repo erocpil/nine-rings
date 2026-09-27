@@ -1,7 +1,9 @@
 {
   "identifier": "default",
   "description": "Default capabilities for Nine Rings",
-  "windows": ["main", "quick-capture"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-minimize",
@@ -21,7 +23,11 @@
     "dialog:allow-ask",
     {
       "identifier": "http:default",
-      "allow": [{ "url": "https://api.github.com/**" }]
+      "allow": [
+        {
+          "url": "https://api.github.com/**"
+        }
+      ]
     },
     "global-shortcut:default",
     "global-shortcut:allow-register",

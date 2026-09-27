@@ -9,13 +9,8 @@ import { resolveImageRefs } from "./db-images";
 import { localTemplates } from "./template-local";
 import { isEncrypted, type ProtectedPath } from "../document-crypto";
 import type { AppConfig } from "./types";
-import type { DailyPage, NoteVersion } from "../../types/models";
+import type { NoteVersion } from "../../types/models";
 import type { Template } from "./template-model";
-
-type StoredDailyPage = Omit<DailyPage, "todos" | "todo_carryover"> & {
-  todos: DailyPage["todos"] | string;
-  todo_carryover: number | boolean;
-};
 
 function sanitize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sanitize);
@@ -35,15 +30,14 @@ function sanitize(value: unknown): unknown {
 export async function exportData(): Promise<string> {
   const config = await getConfig();
   const snapshot = await withDB(async (db) => {
-    const tx = db.transaction(["notes", "daily_pages", "note_versions", "protected_paths"], "readonly");
-    const [notes, pages, versions, paths] = await Promise.all([
+    const tx = db.transaction(["notes", "note_versions", "protected_paths"], "readonly");
+    const [notes, versions, paths] = await Promise.all([
       getAll<StoredNote>(tx.objectStore("notes")),
-      getAll<StoredDailyPage>(tx.objectStore("daily_pages")),
       getAll<NoteVersion>(tx.objectStore("note_versions")),
       getAll<ProtectedPath>(tx.objectStore("protected_paths")),
     ]);
     const live = notes.filter((n) => !n.deleted_at).map(noteFromDB);
-    return { notes: live, pages, paths, versions: versions.filter(v => live.some(n => n.id === v.note_id && isEncrypted(n.content))) };
+    return { notes: live, paths, versions: versions.filter(v => live.some(n => n.id === v.note_id && isEncrypted(n.content))) };
   });
   const notes = await resolveImageRefs(snapshot.notes);
   return stringifyJsonAsync(
@@ -53,11 +47,6 @@ export async function exportData(): Promise<string> {
       ...(snapshot.versions.length ? { protected_versions: snapshot.versions } : {}),
       exported_at: now(),
       notes,
-      daily_pages: snapshot.pages.map((p) => ({
-        ...p,
-        todos: typeof p.todos === "string" ? JSON.parse(p.todos) : p.todos,
-        todo_carryover: p.todo_carryover === 1 || p.todo_carryover === true,
-      })),
       templates:
         typeof localStorage === "undefined"
           ? []
@@ -78,12 +67,6 @@ export async function importData(
   const notes = data.notes
     .map(snakeImportToCamel)
     .map(noteToDB);
-  const pages = (data.daily_pages ?? []).map((p) => ({
-    ...p,
-    todos:
-      typeof p.todos === "string" ? p.todos : JSON.stringify(p.todos ?? []),
-    todo_carryover: p.todo_carryover === true || p.todo_carryover === 1 ? 1 : 0,
-  }));
   const storage = typeof localStorage === "undefined" ? null : localStorage;
   const before: [string, string | null][] = [
     "nine_rings_config",
@@ -105,17 +88,15 @@ export async function importData(
     }
     await withDB(async (db) => {
       const tx = db.transaction(
-        ["notes", "daily_pages", "note_versions", "protected_paths"],
+        ["notes", "note_versions", "protected_paths"],
         "readwrite",
       );
       if (mode === "replace") {
         tx.objectStore("notes").clear();
-        tx.objectStore("daily_pages").clear();
         tx.objectStore("note_versions").clear();
         tx.objectStore("protected_paths").clear();
       }
       for (const note of notes) tx.objectStore("notes").put(note);
-      for (const page of pages) tx.objectStore("daily_pages").put(page);
       for (const path of data.protected_paths ?? []) tx.objectStore("protected_paths").put(path);
       for (const version of data.protected_versions ?? []) tx.objectStore("note_versions").put(version);
     });
@@ -130,7 +111,6 @@ export async function importData(
   }
   return {
     notes_imported: notes.length,
-    pages_imported: pages.length,
     ...(data.config ? { configs_imported: 1 } : {}),
   };
 }

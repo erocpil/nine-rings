@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { expect, it } from "vitest";
 import { readStylesheet } from "../css-source";
 
@@ -12,9 +12,9 @@ it("keeps the desktop clock removed, including its recurring render timer", () =
   expect(
     readStylesheet(new URL("../../src/styles.css", import.meta.url)),
   ).not.toContain("header-clock");
-  expect(source("src/hooks/useDateRollover.ts")).not.toMatch(
-    /useState|currentClock|1_000/,
-  );
+  expect(
+    existsSync(new URL("../../src/hooks/useDateRollover.ts", import.meta.url)),
+  ).toBe(false);
 });
 
 it("uses the same property-only password entry on every runtime", () => {

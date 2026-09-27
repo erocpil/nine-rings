@@ -100,7 +100,7 @@ test("长文档在编辑、源码和局部只读中随实际分栏宽度调整",
     page.locator('.vr-row[data-next-heading="true"] p').first(),
   ).toHaveCSS("margin-bottom", "22px");
   await page.screenshot({
-    path: "/tmp/nr-long-document-narrow.png",
+    path: test.info().outputPath("nr-long-document-narrow.png"),
     animations: "disabled",
   });
 });

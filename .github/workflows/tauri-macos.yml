@@ -36,7 +36,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version-file: '.node-version'
           cache: 'npm'
 
       - name: Setup Rust
@@ -44,11 +44,6 @@ jobs:
         with:
           toolchain: '1.98.1'
           targets: ${{ matrix.target }}
-
-      - name: Resolve Rust dependencies
-        # Like Windows, resolve the ignored lockfile before computing the cache key.
-        working-directory: src-tauri
-        run: cargo generate-lockfile
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2

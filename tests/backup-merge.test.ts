@@ -22,10 +22,6 @@ function note(id: string, text: string, updatedAt: string, title = id, extra: Re
   };
 }
 
-function page(date: string, todos: Array<Record<string, unknown>>, updatedAt: string) {
-  return { date, todos, todo_carryover: false, updated_at: updatedAt };
-}
-
 const base = {
   version: 1,
   exported_at: "2026-08-28T01:00:00.000Z",
@@ -41,7 +37,6 @@ const base = {
       linked_doc_ids: ["same"],
     }),
   ],
-  daily_pages: [page("2026-08-28", [{ id: "todo", text: "base", done: false, order: 0, tags: [] }], "2026-08-28T01:00:00.000Z")],
   config: { theme: "light" },
 };
 
@@ -60,13 +55,6 @@ const local = {
       linkedDocIds: ["same"],
     }),
     note("local-only", "local only", "2026-08-28T02:00:00.000Z", "同名文档"),
-  ],
-  daily_pages: [
-    page("2026-08-28", [
-      { id: "todo", text: "local", done: false, order: 0, tags: [] },
-      { id: "local-todo", text: "local only", done: false, order: 1, tags: [] },
-    ], "2026-08-28T02:00:00.000Z"),
-    page("2026-08-27", [], "2026-08-28T02:00:00.000Z"),
   ],
   config: { theme: "light" },
 };
@@ -87,13 +75,6 @@ const remote = {
     }),
     note("remote-only", "remote only", "2026-08-28T03:00:00.000Z", "同名文档", { storage_path: "remote/path" }),
   ],
-  daily_pages: [
-    page("2026-08-28", [
-      { id: "todo", text: "remote", done: true, order: 0, tags: [] },
-      { id: "remote-todo", text: "remote only", done: false, order: 1, tags: [] },
-    ], "2026-08-28T03:00:00.000Z"),
-    page("2026-08-29", [], "2026-08-28T03:00:00.000Z"),
-  ],
   config: { theme: "dark" },
 };
 
@@ -105,8 +86,6 @@ assert(comparison.localChanged.map((item) => item.id).join() === "local-change",
 assert(comparison.remoteChanged.map((item) => item.id).join() === "remote-change", "remote-only modification is identified");
 assert(comparison.conflicts.map((item) => item.id).join() === "conflict", "concurrent modification is identified as a conflict");
 assert(comparison.unchanged === 2, "timestamps and snake/camel field names do not create false conflicts");
-assert(comparison.pages.conflicts === 1, "concurrently changed daily page is identified");
-assert(comparison.pages.localOnly === 1 && comparison.pages.remoteOnly === 1, "local/remote-only daily pages are identified");
 
 const merged = buildSafeMergedBackup(JSON.stringify(local), JSON.stringify(remote), JSON.stringify(base));
 const bundle = JSON.parse(merged.json) as typeof remote;
@@ -120,14 +99,6 @@ assert(Boolean(conflictCopy) && JSON.stringify(conflictCopy?.content).includes("
 assert(merged.conflictCopies === 1, "one document conflict copy is reported");
 assert(bundle.notes.filter((item) => item.title === "同名文档").length === 2, "same-title notes with distinct UUIDs are both preserved");
 assert(bundle.config.theme === "dark", "remote workspace settings remain the Pull source");
-
-const mergedPage = bundle.daily_pages.find((item) => item.date === "2026-08-28")!;
-assert(bundle.daily_pages.some((item) => item.date === "2026-08-27") && bundle.daily_pages.some((item) => item.date === "2026-08-29"),
-  "safe merge keeps local-only and imports remote-only daily pages");
-assert(mergedPage.todos.some((todo) => todo.id === "local-todo") && mergedPage.todos.some((todo) => todo.id === "remote-todo"),
-  "daily-page conflict merge preserves local-only and remote-only todos");
-assert(mergedPage.todos.some((todo) => String(todo.text).includes("本地同步冲突副本")),
-  "concurrently edited todo is preserved as a conflict copy");
 
 const conservative = compareBackupSnapshots(JSON.stringify(local), JSON.stringify(remote));
 assert(conservative.conflicts.some((item) => item.id === "local-change"),

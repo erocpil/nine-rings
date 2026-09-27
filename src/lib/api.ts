@@ -1,6 +1,6 @@
 import type { StorageAdapter, DocSearchQuery } from "./storage/types";
 import { getAdapter } from "./storage";
-import type { AppConfig, CreateNoteInput, UpdateNoteInput, UpdateTodosInput, Todo } from "../types/models";
+import type { AppConfig, CreateNoteInput, UpdateNoteInput } from "../types/models";
 import { broadcastDataChange } from "./tab-coordination";
 import { invalidateWebSearchIndex, removeFromWebSearchIndex, searchWebNotes, searchWebNoteSummaries, searchDocumentSummaries, updateWebSearchIndex } from "./web-search-index";
 import { addFrontendSettingsToBackup, withFrontendSettings } from "./backup-user-settings";
@@ -39,7 +39,7 @@ export const api = {
     get: (id: string) =>
       adapter().then((a) => a.getNote(id)),
 
-    /** 获取所有日期的随笔（不含已删除），按日期倒序 */
+    /** 获取全部未删除文档，按日期倒序 */
     all: () =>
       adapter().then((a) => a.getAllNotes()),
 
@@ -138,43 +138,6 @@ export const api = {
     },
   },
 
-  daily: {
-    get: async (date: string) => {
-      const storage = await adapter();
-      const config = await storage.getConfig();
-      return storage.getDailyPage(date, config.todo_carryover_default);
-    },
-
-    getAll: () =>
-      adapter().then((a) => a.getAllDailyPages()),
-
-    /** 搜索所有日期的待办 */
-    searchTodos: async (query: string) => {
-      if (!query.trim()) return [];
-      const q = query.trim().toLowerCase();
-      const pages = await adapter().then((a) => a.getAllDailyPages());
-      const results: { todo: Todo; date: string }[] = [];
-      for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
-        const p = pages[pageIndex];
-        if (!Array.isArray(p.todos)) continue;
-        for (const t of p.todos) {
-          if (t.text?.toLowerCase().includes(q)) {
-            results.push({ todo: t, date: p.date });
-          }
-        }
-        if ((pageIndex + 1) % 250 === 0 && pageIndex + 1 < pages.length) {
-          await new Promise<void>((resolve) => setTimeout(resolve, 0));
-        }
-      }
-      // 按日期倒序排列
-      results.sort((a, b) => b.date.localeCompare(a.date));
-      return results;
-    },
-
-    updateTodos: (data: UpdateTodosInput) =>
-      adapter().then((a) => a.updateTodos(data)),
-  },
-
   export: {
     data: async () => addFrontendSettingsToBackup(await adapter().then((a) => a.exportData())),
 
@@ -250,8 +213,8 @@ export const api = {
 
   // ── Doc Tree（v2 文档分类系统）──
   docs: {
-    tree: (includeDaily = true) =>
-      adapter().then((a) => a.getPathTree(includeDaily)),
+    tree: () =>
+      adapter().then((a) => a.getPathTree()),
 
     listByPath: (pathPrefix: string) =>
       adapter().then((a) => a.getNotesByPath(pathPrefix)),

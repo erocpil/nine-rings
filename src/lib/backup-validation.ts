@@ -11,7 +11,6 @@ export type ValidatedTemplate = BackupRecord & {
 /** Only fields checked below are narrowed; legacy/extension fields remain unknown. */
 export interface ValidatedBackup extends BackupRecord {
   notes: (BackupRecord & { id: string })[];
-  daily_pages?: (BackupRecord & { date: string })[];
   templates?: ValidatedTemplate[];
   config?: BackupRecord | null;
   protected_paths?: ProtectedPath[];
@@ -108,17 +107,6 @@ export function validateBackup(
     for (const v of value.protected_versions) {
       if (typeof v.note_id !== "string" || typeof v.saved_at !== "string" || !Array.isArray(v.tags) || v.tags.some(t => typeof t !== "string")) throw new Error("加密历史版本字段无效");
       validateEncryptedContent(v.content);
-    }
-  }
-  if (value.daily_pages !== undefined) {
-    if (!Array.isArray(value.daily_pages))
-      throw new Error("备份 daily_pages 必须是数组");
-    unique(value.daily_pages, "date");
-    for (const page of value.daily_pages) {
-      const todos =
-        typeof page.todos === "string" ? JSON.parse(page.todos) : page.todos;
-      if (todos != null && !Array.isArray(todos))
-        throw new Error("备份待办无效");
     }
   }
   if (value.config != null && !object(value.config))

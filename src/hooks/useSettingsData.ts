@@ -47,7 +47,7 @@ export function useSettingsData(
           const result = await api.export.import(text);
           const configTip = result.configs_imported ? "，配置已恢复" : "";
           showMessage(
-            `导入完成：${result.notes_imported} 篇笔记, ${result.pages_imported} 个页面${configTip}`,
+            `导入完成：${result.notes_imported} 篇文档${configTip}`,
           );
           onImport?.();
         }
@@ -77,7 +77,7 @@ export function useSettingsData(
       const result = await api.export.import(text);
       const configTip = result.configs_imported ? "，配置已恢复" : "";
       showMessage(
-        `导入完成：${result.notes_imported} 篇笔记, ${result.pages_imported} 个页面${configTip}`,
+        `导入完成：${result.notes_imported} 篇文档${configTip}`,
       );
       onImport?.();
     } catch (e) {

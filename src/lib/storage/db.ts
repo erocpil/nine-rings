@@ -32,6 +32,8 @@ function openDB(): Promise<IDBDatabase> {
       req.onupgradeneeded = () => {
         const db = req.result;
         const tx = req.transaction!;
+        // Retired, unreleased daily/todo storage; document stores stay intact.
+        if (db.objectStoreNames.contains("daily_pages")) db.deleteObjectStore("daily_pages");
         for (const [storeName, definition] of Object.entries(IDB_STORES)) {
           const store = db.objectStoreNames.contains(storeName)
             ? tx.objectStore(storeName)

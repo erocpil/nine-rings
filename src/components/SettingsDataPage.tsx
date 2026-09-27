@@ -2,7 +2,6 @@ import { BackupExportStatus } from "./BackupExportStatus";
 import { BackupRestoreStatus } from "./BackupRestoreStatus";
 import { ImportPathPicker } from "./ImportPathPicker";
 import { ToolbarIcon } from "./ToolbarIcon";
-import { DAILY_NOTES_ENABLED } from "../lib/workspace-features";
 import { TEXT_IMPORT_ACCEPT } from "../lib/markdown-import";
 import type { DocType } from "../types/models";
 import type { WebStorageStatus } from "../hooks/useWebPlatform";
@@ -25,8 +24,6 @@ export function SettingsDataPage({ visible, webStorageStatus, data }: Props) {
     mdImportTotal,
     mdImportProgress,
     mdImportCurrentFile,
-    mdImportMode,
-    setMdImportMode,
     mdImportPath,
     setMdImportPath,
     importPathTriggerRef,
@@ -48,7 +45,7 @@ export function SettingsDataPage({ visible, webStorageStatus, data }: Props) {
   } = data;
   if (!visible) return null;
   const busy = importing || exporting || mdImporting;
-  const missingPath = mdImportMode === "document" && !mdImportPath.trim();
+  const missingPath = !mdImportPath.trim();
 
   return (
     <div className="settings-data-page">
@@ -69,7 +66,7 @@ export function SettingsDataPage({ visible, webStorageStatus, data }: Props) {
           <div className="data-backup-action">
             <h4>保存一份备份</h4>
             <p>
-              包含文档、随笔、待办、文档书签、模板及应用设置，不包含
+              包含文档、文档书签、模板及应用设置，不包含
               Token、密码等凭据。
             </p>
             <button
@@ -132,39 +129,14 @@ export function SettingsDataPage({ visible, webStorageStatus, data }: Props) {
               <h3 id="data-text-heading">Markdown / 纯文本导入</h3>
               <p>
                 将文件或整个目录添加为
-                {mdImportMode === "document" ? "文档" : "随笔"}。
+                {"文档"}。
               </p>
             </div>
           </header>
           <div className="markdown-import-form">
             <fieldset className="data-import-fields" disabled={busy}>
-              {DAILY_NOTES_ENABLED && (
-                <div
-                  className="data-import-modes"
-                  role="group"
-                  aria-label="Markdown 导入类型"
-                >
-                  <label>
-                    <input
-                      type="radio"
-                      name="text-import-mode"
-                      checked={mdImportMode === "document"}
-                      onChange={() => setMdImportMode("document")}
-                    />
-                    导入为文档
-                  </label>
-                  <label>
-                    <input
-                      type="radio"
-                      name="text-import-mode"
-                      checked={mdImportMode === "note"}
-                      onChange={() => setMdImportMode("note")}
-                    />
-                    导入为随笔
-                  </label>
-                </div>
-              )}
-              {mdImportMode === "document" && (
+
+              {(
                 <>
                   <div
                     className={`markdown-import-field markdown-import-path-field${importPathPickerOpen ? " import-path-expanded" : ""}`}
@@ -267,7 +239,7 @@ export function SettingsDataPage({ visible, webStorageStatus, data }: Props) {
                   <ToolbarIcon name="document" />
                   {mdImporting ? "导入中..." : "选择 .md / .txt 等文件"}
                 </button>
-                {mdImportMode === "document" && (
+                {(
                   <button
                     type="button"
                     className="settings-btn-secondary"
@@ -302,7 +274,7 @@ export function SettingsDataPage({ visible, webStorageStatus, data }: Props) {
                 请先填写目标路径，再选择文件或目录。
               </p>
             )}
-            {mdImportMode === "document" && !directoryImportSupported && (
+            {!directoryImportSupported && (
               <p className="data-import-notice">
                 当前环境不支持选择目录，请使用多选文件导入。
               </p>
@@ -332,7 +304,7 @@ export function SettingsDataPage({ visible, webStorageStatus, data }: Props) {
                 <strong>
                   {mdImportResult.interrupted ? "导入已中断，" : ""}已导入{" "}
                   {mdImportResult.count} 篇
-                  {mdImportResult.mode === "document" ? "文档" : "随笔"}
+                  {"文档"}
                 </strong>
                 {!!mdImportResult.skipped && (
                   <span>已跳过 {mdImportResult.skipped} 个不支持的文件。</span>

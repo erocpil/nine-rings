@@ -146,7 +146,7 @@ test("标题内折叠控件不进入编辑、撤销及剪贴板数据", async ({
   ).toHaveCount(1);
   await page.keyboard.type("!");
   await expect(root.locator("h2")).toContainText("Anchor heading!");
-  await page.keyboard.press("Control+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await expect(root.locator("h2")).not.toContainText("!");
   const copied = await root.evaluate((element) => {
     const editor = (

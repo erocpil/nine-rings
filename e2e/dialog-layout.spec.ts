@@ -47,18 +47,18 @@ for (const viewport of [
         await page.keyboard.press("Shift+Tab");
         await expect(create).toBeFocused();
         await page.screenshot({
-          path: `/tmp/ui-batch3-create-${viewport.width}-${theme}.png`,
+          path: test.info().outputPath(`ui-batch3-create-${viewport.width}-${theme}.png`),
         });
         await page.keyboard.press("Escape");
         await expect(dialog).toHaveCount(0);
-        await page.keyboard.press("Control+p");
+        await page.keyboard.press("ControlOrMeta+p");
         const quick = page.getByRole("dialog", { name: "快速切换笔记" });
         await expect(quick.getByRole("combobox")).toBeFocused();
         await expect(
           quick.locator(".quick-switcher-item").first(),
         ).toBeVisible();
         await page.screenshot({
-          path: `/tmp/ui-batch3-quick-${viewport.width}-${theme}.png`,
+          path: test.info().outputPath(`ui-batch3-quick-${viewport.width}-${theme}.png`),
         });
         await page.keyboard.press("Escape");
         await expect(quick).toHaveCount(0);
@@ -121,7 +121,7 @@ for (const viewport of [
       if (viewport.width !== 1280)
         expect((await close.boundingBox())!.height).toBeGreaterThanOrEqual(44);
       await page.screenshot({
-        path: `/tmp/ui-batch3-${viewport.width}-${theme}.png`,
+        path: test.info().outputPath(`ui-batch3-${viewport.width}-${theme}.png`),
       });
       if (viewport.width === 844) {
         await page.evaluate(() => {

@@ -111,38 +111,6 @@ pub fn get_notes_by_path(
 ) -> Result<Vec<crate::db::models::Note>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
 
-    // daily/ 前缀 → 返回对应日期的每日随笔（无 storagePath）
-    if path_prefix.starts_with("daily/") {
-        let date = path_prefix.strip_prefix("daily/").unwrap_or("");
-        if !date.is_empty() {
-            let mut stmt = conn
-                .prepare(
-                    "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly FROM notes WHERE deleted_at IS NULL AND date = ?1 AND storage_path IS NULL ORDER BY updated_at DESC"
-                )
-                .map_err(|e| e.to_string())?;
-            let rows = stmt
-                .query_map(rusqlite::params![date], |row| {
-                    crate::db::models::note_from_row(row)
-                })
-                .map_err(|e| e.to_string())?;
-            return rows
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| e.to_string());
-        }
-        // 纯 "daily/" → 返回所有每日随笔
-        let mut stmt = conn
-            .prepare(
-                "SELECT id, date, title, content, search_text, tags, pinned, sort_order, created_at, updated_at, storage_path, doc_type, concepts, linked_doc_ids, readonly FROM notes WHERE deleted_at IS NULL AND storage_path IS NULL ORDER BY date DESC, updated_at DESC"
-            )
-            .map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map([], crate::db::models::note_from_row)
-            .map_err(|e| e.to_string())?;
-        return rows
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string());
-    }
-
     // 普通文档路径
     let mut stmt = conn
         .prepare(

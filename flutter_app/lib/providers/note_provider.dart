@@ -14,7 +14,6 @@ class NoteProvider extends ChangeNotifier {
   List<String> _allTags = [];
   List<Note> _tagFilteredNotes = [];
   List<NoteVersion> _versions = [];
-  Map<String, dynamic>? _currentDailyPage;
   bool _loading = false;
   String? _error;
 
@@ -32,7 +31,6 @@ class NoteProvider extends ChangeNotifier {
   List<String> get allTags => _allTags;
   List<Note> get tagFilteredNotes => _tagFilteredNotes;
   List<NoteVersion> get versions => _versions;
-  Map<String, dynamic>? get currentDailyPage => _currentDailyPage;
   bool get loading => _loading;
   String? get error => _error;
 
@@ -247,7 +245,7 @@ class NoteProvider extends ChangeNotifier {
 
   Future<String> exportAll() => _service.exportAll();
 
-  Future<({int notesImported, int pagesImported})> importBundle(
+  Future<({int notesImported})> importBundle(
     String jsonStr, {
     bool replace = false,
   }) async {
@@ -258,7 +256,6 @@ class NoteProvider extends ChangeNotifier {
       _searchResults = [];
       _tagFilteredNotes = [];
       _versions = [];
-      _currentDailyPage = null;
       _docsByPath = [];
       _backlinks = [];
     }
@@ -293,35 +290,6 @@ class NoteProvider extends ChangeNotifier {
     } catch (e) {
       _setError('恢复版本失败: $e');
       return null;
-    }
-  }
-
-  // ── Daily Page ──
-
-  Future<void> loadDailyPage(String date) async {
-    try {
-      _currentDailyPage = await _service.getOrCreateDailyPage(date);
-      notifyListeners();
-    } catch (e) {
-      _setError('加载每日页失败: $e');
-    }
-  }
-
-  Future<void> updateTodos(String date, List<dynamic> todos) async {
-    try {
-      await _service.updateDailyPageTodos(date, todos);
-      await loadDailyPage(date);
-    } catch (e) {
-      _setError('更新待办失败: $e');
-    }
-  }
-
-  Future<void> setTodoCarryover(String date, bool enabled) async {
-    try {
-      await _service.setTodoCarryover(date, enabled);
-      await loadDailyPage(date);
-    } catch (e) {
-      _setError('更新待办继承失败: $e');
     }
   }
 

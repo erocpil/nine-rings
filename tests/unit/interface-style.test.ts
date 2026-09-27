@@ -13,7 +13,17 @@ test("legacy and unknown styles use classic, known styles remain independent of 
   expect(normalizeInterfaceStyle("unknown")).toBe("classic");
   const root = { dataset: {}, className: "theme-nord" };
   vi.stubGlobal("document", { documentElement: root });
-  for (const style of ["classic", "calm", "calm-compact", "paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"]) {
+  for (const style of [
+    "classic",
+    "calm",
+    "calm-compact",
+    "paper",
+    "minimal",
+    "nine-rings",
+    "mono-aware",
+    "yugen",
+    "wabi-sabi",
+  ]) {
     applyInterfaceStyle(style);
     expect(root.dataset).toEqual({ interfaceStyle: style });
     expect(root.className).toBe("theme-nord");
@@ -87,10 +97,14 @@ test("paper and minimal project typography without rewriting saved preferences",
   }
 });
 
-
 test("workspace layout defaults safely and survives classic style changes", async () => {
   let value = "{}";
-  vi.stubGlobal("localStorage", { getItem: () => value, setItem: (_key: string, next: string) => { value = next; } });
+  vi.stubGlobal("localStorage", {
+    getItem: () => value,
+    setItem: (_key: string, next: string) => {
+      value = next;
+    },
+  });
   expect((await getConfig()).workspace_layout).toBe("standard");
   await setConfig({ workspace_layout: "exhibition", interface_style: "yugen" });
   await setConfig({ interface_style: "classic" });
@@ -99,14 +113,34 @@ test("workspace layout defaults safely and survives classic style changes", asyn
   expect((await getConfig()).workspace_layout).toBe("standard");
 });
 
-
 test("exhibition display preferences migrate, persist and validate independently", async () => {
   let value = "{}";
-  vi.stubGlobal("localStorage", { getItem: () => value, setItem: (_key: string, next: string) => { value = next; } });
-  expect(await getConfig()).toMatchObject({ exhibition_text_width: "standard", exhibition_density: null });
-  await setConfig({ exhibition_text_width: "wide", exhibition_density: "compact" });
+  vi.stubGlobal("localStorage", {
+    getItem: () => value,
+    setItem: (_key: string, next: string) => {
+      value = next;
+    },
+  });
+  expect(await getConfig()).toMatchObject({
+    exhibition_text_width: "standard",
+    exhibition_density: null,
+  });
+  await setConfig({
+    exhibition_text_width: "wide",
+    exhibition_density: "compact",
+  });
   await setConfig({ interface_style: "paper" });
-  expect(await getConfig()).toMatchObject({ exhibition_text_width: "wide", exhibition_density: "compact", interface_style: "paper" });
-  value = JSON.stringify({ exhibition_text_width: "invalid", exhibition_density: "invalid" });
-  expect(await getConfig()).toMatchObject({ exhibition_text_width: "standard", exhibition_density: null });
+  expect(await getConfig()).toMatchObject({
+    exhibition_text_width: "wide",
+    exhibition_density: "compact",
+    interface_style: "paper",
+  });
+  value = JSON.stringify({
+    exhibition_text_width: "invalid",
+    exhibition_density: "invalid",
+  });
+  expect(await getConfig()).toMatchObject({
+    exhibition_text_width: "standard",
+    exhibition_density: null,
+  });
 });

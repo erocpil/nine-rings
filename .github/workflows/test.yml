@@ -20,6 +20,7 @@ jobs:
         with:
           filters: |
             frontend:
+              - '.node-version'
               - 'src/**'
               - 'e2e/**'
               - 'tests/**'
@@ -29,7 +30,7 @@ jobs:
               - 'package-lock.json'
               - 'eslint.config.js'
               - 'vitest.config.ts'
-              - 'playwright.config.ts'
+              - 'playwright*.config.ts'
               - 'vite.config.*'
               - 'tsconfig*.json'
               - 'index.html'
@@ -37,6 +38,7 @@ jobs:
             flutter:
               - 'flutter_app/**'
             rust:
+              - 'rust-toolchain.toml'
               - 'src-tauri/**'
               - 'schema/**'
               - 'Cargo.lock'
@@ -64,7 +66,7 @@ jobs:
           fetch-depth: 2
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version-file: '.node-version'
           cache: 'npm'
       - run: npm ci
       - run: npm run typecheck
@@ -95,7 +97,7 @@ jobs:
       - name: Check formatting of changed Dart files
         shell: bash
         run: |
-          mapfile -t files < <(git diff --name-only HEAD^ HEAD -- '*.dart' | sed 's#^flutter_app/##')
+          mapfile -t files < <(git diff --name-only --diff-filter=ACMR HEAD^ HEAD -- '*.dart' | sed 's#^flutter_app/##')
           if (( ${#files[@]} )); then
             dart format --output=none --set-exit-if-changed "${files[@]}"
           fi
@@ -131,11 +133,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: '1.98.1'
+          components: rustfmt, clippy
       - name: Install system deps
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
-      - run: cd src-tauri && cargo test
+      - run: cd src-tauri && cargo test --locked
       - run: cd src-tauri && cargo fmt --check
-      - run: cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings
+      - run: cd src-tauri && cargo clippy --locked --all-targets --all-features -- -D warnings
 
   reading-workspace-regressions:
     name: Reading workspace (${{ matrix.browser }})
@@ -150,7 +155,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version-file: '.node-version'
           cache: 'npm'
       - run: npm ci
       - run: npx playwright install ${{ matrix.browser }} --with-deps
@@ -174,7 +179,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version-file: '.node-version'
           cache: 'npm'
       - run: npm ci
       - run: npx playwright install chromium webkit --with-deps

@@ -34,7 +34,7 @@ for (const mode of ["light", "dark"] as const) {
       "border-top-color",
       "rgba(0, 0, 0, 0)",
     );
-    await page.screenshot({ path: `/tmp/nr-reading-${mode}.png` });
+    await page.screenshot({ path: test.info().outputPath(`nr-reading-${mode}.png`) });
     // Read-only content shares the same table styling.
     await page
       .getByRole("button", { name: "点击设为只读", exact: true })
@@ -82,7 +82,7 @@ for (const mode of ["light", "dark"] as const) {
       "48px",
     );
     await expect(dialog.locator("pre code")).toContainText("return notes");
-    await page.screenshot({ path: `/tmp/nr-block-dialog-${mode}.png` });
+    await page.screenshot({ path: test.info().outputPath(`nr-block-dialog-${mode}.png`) });
     await dialog.getByRole("button", { name: "关闭块工作区" }).click();
     await expect(dialog).toHaveCount(0);
     await expect(editor.locator("pre code")).toContainText("return notes");

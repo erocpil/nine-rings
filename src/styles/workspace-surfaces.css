@@ -1812,7 +1812,7 @@
 
 .editor-block-bookmark.without-number {
   /* Match the fold control's centre; stay below the glyph in both states. */
-  left: 2px;
+  left: calc((var(--editor-gutter-control-width) - 10px) / 2);
   width: 10px;
   height: 2px;
   transform: translateY(8px);
@@ -1938,11 +1938,6 @@
   gap: 4px;
 }
 
-.app-focus-mode .date-picker,
-.app-focus-mode .daily-overview {
-  display: none;
-}
-
 .app-focus-mode .search-bar {
   max-width: 120px;
 }
@@ -1956,11 +1951,6 @@
   width: 24px;
   height: 24px;
   font-size: 14px;
-}
-
-/* 专注阅读时保留待办面板状态，但不显示新增入口；退出后原输入内容仍在。 */
-.app-focus-mode .app-main-todo .todo-input {
-  display: none;
 }
 
 /* ──── Sidebar Hidden ──── */
@@ -2038,6 +2028,7 @@
 /* The parent clips the companion editor when the reader fills the workspace.
    Never squeeze a mounted long document into a zero-width column. */
 .app-main.reader-companion-editor { min-width: 320px; }
+.app.reader-companion-collapsed .app-main { display: none; }
 body.app-sidebar-dragging .app-main {
   flex: 0 0 var(--sidebar-drag-editor-width, 320px);
   min-width: 320px;
@@ -2048,91 +2039,6 @@ body.app-sidebar-dragging .app-main {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-}
-
-.app-main-todo {
-  overflow-y: auto;
-  min-height: 0;
-}
-
-/* 空待办只占标题与输入框的实际高度，不沿用拖拽保存的面板比例。 */
-.app-main-todo-empty .todo-list {
-  height: auto;
-}
-
-.app-main-divider {
-  height: 4px;
-  cursor: row-resize;
-  background: transparent;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 10;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-}
-
-/* Keep the todo input clear of the splitter's expanded touch target. */
-.app:not(.app-focus-mode) .app-main-divider:not(.divider-collapsed) {
-  margin-top: 12px;
-}
-
-.app-main-divider::before {
-  content: "";
-  position: absolute;
-  inset: -8px 0;
-}
-.app-main-divider::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--border);
-  opacity: 0.3;
-  pointer-events: none;
-}
-
-.app-main-divider:hover::after {
-  background: var(--accent);
-  opacity: 0.5;
-}
-
-/* splitter 拖动时，阻止 iOS 在手指经过输入框或正文时显示文本选区。 */
-body.app-split-dragging,
-body.app-split-dragging * {
-  -webkit-user-select: none !important;
-  user-select: none !important;
-  -webkit-touch-callout: none !important;
-}
-
-/* splitter 是两个面板的兄弟元素，保持可拖动。面板内显式声明了
-   pointer-events: auto 的块号/+ 等也必须禁用，避免覆盖祖先的继承值。 */
-body.app-split-dragging :is(.app-main-editor, .app-main-todo),
-body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
-  pointer-events: none !important;
-}
-
-/* 折叠状态：窄条手柄，可向下拖拽展开待办 */
-.divider-collapsed {
-  height: 10px;
-  cursor: s-resize;
-}
-.divider-collapsed::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 20px;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--text-secondary);
-  opacity: 0.25;
-  pointer-events: none;
-}
-.divider-collapsed:hover::after {
-  opacity: 0.5;
-  background: var(--accent);
 }
 
 .app-main-editor {
@@ -2165,3 +2071,5 @@ body.app-split-dragging :is(.app-main-editor, .app-main-todo) * {
 .drag-over {
   border-top: 2px solid var(--accent);
 }
+
+.retained-document-host, .retained-document-session { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }

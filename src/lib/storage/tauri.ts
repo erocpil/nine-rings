@@ -1,20 +1,20 @@
 /**
  * TauriAdapter — 通过 IPC 调 Rust 后端。
  *
- * Phase 3A 完成：upsertNote / getRecentDates / getAllDailyPages / batchDelete /
+ * Phase 3A 完成：upsertNote / getRecentDates / batchDelete /
  * batchSetReadonly / getNoteVersions / restoreNoteVersion / createNoteCheckpoint
  * 已迁移到 tauriDriver（通用 db_query/db_exec/db_transaction 命令）。
  *
  * Phase 4A：旧 invoke 响应过 snakeNoteToCamel 规范化，消除 as any 桥接。
  *
- * 不纳入 Op 抽象的操作：FTS5 搜索、导出/导入、配置、托盘/快捷记录。
+ * 不纳入 Op 抽象的操作：FTS5 搜索、导出/导入、配置、托盘。
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import type { Note, DailyPage } from "../../types/models";
+import type { Note } from "../../types/models";
 import type { StorageAdapter, AppConfig } from "./types";
 import { tauriDriver } from "./tauri-driver";
-import { type SnakeNoteRow, type SnakeDailyPageRow, snakeNoteToCamel, snakeDailyPageToCamel } from "./normalize";
+import { type SnakeNoteRow, snakeNoteToCamel } from "./normalize";
 import { tauriTemplates } from "./template-tauri";
 import { resolveImageRefs } from "./db-images";
 import { validateBackup } from "../backup-validation";
@@ -38,11 +38,6 @@ async function invokeNotes(cmd: string, args: Record<string, unknown> = {}): Pro
   return raw.map(snakeNoteToCamel);
 }
 
-async function invokeDailyPage(cmd: string, args: Record<string, unknown> = {}): Promise<DailyPage> {
-  const raw = await invoke<SnakeDailyPageRow>(cmd, args);
-  return snakeDailyPageToCamel(raw);
-}
-
 /** TauriAdapter — 通过 IPC invoke 调 Rust 后端 */
 export const tauriAdapter: StorageAdapter = {
   ...tauriTemplates,
@@ -54,7 +49,7 @@ export const tauriAdapter: StorageAdapter = {
   deleteNote: (id) => tauriDriver.deleteNote(id),
   upsertNote: (data) => tauriDriver.upsertNote(data),
   getRecentDates: () => tauriDriver.getRecentDates(),
-  getAllNotes: () => tauriDriver.getAllDailyNotes(),
+  getAllNotes: () => tauriDriver.getAllNotes(),
   batchDelete: (ids) => tauriDriver.batchDelete(ids),
   batchSetReadonly: (ids, readonly) => tauriDriver.batchSetReadonly(ids, readonly),
   getNoteVersions: (noteId) => tauriDriver.getNoteVersions(noteId),
@@ -70,12 +65,6 @@ export const tauriAdapter: StorageAdapter = {
 
   // ── Tags ──
   getAllTags: () => invoke<string[]>("get_all_tags"),
-
-  // ── Daily ──
-  getDailyPage: (date, carryoverDefault = false) =>
-    invokeDailyPage("get_daily_page", { date, carryoverDefault }),
-  updateTodos: (data) => invokeDailyPage("update_todos", { data }),
-  getAllDailyPages: () => tauriDriver.getAllDailyPages(),
 
   // ── Export / Import ──
   exportData: async () => {
@@ -98,7 +87,7 @@ export const tauriAdapter: StorageAdapter = {
       for (const key of ["tags", "concepts", "linked_doc_ids"]) if (note[key] === null) note[key] = [];
       if (note.linkedDocIds === null) note.linkedDocIds = [];
     }
-    return invoke<{ notes_imported: number; pages_imported: number }>("import_data", {
+    return invoke<{ notes_imported: number }>("import_data", {
       json: JSON.stringify(data),
       replace: mode === "replace",
     });
@@ -117,7 +106,7 @@ export const tauriAdapter: StorageAdapter = {
 
   // ══════ Doc Tree（getPathTree 已迁移，其余保留）══════
 
-  getPathTree: (includeDaily) => tauriDriver.getPathTree(includeDaily),
+  getPathTree: () => tauriDriver.getPathTree(),
   getNotesByPath: (pathPrefix) => invokeNotes("get_notes_by_path", { pathPrefix }),
   moveDocument: (noteId, targetFolderPath) => tauriDriver.moveDocument(noteId, targetFolderPath),
   batchMoveDocuments: (noteIds, targetFolderPath) => tauriDriver.batchMoveDocuments(noteIds, targetFolderPath),

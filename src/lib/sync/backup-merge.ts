@@ -4,7 +4,6 @@ type BackupRecord = Record<string, unknown>;
 
 interface BackupBundle extends Record<string, unknown> {
   notes?: BackupRecord[];
-  daily_pages?: BackupRecord[];
   templates?: BackupRecord[];
   protected_paths?: BackupRecord[];
   protected_versions?: BackupRecord[];
@@ -46,15 +45,6 @@ export interface SafeMergeOptions {
   ignoreRemotePaths?: readonly string[];
 }
 
-export interface SyncPageComparison {
-  localOnly: number;
-  remoteOnly: number;
-  localChanged: number;
-  remoteChanged: number;
-  conflicts: number;
-  unchanged: number;
-}
-
 export interface BackupComparison {
   localOnly: SyncDocumentSummary[];
   remoteOnly: SyncDocumentSummary[];
@@ -62,7 +52,6 @@ export interface BackupComparison {
   remoteChanged: SyncDocumentSummary[];
   conflicts: SyncDocumentSummary[];
   unchanged: number;
-  pages: SyncPageComparison;
   baseAvailable: boolean;
 }
 
@@ -70,7 +59,6 @@ export interface SafeMergeResult {
   json: string;
   comparison: BackupComparison;
   conflictCopies: number;
-  pageConflictCopies: number;
 }
 
 type MergeCategory = "localOnly" | "remoteOnly" | "localChanged" | "remoteChanged" | "conflicts" | "unchanged";
@@ -82,9 +70,6 @@ function parseBundle(json: string): BackupBundle {
   }
   if (parsed.notes !== undefined && !Array.isArray(parsed.notes)) {
     throw new Error("备份文件 notes 字段格式不正确");
-  }
-  if (parsed.daily_pages !== undefined && !Array.isArray(parsed.daily_pages)) {
-    throw new Error("备份文件 daily_pages 字段格式不正确");
   }
   const settings = parsed.user_settings as { values?: Record<string, unknown> } | undefined;
   const legacyTemplates = settings?.values?.["nine-rings:templates"];
@@ -141,18 +126,7 @@ function noteIdentity(record: BackupRecord): Record<string, unknown> {
   };
 }
 
-function pageIdentity(record: BackupRecord): Record<string, unknown> {
-  return {
-    date: record.date ?? null,
-    todos: parseJsonValue(record.todos, []),
-    todoCarryover: booleanValue(record.todo_carryover ?? record.todoCarryover),
-  };
-}
 
-function todoIdentity(record: BackupRecord): Record<string, unknown> {
-  const { id: _id, ...rest } = record;
-  return rest;
-}
 
 function sameIdentity(
   left: BackupRecord | undefined,
@@ -251,7 +225,6 @@ function createComparison(
     remoteChanged: [],
     conflicts: [],
     unchanged: 0,
-    pages: { localOnly: 0, remoteOnly: 0, localChanged: 0, remoteChanged: 0, conflicts: 0, unchanged: 0 },
     baseAvailable: Boolean(base),
   };
   const localNotes = recordsBy(local.notes, "id");
@@ -275,14 +248,6 @@ function createComparison(
   comparison.remoteChanged = sortSummaries(comparison.remoteChanged);
   comparison.conflicts = sortSummaries(comparison.conflicts);
 
-  const localPages = recordsBy(local.daily_pages, "date");
-  const remotePages = recordsBy(remote.daily_pages, "date");
-  const basePages = recordsBy(base?.daily_pages, "date");
-  const pageDates = new Set([...localPages.keys(), ...remotePages.keys()]);
-  for (const date of pageDates) {
-    const category = classifyRecord(localPages.get(date), remotePages.get(date), basePages.get(date), pageIdentity);
-    comparison.pages[category] += 1;
-  }
   return comparison;
 }
 
@@ -299,46 +264,7 @@ function conflictCopy(record: BackupRecord, timestamp: string): BackupRecord {
   };
 }
 
-function todoConflictCopy(record: BackupRecord): BackupRecord {
-  return {
-    ...record,
-    id: uuid(),
-    text: `${typeof record.text === "string" ? record.text : "待办"}（本地同步冲突副本）`,
-  };
-}
 
-function mergeConflictPage(local: BackupRecord, remote: BackupRecord, base?: BackupRecord): { page: BackupRecord; copies: number } {
-  const localTodos = recordsBy(parseJsonValue(local.todos, []) as BackupRecord[], "id");
-  const remoteTodos = recordsBy(parseJsonValue(remote.todos, []) as BackupRecord[], "id");
-  const baseTodos = recordsBy(parseJsonValue(base?.todos, []) as BackupRecord[], "id");
-  const mergedTodos: BackupRecord[] = [];
-  let copies = 0;
-  const todoIds = new Set([...remoteTodos.keys(), ...localTodos.keys()]);
-  for (const id of todoIds) {
-    const localTodo = localTodos.get(id);
-    const remoteTodo = remoteTodos.get(id);
-    const category = classifyRecord(localTodo, remoteTodo, baseTodos.get(id), todoIdentity);
-    if (category === "localOnly" || category === "localChanged") {
-      if (localTodo) mergedTodos.push(localTodo);
-    } else if (category === "conflicts") {
-      if (remoteTodo) mergedTodos.push(remoteTodo);
-      if (localTodo) {
-        mergedTodos.push(todoConflictCopy(localTodo));
-        copies += 1;
-      }
-    } else if (remoteTodo) {
-      mergedTodos.push(remoteTodo);
-    }
-  }
-  return {
-    page: {
-      ...remote,
-      todos: mergedTodos,
-      updated_at: now(),
-    },
-    copies,
-  };
-}
 
 export function compareBackupSnapshots(localJson: string, remoteJson: string, baseJson?: string | null): BackupComparison {
   return createComparison(
@@ -407,28 +333,6 @@ export function buildSafeMergedBackup(localJson: string, remoteJson: string, bas
     }
   }
 
-  const localPages = recordsBy(local.daily_pages, "date");
-  const remotePages = recordsBy(remote.daily_pages, "date");
-  const basePages = recordsBy(base?.daily_pages, "date");
-  const mergedPages: BackupRecord[] = [];
-  let pageConflictCopies = 0;
-  const pageDates = new Set([...remotePages.keys(), ...localPages.keys()]);
-  for (const date of pageDates) {
-    const localPage = localPages.get(date);
-    const remotePage = remotePages.get(date);
-    const basePage = basePages.get(date);
-    const category = classifyRecord(localPage, remotePage, basePage, pageIdentity);
-    if (category === "localOnly" || category === "localChanged") {
-      if (localPage) mergedPages.push(localPage);
-    } else if (category === "conflicts" && localPage && remotePage) {
-      const merged = mergeConflictPage(localPage, remotePage, basePage);
-      mergedPages.push(merged.page);
-      pageConflictCopies += merged.copies;
-    } else if (remotePage) {
-      mergedPages.push(remotePage);
-    }
-  }
-
   const localTemplates = recordsBy(local.templates, "id");
   const remoteTemplates = recordsBy(remote.templates, "id");
   const baseTemplates = recordsBy(base?.templates, "id");
@@ -448,7 +352,6 @@ export function buildSafeMergedBackup(localJson: string, remoteJson: string, bas
   const merged: BackupBundle = {
     ...remote,
     notes: mergedNotes,
-    daily_pages: mergedPages,
     ...(local.templates || remote.templates ? { templates: mergedTemplates } : {}),
   };
   const localPaths = recordsBy(local.protected_paths, "id");
@@ -475,6 +378,5 @@ export function buildSafeMergedBackup(localJson: string, remoteJson: string, bas
     json: JSON.stringify(merged),
     comparison,
     conflictCopies,
-    pageConflictCopies,
   };
 }

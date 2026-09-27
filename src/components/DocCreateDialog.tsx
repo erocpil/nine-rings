@@ -99,7 +99,7 @@ function DocCreateDialog({ onClose, onCreated, suggestedPath }: DocCreateDialogP
     api.docs.allConcepts().then(setExistingConcepts).catch(() => {});
     api.docs.tree().then((tree) => {
       const roots = tree
-        .filter((node) => node.type === "folder" && !node.path.includes("/") && node.path !== "daily")
+        .filter((node) => node.type === "folder" && !node.path.includes("/"))
         .map((node) => node.name);
       setCustomRootSuggestions([...new Set(roots)]);
     }).catch(() => {});

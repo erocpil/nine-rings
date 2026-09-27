@@ -177,7 +177,7 @@ test("代码 Tab 宽度在正文和块编辑器即时共用", async ({ page }) =
     .getByRole("button", { name: "放大阅读代码块", exact: true })
     .click();
   const dialog = page.getByRole("dialog", { name: "代码块工作区" });
-  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
   await expect(dialog.locator(".cm-line").first()).toHaveCSS("tab-size", "8");
   await setTabs(2);
   await expect(dialog.locator(".cm-line").first()).toHaveCSS("tab-size", "2");

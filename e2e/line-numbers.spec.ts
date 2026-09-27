@@ -1,3 +1,4 @@
+import { pressLineBoundary } from "./helpers/keyboard";
 import { test, expect, type Page } from "@playwright/test";
 import { createBlankNote } from "./helpers/editor-fixtures";
 import type { Editor } from "@tiptap/core";
@@ -82,7 +83,7 @@ test.describe("编辑器块级 gutter", () => {
   test("只读文档仍显示块编号，但不显示插入按钮", async ({ page }) => {
     const editor = await createBlankNote(page);
     await editor.fill("第一行");
-    await editor.press("End");
+    await pressLineBoundary(editor, "end");
     await editor.press("Enter");
     await editor.type("第二行");
     await expect(editor.locator(":scope > p")).toHaveCount(2);
@@ -114,8 +115,8 @@ test.describe("编辑器块级 gutter", () => {
   test("悬停块编号会在原位置显示块格式", async ({ page }) => {
     const editor = await createBlankNote(page);
     await editor.fill("三级标题");
-    await editor.press("Control+Alt+3");
-    await editor.press("End");
+    await editor.press("ControlOrMeta+Alt+3");
+    await pressLineBoundary(editor, "end");
     await editor.press("Enter");
     await editor.type("正文");
 
@@ -192,7 +193,7 @@ test.describe("编辑器块级 gutter", () => {
     await editor.fill("first line");
     await page.getByTitle("代码块 (Ctrl+Alt+C)", { exact: true }).click();
     for (let index = 2; index <= 12; index += 1) {
-      await editor.press("End");
+      await pressLineBoundary(editor, "end");
       await editor.press("Enter");
       await editor.type(`line ${index}`);
     }
@@ -272,7 +273,7 @@ test.describe("编辑器块级 gutter", () => {
   test("分割线后的插入按钮位于分割线与下一块之间", async ({ page }) => {
     const editor = await createBlankNote(page);
     await editor.fill("第一块");
-    await editor.press("End");
+    await pressLineBoundary(editor, "end");
     await editor.press("Enter");
     await editor.type("---");
     await expect(editor.locator(":scope > hr")).toHaveCount(1);

@@ -76,89 +76,6 @@
 
 /* ──── Overdue Todos ──── */
 
-.overdue-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
-  animation: fadeIn 0.15s ease;
-}
-
-.overdue-panel {
-  width: min(560px, calc(100vw - 32px));
-  max-height: 70vh;
-  overflow-y: auto;
-  padding: 20px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-}
-
-.overdue-header,
-.overdue-item {
-  display: flex;
-  align-items: center;
-}
-
-.overdue-header {
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.overdue-header h3 {
-  margin: 0;
-  font-size: 15px;
-}
-
-.overdue-close,
-.overdue-delete,
-.overdue-date {
-  border: 0;
-  background: none;
-  cursor: pointer;
-}
-
-.overdue-close,
-.overdue-delete {
-  color: var(--text-secondary);
-  font-size: 18px;
-}
-
-.overdue-items {
-  display: grid;
-  gap: 6px;
-}
-
-.overdue-item {
-  gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-
-.overdue-text {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.overdue-date {
-  color: var(--accent);
-  font-size: 12px;
-}
-
-.overdue-empty {
-  padding: 20px;
-  color: var(--text-secondary);
-  text-align: center;
-}
-
 /* ──── Undo Toast ──── */
 
 .undo-overlay {
@@ -1561,19 +1478,6 @@
 .sidebar-tab.active {
   opacity: 1;
   background: var(--active-bg);
-}
-
-.sidebar-view-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-  opacity: 1;
-}
-
-.sidebar-view-switch-label {
-  display: none;
-  font-size: 12px;
 }
 
 .workspace-switch {

@@ -20,8 +20,8 @@
 #   default: X   → 默认值
 
 _meta:
-  version: 8
-  idb_version: 4
+  version: 9
+  idb_version: 5
   # IndexedDB 只持久化浏览器运行时实际使用的数据；templates 使用
   # localStorage，sync_changes 属于尚未实现的增量同步设计。
   idb_stores:
@@ -33,7 +33,6 @@ _meta:
         - { name: tags, key_path: tags }
         - { name: pinned_sort, key_path: [pinned, sort_order] }
         - { name: storagePath, key_path: storagePath }
-    daily_pages: { key_path: date, indexes: [] }
     note_versions:
       key_path: id
       indexes:
@@ -51,7 +50,7 @@ ProtectedPath:
     data: { type: string, required: true, description: "ProtectedPath JSON，不含密码或密钥" }
 
 Note:
-  description: 一条随笔笔记 / 文档
+  description: 一篇文档
   sql_table: notes
   ts_interface: Note
   dart_class: Note
@@ -82,30 +81,6 @@ Note:
     readonly:      { type: boolean, default: false }
     search_text:   { type: string, system: true, required: true, default: "", description: "纯文本提取，用于全文搜索" }
 
-Todo:
-  description: 待办项（嵌入在 DailyPage.todos 中，非独立表）
-  ts_interface: Todo
-  dart_class: Todo
-  fields:
-    id:       { type: uuid, pk: true }
-    text:     { type: string, required: true }
-    done:     { type: boolean, default: false }
-    order:    { type: integer, default: 0 }
-    tags:     { type: json_array, default: "[]" }
-    remind_at: { type: datetime, nullable: true, description: "提醒时间" }
-    parent_id: { type: string, nullable: true, description: "父待办 ID，null 表示顶层" }
-
-DailyPage:
-  description: 每日一页
-  sql_table: daily_pages
-  ts_interface: DailyPage
-  dart_class: DailyPage
-  fields:
-    date:           { type: date, pk: true }
-    todos:          { type: json_array, default: "[]", description: "Todo[] JSON" }
-    todo_carryover: { type: boolean, default: false }
-    updated_at:     { type: datetime, required: true }
-
 NoteVersion:
   description: 笔记版本历史
   sql_table: note_versions
@@ -133,7 +108,7 @@ SyncChange:
     - columns: [timestamp]
   fields:
     id:          { type: uuid, pk: true }
-    entity_type: { type: string, required: true, description: "daily_page | note" }
+    entity_type: { type: string, required: true, description: "note" }
     entity_id:   { type: string, required: true }
     action:      { type: string, required: true, description: "create | update | delete" }
     data:        { type: string, required: true, description: "JSON string" }

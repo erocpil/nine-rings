@@ -55,7 +55,7 @@ export function collectMoveFolderPaths(paths: Iterable<string>): string[] {
     try {
       unique.add(normalizeStoragePath(path));
     } catch {
-      // daily 虚拟目录及损坏的旧路径不应成为移动目标。
+      // 损坏的路径不应成为移动目标。
     }
   }
   return [...unique].sort((a, b) => a.localeCompare(b, "zh-CN"));

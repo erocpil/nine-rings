@@ -1,3 +1,4 @@
+import { useDocumentActive } from "../components/RetainedDocument";
 import { useEffect, type RefObject } from "react";
 import type { Editor } from "@tiptap/core";
 import { AllSelection, TextSelection, type Transaction } from "@tiptap/pm/state";
@@ -14,9 +15,10 @@ export function setNavigationSelection(editor: Editor, range: number | { from: n
 
 /** Observe selection transactions, not keystrokes or document contents. */
 export function useEditorNavigation(editor: Editor | null, noteId: string, scrollRef: RefObject<HTMLElement>) {
+  const active = useDocumentActive();
   const target = useNavigationStore(state => state.target?.noteId === noteId ? state.target : null);
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || !active) return;
     const history = useNavigationStore.getState();
     history.activate(noteId);
     const location = () => ({ noteId, from: editor.state.selection.from, to: editor.state.selection.to });
@@ -61,10 +63,10 @@ export function useEditorNavigation(editor: Editor | null, noteId: string, scrol
       window.removeEventListener("pointercancel", up, true);
       window.removeEventListener("keyup", keyup, true);
     };
-  }, [editor, noteId]);
+  }, [editor, noteId, active]);
 
   useEffect(() => {
-    if (!editor || !target) return;
+    if (!editor || !target || !active) return;
     const root = scrollRef.current;
     root?.dispatchEvent(new Event(EDITOR_NAVIGATION_EVENT));
     const maximum = editor.state.doc.content.size;
@@ -96,5 +98,5 @@ export function useEditorNavigation(editor: Editor | null, noteId: string, scrol
       useNavigationStore.getState().record({ noteId, from: editor.state.selection.from, to: editor.state.selection.to });
     });
     return () => cancelAnimationFrame(frame);
-  }, [editor, noteId, target, scrollRef]);
+  }, [editor, noteId, target, scrollRef, active]);
 }

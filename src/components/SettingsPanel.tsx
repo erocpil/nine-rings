@@ -15,7 +15,6 @@ import { saveEditorAppearance, type BlockDisplayDraft } from "../lib/save-editor
 import { api } from "../lib/api";
 import { localDateKey } from "../lib/local-date";
 import type { AppConfig, Note } from "../types/models";
-import { DAILY_NOTES_ENABLED, TODOS_ENABLED } from "../lib/workspace-features";
 import { useSettingsData } from "../hooks/useSettingsData";
 import { SettingsDataPage } from "./SettingsDataPage";
 import { SettingsChangelog } from "./SettingsChangelog";
@@ -85,7 +84,7 @@ const SETTINGS_CATEGORIES: Array<{
   { id: "appearance", title: "外观与布局", description: "主题、风格与分栏布局" },
   { id: "editor", title: "编辑器", description: "字体排版、编辑行为、折叠与 Vim" },
   { id: "documents", title: "文档管理", description: "书签、标签和文档默认信息" },
-  { id: "general", title: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "工作流与快捷键" : "快捷键", description: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "默认视图、待办继承和按键绑定" : "搜索、设置与窗口按键绑定" },
+  { id: "general", title: "快捷键", description: "搜索、设置与窗口按键绑定" },
   { id: "sync", title: "云端同步", description: "通过 GitHub 上传、拉取与合并远端数据" },
   { id: "data", title: "备份与导入", description: "本地 JSON 备份、恢复及 Markdown / 纯文本导入" },
   { id: "advanced", title: "高级", description: isTauri() ? "回收站清理与正文渲染" : "回收站清理、渲染与诊断" },
@@ -101,7 +100,7 @@ const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   sidebar: "布局设置",
   documents: "文档管理",
   bookmarks: "书签",
-  general: DAILY_NOTES_ENABLED || TODOS_ENABLED ? "工作流与快捷键" : "快捷键",
+  general: "快捷键",
   profile: "作者与文档默认值",
   tags: "标签管理",
   data: "备份与导入",
@@ -346,20 +345,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     setBookmarksLoading(true);
     setBookmarksError(null);
     setBookmarkNotes([]);
-    Promise.allSettled([api.notes.all(), api.docs.search({})])
-      .then(([dailyResult, documentsResult]) => {
-        if (cancelled) return;
-        if (dailyResult.status === "rejected" && documentsResult.status === "rejected") {
-          throw dailyResult.reason;
-        }
-        if (dailyResult.status === "rejected" || documentsResult.status === "rejected") setBookmarksError("部分书签未能加载，请重试以查看完整列表。");
-        const notesById = new Map<string, Note>();
-        const dailyNotes = dailyResult.status === "fulfilled" ? dailyResult.value : [];
-        const documents = documentsResult.status === "fulfilled" ? documentsResult.value : [];
-        for (const note of [...dailyNotes, ...documents]) notesById.set(note.id, note);
-        setBookmarkNotes([...notesById.values()]
-          .filter((note) => (note.content.metadata?.bookmarks?.length ?? 0) > 0));
-      })
+    api.notes.all().then((notes) => {
+      if (!cancelled) setBookmarkNotes(notes.filter(note => (note.content.metadata?.bookmarks?.length ?? 0) > 0));
+    })
       .catch((error) => {
         if (!cancelled) setBookmarksError(`加载书签失败：${error instanceof Error ? error.message : String(error)}`);
       })
@@ -531,7 +519,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     setTagsError(null);
     try {
       const result = await action();
-      showMessage(`${verb}，影响 ${result.affected} 篇文档或随笔`);
+      showMessage(`${verb}，影响 ${result.affected} 篇文档`);
       setRenameTag(null);
       setRenameVal("");
       refreshTags();
@@ -555,7 +543,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
     await runTagAction(() => api.tags.merge(name, target), "已合并");
   };
   const handleRemoveTag = async (name: string) => {
-    if (tagBusyRef.current || !confirm(`从所有文档和随笔中移除标签「${name}」？正文不会被删除。`)) return;
+    if (tagBusyRef.current || !confirm(`从所有文档中移除标签「${name}」？正文不会被删除。`)) return;
     await runTagAction(() => api.tags.remove(name), "已移除标签");
   };
 
@@ -859,37 +847,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </div>
             </div>}
 
-            {/* ── 默认视图 ── */}
-            <Field label="默认视图" desc="打开应用时的默认布局" visible={DAILY_NOTES_ENABLED && settingsPage === "general"}>
-              <div className="settings-radio-group">
-                {([["daily", "每日聚合"], ["list", "全部列表"]] as const).map(([v, label]) => (
-                  <button
-                    key={v}
-                    className={`settings-radio ${config.default_view === v ? "active" : ""} ${chk("default_view", v)}`}
-                    aria-pressed={config.default_view === v}
-                    onClick={() => {
-                      localStorage.setItem("nr:defaultViewConfigured", "1");
-                      update({ default_view: v });
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </Field>
 
-            {/* ── 待办跨日继承 ── */}
-            <Field label="待办跨日继承" desc="新每日页默认从未完成项继承待办" visible={TODOS_ENABLED && settingsPage === "general"}>
-              <label className="settings-toggle">
-                <input
-                  type="checkbox"
-                  aria-label="待办跨日继承" checked={config.todo_carryover_default}
-                  onChange={(e) => update({ todo_carryover_default: e.target.checked })}
-                />
-                <span className="toggle-track" />
-                <span className="toggle-label">{config.todo_carryover_default ? "开" : "关"}</span>
-              </label>
-            </Field>
 
             {/* ── 高亮当前行 ── */}
             <Field label="高亮当前行" desc="正文与 Markdown 源码中，光标所在行显示浅色背景" visible={settingsPage === "editor"}>
@@ -1083,7 +1041,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
             {/* ═══════════════════════ */}
             {/* 标签管理 */}
             {/* ═══════════════════════ */}
-            <SettingsSection title="标签管理" desc="管理文档和随笔的普通标签；移除标签不会删除正文。概念标签在文档属性中管理。" visible={settingsPage === "tags"}>
+            <SettingsSection title="标签管理" desc="管理文档的普通标签；移除标签不会删除正文。概念标签在文档属性中管理。" visible={settingsPage === "tags"}>
 
               {tagsError && <div className="settings-error-state" role="alert"><p>{tagsError}</p><button type="button" className="settings-btn-secondary" disabled={tagsLoading || tagBusy} onClick={refreshTags}>重新加载标签</button></div>}
               {/* 重命名输入框 */}

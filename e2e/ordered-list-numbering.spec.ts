@@ -1,3 +1,4 @@
+import { pressLineBoundary } from "./helpers/keyboard";
 import { createBlankDocument } from "./helpers/document";
 import { expect, test } from "@playwright/test";
 
@@ -52,11 +53,11 @@ test("有序列表的续行和后续列表项保持同一正文缩进", async ({
 
   const editor = page.locator(".ProseMirror");
   await editor.fill("aaa");
-  await editor.press("Control+Shift+7");
-  await editor.press("End");
+  await editor.press("ControlOrMeta+Shift+7");
+  await pressLineBoundary(editor, "end");
   await editor.press("Shift+Enter");
   await editor.type("bbb");
-  await editor.press("End");
+  await pressLineBoundary(editor, "end");
   await editor.press("Enter");
   await editor.type("ccc");
   await editor.press("Shift+Enter");

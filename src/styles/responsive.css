@@ -111,24 +111,8 @@
     padding-bottom: 0;
   }
 
-  .app-focus-mode .app-main-divider {
-    display: none;
-  }
-
   /* 普通模式的上下分屏保持紧凑：视觉分隔条变窄，但通过透明伪元素
      保留约 20px 的触摸拖动热区。 */
-  .app:not(.app-focus-mode) .app-main-divider:not(.divider-collapsed) {
-    height: 2px;
-  }
-
-  .app:not(.app-focus-mode) .app-main-divider:not(.divider-collapsed)::before {
-    inset: -9px 0;
-  }
-
-  .app:not(.app-focus-mode) .app-main-todo .todo-input {
-    margin-top: 2px;
-    padding-block: 3px;
-  }
 
   .app:not(.app-focus-mode) .app-main-editor > .note-editor {
     padding-top: 0;
@@ -371,10 +355,6 @@
     left: 0;
     width: 22px;
     touch-action: manipulation;
-  }
-
-  .editor-block-bookmark.without-number {
-    left: 6px;
   }
 
   /* 保留 iOS 原生选区菜单、文字选择和拖动手柄。系统剪贴板、替换和
@@ -710,14 +690,6 @@
   }
 
   /* ── 笔记列表 ── */
-  .sidebar-item {
-    padding: 8px 10px;
-    font-size: 13px;
-  }
-
-  .sidebar-item-title {
-    font-size: 13px;
-  }
 
   /* ── 按钮/工具栏 ── */
   .btn-show-sidebar {
@@ -730,10 +702,6 @@
     justify-content: center;
     min-width: 44px;
     min-height: 44px;
-  }
-
-  .sidebar-view-switch-label {
-    display: inline;
   }
 
   .editor-content .column-resize-handle {

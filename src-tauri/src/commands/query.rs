@@ -8,7 +8,7 @@
 ///
 /// 安全模型：
 /// - 仅允许 SELECT / INSERT / UPDATE 三种 Op 类型。
-/// - INSERT 和 UPDATE 限制 notes / daily_pages / note_versions 三张表。
+/// - INSERT 和 UPDATE 限制 notes / note_versions 等文档表。
 /// - SELECT 允许所有表。
 /// - 所有 SQL 由 compiler 生成，不接受 RawOp。
 use crate::db::query::{compile_op, Op};
@@ -103,7 +103,7 @@ pub fn db_exec(state: State<AppState>, op_json: String) -> Result<(), String> {
     // 安全检查：DELETE 仅开放给版本裁剪，业务笔记删除仍必须走软删除 UPDATE。
     match &op {
         Op::Insert(ins) => {
-            let allowed = ["notes", "daily_pages", "note_versions", "templates"];
+            let allowed = ["notes", "note_versions", "templates"];
             if !allowed.contains(&ins.table.as_str()) {
                 return Err(format!(
                     "db_exec: table '{}' not allowed for INSERT",
@@ -112,7 +112,7 @@ pub fn db_exec(state: State<AppState>, op_json: String) -> Result<(), String> {
             }
         }
         Op::Update(upd) => {
-            let allowed = ["notes", "daily_pages", "note_versions", "templates"];
+            let allowed = ["notes", "note_versions", "templates"];
             if !allowed.contains(&upd.table.as_str()) {
                 return Err(format!(
                     "db_exec: table '{}' not allowed for UPDATE",
@@ -152,13 +152,13 @@ pub fn db_transaction(state: State<AppState>, ops_json: String) -> Result<(), St
                 return Err("db_transaction: SELECT not allowed in transaction".into());
             }
             Op::Insert(ins) => {
-                let allowed = ["notes", "daily_pages", "note_versions", "templates"];
+                let allowed = ["notes", "note_versions", "templates"];
                 if !allowed.contains(&ins.table.as_str()) {
                     return Err(format!("db_transaction: table '{}' not allowed", ins.table));
                 }
             }
             Op::Update(upd) => {
-                let allowed = ["notes", "daily_pages", "note_versions", "templates"];
+                let allowed = ["notes", "note_versions", "templates"];
                 if !allowed.contains(&upd.table.as_str()) {
                     return Err(format!("db_transaction: table '{}' not allowed", upd.table));
                 }

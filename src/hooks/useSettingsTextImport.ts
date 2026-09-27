@@ -14,7 +14,7 @@ interface TextImportResult {
   count: number;
   failed: number;
   skipped: number;
-  mode: "document" | "note";
+  mode: "document";
   interrupted: boolean;
   error?: string;
 }
@@ -46,9 +46,6 @@ export function useSettingsTextImport(
   const [mdImportTotal, setMdImportTotal] = useState(0);
   const [mdImportProgress, setMdImportProgress] = useState(0);
   const [mdImportCurrentFile, setMdImportCurrentFile] = useState("");
-  const [mdImportMode, setMdImportMode] = useState<"document" | "note">(
-    "document",
-  );
   const [mdImportPath, setMdImportPath] = useState("references/imported");
   const importPathTriggerRef = useRef<HTMLButtonElement>(null);
   const [importPathPickerOpen, setImportPathPickerOpen] = useState(false);
@@ -65,8 +62,8 @@ export function useSettingsTextImport(
     input.value = "";
     if (!files.length || mdImporting) return;
     const directoryImport = input === directoryInputRef.current;
-    const mode = directoryImport ? "document" : mdImportMode;
-    if (mode === "document" && !mdImportPath.trim()) {
+    const mode = "document" as const;
+    if (!mdImportPath.trim()) {
       showMessage("请先填写目标路径，再选择文件或目录");
       return;
     }
@@ -166,7 +163,7 @@ export function useSettingsTextImport(
       showMessage(
         failures.length > 0
           ? `已导入 ${count} 篇，跳过 ${skipped} 个非支持类型文件，失败 ${failures.length} 篇：${failures[0]}`
-          : `文本导入完成：${count} 篇${options.mode === "document" ? `，路径 ${options.storagePath}` : ""}${skipped ? `，跳过 ${skipped} 个非支持类型文件` : ""}`,
+          : `文本导入完成：${count} 篇，路径 ${options.storagePath}${skipped ? `，跳过 ${skipped} 个非支持类型文件` : ""}`,
       );
     } catch (err) {
       setMdImportResult({
@@ -198,8 +195,6 @@ export function useSettingsTextImport(
     mdImportTotal,
     mdImportProgress,
     mdImportCurrentFile,
-    mdImportMode,
-    setMdImportMode,
     mdImportPath,
     setMdImportPath,
     importPathTriggerRef,

@@ -51,26 +51,9 @@ export interface PathNode {
   readonly?: boolean;   // document 时
 }
 
-export interface Todo {
-  id: string;
-  text: string;
-  done: boolean;
-  order: number;
-  tags: string[];
-  remind_at?: string;  // ISO datetime string for Notification API reminder
-  parent_id?: string | null;  // parent todo id, null = top-level
-}
-
-export interface DailyPage {
-  date: string;
-  todos: Todo[];
-  todo_carryover: boolean;
-  updated_at: string;
-}
-
 export interface SyncChange {
   id: string;
-  entity_type: "daily_page" | "note";
+  entity_type: "note";
   entity_id: string;
   action: "create" | "update" | "delete";
   data: unknown;
@@ -192,12 +175,6 @@ export interface UpdateNoteInput {
 /** Editable Note fields accepted by every storage backend. */
 export type NotePatch = UpdateNoteInput;
 
-export interface UpdateTodosInput {
-  date: string;
-  todos: Todo[];
-  todo_carryover?: boolean;
-}
-
 export interface NoteVersion {
   id: string;
   note_id: string;
@@ -219,8 +196,6 @@ export interface AppConfig {
   exhibition_density: "comfortable" | "compact" | null;
   interface_color_mode: "light" | "dark" | "system";
   theme: "system" | "light" | "dark" | "fu" | "azure" | "azure-dark" | "grace" | "sui" | "zhi" | "nord" | "dracula";
-  default_view: "daily" | "list";
-  todo_carryover_default: boolean;
   auto_clean_days: number;
   note_font_size: number;
   editor_font_family: "system" | "sans" | "serif" | "monospace";
@@ -276,19 +251,13 @@ export interface AppConfig {
 }
 
 export const DEFAULT_HOTKEYS: Record<string, string> = {
-  new_note:       "",
-  quick_capture:  "CommandOrControl+Alt+N",
   focus_search:   "Alt+E",
   open_settings:  "Alt+,",
-  go_to_daily:    "CommandOrControl+Shift+D",
   show_window:    "Alt+Y",
 };
 
 export const HOTKEY_LABELS: Record<string, string> = {
-  new_note:       "新建随笔",
-  quick_capture:  "快捷记录",
   focus_search:   "聚焦搜索",
   open_settings:  "打开设置",
-  go_to_daily:    "打开每日列表",
   show_window:    "显示主窗口",
 };

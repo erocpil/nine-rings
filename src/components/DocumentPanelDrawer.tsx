@@ -1,3 +1,4 @@
+import { useDocumentActive } from "./RetainedDocument";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useEdgeDrawer } from "../hooks/useEdgeDrawer";
@@ -15,6 +16,8 @@ export function DocumentPanelDrawer({ enabled, presentation, panel, hasOutline, 
   onClose: () => void;
   children: ReactNode;
 }) {
+  const active = useDocumentActive();
+  enabled = enabled && active;
   const open = enabled && presentation === "drawer" && panel !== null;
   const drawerRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);

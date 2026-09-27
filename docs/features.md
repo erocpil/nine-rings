@@ -1,7 +1,7 @@
 # Nine Rings（九环）功能规格
 
-> 版本：持续更新（复核至 2026-08-26）
-> 最后更新：2026-09-05（模板接口、备份恢复与已实现状态校正）
+> 版本：持续更新（复核至 2026-09-27）
+> 最后更新：2026-09-27（移除未发布的随笔和独立待办功能）
 >
 > 本文档列出主要功能域，并覆盖数据模型、输入/输出、接口规格、行为约定、边界条件及跨端差异。
 
@@ -13,7 +13,6 @@
 |---|--------|---------|-------|
 | 1 | 笔记 CRUD | `api.notes.*` | `StorageAdapter` |
 | 2 | 软删除 / 回收站 | `api.recycle.*` | `StorageAdapter` |
-| 3 | 每日页面 & 待办 | `api.daily.*` | `StorageAdapter` |
 | 4 | 标签系统 | `api.tags.*` | `StorageAdapter` |
 | 5 | 全文搜索 | `api.notes.searchSummaries()` | 各端共享 Worker 索引；不可用时同规则本地降级 |
 | 6 | 文档系统 (P.A.R.A.) | `api.docs.*` | `StorageAdapter` + `core.ts` |
@@ -42,7 +41,7 @@ Table: notes
   created_at      TEXT          # ISO 8601
   updated_at      TEXT          # ISO 8601
   deleted_at      TEXT          # NULL = 未删除；非 NULL = 软删除时间
-  storage_path    TEXT          # 文档路径（NULL = 随笔），见功能域 6
+  storage_path    TEXT          # 文档路径（新建缺省为 references），见功能域 6
   doc_type        TEXT          # explanation/how-to/reference/tutorial
   concepts        TEXT          # JSON 数组字符串
   linked_doc_ids  TEXT          # JSON 数组字符串
@@ -55,7 +54,7 @@ Table: notes
 | `getNotesByDate(date)` | `date: string` | `Note[]` | 只返回 `deleted_at IS NULL` 的记录，按 pinned DESC, sort_order ASC, created_at ASC 排序 |
 | `getNote(id)` | `id: string` | `Note \| null` | 不过滤 deleted_at（允许查看已删除笔记） |
 | `createNote(data)` | `CreateNoteInput` | `Note` | UUID、时间戳在 core.ts 生成；`search_text` = `extractPlainText(content)`；tags 默认 `[]` |
-| `upsertNote(data)` | `CreateNoteInput` | `Note` | 若存在同 `storagePath`（文档）或同 `title+date`（随笔）则更新，否则新建 |
+| `upsertNote(data)` | `CreateNoteInput` | `Note` | 按 `storagePath + title` 匹配，存在则更新，否则新建 |
 | `updateNote(id, data)` | `id + UpdateNoteInput` | `Note` | 增量更新（只传变更字段）；更新 `updated_at`；若传了 `content` 则同步更新 `search_text` |
 | `updateNoteOrder(id, sort_order)` | `id + number` | `Note` | 仅改 `sort_order` 和 `updated_at` |
 | `deleteNote(id)` | `id: string` | `void` | 软删除：`UPDATE notes SET deleted_at = now()` |
@@ -68,7 +67,7 @@ Table: notes
 - **软删除**：删除操作写 `deleted_at = now()`，不真删。`getNotesByDate` 自动过滤已删除记录
 - **Tauri 端（5 个操作已迁移到 Op 抽象）**：`getNotesByDate`、`createNote`、`updateNote`、`deleteNote`、`getPathTree` 走 `tauriDriver` → `db_query`/`db_exec`；其余走旧 `invoke` 命令
 - **Web 端**：全部走 IndexedDB 直接操作，未使用 Op 抽象（`idb.ts` 内联实现）
-- **列表一致性**：创建、删除/撤销、批量删除、移动日期、重命名、置顶、只读、回收站恢复、快捷记录和标签管理完成后，当前日期、“全部”随笔、标签及文档树会同步刷新；“全部”模式不需要切换视图才能看到结果。
+- **列表一致性**：创建、删除/撤销、移动、重命名、只读和回收站恢复后同步刷新文档视图。
 
 ### 边界条件
 
@@ -96,57 +95,6 @@ Table: notes
 - 回收站按 `updated_at DESC` 排列（最近删除的排最前）
 - 自动清理默认 30 天（`auto_clean_days` 配置）
 - Web 端（IndexedDB）`batchDelete` 和 `batchSetReadonly` 是逐条操作，非原子
-
----
-
-## 3. 每日页面 & 待办
-
-### 数据模型
-
-```yaml
-Table: daily_pages
-  date           TEXT PK       # YYYY-MM-DD
-  todos          TEXT          # JSON 数组
-  todo_carryover INTEGER       # 0/1 — 是否携带上一天未完成的待办
-  updated_at     TEXT
-```
-
-### Todo 结构
-
-```typescript
-interface Todo {
-  id: string;        // UUID
-  text: string;
-  done: boolean;
-  order: number;
-  tags: string[];
-  remind_at?: string; // ISO datetime for Notification API
-  parent_id?: string | null; // 父子待办层级
-}
-```
-
-### 接口规格
-
-| 方法 | 参数 | 返回 | 说明 |
-|------|------|------|------|
-| `getDailyPage(date)` | `date: string` | `DailyPage` | 不存在则自动创建（含 carryover 逻辑） |
-| `updateTodos(data)` | `UpdateTodosInput` | `DailyPage` | `{date, todos, todo_carryover?}` |
-| `getAllDailyPages()` | — | `DailyPage[]` | 全部日期页面 |
-| `searchTodos(query)` | `string` | `{todo, date}[]` | 仅 API 层实现，不走存储适配器 |
-
-### Carryover 逻辑
-
-创建新 DailyPage 时（`get_or_create_daily_page`）：
-1. 查找上一日期的 daily_page
-2. 如果上一日期的 `todo_carryover = true`：复制所有 `done=false` 的 todos 到新页面
-3. 新页面的 `todo_carryover` 默认继承上一日的值
-4. 如果没有上一日的页面：创建空 todos 列表
-
-### 边界条件
-
-- Web 端的 `getDailyPage` 在无记录时返回默认值 `{date, todos:[], todo_carryover:false, updated_at:now()}`
-- `updateTodos` 的 `todo_carryover` 字段可选，不传则不改变此值
-- 待办排序按 `order` 字段升序
 
 ---
 
@@ -208,7 +156,7 @@ searchNotes(query: string) → Note[]
 
 ### 核心概念
 
-文档和随笔共享 `notes` 表。**`storagePath` 非空 = 文档**。
+文档使用 `notes` 表，`storagePath` 表示目录，创建时缺省为 `references`。`date` 仍保留为文档日期，不再驱动每日列表。
 
 三个正交分类维度：
 | 维度 | 字段 | 说明 |
@@ -225,10 +173,6 @@ areas/         ← 持续领域
 references/    ← 参考资料
 ideas/         ← 缓冲想法
 archives/      ← 归档
-daily/         ← 虚拟：所有随笔（storagePath = NULL）
-  YYYY-MM-DD/
-    随笔1
-    随笔2
 ```
 
 ### 接口规格
@@ -255,14 +199,12 @@ daily/         ← 虚拟：所有随笔（storagePath = NULL）
 ### 路径树构建算法（`buildDocTree`）
 
 ```
-输入：FlatDocRecord[]（有 storage_path 的文档）+ FlatDailyRecord[]（无 storage_path 的随笔）
+输入：FlatDocRecord[]（文档）
 算法：
   1. 文档节点：每条 doc 生成 path="{storage_path}/{id}" 的 document 节点
      → 每级前缀生成 folder 节点并累计 count
-  2. 随笔节点：注入 virtual "daily/YYYY-MM-DD/" 路径
-     → 每个日期生成 folder 节点，其下所有 dailies 为 document 节点
-  3. 统一返回 PathNode[] 扁平数组
-  4. 前端按 "/" 分割 path 构建父子树
+  2. 统一返回 PathNode[] 扁平数组
+  3. 前端按 "/" 分割 path 构建父子树
 ```
 
 ### 创建文档流程
@@ -302,11 +244,11 @@ daily/         ← 虚拟：所有随笔（storagePath = NULL）
 
 | 方法 | 参数 | 返回 | 说明 |
 |------|------|------|------|
-| `exportData()` | — | `string` (JSON) | 全量导出所有 notes + daily_pages |
-| `importData(json)` | `string` | `{notes_imported, pages_imported}` | 全量导入，去重合并 |
+| `exportData()` | — | `string` (JSON) | 全量导出文档、模板、设置及加密路径/版本数据 |
+| `importData(json)` | `string` | `{notes_imported}` | 全量导入，去重合并 |
 | `exportNoteMarkdown(noteId)` | `string` | `string` | 单篇笔记 → Markdown |
 | `exportToFile(path, content)` | `string, string` | `void` | Tauri-only：写到磁盘文件 |
-| `importFromFile(path)` | `string` | `{notes_imported, pages_imported}` | Tauri-only：从磁盘文件读入 |
+| `importFromFile(path)` | `string` | `{notes_imported}` | Tauri-only：从磁盘文件读入 |
 
 ### 导出 JSON 结构
 
@@ -314,17 +256,15 @@ daily/         ← 虚拟：所有随笔（storagePath = NULL）
 {
   "version": 1,
   "exported_at": "2026-07-15T...",
-  "notes": [{...Note...}],
-  "daily_pages": [{...DailyPage...}]
+  "notes": [{...Note...}]
 }
 ```
 
 ### Web 端导入去重策略
 
 ```
-- storagePath 非空（文档笔记）→ 按 storagePath 匹配，复用已有 ID
-- storagePath 为空（随笔）→ 按 title + date 匹配，复用已有 ID
-- 无匹配 → 新建记录
+- JSON 备份按文档 UUID 合并，同名而不同 UUID 的文档分别保留
+- 创建/更新导入按 storagePath + title 匹配；未指定路径时使用 references
 ```
 
 ### 设置面板中的导出入口
@@ -425,8 +365,6 @@ PDF 作为独立本地资料保存，不进入笔记正文和现有 SQLite/Index
 ```typescript
 interface AppConfig {
   theme: "system" | "light" | "dark" | "fu" | "azure" | "azure-dark" | "grace" | "sui" | "zhi";
-  default_view: "daily" | "list";
-  todo_carryover_default: boolean;
   auto_clean_days: number;    // 默认 30
   note_font_size: number;     // 默认 16
   dev_port: number;           // Web only，默认 1420
@@ -457,11 +395,8 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 
 | Action | 默认快捷键 | 注册方式 |
 |--------|-----------|---------|
-| new_note | （未绑定，可配置） | JS `registerShortcuts` |
-| quick_capture | Ctrl+Alt+N | JS `registerShortcuts` |
 | focus_search | Alt+E | JS `registerShortcuts` |
 | open_settings | Alt+, | JS `registerShortcuts` |
-| go_to_daily | Ctrl+Shift+D | JS `registerShortcuts` |
 | show_window | Alt+Y | **Rust 端注册**（系统级，WebView 不可见时也能响应） |
 | toggle_fullscreen | Windows/Linux: F11；macOS: `⌃⌘F` | 浏览器 `keydown`；Web 版交还浏览器原生处理，Tauri 另提供标题栏按钮 |
 

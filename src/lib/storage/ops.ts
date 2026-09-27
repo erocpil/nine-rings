@@ -48,7 +48,7 @@ export interface OrderBy {
 
 export interface SelectOp {
   type: "select";
-  table: string;               // "notes" | "daily_pages" | "note_versions"
+  table: string;               // "notes" | "note_versions"
   columns: string[];            // SELECT 的列名列表（snake_case）
   where?: WhereClause[];        // AND 连接
   orderBy?: OrderBy[];

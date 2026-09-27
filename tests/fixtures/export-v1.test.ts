@@ -29,9 +29,8 @@ async function main() {
   const json = JSON.stringify(fixture.default ?? fixture);
   console.log("导入 fixture...");
   const result = await api.export.import(json);
-  console.log(`导入完成: ${result.notes_imported} notes, ${result.pages_imported} pages`);
+  console.log(`导入完成: ${result.notes_imported} notes`);
   assert(result.notes_imported === 8, `导入 8 篇笔记`);
-  assert(result.pages_imported === 2, `导入 2 个 daily page`);
 
   // ── 验证文档字段 ──
   const doc = await api.notes.get("fixture-doc-howto-001");
@@ -96,22 +95,12 @@ async function main() {
     assert(deep.storagePath === "projects/web/frontend/react", "深层 storagePath 正确");
   }
 
-  // ── Daily pages ──
-  const dp = await api.daily.get("2026-07-28");
-  assert(dp !== null, "daily page 可读取");
-  if (dp) {
-    assert(dp.todos.length === 3, "todos 有 3 项");
-    assert(dp.todos[0].done === true, "第一个 todo 已完成");
-    assert(dp.todos[2].text === "", "空文本 todo 保留");
-    assert(dp.todo_carryover === true, "carryover = true");
-  }
-
   // ── 再次导出 ──
   console.log("\n再次导出...");
   const exported = await api.export.data();
   const reData = JSON.parse(exported);
   assert(reData.notes.length === 8, "重新导出 8 篇笔记");
-  assert(reData.daily_pages.length === 2, "重新导出 2 个 daily page");
+  assert(!("daily_pages" in reData), "导出仅包含当前文档数据");
 
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);

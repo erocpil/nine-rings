@@ -67,7 +67,7 @@ assert(resolveShortcut(key({ key: "e", ctrlKey: true })) === null, "Ctrl+E 放�
 assert(resolveShortcut(key({ key: "E", ctrlKey: true })) === null, "Ctrl+E（大写）放行给编辑器");
 assert(resolveShortcut(key({ key: "e", metaKey: true })) === null, "Meta+E（macOS）放行给编辑器");
 assert(resolveShortcut(key({ key: "f", ctrlKey: true, shiftKey: true })) === "focusSearch", "Ctrl+Shift+F → focusSearch");
-assert(resolveShortcut(key({ key: "d", ctrlKey: true, shiftKey: true })) === "goToDaily", "Ctrl+Shift+D → goToDaily");
+assert(resolveShortcut(key({ key: "d", ctrlKey: true, shiftKey: true })) === null, "Ctrl+Shift+D 不再打开每日列表");
 assert(resolveShortcut(key({ key: "x", ctrlKey: true, shiftKey: true })) === null, "Ctrl+Shift+X 放行给编辑器");
 assert(resolveShortcut(key({ key: "b", ctrlKey: true })) === null, "Ctrl+B 放行给编辑器（加粗）");
 assert(resolveShortcut(key({ key: "e" })) === null, "无修饰 e 不映射");

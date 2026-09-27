@@ -1,164 +1,52 @@
-/**
- * 启动恢复顺序测试
- *
- * 确保上次文档通过主键恢复后，不会在首屏前读取整天列表；列表由界面首次
- * 呈现后显式补齐。运行：npx tsx tests/notes-startup.test.ts
- */
+/** Primary-key restoration and stale request isolation. */
+import assert from "node:assert/strict";
+import type { Note } from "../src/types/models";
+import { api } from "../src/lib/api";
+import { useNotesStore } from "../src/stores/useNotesStore";
 
-import type { DailyPage, Note } from "../src/types/models";
-
-let passed = 0;
-let failed = 0;
-
-function assert(condition: boolean, message: string): void {
-  if (condition) {
-    passed++;
-    return;
-  }
-  failed++;
-  console.error(`  FAIL: ${message}`);
-}
-
-async function main(): Promise<void> {
-  const values = new Map<string, string>();
-  globalThis.localStorage = {
-    getItem: (key) => values.get(key) ?? null,
-    setItem: (key, value) => { values.set(key, value); },
-    removeItem: (key) => { values.delete(key); },
-    clear: () => { values.clear(); },
-    key: (index) => [...values.keys()][index] ?? null,
-    get length() { return values.size; },
-  };
-
-  const [{ api }, { useNotesStore }] = await Promise.all([
-    import("../src/lib/api"),
-    import("../src/stores/useNotesStore"),
-  ]);
-
+async function main() {
   const restored: Note = {
-    id: "last-document",
-    date: "2026-08-20",
-    title: "上次文档",
-    content: { ops: [{ insert: "正文\n" }] },
-    tags: [],
-    pinned: false,
-    readonly: false,
-    sort_order: 0,
-    created_at: "2026-08-20T00:00:00Z",
-    updated_at: "2026-08-20T00:00:00Z",
-    storagePath: "projects/startup",
+    id: "last-document", date: "2026-08-20", title: "上次文档",
+    content: { ops: [{ insert: "正文\n" }] }, tags: [], pinned: false,
+    readonly: false, sort_order: 0, created_at: "2026-08-20T00:00:00Z",
+    updated_at: "2026-08-20T00:00:00Z", storagePath: "projects/startup",
   };
-  const dailyPage: DailyPage = {
-    date: restored.date,
-    todos: [],
-    todo_carryover: false,
-    updated_at: restored.updated_at,
-  };
-
-  const originalGet = api.notes.get;
-  const originalListByDate = api.notes.listByDate;
-  const originalDailyGet = api.daily.get;
-  let primaryLoads = 0;
-  let dateListLoads = 0;
-  let dailyLoads = 0;
-
-  api.notes.get = async () => {
-    primaryLoads++;
-    return restored;
-  };
-  api.notes.listByDate = async () => {
-    dateListLoads++;
-    return [restored];
-  };
-  api.daily.get = async () => {
-    dailyLoads++;
-    return dailyPage;
-  };
-
+  const originalGet = api.notes.get, originalSearch = api.docs.search;
+  let primaryLoads = 0, listLoads = 0;
+  api.notes.get = async () => { primaryLoads++; return restored; };
+  api.docs.search = async () => { listLoads++; return [restored]; };
   try {
-    console.log("\n── last document startup priority ──");
     await useNotesStore.getState().initialize(restored.id);
-    let state = useNotesStore.getState();
-
-    assert(primaryLoads === 1, "last document is restored with one primary-key read");
-    assert(state.selectedNote?.id === restored.id, "last document is selected immediately");
-    assert(state.startupReady, "primary UI is marked ready after the document read");
-    assert(state.startupDateLoadPending, "secondary date data remains pending");
-    assert(dateListLoads === 0 && dailyLoads === 0, "date list and Todo do not block first paint");
-
-    await state.setDate(restored.date);
-    state = useNotesStore.getState();
-    assert(dateListLoads === 1 && dailyLoads === 1, "secondary data loads when hydration starts");
-    assert(!state.startupDateLoadPending, "secondary hydration clears its pending marker");
-    assert(state.selectedNote?.id === restored.id, "hydration preserves the restored document");
-  } finally {
-    api.notes.get = originalGet;
-    api.notes.listByDate = originalListByDate;
-    api.daily.get = originalDailyGet;
-  }
-
-  console.log("\n── stale date response is ignored ──");
-  let releaseOldNotes!: (notes: Note[]) => void;
-  let releaseOldPage!: (page: DailyPage) => void;
-  const oldNotes = new Promise<Note[]>((resolve) => { releaseOldNotes = resolve; });
-  const oldPage = new Promise<DailyPage>((resolve) => { releaseOldPage = resolve; });
-  const newest: Note = { ...restored, id: "newest", date: "2026-08-22", title: "Newest", storagePath: undefined };
-  const newestPage: DailyPage = { ...dailyPage, date: newest.date };
-  api.notes.listByDate = async (date) => date === "2026-08-21" ? oldNotes : [newest];
-  api.daily.get = async (date) => date === "2026-08-21" ? oldPage : newestPage;
-  try {
-    const staleRequest = useNotesStore.getState().setDate("2026-08-21");
-    await useNotesStore.getState().setDate(newest.date);
-    releaseOldNotes([{ ...newest, id: "stale", date: "2026-08-21", title: "Stale" }]);
-    releaseOldPage({ ...dailyPage, date: "2026-08-21" });
-    await staleRequest;
-
-    const state = useNotesStore.getState();
-    assert(state.currentDate === newest.date, "latest requested date remains active");
-    assert(state.notes[0]?.id === newest.id, "late response cannot overwrite the newest note list");
-    assert(state.dailyPage?.date === newest.date, "late response cannot overwrite the newest daily page");
-  } finally {
-    api.notes.listByDate = originalListByDate;
-    api.daily.get = originalDailyGet;
-  }
-
-  console.log("\n── document-only presentation preserves hidden data ──");
-  const originalDocsSearch = api.docs.search;
-  const essay: Note = { ...restored, id: "hidden-essay", storagePath: undefined };
-  api.notes.get = async () => essay;
-  api.docs.search = async () => [restored];
-  api.notes.listByDate = async () => { throw new Error("hidden essays must not be loaded"); };
-  api.daily.get = async () => { throw new Error("hidden Todo pages must not be created or carried over"); };
-  try {
-    await useNotesStore.getState().initialize(essay.id, true, true);
-    let state = useNotesStore.getState();
-    assert(state.selectedNote?.id === restored.id, "legacy last essay falls back to a document");
-    assert(state.error === null && state.startupReady, "documents open without loading daily data");
-    assert(!state.startupDateLoadPending, "hidden daily data is not queued for hydration");
-    await state.setDate("2026-09-09");
-    state = useNotesStore.getState();
-    assert(state.selectedNote?.id === restored.id, "date rollover preserves document selection");
-    assert(state.error === null, "date rollover does not read or create hidden data");
-    api.docs.search = async () => [];
-    await state.initialize(essay.id, true, true);
-    state = useNotesStore.getState();
-    assert(state.selectedNote === null, "essay-only workspace stays empty without deleting the essay");
-    assert(state.error === null, "empty document workspace is valid");
-    api.docs.search = async () => { throw new Error("folder restoration must not choose another document"); };
-    await state.initialize(undefined, false, true);
-    assert(useNotesStore.getState().error === null, "explicit folder target bypasses document fallback");
-  } finally {
-    api.notes.get = originalGet;
-    api.docs.search = originalDocsSearch;
-    api.notes.listByDate = originalListByDate;
-    api.daily.get = originalDailyGet;
-  }
-
-  console.log(`\n${passed} passed, ${failed} failed`);
-  if (failed > 0) process.exit(1);
+    assert.equal(primaryLoads, 1);
+    assert.equal(listLoads, 0, "last document restoration does not scan all documents");
+    assert.equal(useNotesStore.getState().selectedNote?.id, restored.id);
+    assert.equal(useNotesStore.getState().startupReady, true);
+    await useNotesStore.getState().refreshNotes();
+    assert.equal(listLoads, 1);
+    assert.equal(useNotesStore.getState().selectedNote?.id, restored.id);
+    await useNotesStore.getState().initialize(undefined, false);
+    assert.equal(useNotesStore.getState().selectedNote, null, "explicit folder target remains open");
+    assert.equal(listLoads, 1);
+    api.notes.get = async () => null;
+    const newer = { ...restored, id: "newer", updated_at: "2026-08-22T00:00:00Z" };
+    api.docs.search = async () => [restored, newer];
+    await useNotesStore.getState().initialize("missing");
+    assert.equal(useNotesStore.getState().selectedNote?.id, newer.id);
+    let release!: (note: Note) => void;
+    api.notes.get = async id => id === "slow" ? new Promise<Note>(resolve => { release = resolve; }) : newer;
+    const slow = useNotesStore.getState().initialize("slow");
+    await useNotesStore.getState().initialize(newer.id);
+    release(restored);
+    await slow;
+    assert.equal(useNotesStore.getState().selectedNote?.id, newer.id, "late restoration cannot replace newer selection");
+    let releaseList!: (notes: Note[]) => void;
+    api.docs.search = () => new Promise(resolve => { releaseList = resolve; });
+    const refresh = useNotesStore.getState().refreshNotes();
+    await useNotesStore.getState().initialize(newer.id);
+    releaseList([restored]);
+    await refresh;
+    assert.deepEqual(useNotesStore.getState().notes, [], "stale refresh cannot replace a newer session");
+  } finally { api.notes.get = originalGet; api.docs.search = originalSearch; }
+  console.log("Document startup and stale request isolation passed");
 }
-
-main().catch((error) => {
-  console.error("FATAL:", error);
-  process.exit(1);
-});
+main().catch(error => { console.error(error); process.exit(1); });

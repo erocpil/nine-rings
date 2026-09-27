@@ -122,27 +122,10 @@ fn insert_fixture(conn: &Connection) {
             "projects/test", "how-to", r#"["rust","sqlite"]"#, r#"["test-note-2"]"#, 0,
         ],
     ).unwrap();
-
-    conn.execute(
-        "INSERT INTO daily_pages (date, todos, todo_carryover, updated_at)
-         VALUES (?1, ?2, ?3, ?4)",
-        params![
-            "2026-07-09",
-            r#"[{"id":"t1","text":"E2E TODO","done":false,"order":0,"tags":[]}]"#,
-            1,
-            now,
-        ],
-    )
-    .unwrap();
 }
 
 fn count_notes(conn: &Connection) -> i64 {
     conn.query_row("SELECT COUNT(*) FROM notes", [], |r| r.get(0))
-        .unwrap()
-}
-
-fn count_daily_pages(conn: &Connection) -> i64 {
-    conn.query_row("SELECT COUNT(*) FROM daily_pages", [], |r| r.get(0))
         .unwrap()
 }
 
@@ -194,7 +177,6 @@ fn fixture_write_read_identical() {
     insert_fixture(&migrated);
 
     assert_eq!(count_notes(&fresh), count_notes(&migrated));
-    assert_eq!(count_daily_pages(&fresh), count_daily_pages(&migrated));
 
     // 验证具体字段
     for conn in [&fresh, &migrated] {
@@ -211,14 +193,5 @@ fn fixture_write_read_identical() {
             })
             .unwrap();
         assert!(tags.contains("test"));
-
-        let todos: String = conn
-            .query_row(
-                "SELECT todos FROM daily_pages WHERE date='2026-07-09'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert!(todos.contains("E2E TODO"));
     }
 }

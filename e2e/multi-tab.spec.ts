@@ -1,3 +1,4 @@
+import { pressDocumentBoundary } from "./helpers/keyboard";
 import { expect, test } from "@playwright/test";
 import { createBlankNote } from "./helpers/editor-fixtures";
 
@@ -60,7 +61,7 @@ test("多标签页自动刷新并在本地编辑时提示冲突", async ({ conte
 
   const autoRefreshText = `跨标签自动刷新-${Date.now()}`;
   await firstEditor.click();
-  await first.keyboard.press("Control+End");
+  await pressDocumentBoundary(first, "end");
   await first.keyboard.type(autoRefreshText);
   await expect(firstEditor).toContainText(autoRefreshText);
   await expect(first.locator(".save-status-dirty")).toBeVisible();
@@ -69,13 +70,13 @@ test("多标签页自动刷新并在本地编辑时提示冲突", async ({ conte
 
   const externalText = `外部修改-${Date.now()}`;
   await firstEditor.click();
-  await first.keyboard.press("Control+End");
+  await pressDocumentBoundary(first, "end");
   await first.keyboard.type(externalText);
   await expect(firstEditor).toContainText(externalText);
   await expect(first.locator(".save-status-dirty")).toBeVisible();
 
   await secondEditor.click();
-  await second.keyboard.press("Control+End");
+  await pressDocumentBoundary(second, "end");
   await second.keyboard.type("本页未保存修改");
   await expect(second.locator(".save-status-dirty")).toBeVisible();
   await expect(first.locator(".save-status-saved")).toBeVisible({ timeout: 30000 });

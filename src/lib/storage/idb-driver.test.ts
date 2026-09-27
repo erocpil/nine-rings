@@ -15,7 +15,7 @@ import "fake-indexeddb/auto";
 import type { Note, CreateNoteInput, PathNode } from "../../types/models";
 import { idbAdapter } from "./idb";
 import { executeOp, idbDriver, type DriverContext } from "./idb-driver";
-import { buildDocTree, type FlatDocRecord, type FlatDailyRecord } from "./core";
+import { buildDocTree, type FlatDocRecord } from "./core";
 import { IDB_DATABASE_VERSION, IDB_STORES } from "../../types/schema_gen";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -295,9 +295,9 @@ async function runTests() {
       docType: "tutorial",
     });
 
-    // 创建每日随笔（无 storagePath）
-    await idbAdapter.createNote({ date: "2026-07-20", title: "Daily X" });
-    await idbAdapter.createNote({ date: "2026-07-21", title: "Daily Y" });
+    // 默认目录文档也参与树构建
+    await idbAdapter.createNote({ date: "2026-07-20", title: "Default X" });
+    await idbAdapter.createNote({ date: "2026-07-21", title: "Default Y" });
 
     // 旧实现读取
     const oldTree = await idbAdapter.getPathTree();
@@ -319,25 +319,7 @@ async function runTests() {
     }
     passed++;
 
-    // 验证核心结构：daily/ 文件夹存在
-    const hasDaily = newTree.some((n) => n.path === "daily" && n.type === "folder");
-    assert(hasDaily, "getPathTree: daily/ folder exists");
-    const dailyFolder = newTree.find((n) => n.path === "daily" && n.type === "folder");
-    assert(dailyFolder?.count != null && dailyFolder!.count! >= 1,
-      `getPathTree: daily/ count=${dailyFolder?.count} (expected >=1)`);
-    passed++;
 
-    // 验证 projects/ 文件夹 count（含之前测试创建的 projects/test 笔记）
-    const projFolder = newTree.find((n) => n.path === "projects" && n.type === "folder");
-    assert(projFolder?.count != null, "getPathTree: projects/ folder exists");
-    // 至少包含本次创建的 3 个文档 + 之前可能存在的 projects/ 笔记
-    assert(projFolder!.count! >= 3, `getPathTree: projects/ count=${projFolder!.count} (expected >=3)`);
-    passed++;
-
-    // 验证 projects/alpha/ 子文件夹
-    const alphaFolder = newTree.find((n) => n.path === "projects/alpha" && n.type === "folder");
-    assert(alphaFolder?.count === 2, `getPathTree: projects/alpha/ count=${alphaFolder?.count} (expected 2)`);
-    passed++;
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -351,11 +333,7 @@ async function runTests() {
       { id: "doc-2", title: "Ref Y", storage_path: "guides/nested", doc_type: "reference", updated_at: "2026-01-02T00:00:00Z", readonly: true },
     ];
 
-    const dailies: FlatDailyRecord[] = [
-      { id: "daily-1", date: "2026-07-20", title: "Today's note", updated_at: "2026-07-20T12:00:00Z" },
-    ];
-
-    const tree = buildDocTree(docs, dailies);
+    const tree = buildDocTree(docs);
 
     // 验证文件夹
     const guidesFolder = tree.find((n) => n.path === "guides" && n.type === "folder");
@@ -364,29 +342,13 @@ async function runTests() {
     const nestedFolder = tree.find((n) => n.path === "guides/nested" && n.type === "folder");
     assert(nestedFolder?.count === 1, "buildDocTree: guides/nested/ count=1");
 
-    const dailyFolder = tree.find((n) => n.path === "daily" && n.type === "folder");
-    assert(dailyFolder?.count === 1, "buildDocTree: daily/ count=1");
-
-    const dateFolder = tree.find((n) => n.path === "daily/2026-07-20" && n.type === "folder");
-    assert(dateFolder?.count === 1, "buildDocTree: daily/2026-07-20/ count=1");
-
     // 验证文档节点
     const doc1 = tree.find((n) => n.path === "guides/doc-1" && n.type === "document");
     assert(!!doc1, "buildDocTree: doc-1 document node exists");
     assert(doc1!.docType === "how-to", "buildDocTree: docType preserved");
 
-    const dailyDoc = tree.find((n) => n.path === "daily/2026-07-20/daily-1" && n.type === "document");
-    assert(!!dailyDoc, "buildDocTree: daily document node exists");
-    assert(dailyDoc!.readonly === false, "buildDocTree: daily doc readonly=false");
     passed++;
 
-    // 无 daily 时不应有 daily/ 节点
-    const treeNoDailies = buildDocTree(docs, []);
-    assert(
-      !treeNoDailies.some((n) => n.path.startsWith("daily")),
-      "buildDocTree: no daily/ nodes when dailies is empty",
-    );
-    passed++;
   }
 
   // ═══════════════════════════════════════════════════════════════

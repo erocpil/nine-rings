@@ -13,7 +13,7 @@ export interface SchemaProtectedPathRecord {
   data: string;
 }
 
-/** 一条随笔笔记 / 文档 */
+/** 一篇文档 */
 export interface SchemaNote {
   id: string;
   date: string;
@@ -36,28 +36,6 @@ export interface SchemaNote {
   readonly: boolean;
 }
 
-/** 待办项（嵌入在 DailyPage.todos 中，非独立表） */
-export interface SchemaTodo {
-  id: string;
-  text: string;
-  done: boolean;
-  order: number;
-  tags: string[];
-  /** 提醒时间 */
-  remind_at: string | null;
-  /** 父待办 ID，null 表示顶层 */
-  parent_id: string | null;
-}
-
-/** 每日一页 */
-export interface SchemaDailyPage {
-  date: string;
-  /** Todo[] JSON */
-  todos: string[];
-  todo_carryover: boolean;
-  updated_at: string;
-}
-
 /** 笔记版本历史 */
 export interface SchemaNoteVersion {
   id: string;
@@ -74,7 +52,7 @@ export interface SchemaNoteVersion {
 /** 同步变更日志 */
 export interface SchemaSyncChange {
   id: string;
-  /** daily_page | note */
+  /** note */
   entity_type: string;
   entity_id: string;
   /** create | update | delete */
@@ -105,7 +83,7 @@ export interface SchemaTemplate {
 
 // ── IndexedDB 运行时契约 ──
 
-export const IDB_DATABASE_VERSION = 4;
+export const IDB_DATABASE_VERSION = 5;
 
 export const IDB_STORES = {
   notes: {
@@ -116,11 +94,6 @@ export const IDB_STORES = {
       { name: 'tags', keyPath: 'tags' },
       { name: 'pinned_sort', keyPath: ['pinned', 'sort_order'] },
       { name: 'storagePath', keyPath: 'storagePath' },
-    ],
-  },
-  daily_pages: {
-    keyPath: 'date',
-    indexes: [
     ],
   },
   note_versions: {

@@ -1,3 +1,5 @@
+import { requireNativeClipboard } from "./helpers/native-clipboard";
+import { pressLineBoundary } from "./helpers/keyboard";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { createBlankNote } from "./helpers/editor-fixtures";
@@ -28,7 +30,7 @@ const wrappedRgCommand = [
 test.describe("编辑器复制粘贴", () => {
   for (const mode of ["原生", "工具栏"] as const) {
     test(`${mode}富文本粘贴保留样式、列表、表格和复制切片边界`, async ({ page, context }) => {
-      await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+      await requireNativeClipboard(context);
       const editor = await createBlankNote(page);
       const content = {
         text: "# 保留原文 加粗 斜体 链接\n父项\n子项\n名称\n内容",
@@ -156,7 +158,7 @@ test.describe("编辑器复制粘贴", () => {
   });
 
   test("代码块内使用粘贴按钮仍按原始纯文本插入", async ({ page, context }) => {
-    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await requireNativeClipboard(context);
     await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
@@ -281,7 +283,7 @@ test.describe("编辑器复制粘贴", () => {
   });
 
   test("复制行内文本后粘贴不会引入首尾空白", async ({ page, context }) => {
-    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await requireNativeClipboard(context);
     await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
@@ -299,7 +301,7 @@ test.describe("编辑器复制粘贴", () => {
       selection?.removeAllRanges();
       selection?.addRange(range);
     });
-    await page.keyboard.press("Control+C");
+    await page.keyboard.press("ControlOrMeta+C");
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
       .toBe("中间文本");
 
@@ -313,20 +315,20 @@ test.describe("编辑器复制粘贴", () => {
       selection?.removeAllRanges();
       selection?.addRange(range);
     });
-    await page.keyboard.press("Control+V");
+    await page.keyboard.press("ControlOrMeta+V");
 
     await expect(editor.locator("p")).toHaveCount(1);
     await expect(editor.locator("p")).toHaveText("前缀 中间文本 后缀中间文本");
   });
 
   test("复制列表项中的局部文本不会附加项目符号", async ({ page, context }) => {
-    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await requireNativeClipboard(context);
     await createBlankNote(page);
 
     const phrase = "尾延迟和公平性之间要用实";
     const editor = page.locator(".ProseMirror");
     await editor.fill(`前缀 ${phrase} 后缀`);
-    await editor.press("Control+Shift+8");
+    await editor.press("ControlOrMeta+Shift+8");
     await expect(editor.locator("ul > li")).toBeVisible();
 
     await editor.evaluate((element, selectedText) => {
@@ -341,18 +343,18 @@ test.describe("编辑器复制粘贴", () => {
       selection?.removeAllRanges();
       selection?.addRange(range);
     }, phrase);
-    await page.keyboard.press("Control+C");
+    await page.keyboard.press("ControlOrMeta+C");
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(phrase);
   });
 
   test("复制整行文本后粘贴只产生预期内容", async ({ page, context }) => {
-    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await requireNativeClipboard(context);
     await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
     await editor.fill("整行文本");
-    await editor.press("Control+A");
-    await page.keyboard.press("Control+C");
+    await editor.press("ControlOrMeta+A");
+    await page.keyboard.press("ControlOrMeta+C");
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
       .toBe("整行文本");
     await editor.evaluate((element) => {
@@ -366,14 +368,14 @@ test.describe("编辑器复制粘贴", () => {
       selection?.removeAllRanges();
       selection?.addRange(range);
     });
-    await page.keyboard.press("Control+V");
+    await page.keyboard.press("ControlOrMeta+V");
 
     await expect(editor).toHaveText("整行文本整行文本");
     await expect(editor.locator("p")).toHaveCount(1);
   });
 
   test("全选复制多个代码块不会包含语言和复制控件文字", async ({ page, context }) => {
-    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await requireNativeClipboard(context);
     await createBlankNote(page);
 
     const firstCommand = "kubectl patch deployment boson-probe";
@@ -399,28 +401,28 @@ test.describe("编辑器复制粘贴", () => {
     await expect(firstCodeBlock).toHaveAttribute("data-collapsed", "true");
 
     await editor.locator("pre code").last().click();
-    await page.keyboard.press("Control+A");
-    await page.keyboard.press("Control+C");
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.press("ControlOrMeta+C");
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
       `${firstCommand}\n\n${secondCommand}`,
     );
   });
 
   test("折叠引用块后全选复制仍只包含引用正文", async ({ page, context }) => {
-    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await requireNativeClipboard(context);
     await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
     await editor.fill("需要保留的引用正文");
-    await editor.press("Control+Shift+b");
+    await editor.press("ControlOrMeta+Shift+b");
     const quote = editor.locator("blockquote");
     await expect(quote).toBeVisible();
     await quote.getByRole("button", { name: "折叠引用块" }).click();
     await expect(quote).toHaveAttribute("data-collapsed", "true");
 
     await editor.focus();
-    await page.keyboard.press("Control+A");
-    await page.keyboard.press("Control+C");
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.press("ControlOrMeta+C");
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
       "> 需要保留的引用正文",
     );
@@ -454,7 +456,7 @@ test.describe("编辑器复制粘贴", () => {
   });
 
   test("复制有序列表到纯文本时列表项之间没有多余空行", async ({ page, context }) => {
-    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await requireNativeClipboard(context);
     await createBlankNote(page);
 
     const lines = [
@@ -465,23 +467,23 @@ test.describe("编辑器复制粘贴", () => {
     ];
     const editor = page.locator(".ProseMirror");
     await editor.fill(lines[0]);
-    await editor.press("Control+Shift+7");
+    await editor.press("ControlOrMeta+Shift+7");
     for (const line of lines.slice(1)) {
-      await editor.press("End");
+      await pressLineBoundary(editor, "end");
       await editor.press("Enter");
       await editor.type(line);
     }
     await expect(editor.locator("ol > li")).toHaveCount(4);
 
-    await editor.press("Control+A");
-    await page.keyboard.press("Control+C");
+    await editor.press("ControlOrMeta+A");
+    await page.keyboard.press("ControlOrMeta+C");
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
       lines.map((line, index) => `${index + 1}. ${line}`).join("\n"),
     );
   });
 
   test("通过编辑器粘贴按钮粘贴单段 HTML 不产生首尾空段落", async ({ page, context }) => {
-    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await requireNativeClipboard(context);
     await createBlankNote(page);
 
     const editor = page.locator(".ProseMirror");
@@ -495,7 +497,7 @@ test.describe("编辑器复制粘贴", () => {
       ]);
     });
     await editor.click();
-    await page.keyboard.press("End");
+    await pressLineBoundary(page, "end");
     await page.getByTitle("粘贴 (Ctrl+V)").click();
 
     await expect(editor.locator("p")).toHaveCount(1);
@@ -503,7 +505,7 @@ test.describe("编辑器复制粘贴", () => {
   });
 
   test("粘贴按钮优先将同时携带 HTML 的 Markdown 解析为多级列表", async ({ page, context }) => {
-    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await requireNativeClipboard(context);
     await createBlankNote(page);
 
     const markdown = [
@@ -540,7 +542,7 @@ test.describe("编辑器复制粘贴", () => {
 
     const editor = page.locator(".ProseMirror");
     await editor.fill("已有内容");
-    await editor.press("End");
+    await pressLineBoundary(editor, "end");
     await editor.evaluate((element) => {
       const clipboardData = new DataTransfer();
       clipboardData.setData(
@@ -564,7 +566,7 @@ test.describe("编辑器复制粘贴", () => {
 
     const editor = page.locator(".ProseMirror");
     await editor.fill("已有内容");
-    await editor.press("End");
+    await pressLineBoundary(editor, "end");
     await editor.evaluate((element) => {
       const clipboardData = new DataTransfer();
       clipboardData.setData(
@@ -786,7 +788,7 @@ test.describe("编辑器复制粘贴", () => {
     const editor = page.locator(".ProseMirror");
     await editor.fill("旧内容");
     await editor.click();
-    await page.keyboard.press("Control+A");
+    await page.keyboard.press("ControlOrMeta+A");
     const markdown = [
       "# 长文档粘贴",
       "",
@@ -816,8 +818,6 @@ test.describe("编辑器复制粘贴", () => {
 test.describe("文档树移动", () => {
   test("可新建自定义多级目录", async ({ page }) => {
     await page.goto("/");
-    const viewSwitch = page.locator(".sidebar-view-switch");
-    if (await viewSwitch.getAttribute("data-target-view") === "tree") await viewSwitch.click();
     await page.getByTitle("新建文档").click();
 
     await page.getByPlaceholder("文档标题...").fill("自定义目录文档");
@@ -831,8 +831,6 @@ test.describe("文档树移动", () => {
 
   test("目录与属性面板共用移动对话框，重载后路径仍正确", async ({ page }) => {
     await page.goto("/");
-    const viewSwitch = page.locator(".sidebar-view-switch");
-    if (await viewSwitch.getAttribute("data-target-view") === "tree") await viewSwitch.click();
     await page.getByTitle("新建文档").click();
 
     await page.getByPlaceholder("文档标题...").fill("移动回归文档");

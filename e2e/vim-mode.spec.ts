@@ -1,3 +1,4 @@
+import { pressLineBoundary } from "./helpers/keyboard";
 import { expect, test, type Page } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
 import { createBlankDocument } from "./helpers/document";
@@ -47,7 +48,7 @@ test("代码块 Vim 开启后正文直接输入和粘贴，引用弹层保持普
   await expect(editor.locator(":scope > p").first()).toHaveText("ihjkla粘贴正文");
   await page.getByRole("button", { name: "放大阅读引用块" }).click();
   const dialog = page.getByRole("dialog", { name: "引用块工作区" });
-  await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
   await expect(dialog.locator(".block-workspace-vim-mode")).toHaveCount(0);
   const quote = dialog.locator(".ProseMirror");
   await quote.evaluate(element => {
@@ -66,7 +67,7 @@ test("Vim 开关只控制代码块弹层并持久保存，关闭后仍可缩进�
   const open = async () => {
     await page.getByRole("button", { name: "放大阅读代码块" }).click();
     const dialog = page.getByRole("dialog", { name: "代码块工作区" });
-    await dialog.getByRole("button", { name: "编辑", exact: true }).click();
+    await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
     await expect(dialog.locator(".cm-content")).toBeFocused();
     return dialog;
   };
@@ -75,16 +76,16 @@ test("Vim 开关只控制代码块弹层并持久保存，关闭后仍可缩进�
   await expect(dialog.getByLabel("代码块编辑器", { exact: true })).toBeVisible();
   await page.keyboard.type("i");
   await expect(editor.locator("pre code")).toHaveText("ialpha");
-  await page.keyboard.press("Control+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await expect(editor.locator("pre code")).toHaveText("alpha");
-  await page.keyboard.press("Control+Shift+z");
+  await page.keyboard.press("ControlOrMeta+Shift+z");
   await expect(editor.locator("pre code")).toHaveText("ialpha");
-  await page.keyboard.press("Home");
+  await pressLineBoundary(page, "start");
   await page.keyboard.press("Tab");
   await expect(editor.locator("pre code")).toHaveText("\tialpha");
   await page.keyboard.press("Shift+Tab");
   await expect(editor.locator("pre code")).toHaveText("ialpha");
-  await page.keyboard.press("Control+Enter");
+  await page.keyboard.press("ControlOrMeta+Enter");
   await expect(dialog).toHaveCount(0);
   await expect(editor).toBeFocused();
 

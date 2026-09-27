@@ -1,4 +1,4 @@
-/// 数据库迁移路径测试 — 验证新旧数据库均能正确升级到当前 schema (v7)。
+/// 数据库迁移路径测试 — 验证新旧数据库均能正确升级到当前 schema (v9)。
 /// 历史版本使用对应发布提交中冻结的真实 DDL fixture。
 use rusqlite::{params, Connection};
 use serde_json::Value;
@@ -37,7 +37,6 @@ fn database_at_version(version: i32) -> Connection {
 fn assert_shared_fixture_behaviour(conn: &Connection, version: i32) {
     let fixture: Value = serde_json::from_str(SHARED_BASELINE).unwrap();
     let note = &fixture["notes"][1];
-    let page = &fixture["daily_pages"][0];
     let note_id = format!("{}-v{version}", note["id"].as_str().unwrap());
     let content = serde_json::to_string(&note["content"]).unwrap();
     let tags = serde_json::to_string(&note["tags"]).unwrap();
@@ -64,18 +63,6 @@ fn assert_shared_fixture_behaviour(conn: &Connection, version: i32) {
             note["docType"].as_str().unwrap(),
             concepts,
             links,
-        ],
-    )
-    .unwrap();
-
-    let todos = serde_json::to_string(&page["todos"]).unwrap();
-    conn.execute(
-        "INSERT OR REPLACE INTO daily_pages(date, todos, todo_carryover, updated_at)
-         VALUES (?1, ?2, 1, ?3)",
-        params![
-            page["date"].as_str().unwrap(),
-            todos,
-            page["updated_at"].as_str().unwrap(),
         ],
     )
     .unwrap();
@@ -249,7 +236,7 @@ fn assert_current_version(conn: &Connection) {
             row.get(0)
         })
         .unwrap();
-    assert_eq!(version, 7);
+    assert_eq!(version, 9);
 }
 
 fn assert_fts_hit(conn: &Connection, query: &str) {
@@ -263,7 +250,7 @@ fn assert_fts_hit(conn: &Connection, query: &str) {
     assert!(hits > 0, "expected FTS hit for {query}");
 }
 
-// ── 场景 1：全新数据库（SCHEMA_DDL 驱动，migrations 标记 v7）──────────
+// ── 场景 1：全新数据库（SCHEMA_DDL 驱动，migrations 标记 v9）──────────
 #[test]
 fn fresh_database_creates_full_schema() {
     let conn = Connection::open_in_memory().unwrap();
@@ -273,16 +260,10 @@ fn fresh_database_creates_full_schema() {
     let version: i32 = conn
         .query_row("SELECT MAX(version) FROM _schema_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 7, "fresh database should be at version 7");
+    assert_eq!(version, 9, "fresh database should be at version 9");
 
     // 验证所有表存在
-    for table in &[
-        "notes",
-        "daily_pages",
-        "note_versions",
-        "sync_changes",
-        "templates",
-    ] {
+    for table in &["notes", "note_versions", "sync_changes", "templates"] {
         let count: i32 = conn
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?1",
@@ -367,16 +348,16 @@ fn migrate_from_v0_minimal_notes() {
         .unwrap();
     assert_eq!(readonly, 0);
 
-    // 验证版本号到 v7
+    // 验证版本号到 v9
     let version: i32 = conn
         .query_row("SELECT MAX(version) FROM _schema_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 7);
+    assert_eq!(version, 9);
 }
 
 // ── 场景 3：含 _schema_version 但停在 v1 的旧库──────────
 #[test]
-fn migrate_from_v1_to_v7() {
+fn migrate_from_v1_to_v9() {
     let conn = Connection::open_in_memory().unwrap();
 
     // v1 建表（假设已有 _schema_version = 1）
@@ -429,10 +410,10 @@ fn migrate_from_v1_to_v7() {
     let version: i32 = conn
         .query_row("SELECT MAX(version) FROM _schema_version", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 7);
+    assert_eq!(version, 9);
 }
 
-// ── 场景 4：重复迁移幂等性（已到 v7 再跑不报错）──────────
+// ── 场景 4：重复迁移幂等性（已到 v9 再跑不报错）──────────
 #[test]
 fn migration_is_idempotent() {
     let conn = Connection::open_in_memory().unwrap();
@@ -459,17 +440,17 @@ fn migration_is_idempotent() {
     // _schema_version 不应重复插入
     let count: i32 = conn
         .query_row(
-            "SELECT COUNT(*) FROM _schema_version WHERE version=7",
+            "SELECT COUNT(*) FROM _schema_version WHERE version=9",
             [],
             |r| r.get(0),
         )
         .unwrap();
-    assert_eq!(count, 1, "version 7 should not be duplicated");
+    assert_eq!(count, 1, "version 9 should not be duplicated");
 }
 
 // ── 场景 5：真实发布版 v5 fixture ──────────
 #[test]
-fn migrate_from_v5_to_v7() {
+fn migrate_from_v5_to_v9() {
     let conn = Connection::open_in_memory().unwrap();
     conn.execute_batch(SCHEMA_V5).unwrap();
 
@@ -502,7 +483,7 @@ fn migrate_from_v5_to_v7() {
 fn migrate_v5_repairs_empty_note_fts_transition() {
     let conn = Connection::open_in_memory().unwrap();
     nine_rings_lib::db::migrations::run(&conn).unwrap();
-    conn.execute("DELETE FROM _schema_version WHERE version IN (6, 7)", [])
+    conn.execute("DELETE FROM _schema_version WHERE version >= 6", [])
         .unwrap();
 
     conn.execute_batch(
@@ -631,7 +612,7 @@ fn old_database_crud_after_migration() {
 
 // ── 场景 8：真实发布版 v2 fixture ──────────
 #[test]
-fn migrate_from_v2_to_v7() {
+fn migrate_from_v2_to_v9() {
     let conn = Connection::open_in_memory().unwrap();
     conn.execute_batch(SCHEMA_V2).unwrap();
 
@@ -651,19 +632,22 @@ fn migrate_from_v2_to_v7() {
     assert_eq!(pinned, 1);
     assert_eq!(sort_order, 5);
 
-    let todos: String = conn
+    let retired: i32 = conn
         .query_row(
-            "SELECT todos FROM daily_pages WHERE date='2026-05-01'",
+            "SELECT COUNT(*) FROM sqlite_master WHERE name='daily_pages'",
             [],
             |row| row.get(0),
         )
         .unwrap();
-    assert!(todos.contains("legacy todo"));
+    assert_eq!(
+        retired, 0,
+        "retired daily table is removed while documents survive"
+    );
 }
 
 // ── 场景 9：真实发布版 v3 fixture ──────────
 #[test]
-fn migrate_from_v3_to_v7() {
+fn migrate_from_v3_to_v9() {
     let conn = Connection::open_in_memory().unwrap();
     conn.execute_batch(SCHEMA_V3).unwrap();
 
@@ -684,7 +668,7 @@ fn migrate_from_v3_to_v7() {
 
 // ── 场景 10：真实发布版 v4 fixture ──────────
 #[test]
-fn migrate_from_v4_to_v7() {
+fn migrate_from_v4_to_v9() {
     let conn = Connection::open_in_memory().unwrap();
     conn.execute_batch(SCHEMA_V4).unwrap();
 

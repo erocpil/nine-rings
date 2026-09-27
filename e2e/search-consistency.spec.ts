@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { closeDocumentSidebar } from "./helpers/workspace";
 
 test("真实 Worker 搜索覆盖文档、多词和超过一页结果，移动删除后索引刷新", async ({ page }) => {
   test.setTimeout(60000);
@@ -32,10 +33,10 @@ test("真实 Worker 搜索覆盖文档、多词和超过一页结果，移动删
   expect(result.old).toHaveLength(84);
   expect(result.deleted).toEqual([]);
   expect(result.restored).toEqual([result.first]);
-  await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
-  await page.getByTitle("文档视图", { exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "文档视图", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "全局搜索", exact: true }).click();
+  await closeDocumentSidebar(page);
+  await page.getByRole("navigation", { name: "工作区面板" }).getByRole("button", { name: "文档列表", exact: true }).click();
+  await expect(page.getByRole("region", { name: "文档列表", exact: true })).toBeVisible();
+  await page.keyboard.press("ControlOrMeta+Shift+f");
   await page.locator(".search-input").fill("abc 性能");
   await expect(page.locator(".search-results-header")).toContainText("85");
   await expect(page.locator(".search-hit")).toHaveCount(80);

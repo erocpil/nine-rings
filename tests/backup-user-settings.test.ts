@@ -38,6 +38,7 @@ const source = memoryStorage({
 
 const collected = collectFrontendSettings(source);
 const serialized = JSON.stringify(collected);
+assert(!serialized.includes("nr:currentDate"), "retired daily preference is excluded");
 assert(serialized.includes("example"), "non-sensitive GitHub settings are included");
 assert(!serialized.includes("ghp_should_not_leave_device"), "nested token is removed");
 assert(!serialized.includes("ghp_secret"), "credential storage key is excluded");
@@ -66,7 +67,7 @@ const favoritesTarget = memoryStorage();
 restoreFrontendSettings(favoritesBackup, favoritesTarget);
 assert(favoritesTarget.value("nr:documentFavorites") === '["doc-a","doc-b"]', "document favorites survive backup and restore");
 const restored = restoreFrontendSettings(collected, target);
-assert(restored === 8, "preferences and the last document session are restored");
+assert(restored === 7, "preferences and the last document session are restored");
 assert(target.value("nr:focusMode") === "true", "boolean preference restores in localStorage form");
 assert(target.value("nr:sidebarW") === "264", "numeric preference restores in localStorage form");
 assert(!target.value("nr:github-sync")?.includes("token"), "restored GitHub config remains sanitized");

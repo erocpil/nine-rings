@@ -2,7 +2,6 @@ import { isDocumentNavigationShortcut } from "../lib/document-navigation";
 import React, { useState } from "react";
 import type { AppConfig } from "../types/models";
 import { DEFAULT_HOTKEYS, HOTKEY_LABELS } from "../types/models";
-import { isWorkspaceShortcutEnabled } from "../lib/workspace-features";
 import { isTauriRuntime } from "../lib/runtime";
 import {
   isDocumentFindShortcut,
@@ -51,7 +50,6 @@ export function HotkeyConfig({
       Object.entries(HOTKEY_LABELS).find(
         ([other]) =>
           other !== id &&
-          isWorkspaceShortcutEnabled(other) &&
           normalize(
             other === "show_window"
               ? DEFAULT_HOTKEYS[other]
@@ -181,7 +179,7 @@ export function HotkeyConfig({
         </div>
       )}
       {Object.entries(HOTKEY_LABELS)
-        .filter(([id]) => isWorkspaceShortcutEnabled(id))
+
         .map(([id, label]) => {
           const fixed = id === "show_window";
           const current = fixed

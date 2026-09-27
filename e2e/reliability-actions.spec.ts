@@ -82,7 +82,9 @@ for (const width of [1280, 390]) {
     await mountDialog(page, "recycle");
     const panel = page.getByRole("dialog", { name: "回收站", exact: true });
     const remove = panel.getByRole("button", { name: "永久删除", exact: true });
-    await remove.click();
+    // WebKit pointer clicks do not focus buttons; enter through the keyboard.
+    await remove.focus();
+    await remove.press("Enter");
     const confirm = page.getByRole("dialog", { name: "永久删除文档", exact: true });
     const cancel = confirm.getByRole("button", { name: "取消", exact: true });
     const accept = confirm.getByRole("button", { name: "永久删除", exact: true });
@@ -97,7 +99,7 @@ for (const width of [1280, 390]) {
     const box = await confirm.boundingBox();
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(width);
-    await page.screenshot({ path: `/tmp/nine-rings-confirm-${width}.png` });
+    await page.screenshot({ path: test.info().outputPath(`nine-rings-confirm-${width}.png`) });
     const lightSurface = await confirm.evaluate((element) => getComputedStyle(element).backgroundColor);
     await page.evaluate(async () => {
       const load = (path: string) => import(/* @vite-ignore */ path);
@@ -105,7 +107,7 @@ for (const width of [1280, 390]) {
       applyTheme("dark");
     });
     await expect.poll(() => confirm.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(lightSurface);
-    await page.screenshot({ path: `/tmp/nine-rings-confirm-${width}-dark.png` });
+    await page.screenshot({ path: test.info().outputPath(`nine-rings-confirm-${width}-dark.png`) });
     await page.keyboard.press("Escape");
     await expect(confirm).toHaveCount(0);
     await expect(panel).toBeVisible();
@@ -165,31 +167,30 @@ test("版本恢复先保存，失败不恢复，并发恢复受阻且保留最�
   expect(versions).toContain("恢复前最新编辑");
 });
 
-async function seedNavigation(page: Page, daily: boolean) {
+async function seedNavigation(page: Page) {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible();
-  const ids = await page.evaluate(async (daily) => {
+  const ids = await page.evaluate(async () => {
     const load = (path: string) => import(/* @vite-ignore */ path);
     const { api } = await load("/src/lib/api.ts");
     const { localDateKey } = await load("/src/lib/local-date.ts");
     const notes = [];
-    for (const title of ["可靠甲", "可靠乙"]) notes.push(await api.notes.create({ date: localDateKey(), title, storagePath: daily ? undefined : "projects/reliability", content: { ops: [{ insert: title }, { insert: "\n" }] } }));
-    localStorage.setItem("nr:sidebarTab", daily ? "daily" : "tree");
+    for (const title of ["可靠甲", "可靠乙"]) notes.push(await api.notes.create({ date: localDateKey(), title, storagePath: "projects/reliability", content: { ops: [{ insert: title }, { insert: "\n" }] } }));
     localStorage.setItem("nr:sidebarHidden", "false");
     localStorage.setItem("nr:docTreeCollapsed", "[]");
     localStorage.setItem("nr:lastNote", notes[1].id);
     localStorage.setItem("nr:workspaceTarget", JSON.stringify({ kind: "note", noteId: notes[1].id }));
     return notes.map((note: { id: string }) => note.id);
-  }, daily);
+  });
   await page.reload();
   // Establish the selection through the UI; startup restoration is tested separately.
-  await page.locator(daily ? ".sidebar-item-title" : ".doc-tree-name").getByText("可靠乙", { exact: true }).click();
+  await page.locator(".doc-tree-name").getByText("可靠乙", { exact: true }).click();
   await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("可靠乙");
   return ids;
 }
 
 test("文档树只接受最后选择，迟到响应及失败不会串页", async ({ page }) => {
-  const [first, second] = await seedNavigation(page, false);
+  const [first, second] = await seedNavigation(page);
   await page.evaluate(async (first) => {
     const load = (path: string) => import(/* @vite-ignore */ path);
     const { api } = await load("/src/lib/api.ts");
@@ -224,8 +225,8 @@ test("文档树只接受最后选择，迟到响应及失败不会串页", async
   await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("可靠乙");
 });
 
-test("工作区恢复历史版本直接刷新当前文档，不切换随笔且重载后仍保留", async ({ page }) => {
-  const [, id] = await seedNavigation(page, false);
+test("工作区恢复历史版本直接刷新当前文档且重载后仍保留", async ({ page }) => {
+  const [, id] = await seedNavigation(page);
   await page.evaluate(async (id) => {
     const load = (path: string) => import(/* @vite-ignore */ path);
     const { api } = await load("/src/lib/api.ts");
@@ -249,37 +250,4 @@ test("工作区恢复历史版本直接刷新当前文档，不切换随笔且�
   await page.reload();
   await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("可靠乙");
   await expect(editor).toHaveText("可靠乙");
-});
-
-test("随笔批量只读局部更新，保存最新内容且不刷新页面", async ({ page }) => {
-  const ids = await seedNavigation(page, true);
-  await page.evaluate(() => { (window as any).pageMarker = "same-page"; });
-  await page.locator(".ProseMirror").fill("批量只读前的最新编辑");
-  const first = page.locator(".sidebar-item").filter({ hasText: "可靠甲" });
-  const second = page.locator(".sidebar-item").filter({ hasText: "可靠乙" });
-  await second.click();
-  await first.click({ modifiers: ["Shift"] });
-  await page.evaluate(async () => {
-    const load = (path: string) => import(/* @vite-ignore */ path);
-    const { api } = await load("/src/lib/api.ts");
-    const original = api.recycle.batch.setReadonly;
-    api.recycle.batch.setReadonly = async () => {
-      api.recycle.batch.setReadonly = original;
-      throw new Error("模拟批量写入失败");
-    };
-  });
-  await page.getByRole("button", { name: "🔒 设为只读", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "模拟批量写入失败" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "🔒 设为只读", exact: true })).toBeEnabled();
-  await page.getByRole("button", { name: "🔒 设为只读", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "已设为只读" })).toBeVisible();
-  expect(await page.evaluate(() => (window as any).pageMarker)).toBe("same-page");
-  await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("可靠乙");
-  const notes = await page.evaluate(async (ids) => {
-    const load = (path: string) => import(/* @vite-ignore */ path);
-    const { api } = await load("/src/lib/api.ts");
-    return Promise.all(ids.map((id) => api.notes.get(id)));
-  }, ids);
-  expect(notes.every((note) => note.readonly)).toBe(true);
-  expect(JSON.stringify(notes[1].content)).toContain("批量只读前的最新编辑");
 });

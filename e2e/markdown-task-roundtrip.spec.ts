@@ -1,3 +1,4 @@
+import { pressLineBoundary } from "./helpers/keyboard";
 import { sourceInfo, replaceSource } from "./helpers/source-editor";
 import { expect, test, type Page } from "@playwright/test";
 
@@ -34,14 +35,14 @@ for (const width of [390, 1280]) {
     await unchecked.locator(':scope > [role="checkbox"]').click();
     await expect(editor.locator('li[data-task-checked="true"]')).toHaveCount(2);
     await editor.click();
-    await page.keyboard.press("Control+z");
+    await page.keyboard.press("ControlOrMeta+z");
     await expect(unchecked).toHaveCount(1);
-    await page.keyboard.press("Control+Shift+z");
+    await page.keyboard.press("ControlOrMeta+Shift+z");
     await expect(editor.locator('li[data-task-checked="true"]')).toHaveCount(2);
-    await page.keyboard.press("Control+z");
+    await page.keyboard.press("ControlOrMeta+z");
     await expect(unchecked).toHaveCount(1);
     await unchecked.locator(":scope > p").click();
-    await page.keyboard.press("End");
+    await pressLineBoundary(page, "end");
     await page.keyboard.insertText("！");
     const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
     for (let i = 0; i < 5; i++) {
@@ -60,7 +61,7 @@ for (const width of [390, 1280]) {
       await expect(editor.locator("code")).toHaveText("\\[代码\\]");
       // Force serialization from the rich editor, not the retained source spelling.
       await unchecked.locator(":scope > p").click();
-      await page.keyboard.press("End");
+      await pressLineBoundary(page, "end");
       await page.keyboard.insertText("！");
     }
     await expect(page.locator(".save-status-saved")).toBeVisible();

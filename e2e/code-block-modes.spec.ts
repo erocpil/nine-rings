@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
-import { createBlankDocument } from "./helpers/document";
+import { createBlankDocument, waitForSavedText } from "./helpers/document";
 
 async function codeDocument(page: Page) {
   await page.addInitScript(() => {
@@ -12,6 +12,7 @@ async function codeDocument(page: Page) {
     const editor = (element as HTMLElement & { editor: Editor }).editor;
     editor.commands.setContent({ type: 'doc', content: [{ type: 'codeBlock', attrs: { language: 'typescript', title: '示例' }, content: [{ type: 'text', text: 'alpha\nbeta\ngamma' }] }] }, true);
   });
+  await waitForSavedText(page, 'alpha\nbeta\ngamma');
   return page.locator('.note-editor .code-block-wrap');
 }
 
@@ -29,7 +30,7 @@ test('只读代码块显示语言且不可修改，弹层保持相同语言', as
   });
   await page.keyboard.press('Tab');
   await page.keyboard.press('Shift+Tab');
-  await page.keyboard.press('Control+Enter');
+  await page.keyboard.press('ControlOrMeta+Enter');
   await expect(block.locator('pre code')).toHaveText('alpha\nbeta\ngamma');
   await expect(editor.locator(':scope > p')).toHaveCount(0);
   await block.getByRole('button', { name: '放大阅读代码块' }).click();
@@ -37,7 +38,7 @@ test('只读代码块显示语言且不可修改，弹层保持相同语言', as
   await expect(dialog.getByLabel('代码语言')).toBeVisible();
   await expect(dialog.getByLabel('代码语言')).toBeDisabled();
   await expect(dialog.getByLabel('代码语言')).toHaveValue('typescript');
-  await expect(dialog.getByRole('button', { name: '编辑', exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "切换到编辑模式", exact: true })).toHaveCount(0);
 });
 
 test('代码输入表面关闭自动替换与拼写检查', async ({ page }) => {
@@ -61,7 +62,7 @@ test('代码输入表面关闭自动替换与拼写检查', async ({ page }) => 
 
   await block.getByRole('button', { name: '放大阅读代码块' }).click();
   const dialog = page.getByRole('dialog', { name: '代码块工作区' });
-  await dialog.getByRole('button', { name: '编辑', exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
   const code = dialog.locator('.cm-content');
   await expect(code).toHaveAttribute('spellcheck', 'false');
   await expect(code).toHaveAttribute('autocorrect', 'off');
@@ -73,7 +74,7 @@ test('代码块编辑可直接使用 Vim，插入换行退格、可视模式和�
   const block = await codeDocument(page);
   await block.getByRole('button', { name: '放大阅读代码块' }).click();
   const dialog = page.getByRole('dialog', { name: '代码块工作区' });
-  await dialog.getByRole('button', { name: '编辑', exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
   const code = dialog.locator('.cm-content');
   await expect(code).toBeFocused();
   await expect(dialog.locator('.block-workspace-vim-mode')).toHaveText('VIM NORMAL');
@@ -97,11 +98,12 @@ test('代码块编辑可直接使用 Vim，插入换行退格、可视模式和�
   await page.keyboard.press('Escape');
   await dialog.getByLabel('代码语言').focus();
   await dialog.getByLabel('代码语言').selectOption('python');
-  await dialog.getByRole('button', { name: '阅读', exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到阅读模式", exact: true }).click();
   await expect(dialog.getByLabel('代码语言')).toBeDisabled();
   await expect(dialog.getByLabel('代码语言')).toHaveValue('python');
   await dialog.getByRole('button', { name: '关闭块工作区' }).click();
   await expect(block.getByLabel('代码语言')).toHaveValue('python');
+  await waitForSavedText(page, 'test\nalpha\nbeta\ngamma');
   await page.reload();
   await expect(page.locator('.note-editor pre code')).toHaveText('test\nalpha\nbeta\ngamma');
 });
@@ -113,7 +115,7 @@ test('代码行号在正文、弹层阅读与 Vim 编辑之间同步并持久化
   await block.getByRole('button', { name: '放大阅读代码块' }).click();
   const dialog = page.getByRole('dialog', { name: '代码块工作区' });
   await expect(dialog.locator('.code-block-gutter')).toBeVisible();
-  await dialog.getByRole('button', { name: '编辑', exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
   await expect(dialog.locator('.cm-lineNumbers')).toBeVisible();
   const lineGeometry = await dialog.evaluate(element => {
     const numbers = [...element.querySelectorAll<HTMLElement>('.cm-lineNumbers .cm-gutterElement')]
@@ -141,7 +143,7 @@ test('代码行号在正文、弹层阅读与 Vim 编辑之间同步并持久化
   await expect(dialog.locator('.cm-lineNumbers')).toHaveCount(0);
   await expect(dialog.locator('.block-workspace-vim-mode')).toHaveText('VIM INSERT');
   await expect(block.locator('.code-block-gutter')).toBeHidden();
-  await dialog.getByRole('button', { name: '阅读', exact: true }).click();
+  await dialog.getByRole("button", { name: "切换到阅读模式", exact: true }).click();
   await expect(dialog.locator('.code-block-gutter')).toBeHidden();
   await dialog.getByRole('button', { name: '显示代码行号', exact: true }).click();
   await dialog.getByRole('button', { name: '关闭块工作区' }).click();
@@ -177,7 +179,7 @@ test('已有正文行号设置优先于旧弹层偏好，虚拟只读也显示�
 
 for (const mac of [false, true]) {
   test(`正文代码 Tab 缩进、选中行缩进与组合键退出 ${mac ? 'Mac' : 'Windows'}`, async ({ page }) => {
-    if (mac) await page.addInitScript(() => Object.defineProperty(navigator, 'platform', { value: 'MacIntel' }));
+    await page.addInitScript(mac => Object.defineProperty(navigator, 'platform', { value: mac ? 'MacIntel' : 'Win32' }), mac);
     const block = await codeDocument(page);
     const editor = page.locator('.note-editor .ProseMirror');
     await editor.evaluate(element => {
@@ -204,11 +206,11 @@ for (const mac of [false, true]) {
   });
 
   test(`Vim 退出插入模式后 Tab 仍缩进，组合键关闭弹层并回到正文 ${mac ? 'Mac' : 'Windows'}`, async ({ page }) => {
-    if (mac) await page.addInitScript(() => Object.defineProperty(navigator, 'platform', { value: 'MacIntel' }));
+    await page.addInitScript(mac => Object.defineProperty(navigator, 'platform', { value: mac ? 'MacIntel' : 'Win32' }), mac);
     const block = await codeDocument(page);
     await block.getByRole('button', { name: '放大阅读代码块' }).click();
     const dialog = page.getByRole('dialog', { name: '代码块工作区' });
-    await dialog.getByRole('button', { name: '编辑', exact: true }).click();
+    await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
     const code = dialog.locator('.cm-content');
     await page.keyboard.type('ggi');
     await page.keyboard.press('Tab');

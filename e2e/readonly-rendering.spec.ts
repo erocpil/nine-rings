@@ -394,6 +394,6 @@ test.describe("触屏局部阅读", () => {
     await expect(
       page.locator(".mobile-document-drawer-panel"),
     ).not.toBeInViewport();
-    await page.screenshot({ path: "/tmp/nr-readonly-prototype.png" });
+    await page.screenshot({ path: test.info().outputPath("nr-readonly-prototype.png") });
   });
 });

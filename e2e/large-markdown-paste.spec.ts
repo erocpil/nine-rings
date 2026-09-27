@@ -66,9 +66,9 @@ test("大段 Markdown 粘贴保留结构、光标及单步撤销重做", async (
       };
     });
   const pasted = await snapshot();
-  await page.keyboard.press("Control+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await expect(editor).toHaveText("");
-  await page.keyboard.press("Control+Shift+z");
+  await page.keyboard.press("ControlOrMeta+Shift+z");
   expect(await snapshot()).toEqual(pasted);
   await page.keyboard.type(" cursor-tail");
   await expect(editor.locator(":scope > p").last()).toHaveText(
@@ -154,9 +154,9 @@ for (const entry of ["原生", "工具栏"] as const) {
     });
     const pasted = await snapshot();
     expect(pasted.doc.content).toHaveLength(1002);
-    await page.keyboard.press("Control+z");
+    await page.keyboard.press("ControlOrMeta+z");
     await expect(editor).toHaveText("");
-    await page.keyboard.press("Control+Shift+z");
+    await page.keyboard.press("ControlOrMeta+Shift+z");
     expect(await snapshot()).toEqual(pasted);
     await page.keyboard.type(" tail");
     await expect(editor.locator(":scope > p").last()).toHaveText("最后一段 tail");
@@ -262,7 +262,7 @@ test("失败后按纯文本粘贴保留全部空行、缩进和尾部空格，�
     return instance.state.doc.textBetween(0, instance.state.doc.content.size, "\n", "\n");
   });
   expect(text).toBe(recoverableSource.replace(/\r\n/g, "\n"));
-  await page.keyboard.press("Control+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await expect(editor).toHaveText("Original");
 });
 
@@ -345,9 +345,9 @@ for (const entry of ["原生", "工具栏"] as const) {
     expect(await snapshot()).toEqual(expected);
     const question = editor.locator("strong code, code strong").filter({ hasText: "wait(lock, predicate)" });
     await expect(question).toHaveCount(1);
-    await page.keyboard.press("Control+z");
+    await page.keyboard.press("ControlOrMeta+z");
     await expect(editor).toHaveText("");
-    await page.keyboard.press("Control+Shift+z");
+    await page.keyboard.press("ControlOrMeta+Shift+z");
     expect(await snapshot()).toEqual(expected);
     await expect.poll(() => page.evaluate(async () => {
       const load = (path: string) => import(/* @vite-ignore */ path);

@@ -95,5 +95,5 @@ export function useDevImport(refresh: () => void) {
     poll();
 
     return () => clearInterval(id);
-  }, []); // 不依赖 refresh，避免 currentDate 变化导致定时器频繁重建
+  }, []); // 不依赖 refresh，避免回调变化导致定时器频繁重建
 }

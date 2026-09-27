@@ -1,12 +1,8 @@
 import { useEffect, useRef } from "react";
-import type { Note } from "../types/models";
 import { DEFAULT_HOTKEYS } from "../types/models";
 import { isTauriRuntime } from "../lib/runtime";
-import { localDateKey } from "../lib/local-date";
 import { toggleTauriFullscreen } from "../lib/fullscreen";
-import { useNotesStore } from "../stores/useNotesStore";
 import { registerShortcuts } from "../lib/global-shortcuts";
-import { DAILY_NOTES_ENABLED, isWorkspaceShortcutEnabled } from "../lib/workspace-features";
 import {
   resolveShortcut,
   shouldIgnoreShortcut,
@@ -17,11 +13,6 @@ export interface AppShortcutActions {
   setSettingsOpen: (open: boolean) => void;
   setQuickSwitcherOpen: (open: boolean) => void;
   openSearch: () => void;
-  setDate: (date: string) => Promise<void>;
-  setSidebarHidden: (hidden: boolean) => void;
-  setSidebarTab: (tab: "daily" | "tree") => void;
-  selectNote: (note: Note | null) => void;
-  createNote: () => void;
   hotkeys?: Record<string, string>;
 }
 
@@ -35,21 +26,6 @@ function showWindow(): void {
       });
     })
     .catch(() => {});
-}
-
-function goToToday(a: AppShortcutActions): void {
-  if (!DAILY_NOTES_ENABLED) return;
-  const today = localDateKey();
-  a.setDate(today).then(() => {
-    const sel = useNotesStore.getState().selectedNote;
-    if (sel?.storagePath) {
-      // 若 setDate 守卫保留了文档选中，显式切到当日第一篇随笔
-      const daily = useNotesStore.getState().notes.find((n) => !n.storagePath);
-      a.selectNote(daily ?? null);
-    }
-  });
-  a.setSidebarHidden(false);
-  a.setSidebarTab("daily");
 }
 
 /**
@@ -92,10 +68,7 @@ export function useAppKeyboardShortcuts(actions: AppShortcutActions): void {
           e.preventDefault();
           a.openSearch();
           break;
-        case "goToDaily":
-          e.preventDefault();
-          goToToday(a);
-          break;
+
       }
     };
     window.addEventListener("keydown", handler);
@@ -108,14 +81,11 @@ export function useAppKeyboardShortcuts(actions: AppShortcutActions): void {
     const a = actionsRef.current;
     void registerShortcuts(
       {
-        createNote: () => { if (actionsRef.current.workspaceActive !== false) actionsRef.current.createNote(); },
         focusSearch: () => { if (actionsRef.current.workspaceActive !== false) actionsRef.current.openSearch(); },
         openSettings: () => { if (actionsRef.current.workspaceActive !== false) actionsRef.current.setSettingsOpen(true); },
-        toggleDaily: () => { if (actionsRef.current.workspaceActive !== false) goToToday(actionsRef.current); },
         showWindow,
       },
-      Object.fromEntries(Object.entries({ ...DEFAULT_HOTKEYS, ...(a.hotkeys ?? {}) })
-        .filter(([id]) => isWorkspaceShortcutEnabled(id))),
+      { ...DEFAULT_HOTKEYS, ...(a.hotkeys ?? {}) },
     );
   }, [hotkeysKey]);
 }

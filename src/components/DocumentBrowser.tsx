@@ -111,7 +111,7 @@ export function DocumentBrowser({ session, toolbarHost, selectedId, initialPath,
   useEffect(() => {
     let active = true;
     setLoadError("");
-    Promise.all([api.docs.search({}), api.docs.tree(false)])
+    Promise.all([api.docs.search({}), api.docs.tree()])
       .then(([documents, tree]) => {
         if (!active) return;
         // Cache metadata only; opening always fetches the current document.

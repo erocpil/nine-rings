@@ -1,3 +1,4 @@
+import { useDocumentActive } from "./RetainedDocument";
 import { ReadonlyImage } from "./ReadonlyImage";
 import { BlockquoteToolbar } from "./BlockquoteToolbar";
 import { useDesktopDocumentPanels } from "../hooks/useDesktopDocumentPanels";
@@ -267,6 +268,7 @@ export function ReadonlyVirtualNote(
     searchTarget,
     onSearchTargetConsumed,
   } = props;
+  const active = useDocumentActive();
   const rootRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const heights = useRef(new Map<number, number>());
@@ -390,16 +392,17 @@ export function ReadonlyVirtualNote(
   );
   const navigationTarget = useNavigationStore(state => state.target?.noteId === noteId ? state.target : null);
   useEffect(() => {
+    if (!active) return;
     const history = useNavigationStore.getState();
     history.activate(noteId);
     const position = capture().position;
     history.record({ noteId, from: position, to: position });
-  }, [noteId, capture]);
+  }, [noteId, capture, active]);
   useEffect(() => {
-    if (!navigationTarget) return;
+    if (!navigationTarget || !active) return;
     jump(Math.max(0, Math.min(navigationTarget.from, doc.content.size)));
     useNavigationStore.getState().consumed(navigationTarget.requestId);
-  }, [navigationTarget, jump, doc]);
+  }, [navigationTarget, jump, doc, active]);
   const fallback = useCallback(() => {
     handoffReadingAnchor(noteId, capture());
     onFallback();
@@ -489,7 +492,7 @@ export function ReadonlyVirtualNote(
       }
     };
     const settle = () => {
-      if (touchDown.current) return;
+      if (touchDown.current || !root.isConnected || root.closest("[inert]")) return;
       scrollBusy.current = false;
       // User scrolling wins over a deferred geometry correction.
       pendingAnchor.current = null;
@@ -497,6 +500,7 @@ export function ReadonlyVirtualNote(
       persist();
     };
     const scroll = () => {
+      if (!root.isConnected || root.closest("[inert]")) return;
       // Capture before the next frame: a document switch can cancel that frame.
       savedAnchor.current = capture();
       if (!frame)
@@ -710,7 +714,7 @@ export function ReadonlyVirtualNote(
   const outlineTriggerRef = useRef<HTMLButtonElement>(null);
   const bookmarkTriggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
-  const preview = mobileDrawerViewport ? panel : desktopPanels.preview === "bookmark" ? "bookmarks" : desktopPanels.preview;
+  const preview = active ? (mobileDrawerViewport ? panel : desktopPanels.preview === "bookmark" ? "bookmarks" : desktopPanels.preview) : null;
   const documentPanelStyle = useDocumentPanelPosition({
     open: (preview === "outline" || preview === "bookmarks") && (!mobileDrawerViewport || presentation === "popover"),
     triggerRef: preview === "bookmarks" ? bookmarkTriggerRef : outlineTriggerRef,
@@ -721,14 +725,14 @@ export function ReadonlyVirtualNote(
   useEffect(
     () =>
       bindViewportEdgeSwipe("right", (touch) => {
-        if (!mobileDrawerViewport) return null;
+        if (!active || !mobileDrawerViewport) return null;
         const viewport = swipeViewport();
         if (touch.clientY >= viewport.middleY) return onOpenSettings ?? null;
         const target = lastMobilePanel.current;
         if (target === "outline" && sections.length === 0) return () => openPanel("bookmarks", true);
         return () => openPanel(target, true);
       }),
-    [mobileDrawerViewport, sections.length, openPanel, onOpenSettings],
+    [active, mobileDrawerViewport, sections.length, openPanel, onOpenSettings],
   );
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {

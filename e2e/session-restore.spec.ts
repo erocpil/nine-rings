@@ -1,4 +1,6 @@
+import { openDocumentSidebar, openMobileDocumentPopup } from "./helpers/workspace";
 import { expect, test, type Page } from "@playwright/test";
+
 
 async function createDocument(page: Page, title: string) {
   await page.goto("/");
@@ -15,24 +17,6 @@ async function createDocument(page: Page, title: string) {
 test.describe("移动端视图切换", () => {
   test.use({ viewport: { width: 600, height: 760 }, hasTouch: true });
 
-  test("移动端使用单一视图切换按钮并显示当前视图", async ({ page }) => {
-    await page.goto("/");
-
-    await expect(page.locator(".m-toolbar")).toHaveCount(0);
-    await page.getByTitle("显示侧栏").click();
-    const viewSwitch = page.locator(".sidebar-view-switch");
-    await expect(viewSwitch).toHaveCount(1);
-    await expect(viewSwitch).toHaveAttribute("aria-label", "切换到随笔");
-    await expect(viewSwitch.locator("svg")).toHaveCount(1);
-    await expect(viewSwitch.locator(".sidebar-view-switch-label")).toHaveText("文档");
-    await expect(viewSwitch.locator(".sidebar-view-switch-label")).toBeVisible();
-    await viewSwitch.click();
-    await expect(viewSwitch).toHaveAttribute("aria-label", "切换到文档");
-    await expect(viewSwitch.locator("svg")).toHaveCount(1);
-    await expect(viewSwitch.locator(".sidebar-view-switch-label")).toHaveText("随笔");
-    await page.locator(".sidebar-overlay").click({ position: { x: 590, y: 300 } });
-    await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
-  });
 
   test("安装版重启后优先定位最近文档的目录路径", async ({ page }) => {
     // 先用桌面宽度创建嵌套文档，再模拟手机安装版冷启动时侧栏默认隐藏。
@@ -40,35 +24,29 @@ test.describe("移动端视图切换", () => {
     await page.goto("/");
     await page.getByTitle("新建文档").click();
     await page.getByPlaceholder("文档标题...").fill("手机启动恢复文档");
+    await page.getByRole("combobox", { name: "顶级目录", exact: true }).selectOption("references");
     await page.getByPlaceholder("子路径 (如 nine-rings)").fill("mobile-startup/deep");
     await page.getByRole("button", { name: "创建", exact: true }).click();
     await expect(page.locator(".note-title")).toHaveValue("手机启动恢复文档");
 
     await page.evaluate(() => {
-      localStorage.setItem("nr:sidebarTab", "daily");
       localStorage.setItem("nr:sidebarHidden", "true");
-      localStorage.setItem("nr:defaultViewConfigured", "1");
       localStorage.setItem("nr:docTreeCollapsed", JSON.stringify([
-        "projects",
-        "projects/mobile-startup",
-        "projects/mobile-startup/deep",
+        "references",
+        "references/mobile-startup",
+        "references/mobile-startup/deep",
       ]));
-      const raw = localStorage.getItem("nine_rings_config");
-      const config = raw ? JSON.parse(raw) : {};
-      localStorage.setItem("nine_rings_config", JSON.stringify({ ...config, default_view: "daily" }));
     });
     await page.setViewportSize({ width: 600, height: 760 });
     await page.reload();
 
     await expect(page.locator(".note-title")).toHaveValue("手机启动恢复文档");
-    await page.getByTitle("显示侧栏").click();
-    const viewSwitch = page.locator(".sidebar-view-switch");
-    await expect(viewSwitch).toHaveAttribute("aria-label", "切换到随笔");
+    await openDocumentSidebar(page);
 
     const selected = page.locator(".doc-tree-selected");
     await expect(selected).toContainText("手机启动恢复文档");
     await expect(selected).toBeVisible();
-    for (const folder of ["projects", "mobile-startup", "deep"]) {
+    for (const folder of ["references", "mobile-startup", "deep"]) {
       const name = page.locator(`.doc-tree-folder > .doc-tree-name[title="${folder}"]`);
       await expect(name).toBeVisible();
       await expect(name.locator("..").locator(":scope > .doc-tree-toggle"))
@@ -85,75 +63,6 @@ test.describe("移动端视图切换", () => {
 });
 
 test.describe("会话位置恢复与编辑器查找", () => {
-  test("默认随笔视图不会覆盖用户打开的文档目录", async ({ page }) => {
-    await createDocument(page, "目录选择优先级测试");
-    await page.evaluate(() => {
-      localStorage.setItem("nr:sidebarTab", "tree");
-      localStorage.setItem("nr:defaultViewConfigured", "1");
-      const raw = localStorage.getItem("nine_rings_config");
-      const config = raw ? JSON.parse(raw) : {};
-      localStorage.setItem("nine_rings_config", JSON.stringify({ ...config, default_view: "daily" }));
-    });
-    await page.reload();
-    await expect(page.locator(".note-title")).toHaveValue("目录选择优先级测试");
-
-    const folder = page.locator(".doc-tree-folder").first();
-    const folderName = await folder.locator(".doc-tree-name").innerText();
-    await folder.locator(".doc-tree-name").click();
-
-    await expect(page.locator(".moc-breadcrumb")).toHaveText(folderName);
-    await expect(page.locator(".sidebar-view-switch")).toHaveAttribute("aria-label", "切换到随笔");
-    await expect(page.getByText("选择或新建一篇笔记", { exact: true })).toHaveCount(0);
-  });
-
-  test("过期待办入口位于今日待办标题栏", async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem("nr:todoSplit", "3"));
-    await page.goto("/");
-
-    const todoList = page.locator(".todo-list");
-    const overdueButton = todoList.getByRole("button", { name: "查看过期待办" });
-    const exportButton = todoList.locator(".todo-export-btn");
-    await expect(overdueButton).toBeVisible();
-    await expect.poll(async () => {
-      const overdueBox = await overdueButton.boundingBox();
-      const exportBox = await exportButton.boundingBox();
-      return Boolean(
-        overdueBox
-        && exportBox
-        && overdueBox.x + overdueBox.width <= exportBox.x
-        && overdueBox.width === 28
-        && exportBox.width === 28,
-      );
-    }).toBe(true);
-    await expect(overdueButton.locator("svg")).toHaveCount(1);
-    await expect(exportButton.locator("svg")).toHaveCount(1);
-    await expect(page.locator(".sidebar-footer").getByText("过期待办")).toHaveCount(0);
-    await overdueButton.click();
-    await expect(page.locator(".overdue-panel")).toBeVisible();
-    await expect(page.locator(".overdue-header h3")).toHaveText("过期待办");
-  });
-
-  test("可隐藏待办并通过拖动分隔条重新打开", async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem("nr:todoSplit", "3"));
-    await page.goto("/");
-
-    await page.getByRole("button", { name: "隐藏待办" }).click();
-    await expect(page.locator(".app-main-todo")).toHaveCount(0);
-    const divider = page.locator(".app-main-divider");
-    await expect(divider).toHaveClass(/divider-collapsed/);
-    await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:todoSplit"))).toBe("0");
-
-    const box = await divider.boundingBox();
-    if (!box) throw new Error("待办分隔条不可见");
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(box.x + box.width / 2, box.y + 150, { steps: 5 });
-    await page.mouse.up();
-
-    await expect(page.locator(".app-main-todo")).toBeVisible();
-    await expect(divider).not.toHaveClass(/divider-collapsed/);
-    await expect.poll(() => page.evaluate(() => Number(localStorage.getItem("nr:todoSplit")))).toBeGreaterThan(0);
-  });
 
   test("重载后恢复最后打开的文档、光标和滚动位置", async ({ page }) => {
     const title = "会话恢复测试文档";
@@ -247,23 +156,25 @@ test.describe("会话位置恢复与编辑器查找", () => {
       .toBeGreaterThan(280);
   });
 
-  test("侧栏与弹出文档树共享折叠状态", async ({ page }) => {
+  test("切换移动文档列表保留侧栏的目录折叠状态", async ({ page }) => {
     await createDocument(page, "折叠状态同步测试文档");
-
     const sidebar = page.locator(".app-sidebar");
     await sidebar.getByTitle("折叠所有目录").click();
-    await expect(sidebar.locator(".doc-tree-folder .doc-tree-toggle").first()).toHaveText("▶");
-
-    await page.getByTitle("隐藏侧栏").click();
-    await page.getByTitle("文档视图").click();
-    const popup = page.locator(".doc-tree-popup");
-    await expect(popup).toBeVisible();
-    await popup.getByTitle("折叠其它目录（保留当前文档所在目录）").click();
-    await expect(popup.locator(".doc-tree-folder .doc-tree-toggle").filter({ hasText: "▼" }).first()).toBeVisible();
-
+    const firstToggle = sidebar.getByRole("button", { name: /^(展开|折叠)目录 projects$/, exact: true });
+    await expect(firstToggle).toHaveAttribute("aria-expanded", "false");
+    await page.setViewportSize({ width: 600, height: 760 });
+    const popup = await openMobileDocumentPopup(page);
+    await expect(popup.getByRole("region", { name: "文档列表", exact: true })).toBeVisible();
+    await expect(popup.getByRole("button", { name: "折叠状态同步测试文档", exact: true })).toBeVisible();
     await popup.getByRole("button", { name: "关闭文档视图", exact: true }).click();
-    await page.getByTitle("显示侧栏").click();
-    await expect(sidebar.locator(".doc-tree-folder .doc-tree-toggle").filter({ hasText: "▼" }).first()).toBeVisible();
+    await openDocumentSidebar(page);
+    await expect(firstToggle).toHaveAttribute("aria-expanded", "false");
+    await firstToggle.click();
+    await expect(firstToggle).toHaveAttribute("aria-expanded", "true");
+    await openMobileDocumentPopup(page);
+    await popup.getByRole("button", { name: "关闭文档视图", exact: true }).click();
+    await openDocumentSidebar(page);
+    await expect(firstToggle).toHaveAttribute("aria-expanded", "true");
   });
 
   test("专注模式中文档查找浮层可见且在主窗口关闭时同步关闭", async ({ page }) => {
@@ -288,7 +199,7 @@ test.describe("会话位置恢复与编辑器查找", () => {
 
     await findInput.press("Escape");
     await expect(findInput).toHaveCount(0);
-    await page.keyboard.press("Meta+f");
+    await page.keyboard.press("ControlOrMeta+f");
     await expect(page.getByRole("search").getByLabel("在当前文档中查找")).toBeVisible();
 
     // Web E2E 没有 Tauri 标题栏；直接验证标题栏在 hide 前广播的同一事件。

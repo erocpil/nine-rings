@@ -21,7 +21,6 @@ const Map<String, String> stateIcons = {
   'references': '📚',
   'ideas': '💡',
   'archives': '📦',
-  'daily': '📅',
 };
 
 /// 根路径选项（匹配 Tauri PropertiesPanel.tsx PATH_ROOT_OPTIONS）

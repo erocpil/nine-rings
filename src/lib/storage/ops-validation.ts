@@ -119,25 +119,9 @@ const getDocsWithPath: SelectOp = {
   ],
 };
 
-// Part B: 查所有 daily 笔记（storage_path IS NULL）
-const getDailyNotes: SelectOp = {
-  type: "select",
-  table: "notes",
-  columns: ["id", "date", "title", "updated_at"],
-  where: [
-    { col: "storage_path", op: "IS", val: null },
-  ],
-  orderBy: [
-    { col: "date", desc: true },
-    { col: "updated_at", desc: true },
-  ],
-};
-
 const expectedSQL_getDocsWithPath =
   `SELECT id, title, storage_path, doc_type, updated_at, readonly FROM notes WHERE storage_path IS NOT NULL AND deleted_at IS NULL ORDER BY storage_path ASC, updated_at DESC`;
 
-const expectedSQL_getDailyNotes =
-  `SELECT id, date, title, updated_at FROM notes WHERE storage_path IS NULL AND deleted_at IS NULL ORDER BY date DESC, updated_at DESC`;
 
 // ═══════════════════════════════════════════════════════════════════
 // SQL 编译器（简化版，只做验证用）
@@ -239,7 +223,6 @@ const tests: TestCase[] = [
   { name: "update_note", op: updateNote, expectedSQL: expectedSQL_updateNote },
   { name: "delete_note", op: deleteNote, expectedSQL: expectedSQL_deleteNote },
   { name: "getDocsWithPath", op: getDocsWithPath, expectedSQL: expectedSQL_getDocsWithPath },
-  { name: "getDailyNotes", op: getDailyNotes, expectedSQL: expectedSQL_getDailyNotes },
 ];
 
 let passed = 0;

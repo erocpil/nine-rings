@@ -13,7 +13,7 @@ test("快速切换支持最近访问、检索与完整键盘操作", async ({ pa
   await createDocument(page, "Quick Switch Alpha");
   await createDocument(page, "Quick Switch Beta");
 
-  await page.keyboard.press("Control+p");
+  await page.keyboard.press("ControlOrMeta+p");
   const dialog = page.getByRole("dialog", { name: "快速切换笔记" });
   const input = page.getByLabel("查找并切换笔记");
   await expect(dialog).toBeVisible();
@@ -26,11 +26,11 @@ test("快速切换支持最近访问、检索与完整键盘操作", async ({ pa
   await expect(dialog).toHaveCount(0);
   await expect(page.locator(".note-title")).toHaveValue("Quick Switch Alpha");
 
-  await page.keyboard.press("Control+p");
+  await page.keyboard.press("ControlOrMeta+p");
   await expect(dialog.getByText("Quick Switch Alpha", { exact: true })).toBeVisible();
   await input.press("Escape");
   await expect(dialog).toHaveCount(0);
-  await page.keyboard.press("Control+p");
+  await page.keyboard.press("ControlOrMeta+p");
   await input.fill("没有匹配结果的关键词");
   await input.press("Tab");
   const close = dialog.getByRole("button", { name: "关闭快速切换" });

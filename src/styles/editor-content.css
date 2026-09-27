@@ -578,15 +578,6 @@
   border-bottom: 1px solid var(--border);
 }
 
-.todo-dot {
-  margin-right: 4px;
-}
-
-.todo-dot.done {
-  text-decoration: line-through;
-  opacity: 0.6;
-}
-
 /* List continuations remain independent blocks; manual indentation takes precedence. */
 .editor-content .ProseMirror > [data-list-followup]:is(:not([data-indent]), [data-indent="0"]) {
   margin-inline-start: calc(var(--list-followup-indent-enabled, 1) * var(--editor-list-indent, 1em));

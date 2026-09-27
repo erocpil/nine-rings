@@ -238,7 +238,6 @@ describe("backup failure boundaries", () => {
     {},
     { notes: {} },
     { notes: [note("a"), note("a")] },
-    { notes: [note("a")], daily_pages: [{}] },
     { notes: [], config: [] },
     { notes: [], version: 99 },
     JSON.parse('{"notes":[],"__proto__":{"onerror":"x"}}'),

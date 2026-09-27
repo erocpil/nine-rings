@@ -1,15 +1,7 @@
 use crate::db::models::{NotePublic, UpsertNoteInput};
 use crate::service;
 use crate::AppState;
-use serde::Deserialize;
 use tauri::State;
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateTodosInput {
-    pub date: String,
-    pub todos: Vec<crate::db::models::Todo>,
-    pub todo_carryover: Option<bool>,
-}
 
 #[tauri::command]
 pub fn get_note(
@@ -56,42 +48,12 @@ pub fn get_all_tags(state: State<AppState>) -> Result<Vec<String>, String> {
     service::note_service::get_all_tags(&conn).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub fn get_daily_page(
-    state: State<AppState>,
-    date: String,
-    carryover_default: Option<bool>,
-) -> Result<crate::db::models::DailyPage, String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    service::note_service::get_or_create_daily_page(
-        &conn,
-        &date,
-        carryover_default.unwrap_or(false),
-    )
-    .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn update_todos(
-    state: State<AppState>,
-    data: UpdateTodosInput,
-) -> Result<crate::db::models::DailyPage, String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    service::note_service::update_todos(
-        &conn,
-        &data.date,
-        &data.todos,
-        data.todo_carryover.unwrap_or(false),
-    )
-    .map_err(|e| e.to_string())
-}
-
 /// upsertNote 命令：调用 `db::models::upsert_note`（单个 `BEGIN IMMEDIATE` 事务内查重 + 写入）。
 ///
 /// 匹配谓词与 TS `core.ts::upsertMatchKey` 对齐：
 /// - 显式 id（导入透传）→ 直接使用。
 /// - 文档：storage_path + title。
-/// - 随笔：title + date（且 storage_path 为空）。
+/// - 未指定 storage_path 时使用 references。
 ///
 /// 多命中时按 `updated_at DESC, id ASC` 取首条，保证确定性。
 #[tauri::command]

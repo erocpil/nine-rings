@@ -1,24 +1,17 @@
 import { useState, useCallback, useRef } from "react";
 import { api } from "../lib/api";
-import { DAILY_NOTES_ENABLED, TODOS_ENABLED } from "../lib/workspace-features";
 import type { SearchNote } from "../lib/search-index-core";
-
-export interface TodoHit {
-  todo: { id: string; text: string; done: boolean };
-  date: string;
-}
 
 export interface SearchResults {
   notes: SearchNote[];
-  todos: TodoHit[];
 }
 
 /**
- * 搜索 Hook — 同时搜索笔记和待办，防抖在 SearchBar 组件中处理
+ * 搜索 Hook — 搜索文档，防抖在 SearchBar 组件中处理
  */
 export function useSearch() {
   const [query, setQueryState] = useState("");
-  const [results, setResults] = useState<SearchResults>({ notes: [], todos: [] });
+  const [results, setResults] = useState<SearchResults>({ notes: [] });
   const [searching, setSearching] = useState(false);
   const searchRequestRef = useRef(0);
 
@@ -26,22 +19,19 @@ export function useSearch() {
     const requestId = ++searchRequestRef.current;
     setQueryState(q);
     if (!q.trim()) {
-      setResults({ notes: [], todos: [] });
+      setResults({ notes: [] });
       setSearching(false);
       return;
     }
     setSearching(true);
     try {
-      const [notes, todoHits] = await Promise.all([
-        api.notes.searchSummaries(q),
-        TODOS_ENABLED ? api.daily.searchTodos(q) : Promise.resolve([]),
-      ]);
+      const notes = await api.notes.searchSummaries(q);
       if (requestId !== searchRequestRef.current) return;
-      setResults({ notes: notes.filter(note => DAILY_NOTES_ENABLED || !!note.storagePath), todos: todoHits });
+      setResults({ notes });
     } catch (error) {
       if (requestId !== searchRequestRef.current) return;
       console.error("搜索失败:", error);
-      setResults({ notes: [], todos: [] });
+      setResults({ notes: [] });
     } finally {
       if (requestId === searchRequestRef.current) {
         setSearching(false);
@@ -52,7 +42,7 @@ export function useSearch() {
   const clear = useCallback(() => {
     searchRequestRef.current += 1;
     setQueryState("");
-    setResults({ notes: [], todos: [] });
+    setResults({ notes: [] });
     setSearching(false);
   }, []);
 

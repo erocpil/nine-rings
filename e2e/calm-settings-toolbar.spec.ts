@@ -19,7 +19,7 @@ for (const style of ["calm", "calm-compact"] as const) {
     await page.reload();
     const editor = page.locator(".note-editor .ProseMirror");
     await editor.fill("工具栏保留熟悉的编辑操作");
-    await editor.press("Control+a");
+    await editor.press("ControlOrMeta+a");
     const bold = page.getByRole("button", {
       name: "加粗 (Ctrl+B)",
       exact: true,
@@ -37,7 +37,7 @@ for (const style of ["calm", "calm-compact"] as const) {
     await page.getByTitle("设置", { exact: true }).click();
     await page.screenshot({
       animations: "disabled",
-      path: `/tmp/nr-${style}-settings-root.png`,
+      path: test.info().outputPath(`nr-${style}-settings-root.png`),
     });
     await page.getByRole("button", { name: /^编辑器 / }).click();
     const field = page.getByRole("group", { name: "高亮当前行", exact: true });
@@ -65,7 +65,7 @@ for (const style of ["calm", "calm-compact"] as const) {
     ).toBeVisible();
     await page.screenshot({
       animations: "disabled",
-      path: `/tmp/nr-${style}-settings-editor.png`,
+      path: test.info().outputPath(`nr-${style}-settings-editor.png`),
     });
     await page.getByLabel("返回设置分类").click();
     await page.getByRole("button", { name: /^外观与布局/ }).click();
@@ -75,7 +75,7 @@ for (const style of ["calm", "calm-compact"] as const) {
       .click();
     await page.screenshot({
       animations: "disabled",
-      path: `/tmp/nr-${style}-settings-dark.png`,
+      path: test.info().outputPath(`nr-${style}-settings-dark.png`),
     });
     await expect
       .poll(() =>

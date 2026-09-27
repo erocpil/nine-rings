@@ -1,3 +1,4 @@
+import { openReadingLibrary } from "./helpers/workspace";
 import { expect, test } from "@playwright/test";
 import { createEpubFixture, createPdfFixture } from "./helpers/reader-fixtures";
 
@@ -6,11 +7,10 @@ test("资料库的旧设置入口和键盘返回保持笔记工作区", async ({
   const title = page.locator(".note-title");
   await expect(title).toBeVisible();
   const before = await title.inputValue();
-  await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^阅读资料库/ }).click();
+  await openReadingLibrary(page);
   const library = page.getByRole("region", { name: "阅读资料库", exact: true });
   await expect(library).toBeVisible();
-  await page.keyboard.press("Control+f");
+  await page.keyboard.press("ControlOrMeta+f");
   await expect(library.getByRole("searchbox", { name: "查找书籍" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(library).toBeHidden();
@@ -52,7 +52,7 @@ for (const width of [390, 1280]) {
       await expect(library.getByRole("button", { name: "设置", exact: true })).toBeFocused();
     }
     await librarySearch.fill("");
-    await page.keyboard.press("Control+f");
+    await page.keyboard.press("ControlOrMeta+f");
     await expect(library.getByRole("searchbox", { name: "查找书籍" })).toBeFocused();
     await expect(
       page.getByRole("dialog", { name: "设置", exact: true }),
@@ -113,7 +113,7 @@ for (const width of [390, 1280]) {
     await expect(library).toContainText("没有找到匹配的书籍");
     await search.fill("library");
     await library.screenshot({
-      path: `/tmp/reading-library-overview-${width}.png`,
+      path: test.info().outputPath(`reading-library-overview-${width}.png`),
     });
     await page.evaluate(async () => {
       await new Promise<void>((resolve, reject) => {
@@ -179,7 +179,7 @@ for (const width of [390, 1280]) {
           .evaluate((el) => el.scrollTop),
       )
       .toBeCloseTo(scroll, 0);
-    await library.screenshot({ path: `/tmp/reading-library-${width}.png` });
+    await library.screenshot({ path: test.info().outputPath(`reading-library-${width}.png`) });
     await library
       .getByRole("button", { name: "打开 library.pdf", exact: true })
       .click();

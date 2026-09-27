@@ -9,7 +9,7 @@ override next to an earlier base rule without a separate cascade review.
 
 | Module | Existing rule group |
 | --- | --- |
-| `foundation.css` | Theme tokens, shell, navigation, search, sidebar and todos |
+| `foundation.css` | Theme tokens, shell, navigation, search, sidebar |
 | `editor-controls.css` | Editor toolbar, menus, status, images and drawers |
 | `workspace-surfaces.css` | Empty/search states, settings shell, outline, bookmarks and splitters |
 | `editor-content.css` | Active-line feedback, Vim and ProseMirror typography |

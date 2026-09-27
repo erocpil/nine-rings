@@ -1,3 +1,4 @@
+import { pressLineBoundary } from "./helpers/keyboard";
 import { sourceInfo, replaceSource } from "./helpers/source-editor";
 import { expect, test } from "@playwright/test";
 
@@ -28,7 +29,7 @@ test("源码 Worker 返回旧结果时保留后来输入，重试可同步", asy
   await page.getByRole("button", { name: "源码", exact: true }).click();
   await expect(page.locator("body")).toHaveAttribute("data-source-worker-held", "true");
   await editor.click();
-  await page.keyboard.press("End");
+  await pressLineBoundary(page, "end");
   await page.keyboard.insertText("后来输入");
   await page.evaluate(() => window.dispatchEvent(new Event("release-source-worker")));
   await expect(page.getByRole("alert")).toContainText("转换期间正文已变化");

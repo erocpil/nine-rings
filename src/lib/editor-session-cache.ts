@@ -1,3 +1,5 @@
+export const EDITOR_SESSION_SAVED = "nr:editor-session-saved";
+
 type ProseMirrorJson = Record<string, unknown>;
 
 interface EditorSessionEntry {
@@ -5,8 +7,8 @@ interface EditorSessionEntry {
   document: ProseMirrorJson;
 }
 
-// Two entries cover the common A → B → A workflow without keeping multiple
-// live TipTap editors (and their DOM/event state) resident on memory-limited iOS.
+// Small conversion cache for renderer handoffs and evicted documents. Live
+// editor instances have a separate three-document LRU in RetainedDocument.
 const MAX_EDITOR_SESSIONS = 2;
 const sessions = new Map<string, EditorSessionEntry>();
 const sensitive = new Set<string>();
@@ -37,6 +39,9 @@ export function cacheEditorDocument(noteId: string, revision: string, document: 
 
 /** Keep an already converted document valid when autosave only advances updated_at. */
 export function promoteCachedEditorDocument(noteId: string, toRevision: string): void {
+  if (typeof window !== "undefined" && toRevision) {
+    window.dispatchEvent(new CustomEvent(EDITOR_SESSION_SAVED, { detail: { noteId, revision: toRevision } }));
+  }
   const entry = sessions.get(noteId);
   if (!entry || !toRevision) return;
   sessions.set(noteId, { revision: toRevision, document: entry.document });

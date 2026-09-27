@@ -50,13 +50,7 @@ const body = {
 beforeEach(async () => {
   vi.stubGlobal("crypto", webcrypto);
   await withDB(async (db) => {
-    const stores = [
-      "notes",
-      "note_versions",
-      "images",
-      "protected_paths",
-      "daily_pages",
-    ];
+    const stores = ["notes", "note_versions", "images", "protected_paths"];
     const tx = db.transaction(stores, "readwrite");
     stores.forEach((name) => tx.objectStore(name).clear());
   });
@@ -174,6 +168,34 @@ describe("document encryption", () => {
       isEncrypted((await adapter.getNoteVersions(note.id))[0].content),
     ).toBe(false);
   });
+  it("default document paths participate in path and individual password protection", async () => {
+    const note = await adapter.createNote({
+      date: "2026-09-27",
+      title: "默认目录",
+      content: body,
+    });
+    expect(note.storagePath).toBe("references");
+    await setDocumentPassword(note.id);
+    const updated = await adapter.upsertNote({
+      date: "2026-09-28",
+      title: note.title!,
+      content: body,
+    });
+    expect(updated.id).toBe(note.id);
+    expect(isEncrypted(updated.content)).toBe(true);
+    await setPathPassword("references");
+    const child = await adapter.createNote({
+      date: note.date,
+      title: "缺省路径受保护",
+      content: body,
+    });
+    expect(isEncrypted(child.content)).toBe(true);
+    expect((await unlockDocument(child.content, password)).content).toEqual(
+      body,
+    );
+    const backup = await adapter.exportData();
+    expect(backup).not.toContain("secret-body");
+  });
   it("path password covers descendants and future imports; empty paths survive deletion, export/import and safe merge", async () => {
     const a = await create();
     const b = await create("嵌套", "areas/private/child/deep");
@@ -194,7 +216,7 @@ describe("document encryption", () => {
     });
     expect(isEncrypted((await adapter.getNote(c.id))!.content)).toBe(true);
     await adapter.batchDelete([a.id, b.id, c.id]);
-    const tree = await adapter.getPathTree(false);
+    const tree = await adapter.getPathTree();
     expect(tree.find((n) => n.path === "areas/private")).toMatchObject({
       protectionRoot: true,
       count: 0,
@@ -204,7 +226,7 @@ describe("document encryption", () => {
     expect(JSON.parse(empty).protected_paths).toHaveLength(1);
     const merged = buildSafeMergedBackup(
       empty,
-      JSON.stringify({ version: 1, notes: [], daily_pages: [] }),
+      JSON.stringify({ version: 1, notes: [] }),
     ).json;
     expect(JSON.parse(merged).protected_paths).toHaveLength(1);
     await adapter.importData(merged, "replace");
@@ -212,9 +234,7 @@ describe("document encryption", () => {
     await removeEmptyProtectedPath("areas/private");
     expect(await listProtectedPaths()).toEqual([]);
     expect(
-      (await adapter.getPathTree(false)).some(
-        (n) => n.path === "areas/private",
-      ),
+      (await adapter.getPathTree()).some((n) => n.path === "areas/private"),
     ).toBe(false);
   });
   it("moves documents across protection boundaries without implicit plaintext and preserves path identity on rename", async () => {

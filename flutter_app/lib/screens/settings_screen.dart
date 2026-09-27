@@ -248,7 +248,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           final result = await provider.importBundle(json, replace: true);
           return (
             notesImported: result.notesImported,
-            pagesImported: result.pagesImported,
           );
         },
       );

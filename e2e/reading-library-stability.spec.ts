@@ -21,7 +21,7 @@ test("滑出阅读分栏不卸载正文，关闭后保留文档位置与编辑�
     await expect(page.locator(".app")).toHaveAttribute("inert", "");
     expect(await scroll.evaluate(element => element.scrollTop)).toBe(offset);
     await library.getByRole("button", { name: "退出阅读资料库" }).focus();
-    await page.keyboard.press("Control+f");
+    await page.keyboard.press("ControlOrMeta+f");
     await expect(library.getByRole("searchbox", { name: "查找书籍" })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(library).toHaveCount(0);

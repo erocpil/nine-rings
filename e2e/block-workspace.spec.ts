@@ -1,3 +1,4 @@
+import { pressLineBoundary } from "./helpers/keyboard";
 import { expect, test, type Page } from "@playwright/test";
 
 type FixtureWindow = Window & { blockFixture?: {
@@ -83,10 +84,10 @@ test("清空代码块可撤销，键盘与工具栏共享原文历史", async ({
   await replaceCode(page, "");
   const source = page.locator(".note-editor pre code");
   await expect(source).toHaveText("");
-  await page.keyboard.press("Control+z");
+  await page.keyboard.press("ControlOrMeta+z");
   await expect(source).toContainText("const answer = 42;");
   await expect(dialog.locator(".cm-content")).toContainText("const answer = 42;");
-  await page.keyboard.press("Control+Shift+z");
+  await page.keyboard.press("ControlOrMeta+Shift+z");
   await expect(source).toHaveText("");
   await expect(dialog.locator(".cm-content")).toHaveText("");
   await dialog.getByRole("button", { name: "撤销", exact: true }).click();
@@ -98,7 +99,7 @@ test("块内换行现状：代码按钮禁用但快捷键可用，引用按钮�
   const source = page.locator(".note-editor .ProseMirror");
   const code = source.locator("pre code");
   await code.click();
-  await page.keyboard.press("End");
+  await pressLineBoundary(page, "end");
   const lineBreak = page.getByRole("button", { name: "块内换行", exact: true });
   await expect(lineBreak).toBeDisabled();
   const before = await code.textContent();
@@ -107,7 +108,7 @@ test("块内换行现状：代码按钮禁用但快捷键可用，引用按钮�
   await expect(source.locator(".code-block-wrap")).toHaveCount(1);
   const quote = source.locator("blockquote");
   await quote.locator("p").first().click();
-  await page.keyboard.press("Home");
+  await pressLineBoundary(page, "start");
   const breaksBefore = await quote.locator("br:not(.ProseMirror-trailingBreak)").count();
   const paragraphsBefore = await quote.locator("p").count();
   await expect(lineBreak).toBeEnabled();
@@ -148,42 +149,41 @@ test("块工作区编辑只同步原块并共享撤销，模式不修改文档�
   expect(JSON.stringify(saved)).toContain("const updated = 100;");
 });
 
+// Control+A is text movement on macOS, covered separately in mac-text-shortcuts.
 for (const readonly of [false, true]) {
-  for (const shortcut of ["Control+a", "Meta+a"]) {
-    test(`编辑时先选块，只读时直接选正文，只读=${readonly}，${shortcut}`, async ({ page }) => {
-      await fixture(page, readonly);
-      for (const [selector, expected] of [["pre code", "const answer = 42;"], [".blockquote-content p", "引用第一段"]]) {
-        const content = page.locator(`.note-editor ${selector}`).first();
-        await content.evaluate(element => {
-          const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-          const text = walker.nextNode()!;
-          const range = document.createRange();
-          range.setStart(text, 1); range.collapse(true);
-          const selection = window.getSelection()!;
-          selection.removeAllRanges(); selection.addRange(range);
-          if ((element.closest(".ProseMirror") as HTMLElement).isContentEditable)
-            (element.closest(".ProseMirror") as HTMLElement).focus();
-        });
-        await page.keyboard.press(shortcut);
-        const selected = await page.evaluate(() => window.getSelection()?.toString());
-        expect(selected).toContain(expected);
-        if (readonly) {
-          expect(selected).toContain("前文");
-          expect(selected).toContain("后文");
-        } else {
-          expect(selected).not.toContain("前文");
-          expect(selected).not.toContain("后文");
-        }
-        if (selector.includes("blockquote")) expect(selected).toContain("引用第二段");
-        await page.keyboard.press(shortcut);
-        const all = await page.evaluate(() => window.getSelection()?.toString());
-        expect(all).toContain("前文");
-        expect(all).toContain("后文");
-        expect(all).toContain("const answer = 42;");
+  test(`编辑时先选块，只读时直接选正文，只读=${readonly}，本机主快捷键`, async ({ page }) => {
+    await fixture(page, readonly);
+    for (const [selector, expected] of [["pre code", "const answer = 42;"], [".blockquote-content p", "引用第一段"]]) {
+      const content = page.locator(`.note-editor ${selector}`).first();
+      await content.evaluate(element => {
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        const text = walker.nextNode()!;
+        const range = document.createRange();
+        range.setStart(text, 1); range.collapse(true);
+        const selection = window.getSelection()!;
+        selection.removeAllRanges(); selection.addRange(range);
+        if ((element.closest(".ProseMirror") as HTMLElement).isContentEditable)
+          (element.closest(".ProseMirror") as HTMLElement).focus();
+      });
+      await page.keyboard.press("ControlOrMeta+a");
+      const selected = await page.evaluate(() => window.getSelection()?.toString());
+      expect(selected).toContain(expected);
+      if (readonly) {
+        expect(selected).toContain("前文");
+        expect(selected).toContain("后文");
+      } else {
+        expect(selected).not.toContain("前文");
+        expect(selected).not.toContain("后文");
       }
-      await expect(page.locator(".note-editor .ProseMirror")).toHaveAttribute("contenteditable", String(!readonly));
-    });
-  }
+      if (selector.includes("blockquote")) expect(selected).toContain("引用第二段");
+      await page.keyboard.press("ControlOrMeta+a");
+      const all = await page.evaluate(() => window.getSelection()?.toString());
+      expect(all).toContain("前文");
+      expect(all).toContain("后文");
+      expect(all).toContain("const answer = 42;");
+    }
+    await expect(page.locator(".note-editor .ProseMirror")).toHaveAttribute("contenteditable", String(!readonly));
+  });
 }
 
 test("局部只读渲染全选直接切换完整正文", async ({ page }) => {
@@ -200,7 +200,7 @@ test("局部只读渲染全选直接切换完整正文", async ({ page }) => {
     range.selectNodeContents(element); range.collapse(true);
     window.getSelection()!.removeAllRanges(); window.getSelection()!.addRange(range);
   });
-  await page.keyboard.press("Control+a");
+  await page.keyboard.press("ControlOrMeta+a");
   await expect(page.locator(".vr-note")).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toContain("const answer = 42;");
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toContain("前文");
@@ -233,20 +233,23 @@ test("代码和引用折叠三角位于最右侧，所有工具间距一致", as
       for (const [selector, kind] of [[".blockquote-toolbar", "引用"], [".code-block-actions", "代码"]]) {
         const toolbar = page.locator(`.note-editor ${selector}`);
         const fold = toolbar.getByRole("button", { name: `折叠${kind}块`, exact: true });
-        const expand = toolbar.getByRole("button", { name: `放大阅读${kind}块`, exact: true });
-        const bounds = (await toolbar.boundingBox())!;
-        const foldBounds = (await fold.boundingBox())!;
-        const expandBounds = (await expand.boundingBox())!;
-        const rightInset = await toolbar.evaluate(element => parseFloat(getComputedStyle(element).paddingRight));
-        expect(foldBounds.x + foldBounds.width).toBeCloseTo(bounds.x + bounds.width - rightInset, 1);
-        expect(foldBounds.x - expandBounds.x - expandBounds.width).toBeCloseTo(2, 1);
-        const gaps = await toolbar.evaluate(element => {
+        // Read all rectangles in one frame; responsive chrome can still be
+        // settling after rotation. Never combine bounds from different frames.
+        await expect.poll(() => toolbar.evaluate((element, kind) => {
+          const bounds = element.getBoundingClientRect();
+          const fold = element.querySelector(`button[aria-label="折叠${kind}块"]`)!.getBoundingClientRect();
+          const expand = element.querySelector(".block-workspace-open")!.getBoundingClientRect();
+          const rightInset = parseFloat(getComputedStyle(element).paddingRight);
           const controls = Array.from(element.querySelectorAll("button, select"))
-            .filter(control => control.getBoundingClientRect().width > 0);
-          return controls.slice(1).map((control, index) =>
-            control.getBoundingClientRect().left - controls[index].getBoundingClientRect().right);
-        });
-        for (const gap of gaps) expect(gap).toBeCloseTo(2, 1);
+            .map(control => control.getBoundingClientRect()).filter(rect => rect.width > 0);
+          const gapErrors = controls.slice(1).map((rect, index) =>
+            Math.abs(rect.left - controls[index].right - 2));
+          return Math.max(
+            Math.abs(fold.right - (bounds.right - rightInset)),
+            Math.abs(fold.left - expand.right - 2),
+            ...gapErrors,
+          );
+        }, kind)).toBeLessThan(0.05);
         await fold.click();
         await expect(toolbar.getByRole("button", { name: `展开${kind}块`, exact: true })).toBeVisible();
         await toolbar.getByRole("button", { name: `展开${kind}块`, exact: true }).click();
@@ -258,23 +261,35 @@ test("代码和引用折叠三角位于最右侧，所有工具间距一致", as
 
 test("手机横竖屏块弹层不超出可视范围", async ({ page }) => {
   await fixture(page);
-  await page.getByRole("button", { name: "放大阅读引用块" }).click();
-  const dialog = page.getByRole("dialog", { name: "引用块工作区" });
-  for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
-    await page.setViewportSize(viewport);
-    await expect.poll(async () => {
-      const box = await dialog.boundingBox();
-      return !!box && box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width && box.y + box.height <= viewport.height;
-    }).toBe(true);
-    await expect.poll(() => dialog.evaluate(element => {
-      const viewport = window.visualViewport;
-      const top = viewport?.offsetTop ?? 0;
-      const height = viewport?.height ?? window.innerHeight;
-      const safeTop = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--safe-top")) || 0;
-      const rect = element.getBoundingClientRect();
-      return Math.abs(rect.top + rect.height / 2 - (top + (height + safeTop) / 2));
-    })).toBeLessThan(1);
-    await page.screenshot({ path: `/tmp/nr-block-workspace-${viewport.width}.png` });
+  for (const kind of ["引用块", "代码块"]) {
+    if (await page.locator(".sidebar-overlay.active").isVisible()) {
+      await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
+      await expect(page.locator(".sidebar-overlay.active")).toHaveCount(0);
+    }
+    await page.getByRole("button", { name: `放大阅读${kind}` }).click();
+    const dialog = page.getByRole("dialog", { name: `${kind}工作区` });
+    for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
+      await page.setViewportSize(viewport);
+      await expect.poll(async () => {
+        const box = await dialog.boundingBox();
+        return !!box && box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width && box.y + box.height <= viewport.height;
+      }).toBe(true);
+      await expect.poll(() => dialog.evaluate(element => {
+        const viewport = window.visualViewport;
+        const top = viewport?.offsetTop ?? 0;
+        const height = viewport?.height ?? window.innerHeight;
+        const safeTop = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--safe-top")) || 0;
+        const rect = element.getBoundingClientRect();
+        const compact = (viewport?.width ?? window.innerWidth) <= 700
+          || window.matchMedia("(pointer: coarse)").matches;
+        // Compact workspaces reserve 28px above and 24px below; desktop centres.
+        const centreOffset = compact ? 2 : 0;
+        return Math.abs(rect.top + rect.height / 2 - (top + (height + safeTop) / 2 + centreOffset));
+      })).toBeLessThan(1);
+      await page.screenshot({ path: test.info().outputPath(`nr-block-workspace-${kind}-${viewport.width}.png`) });
+    }
+    await dialog.getByRole("button", { name: "关闭块工作区" }).click();
+    await expect(dialog).toHaveCount(0);
   }
 });
 
@@ -503,11 +518,12 @@ test.describe("触屏块工作区", () => {
         return {
           top: box.top - viewport.offsetTop - safeTop,
           bottom: viewport.offsetTop + viewport.height - box.bottom,
-          blur: getComputedStyle(element, "::backdrop").backdropFilter,
+          blur: getComputedStyle(element, "::backdrop").getPropertyValue("backdrop-filter")
+            || getComputedStyle(element, "::backdrop").getPropertyValue("-webkit-backdrop-filter"),
         };
       });
-      expect(spacing.top).toBeGreaterThanOrEqual(12);
-      expect(spacing.top).toBeCloseTo(spacing.bottom, 0);
+      expect(spacing.top).toBeCloseTo(28, 0);
+      expect(spacing.bottom).toBeCloseTo(24, 0);
       expect(spacing.blur).toBe("blur(2px)");
       expect((await dialog.locator(".block-workspace-header").boundingBox())!.height).toBeLessThanOrEqual(40);
       await page.mouse.click(1, 300);
@@ -546,9 +562,9 @@ test.describe("触屏块工作区", () => {
     }).toBe(true);
     expect(await dialog.locator(".block-workspace-body").evaluate(element => element.clientHeight)).toBeGreaterThan(0);
     const bounds = (await dialog.boundingBox())!;
-    expect(260 - bounds.y - bounds.height).toBeGreaterThanOrEqual(35);
+    expect(260 - bounds.y - bounds.height).toBeCloseTo(24, 0);
     await expect(dialog).toHaveCSS("padding-bottom", "8px");
-    await page.screenshot({ path: "/tmp/nr-block-workspace-keyboard.png" });
+    await page.screenshot({ path: test.info().outputPath("nr-block-workspace-keyboard.png") });
     await close.click();
     await expect(dialog).toHaveCount(0);
   });

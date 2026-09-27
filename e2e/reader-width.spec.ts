@@ -1,3 +1,4 @@
+import { openReadingLibrary } from "./helpers/workspace";
 import { expect, test } from "@playwright/test";
 import { PDFDocument } from "pdf-lib";
 import { createEpubFixture } from "./helpers/reader-fixtures";
@@ -9,8 +10,7 @@ test("PDF 锁定宽度跨页面尺寸、方向和重新打开保持", async ({ p
   pdf.addPage([600, 800]).drawText("First");
   pdf.addPage([900, 600]).drawText("Second");
   await page.goto("/");
-  await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^阅读资料库/ }).click();
+  await openReadingLibrary(page);
   await page.locator('input[accept="application/pdf,.pdf"]').setInputFiles({ name: "width.pdf", mimeType: "application/pdf", buffer: Buffer.from(await pdf.save()) });
   await page.getByRole("button", { name: "PDF 阅读设置", exact: true }).click();
   await page.getByLabel("缩小 PDF", { exact: true }).click();
@@ -24,8 +24,7 @@ test("PDF 锁定宽度跨页面尺寸、方向和重新打开保持", async ({ p
   await page.setViewportSize({ width: 760, height: 390 });
   await expect.poll(ratio).toBeCloseTo(locked, 2);
   await page.getByRole("button", { name: "关闭 PDF 阅读器", exact: true }).click();
-  await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^阅读资料库/ }).click();
+  await openReadingLibrary(page);
   await page.getByRole("button", { name: /打开 width.pdf/ }).click();
   await expect(page.locator(".pdf-text-layer")).toContainText("Second");
   await expect.poll(ratio).toBeCloseTo(locked, 2);
@@ -46,8 +45,7 @@ test("PDF 锁定宽度跨页面尺寸、方向和重新打开保持", async ({ p
 
 test("EPUB 正文宽度换章、重新打开保持且独立于字号", async ({ page }) => {
   await page.goto("/");
-  await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^阅读资料库/ }).click();
+  await openReadingLibrary(page);
   await page.locator('input[accept="application/epub+zip,.epub"]').setInputFiles({ name: "width.epub", mimeType: "application/epub+zip", buffer: createEpubFixture() });
   await page.getByRole("button", { name: "EPUB 阅读设置", exact: true }).click();
   await page.getByRole("slider", { name: "EPUB 正文宽度" }).fill("80");
@@ -59,8 +57,7 @@ test("EPUB 正文宽度换章、重新打开保持且独立于字号", async ({ 
   await expect(body).toContainText("第二章");
   await expect.poll(width).toBeCloseTo(0.8, 2);
   await page.getByRole("button", { name: "关闭 EPUB 阅读器", exact: true }).click();
-  await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^阅读资料库/ }).click();
+  await openReadingLibrary(page);
   await page.getByRole("button", { name: /打开 Nine Rings EPUB MVP/ }).click();
   await expect(body).toContainText("第二章");
   await expect.poll(width).toBeCloseTo(0.8, 2);

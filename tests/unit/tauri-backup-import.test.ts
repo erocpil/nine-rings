@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { webcrypto } from "node:crypto";
 const invoke = vi.hoisted(() =>
-  vi.fn().mockResolvedValue({ notes_imported: 1, pages_imported: 0 }),
+  vi.fn().mockResolvedValue({ notes_imported: 1 }),
 );
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 import { tauriAdapter } from "../../src/lib/storage/tauri";

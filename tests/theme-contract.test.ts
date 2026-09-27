@@ -61,15 +61,10 @@ const sharedChrome = css.slice(css.lastIndexOf("Shared application chrome"));
 for (const selector of [
   ".version-panel",
   ".recycle-panel",
-  ".overdue-panel",
   ".properties-panel",
-  ".sidebar-item",
-  ".todo-item",
   ".search-filter-btn",
   ".search-results-header",
   ".quick-switcher-item",
-  ".template-popover",
-  ".qc-container",
   ".pdf-reader-toolbar",
   ".reader-tool-panel",
 ]) {

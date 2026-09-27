@@ -1,3 +1,4 @@
+import { openReadingLibrary } from "./helpers/workspace";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./helpers/reader-test";
 
@@ -64,8 +65,7 @@ test("EPUB 专注模式 pointer 手势后的兼容 click 不重复切换，快�
 test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page, browserName }) => {
   test.setTimeout(60_000);
   await page.goto("/");
-  await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^阅读资料库/ }).click();
+  await openReadingLibrary(page);
 
   await page.locator('input[type="file"][accept="application/epub+zip,.epub"]').setInputFiles({
     name: "nine-rings-mvp.epub",
@@ -168,8 +168,7 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page,
   await expect.poll(() => chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollY ?? 0)).toBeGreaterThan(400);
 
   await page.getByRole("button", { name: "关闭 EPUB 阅读器" }).click();
-  await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^阅读资料库/ }).click();
+  await openReadingLibrary(page);
   const libraryEntry = page.getByRole("button", { name: "打开 Nine Rings EPUB MVP" });
   await expect(libraryEntry.locator(".reader-library-cover img")).toBeVisible();
   await expect(libraryEntry).toContainText("测试作者");
@@ -342,8 +341,7 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page,
   });
   await page.getByRole("button", { name: "关闭 EPUB 阅读器" }).click();
   await page.setViewportSize({ width: 900, height: 844 });
-  await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^阅读资料库/ }).click();
+  await openReadingLibrary(page);
   await page.getByRole("button", { name: "打开 Nine Rings EPUB MVP" }).click();
   await expect.poll(() => chapterFrame.locator("html").evaluate((element) => Math.max(
     element.scrollTop,

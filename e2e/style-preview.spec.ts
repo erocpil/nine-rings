@@ -55,7 +55,7 @@ test("风格预览跟随深浅配色，桌面四列，旧紧凑配置仍可识�
       "background-color",
       dark,
     );
-  await page.screenshot({ path: "/tmp/nr-style-previews-dark.png" });
+  await page.screenshot({ path: test.info().outputPath("nr-style-previews-dark.png") });
   await colors.getByRole("button", { name: "跟随系统", exact: true }).click();
   await page.emulateMedia({ colorScheme: "light" });
   for (const [style, light] of palettes)

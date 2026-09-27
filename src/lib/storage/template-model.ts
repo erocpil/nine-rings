@@ -80,7 +80,7 @@ export function applyTemplateMetadata(
 
 export const BUILTIN_TEMPLATES: Omit<Template, "created_at" | "updated_at">[] =
   [
-    // ── 第一行：无路径模板（随笔页 + 文档页通用）──
+    // ── 第一行：未指定目录的通用文档模板──
     {
       id: "builtin-blank",
       name: "空白笔记",

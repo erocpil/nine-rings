@@ -24,7 +24,7 @@ async function openLeftPanel(page: Page, zone: "tree" | "list") {
   }, zone);
 }
 
-test("工具栏按宽度补回按钮，手机横屏隐藏密码入口并加宽目录", async ({ page }) => {
+test("工具栏按宽度补回按钮，手机横屏隐藏密码入口且浮层保持在视口内", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible();
   const toolbar = page.locator(".editor-menu");
@@ -34,11 +34,11 @@ test("工具栏按宽度补回按钮，手机横屏隐藏密码入口并加宽�
       overflow: el.scrollWidth - el.clientWidth };
   });
   await expect.poll(async () => (await inspect()).visible).toBeGreaterThan(0);
-  expect((await inspect()).overflow).toBeLessThanOrEqual(2);
+  await expect.poll(async () => (await inspect()).overflow).toBeLessThanOrEqual(2);
   const portrait = (await inspect()).visible;
   await page.setViewportSize({ width: 844, height: 390 });
   await expect.poll(async () => (await inspect()).visible).toBeGreaterThan(portrait);
-  expect((await inspect()).overflow).toBeLessThanOrEqual(2);
+  await expect.poll(async () => (await inspect()).overflow).toBeLessThanOrEqual(2);
   await expect(page.locator(".document-security-bar")).toHaveCount(0);
   await openLeftPanel(page, "tree");
   const sidebar = page.getByRole("dialog", { name: "文档侧栏", exact: true });
@@ -55,19 +55,25 @@ test("工具栏按宽度补回按钮，手机横屏隐藏密码入口并加宽�
   await page.getByRole("button", { name: "文档目录", exact: true }).click();
   const outline = page.getByRole("navigation", { name: "文档目录", exact: true });
   await expect(outline).toBeVisible();
-  expect((await outline.boundingBox())!.width).toBeGreaterThanOrEqual(844 * 2 / 3);
-  await page.screenshot({ path: "/tmp/nr-toolbar-fit-landscape.png" });
+  const outlineBox = (await outline.boundingBox())!;
+  expect(outlineBox.width).toBe(420);
+  expect(outlineBox.x).toBeGreaterThanOrEqual(0);
+  expect(outlineBox.x + outlineBox.width).toBeLessThanOrEqual(844);
+  await page.screenshot({ path: test.info().outputPath("nr-toolbar-fit-landscape.png") });
   await page.getByRole("button", { name: "文档目录", exact: true }).click();
   await page.getByRole("button", { name: "文档书签", exact: true }).click();
   const bookmarks = page.getByRole("navigation", { name: "文档书签", exact: true });
   await expect(bookmarks).toBeVisible();
-  expect((await bookmarks.boundingBox())!.width).toBeGreaterThanOrEqual(844 * 2 / 3);
+  const bookmarksBox = (await bookmarks.boundingBox())!;
+  expect(bookmarksBox.width).toBe(420);
+  expect(bookmarksBox.x).toBeGreaterThanOrEqual(0);
+  expect(bookmarksBox.x + bookmarksBox.width).toBeLessThanOrEqual(844);
   await page.getByRole("button", { name: "文档书签", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect.poll(async () => (await inspect()).visible).toBe(portrait);
-  expect((await inspect()).overflow).toBeLessThanOrEqual(2);
+  await expect.poll(async () => (await inspect()).overflow).toBeLessThanOrEqual(2);
   await page.getByTitle("更多编辑操作", { exact: true }).click();
   await expect(page.getByRole("button", { name: "插入图片", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
-  await page.screenshot({ path: "/tmp/nr-toolbar-fit-portrait.png" });
+  await page.screenshot({ path: test.info().outputPath("nr-toolbar-fit-portrait.png") });
 });

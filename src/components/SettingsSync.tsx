@@ -281,7 +281,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
       const overwritten = pullPrecheck.comparison.localChanged.length + pullPrecheck.comparison.conflicts.length;
       const warning = [
         "危险操作：将用 GitHub 全量快照替换本地数据库。",
-        localOnly > 0 ? `本地独有的 ${localOnly} 篇随笔/文档将被删除。` : "本地版本历史仍会被清空。",
+        localOnly > 0 ? `本地独有的 ${localOnly} 篇文档将被删除。` : "本地版本历史仍会被清空。",
         overwritten > 0 ? `${overwritten} 篇本地修改或冲突文档将被远端版本覆盖。` : "",
         "该操作不会按标题合并；建议先导出本地 JSON。确认仍要继续？",
       ].filter(Boolean).join("\n");
@@ -419,14 +419,14 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
             <span>
               本地: {fmtVersion(pullPrecheck.local.version || "") || "-"}
               <span className="sync-versions-sep"> · </span>
-              {pullPrecheck.local.noteCount} 笔记 · {pullPrecheck.local.pageCount} 页面 ·
+              {pullPrecheck.local.noteCount} 文档 ·
               {" "}
               {fmtBytes(pullPrecheck.local.size)}
             </span>
             <span>
               远端: {fmtVersion(pullPrecheck.remote.version)}
               <span className="sync-versions-sep"> · </span>
-              {pullPrecheck.remote.noteCount} 笔记 · {pullPrecheck.remote.pageCount} 页面 ·
+              {pullPrecheck.remote.noteCount} 文档 ·
               {" "}
               {fmtBytes(pullPrecheck.remote.size)}
             </span>
@@ -482,7 +482,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
                   return doc ? (
                     <>
                       <div className="sync-remote-preview-detail-title">{doc.title}</div>
-                      <div className="settings-hint">{doc.storagePath || "随笔"} · {doc.updatedAt || doc.date || "无修改时间"}</div>
+                      <div className="settings-hint">{doc.storagePath || "文档"} · {doc.updatedAt || doc.date || "无修改时间"}</div>
                       <DocumentContentPreview key={doc.id} content={doc.content} encrypted={doc.encrypted} />
                     </>
                   ) : <div className="settings-hint">选择一篇远端文档查看预览</div>;
@@ -521,17 +521,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
           <SyncConflictReview precheck={pullPrecheck} resolutions={conflictResolutions} ignoredIds={ignoredRemoteIds} disabled={busy}
             onResolve={(id, resolution) => setConflictResolutions(previous => ({ ...previous, [id]: resolution }))} />
 
-          {(pullPrecheck.comparison.pages.localOnly
-            + pullPrecheck.comparison.pages.remoteOnly
-            + pullPrecheck.comparison.pages.localChanged
-            + pullPrecheck.comparison.pages.remoteChanged
-            + pullPrecheck.comparison.pages.conflicts) > 0 && (
-            <div className="settings-hint sync-page-summary">
-              每日页面：本地独有 {pullPrecheck.comparison.pages.localOnly}，远端独有 {pullPrecheck.comparison.pages.remoteOnly}，
-              仅本地修改 {pullPrecheck.comparison.pages.localChanged}，仅远端修改 {pullPrecheck.comparison.pages.remoteChanged}，
-              冲突 {pullPrecheck.comparison.pages.conflicts}。
-            </div>
-          )}
+
 
           <div className="sync-merge-explanation">
             安全合并不会按标题去重，也不会传播删除操作；同名但 UUID 不同的文档会同时保留。
@@ -576,7 +566,7 @@ export default function SettingsSync({ onBusyChange, onBeforePush, onPullDone }:
       <div className="sync-config-section">
         <h4>连接设置</h4>
         <p className="settings-hint">
-          全量 JSON 快照包含随笔/文档及其正文书签、待办、模板、应用配置及非敏感用户设置；Token 不进入备份。需要能读写目标仓库的 GitHub Token；细粒度 Token 需授权该仓库的 Contents 读写权限。
+          全量 JSON 快照包含文档及其正文书签、模板、应用配置及非敏感用户设置；Token 不进入备份。需要能读写目标仓库的 GitHub Token；细粒度 Token 需授权该仓库的 Contents 读写权限。
         </p>
         <p className="settings-hint">备份范围提醒：PDF/EPUB 原文件及其阅读数据暂不包含在此 JSON 备份中。可在“阅读资料库”逐本导出阅读数据备份，原文件请另行保留。</p>
 

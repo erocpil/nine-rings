@@ -1,3 +1,4 @@
+import { useDocumentActive } from "./RetainedDocument";
 import { isReadingPositionRestoring } from "../lib/reading-position";
 import { IncrementalDocumentSerializer } from "../lib/incremental-document-serializer";
 import { editorDocumentFromContent } from "../lib/editor-content-model";
@@ -474,6 +475,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   documentMetadataRef.current = content.metadata;
   const readonlyRef = useRef(Boolean(readonly));
   readonlyRef.current = Boolean(readonly);
+  const documentActive = useDocumentActive();
   const contentVersionRef = useRef(contentVersion);
   const contentChangeRef = useRef(onContentChange);
   contentChangeRef.current = onContentChange;
@@ -615,9 +617,9 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   });
   const desktopPanels = useDesktopDocumentPanels(!isMobileToolbarViewport, documentOutline, bookmarks);
   const { openPreview, dismiss: dismissPreview, toggle: togglePinnedPanel } = desktopPanels;
-  const outlineOpen = isMobileToolbarViewport ? mobileOutlineOpen : desktopPanels.pinned("outline") || desktopPanels.preview === "outline";
+  const outlineOpen = documentActive && (isMobileToolbarViewport ? mobileOutlineOpen : desktopPanels.pinned("outline") || desktopPanels.preview === "outline");
   outlineOpenRef.current = outlineOpen;
-  const bookmarkOpen = isMobileToolbarViewport ? mobileBookmarkOpen : desktopPanels.pinned("bookmark") || desktopPanels.preview === "bookmark";
+  const bookmarkOpen = documentActive && (isMobileToolbarViewport ? mobileBookmarkOpen : desktopPanels.pinned("bookmark") || desktopPanels.preview === "bookmark");
   const setOutlineOpen = useCallback((open: boolean) => {
     if (isMobileToolbarViewport) setMobileOutlineOpen(open);
     else if (open) openPreview("outline"); else dismissPreview();
@@ -638,7 +640,9 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   });
   // 桌面 Web 的编辑区通常会因侧栏被压缩到 700～900px；900px 阈值过于
   // 保守，会在仍有足够空间时提前切换精简工具栏。移动端仍始终使用精简布局。
-  const isNarrow = toolbarWidth < 720 || isMobileToolbarViewport;
+  // Full mode includes fixed heading/list/table controls; leave room for their
+  // native font metrics in both WebKit and Chromium plus the More entry.
+  const isNarrow = toolbarWidth < 900 || isMobileToolbarViewport;
   const isMinimalToolbar = isNarrow;
   const [showCodeLineNumbers, setShowCodeLineNumbers] = useState(codeLineNumbersEnabled);
   useEffect(() => {
@@ -966,9 +970,9 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       syncNativeCodeInputBehavior(ed);
       const { from, to } = ed.state.selection;
       if (ed.isFocused && !toolbarInteractingRef.current) {
-        toolbarCellSelectionRef.current = null;
-        if (from === to) toolbarSelectionRef.current = null;
-        else closeToolbarDropdowns();
+        // Touch focus can collapse the native range after a toolbar action.
+        // Keep its saved selection until an explicit editor pointer/key event.
+        if (from !== to) closeToolbarDropdowns();
       }
       localStorage.setItem(`selectionPos:${noteId}`, JSON.stringify({ from, to }));
       // 目录打开（含固定）时，光标移动到其它标题需同步高亮当前章节。
@@ -1274,7 +1278,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   }, [bookmarkOpen, openDocumentBookmarks, isMobileToolbarViewport, togglePinnedPanel, setBookmarkOpen]);
 
   useEffect(() => {
-    if (!isMobileToolbarViewport) return;
+    if (!documentActive || !isMobileToolbarViewport) return;
 
     return bindViewportEdgeSwipe("right", (touch) => {
       const viewport = swipeViewport();
@@ -1292,7 +1296,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         else openDocumentOutline("drawer");
       };
     });
-  }, [isMobileToolbarViewport, documentOutline.length, onOpenSettings, openDocumentOutline, openDocumentBookmarks]);
+  }, [documentActive, isMobileToolbarViewport, documentOutline.length, onOpenSettings, openDocumentOutline, openDocumentBookmarks]);
 
   const toggleDocumentOutline = useCallback(() => {
     if (!isMobileToolbarViewport) { togglePinnedPanel("outline"); return; }
@@ -1852,7 +1856,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   // 宽度变化会让软换行重排。编辑且光标可见时锚定光标；布局按钮暂时
   // 获得焦点时延续该锚点。只读或光标移出视口后改用顶部第一个可见块。
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || !documentActive) return;
     const root = scrollRef.current;
     if (!root || typeof ResizeObserver === "undefined") return;
 
@@ -2123,6 +2127,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     };
     editor.on("selectionUpdate", userNavigation);
     editor.on("focus", scheduleCapture);
+    root.addEventListener(EDITOR_NAVIGATION_EVENT, userNavigation);
     root.addEventListener("pointerdown", userNavigation, { passive: true });
     root.addEventListener("wheel", wheelNavigation, { passive: true });
     root.addEventListener("scroll", captureAfterScrollSettles, { passive: true });
@@ -2134,6 +2139,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     return () => {
       editor.off("selectionUpdate", userNavigation);
       editor.off("focus", scheduleCapture);
+      root.removeEventListener(EDITOR_NAVIGATION_EVENT, userNavigation);
       root.removeEventListener("pointerdown", userNavigation);
       root.removeEventListener("wheel", wheelNavigation);
       root.removeEventListener("scroll", captureAfterScrollSettles);
@@ -2143,7 +2149,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       clearSettleTimers();
       if (frame) cancelAnimationFrame(frame);
     };
-  }, [editor]);
+  }, [editor, documentActive]);
 
   // 打开标题下拉时自动检测是否存在 H6（切换至页 1）
   useEffect(() => {
@@ -2201,7 +2207,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       if (node instanceof HTMLElement) root.scrollTop += node.getBoundingClientRect().top - editorReadingViewport(root).top + anchor.offset;
     }
     return () => {
-      if (!readonlyRenderingEnabled() || editor.isDestroyed) return;
+      if (!readonlyRenderingEnabled() || editor.isDestroyed || !root.isConnected) return;
       const visibleAnchor = captureEditorViewportAnchor(editor, root);
       if (visibleAnchor) {
         handoffReadingAnchor(noteId, { position: visibleAnchor.position, offset: -visibleAnchor.offsetTop });
@@ -3545,6 +3551,12 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         event.stopPropagation();
       }}
       onMouseDownCapture={preventReadonlyTableResize}
+      onKeyDownCapture={(event) => {
+        if (!(event.target instanceof Node) || !editor.view.dom.contains(event.target)) return;
+        toolbarSelectionRef.current = null;
+        toolbarCellSelectionRef.current = null;
+        setToolbarSelectionHighlight(editor, null);
+      }}
       onPointerDownCapture={(event) => {
         if (!(event.target instanceof Element) || !event.target.closest(".ProseMirror")) return;
         if (readonly) readonlyCopyPosition.current = editor.view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? null;
@@ -3904,8 +3916,23 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           }}
           onPointerCancelCapture={() => { toolbarInteractingRef.current = false; }}
           onTouchCancelCapture={() => { toolbarInteractingRef.current = false; }}
+          onChangeCapture={(event) => {
+            // Native select/color inputs in the portaled sheet do not dispatch
+            // a button click. Restore the text selection before their command.
+            if (!(event.target instanceof HTMLSelectElement)
+              && !(event.target instanceof HTMLInputElement && event.target.type === "color")) return;
+            toolbarInteractingRef.current = true;
+            if (toolbarCellSelectionRef.current) {
+              editor.view.dispatch(editor.state.tr.setSelection(toolbarCellSelectionRef.current));
+            } else if (toolbarSelectionRef.current) {
+              editor.commands.setTextSelection(toolbarSelectionRef.current);
+            }
+            requestAnimationFrame(() => { toolbarInteractingRef.current = false; });
+          }}
           onClickCapture={(event) => {
             if (!(event.target instanceof Element) || !event.target.closest("button")) return;
+            // Portaled buttons skip the toolbar's native pointer handlers.
+            toolbarInteractingRef.current = true;
             const cellSelection = toolbarCellSelectionRef.current;
             const textSelection = toolbarSelectionRef.current;
             if (cellSelection) {

@@ -10,6 +10,7 @@ import { snakeImportToCamel } from "./normalize";
 /** All normal reads stay ciphertext, including when an editor is unlocked. */
 export function protectedAdapter(raw: StorageAdapter): StorageAdapter {
   const prepareCreate = async (data: CreateNoteInput): Promise<CreateNoteInput> => {
+    data = { ...data, storagePath: normalizeStoragePath(data.storagePath || "references") };
     const path = pathProtection(await listProtectedPaths(), data.storagePath);
     if (!path) return data;
     const key = await requestPathKey(path);
@@ -49,8 +50,9 @@ export function protectedAdapter(raw: StorageAdapter): StorageAdapter {
     upsertNote: data => withProtectionWrite(async () => {
       // Preserve the matched document's password even when importing Markdown
       // into an individually protected (not path-protected) document.
-      const candidates = data.storagePath ? await raw.getNotesByPath(data.storagePath) : await raw.getNotesByDate(data.date);
-      const existing = candidates.filter(n => n.title === data.title && (n.storagePath ?? "") === (data.storagePath ?? ""))
+      data = { ...data, storagePath: normalizeStoragePath(data.storagePath || "references") };
+      const candidates = await raw.getNotesByPath(data.storagePath!);
+      const existing = candidates.filter(n => n.title === data.title && n.storagePath === data.storagePath)
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
       if (existing && isEncrypted(existing.content)) return update(existing.id, data);
       return raw.upsertNote(await prepareCreate(data));
@@ -85,8 +87,8 @@ export function protectedAdapter(raw: StorageAdapter): StorageAdapter {
       await commitProtectedChanges(before, after);
       return restored;
     }),
-    getPathTree: async includeDaily => {
-      const [nodes, paths] = await Promise.all([raw.getPathTree(includeDaily), listProtectedPaths()]);
+    getPathTree: async () => {
+      const [nodes, paths] = await Promise.all([raw.getPathTree(), listProtectedPaths()]);
       const folders = new Map(nodes.filter(n => n.type === "folder").map(n => [n.path, n]));
       for (const p of paths) {
         const parts = p.path.split("/");

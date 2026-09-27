@@ -68,7 +68,13 @@ for (const format of ["pdf", "epub"] as const) {
       const signature = format === "pdf" ? await canvas.getAttribute("data-pdf-render-signature") : null;
       await page.mouse.move(x, box.y + 200, { steps: 20 });
       expect(await layout()).toEqual(initialLayout);
-      expect(await page.locator(".app-main").evaluate(el => el.getBoundingClientRect().width)).toBe(editorWidth);
+      const editorAfterDrag = await page.locator(".app-main").evaluate(el => el.getBoundingClientRect().width);
+      if (x > 1000) {
+        expect(editorAfterDrag).toBe(0);
+        await expect(divider).toBeVisible();
+      } else {
+        expect(editorAfterDrag).toBeGreaterThanOrEqual(Math.min(320, editorWidth || 320));
+      }
       if (format === "pdf") {
         await expect(page.locator(".pdf-reader")).toHaveAttribute("data-pdf-resizing", "true");
         expect(await canvas.getAttribute("data-pdf-render-signature")).toBe(signature);
@@ -104,11 +110,12 @@ for (const format of ["pdf", "epub"] as const) {
     for (let cycle = 0; cycle < 3; cycle++) {
       await drag(1278, cycle === 1 ? "capture" : cycle === 2 ? "blur" : undefined);
       await expect.poll(width).toBeGreaterThan(1200);
-      expect(await page.locator(".app-main").evaluate(el => el.getBoundingClientRect().width)).toBeGreaterThanOrEqual(320);
+      expect(await page.locator(".app-main").evaluate(el => el.getBoundingClientRect().width)).toBe(0);
       expect(await page.locator(".app-body").evaluate(el => el.scrollLeft)).toBe(0);
       await drag(700);
       await expect.poll(width).toBeLessThan(700);
       await expect.poll(width).toBeGreaterThan(600);
+      expect(await page.locator(".app-main").evaluate(el => el.getBoundingClientRect().width)).toBeGreaterThanOrEqual(320);
       await expect(page.locator(".ProseMirror")).toBeVisible();
       expect(errors).toEqual([]);
     }

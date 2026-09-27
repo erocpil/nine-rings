@@ -252,6 +252,7 @@ def build_import_json(md_files, today, now, storage_path=None, doc_type=None, co
     md_files: dict {文件路径: 子目录 或 None}
     dir_root: 扫描根目录，用于子路径归一化
     """
+    storage_path = storage_path or "references"
     notes = []
     for fp, subdir in md_files.items():
         with open(fp, 'r', encoding='utf-8') as f:
@@ -301,7 +302,6 @@ def build_import_json(md_files, today, now, storage_path=None, doc_type=None, co
         'version': 1,
         'exported_at': now,
         'notes': notes,
-        'daily_pages': [],
     }
 
 

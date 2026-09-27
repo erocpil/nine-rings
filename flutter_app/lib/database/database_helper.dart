@@ -26,6 +26,7 @@ class DatabaseHelper {
       (ver: 6, sql: migrationV6),
       (ver: 7, sql: migrationV7),
       (ver: 8, sql: migrationV8),
+      (ver: 9, sql: migrationV9),
     ];
 
     for (final m in migrations) {

@@ -1,5 +1,5 @@
 use crate::db;
-use crate::db::models::{DailyPage, Note, Todo};
+use crate::db::models::Note;
 use rusqlite::Connection;
 
 // ──── Note CRUD ────
@@ -23,60 +23,4 @@ pub fn reorder_note(conn: &Connection, id: &str, new_order: i32) -> rusqlite::Re
         rusqlite::params![new_order, now, id],
     )?;
     db::models::select_note_by_id(conn, id)
-}
-
-// ──── DailyPage ────
-
-pub fn get_or_create_daily_page(
-    conn: &Connection,
-    date: &str,
-    carryover_default: bool,
-) -> rusqlite::Result<DailyPage> {
-    if let Some(page) = db::models::select_daily_page(conn, date)? {
-        return Ok(page);
-    }
-    let prev = db::models::select_prev_carryover_page(conn, date)?;
-    let now = chrono::Utc::now().to_rfc3339();
-    if let Some(prev) = prev {
-        if prev.todo_carryover {
-            let incompleted: Vec<Todo> = prev.todos.into_iter().filter(|t| !t.done).collect();
-            let page = DailyPage {
-                date: date.to_string(),
-                todos: incompleted,
-                todo_carryover: true,
-                updated_at: now,
-            };
-            db::models::upsert_daily_page(conn, &page)?;
-            return Ok(page);
-        }
-    }
-    let page = DailyPage {
-        date: date.to_string(),
-        todos: vec![],
-        todo_carryover: carryover_default,
-        updated_at: now,
-    };
-    db::models::upsert_daily_page(conn, &page)?;
-    Ok(page)
-}
-
-pub fn get_daily_page(conn: &Connection, date: &str) -> rusqlite::Result<Option<DailyPage>> {
-    db::models::select_daily_page(conn, date)
-}
-
-pub fn update_todos(
-    conn: &Connection,
-    date: &str,
-    todos: &[Todo],
-    todo_carryover: bool,
-) -> rusqlite::Result<DailyPage> {
-    let now = chrono::Utc::now().to_rfc3339();
-    let page = DailyPage {
-        date: date.to_string(),
-        todos: todos.to_vec(),
-        todo_carryover,
-        updated_at: now,
-    };
-    db::models::upsert_daily_page(conn, &page)?;
-    Ok(page)
 }

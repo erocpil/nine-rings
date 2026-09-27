@@ -16,7 +16,7 @@ test("全局搜索增加路径类型概念筛选后保留多词匹配，清除�
   });
   await page.reload();
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
-  await page.keyboard.press("Control+Shift+f");
+  await page.keyboard.press("ControlOrMeta+Shift+f");
   const input = page.locator(".search-input");
   await input.fill("abc uniquefilterbody");
   await expect(page.locator(".search-hit")).toHaveCount(4);

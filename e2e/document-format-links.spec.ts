@@ -1,3 +1,4 @@
+import { pressDocumentBoundary } from "./helpers/keyboard";
 import { sourceInfo, replaceSource } from "./helpers/source-editor";
 import { expect, test, type Page } from "@playwright/test";
 
@@ -57,7 +58,7 @@ for (const mobile of [false, true]) {
     await expect(page.locator(".ProseMirror strong")).toHaveText("源码修改");
     await expect(source).toHaveCount(0);
     await page.locator(".ProseMirror strong").click();
-    await page.locator(".ProseMirror").press("Control+End");
+    await pressDocumentBoundary(page.locator(".ProseMirror"), "end");
     await page.keyboard.type(" rendered-edit");
     await expect(page.locator(".ProseMirror")).toContainText("rendered-edit");
     await page.getByRole("button", { name: "源码", exact: true }).click();
@@ -106,7 +107,7 @@ for (const virtual of [false, true]) {
     await fixture(page, { readonly: true, virtual });
     await page.locator(".editor-content p").filter({ hasText: "第一段" }).click();
     for (let i = 0; i < 2; i++) {
-      await page.keyboard.press("Control+a");
+      await page.keyboard.press("ControlOrMeta+a");
       await expect.poll(() => page.evaluate(() => {
         const selection = window.getSelection();
         return { text: selection?.toString(), inside: !!selection?.anchorNode && !!selection.focusNode && !!document.querySelector(".editor-content")?.contains(selection.anchorNode) && !!document.querySelector(".editor-content")?.contains(selection.focusNode) };
@@ -114,7 +115,7 @@ for (const virtual of [false, true]) {
     }
     await page.getByRole("button", { name: "源码", exact: true }).click();
     const source = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
-    await source.focus(); await source.press("Control+a");
+    await source.focus(); await source.press("ControlOrMeta+a");
     expect(await sourceInfo(source).then(info => info.selectionEnd - info.selectionStart)).toBeGreaterThan(20);
   });
 }

@@ -27,7 +27,7 @@ for (const [width, height] of [[390, 800], [844, 390], [1280, 800]]) {
       };
       await unlock();
       if (width === 1280) {
-        await page.keyboard.press("Control+Shift+f");
+        await page.keyboard.press("ControlOrMeta+Shift+f");
         const search = page.getByRole("dialog", { name: "全局搜索", exact: true });
         await search.getByRole("textbox", { name: "全局搜索" }).fill("加密正文");
         await expect(search.locator(".search-results")).toContainText("搜索结果（0）");

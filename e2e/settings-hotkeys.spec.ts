@@ -28,8 +28,7 @@ test("快捷键录制、取消和恢复默认跨设置页保留", async ({ page 
     const load = (path: string) => import(/* @vite-ignore */ path);
     const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");
     const { DEFAULT_HOTKEYS, HOTKEY_LABELS } = await load("/src/types/models.ts");
-    const { isWorkspaceShortcutEnabled } = await load("/src/lib/workspace-features.ts");
-    const id = Object.keys(HOTKEY_LABELS).find(isWorkspaceShortcutEnabled)!;
+    const id = Object.keys(HOTKEY_LABELS)[0];
     return (await api.config.get()).hotkeys[id] === DEFAULT_HOTKEYS[id];
   })).toBe(true);
   await page.getByLabel("关闭设置").click();

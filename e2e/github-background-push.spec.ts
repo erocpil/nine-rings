@@ -17,8 +17,17 @@ async function configure(page: Page) {
       token: "fake-test-token",
     });
   });
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^云端同步/ }).click();
+}
+
+async function closeWhileUploading(page: Page) {
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+  const confirm = page.getByRole("dialog", { name: "GitHub 同步尚未完成", exact: true });
+  await expect(confirm).toContainText("现在返回不会取消正在进行的操作");
+  await confirm.getByRole("button", { name: "仍然返回", exact: true }).click();
+  await expect(confirm).toHaveCount(0);
+  await expect(page.locator(".settings-overlay")).toHaveCount(0);
 }
 
 test("关闭及重开设置页后继续上传，禁止重复 Push，完成后显示全局结果", async ({
@@ -44,25 +53,25 @@ test("关闭及重开设置页后继续上传，禁止重复 Push，完成后显
   const job = page.getByLabel("GitHub 上传任务");
   await expect(job).toContainText("正在上传备份数据");
   await expect(job.getByRole("progressbar")).toBeVisible();
-  await page.locator(".settings-close").click();
+  await closeWhileUploading(page);
   await expect(job).toBeVisible();
   await expect(page.locator(".note-editor .ProseMirror")).toHaveAttribute(
     "contenteditable",
     "true",
   );
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^云端同步/ }).click();
   await expect(page.getByRole("button", { name: "Push ↑" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Pull ↓" })).toBeDisabled();
   await expect(page.getByLabel("备份文件路径", { exact: true })).toBeDisabled();
-  await page.locator(".settings-close").click();
+  await closeWhileUploading(page);
   await expect.poll(() => !!dataRoute).toBe(true);
   await dataRoute!.fulfill({ json: { content: { sha: "data-sha" } } });
   await expect(job).toContainText("备份已上传至 GitHub");
   expect(uploads).toHaveLength(2);
   expect(uploads[1]).toMatch(/-latest$/);
   await expect(job.getByRole("progressbar")).toHaveCount(0);
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^云端同步/ }).click();
   await expect(page.getByText(/上次上传备份版本:/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Push ↑" })).toBeEnabled();
@@ -112,7 +121,7 @@ test("取消上传不会写 latest，也不会显示成功或记录成功版本"
   const job = page.getByLabel("GitHub 上传任务");
   await expect(job).toContainText("正在上传备份数据");
   await expect.poll(() => writes.length).toBe(1);
-  await page.locator(".settings-close").click();
+  await closeWhileUploading(page);
   await job.getByRole("button", { name: "取消上传" }).click();
   await expect(job).toContainText("上传已取消");
   await expect(job).toContainText("尚未发布为最新备份");

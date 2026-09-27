@@ -5,27 +5,19 @@ import { readReaderDiagnostics } from "./reader-diagnostics";
 
 interface BackupShape {
   notes?: Array<{ storagePath?: unknown; content?: unknown }>;
-  daily_pages?: Array<{ todos?: unknown }>;
 }
 
 export interface DiagnosticDataSummary {
   notes: number;
   documents: number;
-  dailyNotes: number;
-  dailyPages: number;
-  todos: number;
   malformedNotes: number;
 }
 
 export function summarizeDiagnosticBackup(data: BackupShape): DiagnosticDataSummary {
   const notes = Array.isArray(data.notes) ? data.notes : [];
-  const pages = Array.isArray(data.daily_pages) ? data.daily_pages : [];
   return {
     notes: notes.length,
     documents: notes.filter((note) => typeof note.storagePath === "string" && note.storagePath.length > 0).length,
-    dailyNotes: notes.filter((note) => !note.storagePath).length,
-    dailyPages: pages.length,
-    todos: pages.reduce((count, page) => count + (Array.isArray(page.todos) ? page.todos.length : 0), 0),
     malformedNotes: notes.filter((note) => !note.content || typeof note.content !== "object").length,
   };
 }

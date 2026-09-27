@@ -1,3 +1,4 @@
+import { pressLineBoundary } from "./helpers/keyboard";
 import { test, expect, type Page } from "@playwright/test";
 
 async function createDocument(page: Page, title: string) {
@@ -17,7 +18,7 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     await createDocument(page, "搜索定位测试");
     const editor = page.locator(".ProseMirror");
     await editor.fill("第一处 unique-search-target 在这里");
-    await editor.press("End");
+    await pressLineBoundary(editor, "end");
     await editor.press("Enter");
     await editor.type("中间内容");
     await editor.press("Enter");
@@ -25,7 +26,7 @@ test.describe("搜索定位与编辑器布局锚点", () => {
 
     // 等待自动保存把正文同步到全文搜索字段。
     await page.waitForTimeout(800);
-    await page.keyboard.press("Control+Shift+f");
+    await page.keyboard.press("ControlOrMeta+Shift+f");
     await page.locator(".search-input").fill("unique-search-target");
     const result = page.locator(".search-hit").filter({ hasText: "搜索定位测试" });
     await expect(result).toBeVisible();
@@ -44,7 +45,7 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     await editor.fill("第一处 focus-search-target\n第二处 focus-search-target");
     await expect(page.locator(".save-status-saved")).toBeVisible();
     await page.getByTitle("专注模式").click();
-    await page.keyboard.press("Control+Shift+f");
+    await page.keyboard.press("ControlOrMeta+Shift+f");
     await page.locator(".search-input").fill("focus-search-target");
     await page.locator(".search-hit").filter({ hasText: "专注搜索导航测试" }).click();
 
@@ -90,14 +91,14 @@ test.describe("搜索定位与编辑器布局锚点", () => {
 
     await editor.fill(`正文包含 ${keyword}`);
     await page.waitForTimeout(800);
-    await page.keyboard.press("Control+Shift+f");
+    await page.keyboard.press("ControlOrMeta+Shift+f");
     await input.fill(keyword);
     await expect(header).toContainText("搜索结果（1）");
 
     // Esc closes the overlay, but reopening restores the query and refreshes it.
     await input.press("Escape");
     await expect(page.locator(".search-results")).toHaveCount(0);
-    await page.keyboard.press("Control+Shift+f");
+    await page.keyboard.press("ControlOrMeta+Shift+f");
     await expect(input).toHaveValue(keyword);
     await expect(header).toContainText("搜索结果（1）");
 
@@ -105,7 +106,7 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     // 再次聚焦必须先 flush，因而旧关键词不应继续命中。
     await page.getByRole("button", { name: "关闭搜索结果" }).click();
     await editor.fill("正文已经改变，不再包含原来的检索词");
-    await page.keyboard.press("Control+Shift+f");
+    await page.keyboard.press("ControlOrMeta+Shift+f");
     await expect(input).toHaveValue(keyword);
     await expect(header).toContainText("搜索结果（0）");
   });
@@ -115,7 +116,7 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     const keyword = "scrollable-search-results-target";
     await page.locator(".ProseMirror").fill(`正文包含 ${keyword}`);
     await page.waitForTimeout(800);
-    await page.keyboard.press("Control+Shift+f");
+    await page.keyboard.press("ControlOrMeta+Shift+f");
     await page.locator(".search-input").fill(keyword);
 
     const panel = page.locator(".search-results");
@@ -153,7 +154,7 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     await expect(editor.locator("table")).toHaveCount(1);
     await page.waitForTimeout(800);
 
-    await page.keyboard.press("Control+Shift+f");
+    await page.keyboard.press("ControlOrMeta+Shift+f");
     await page.locator(".search-input").fill("unique-table-search-value");
     const result = page.locator(".search-hit").filter({ hasText: "表格搜索测试" });
     await expect(result).toBeVisible();

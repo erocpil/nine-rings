@@ -18,9 +18,7 @@ pub struct AppConfig {
     pub exhibition_text_width: String,
     #[serde(default)]
     pub exhibition_density: Option<String>,
-    pub theme: String,        // "system" | "light" | "dark" | "fu" | ...
-    pub default_view: String, // "daily" | "list"
-    pub todo_carryover_default: bool,
+    pub theme: String, // "system" | "light" | "dark" | "fu" | ...
     pub auto_clean_days: i32,
     pub note_font_size: i32,
     #[serde(default = "default_editor_font_family")]
@@ -142,11 +140,8 @@ fn default_user_language() -> String {
 
 fn default_hotkeys() -> std::collections::HashMap<String, String> {
     std::collections::HashMap::from([
-        ("new_note".into(), "".into()),
-        ("quick_capture".into(), "CommandOrControl+Alt+N".into()),
         ("focus_search".into(), "Alt+E".into()),
         ("open_settings".into(), "Alt+,".into()),
-        ("go_to_daily".into(), "CommandOrControl+Shift+D".into()),
         ("show_window".into(), "Alt+Y".into()),
     ])
 }
@@ -161,9 +156,15 @@ fn default_editor_fold_icon_expanded() -> String {
     "▼".into()
 }
 
-fn default_exhibition_text_width() -> String { "standard".into() }
-fn default_workspace_layout() -> String { "standard".into() }
-fn default_interface_color_mode() -> String { "system".into() }
+fn default_exhibition_text_width() -> String {
+    "standard".into()
+}
+fn default_workspace_layout() -> String {
+    "standard".into()
+}
+fn default_interface_color_mode() -> String {
+    "system".into()
+}
 
 fn default_interface_style() -> String {
     "classic".into()
@@ -178,8 +179,6 @@ impl Default for AppConfig {
             workspace_layout: default_workspace_layout(),
             exhibition_text_width: default_exhibition_text_width(),
             exhibition_density: None,
-            default_view: "daily".into(),
-            todo_carryover_default: false,
             auto_clean_days: 30,
             note_font_size: 16,
             editor_font_family: default_editor_font_family(),
@@ -344,7 +343,10 @@ mod tests {
     fn workspace_layout_migrates_and_round_trips() {
         let mut value = serde_json::to_value(AppConfig::default()).unwrap();
         value.as_object_mut().unwrap().remove("workspace_layout");
-        value.as_object_mut().unwrap().remove("exhibition_text_width");
+        value
+            .as_object_mut()
+            .unwrap()
+            .remove("exhibition_text_width");
         value.as_object_mut().unwrap().remove("exhibition_density");
         let migrated: AppConfig = serde_json::from_value(value).unwrap();
         assert_eq!(migrated.workspace_layout, "standard");
@@ -354,7 +356,8 @@ mod tests {
         config.workspace_layout = "exhibition".into();
         config.exhibition_text_width = "wide".into();
         config.exhibition_density = Some("compact".into());
-        let restored: AppConfig = serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
+        let restored: AppConfig =
+            serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
         assert_eq!(restored.workspace_layout, "exhibition");
         assert_eq!(restored.exhibition_text_width, "wide");
         assert_eq!(restored.exhibition_density.as_deref(), Some("compact"));
@@ -363,10 +366,13 @@ mod tests {
     #[test]
     fn interface_styles_round_trip_independently_of_theme() {
         for style in ["classic", "calm", "calm-compact", "nine-rings"] {
-            let mut config = AppConfig::default();
-            config.interface_style = style.into();
-            config.theme = "nord".into();
-            let restored: AppConfig = serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
+            let config = AppConfig {
+                interface_style: style.into(),
+                theme: "nord".into(),
+                ..AppConfig::default()
+            };
+            let restored: AppConfig =
+                serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
             assert_eq!(restored.interface_style, style);
             assert_eq!(restored.theme, "nord");
         }
@@ -375,10 +381,16 @@ mod tests {
     #[test]
     fn outline_fold_preference_round_trips_without_changing_body_style() {
         for style in ["triangle", "chevron", "inherit"] {
-            let mut config = AppConfig::default();
-            config.editor_outline_fold_icon_style = Some(style.into());
-            let restored: AppConfig = serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
-            assert_eq!(restored.editor_outline_fold_icon_style.as_deref(), Some(style));
+            let config = AppConfig {
+                editor_outline_fold_icon_style: Some(style.into()),
+                ..AppConfig::default()
+            };
+            let restored: AppConfig =
+                serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
+            assert_eq!(
+                restored.editor_outline_fold_icon_style.as_deref(),
+                Some(style)
+            );
             assert_eq!(restored.editor_fold_icon_style, "chevron");
         }
     }
@@ -387,8 +399,6 @@ mod tests {
     fn legacy_config_keeps_existing_values_and_gets_appearance_defaults() {
         let legacy = r#"{
             "theme":"grace",
-            "default_view":"daily",
-            "todo_carryover_default":false,
             "auto_clean_days":30,
             "note_font_size":19,
             "dev_port":8000,

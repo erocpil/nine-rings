@@ -21,7 +21,7 @@ describe("folder rename", () => {
     ]) {
       expect(() => resolveFolderRename("projects/old", name)).toThrow();
     }
-    expect(() => resolveFolderRename("projects", "daily")).toThrow();
-    expect(() => resolveFolderRename("daily/2026-09-16", "name")).toThrow();
+    expect(resolveFolderRename("projects", "daily")).toBe("daily");
+    expect(resolveFolderRename("daily/2026-09-16", "name")).toBe("daily/name");
   });
 });

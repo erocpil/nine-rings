@@ -174,7 +174,7 @@ test("PDF 快速往返滚动后只提交当前页，离屏画布释放", async (
       }),
     )
     .toBe(true);
-  await page.screenshot({ path: "/tmp/pdf-small-page-centered.png" });
+  await page.screenshot({ path: test.info().outputPath("pdf-small-page-centered.png") });
   await page
     .getByRole("button", { name: "关闭 PDF 阅读器", exact: true })
     .tap();

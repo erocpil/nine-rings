@@ -1,19 +1,14 @@
+import { createBlankDocument } from "./helpers/document";
+import { pressLineBoundary } from "./helpers/keyboard";
 import { expect, test, type Locator } from "@playwright/test";
 
 test("只读文档拒绝 Windows WebView2 式粘贴事件", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "文档标题", exact: true })).toHaveValue("新随笔");
-  await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
-  await expect(page.locator(".ProseMirror")).toHaveText("");
+  await createBlankDocument(page);
 
   const editor = page.locator(".ProseMirror");
   await editor.fill("只读原文");
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
-  await page.locator(".sidebar-item.active").getByTitle("设为只读")
-    .evaluate((button: HTMLButtonElement) => button.click());
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   await expect(editor).toHaveAttribute("contenteditable", "false");
 
   const prevented = await editor.evaluate((element) => {
@@ -31,13 +26,7 @@ test("只读文档拒绝 Windows WebView2 式粘贴事件", async ({ page }) => 
 });
 
 test("只读文档显示已保存代码简介和只读语言，并保留查看操作", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "文档标题", exact: true })).toHaveValue("新随笔");
-  await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
-  await expect(page.locator(".ProseMirror")).toHaveText("");
+  await createBlankDocument(page);
 
   const editor = page.locator(".ProseMirror");
   await editor.evaluate((element) => {
@@ -61,8 +50,7 @@ test("只读文档显示已保存代码简介和只读语言，并保留查看�
   await codeTitle.fill(description);
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
 
-  await page.locator(".sidebar-item.active").getByTitle("设为只读")
-    .evaluate((button: HTMLButtonElement) => button.click());
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   await expect(editor).toHaveAttribute("contenteditable", "false");
   await expect(codeBlock.getByLabel("代码语言")).toBeVisible();
   await expect(codeBlock.getByLabel("代码语言")).toBeDisabled();
@@ -89,7 +77,8 @@ test("只读文档显示已保存代码简介和只读语言，并保留查看�
   await page.setViewportSize({ width: 390, height: 760 });
   await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 100 } });
   await page.locator(".note-title-row").getByTitle("专注模式").click();
-  await expect(page.getByLabel("专注模式工具栏")).toBeVisible();
+  await expect(page.locator(".note-editor")).toHaveClass(/focus-mode/);
+  await expect(page.getByRole("button", { name: "退出专注模式", exact: true })).toBeVisible();
   await expect(codeTitle).toBeVisible();
   await expect(codeTitle).toHaveValue(description);
   await expect(codeBlock.getByLabel("代码语言")).toBeVisible();
@@ -114,38 +103,31 @@ test("只读文档显示已保存代码简介和只读语言，并保留查看�
 });
 
 test("只有只读专注模式双击标题或正文才切换所属标题章节", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "文档标题", exact: true })).toHaveValue("新随笔");
-  await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
-  await expect(page.locator(".ProseMirror")).toHaveText("");
+  await createBlankDocument(page);
 
   const editor = page.locator(".ProseMirror");
   await editor.fill("一级标题");
-  await editor.press("Control+Alt+1");
-  await editor.press("End");
+  await editor.press("ControlOrMeta+Alt+1");
+  await pressLineBoundary(editor, "end");
   await editor.press("Enter");
   await editor.type("一级正文");
-  await editor.press("End");
+  await pressLineBoundary(editor, "end");
   await editor.press("Enter");
   await editor.type("二级标题");
-  await editor.press("Control+Alt+2");
-  await editor.press("End");
+  await editor.press("ControlOrMeta+Alt+2");
+  await pressLineBoundary(editor, "end");
   await editor.press("Enter");
   await editor.type("二级正文");
-  await editor.press("End");
+  await pressLineBoundary(editor, "end");
   await editor.press("Enter");
   await editor.type("下一个一级标题");
-  await editor.press("Control+Alt+1");
-  await editor.press("End");
+  await editor.press("ControlOrMeta+Alt+1");
+  await pressLineBoundary(editor, "end");
   await editor.press("Enter");
   await editor.type("末尾正文");
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
 
-  await page.locator(".sidebar-item.active").getByTitle("设为只读")
-    .evaluate((button: HTMLButtonElement) => button.click());
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   await expect(editor).toHaveAttribute("contenteditable", "false");
   const firstHeading = editor.locator("h1").filter({ hasText: /^一级标题$/ });
   const nestedHeading = editor.locator("h2").filter({ hasText: /^二级标题$/ });
@@ -174,13 +156,7 @@ test("只有只读专注模式双击标题或正文才切换所属标题章节",
 });
 
 test("只读正文双击折叠后所属标题停留在双击位置附近", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "文档标题", exact: true })).toHaveValue("新随笔");
-  await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
-  await expect(page.locator(".ProseMirror")).toHaveText("");
+  await createBlankDocument(page);
 
   const editor = page.locator(".ProseMirror");
   const precedingBody = Array.from({ length: 24 }, (_, index) => `前置正文 ${index + 1}`).join("\n\n");
@@ -193,8 +169,7 @@ test("只读正文双击折叠后所属标题停留在双击位置附近", async
     element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
   }, `# 前置章节\n\n${precedingBody}\n\n# 待折叠章节\n\n${sectionBody}\n\n# 后续章节\n\n${trailingBody}`);
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
-  await page.locator(".sidebar-item.active").getByTitle("设为只读")
-    .evaluate((button: HTMLButtonElement) => button.click());
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   await page.locator(".note-title-row").getByTitle("专注模式").click();
 
   const target = editor.getByText("目标正文 25", { exact: true });
@@ -212,35 +187,29 @@ test("只读正文双击折叠后所属标题停留在双击位置附近", async
 });
 
 test("手机 PWA 只读专注模式可通过触摸双击折叠展开并受开关控制", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "文档标题", exact: true })).toHaveValue("新随笔");
-  await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
-  await expect(page.locator(".ProseMirror")).toHaveText("");
+  await createBlankDocument(page);
 
   const editor = page.locator(".ProseMirror");
   await editor.fill("触摸标题");
-  await editor.press("Control+Alt+1");
-  await editor.press("End");
+  await editor.press("ControlOrMeta+Alt+1");
+  await pressLineBoundary(editor, "end");
   await editor.press("Enter");
   await editor.type("触摸正文");
-  await editor.press("End");
+  await pressLineBoundary(editor, "end");
   await editor.press("Enter");
   await editor.type("后续标题");
-  await editor.press("Control+Alt+1");
-  await editor.press("End");
+  await editor.press("ControlOrMeta+Alt+1");
+  await pressLineBoundary(editor, "end");
   await editor.press("Enter");
   await editor.type("后续正文");
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
 
-  await page.locator(".sidebar-item.active").getByTitle("设为只读")
-    .evaluate((button: HTMLButtonElement) => button.click());
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 760 });
   await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 100 } });
   await page.locator(".note-title-row").getByTitle("专注模式").click();
-  await expect(page.getByLabel("专注模式工具栏")).toBeVisible();
+  await expect(page.locator(".note-editor")).toHaveClass(/focus-mode/);
+  await expect(page.getByRole("button", { name: "退出专注模式", exact: true })).toBeVisible();
   await expect(editor).toHaveAttribute("contenteditable", "false");
 
   const touchDoubleTap = async (target: Locator) => {
@@ -293,13 +262,7 @@ test("手机 PWA 只读专注模式可通过触摸双击折叠展开并受开关
 });
 
 test("手机文档末章的最后几个段落可反复折叠和展示", async ({ page }) => {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "文档标题", exact: true })).toHaveValue("新随笔");
-  await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
-  await expect(page.locator(".ProseMirror")).toHaveText("");
+  await createBlankDocument(page);
 
   const editor = page.locator(".ProseMirror");
   await editor.evaluate((element) => {
@@ -308,8 +271,7 @@ test("手机文档末章的最后几个段落可反复折叠和展示", async ({
     element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
   });
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
-  await page.locator(".sidebar-item.active").getByTitle("设为只读")
-    .evaluate((button: HTMLButtonElement) => button.click());
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 760 });
   await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 100 } });
   await page.locator(".note-title-row").getByTitle("专注模式").click();
@@ -328,13 +290,7 @@ test("手机文档末章的最后几个段落可反复折叠和展示", async ({
 
 test("千块只读文档在专注模式下触摸双击可及时折叠", async ({ page }) => {
   test.slow();
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.getByRole("textbox", { name: "文档标题", exact: true })).toHaveValue("新随笔");
-  await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
-  await expect(page.locator(".ProseMirror")).toHaveText("");
+  await createBlankDocument(page);
 
   const editor = page.locator(".ProseMirror");
   const body = Array.from({ length: 1200 }, (_, index) => `长文档正文 ${index + 1}`).join("\n\n");
@@ -346,8 +302,7 @@ test("千块只读文档在专注模式下触摸双击可及时折叠", async ({
   await expect(editor.locator(":scope > *")).toHaveCount(1203);
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 10000 });
 
-  await page.locator(".sidebar-item.active").getByTitle("设为只读")
-    .evaluate((button: HTMLButtonElement) => button.click());
+  await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 760 });
   await page.locator(".sidebar-overlay.active").click({ position: { x: 380, y: 100 } });
   await page.locator(".note-title-row").getByTitle("专注模式").click();

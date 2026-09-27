@@ -102,7 +102,7 @@ export async function exportPathMarkdown(
   path: string,
   onProgress: (message: string) => void,
 ): Promise<number | null> {
-  const nodes = (await api.docs.tree(true)).filter(
+  const nodes = (await api.docs.tree()).filter(
     (node) =>
       node.type === "document" &&
       node.noteId &&
@@ -115,7 +115,7 @@ export async function exportPathMarkdown(
     const note = await api.notes.get(node.noteId!);
     if (!note || note.deleted_at)
       throw new Error("文档已删除，请刷新后重试；本次未导出任何文件");
-    const folder = note.storagePath || `daily/${note.date}`;
+    const folder = note.storagePath || "references";
     if (folder !== getDocumentFolderPath(node.path, note.id))
       throw new Error("文档路径已变化，请重试");
     documents.push({ folder, note });

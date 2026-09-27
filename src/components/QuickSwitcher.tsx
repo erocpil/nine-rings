@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
-import { DAILY_NOTES_ENABLED } from "../lib/workspace-features";
 import {
   filterQuickSwitcherNotes,
   rankQuickSwitcherNotes,
@@ -16,10 +15,6 @@ interface QuickSwitcherProps {
   activeNoteId: string | null;
   onClose: () => void;
   onSelect: (note: Note) => void | Promise<void>;
-}
-
-function noteKind(note: Note): string {
-  return note.storagePath ? "文档" : "随笔";
 }
 
 export default function QuickSwitcher({ open, activeNoteId, onClose, onSelect }: QuickSwitcherProps) {
@@ -42,10 +37,10 @@ export default function QuickSwitcher({ open, activeNoteId, onClose, onSelect }:
     setActiveIndex(0);
     setLoading(true);
     setFailed(false);
-    Promise.all([DAILY_NOTES_ENABLED ? api.notes.all() : Promise.resolve([]), api.docs.search({})])
-      .then(([daily, docs]) => {
+    api.notes.all()
+      .then((docs) => {
         if (cancelled) return;
-        const unique = [...new Map([...daily, ...docs].map((note) => [note.id, note])).values()];
+        const unique = [...new Map(docs.map((note) => [note.id, note])).values()];
         setNotes(rankQuickSwitcherNotes(unique, readRecentNoteIds()));
       })
       .catch(() => { if (!cancelled) setFailed(true); })
@@ -147,7 +142,7 @@ export default function QuickSwitcher({ open, activeNoteId, onClose, onSelect }:
             >
               <span className="quick-switcher-kind" aria-hidden="true"><ToolbarIcon name={note.storagePath ? "document" : "note"} /></span>
               <DocumentListContent variant="quick-switcher" title={note.title?.trim() || "无标题"} path={note.storagePath}
-                metadata={`${noteKind(note)} · ${note.date}${note.tags.length > 0 ? ` · #${note.tags.slice(0, 2).join(" #")}` : ""}`} />
+                metadata={`文档 · ${note.date}${note.tags.length > 0 ? ` · #${note.tags.slice(0, 2).join(" #")}` : ""}`} />
               {note.id === activeNoteId && <span className="quick-switcher-current">当前</span>}
             </button>
           ))}

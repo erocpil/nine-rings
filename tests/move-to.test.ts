@@ -81,7 +81,7 @@ const folders = collectMoveFolderPaths([
 ]);
 assert(folders.includes("archives") && folders.includes("areas"), "始终提供 P.A.R.A. 顶层目录");
 assert(folders.includes("custom/nested"), "保留并规范化自定义目录");
-assert(!folders.some((path) => path === "daily" || path.startsWith("daily/")), "排除 daily 虚拟目录");
+assert(folders.includes("daily/2026-08-21"), "daily 可作为普通自定义目录");
 
 assert(
   getDocumentFolderPath("projects/nine-rings/note-1", "note-1") === "projects/nine-rings",

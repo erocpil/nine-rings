@@ -46,7 +46,7 @@ for (const [style, label, bg] of [
     ).toHaveCount(1);
     await expect(page.locator(".editor-content h1").first()).toBeVisible();
     await expect(page.locator(".editor-content a").first()).toHaveCSS("color", style === "mono-aware" ? "rgb(219, 171, 192)" : style === "yugen" ? "rgb(160, 195, 213)" : "rgb(190, 199, 155)");
-    await page.screenshot({ animations: "disabled", path: `/tmp/nr-${style}-desktop.png` });
+    await page.screenshot({ animations: "disabled", path: test.info().outputPath(`nr-${style}-desktop.png`) });
     await page.setViewportSize({ width: 390, height: 844 });
     const overlay = page.locator(".sidebar-overlay.active");
     if (await overlay.isVisible())
@@ -56,6 +56,6 @@ for (const [style, label, bg] of [
         page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       )
       .toBe(true);
-    await page.screenshot({ animations: "disabled", path: `/tmp/nr-${style}-mobile.png` });
+    await page.screenshot({ animations: "disabled", path: test.info().outputPath(`nr-${style}-mobile.png`) });
   });
 }

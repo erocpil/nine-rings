@@ -4,17 +4,17 @@ pub mod export;
 mod fullscreen;
 #[cfg(target_os = "macos")]
 mod macos_window;
-#[cfg(any(target_os = "macos", test))]
-mod window_placement;
 pub mod service;
 #[cfg(any(target_os = "windows", test))]
 mod webview_profile;
+#[cfg(any(target_os = "macos", test))]
+mod window_placement;
 
 use std::sync::Mutex;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager,
+    Manager,
 };
 
 /// ── Windows Job Object: 主进程退出时内核自动杀死所有子进程 ──
@@ -116,6 +116,7 @@ fn toggle_window_fullscreen(window: &tauri::WebviewWindow) {
     let is_fullscreen = window.is_fullscreen().unwrap_or(false);
     if let Err(error) = fullscreen::set_fullscreen(window, !is_fullscreen) {
         log::warn!("failed to toggle main window fullscreen: {}", error);
+        #[cfg(target_os = "linux")]
         return;
     }
 
@@ -384,22 +385,9 @@ pub fn run() {
             startup_log!("setting up tray...");
             match (|| -> Result<_, Box<dyn std::error::Error>> {
                 let show = MenuItemBuilder::with_id("show", "显示九环").build(app)?;
-                let new_note = MenuItemBuilder::with_id("new_note", "新建随笔").build(app)?;
-                let quick_cap = MenuItemBuilder::with_id("quick_capture", "快捷记录    Ctrl+Alt+N")
-                    .build(app)?;
                 let quit = MenuItemBuilder::with_id("quit", "退出").build(app)?;
-                // Same presentation switch as Web/PWA. Keep data and commands
-                // intact while removing the hidden workflow's tray entries.
-                let features: serde_json::Value =
-                    serde_json::from_str(include_str!("../../src/workspace-features.json"))?;
-                let mut menu = MenuBuilder::new(app).item(&show);
-                if features["dailyNotes"].as_bool().unwrap_or(false) {
-                    menu = menu.item(&new_note).item(&quick_cap);
-                }
-                let menu = menu
-                    .separator()
-                    .item(&quit)
-                    .build()?;
+                let menu = MenuBuilder::new(app).item(&show);
+                let menu = menu.separator().item(&quit).build()?;
 
                 TrayIconBuilder::new()
                     .icon(app.default_window_icon().unwrap().clone())
@@ -434,19 +422,6 @@ pub fn run() {
                         match event.id().as_ref() {
                             "show" => {
                                 show_main_window(app);
-                            }
-                            "new_note" => {
-                                show_main_window(app);
-                                let app_clone = app.clone();
-                                std::thread::spawn(move || {
-                                    std::thread::sleep(std::time::Duration::from_millis(300));
-                                    if let Some(window) = app_clone.get_webview_window("main") {
-                                        let _ = window.emit("tray-new-note", ());
-                                    }
-                                });
-                            }
-                            "quick_capture" => {
-                                let _ = commands::quick_capture::toggle_quick_capture(app.clone());
                             }
                             "quit" => {
                                 // ── 优雅退出：先让 WebView2 走正常关闭协议 ──
@@ -552,14 +527,8 @@ pub fn run() {
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 startup_log!("window_event CloseRequested label={}", window.label());
-                #[allow(clippy::if_same_then_else)]
-                if window.label() == "quick-capture" {
-                    let _ = window.hide();
-                    api.prevent_close();
-                } else {
-                    let _ = window.hide();
-                    api.prevent_close();
-                }
+                let _ = window.hide();
+                api.prevent_close();
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -575,8 +544,6 @@ pub fn run() {
             commands::note::search_notes,
             commands::note::get_notes_by_tag,
             commands::note::get_all_tags,
-            commands::note::get_daily_page,
-            commands::note::update_todos,
             commands::note::upsert_note,
             commands::config::get_config,
             commands::config::set_config,
@@ -594,8 +561,6 @@ pub fn run() {
             commands::doc_tree::search_docs,
             commands::doc_tree::get_notes_by_path,
             commands::doc_tree::get_all_concepts,
-            commands::quick_capture::toggle_quick_capture,
-            commands::quick_capture::emit_to_main,
             commands::template::delete_template,
             commands::query::db_query,
             commands::query::db_exec,

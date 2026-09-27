@@ -2,7 +2,7 @@ use nine_rings_lib::db::query::{compile_op, Op};
 /// 集成测试 — 使用通用 db_query/db_exec 的 Op 路径。
 ///
 /// Phase 3 PR B 后，旧 service 函数已删除。所有测试改用 Op JSON。
-/// FTS5 搜索、daily page、export 仍走旧路径（未迁移）。
+/// FTS5 搜索、export 仍走旧路径（未迁移）。
 use rusqlite::Connection;
 use serde_json::json;
 
@@ -45,18 +45,6 @@ fn db_exec(conn: &Connection, op_json: &str) {
     let (sql, params) = compile_op(&op).unwrap();
     conn.execute(&sql, rusqlite::params_from_iter(params.iter()))
         .unwrap();
-}
-
-fn make_todo(id: &str, text: &str, done: bool) -> nine_rings_lib::db::models::Todo {
-    nine_rings_lib::db::models::Todo {
-        id: id.into(),
-        text: text.into(),
-        done,
-        order: 0,
-        tags: vec![],
-        remind_at: None,
-        parent_id: None,
-    }
 }
 
 fn create_note_via_op(conn: &Connection, id: &str, date: &str, title: &str, tags: &[&str]) {
@@ -124,9 +112,8 @@ fn test_export_roundtrip() {
     assert_eq!(bundle.notes[0].tags, vec!["work"]);
 
     let conn2 = setup_db();
-    let (n, p) = nine_rings_lib::export::import_bundle(&conn2, &bundle, false).unwrap();
+    let n = nine_rings_lib::export::import_bundle(&conn2, &bundle, false).unwrap();
     assert_eq!(n, 1);
-    assert_eq!(p, 0);
 
     let notes = get_notes_by_date_via_op(&conn2, "2026-07-08");
     assert_eq!(notes.len(), 1);
@@ -152,23 +139,6 @@ fn test_merge_import_preserves_local_only_notes() {
         notes.iter().any(|note| note["id"] == "local"),
         "safe merge import must preserve local-only notes"
     );
-}
-
-#[test]
-fn test_todo_backup_preserves_reminder_and_parent() {
-    let raw = json!({
-        "id": "child",
-        "text": "Follow up",
-        "done": false,
-        "order": 1,
-        "tags": ["work"],
-        "remind_at": "2026-08-29T03:00:00.000Z",
-        "parent_id": "parent"
-    });
-    let todo: nine_rings_lib::db::models::Todo = serde_json::from_value(raw).unwrap();
-    let exported = serde_json::to_value(todo).unwrap();
-    assert_eq!(exported["remind_at"], "2026-08-29T03:00:00.000Z");
-    assert_eq!(exported["parent_id"], "parent");
 }
 
 #[test]
@@ -309,44 +279,4 @@ fn test_restore_note() {
     let notes = get_notes_by_date_via_op(&conn, "2026-07-08");
     assert_eq!(notes.len(), 1);
     assert_eq!(notes[0]["title"], "恢复我");
-}
-
-// ──── Daily Page (旧路径，未迁移) ────
-
-#[test]
-fn test_carryover_inherits_incomplete() {
-    let conn = setup_db();
-    let day1 = vec![
-        make_todo("a", "未完成A", false),
-        make_todo("b", "已完成B", true),
-    ];
-    nine_rings_lib::service::note_service::update_todos(&conn, "2026-07-01", &day1, true).unwrap();
-    let day2 =
-        nine_rings_lib::service::note_service::get_or_create_daily_page(&conn, "2026-07-02", false)
-            .unwrap();
-    assert_eq!(day2.todos.len(), 1);
-    assert_eq!(day2.todos[0].text, "未完成A");
-    assert!(day2.todo_carryover);
-}
-
-#[test]
-fn test_no_carryover_when_disabled() {
-    let conn = setup_db();
-    let day1 = vec![make_todo("x", "不会继承", false)];
-    nine_rings_lib::service::note_service::update_todos(&conn, "2026-07-01", &day1, false).unwrap();
-    let day2 =
-        nine_rings_lib::service::note_service::get_or_create_daily_page(&conn, "2026-07-02", false)
-            .unwrap();
-    assert!(day2.todos.is_empty());
-    assert!(!day2.todo_carryover);
-}
-
-#[test]
-fn test_new_daily_page_uses_carryover_default() {
-    let conn = setup_db();
-    let page =
-        nine_rings_lib::service::note_service::get_or_create_daily_page(&conn, "2026-07-02", true)
-            .unwrap();
-    assert!(page.todos.is_empty());
-    assert!(page.todo_carryover);
 }

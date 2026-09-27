@@ -8,13 +8,12 @@ const summary = summarizeDiagnosticBackup({
     { content: { ops: [] } },
     { storagePath: "areas/test", content: null },
   ] as Array<{ storagePath?: unknown; content?: unknown }>,
-  daily_pages: [{ todos: [{ text: secretContent }, { text: secretToken }] }],
 });
 
-if (summary.notes !== 3 || summary.documents !== 2 || summary.dailyNotes !== 1) {
+if (summary.notes !== 3 || summary.documents !== 2) {
   throw new Error("诊断数量摘要错误");
 }
-if (summary.todos !== 2 || summary.malformedNotes !== 1) {
+if (summary.malformedNotes !== 1) {
   throw new Error("诊断健康摘要错误");
 }
 const serialized = JSON.stringify(summary);

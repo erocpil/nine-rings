@@ -1,3 +1,4 @@
+import { useDocumentActive } from "../components/RetainedDocument";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspaceLayout } from "./useWorkspaceLayout";
 import {
@@ -11,6 +12,8 @@ export function useDesktopDocumentPanels(
   outline: readonly { text: string; level: number }[] = EMPTY_ITEMS,
   bookmarks: readonly { label?: string; preview?: string }[] = EMPTY_ITEMS,
 ) {
+  const active = useDocumentActive();
+  enabled = enabled && active;
   const layout = useWorkspaceLayout();
   const [preview, setPreview] = useState<DocumentPanelKind | null>(null);
   const [error, setError] = useState("");

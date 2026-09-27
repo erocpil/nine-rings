@@ -240,6 +240,7 @@ export function useMarkdownViewPosition(
       patchReadingState(noteId, { view: "source", source: { scrollTop: top } });
     };
     const scroll = () => {
+      if (!host.current?.isConnected || host.current.closest("[inert]")) return;
       top = input.scrollTop;
       window.clearTimeout(timer);
       timer = window.setTimeout(flush, 220);

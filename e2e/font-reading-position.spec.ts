@@ -46,12 +46,14 @@ async function measureTop(page: Page) {
       sticky && getComputedStyle(sticky).position === "sticky"
         ? Math.max(rect.top, sticky.getBoundingClientRect().bottom)
         : rect.top;
-    const paragraph = [...element.querySelectorAll("p")].find(
-      (node) => node.getBoundingClientRect().bottom > top,
-    )!;
-    const range = document.createRange();
-    range.selectNodeContents(paragraph);
-    const line = [...range.getClientRects()].find((box) => box.bottom > top)!;
+    // A paragraph's bottom padding can cross the viewport while all its text
+    // is above it. Measure the first visible text line, not the padded box.
+    const line = [...element.querySelectorAll("p")].flatMap((paragraph) => {
+      if (paragraph.getBoundingClientRect().bottom <= top) return [];
+      const range = document.createRange();
+      range.selectNodeContents(paragraph);
+      return [...range.getClientRects()];
+    }).find((box) => box.bottom > top)!;
     const pos = editor.view.posAtCoords({
       left: line.left + 1,
       top: Math.max(line.top + 1, top + 1),

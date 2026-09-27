@@ -80,7 +80,7 @@ export function RecycleBin({ open, onClose, onRestored }: RecycleBinProps) {
     // must not also delete records added while the confirmation was open.
     if (busyRef.current || loading || targets.length === 0) return;
     const subject = kind === "single" ? `“${targets[0].title || "无标题"}”`
-      : kind === "all" ? `当前回收站中的全部 ${targets.length} 项文档和随笔` : `选中的 ${targets.length} 项文档和随笔`;
+      : kind === "all" ? `当前回收站中的全部 ${targets.length} 项文档` : `选中的 ${targets.length} 项文档`;
     if (!await confirm({
       title: kind === "single" ? "永久删除文档" : kind === "all" ? "清空回收站" : "批量永久删除",
       description: `将永久删除${subject}及其历史版本。此操作无法从回收站恢复，不影响正常文档。`,
@@ -176,7 +176,7 @@ export function RecycleBin({ open, onClose, onRestored }: RecycleBinProps) {
             <div className="recycle-empty">
               <span className="recycle-empty-icon"><ToolbarIcon name="trash" /></span>
               <strong>回收站是空的</strong>
-              <p>删除的文档和随笔会暂存在这里，方便找回。</p>
+              <p>删除的文档会暂存在这里，方便找回。</p>
             </div>
           )}
 
@@ -195,9 +195,9 @@ export function RecycleBin({ open, onClose, onRestored }: RecycleBinProps) {
               </label>
               <div className="recycle-item-info">
                 <div className="recycle-item-name" title={note.title || "无标题"}>{note.title || "无标题"}</div>
-                <div className="recycle-item-path" title={note.storagePath || `随笔 · ${note.date}`}>
+                <div className="recycle-item-path" title={note.storagePath || `文档 · ${note.date}`}>
                   <ToolbarIcon name={note.storagePath ? "folder" : "note"} />
-                  <span>{note.storagePath || `随笔 · ${note.date}`}</span>
+                  <span>{note.storagePath || `文档 · ${note.date}`}</span>
                 </div>
                 <div className="recycle-item-date">
                   删除于{" "}

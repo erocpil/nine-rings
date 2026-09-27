@@ -109,7 +109,7 @@ const btn = (label: ReactNode, action: () => void, active?: boolean, title?: str
 /** No wrapper DOM and no second EditorView; commands use the owning session. */
 export function EditorToolbarContents({ editor, readonly, saveStatus, layout, menus, actions, editorFontSize, onEditorFontSizeChange, showCodeLineNumbers, onCodeLineNumbersChange, selectedTableCellCount }: EditorToolbarProps) {
   const { isNarrow, isMinimalToolbar, isMobileToolbarViewport, toolbarRef, moreButtonRef } = layout;
-  const hiddenTools = useToolbarOverflow(toolbarRef, isMinimalToolbar);
+  const hiddenTools = useToolbarOverflow(toolbarRef, true);
   const selectionSize = useSelectionFontSize(editor, editorFontSize);
   const {
     colorOpen, setColorOpen, sizeOpen, setSizeOpen,
@@ -135,7 +135,8 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     editor.chain().focus().unsetAllMarks().run();
   };
   const moreActions = (<>
-    {isMobileToolbarViewport && <button className="menu-dropdown-item" disabled={readonly} onClick={() => { closeMore(); actions.openEditorReplace(); }} type="button"><ToolbarIcon name="search" />查找与替换</button>}
+    {isMinimalToolbar && <button className="menu-dropdown-item" disabled={readonly || editor.isActive("codeBlock") || !editor.can().setHardBreak()} onClick={() => { editor.chain().focus().setHardBreak().run(); closeMore(); }} type="button"><ToolbarIcon name="lineBreak" />块内换行</button>}
+    {isMinimalToolbar && <button className="menu-dropdown-item" disabled={readonly} onClick={() => { closeMore(); actions.openEditorReplace(); }} type="button"><ToolbarIcon name="search" />查找与替换</button>}
     {isMobileToolbarViewport && <button className="menu-dropdown-item" disabled={readonly} onClick={() => { clearTextFormatting(); closeMore(); }} type="button"><ToolbarIcon name="erase" />清除格式</button>}
     {hiddenTools.includes("clipboard") && <>
     <button className="menu-dropdown-item" onClick={() => { handleCopy(); closeMore(); }} type="button"><ToolbarIcon name="copy" />复制</button>
@@ -187,7 +188,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
   </>);
 
   return (<>
-    {(!isMinimalToolbar || !isMobileToolbarViewport) && btn(<ToolbarIcon name="search" />, actions.openEditorReplace, false, "查找与替换", readonly)}
+    {!isMinimalToolbar && btn(<ToolbarIcon name="search" />, actions.openEditorReplace, false, "查找与替换", readonly)}
     {!isMinimalToolbar && btn(<ToolbarIcon name="copy" />, () => { void actions.handleCopyBlock(); }, false, "复制块", false)}
     <span className="toolbar-history-actions">
       {btn(<span className="toolbar-history-icon toolbar-history-icon-undo"><ToolbarIcon name="undo" /></span>, () => editor.chain().focus().undo().run(), false, "撤销 (Ctrl+Z)", readonly || !editor.can().undo())}
@@ -443,7 +444,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
       </div>
     )}
     <span className="menu-sep" />
-    {btn(<ToolbarIcon name="lineBreak" />, () => { editor.chain().focus().setHardBreak().run(); }, false, "块内换行", readonly || editor.isActive("codeBlock") || !editor.can().setHardBreak())}
+    {!isMinimalToolbar && btn(<ToolbarIcon name="lineBreak" />, () => { editor.chain().focus().setHardBreak().run(); }, false, "块内换行", readonly || editor.isActive("codeBlock") || !editor.can().setHardBreak())}
     <div className="toolbar-secondary">
     {isNarrow ? (
       <div className="menu-dropdown" data-toolbar-tool="clipboard">
@@ -463,12 +464,12 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
           </div>
         )}
       </div>
-    ) : (<>
+    ) : (<span className="toolbar-clipboard-actions" data-toolbar-tool="clipboard">
     {btn(<ToolbarIcon name="copy" />, handleCopy, false, "复制 (Ctrl+C)", readonly)}
     {btn(<ToolbarIcon name="cut" />, handleCut, false, "剪切 (Ctrl+X)", readonly)}
     {btn(<ToolbarIcon name="paste" />, handleClipboardPaste, false, "粘贴 (Ctrl+V)", readonly)}
     {btn("M↑", () => { void handleExportMarkdown(); }, false, "导出 Markdown", false)}
-    </>)}
+    </span>)}
     <span className="menu-sep" />
 
 
@@ -568,8 +569,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     {btn("A⁺", () => onEditorFontSizeChange(Math.min(32, editorFontSize + 1)), false, "放大字号", editorFontSize >= 32)}
     </span>
     </div>
-    {isMinimalToolbar && (
-      <div className="menu-dropdown toolbar-more-menu">
+    <div className="menu-dropdown toolbar-more-menu">
         <button
           ref={moreButtonRef}
           className="menu-btn"
@@ -598,7 +598,6 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
           </div>
         ))}
       </div>
-    )}
     {saveStatus && saveStatus !== "clean" && (
       <span role="status" className={`save-status save-status-${saveStatus}`} title={
         saveStatus === "dirty" ? "未保存" :

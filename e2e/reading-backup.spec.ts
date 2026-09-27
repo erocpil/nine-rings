@@ -1,3 +1,4 @@
+import { openReadingLibrary } from "./helpers/workspace";
 import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { PDFDocument } from "pdf-lib";
@@ -43,8 +44,7 @@ for (const format of ["pdf", "epub"] as const) {
         await library.updateLocalEpubHighlight(highlight.id, { note: "备份备注" });
         return { source: source.id, target: target.id };
       }, { bytes: await fixture(format), format });
-      await page.getByTitle("设置", { exact: true }).click();
-      await page.getByRole("button", { name: /^阅读资料库/ }).click();
+      await openReadingLibrary(page);
       const source = page.locator(`.reader-library-item[data-document-id="${ids.source}"]`);
       const target = page.locator(`.reader-library-item[data-document-id="${ids.target}"]`);
       await source.getByRole("button", { name: /^阅读数据备份 / }).click();

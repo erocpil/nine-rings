@@ -4,7 +4,7 @@ import { plainTextToDelta } from "./plain-text-delta";
 
 export interface MarkdownImportOptions {
   date: string;
-  mode: "document" | "note";
+  mode: "document";
   storagePath?: string;
   docType?: DocType;
   tags?: string[];
@@ -47,7 +47,6 @@ export function buildTextImportInput(file: TextImportSource, options: MarkdownIm
   if (!isTextImportFile(file.fileName)) throw new Error("不支持的文本文件类型");
   let storagePath = options.storagePath;
   if (file.relativePath) {
-    if (options.mode !== "document") throw new Error("目录导入仅支持文档模式");
     const relative = file.relativePath.replace(/\\/g, "/");
     if (relative.startsWith("/") || /^[a-z]:/i.test(relative)) throw new Error("导入目录必须是相对路径");
     const parts = relative.split("/");
@@ -100,7 +99,7 @@ export function buildMarkdownImportInput(
     tags: options.tags ?? [],
   };
 
-  if (options.mode === "document") {
+  {
     const storagePath = normalizeMarkdownImportPath(options.storagePath ?? "");
     if (!storagePath) throw new Error("请选择或输入文档路径");
     input.storagePath = storagePath;

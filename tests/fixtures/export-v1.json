@@ -8,15 +8,36 @@
       "title": "普通随笔",
       "content": {
         "ops": [
-          { "insert": "这是一篇普通随笔，包含 " },
-          { "insert": "粗体", "attributes": { "bold": true } },
-          { "insert": " 和 " },
-          { "insert": "斜体", "attributes": { "italic": true } },
-          { "insert": "。\n" },
-          { "insert": "Unicode: 中文、日本語、한국어、🏷️✨\n" }
+          {
+            "insert": "这是一篇普通随笔，包含 "
+          },
+          {
+            "insert": "粗体",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": " 和 "
+          },
+          {
+            "insert": "斜体",
+            "attributes": {
+              "italic": true
+            }
+          },
+          {
+            "insert": "。\n"
+          },
+          {
+            "insert": "Unicode: 中文、日本語、한국어、🏷️✨\n"
+          }
         ]
       },
-      "tags": ["随笔", "测试"],
+      "tags": [
+        "随笔",
+        "测试"
+      ],
       "pinned": false,
       "sort_order": 0,
       "created_at": "2026-07-28T08:00:00.000Z",
@@ -29,21 +50,39 @@
       "title": "如何配置 GitHub 备份",
       "content": {
         "ops": [
-          { "insert": "步骤：\n" },
-          { "insert": "1. 生成 Personal Access Token", "attributes": { "bold": true } },
-          { "insert": "\n" },
-          { "insert": "2. 填入设置页面\n" }
+          {
+            "insert": "步骤：\n"
+          },
+          {
+            "insert": "1. 生成 Personal Access Token",
+            "attributes": {
+              "bold": true
+            }
+          },
+          {
+            "insert": "\n"
+          },
+          {
+            "insert": "2. 填入设置页面\n"
+          }
         ]
       },
-      "tags": ["文档"],
+      "tags": [
+        "文档"
+      ],
       "pinned": true,
       "sort_order": 1,
       "created_at": "2026-07-28T09:00:00.000Z",
       "updated_at": "2026-07-28T09:30:00.000Z",
       "storagePath": "areas/nine-rings",
       "docType": "how-to",
-      "concepts": ["GitHub", "备份"],
-      "linkedDocIds": ["fixture-doc-reference-001"],
+      "concepts": [
+        "GitHub",
+        "备份"
+      ],
+      "linkedDocIds": [
+        "fixture-doc-reference-001"
+      ],
       "readonly": false
     },
     {
@@ -52,18 +91,27 @@
       "title": "GitHub API 参考",
       "content": {
         "ops": [
-          { "insert": "Contents API endpoint: /repos/{owner}/{repo}/contents/{path}\n" },
-          { "insert": "Blobs API 用于大于 1MB 的文件。" }
+          {
+            "insert": "Contents API endpoint: /repos/{owner}/{repo}/contents/{path}\n"
+          },
+          {
+            "insert": "Blobs API 用于大于 1MB 的文件。"
+          }
         ]
       },
-      "tags": ["参考"],
+      "tags": [
+        "参考"
+      ],
       "pinned": false,
       "sort_order": 2,
       "created_at": "2026-07-28T10:00:00.000Z",
       "updated_at": "2026-07-28T10:15:00.000Z",
       "storagePath": "areas/nine-rings",
       "docType": "reference",
-      "concepts": ["GitHub", "API"],
+      "concepts": [
+        "GitHub",
+        "API"
+      ],
       "linkedDocIds": [],
       "readonly": true
     },
@@ -73,11 +121,21 @@
       "title": "P.A.R.A. 方法简介",
       "content": {
         "ops": [
-          { "insert": "P.A.R.A. 是 Tiago Forte 提出的信息组织方法。\n" },
-          { "insert": "- Projects: 有明确截止日期的任务\n" },
-          { "insert": "- Areas: 持续维护的责任领域\n" },
-          { "insert": "- Resources: 参考材料\n" },
-          { "insert": "- Archives: 归档材料\n" }
+          {
+            "insert": "P.A.R.A. 是 Tiago Forte 提出的信息组织方法。\n"
+          },
+          {
+            "insert": "- Projects: 有明确截止日期的任务\n"
+          },
+          {
+            "insert": "- Areas: 持续维护的责任领域\n"
+          },
+          {
+            "insert": "- Resources: 参考材料\n"
+          },
+          {
+            "insert": "- Archives: 归档材料\n"
+          }
         ]
       },
       "tags": [],
@@ -87,7 +145,10 @@
       "updated_at": "2026-07-28T11:00:00.000Z",
       "storagePath": "resources/productivity",
       "docType": "explanation",
-      "concepts": ["P.A.R.A.", "知识管理"],
+      "concepts": [
+        "P.A.R.A.",
+        "知识管理"
+      ],
       "linkedDocIds": null,
       "readonly": false
     },
@@ -97,8 +158,12 @@
       "title": "从零开始使用 Nine Rings",
       "content": {
         "ops": [
-          { "insert": "欢迎使用 Nine Rings！\n" },
-          { "insert": "第一步：创建第一篇笔记。\n" }
+          {
+            "insert": "欢迎使用 Nine Rings！\n"
+          },
+          {
+            "insert": "第一步：创建第一篇笔记。\n"
+          }
         ]
       },
       "tags": [],
@@ -108,7 +173,9 @@
       "updated_at": "2026-07-28T12:00:00.000Z",
       "storagePath": "projects/getting-started",
       "docType": "tutorial",
-      "concepts": ["入门"],
+      "concepts": [
+        "入门"
+      ],
       "linkedDocIds": [],
       "readonly": false
     },
@@ -118,7 +185,9 @@
       "title": "无类型的文档",
       "content": {
         "ops": [
-          { "insert": "这篇文档没有设置 docType。" }
+          {
+            "insert": "这篇文档没有设置 docType。"
+          }
         ]
       },
       "tags": [],
@@ -138,7 +207,9 @@
       "title": "深层嵌套文档",
       "content": {
         "ops": [
-          { "insert": "这是一个深层路径的文档。" }
+          {
+            "insert": "这是一个深层路径的文档。"
+          }
         ]
       },
       "tags": [],
@@ -148,7 +219,10 @@
       "updated_at": "2026-07-28T14:00:00.000Z",
       "storagePath": "projects/web/frontend/react",
       "docType": "reference",
-      "concepts": ["React", "前端"],
+      "concepts": [
+        "React",
+        "前端"
+      ],
       "linkedDocIds": [],
       "readonly": false
     },
@@ -165,26 +239,6 @@
       "created_at": "2026-07-28T15:00:00.000Z",
       "updated_at": "2026-07-28T15:00:00.000Z",
       "readonly": false
-    }
-  ],
-  "daily_pages": [
-    {
-      "date": "2026-07-28",
-      "todos": [
-        { "text": "完成 Tauri IPC 契约检查", "done": true },
-        { "text": "修复 UTC 日期 bug", "done": false },
-        { "text": "", "done": false }
-      ],
-      "todo_carryover": true,
-      "updated_at": "2026-07-28T16:00:00.000Z"
-    },
-    {
-      "date": "2026-07-27",
-      "todos": [
-        { "text": "昨天的待办", "done": false }
-      ],
-      "todo_carryover": false,
-      "updated_at": "2026-07-27T23:00:00.000Z"
     }
   ]
 }

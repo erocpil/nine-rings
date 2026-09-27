@@ -57,7 +57,7 @@ for (const width of [320, 390, 430])
     await expectToolbarFits(page);
     if (width === 390)
       await page.screenshot({
-        path: `/tmp/nr-mobile-toolbar-${browserName}.png`,
+        path: test.info().outputPath(`nr-mobile-toolbar-${browserName}.png`),
       });
   });
 

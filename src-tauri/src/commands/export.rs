@@ -8,14 +8,12 @@ use tauri::State;
 #[derive(Debug, Serialize)]
 pub struct ExportResult {
     pub notes: usize,
-    pub daily_pages: usize,
     pub path: String,
 }
 
 #[derive(Debug, Serialize)]
 pub struct ImportResult {
     pub notes_imported: usize,
-    pub pages_imported: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub configs_imported: Option<usize>,
 }
@@ -92,7 +90,7 @@ pub fn import_data(
     if configs_imported.is_some() {
         config::write_config(&data_dir.0, &merged)?;
     }
-    let (n, p) = match crate::export::import_bundle(&conn, &bundle, replace.unwrap_or(false)) {
+    let n = match crate::export::import_bundle(&conn, &bundle, replace.unwrap_or(false)) {
         Ok(result) => result,
         Err(error) => {
             if configs_imported.is_some() {
@@ -105,7 +103,6 @@ pub fn import_data(
     *current = merged;
     Ok(ImportResult {
         notes_imported: n,
-        pages_imported: p,
         configs_imported,
     })
 }

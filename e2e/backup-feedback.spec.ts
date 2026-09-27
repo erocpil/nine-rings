@@ -41,6 +41,7 @@ test("备份导出期间阻止重复操作，失败后恢复按钮", async ({ pa
   await expect(page.getByRole("button", { name: "导入数据", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "选择目录导入", exact: true })).toBeDisabled();
   await expect(page.getByLabel("Markdown 导入普通标签")).toBeDisabled();
+  await expect.poll(() => page.evaluate(() => typeof (window as Window & { failSettingsExport?: unknown }).failSettingsExport)).toBe("function");
   await page.evaluate(() => (window as Window & { failSettingsExport: () => void }).failSettingsExport());
   await expect(page.getByRole("button", { name: "导出数据", exact: true })).toBeEnabled();
   await expect(page.getByRole("button", { name: "导入数据", exact: true })).toBeEnabled();

@@ -73,6 +73,8 @@ for (const mode of ["edit", "readonly", "virtual"] as const) {
       await assertRow();
       await expect(page.locator(".mobile-focus-bar")).toHaveCount(0);
       const preview = row.getByRole("button", { name: "查看完整标题" });
+      await expect(preview).toBeVisible();
+      expect((await preview.boundingBox())!.width).toBeGreaterThanOrEqual(24);
       await preview.click();
       await expect(row.getByRole("tooltip")).toHaveText(title);
       await expect(page.locator(".properties-panel")).toHaveCount(0);

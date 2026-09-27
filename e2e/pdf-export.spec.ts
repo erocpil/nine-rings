@@ -1,9 +1,8 @@
+import { pressLineBoundary } from "./helpers/keyboard";
 import { expect, test } from "@playwright/test";
 
 test("PDF 打印视图用语义标题生成侧栏书签且不在正文插入目录", async ({ page }) => {
   await page.goto("/");
-  const viewSwitch = page.locator(".sidebar-view-switch");
-  if (await viewSwitch.getAttribute("data-target-view") === "tree") await viewSwitch.click();
   await page.getByTitle("新建文档").click();
   await page.getByPlaceholder("文档标题...").fill("书签大纲导出测试");
   await page.getByRole("button", { name: "创建", exact: true }).click();
@@ -11,17 +10,17 @@ test("PDF 打印视图用语义标题生成侧栏书签且不在正文插入目�
 
   const editor = page.locator(".ProseMirror");
   await editor.fill("导出标题");
-  await editor.press("Control+Alt+1");
-  await editor.press("End");
+  await editor.press("ControlOrMeta+Alt+1");
+  await pressLineBoundary(editor, "end");
   await editor.press("Enter");
   await editor.type("折叠后仍应导出的正文");
-  await editor.press("End");
+  await pressLineBoundary(editor, "end");
   await editor.press("Enter");
   await editor.type("子章节");
-  await editor.press("Control+Alt+2");
-  await editor.press("End");
+  await editor.press("ControlOrMeta+Alt+2");
+  await pressLineBoundary(editor, "end");
   await editor.press("Enter");
-  await editor.press("Control+Alt+c");
+  await editor.press("ControlOrMeta+Alt+c");
   await editor.type("const exported = true;");
 
   const foldToggle = page.locator(".editor-heading-fold").first();

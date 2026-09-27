@@ -18,7 +18,7 @@ export function ImportPathPicker({ anchor, initialPath, onSelect, onClose }: {
     let active = true;
     setLoading(true);
     setError(null);
-    void withTimeout(api.docs.tree(false), 15000, "加载文档目录").then(nodes => {
+    void withTimeout(api.docs.tree(), 15000, "加载文档目录").then(nodes => {
       if (active) {
         setPaths(nodes.filter(node => node.type === "folder").map(node => node.path));
         setProtectedPaths(nodes.filter(node => node.type === "folder" && node.protected).map(node => node.path));

@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:uuid/uuid.dart';
-import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
 import '../models/note.dart';
@@ -49,7 +48,7 @@ class NoteService {
       title: title,
       content: content,
       tags: tags,
-      storagePath: storagePath,
+      storagePath: storagePath ?? "references",
       docType: docType,
       concepts: concepts,
       linkedDocIds: linkedDocIds,
@@ -318,7 +317,6 @@ class NoteService {
       where: 'deleted_at IS NULL',
       orderBy: 'date DESC, sort_order ASC',
     );
-    final dailyPages = await _db.database.query('daily_pages');
     final protectedPaths = await _db.database.query('protected_paths');
     if (protectedPaths.isNotEmpty || notes.any((r) => Note.fromJson(r).encrypted)) {
       throw StateError('此 Flutter 客户端暂不支持加密工作区，请使用新版 PWA 或 Tauri 进行备份和同步，避免丢失路径保护信息。');
@@ -327,17 +325,13 @@ class NoteService {
       'version': 1,
       'exported_at': DateTime.now().toUtc().toIso8601String(),
       'notes': notes.map((r) => Note.fromJson(r).toJson()).toList(),
-      'daily_pages': dailyPages.map((r) {
-        r['todos'] = jsonDecode(r['todos'] as String);
-        return r;
-      }).toList(),
+
     };
     return const JsonEncoder.withIndent('  ').convert(data);
   }
 
-  /// 从 JSON 字符串导入全量数据。返回 (notesImported, pagesImported)。
   /// 与 Web 端 importData 语义对齐。
-  Future<({int notesImported, int pagesImported})> importBundle(
+  Future<({int notesImported})> importBundle(
     String jsonStr, {
     bool replace = false,
   }) async {
@@ -347,17 +341,14 @@ class NoteService {
       throw StateError('此备份包含新版加密数据，请使用支持文档加密的 PWA 或 Tauri；本机数据未修改。');
     }
     final notes = data['notes'] as List? ?? [];
-    final dailyPages = data['daily_pages'] as List? ?? [];
 
     int notesCount = 0;
-    int pagesCount = 0;
 
     final batch = _db.database.batch();
 
     if (replace) {
       batch.delete('note_versions');
       batch.delete('notes');
-      batch.delete('daily_pages');
     }
 
     // ── 导入笔记 ──
@@ -372,25 +363,8 @@ class NoteService {
       notesCount++;
     }
 
-    // ── 导入每日页面 ──
-    for (final p in dailyPages) {
-      final page = p as Map<String, dynamic>;
-      final date = page['date'] as String?;
-      if (date == null) continue;
-      // 使用 replace 策略：先删后插
-      batch.delete('daily_pages', where: 'date = ?', whereArgs: [date]);
-      batch.insert('daily_pages', {
-        'date': date,
-        'todos': page['todos'] is String
-            ? page['todos']
-            : jsonEncode(page['todos'] ?? []),
-        'todo_carryover': page['todo_carryover'] ?? false,
-      });
-      pagesCount++;
-    }
-
     await batch.commit(noResult: true);
-    return (notesImported: notesCount, pagesImported: pagesCount);
+    return (notesImported: notesCount);
   }
 
   // ── Version History ──
@@ -470,84 +444,6 @@ class NoteService {
       whereArgs: [noteId],
     );
     return restored;
-  }
-
-  // ── Daily Page ──
-
-  Future<Map<String, dynamic>> getOrCreateDailyPage(String date) async {
-    // Get or create daily page (notes fetched separately)
-    var page = await _db.database.query(
-      'daily_pages',
-      where: 'date = ?',
-      whereArgs: [date],
-    );
-
-    if (page.isEmpty) {
-      final yesterday = DateFormat('yyyy-MM-dd').format(
-        DateTime.parse(date).subtract(const Duration(days: 1)),
-      );
-      // Try carryover from yesterday
-      final yesterdayPage = await _db.database.query(
-        'daily_pages',
-        where: 'date = ? AND todo_carryover = 1',
-        whereArgs: [yesterday],
-      );
-      List<dynamic> carryoverTodos = [];
-      if (yesterdayPage.isNotEmpty) {
-        final allTodos = jsonDecode(yesterdayPage.first['todos'] as String) as List;
-        carryoverTodos = allTodos
-            .where((t) => (t['done'] == 0 || t['done'] == false))
-            .map((t) => {
-                  ...t as Map,
-                  'id': _uuid.v4(),
-                })
-            .toList();
-      }
-
-      await _db.database.insert('daily_pages', {
-        'date': date,
-        'todos': jsonEncode(carryoverTodos),
-        'todo_carryover': 0,
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      });
-
-      return {
-        'date': date,
-        'todos': carryoverTodos,
-        'todo_carryover': false,
-      };
-    }
-
-    final row = page.first;
-    return {
-      'date': row['date'],
-      'todos': row['todos'] != null ? jsonDecode(row['todos'] as String) : [],
-      'todo_carryover': row['todo_carryover'] == 1,
-    };
-  }
-
-  Future<void> updateDailyPageTodos(String date, List<dynamic> todos) async {
-    await _db.database.update(
-      'daily_pages',
-      {
-        'todos': jsonEncode(todos),
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      },
-      where: 'date = ?',
-      whereArgs: [date],
-    );
-  }
-
-  Future<void> setTodoCarryover(String date, bool enabled) async {
-    await _db.database.update(
-      'daily_pages',
-      {
-        'todo_carryover': enabled ? 1 : 0,
-        'updated_at': DateTime.now().toUtc().toIso8601String(),
-      },
-      where: 'date = ?',
-      whereArgs: [date],
-    );
   }
 
   // ── Single note fetch ──

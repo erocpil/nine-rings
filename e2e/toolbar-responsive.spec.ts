@@ -1,23 +1,15 @@
+import { addDocumentTag } from "./helpers/workspace";
+import { createBlankNote as createBlankNoteFixture } from "./helpers/editor-fixtures";
 import { expect, test } from "@playwright/test";
 
 async function createBlankNote(page: import("@playwright/test").Page) {
-  await page.goto("/");
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  // The prior editor can remain mounted while the new note is loading. Wait
-  // for the blank session before measuring styles or dispatching a paste.
-  await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("新随笔");
-  await expect(page.locator(".ProseMirror")).toHaveText("");
-  await expect(page.locator(".ProseMirror")).toHaveAttribute("contenteditable", "true");
+  return createBlankNoteFixture(page);
 }
 
 async function expectNoHorizontalOverflow(page: import("@playwright/test").Page) {
-  const dimensions = await page.locator(".note-editor-scroll").evaluate((element) => ({
-    clientWidth: element.clientWidth,
-    scrollWidth: element.scrollWidth,
-  }));
-  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+  await expect.poll(() => page.locator(".note-editor-scroll").evaluate((element) =>
+    element.scrollWidth - element.clientWidth,
+  )).toBeLessThanOrEqual(1);
 }
 
 test.describe("响应式编辑器工具栏", () => {
@@ -43,9 +35,10 @@ test.describe("响应式编辑器工具栏", () => {
     await expectNoHorizontalOverflow(page);
   });
   test("标签输入行与编辑工具栏保持紧凑间距", async ({ page }) => {
-    await page.setViewportSize({ width: 1200, height: 700 });
+    await page.setViewportSize({ width: 1340, height: 700 });
     await createBlankNote(page);
 
+    await addDocumentTag(page, "工具栏间距");
     const verticalSpacing = async () => page.locator(".note-editor-sticky").evaluate((element) => {
       const tagBar = element.querySelector<HTMLElement>(".tag-bar")!;
       const toolbar = element.querySelector<HTMLElement>(".editor-menu")!;
@@ -61,7 +54,7 @@ test.describe("响应式编辑器工具栏", () => {
       };
     });
 
-    await expect.poll(verticalSpacing).toEqual({ before: 3, paddingTop: 3, paddingBottom: 3, after: 6 });
+    await expect.poll(verticalSpacing).toEqual({ before: 5, paddingTop: 5, paddingBottom: 5, after: 6 });
     await page.setViewportSize({ width: 390, height: 760 });
     await expect.poll(verticalSpacing).toEqual({ before: 2, paddingTop: 2, paddingBottom: 2, after: 3 });
 
@@ -102,7 +95,20 @@ test.describe("响应式编辑器工具栏", () => {
     await expectNoHorizontalOverflow(page);
 
     await page.setViewportSize({ width: 1200, height: 700 });
+    await expect(toolbar).toHaveClass(/toolbar-compact/);
+    await expectNoHorizontalOverflow(page);
+    await page.setViewportSize({ width: 1340, height: 700 });
     await expect(toolbar).toHaveClass(/toolbar-full/);
+    await expectNoHorizontalOverflow(page);
+    // Full mode must also move controls into More when the workspace is narrow.
+    const fontTools = toolbar.locator('[data-toolbar-tool="font"]');
+    await expect(fontTools).toHaveAttribute("data-toolbar-overflow", "true");
+    await page.getByTitle("更多编辑操作").click();
+    await expect(page.getByRole("button", { name: "缩小编辑器字号", exact: true })).toBeVisible();
+    await page.getByTitle("更多编辑操作").click();
+    await page.setViewportSize({ width: 2000, height: 700 });
+    await expect(fontTools).toBeVisible();
+    await expect(fontTools).not.toHaveAttribute("data-toolbar-overflow", "true");
     await expectNoHorizontalOverflow(page);
 
     await page.setViewportSize({ width: 800, height: 540 });
@@ -112,13 +118,15 @@ test.describe("响应式编辑器工具栏", () => {
     await more.click();
     const moreMenu = page.locator(".toolbar-more-list");
     await expect(moreMenu).toBeVisible();
-    await expect(moreMenu.getByRole("button", { name: "↵ 块内换行" })).toBeVisible();
+    await expect(moreMenu.getByRole("button", { name: "插入图片", exact: true })).toBeVisible();
+    await expect(moreMenu.getByRole("button", { name: "块内换行", exact: true })).toBeVisible();
+    await expect(moreMenu.getByRole("button", { name: "查找与替换", exact: true })).toBeVisible();
     const moreGap = await Promise.all([
-      toolbar.evaluate((element) => element.getBoundingClientRect().bottom),
+      more.evaluate((element) => element.getBoundingClientRect().bottom),
       moreMenu.evaluate((element) => element.getBoundingClientRect().top),
-    ]).then(([toolbarBottom, menuTop]) => menuTop - toolbarBottom);
-    expect(moreGap).toBeGreaterThanOrEqual(3);
-    expect(moreGap).toBeLessThanOrEqual(5);
+    ]).then(([buttonBottom, menuTop]) => menuTop - buttonBottom);
+    expect(moreGap).toBeGreaterThanOrEqual(7);
+    expect(moreGap).toBeLessThanOrEqual(9);
     await expectNoHorizontalOverflow(page);
   });
 
@@ -206,7 +214,8 @@ test.describe("响应式编辑器工具栏", () => {
     await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
     const saveStatusRightGap = await page.locator(".editor-menu").evaluate((toolbar) => {
       const status = toolbar.querySelector<HTMLElement>(".save-status-saved")!;
-      return toolbar.getBoundingClientRect().right - status.getBoundingClientRect().right;
+      return toolbar.getBoundingClientRect().right - status.getBoundingClientRect().right
+        - Number.parseFloat(getComputedStyle(toolbar).paddingRight);
     });
     expect(Math.abs(saveStatusRightGap)).toBeLessThanOrEqual(1);
     await page.reload();

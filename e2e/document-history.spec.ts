@@ -1,4 +1,4 @@
-import { sourceInfo, replaceSource } from "./helpers/source-editor";
+import { sourceInfo } from "./helpers/source-editor";
 import { expect, test, type Page } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
 import { createBlankDocument } from "./helpers/document";
@@ -61,7 +61,8 @@ test("同文档后退前进恢复光标，编辑不刷历史，新跳转清除�
   await page.getByRole("button", { name: "前进", exact: true }).click();
   await expect.poll(() => location(page)).toEqual(destination);
   await expect(editor(page)).toContainText("typed");
-  await page.keyboard.press("Alt+ArrowLeft");
+  const backKey = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform) ? "Meta+Alt+ArrowLeft" : "Alt+ArrowLeft");
+  await page.keyboard.press(backKey);
   await expect.poll(() => location(page)).toEqual(initial);
   await editor(page).locator("p").nth(12).click();
   await expect(page.getByRole("button", { name: "前进", exact: true })).toBeDisabled();

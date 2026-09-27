@@ -2,7 +2,7 @@
 // 工具: scripts/gen-schema.py
 
 /// 当前目标 schema 版本号，与 Rust/Flutter 历史迁移终点一致。
-const int targetSchemaVersion = 8;
+const int targetSchemaVersion = 9;
 
 /// 完整初始 schema DDL
 const String migrationV1 = '''
@@ -36,13 +36,6 @@ CREATE INDEX IF NOT EXISTS idx_notes_deleted_at ON notes(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_notes_tags ON notes(tags);
 CREATE INDEX IF NOT EXISTS idx_notes_pinned_sort_order ON notes(pinned, sort_order);
 CREATE INDEX IF NOT EXISTS idx_notes_storage_path ON notes(storage_path);
-
-CREATE TABLE IF NOT EXISTS daily_pages (
-  date TEXT PRIMARY KEY,
-  todos TEXT NOT NULL DEFAULT '[]',
-  todo_carryover INTEGER NOT NULL DEFAULT 0,
-  updated_at TEXT NOT NULL
-);
 
 CREATE TABLE IF NOT EXISTS note_versions (
   id TEXT PRIMARY KEY,

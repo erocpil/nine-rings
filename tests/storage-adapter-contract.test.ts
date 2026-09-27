@@ -6,7 +6,7 @@ const requiredMethods: Array<keyof StorageAdapter> = [
   "listTemplates", "createTemplate", "updateTemplate", "deleteTemplate", "seedBuiltinTemplates",
   "getNotesByDate", "getNote", "getAllNotes", "createNote", "upsertNote", "updateNote",
   "updateNoteOrder", "deleteNote", "searchNotes", "getNotesByTag", "getRecentDates",
-  "getAllTags", "getDailyPage", "updateTodos", "getAllDailyPages", "exportData", "importData",
+  "getAllTags", "exportData", "importData",
   "exportNoteMarkdown", "getDeletedNotes", "restoreNote", "permanentlyDeleteNote", "cleanOldDeleted",
   "batchDelete", "batchSetReadonly", "getNoteVersions", "restoreNoteVersion", "createNoteCheckpoint",
   "getConfig", "setConfig", "getPathTree", "getNotesByPath", "renameFolder", "moveDocument", "batchMoveDocuments",

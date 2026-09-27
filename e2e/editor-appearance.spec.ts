@@ -184,7 +184,7 @@ test("Alt-E 聚焦全局搜索而 Ctrl-E 不再占用", async ({ page }) => {
 
   await page.keyboard.press("Escape");
   await page.locator(".ProseMirror").click();
-  await page.keyboard.press("Control+e");
+  await page.keyboard.press("ControlOrMeta+e");
   await expect(page.getByRole("dialog", { name: "全局搜索", exact: true })).toHaveCount(0);
 });
 

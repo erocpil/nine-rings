@@ -81,28 +81,6 @@ pub struct NotePublic {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Todo {
-    pub id: String,
-    pub text: String,
-    pub done: bool,
-    pub order: i32,
-    #[serde(default)]
-    pub tags: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub remind_at: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parent_id: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DailyPage {
-    pub date: String,
-    pub todos: Vec<Todo>,
-    pub todo_carryover: bool,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SyncChange {
     pub id: String,
     pub entity_type: String,
@@ -260,66 +238,6 @@ pub fn search_notes(conn: &Connection, query: &str) -> rusqlite::Result<Vec<Note
     }
 }
 
-// ──── DailyPage DAO ────
-
-pub fn upsert_daily_page(conn: &Connection, page: &DailyPage) -> rusqlite::Result<()> {
-    conn.execute(
-        "INSERT INTO daily_pages (date, todos, todo_carryover, updated_at)
-         VALUES (?1, ?2, ?3, ?4)
-         ON CONFLICT(date) DO UPDATE SET
-           todos = excluded.todos,
-           todo_carryover = excluded.todo_carryover,
-           updated_at = excluded.updated_at",
-        rusqlite::params![
-            page.date,
-            serde_json::to_string(&page.todos).unwrap_or_default(),
-            page.todo_carryover,
-            page.updated_at,
-        ],
-    )?;
-    Ok(())
-}
-
-pub fn select_daily_page(conn: &Connection, date: &str) -> rusqlite::Result<Option<DailyPage>> {
-    let mut stmt = conn.prepare(
-        "SELECT date, todos, todo_carryover, updated_at
-         FROM daily_pages WHERE date = ?1",
-    )?;
-    let mut rows = stmt.query_map(rusqlite::params![date], |row| {
-        let todos_str: String = row.get(1)?;
-        Ok(DailyPage {
-            date: row.get(0)?,
-            todos: serde_json::from_str(&todos_str).unwrap_or_default(),
-            todo_carryover: row.get(2)?,
-            updated_at: row.get(3)?,
-        })
-    })?;
-    rows.next().transpose()
-}
-
-pub fn select_prev_carryover_page(
-    conn: &Connection,
-    before_date: &str,
-) -> rusqlite::Result<Option<DailyPage>> {
-    let mut stmt = conn.prepare(
-        "SELECT date, todos, todo_carryover, updated_at
-         FROM daily_pages
-         WHERE date < ?1
-         ORDER BY date DESC
-         LIMIT 1",
-    )?;
-    let mut rows = stmt.query_map(rusqlite::params![before_date], |row| {
-        let todos_str: String = row.get(1)?;
-        Ok(DailyPage {
-            date: row.get(0)?,
-            todos: serde_json::from_str(&todos_str).unwrap_or_default(),
-            todo_carryover: row.get(2)?,
-            updated_at: row.get(3)?,
-        })
-    })?;
-    rows.next().transpose()
-}
-
 /// 获取所有未删除笔记（用于导出）
 pub fn select_all_active_notes(conn: &Connection) -> rusqlite::Result<Vec<Note>> {
     let mut stmt = conn.prepare(
@@ -328,23 +246,6 @@ pub fn select_all_active_notes(conn: &Connection) -> rusqlite::Result<Vec<Note>>
          ORDER BY updated_at DESC"
     )?;
     let rows = stmt.query_map([], note_from_row)?;
-    rows.collect()
-}
-
-/// 获取所有每日页（用于导出）
-pub fn select_all_daily_pages(conn: &Connection) -> rusqlite::Result<Vec<DailyPage>> {
-    let mut stmt = conn.prepare(
-        "SELECT date, todos, todo_carryover, updated_at FROM daily_pages ORDER BY date DESC",
-    )?;
-    let rows = stmt.query_map([], |row| {
-        let todos_str: String = row.get(1)?;
-        Ok(DailyPage {
-            date: row.get(0)?,
-            todos: serde_json::from_str(&todos_str).unwrap_or_default(),
-            todo_carryover: row.get(2)?,
-            updated_at: row.get(3)?,
-        })
-    })?;
     rows.collect()
 }
 
@@ -464,7 +365,7 @@ pub struct UpsertNoteInput {
 /// 匹配谓词与 TS `core.ts::upsertMatchKey` 对齐：
 /// - 显式 id（导入透传）→ 直接使用。
 /// - 文档：storage_path + title。
-/// - 随笔：title + date（且 storage_path 为空）。
+/// - 未指定 storage_path 时使用 references。
 ///
 /// 多命中时按 `updated_at DESC, id ASC` 取首条，保证确定性。
 ///
@@ -479,35 +380,18 @@ pub fn upsert_note_dedup(conn: &mut Connection, input: &UpsertNoteInput) -> rusq
     let mut matched_readonly: Option<bool> = None;
 
     if final_id.is_none() {
-        if let (Some(sp), Some(t)) = (input.storage_path.as_ref(), input.title.as_ref()) {
+        if let Some(t) = input.title.as_ref().filter(|title| !title.is_empty()) {
+            let sp = input
+                .storage_path
+                .as_deref()
+                .filter(|p| !p.is_empty())
+                .unwrap_or("references");
             // 文档：storagePath + title
             let found = tx.query_row(
                 "SELECT id, created_at, sort_order, readonly FROM notes
                  WHERE storage_path = ?1 AND title = ?2 AND deleted_at IS NULL
                  ORDER BY updated_at DESC, id ASC LIMIT 1",
                 params![sp, t],
-                |r| {
-                    Ok((
-                        r.get::<_, String>(0)?,
-                        r.get::<_, String>(1)?,
-                        r.get::<_, i32>(2)?,
-                        r.get::<_, i32>(3)?,
-                    ))
-                },
-            );
-            if let Ok((id, ca, so, ro)) = found {
-                final_id = Some(id);
-                matched_created_at = Some(ca);
-                matched_sort_order = Some(so);
-                matched_readonly = Some(ro != 0);
-            }
-        } else if let Some(t) = input.title.as_ref() {
-            // 随笔：title + date（仅非文档笔记，storage_path 为空）
-            let found = tx.query_row(
-                "SELECT id, created_at, sort_order, readonly FROM notes
-                 WHERE title = ?1 AND date = ?2 AND storage_path IS NULL AND deleted_at IS NULL
-                 ORDER BY updated_at DESC, id ASC LIMIT 1",
-                params![t, input.date],
                 |r| {
                     Ok((
                         r.get::<_, String>(0)?,
@@ -562,7 +446,7 @@ pub fn upsert_note_dedup(conn: &mut Connection, input: &UpsertNoteInput) -> rusq
             sort_order,
             created,
             updated,
-            input.storage_path,
+            input.storage_path.as_deref().filter(|p| !p.is_empty()).unwrap_or("references"),
             input.doc_type,
             serde_json::to_string(&concepts).unwrap_or_default(),
             serde_json::to_string(&linked_doc_ids).unwrap_or_default(),
@@ -574,4 +458,25 @@ pub fn upsert_note_dedup(conn: &mut Connection, input: &UpsertNoteInput) -> rusq
 
     // 读回完整 Note 返回
     select_note_by_id(conn, &id)?.ok_or(rusqlite::Error::QueryReturnedNoRows)
+}
+
+#[cfg(test)]
+mod document_upsert_tests {
+    use super::*;
+
+    #[test]
+    fn default_directory_deduplicates_by_path_and_title_not_date() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        crate::db::migrations::run(&conn).unwrap();
+        let input = |date: &str, title: &str| -> UpsertNoteInput {
+            serde_json::from_value(serde_json::json!({ "date": date, "title": title })).unwrap()
+        };
+        let first = upsert_note_dedup(&mut conn, &input("2026-09-26", "文档")).unwrap();
+        let next = upsert_note_dedup(&mut conn, &input("2026-09-27", "文档")).unwrap();
+        assert_eq!(first.id, next.id);
+        assert_eq!(next.storage_path.as_deref(), Some("references"));
+        let empty = upsert_note_dedup(&mut conn, &input("2026-09-27", "")).unwrap();
+        let other = upsert_note_dedup(&mut conn, &input("2026-09-27", "")).unwrap();
+        assert_ne!(empty.id, other.id);
+    }
 }

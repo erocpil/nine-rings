@@ -24,13 +24,6 @@ CREATE INDEX IF NOT EXISTS idx_notes_tags ON notes(tags);
 CREATE INDEX IF NOT EXISTS idx_notes_pinned ON notes(pinned DESC, sort_order ASC);
 CREATE INDEX IF NOT EXISTS idx_notes_search ON notes(search_text);
 
-CREATE TABLE IF NOT EXISTS daily_pages (
-  date TEXT PRIMARY KEY,
-  todos TEXT NOT NULL DEFAULT '[]',
-  todo_carryover INTEGER NOT NULL DEFAULT 0,
-  updated_at TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS sync_changes (
   id TEXT PRIMARY KEY,
   entity_type TEXT NOT NULL,
@@ -157,4 +150,8 @@ CREATE INDEX IF NOT EXISTS idx_note_versions_note_id ON note_versions(note_id);
 
 String migrationV8 = '''
 CREATE TABLE IF NOT EXISTS protected_paths (id TEXT PRIMARY KEY, data TEXT NOT NULL);
+''';
+
+String migrationV9 = '''
+DROP TABLE IF EXISTS daily_pages;
 ''';

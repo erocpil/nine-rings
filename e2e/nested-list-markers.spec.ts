@@ -43,7 +43,7 @@ for (const width of [390, 1280]) {
           for (const left of item.lineLefts) expect(left).toBeCloseTo(item.textLeft, 1);
         }
       }
-      await page.screenshot({ path: `/tmp/nr-nested-list-${width}-${readonly}.png` });
+      await page.screenshot({ path: test.info().outputPath(`nr-nested-list-${width}-${readonly}.png`) });
     });
   }
 }

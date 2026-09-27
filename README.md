@@ -20,7 +20,7 @@
 
 > 九环绕指，一念成文。
 
-**Nine Rings** 是一款本地优先的跨平台随笔便签应用。按天组织笔记与待办、支持富文本编辑、标签分类、Markdown 导入、版本历史，以及「每日一页」工作流。
+**Nine Rings** 是一款本地优先的跨平台文档应用。通过文档树组织内容，支持富文本与 Markdown 编辑、标签分类、导入导出、版本历史和 PDF/EPUB 阅读。
 
 ---
 
@@ -28,12 +28,10 @@
 
 | 模块 | 说明 |
 |------|------|
-| **每日一页** | 按日期聚合笔记与待办，新建日期页可选跨日继承未完成待办 |
 | **富文本编辑** | TipTap 编辑器，支持标题、列表、引用、代码块（行号与常用语言语法高亮）、图片、链接、可编辑 Markdown 表格 |
 | **Markdown 粘贴** | 剪贴板粘贴自动识别 Markdown / HTML 表格并保留结构，长文防重复粘贴 |
-| **待办列表** | 每日独立待办清单，跨日继承，提醒通知 |
-| **标签系统** | 笔记 + 待办双向标签，标签筛选面板 |
-| **搜索与跳转** | 全文搜索、命中定位、持久化正文书签；`Ctrl/Cmd+P` 按最近访问快速切换随笔与文档 |
+| **标签系统** | 文档标签、概念关联和筛选 |
+| **搜索与跳转** | 全文搜索、命中定位、持久化正文书签；`Ctrl/Cmd+P` 按最近访问快速切换文档 |
 | **文档管理** | P.A.R.A. 目录 × Zettelkasten 概念 × Diátaxis 类型 三维分类，MOC 视图，自定义根路径 |
 | **版本历史** | 自动保存版本快照，支持回退 |
 | **回收站** | 软删除，可配置自动清理天数 |
@@ -55,7 +53,7 @@
 
 ## 备份范围
 
-手动 JSON 导出、紧急恢复文件和 GitHub 全量快照共用相同备份格式，包含笔记、待办、正文书签、应用配置、界面相关的非敏感用户设置，以及最后打开的文档与其光标/滚动位置。恢复成功后应用会自动重新载入并立即应用这些设置。本地 PDF、EPUB 原文件及其设备阅读进度、批注和书签不进入备份；由阅读器创建的摘录笔记会正常进入备份。GitHub Token、密码、密钥和授权凭据始终排除，恢复后需要在当前设备重新提供。
+手动 JSON 导出、紧急恢复文件和 GitHub 全量快照共用相同备份格式，包含文档、Markdown 任务列表、正文书签、应用配置、界面相关的非敏感用户设置，以及最后打开的文档与其光标/滚动位置。恢复成功后应用会自动重新载入并立即应用这些设置。本地 PDF、EPUB 原文件及其设备阅读进度、批注和书签不进入备份；由阅读器创建的摘录笔记会正常进入备份。GitHub Token、密码、密钥和授权凭据始终排除，恢复后需要在当前设备重新提供。
 
 ---
 
@@ -153,7 +151,7 @@ npm run tauri build
 
 ### Markdown 导入
 
-应用内「设置 → Markdown 导入」支持直接选择 `.md` 文件，配置导入类型（文档 / 随笔）、目录、文档类型与标签，无需脚本。
+应用内「设置 → Markdown 导入」支持直接选择 `.md` 文件，配置目录、文档类型与标签，无需脚本。
 
 脚本方式（批量导入目录）：
 
@@ -174,7 +172,7 @@ python3 scripts/md-to-nine-rings.py --serve --port 8000 --path areas/nine-rings 
 
 ### Flutter 移动端
 
-> 状态：核心功能已实现（笔记 CRUD、待办、标签、搜索、回收站、版本历史），尚未与 Web 版完成 parity。
+> 状态：核心功能已实现（文档 CRUD、标签、搜索、回收站、版本历史），尚未与 Web 版完成 parity。
 
 环境要求：Flutter SDK ≥ 3.9.2，macOS 需 Xcode。
 
@@ -206,12 +204,10 @@ flutter build apk
 | 按日期浏览笔记 | ✅ |
 | 笔记创建 / 编辑 / 删除 | ✅ |
 | 富文本编辑（flutter_quill） | ✅ |
-| 待办列表（每日独立） | ✅ |
 | 标签系统 | ✅ |
 | 全文搜索 | ✅ |
 | 回收站（软删除 / 恢复） | ✅ |
 | 版本历史 | ✅ |
-| 跨日继承待办 | ✅ |
 | 主题（浅色 / 深色跟随系统） | ✅ |
 | 文档树 / P.A.R.A. 系统 | ❌ 待实现 |
 | 属性面板 / Zettelkasten | ❌ 待实现 |
@@ -270,7 +266,7 @@ nine-rings/
 | [`docs/markdown-import.md`](./docs/markdown-import.md) | Markdown 导入格式说明 |
 | [`docs/macos-platform-analysis.md`](./docs/macos-platform-analysis.md) | macOS 客户端方案分析（Tauri vs Flutter vs 原生） |
 | [`docs/lessons-learned.md`](./docs/lessons-learned.md) | 开发经验记录（踩坑、模式、判断） |
-| [`schema/note.yaml`](./schema/note.yaml) | 数据格式定义（Note / Todo / DailyPage） |
+| [`schema/note.yaml`](./schema/note.yaml) | 数据格式定义（Note / NoteVersion / ProtectedPath / Template） |
 | [`schema/config.yaml`](./schema/config.yaml) | 配置字段定义 |
 
 ---

@@ -1,3 +1,4 @@
+import { useDocumentActive } from "../components/RetainedDocument";
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { addLog } from "../lib/debugLog";
 import type { ReadingAnchor } from "../lib/readonly-rendering";
@@ -24,11 +25,13 @@ export function useEditorScrollPersistence({
   showStatusBar,
   isMobileToolbarViewport,
 }: Options) {
+  const active = useDocumentActive();
   const restoration = useRef({ pending: false });
   // 挂载时恢复滚动位置
   // 出处：SO #54195164 https://stackoverflow.com/questions/54195164
   // useLayoutEffect 在浏览器绘制前执行，比 useEffect 更早恢复位置
   useLayoutEffect(() => {
+    if (!active) return;
     const state = { pending: false };
     restoration.current = state;
     const el = scrollRef.current;
@@ -87,7 +90,7 @@ export function useEditorScrollPersistence({
     el.addEventListener("keydown", onKeyDown);
     el.addEventListener(EDITOR_NAVIGATION_EVENT, finish);
     const restore = () => {
-      if (stopped) return;
+      if (stopped || !el.isConnected) return;
       const maximum = Math.max(0, el.scrollHeight - el.clientHeight);
       el.scrollTop = Math.min(scrollTop, maximum);
       const targetIsReachable = maximum >= scrollTop;
@@ -107,7 +110,7 @@ export function useEditorScrollPersistence({
     observer =
       typeof ResizeObserver !== "undefined"
         ? new ResizeObserver(() => {
-            if (stopped) return;
+            if (stopped || !el.isConnected) return;
             cancelAnimationFrame(frame);
             frame = requestAnimationFrame(restore);
           })
@@ -116,7 +119,7 @@ export function useEditorScrollPersistence({
     mutationObserver =
       typeof MutationObserver !== "undefined"
         ? new MutationObserver(() => {
-            if (stopped) return;
+            if (stopped || !el.isConnected) return;
             cancelAnimationFrame(frame);
             frame = requestAnimationFrame(restore);
           })
@@ -124,12 +127,13 @@ export function useEditorScrollPersistence({
     mutationObserver?.observe(el, { childList: true, subtree: true });
     frame = requestAnimationFrame(restore);
     return stop;
-  }, [noteId, sensitive, rendererHandoffRef, scrollRef]);
+  }, [noteId, sensitive, rendererHandoffRef, scrollRef, active]);
 
   // 滚动时保存位置 & 更新位置显示
   // 出处：TipTap #2342 https://github.com/ueberdosis/tiptap/issues/2342
   // cleanup 只写入滚动事件记录的位置，不读取销毁阶段可能已归零的 DOM。
   useEffect(() => {
+    if (!active) return;
     const el = scrollRef.current;
     if (!el) return;
     const state = restoration.current;
@@ -187,7 +191,7 @@ export function useEditorScrollPersistence({
     const handler = () => {
       // Mounting may clamp the target while NodeViews are still taking shape.
       // Never replace the saved target with those intermediate positions.
-      if (state.pending) return;
+      if (state.pending || !el.isConnected || el.closest("[inert]")) return;
       lastKnownScrollTop = el.scrollTop;
       scheduleStatusPosition();
       if (persistTimer) window.clearTimeout(persistTimer);
@@ -221,6 +225,7 @@ export function useEditorScrollPersistence({
       if (statusTimer) window.clearTimeout(statusTimer);
     };
   }, [
+    active,
     isMobileToolbarViewport,
     noteId,
     sensitive,

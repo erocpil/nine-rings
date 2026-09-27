@@ -3,7 +3,7 @@
  * 实现 StorageAdapter 全部接口，与 Tauri (SQLite) 后端语义对齐
  */
 
-import type { Note, DailyPage, Todo, CreateNoteInput, UpdateNoteInput, UpdateTodosInput, PathNode } from "../../types/models";
+import type { Note, CreateNoteInput, UpdateNoteInput, PathNode } from "../../types/models";
 import type { StorageAdapter, DocSearchQuery } from "./types";
 import {
   assertFolderRelocation,
@@ -18,7 +18,6 @@ import {
   upsertMatchKey,
   type StoredNote,
   type FlatDocRecord,
-  type FlatDailyRecord,
 } from "./core";
 import { withDB, getOne, getAll, getAllFromIndex, putRecord, abortTransaction, delRecord } from "./db";
 import { saveVersionSnapshot, createNoteCheckpoint, getNoteVersions, restoreNoteVersion } from "./db-versions";
@@ -35,11 +34,6 @@ function today(): string {
 }
 
 const SEARCH_SCAN_CHUNK_SIZE = 250;
-
-type StoredDailyPage = Omit<DailyPage, "todos" | "todo_carryover"> & {
-  todos: string | Todo[];
-  todo_carryover: number | boolean;
-};
 
 interface MovableStoredNote extends Record<string, unknown> {
   deleted_at?: string;
@@ -100,7 +94,7 @@ export const idbAdapter: StorageAdapter = {
         sort_order: 0,
         created_at: now(),
         updated_at: now(),
-        storagePath: data.storagePath,
+        storagePath: data.storagePath || "references",
         docType: data.docType,
         concepts: data.concepts,
         linkedDocIds: data.linkedDocIds,
@@ -134,22 +128,6 @@ export const idbAdapter: StorageAdapter = {
             (a.id ?? "").localeCompare(b.id ?? ""),
           );
         existing = candidates[0] ? noteFromDB(candidates[0]) : null;
-      } else if (matchKey?.kind === "daily") {
-        // 随笔：按 title + date 匹配（仅非文档笔记，storagePath 为空）
-        const all = await getAll<StoredNote>(noteStore);
-        const candidates = all
-          .filter(
-            (n) =>
-              !n.deleted_at &&
-              !n.storagePath &&
-              n.title === matchKey.title &&
-              n.date === matchKey.date,
-          )
-          .sort((a, b) =>
-            (b.updated_at ?? "").localeCompare(a.updated_at ?? "") ||
-            (a.id ?? "").localeCompare(b.id ?? ""),
-          );
-        existing = candidates[0] ? noteFromDB(candidates[0]) : null;
       }
 
       // ── 写：命中则保留旧元数据（created_at / readonly / sort_order）──
@@ -164,7 +142,7 @@ export const idbAdapter: StorageAdapter = {
         sort_order: existing?.sort_order ?? 0,
         created_at: existing?.created_at ?? now(),
         updated_at: now(),
-        storagePath: data.storagePath,
+        storagePath: data.storagePath || "references",
         docType: data.docType,
         concepts: data.concepts,
         linkedDocIds: data.linkedDocIds,
@@ -293,76 +271,6 @@ export const idbAdapter: StorageAdapter = {
     });
   },
 
-  // ══════ Daily Page ══════
-
-  async getDailyPage(date: string, carryoverDefault = false): Promise<DailyPage> {
-    return withDB(async (db) => {
-      const store = db.transaction("daily_pages", "readwrite").objectStore("daily_pages");
-      let page = await getOne<StoredDailyPage>(store, date);
-      if (!page) {
-        // Try carryover from yesterday (local date arithmetic, not UTC)
-        const d = new Date(date + "T00:00:00");
-        d.setDate(d.getDate() - 1);
-        const yesterday = localDateKey(d);
-        const yPage = await getOne<StoredDailyPage>(store, yesterday);
-        let carryoverTodos: Todo[] = [];
-        let carryoverEnabled = carryoverDefault;
-        if (yPage && yPage.todo_carryover) {
-          carryoverEnabled = true;
-          const todos: Todo[] = typeof yPage.todos === "string" ? JSON.parse(yPage.todos) : yPage.todos;
-          carryoverTodos = todos
-            .filter((t) => !(Number(t.done) === 1))
-            .map((t) => ({ ...t, id: uuid() }));
-        }
-        page = {
-          date,
-          todos: JSON.stringify(carryoverTodos),
-          todo_carryover: carryoverEnabled ? 1 : 0,
-          updated_at: now(),
-        };
-        await putRecord(store, page);
-      }
-      return {
-        date: page.date,
-        todos: typeof page.todos === "string" ? JSON.parse(page.todos) : page.todos,
-        todo_carryover: page.todo_carryover === 1 || page.todo_carryover === true,
-        updated_at: page.updated_at,
-      };
-    });
-  },
-
-  async getAllDailyPages(): Promise<DailyPage[]> {
-    return withDB(async (db) => {
-      const store = db.transaction("daily_pages", "readonly").objectStore("daily_pages");
-      const all = await getAll<StoredDailyPage>(store);
-      return all.map((p) => ({
-        date: p.date,
-        todos: typeof p.todos === "string" ? JSON.parse(p.todos) : p.todos,
-        todo_carryover: p.todo_carryover === 1 || p.todo_carryover === true,
-        updated_at: p.updated_at,
-      }));
-    });
-  },
-
-  async updateTodos(data: UpdateTodosInput): Promise<DailyPage> {
-    return withDB(async (db) => {
-      const store = db.transaction("daily_pages", "readwrite").objectStore("daily_pages");
-      const page: StoredDailyPage = {
-        date: data.date,
-        todos: JSON.stringify(data.todos),
-        todo_carryover: data.todo_carryover ? 1 : 0,
-        updated_at: now(),
-      };
-      await putRecord(store, page);
-      return {
-        date: page.date,
-        todos: data.todos,
-        todo_carryover: !!data.todo_carryover,
-        updated_at: page.updated_at,
-      };
-    });
-  },
-
   exportData,
   importData,
   exportNoteMarkdown,
@@ -470,7 +378,7 @@ export const idbAdapter: StorageAdapter = {
   // ══════ Doc Tree（v2 文档分类系统）══════
 
   /** 构建文档树: 查询 IDB → 映射为 FlatRecord → 委托 core.ts buildDocTree */
-  async getPathTree(includeDaily = true): Promise<PathNode[]> {
+  async getPathTree(): Promise<PathNode[]> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
       const all = await getAll<StoredNote>(store);
@@ -478,7 +386,6 @@ export const idbAdapter: StorageAdapter = {
 
       // 映射为 core.ts 的输入类型（snake_case）
       const docs: FlatDocRecord[] = [];
-      const dailies: FlatDailyRecord[] = [];
       for (const n of notes) {
         if (n.storagePath) {
           docs.push({
@@ -490,17 +397,10 @@ export const idbAdapter: StorageAdapter = {
             updated_at: n.updated_at,
             readonly: n.readonly ?? false,
           });
-        } else if (includeDaily) {
-          dailies.push({
-            id: n.id,
-            date: n.date,
-            title: n.title,
-            updated_at: n.updated_at,
-          });
         }
       }
 
-      return buildDocTree(docs, dailies);
+      return buildDocTree(docs);
     });
   },
 
@@ -510,18 +410,6 @@ export const idbAdapter: StorageAdapter = {
       const all = await getAll<StoredNote>(store);
       const notes = all.filter((n) => !n.deleted_at).map(noteFromDB);
 
-      // daily/ 前缀 → 返回对应日期的每日随笔（无 storagePath）
-      if (pathPrefix.startsWith("daily/")) {
-        const date = pathPrefix.slice(6); // 去掉 "daily/"
-        if (date) {
-          return notes
-            .filter((n) => n.date === date && !n.storagePath)
-            .sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""));
-        }
-        return notes
-          .filter((n) => !n.storagePath)
-          .sort((a, b) => b.date.localeCompare(a.date) || (b.updated_at ?? "").localeCompare(a.updated_at ?? ""));
-      }
 
       return notes
         .filter((n) => n.storagePath && (n.storagePath === pathPrefix || n.storagePath.startsWith(pathPrefix + "/")))
@@ -607,7 +495,7 @@ export const idbAdapter: StorageAdapter = {
       const store = db.transaction("notes", "readonly").objectStore("notes");
       const all = await getAll<StoredNote>(store);
       const matches = await filterInChunks(all, (n) => {
-        // 文档搜索：仅返回 storagePath 非空的文档（随笔走 getAllNotes / searchNotes）
+        // 文档搜索：按路径和元数据筛选
         if (n.deleted_at || !n.storagePath) return false;
         if (query.storagePath && !n.storagePath?.startsWith(query.storagePath)) return false;
         if (query.docType && n.docType !== query.docType) return false;
@@ -630,13 +518,13 @@ export const idbAdapter: StorageAdapter = {
     });
   },
 
-  /** 获取所有日期的随笔（storagePath 为空的笔记，不含文档视图中的文档） */
+  /** 获取全部未删除文档 */
   async getAllNotes(): Promise<Note[]> {
     return withDB(async (db) => {
       const store = db.transaction("notes", "readonly").objectStore("notes");
       const all = await getAll<StoredNote>(store);
       return all
-        .filter((n) => !n.deleted_at && !n.storagePath)
+        .filter((n) => !n.deleted_at)
         .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? "") || (b.updated_at ?? "").localeCompare(a.updated_at ?? ""))
         .map(noteFromDB);
     });

@@ -241,7 +241,7 @@ test("新代码块遵循已保存的默认软换行配置且说明不修改内�
   await createBlankDocument(page);
   const editor = page.locator(".ProseMirror");
   await editor.fill("new-code");
-  await editor.press("Control+Alt+c");
+  await editor.press("ControlOrMeta+Alt+c");
   const codeBlock = editor.locator(".code-block-wrap");
   await expect(codeBlock).toHaveAttribute("data-code-wrap", "false");
   const wrapButton = codeBlock.getByRole("button", { name: "开启代码软换行" });
@@ -332,7 +332,6 @@ test("Web/PWA 从 GitHub Pull 后自动应用设置并恢复最后文档位置",
       concepts: [],
       linkedDocIds: [],
     }],
-    daily_pages: [],
     config: { theme: "dark", note_font_size: 21 },
     user_settings: {
       version: 1,
@@ -436,7 +435,7 @@ test("Web/PWA 从 GitHub Pull 后自动应用设置并恢复最后文档位置",
     }
     expect(Math.abs(merge.left - backup.left)).toBeLessThan(1);
     expect(Math.abs(merge.left - replace.left)).toBeLessThan(1);
-    await actions.screenshot({ path: `/tmp/sync-merge-actions-${width}.png` });
+    await actions.screenshot({ path: test.info().outputPath(`sync-merge-actions-${width}.png`) });
   }
   if (originalViewport) await page.setViewportSize(originalViewport);
   await expect(page.getByRole("button", { name: "先导出本地 JSON" })).toBeVisible();

@@ -26,6 +26,6 @@ test("设置卡片使用柔和主题底色且触摸悬停不变白", async ({ pa
       return colors;
     });
     expect(colors.card).not.toBe(colors.plain);
-    await page.screenshot({ path: `/tmp/nr-settings-${theme}.png`, animations: "disabled" });
+    await page.screenshot({ path: test.info().outputPath(`nr-settings-${theme}.png`), animations: "disabled" });
   }
 });

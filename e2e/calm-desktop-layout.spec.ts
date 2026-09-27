@@ -95,7 +95,7 @@ for (const style of ["calm", "calm-compact"] as const) {
       "min-height",
       style === "calm" ? "48px" : "42px",
     );
-    await page.screenshot({ path: `/tmp/nr-${style}-desktop-refined.png` });
+    await page.screenshot({ path: test.info().outputPath(`nr-${style}-desktop-refined.png`) });
     // Keep the content useful with a fixed navigation panel taking half the editor.
     await page.setViewportSize({ width: 1000, height: 800 });
     const scroll = page.locator(".note-editor-scroll");
@@ -130,6 +130,6 @@ for (const style of ["calm", "calm-compact"] as const) {
       "background-color",
       "rgb(37, 42, 36)",
     );
-    await page.screenshot({ path: `/tmp/nr-${style}-narrow-dark.png` });
+    await page.screenshot({ path: test.info().outputPath(`nr-${style}-narrow-dark.png`) });
   });
 }

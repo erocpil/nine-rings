@@ -23,9 +23,9 @@ test("新建表单校验路径，添加标签不提交，创建失败可重试",
   await expect(dialog.locator(".dialog-tag")).toContainText("交互");
   expect(await page.evaluate(() => document.body.dataset.createCalls)).toBeUndefined();
   await dialog.getByLabel("顶级目录", { exact: true }).selectOption("__custom_root__");
-  await dialog.getByLabel("自定义目录", { exact: true }).fill("daily/private");
+  await dialog.getByLabel("自定义目录", { exact: true }).fill("../private");
   await expect(dialog.getByRole("button", { name: "创建", exact: true })).toBeDisabled();
-  await expect(dialog.locator(".ui-field-error")).toContainText("daily");
+  await expect(dialog.locator(".ui-field-error")).toContainText("路径");
   await dialog.getByLabel("自定义目录", { exact: true }).fill("areas/private");
   await expect(dialog.locator(".dialog-path-preview code")).toHaveText("areas/private");
   await dialog.getByRole("button", { name: "创建", exact: true }).click();
@@ -49,7 +49,7 @@ test("快速切换提供加载失败重试、空状态与完整长路径", async
     let attempts = 0;
     api.notes.all = async () => { if (attempts++ === 0) throw new Error("test"); return all(); };
   }, { path, title });
-  await page.keyboard.press("Control+p");
+  await page.keyboard.press("ControlOrMeta+p");
   const dialog = page.getByRole("dialog", { name: "快速切换笔记" });
   await expect(dialog.getByRole("alert")).toContainText("载入失败");
   await dialog.getByRole("button", { name: "重新加载" }).click();

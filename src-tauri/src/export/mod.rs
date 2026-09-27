@@ -287,7 +287,6 @@ pub struct ExportBundle {
     pub version: i32,
     pub exported_at: String,
     pub notes: Vec<Note>,
-    pub daily_pages: Vec<crate::db::models::DailyPage>,
     #[serde(default)]
     pub config: Option<Value>,
     #[serde(default)]
@@ -309,27 +308,6 @@ pub fn export_all(conn: &Connection, config: &AppConfig) -> rusqlite::Result<Exp
         .query_map([], crate::db::models::note_from_row)?
         .collect::<rusqlite::Result<Vec<_>>>()?;
 
-    let mut stmt = conn
-        .prepare("SELECT date, todos, todo_carryover, updated_at FROM daily_pages ORDER BY date")?;
-    let daily_pages = stmt
-        .query_map([], |row| {
-            let todos_str: String = row.get(1)?;
-            let todos = serde_json::from_str(&todos_str).map_err(|error| {
-                rusqlite::Error::FromSqlConversionFailure(
-                    1,
-                    rusqlite::types::Type::Text,
-                    Box::new(error),
-                )
-            })?;
-            Ok(crate::db::models::DailyPage {
-                date: row.get(0)?,
-                todos,
-                todo_carryover: row.get::<_, i32>(2)? != 0,
-                updated_at: row.get(3)?,
-            })
-        })?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-
     let templates = conn.prepare("SELECT id, name, description, is_builtin, title_template, tags, storage_path, doc_type, concepts, pinned, sort_order, created_at, updated_at FROM templates")?
         .query_map([], |row| {
             let parse_list = |index| -> rusqlite::Result<Vec<String>> {
@@ -338,13 +316,27 @@ pub fn export_all(conn: &Connection, config: &AppConfig) -> rusqlite::Result<Exp
             };
             Ok(BackupTemplate { id: row.get(0)?, name: row.get(1)?, description: row.get(2)?, is_builtin: row.get(3)?, title_template: row.get(4)?, tags: parse_list(5)?, storage_path: row.get(6)?, doc_type: row.get(7)?, concepts: parse_list(8)?, pinned: row.get(9)?, sort_order: row.get(10)?, created_at: row.get(11)?, updated_at: row.get(12)? })
         })?.collect::<rusqlite::Result<Vec<_>>>()?;
-    let protection = crate::commands::protection::snapshot(conn).map_err(|_| rusqlite::Error::InvalidQuery)?;
-    let protected_versions = protection.versions.into_iter().filter(|v| notes.iter().any(|n| Some(n.id.as_str()) == v["note_id"].as_str() && n.content.get("encrypted").is_some())).collect();
+    let protection =
+        crate::commands::protection::snapshot(conn).map_err(|_| rusqlite::Error::InvalidQuery)?;
+    let protected_versions = protection
+        .versions
+        .into_iter()
+        .filter(|v| {
+            notes.iter().any(|n| {
+                Some(n.id.as_str()) == v["note_id"].as_str() && n.content.get("encrypted").is_some()
+            })
+        })
+        .collect();
     Ok(ExportBundle {
-        version: if !protection.paths.is_empty() || notes.iter().any(|n| n.content.get("encrypted").is_some()) { 2 } else { 1 },
+        version: if !protection.paths.is_empty()
+            || notes.iter().any(|n| n.content.get("encrypted").is_some())
+        {
+            2
+        } else {
+            1
+        },
         exported_at: chrono::Utc::now().to_rfc3339(),
         notes,
-        daily_pages,
         config: Some(serde_json::to_value(config).unwrap_or(Value::Null)),
         templates: Some(templates),
         protected_paths: protection.paths,
@@ -357,16 +349,14 @@ pub fn import_bundle(
     conn: &Connection,
     bundle: &ExportBundle,
     replace: bool,
-) -> rusqlite::Result<(usize, usize)> {
+) -> rusqlite::Result<usize> {
     let mut notes_imported = 0usize;
-    let mut pages_imported = 0usize;
 
     let tx = conn.unchecked_transaction()?;
 
     if replace {
         tx.execute("DELETE FROM note_versions", [])?;
         tx.execute("DELETE FROM notes", [])?;
-        tx.execute("DELETE FROM daily_pages", [])?;
         tx.execute("DELETE FROM protected_paths", [])?;
     }
 
@@ -408,20 +398,6 @@ pub fn import_bundle(
         notes_imported += 1;
     }
 
-    for page in &bundle.daily_pages {
-        tx.execute(
-            "INSERT OR REPLACE INTO daily_pages (date, todos, todo_carryover, updated_at)
-             VALUES (?1, ?2, ?3, ?4)",
-            rusqlite::params![
-                page.date,
-                serde_json::to_string(&page.todos).unwrap_or_default(),
-                page.todo_carryover,
-                page.updated_at,
-            ],
-        )?;
-        pages_imported += 1;
-    }
-
     if let Some(templates) = &bundle.templates {
         if replace {
             tx.execute("DELETE FROM templates", [])?;
@@ -432,17 +408,24 @@ pub fn import_bundle(
     }
     for path in &bundle.protected_paths {
         let id = path["id"].as_str().ok_or(rusqlite::Error::InvalidQuery)?;
-        tx.execute("INSERT OR REPLACE INTO protected_paths (id,data) VALUES (?1,?2)", rusqlite::params![id,path.to_string()])?;
+        tx.execute(
+            "INSERT OR REPLACE INTO protected_paths (id,data) VALUES (?1,?2)",
+            rusqlite::params![id, path.to_string()],
+        )?;
     }
     for v in &bundle.protected_versions {
-        if v["content"].get("encrypted").is_none() { return Err(rusqlite::Error::InvalidQuery); }
+        if v["content"].get("encrypted").is_none() {
+            return Err(rusqlite::Error::InvalidQuery);
+        }
         tx.execute("INSERT OR REPLACE INTO note_versions (id,note_id,title,content,tags,pinned,sort_order,saved_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8)", rusqlite::params![v["id"].as_str(),v["note_id"].as_str(),v["title"].as_str(),v["content"].to_string(),v["tags"].to_string(),v["pinned"].as_bool().unwrap_or(false),v["sort_order"].as_i64().unwrap_or(0),v["saved_at"].as_str()])?;
     }
-    let protection = crate::commands::protection::snapshot(&tx).map_err(|_| rusqlite::Error::InvalidQuery)?;
-    crate::commands::protection::validate(&protection).map_err(|_| rusqlite::Error::InvalidQuery)?;
+    let protection =
+        crate::commands::protection::snapshot(&tx).map_err(|_| rusqlite::Error::InvalidQuery)?;
+    crate::commands::protection::validate(&protection)
+        .map_err(|_| rusqlite::Error::InvalidQuery)?;
     tx.commit()?;
 
-    Ok((notes_imported, pages_imported))
+    Ok(notes_imported)
 }
 
 #[cfg(test)]

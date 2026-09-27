@@ -1,4 +1,4 @@
-/** 演示随笔内容 —— 展示所有支持的格式（ProseMirror JSON 格式） */
+/** 演示文档内容 —— 展示所有支持的格式（ProseMirror JSON 格式） */
 export const DEMO_CONTENT = {
   type: "doc",
   content: [
@@ -11,7 +11,7 @@ export const DEMO_CONTENT = {
       type: "paragraph",
       content: [
         { type: "text", text: "这是一篇" },
-        { type: "text", text: "示例随笔", marks: [{ type: "bold" }] },
+        { type: "text", text: "示例文档", marks: [{ type: "bold" }] },
         { type: "text", text: "，展示了编辑器支持的所有格式。" },
       ],
     },
@@ -161,7 +161,7 @@ export const DEMO_CONTENT = {
       content: [
         {
           type: "text",
-          text: "右侧「今日待办」面板可以管理每日待办事项，支持排序、编辑和跨日继承。",
+          text: "在文档中输入 - [ ] 可以创建 Markdown 任务列表，勾选后状态会随文档保存。",
         },
       ],
     },

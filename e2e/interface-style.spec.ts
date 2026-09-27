@@ -105,7 +105,7 @@ test("清雅采用完整预设，跟随系统；经典配置在切回后恢复",
     "rgb(252, 251, 248)",
   );
   await expect(editor.locator("h2")).toHaveCSS("font-size", "21px");
-  await page.screenshot({ path: "/tmp/nr-preset-desktop.png" });
+  await page.screenshot({ path: test.info().outputPath("nr-preset-desktop.png") });
   await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^编辑器 / }).click();
   await page.getByRole("button", { name: /打开排版设置/ }).click();
@@ -121,7 +121,7 @@ test("清雅采用完整预设，跟随系统；经典配置在切回后恢复",
   await expect
     .poll(() => styles.evaluate((el) => el.scrollWidth <= el.clientWidth + 1))
     .toBe(true);
-  await page.screenshot({ path: "/tmp/nr-presets-mobile.png" });
+  await page.screenshot({ path: test.info().outputPath("nr-presets-mobile.png") });
   await styles.getByRole("button").nth(0).click();
   await expect(editor).toHaveCSS("font-size", "22px");
   await expect(page.locator("html")).toHaveClass(/theme-nord/);

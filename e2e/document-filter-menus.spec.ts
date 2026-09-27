@@ -1,3 +1,4 @@
+import { pressLineBoundary } from "./helpers/keyboard";
 import { expect, test, type Page } from "@playwright/test";
 
 async function openList(page: Page, mobile: boolean) {
@@ -66,7 +67,7 @@ for (const mobile of [false, true]) {
       const type = list.getByRole("button", { name: "文档类型筛选", exact: true });
       const tag = list.getByRole("button", { name: "文档标签筛选", exact: true });
       await type.focus(); await type.press("ArrowDown");
-      await page.keyboard.press("End");
+      await pressLineBoundary(page, "end");
       await expect(page.getByRole("option", { name: "教程", exact: true })).toBeFocused();
       await page.keyboard.press("Enter");
       await expect(type).toBeFocused();
@@ -87,7 +88,7 @@ for (const mobile of [false, true]) {
       expect(box.y + box.height).toBeLessThanOrEqual(viewport.height - 8);
       await page.keyboard.type("ref");
       await expect(page.getByRole("option", { name: "reference", exact: true })).toBeFocused();
-      await page.keyboard.press("End");
+      await pressLineBoundary(page, "end");
       await expect.poll(() => popup.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
       await expect(popup).toBeVisible();
       await page.keyboard.press("Escape");

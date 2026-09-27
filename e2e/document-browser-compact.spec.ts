@@ -25,5 +25,5 @@ test("桌面文档列表筛选紧凑排列，字段按需展开，路径选择�
   const box = (await picker.boundingBox())!;
   expect(box.y).toBeCloseTo(anchor.y, 0);
   expect(box.height).toBeLessThan(360);
-  await page.screenshot({ path: "/tmp/nr-compact-document-list.png" });
+  await page.screenshot({ path: test.info().outputPath("nr-compact-document-list.png") });
 });

@@ -53,7 +53,7 @@ export function MoveToDialog({ subject, folderPaths, onClose, onMove }: MoveToDi
     }
     let active = true;
     setLoading(true);
-    api.docs.tree(false)
+    api.docs.tree()
       .then((nodes) => {
         if (!active) return;
         setLoadedPaths(nodes.filter((node) => node.type === "folder").map((node) => node.path));

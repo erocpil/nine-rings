@@ -33,7 +33,7 @@ export type ShortcutAction =
   | "openSettings"
   | "openQuickSwitcher"
   | "focusSearch"
-  | "goToDaily";
+;
 
 /** F 搜索/翻页组合固定留给编辑器，不能注册成系统级全局热键。 */
 export function isDocumentFindShortcut(shortcut: string): boolean {
@@ -102,7 +102,6 @@ export function resolveShortcut(e: ShortcutKeyEvent, platform?: string): Shortcu
   if (e.shiftKey) {
     const k = e.key.toLowerCase();
     if (k === "f") return "focusSearch"; // Ctrl+Shift+F 全局搜索
-    if (k === "d") return "goToDaily"; // Ctrl+Shift+D 每日列表
     return null; // 其余 Ctrl+Shift 组合留给编辑器内置快捷键
   }
   return null;

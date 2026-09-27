@@ -78,7 +78,7 @@ for (const mobile of [false, true]) {
         expect(after.markers[0].textLeft).toBeGreaterThan(before.markers[0].textLeft);
         expect(after.markers[1].textLeft - after.markers[1].left - after.markers[1].width)
           .toBeCloseTo(after.gap, 1);
-        await editor.press("Control+z");
+        await editor.press("ControlOrMeta+z");
         await expect(list.locator(":scope > li")).toHaveCount(1);
         expect((await readGeometry(list)).markers[0].textLeft).toBeCloseTo(before.markers[0].textLeft, 1);
       }

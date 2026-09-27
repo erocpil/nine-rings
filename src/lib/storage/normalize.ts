@@ -3,7 +3,7 @@
  *
  * 设计原则：
  * - 数据库层（SQLite 列名、Op JSON）：snake_case
- * - TS 应用类型（Note、DailyPage 等）：camelCase
+ * - TS 应用类型（Note、NoteVersion 等）：camelCase
  * - 本模块提供双向转换，消除各文件中的 ad-hoc as any 桥接
  *
  * 用法：
@@ -12,7 +12,7 @@
  *   const normalized = snakeImportToCamel(importRaw);
  */
 
-import type { Note, NoteVersion, DailyPage, DocType } from "../../types/models";
+import type { Note, NoteVersion, DocType } from "../../types/models";
 
 // ═══════════════════════════════════════════════════════════════════
 // 原始 snake_case 行类型（SQLite / IndexedDB 查询返回）
@@ -47,13 +47,6 @@ export interface SnakeVersionRow {
   pinned: number | boolean;
   sort_order: number;
   saved_at: string;
-}
-
-export interface SnakeDailyPageRow {
-  date: string;
-  todos: string;
-  todo_carryover: number | boolean;
-  updated_at: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -114,16 +107,6 @@ export function snakeVersionToCamel(row: SnakeVersionRow): NoteVersion {
     pinned: parseBool(row.pinned),
     sort_order: row.sort_order ?? 0,
     saved_at: row.saved_at,
-  };
-}
-
-/** snake_case SQL/IDB 行 → DailyPage */
-export function snakeDailyPageToCamel(row: SnakeDailyPageRow): DailyPage {
-  return {
-    date: row.date,
-    todos: parseJson<DailyPage["todos"]>(row.todos),
-    todo_carryover: parseBool(row.todo_carryover),
-    updated_at: row.updated_at,
   };
 }
 

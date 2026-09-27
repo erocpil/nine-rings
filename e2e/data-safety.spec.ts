@@ -1,3 +1,4 @@
+import { createDocumentInWorkspace } from "./helpers/document";
 import { test, expect } from "@playwright/test";
 
 test("打开笔记和切换只读不产生正文保存，真实编辑仍正常保存", async ({ page }) => {
@@ -14,10 +15,7 @@ test("打开笔记和切换只读不产生正文保存，真实编辑仍正常�
       return original(id, data);
     };
   });
-  await page.getByTitle("随笔").click();
-  await page.getByTitle("从模板新建").click();
-  await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-  await expect(page.locator(".note-title")).toHaveValue("新随笔");
+  await createDocumentInWorkspace(page);
   const editor = page.locator(".ProseMirror");
   await expect(editor).toHaveText("");
   const id = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
@@ -53,8 +51,8 @@ test("搜索摘要中的 HTML 只显示为文字", async ({ page }) => {
     const root = createRoot(host);
     const body = 'needle <img src=x onerror="window.canary=1"><style>body{display:none}</style>';
     flushSync(() => root.render(React.createElement(SearchResultsPanel, {
-      notes: [{ id: "safe", title: "测试", date: "2026-09-06", search_text: body }], todos: [], searchTerm: "needle", searching: false,
-      onClose() {}, onSelectNote() {}, onSelectTodo() {},
+      notes: [{ id: "safe", title: "测试", date: "2026-09-06", search_text: body }], searchTerm: "needle", searching: false,
+      onClose() {}, onSelectNote() {},
     })));
     const result = { image: !!host.querySelector("img"), style: !!host.querySelector("style"), text: host.textContent, mark: host.querySelector("mark")?.textContent };
     root.unmount(); host.remove(); return result;

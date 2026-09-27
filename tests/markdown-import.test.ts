@@ -33,13 +33,13 @@ assert(documentInput.content?.ops.some((op) => op.attributes?.list === "bullet")
 
 const noteInput = buildMarkdownImportInput("scratch.md", "plain text", {
   date: "2026-08-19",
-  mode: "note",
-  storagePath: "ignored/path",
+  mode: "document",
+  storagePath: "references/plain",
   docType: "tutorial",
 });
 assert(noteInput.title === "scratch", "filename is used when no H1 exists");
-assert(noteInput.storagePath === undefined && noteInput.docType === undefined,
-  "note imports do not accidentally enter the document tree");
+assert(noteInput.storagePath === "references/plain" && noteInput.docType === "tutorial",
+  "plain Markdown imports retain their document path and type");
 
 let invalidPathRejected = false;
 try {

@@ -15,8 +15,7 @@ const note = (text: string) => ({
 });
 const local = note("本地\n第二行\n");
 const remote = note("远端\n第二行\n");
-const bundle = (record: typeof local) =>
-  JSON.stringify({ notes: [record], daily_pages: [] });
+const bundle = (record: typeof local) => JSON.stringify({ notes: [record] });
 const resolution = (choice: ConflictChoice) => ({
   a: {
     choice,

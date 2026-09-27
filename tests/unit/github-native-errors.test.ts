@@ -27,9 +27,7 @@ const config: SyncConfig = {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(api.export.data).mockResolvedValue(
-    JSON.stringify({ notes: [], daily_pages: [] }),
-  );
+  vi.mocked(api.export.data).mockResolvedValue(JSON.stringify({ notes: [] }));
 });
 afterEach(async () => {
   // Precheck starts local export and HTTP concurrently. A local failure may

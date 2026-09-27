@@ -39,7 +39,7 @@ export const MAX_STORAGE_PATH_DEPTH = 32;
 export const MAX_STORAGE_PATH_SEGMENT_LENGTH = 128;
 export const MAX_STORAGE_PATH_LENGTH = 1024;
 
-/** 规范化并验证普通文档目录路径；daily 命名空间由调用方单独禁止。 */
+/** 规范化并验证文档目录路径。 */
 export function normalizeStoragePath(input: string): string {
   const raw = input.trim().replace(/\\/g, "/");
   const parts = raw.split("/").map((part) => part.trim()).filter(Boolean);
@@ -54,8 +54,8 @@ export function normalizeStoragePath(input: string): string {
     throw new Error("目录名不能超过 128 个字符");
   }
   const path = parts.join("/");
-  if (path.length > MAX_STORAGE_PATH_LENGTH || path === "daily" || path.startsWith("daily/")) {
-    throw new Error("不能使用 daily 目录命名空间");
+  if (path.length > MAX_STORAGE_PATH_LENGTH) {
+    throw new Error("文档路径过长");
   }
   return path;
 }
@@ -125,14 +125,6 @@ export interface FlatDocRecord {
   readonly: boolean;
 }
 
-/** 随笔/日记的扁平记录（对应 getDailyNotes Op 的输出） */
-export interface FlatDailyRecord {
-  id: string;
-  date: string;
-  title: string | null;
-  updated_at: string;
-}
-
 // ═══════════════════════════════════════════════════════════════════
 // 树构建（纯 JS，无存储引擎依赖）
 // ═══════════════════════════════════════════════════════════════════
@@ -145,7 +137,6 @@ export interface FlatDailyRecord {
  */
 export function buildDocTree(
   docs: FlatDocRecord[],
-  dailies: FlatDailyRecord[],
 ): PathNode[] {
   const tree: PathNode[] = [];
   const folders = new Set<string>();
@@ -170,38 +161,6 @@ export function buildDocTree(
       updatedAt: d.updated_at,
       readonly: d.readonly,
     });
-  }
-
-  // ── 2. 每日随笔 → 注入虚拟 daily/YYYY-MM-DD/ 路径 ──
-  if (dailies.length > 0) {
-    const dailiesByDate = new Map<string, FlatDailyRecord[]>();
-    for (const daily of dailies) {
-      const group = dailiesByDate.get(daily.date) ?? [];
-      group.push(daily);
-      dailiesByDate.set(daily.date, group);
-    }
-
-    folders.add("daily");
-    folderCounts.set("daily", dailiesByDate.size);
-
-    for (const date of [...dailiesByDate.keys()].sort().reverse()) {
-      const datePath = `daily/${date}`;
-      folders.add(datePath);
-
-      const dateDocs = dailiesByDate.get(date)!;
-      folderCounts.set(datePath, dateDocs.length);
-
-      for (const d of dateDocs) {
-        tree.push({
-          path: `${datePath}/${d.id}`,
-          name: d.title || "无标题",
-          type: "document",
-          noteId: d.id,
-          updatedAt: d.updated_at,
-          readonly: false,
-        });
-      }
-    }
   }
 
   // ── 3. 文件夹节点（在所有数据收集完后统一生成）──
@@ -300,32 +259,26 @@ export function noteFromDB(d: StoredNote): Note {
 // upsert 匹配谓词（两端共享，消除 idb / tauri-driver 双份漂移）
 // ═══════════════════════════════════════════════════════════════════
 
-export type UpsertMatchKind = "document" | "daily";
+export type UpsertMatchKind = "document";
 
 export interface UpsertMatchKey {
   kind: UpsertMatchKind;
   /** document 匹配键：目录路径 + 标题 */
   storagePath: string;
   title: string;
-  /** daily 匹配键：日期（随笔无 storagePath） */
-  date: string;
 }
 
 /**
  * 根据 CreateNoteInput 确定 upsertNote 的匹配键。
  *
  * - 文档笔记：storagePath 与 title 均非空 → 按 storagePath + title 匹配。
- * - 随笔：storagePath 为空且 title 非空 → 按 title + date 匹配。
  * - 其它（title 缺失等）→ 返回 null，视为无条件新建。
  *
  * 该谓词是两端查重语义的单一事实来源。SQLite 端以集成测试对拍保证等价。
  */
 export function upsertMatchKey(data: CreateNoteInput): UpsertMatchKey | null {
-  if (data.storagePath && data.title) {
-    return { kind: "document", storagePath: data.storagePath, title: data.title, date: data.date };
-  }
-  if (!data.storagePath && data.title) {
-    return { kind: "daily", storagePath: "", title: data.title, date: data.date };
+  if (data.title) {
+    return { kind: "document", storagePath: data.storagePath || "references", title: data.title };
   }
   return null;
 }

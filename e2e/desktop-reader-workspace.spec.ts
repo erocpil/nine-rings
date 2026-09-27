@@ -1,3 +1,4 @@
+import { pressDocumentBoundary } from "./helpers/keyboard";
 import { expect, test } from '@playwright/test';
 import { createPdfFixture, createEpubFixture } from './helpers/reader-fixtures';
 
@@ -29,7 +30,7 @@ for (const format of ['pdf', 'epub'] as const) {
     const right = await editor.boundingBox();
     expect(left!.x + left!.width).toBeLessThanOrEqual(right!.x);
     await editor.click();
-    await page.keyboard.press('Control+End');
+    await pressDocumentBoundary(page, "end");
     await page.keyboard.type(' still editing');
     await page.keyboard.press('Escape');
     await expect(reader).toBeVisible();

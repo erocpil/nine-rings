@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import type { PathNode, Note } from "../types/models";
 import { api } from "../lib/api";
 import { withTimeout } from "../lib/async";
-import { getOtherFolderPaths, getVisibleDocumentTreeNodes } from "../lib/doc-tree-collapse";
+import { getOtherFolderPaths } from "../lib/doc-tree-collapse";
 import MoveToDialog from "./MoveToDialog";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { copyToClipboard } from "../lib/clipboard";
@@ -22,7 +22,6 @@ interface DocTreeProps {
   selectedId: string | null;
   selectedTitle?: string;
   selectedFolderPath?: string | null;
-  showDaily?: boolean;
   onCreate: () => void;
   onPathSecurity?: (path: string, action: "set" | "remove" | "delete") => Promise<boolean>;
   refreshKey?: number;
@@ -124,7 +123,7 @@ function InlineRename({
 }
 
 function DocTree({
-  beforeExport, onSelect, onFolderSelect, selectedId, selectedTitle, selectedFolderPath, showDaily = false, onCreate, onPathSecurity, refreshKey,
+  beforeExport, onSelect, onFolderSelect, selectedId, selectedTitle, selectedFolderPath, onCreate, onPathSecurity, refreshKey,
   onRename, onRenameFolder, onDelete, onToggleReadonly,
   onMoveDocument, onBatchMoveDocuments, onMoveFolder,
   onBatchDelete, onBatchSetReadonly,
@@ -209,8 +208,8 @@ function DocTree({
   const loadTree = useCallback(() => {
     setLoading(true);
     setLoadError(null);
-    withTimeout(api.docs.tree(showDaily), 15000, "加载文档树").then((nodes) => {
-      const visibleNodes = getVisibleDocumentTreeNodes(nodes, showDaily);
+    withTimeout(api.docs.tree(), 15000, "加载文档树").then((nodes) => {
+      const visibleNodes = nodes;
       // 大型备份若沿用“全部展开”，React 会在一次提交中创建数千个 DOM 节点。
       // 首次加载时折叠顶层目录；用户展开某个目录时再渲染其内容。
       if (visibleNodes.length > 1000) {
@@ -228,7 +227,7 @@ function DocTree({
       console.error("[DocTree] 加载失败:", error);
       setLoadError(error instanceof Error ? error.message : String(error));
     }).finally(() => setLoading(false));
-  }, [setCollapsed, showDaily]);
+  }, [setCollapsed]);
 
   useEffect(() => {
     loadTree();
@@ -501,7 +500,7 @@ function DocTree({
 
   const handleMoveDocument = (noteId: string, title: string, nodePath: string) => {
     setContextMenu(null);
-    if (disabled || !onMoveDocument || nodePath.startsWith("daily/")) return;
+    if (disabled || !onMoveDocument) return;
     setMoveSubject({
       kind: "document",
       noteId,
@@ -512,7 +511,7 @@ function DocTree({
 
   const handleMoveFolder = (sourcePath: string) => {
     setContextMenu(null);
-    if (disabled || !onMoveFolder || sourcePath === "daily" || sourcePath.startsWith("daily/")) return;
+    if (disabled || !onMoveFolder) return;
     const folder = tree.find((node) => node.type === "folder" && node.path === sourcePath);
     setMoveSubject({
       kind: "folder",
@@ -541,7 +540,7 @@ function DocTree({
     }
     setRenamingFolder(null);
     // 重新加载树
-    api.docs.tree(showDaily).then(setTree);
+    api.docs.tree().then(setTree);
   };
 
   const handleDelete = (noteId: string, title: string) => {
@@ -815,7 +814,7 @@ function DocTree({
         {selectMode ? (
           <>
             <button className="btn-icon doc-tree-batch-btn" title="比较所选文档" aria-label="比较所选文档" disabled={disabled || batchBusy || selectedIds.size !== 2}
-            onClick={() => { setCompareSelection(null); setCompareIds([...selectedIds]); }}>⇄</button>
+            onClick={() => { setCompareSelection(null); setCompareIds([...selectedIds]); }}><ToolbarIcon name="switchViews" /></button>
             <button
               className="btn-icon doc-tree-batch-btn"
               onClick={() => {
@@ -938,7 +937,7 @@ function DocTree({
             <>
               <button className="doc-context-item" onClick={() => void handleCopyPath(contextMenu.path)}>复制路径</button>
               <button className="doc-context-item" disabled={disabled || !!exportProgress} onClick={() => void handleExportPath(contextMenu.path)}>导出路径下的文档（Markdown ZIP）</button>
-              {onPathSecurity && !contextMenu.path.startsWith("daily") && <>
+              {onPathSecurity && <>
                 <button className="doc-context-item" onClick={() => { const path = contextMenu.path; setContextMenu(null); void onPathSecurity(path, "set"); }}>
                   {tree.some(n => n.path === contextMenu.path && n.protectionRoot) ? "更改路径密码" : "设置路径密码"}
                 </button>
@@ -947,11 +946,9 @@ function DocTree({
                   <button className="doc-context-item" onClick={() => { const path = contextMenu.path; setContextMenu(null); void onPathSecurity(path, "delete"); }}>删除空加密路径</button>
                 </>}
               </>}
-              {contextMenu.path !== "daily" && !contextMenu.path.startsWith("daily/") && (
-                <button className="doc-context-item" onClick={() => handleMoveFolder(contextMenu.path)}>
+                              <button className="doc-context-item" onClick={() => handleMoveFolder(contextMenu.path)}>
                   移动到…
                 </button>
-              )}
               <button className="doc-context-item" onClick={() => handleFolderRenameStart(contextMenu.path)}>
                 重命名
               </button>
@@ -966,11 +963,9 @@ function DocTree({
             <>
               <button className="doc-context-item" onClick={() => void handleCopyPath(getDocumentFolderPath(contextMenu.path, contextMenu.noteId!))}>复制所在路径</button>
               <button className="doc-context-item" disabled={disabled} onClick={() => { setCompareSelection([contextMenu.noteId!]); setCompareIds(null); setContextMenu(null); }}>与另一文档比较…</button>
-              {!contextMenu.path.startsWith("daily/") && (
-                <button className="doc-context-item" onClick={() => handleMoveDocument(contextMenu.noteId!, contextMenu.title, contextMenu.path)}>
+                              <button className="doc-context-item" onClick={() => handleMoveDocument(contextMenu.noteId!, contextMenu.title, contextMenu.path)}>
                   移动到…
                 </button>
-              )}
               <button className="doc-context-item" onClick={() => handleRename(contextMenu.noteId!)}>重命名</button>
               <button className="doc-context-item" onClick={() => handleToggleReadonly(contextMenu.noteId!)}>切换只读</button>
               <button className="doc-context-item doc-context-danger" onClick={() => handleDelete(contextMenu.noteId!, contextMenu.title)}>删除</button>

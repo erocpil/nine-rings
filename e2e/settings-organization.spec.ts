@@ -1,7 +1,7 @@
 import { sourceInfo, scrollSourceTo } from "./helpers/source-editor";
 import { expect, test, type Page } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
-import { createBlankDocument } from "./helpers/document";
+import { createBlankDocument, createDocumentInWorkspace, waitForSavedText } from "./helpers/document";
 
 async function settings(page: Page) {
   await page.keyboard.press("Alt+,");
@@ -20,6 +20,7 @@ for (const width of [390, 1280]) test(`设置提示不改变主题和折叠选�
       const r = button.getBoundingClientRect(); return [r.x, r.y, r.width, r.height];
     }),
   }));
+  await page.getByTitle("深色", { exact: true }).scrollIntoViewIfNeeded();
   const before = await measure();
   await page.getByTitle("深色", { exact: true }).click();
   await expect(page.locator('.settings-toast')).toHaveText("已更新");
@@ -86,7 +87,7 @@ test("排版应用失败保留草稿及原有块显示设置，重试完整保�
     };
   });
   await page.getByRole('button', { name: '应用到编辑器' }).click();
-  await expect(page.getByRole('dialog', { name: '排版设置' }).getByRole('status')).toContainText('保存失败');
+  await expect(page.getByRole('dialog', { name: '排版设置' }).getByRole('alert')).toContainText('保存失败');
   expect(await page.evaluate(() => [localStorage.getItem('nr:blockWorkspaceDisplay'), localStorage.getItem('nr:codeBlockHeightPercent')])).toEqual(before);
   await expect(page.getByLabel('Tab 显示宽度')).toHaveValue('8');
   await page.getByRole('button', { name: '应用到编辑器' }).click();
@@ -97,6 +98,7 @@ test("排版应用失败保留草稿及原有块显示设置，重试完整保�
 });
 
 for (const mode of ["full", "source", "virtual"]) test(`集中书签打开并定位只读正文 ${mode}`, async ({ page }) => {
+  if (mode === "virtual") await page.addInitScript(() => localStorage.setItem("nr:experimentalReadonlyRendering", "true"));
   await createBlankDocument(page);
   await page.locator('.note-title').fill('书签目标文档');
   const editor = page.locator('.ProseMirror');
@@ -108,16 +110,15 @@ for (const mode of ["full", "source", "virtual"]) test(`集中书签打开并定
     ed.commands.setTextSelection(target);
     ed.view.focus();
   });
-  await page.keyboard.press('Control+Shift+m');
-  await expect(page.locator('.save-status-saved')).toBeVisible();
+  await page.keyboard.press('ControlOrMeta+Shift+m');
+  await waitForSavedText(page, '目标段落 99');
   await page.getByRole('button', { name: '点击设为只读', exact: true }).click();
   if (mode === "source") {
     await page.getByTitle("切换到 Markdown 源码").click();
     await expect(page.getByRole("textbox", { name: "Markdown 源码", exact: true })).toBeVisible();
     await scrollSourceTo(page.getByRole("textbox", { name: "Markdown 源码", exact: true }), "目标段落 0");
   } else {
-    if (mode === "virtual") await page.evaluate(() => localStorage.setItem("nr:experimentalReadonlyRendering", "true"));
-    await createBlankDocument(page);
+    await createDocumentInWorkspace(page, "书签跳转起点");
   }
   await settings(page);
   await page.getByRole('button', { name: /^文档管理/ }).click();

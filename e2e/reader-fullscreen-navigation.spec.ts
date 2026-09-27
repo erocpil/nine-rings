@@ -80,7 +80,7 @@ for (const wide of [false, true]) {
       await page.keyboard.press("Escape");
       await expect(search).toBeHidden();
       await expect(page.locator(".pdf-reader")).toHaveClass(/pdf-reader-fullscreen/);
-      await toolbar.getByRole("button", { name: "PDF 搜索", exact: true }).press("Control+f");
+      await toolbar.getByRole("button", { name: "PDF 搜索", exact: true }).press("ControlOrMeta+f");
       await expect(search).toBeVisible();
       await expect(page.locator(".pdf-reader")).toHaveClass(/pdf-reader-fullscreen/);
       await page.keyboard.press("Escape");

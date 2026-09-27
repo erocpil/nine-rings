@@ -91,7 +91,7 @@ test("关闭恢复窗口后检测中断，刷新保留提醒，确认不改数�
 test("GitHub 导入失败后的补偿仍占用同一把恢复锁", async ({ page }) => {
   const version = "20260907T005000000";
   await page.route("https://api.github.com/**", async (route) => {
-    const content = route.request().url().includes("-latest") ? version : JSON.stringify({ version: 1, notes: [], daily_pages: [] });
+    const content = route.request().url().includes("-latest") ? version : JSON.stringify({ version: 1, notes: [] });
     await route.fulfill({ json: { sha: "test-sha", encoding: "base64", content: Buffer.from(content).toString("base64") } });
   });
   await page.goto("/");

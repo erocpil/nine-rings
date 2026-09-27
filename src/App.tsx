@@ -1,3 +1,4 @@
+import { RetainedDocument } from "./components/RetainedDocument";
 import { useWorkspaceLayout } from "./hooks/useWorkspaceLayout";
 import { readDesktopSidebarState, saveDesktopSidebarState } from "./lib/desktop-sidebar-state";
 import { readWorkspaceLayout, saveWorkspaceLayout, type WorkspaceLayout } from "./lib/workspace-layout";
@@ -13,7 +14,6 @@ import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import { useNoteSessionBoundary } from "./hooks/useNoteSessionBoundary";
 import { flushSync } from "react-dom";
 import { useNotes } from "./hooks/useNotes";
-import { DAILY_NOTES_ENABLED, TODOS_ENABLED } from "./lib/workspace-features";
 import { isEncrypted, documentSessionKey, decryptDocument } from "./lib/document-crypto";
 import { sealContent, setDocumentPassword, setPathPassword, removeEmptyProtectedPath } from "./lib/document-protection";
 import { ToolbarIcon } from "./components/ToolbarIcon";
@@ -23,8 +23,6 @@ import { WorkspacePanelHeading } from "./components/WorkspacePanelHeading";
 import { WorkspaceDialog } from "./components/WorkspaceDialog";
 import { PasswordRequestCancelled } from "./lib/password-request";
 import "./components/ReadingLibrary.css";
-import { OverdueTodos } from "./components/OverdueTodos";
-import { Sidebar } from "./components/Sidebar";
 import { SearchBar } from "./components/SearchBar";
 import { UndoToast } from "./components/UndoToast";
 import type { UndoState } from "./components/UndoToast";
@@ -45,12 +43,8 @@ import { pushSnapshotBusy, useGitHubPushJob } from "./lib/sync/push-job";
 import { ExhibitionWorkspace, ExhibitionWelcome } from "./components/ExhibitionWorkspace";
 import { ensureAestheticStyleSample } from "./lib/aesthetic-style-sample";
 import { DEMO_CONTENT, DEMO_TITLE, DEMO_TAGS } from "./lib/demo-content";
-import type { Template } from "./lib/storage/template-store";
-import { templateStore } from "./lib/storage/template-store";
 import { isTauriRuntime } from "./lib/runtime";
-import { useDateRollover } from "./hooks/useDateRollover";
 import { useAppKeyboardShortcuts } from "./hooks/useAppKeyboardShortcuts";
-import { useQuickCaptureListener } from "./hooks/useQuickCaptureListener";
 import { editorAppearanceVariables } from "./lib/editor-appearance";
 import { isPathUnder } from "./lib/storage/core";
 import { getPathAncestors } from "./lib/move-to";
@@ -68,7 +62,6 @@ import {
 import { deltaToProseMirrorAsync } from "./lib/data-transform-client";
 
 const WORKSPACE_TARGET_KEY = "nr:workspaceTarget";
-const ACTIVE_TAG_KEY = "nr:activeTag";
 const DOC_TREE_COLLAPSED_KEY = "nr:docTreeCollapsed";
 const PDF_DOC_TYPE_LABELS: Record<DocType, string> = {
   explanation: "解释",
@@ -89,8 +82,6 @@ const QuickSwitcher = lazy(() => import("./components/QuickSwitcher"));
 const PdfReader = lazy(() => import("./components/PdfReader"));
 const ReadingLibrary = lazy(() => import("./components/ReadingLibrary"));
 const EpubReader = lazy(() => import("./components/EpubReader"));
-const TodoList = lazy(() => import("./components/TodoList")
-  .then((module) => ({ default: module.TodoList })));
 const loadNoteEditor = () => import("./components/NoteEditor")
   .then((module) => ({ default: module.NoteEditor }));
 const NoteEditor = lazy(loadNoteEditor);
@@ -147,21 +138,15 @@ function App() {
     startupWorkspaceTargetRef.current?.kind === "folder"
     || startupWorkspaceTargetRef.current?.kind === "concept";
   const {
-    currentDate,
     loading,
     startupReady,
-    startupDateLoadPending,
-    notes,
     selectedNote,
-    setDate,
+    refreshNotes,
     selectNote,
-    createNote,
     updateNote,
     deleteNote,
-  } = useNotes(startupNoteIdRef.current, !restoreWorkspaceInsteadOfNote, !DAILY_NOTES_ENABLED);
+  } = useNotes(startupNoteIdRef.current, !restoreWorkspaceInsteadOfNote);
 
-  const dailyPage = useNotesStore((s) => s.dailyPage);
-  const updateTodos = useNotesStore((s) => s.updateTodos);
   const batchDelete = useNotesStore((s) => s.batchDelete);
   const { search, results, query, setQuery, clear: clearSearch } = useSearch();
   const [docResults, setDocResults] = useState<Awaited<ReturnType<typeof api.docs.searchSummaries>> | null>(null);
@@ -180,7 +165,6 @@ function App() {
   selectedNoteRef.current = selectedNote;
   const { editorReadyNoteId, secondaryUiReady } = useEditorStartup({
     selectedNoteId, selectedNoteRef, startupRestoreComplete,
-    startupDateLoadPending, currentDate, setDate,
   });
 
   // ── 自动保存 Hook ──
@@ -287,17 +271,22 @@ function App() {
       setExternalReloadKey((key) => key + 1);
     } else {
       selectNote(null);
-      void setDate(currentDate);
+      void refreshNotes();
     }
-  }, [discardPending, currentDate, selectNote, setDate]);
+  }, [discardPending, selectNote, refreshNotes]);
 
   const keepLocalNote = useCallback(() => {
     setExternalNoteConflict(false);
     void flushAutoSave().catch((saveError) => console.error("[Tabs] 覆盖外部版本失败:", saveError));
   }, [flushAutoSave]);
 
+  const [workspaceHomeRequested, setWorkspaceHomeRequested] = useState(false);
+
   const handleSelectNote = useCallback((note: Note | null) => {
+    setWorkspaceHomeRequested(false);
     if (note) {
+      setWorkspaceHomeChromeHidden(false);
+      setExhibitionReturnTarget(null);
       setSelectedFolderPath(null);
       setSelectedConcept(null);
     }
@@ -323,8 +312,7 @@ function App() {
       // 用户刚修改正文就重新搜索时读到旧的 search_text。
       await flushAutoSave();
       if (requestId !== docSearchRequestIdRef.current) return;
-      // The shared search entry searches essays, documents and todos by default.
-      // Only explicit document filters should restrict results to documents.
+      // Search all documents unless explicit document filters are active.
       if (!q.storagePath && !q.docType && !q.concept) {
         await search(q.text);
         if (requestId === docSearchRequestIdRef.current) setDocResults(null);
@@ -364,6 +352,7 @@ function App() {
     epubReaderDocumentId: string | null;
   } | null>(null);
   const [workspaceHomeChromeHidden, setWorkspaceHomeChromeHidden] = useState(false);
+  const [workspaceHomePanelActivated, setWorkspaceHomePanelActivated] = useState(false);
   const [readingLibraryError, setReadingLibraryError] = useState<string | null>(null);
   const readingLibrarySession = useRef<ReadingLibrarySession>({ format: "all", query: "", scrollTop: 0 });
   const [pdfReaderDocumentId, setPdfReaderDocumentId] = useState<string | null>(null);
@@ -373,16 +362,12 @@ function App() {
   const [epubReaderDocumentId, setEpubReaderDocumentId] = useState<string | null>(null);
   const [epubReaderTargetHighlightId, setEpubReaderTargetHighlightId] = useState<string | null>(null);
   const [epubReaderFullscreen, setEpubReaderFullscreen] = useState(false);
-  const [overdueOpen, setOverdueOpen] = useState(false);
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
   const documentBrowserSession = useRef<DocumentBrowserSession>({});
   const [browserToolbarHost, setBrowserToolbarHost] = useState<HTMLDivElement | null>(null);
   const [desktopPanel, setDesktopPanel] = useState(() => readDesktopSidebarState().panel);
   const [sidebarBrowserToolbarHost, setSidebarBrowserToolbarHost] = useState<HTMLDivElement | null>(null);
   const [docTreeToolbarHost, setDocTreeToolbarHost] = useState<HTMLDivElement | null>(null);
-  useDateRollover(setDate);
-  const [activeTag, setActiveTag] = useState<string | null>(() => localStorage.getItem(ACTIVE_TAG_KEY));
-  const [tagFilteredNotes, setTagFilteredNotes] = useState<Note[] | null>(null);
   const [undo, setUndo] = useState<UndoState | null>(null);
   const undoTimerRef = useRef<number | null>(null);
   const [versionOpen, setVersionOpen] = useState(false);
@@ -440,29 +425,6 @@ function App() {
     if (persisted !== null) return persisted === "true";
     return typeof window !== "undefined" && window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
   });
-  const TAB_KEY = "nr:sidebarTab";
-  const defaultViewAppliedRef = useRef(false);
-  const sidebarViewTouchedRef = useRef(false);
-  const [sidebarTab, setSidebarTab] = useState<'daily' | 'tree'>(() => {
-    if (!DAILY_NOTES_ENABLED) return 'tree';
-    return (localStorage.getItem(TAB_KEY) as 'daily' | 'tree') || 'tree';
-  });
-  const handleSetSidebarTab = (tab: 'daily' | 'tree') => {
-    if (tab === 'daily' && !DAILY_NOTES_ENABLED) return;
-    sidebarViewTouchedRef.current = true;
-    setSidebarTab(tab);
-    localStorage.setItem(TAB_KEY, tab);
-    if (tab === 'daily') {
-      setSelectedFolderPath(null);
-      setSelectedConcept(null);
-      // 跨窗口 Quick Capture 事件可能在 Windows WebView2 隐藏窗口时
-      // 丢失或与视图切换竞态；返回随笔视图时始终重读当日数据。
-      void setDate(currentDate);
-      setSidebarRefreshKey((key) => key + 1);
-    }
-  };
-  const configuredDefaultView = config?.default_view;
-
   const autoCleanDaysRef = useRef<number | null>(null);
   const configuredAutoCleanDays = config?.auto_clean_days;
   useEffect(() => {
@@ -486,10 +448,9 @@ function App() {
     setDocSearchText("");
     setDocSearching(false);
     setQuickSwitcherOpen(false);
-    if (!note.storagePath && note.date !== currentDate) await setDate(note.date);
     handleSelectNote(note);
     closeSidebarOnNarrowScreen();
-  }, [closeSidebarOnNarrowScreen, currentDate, handleSelectNote, setDate, setQuery]);
+  }, [closeSidebarOnNarrowScreen, handleSelectNote, setQuery]);
   const [docCreateOpen, setDocCreateOpen] = useState(false);
   const [docTreeKey, setDocTreeKey] = useState(0);
   const [docTreeCollapsed, setDocTreeCollapsed] = useState<Set<string>>(() => {
@@ -500,9 +461,7 @@ function App() {
       return new Set<string>();
     }
   });
-  const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0);
   const refreshNoteViews = useCallback(() => {
-    setSidebarRefreshKey((key) => key + 1);
     setDocTreeKey((key) => key + 1);
   }, []);
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(() => {
@@ -514,27 +473,6 @@ function App() {
     return target?.kind === "concept" ? target.concept : null;
   });
   const [propertiesOpen, setPropertiesOpen] = useState(false);
-
-  useEffect(() => {
-    if (!DAILY_NOTES_ENABLED || !configuredDefaultView || !startupReady || defaultViewAppliedRef.current) return;
-    // 默认视图是一次性冷启动决策。若将 selectedNote 作为持续依赖，点击目录
-    // 时清空当前文档会再次触发它，把刚打开的目录误切回随笔页。
-    defaultViewAppliedRef.current = true;
-    if (localStorage.getItem("nr:defaultViewConfigured") !== "1") return;
-    const startupTarget = startupWorkspaceTargetRef.current;
-    const hasExplicitWorkspaceTarget = Boolean(
-      selectedNote?.storagePath
-      || selectedFolderPath
-      || selectedConcept
-      || startupTarget?.kind === "folder"
-      || startupTarget?.kind === "concept"
-      || sidebarViewTouchedRef.current
-    );
-    if (hasExplicitWorkspaceTarget) return;
-    const configuredTab = configuredDefaultView === "daily" ? "daily" : "tree";
-    setSidebarTab(configuredTab);
-    localStorage.setItem(TAB_KEY, configuredTab);
-  }, [configuredDefaultView, selectedConcept, selectedFolderPath, selectedNote?.storagePath, startupReady]);
 
   const revealDocTreePath = useCallback((targetPath: string, sourcePath?: string) => {
     setDocTreeCollapsed((previous) => {
@@ -552,11 +490,9 @@ function App() {
   useEffect(() => {
     const documentPath = selectedNote?.storagePath;
     if (!documentPath) return;
-    // 文档可能从快速切换、搜索或冷启动恢复，而此前侧栏停留在随笔页。
+    // 文档可能从快速切换、搜索或冷启动恢复，需要定位到所属目录。
     // 选择文档时统一准备好文档树及其完整祖先路径；侧栏即使当前隐藏，
     // 用户在手机上再次打开时也会直接看到当前文档所在位置。
-    setSidebarTab("tree");
-    localStorage.setItem(TAB_KEY, "tree");
     revealDocTreePath(documentPath);
   }, [revealDocTreePath, selectedNote?.id, selectedNote?.storagePath]);
 
@@ -656,11 +592,9 @@ function App() {
       const updated = await api.notes.get(currentSelected.id);
       if (updated && useNotesStore.getState().selectedNote?.id === currentSelected.id) selectNote(updated);
     }
-    const date = useNotesStore.getState().currentDate;
-    const updatedNotes = await api.notes.listByDate(date);
-    if (useNotesStore.getState().currentDate === date) useNotesStore.setState({ notes: updatedNotes });
+    await refreshNotes();
     refreshNoteViews();
-  }, [flushAutoSave, refreshNoteViews, selectNote]);
+  }, [flushAutoSave, refreshNoteViews, refreshNotes, selectNote]);
 
   const showUndo = useCallback((nextUndo: UndoState) => {
     if (undoTimerRef.current !== null) window.clearTimeout(undoTimerRef.current);
@@ -693,11 +627,11 @@ function App() {
       message: `已删除「${note?.title || "无标题"}」`,
       onUndo: async () => {
         await api.recycle.restore(id);
-        await setDate(useNotesStore.getState().currentDate);
+        await refreshNotes();
         refreshNoteViews();
       },
     });
-  }, [deleteNote, flushAutoSave, refreshNoteViews, setDate, showUndo]);
+  }, [deleteNote, flushAutoSave, refreshNoteViews, refreshNotes, showUndo]);
 
   const handleBatchDeleteWithUndo = useCallback(async (ids: string[], folderPath?: string) => {
     const uniqueIds = [...new Set(ids)];
@@ -719,11 +653,11 @@ function App() {
         : `已删除「${folderName}」`,
       onUndo: async () => {
         await Promise.all(uniqueIds.map((id) => api.recycle.restore(id)));
-        await setDate(useNotesStore.getState().currentDate);
+        await refreshNotes();
         refreshNoteViews();
       },
     });
-  }, [batchDelete, flushAutoSave, refreshNoteViews, setDate, showUndo]);
+  }, [batchDelete, flushAutoSave, refreshNoteViews, refreshNotes, showUndo]);
 
   const handleMoveFolder = useCallback(async (sourcePath: string, targetPath: string) => {
     const currentSelected = useNotesStore.getState().selectedNote;
@@ -749,7 +683,7 @@ function App() {
   const handleRenameFolder = useCallback(async (path: string, name: string) => {
     const target = resolveFolderRename(path, name);
     if (target === path) return;
-    const tree = await api.docs.tree(false);
+    const tree = await api.docs.tree();
     if (tree.some(node => node.type === "folder" && node.path === target)) {
       throw new Error("同级路径已存在，请使用其他名称");
     }
@@ -761,21 +695,6 @@ function App() {
     localStorage.setItem(DOC_TREE_COLLAPSED_KEY, JSON.stringify([...docTreeCollapsed]));
   }, [docTreeCollapsed]);
 
-  // 恢复并持续保存随笔标签筛选；失效标签只会得到空结果，不阻塞主界面。
-  useEffect(() => {
-    if (!secondaryUiReady) return;
-    if (!activeTag) {
-      localStorage.removeItem(ACTIVE_TAG_KEY);
-      setTagFilteredNotes(null);
-      return;
-    }
-    localStorage.setItem(ACTIVE_TAG_KEY, activeTag);
-    let active = true;
-    api.notes.listByTag(activeTag)
-      .then((tagged) => { if (active) setTagFilteredNotes(tagged); })
-      .catch(() => { if (active) setTagFilteredNotes([]); });
-    return () => { active = false; };
-  }, [activeTag, secondaryUiReady, sidebarRefreshKey]);
   const error = useNotesStore((s) => s.error);
   const [errorDetailsOpen, setErrorDetailsOpen] = useState(false);
   const [failedSaveNoteId, setFailedSaveNoteId] = useState<string | null>(null);
@@ -837,21 +756,6 @@ function App() {
     };
   }, []);
 
-  // ── Tauri 托盘事件："新建随笔" ──
-  useEffect(() => {
-    if (!DAILY_NOTES_ENABLED || !isTauriRuntime()) return;
-    let unlisten: (() => void) | undefined;
-    import("@tauri-apps/api/event").then(({ listen }) => {
-      listen("tray-new-note", () => {
-        void createNote().then(refreshNoteViews);
-      }).then((fn) => { unlisten = fn; });
-    }).catch(() => {});
-    return () => { unlisten?.(); };
-  }, [createNote, refreshNoteViews]);
-
-  // ── Quick Capture 提交后刷新列表 ──
-  useQuickCaptureListener({ setDate, onNotesChanged: refreshNoteViews });
-
   // 启动主键查询完成后恢复工作区。最后文档已由 useNotes.initialize 优先加载；
   // 这里仅处理目录/概念视图并开启持久化，避免再次扫描列表或重复查询正文。
   useEffect(() => {
@@ -875,159 +779,7 @@ function App() {
     setStartupRestoreComplete(true);
   }, [handleSelectNote, selectedNote, startupReady]);
 
-  // ── 可拖拽分隔条 ──
-  const SPLIT_KEY = "nr:todoSplit";
-  const [todoFlex, setTodoFlex] = useState(() => {
-    const saved = localStorage.getItem(SPLIT_KEY);
-    return saved ? parseFloat(saved) : 0;
-  });
-  const splitRef = useRef<HTMLDivElement>(null);
-  const draggingRef = useRef(false);
-  const startYRef = useRef(0);
-  const startRatioRef = useRef(0);
-  const dragRatioRef = useRef(todoFlex);
-  const splitDragClickGuardRef = useRef(false);
-  const splitDragClickGuardTimerRef = useRef<number | null>(null);
-  const splitDragCleanupRef = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    const allowNewSplitDragAction = () => {
-      if (draggingRef.current) return;
-      // 新的按下/键盘操作属于用户主动输入，不是上次拖动的兼容 click。
-      splitDragClickGuardRef.current = false;
-      if (splitDragClickGuardTimerRef.current !== null) {
-        window.clearTimeout(splitDragClickGuardTimerRef.current);
-        splitDragClickGuardTimerRef.current = null;
-      }
-    };
-    const blockSplitDragClicks = (event: Event) => {
-      if (!splitDragClickGuardRef.current) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    };
-
-    document.addEventListener("click", blockSplitDragClicks, true);
-    document.addEventListener("pointerdown", allowNewSplitDragAction, true);
-    document.addEventListener("keydown", allowNewSplitDragAction, true);
-    return () => {
-      splitDragCleanupRef.current?.();
-      document.removeEventListener("click", blockSplitDragClicks, true);
-      document.removeEventListener("pointerdown", allowNewSplitDragAction, true);
-      document.removeEventListener("keydown", allowNewSplitDragAction, true);
-      if (splitDragClickGuardTimerRef.current !== null) {
-        window.clearTimeout(splitDragClickGuardTimerRef.current);
-        splitDragClickGuardTimerRef.current = null;
-      }
-    };
-  }, []);
-
-  const setSplitDraggingUi = (dragging: boolean) => {
-    document.body.classList.toggle("app-split-dragging", dragging);
-    document.body.style.userSelect = dragging ? "none" : "";
-    document.body.style.webkitUserSelect = dragging ? "none" : "";
-    if (draggingRef.current || dragging) {
-      splitDragClickGuardRef.current = true;
-      if (splitDragClickGuardTimerRef.current !== null) {
-        window.clearTimeout(splitDragClickGuardTimerRef.current);
-        splitDragClickGuardTimerRef.current = null;
-      }
-    } else {
-      if (splitDragClickGuardTimerRef.current !== null) {
-        window.clearTimeout(splitDragClickGuardTimerRef.current);
-      }
-      // 兼容 click 可能晚于 pointerup；新的主动输入会提前解除防护。
-      splitDragClickGuardTimerRef.current = window.setTimeout(() => {
-        splitDragClickGuardRef.current = false;
-        splitDragClickGuardTimerRef.current = null;
-      }, 500);
-    }
-    if (!dragging) return;
-
-    // iOS may otherwise focus the todo input or retain a text selection when the
-    // finger crosses it while dragging the narrow splitter hit area.
-    const activeElement = document.activeElement;
-    if (activeElement instanceof HTMLElement && activeElement.closest(".app-main-todo")) {
-      activeElement.blur();
-    }
-    window.getSelection()?.removeAllRanges();
-  };
-
-  const hideTodos = useCallback(() => {
-    setTodoFlex(0);
-    localStorage.setItem(SPLIT_KEY, "0");
-  }, []);
-
-  const handleSplitPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (draggingRef.current || (e.pointerType === "mouse" && e.button !== 0)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    draggingRef.current = true;
-    startYRef.current = e.clientY;
-    startRatioRef.current = todoFlex;
-    dragRatioRef.current = todoFlex;
-    document.body.style.cursor = "row-resize";
-    setSplitDraggingUi(true);
-    const pointerId = e.pointerId;
-    const divider = e.currentTarget;
-    try {
-      divider.setPointerCapture(pointerId);
-    } catch {
-      // Synthetic events and older WebViews may not expose an active pointer to capture.
-    }
-
-    const handlePointerMove = (pe: PointerEvent) => {
-      if (!draggingRef.current || pe.pointerId !== pointerId || !splitRef.current?.parentElement) return;
-      if (pe.cancelable) pe.preventDefault();
-      const parent = splitRef.current.parentElement;
-      const rect = parent.getBoundingClientRect();
-      const delta = pe.clientY - startYRef.current;
-      const newFlex = Math.max(0, Math.min(10, startRatioRef.current + delta / rect.height * 10));
-      dragRatioRef.current = Math.round(newFlex * 10) / 10;
-      setTodoFlex(dragRatioRef.current);
-      localStorage.setItem(SPLIT_KEY, String(dragRatioRef.current));
-    };
-
-    const finishSplitDrag = () => {
-      if (!draggingRef.current) return;
-      draggingRef.current = false;
-      document.removeEventListener("pointermove", handlePointerMove);
-      document.removeEventListener("pointerup", handlePointerEnd);
-      document.removeEventListener("pointercancel", handlePointerEnd);
-      divider.removeEventListener("lostpointercapture", handlePointerEnd);
-      window.removeEventListener("blur", finishSplitDrag);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      splitDragCleanupRef.current = null;
-      try {
-        if (divider.hasPointerCapture(pointerId)) divider.releasePointerCapture(pointerId);
-      } catch {
-        // WebView 可能已经在窗口失焦/元素移除时释放了捕获。
-      }
-      document.body.style.cursor = "";
-      setSplitDraggingUi(false);
-      // React 可能尚未提交最后一次 pointermove；直接持久化拖动引用，
-      // 避免 UI 已展开而刷新后又回到折叠状态。
-      localStorage.setItem(SPLIT_KEY, String(dragRatioRef.current));
-    };
-
-    const handlePointerEnd = (pe: PointerEvent) => {
-      if (pe.pointerId !== pointerId) return;
-      if (pe.cancelable) pe.preventDefault();
-      finishSplitDrag();
-    };
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") finishSplitDrag();
-    };
-
-    splitDragCleanupRef.current = finishSplitDrag;
-    document.addEventListener("pointermove", handlePointerMove, { passive: false });
-    document.addEventListener("pointerup", handlePointerEnd);
-    document.addEventListener("pointercancel", handlePointerEnd);
-    divider.addEventListener("lostpointercapture", handlePointerEnd);
-    window.addEventListener("blur", finishSplitDrag);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-  };
-
-  const { sidebarPanelRef, sidebarWidth, sidebarWidthHint, sidebarResizing, setSidebarPanel, handleSidePointerDown } = useWorkspaceSidebar({ desktopPanel, setDesktopPanel, sidebarHidden, setSidebarHidden });
+  const { sidebarPanelRef, sidebarWidth, sidebarWidthHint, sidebarResizing, readerCompanionCollapsed, setSidebarPanel, handleSidePointerDown } = useWorkspaceSidebar({ desktopPanel, setDesktopPanel, sidebarHidden, setSidebarHidden });
   const sidebarPresentation = useSidebarPresentation();
   const openReadingLibrary = useCallback(async () => {
     if (syncBusy) return;
@@ -1053,13 +805,10 @@ function App() {
       try {
         const today = new Date();
         const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-        // 检查整个工作区，避免“今天没有随笔”被误判为全新数据库。
+        // 检查整个工作区，避免误判为全新数据库。
         // 即使 IndexedDB 被清空但 localStorage 仍有标记，也能重新播种。
-        const [dailyNotes, documents] = await Promise.all([
-          api.notes.all(),
-          api.docs.search({}),
-        ]);
-        if (dailyNotes.length > 0 || documents.length > 0) {
+        const documents = await api.notes.all();
+        if (documents.length > 0) {
           // 已有笔记，标记已播种
           localStorage.setItem(SEED_KEY, "1");
           if (await ensureAestheticStyleSample()) refreshNoteViews();
@@ -1071,21 +820,21 @@ function App() {
           title: DEMO_TITLE,
           content: DEMO_CONTENT as unknown as DeltaOps,
           tags: DEMO_TAGS,
-          ...(!DAILY_NOTES_ENABLED ? { storagePath: "references" } : {}),
+          ...({ storagePath: "references" }),
         });
         localStorage.setItem(SEED_KEY, "1");
-        if (!DAILY_NOTES_ENABLED && !useNotesStore.getState().selectedNote) {
+        if (!useNotesStore.getState().selectedNote) {
           selectNote(seeded);
           refreshNoteViews();
         }
-        setDate(dateStr); // 刷新
+        refreshNotes(); // 刷新
         if (await ensureAestheticStyleSample()) refreshNoteViews();
       } catch {
         // 静默忽略——非首次运行或环境问题
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [setDate, selectNote, refreshNoteViews]);
+  }, [refreshNotes, selectNote, refreshNoteViews]);
 
   // ── 键盘快捷键（浏览器 keydown + Tauri 全局热键）──
   useAppKeyboardShortcuts({
@@ -1093,11 +842,6 @@ function App() {
     setSettingsOpen,
     setQuickSwitcherOpen,
     openSearch: openGlobalSearch,
-    setDate,
-    setSidebarHidden,
-    setSidebarTab: handleSetSidebarTab,
-    selectNote: handleSelectNote,
-    createNote,
     hotkeys: config?.hotkeys,
   });
 
@@ -1168,10 +912,9 @@ function App() {
 
   // ── 开发模式后台导入 ──
   const refreshView = useCallback(() => {
-    setDate(currentDate);
+    refreshNotes();
     setDocTreeKey(k => k + 1);
-    setSidebarRefreshKey(k => k + 1);
-  }, [currentDate, setDate]);
+  }, [refreshNotes]);
   useDevImport(refreshView);
 
   const handleTitleChange = (title: string) => {
@@ -1215,26 +958,20 @@ function App() {
       setDocSearchText("");
     }
     if (note.storagePath) {
-      if (sidebarTab !== "tree") {
-        setSidebarTab("tree");
-        localStorage.setItem(TAB_KEY, "tree");
-      }
+
       // 再次搜索当前文档也要展开其路径，但无需重新加载或重建整棵树。
       revealDocTreePath(note.storagePath);
     }
     handleSelectNote(note);
-    setDate(note.date);
   }, [
     setQuery,
     handleSelectNote,
     revealDocTreePath,
-    sidebarTab,
-    setDate,
   ]);
 
   useDocumentNavigation({
     noteId: selectedNoteId,
-    enabled: !settingsOpen && !readingLibraryOpen && !protectionBusy && !applyingWebUpdate && !syncBusy,
+    enabled: !workspaceHomeRequested && !settingsOpen && !readingLibraryOpen && !protectionBusy && !applyingWebUpdate && !syncBusy,
     flush: flushAutoSave,
     select: note => clearSearchAndSelect(note),
   });
@@ -1467,8 +1204,7 @@ function App() {
     }}
     onMarkdownImport={() => {
       setDocTreeKey((key) => key + 1);
-      setSidebarRefreshKey((key) => key + 1);
-      void setDate(currentDate);
+      void refreshNotes();
     }}
     onPullDone={() => window.location.reload()}
   />;
@@ -1492,19 +1228,23 @@ function App() {
   ) : null;
 
   const exhibitionEnabled = config?.workspace_layout === "exhibition" && config.interface_style !== "classic";
-  const workspaceHome = !selectedNote && !selectedFolderPath && !selectedConcept;
-  const homeReaderOpen = desktopWorkspace && workspaceHome && Boolean(pdfReaderPanel || epubReaderPanel);
+  const workspaceHome = workspaceHomeRequested || (!selectedNote && !selectedFolderPath && !selectedConcept);
+  const readerWasOpenBeforeHome = Boolean(
+    exhibitionReturnTarget?.pdfReaderDocumentId || exhibitionReturnTarget?.epubReaderDocumentId,
+  );
+  const homeReaderOpen = desktopWorkspace && workspaceHome && !readerWasOpenBeforeHome
+    && Boolean(pdfReaderPanel || epubReaderPanel);
   return (
     <EditorFoldIconContext.Provider value={config}>
     <ExhibitionWorkspace desktop={desktopWorkspace} enabled={exhibitionEnabled} focus={focusMode} config={config}
       blocked={protectionBusy || applyingWebUpdate || syncBusy || searchExpanded || errorDetailsOpen || settingsOpen || mobileReadingLibraryOpen || docCreateOpen || quickSwitcherOpen || (mobileDrawerViewport && !sidebarHidden)}
-      path={selectedFolderPath ?? selectedNote?.storagePath ?? ""} noteId={selectedNote?.id} refreshKey={docTreeKey}
+      path={workspaceHome ? "" : selectedFolderPath ?? selectedNote?.storagePath ?? ""} noteId={workspaceHome ? undefined : selectedNote?.id} refreshKey={docTreeKey}
       onAppearance={async patch => handleConfigChange(await api.config.set(patch))}
       onOpen={async note => { await flushAutoSave(); setQuery(""); setDocResults(null); handleSelectNote(note); closeSidebarOnNarrowScreen(); }}
-      canReturn={!selectedNote && !selectedFolderPath && !selectedConcept && Boolean(exhibitionReturnTarget)}
+      canReturn={workspaceHome && Boolean(exhibitionReturnTarget)}
       onHome={async () => {
         await flushAutoSave();
-        if (!selectedNote && !selectedFolderPath && !selectedConcept) {
+        if (workspaceHome) {
           if (!exhibitionReturnTarget) return;
           const target = exhibitionReturnTarget;
           const note = target.noteId ? await api.notes.get(target.noteId) : null;
@@ -1525,6 +1265,7 @@ function App() {
           setPdfReaderDocumentId(target.pdfReaderDocumentId);
           setEpubReaderDocumentId(target.epubReaderDocumentId);
           setWorkspaceHomeChromeHidden(false);
+          setWorkspaceHomePanelActivated(false);
           setExhibitionReturnTarget(null);
           closeSidebarOnNarrowScreen();
           return;
@@ -1545,15 +1286,19 @@ function App() {
           setSidebarHidden(true);
         }
         setWorkspaceHomeChromeHidden(desktopWorkspace);
-        setSelectedFolderPath(null); setSelectedConcept(null); handleSelectNote(null);
+        setWorkspaceHomePanelActivated(false);
+        setWorkspaceHomeRequested(true);
         setReadingLibraryOpen(false);
-        setPdfReaderDocumentId(null); setEpubReaderDocumentId(null);
-        setPdfReaderFullscreen(false); setEpubReaderFullscreen(false);
+        // Keep an already-open reader mounted in the hidden sidebar. This preserves
+        // its scroll/selection state and prevents the reader from animating/remounting
+        // when returning from the workspace home page.
+        setPdfReaderFullscreen(false);
+        setEpubReaderFullscreen(false);
       }}
       onCreate={() => setDocCreateOpen(true)} onSearch={openGlobalSearch} onSettings={() => setSettingsOpen(true)}>
 
       <div
-      className={`app app-unified-workspace ${focusMode ? "app-focus-mode" : ""}${desktopWorkspace ? " app-desktop-workspace" : " app-mobile-workspace"}${homeReaderOpen ? " app-home-reader" : ""}`}
+      className={`app app-unified-workspace ${focusMode ? "app-focus-mode" : ""}${desktopWorkspace ? " app-desktop-workspace" : " app-mobile-workspace"}${homeReaderOpen ? " app-home-reader" : ""}${readerCompanionCollapsed ? " reader-companion-collapsed" : ""}`}
       style={editorAppearanceVariables(config ?? undefined)}
       {...(mobileReadingLibraryOpen ? { inert: "", "aria-hidden": true } : {})}
       {...(protectionBusy || applyingWebUpdate ? { inert: "", "aria-busy": true } : {})}
@@ -1592,7 +1337,11 @@ function App() {
         {!mobileDrawerViewport && <nav
           className={`desktop-activity-bar${workspaceHomeChromeHidden ? " desktop-activity-bar-home-hidden" : ""}`}
           aria-label="工作区面板"
+          onPointerEnter={() => { if (workspaceHomeChromeHidden) setWorkspaceHomeChromeHidden(false); }}
           onPointerMove={() => { if (workspaceHomeChromeHidden) setWorkspaceHomeChromeHidden(false); }}
+          onPointerLeave={() => {
+            if (workspaceHome && !workspaceHomePanelActivated && sidebarHidden) setWorkspaceHomeChromeHidden(true);
+          }}
         >
           {(error || autoSave.status === "error") && <button type="button" className="btn-icon workspace-error-indicator" aria-label="查看错误详情" title="查看错误详情" onClick={() => setErrorDetailsOpen(true)}><ToolbarIcon name="warning" /></button>}
           {((() => {
@@ -1608,7 +1357,13 @@ function App() {
             aria-expanded={!sidebarHidden && desktopPanel === panel} aria-controls="workspace-sidebar"
             onKeyDown={event => sidebarHover.keyDown(panel, event)}
             onPointerEnter={event => sidebarHover.enterButton(panel, event.pointerType)} onPointerLeave={sidebarHover.leave}
-            onClick={() => sidebarHover.click(panel)}>
+            onClick={() => {
+              if (workspaceHome) {
+                setWorkspaceHomePanelActivated(true);
+                setWorkspaceHomeChromeHidden(false);
+              }
+              sidebarHover.click(panel);
+            }}>
             <ToolbarIcon name={icon} />
           </button>)}
           <div className="desktop-activity-footer">
@@ -1629,99 +1384,17 @@ function App() {
           aria-hidden={(mobileDrawerViewport || sidebarOverlay) && sidebarHidden || undefined}
           {...((mobileDrawerViewport || sidebarOverlay) && sidebarHidden ? { inert: "" } : {})}>
           <div className="desktop-panel-content" style={mobileDrawerViewport ? { display: 'contents' } : undefined} hidden={!mobileDrawerViewport && desktopPanel !== 'tree'}>
-          <WorkspacePanelHeading className="sidebar-tabs" title={DAILY_NOTES_ENABLED ? <button
-              className="sidebar-tab sidebar-view-switch"
-              onClick={() => handleSetSidebarTab(sidebarTab === 'daily' ? 'tree' : 'daily')}
-              title={sidebarTab === 'daily' ? '切换到文档' : '切换到随笔'}
-              aria-label={sidebarTab === 'daily' ? '切换到文档' : '切换到随笔'}
-              data-target-view={sidebarTab === 'daily' ? 'tree' : 'daily'}
-            >
-              <ToolbarIcon name={sidebarTab === 'daily' ? 'note' : 'folder'} />
-              <span className="sidebar-view-switch-label">
-                {sidebarTab === 'daily' ? '随笔' : '文档'}
-              </span>
-            </button> : mobileDrawerViewport ? <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} /> : null}>
+          <WorkspacePanelHeading className="sidebar-tabs" title={mobileDrawerViewport ? <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} /> : null}>
             <div className="doc-tree-toolbar-host" ref={setDocTreeToolbarHost} />
             {!desktopWorkspace && <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏" aria-label="隐藏侧栏">
               <ToolbarIcon name="chevronLeft" />
             </button>}
           </WorkspacePanelHeading>
 
-          {DAILY_NOTES_ENABLED && <button type="button" className="sidebar-reading-entry" disabled={syncBusy} onClick={() => void openReadingLibrary()} aria-label="打开阅读资料库">
-            <ToolbarIcon name="document" />阅读<span>PDF / EPUB</span>
-          </button>}
+
 
           {!secondaryUiReady ? (
             <div className="doc-tree-loading">正在加载列表...</div>
-          ) : DAILY_NOTES_ENABLED && sidebarTab === 'daily' ? (
-            <Sidebar
-              disabled={syncBusy}
-              notes={(query ? results.notes : (activeTag && tagFilteredNotes ? tagFilteredNotes : notes)).filter(n => !n.storagePath)}
-              selectedId={selectedNote?.id ?? null}
-              activeTag={activeTag}
-              onHide={() => setSidebarHidden(true)}
-              onTagSelect={(tag) => {
-                setActiveTag(tag);
-              }}
-              onTogglePin={async (id, pinned) => {
-                await updateNote(id, { pinned });
-                refreshNoteViews();
-              }}
-              onRename={async (id, title) => {
-                await updateNote(id, { title });
-                refreshNoteViews();
-              }}
-              onSelect={(note) => {
-                setQuery("");
-                setDocResults(null);
-                handleSelectNote(note);
-                closeSidebarOnNarrowScreen();
-              }}
-              onCreate={() => {
-                void createNote().then(refreshNoteViews);
-              }}
-              onCreateWithTemplate={async (template: Template) => {
-                const meta = await templateStore.applyTemplate(template);
-                const today = localDateKey();
-                const note = await api.notes.create({
-                  date: today,
-                  title: meta.title ?? template.name,
-                  content: meta.content,
-                  tags: meta.tags,
-                  storagePath: meta.storagePath ?? undefined,
-                  docType: meta.docType ?? undefined,
-                  concepts: meta.concepts?.length ? meta.concepts : undefined,
-                  pinned: meta.pinned,
-                });
-                await setDate(today);
-                handleSelectNote(note);
-                refreshNoteViews();
-              }}
-              onDelete={handleDeleteWithUndo}
-              onBatchDelete={handleBatchDeleteWithUndo}
-              onBatchSetReadonly={handleBatchSetReadonly}
-              onReorder={async (orderedIds) => {
-                await flushAutoSave();
-                const results = await Promise.allSettled(orderedIds.map((id, index) => api.notes.updateOrder(id, index)));
-                const failures = results.filter((result) => result.status === "rejected");
-                const updatedNotes = await api.notes.listByDate(currentDate);
-                if (useNotesStore.getState().currentDate === currentDate) useNotesStore.setState({ notes: updatedNotes });
-                refreshNoteViews();
-                if (failures.length) throw new Error(`${failures.length} 篇随笔未保存，请重试`);
-              }}
-              onMoveToDate={async (id, date) => {
-                await flushAutoSave();
-                await updateNote(id, { date });
-                const updatedNotes = await api.notes.listByDate(currentDate);
-                if (useNotesStore.getState().currentDate === currentDate) useNotesStore.setState({ notes: updatedNotes });
-                refreshNoteViews();
-              }}
-              onToggleReadonly={async (id, readonly) => {
-                await updateNote(id, { readonly });
-                refreshNoteViews();
-              }}
-              sidebarRefreshKey={sidebarRefreshKey}
-            />
           ) : (
             <DocTree
               beforeExport={flushAutoSave}
@@ -1734,7 +1407,6 @@ function App() {
                 setQuery("");
                 setDocResults(null);
                 handleSelectNote(note);
-                setDate(note.date);
                 closeSidebarOnNarrowScreen();
               }}
               onFolderSelect={(path) => {
@@ -1790,8 +1462,7 @@ function App() {
                   setQuery("");
                   setDocResults(null);
                   handleSelectNote(note);
-                  setDate(note.date);
-                }}
+                  }}
                 selectedId={selectedNote?.id ?? null}
                 onCreate={(path) => { setSelectedFolderPath(path); setDocCreateOpen(true); }}
                 refreshKey={docTreeKey}
@@ -1819,12 +1490,7 @@ function App() {
           </div>}
         </aside>
 
-        {TODOS_ENABLED && <OverdueTodos
-          open={overdueOpen}
-          disabled={syncBusy}
-          onClose={() => setOverdueOpen(false)}
-          onOpenDate={(date) => { setQuery(""); setDocResults(null); setDate(date); }}
-        />}
+
 
         {!sidebarHidden && <div className="sidebar-divider" style={sidebarHoverEnabled ? { [sidebarOnRight ? "right" : "left"]: 44 + sidebarWidth } : undefined} onPointerEnter={sidebarHover.enterPanel} onPointerLeave={sidebarHover.leave} onPointerDown={handleSidePointerDown} />}
 
@@ -1840,11 +1506,11 @@ function App() {
               concept={selectedConcept}
               refreshKey={docTreeKey}
               onSelect={(note) => {
-                setQuery(""); setDocResults(null); handleSelectNote(note); setDate(note.date); setSelectedConcept(null);
+                setQuery(""); setDocResults(null); handleSelectNote(note); setSelectedConcept(null);
               }}
               onOpenConcept={(c) => setSelectedConcept(c)} selectedId={null}
             />
-          ) : selectedFolderPath && sidebarTab === 'tree' && !selectedNote ? (
+          ) : selectedFolderPath && !selectedNote ? (
             <DocMOC
               storagePath={selectedFolderPath}
               refreshKey={docTreeKey}
@@ -1852,7 +1518,6 @@ function App() {
                 setQuery("");
                 setDocResults(null);
                 handleSelectNote(note);
-                setDate(note.date);
                 setSelectedFolderPath(null);
               }}
               onOpenConcept={(c) => {
@@ -1861,33 +1526,16 @@ function App() {
               }}
               selectedId={null}
             />
-          ) : (
-            <div className="app-main-split" ref={splitRef}>
-              {TODOS_ENABLED && todoFlex > 0 && (
-                <div
-                  className={`app-main-todo ${(dailyPage?.todos.length ?? 0) === 0 ? "app-main-todo-empty" : ""}`}
-                  style={{ flex: (dailyPage?.todos.length ?? 0) === 0 ? "0 0 auto" : todoFlex }}
-                >
-                  <Suspense fallback={<div className="empty-state">正在打开待办...</div>}>
-                    <TodoList
-                      disabled={syncBusy}
-                      todos={dailyPage?.todos ?? []}
-                      onChange={updateTodos}
-                      onOpenOverdue={() => setOverdueOpen(true)}
-                      onHide={hideTodos}
-                    />
-                  </Suspense>
-                </div>
-              )}
-              {TODOS_ENABLED && <div
-                className={`app-main-divider ${todoFlex === 0 ? "divider-collapsed" : ""}`}
-                onPointerDown={handleSplitPointerDown}
-              />}
+          ) : null}
+            <div className="app-main-split" style={{ display: homeReaderOpen || (exhibitionEnabled && workspaceHome) || (!selectedNote && Boolean(selectedConcept || selectedFolderPath)) ? "none" : undefined }}>
+
+
               <div
                 className="app-main-editor"
-                style={{ flex: TODOS_ENABLED && todoFlex > 0 ? 10 - todoFlex : 1 }}
+                style={{ flex: 1 }}
               >
-                {selectedNote && (editorReadyNoteId === selectedNote.id || !isTauriRuntime()) ? (
+                <RetainedDocument key={externalReloadKey} ready={editorReadyNoteId === selectedNote?.id || !isTauriRuntime()} revision={selectedNote?.updated_at ?? ""} sessionKey={!workspaceHome && selectedNote ? `${selectedNote.id}:${externalReloadKey}` : null} sensitive={selectedNote ? isEncrypted(selectedNote.content) : false}>
+                {!workspaceHome && (selectedNote && (editorReadyNoteId === selectedNote.id || !isTauriRuntime()) ? (
                   <Suspense fallback={<div className="empty-state">正在打开文档...</div>}>
                     <NoteEditor
                       onOpenProperties={() => setPropertiesOpen(open => !open)}
@@ -1922,7 +1570,6 @@ function App() {
                         const updated = await updateNote(selectedNote.id, { readonly });
                         selectNote(updated);
                         setDocTreeKey(k => k + 1);
-                        setSidebarRefreshKey(k => k + 1);
                       } : undefined}
                       title={selectedNote.title}
                       content={selectedNote.content}
@@ -1983,9 +1630,9 @@ function App() {
                       onEditorFontSizeChange={handleEditorFontSizeChange}
                       searchTarget={editorSearchTarget?.noteId === selectedNote.id ? editorSearchTarget : null}
                       onSearchTargetConsumed={handleSearchTargetConsumed}
-                      onTitleChange={handleTitleChange}
-                      onContentChange={handleContentChange}
-                      onTagsChange={handleTagsChange}
+                      onTitleChange={title => { if (useNotesStore.getState().selectedNote?.id === selectedNote.id) handleTitleChange(title); }}
+                      onContentChange={read => { if (useNotesStore.getState().selectedNote?.id === selectedNote.id) handleContentChange(read); }}
+                      onTagsChange={tags => { if (useNotesStore.getState().selectedNote?.id === selectedNote.id) handleTagsChange(tags); }}
                       onVersionOpen={() => setVersionOpen(true)}
                       onFocusModeChange={setFocusMode}
                       saveStatus={autoSave.status}
@@ -1996,16 +1643,16 @@ function App() {
                     <NavigationButtons />
                     {selectedNote ? "正在打开文档..." : loading ? "加载中..." : "选择或新建一篇笔记"}
                   </div>
-                )}
+                ))}
+                </RetainedDocument>
                 <Suspense fallback={null}>
                   <DebugPanel />
                 </Suspense>
               </div>
             </div>
-          )}
         </main>
 
-        {secondaryUiReady && selectedNote?.storagePath && propertiesOpen && (
+        {secondaryUiReady && !workspaceHome && selectedNote?.storagePath && propertiesOpen && (
           <Suspense fallback={null}>
             <PropertiesPanel
               onRename={async title => {
@@ -2112,8 +1759,7 @@ function App() {
                   setQuery("");
                   setDocResults(null);
                   handleSelectNote(note);
-                  setDate(note.date);
-                  setDocTreePopupOpen(false);
+                    setDocTreePopupOpen(false);
                 }}
                 selectedId={selectedNote?.id ?? null}
                 onCreate={(path) => {
@@ -2132,7 +1778,7 @@ function App() {
           open={recycleOpen}
           onClose={() => setRecycleOpen(false)}
           onRestored={() => {
-            void setDate(currentDate);
+            void refreshNotes();
             refreshNoteViews();
           }}
         />
@@ -2163,7 +1809,7 @@ function App() {
               setDocCreateOpen(false);
               setDocTreeKey((k) => k + 1);  // 刷新文档树
               handleSelectNote(note);
-              setDate(note.date);
+              refreshNotes();
             }}
           />
         </Suspense>
@@ -2184,7 +1830,7 @@ function App() {
       <SearchBar inputRef={headerSearchInputRef} cancelRequestId={searchCancelRequestId}
         initialQuery={globalSearchQueryRef.current} onQueryChange={query => { globalSearchQueryRef.current = query; }}
         onSearch={search} onDocSearch={handleDocSearch} onEscape={dismissSearchResults} />
-      {query || docResults ? <SearchResultsPanel notes={docResults ?? results.notes} todos={docResults ? [] : results.todos}
+      {query || docResults ? <SearchResultsPanel notes={docResults ?? results.notes}
         searchTerm={docResults ? docSearchText : query} searching={docSearching} onClose={dismissSearchResults}
         onSelectNote={(summary, keepSearch, term) => {
           if (!keepSearch) { setSearchCancelRequestId(id => id + 1); docSearchRequestIdRef.current += 1; }
@@ -2192,7 +1838,7 @@ function App() {
           void api.notes.get(summary.id).then(note => {
             if (note && searchRequestIdRef.current === request) clearSearchAndSelect(note, keepSearch, term);
           }).catch(reason => useNotesStore.setState({ error: `打开搜索结果失败：${String(reason)}` }));
-        }} onSelectTodo={date => { dismissSearchResults(); void setDate(date); }} />
+        }} />
         : <p className="workspace-dialog-empty">搜索全部文档；加密正文不会出现在结果中。</p>}
     </WorkspaceDialog>}
     {errorDetailsOpen && <WorkspaceDialog title="错误详情" onClose={() => { setErrorDetailsOpen(false); setErrorCopyNotice(""); }}>

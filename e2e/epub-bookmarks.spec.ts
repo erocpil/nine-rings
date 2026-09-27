@@ -1,3 +1,4 @@
+import { openReadingLibrary } from "./helpers/workspace";
 import { expect, test } from "./helpers/reader-test";
 import { createEpubFixture } from "./helpers/reader-fixtures";
 import { strToU8, unzipSync, zipSync } from "fflate";
@@ -8,14 +9,14 @@ for (const width of [320, 390, 1200]) {
   test(`EPUB 书签顶部面板与关闭方式 ${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
     await page.goto("/");
-    await page.getByTitle("设置").click();
-    await page.getByRole("button", { name: /^阅读资料库/ }).click();
+    await openReadingLibrary(page);
     await page.locator('input[accept="application/epub+zip,.epub"]').setInputFiles({
       name: "bookmarks.epub", mimeType: "application/epub+zip", buffer: createEpubFixture(),
     });
     const reader = page.getByRole("region", { name: "EPUB 阅读器", exact: true });
     const trigger = page.getByRole("button", { name: "打开 EPUB 书签", exact: true });
     const panel = page.getByRole("dialog", { name: "EPUB 书签", exact: true });
+    if (width > 768) await page.getByRole("button", { name: "EPUB 目录", exact: true }).click();
     await expect(page.getByRole("button", { name: "展开全部 EPUB 目录" })).toHaveText("＋");
     await expect(page.getByRole("button", { name: "折叠全部 EPUB 目录" })).toHaveText("−");
     const toc = page.getByRole("complementary", { name: "EPUB 目录", exact: true });
@@ -67,7 +68,7 @@ for (const width of [320, 390, 1200]) {
     await trigger.click();
     await expect(panel).toBeVisible();
     await expect(page.getByRole("button", { name: "关闭 EPUB 阅读设置", exact: true })).toBeHidden();
-    await page.screenshot({ path: `/tmp/epub-bookmarks-${width}.png` });
+    await page.screenshot({ path: test.info().outputPath(`epub-bookmarks-${width}.png`) });
     const overflow = await page.locator(".reader-toolbar").evaluate(el => el.scrollWidth - el.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
     await panel.getByRole("button", { name: /删除书签/ }).click();
@@ -82,8 +83,7 @@ test("EPUB 单层目录禁用展开折叠，长书签不挤压删除入口", asy
   const files = unzipSync(createEpubFixture());
   files["OEBPS/nav.xhtml"] = strToU8(`<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol><li><a href="chapter-1.xhtml">${title}</a></li><li><a href="chapter-2.xhtml">第二章</a></li></ol></nav></body></html>`);
   await page.goto("/");
-  await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^阅读资料库/ }).click();
+  await openReadingLibrary(page);
   await page.locator('input[accept="application/epub+zip,.epub"]').setInputFiles({
     name: "long-bookmark.epub", mimeType: "application/epub+zip", buffer: Buffer.from(zipSync(files)),
   });
@@ -104,7 +104,7 @@ test("EPUB 单层目录禁用展开折叠，长书签不挤压删除入口", asy
     document.documentElement.classList.remove("theme-light", "theme-sepia");
     document.documentElement.classList.add("theme-dark");
   });
-  await page.screenshot({ path: "/tmp/epub-bookmarks-long-dark.png" });
+  await page.screenshot({ path: test.info().outputPath("epub-bookmarks-long-dark.png") });
   await remove.click();
   await expect(panel.locator(".epub-reading-list-item")).toHaveCount(0);
 });

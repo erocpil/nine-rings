@@ -1,3 +1,4 @@
+import { pressLineBoundary } from "./helpers/keyboard";
 import { createBlankDocument } from "./helpers/document";
 import { expect, test } from "@playwright/test";
 
@@ -25,7 +26,9 @@ for (const width of [1280, 390]) {
           const selectedNote = isReadonly ? await api.notes.update(note.id, { readonly: true }) : note;
           useNotesStore.getState().selectNote(selectedNote);
         }, readonly);
-        await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("书签布局验证");
+        if (readonly && width === 390) {
+          await expect(page.getByRole("button", { name: "查看完整标题" })).toHaveText("书签布局验证");
+        } else await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("书签布局验证");
         await editor.getByText("第二条书签", { exact: true }).click();
         if (readonly) {
           await expect(page.getByTitle("点击设为可编辑", { exact: true })).toBeVisible();
@@ -40,21 +43,28 @@ for (const width of [1280, 390]) {
         await expect(active).toHaveCount(1);
         await expect(active).toContainText("第二条书签");
         await expect(active.locator(".document-bookmark-index")).toHaveText("3");
-        await expect(active.locator(".document-bookmark-index")).toHaveCSS("font-weight", "700");
+        await expect(active.locator(".document-bookmark-index")).toHaveCSS("font-weight", width === 390 ? "700" : "400");
         await expect(panel.getByRole("button", { name: "取消当前位置书签", exact: true })).toBeVisible();
-        const currentBackground = await active.evaluate((element) => getComputedStyle(element).backgroundColor);
-        expect(currentBackground).not.toBe(await rows.first().locator(".document-bookmark-jump").evaluate((element) => getComputedStyle(element).backgroundColor));
+        const background = (element: Element) => getComputedStyle(element).backgroundColor;
+        const currentSurface = width === 390 ? active : panel.locator(".document-bookmark-item.is-current");
+        const otherSurface = width === 390 ? rows.first().locator(".document-bookmark-jump") : rows.first();
+        expect(await currentSurface.evaluate(background)).not.toBe(await otherSurface.evaluate(background));
         if (width === 390) {
-          await expect(rows.first()).toHaveCSS("height", "44px");
-          await expect(rows.last()).toHaveCSS("height", "44px");
-          await expect(active).toHaveCSS("font-size", "15px");
-          await expect(active.locator(".document-bookmark-index")).toHaveCSS("font-size", "13px");
+          await expect(rows.first()).toHaveCSS("height", "32px");
+          await expect(rows.last()).toHaveCSS("height", "32px");
+          await expect(active).toHaveCSS("font-size", "13px");
+          await expect(active.locator(".document-bookmark-index")).toHaveCSS("font-size", "11px");
           const [first, second] = await rows.evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().top));
-          expect(second - first).toBeCloseTo(44, 1);
+          expect(second - first).toBeCloseTo(32, 1);
           await page.screenshot({ path: testInfo.outputPath("bookmark-current.png") });
         }
         await rows.first().locator(".document-bookmark-jump").click();
-        await expect(panel).toHaveCount(0);
+        if (width === 390) await expect(panel).toHaveCount(0);
+        else {
+          await expect(panel).toBeVisible();
+          await expect(active).toContainText("首条书签");
+          await toggle.click();
+        }
         await toggle.click();
         await expect(active).toContainText("首条书签");
         await toggle.click();
@@ -63,6 +73,10 @@ for (const width of [1280, 390]) {
         await expect(active).toHaveCount(0);
         await expect(panel.getByRole("button", { name: "添加当前位置书签", exact: true })).toBeVisible();
         await rows.last().locator(".document-bookmark-jump").click();
+        if (width !== 390) {
+          await expect(panel).toBeVisible();
+          await toggle.click();
+        }
         await toggle.click();
         await expect(active).toContainText("第二条书签");
         await panel.getByRole("button", { name: "取消当前位置书签", exact: true }).click();
@@ -79,7 +93,7 @@ async function createBlankNote(page: import("@playwright/test").Page) {
 }
 
 async function enableVimMode(page: import("@playwright/test").Page) {
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
   await page.getByRole("button", { name: /打开 Vim 设置/ }).click();
   const field = page.locator(".settings-field").filter({ hasText: "Vim 模式（实验性）" });
@@ -92,10 +106,10 @@ test("正文书签可切换、跳转并随文档保存", async ({ page }) => {
   await createBlankNote(page);
   const editor = page.locator(".ProseMirror");
   await editor.fill("第一段");
-  await editor.press("End");
+  await pressLineBoundary(editor, "end");
   await editor.press("Enter");
   await page.keyboard.type("第二段书签位置");
-  await page.keyboard.press("Control+Shift+m");
+  await page.keyboard.press("ControlOrMeta+Shift+m");
 
   const bookmarkButton = page.getByRole("button", { name: "文档书签" });
   await expect(bookmarkButton).toContainText("1");
@@ -123,12 +137,12 @@ test("设置中的书签列表包含文档书签", async ({ page }) => {
 
   const editor = page.locator(".ProseMirror");
   await editor.fill("设置页应显示的文档书签");
-  await page.keyboard.press("Control+Shift+m");
+  await page.keyboard.press("ControlOrMeta+Shift+m");
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
 
-  await page.getByTitle("设置").click();
+  await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^文档管理/ }).click();
-  await page.getByRole("button", { name: /^书签/ }).click();
+  await page.locator(".settings-category-card").filter({ hasText: "书签" }).click();
   const bookmarkManager = page.locator(".bookmark-manager-list");
   await expect(bookmarkManager).toContainText("书签集中管理测试");
   await expect(bookmarkManager).toContainText("设置页应显示的文档书签");
@@ -139,12 +153,12 @@ test("开启代码块 Vim 后正文仍使用普通书签", async ({ page }) => {
   await createBlankNote(page);
   const editor = page.locator(".ProseMirror");
   await editor.fill("第一段");
-  await editor.press("End");
+  await pressLineBoundary(editor, "end");
   await editor.press("Enter");
   await page.keyboard.type("第二段");
   await enableVimMode(page);
   await editor.getByText("第二段", { exact: true }).click();
-  await page.keyboard.press("Control+Shift+m");
+  await page.keyboard.press("ControlOrMeta+Shift+m");
   await editor.getByText("第一段", { exact: true }).click();
   await page.getByRole("button", { name: "文档书签" }).click();
   await page.locator(".document-bookmark-jump").click();
@@ -160,12 +174,12 @@ test("书签定位高亮固定在目标块，不跟随之后的点击", async ({
   await createBlankNote(page);
   const editor = page.locator(".ProseMirror");
   await editor.fill("第一段");
-  await editor.press("End");
+  await pressLineBoundary(editor, "end");
   await editor.press("Enter");
   await page.keyboard.type("第二段书签位置");
   const firstParagraph = editor.getByText("第一段", { exact: true });
   const targetParagraph = editor.getByText("第二段书签位置", { exact: true });
-  await page.keyboard.press("Control+Shift+m");
+  await page.keyboard.press("ControlOrMeta+Shift+m");
   await firstParagraph.click();
   await page.getByRole("button", { name: "文档书签" }).click();
   await page.locator(".document-bookmark-jump").click();
@@ -191,21 +205,31 @@ test.describe("移动端书签操作", () => {
       ...Array.from({ length: 38 }, (_, index) => `用于撑开滚动区的段落 ${index + 2}`),
       "手机端书签跳转目标",
     ];
-    await editor.fill("");
-    await editor.evaluate((element, text) => {
-      const clipboardData = new DataTransfer();
-      clipboardData.setData("text/plain", text);
-      element.dispatchEvent(new ClipboardEvent("paste", {
-        bubbles: true,
-        cancelable: true,
-        clipboardData,
-      }));
-    }, paragraphs.join("\n\n"));
+    await expect(editor).toBeVisible();
+    await page.evaluate(async paragraphs => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api } = await load("/src/lib/api.ts") as typeof import("../src/lib/api");
+      const { useNotesStore } = await load("/src/stores/useNotesStore.ts") as typeof import("../src/stores/useNotesStore");
+      const note = await api.notes.create({
+        title: "手机书签跳转验证", date: "2026-09-27",
+        content: {
+          ops: paragraphs.flatMap(text => [{ insert: text }, { insert: "\n" }]),
+          metadata: { bookmarks: [{
+            id: "mobile-target",
+            position: 1 + paragraphs.slice(0, -1).reduce((position, text) => position + text.length + 2, 0),
+            preview: paragraphs[paragraphs.length - 1],
+            createdAt: "2026-09-27T00:00:00Z",
+          }] },
+        },
+      });
+      useNotesStore.getState().selectNote(note);
+    }, paragraphs);
+    await expect(page.getByPlaceholder("输入文档标题")).toHaveValue("手机书签跳转验证");
     const firstParagraph = editor.getByText("第一段", { exact: true });
     const targetParagraph = editor.getByText("手机端书签跳转目标", { exact: true });
     await expect(targetParagraph).toBeAttached();
-    await targetParagraph.click();
-    await page.keyboard.press("Control+Shift+m");
+    // Bookmark creation/shortcuts have separate coverage. Seed the target so
+    // this regression tests tapping the row and restoring an offscreen block.
     await firstParagraph.click();
     await page.locator(".note-editor-scroll").evaluate((element) => { element.scrollTop = 0; });
 
@@ -253,7 +277,7 @@ test.describe("移动端书签操作", () => {
     await page.goto("/");
     const editor = page.locator(".ProseMirror");
     await editor.fill("移动端书签操作测试");
-    await page.keyboard.press("Control+Shift+m");
+    await page.keyboard.press("ControlOrMeta+Shift+m");
 
     const bookmarkButton = page.locator(".document-bookmark-toggle");
     await expect(bookmarkButton).toContainText("1");
@@ -304,10 +328,15 @@ test.describe("移动端书签操作", () => {
     });
     await expect.poll(async () => (await readGeometry()).actionsRevealed).toBe(true);
     const geometry = await readGeometry();
-    expect(Math.min(...geometry.widths)).toBeGreaterThanOrEqual(44);
-    expect(Math.min(...geometry.heights)).toBeGreaterThanOrEqual(44);
-    expect(geometry.gap).toBeGreaterThanOrEqual(8);
+    expect(geometry.widths).toEqual([28, 28]);
+    expect(geometry.heights).toEqual([28, 28]);
+    expect(geometry.gap).toBe(4);
     expect(geometry.actionsRevealed).toBe(true);
     expect(geometry.verticallyContained).toBe(true);
+    page.once("dialog", dialog => dialog.accept("改名后的书签"));
+    await page.getByTitle("重命名书签", { exact: true }).tap();
+    await expect(row).toContainText("改名后的书签");
+    await page.getByTitle("删除书签", { exact: true }).tap();
+    await expect(row).toHaveCount(0);
   });
 });

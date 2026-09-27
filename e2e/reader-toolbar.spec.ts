@@ -1,3 +1,4 @@
+import { openReadingLibrary } from "./helpers/workspace";
 import { expect, test, type Page } from "@playwright/test";
 import { createEpubFixture, createPdfFixture } from "./helpers/reader-fixtures";
 
@@ -5,8 +6,7 @@ test.use({ hasTouch: true });
 
 async function openBook(page: Page, format: "PDF" | "EPUB") {
   await page.goto("/");
-  await page.getByTitle("设置").click();
-  await page.getByRole("button", { name: /^阅读资料库/ }).click();
+  await openReadingLibrary(page);
   const mime = format === "PDF" ? "application/pdf" : "application/epub+zip";
   await page.locator(`input[type=file][accept="${mime},.${format.toLowerCase()}"]`).setInputFiles({
     name: `toolbar.${format.toLowerCase()}`, mimeType: mime,

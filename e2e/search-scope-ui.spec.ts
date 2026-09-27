@@ -6,7 +6,7 @@ for (const width of [390, 1280]) {
     await page.setViewportSize({ width, height: 800 });
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 25000 });
-    await page.keyboard.press("Control+Shift+f");
+    await page.keyboard.press("ControlOrMeta+Shift+f");
     const global = page.getByRole("textbox", { name: "全局搜索", exact: true });
     await expect(global).toBeFocused();
     await page.screenshot({ path: test.info().outputPath("search-scope.png") });

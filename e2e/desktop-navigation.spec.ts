@@ -91,7 +91,7 @@ for (const readonly of [false, true]) {
     await expect(input).toBeFocused();
     await input.press("Escape");
     await expect(input).toBeHidden();
-    for (const shortcut of ["Control+Shift+f", "Alt+e"]) {
+    for (const shortcut of ["ControlOrMeta+Shift+f", "Alt+e"]) {
       await page.keyboard.press(shortcut);
       await expect(input).toBeVisible();
       await expect(input).toBeFocused();
@@ -112,7 +112,7 @@ for (const readonly of [false, true]) {
     await title.click();
     await expect(page.locator(".properties-panel")).toBeVisible();
     await page.locator(".properties-close").click();
-    await page.keyboard.press("Control+Shift+f");
+    await page.keyboard.press("ControlOrMeta+Shift+f");
     await expect(input).toBeVisible();
     await expect(input).toBeFocused();
     await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);

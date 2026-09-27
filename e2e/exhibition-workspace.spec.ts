@@ -30,6 +30,7 @@ for (const style of ["calm", "mono-aware"] as const) {
     });
     await expect(sample).toBeVisible();
     await sample.click();
+    await expect(page.locator(".note-title")).toHaveValue("物哀、幽玄与侘寂：风格设计与验证");
     await expect(page.locator(".exhibition-masthead")).toBeVisible();
     const framedApp = page.locator(".is-exhibition > .app");
     await expect(framedApp).toHaveCSS("overflow", "hidden");
@@ -75,7 +76,7 @@ for (const style of ["calm", "mono-aware"] as const) {
         .first(),
     ).toBeVisible();
     await page.screenshot({
-      path: `/tmp/nr-exhibition-${style}-home.png`,
+      path: test.info().outputPath(`nr-exhibition-${style}-home.png`),
       animations: "disabled",
     });
     await page
@@ -121,7 +122,7 @@ for (const style of ["calm", "mono-aware"] as const) {
       /^(\d+(\.\d+)?px)$/,
     );
     await page.screenshot({
-      path: `/tmp/nr-exhibition-${style}-mobile.png`,
+      path: test.info().outputPath(`nr-exhibition-${style}-mobile.png`),
       animations: "disabled",
     });
   });
@@ -262,7 +263,7 @@ test("桌面展陈宽度和密度独立持久化，手机保持原布局", async
     const workspace = await page.locator(".titlebar-workspace").boundingBox();
     return leading!.width - workspace!.width;
   }).toBeGreaterThan(100);
-  await page.screenshot({ path: "/tmp/nr-exhibition-controls-desktop.png" });
+  await page.screenshot({ path: test.info().outputPath("nr-exhibition-controls-desktop.png") });
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByLabel("文本宽度", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("紧凑程度", { exact: true })).toHaveCount(0);

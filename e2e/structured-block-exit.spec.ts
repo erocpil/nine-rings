@@ -1,3 +1,4 @@
+import { pressLineBoundary } from "./helpers/keyboard";
 import { expect, test, type Page } from "@playwright/test";
 
 import { createBlankNote } from "./helpers/editor-fixtures";
@@ -15,7 +16,7 @@ test.describe("结构块退出行为", () => {
     const editor = page.locator(".ProseMirror");
     await editor.fill("first");
     await activateBlock(page, "⏹ 代码块");
-    await editor.press("End");
+    await pressLineBoundary(editor, "end");
     await editor.press("Enter");
     await editor.type("second");
 
@@ -32,7 +33,7 @@ test.describe("结构块退出行为", () => {
     await expect(gutter.locator("span")).toHaveText(["1", "2"]);
 
     const code = editor.locator(".code-block-wrap code");
-    await editor.press("End");
+    await pressLineBoundary(editor, "end");
     await editor.press("Enter");
     await editor.type("third");
     await expect(code).toHaveText("first\nsecond\nthird");
@@ -76,7 +77,7 @@ test.describe("结构块退出行为", () => {
     const editor = page.locator(".ProseMirror");
     await editor.fill("const answer = 42;");
     await activateBlock(page, "⏹ 代码块");
-    await editor.press("End");
+    await pressLineBoundary(editor, "end");
     await editor.press("Enter");
     await expect(editor.locator(".code-block-wrap code")).toHaveText("const answer = 42;\n");
     await editor.press("Enter");
@@ -95,13 +96,13 @@ test.describe("结构块退出行为", () => {
     const editor = page.locator(".ProseMirror");
     await editor.fill("undo-safe");
     await activateBlock(page, "⏹ 代码块");
-    await editor.press("End");
+    await pressLineBoundary(editor, "end");
     await editor.press("Enter");
     await editor.press("Enter");
     await editor.press("Enter");
     await expect(editor.locator(":scope > p")).toHaveCount(1);
 
-    await editor.press("Control+z");
+    await editor.press("ControlOrMeta+z");
     await expect(editor.locator(":scope > p")).toHaveCount(0);
     await expect(editor.locator(".code-block-wrap code")).toHaveText("undo-safe\n\n");
   });
@@ -111,7 +112,7 @@ test.describe("结构块退出行为", () => {
     const editor = page.locator(".ProseMirror");
     await editor.fill("keep-blank-lines");
     await activateBlock(page, "⏹ 代码块");
-    await editor.press("End");
+    await pressLineBoundary(editor, "end");
     await editor.press("Shift+Enter");
     await editor.press("Shift+Enter");
 
@@ -124,7 +125,7 @@ test.describe("结构块退出行为", () => {
     const editor = page.locator(".ProseMirror");
     await editor.fill("需要保留的引用");
     await activateBlock(page, "❝ 引用");
-    await editor.press("End");
+    await pressLineBoundary(editor, "end");
     await editor.press("Enter");
     const quoteParagraphs = editor.locator(":scope > blockquote p");
     await expect(quoteParagraphs).toHaveCount(2);
@@ -143,7 +144,7 @@ test.describe("结构块退出行为", () => {
     const editor = page.locator(".ProseMirror");
     await editor.fill("无需先制造空行");
     await activateBlock(page, "⏹ 代码块");
-    await editor.press("Control+Enter");
+    await editor.press("ControlOrMeta+Enter");
 
     await expect(editor.locator(".code-block-wrap code")).toHaveText("无需先制造空行");
     await expect(editor.locator(":scope > p")).toHaveCount(1);
@@ -167,7 +168,7 @@ test.describe("触屏代码块退出行为", () => {
     await editor.fill(lines[0]);
     await activateBlock(page, "⏹ 代码块");
     for (const line of lines.slice(1)) {
-      await editor.press("End");
+      await pressLineBoundary(editor, "end");
       await editor.press("Enter");
       await editor.type(line);
     }
@@ -235,7 +236,7 @@ test.describe("触屏代码块退出行为", () => {
     const editor = page.locator(".ProseMirror");
     await editor.fill("mobile-code");
     await activateBlock(page, "⏹ 代码块");
-    await editor.press("End");
+    await pressLineBoundary(editor, "end");
     await editor.press("Enter");
     await editor.press("Enter");
 
@@ -252,7 +253,7 @@ test.describe("触屏代码块退出行为", () => {
     const editor = page.locator(".ProseMirror");
     await editor.fill("mobile-code");
     await activateBlock(page, "⏹ 代码块");
-    await editor.press("End");
+    await pressLineBoundary(editor, "end");
     await editor.press("Enter");
     await editor.press("Enter");
 

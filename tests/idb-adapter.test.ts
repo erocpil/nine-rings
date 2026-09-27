@@ -22,7 +22,7 @@ if (typeof localStorage === "undefined") {
   };
 }
 
-import type { Note, Todo, PathNode } from "../src/types/models";
+import type { Note, PathNode } from "../src/types/models";
 import { idbAdapter } from "../src/lib/storage/idb";
 
 let passed = 0;
@@ -58,7 +58,7 @@ async function runTests() {
     assert(note.pinned === false, "pinned=false");
     assert(!!note.created_at, "created_at assigned");
     assert(!note.deleted_at, "deleted_at is null");
-    assert(!note.storagePath, "storagePath is undefined (essay)");
+    assert(note.storagePath === "references", "missing path defaults to references");
 
     const doc = await idbAdapter.createNote({ date: "2026-07-15", title: "My Doc", storagePath: "projects/test", docType: "how-to" });
     assert(doc.storagePath === "projects/test", "doc storagePath preserved");
@@ -184,30 +184,6 @@ async function runTests() {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 9. 每日页面
-  // ═══════════════════════════════════════════════════════════════
-  {
-    console.log("\n── Daily page ──");
-    const page = await idbAdapter.getDailyPage("2026-07-25");
-    assert(page.date === "2026-07-25", "date correct");
-    assert(Array.isArray(page.todos), "todos is array");
-    const defaultCarryoverPage = await idbAdapter.getDailyPage("2026-07-24", true);
-    assert(defaultCarryoverPage.todo_carryover, "new daily page uses configured carryover default");
-
-    const todos: Todo[] = [
-      { id: "t1", text: "Task 1", done: false, order: 0, tags: [] },
-      { id: "t2", text: "Task 2", done: true, order: 1, tags: ["urgent"] },
-    ];
-    const updated = await idbAdapter.updateTodos({ date: "2026-07-25", todos, todo_carryover: true });
-    assert(updated.todos.length === 2, "2 todos");
-    assert(updated.todos[0].text === "Task 1", "todo text preserved");
-    assert(updated.todo_carryover === true, "carryover=true");
-
-    const all = await idbAdapter.getAllDailyPages();
-    assert(all.length >= 1, "getAllDailyPages returns pages");
-  }
-
-  // ═══════════════════════════════════════════════════════════════
   // 10. 标签
   // ═══════════════════════════════════════════════════════════════
   {
@@ -246,8 +222,8 @@ async function runTests() {
     const docA = tree.find((n: PathNode) => n.path.startsWith("projects/alpha/") && n.type === "document" && n.name === "Project A");
     assert(!!docA, "document node exists");
     const dailyFolder = tree.find((n: PathNode) => n.path === "daily" && n.type === "folder");
-    assert(!!dailyFolder, "daily/ folder exists");
-    const documentOnlyTree = await idbAdapter.getPathTree(false);
+    assert(!dailyFolder, "no virtual daily folder");
+    const documentOnlyTree = await idbAdapter.getPathTree();
     assert(!documentOnlyTree.some((n: PathNode) => n.path === "daily"),
       "document-only tree skips all daily nodes");
     assert(documentOnlyTree.some((n: PathNode) => n.path === "projects/alpha"),
@@ -265,18 +241,16 @@ async function runTests() {
     await idbAdapter.createNote({ date: "2026-07-15", title: "Percent sibling", storagePath: "projects/100X_done/child" });
     const literalPathNotes = await idbAdapter.getNotesByPath("projects/100%_done");
     assert(literalPathNotes.length === 1 && literalPathNotes[0].title === "Percent child", "path metacharacters are matched literally");
-    const dailyOnly = await idbAdapter.getNotesByPath("daily/2026-07-15");
-    assert(dailyOnly.every((note) => !note.storagePath), "daily path excludes documents with the same date");
     const howtoDocs = await idbAdapter.searchDocs({ docType: "how-to" });
     assert(howtoDocs.length >= 1, "docType filter works");
-    // searchDocs 是文档搜索：只返回 storagePath 非空的文档，排除带同 concept 的随笔
+    // searchDocs 是文档搜索：返回同 concept 的文档
     const sharedConcept = "共享概念";
     await idbAdapter.createNote({ date: "2026-07-15", title: "概念文档", storagePath: "projects/concept-doc", concepts: [sharedConcept] });
-    await idbAdapter.createNote({ date: "2026-07-15", title: "概念随笔", concepts: [sharedConcept] });
+    await idbAdapter.createNote({ date: "2026-07-15", title: "默认目录文档", concepts: [sharedConcept] });
     const conceptDocs = await idbAdapter.searchDocs({ concept: sharedConcept });
     assert(conceptDocs.length >= 1, "concept 查询返回关联文档");
-    assert(conceptDocs.every((n) => n.storagePath), "searchDocs 只返回文档，排除随笔");
-    assert(!conceptDocs.some((n) => n.title === "概念随笔"), "带同 concept 的随笔不出现在文档搜索中");
+    assert(conceptDocs.every((n) => n.storagePath), "搜索结果具有文档目录");
+    assert(conceptDocs.some((n) => n.title === "默认目录文档"), "默认目录文档可按 concept 搜索");
     const concepts = await idbAdapter.getAllConcepts();
     assert(Array.isArray(concepts), "getAllConcepts returns array");
   }
@@ -391,8 +365,8 @@ async function runTests() {
     assert(rejected, "folder move rejects cycles");
 
     rejected = false;
-    try { await idbAdapter.relocateFolder("archives", "daily/archive"); } catch { rejected = true; }
-    assert(rejected, "folder move rejects daily namespace");
+    try { await idbAdapter.relocateFolder("archives", "../archive"); } catch { rejected = true; }
+    assert(rejected, "folder move rejects parent traversal");
 
     const rollbackA = await idbAdapter.createNote({
       date: "2026-07-22",
@@ -462,10 +436,9 @@ async function runTests() {
           sort_order: 1,
           created_at: "2026-01-01T00:00:00Z",
           updated_at: "2026-07-15T00:00:00Z",
-          // 无 storage_path → 随笔
+          // 兼容缺省 storage_path 字段
         },
       ],
-      daily_pages: [],
     };
 
     const result = await idbAdapter.importData(JSON.stringify(rustExport));
@@ -478,7 +451,7 @@ async function runTests() {
     assert(doc!.concepts!.length === 2, "concepts preserved");
     assert(doc!.linkedDocIds!.includes("other-doc"), "snake_case linked_doc_ids → linkedDocIds");
 
-    // 验证随笔：无 storagePath
+    // 验证缺省路径字段导入
     const essay = await idbAdapter.getNote("rust-essay-1");
     assert(!essay!.storagePath, "essay has no storagePath");
 
@@ -509,7 +482,6 @@ async function runTests() {
         created_at: "2026-08-01T00:00:00Z",
         updated_at: "2026-08-01T00:00:00Z",
       }],
-      daily_pages: [],
     };
     await idbAdapter.importData(JSON.stringify(replacement), "replace");
     assert(await idbAdapter.getNote(stale.id) === null, "replace removes local-only notes");

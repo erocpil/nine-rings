@@ -1,11 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { createBlankDocument } from "./helpers/document";
 
 test("密码文档可编辑、重新锁定且全局搜索不泄露解锁正文", async ({ page }) => {
-  await page.goto("/");
+  await createBlankDocument(page, "公开的加密测试标题");
   const editor = page.locator(".ProseMirror");
   await expect(editor).toBeVisible();
-  await page.locator(".note-title").fill("公开的加密测试标题");
   await editor.fill("cipher-e2e-secret 这是需要保护的正文");
+  await page.getByTitle("显示属性面板", { exact: true }).click();
   await page.getByRole("button", { name: "设置文档密码", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "设置文档密码", exact: true });
   await dialog.getByLabel("密码", { exact: true }).fill("password-123456");
@@ -22,7 +23,7 @@ test("密码文档可编辑、重新锁定且全局搜索不泄露解锁正文",
   await unlock.getByRole("button", { name: "验证密码" }).click();
   await expect(editor).toContainText("cipher-e2e-secret");
   await editor.fill("cipher-edited-secret 保存后也应为密文");
-  await page.getByRole("button", { name: "锁定文档", exact: true }).click();
+  await page.getByRole("button", { name: "正文已加密，锁定文档", exact: true }).click();
   await expect(editor).toHaveCount(0);
   await page.getByRole("button", { name: "输入密码打开" }).click();
   await unlock.getByLabel("密码", { exact: true }).fill("password-123456");
@@ -42,7 +43,7 @@ test("密码文档可编辑、重新锁定且全局搜索不泄露解锁正文",
   expect(stored).not.toContain("cipher-edited-secret");
   expect(stored).not.toContain("cipher-e2e-secret");
   expect(stored).toContain('"encrypted"');
-  await page.keyboard.press("Control+p");
+  await page.keyboard.press("ControlOrMeta+p");
   const switcher = page.getByRole("dialog", { name: "快速切换笔记" });
   await switcher.getByRole("combobox").fill("cipher-edited-secret");
   await expect(switcher).not.toContainText("公开的加密测试标题");

@@ -119,7 +119,23 @@ export const DocumentBookmarks = Extension.create<BookmarkOptions>({
 
   addKeyboardShortcuts() {
     return {
-      "Mod-Shift-m": () => toggleBookmark(this.editor),
+      "Mod-Shift-m": () => {
+        const { view } = this.editor;
+        let position = view.state.selection.head;
+        const selection = view.dom.ownerDocument.getSelection();
+        // Touch can move the browser caret before selectionchange reaches
+        // ProseMirror. At this keyboard boundary use the focused native head;
+        // toolbar/programmatic operations still use the model selection.
+        if (view.hasFocus() && view.state.selection instanceof TextSelection
+          && selection?.focusNode && selection.anchorNode
+          && view.dom.contains(selection.focusNode) && view.dom.contains(selection.anchorNode)) {
+          try {
+            const nativePosition = view.posAtDOM(selection.focusNode, selection.focusOffset);
+            if (nativePosition >= 0 && nativePosition <= view.state.doc.content.size) position = nativePosition;
+          } catch { /* A detached NodeView falls back to the current model. */ }
+        }
+        return dispatchMeta(view, { type: "toggle", position });
+      },
     };
   },
 

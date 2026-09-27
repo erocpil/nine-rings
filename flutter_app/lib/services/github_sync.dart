@@ -308,7 +308,7 @@ String _latestPath(String basePath) {
 typedef ExportFn = Future<String> Function();
 
 /// 从 JSON 字符串导入全量数据
-typedef ImportFn = Future<({int notesImported, int pagesImported})> Function(
+typedef ImportFn = Future<({int notesImported})> Function(
   String json,
 );
 

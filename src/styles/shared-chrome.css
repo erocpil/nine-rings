@@ -70,46 +70,11 @@
 }
 
 /* Modal backdrop */
-:is(
-  .confirm-overlay,
-  .version-overlay,
-  .recycle-overlay,
-  .overdue-overlay,
-  .dialog-overlay,
-  .image-dialog-overlay
-) {
-  position: fixed;
-  inset: 0;
-  z-index: 1200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  background: var(--ui-overlay);
-  backdrop-filter: blur(2px);
-  animation: fadeIn 0.15s ease;
-}
 
 /* Dialog/popover shell */
-:is(
-  .version-panel,
-  .recycle-panel,
-  .overdue-panel,
-  .image-dialog,
-  .dialog,
-  .quick-switcher,
-  .template-popover
-) {
-  border: 1px solid var(--border);
-  border-radius: var(--ui-radius-popover);
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--ui-shadow-dialog);
-}
 
 .version-panel,
-.recycle-panel,
-.overdue-panel {
+.recycle-panel {
   width: min(560px, calc(100vw - 32px));
   min-width: 0;
   max-width: none;
@@ -119,164 +84,34 @@
 }
 
 /* Fixed panel/popover header */
-:is(
-  .version-header,
-  .recycle-header,
-  .overdue-header,
-  .image-dialog-header,
-  .dialog-header,
-  .template-popover-header,
-  .properties-header,
-  .debug-panel-header
-) {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: var(--ui-panel-header-height);
-  margin: 0;
-  padding: 8px var(--ui-panel-padding);
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 88%, var(--bg));
-}
-
-:is(
-  .version-header,
-  .recycle-header,
-  .overdue-header,
-  .image-dialog-header,
-  .dialog-header,
-  .template-popover-header,
-  .properties-header,
-  .debug-panel-header
-) :is(h2, h3, strong) {
-  margin: 0;
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 600;
-}
 
 /* Quiet square actions, shared with outline/bookmark controls. */
-:is(
-  .version-close,
-  .recycle-close,
-  .overdue-close,
-  .image-dialog-close,
-  .dialog-close,
-  .template-popover-close,
-  .properties-close,
-  .search-results-header button,
-  .mobile-action-sheet-header button
-) {
-  display: inline-grid;
-  place-items: center;
-  width: var(--ui-icon-button-size);
-  height: var(--ui-icon-button-size);
-  min-width: var(--ui-icon-button-size);
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--ui-radius-medium);
-  background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-:is(
-  .version-close,
-  .recycle-close,
-  .overdue-close,
-  .image-dialog-close,
-  .dialog-close,
-  .template-popover-close,
-  .properties-close,
-  .search-results-header button,
-  .mobile-action-sheet-header button
-):hover {
-  border-color: var(--border);
-  background: var(--bg);
-  color: var(--text);
-}
 
 .version-content,
-.recycle-content,
-.overdue-items {
+.recycle-content {
   max-height: calc(min(76vh, 680px) - var(--ui-panel-header-height));
   overflow-y: auto;
   padding: 8px;
 }
 
 .version-content,
-.recycle-content,
-.overdue-items,
-.overdue-empty {
+.recycle-content {
   min-width: 0;
 }
 
-.overdue-header {
-  box-sizing: border-box;
-}
-
 /* Empty/loading states */
-:is(
-  .version-empty,
-  .version-loading,
-  .recycle-empty,
-  .recycle-loading,
-  .overdue-empty,
-  .template-loading,
-  .template-empty,
-  .quick-switcher-empty,
-  .settings-empty-state
-) {
-  padding: 28px 16px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  text-align: center;
-}
 
 /* Reusable list-row treatment */
-:is(
-  .version-item,
-  .recycle-item,
-  .overdue-item,
-  .search-hit,
-  .quick-switcher-item,
-  .template-item,
-  .prop-link-item
-) {
-  border: 1px solid transparent;
-  border-radius: var(--ui-radius-medium);
-  background: transparent;
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
-}
-
-:is(
-  .version-item,
-  .recycle-item,
-  .overdue-item,
-  .search-hit,
-  .quick-switcher-item,
-  .template-item,
-  .prop-link-item
-):hover {
-  border-color: color-mix(in srgb, var(--border) 78%, transparent);
-  background: var(--hover-bg);
-}
 
 .version-item,
-.recycle-item,
-.overdue-item {
+.recycle-item {
   min-height: 52px;
   margin: 0 0 var(--ui-list-gap);
   padding: 8px 10px;
 }
 
 .version-item:last-child,
-.recycle-item:last-child,
-.overdue-item:last-child {
+.recycle-item:last-child {
   margin-bottom: 0;
 }
 
@@ -318,100 +153,15 @@
 }
 
 /* Compact action buttons */
-:is(
-  .version-btn-restore,
-  .version-restore-btn,
-  .recycle-btn-restore,
-  .recycle-btn-delete,
-  .recycle-btn-clean,
-  .search-load-more,
-  .overdue-date,
-  .overdue-delete
-) {
-  min-height: var(--ui-control-height);
-  padding: 4px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--ui-radius-medium);
-  background: var(--bg);
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-:is(
-  .version-btn-restore,
-  .version-restore-btn,
-  .recycle-btn-restore,
-  .search-load-more,
-  .overdue-date
-):hover {
-  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
-  background: var(--active-bg);
-  color: var(--accent);
-}
 
 .recycle-btn-delete:hover,
-.recycle-btn-clean:hover,
-.overdue-delete:hover {
+.recycle-btn-clean:hover {
   border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
   background: var(--danger-bg);
   color: var(--danger);
 }
 
-.overdue-checkbox {
-  accent-color: var(--accent);
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
 /* Form controls */
-:is(
-  .image-dialog-input,
-  .dialog-input,
-  .dialog-select,
-  .settings-input,
-  .prop-input,
-  .prop-path-input,
-  .prop-path-select,
-  .search-input,
-  .search-filter-input,
-  .search-filter-select,
-  .date-input,
-  .todo-remind-input,
-  .pdf-reader-toolbar input,
-  .epub-note-popover textarea
-) {
-  min-height: var(--ui-control-height);
-  border: 1px solid var(--border);
-  border-radius: var(--ui-radius-medium);
-  background: var(--bg);
-  color: var(--text);
-  font: inherit;
-}
-
-:is(
-  .image-dialog-input,
-  .dialog-input,
-  .dialog-select,
-  .settings-input,
-  .prop-input,
-  .prop-path-input,
-  .prop-path-select,
-  .search-input,
-  .search-filter-input,
-  .search-filter-select,
-  .date-input,
-  .todo-remind-input,
-  .pdf-reader-toolbar input,
-  .epub-note-popover textarea
-):focus {
-  border-color: var(--accent);
-  outline: 3px solid var(--ui-focus-ring);
-  outline-offset: 0;
-}
 
 .image-dialog {
   width: min(440px, calc(100vw - 32px));
@@ -526,8 +276,7 @@
   color: var(--accent);
 }
 
-.quick-switcher,
-.template-popover {
+.quick-switcher {
   box-shadow: var(--ui-shadow-popover);
 }
 
@@ -535,10 +284,6 @@
   border-color: color-mix(in srgb, var(--accent) 34%, transparent);
   background: var(--active-bg);
   color: var(--accent);
-}
-
-.template-popover-header {
-  min-height: 40px;
 }
 
 .template-list {
@@ -551,25 +296,7 @@
   border-radius: var(--ui-radius-medium) var(--ui-radius-medium) 0 0;
 }
 
-.template-popover-footer {
-  padding: 8px var(--ui-panel-padding);
-  background: color-mix(in srgb, var(--surface) 88%, var(--bg));
-}
-
 /* Daily workspace chrome */
-.date-display {
-  min-height: var(--ui-control-height);
-  padding: 3px 7px;
-  border: 1px solid transparent;
-  border-radius: var(--ui-radius-medium);
-}
-
-.date-display:hover,
-.date-display:focus-visible {
-  border-color: var(--border);
-  background: var(--hover-bg);
-  outline: none;
-}
 
 .search-input {
   min-height: var(--ui-control-height);
@@ -591,42 +318,10 @@
 
 .search-filters,
 .search-filter-suggestions,
-.sort-dropdown-list,
-.todo-remind-picker {
+.sort-dropdown-list {
   border-radius: var(--ui-radius-large);
   background: var(--surface);
   box-shadow: var(--ui-shadow-popover);
-}
-
-.tag-filter-chip {
-  border-radius: 999px;
-  background: var(--bg);
-}
-
-.tag-filter-chip.active {
-  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
-  background: var(--active-bg);
-  color: var(--accent);
-}
-
-.sidebar-item {
-  min-height: 36px;
-  margin: 1px 4px;
-  border-left: 0;
-  border-radius: var(--ui-radius-medium);
-}
-
-.sidebar-item:hover {
-  background: var(--hover-bg);
-}
-
-.sidebar-item.active,
-.sidebar-item.selected {
-  border-left: 0;
-  background: var(--active-bg);
-  color: var(--accent);
-  box-shadow: inset 2px 0 var(--accent);
-  outline: 0;
 }
 
 .sidebar-recycle-btn {
@@ -639,41 +334,6 @@
 
 .sidebar-recycle-btn:hover {
   border-color: var(--border);
-  background: var(--bg);
-}
-
-.todo-item {
-  min-height: 32px;
-  margin-bottom: 2px;
-  padding-block: 4px;
-  padding-right: 6px;
-  border: 1px solid transparent;
-  border-radius: var(--ui-radius-medium);
-}
-
-.todo-item:hover {
-  border-color: color-mix(in srgb, var(--border) 72%, transparent);
-  background: var(--hover-bg);
-}
-
-.todo-input,
-.todo-edit-input {
-  min-height: var(--ui-control-height);
-  padding: 4px 7px;
-  border: 1px solid var(--border);
-  border-radius: var(--ui-radius-medium);
-  background: var(--bg);
-}
-
-.todo-input:focus,
-.todo-edit-input:focus {
-  border-color: var(--accent);
-  outline: 3px solid var(--ui-focus-ring);
-}
-
-.todo-export-panel {
-  overflow: hidden;
-  border-radius: var(--ui-radius-large);
   background: var(--bg);
 }
 
@@ -699,38 +359,6 @@
 }
 
 /* Compact capture window uses the same header/footer treatment. */
-.qc-container {
-  background: var(--surface);
-}
-
-.qc-drag-handle,
-.qc-footer {
-  background: color-mix(in srgb, var(--surface) 88%, var(--bg));
-}
-
-.qc-drag-handle {
-  min-height: 32px;
-  font-weight: 600;
-}
-
-.qc-textarea {
-  margin: 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--ui-radius-large);
-  background: var(--bg);
-  user-select: text;
-}
-
-.qc-textarea:focus {
-  border-color: var(--accent);
-  outline: 3px solid var(--ui-focus-ring);
-}
-
-.qc-submit {
-  min-height: var(--ui-control-height);
-  border-radius: var(--ui-radius-medium);
-}
 
 /* Reader chrome only: the page/chapter canvas remains untouched. */
 .pdf-reader-toolbar {
@@ -784,21 +412,9 @@
 }
 
 @media (max-width: 600px) {
-  :is(
-    .confirm-overlay,
-    .version-overlay,
-    .recycle-overlay,
-    .overdue-overlay,
-    .dialog-overlay,
-    .image-dialog-overlay
-  ) {
-    align-items: flex-end;
-    padding: 8px;
-  }
 
   .version-panel,
   .recycle-panel,
-  .overdue-panel,
   .image-dialog,
   .dialog {
     width: 100%;
@@ -818,21 +434,13 @@
   }
 
   .version-content,
-  .recycle-content,
-  .overdue-items {
+  .recycle-content {
     max-height: calc(84dvh - var(--ui-panel-header-height) - 16px);
   }
 
   .version-item,
-  .recycle-item,
-  .overdue-item {
+  .recycle-item {
     min-height: 56px;
-  }
-
-  .qc-hint {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   /* iOS keeps fixed elements in the layout viewport while the keyboard only
@@ -1269,6 +877,16 @@
   position: fixed;
   top: var(--document-panel-anchor-top, 42px);
   max-height: min(58dvh, calc(var(--app-viewport-height, 100dvh) + var(--app-visual-viewport-offset-top, 0px) - var(--document-panel-anchor-top, 42px) - 12px));
+}
+/* Keep the title tappable when the focus toolbar adds its editing toggle. */
+@media (max-width: 360px) {
+  .app.app-mobile-workspace .note-title-row { gap: 1px; }
+  .app.app-mobile-workspace .note-title-field { min-width: 24px; }
+  .app.app-mobile-workspace .note-title-row :is(.focus-btn, .document-outline-toggle) {
+    flex-basis: 28px;
+    width: 28px;
+    min-width: 28px;
+  }
 }
 @media (pointer: coarse) and (orientation: landscape) and (max-height: 600px) {
   .app.app-mobile-workspace .note-title-row > .focus-btn,

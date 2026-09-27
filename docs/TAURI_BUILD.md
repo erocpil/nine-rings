@@ -2,9 +2,13 @@
 
 Nine Rings 使用 Tauri v2 打包为桌面应用，支持 macOS（`.dmg`）、Linux（`.deb` / `.AppImage`）和 Windows（`.msi` / `.exe`）。
 
-`main` 分支推送后会自动构建 Linux x86_64 的 `.deb` 与 `.AppImage`，上传短期 CI artifact，并创建带 SHA-256 校验文件的 GitHub prerelease。
+macOS ARM64 和 Windows 工作流在 `main` 推送及 PR 时运行；Linux x86_64 工作流当前通过 `workflow_dispatch` 手动触发。具体触发条件和产物以 `.github/workflows/tauri-*.yml` 为准。
 
 ---
+
+## 当前项目的固定工具链
+
+本地验证优先使用[隔离工具链与安装记录](local-toolchain.md)：Node 22.23.3、Rust 1.98.1、项目内 Tauri CLI 和已跟踪的 `src-tauri/Cargo.lock`。所有构建使用 `--locked`。以下旧环境安装示例用于平台依赖参考，不替代上述固定版本。
 
 ## 构建流程总览
 

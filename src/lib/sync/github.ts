@@ -173,7 +173,6 @@ export interface SyncSnapshotSummary {
   version: string | null;
   exportedAt: string | null;
   noteCount: number;
-  pageCount: number;
   size: number;
   backupDevice?: {
     id?: string;
@@ -269,7 +268,6 @@ function summarizeBackup(json: string): SyncSnapshotSummary {
       version?: string;
       exported_at?: string;
       notes?: unknown[];
-      daily_pages?: unknown[];
       backup_metadata?: {
         device?: {
           id?: string;
@@ -284,7 +282,6 @@ function summarizeBackup(json: string): SyncSnapshotSummary {
       version: data.version ?? null,
       exportedAt: data.exported_at ?? null,
       noteCount: Array.isArray(data.notes) ? data.notes.length : 0,
-      pageCount: Array.isArray(data.daily_pages) ? data.daily_pages.length : 0,
       size: new TextEncoder().encode(json).length,
       backupDevice: metadata
         ? {
@@ -300,7 +297,6 @@ function summarizeBackup(json: string): SyncSnapshotSummary {
       version: null,
       exportedAt: null,
       noteCount: 0,
-      pageCount: 0,
       size: new TextEncoder().encode(json).length,
       backupDevice: undefined,
     };
@@ -655,12 +651,10 @@ function dumpBundle(label: string, json: string): void {
 
   if (!isRecord(data)) { addLog(`[Sync] ${label}: <无效备份对象>`); return; }
   const notes = Array.isArray(data.notes) ? data.notes.map(backupLogNote).filter((note): note is BackupLogNote => note !== null) : [];
-  const pages = Array.isArray(data.daily_pages) ? data.daily_pages.filter(isRecord) : [];
   const sizeKB = (new TextEncoder().encode(json).length / 1024).toFixed(1);
 
   // 分类统计
   const docNotes  = notes.filter((n) => n.storagePath);
-  const essays    = notes.filter((n) => !n.storagePath);
   const typeCount: Record<string, number> = {};
   for (const n of docNotes) {
     const dt = n.docType ?? "未设置";
@@ -674,7 +668,7 @@ function dumpBundle(label: string, json: string): void {
     ? `${logString(source.name, "未知设备")} (ID: ${logString(source.id, "none")})`
     : "未携带备份元数据";
   addLog(`[Sync] ├─ 大小: ${sizeKB} KB  |  版本: ${data.version ?? "?"}  |  导出: ${logString(data.exported_at).slice(0, 19)}  |  来源: ${sourceLabel}`);
-  addLog(`[Sync] ├─ 笔记: ${notes.length} 篇  (文档 ${docNotes.length} + 随笔 ${essays.length})`);
+  addLog(`[Sync] ├─ 文档: ${notes.length} 篇`);
   if (docNotes.length > 0) {
     const typeStr = Object.entries(typeCount).map(([k, v]) => `${k}:${v}`).join("  ");
     addLog(`[Sync] │  文档类型分布: ${typeStr}`);
@@ -686,29 +680,6 @@ function dumpBundle(label: string, json: string): void {
     dumpDocTree(docNotes);
   }
 
-  // ── 随笔列表 ──
-  if (essays.length > 0) {
-    addLog(`[Sync] ├─ 📄 随笔 (${essays.length} 篇):`);
-    const showEssays = essays.slice(0, 15);
-    showEssays.forEach((n, i) => {
-      const isLast = i === showEssays.length - 1;
-      const prefix = isLast ? "└" : "├";
-      const date = (n.date ?? "").slice(0, 10);
-      const tags = n.tags?.length ? `  [${n.tags.join(", ")}]` : "";
-      addLog(`[Sync] │  ${prefix}─ ${(n.id ?? "?").slice(0, 8)}  "${(n.title ?? "无标题").slice(0, 24)}"  ${date}${tags}`);
-    });
-    if (essays.length > 15) addLog(`[Sync] │  └─ ... 还有 ${essays.length - 15} 篇`);
-  }
-
-  addLog(`[Sync] ├─ 每日页面: ${pages.length} 页`);
-  const showPages = pages.slice(0, 15);
-  showPages.forEach((p, i) => {
-    const isLast = i === showPages.length - 1;
-    const prefix = isLast ? "└" : "├";
-    const todoCount = Array.isArray(p.todos) ? p.todos.length : 0;
-    addLog(`[Sync] │  ${prefix}─ ${p.date}  (${todoCount} todos)`);
-  });
-  if (pages.length > 15) addLog(`[Sync] │  └─ ... 还有 ${pages.length - 15} 页`);
   addLog("");
 }
 
@@ -928,7 +899,7 @@ async function pullWithRestoreLock(config: SyncConfig, options: PullOptions, con
   }
 
   const bundle = JSON.parse(remote.content);
-  addLog(`[Sync] Pull ✓ 完成（${mode === "safe-merge" ? "安全合并" : "全量覆盖"}）— 远端 ${bundle.notes?.length ?? 0} 笔记 + ${bundle.daily_pages?.length ?? 0} 页面`);
+  addLog(`[Sync] Pull ✓ 完成（${mode === "safe-merge" ? "安全合并" : "全量覆盖"}）— 远端 ${bundle.notes?.length ?? 0} 文档`);
   addLog("[Sync] 刷新页面后生效");
   addLog("");
 

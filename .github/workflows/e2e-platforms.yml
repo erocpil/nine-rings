@@ -1,0 +1,81 @@
+name: E2E Native Platforms
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "e2e/**"
+      - "public/**"
+      - "package*.json"
+      - ".node-version"
+      - "playwright*.config.ts"
+      - "vite.config.*"
+      - ".github/workflows/e2e-platforms.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "e2e/**"
+      - "public/**"
+      - "package*.json"
+      - ".node-version"
+      - "playwright*.config.ts"
+      - "vite.config.*"
+      - ".github/workflows/e2e-platforms.yml"
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "Native platform regressions, or full E2E including production/PWA"
+        type: choice
+        options: [platforms, full]
+        default: platforms
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: ${{ matrix.os }} / ${{ matrix.browser }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-14, windows-2022]
+        browser: [chromium, webkit]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: ".node-version"
+          cache: npm
+      - run: npm ci
+      - name: Install browser and host dependencies
+        id: browser
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Native platform regressions
+        if: inputs.suite != 'full'
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/platforms.json
+        run: npm run test:e2e:platforms -- --browser=${{ matrix.browser }} --reporter=line,json --output=test-results/platforms
+      - name: Full default suite
+        if: inputs.suite == 'full'
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/full.json
+        run: npx playwright test --browser=${{ matrix.browser }} --workers=2 --reporter=line,json --output=test-results/full
+      - name: Production/PWA suite
+        if: ${{ !cancelled() && inputs.suite == 'full' && steps.browser.outcome == 'success' }}
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/production.json
+        run: |
+          npm run build
+          npx playwright test --config=playwright.pwa.config.ts --browser=${{ matrix.browser }} --workers=1 --reporter=line,json --output=test-results/production
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: e2e-${{ matrix.os }}-${{ matrix.browser }}
+          path: test-results/
+          retention-days: 7

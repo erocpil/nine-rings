@@ -58,7 +58,7 @@ function FolderPropertiesPanel({
     setPathLoading(true);
     try {
       const [nodes, notes] = await Promise.all([
-        api.docs.tree(false),
+        api.docs.tree(),
         api.docs.listByPath(path),
       ]);
       if (requestId !== requestIdRef.current) return;
@@ -175,7 +175,7 @@ function FolderPropertiesPanel({
           <div className="prop-label">路径</div>
           <div className="prop-empty">{path}</div>
           <PropertyRename key={path} kind="路径" value={pathName}
-            disabled={securityDisabled || pathBusy || path === "daily" || path.startsWith("daily/")} onRename={onRename} />
+            disabled={securityDisabled || pathBusy} onRename={onRename} />
           <button
             type="button"
             className="settings-sm-btn"

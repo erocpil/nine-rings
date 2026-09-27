@@ -182,7 +182,7 @@ test("本地 PDF 从阅读资料库导入后在独立阅读器打开并可再次
 
   // The reader is a workspace pane; its shortcuts require focus in that pane.
   await page.getByLabel("PDF 页码", { exact: true }).focus();
-  await page.keyboard.press("Control+f");
+  await page.keyboard.press("ControlOrMeta+f");
   await expect(page.getByLabel("搜索 PDF")).toBeFocused();
   await page.getByLabel("搜索 PDF").fill("Nine Rings");
   await page.getByRole("button", { name: "下一个搜索结果" }).click();

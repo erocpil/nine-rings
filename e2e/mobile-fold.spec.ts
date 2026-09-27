@@ -1,31 +1,20 @@
+import { closeDocumentSidebar } from "./helpers/workspace";
+import { createDocumentInWorkspace } from "./helpers/document";
 import { expect, test, type Locator } from "@playwright/test";
 
 test("引用块折叠状态在切换文档后保持", async ({ page }) => {
   await page.goto("/");
-  await page.getByTitle("随笔").click();
-
-  const createBlankNote = async (title: string) => {
-    await page.getByTitle("从模板新建").click();
-    await page.getByRole("button", { name: /^📝 空白笔记/ }).click();
-    const titleInput = page.getByRole("textbox", { name: "文档标题", exact: true });
-    await expect(titleInput).toHaveValue("新随笔");
-    await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText("新随笔");
-    await titleInput.fill(title);
-    await expect(titleInput).toHaveValue(title);
-    await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
-    await expect(page.locator(".sidebar-item.active .sidebar-item-title")).toHaveText(title);
-  };
+  const createBlankNote = (title: string) => createDocumentInWorkspace(page, title);
 
   await createBlankNote("引用折叠文档 A");
   const editor = page.locator(".ProseMirror");
   await editor.fill("引用正文");
-  await editor.press("Control+Shift+b");
+  await editor.press("ControlOrMeta+Shift+b");
   await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
 
   await createBlankNote("引用折叠文档 B");
-  await expect(page.locator(".save-status-saved")).toBeVisible({ timeout: 5000 });
-  const noteA = page.locator('.sidebar-item-title[title="引用折叠文档 A"]');
-  const noteB = page.locator('.sidebar-item-title[title="引用折叠文档 B"]');
+  const noteA = page.locator('.doc-tree-doc .doc-tree-name[title="引用折叠文档 A"]');
+  const noteB = page.locator('.doc-tree-doc .doc-tree-name[title="引用折叠文档 B"]');
   await noteA.click();
 
   const quote = editor.locator("blockquote");
@@ -68,9 +57,12 @@ test.describe("手机安装版折叠操作", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 
   test("真实触摸可切换标题、目录批量折叠和引用块", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/");
+    await createDocumentInWorkspace(page, "触摸折叠回归");
+    await page.setViewportSize({ width: 390, height: 760 });
+    await closeDocumentSidebar(page);
     const editor = page.locator(".ProseMirror");
-    await editor.fill("");
     await editor.evaluate((element) => {
       const clipboardData = new DataTransfer();
       clipboardData.setData("text/plain", "# 触摸章节\n\n章节正文\n\n> 引用正文\n\n# 末章\n\n末章正文");
@@ -136,15 +128,11 @@ test.describe("手机安装版折叠操作", () => {
   test("只读文档仍可展开和折叠引用块", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/");
-    await page.getByTitle("随笔").click();
+    await createDocumentInWorkspace(page);
     const editor = page.locator(".ProseMirror");
     await editor.fill("只读引用正文");
-    await editor.press("Control+Shift+b");
-    const activeNote = page.locator(".sidebar-item.active");
-    await activeNote.getByRole("button", { name: /更多随笔操作/ }).click();
-    await page.getByRole("dialog", { name: /随笔：/ })
-      .getByRole("button", { name: "🔒 设为只读" })
-      .click();
+    await editor.press("ControlOrMeta+Shift+b");
+    await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
     await page.setViewportSize({ width: 390, height: 760 });
     await page.locator(".sidebar-overlay.active").evaluate((element) => (element as HTMLElement).click());
     await expect(page.locator(".sidebar-overlay.active")).toHaveCount(0);

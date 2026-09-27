@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useState, type RefObject } from "react";
 import type { Note } from "../types/models";
 import { api } from "../lib/api";
 import { isDelta } from "../lib/delta-converter";
@@ -13,9 +13,6 @@ interface EditorStartupOptions {
   selectedNoteId: string | null;
   selectedNoteRef: RefObject<Note>;
   startupRestoreComplete: boolean;
-  startupDateLoadPending: boolean;
-  currentDate: string;
-  setDate: (date: string) => Promise<void>;
 }
 
 async function prepareEditorDocument(note: Note): Promise<void> {
@@ -33,9 +30,6 @@ export function useEditorStartup({
   selectedNoteId,
   selectedNoteRef,
   startupRestoreComplete,
-  startupDateLoadPending,
-  currentDate,
-  setDate,
 }: EditorStartupOptions) {
   // 恢复 GitHub 大备份时，最后打开的文档可能很大。先提交应用框架和加载提示，
   // 下一帧再构造 TipTap，避免同步的 Delta → ProseMirror 转换让窗口一直保持白屏。
@@ -43,7 +37,6 @@ export function useEditorStartup({
     null,
   );
   const [secondaryUiReady, setSecondaryUiReady] = useState(false);
-  const startupDateHydrationStartedRef = useRef(false);
   useEffect(() => {
     setEditorReadyNoteId(null);
     if (!selectedNoteId || !startupRestoreComplete) return;
@@ -75,19 +68,13 @@ export function useEditorStartup({
     if (selectedNoteId && editorReadyNoteId !== selectedNoteId) return;
     const timer = window.setTimeout(() => {
       setSecondaryUiReady(true);
-      if (startupDateLoadPending && !startupDateHydrationStartedRef.current) {
-        startupDateHydrationStartedRef.current = true;
-        void setDate(currentDate);
-      }
+
     }, 100);
     return () => window.clearTimeout(timer);
   }, [
-    currentDate,
-    editorReadyNoteId,
+      editorReadyNoteId,
     selectedNoteId,
-    setDate,
-    startupDateLoadPending,
-    startupRestoreComplete,
+        startupRestoreComplete,
   ]);
 
   // 当前编辑器和次级界面稳定后，在浏览器空闲期预处理最近访问的另一篇

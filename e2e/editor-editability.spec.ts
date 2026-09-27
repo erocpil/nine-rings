@@ -1,3 +1,4 @@
+import { pressLineBoundary } from "./helpers/keyboard";
 import { expect, test } from "@playwright/test";
 
 for (const initialReadonly of [false, true]) {
@@ -92,10 +93,10 @@ for (const initialReadonly of [false, true]) {
         await expect(editor).toHaveText("编辑权限回归正文");
       } else {
         await editor.click();
-        await page.keyboard.press("End");
+        await pressLineBoundary(page, "end");
         await page.keyboard.type("!");
         await expect(editor).toHaveText("编辑权限回归正文!");
-        await page.keyboard.press("Control+z");
+        await page.keyboard.press("ControlOrMeta+z");
         await expect(editor).toHaveText("编辑权限回归正文");
       }
     }

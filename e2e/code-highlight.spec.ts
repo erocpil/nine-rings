@@ -1,9 +1,8 @@
+import { pressLineBoundary } from "./helpers/keyboard";
 import { expect, test } from "@playwright/test";
 
 test("常用代码语言增量高亮并同步到 PDF 打印视图", async ({ page }) => {
   await page.goto("/");
-  const viewSwitch = page.locator(".sidebar-view-switch");
-  if (await viewSwitch.getAttribute("data-target-view") === "tree") await viewSwitch.click();
   await page.getByTitle("新建文档").click();
   await page.getByPlaceholder("文档标题...").fill("代码高亮 PDF");
   await page.getByRole("button", { name: "创建", exact: true }).click();
@@ -28,7 +27,7 @@ test("常用代码语言增量高亮并同步到 PDF 打印视图", async ({ pag
   await expect(block.locator(".hljs-number")).toContainText("42");
 
   await block.locator("code").click();
-  await editor.press("End");
+  await pressLineBoundary(editor, "end");
   await editor.press("Enter");
   await editor.type('console.log("done");');
   await expect(block.locator(".hljs-string")).toContainText('"done"');
@@ -41,7 +40,8 @@ test("常用代码语言增量高亮并同步到 PDF 打印视图", async ({ pag
 
   await page.locator(".properties-panel .prop-readonly-toggle").click();
   await expect(editor).toHaveAttribute("contenteditable", "false");
-  await expect(language).toBeHidden();
+  await expect(language).toBeVisible();
+  await expect(language).toBeDisabled();
 
   const popupPromise = page.waitForEvent("popup");
   await page.locator(".properties-panel").getByRole("button", { name: "导出 PDF（书签大纲）" }).click();

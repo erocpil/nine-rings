@@ -12,7 +12,7 @@
  * - 两边产出的 Op JSON 结构完全相同
  */
 
-import type { Note, CreateNoteInput, PathNode, DocType, NoteVersion, DailyPage } from "../../types/models";
+import type { Note, CreateNoteInput, PathNode, DocType, NoteVersion } from "../../types/models";
 import type { SelectOp, InsertOp, UpdateOp, DeleteOp } from "./ops";
 import {
   assertFolderRelocation,
@@ -21,9 +21,8 @@ import {
   isPathUnder,
   normalizeStoragePath,
   type FlatDocRecord,
-  type FlatDailyRecord,
 } from "./core";
-import { type SnakeNoteRow, type SnakeVersionRow, type SnakeDailyPageRow, normalizeDocType, snakeNoteToCamel, snakeVersionToCamel, snakeDailyPageToCamel } from "./normalize";
+import { type SnakeNoteRow, type SnakeVersionRow, normalizeDocType, snakeNoteToCamel, snakeVersionToCamel } from "./normalize";
 import { localDateKey } from "../local-date";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -124,7 +123,7 @@ export const tauriDriver = {
       sort_order: 0,
       created_at: now(),
       updated_at: now(),
-      storagePath: data.storagePath,
+      storagePath: data.storagePath || "references",
       docType: data.docType,
       concepts: data.concepts,
       linkedDocIds: data.linkedDocIds,
@@ -230,7 +229,7 @@ export const tauriDriver = {
   },
 
   // ── getPathTree ──
-  async getPathTree(includeDaily = true): Promise<PathNode[]> {
+  async getPathTree(): Promise<PathNode[]> {
     // Part A: 文档类笔记（storage_path IS NOT NULL）
     const docsOp: SelectOp = {
       type: "select",
@@ -250,23 +249,6 @@ export const tauriDriver = {
     const invoke = await getInvoke();
     const formats = await invoke<Record<string, "text" | "markdown">>("get_document_source_formats");
 
-    // Part B: 随笔/日记（storage_path IS NULL）
-    const dailyRows = includeDaily
-      ? await dbQuery({
-          type: "select",
-          table: "notes",
-          columns: ["id", "date", "title", "updated_at"],
-          where: [
-            { col: "storage_path", op: "IS", val: null },
-            { col: "deleted_at", op: "IS", val: null },
-          ],
-          orderBy: [
-            { col: "date", desc: true },
-            { col: "updated_at", desc: true },
-          ],
-        })
-      : [];
-
     // 转换为树构建器的输入类型（snake_case，与 core.ts 对齐）
     const docs: FlatDocRecord[] = docRows.map((r) => ({
       id: r.id,
@@ -278,14 +260,7 @@ export const tauriDriver = {
       readonly: r.readonly === 1 || r.readonly === true,
     }));
 
-    const dailies: FlatDailyRecord[] = dailyRows.map((r) => ({
-      id: r.id,
-      date: r.date,
-      title: r.title,
-      updated_at: r.updated_at,
-    }));
-
-    return buildDocTree(docs, dailies);
+    return buildDocTree(docs);
   },
 
   async moveDocument(noteId: string, targetFolderPath: string): Promise<number> {
@@ -342,8 +317,8 @@ export const tauriDriver = {
     return docs.length;
   },
 
-  // ── getAllDailyNotes（全部随笔，不含文档视图中的文档）──
-  async getAllDailyNotes(): Promise<Note[]> {
+  // ── getAllNotes（全部未删除文档）──
+  async getAllNotes(): Promise<Note[]> {
     const op: SelectOp = {
       type: "select",
       table: "notes",
@@ -353,7 +328,6 @@ export const tauriDriver = {
         "storage_path", "doc_type", "concepts", "linked_doc_ids", "readonly",
       ],
       where: [
-        { col: "storage_path", op: "IS", val: null },
         { col: "deleted_at", op: "IS", val: null },
       ],
       orderBy: [
@@ -377,7 +351,7 @@ export const tauriDriver = {
         content: data.content,
         tags: data.tags,
         pinned: data.pinned,
-        storagePath: data.storagePath,
+        storagePath: data.storagePath || "references",
         docType: data.docType,
         concepts: data.concepts,
         linkedDocIds: data.linkedDocIds,
@@ -413,18 +387,6 @@ export const tauriDriver = {
       if (dates.length >= limit) break;
     }
     return dates;
-  },
-
-  // ── getAllDailyPages ──
-  async getAllDailyPages(): Promise<DailyPage[]> {
-    const op: SelectOp = {
-      type: "select",
-      table: "daily_pages",
-      columns: ["date", "todos", "todo_carryover", "updated_at"],
-      orderBy: [{ col: "date", desc: true }],
-    };
-    const rows = await dbQuery<SnakeDailyPageRow>(op);
-    return rows.map(snakeDailyPageToCamel);
   },
 
   // ── batchDelete：事务内批量软删除 ──

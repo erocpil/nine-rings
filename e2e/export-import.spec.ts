@@ -1,3 +1,4 @@
+import { createDocumentInWorkspace } from "./helpers/document";
 import { test, expect } from '@playwright/test';
 
 /**
@@ -11,9 +12,7 @@ test.describe('导出-导入往返', () => {
     await page.goto('/');
 
     // 2. 通过真实 UI 创建一条测试笔记
-    await page.getByTitle('随笔').click();
-    await page.getByTitle('从模板新建').click();
-    await page.getByRole('button', { name: /^📝 空白笔记/ }).click();
+    await createDocumentInWorkspace(page);
     const titleInput = page.locator('[placeholder="输入文档标题"]');
     await expect(titleInput).toBeVisible({ timeout: 5000 });
     await titleInput.fill('导出测试笔记');
@@ -62,7 +61,7 @@ test.describe('导出-导入往返', () => {
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
       });
-      const stores = ['notes', 'daily_pages', 'note_versions']
+      const stores = ['notes', 'note_versions']
         .filter((name) => db.objectStoreNames.contains(name));
       const tx = db.transaction(stores, 'readwrite');
       for (const name of stores) tx.objectStore(name).clear();

@@ -14,14 +14,11 @@ import { isTauri } from "./tauri-desktop";
 import { isDocumentFindShortcut, isEditorLineJumpShortcut, isMacTextEditingShortcut } from "./shortcuts";
 
 export interface ShortcutActions {
-  createNote: () => void;
   focusSearch: () => void;
   openSettings: () => void;
-  toggleDaily: () => void;
   showWindow: () => void;
 }
 
-type InvokeFn = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
 
 let gUnregisterAll: (() => void) | null = null;
 
@@ -29,23 +26,12 @@ let gUnregisterAll: (() => void) | null = null;
 function makeHandler(
   id: string,
   actions: ShortcutActions,
-  invoke: InvokeFn,
 ): (() => void) | null {
   switch (id) {
-    case "new_note":
-      return () => actions.createNote();
-    case "quick_capture":
-      return () => {
-        invoke("toggle_quick_capture").catch((e) =>
-          console.warn("[GlobalShortcut] toggle_quick_capture:", e),
-        );
-      };
     case "focus_search":
       return () => actions.focusSearch();
     case "open_settings":
       return () => actions.openSettings();
-    case "go_to_daily":
-      return () => actions.toggleDaily();
     case "show_window":
       return () => actions.showWindow();
     default:
@@ -56,7 +42,6 @@ function makeHandler(
 /**
  * 注册全局热键。重复调用自动注销旧绑定。
  *
- * @param actions  操作回调（new_note/quick_capture 需要 invoke）
  * @param bindings { action_id: "CommandOrControl+N" }
  */
 export async function registerShortcuts(
@@ -73,14 +58,13 @@ export async function registerShortcuts(
 
   try {
     const { register } = await import("@tauri-apps/plugin-global-shortcut");
-    const { invoke } = await import("@tauri-apps/api/core");
 
     const unregFns: (() => void)[] = [];
 
     for (const [id, shortcut] of Object.entries(bindings)) {
       // show_window 由 Rust 端注册（系统级，不依赖 WebView），JS 跳过
       if (id === "show_window") continue;
-      const handler = makeHandler(id, actions, invoke);
+      const handler = makeHandler(id, actions);
       if (!handler) continue;
       if (!shortcut || shortcut.trim() === "") continue;
       if (isDocumentNavigationShortcut(shortcut) || isDocumentFindShortcut(shortcut) || isEditorLineJumpShortcut(shortcut) || isMacTextEditingShortcut(shortcut)) {

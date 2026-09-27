@@ -1,3 +1,4 @@
+import { pressLineBoundary } from "./helpers/keyboard";
 import { expect, test } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
 
@@ -65,11 +66,11 @@ for (const readonly of [false, true]) {
       (el as HTMLElement).style.removeProperty("--editor-list-indent");
       (el as HTMLElement).style.removeProperty("--editor-list-marker-gap");
     });
-    await page.screenshot({ path: `/tmp/nr-list-spacing-${readonly ? "read" : "edit"}.png` });
+    await page.screenshot({ path: test.info().outputPath(`nr-list-spacing-${readonly ? "read" : "edit"}.png`) });
     if (!readonly) {
       for (const tag of ["ul", "ol"]) {
         await editor.locator(`:scope > ${tag} > li > p`).nth(1).click();
-        await page.keyboard.press("End");
+        await pressLineBoundary(page, "end");
         const before = await editor.evaluate(el => (el as HTMLElement & { editor: Editor }).editor.getJSON());
         await page.keyboard.press("Tab");
         await expect(editor.locator(`:scope > ${tag} > li > ${tag}`)).toHaveCount(1);

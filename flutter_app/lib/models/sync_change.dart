@@ -1,6 +1,6 @@
 class SyncChange {
   final String id;
-  final String entityType; // 'daily_page' | 'note'
+  final String entityType; // 'note'
   final String entityId;
   final String action; // 'create' | 'update' | 'delete'
   final String data; // JSON string

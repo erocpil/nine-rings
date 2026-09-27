@@ -1,11 +1,11 @@
+import { openReadingLibrary } from "./helpers/workspace";
 import { expect, test } from "@playwright/test";
 import { createPdfFixture } from "./helpers/reader-fixtures";
 
 test("横向 PDF 居中且高清画布不被缩略图覆盖", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await page.getByTitle("设置", { exact: true }).click();
-  await page.getByRole("button", { name: /^阅读资料库/ }).click();
+  await openReadingLibrary(page);
   await page.locator('input[accept="application/pdf,.pdf"]').setInputFiles({
     name: "horizontal.pdf", mimeType: "application/pdf", buffer: createPdfFixture(),
   });

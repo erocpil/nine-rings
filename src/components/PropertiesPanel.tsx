@@ -161,21 +161,8 @@ function PropertiesPanel({
 
   const loadBacklinks = useCallback(async () => {
     try {
-      // 旧实现先读取全部日期，再逐日查询正文；大备份会产生数百甚至数千次
-      // 串行 IPC。随笔和文档各读取一次即可完成同一项反链筛选。
-      const [dailyNotes, docs] = await Promise.all([
-        api.notes.all(),
-        api.docs.listByPath(""),
-      ]);
-      const results = new Map<string, Note>();
-      for (const candidates of [dailyNotes, docs]) {
-        for (const candidate of candidates) {
-          if ((candidate.linkedDocIds ?? []).includes(note.id)) {
-            results.set(candidate.id, candidate);
-          }
-        }
-      }
-      setBacklinks([...results.values()]);
+      const notes = await api.notes.all();
+      setBacklinks(notes.filter(candidate => (candidate.linkedDocIds ?? []).includes(note.id)));
     } catch {
       setBacklinks([]);
     }
@@ -208,7 +195,7 @@ function PropertiesPanel({
     }
     const requestId = ++pathSecurityRequestId.current;
     setPathSecurityLoading(true);
-    api.docs.tree(false).then((nodes) => {
+    api.docs.tree().then((nodes) => {
       if (requestId !== pathSecurityRequestId.current) return;
       const node = nodes.find((item) => item.type === "folder" && item.path === note.storagePath);
       if (node) {

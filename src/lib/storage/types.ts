@@ -1,4 +1,4 @@
-import type { Note, DailyPage, NoteVersion, CreateNoteInput, UpdateNoteInput, UpdateTodosInput, PathNode, DocType } from "../../types/models";
+import type { Note, NoteVersion, CreateNoteInput, UpdateNoteInput, PathNode, DocType } from "../../types/models";
 import type { TemplateStorage } from "./template-service";
 
 // ── 配置类型（与 schema/config.yaml 对齐）──
@@ -10,8 +10,6 @@ export interface AppConfig {
   exhibition_density: "comfortable" | "compact" | null;
   interface_color_mode: "light" | "dark" | "system";
   theme: "system" | "light" | "dark" | "fu" | "azure" | "azure-dark" | "grace" | "sui" | "zhi" | "nord" | "dracula";
-  default_view: "daily" | "list";
-  todo_carryover_default: boolean;
   auto_clean_days: number;
   note_font_size: number;
   editor_font_family: "system" | "sans" | "serif" | "monospace";
@@ -73,8 +71,6 @@ export const DEFAULT_CONFIG: AppConfig = {
   exhibition_density: null,
   interface_color_mode: "system",
   theme: "light",
-  default_view: "daily",
-  todo_carryover_default: false,
   auto_clean_days: 30,
   note_font_size: 16,
   editor_font_family: "system",
@@ -126,8 +122,6 @@ export const DEFAULT_CONFIG: AppConfig = {
   user_default_language: "zh-CN",
   user_default_license: "",
   hotkeys: {
-    new_note:      "",
-    quick_capture: "CommandOrControl+Alt+N",
     focus_search:  "Alt+E",
     open_settings: "Alt+,",
   },
@@ -140,7 +134,7 @@ export interface StorageAdapter extends TemplateStorage {
   getNote(id: string): Promise<Note | null>;
   getAllNotes(): Promise<Note[]>;
   createNote(data: CreateNoteInput): Promise<Note>;
-  /** upsertNote: 文档按 storagePath+title、随笔按 title+date 匹配，存在则更新，否则新建。
+  /** upsertNote: 文档按 storagePath+title 匹配，存在则更新，否则新建。
    *  用于 .md 导入等批量场景，防止重复。保持本地 ID 不变。 */
   upsertNote(data: CreateNoteInput): Promise<Note>;
   updateNote(id: string, data: UpdateNoteInput): Promise<Note>;
@@ -153,17 +147,12 @@ export interface StorageAdapter extends TemplateStorage {
   // ── Tags ──
   getAllTags(): Promise<string[]>;
 
-  // ── Daily Page ──
-  getDailyPage(date: string, carryoverDefault?: boolean): Promise<DailyPage>;
-  updateTodos(data: UpdateTodosInput): Promise<DailyPage>;
-  getAllDailyPages(): Promise<DailyPage[]>;
-
   // ── Export / Import ──
   exportData(): Promise<string>;
   importData(
     json: string,
     mode?: "merge" | "replace",
-  ): Promise<{ notes_imported: number; pages_imported: number; configs_imported?: number }>;
+  ): Promise<{ notes_imported: number; configs_imported?: number }>;
   exportNoteMarkdown(noteId: string): Promise<string>;
 
   // ── Trash ──
@@ -187,7 +176,7 @@ export interface StorageAdapter extends TemplateStorage {
   setConfig(partial: Partial<AppConfig>): Promise<AppConfig>;
 
   // ── Doc Tree（v2 文档分类系统）──
-  getPathTree(includeDaily?: boolean): Promise<PathNode[]>;
+  getPathTree(): Promise<PathNode[]>;
   getNotesByPath(pathPrefix: string): Promise<Note[]>;
   /** 重命名文件夹：将 oldPath 下所有文档的 storagePath 前缀替换为 newPath */
   renameFolder(oldPath: string, newPath: string): Promise<number>;

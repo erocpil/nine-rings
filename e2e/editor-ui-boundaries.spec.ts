@@ -1,3 +1,4 @@
+import { pressLineBoundary } from "./helpers/keyboard";
 import { expect, test, type Page } from "@playwright/test";
 
 async function seedNotes(page: Page) {
@@ -27,8 +28,8 @@ async function seedNotes(page: Page) {
 async function selectLine(page: Page, text: string) {
   const editor = page.locator(".ProseMirror");
   await editor.locator("p").first().click();
-  await editor.press("End");
-  await editor.press("Shift+Home");
+  await pressLineBoundary(editor, "end");
+  await pressLineBoundary(editor, "start", true);
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe(text);
   // Native selectionchange is asynchronous; context-menu commands consume
   // ProseMirror's selection, not only the browser's temporary DOM range.

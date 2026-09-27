@@ -1,3 +1,4 @@
+import { useDocumentActive } from "./RetainedDocument";
 import { MarkdownSplitPreview } from "./MarkdownSplitPreview";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { NavigationButtons } from "./NavigationButtons";
@@ -21,6 +22,7 @@ import { patchReadingState, readReadingState } from "../lib/reading-state";
 
 /** One visible editing surface, one canonical autosave stream for both views. */
 export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps; render: (props: NoteEditorProps) => ReactNode }) {
+  const active = useDocumentActive();
   const navigationTarget = useNavigationStore(state => state.target?.noteId === props.noteId ? state.target : null);
   const mobile = useMobileViewport();
   const [preview, setPreview] = useState(() => localStorage.getItem("nr:markdownSplitPreview") === "true");
@@ -120,12 +122,12 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
   }, [props.searchTarget, onSearchTargetConsumed, source, busy]);
   const historyViewRequest = useRef<number>();
   useEffect(() => {
-    if (navigationTarget && source !== null && !busy && historyViewRequest.current !== navigationTarget.requestId) {
+    if (active && navigationTarget && source !== null && !busy && historyViewRequest.current !== navigationTarget.requestId) {
       historyViewRequest.current = navigationTarget.requestId;
       jumpSourceRef.current(sourceSession.current?.current.offsetAt(navigationTarget.from) ?? 0, false);
       useNavigationStore.getState().consumed(navigationTarget.requestId);
     }
-  }, [navigationTarget, source, busy]);
+  }, [navigationTarget, source, busy, active]);
   useEffect(() => {
     // Source cleanup runs before this effect; explicit return to rendered wins.
     if (source === null && !props.sensitive && initial.current) patchReadingState(props.noteId, { view: "rendered" });

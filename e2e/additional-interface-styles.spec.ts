@@ -26,7 +26,7 @@ for (const [style, label, background] of [
       "background-color",
       background,
     );
-    if (style === "nine-rings") await page.screenshot({ path: "/tmp/nr-nine-rings-settings-light.png" });
+    if (style === "nine-rings") await page.screenshot({ path: test.info().outputPath("nr-nine-rings-settings-light.png") });
     await colors.getByRole("button", { name: "深色", exact: true }).click();
     await expect(page.locator("html")).toHaveClass(/theme-dark/);
     await expect
@@ -55,7 +55,7 @@ for (const [style, label, background] of [
     if (style === "nine-rings") {
       await page.locator(".note-editor .ProseMirror p").first().click();
       renderedHighlight = await page.locator(".ProseMirror-activeline").first().evaluate(el => getComputedStyle(el).backgroundColor);
-      await page.screenshot({ path: "/tmp/nr-nine-rings-desktop-dark.png" });
+      await page.screenshot({ path: test.info().outputPath("nr-nine-rings-desktop-dark.png") });
     }
     await page.getByRole("button", { name: "源码", exact: true }).click();
     await expect(page.locator(".markdown-cm-host")).toBeVisible();
@@ -71,6 +71,6 @@ for (const [style, label, background] of [
         page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       )
       .toBe(true);
-    await page.screenshot({ path: `/tmp/nr-${style}-mobile.png` });
+    await page.screenshot({ path: test.info().outputPath(`nr-${style}-mobile.png`) });
   });
 }

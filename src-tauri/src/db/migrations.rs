@@ -5,7 +5,7 @@ use crate::db::schema_gen::TARGET_SCHEMA_VERSION;
 /// 执行所有迁移。
 ///
 /// 新数据库：ensure_tables 一次性创建所有表（IF NOT EXISTS），
-/// 迁移标记 v1..v7 后 ensure_indexes 创建索引。
+/// 迁移标记 v1..v9 后 ensure_indexes 创建索引。
 ///
 /// 已有数据库：ensure_tables 补建缺失的表，增量迁移推进列变更，
 /// ensure_indexes 补建缺失的索引。
@@ -17,7 +17,7 @@ pub fn run(conn: &Connection) -> rusqlite::Result<()> {
     tx.execute_batch("CREATE TABLE IF NOT EXISTS _schema_version (version INTEGER PRIMARY KEY);")?;
 
     // 先确保所有表存在（幂等，IF NOT EXISTS）——即使在已标记 v1 的旧库上，
-    // 也可能缺少后续版本引入的表（daily_pages, sync_changes 等）。
+    // 也可能缺少后续版本引入的表（note_versions, sync_changes 等）。
     ensure_tables(&tx)?;
 
     let current: i32 = tx
@@ -52,6 +52,11 @@ pub fn run(conn: &Connection) -> rusqlite::Result<()> {
     if current < 8 {
         // protected_paths is created by ensure_tables, including on existing DBs.
         tx.execute("INSERT INTO _schema_version (version) VALUES (8)", [])?;
+    }
+
+    if current < 9 {
+        tx.execute_batch("DROP TABLE IF EXISTS daily_pages;")?;
+        tx.execute("INSERT INTO _schema_version (version) VALUES (9)", [])?;
     }
 
     // 索引在列迁移完成后创建——若提前创建则因旧库缺少列而失败
@@ -274,7 +279,7 @@ fn migrate_v5(conn: &Connection) -> rusqlite::Result<()> {
 
 /// 在所有列迁移完成后创建索引。
 ///
-/// 必须在 migrate_v1..v7 全部完成之后调用——旧库在 v1 阶段缺少 tags/storage_path 等列，
+/// 必须在 migrate_v1..v9 全部完成之后调用——旧库在 v1 阶段缺少 tags/storage_path 等列，
 /// 提前创建索引会导致 "no such column" 错误。全新建库不受影响，
 /// IF NOT EXISTS 使其幂等。
 fn ensure_indexes(conn: &Connection) -> rusqlite::Result<()> {
