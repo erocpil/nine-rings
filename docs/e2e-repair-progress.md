@@ -366,3 +366,7 @@ Python Markdown 转换脚本已验证默认 references 路径及仅包含文档�
 ## 全量基线后的第 42 批核查（2026-09-27）
 
 补测 Chromium 原生剪贴板按钮粘贴：单段 HTML 插入不产生首尾空段落；同时携带 HTML 的多级 Markdown 按 Markdown 结构解析。两项 2/2 通过。WebKit 受原生剪贴板权限限制跳过，不计为通过。累计处理 119 项、剩余 51 项；生产 PWA WebKit 离线冷启动仍单独未解决。
+
+## 全量基线后的第 43 批核查（2026-09-27）
+
+复跑合成粘贴的 Markdown 标题、HTML 携带 Markdown 的完整格式化及 Markdown 表格转换三项用例。Chromium、WebKit 各 3/3 通过，标题、引用、分隔线、表格结构和单元格内容断言均保留。累计处理 122 项、剩余 48 项；生产 PWA WebKit 离线冷启动仍单独未解决。
