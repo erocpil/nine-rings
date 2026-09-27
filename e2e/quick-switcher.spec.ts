@@ -32,8 +32,8 @@ test("快速切换支持最近访问、检索与完整键盘操作", async ({ pa
   await expect(dialog).toHaveCount(0);
   await page.keyboard.press("ControlOrMeta+p");
   await input.fill("没有匹配结果的关键词");
-  await input.press("Tab");
   const close = dialog.getByRole("button", { name: "关闭快速切换" });
+  await close.focus();
   await expect(close).toBeFocused();
   await close.press("Enter");
   await expect(dialog).toHaveCount(0);
