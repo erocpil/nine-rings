@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { pressTab } from "./helpers/keyboard";
 
 async function createDocument(page: Page, title: string) {
   await page.goto("/");
@@ -9,7 +10,7 @@ async function createDocument(page: Page, title: string) {
   await expect(page.locator(".ProseMirror")).toBeVisible();
 }
 
-test("快速切换支持最近访问、检索与完整键盘操作", async ({ page }) => {
+test("快速切换支持最近访问、检索与完整键盘操作", async ({ page, browserName }) => {
   await createDocument(page, "Quick Switch Alpha");
   await createDocument(page, "Quick Switch Beta");
 
@@ -33,7 +34,7 @@ test("快速切换支持最近访问、检索与完整键盘操作", async ({ pa
   await page.keyboard.press("ControlOrMeta+p");
   await input.fill("没有匹配结果的关键词");
   const close = dialog.getByRole("button", { name: "关闭快速切换" });
-  await close.focus();
+  await pressTab(input, browserName);
   await expect(close).toBeFocused();
   await close.press("Enter");
   await expect(dialog).toHaveCount(0);

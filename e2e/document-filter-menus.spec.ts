@@ -1,5 +1,5 @@
-import { pressLineBoundary } from "./helpers/keyboard";
 import { expect, test, type Page } from "@playwright/test";
+import { pressTab } from "./helpers/keyboard";
 
 async function openList(page: Page, mobile: boolean) {
   await page.goto("/");
@@ -62,12 +62,12 @@ for (const mobile of [false, true]) {
       await expect(page.getByRole("listbox")).toHaveCount(0);
     });
 
-    test("键盘选项、Esc 和 Tab 不关闭父侧栏，长标签菜单限制在可视区", async ({ page }) => {
+    test("键盘选项、Esc 和 Tab 不关闭父侧栏，长标签菜单限制在可视区", async ({ page, browserName }) => {
       const list = await openList(page, mobile);
       const type = list.getByRole("button", { name: "文档类型筛选", exact: true });
       const tag = list.getByRole("button", { name: "文档标签筛选", exact: true });
       await type.focus(); await type.press("ArrowDown");
-      await pressLineBoundary(page, "end");
+      await page.keyboard.press("End");
       await expect(page.getByRole("option", { name: "教程", exact: true })).toBeFocused();
       await page.keyboard.press("Enter");
       await expect(type).toBeFocused();
@@ -77,7 +77,7 @@ for (const mobile of [false, true]) {
       await expect(list).toBeVisible();
       await expect(type).toBeFocused();
       await type.press("ArrowDown");
-      await page.keyboard.press("Tab");
+      await pressTab(page, browserName);
       await expect(tag).toBeFocused();
       await tag.press("ArrowDown");
       const popup = page.getByRole("listbox", { name: "文档标签筛选", exact: true });
@@ -88,7 +88,7 @@ for (const mobile of [false, true]) {
       expect(box.y + box.height).toBeLessThanOrEqual(viewport.height - 8);
       await page.keyboard.type("ref");
       await expect(page.getByRole("option", { name: "reference", exact: true })).toBeFocused();
-      await pressLineBoundary(page, "end");
+      await page.keyboard.press("End");
       await expect.poll(() => popup.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
       await expect(popup).toBeVisible();
       await page.keyboard.press("Escape");

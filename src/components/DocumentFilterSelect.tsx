@@ -85,6 +85,12 @@ export function DocumentFilterSelect({ label, text, icon, disabled = false, clas
   return <>
     <button ref={trigger} type="button" className={`document-browser-filter-control ${className}`} disabled={disabled} data-value={value}
       aria-label={label} aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? id : undefined} aria-owns={open ? id : undefined}
+      onMouseDown={event => {
+        // WebKit otherwise focuses the sidebar ancestor and closes the popup
+        // before click can toggle it, causing the same click to reopen it.
+        event.preventDefault();
+        event.currentTarget.focus({ preventScroll: true });
+      }}
       onClick={() => onOpenChange(!open)}
       onKeyDown={event => {
         if (event.key === "ArrowDown" || event.key === "ArrowUp") {

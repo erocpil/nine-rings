@@ -7,6 +7,11 @@ type Edge = "start" | "end";
 // Spoofing navigator.platform tests app dispatch, not native text navigation.
 const mac = process.platform === "darwin";
 
+// macOS WebKit uses Option+Tab to include buttons in native focus traversal.
+export async function pressTab(target: Target, browserName: string, backwards = false) {
+  await press(target, `${mac && browserName === "webkit" ? "Alt+" : ""}${backwards ? "Shift+" : ""}Tab`);
+}
+
 async function press(target: Target, key: string) {
   if ("keyboard" in target) await target.keyboard.press(key);
   else await target.press(key);
