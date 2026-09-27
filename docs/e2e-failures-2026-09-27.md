@@ -71,11 +71,11 @@
 | [epub-reader.spec.ts:65](../e2e/epub-reader.spec.ts#L65) | 本地 EPUB 可导入、阅读目录章节并恢复进度 | chromium, webkit |
 | [exhibition-spacing.spec.ts:4](../e2e/exhibition-spacing.spec.ts#L4) | 手机展陈底部不重复留安全区，状态栏 false | chromium |
 | [filtered-search.spec.ts:3](../e2e/filtered-search.spec.ts#L3) | 全局搜索增加路径类型概念筛选后保留多词匹配，清除关键词可仅按条件查询 | chromium, webkit |
-| [focus-actions-parity.spec.ts:6](../e2e/focus-actions-parity.spec.ts#L6) | 专注工具 1280 / 按钮间距、复制块与编辑工具在两端可用 | chromium, webkit |
-| [focus-actions-parity.spec.ts:6](../e2e/focus-actions-parity.spec.ts#L6) | 专注工具 390 / 按钮间距、复制块与编辑工具在两端可用 | chromium, webkit |
-| [focus-actions-parity.spec.ts:6](../e2e/focus-actions-parity.spec.ts#L6) | 专注工具 844 / 按钮间距、复制块与编辑工具在两端可用 | chromium, webkit |
-| [focus-readonly-toggle.spec.ts:5](../e2e/focus-readonly-toggle.spec.ts#L5) | 专注标题前的线框锁切换只读，横竖屏不退出专注 | chromium, webkit |
-| [fold-button-layout.spec.ts:110](../e2e/fold-button-layout.spec.ts#L110) | 标题内折叠控件不进入编辑、撤销及剪贴板数据 | chromium, webkit |
+| [focus-actions-parity.spec.ts:6](../e2e/focus-actions-parity.spec.ts#L6) | 专注工具 1280 / 按钮间距、复制块与编辑工具在两端可用（批 10 已通过） | chromium, webkit |
+| [focus-actions-parity.spec.ts:6](../e2e/focus-actions-parity.spec.ts#L6) | 专注工具 390 / 按钮间距、复制块与编辑工具在两端可用（批 10 已通过） | chromium, webkit |
+| [focus-actions-parity.spec.ts:6](../e2e/focus-actions-parity.spec.ts#L6) | 专注工具 844 / 按钮间距、复制块与编辑工具在两端可用（批 10 已通过） | chromium, webkit |
+| [focus-readonly-toggle.spec.ts:5](../e2e/focus-readonly-toggle.spec.ts#L5) | 专注标题前的线框锁切换只读，横竖屏不退出专注（批 10 已通过） | chromium, webkit |
+| [fold-button-layout.spec.ts:110](../e2e/fold-button-layout.spec.ts#L110) | 标题内折叠控件不进入编辑、撤销及剪贴板数据（批 10 已通过） | chromium, webkit |
 | [font-reading-position.spec.ts:91](../e2e/font-reading-position.spec.ts#L91) | mouse / 排版设置改变字体字号后顶部文字保持位置（桌面） | webkit |
 | [font-reading-position.spec.ts:153](../e2e/font-reading-position.spec.ts#L153) | 桌面上方内容异步变高后保持阅读锚点，用户滚动后不拉回旧位置 | webkit |
 | [github-background-push.spec.ts:24](../e2e/github-background-push.spec.ts#L24) | 关闭及重开设置页后继续上传，禁止重复 Push，完成后显示全局结果 | chromium, webkit |
@@ -89,7 +89,7 @@
 | [mermaid-code-block.spec.ts:100](../e2e/mermaid-code-block.spec.ts#L100) | Mermaid 弹层支持滚轮缩放、拖动和适应窗口 | chromium, webkit |
 | [mobile-block-selection.spec.ts:22](../e2e/mobile-block-selection.spec.ts#L22) | 手机块级操作 / 独立选择、取消、格式化并通过按钮编辑，左划不再进入编辑 | chromium, webkit |
 | [mobile-block-selection.spec.ts:84](../e2e/mobile-block-selection.spec.ts#L84) | 手机块级操作 / 多选不同类型块按文档顺序切换，编辑长度改变后仍只切换已选块 | chromium, webkit |
-| [mobile-fold.spec.ts:59](../e2e/mobile-fold.spec.ts#L59) | 手机安装版折叠操作 / 真实触摸可切换标题、目录批量折叠和引用块 | chromium, webkit |
+| [mobile-fold.spec.ts:59](../e2e/mobile-fold.spec.ts#L59) | 手机安装版折叠操作 / 真实触摸可切换标题、目录批量折叠和引用块（批 12 已通过） | chromium, webkit |
 | [mobile-interaction-recovery.spec.ts:22](../e2e/mobile-interaction-recovery.spec.ts#L22) | 键盘打开时顶部栏随外壳定位且不盖住侧栏 | chromium, webkit |
 | [mobile-interaction-recovery.spec.ts:57](../e2e/mobile-interaction-recovery.spec.ts#L57) | 专注模式开关键盘不为隐藏的顶部栏预留空间 | chromium, webkit |
 | [mobile-rotation-viewport.spec.ts:5](../e2e/mobile-rotation-viewport.spec.ts#L5) | 横屏工具栏可触摸，旋转后滞留高度不会把文档树截成半屏 | chromium, webkit |
@@ -197,7 +197,7 @@
 | [settings-review.spec.ts:9](../e2e/settings-review.spec.ts#L9) | 快捷键拒绝重复和普通输入，固定窗口按键不伪装为可编辑 | chromium, webkit |
 | [structured-block-exit.spec.ts:14](../e2e/structured-block-exit.spec.ts#L14) | 结构块退出行为 / 代码块行号可开启并随内容实时更新 | webkit |
 | [structured-block-exit.spec.ts:157](../e2e/structured-block-exit.spec.ts#L157) | 触屏代码块退出行为 / 手机端软换行代码的行号与逻辑行首对齐且末行可见 | webkit |
-| [toolbar-responsive.spec.ts:39](../e2e/toolbar-responsive.spec.ts#L39) | 响应式编辑器工具栏 / 标签输入行与编辑工具栏保持紧凑间距 | chromium, webkit |
-| [toolbar-responsive.spec.ts:76](../e2e/toolbar-responsive.spec.ts#L76) | 响应式编辑器工具栏 / 默认桌面窗口和表格上下文均不产生水平滚动 | chromium, webkit |
-| [toolbar-responsive.spec.ts:162](../e2e/toolbar-responsive.spec.ts#L162) | 响应式编辑器工具栏 / 表格支持连续选择、触屏友好的行列选择和列宽持久化 | chromium, webkit |
+| [toolbar-responsive.spec.ts:39](../e2e/toolbar-responsive.spec.ts#L39) | 响应式编辑器工具栏 / 标签输入行与编辑工具栏保持紧凑间距（批 11 已通过） | chromium, webkit |
+| [toolbar-responsive.spec.ts:76](../e2e/toolbar-responsive.spec.ts#L76) | 响应式编辑器工具栏 / 默认桌面窗口和表格上下文均不产生水平滚动（批 11 已通过） | chromium, webkit |
+| [toolbar-responsive.spec.ts:162](../e2e/toolbar-responsive.spec.ts#L162) | 响应式编辑器工具栏 / 表格支持连续选择、触屏友好的行列选择和列宽持久化（批 11 已通过） | chromium, webkit |
 | [workspace-chrome.spec.ts:3](../e2e/workspace-chrome.spec.ts#L3) | 独立搜索不卸载正文、不退出专注模式，关闭后恢复焦点 | webkit |

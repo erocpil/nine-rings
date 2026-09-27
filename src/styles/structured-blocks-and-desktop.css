@@ -375,11 +375,14 @@
 
 @media (max-width: 768px) {
   .blockquote-toolbar {
-    min-height: 28px;
+    min-height: 36px;
     margin-bottom: 0;
   }
 
-  .blockquote-toolbar button {
+  .blockquote-toolbar button:not(.block-workspace-open) {
+    flex-basis: 36px;
+    width: 36px;
+    height: 36px;
     touch-action: manipulation;
   }
 

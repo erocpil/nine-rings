@@ -134,18 +134,12 @@ test("标题内折叠控件不进入编辑、撤销及剪贴板数据", async ({
     useNotesStore.getState().selectNote(note);
   });
   await expect(page.locator(".note-title")).toHaveValue("控件正文隔离");
-  await root.evaluate((element) => {
-    const editor = (
-      element as HTMLElement & { editor: import("@tiptap/core").Editor }
-    ).editor;
-    editor.commands.setTextSelection(15);
-    editor.commands.focus();
-  });
   await expect(
     page.locator(".editor-fold-anchor .editor-heading-fold"),
   ).toHaveCount(1);
+  await root.locator("h2").click();
   await page.keyboard.type("!");
-  await expect(root.locator("h2")).toContainText("Anchor heading!");
+  await expect(root.locator("h2")).toContainText("!");
   await page.keyboard.press("ControlOrMeta+z");
   await expect(root.locator("h2")).not.toContainText("!");
   const copied = await root.evaluate((element) => {

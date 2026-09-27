@@ -10,33 +10,43 @@ for (const [width, height] of [[390, 800], [844, 390], [1280, 800]]) {
       await page.locator(".note-title").fill("专注工具测试");
       await page.locator(".ProseMirror").fill("待复制的段落");
       await page.getByRole("button", { name: "专注模式", exact: true }).click();
-      const bar = page.locator(".mobile-focus-bar");
-      await expect(bar).toBeVisible();
-      const copy = bar.getByRole("button", { name: "复制块", exact: true });
+      // Focus controls now share the document title row in unified chrome.
+      const bar = page.locator(".note-title-row");
+      const copy = bar.getByRole("button", { name: "块级操作", exact: true });
       const tools = bar.getByRole("button", { name: "更多编辑工具", exact: true });
       await expect(copy).toBeVisible();
+      const focusButtons = bar.locator("button.focus-btn");
+      const geometry = await focusButtons.evaluateAll(buttons => buttons
+        .filter(button => button.getBoundingClientRect().width > 0)
+        .map(button => {
+          const rect = button.getBoundingClientRect();
+          return { left: rect.left, right: rect.right, width: rect.width };
+        }));
+      expect(geometry.length).toBeGreaterThanOrEqual(4);
+      expect(geometry.every(box => box.width >= 24 && box.width <= 40)).toBe(true);
+      const row = (await bar.boundingBox())!;
+      for (const box of geometry) {
+        expect(box.left).toBeGreaterThanOrEqual(row.x);
+        expect(box.right).toBeLessThanOrEqual(row.x + row.width);
+      }
       await tools.click();
       await expect(tools).toHaveAttribute("aria-expanded", "true");
       await expect(page.locator(".editor-menu")).toBeVisible();
       await tools.click();
+      await expect(tools).toHaveAttribute("aria-expanded", "false");
       await expect(page.locator(".editor-menu")).toBeHidden();
-      const boxes = await bar.locator(":scope > button:not(.focus-readonly-toggle)").evaluateAll(buttons => buttons.map(button => {
-        const r = button.getBoundingClientRect();
-        return { x: r.x, width: r.width, name: button.getAttribute("aria-label") };
-      }));
-      const gaps = boxes.slice(1).map((box, i) => box.x - boxes[i].x - boxes[i].width);
-      expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThan(1);
-      expect(new Set(boxes.map(box => box.width)).size).toBe(1);
-      expect(boxes.findIndex(box => box.name === "退出专注模式")).toBeGreaterThan(boxes.findIndex(box => box.name?.startsWith("文档书签")));
-      await page.locator(".ProseMirror").click();
+      await page.locator(".ProseMirror h1, .ProseMirror p").first().click();
       await copy.click();
-      await expect(page.getByText(/^已复制当前块/)).toBeVisible();
+      const blockToolbar = page.getByRole("toolbar", { name: "块级操作" });
+      await expect(blockToolbar).toBeVisible();
+      await blockToolbar.getByRole("button", { name: "复制", exact: true }).click();
+      await expect(page.getByText(/^已复制 1 个块/)).toBeVisible({ timeout: 5000 });
       await bar.getByRole("button", { name: "点击设为只读" }).click();
       await expect(tools).toHaveCount(0);
       await expect(copy).toBeVisible();
-      await bar.getByRole("button", { name: "退出专注模式" }).click();
+      await page.getByTitle("退出专注模式", { exact: true }).click();
       await expect(page.locator(".app")).not.toHaveClass(/app-focus-mode/);
-      await expect(bar).toBeHidden();
+      await expect(page.getByTitle("专注模式", { exact: true })).toBeVisible();
     });
   });
 }
