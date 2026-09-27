@@ -256,5 +256,9 @@ Python Markdown 转换脚本已验证默认 references 路径及仅包含文档�
 
 本批再关闭 2 个原失败项，累计处理 82 项、剩余 88 项；生产 PWA 离线冷启动仍单独未解决。
 
+## 全量基线后的第 17 批核查（2026-09-27）
+
+`bookmark-fold-marker` 在前序 CSS 修正后已不再复现：390/1280px、块号开启/关闭及普通/专注模式都保留原有居中、间隔和实际折叠断言，Chromium、WebKit 各 4/4 通过。无需新增产品或测试修改。该项从失败清单关闭，累计处理 83 项、剩余 87 项；日志位于 `.local-tools/e2e/repair-batch17/`。
+
 初始全量基线仍是移除前的 849 项，不能用作当前失败数：Chromium 535 通过/305 失败/9 跳过，WebKit 524 通过/310 失败/15 跳过。
 历史运行产物在 `/tmp/nine-rings-full-e2e-20260927/`。近期分批日志保存在 `.local-tools/e2e/repair-batchN/`。

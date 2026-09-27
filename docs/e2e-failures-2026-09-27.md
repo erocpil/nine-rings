@@ -35,7 +35,6 @@
 | [block-workspace.spec.ts:259](../e2e/block-workspace.spec.ts#L259) | 手机横竖屏块弹层不超出可视范围 | chromium, webkit |
 | [block-workspace.spec.ts:491](../e2e/block-workspace.spec.ts#L491) | 触屏块工作区 / 背景和块空白不关闭，行号开关可用且入口不残留焦点 | chromium, webkit |
 | [block-workspace.spec.ts:532](../e2e/block-workspace.spec.ts#L532) | 触屏块工作区 / 键盘压缩可视区域后关闭按钮仍可点击 | chromium, webkit |
-| [bookmark-fold-marker.spec.ts:5](../e2e/bookmark-fold-marker.spec.ts#L5) | 书签标记不遮挡折叠三角 1280 块号=false | chromium, webkit |
 | [bookmarks.spec.ts:9](../e2e/bookmarks.spec.ts#L9) | 书签当前项 1280px 只读 / 紧凑行高与当前项提示跟随光标、跳转和取消书签 | chromium, webkit |
 | [bookmarks.spec.ts:9](../e2e/bookmarks.spec.ts#L9) | 书签当前项 1280px 编辑 / 紧凑行高与当前项提示跟随光标、跳转和取消书签 | chromium, webkit |
 | [bookmarks.spec.ts:9](../e2e/bookmarks.spec.ts#L9) | 书签当前项 390px 只读 / 紧凑行高与当前项提示跟随光标、跳转和取消书签 | chromium, webkit |
