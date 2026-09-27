@@ -52,13 +52,10 @@ for (const width of [390, 1280]) {
     await expect(previous).toHaveCSS("opacity", "0.4");
     await find.press("Escape");
 
-    // The desktop entry also exercises the shared mobile drawer's list contents.
+    // Desktop lists live in the sidebar; mobile retains its separate drawer.
     if (width === 1280) {
       await page.getByRole("button", { name: "文档列表", exact: true }).click();
-      const dialog = page.getByRole("dialog", {
-        name: "文档视图",
-        exact: true,
-      });
+      const dialog = page.locator(".sidebar-document-list");
       await dialog
         .getByRole("button", { name: "搜索文档", exact: true })
         .click();

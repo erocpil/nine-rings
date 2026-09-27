@@ -67,8 +67,10 @@ export function SearchBar({ initialQuery, onQueryChange, inputRef, onSearch, onD
         setFilterOpen(false);
       }
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    // Results below the filters move when this panel closes. Wait for click
+    // so pointerdown cannot move the selected result before pointerup arrives.
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
   }, [filterOpen]);
 
   const fireSearch = useCallback((text: string, path: string, type: DocType | "", concept: string) => {

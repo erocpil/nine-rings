@@ -1,5 +1,14 @@
 # E2E 清理进度（2026-09-27）
 
+## 第 65 批：搜索交互
+
+关闭 filtered-search 的多条件查询、search-navigation 的首次查找起点、search-scope-ui 的桌面搜索范围，共 3 项，剩余 **46 项**。
+
+- 实际缺陷：筛选外部 mousedown 先收起筛选，导致下面的结果移位，mouseup 无法形成原按钮的 click。外部关闭改为 click 后处理，保留“排队防抖查询后立即打开旧结果”的原测试，确认结果不会再次盖住文档。
+- 查找起点用例点击文字实际区域并等待模型观察原生选区，避免点到段落 padding；桌面列表断言迁移到现行侧栏，手机查找断言保留。
+
+三个文件整组 Chromium / WebKit 各 **15/15 通过**；typecheck、lint、diff 检查通过。日志 `.local-tools/e2e/repair-batch65/`。第 64 批为 Windows Tauri 构建依赖修复，另见 CI 修复记录，不扣减 E2E 清单。
+
 ## 第 63 批：生命周期与阅读工具栏
 
 关闭 `hook-lifecycle.spec.ts` 的 Token 请求失效、目录行高两项，以及 `reader-toolbar-shell.spec.ts` 的 PDF / EPUB 两项，共 4 项，剩余 **49 项**。

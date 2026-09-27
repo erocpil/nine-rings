@@ -66,8 +66,16 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     ].join("\n"));
 
     // Click actual text, not the centre of the full-width paragraph's blank area.
-    await editor.locator(":scope > p").nth(1).click({ position: { x: 8, y: 8 } });
-    expect(await editor.evaluate(el => (el as HTMLElement & { editor: import("@tiptap/core").Editor }).editor.state.selection.$from.parent.textContent)).toBe("光标位于这里");
+    const paragraph = editor.locator(":scope > p").nth(1);
+    const position = await paragraph.evaluate(element => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      const text = range.getBoundingClientRect();
+      const box = element.getBoundingClientRect();
+      return { x: text.x + text.width / 2 - box.x, y: text.y + text.height / 2 - box.y };
+    });
+    await paragraph.click({ position });
+    await expect.poll(() => editor.evaluate(el => (el as HTMLElement & { editor: import("@tiptap/core").Editor }).editor.state.selection.$from.parent.textContent)).toBe("光标位于这里");
     await page.keyboard.press("Alt+f");
     const findInput = page.getByLabel("在当前文档中查找");
     await findInput.fill("needle");
