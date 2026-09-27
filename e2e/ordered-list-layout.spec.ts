@@ -35,7 +35,12 @@ for (const mobile of [false, true]) {
       test(`从 ${start} 开始的列表保留句点后间距和正文悬挂缩进`, async ({ page }) => {
         await page.goto("/");
         const editor = page.locator(".ProseMirror");
-        await editor.fill("");
+        await expect(editor).toBeVisible({ timeout: 25000 });
+        await expect(page.locator(".note-title")).toHaveValue(/.+/);
+        await editor.evaluate((element) => {
+          (element as HTMLElement & { editor: { commands: { clearContent: () => void } } }).editor.commands.clearContent();
+        });
+        await expect(editor).toHaveText("");
         const count = start === 1 ? 12 : 4;
         const text = Array.from({ length: count }, (_, index) =>
           `${start + index}. ${index === count - 1 ? "正文换行保持对齐".repeat(35) : "内容"}`,
