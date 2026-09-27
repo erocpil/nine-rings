@@ -69,17 +69,18 @@ test("StrictMode 连接检查更换 Token 后重新请求并丢弃旧响应", as
     const { saveSyncConfig, loadSyncConfig } = await load("/src/lib/sync/github.ts");
     saveSyncConfig({ ...loadSyncConfig(), token: "old-test-token", owner: "test-owner", repo: "test-repo" });
     const SettingsSync = (await load("/src/components/SettingsSync.tsx")).default;
+    const { GitHubPushStatus } = await load("/src/components/GitHubPushStatus.tsx");
     const host = document.createElement("div");
     host.dataset.testid = "connection-harness";
     Object.assign(host.style, { position: "fixed", inset: "0", zIndex: "99999", overflow: "auto", background: "white" });
     document.body.append(host);
     const root = createRoot(host);
-    flushSync(() => root.render(React.createElement(React.StrictMode, null, React.createElement(SettingsSync))));
+    flushSync(() => root.render(React.createElement(React.StrictMode, null, React.createElement(SettingsSync), React.createElement(GitHubPushStatus))));
   });
   try {
     await expect.poll(() => oldRequests).toBe(1);
     const harness = page.getByTestId("connection-harness");
-    await harness.getByPlaceholder("ghp_...").fill("new-test-token");
+    await harness.getByLabel("Token", { exact: true }).fill("new-test-token");
     await expect(harness.locator(".sync-status")).toContainText("仓库连接正常，远端暂无备份");
     expect(newRequests).toBe(2);
     const oldResponse = page.waitForResponse((response) => response.request().headers().authorization === "Bearer old-test-token");
@@ -98,9 +99,9 @@ test("StrictMode 连接检查更换 Token 后重新请求并丢弃旧响应", as
     await expect(harness.locator(".sync-status")).toHaveCount(1);
     await expect(harness.locator(".sync-toast")).toHaveCount(0);
     await harness.getByRole("button", { name: "Push ↑", exact: true }).click();
-    await expect(harness.locator(".sync-feedback").getByRole("alert")).toContainText("推送失败");
-    await expect(harness.locator(".sync-status")).toHaveCount(0);
-    await harness.getByPlaceholder("ghp_...").fill("");
+    await expect(harness.getByRole("complementary", { name: "GitHub 上传任务" })).toContainText("上传失败");
+    await expect(harness.locator(".sync-feedback .sync-err")).toBeVisible();
+    await harness.getByLabel("Token", { exact: true }).fill("");
     await expect(harness.locator(".sync-status")).toHaveCount(0);
   } finally { releaseOld(); }
 });
@@ -126,10 +127,12 @@ test("虚拟目录实测行高变化后更新后续行的位置", async ({ page 
   const second = list.locator('[data-visible-index="1"]');
   await expect(first).toBeVisible();
   const before = await second.evaluate((element: HTMLElement) => parseFloat(element.style.top));
-  await first.evaluate((element: HTMLElement) => { element.style.height = "78px"; element.style.minHeight = "78px"; });
+  // Measure natural link content, excluding the row's estimated min-height.
+  const firstContent = first.locator(".document-outline-link");
+  await firstContent.evaluate((element: HTMLElement) => { element.style.height = "72px"; });
   await expect.poll(() => second.evaluate((element: HTMLElement) => parseFloat(element.style.top))).toBe(78);
   expect(before).toBeLessThan(78);
-  await first.evaluate((element: HTMLElement) => { element.style.height = "26px"; element.style.minHeight = "26px"; });
+  await firstContent.evaluate((element: HTMLElement) => { element.style.height = "20px"; });
   await expect.poll(() => second.evaluate((element: HTMLElement) => parseFloat(element.style.top))).toBe(26);
   const scroller = list.locator(".document-outline-list");
   await scroller.evaluate((el: HTMLElement) => { el.style.height = "320px"; });

@@ -200,7 +200,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
       let changed = false;
       let heightDeltaAboveViewport = 0;
       for (const record of records) {
-        const row = record.target;
+        const row = record.target.closest(".document-outline-item");
         if (!(row instanceof HTMLElement)) continue;
         const key = row.dataset.outlineRowKey;
         const visibleIndex = Number(row.dataset.visibleIndex);
@@ -245,7 +245,11 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
     const list = listRef.current;
     if (!observer || !list) return;
     observer.disconnect();
-    list.querySelectorAll<HTMLElement>(".document-outline-item").forEach((row) => observer.observe(row));
+    list.querySelectorAll<HTMLElement>(".document-outline-item").forEach((row) => {
+      // The row's reserved min-height masks content shrinking. Observe the
+      // same natural content box we measure, so both growth and shrink notify.
+      observer.observe(row.querySelector(".document-outline-link") ?? row);
+    });
   }, [measuredHeights, listRef, virtualized, windowRange.end, windowRange.start]);
 
   const renderEntry = (entry: VisibleOutlineEntry, visibleIndex: number) => {

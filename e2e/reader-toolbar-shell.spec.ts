@@ -92,6 +92,11 @@ for (const format of ["PDF", "EPUB"] as const) {
     await settings.tap();
     await host.getByRole("button", { name: "关闭阅读工具面板", exact: true }).tap({ position: { x: 10, y: 500 } });
     await expect(settings).toHaveAttribute("aria-expanded", "false");
+    // Backdrop taps dismiss without pulling the visual viewport to the toolbar.
+    await expect(settings).not.toBeFocused();
+    expect(await body.boundingBox()).toEqual(before);
+    await settings.tap();
+    await host.getByRole("button", { name: `关闭 ${format} 阅读设置`, exact: true }).tap();
     await expect(settings).toBeFocused();
     await search.tap();
     await expect(host.getByLabel("测试查询")).toHaveValue("保留查询");
