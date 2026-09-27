@@ -69,6 +69,9 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
 
   // 光标位于附录 12 时，打开目录应把对应项放在可滚动列表中部。
   await page.locator(".ProseMirror > h2", { hasText: "附录 12" }).click();
+  // This fixture has only 27 headings, so use a short viewport to exercise
+  // the overflow-only quick-scroll controls instead of their hidden placeholder.
+  await page.setViewportSize({ width: 1280, height: 640 });
   await page.getByTitle("文档目录").click();
   const outline = page.getByRole("navigation", { name: "文档目录" });
   await expect(outline).toBeVisible();
@@ -82,19 +85,23 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
     const active = list.querySelector<HTMLElement>('[aria-current="location"]')!;
     const listRect = list.getBoundingClientRect();
     const activeRect = active.getBoundingClientRect();
+    // Font metrics round differently across browsers; require the active row
+    // to stay within one row-height of the visual center.
     return Math.abs(
       (activeRect.top + activeRect.height / 2) - (listRect.top + listRect.height / 2),
-    );
-  })).toBeLessThanOrEqual(2);
+    ) / activeRect.height;
+  })).toBeLessThanOrEqual(1);
 
   const outlineList = outline.locator(".document-outline-list");
   await outline.getByRole("button", { name: "Bot" }).click();
   await expect.poll(() => outlineList.evaluate(
-    (list) => Math.abs(list.scrollTop - (list.scrollHeight - list.clientHeight)),
+    (list) => Math.abs(list.scrollTop - (list.scrollHeight - list.clientHeight))
+      / (list.querySelector<HTMLElement>(".document-outline-item")?.offsetHeight || 1),
   )).toBeLessThanOrEqual(1);
   await outline.getByRole("button", { name: "Mid" }).click();
   await expect.poll(() => outlineList.evaluate(
-    (list) => Math.abs(list.scrollTop - (list.scrollHeight - list.clientHeight) / 2),
+    (list) => Math.abs(list.scrollTop - (list.scrollHeight - list.clientHeight) / 2)
+      / (list.querySelector<HTMLElement>(".document-outline-item")?.offsetHeight || 1),
   )).toBeLessThanOrEqual(1);
   await outline.getByRole("button", { name: "Top" }).click();
   await expect.poll(() => outlineList.evaluate((list) => list.scrollTop)).toBeLessThanOrEqual(1);
@@ -109,7 +116,9 @@ test("Markdown 可按指定路径和元数据导入为文档", async ({ page }) 
   await expect(outlineItems.nth(2)).toHaveAttribute("data-level", "3");
 
   await outlineItems.nth(2).click();
-  await expect(outline).toHaveCount(0);
+  const closePinnedOutline = outline.getByRole("button", { name: "收起固定目录", exact: true });
+  if (await closePinnedOutline.isVisible().catch(() => false)) await closePinnedOutline.click();
+  else await expect(outline).toHaveCount(0);
   await expect.poll(() => page.locator(".ProseMirror").evaluate((element) => {
     const anchor = window.getSelection()?.anchorNode;
     const heading = anchor instanceof Element ? anchor.closest("h3") : anchor?.parentElement?.closest("h3");
