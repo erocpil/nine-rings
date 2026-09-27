@@ -78,7 +78,8 @@ for (const readonly of [false, true]) {
     await expect(openList).toBeVisible();
     await openList.click();
     await expect(dialog).toBeVisible();
-    await openList.click();
+    await openList.focus();
+    await page.keyboard.press("Enter");
     await expect(dialog).toBeHidden();
     await expect(openList).toBeFocused();
     await openList.click();
