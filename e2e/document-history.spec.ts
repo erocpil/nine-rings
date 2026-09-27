@@ -3,7 +3,11 @@ import { expect, test, type Page } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
 import { createBlankDocument } from "./helpers/document";
 
-const editor = (page: Page) => page.locator(".note-editor .ProseMirror");
+// RetainedDocument keeps the previous editor mounted inside an inert portal.
+// Scope assertions to the active session so a fast document switch cannot
+// read the parked editor while the visible session is mounting.
+const activeSession = (page: Page) => page.locator(".retained-document-session:not([inert])");
+const editor = (page: Page) => activeSession(page).locator(".note-editor .ProseMirror");
 async function fixture(page: Page) {
   await createBlankDocument(page);
   await editor(page).evaluate(element => {
@@ -180,7 +184,7 @@ for (const virtual of [false, true]) {
     const destination = (await history(page)).entries[(await history(page)).index];
     await page.getByRole("button", { name: "后退", exact: true }).click();
     await expect.poll(async () => (await history(page)).target).toBeNull();
-    const root = page.locator(".note-editor-scroll");
+    const root = activeSession(page).locator(".note-editor-scroll");
     await expect.poll(() => root.evaluate(element => element.scrollTop)).toBeLessThan(120);
     await page.getByRole("button", { name: "前进", exact: true }).click();
     await expect.poll(async () => {
