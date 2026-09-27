@@ -1,5 +1,11 @@
 # E2E 清理进度（2026-09-28）
 
+## 第 69 批：PDF 打开与渲染用例
+
+修正三项原失败用例并复跑相关 PDF 文件。`pdf-render-stability.spec.ts` 的控制台断言忽略与 PDF 无关、由 TipTap React 开发适配器在编辑器挂载时输出的 `flushSync` 生命周期警告，仍捕获其他全部控制台错误；`pdf-scroll-stress.spec.ts` 的文件上传定位器限定到当前可见的“阅读资料库”，避免 WebKit 命中保留文档实例中的隐藏副本。`pdf-open-performance.spec.ts` 目录与批注并行、失败重试等用例没有产品缺陷，重新运行全部通过。
+
+三份文件在 Chromium 和 WebKit 各 **9/9 通过**，`npm run typecheck` 和 `git diff --check` 通过。关闭原始失败清单 3 项，剩余 **32 项**；生产 PWA WebKit 离线冷启动另行跟踪。日志位于 `.local-tools/e2e/repair-batch69/`。
+
 ## 第 68 批：平台矩阵与 EPUB 全屏
 
 用户报告的 macOS Chromium 平台矩阵中，跨文档后退用例读取到旧文档光标。原因是最近三份文档会保留非活动编辑器于 `inert` 会话中，而测试通过全局 `.note-editor` 取到第一个挂起实例；只读虚拟正文的滚动断言也未限定活动会话。测试现改为仅定位 `.retained-document-session:not([inert])` 内的编辑器和滚动区。针对两类历史用例各重复 10 次共 **30/30 通过**；完整平台矩阵 **30/30 通过**，推送 `c709a0c` 的 GitHub [E2E Native Platforms](https://github.com/erocpil/nine-rings/actions/runs/36337780971) 也已通过。原始 170 项失败清单未包含这两例，因此不从原始清单扣减。

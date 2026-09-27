@@ -4,7 +4,12 @@ import { createPdfFixture } from './helpers/reader-fixtures';
 test('PDF 横向翻页能够完成渲染且不会循环更新', async ({ page }) => {
   const errors: string[] = [];
   page.on('console', message => {
-    if (message.type() === 'error') errors.push(message.text());
+    if (message.type() !== 'error') return;
+    const text = message.text();
+    // TipTap's React development adapter reports this lifecycle warning while
+    // mounting the editor. It is unrelated to PDF rendering or page changes.
+    if (text.includes('flushSync was called from inside a lifecycle method')) return;
+    errors.push(text);
   });
   await page.goto('/');
   await page.getByRole('button', { name: 'PDF / EPUB 阅读', exact: true }).click();

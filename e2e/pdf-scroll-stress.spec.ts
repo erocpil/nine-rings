@@ -17,7 +17,7 @@ test("PDF 快速往返滚动后只提交当前页，离屏画布释放", async (
     pdf.addPage([600, 800]).drawText(`Unique page ${i}`, { x: 40, y: 720 });
   await page.goto("/");
   await openMobileReadingLibrary(page);
-  await page
+  await page.getByRole("region", { name: "阅读资料库", exact: true })
     .locator('input[type="file"][accept="application/pdf,.pdf"]')
     .setInputFiles({
       name: "scroll-stress.pdf",
@@ -229,7 +229,7 @@ test("PDF 解析尚未完成时返回会终止加载 Worker", async ({ page }) =
   pdf.addPage().drawText("Pending parse");
   await page.goto("/");
   await openMobileReadingLibrary(page);
-  await page
+  await page.getByRole("region", { name: "阅读资料库", exact: true })
     .locator('input[type="file"][accept="application/pdf,.pdf"]')
     .setInputFiles({
       name: "pending.pdf",
