@@ -37,7 +37,6 @@
 | [block-workspace.spec.ts:532](../e2e/block-workspace.spec.ts#L532) | 触屏块工作区 / 键盘压缩可视区域后关闭按钮仍可点击 | chromium, webkit |
 | [calm-settings-toolbar.spec.ts:5](../e2e/calm-settings-toolbar.spec.ts#L5) | calm 设置层级与工具栏格式、窄区入口 | webkit |
 | [calm-settings-toolbar.spec.ts:5](../e2e/calm-settings-toolbar.spec.ts#L5) | calm-compact 设置层级与工具栏格式、窄区入口 | webkit |
-| [clipboard-paste.spec.ts:207](../e2e/clipboard-paste.spec.ts#L207) | 编辑器复制粘贴 / 长 shell 参数自动换行时不会让前导空格单独占据视觉行 | webkit |
 | [clipboard-paste.spec.ts:377](../e2e/clipboard-paste.spec.ts#L377) | 编辑器复制粘贴 / 全选复制多个代码块不会包含语言和复制控件文字 | chromium |
 | [clipboard-paste.spec.ts:411](../e2e/clipboard-paste.spec.ts#L411) | 编辑器复制粘贴 / 折叠引用块后全选复制仍只包含引用正文 | chromium |
 | [clipboard-paste.spec.ts:633](../e2e/clipboard-paste.spec.ts#L633) | 编辑器复制粘贴 / Markdown 多级混合列表按层级渲染 | chromium, webkit |

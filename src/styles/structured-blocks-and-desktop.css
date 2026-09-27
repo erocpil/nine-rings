@@ -266,10 +266,8 @@
   font-size: 1em;
 }
 
-/* pre-wrap normally prefers the break point after leading indentation over
-   breaking inside a long shell token. That can leave the indentation alone on
-   a visual row. Code-wrap mode may break between characters so the first part
-   of the token stays with its indentation; the underlying text is unchanged. */
+/* Code-wrap mode can break long commands between characters without changing
+   the source text or the preserved whitespace. */
 .ProseMirror .code-block-wrap[data-code-wrap="true"] .code-block-inner pre code {
   word-break: break-all;
 }

@@ -209,7 +209,8 @@ test.describe("编辑器复制粘贴", () => {
 
     const editor = page.locator(".ProseMirror");
     await editor.click();
-    await page.getByTitle("代码块 (Ctrl+Alt+C)").click();
+    await page.getByRole("button", { name: "块", exact: true }).click();
+    await page.getByRole("button", { name: "⏹ 代码块", exact: true }).click();
     await editor.evaluate((element, text) => {
       const clipboardData = new DataTransfer();
       clipboardData.setData("text/plain", text);
@@ -220,6 +221,7 @@ test.describe("编辑器复制粘贴", () => {
       }));
     }, wrappedRgCommand);
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("button", { name: "隐藏侧栏", exact: true }).click();
 
     const code = editor.locator("pre code");
     await expect.poll(() => code.textContent()).toBe(wrappedRgCommand);
@@ -244,10 +246,17 @@ test.describe("编辑器复制粘贴", () => {
         return range.getBoundingClientRect().top;
       };
       const style = getComputedStyle(element);
+      const visualRows = new Map<number, string>();
+      for (let offset = 0; offset < text.length; offset++) {
+        if (text[offset] === "\n") continue;
+        const row = Math.round(topAt(offset));
+        visualRows.set(row, (visualRows.get(row) ?? "") + text[offset]);
+      }
       return {
-        indentTop: topAt(secondLineStart),
+        indentTop: topAt(secondLineStart + 1),
         openingQuoteTop: topAt(secondLineStart + 2),
         closingQuoteTop: topAt(secondLineEnd - 3),
+        visualRows: Array.from(visualRows.values()),
         wordBreak: style.wordBreak,
         whiteSpace: style.whiteSpace,
       };
@@ -256,6 +265,7 @@ test.describe("编辑器复制粘贴", () => {
     expect(geometry.whiteSpace).toBe("pre-wrap");
     expect(geometry.wordBreak).toBe("break-all");
     expect(Math.abs(geometry.indentTop - geometry.openingQuoteTop)).toBeLessThan(2);
+    for (const row of geometry.visualRows) expect(row.trim()).not.toBe("");
     expect(geometry.closingQuoteTop).toBeGreaterThan(geometry.openingQuoteTop + 2);
 
     const codeBlock = editor.locator(".code-block-wrap");
