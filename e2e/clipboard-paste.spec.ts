@@ -704,8 +704,11 @@ test.describe("编辑器复制粘贴", () => {
       (element) => getComputedStyle(element, "::before").content,
     )).toContain("•");
     await expect.poll(() => grandchildList.locator(":scope > li").first().evaluate(
-      (element) => getComputedStyle(element, "::before").content,
-    )).toContain("▪");
+      (element) => {
+        const marker = getComputedStyle(element, "::before");
+        return `${marker.content}|${marker.backgroundImage}|${marker.backgroundSize}`;
+      },
+    )).toMatch(/^""\|linear-gradient\(.+\)\|[\d.]+px [\d.]+px$/);
     await expect.poll(() => childList.locator(":scope > li").first().evaluate(
       (element) => getComputedStyle(element, "::before").content,
     )).toContain("counter(editor-list-item, lower-alpha)");
