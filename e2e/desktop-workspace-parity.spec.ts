@@ -38,9 +38,10 @@ for (const native of [false, true]) {
       return { label: button.getAttribute("aria-label"), x: rect.x, y: rect.y, width: rect.width, height: rect.height };
     }));
     const baseline = await geometry();
-    expect(baseline.map(button => button.label)).toEqual(["文档树", "文档列表", "PDF / EPUB 阅读", "全局搜索", "设置"]);
+    expect(baseline.map(button => button.label)).toEqual(["文档树", "文档列表", "PDF / EPUB 阅读", "全局搜索", "回收站", "设置"]);
     expect(baseline.every(button => button.width === 36 && button.height === 36)).toBe(true);
     expect(baseline[4].y - baseline[3].y).toBe(42);
+    expect(baseline[5].y - baseline[4].y).toBe(42);
     expect(baseline[3].y).toBeGreaterThan(600);
     // The document tree loads independently of the editor; do not capture an
     // empty baseline before its toolbar portal has mounted (notably WebKit).
