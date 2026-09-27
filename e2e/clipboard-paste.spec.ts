@@ -27,6 +27,28 @@ const wrappedRgCommand = [
   "",
 ].join("\n");
 
+async function clickToolbarAction(page: import("@playwright/test").Page, title: string, menuTitle: string, actionName: string) {
+  const direct = page.getByTitle(title, { exact: true });
+  if (await direct.isVisible().catch(() => false)) {
+    await direct.click();
+    return;
+  }
+  await page.getByTitle(menuTitle, { exact: true }).click();
+  await page.getByRole("button", { name: actionName, exact: true }).click();
+}
+
+async function clickPaste(page: import("@playwright/test").Page) {
+  await clickToolbarAction(page, "粘贴 (Ctrl+V)", "剪贴", "📝 粘贴");
+}
+
+async function clickCopy(page: import("@playwright/test").Page) {
+  await clickToolbarAction(page, "复制 (Ctrl+C)", "剪贴", "📋 复制");
+}
+
+async function clickCodeBlock(page: import("@playwright/test").Page) {
+  await clickToolbarAction(page, "代码块 (Ctrl+Alt+C)", "块", "⏹ 代码块");
+}
+
 test.describe("编辑器复制粘贴", () => {
   for (const mode of ["原生", "工具栏"] as const) {
     test(`${mode}富文本粘贴保留样式、列表、表格和复制切片边界`, async ({ page, context }) => {
@@ -50,7 +72,7 @@ test.describe("编辑器复制粘贴", () => {
             "text/html": new Blob([html], { type: "text/html" }),
           })]);
         }, content);
-        await page.getByTitle("粘贴 (Ctrl+V)").click();
+        await clickPaste(page);
       }
       await expect(editor.locator("h1")).toHaveCount(0);
       await expect(editor.locator("strong")).toHaveText("加粗");
@@ -83,13 +105,13 @@ test.describe("编辑器复制粘贴", () => {
           } });
         });
       }
-      await page.getByTitle("复制 (Ctrl+C)").click();
+      await clickCopy(page);
       await expect.poll(() => page.evaluate(async () => {
         const items = await navigator.clipboard.read();
         const html = items.find((item) => item.types.includes("text/html"));
         return html ? (await html.getType("text/html")).text() : "";
       })).toContain("data-pm-slice");
-      await page.getByTitle("粘贴 (Ctrl+V)").click();
+      await clickPaste(page);
       await expect(editor.locator(":scope > p")).toHaveCount(1);
       await expect(editor.locator("strong")).toHaveText("加粗");
       await expect(editor.locator("em")).toHaveText("斜体");
@@ -110,7 +132,7 @@ test.describe("编辑器复制粘贴", () => {
           });
         } });
       });
-      await page.getByTitle("粘贴 (Ctrl+V)").click();
+      await clickPaste(page);
       await expect.poll(() => page.evaluate(() => "finishClipboardRead" in window)).toBe(true);
       if (action === "继续输入") await editor.fill("更新后的正文");
       else if (action === "切换只读") {
@@ -137,7 +159,7 @@ test.describe("编辑器复制粘贴", () => {
 
     const editor = page.locator(".ProseMirror");
     await editor.click();
-    await page.getByTitle("代码块 (Ctrl+Alt+C)").click();
+    await clickCodeBlock(page);
     await expect(editor.locator("pre code")).toHaveCount(1);
 
     await editor.evaluate((element, text) => {
@@ -163,7 +185,7 @@ test.describe("编辑器复制粘贴", () => {
 
     const editor = page.locator(".ProseMirror");
     await editor.click();
-    await page.getByTitle("代码块 (Ctrl+Alt+C)").click();
+    await clickCodeBlock(page);
     await page.evaluate(async (text) => {
       await navigator.clipboard.write([
         new ClipboardItem({
@@ -173,7 +195,7 @@ test.describe("编辑器复制粘贴", () => {
       ]);
     }, markdownLikeShellSource);
 
-    await page.getByTitle("粘贴 (Ctrl+V)").click();
+    await clickPaste(page);
 
     const code = editor.locator("pre code");
     await expect(code).toHaveCount(1);
@@ -187,7 +209,7 @@ test.describe("编辑器复制粘贴", () => {
 
     const editor = page.locator(".ProseMirror");
     await editor.fill("已有代码：");
-    await page.getByTitle("代码块 (Ctrl+Alt+C)").click();
+    await clickCodeBlock(page);
     await editor.evaluate((element) => {
       const clipboardData = new DataTransfer();
       clipboardData.setData("text/plain", "rg -n \\\n  'pp_init_ctx|ibv_poll_cq' \\\n");
@@ -508,7 +530,7 @@ test.describe("编辑器复制粘贴", () => {
     });
     await editor.click();
     await pressLineBoundary(page, "end");
-    await page.getByTitle("粘贴 (Ctrl+V)").click();
+    await clickPaste(page);
 
     await expect(editor.locator("p")).toHaveCount(1);
     await expect(editor.locator("p")).toHaveText("前缀 后缀中间文本");
@@ -536,7 +558,7 @@ test.describe("编辑器复制粘贴", () => {
       ]);
     }, markdown);
 
-    await page.getByTitle("粘贴 (Ctrl+V)").click();
+    await clickPaste(page);
 
     const editor = page.locator(".ProseMirror");
     const rootItems = editor.locator(":scope > ul > li");
