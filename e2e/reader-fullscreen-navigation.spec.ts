@@ -35,7 +35,7 @@ for (const wide of [false, true]) {
     });
 
     test("PDF 目录回退页列表、书签切换与搜索在全屏均可用", async ({ page }, testInfo) => {
-      await page.locator('input[accept="application/pdf,.pdf"]').setInputFiles({
+      await page.getByRole("region", { name: "阅读资料库", exact: true }).locator('input[accept="application/pdf,.pdf"]').setInputFiles({
         name: "navigation.pdf", mimeType: "application/pdf", buffer: createPdfFixture(),
       });
       await expect(page.locator(".pdf-text-layer").first()).toContainText("Nine Rings PDF MVP");
@@ -89,16 +89,26 @@ for (const wide of [false, true]) {
     });
 
     test("EPUB 全屏目录书签可收起、打开时固定工具栏且不重排正文", async ({ page }, testInfo) => {
-      await page.locator('input[accept="application/epub+zip,.epub"]').setInputFiles({
+      await page.getByRole("region", { name: "阅读资料库", exact: true }).locator('input[accept="application/epub+zip,.epub"]').setInputFiles({
         name: "navigation.epub", mimeType: "application/epub+zip", buffer: createEpubFixture(),
       });
-      const frame = page.frameLocator(".epub-chapter-frame");
+      const reader = page.getByRole("region", { name: "EPUB 阅读器", exact: true });
+      const frame = page.frameLocator(".epub-reader .epub-chapter-frame");
+      const tapFrame = async () => {
+        await frame.locator("body").evaluate((body) => {
+          body.ownerDocument.defaultView?.getSelection()?.removeAllRanges();
+          body.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+        });
+      };
       await expect(frame.getByRole("heading", { name: "第一章" })).toBeVisible();
-      const toolbar = page.locator(".reader-toolbar");
+      const toolbar = reader.locator(".reader-toolbar");
       await toolbar.getByRole("button", { name: "进入 EPUB 专注模式" }).click();
+      await expect(reader).toHaveClass(/epub-reader-focus/);
       await expect(toolbar).toBeHidden();
+      await expect(frame.getByRole("heading", { name: "第一章" })).toBeVisible();
       const before = await page.locator(".epub-chapter-frame").boundingBox();
-      await frame.locator("body").dispatchEvent("click");
+      expect(before).not.toBeNull();
+      await tapFrame();
       await expect(toolbar).toBeVisible();
       const directory = toolbar.getByRole("button", { name: "EPUB 目录", exact: true });
       await directory.click();
@@ -120,10 +130,12 @@ for (const wide of [false, true]) {
       await directory.click();
       await expect(directory).toHaveAttribute("aria-expanded", "false");
       await directory.click();
-      await frame.locator("body").dispatchEvent("click");
-      await expect(page.locator(".epub-outline")).toHaveCount(0);
+      await expect(directory).toHaveAttribute("aria-expanded", "true");
+      await tapFrame();
+      await expect(page.locator(".epub-outline:visible")).toHaveCount(0);
+      await expect(reader).toHaveClass(/epub-reader-focus/);
       await expect(toolbar).toBeHidden();
-      await frame.locator("body").dispatchEvent("click");
+      await tapFrame();
       const bookmarks = toolbar.getByRole("button", { name: "打开 EPUB 书签" });
       await bookmarks.click();
       const panel = toolbar.getByRole("dialog", { name: "EPUB 书签" });

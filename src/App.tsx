@@ -1125,6 +1125,7 @@ function App() {
             key={epubReaderDocumentId}
             embedded={!mobileDrawerViewport}
             documentId={epubReaderDocumentId}
+            fullscreen={epubReaderFullscreen}
             initialHighlightId={epubReaderTargetHighlightId}
             onFullscreenChange={setEpubReaderFullscreen}
             onCreateExcerpt={async ({ epubId, epubName, chapter, chapterTitle, selectedText, highlightId, anchor }) => {

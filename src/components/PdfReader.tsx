@@ -1326,9 +1326,9 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const sidebar = readerRef.current?.closest('.desktop-reader-panel');
-      if (sidebar && (sidebar.closest('[hidden], .sidebar-hidden') || !(event.target instanceof Node) || !sidebar.contains(event.target))) return;
-      if (!pdf || event.defaultPrevented) return;
+      const reader = readerRef.current;
+      if (!reader || !pdf || event.defaultPrevented || !(event.target instanceof Node) ||
+          !reader.contains(event.target) || reader.getClientRects().length === 0) return;
       if (isPrimaryShortcutModifier(event) && event.key.toLocaleLowerCase() === "f") {
         event.preventDefault();
         setOutlineOpen(false);
@@ -1373,6 +1373,19 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [changePage, closeReader, exitFullscreen, fullscreen, outlineOpen, page, pdf, setFitWidth]);
+
+  useEffect(() => {
+    if (!outlineOpen) return;
+    const closeOutline = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setOutlineOpen(false);
+    };
+    // Let an open PDF directory consume Escape before the mobile drawer does.
+    window.addEventListener("keydown", closeOutline, true);
+    return () => window.removeEventListener("keydown", closeOutline, true);
+  }, [outlineOpen]);
 
   useEffect(() => {
     if (resizing || !pdf || rendering || page >= pdf.numPages) return;
@@ -2163,6 +2176,7 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
   return (
     <div
       ref={readerRef}
+      data-reader-escape-open={outlineOpen || toolsPanel !== null ? "true" : undefined}
       className={`pdf-reader ${fullscreen ? "pdf-reader-fullscreen" : ""} ${fullscreen && !fullscreenControlsVisible && !outlineOpen && toolsPanel === null ? "pdf-fullscreen-controls-hidden" : ""}`}
       aria-label="PDF 阅读器"
       data-pdf-scroll-quality={fastScrolling ? "preview" : "full"}

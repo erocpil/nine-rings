@@ -27,6 +27,7 @@ import {
 interface Props {
   embedded?: boolean;
   documentId: string;
+  fullscreen?: boolean;
   onClose: () => void;
   initialHighlightId?: string | null;
   onFullscreenChange?: (fullscreen: boolean) => void;
@@ -425,7 +426,7 @@ function safeChapterDocument(
   return `<!doctype html>${new XMLSerializer().serializeToString(document.documentElement)}`;
 }
 
-export function EpubReader({ documentId, onClose, initialHighlightId, onFullscreenChange, onCreateExcerpt, embedded = false }: Props) {
+export function EpubReader({ documentId, fullscreen: controlledFullscreen, onClose, initialHighlightId, onFullscreenChange, onCreateExcerpt, embedded = false }: Props) {
   const readerRef = useRef<HTMLElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const registryRef = useRef<ReturnType<typeof createResourceRegistry> | null>(null);
@@ -471,7 +472,8 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const [selection, setSelection] = useState<EpubSelection | null>(null);
   const [targetHighlightId, setTargetHighlightId] = useState(initialHighlightId ?? null);
   const [annotationOpen, setAnnotationOpen] = useState(false);
-  const [fullscreen, setFullscreen] = useState(false);
+  const [localFullscreen, setLocalFullscreen] = useState(false);
+  const fullscreen = controlledFullscreen ?? localFullscreen;
   const [toolsPanel, setToolsPanel] = useState<ReaderToolPanel>(null);
   const [focusControlsVisible, setFocusControlsVisible] = useState(false);
   const focusControlsHoverRef = useRef(false);
@@ -482,13 +484,16 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   const [error, setError] = useState<string | null>(null);
   const [loadRevision, setLoadRevision] = useState(0);
   const navigationPinned = tocOpen || toolsPanel !== null;
+  const navigationPinnedRef = useRef(navigationPinned);
+  navigationPinnedRef.current = navigationPinned;
   const previousNavigationPinnedRef = useRef(false);
+  fullscreenRef.current = fullscreen;
 
   const applyFullscreenState = useCallback((next: boolean) => {
     fullscreenRef.current = next;
-    setFullscreen(next);
+    if (controlledFullscreen === undefined) setLocalFullscreen(next);
     onFullscreenChange?.(next);
-  }, [onFullscreenChange]);
+  }, [controlledFullscreen, onFullscreenChange]);
 
   const hideFocusControls = useCallback(() => {
     if (focusControlsTimerRef.current !== null) window.clearTimeout(focusControlsTimerRef.current);
@@ -506,15 +511,23 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   }, [hideFocusControls]);
 
   useEffect(() => {
-    if (fullscreen && previousNavigationPinnedRef.current !== navigationPinned) showFocusControls();
+    // Opening a navigation panel must reveal its controls. Closing a panel by
+    // tapping the reading surface should leave focus mode in its hidden state.
+    if (fullscreen && !previousNavigationPinnedRef.current && navigationPinned) showFocusControls();
     previousNavigationPinnedRef.current = fullscreen && navigationPinned;
   }, [fullscreen, navigationPinned, showFocusControls]);
 
   const toggleFocusControls = useCallback(() => {
     if (!fullscreenRef.current) return;
+    const navigationWasPinned = navigationPinnedRef.current;
     // State updaters may run twice in StrictMode. Keep timer side effects in
     // the event handler, with one synchronous visibility source for rapid taps.
-    if (focusControlsVisibleRef.current) hideFocusControls();
+    if (navigationWasPinned) {
+      setTocOpen(false);
+      setToolsPanel(null);
+      navigationPinnedRef.current = false;
+    }
+    if (focusControlsVisibleRef.current || navigationWasPinned) hideFocusControls();
     else showFocusControls();
   }, [hideFocusControls, showFocusControls]);
 
@@ -522,6 +535,10 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     if (!fullscreenRef.current) return;
     focusControlsHoverRef.current = true;
     if (focusControlsTimerRef.current !== null) window.clearTimeout(focusControlsTimerRef.current);
+    if (!focusControlsVisibleRef.current) {
+      focusControlsVisibleRef.current = true;
+      setFocusControlsVisible(true);
+    }
   }, []);
   const handleFocusControlsLeave = useCallback(() => {
     focusControlsHoverRef.current = false;
@@ -813,53 +830,56 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     }, 1400);
   }, []);
 
+  const receiveFrameMessageRef = useRef<(event: MessageEvent) => void>(() => undefined);
+  receiveFrameMessageRef.current = (event: MessageEvent) => {
+    if (event.source !== iframeRef.current?.contentWindow) return;
+    const message = event.data as { type?: unknown; action?: unknown } | null;
+    if (message?.type !== "nine-rings:epub-frame" || typeof message.action !== "string") return;
+    if (message.action === "ready") {
+      handleFrameLoad();
+      const frameDocument = iframeRef.current?.contentDocument;
+      const frameWindow = iframeRef.current?.contentWindow;
+      if (boundFrameDocumentRef.current?.document === frameDocument) {
+        bridgeRestoredDocumentRef.current = frameDocument ?? null;
+        return;
+      }
+      if (frameDocument && frameWindow && bridgeRestoredDocumentRef.current !== frameDocument) {
+        bridgeRestoredDocumentRef.current = frameDocument;
+        window.requestAnimationFrame(() => {
+          if (iframeRef.current?.contentDocument !== frameDocument || !frameDocument.body) return;
+          if (fragment) frameDocument.getElementById(fragment)?.scrollIntoView();
+          else if (scrollProgress > 0) {
+            const root = frameDocument.documentElement;
+            const body = frameDocument.body;
+            if (!root || !body) return;
+            const maximum = Math.max(0, root.scrollHeight, body.scrollHeight) - Math.max(1, frameWindow.innerHeight, root.clientHeight);
+            const top = scrollProgress * Math.max(0, maximum);
+            frameWindow.scrollTo(0, top);
+            root.scrollTop = top;
+            body.scrollTop = top;
+          }
+        });
+      }
+      return;
+    }
+    if (message.action === "tap") {
+      toggleFocusControls();
+      return;
+    }
+    if (!book || (message.action !== "swipe-left" && message.action !== "swipe-right")) return;
+    if (message.action === "swipe-left") {
+      if (chapter >= book.chapters.length - 1) showSwipeNotice("已经是最后一章");
+      else changeChapter(chapter + 1);
+    }
+    else if (chapter <= 0) showSwipeNotice("已经是第一章");
+    else changeChapter(chapter - 1);
+  };
+
   useEffect(() => {
-    const receiveFrameMessage = (event: MessageEvent) => {
-      if (event.source !== iframeRef.current?.contentWindow) return;
-      const message = event.data as { type?: unknown; action?: unknown } | null;
-      if (message?.type !== "nine-rings:epub-frame" || typeof message.action !== "string") return;
-      if (message.action === "ready") {
-        handleFrameLoad();
-        const frameDocument = iframeRef.current?.contentDocument;
-        const frameWindow = iframeRef.current?.contentWindow;
-        if (boundFrameDocumentRef.current?.document === frameDocument) {
-          bridgeRestoredDocumentRef.current = frameDocument ?? null;
-          return;
-        }
-        if (frameDocument && frameWindow && bridgeRestoredDocumentRef.current !== frameDocument) {
-          bridgeRestoredDocumentRef.current = frameDocument;
-          window.requestAnimationFrame(() => {
-            if (iframeRef.current?.contentDocument !== frameDocument || !frameDocument.body) return;
-            if (fragment) frameDocument.getElementById(fragment)?.scrollIntoView();
-            else if (scrollProgress > 0) {
-              const root = frameDocument.documentElement;
-              const body = frameDocument.body;
-              if (!root || !body) return;
-              const maximum = Math.max(0, root.scrollHeight, body.scrollHeight) - Math.max(1, frameWindow.innerHeight, root.clientHeight);
-              const top = scrollProgress * Math.max(0, maximum);
-              frameWindow.scrollTo(0, top);
-              root.scrollTop = top;
-              body.scrollTop = top;
-            }
-          });
-        }
-        return;
-      }
-      if (message.action === "tap") {
-        toggleFocusControls();
-        return;
-      }
-      if (!book || (message.action !== "swipe-left" && message.action !== "swipe-right")) return;
-      if (message.action === "swipe-left") {
-        if (chapter >= book.chapters.length - 1) showSwipeNotice("已经是最后一章");
-        else changeChapter(chapter + 1);
-      }
-      else if (chapter <= 0) showSwipeNotice("已经是第一章");
-      else changeChapter(chapter - 1);
-    };
+    const receiveFrameMessage = (event: MessageEvent) => receiveFrameMessageRef.current(event);
     window.addEventListener("message", receiveFrameMessage);
     return () => window.removeEventListener("message", receiveFrameMessage);
-  });
+  }, []);
 
   const handleFrameLoad = () => {
     const frameDocument = iframeRef.current?.contentDocument;
@@ -965,9 +985,10 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     frameDocument.addEventListener("scroll", captureScroll, { passive: true, capture: true });
     frameDocument.addEventListener("mouseup", captureFrameSelection);
     frameDocument.addEventListener("selectionchange", () => window.requestAnimationFrame(captureFrameSelection));
-    // iframe 拥有独立的 DOM 事件树，正文点击不会冒泡到阅读器外层。
-    // 在正文区域点击时收起目录/书签面板，避免面板挡住后续阅读。
     frameDocument.addEventListener("click", () => {
+      // In focus mode the frame bridge owns taps so one gesture cannot close a
+      // panel here and then toggle the controls again in the parent window.
+      if (fullscreenRef.current || !navigationPinnedRef.current) return;
       setTocOpen(false);
       setToolsPanel(null);
     });
@@ -1169,8 +1190,6 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
     applyFullscreenState(!fullscreen);
   }, [applyFullscreenState, fullscreen, hideFocusControls]);
 
-  useEffect(() => () => onFullscreenChange?.(false), [onFullscreenChange]);
-
   const activeHighlight = highlights.find((item) => item.id === targetHighlightId) ?? null;
   const currentBookmark = bookmarks.some((item) => item.chapter === chapter);
 
@@ -1213,12 +1232,12 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
   });
 
   return (
-    <section ref={readerRef} className={`pdf-reader epub-reader epub-theme-${theme}${fullscreen ? " epub-reader-focus" : ""}${focusControlsVisible || (fullscreen && navigationPinned) ? " epub-focus-controls-visible" : ""}`} aria-label="EPUB 阅读器">
+    <section ref={readerRef} data-reader-escape-open={navigationPinned ? "true" : undefined} className={`pdf-reader epub-reader epub-theme-${theme}${fullscreen ? " epub-reader-focus" : ""}${focusControlsVisible || (fullscreen && navigationPinned) ? " epub-focus-controls-visible" : ""}`} aria-label="EPUB 阅读器">
       <ReaderToolbar
         format="EPUB" title={book?.title ?? entry?.name ?? "EPUB 阅读器"} onClose={closeReader}
-        activePanel={toolsPanel} onPanelChange={(panel) => { setToolsPanel(panel); if (panel) setTocOpen(false); }}
-        libraryActions={<><button type="button" className={tocOpen ? "active" : ""} onClick={() => { setToolsPanel(null); setTocOpen((open) => !open); }} aria-label="EPUB 目录" aria-expanded={tocOpen}>目录</button>
-        <button type="button" data-reader-trigger="bookmarks" className={toolsPanel === "bookmarks" ? "active" : ""} aria-expanded={toolsPanel === "bookmarks"} onClick={(event) => { event.stopPropagation(); setTocOpen(false); setToolsPanel((panel) => panel === "bookmarks" ? null : "bookmarks"); }} aria-label="打开 EPUB 书签"><ToolbarIcon name="bookmark" />书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button></>}
+        activePanel={toolsPanel} onPanelChange={(panel) => { if (!panel) showFocusControls(); setToolsPanel(panel); if (panel) setTocOpen(false); }}
+        libraryActions={<><button type="button" className={tocOpen ? "active" : ""} onClick={() => { if (tocOpen) showFocusControls(); setToolsPanel(null); setTocOpen((open) => !open); }} aria-label="EPUB 目录" aria-expanded={tocOpen}>目录</button>
+        <button type="button" data-reader-trigger="bookmarks" className={toolsPanel === "bookmarks" ? "active" : ""} aria-expanded={toolsPanel === "bookmarks"} onClick={(event) => { event.stopPropagation(); const closing = toolsPanel === "bookmarks"; if (closing) showFocusControls(); setTocOpen(false); setToolsPanel((panel) => panel === "bookmarks" ? null : "bookmarks"); }} aria-label="打开 EPUB 书签"><ToolbarIcon name="bookmark" />书签{bookmarks.length > 0 ? ` ${bookmarks.length}` : ""}</button></>}
         focusAction={<button type="button" className={fullscreen ? "epub-focus-exit" : undefined} onClick={() => void toggleFullscreen()} aria-label={fullscreen ? "退出 EPUB 专注模式" : "进入 EPUB 专注模式"}><ToolbarIcon name={fullscreen ? "compress" : "expand"} /></button>}
         onMouseEnter={handleFocusControlsEnter}
         onMouseLeave={handleFocusControlsLeave}
@@ -1307,13 +1326,7 @@ export function EpubReader({ documentId, onClose, initialHighlightId, onFullscre
           <span>{completedSearchQuery ? (searchMatches.length > 0 ? `${activeSearchIndex + 1}/${searchMatches.length}` : "未找到") : ""}</span>
         </form>}
       />
-      <div
-        className="pdf-reader-body"
-        onPointerDown={(event) => {
-          if (!tocOpen || !(event.target instanceof Element) || event.target.closest(".pdf-outline")) return;
-          setTocOpen(false);
-        }}
-      >
+      <div className="pdf-reader-body">
         {tocOpen && book && (
           <aside className="pdf-outline epub-outline" aria-label="EPUB 目录">
             <div className="pdf-outline-heading">

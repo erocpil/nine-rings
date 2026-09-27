@@ -37,6 +37,9 @@ export function useEdgeDrawer(open: boolean, side: "left" | "right", panelRef: R
       swipeButtonSelector: "[data-drawer-swipe-item], .document-outline-link, .document-bookmark-item:not(.swipe-open) .document-bookmark-jump",
     });
     const keydown = (event: KeyboardEvent) => {
+      // Reader-owned panels must consume Escape before the surrounding drawer.
+      if (event.key === "Escape" &&
+          (event.target as Element | null)?.closest?.("[data-reader-escape-open='true']")) return;
       // Portaled tree/filter menus own their Escape and keyboard navigation.
       if (event.defaultPrevented || document.querySelector(".doc-context-menu[data-sidebar-owned], .document-filter-options[data-sidebar-owned]")) return;
       // A sidebar command may open a separate modal (rename/create/settings).

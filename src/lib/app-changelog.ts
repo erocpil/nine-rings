@@ -1,6 +1,14 @@
 /** User-facing highlights shipped with the app, newest first. Keep dates in ISO format. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-09-28",
+    title: "稳定全屏阅读导航",
+    changes: [
+      "修复移动端全屏阅读时，按 Escape 会先关闭阅读器抽屉而无法收起目录的问题。",
+      "修复 EPUB 桌面布局重挂载时退出专注模式，以及收起目录后工具栏重新显示的问题。",
+    ],
+  },
+  {
     date: "2026-09-27",
     title: "精简工作区功能",
     changes: [

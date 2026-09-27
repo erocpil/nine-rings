@@ -9,9 +9,10 @@ export async function openReadingLibrary(page: Page) {
     exact: true,
   });
   await expect(page.locator(".note-editor")).toBeVisible();
-  if (await page.evaluate(() => !matchMedia("(max-width: 768px)").matches))
-    await desktop.click();
-  else await openMobileReadingLibrary(page);
+  if (await page.evaluate(() => !matchMedia("(max-width: 768px)").matches)) {
+    // Closing a book remounts its library asynchronously in the already-open panel.
+    if (await desktop.getAttribute("aria-expanded") !== "true") await desktop.click();
+  } else await openMobileReadingLibrary(page);
   await expect(library).toBeVisible();
   return library;
 }

@@ -11,7 +11,7 @@ async function openFocusReader(page: Page) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await openMobileReadingLibrary(page);
-  await page.locator('input[type="file"][accept="application/epub+zip,.epub"]').setInputFiles({
+  await page.getByRole("region", { name: "阅读资料库", exact: true }).locator('input[type="file"][accept="application/epub+zip,.epub"]').setInputFiles({
     name: "focus-controls.epub", mimeType: "application/epub+zip", buffer: createEpubFixture(),
   });
   const frame = page.locator(".epub-chapter-frame").contentFrame();
@@ -67,7 +67,7 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page,
   await page.goto("/");
   await openReadingLibrary(page);
 
-  await page.locator('input[type="file"][accept="application/epub+zip,.epub"]').setInputFiles({
+  await page.getByRole("region", { name: "阅读资料库", exact: true }).locator('input[type="file"][accept="application/epub+zip,.epub"]').setInputFiles({
     name: "nine-rings-mvp.epub",
     mimeType: "application/epub+zip",
     buffer: createEpubFixture(),
@@ -77,6 +77,7 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page,
   const toc = page.getByRole("complementary", { name: "EPUB 目录", exact: true });
   await expect(reader).toBeVisible();
   await expect(page.locator(".pdf-reader-title")).toHaveText("Nine Rings EPUB MVP");
+  await page.getByRole("button", { name: "EPUB 目录", exact: true }).click();
   await expect(toc).toBeVisible();
   await expect(toc.getByRole("button", { name: "开始阅读", exact: true })).toBeVisible();
   await toc.getByRole("button", { name: "折叠 开始阅读" }).click();
@@ -88,6 +89,11 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page,
   await toc.getByRole("button", { name: "展开全部 EPUB 目录" }).click();
   await expect(toc.getByRole("button", { name: "继续阅读" })).toBeVisible();
 
+  const selectChapter = async (name: string) => {
+    const toggle = page.getByRole("button", { name: "EPUB 目录", exact: true });
+    if (await toggle.getAttribute("aria-expanded") !== "true") await toggle.click();
+    await toc.getByRole("button", { name, exact: true }).click();
+  };
   const chapterFrame = page.locator(".epub-chapter-frame").contentFrame();
   const swipeFrame = async (fromX: number, toX: number) => chapterFrame.locator("body").evaluate((element, points) => {
     element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerType: "touch", isPrimary: true, clientX: points.fromX, clientY: 300 }));
@@ -130,14 +136,14 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page,
   await expect(chapterFrame.locator('script:not([src="/epub-frame-bridge.js"])')).toHaveCount(0);
   await expect(page.locator("body")).not.toHaveAttribute("data-epub-unsafe");
 
-  await toc.getByRole("button", { name: "继续阅读" }).click();
+  await selectChapter("继续阅读");
   await expect(chapterFrame.getByRole("heading", { name: "第二章" })).toBeVisible();
   await expect(page.locator(".epub-chapter-controls")).toContainText("2/2");
-  await toc.getByRole("button", { name: "开始阅读", exact: true }).click();
+  await selectChapter("开始阅读");
   await chapterFrame.getByRole("link", { name: "正文下一章" }).click();
   await expect(chapterFrame.getByRole("heading", { name: "第二章" })).toBeVisible();
 
-  await toc.getByRole("button", { name: "开始阅读", exact: true }).click();
+  await selectChapter("开始阅读");
   await page.getByRole("button", { name: "EPUB 搜索", exact: true }).click();
   await page.getByLabel("搜索 EPUB").fill("阅读进度");
   await page.getByLabel("下一个 EPUB 搜索结果").click();
@@ -161,7 +167,7 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page,
   await chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollTo(0, 900));
   await page.waitForTimeout(250);
   await expect.poll(() => chapterFrame.locator("html").evaluate((element) => element.ownerDocument.defaultView?.scrollY ?? 0)).toBeGreaterThan(400);
-  await toc.getByRole("button", { name: "开始阅读", exact: true }).click();
+  await selectChapter("开始阅读");
   await expect(chapterFrame.getByRole("heading", { name: "第一章" })).toBeVisible();
   await swipeFrame(330, 100);
   await expect(chapterFrame.getByRole("heading", { name: "第二章" })).toBeVisible();
