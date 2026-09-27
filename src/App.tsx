@@ -1163,9 +1163,6 @@ function App() {
       </div>
     ) : null;
 
-  if (mobileDrawerViewport && pdfReaderPanel) return pdfReaderPanel;
-  if (mobileDrawerViewport && epubReaderPanel) return epubReaderPanel;
-
   const settingsPanel = <SettingsPanel
     open={settingsOpen}
     webStorageStatus={isTauriRuntime() ? undefined : webPlatform.storage}
@@ -1210,6 +1207,7 @@ function App() {
   />;
 
   const mobileReadingLibraryOpen = mobileDrawerViewport && readingLibraryOpen;
+  const mobileReaderOpen = mobileDrawerViewport && Boolean(pdfReaderPanel || epubReaderPanel);
   const mobileReadingLibraryPanel = mobileReadingLibraryOpen ? (
     <div className="pdf-reader-app mobile-reading-library-layer" role="dialog" aria-modal="true" aria-label="阅读分栏">
       {isTauriRuntime() && <Suspense fallback={null}><TitleBar /></Suspense>}
@@ -1218,8 +1216,8 @@ function App() {
           <ReadingLibrary session={readingLibrarySession.current}
             showWorkspaceSwitch
             onClose={() => setReadingLibraryOpen(false)}
-            onOpenPdf={id => { setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
-            onOpenEpub={id => { setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }}
+            onOpenPdf={id => { if (mobileDrawerViewport) setReadingLibraryOpen(false); setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
+            onOpenEpub={id => { if (mobileDrawerViewport) setReadingLibraryOpen(false); setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }}
           />
         </Suspense>
       </div>
@@ -1298,7 +1296,7 @@ function App() {
       onCreate={() => setDocCreateOpen(true)} onSearch={openGlobalSearch} onSettings={() => setSettingsOpen(true)}>
 
       <div
-      className={`app app-unified-workspace ${focusMode ? "app-focus-mode" : ""}${desktopWorkspace ? " app-desktop-workspace" : " app-mobile-workspace"}${homeReaderOpen ? " app-home-reader" : ""}${readerCompanionCollapsed ? " reader-companion-collapsed" : ""}`}
+      className={`app app-unified-workspace ${focusMode ? "app-focus-mode" : ""}${desktopWorkspace ? " app-desktop-workspace" : " app-mobile-workspace"}${homeReaderOpen ? " app-home-reader" : ""}${readerCompanionCollapsed ? " reader-companion-collapsed" : ""}${mobileReaderOpen ? " app-mobile-reader" : ""}`}
       style={editorAppearanceVariables(config ?? undefined)}
       {...(mobileReadingLibraryOpen ? { inert: "", "aria-hidden": true } : {})}
       {...(protectionBusy || applyingWebUpdate ? { inert: "", "aria-busy": true } : {})}
@@ -1379,10 +1377,10 @@ function App() {
         {sidebarHoverEnabled && <div className="sidebar-pin-spacer" aria-hidden="true" style={{ width: sidebarHover.pinned && !sidebarHidden ? sidebarWidth + 4 : 0 }} />}
         <aside id="workspace-sidebar" tabIndex={-1} ref={sidebarPanelRef} className={`app-sidebar ${sidebarHidden ? "sidebar-hidden" : ""}`} style={{ width: sidebarHidden ? 0 : sidebarWidth }}
           onPointerEnter={sidebarHover.enterPanel} onPointerLeave={sidebarHover.leave}
-          role={mobileDrawerViewport ? "dialog" : undefined} aria-label={mobileDrawerViewport ? "文档侧栏" : undefined}
-          aria-modal={mobileDrawerViewport && !sidebarHidden || undefined}
-          aria-hidden={(mobileDrawerViewport || sidebarOverlay) && sidebarHidden || undefined}
-          {...((mobileDrawerViewport || sidebarOverlay) && sidebarHidden ? { inert: "" } : {})}>
+          role={mobileDrawerViewport && !mobileReaderOpen ? "dialog" : undefined} aria-label={mobileDrawerViewport && !mobileReaderOpen ? "文档侧栏" : undefined}
+          aria-modal={mobileDrawerViewport && !mobileReaderOpen && !sidebarHidden || undefined}
+          aria-hidden={(mobileDrawerViewport || sidebarOverlay) && sidebarHidden && !mobileReaderOpen || undefined}
+          {...((mobileDrawerViewport || sidebarOverlay) && sidebarHidden && !mobileReaderOpen ? { inert: "" } : {})}>
           <div className="desktop-panel-content" style={mobileDrawerViewport ? { display: 'contents' } : undefined} hidden={!mobileDrawerViewport && desktopPanel !== 'tree'}>
           <WorkspacePanelHeading className="sidebar-tabs" title={mobileDrawerViewport ? <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} /> : null}>
             <div className="doc-tree-toolbar-host" ref={setDocTreeToolbarHost} />
@@ -1469,7 +1467,7 @@ function App() {
               />
             </div>
           </section>}
-          {!mobileDrawerViewport && <section className="desktop-reader-panel" hidden={desktopPanel !== 'reader'} aria-label="侧栏阅读" tabIndex={-1}
+          <section className="desktop-reader-panel" hidden={!mobileReaderOpen && desktopPanel !== 'reader'} aria-label="侧栏阅读" tabIndex={-1}
             onPointerDownCapture={event => {
               if (event.target instanceof Element && !event.target.closest('button, input, textarea, select, a, [contenteditable=true]')) event.currentTarget.focus({ preventScroll: true });
             }}>
@@ -1482,7 +1480,7 @@ function App() {
                 onOpenPdf={id => { setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
                 onOpenEpub={id => { setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }} />
             </Suspense>))}
-          </section>}
+          </section>
           {mobileDrawerViewport && <div className="sidebar-footer">
             <button type="button" className="sidebar-recycle-btn" onClick={() => setRecycleOpen(true)}>
               🗑 回收站

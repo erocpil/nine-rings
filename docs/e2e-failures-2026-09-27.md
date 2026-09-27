@@ -170,13 +170,13 @@
 | [reader-fullscreen-navigation.spec.ts:91](../e2e/reader-fullscreen-navigation.spec.ts#L91) | 桌面全屏导航 / EPUB 全屏目录书签可收起、打开时固定工具栏且不重排正文 | chromium, webkit |
 | [reader-toolbar-shell.spec.ts:7](../e2e/reader-toolbar-shell.spec.ts#L7) | EPUB 阅读工具栏触屏与键盘边界（独立组件） | chromium, webkit |
 | [reader-toolbar-shell.spec.ts:7](../e2e/reader-toolbar-shell.spec.ts#L7) | PDF 阅读工具栏触屏与键盘边界（独立组件） | chromium, webkit |
-| [reader-toolbar.spec.ts:21](../e2e/reader-toolbar.spec.ts#L21) | EPUB 工具栏适配窄屏，设置互斥且不改变正文视口或重建内容 | chromium, webkit |
-| [reader-toolbar.spec.ts:21](../e2e/reader-toolbar.spec.ts#L21) | PDF 工具栏适配窄屏，设置互斥且不改变正文视口或重建内容 | chromium, webkit |
+| [reader-toolbar.spec.ts:24](../e2e/reader-toolbar.spec.ts#L24) | EPUB 工具栏适配窄屏，设置互斥且不改变正文视口或重建内容（批 14 已通过） | chromium, webkit |
+| [reader-toolbar.spec.ts:24](../e2e/reader-toolbar.spec.ts#L24) | PDF 工具栏适配窄屏，设置互斥且不改变正文视口或重建内容（批 14 已通过） | chromium, webkit |
 | [reading-library.spec.ts:5](../e2e/reading-library.spec.ts#L5) | 资料库的旧设置入口和键盘返回保持笔记工作区 | chromium, webkit |
 | [reading-library.spec.ts:21](../e2e/reading-library.spec.ts#L21) | 独立阅读入口保留筛选与滚动位置，摘录返回笔记 1280 | chromium, webkit |
 | [reading-library.spec.ts:21](../e2e/reading-library.spec.ts#L21) | 独立阅读入口保留筛选与滚动位置，摘录返回笔记 390 | chromium, webkit |
 | [reading-state-persistence.spec.ts:51](../e2e/reading-state-persistence.spec.ts#L51) | 局部只读渲染刷新后恢复折叠和块锚点 | chromium, webkit |
-| [readonly-heading-fold.spec.ts:158](../e2e/readonly-heading-fold.spec.ts#L158) | 只读正文双击折叠后所属标题停留在双击位置附近 | chromium, webkit |
+| [readonly-heading-fold.spec.ts:158](../e2e/readonly-heading-fold.spec.ts#L158) | 只读正文双击折叠后所属标题停留在双击位置附近（批 13 已通过） | chromium, webkit |
 | [recycle-bin.spec.ts:200](../e2e/recycle-bin.spec.ts#L200) | 回收站卡片与固定操作区布局 1280x800 light | chromium, webkit |
 | [recycle-bin.spec.ts:200](../e2e/recycle-bin.spec.ts#L200) | 回收站卡片与固定操作区布局 320x480 light | chromium, webkit |
 | [recycle-bin.spec.ts:200](../e2e/recycle-bin.spec.ts#L200) | 回收站卡片与固定操作区布局 390x844 dark | chromium, webkit |

@@ -180,10 +180,12 @@ test("只读正文双击折叠后所属标题停留在双击位置附近", async
 
   await target.dblclick();
   await expect(target).toBeHidden();
-  const headingBox = await editor.getByText("待折叠章节", { exact: true }).boundingBox();
-  expect(headingBox).not.toBeNull();
-  const headingCenterY = headingBox!.y + headingBox!.height / 2;
-  expect(Math.abs(headingCenterY - doubleClickY)).toBeLessThan(24);
+  const heading = editor.getByText("待折叠章节", { exact: true });
+  await expect.poll(async () => {
+    const headingBox = await heading.boundingBox();
+    if (!headingBox) return Number.POSITIVE_INFINITY;
+    return Math.abs(headingBox.y + headingBox.height / 2 - doubleClickY);
+  }).toBeLessThan(24);
 });
 
 test("手机 PWA 只读专注模式可通过触摸双击折叠展开并受开关控制", async ({ page }) => {

@@ -3266,6 +3266,9 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     allHeadingFoldRoundTripRef.current = null;
     const heading = editor.view.nodeDOM(section.pos);
     const scrollRoot = scrollRef.current;
+    // A heading fold is explicit navigation. Cancel any still-running initial
+    // scroll restoration before applying the clicked-position anchor.
+    scrollRoot?.dispatchEvent(new Event(EDITOR_NAVIGATION_EVENT));
     const willCollapse = !getCollapsedHeadingKeys(editor).has(section.key);
     let desiredHeadingTop: number | null = null;
     if (willCollapse && heading instanceof HTMLElement && scrollRoot) {
@@ -3285,16 +3288,23 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     // scrollIntoView；后者在折叠长章节时会造成一次多余的同步滚动与布局。
     if (!toggleHeadingSectionFold(editor, section, false)) return false;
     if (desiredHeadingTop !== null && scrollRoot) {
+      const restoreHeading = () => {
+        if (editor.isDestroyed || !scrollRoot.isConnected) return;
+        const foldedHeading = editor.view.nodeDOM(section.pos);
+        if (foldedHeading instanceof HTMLElement) {
+          scrollRoot.scrollTop += foldedHeading.getBoundingClientRect().top - desiredHeadingTop!;
+        }
+      };
       if (headingFoldViewportFrameRef.current !== null) {
         window.cancelAnimationFrame(headingFoldViewportFrameRef.current);
       }
       headingFoldViewportFrameRef.current = window.requestAnimationFrame(() => {
         headingFoldViewportFrameRef.current = null;
-        if (editor.isDestroyed || !scrollRoot.isConnected) return;
-        const foldedHeading = editor.view.nodeDOM(section.pos);
-        if (!(foldedHeading instanceof HTMLElement)) return;
-        scrollRoot.scrollTop += foldedHeading.getBoundingClientRect().top - desiredHeadingTop!;
+        restoreHeading();
       });
+      // Native selection scrolling can run after the fold's first layout frame.
+      // Reassert the explicit heading anchor after that browser adjustment.
+      window.setTimeout(restoreHeading, 100);
     }
     return true;
   };
@@ -3316,6 +3326,10 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       return;
     }
     if (!toggleReadonlyHeadingAtPoint(event.target, event.clientX, event.clientY)) return;
+    // Double-click selects a word before the native dblclick event. Keeping
+    // that DOM selection inside the section being collapsed lets the browser
+    // scroll the hidden selection back into view and undo our title anchoring.
+    window.getSelection()?.removeAllRanges();
     event.preventDefault();
     event.stopPropagation();
   };

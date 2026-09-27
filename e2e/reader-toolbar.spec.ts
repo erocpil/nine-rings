@@ -8,7 +8,10 @@ async function openBook(page: Page, format: "PDF" | "EPUB") {
   await page.goto("/");
   await openReadingLibrary(page);
   const mime = format === "PDF" ? "application/pdf" : "application/epub+zip";
-  await page.locator(`input[type=file][accept="${mime},.${format.toLowerCase()}"]`).setInputFiles({
+  const mobileLibrary = page.locator(".mobile-reading-library-layer");
+  const library = await mobileLibrary.isVisible() ? mobileLibrary : page.locator(".desktop-reader-panel");
+  const upload = library.locator(`input[type=file][accept="${mime},.${format.toLowerCase()}"]`).first();
+  await upload.setInputFiles({
     name: `toolbar.${format.toLowerCase()}`, mimeType: mime,
     buffer: format === "PDF" ? createPdfFixture() : createEpubFixture(),
   });

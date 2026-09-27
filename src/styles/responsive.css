@@ -38,6 +38,42 @@
     flex-direction: column;
   }
 
+  /* Keep an open reader in the same React subtree across the mobile breakpoint.
+     The sidebar becomes a zero-sized host while the reader panel fills the
+     viewport, replacing the former early-return layout that remounted it. */
+  .app-mobile-reader .app-sidebar {
+    position: static;
+    inset: auto;
+    width: 0 !important;
+    height: 0;
+    max-width: none;
+    padding: 0;
+    border: 0;
+    overflow: visible;
+    transform: none;
+    visibility: visible;
+    transition: none;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .app-mobile-reader .app-sidebar > :not(.desktop-reader-panel),
+  .app-mobile-reader .app-main {
+    display: none !important;
+  }
+
+  .app-mobile-reader .desktop-reader-panel:not([hidden]) {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    width: 100vw;
+    max-width: none;
+    height: var(--app-viewport-height, 100dvh);
+    min-height: 0;
+    flex: none;
+    overflow: hidden;
+  }
+
   .app-sidebar {
     position: fixed;
     top: var(--app-visual-viewport-offset-top, 0px);

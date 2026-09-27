@@ -1099,8 +1099,10 @@ export function ReadonlyVirtualNote(
               return;
             const heading = event.target.closest("h1,h2,h3,h4,h5,h6");
             const row = heading?.closest<HTMLElement>("[data-reading-row]");
-            if (row && Date.now() - (tap.current?.time ?? 0) > 500)
+            if (row && Date.now() - (tap.current?.time ?? 0) > 500) {
+              window.getSelection()?.removeAllRanges();
               toggleHeading(Number(row.dataset.position));
+            }
           }}
           onPointerDown={(event) => {
             const row = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-reading-row]") : null;
