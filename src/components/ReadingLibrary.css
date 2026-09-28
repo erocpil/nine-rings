@@ -169,6 +169,11 @@
   }
 }
 @media (max-width: 480px) {
+  .reading-library-page .reader-library-toolbar {
+    position: relative;
+    z-index: 1;
+    margin-bottom: 12px;
+  }
   .reading-library-page .reader-library-controls {
     align-items: stretch;
     flex-direction: column;

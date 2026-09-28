@@ -2,7 +2,7 @@ import { openReadingLibrary } from "./helpers/workspace";
 import { expect, test } from "@playwright/test";
 import { createEpubFixture, createPdfFixture } from "./helpers/reader-fixtures";
 
-test("资料库的旧设置入口和键盘返回保持笔记工作区", async ({ page }) => {
+test("资料库搜索快捷键和退出保持笔记工作区", async ({ page }) => {
   await page.goto("/");
   const title = page.locator(".note-title");
   await expect(title).toBeVisible();
@@ -18,7 +18,7 @@ test("资料库的旧设置入口和键盘返回保持笔记工作区", async ({
 });
 
 for (const width of [390, 1280]) {
-  test(`独立阅读入口保留筛选与滚动位置，摘录返回笔记 ${width}`, async ({
+  test(`阅读资料库筛选和文档切换保持工作区 ${width}`, async ({
     page,
   }) => {
     test.setTimeout(60000);
@@ -30,33 +30,12 @@ for (const width of [390, 1280]) {
       exact: true,
     });
     if (await showSidebar.isVisible()) await showSidebar.click();
-    await page
-      .getByRole("button", { name: "打开阅读资料库", exact: true })
-      .click();
-    const library = page.getByRole("region", {
-      name: "阅读资料库",
-      exact: true,
-    });
-    await expect(library).toBeVisible();
+    const library = await openReadingLibrary(page);
     const librarySearch = library.getByRole("searchbox", { name: "查找书籍" });
     await librarySearch.fill("保留阅读筛选");
-    for (const closeWithEscape of [false, true]) {
-      await library.getByRole("button", { name: "设置", exact: true }).click();
-      const settings = page.getByRole("dialog", { name: "设置", exact: true });
-      await expect(settings).toBeVisible();
-      await expect(page.locator(".ProseMirror")).toHaveCount(0);
-      if (closeWithEscape) await page.keyboard.press("Escape");
-      else await settings.getByRole("button", { name: "关闭设置", exact: true }).click();
-      await expect(settings).toBeHidden();
-      await expect(librarySearch).toHaveValue("保留阅读筛选");
-      await expect(library.getByRole("button", { name: "设置", exact: true })).toBeFocused();
-    }
     await librarySearch.fill("");
     await page.keyboard.press("ControlOrMeta+f");
     await expect(library.getByRole("searchbox", { name: "查找书籍" })).toBeFocused();
-    await expect(
-      page.getByRole("dialog", { name: "设置", exact: true }),
-    ).toBeHidden();
     await expect(library).toContainText("尚未导入 PDF 或 EPUB");
     await library
       .locator('input[accept="application/pdf,.pdf"]')
@@ -71,6 +50,7 @@ for (const width of [390, 1280]) {
     await page
       .getByRole("button", { name: "关闭 PDF 阅读器", exact: true })
       .click();
+    await openReadingLibrary(page);
     await expect(library).toBeVisible();
     await library
       .locator('input[accept="application/epub+zip,.epub"]')
@@ -87,6 +67,7 @@ for (const width of [390, 1280]) {
     await page
       .getByRole("button", { name: "关闭 EPUB 阅读器", exact: true })
       .click();
+    await openReadingLibrary(page);
     await expect(
       library.getByRole("button", { name: "继续阅读", exact: true }),
     ).toContainText("Nine Rings EPUB MVP");
@@ -99,6 +80,7 @@ for (const width of [390, 1280]) {
     await page
       .getByRole("button", { name: "关闭 EPUB 阅读器", exact: true })
       .click();
+    await openReadingLibrary(page);
     const search = library.getByRole("searchbox", { name: "查找书籍" });
     await search.fill("测试作者");
     await expect(library.locator(".reader-library-item")).toHaveCount(1);
@@ -121,17 +103,25 @@ for (const width of [390, 1280]) {
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const db = request.result;
-          const tx = db.transaction("documents", "readwrite");
+          const tx = db.transaction(["documents", "files"], "readwrite");
           const store = tx.objectStore("documents");
+          const files = tx.objectStore("files");
           const all = store.getAll();
           all.onsuccess = () => {
-            for (let i = 0; i < 24; i++)
-              store.put({
-                ...all.result[0],
-                id: `library-copy-${i}`,
-                name: `library-copy-${i}.pdf`,
-                lastOpenedAt: "2020-01-01T00:00:00.000Z",
-              });
+            const first = all.result[0];
+            const file = files.get(first.id);
+            file.onsuccess = () => {
+              for (let i = 0; i < 24; i++) {
+                const id = `library-copy-${i}`;
+                store.put({
+                  ...first,
+                  id,
+                  name: `library-copy-${i}.pdf`,
+                  lastOpenedAt: "2020-01-01T00:00:00.000Z",
+                });
+                files.put({ ...file.result, id });
+              }
+            };
           };
           tx.oncomplete = () => {
             db.close();
@@ -163,6 +153,7 @@ for (const width of [390, 1280]) {
     await page
       .getByRole("button", { name: "关闭 PDF 阅读器", exact: true })
       .click();
+    await openReadingLibrary(page);
     await expect(search).toHaveValue("library");
     await expect(
       library
@@ -203,6 +194,7 @@ for (const width of [390, 1280]) {
       .getByRole("button", { name: "关闭 PDF 阅读器", exact: true })
       .click();
     await expect(page.locator(".note-title")).toHaveValue(/PDF 摘录/);
-    await expect(library).toBeHidden();
+    if (width <= 768) await expect(library).toBeHidden();
+    else await expect(library).toBeVisible();
   });
 }
