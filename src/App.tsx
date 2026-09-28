@@ -1240,7 +1240,7 @@ function App() {
     && Boolean(pdfReaderPanel || epubReaderPanel);
   return (
     <EditorFoldIconContext.Provider value={config}>
-    <ExhibitionWorkspace desktop={desktopWorkspace} enabled={exhibitionEnabled} focus={focusMode} config={config}
+    <ExhibitionWorkspace desktop={desktopWorkspace} enabled={exhibitionEnabled && !mobileReaderOpen} focus={focusMode} config={config}
       blocked={protectionBusy || applyingWebUpdate || syncBusy || searchExpanded || errorDetailsOpen || settingsOpen || mobileReadingLibraryOpen || docCreateOpen || quickSwitcherOpen || (mobileDrawerViewport && !sidebarHidden)}
       path={workspaceHome ? "" : selectedFolderPath ?? selectedNote?.storagePath ?? ""} noteId={workspaceHome ? undefined : selectedNote?.id} refreshKey={docTreeKey}
       onAppearance={async patch => handleConfigChange(await api.config.set(patch))}
