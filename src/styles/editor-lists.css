@@ -61,6 +61,21 @@
 }
 
 .editor-content li:has(> .markdown-task-checkbox)::before { visibility: hidden; }
+.editor-content ul:has(> li[data-task-checked]) {
+  padding-inline-start: max(var(--editor-list-indent), calc(1em + var(--editor-list-marker-gap)));
+}
+.editor-content ul > li[data-task-checked] {
+  --task-marker-inset: max(var(--editor-list-indent), calc(1em + var(--editor-list-marker-gap)));
+  margin-inline-start: calc(-1 * var(--task-marker-inset));
+  padding-inline-start: var(--task-marker-inset);
+}
+.editor-content ul > li[data-task-checked]::before,
+.editor-content ul > li[data-task-checked] > .markdown-task-checkbox {
+  left: calc((var(--task-marker-inset) - 1em) / 2);
+  right: auto;
+  width: 1em;
+  text-align: center;
+}
 .markdown-task-checkbox {
   position: absolute;
   right: calc(100% + var(--editor-list-marker-gap));

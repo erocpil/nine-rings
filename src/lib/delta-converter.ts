@@ -320,6 +320,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
     ? normalized : migrateLegacyMarkdownTables(normalized);
 
   const doc: JSONContent[] = [];
+  const footnoteDefinitions: JSONContent[] = [];
   let currentParagraph: JSONContent & { content: JSONContent[] } = { type: "paragraph", content: [] };
   let isImageBlock = false;
   // Quill 用紧随 embed 的换行标记块结束。它不是编辑器中的空段落，
@@ -587,7 +588,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
           attrs: { id: String(item.id ?? "") },
           content: deltaToProseMirror({ ops: item.content ?? [] }).content,
         }));
-        if (definitions.length) doc.push({ type: "footnotes", content: definitions });
+        footnoteDefinitions.push(...definitions);
         currentParagraph = { type: "paragraph", content: [] };
         skipEmptyLineAfterBlockEmbed = true;
       }
@@ -598,6 +599,10 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
   // 末尾不推入空段落：Delta 最后的 \n 是文档终止符，非有意空行
   if (currentParagraph.content.length > 0 || isImageBlock) {
     doc.push({ ...currentParagraph });
+  }
+  if (footnoteDefinitions.length) {
+    if (doc[doc.length - 1]?.type !== "horizontalRule") doc.push({ type: "horizontalRule" });
+    doc.push({ type: "footnotes", content: footnoteDefinitions });
   }
 
   // ProseMirror/TipTap 需要至少一个可编辑的块节点。Chromium 通常会

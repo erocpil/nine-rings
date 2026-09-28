@@ -288,6 +288,46 @@
 
 /* ──── 可折叠引用块 ──── */
 
+.editor-content .nr-details {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-block: 0.8em;
+}
+
+.nr-details-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  min-height: 32px;
+  padding: 4px 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.nr-details-summary::-webkit-details-marker { display: none; }
+.nr-details-fold-icon { display: grid; place-items: center; width: 18px; flex: 0 0 18px; }
+.nr-details-title { min-width: 0; overflow-wrap: anywhere; }
+.nr-details-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; flex: 0 0 auto; }
+.nr-details-actions button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.nr-details-actions button:hover,
+.nr-details-actions button:focus-visible { background: var(--hover-bg); color: var(--accent); }
+.nr-details-content { padding: 0 12px 10px 32px; }
+.nr-details-content > :first-child { margin-top: 0; }
+.nr-details-content > :last-child { margin-bottom: 0; }
+
 .blockquote-wrap {
   position: relative;
   background: var(--surface);

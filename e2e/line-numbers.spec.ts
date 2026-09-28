@@ -19,6 +19,41 @@ async function openEditorSettings(page: Page) {
 }
 
 test.describe("编辑器块级 gutter", () => {
+  test("桌面渲染的块号与正文保持间距，编辑和只读局部渲染一致", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.addInitScript(() => {
+      localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true }));
+      localStorage.setItem("nr:experimentalReadonlyRendering", "true");
+    });
+    const editor = await createBlankNote(page);
+    await editor.fill("带块号的正文");
+    await expect(page.locator(".editor-block-number")).toHaveText("1");
+    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-text-gap", "12px");
+
+    const editGap = await page.evaluate(() => {
+      const number = document.querySelector(".editor-block-number")!.getBoundingClientRect();
+      const text = document.querySelector(".ProseMirror > p")!.getBoundingClientRect();
+      return text.left - number.right;
+    });
+    expect(editGap).toBeGreaterThanOrEqual(7);
+
+    const noteId = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
+    await page.evaluate(async id => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api } = await load("/src/lib/api.ts") as typeof import("../src/lib/api");
+      await api.notes.update(id!, { readonly: true });
+    }, noteId);
+    await page.reload();
+    await expect(page.locator(".vr-note .vr-row")).toHaveCount(1);
+    await expect(page.locator(".vr-note .vr-body")).toHaveCSS("--editor-gutter-text-gap", "12px");
+    const virtualGap = await page.evaluate(() => {
+      const number = document.querySelector(".vr-gutter span")!.getBoundingClientRect();
+      const text = document.querySelector(".vr-row .vr-block")!.getBoundingClientRect();
+      return text.left - number.right;
+    });
+    expect(virtualGap).toBeGreaterThanOrEqual(10);
+  });
+
   test("Alt-G 可按稳定块编号跳转且不挤压正文", async ({ page }) => {
     const editor = await createBlankNote(page);
     await editor.fill(Array.from({ length: 36 }, (_, index) => `第 ${index + 1} 块`).join("\n"));

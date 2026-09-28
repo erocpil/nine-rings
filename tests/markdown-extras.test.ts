@@ -6,6 +6,7 @@ import { looksLikeMarkdown, mdToDelta } from "../src/lib/md-parser";
 import { deltaToProseMirror, proseMirrorToDelta } from "../src/lib/delta-converter";
 import { deltaToMarkdown } from "../src/lib/markdown-serializer";
 import { shouldParseClipboardMarkdown } from "../src/lib/clipboard-content";
+import { footnoteBlockPosition } from "../src/lib/footnote-navigation";
 
 const schema = getSchema([DocumentStarterKit, Link, MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes]);
 const detailsType = schema.nodes.htmlDetails;
@@ -19,6 +20,12 @@ const checkContentHole = (spec: unknown): void => {
   for (const child of children) checkContentHole(child);
 };
 checkContentHole(detailsDom);
+if (JSON.stringify(detailsDom).includes('"open":"false"')) throw new Error("Closed details must omit the Boolean open attribute");
+const footnoteDom = schema.nodes.footnoteDefinition.spec.toDOM?.(schema.nodes.footnoteDefinition.create({ id: "1" }));
+checkContentHole(footnoteDom);
+if (!JSON.stringify(footnoteDom).includes("nr-footnote-ref-1") || !JSON.stringify(footnoteDom).includes("nr-footnote-1")) {
+  throw new Error("Editable footnotes must provide a target and a return link");
+}
 const source = [
   "脚注[^1]、行内公式 $E = mc^2$ 和 \\(a+b\\)。",
   "",
@@ -63,7 +70,7 @@ for (const type of ["inlineHighlight", "footnoteReference"]) {
 for (const token of ["$E = mc^2$", "$$\\int_0^1", "<mark>高亮文本</mark>", "<details>", "[^1]: 这是脚注内容。"] ) {
   if (!markdown.includes(token)) throw new Error(`Markdown export omitted ${token}: ${markdown}`);
 }
-if (JSON.stringify(names(roundTrip)) !== JSON.stringify(parsedNames)) throw new Error("Markdown extras changed node/mark types in a round-trip");
+if (JSON.stringify(names(roundTrip)) !== JSON.stringify(parsedNames)) throw new Error(`Markdown extras changed node/mark types in a round-trip: ${JSON.stringify(parsedNames)} -> ${JSON.stringify(names(roundTrip))}`);
 
 if (!looksLikeMarkdown("脚注[^1]\n\n[^1]: 脚注内容")) throw new Error("Footnote-only Markdown must be recognized on paste");
 if (!shouldParseClipboardMarkdown("脚注[^1]\n\n[^1]: 脚注内容")) throw new Error("Footnote-only clipboard content must be parsed as Markdown");
@@ -75,6 +82,46 @@ const escapedReference = deltaToProseMirror(mdToDelta("脚注\\[^1\\]\n\n[^1]: �
 if (!names(escapedReference).includes("mark:footnoteReference")) throw new Error("Previously auto-escaped footnote references should still resolve");
 const plainReferenceMarkdown = deltaToMarkdown({ ops: [{ insert: "脚注[^1]" }, { insert: "\n" }] });
 if (plainReferenceMarkdown.includes("\\[")) throw new Error("Markdown export must not escape footnote brackets");
+
+const sample = "### 脚注\nMarkdown 支持脚注[^1]，用于补充说明与引用。\n[^1]: 这是一条脚注——点击箭头可返回原处。";
+const sampleDoc = deltaToProseMirror(mdToDelta(sample));
+schema.nodeFromJSON(sampleDoc).check();
+if (sampleDoc.content?.slice(-2).map(node => node.type).join(",") !== "horizontalRule,footnotes") {
+  throw new Error("Footnotes must end the document after one horizontal rule");
+}
+const parsedSample = schema.nodeFromJSON(sampleDoc);
+if (footnoteBlockPosition(parsedSample, "nr-footnote-1") === null || footnoteBlockPosition(parsedSample, "nr-footnote-ref-1") === null) {
+  throw new Error("Both ends of a footnote must be navigable in a virtual reader");
+}
+const exportedSample = deltaToMarkdown(proseMirrorToDelta(sampleDoc));
+if (!exportedSample.includes("\n\n---\n\n[^1]: 这是一条脚注——点击箭头可返回原处。")) {
+  throw new Error(`Markdown export must separate footnotes from the body: ${exportedSample}`);
+}
+for (const input of [exportedSample, `${sample.replace("\n[^1]:", "\n---\n[^1]:")}`]) {
+  const roundTripDoc = deltaToProseMirror(mdToDelta(input));
+  schema.nodeFromJSON(roundTripDoc).check();
+  if (roundTripDoc.content?.filter(node => node.type === "horizontalRule").length !== 1 ||
+      roundTripDoc.content?.[roundTripDoc.content.length - 1]?.type !== "footnotes") {
+    throw new Error("Importing footnotes twice must not duplicate the separator");
+  }
+}
+const legacyFootnotes = deltaToProseMirror({ ops: [
+  { insert: { footnotes: [{ id: "1", content: [{ insert: "内容" }] }] } },
+  { insert: "\n" }, { insert: "后续正文" }, { insert: "\n" },
+] });
+if (legacyFootnotes.content?.map(node => node.type).join(",") !== "paragraph,horizontalRule,footnotes") {
+  throw new Error("Existing footnote embeds must move to the document end");
+}
+const twoNotes = deltaToProseMirror(mdToDelta("甲[^a]和乙[^b]\n[^a]: 第一条\n[^b]: 第二条"));
+if (twoNotes.content?.[twoNotes.content.length - 1]?.content?.map(node => node.attrs?.id).join(",") !== "a,b") {
+  throw new Error("Each footnote definition must retain its own return target");
+}
+for (const id of ["a", "b"]) {
+  const parsed = schema.nodeFromJSON(twoNotes);
+  if (footnoteBlockPosition(parsed, `nr-footnote-${id}`) === null || footnoteBlockPosition(parsed, `nr-footnote-ref-${id}`) === null) {
+    throw new Error(`Footnote ${id} lost its link target`);
+  }
+}
 
 const formulaWithSuffix = deltaToProseMirror(mdToDelta("$$x^2$$的说明"));
 if (formulaWithSuffix.content[0]?.type !== "mathBlock" || formulaWithSuffix.content[1]?.type !== "paragraph") {

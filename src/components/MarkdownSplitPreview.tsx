@@ -26,6 +26,8 @@ import { renderReadonlyBlock } from "./ReadonlyVirtualNote";
 import type { SourceNavigationDocument } from "../lib/markdown-source-navigation";
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import type { ReadingBlockState } from "../lib/reading-block-session";
+import { footnoteLinkTarget, scrollToFootnote } from "../lib/footnote-navigation";
+import { useFootnoteHoverPreview } from "./FootnoteHoverPreview";
 
 let schema: ReturnType<typeof getSchema> | undefined;
 function previewDocument(revision: SourceNavigationDocument) {
@@ -73,6 +75,7 @@ export function MarkdownSplitPreview({
   const preview = useRef<HTMLDivElement>(null),
     source = useRef<HTMLDivElement>(null);
   const active = useRef<"source" | "preview" | null>(null);
+  const footnoteHover = useFootnoteHoverPreview(() => snapshot?.doc ?? null);
   useEffect(() => {
     if (!enabled) return;
     const timer = setTimeout(() => {
@@ -181,6 +184,18 @@ export function MarkdownSplitPreview({
           <div
             ref={preview}
             className="markdown-preview-scroll editor-content vr-note"
+            onPointerOver={footnoteHover.onPointerOver}
+            onPointerOut={footnoteHover.onPointerOut}
+            onFocusCapture={footnoteHover.onFocusCapture}
+            onBlurCapture={footnoteHover.onBlurCapture}
+            onScrollCapture={footnoteHover.onScrollCapture}
+            onClickCapture={(event) => {
+              const id = footnoteLinkTarget(event.target);
+              if (!id) return;
+              event.preventDefault();
+              event.stopPropagation();
+              scrollToFootnote(event.currentTarget, id);
+            }}
             onWheelCapture={() => {
               active.current = "preview";
             }}
@@ -217,6 +232,7 @@ export function MarkdownSplitPreview({
                 </div>
               ))}
             </div>
+            {footnoteHover.preview}
           </div>
         </section>
       )}

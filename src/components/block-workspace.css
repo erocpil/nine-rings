@@ -63,6 +63,12 @@
 .codemirror-block-editor .cm-cursor { border-left-color: var(--text); }
 .codemirror-block-editor .cm-fat-cursor { background: var(--text); color: var(--bg); }
 .block-workspace-body .block-workspace-open { display: none; }
+.block-workspace-details-field { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 10px; padding: 10px 16px 0; font-size: 12px; color: var(--text-secondary); }
+.block-workspace-details-field input { min-width: 0; padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font: 14px var(--font); }
+.block-workspace-details-field input:focus-visible { outline: 2px solid var(--accent); }
+.block-workspace-details-field span { grid-column: 1 / -1; margin-top: 5px; }
+.block-workspace[data-block-type="htmlDetails"] .nr-details-summary { display: none; }
+.block-workspace[data-block-type="htmlDetails"] .nr-details-content { padding: 10px 14px; }
 .block-workspace[data-block-type="codeBlock"] .code-block-actions [title="代码行号（仅改变显示）"] { display: none; }
 /* React NodeViews add a renderer wrapper between ProseMirror and the block. */
 .block-workspace[data-block-type="codeBlock"] .code-block-wrap.collapsed .code-block-inner { max-height: none; opacity: 1; pointer-events: auto; }

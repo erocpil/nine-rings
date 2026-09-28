@@ -20,6 +20,8 @@ import { DocumentStarterKit } from "../extensions/DocumentStarterKit";
 import { OrderedListLayout } from "../extensions/OrderedListLayout";
 import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
 import { MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes } from "../extensions/MarkdownExtras";
+import { useFootnoteHoverPreview } from "./FootnoteHoverPreview";
+import { footnoteLinkTarget, scrollToFootnote } from "../lib/footnote-navigation";
 import { createToolbarSelectionCommands } from "../lib/editor-toolbar-commands";
 import Placeholder from "@tiptap/extension-placeholder";
 import Heading from "@tiptap/extension-heading";
@@ -2799,6 +2801,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       })
   ), [documentOutline, headingSectionByPosition, outlineCollapsedHeadingKeys, outlineVisibleHeadingPositions]);
 
+  const footnoteHover = useFootnoteHoverPreview(() => editor?.state.doc ?? null);
   if (!editor) return <div className="note-editor"><div className="empty-state">加载中...</div></div>;
 
   const { rememberToolbarSelection, runToolbarFormat } = createToolbarSelectionCommands(editor, toolbarSelectionRef, toolbarCellSelectionRef);
@@ -4088,6 +4091,18 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           <DocumentEditorContent
             editor={editor}
             className="editor-content"
+            onPointerOver={footnoteHover.onPointerOver}
+            onPointerOut={footnoteHover.onPointerOut}
+            onFocusCapture={footnoteHover.onFocusCapture}
+            onBlurCapture={footnoteHover.onBlurCapture}
+            onScrollCapture={footnoteHover.onScrollCapture}
+            onClickCapture={(event) => {
+              const id = footnoteLinkTarget(event.target);
+              if (!id) return;
+              event.preventDefault();
+              event.stopPropagation();
+              scrollToFootnote(event.currentTarget, id);
+            }}
             onPointerDownCapture={closeToolbarDropdowns}
             onDoubleClick={handleEditorDoubleClick}
             onPointerDown={handleReadonlyHeadingPointerDown}
@@ -4096,6 +4111,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             onPointerUp={handleReadonlyHeadingPointerUp}
             onContextMenu={handleEditorContextMenu}
           />
+          {footnoteHover.preview}
         </div>
 
         {/* ── [[ 双向链接下拉 ── */}

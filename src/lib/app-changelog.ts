@@ -1,6 +1,17 @@
 /** User-facing highlights shipped with the app, newest first. Keep dates in ISO format. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-09-29",
+    title: "完善 Markdown 区块排版与交互",
+    changes: [
+      "脚注统一放在文末并用分隔线隔开；点击正文编号可定位脚注，点击脚注末尾箭头可返回引用位置，包括长文档只读视图。",
+      "桌面悬停脚注编号可预览内容；任务列表的方框移入当前行背景范围。",
+      "折叠区块在编辑模式可正常展开与收起，并显示圆角边框、复制与块模式按钮；块模式分别展示标题和正文。",
+      "内容较少的表格按实际内容收紧宽度，宽表格与手动调整的列宽仍可正常使用。",
+      "桌面渲染视图拉开块编号与正文的间距，所有风格保持一致。",
+    ],
+  },
+  {
     date: "2026-09-28",
     title: "完善层次配色与 macOS 窗口快捷键",
     changes: [

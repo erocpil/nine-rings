@@ -112,6 +112,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
   const [wrap] = useState(() => blockWorkspacePreferences().wrap ?? true);
   const [fontSize] = useState(() => blockWorkspacePreferences().fontSize ?? (Math.round(parseFloat(getComputedStyle(source.view.dom).fontSize)) || 16));
   const [lineNumbers, setLineNumbers] = useState(codeLineNumbersEnabled);
+  const [detailsSummary, setDetailsSummary] = useState(() => String(initial.attrs.summary ?? "点击展开"));
   useEffect(() => {
     const sync = () => { setLineNumbers(codeLineNumbersEnabled()); setTabSize(blockWorkspacePreferences().tabSize ?? 4); };
     window.addEventListener(BLOCK_WORKSPACE_DISPLAY_EVENT, sync);
@@ -130,6 +131,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
   const name = mermaidCodeBlock ? "图像"
     : rootType === "codeBlock" ? "代码块"
     : rootType === "blockquote" ? "引用块"
+    : rootType === "htmlDetails" ? "折叠区块"
       : rootType === "heading" ? "标题块"
         : rootType === "paragraph" ? "正文块" : "内容块";
   const sourceDocument = source.state.doc;
@@ -252,6 +254,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
       const node = source.state.doc.nodeAt(mapped.pos);
       if (!node || node.type.name !== rootType) { onClose(); return; }
       currentNode.current = node;
+      if (rootType === "htmlDetails") setDetailsSummary(String(node.attrs.summary ?? "点击展开"));
       const next = editor.schema.nodeFromJSON({ type: "doc", content: [node.toJSON()] });
       const start = editor.state.doc.content.findDiffStart(next.content);
       if (start === null) return;
@@ -373,7 +376,8 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
       return;
     }
     const slice = editor.state.doc.slice(0);
-    const text = clipboardSliceToPlainText(slice);
+    const bodyText = clipboardSliceToPlainText(slice);
+    const text = rootType === "htmlDetails" ? `${String(editor.state.doc.firstChild?.attrs.summary ?? "点击展开")}\n\n${bodyText}` : bodyText;
     try {
       const { dom } = editor.view.serializeForClipboard(slice);
       await navigator.clipboard.write([new ClipboardItem({ "text/plain": new Blob([text], { type: "text/plain" }), "text/html": new Blob([dom.innerHTML], { type: "text/html" }) })]);
@@ -500,6 +504,18 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
       <button type="button" onClick={() => { conflictRef.current = false; setCodeConflict(null); setNotice(""); }}>放弃草稿并重新载入原块</button>
     </div>}
     <CopyBlockNotice message={copyNotice} onClose={() => setCopyNotice("")} withinDialog />
+    {rootType === "htmlDetails" && <div className="block-workspace-details-field">
+      <label htmlFor="block-workspace-details-summary">标题</label>
+      <input id="block-workspace-details-summary" aria-label="折叠区块标题" value={detailsSummary} disabled={!editable}
+        onChange={event => {
+          const value = event.target.value;
+          setDetailsSummary(value);
+          const current = editor?.state.doc.firstChild;
+          if (current?.type.name === "htmlDetails" && editable)
+            editor?.view.dispatch(editor.state.tr.setNodeMarkup(0, undefined, { ...current.attrs, summary: value }));
+        }} />
+      <span>正文</span>
+    </div>}
     <div ref={body} className="block-workspace-body editor-content" style={{ fontSize: `${fontSize}px`, tabSize }} onPasteCapture={event => { if (!editable) event.preventDefault(); }} onBeforeInputCapture={event => { if (!editable) event.preventDefault(); }}>
       {editable && rootType === "codeBlock" ? (
         <Suspense fallback={<div className="block-workspace-code-loading" aria-busy="true" />}>

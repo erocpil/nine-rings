@@ -90,6 +90,7 @@ export function deltaToMarkdown(content: unknown): string {
     ? candidate.ops
     : Array.isArray(content) ? content as DeltaOp[] : [];
   const blocks: Array<{ kind: BlockKind; value: string }> = [];
+  const footnoteDefinitions: string[] = [];
   let inline = "";
   let raw = "";
 
@@ -176,7 +177,7 @@ export function deltaToMarkdown(content: unknown): string {
       push("embed", `<details${details.open ? " open" : ""}>\n<summary>${summary}</summary>${body ? `\n\n${body}` : ""}\n</details>`);
     } else if (Array.isArray(insert.footnotes)) {
       const definitions = insert.footnotes as Array<{ id?: unknown; content?: DeltaOp[] }>;
-      for (const item of definitions) push("embed", `[^${safeFootnoteId(item.id)}]: ${inlineDeltaToMarkdown({ ops: item.content ?? [] })}`);
+      for (const item of definitions) footnoteDefinitions.push(`[^${safeFootnoteId(item.id)}]: ${inlineDeltaToMarkdown({ ops: item.content ?? [] })}`);
     }
     else if (insert.hr) push("embed", "---");
     else {
@@ -187,6 +188,11 @@ export function deltaToMarkdown(content: unknown): string {
     }
   }
   if (inline) flushLine();
+  if (footnoteDefinitions.length) {
+    while (blocks.length && blocks[blocks.length - 1].value === "") blocks.pop();
+    if (blocks[blocks.length - 1]?.value !== "---") push("embed", "---");
+    for (const definition of footnoteDefinitions) push("embed", definition);
+  }
 
   let markdown = "";
   blocks.forEach((block, index) => {

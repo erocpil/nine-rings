@@ -56,6 +56,8 @@ import { readingBlockSession, type ReadingBlockState as BlockState } from "../li
 import { patchReadingState, readReadingState } from "../lib/reading-state";
 import { centerSearchMatch } from "../lib/search-scroll";
 import { KaTeXFormula } from "../extensions/MarkdownExtras";
+import { findFootnoteElement, footnoteBlockPosition, footnoteLinkTarget, scrollToFootnote } from "../lib/footnote-navigation";
+import { useFootnoteHoverPreview } from "./FootnoteHoverPreview";
 
 export function renderReadonlyBlock(
   node: PMNode,
@@ -125,7 +127,7 @@ export function renderReadonlyBlock(
           break;
         case "footnoteReference": {
           const id = String(mark.attrs.id ?? "");
-          rendered = <sup id={`nr-footnote-ref-${encodeURIComponent(id)}`} className="nr-footnote-reference"><a href={`#nr-footnote-${encodeURIComponent(id)}`}>{rendered}</a></sup>;
+          rendered = <sup id={`nr-footnote-ref-${encodeURIComponent(id)}`} className="nr-footnote-reference" data-footnote-ref={id}><a href={`#nr-footnote-${encodeURIComponent(id)}`}>{rendered}</a></sup>;
           break;
         }
       }
@@ -161,11 +163,21 @@ export function renderReadonlyBlock(
     case "mathBlock":
       return <div className="nr-math-block"><KaTeXFormula source={String(node.attrs.source ?? "")} displayMode /> </div>;
     case "htmlDetails":
-      return <details open={node.attrs.open === true}><summary>{String(node.attrs.summary ?? "点击展开")}</summary>{children}</details>;
+      { const collapsed = state.collapsed ?? node.attrs.open !== true; return <details className="nr-details" open={!collapsed}>
+        <summary className="nr-details-summary" onClick={event => { if (event.target instanceof Element && event.target.closest("button")) return; event.preventDefault(); update(pos, { ...state, collapsed: !collapsed }); }}>
+          <span className="nr-details-fold-icon"><EditorFoldIcon expanded={!collapsed} /></span>
+          <span className="nr-details-title">{String(node.attrs.summary ?? "点击展开")}</span>
+          <span className="nr-details-actions">
+            <button type="button" title="复制折叠区块" aria-label="复制折叠区块" onClick={event => { event.preventDefault(); event.stopPropagation(); void copyToClipboard(`${String(node.attrs.summary ?? "点击展开")}\n\n${node.textBetween(0, node.content.size, "\n")}`); }}><ToolbarIcon name="copy" /></button>
+            <button type="button" className="block-workspace-open" title="块模式" aria-label="块模式" data-workspace-position={pos}><ToolbarIcon name="expand" /></button>
+          </span>
+        </summary>
+        <div className="nr-details-content">{children}</div>
+      </details>; }
     case "footnotes":
       return <section className="nr-footnotes"><ol>{children}</ol></section>;
     case "footnoteDefinition":
-      { const id = encodeURIComponent(String(node.attrs.id ?? "")); return <li id={`nr-footnote-${id}`}>{children}<a href={`#nr-footnote-ref-${id}`} aria-label="返回脚注引用"> ↩</a></li>; }
+      { const id = encodeURIComponent(String(node.attrs.id ?? "")); return <li id={`nr-footnote-${id}`} tabIndex={-1}><div data-footnote-content="">{children}</div><a className="nr-footnote-backref" href={`#nr-footnote-ref-${id}`} aria-label="返回脚注引用">↩</a></li>; }
     case "heading":
       return React.createElement(`h${node.attrs.level}`, attrs, children);
     case "bulletList":
@@ -288,6 +300,7 @@ export function ReadonlyVirtualNote(
     onSearchTargetConsumed,
   } = props;
   const active = useDocumentActive();
+  const footnoteHover = useFootnoteHoverPreview(() => doc);
   const rootRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const heights = useRef(new Map<number, number>());
@@ -295,6 +308,7 @@ export function ReadonlyVirtualNote(
   const pendingNavigationRequest = useRef<number | null>(null);
   const pendingMatch = useRef<SearchMatch | null>(null);
   const pendingBookmark = useRef<number | null>(null);
+  const pendingFootnote = useRef<string | null>(null);
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     const sync = () => setRevision(value => value + 1);
@@ -627,6 +641,26 @@ export function ReadonlyVirtualNote(
     props.showLineNumbers,
     preserve,
   ]);
+
+  useLayoutEffect(() => {
+    const id = pendingFootnote.current;
+    const root = rootRef.current;
+    const body = bodyRef.current;
+    if (!id || !root || !body) return;
+    const target = findFootnoteElement(body, id);
+    if (!target) return;
+    const row = target.closest<HTMLElement>("[data-reading-row]");
+    if (!row) return;
+    const previousTop = root.scrollTop;
+    const rect = target.getBoundingClientRect();
+    centerSearchMatch(root, rect);
+    target.focus({ preventScroll: true });
+    const offset = root.scrollTop - previousTop + root.getBoundingClientRect().top - row.getBoundingClientRect().top;
+    pendingAnchor.current = { position: Number(row.dataset.position), offset };
+    savedAnchor.current = pendingAnchor.current;
+    pendingFootnote.current = null;
+    setViewport({ top: root.scrollTop, height: root.clientHeight });
+  }, [start, end, layout]);
 
   useLayoutEffect(() => {
     const position = pendingBookmark.current;
@@ -1001,7 +1035,7 @@ export function ReadonlyVirtualNote(
   );
   return (
     <div
-      className={`note-editor note-editor-readonly vr-note ${desktopPanelClass(desktopPanels, sections.length > 0)} ${props.cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${props.focusMode ? "focus-mode" : ""}`}
+      className={`note-editor note-editor-readonly vr-note ${desktopPanelClass(desktopPanels, sections.length > 0)} ${props.cjkLatinSpacing ? "editor-auto-cjk-spacing" : ""} ${props.focusMode ? "focus-mode" : ""} ${props.showLineNumbers ? "show-line-numbers" : ""}`}
       data-virtual-reader="true"
       onClick={event => {
         const trigger = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-workspace-position]") : null;
@@ -1114,6 +1148,23 @@ export function ReadonlyVirtualNote(
           tabIndex={0}
           role="document"
           aria-label="只读正文"
+          onPointerOver={footnoteHover.onPointerOver}
+          onPointerOut={footnoteHover.onPointerOut}
+          onFocusCapture={footnoteHover.onFocusCapture}
+          onBlurCapture={footnoteHover.onBlurCapture}
+          onScrollCapture={footnoteHover.onScrollCapture}
+          onClickCapture={(event) => {
+            const id = footnoteLinkTarget(event.target);
+            if (!id) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const body = bodyRef.current;
+            if (body && scrollToFootnote(body, id)) return;
+            const position = footnoteBlockPosition(doc, id);
+            if (position === null) return;
+            pendingFootnote.current = id;
+            jump(position);
+          }}
           onDoubleClick={(event) => {
             if (
               !props.focusMode ||
@@ -1237,6 +1288,7 @@ export function ReadonlyVirtualNote(
           />
         </div>
       </div>
+      {footnoteHover.preview}
       {props.showStatusBar && (
         <div className="vr-status">
           {doc.childCount} 块 · 已挂载 {end - start} 块

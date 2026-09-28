@@ -26,6 +26,13 @@
   --editor-gutter-text-gap: 4px;
 }
 
+@media (min-width: 769px) {
+  .show-line-numbers .editor-content-shell,
+  .vr-note.show-line-numbers .vr-body {
+    --editor-gutter-text-gap: 12px;
+  }
+}
+
 .focus-mode.show-line-numbers .editor-content-shell {
   --editor-gutter-width: 30px;
 }
@@ -56,8 +63,28 @@
 .nr-math.mathInline { display: inline; }
 .nr-math code,
 .nr-math-block code { white-space: pre-wrap; }
-.nr-footnotes { margin-top: 1.5em; border-top: 1px solid var(--border-subtle, #8884); padding-top: 0.5em; font-size: 0.9em; }
+.nr-footnotes { margin-top: 0.5em; font-size: 0.9em; }
 .nr-footnote-reference { vertical-align: super; font-size: 0.75em; }
+.nr-footnote-backref { display: inline-block; margin-left: 0.4em; }
+.nr-footnotes [data-footnote-content] { display: inline; }
+.nr-footnotes [data-footnote-content] > p { display: inline; }
+.nr-footnotes li { scroll-margin-top: 4em; }
+.nr-footnote-hover-preview {
+  position: fixed;
+  z-index: 10000;
+  max-width: min(320px, calc(100vw - 16px));
+  max-height: min(40vh, 240px);
+  overflow: auto;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 6px 24px #0003;
+  font: 13px/1.5 var(--font);
+  white-space: pre-wrap;
+  pointer-events: none;
+}
 .ProseMirror details,
 .nr-footnotes { overflow-wrap: anywhere; }
 .ProseMirror details > summary { cursor: pointer; }
@@ -347,7 +374,7 @@
 
 /* ── Markdown / TipTap 表格 ── */
 .editor-content .tableWrapper {
-  width: 100%;
+  width: fit-content;
   max-width: 100%;
   margin: 8px 0;
   /* 表格通常应随正文宽度重排；这里保留滚动仅作为浏览器无法断行时的兜底。 */
@@ -355,9 +382,9 @@
 }
 
 .editor-content table {
-  width: 100%;
+  width: max-content;
   max-width: 100%;
-  min-width: 0;
+  min-width: 220px;
   border-collapse: collapse;
   table-layout: auto;
   background: var(--bg);
@@ -623,6 +650,6 @@
 }
 
 /* Automatic widths are visual only; explicit dragged widths stay authoritative. */
-.editor-content .tableWrapper table[data-column-layout="auto"] { table-layout: auto; }
-.editor-content .tableWrapper table[data-column-layout="manual"] { max-width: none; }
+.editor-content .tableWrapper table[data-column-layout="auto"] { table-layout: auto; min-width: 220px !important; }
+.editor-content .tableWrapper table[data-column-layout="manual"] { min-width: 0; max-width: none; }
 .editor-content .tableWrapper th, .editor-content .tableWrapper td { min-width: 48px; }
