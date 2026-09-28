@@ -19,7 +19,10 @@ for (const fullscreen of [false, true]) {
     await expect(frame.getByRole("heading", { name: "第一章" })).toBeVisible();
     if (fullscreen) {
       await toolbar.getByRole("button", { name: "进入 EPUB 专注模式" }).click();
+      await page.mouse.move(8, 500);
+      await expect(toolbar).toBeHidden();
       await frame.locator("body").dispatchEvent("click");
+      await expect(toolbar).toBeVisible();
     }
     await toolbar.getByRole("button", { name: "打开 EPUB 书签" }).click();
     const panel = page.getByRole("dialog", { name: "EPUB 书签" });
@@ -43,7 +46,7 @@ for (const fullscreen of [false, true]) {
     });
     // Check the pressed/hover frame, not just geometry after dismissal. A
     // transparent full-page button must never inherit the toolbar's fill.
-    const beforePress = await page.locator(".epub-chapter-frame").screenshot();
+    const beforePress = await page.locator(".epub-chapter-frame").screenshot({ animations: "disabled", path: test.info().outputPath("before-press.png") });
     await page.mouse.move(12, 740);
     await expect(backdrop).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await expect(backdrop).toHaveCSS("-webkit-tap-highlight-color", "rgba(0, 0, 0, 0)");
@@ -51,7 +54,13 @@ for (const fullscreen of [false, true]) {
     await expect(backdrop).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await expect(backdrop).toHaveCSS("box-shadow", "none");
     await expect(backdrop).toHaveCSS("transform", "none");
-    expect(await page.locator(".epub-chapter-frame").screenshot()).toEqual(beforePress);
+    const duringPress = await page.locator(".epub-chapter-frame").screenshot({ animations: "disabled", path: test.info().outputPath("during-press.png") });
+    // Avoid rendering a huge byte-by-byte assertion diff if a frame differs.
+    if (!duringPress.equals(beforePress)) {
+      await test.info().attach("before-press", { body: beforePress, contentType: "image/png" });
+      await test.info().attach("during-press", { body: duringPress, contentType: "image/png" });
+    }
+    expect(duringPress.equals(beforePress)).toBe(true);
     await page.mouse.up();
     await expect(panel).toBeHidden();
     await toolbar.getByRole("button", { name: "打开 EPUB 书签" }).click();

@@ -1,3 +1,4 @@
+import { toolbarAction } from "./helpers/editor-toolbar";
 import { openDocumentSidebar, closeDocumentSidebar } from "./helpers/workspace";
 import { pressLineBoundary } from "./helpers/keyboard";
 import { expect, test, type Page } from "@playwright/test";
@@ -78,7 +79,7 @@ test.describe("手机工具栏状态恢复", () => {
     const rect = (await redo.boundingBox())!;
     await page.touchscreen.tap(rect.x + rect.width / 2, rect.y + rect.height / 2);
     await pressLineBoundary(editor, "end");
-    await page.getByRole("button", { name: "块内换行", exact: true }).tap();
+    await (await toolbarAction(page, "lineBreak")).tap();
     await expect(editor).toContainText("不应丢失的正文");
     await expect(editor.locator("p > br:not(.ProseMirror-trailingBreak)")).toHaveCount(1);
   });

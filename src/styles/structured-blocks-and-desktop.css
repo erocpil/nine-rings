@@ -372,6 +372,13 @@
 }
 
 @media (max-width: 768px) {
+  .code-block-collapse-toggle {
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
+    touch-action: manipulation;
+  }
+
   .blockquote-toolbar {
     min-height: 36px;
     margin-bottom: 0;

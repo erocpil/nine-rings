@@ -31,7 +31,7 @@ for (const format of ["PDF", "EPUB"] as const) {
     for (const width of [320, 390, 768, 1280]) {
       await page.setViewportSize({ width, height: 800 });
       await expect.poll(() => toolbar.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
-      if (width <= 390) expect((await toolbar.boundingBox())!.height).toBeLessThanOrEqual(100);
+      if (width <= 390) await expect.poll(async () => (await toolbar.boundingBox())!.height).toBeLessThanOrEqual(100);
       const buttons = toolbar.locator(".reader-toolbar-main button, .reader-toolbar-controls button");
       for (const button of await buttons.all()) {
         await expect(button).toBeVisible();

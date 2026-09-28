@@ -1,3 +1,4 @@
+import { closeDocumentSidebar } from "./helpers/workspace";
 import { pressLineBoundary } from "./helpers/keyboard";
 import { expect, test, type Page } from "@playwright/test";
 
@@ -42,8 +43,9 @@ async function selectLine(page: Page, text: string) {
 
 test("手机工具栏菜单互斥、重复点击与外部关闭，标题分页保留", async ({ page }) => {
   await seedNotes(page);
+  await closeDocumentSidebar(page);
   await page.setViewportSize({ width: 390, height: 850 });
-  await page.locator(".sidebar-tab-hide").click();
+  await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
   const dropdowns = page.locator(".editor-menu .menu-dropdown-list");
   for (const title of ["样式", "标题", "块"]) {
     await page.getByTitle(title, { exact: true }).click();
@@ -72,8 +74,9 @@ test("切换工具栏布局和插入弹层不重建正文，选区格式与撤�
   const editor = page.locator(".ProseMirror");
   const original = await editor.elementHandle();
   if (!original) throw new Error("editor not mounted");
+  await closeDocumentSidebar(page);
   await page.setViewportSize({ width: 390, height: 850 });
-  await page.locator(".sidebar-tab-hide").click();
+  await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
   await selectLine(page, "拆分验证甲正文");
   await page.getByTitle("样式", { exact: true }).click();
   await page.getByRole("button", { name: "B 加粗", exact: true }).click();
@@ -89,7 +92,7 @@ test("切换工具栏布局和插入弹层不重建正文，选区格式与撤�
   await expect(dialog).toHaveCount(0);
   await expect(editor.locator("a")).toHaveCount(0);
 
-  await page.setViewportSize({ width: 1280, height: 850 });
+  await page.setViewportSize({ width: 1600, height: 850 });
   await expect(page.locator(".editor-menu")).toHaveClass(/toolbar-full/);
   await page.getByTitle("插入图片", { exact: true }).click();
   await expect(dialog.locator("input")).toBeFocused();

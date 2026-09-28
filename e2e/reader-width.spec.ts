@@ -1,5 +1,5 @@
 import { openReadingLibrary } from "./helpers/workspace";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./helpers/reader-test";
 import { PDFDocument } from "pdf-lib";
 import { createEpubFixture } from "./helpers/reader-fixtures";
 

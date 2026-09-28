@@ -82,9 +82,13 @@ export function renderMermaid(source: string, palette: MermaidPalette = MERMAID_
         titleColor: palette.text,
       },
     });
-    const parsed = await mermaid.parse(source, { suppressErrors: true });
+    // Mermaid's HTML label parser expects void tags in XML-compatible form.
+    // Authors commonly type <br>; normalize it for parsing/rendering without
+    // changing the source stored in the document.
+    const renderSource = source.replace(/<br\s*\/?>/gi, "<br/>");
+    const parsed = await mermaid.parse(renderSource, { suppressErrors: true });
     if (!parsed) throw new Error("图表语法有误");
-    const { svg } = await mermaid.render(`nine-rings-mermaid-${++nextId}`, source);
+    const { svg } = await mermaid.render(`nine-rings-mermaid-${++nextId}`, renderSource);
     return svg;
   };
   const result = renderQueue.then(render);

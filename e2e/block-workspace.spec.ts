@@ -1,3 +1,4 @@
+import { toolbarAction } from "./helpers/editor-toolbar";
 import { pressLineBoundary } from "./helpers/keyboard";
 import { expect, test, type Page } from "@playwright/test";
 
@@ -100,8 +101,11 @@ test("块内换行现状：代码按钮禁用但快捷键可用，引用按钮�
   const code = source.locator("pre code");
   await code.click();
   await pressLineBoundary(page, "end");
-  const lineBreak = page.getByRole("button", { name: "块内换行", exact: true });
+  const lineBreak = await toolbarAction(page, "lineBreak");
   await expect(lineBreak).toBeDisabled();
+  await page.getByRole("button", { name: "更多编辑操作", exact: true }).click();
+  await code.click();
+  await pressLineBoundary(page, "end");
   const before = await code.textContent();
   await page.keyboard.press("Shift+Enter");
   expect((await code.textContent())!.split("\n").length).toBe(before!.split("\n").length + 1);
@@ -111,6 +115,7 @@ test("块内换行现状：代码按钮禁用但快捷键可用，引用按钮�
   await pressLineBoundary(page, "start");
   const breaksBefore = await quote.locator("br:not(.ProseMirror-trailingBreak)").count();
   const paragraphsBefore = await quote.locator("p").count();
+  await toolbarAction(page, "lineBreak");
   await expect(lineBreak).toBeEnabled();
   await lineBreak.click();
   await expect(quote.locator("br:not(.ProseMirror-trailingBreak)")).toHaveCount(breaksBefore + 1);

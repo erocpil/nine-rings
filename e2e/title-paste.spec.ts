@@ -1,3 +1,4 @@
+import { toolbarAction } from "./helpers/editor-toolbar";
 import { expect, test, type Page } from "@playwright/test";
 
 async function createBlankNote(page: Page) {
@@ -39,7 +40,7 @@ for (const content of ["https://example.com/title", "**标题中的原始文字*
 test("正文仍选中代码块时，标题粘贴不被代码块截获", async ({ page }) => {
   const editor = await createBlankNote(page);
   await editor.fill("原有代码");
-  await page.getByTitle("代码块 (Ctrl+Alt+C)").click();
+  await (await toolbarAction(page, "code")).click();
   await expect(editor.locator("pre code")).toHaveText("原有代码");
   const title = page.getByRole("textbox", { name: "文档标题", exact: true });
   await title.fill("前后");

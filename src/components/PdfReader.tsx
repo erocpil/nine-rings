@@ -1328,7 +1328,8 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
     const onKeyDown = (event: KeyboardEvent) => {
       const reader = readerRef.current;
       if (!reader || !pdf || event.defaultPrevented || !(event.target instanceof Node) ||
-          !reader.contains(event.target) || reader.getClientRects().length === 0) return;
+          (!reader.contains(event.target) && event.target !== reader.closest(".desktop-reader-panel")) ||
+          reader.getClientRects().length === 0) return;
       if (isPrimaryShortcutModifier(event) && event.key.toLocaleLowerCase() === "f") {
         event.preventDefault();
         setOutlineOpen(false);

@@ -1,5 +1,5 @@
 import { openReadingLibrary } from "./helpers/workspace";
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./helpers/reader-test";
 import { createPdfFixture } from "./helpers/reader-fixtures";
 
 test("横向 PDF 居中且高清画布不被缩略图覆盖", async ({ page }) => {

@@ -5,9 +5,10 @@ test.use({ serviceWorkers: "block" });
 async function showDocumentView(page: Page) {
   await expect(page.locator(".ProseMirror")).toBeVisible();
   const treeButton = page.locator('[data-sidebar-panel="tree"]');
-  if (await treeButton.isVisible()) {
+  if (await page.evaluate(() => !matchMedia("(max-width: 768px)").matches)) {
     if (await treeButton.getAttribute("aria-pressed") !== "true") await treeButton.click();
   } else {
+    await expect(treeButton).toHaveCount(0);
     await page.locator(".note-editor").evaluate(element => {
       for (const [type, x] of [["touchstart", 8], ["touchmove", 110], ["touchend", 110]] as const) {
         const touch = { identifier: 41, target: element, clientX: x, clientY: 150 };

@@ -17,8 +17,10 @@ async function fixture(page: Page) {
       ...(index % 10 === 0 ? { attrs: { level: 2 } } : {}),
       content: [{ type: "text", text: `位置 ${index}：用于验证历史跳转的正文内容。` }],
     })) }, true);
-    instance.commands.setTextSelection(1);
+    instance.commands.focus(1);
   });
+  await expect.poll(() => location(page)).toEqual({ from: 1, to: 1 });
+  await expect.poll(async () => { const state = await history(page); return state.entries[state.index]?.from; }).toBe(1);
   return (await page.evaluate(() => localStorage.getItem("nr:lastNote")))!;
 }
 async function location(page: Page) {
@@ -127,7 +129,12 @@ test("Mac 使用 Command+Option 方向键，保留 Option 文本移动", async (
   await page.addInitScript(() => Object.defineProperty(navigator, "platform", { value: "MacIntel" }));
   await fixture(page);
   const start = await location(page);
-  await editor(page).locator("p").nth(15).click();
+  const paragraph = editor(page).locator("p").nth(15);
+  await paragraph.click();
+  await expect.poll(() => paragraph.evaluate(element => {
+    const instance = (element.closest(".ProseMirror") as HTMLElement & { editor: Editor }).editor;
+    return instance.state.selection.from >= instance.view.posAtDOM(element, 0) && instance.state.selection.to <= instance.view.posAtDOM(element, element.childNodes.length);
+  })).toBe(true);
   const end = await location(page);
   expect(await editor(page).evaluate(element => element.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", altKey: true, bubbles: true, cancelable: true })))).toBe(true);
   await page.keyboard.press("Meta+Alt+ArrowLeft");

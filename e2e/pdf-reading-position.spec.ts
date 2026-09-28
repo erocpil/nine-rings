@@ -28,6 +28,7 @@ for (const mode of ["vertical", "horizontal"] as const) {
     };
     const close = async () => {
       await page.getByRole("button", { name: "关闭 PDF 阅读器", exact: true }).click();
+      await openMobileReadingLibrary(page);
       await expect(library).toBeVisible();
     };
     await reopen();

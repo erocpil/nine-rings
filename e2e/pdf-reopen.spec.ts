@@ -86,6 +86,7 @@ test("手机 PDF 翻页后立即关闭重开，后台返回和刷新均保留最
     await page.getByLabel("PDF 页码", { exact: true }).fill(String(target));
     await page.getByLabel("PDF 页码", { exact: true }).press("Enter");
     await page.getByRole("button", { name: "关闭 PDF 阅读器", exact: true }).click();
+    await openMobileReadingLibrary(page);
     await expect(library).toBeVisible();
     await library.getByRole("button", { name: "继续阅读", exact: true }).click();
     await expect(page.getByLabel("PDF 页码", { exact: true })).toHaveValue(String(target));
@@ -101,6 +102,7 @@ test("手机 PDF 翻页后立即关闭重开，后台返回和刷新均保留最
   });
   await expect(text.first()).toContainText("Nine Rings PDF MVP");
   await page.getByRole("button", { name: "关闭 PDF 阅读器", exact: true }).click();
+  await openMobileReadingLibrary(page);
   await expect(library).toBeVisible();
   await page.reload();
   await openMobileReadingLibrary(page);

@@ -1,3 +1,4 @@
+import { openMobileReadingLibrary } from "./helpers/mobile-reading";
 import { expect, test } from "./helpers/reader-test";
 import { createEpubFixture } from "./helpers/reader-fixtures";
 
@@ -104,6 +105,7 @@ test("手机 EPUB 连续关闭重开后显示正文、封面和最新章节", as
   for (let cycle = 0; cycle < 4; cycle++) {
     await expect(chapter.getByRole("heading", { name: "第二章" })).toBeVisible();
     await page.getByRole("button", { name: "关闭 EPUB 阅读器", exact: true }).click();
+    await openMobileReadingLibrary(page);
     await expect(library).toBeVisible();
     await expect.poll(() => library.locator(".reader-library-cover img").evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
     await library.getByRole("button", { name: "继续阅读", exact: true }).click();

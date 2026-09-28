@@ -183,7 +183,18 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npx playwright install chromium webkit --with-deps
-      - run: npm run test:e2e
+      - run: npm run test:e2e -- --reporter=line,json --trace=retain-on-failure --output=test-results/default
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/default.json
+      - name: Preserve default E2E failure diagnostics
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-default
+          path: |
+            test-results/default/
+            test-results/default.json
+          retention-days: 7
       - name: Cross-platform touch interaction smoke tests (WebKit)
         run: npm run test:e2e:cross-platform
       - name: Full folding regression tests (WebKit)

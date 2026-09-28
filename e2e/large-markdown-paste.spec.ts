@@ -1,3 +1,4 @@
+import { toolbarAction } from "./helpers/editor-toolbar";
 import { expect, test, type Page, type Locator } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { mdToDelta } from "../src/lib/md-parser";
@@ -136,7 +137,7 @@ for (const entry of ["原生", "工具栏"] as const) {
           types: ["text/plain"], getType: async () => new Blob([text], { type: "text/plain" }),
         }] });
       }, largeMarkdown);
-      await page.getByTitle("粘贴 (Ctrl+V)", { exact: true }).click();
+      await (await toolbarAction(page, "paste")).click();
     }
     await expect(page.getByText("已按 Markdown 格式化", { exact: true })).toBeVisible({ timeout: 20000 });
     await expect(editor.locator(":scope > h2")).toHaveCount(200);
@@ -330,7 +331,7 @@ for (const entry of ["原生", "工具栏"] as const) {
           types: ["text/plain"], getType: async () => new Blob([text], { type: "text/plain" }),
         }] });
       }, source);
-      await page.getByTitle("粘贴 (Ctrl+V)", { exact: true }).click();
+      await (await toolbarAction(page, "paste")).click();
     }
     await expect(page.getByText("已按 Markdown 格式化", { exact: true })).toBeVisible({ timeout: 30000 });
     const snapshot = () => editor.evaluate(element => {

@@ -2,6 +2,47 @@ import { expect, test } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
 import { createBlankDocument } from "./helpers/document";
 
+test("Mermaid flowchart 将简写 br 标签渲染为多行节点", async ({ page }) => {
+  await createBlankDocument(page);
+  const examples = [
+    `flowchart LR
+    A["PREROUTING<br>Rewrite Dest to Local"] --> B["User Space Gateway<br>epoll + Worker Threads"]
+    B --> C{"Validation Pass?"}
+    C -- "Yes" --> D["LOCAL_OUT<br>Restore Orig Dest"]
+    C -- "No" --> E["Drop / Reset"]`,
+    `flowchart TD
+    ROOT["Route Advertisement Failure<br>Intermittent under high load"] --> A["Reproduce via Bless Tool"]
+    A --> B["Trace Contention<br>Control vs Data Traffic"]
+    B --> C["Root Cause<br>Shared Worker Core"]
+    C --> D["Action: Flow Director Isolation"]
+    D --> E["Result: Zero Recurrence"]`,
+    `flowchart TD
+    ROOT["现象：间歇性路由通告失败<br/>(7 clusters / ~1000 EIP 生产环境)"]
+    ROOT --> A["假设：偶发问题，难以直接复现"]
+    A --> B["用 Bless 构造可控高负载实验"]
+    B --> C{"能否稳定复现？"}
+    C -- 能 --> D["追踪：控制面与数据面<br/>是否共享同一处理路径？"]
+    C -- 不能 --> B
+    D --> E["确认：两者在共享路径上<br/>产生资源争用"]
+    E --> F["根因：Control/Data 争用<br/>同一处理核心"]
+    F --> G["修复：Flow Director<br/>把控制流量隔离到专用 worker"]
+    G --> H["验证：压力测试下未再复现"]
+    style ROOT fill:#ffe0e0
+    style F fill:#ffe0e0
+    style H fill:#e0ffe0`,
+  ];
+
+  const rendered = await page.evaluate(async examples => {
+    const { renderMermaid } = await import("../src/lib/mermaid-render");
+    const svgs: string[] = [];
+    for (const source of examples) svgs.push(await renderMermaid(source));
+    return svgs;
+  }, examples);
+
+  expect(rendered).toHaveLength(3);
+  for (const svg of rendered) expect(svg).toContain("<svg");
+});
+
 test("Mermaid 代码块保留源码并可在图形与源码间切换", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ editor_show_line_numbers: true })));
   await createBlankDocument(page);

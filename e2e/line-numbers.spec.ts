@@ -1,3 +1,4 @@
+import { toolbarAction } from "./helpers/editor-toolbar";
 import { pressLineBoundary } from "./helpers/keyboard";
 import { test, expect, type Page } from "@playwright/test";
 import { createBlankNote } from "./helpers/editor-fixtures";
@@ -192,7 +193,7 @@ test.describe("编辑器块级 gutter", () => {
   test("长代码块的主块号固定对齐代码首行而不是块中部", async ({ page }) => {
     const editor = await createBlankNote(page);
     await editor.fill("first line");
-    await page.getByTitle("代码块 (Ctrl+Alt+C)", { exact: true }).click();
+    await (await toolbarAction(page, "code")).click();
     for (let index = 2; index <= 12; index += 1) {
       await pressLineBoundary(editor, "end");
       await editor.press("Enter");

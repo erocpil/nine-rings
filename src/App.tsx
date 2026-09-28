@@ -1475,7 +1475,7 @@ function App() {
             onPointerDownCapture={event => {
               if (event.target instanceof Element && !event.target.closest('button, input, textarea, select, a, [contenteditable=true]')) event.currentTarget.focus({ preventScroll: true });
             }}>
-            {!homeReaderOpen && (pdfReaderPanel ?? epubReaderPanel ?? (desktopPanel === 'reader' && <Suspense fallback={<div className="doc-tree-loading">正在加载阅读资料…</div>}>
+            {!homeReaderOpen && (pdfReaderPanel ?? epubReaderPanel ?? (!mobileDrawerViewport && desktopPanel === 'reader' && <Suspense fallback={<div className="doc-tree-loading">正在加载阅读资料…</div>}>
               <ReadingLibrary session={readingLibrarySession.current}
                 showWorkspaceSwitch={false}
                 autoFocusOnOpen={!sidebarOverlay}

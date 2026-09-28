@@ -375,6 +375,11 @@ test.describe("编辑器复制粘贴", () => {
       selection?.removeAllRanges();
       selection?.addRange(range);
     }, phrase);
+    await expect.poll(() => editor.evaluate(element => {
+      const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      const { from, to } = instance.state.selection;
+      return instance.state.doc.textBetween(from, to);
+    })).toBe(phrase);
     await page.keyboard.press("ControlOrMeta+C");
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(phrase);
   });

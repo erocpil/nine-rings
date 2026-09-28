@@ -618,6 +618,13 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
     editor.on("transaction", onTransaction);
     const onScroll = () => {
       lastScrollTime = performance.now();
+      // An idle timer may already have queued a measurement for the next
+      // animation frame. Resume scrolling must defer that frame too.
+      if (measureFrame) {
+        cancelAnimationFrame(measureFrame);
+        measureFrame = 0;
+        scheduleDocumentMeasure();
+      }
       if (documentMeasureTimer) scheduleDocumentMeasure();
       scheduleWindowRefresh();
     };

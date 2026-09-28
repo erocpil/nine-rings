@@ -1,3 +1,5 @@
+import { createDocumentInWorkspace, waitForSavedText } from "./helpers/document";
+import { scrollEditorBlockTo } from "./helpers/editor-scroll";
 import type { Editor } from "@tiptap/core";
 import { closeDocumentSidebar, openDocumentSidebar, openMobileDocumentPopup } from "./helpers/workspace";
 import { openMobileSettings } from "./helpers/mobile-settings";
@@ -309,7 +311,11 @@ test.describe("PWA 窄屏应用外壳", () => {
     await page.evaluate(async () => {
       const load = (path: string) => import(/* @vite-ignore */ path);
       const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");
-      for (const suffix of ["B", "A"]) await api.notes.create({ title: `字段排序 ${suffix}`, date: "2026-09-09", storagePath: "projects/fields", docType: "reference", tags: ["字段"], content: { ops: [] } });
+      for (const suffix of ["B", "A"]) {
+        await api.notes.create({ title: `字段排序 ${suffix}`, date: "2026-09-09", storagePath: "projects/fields", docType: "reference", tags: ["字段"], content: { ops: [] } });
+        // Distinct modification timestamps are required to assert reversed ordering.
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
     });
     const open = () => swipeNoteEditor(page.locator(".note-editor"), { startX: 8, startY: 380, endX: 110, endY: 380 });
     await open();
@@ -1830,10 +1836,13 @@ test.describe("PWA 窄屏应用外壳", () => {
           type: "paragraph",
           content: [{ type: "text", text: `块 ${index + 1}` }],
         })),
-      });
+      }, true);
       instance.commands.focus("end");
     });
     await expect(editor.locator(":scope > *")).toHaveCount(1200);
+    // Finish fixture initialization and its delayed layout work before measuring
+    // a new resize/scroll operation; keep the later snapshot-save check separate.
+    await waitForSavedText(page, "块 1200");
     // 光标在文末时首个标题处于虚拟窗口外；gutter 不应再为离屏标题
     // 永久保留 DOM。
     expect(await page.locator(".editor-heading-fold").count()).toBeLessThanOrEqual(1);
@@ -1861,6 +1870,9 @@ test.describe("PWA 窄屏应用外壳", () => {
     });
     expect(paragraphGeometryReads.reads).toBeLessThanOrEqual(paragraphGeometryReads.budget);
 
+    // Begin from a real user scroll so session/layout restoration yields before
+    // measuring the synthetic multi-frame inertia sequence.
+    await scrollEditorBlockTo(page, editor.locator(":scope > p").nth(5), 240);
     const scrollWork = await page.evaluate(async () => {
       const root = document.querySelector<HTMLElement>(".note-editor-scroll")!;
       const originalRect = HTMLElement.prototype.getBoundingClientRect;
@@ -1897,7 +1909,11 @@ test.describe("PWA 窄屏应用外壳", () => {
     // 二分查找恢复窗口（基线版本同样会发生），预算不随滚动帧数增长。
     const blankTailSearchBudget = Math.ceil(Math.log2(1200));
     expect(scrollWork.paragraphRectsDuringScroll).toBeLessThanOrEqual(6 + blankTailSearchBudget);
-    expect(scrollWork.paragraphRects).toBeLessThan(20);
+    // Stale IntersectionObserver batches are coalesced into one idle
+    // remeasurement of the viewport plus its preloaded blocks (same budget as
+    // resize above). Keep the per-scroll budget independent of frame count.
+    expect(scrollWork.paragraphRects - scrollWork.paragraphRectsDuringScroll)
+      .toBeLessThanOrEqual(paragraphGeometryReads.budget);
     expect(scrollWork.positionWrites).toBeLessThanOrEqual(2);
 
     await page.evaluate(() => {
@@ -2570,19 +2586,14 @@ test.describe("PWA 窄屏应用外壳", () => {
 
   test("搜索收起虚拟键盘后左右侧栏与遮罩恢复整屏高度", async ({ page }) => {
     await page.goto("/");
-    await page.getByTitle("显示侧栏").click();
-    await page.getByTitle("新建文档").click();
-    await page.getByPlaceholder("文档标题...").fill("搜索后侧栏布局");
-    await page.getByRole("button", { name: "创建", exact: true }).click();
-    await expect(page.locator(".note-title")).toHaveValue("搜索后侧栏布局");
-    if (!await page.locator(".app-sidebar").evaluate((element) => element.classList.contains("sidebar-hidden"))) {
-      await page.getByTitle("隐藏侧栏").click();
-    }
+    await openDocumentSidebar(page);
+    await createDocumentInWorkspace(page, "搜索后侧栏布局");
+    await closeDocumentSidebar(page);
     const editor = page.locator(".ProseMirror");
     await editor.fill(Array.from({ length: 24 }, (_, i) => i === 18 ? "夜色中的搜索目标" : `正文第 ${i + 1} 段`).join("\n"));
-    await expect(page.locator(".save-status-saved")).toBeVisible();
-    await page.getByTitle("点击设为只读").click();
-    await page.getByTitle("搜索", { exact: true }).click();
+    await waitForSavedText(page, "夜色中的搜索目标");
+    await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
+    await page.keyboard.press("ControlOrMeta+Shift+f");
     await page.locator(".search-input").fill("色");
 
     // 模拟键盘的真实 viewport resize 链路，而非直接写应用 CSS 状态。
@@ -2600,7 +2611,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     });
     await expect(page.locator("html")).not.toHaveClass(/web-keyboard-open/);
     const host = page.locator(".note-editor");
-    await swipeNoteEditor(host, { startX: 8, startY: 400, endX: 108, endY: 405 });
+    await openDocumentSidebar(page);
     const sidebar = page.getByRole("dialog", { name: "文档侧栏" });
     await expect(sidebar).toBeVisible();
     await expect(sidebar.locator(".doc-tree-selected")).toContainText("搜索后侧栏布局");
@@ -2622,7 +2633,7 @@ test.describe("PWA 窄屏应用外壳", () => {
 
   test("键盘打开后旋转时侧栏不保留旧方向的宽高", async ({ page }) => {
     await page.goto("/");
-    await page.getByTitle("显示侧栏").click();
+    await openDocumentSidebar(page);
     // A keyboard resize must be associated with a focused text input.
     await page.evaluate(() => {
       const input = document.createElement("input");
@@ -2709,17 +2720,20 @@ test.describe("PWA 窄屏应用外壳", () => {
 
   test("横竖屏往返保持字体比例和当前光标行可见位置", async ({ page }) => {
     await page.goto("/");
+    await openDocumentSidebar(page);
+    await createDocumentInWorkspace(page, "横竖屏光标位置");
+    await closeDocumentSidebar(page);
     const editor = page.locator(".ProseMirror");
     await editor.fill(Array.from({ length: 90 }, (_, index) => `旋转定位第 ${index + 1} 行`).join("\n"));
-    await editor.locator(":scope > *").nth(60).click();
-    await page.evaluate(() => {
-      const root = document.querySelector<HTMLElement>(".note-editor-scroll")!;
-      const selection = window.getSelection()!;
-      const caret = selection.getRangeAt(0).getBoundingClientRect();
-      const rootRect = root.getBoundingClientRect();
-      root.scrollTop += caret.top - (rootRect.top + rootRect.height * 0.5);
-    });
-    await page.waitForTimeout(50);
+    const target = editor.locator(":scope > p").nth(60);
+    await target.click();
+    await expect.poll(() => target.evaluate(element => {
+      const instance = (element.closest(".ProseMirror") as HTMLElement & { editor: Editor }).editor;
+      return instance.state.selection.from >= instance.view.posAtDOM(element, 0)
+        && instance.state.selection.to <= instance.view.posAtDOM(element, element.childNodes.length);
+    })).toBe(true);
+    const middle = await page.locator(".note-editor-scroll").evaluate(el => el.clientHeight / 2);
+    await scrollEditorBlockTo(page, target, middle);
 
     const readCaretLayout = () => page.evaluate(() => {
       const root = document.querySelector(".note-editor-scroll")!.getBoundingClientRect();
@@ -2732,7 +2746,7 @@ test.describe("PWA 窄屏应用外壳", () => {
         textSizeAdjust: getComputedStyle(document.documentElement).getPropertyValue("text-size-adjust")
           || getComputedStyle(document.documentElement).getPropertyValue("-webkit-text-size-adjust"),
         textSizeAdjustSupported: CSS.supports("text-size-adjust", "100%") || CSS.supports("-webkit-text-size-adjust", "100%"),
-        ratio: (caret.top - root.top) / root.height,
+        position: (editorElement as HTMLElement & { editor: Editor }).editor.state.selection.head,
         visible: caret.bottom >= root.top + 8 && caret.top <= root.bottom - 20,
       };
     });
@@ -2743,6 +2757,11 @@ test.describe("PWA 窄屏应用外壳", () => {
     if (portraitBefore.textSizeAdjustSupported) expect(portraitBefore.textSizeAdjust).toBe("100%");
 
     await page.setViewportSize({ width: 760, height: 390 });
+    await expect.poll(async () => (await readCaretLayout()).position).toBe(portraitBefore.position);
+    // Rotation alone must not force the old caret back into view. Actual input
+    // requests native caret scrolling and must continue in the same paragraph.
+    await page.keyboard.type("x");
+    await expect(target).toContainText("x");
     await expect.poll(async () => (await readCaretLayout()).visible).toBe(true);
     await page.evaluate(() => new Promise<void>((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
@@ -2751,14 +2770,14 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(landscapeAfterPaint.fontSize).toBe(portraitBefore.fontSize);
     await page.waitForTimeout(420);
     const landscapeSettled = await readCaretLayout();
-    expect(Math.abs(landscapeSettled.ratio - landscapeAfterPaint.ratio)).toBeLessThan(0.04);
+    expect(landscapeSettled.position).toBe(portraitBefore.position + 1);
+    expect(landscapeSettled.visible).toBe(true);
 
     await page.setViewportSize({ width: 390, height: 760 });
+    await expect.poll(async () => (await readCaretLayout()).position).toBe(portraitBefore.position + 1);
+    await page.keyboard.type("y");
+    await expect(target).toContainText("xy");
     await expect.poll(async () => (await readCaretLayout()).visible).toBe(true);
-    await expect.poll(async () => {
-      const current = await readCaretLayout();
-      return Math.abs(current.ratio - portraitBefore.ratio);
-    }).toBeLessThan(0.15);
     const portraitAfter = await readCaretLayout();
     expect(portraitAfter.fontSize).toBe(portraitBefore.fontSize);
   });

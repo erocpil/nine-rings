@@ -1,3 +1,4 @@
+import { openMobileReadingLibrary } from "./helpers/mobile-reading";
 import { pressDocumentBoundary } from "./helpers/keyboard";
 import { expect, test } from '@playwright/test';
 import { createPdfFixture, createEpubFixture } from './helpers/reader-fixtures';
@@ -57,5 +58,9 @@ test('手机仍使用原来的抽屉入口', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.ProseMirror')).toBeVisible({ timeout: 25000 });
   await expect(page.locator('.desktop-activity-bar')).toHaveCount(0);
-  await expect(page.locator('.desktop-reader-panel')).toHaveCount(0);
+  await expect(page.locator('.desktop-reader-panel')).toBeHidden();
+  await openMobileReadingLibrary(page);
+  await expect(page.getByRole('region', { name: '阅读资料库', exact: true })).toHaveCount(1);
+  await expect(page.locator('input[accept="application/pdf,.pdf"]')).toHaveCount(1);
+  await expect(page.locator('input[accept="application/epub+zip,.epub"]')).toHaveCount(1);
 });
