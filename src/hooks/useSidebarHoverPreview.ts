@@ -6,7 +6,7 @@ import {
   type KeyboardEvent,
 } from "react";
 
-import { readDesktopSidebarState, saveDesktopSidebarState } from "../lib/desktop-sidebar-state";
+import { readDesktopSidebarState, saveDesktopSidebarState, type DesktopSidebarState } from "../lib/desktop-sidebar-state";
 type Panel = "tree" | "list" | "reader";
 interface Options {
   enabled: boolean;
@@ -194,5 +194,18 @@ export function useSidebarHoverPreview({
     pointerInside.current = true;
     cancel();
   };
-  return { pinned, enterButton, enterPanel, leave, click, keyDown, dismiss };
+  // Home navigation restores a complete layout, including the live pin state.
+  // Storage alone cannot cancel a pending preview or keep the restored pane open.
+  const restore = (state: DesktopSidebarState) => {
+    cancel();
+    cancelAnimationFrame(focusFrame.current);
+    pointerInside.current = false;
+    keyboardInside.current = false;
+    previousHidden.current = state.hidden;
+    setPinned(state.pinned && !state.hidden);
+    saveDesktopSidebarState(state);
+    if (!state.hidden) openPanel(state.panel);
+    setHidden(state.hidden);
+  };
+  return { pinned, enterButton, enterPanel, leave, click, keyDown, dismiss, restore };
 }

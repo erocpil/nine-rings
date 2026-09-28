@@ -327,3 +327,105 @@ test("首页快速往返不保存恢复期间的临时滚动位置", async ({ pa
   await page.getByRole("button", {name: "返回上一页面", exact: true}).click();
   await expect.poll(() => page.locator(".note-editor-scroll").evaluate(element => element.scrollTop)).toBeCloseTo(target, 0);
 });
+
+for (const presentation of ["overlay", "split"] as const) {
+  for (const hidden of [false, true]) {
+    test(`首页未打开文件返回恢复分栏：${presentation} hidden=${hidden}`, async ({ page }) => {
+      await page.addInitScript(({ presentation, hidden }) => {
+        localStorage.setItem("nine_rings_config", JSON.stringify({
+          interface_style: "calm", workspace_layout: "exhibition",
+        }));
+        localStorage.setItem("nr:sidebarPresentation", presentation);
+        localStorage.setItem("nr:desktopSidebar", JSON.stringify({
+          panel: "tree", hidden, pinned: !hidden,
+        }));
+      }, { presentation, hidden });
+      await page.goto("/");
+      await expect(page.locator(".note-title")).toBeVisible();
+      const sidebar = page.locator(".app-sidebar");
+      const tree = page.locator('[data-sidebar-panel="tree"]');
+      const assertRestored = async () => {
+        await expect(tree).toHaveAttribute("aria-expanded", String(!hidden));
+        if (presentation === "overlay" && !hidden)
+          await expect(tree).toHaveAttribute("data-pinned", "true");
+      };
+      await assertRestored();
+      for (const preview of [false, true]) {
+        await page.getByRole("button", { name: "返回工作区首页", exact: true }).click();
+        await expect(page.locator(".exhibition-welcome")).toBeVisible();
+        await expect(sidebar).toHaveClass(/sidebar-hidden/);
+        if (preview) {
+          await page.locator(".desktop-activity-bar").hover();
+          // Changing a panel on home without opening a document must not
+          // replace the snapshot taken before home navigation.
+          await page.locator('[data-sidebar-panel="reader"]').click();
+          await expect(sidebar).not.toHaveClass(/sidebar-hidden/);
+        }
+        await page.getByRole("button", { name: "返回上一页面", exact: true }).click();
+        await expect(page.locator(".note-title")).toBeVisible();
+        await assertRestored();
+        await page.mouse.move(1200, 650);
+        // Observe past both the hover dismissal (180ms) and CSS transition.
+        const states = await tree.evaluate(async element => {
+          const values: (string | null)[] = [];
+          const until = performance.now() + 600;
+          while (performance.now() < until) {
+            values.push(element.getAttribute("aria-expanded"));
+            await new Promise(requestAnimationFrame);
+          }
+          return [...new Set(values)];
+        });
+        expect(states).toEqual([String(!hidden)]);
+      }
+    });
+  }
+}
+
+for (const panel of ["tree", "list"] as const) {
+  for (const entry of ["hover", "click"] as const) {
+    test(`首页通过分栏打开文件后保留悬停或固定模式：${panel} ${entry}`, async ({ page }) => {
+      await page.addInitScript(() => {
+        localStorage.setItem("nine_rings_config", JSON.stringify({
+          interface_style: "calm", workspace_layout: "exhibition",
+        }));
+        localStorage.setItem("nr:sidebarPresentation", "overlay");
+      });
+      await page.goto("/");
+      await expect(page.locator(".note-title")).toBeVisible();
+      await page.evaluate(async () => {
+        const load = (path: string) => import(/* @vite-ignore */ path);
+        const { api } = await load("/src/lib/api.ts") as typeof import("../src/lib/api");
+        await api.notes.create({ title: "首页分栏打开验证", date: "2026-09-28", storagePath: "",
+          content: { ops: [{ insert: "从首页打开文档后保持分栏。\n" }] } });
+      });
+      await page.reload();
+      await expect(page.locator(".note-title")).toBeVisible();
+      await page.getByRole("button", { name: "返回工作区首页", exact: true }).click();
+      await expect(page.locator(".exhibition-welcome")).toBeVisible();
+      await page.locator(".desktop-activity-bar").hover();
+      const button = page.locator(`[data-sidebar-panel="${panel}"]`);
+      if (entry === "hover") await button.hover();
+      else await button.click();
+      const sidebar = page.locator(".app-sidebar");
+      if (panel === "list")
+        await sidebar.getByRole("button", { name: "全部文档", exact: true }).click();
+      await sidebar.getByRole("button", { name: "首页分栏打开验证", exact: true }).click();
+      await expect(page.locator(".note-title")).toHaveValue("首页分栏打开验证");
+      await expect(page.locator(".exhibition-welcome")).toBeHidden();
+      if (entry === "click") await expect(button).toHaveAttribute("data-pinned", "true");
+      else await expect(button).not.toHaveAttribute("data-pinned", "true");
+      await page.mouse.move(1200, 650);
+      // Leave the pane long enough for a hover preview's dismissal to fire.
+      await page.waitForTimeout(600);
+      await expect(button).toHaveAttribute("aria-expanded", String(entry === "click"));
+      await expect(page.locator(".desktop-activity-bar")).toHaveCSS("opacity", "1");
+      // A later home round trip preserves a pin, but never pins a preview.
+      await page.getByRole("button", { name: "返回工作区首页", exact: true }).click();
+      await page.getByRole("button", { name: "返回上一页面", exact: true }).click();
+      if (entry === "click") await expect(button).toHaveAttribute("data-pinned", "true");
+      else await expect(button).not.toHaveAttribute("data-pinned", "true");
+      await expect(button).toHaveAttribute("aria-expanded", String(entry === "click"));
+      await expect(page.locator(".note-title")).toHaveValue("首页分栏打开验证");
+    });
+  }
+}

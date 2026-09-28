@@ -1261,9 +1261,8 @@ function App() {
           setSelectedConcept(target.concept);
           if (desktopWorkspace) {
             saveWorkspaceLayout(target.workspaceLayout);
-            saveDesktopSidebarState(target.desktopSidebar);
             setDesktopPanel(target.desktopSidebar.panel);
-            setSidebarHidden(target.desktopSidebar.hidden);
+            sidebarHover.restore(target.desktopSidebar);
           }
           setReadingLibraryOpen(target.readingLibraryOpen);
           setPdfReaderDocumentId(target.pdfReaderDocumentId);
@@ -1286,8 +1285,7 @@ function App() {
         });
         if (desktopWorkspace) {
           saveWorkspaceLayout({ outlinePinned: false, bookmarkPinned: false });
-          saveDesktopSidebarState({ panel: desktopPanel, hidden: true, pinned: false });
-          setSidebarHidden(true);
+          sidebarHover.restore({ panel: desktopPanel, hidden: true, pinned: false });
         }
         setWorkspaceHomeChromeHidden(desktopWorkspace);
         setWorkspaceHomePanelActivated(false);
