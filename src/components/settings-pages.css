@@ -504,6 +504,7 @@
    settings or covered options when a message appears or disappears. */
 .settings-panel:focus { outline: none; }
 .settings-panel .settings-header { flex-shrink: 0; gap: 8px; }
+.settings-panel .settings-header-search { margin-left: auto; }
 .settings-panel .settings-close { flex-shrink: 0; }
 .settings-feedback-slot {
   flex: 0 1 auto;

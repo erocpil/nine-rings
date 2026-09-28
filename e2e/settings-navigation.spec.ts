@@ -24,6 +24,10 @@ test("设置使用分类首页和二级页面精简内容", async ({ page }) => 
   await page.goto("/");
   await page.getByTitle("设置").click();
   await expect(page.getByRole("button", { name: "打开设置查找" })).toBeVisible();
+  expect(await page.getByRole("button", { name: "打开设置查找" }).evaluate(button => {
+    const close = button.closest(".settings-header")!.querySelector(".settings-close")!;
+    return close.getBoundingClientRect().left - button.getBoundingClientRect().right;
+  })).toBeLessThanOrEqual(16);
   await expect(page.getByRole("textbox", { name: "查找设置" })).toBeHidden();
   await page.getByRole("button", { name: "打开设置查找" }).click();
   await expect(page.getByRole("textbox", { name: "查找设置" })).toBeVisible();
