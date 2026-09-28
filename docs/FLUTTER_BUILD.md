@@ -234,7 +234,7 @@ open ios/Runner.xcworkspace
 在 Xcode 中：
 1. 选择 Runner target → Signing & Capabilities
 2. Team 选择你的 Apple ID（免费个人账号即可）
-3. 修改 Bundle Identifier（如 `com.yourname.ninerings`，默认的 `com.ninerings.app` 可能已占用）
+3. 修改 Bundle Identifier（如 `com.yourname.ninerings`；Tauri 桌面版使用 `com.ninerings.desktop`）
 4. 连接 iPhone / iPad，在 Xcode 顶部选择该设备
 
 > **免费 Apple ID 限制**：每 7 天需重新签名。如需长期免签，需 Apple Developer Program（$99/年）。

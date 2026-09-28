@@ -23,6 +23,17 @@ function buildVersion(): string {
 export default defineConfig(async () => {
   const version = buildVersion();
   const normalizePath = (id: string): string => id.split("\\").join("/");
+  const packagePath = (id: string, name: string): boolean =>
+    id.includes(`/node_modules/${name}/`);
+  const mermaidRuntimePackages = [
+    "@braintree/sanitize-url", "@iconify/utils", "@mermaid-js/parser",
+    "cytoscape", "cytoscape-cose-bilkent", "cytoscape-fcose",
+    "d3", "d3-sankey", "dagre-d3-es", "dayjs", "dompurify",
+    "khroma", "lodash-es", "marked", "roughjs", "stylis", "ts-dedent", "uuid",
+    "@chevrotain/regexp-to-ast", "chevrotain", "chevrotain-allstar",
+    "cose-base", "layout-base", "langium", "vscode-languageserver",
+    "vscode-languageserver-protocol", "vscode-languageserver-types",
+  ];
   const isLazyModule = (id: string, suffix: string): boolean =>
     normalizePath(id).endsWith(`/src/${suffix}`);
 
@@ -44,12 +55,25 @@ export default defineConfig(async () => {
           const normalized = normalizePath(id);
 
           if (normalized.includes("/node_modules/")) {
+            // Keep Mermaid's source and diagram-specific dependencies in the
+            // dynamic-import graph. Assigning every Mermaid module to one
+            // manual chunk eagerly pulls all diagram engines into the shared
+            // vendor chunk and collapses Mermaid's per-diagram lazy loading.
+            if (packagePath(normalized, "mermaid")
+              || mermaidRuntimePackages.some((name) => packagePath(normalized, name))) {
+              return undefined;
+            }
+            // CodeMirror is only needed for source mode and interactive code
+            // blocks. Leave its parser, language data and Vim extension in the
+            // lazy NoteEditor graph instead of the startup vendor chunk.
+            if (normalized.includes("/node_modules/@codemirror/")
+              || normalized.includes("/node_modules/@lezer/")
+              || normalized.includes("/node_modules/@replit/")) {
+              return undefined;
+            }
             // KaTeX only loads after a formula is mounted; ship its JS/fonts as
             // a local lazy chunk so math also works offline and on mobile.
             if (normalized.includes("/node_modules/katex/")) return "katex";
-            // Mermaid is loaded only when a Mermaid code block is shown. Keep
-            // its parser and diagram layouts out of the shared vendor chunk.
-            if (normalized.includes("/node_modules/mermaid/")) return "mermaid";
             // PDF 阅读器是独立的按需界面；PDF.js 体积较大，不能并入普通
             // 文档首屏共用的 vendor chunk。
             if (normalized.includes("/node_modules/pdfjs-dist/")) return "pdfjs";

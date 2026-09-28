@@ -89,7 +89,8 @@ GitHub Actions macOS runner 费用是 Linux 的 **10 倍**（[官方定价](http
 |---|---|---|
 | 第一批 | Linux 重排补丁平台隔离；增加 `⌃⌘F`；标题栏全屏入口和状态反馈；切换前捕获文档锚点；保留默认 macOS 菜单并用显式 `set_fullscreen` 替换无边框窗口失效的预定义全屏项 | 已实现 |
 | 第二批 | 评估 macOS 原生/覆盖式标题栏，恢复交通灯按钮；完善 `⌘W`、`⌘Q`、Dock 激活和关闭窗口语义；保存窗口尺寸、显示器与全屏状态 | 待办 |
-| 第三批 | Apple Silicon 与 Universal 构建、签名、公证和更新签名；调整 bundle identifier 并迁移旧数据；明确最低系统版本 | 待办 |
+| 第三批 | Apple Silicon 与 Universal 构建、签名、公证和更新签名；明确最低系统版本 | 待办 |
+| 已完成 | bundle identifier 去除 `.app` 后缀，并在首次启动时复制旧标识目录中的用户数据 | 已实现 |
 | 第四批 | GitHub 凭据迁移至 Keychain；收紧 CSP；支持 Finder 打开方式、文件关联和拖放；按需求评估 Spotlight/Shortcuts | 待办 |
 
 ### 第一批验收点

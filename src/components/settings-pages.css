@@ -10,8 +10,15 @@
 .navigation-style-settings input[type="color"] { width: 34px; height: 28px; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
 .navigation-style-settings output { min-width: 40px; color: var(--text); }
 .navigation-style-settings-detail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.hierarchy-style-card { min-width: 0; margin: 10px 0 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
+.hierarchy-style-card { min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
 .hierarchy-style-card legend { padding: 0 6px; font-weight: 600; }
+.hierarchy-style-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.hierarchy-settings-section .settings-section-header { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.hierarchy-settings-section .settings-section-title { flex: 0 0 auto; }
+.hierarchy-settings-section .settings-section-title { margin: 0; }
+.hierarchy-settings-section .settings-section-desc { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.hierarchy-color-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 12px; color: var(--text-secondary); font-size: 12px; }
+.hierarchy-color-name { display: flex; flex-direction: column; gap: 2px; }
 .hierarchy-color-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
 .hierarchy-color-grid label { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); }
 .hierarchy-color-grid input[type="color"] { width: 32px; height: 26px; padding: 2px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); }
@@ -24,6 +31,9 @@
   .navigation-style-settings { grid-template-columns: 1fr 1fr; }
   .navigation-style-settings label:first-child { grid-column: 1 / -1; }
   .navigation-style-settings-detail { grid-template-columns: 1fr; }
+  .hierarchy-style-grid { grid-template-columns: 1fr; }
+  .hierarchy-settings-section .settings-section-header { display: block; }
+  .hierarchy-settings-section .settings-section-desc { white-space: normal; }
   .hierarchy-color-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
@@ -299,6 +309,7 @@
 .settings-content-page .sidebar-width-reset-card {
   grid-column: 1 / -1;
 }
+.settings-content-page .sidebar-settings-reset-grid .sidebar-width-reset-card { grid-column: auto; }
 .settings-content-page .hotkey-list {
   display: grid;
   gap: 8px;
@@ -495,28 +506,30 @@
 .settings-panel .settings-header { flex-shrink: 0; gap: 8px; }
 .settings-panel .settings-close { flex-shrink: 0; }
 .settings-feedback-slot {
-  flex: 1 1 0;
+  flex: 0 1 auto;
   height: 28px;
   min-width: 0;
+  max-width: 160px;
   display: flex;
   align-items: center;
   box-sizing: border-box;
   font-size: 12px;
   color: var(--text);
 }
-.settings-feedback-slot .settings-toast { gap: 4px; padding: 0 4px; }
+.settings-feedback-slot .settings-toast { gap: 4px; width: auto; max-width: 160px; padding: 0 4px; }
 .settings-feedback-text {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   max-height: 100%;
-  overflow: auto;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   line-height: 1.4;
 }
 .settings-feedback-close {
-  flex: 0 0 28px;
-  width: 28px;
-  height: 28px;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
   border: 0;
   border-radius: 4px;
   color: inherit;

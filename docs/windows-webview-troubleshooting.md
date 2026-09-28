@@ -11,7 +11,7 @@
 
 托盘"退出"功能调用 `app.exit(0)`，直接终止主进程。
 WebView2 的多个子进程（GPU、Renderer、Crashpad）变成孤儿，
-继续持有 `%LOCALAPPDATA%\com.ninerings.app\EBWebView\` 下的文件锁。
+继续持有 `%LOCALAPPDATA%\com.ninerings.desktop\EBWebView\` 下的文件锁。
 
 下次启动时 WebView2 无法正常读写缓存目录 → `remove_dir_all` 失败（`os error 32`）
 → 缓存损坏未被清理 → 渲染失败 → 白屏。
@@ -62,7 +62,7 @@ WebView2 的多个子进程（GPU、Renderer、Crashpad）变成孤儿，
 //
 // 注意：删除整个 EBWebView 目录是安全的，因为用户数据
 // （笔记、配置）已通过 Tauri IPC 持久化到
-// AppData\Roaming\com.ninerings.app\（SQLite + config.json），
+// AppData\Roaming\com.ninerings.desktop\（SQLite + config.json；旧版 .app 目录会在首次升级时复制），
 // 完全独立于此目录。
 ```
 

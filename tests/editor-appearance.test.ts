@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { Schema } from "@tiptap/pm/model";
 import { editorAppearanceVariables } from "../src/lib/editor-appearance";
+import { getConfig } from "../src/lib/storage/db-config";
 import { editorGutterWidth } from "../src/lib/editor-gutter";
 import {
   MAX_CJK_FALLBACK_DOCUMENT_SIZE,
@@ -20,8 +21,8 @@ assert.equal(defaults["--editor-heading-margin-bottom"], "0.35em");
 assert.equal(defaults["--editor-block-spacing"], "1em");
 assert.equal(defaults["--editor-list-margin-top"], "0.25em");
 assert.equal(defaults["--editor-list-margin-bottom"], "0.25em");
-assert.equal(defaults["--hierarchy-path-custom-1"], "#9A5B00");
-assert.equal(defaults["--hierarchy-outline-custom-6"], "#8356A1");
+assert.equal(defaults["--hierarchy-path-custom-1"], "#247F7B");
+assert.equal(defaults["--hierarchy-outline-custom-6"], "#B0473C");
 
 const custom = editorAppearanceVariables({
   note_font_size: 20,
@@ -122,5 +123,26 @@ assert.equal(isStandaloneStrongLabel(paragraph(
   labelSchema.text("。"),
 )), false);
 assert.equal(isStandaloneStrongLabel(paragraph(labelSchema.text("普通正文"))), false);
+
+const previousLocalStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+const legacyPalette = ["#9A5B00", "#B0473C", "#5E7C36", "#247F7B", "#5266A8", "#8356A1"];
+Object.defineProperty(globalThis, "localStorage", {
+  configurable: true,
+  value: {
+    getItem: () => JSON.stringify({
+      hierarchy_path_custom_colors: legacyPalette,
+      hierarchy_outline_custom_colors: ["#010101", "#020202", "#030303", "#040404", "#050505", "#060606"],
+    }),
+    setItem: () => undefined,
+  },
+});
+try {
+  const migrated = await getConfig();
+  assert.deepEqual(migrated.hierarchy_path_custom_colors, ["#247F7B", "#9A5B00", "#5266A8", "#5E7C36", "#8356A1", "#B0473C"]);
+  assert.deepEqual(migrated.hierarchy_outline_custom_colors, ["#010101", "#020202", "#030303", "#040404", "#050505", "#060606"]);
+} finally {
+  if (previousLocalStorage) Object.defineProperty(globalThis, "localStorage", previousLocalStorage);
+  else Reflect.deleteProperty(globalThis, "localStorage");
+}
 
 console.log("Editor appearance variables passed");

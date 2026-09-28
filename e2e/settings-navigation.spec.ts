@@ -121,6 +121,13 @@ test("设置子页首个分组没有多余顶部留白和分割线", async ({ pa
 });
 
 test("层次展示可分别设置路径与目录标题颜色", async ({ page }) => {
+  await page.addInitScript(() => {
+    const oldDefault = ["#9A5B00", "#B0473C", "#5E7C36", "#247F7B", "#5266A8", "#8356A1"];
+    localStorage.setItem("nine_rings_config", JSON.stringify({
+      hierarchy_path_custom_colors: oldDefault,
+      hierarchy_outline_custom_colors: oldDefault,
+    }));
+  });
   await page.goto("/");
   await page.getByTitle("设置").click();
   await page.getByRole("button", { name: /^外观与布局/ }).click();
@@ -129,10 +136,13 @@ test("层次展示可分别设置路径与目录标题颜色", async ({ page }) 
 
   const pathSettings = page.getByRole("group", { name: "文档树路径配色模式" });
   const outlineSettings = page.getByRole("group", { name: "文档目录标题配色模式" });
+  const pathCard = page.locator(".hierarchy-style-card").first();
   await expect(pathSettings.getByRole("button", { name: "默认配色" })).toHaveAttribute("aria-pressed", "true");
   await pathSettings.getByRole("button", { name: "自定义" }).click();
   const firstColor = page.getByLabel("文档树路径第 1 层颜色");
   await expect(firstColor).toBeVisible();
+  await expect(firstColor).toHaveValue("#247f7b");
+  await expect(pathCard.getByText("青蓝", { exact: true })).toBeVisible();
   await firstColor.evaluate(element => {
     const input = element as HTMLInputElement;
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "#123456");
@@ -140,6 +150,9 @@ test("层次展示可分别设置路径与目录标题颜色", async ({ page }) 
     input.dispatchEvent(new Event("change", { bubbles: true }));
   });
   await expect.poll(() => page.locator(".app").evaluate(element => getComputedStyle(element).getPropertyValue("--hierarchy-path-custom-1").trim())).toBe("#123456");
+  await pathCard.getByRole("button", { name: "恢复默认配色" }).click();
+  await expect(firstColor).toHaveValue("#247f7b");
+  await expect.poll(() => page.locator(".app").evaluate(element => getComputedStyle(element).getPropertyValue("--hierarchy-path-custom-1").trim())).toBe("#247F7B");
   await pathSettings.getByRole("button", { name: "关闭" }).click();
   await expect(page.locator(".app")).toHaveAttribute("data-hierarchy-path-mode", "off");
   await outlineSettings.getByRole("button", { name: "自定义" }).click();

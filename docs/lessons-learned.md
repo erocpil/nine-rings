@@ -568,8 +568,8 @@ typeof window !== "undefined" && (window.isTauri === true || window.__TAURI__ !=
 
 EBWebView 目录全删是白屏修复的关键，但会同时删掉 localStorage。修复策略：确保用户数据不存放在 EBWebView 中。
 
-- 用户数据 → `AppData\Roaming\com.ninerings.app\`（SQLite + config.json），走 Tauri IPC
-- WebView 缓存 → `AppData\Local\com.ninerings.app\EBWebView\`，每次启动安全删除
+- 用户数据 → `AppData\Roaming\com.ninerings.desktop\`（SQLite + config.json），走 Tauri IPC；首次升级复制旧 `com.ninerings.app` 数据并保留旧目录
+- WebView 缓存 → `AppData\Local\com.ninerings.desktop\EBWebView\`，每次启动安全删除
 
 只有**修复了第一层**（前端正确走 Tauri IPC）后，EBWebView 全删才是安全的。
 

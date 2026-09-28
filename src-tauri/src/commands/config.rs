@@ -257,10 +257,32 @@ pub fn read_config(app_data_dir: &std::path::Path) -> AppConfig {
     if !path.exists() {
         return AppConfig::default();
     }
-    std::fs::read_to_string(&path)
+    let mut config = std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    migrate_hierarchy_palette(&mut config);
+    config
+}
+
+fn migrate_hierarchy_palette(config: &mut AppConfig) {
+    let legacy = [
+        "#9A5B00", "#B0473C", "#5E7C36", "#247F7B", "#5266A8", "#8356A1",
+    ];
+    let is_legacy_default = |colors: &[String]| {
+        colors.len() == legacy.len()
+            && colors
+                .iter()
+                .zip(legacy)
+                .all(|(actual, expected)| actual.eq_ignore_ascii_case(expected))
+    };
+    let defaults = default_hierarchy_colors();
+    if is_legacy_default(&config.hierarchy_path_custom_colors) {
+        config.hierarchy_path_custom_colors = defaults.clone();
+    }
+    if is_legacy_default(&config.hierarchy_outline_custom_colors) {
+        config.hierarchy_outline_custom_colors = defaults;
+    }
 }
 
 /// 写配置文件
@@ -364,7 +386,7 @@ pub fn set_config(
 
 #[cfg(test)]
 mod tests {
-    use super::AppConfig;
+    use super::{default_hierarchy_colors, migrate_hierarchy_palette, AppConfig};
 
     #[test]
     fn workspace_layout_migrates_and_round_trips() {
@@ -478,5 +500,32 @@ mod tests {
         assert!(config.editor_code_wrap_default);
         assert_eq!(config.user_default_language, "zh-CN");
         assert!(config.user_name.is_empty());
+    }
+
+    #[test]
+    fn hierarchy_palette_migration_reorders_only_the_old_default_palette() {
+        let mut config = AppConfig::default();
+        config.hierarchy_path_custom_colors = [
+            "#9A5B00", "#B0473C", "#5E7C36", "#247F7B", "#5266A8", "#8356A1",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
+        config.hierarchy_outline_custom_colors = vec![
+            "#010101".into(),
+            "#020202".into(),
+            "#030303".into(),
+            "#040404".into(),
+            "#050505".into(),
+            "#060606".into(),
+        ];
+
+        migrate_hierarchy_palette(&mut config);
+
+        assert_eq!(
+            config.hierarchy_path_custom_colors,
+            default_hierarchy_colors()
+        );
+        assert_eq!(config.hierarchy_outline_custom_colors[0], "#010101");
     }
 }

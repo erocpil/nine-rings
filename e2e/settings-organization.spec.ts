@@ -24,6 +24,7 @@ for (const width of [390, 1280]) test(`设置提示不改变主题和折叠选�
   const before = await measure();
   await page.getByTitle("深色", { exact: true }).click();
   await expect(page.locator('.settings-toast')).toHaveText("已更新");
+  expect(await page.locator(".settings-toast").evaluate(element => element.getBoundingClientRect().width)).toBeLessThan(120);
   expect(await measure()).toEqual(before);
   await expect(page.locator('.settings-toast')).toHaveCount(0, { timeout: 6000 });
   expect(await measure()).toEqual(before);

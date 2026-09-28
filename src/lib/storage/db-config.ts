@@ -13,6 +13,23 @@ function normalizeExhibition(config: AppConfig): AppConfig {
 
 const CONFIG_KEY = "nine_rings_config";
 
+// The hierarchy palette was reordered to alternate cool and warm colors.
+// Upgrade only the exact former defaults so a user's custom palette survives.
+const LEGACY_HIERARCHY_COLORS = ["#9A5B00", "#B0473C", "#5E7C36", "#247F7B", "#5266A8", "#8356A1"];
+
+function migrateHierarchyPalette(config: AppConfig): AppConfig {
+  const colorsMatchLegacy = (colors: string[]) =>
+    colors.length === LEGACY_HIERARCHY_COLORS.length &&
+    colors.every((color, index) => color.toUpperCase() === LEGACY_HIERARCHY_COLORS[index]);
+  const migrate = (colors: string[]) =>
+    colorsMatchLegacy(colors) ? [...DEFAULT_CONFIG.hierarchy_path_custom_colors] : colors;
+  return {
+    ...config,
+    hierarchy_path_custom_colors: migrate(config.hierarchy_path_custom_colors),
+    hierarchy_outline_custom_colors: migrate(config.hierarchy_outline_custom_colors),
+  };
+}
+
 export async function getConfig(): Promise<AppConfig> {
   let raw: string | null = null;
   try {
@@ -28,7 +45,7 @@ export async function getConfig(): Promise<AppConfig> {
   try {
     const parsed = { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
     console.log("[getConfig]", "highlight_active_line:", parsed.highlight_active_line, "editor_show_line_numbers:", parsed.editor_show_line_numbers);
-    return normalizeExhibition({ ...parsed, workspace_layout: parsed.workspace_layout === "exhibition" ? "exhibition" : "standard", interface_style: normalizeInterfaceStyle(parsed.interface_style), interface_color_mode: normalizeInterfaceColorMode(parsed.interface_color_mode) });
+    return normalizeExhibition(migrateHierarchyPalette({ ...parsed, workspace_layout: parsed.workspace_layout === "exhibition" ? "exhibition" : "standard", interface_style: normalizeInterfaceStyle(parsed.interface_style), interface_color_mode: normalizeInterfaceColorMode(parsed.interface_color_mode) }));
   } catch {
     return { ...DEFAULT_CONFIG };
   }

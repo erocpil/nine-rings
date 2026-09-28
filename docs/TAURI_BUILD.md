@@ -212,7 +212,7 @@ npm run tauri build
 
 **`.exe`（NSIS 安装包）：** 双击运行，与 `.msi` 等效。
 
-安装后程序位于 `%LOCALAPPDATA%\nine-rings\`，数据存储在 `%APPDATA%\com.ninerings.app\` 下的 SQLite 数据库。
+安装后程序位于 `%LOCALAPPDATA%\nine-rings\`，数据存储在 `%APPDATA%\com.ninerings.desktop\` 下的 SQLite 数据库。首次升级会将旧目录 `%APPDATA%\com.ninerings.app\` 中尚未迁移的文件复制过来，旧目录会保留。
 
 ---
 
@@ -313,7 +313,7 @@ Tauri 未指定 target 时随所用 Rust 工具链的宿主目标构建，并非
 
 ### 3.8 产物使用
 
-**`.dmg`**：双击挂载，将 `Nine Rings.app` 拖入 `Applications` 文件夹即可。数据存储在 `~/Library/Application Support/com.ninerings.app/` 下的 SQLite 数据库中。
+**`.dmg`**：双击挂载，将 `Nine Rings.app` 拖入 `Applications` 文件夹即可。数据存储在 `~/Library/Application Support/com.ninerings.desktop/` 下的 SQLite 数据库中。首次升级会从旧目录 `~/Library/Application Support/com.ninerings.app/` 复制尚未迁移的文件，并保留旧目录。
 
 **直接运行 `.app`**：
 

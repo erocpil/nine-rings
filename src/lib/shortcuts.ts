@@ -14,6 +14,19 @@ export function isMacPlatform(platform = typeof navigator === "undefined" ? "" :
   return /Mac|iPhone|iPad|iPod/i.test(platform);
 }
 
+/** Tauri's macOS window shortcut hides the app to the tray. */
+export function isCloseToTrayShortcut(
+  e: ShortcutKeyEvent,
+  platform?: string,
+): boolean {
+  return isMacPlatform(platform)
+    && e.key.toLowerCase() === "w"
+    && e.metaKey
+    && !e.ctrlKey
+    && !e.altKey
+    && !e.shiftKey;
+}
+
 /** macOS uses Command for app actions; Control belongs to native text editing. */
 export function isPrimaryShortcutModifier(e: Pick<ShortcutKeyEvent, "ctrlKey" | "metaKey">, platform?: string): boolean {
   return isMacPlatform(platform) ? e.metaKey : e.ctrlKey || e.metaKey;

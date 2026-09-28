@@ -782,12 +782,14 @@
 .sidebar-width-reset-card div { display: grid; gap: 3px; min-width: 0; }
 .sidebar-width-reset-card strong { font-size: 13px; font-weight: 600; }
 .sidebar-width-reset-card span { color: var(--text-secondary); font-size: 11px; line-height: 1.35; }
+.sidebar-settings-reset-grid { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 
 @media (max-width: 520px) {
   .sidebar-settings-card { padding: 10px; }
   .sidebar-settings-card-heading > div { display: grid; gap: 2px; }
   .sidebar-width-reset-card { align-items: flex-start; gap: 8px; }
   .sidebar-width-reset-card .settings-btn { flex: 0 0 auto; }
+  .sidebar-settings-reset-grid { grid-template-columns: 1fr; }
 }
 .vim-config-card { display: grid; gap: 10px; width: min(100%, 520px); box-sizing: border-box; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: 0 2px 8px color-mix(in srgb, var(--text) 6%, transparent); }
 .vim-config-card-heading { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }

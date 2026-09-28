@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/nicehash/tauri/refs/tags/v2.x/crates/tauri-config-schema/schema.json",
   "productName": "Nine Rings",
   "version": "0.1.0",
-  "identifier": "com.ninerings.app",
+  "identifier": "com.ninerings.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",

@@ -32,6 +32,7 @@ import { ToolbarIcon } from "./ToolbarIcon";
 import { searchSettings, type SettingsSearchEntry } from "../lib/settings-search";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
 import { bindEdgeSwipe } from "../lib/edge-swipe";
+import { DEFAULT_CONFIG } from "../lib/storage/types";
 
 
 interface Props {
@@ -796,8 +797,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </button>
             </Field>
 
-            {settingsPage === "hierarchy" && <SettingsSection title="层次展示" desc="文档树仅为路径目录着色，文档名称保持原样；标题和路径超过六层后循环使用颜色。默认配色会随浅色或深色主题调整。" visible>
-              {([[
+            {settingsPage === "hierarchy" && <SettingsSection className="hierarchy-settings-section" title="层次展示" desc="文档树只为路径目录着色；文档名称保持原样，超过六层后循环配色。" visible>
+              <div className="hierarchy-style-grid">{([[
                 "文档树路径", "hierarchy_path_mode", "hierarchy_path_custom_colors",
               ], [
                 "文档目录标题", "hierarchy_outline_mode", "hierarchy_outline_custom_colors",
@@ -810,18 +811,24 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                   <div className="settings-radio-group" role="group" aria-label={`${label}配色模式`}>
                     {([["off", "关闭"], ["default", "默认配色"], ["custom", "自定义"]] as const).map(([value, text]) => <button key={value} type="button" className={`settings-radio${mode === value ? " active" : ""}`} aria-pressed={mode === value} onClick={() => update({ [modeKey]: value })}>{text}</button>)}
                   </div>
-                  {mode === "custom" && <div className="hierarchy-color-grid">
+                  {mode === "custom" && <>
+                    <div className="hierarchy-color-heading">
+                      <span>自定义各层颜色</span>
+                      <button type="button" className="settings-btn settings-btn-compact" onClick={() => update({ [colorsKey]: [...DEFAULT_CONFIG[colorsKey]] })}>恢复默认配色</button>
+                    </div>
+                    <div className="hierarchy-color-grid">
                     {levelNames.map((name, index) => <label key={name}>
-                      <span>第 {index + 1} 层 · {name}</span>
-                      <input type="color" aria-label={`${label}第 ${index + 1} 层颜色`} value={colors[index] ?? "#9A5B00"} onChange={event => {
+                      <span className="hierarchy-color-name"><span>第 {index + 1} 层</span><span>{name}</span></span>
+                      <input type="color" aria-label={`${label}第 ${index + 1} 层颜色`} value={colors[index] ?? DEFAULT_CONFIG[colorsKey][index]} onChange={event => {
                         const next = [...colors];
                         next[index] = event.target.value;
                         update({ [colorsKey]: next });
                       }} />
                     </label>)}
-                  </div>}
+                    </div>
+                  </>}
                 </fieldset>;
-              })}
+              })}</div>
             </SettingsSection>}
 
             <Field label="导航区样式" desc="分别调整目录、书签、文件树和文件列表的字体与颜色；后续可导出为外观配置" visible={settingsPage === "appearance" && config.interface_style === "classic"}>
@@ -874,13 +881,15 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                   ))}
                 </div>
               </div>
-              <div className="sidebar-width-reset-card">
-                <div><strong>分栏宽度</strong><span>恢复文档树、文档列表和阅读分栏的默认宽度</span></div>
-                <button type="button" className="settings-btn settings-btn-compact" onClick={() => window.dispatchEvent(new Event("nr:reset-sidebar-widths"))}>恢复默认</button>
-              </div>
-              <div className="sidebar-width-reset-card">
-                <div><strong>阅读分栏边界</strong><span>EPUB / PDF 分栏拖动异常时，恢复到可用边界与默认比例</span></div>
-                <button type="button" className="settings-btn settings-btn-compact" onClick={() => window.dispatchEvent(new Event("nr:reset-reader-sidebar-boundary"))}>恢复边界</button>
+              <div className="sidebar-settings-reset-grid">
+                <div className="sidebar-width-reset-card">
+                  <div><strong>分栏宽度</strong><span>恢复文档树、文档列表和阅读分栏的默认宽度</span></div>
+                  <button type="button" className="settings-btn settings-btn-compact" onClick={() => window.dispatchEvent(new Event("nr:reset-sidebar-widths"))}>恢复默认</button>
+                </div>
+                <div className="sidebar-width-reset-card">
+                  <div><strong>阅读分栏边界</strong><span>EPUB / PDF 分栏拖动异常时，恢复到可用边界与默认比例</span></div>
+                  <button type="button" className="settings-btn settings-btn-compact" onClick={() => window.dispatchEvent(new Event("nr:reset-reader-sidebar-boundary"))}>恢复边界</button>
+                </div>
               </div>
             </div>}
 

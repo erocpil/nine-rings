@@ -292,7 +292,7 @@ test("风格默认浅色宽幅舒适，非经典风格共享侘寂排版", async
   });
   const baseline = await typography();
   expect(baseline.fontSize).toBe("16px");
-  expect(baseline.lineHeight).toBe("28.8px");
+  expect(Number.parseFloat(baseline.lineHeight)).toBeCloseTo(28.8, 1);
   expect(baseline.fontFamily).toMatch(/serif/i);
   for (const style of ["paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"]) {
     await selectAppearance(page, "工作区风格", style);

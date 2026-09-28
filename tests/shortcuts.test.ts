@@ -16,6 +16,7 @@ import {
   isEditableTarget,
   shouldIgnoreShortcut,
   isMacPlatform,
+  isCloseToTrayShortcut,
   isPrimaryShortcutModifier,
   isMacTextEditingShortcut,
 } from "../src/lib/shortcuts";
@@ -76,6 +77,10 @@ assert(resolveShortcut(key({ key: "E", altKey: true })) === "focusSearch", "Alt+
 
 assert(isMacPlatform("MacIntel"), "识别 macOS 平台");
 assert(!isMacPlatform("Win32"), "Windows 不使用 macOS 文本键");
+assert(isCloseToTrayShortcut(key({ key: "w", metaKey: true }), "MacIntel"), "macOS Tauri Cmd+W 隐藏到托盘");
+assert(!isCloseToTrayShortcut(key({ key: "w", ctrlKey: true }), "MacIntel"), "macOS Ctrl+W 不关闭到托盘");
+assert(!isCloseToTrayShortcut(key({ key: "w", metaKey: true, shiftKey: true }), "MacIntel"), "macOS Cmd+Shift+W 不关闭到托盘");
+assert(!isCloseToTrayShortcut(key({ key: "w", metaKey: true }), "Win32"), "非 macOS Cmd+W 不关闭到托盘");
 for (const letter of ["a", "b", "d", "e", "f", "h", "k", "l", "n", "o", "p", "t", "v", "y"]) {
   assert(resolveShortcut(key({ key: letter, ctrlKey: true }), "MacIntel") === null, `Mac Ctrl+${letter} 不触发应用动作`);
   assert(isMacTextEditingShortcut(`Control+${letter}`, "MacIntel"), `Mac Ctrl+${letter} 禁止注册为全局热键`);

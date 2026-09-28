@@ -83,7 +83,16 @@ test("calm projection leaves stored appearance and editor behaviours intact", ()
 });
 
 test("all eight managed interface styles share the original wabi-sabi reading typography", () => {
-  for (const style of ["calm", "calm-compact", "paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"] as const) {
+  for (const style of [
+    "calm",
+    "calm-compact",
+    "paper",
+    "minimal",
+    "nine-rings",
+    "mono-aware",
+    "yugen",
+    "wabi-sabi",
+  ] as const) {
     const original = {
       interface_style: style,
       note_font_size: 23,
@@ -106,9 +115,16 @@ test("all eight managed interface styles share the original wabi-sabi reading ty
 
 test("default hierarchy palette alternates through cool/warm hues and ends with brick red", () => {
   expect(DEFAULT_CONFIG.hierarchy_path_custom_colors).toEqual([
-    "#247F7B", "#9A5B00", "#5266A8", "#5E7C36", "#8356A1", "#B0473C",
+    "#247F7B",
+    "#9A5B00",
+    "#5266A8",
+    "#5E7C36",
+    "#8356A1",
+    "#B0473C",
   ]);
-  expect(DEFAULT_CONFIG.hierarchy_outline_custom_colors).toEqual(DEFAULT_CONFIG.hierarchy_path_custom_colors);
+  expect(DEFAULT_CONFIG.hierarchy_outline_custom_colors).toEqual(
+    DEFAULT_CONFIG.hierarchy_path_custom_colors,
+  );
   const variables = editorAppearanceVariables();
   expect(variables["--hierarchy-path-custom-1"]).toBe("#247F7B");
   expect(variables["--hierarchy-outline-custom-6"]).toBe("#B0473C");

@@ -1,5 +1,5 @@
 import { DisclosureIcon } from "./DisclosureIcon";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { preserveReadingPositions } from "../lib/reading-position";
 import { isMacPlatform, isPrimaryShortcutModifier } from "../lib/shortcuts";
 import { createPortal } from "react-dom";
@@ -25,8 +25,10 @@ import { exitCurrentStructuredBlock } from "../extensions/StructuredBlockExit";
 import { storeImage } from "../lib/storage/db-images";
 import { blobToBase64 } from "../lib/storage/core";
 import { normalizePastedHTML, normalizeSingleParagraphPaste } from "../extensions/NormalizeSingleParagraphPaste";
-import { CodeMirrorBlockEditor, type CodeVimMode } from "./CodeMirrorBlockEditor";
+import type { CodeVimMode } from "./CodeMirrorBlockEditor";
 import { MermaidDiagram, type MermaidViewTransform } from "./MermaidDiagram";
+
+const CodeMirrorBlockEditor = lazy(() => import("./CodeMirrorBlockEditor").then(module => ({ default: module.CodeMirrorBlockEditor })));
 
 type Request = { position: number; trigger: HTMLElement; restoreFocus?: boolean; startInEditMode?: boolean; selectedPositions?: number[] };
 type Navigate = (position: number, selectedPositions: number[] | undefined, startInEditMode: boolean) => void;
@@ -500,6 +502,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
     <CopyBlockNotice message={copyNotice} onClose={() => setCopyNotice("")} withinDialog />
     <div ref={body} className="block-workspace-body editor-content" style={{ fontSize: `${fontSize}px`, tabSize }} onPasteCapture={event => { if (!editable) event.preventDefault(); }} onBeforeInputCapture={event => { if (!editable) event.preventDefault(); }}>
       {editable && rootType === "codeBlock" ? (
+        <Suspense fallback={<div className="block-workspace-code-loading" aria-busy="true" />}>
         <CodeMirrorBlockEditor vimEnabled={vimModeEnabled}
           value={codeConflict ?? editor?.state.doc.firstChild?.textContent ?? initial.textContent}
           language={codeLanguage}
@@ -527,6 +530,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
             ));
           }}
         />
+        </Suspense>
       ) : mermaidCodeBlock && !showMermaidSource ? <MermaidDiagram
         source={editor?.state.doc.firstChild?.textContent ?? initial.textContent}
         interactive

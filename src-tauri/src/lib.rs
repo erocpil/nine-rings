@@ -100,6 +100,180 @@ pub struct AppState {
 /// 应用数据目录 — 在 setup() 中计算一次，避免 IPC 命令中重复调用 app_data_dir()
 pub struct DataDir(pub std::path::PathBuf);
 
+const APP_IDENTIFIER: &str = "com.ninerings.desktop";
+const LEGACY_APP_IDENTIFIER: &str = "com.ninerings.app";
+
+/// Copy user data from the previous bundle identifier without replacing any
+/// files already present under the current identifier. Keep the old directory
+/// intact so the migration is reversible and interrupted copies can resume.
+fn migrate_legacy_app_data(app_dir: &std::path::Path) -> std::io::Result<bool> {
+    if app_dir.join("nine-rings.db").exists() {
+        return Ok(false);
+    }
+    let Some(parent) = app_dir.parent() else {
+        return Ok(false);
+    };
+    let legacy_dir = parent.join(LEGACY_APP_IDENTIFIER);
+    if !legacy_dir.is_dir() {
+        return Ok(false);
+    }
+    copy_missing_files(&legacy_dir, app_dir)?;
+    Ok(true)
+}
+
+fn copy_missing_files(
+    source: &std::path::Path,
+    destination: &std::path::Path,
+) -> std::io::Result<()> {
+    match std::fs::symlink_metadata(destination) {
+        Ok(metadata) if metadata.is_dir() => {}
+        Ok(_) => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                format!(
+                    "migration destination is not a directory: {:?}",
+                    destination
+                ),
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            std::fs::create_dir_all(destination)?;
+        }
+        Err(error) => return Err(error),
+    }
+    for entry in std::fs::read_dir(source)? {
+        let entry = entry?;
+        let source_path = entry.path();
+        let destination_path = destination.join(entry.file_name());
+        let file_type = entry.file_type()?;
+        let existing_destination = match std::fs::symlink_metadata(&destination_path) {
+            Ok(metadata) => Some(metadata),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error),
+        };
+        if file_type.is_dir() {
+            if existing_destination
+                .as_ref()
+                .map_or(true, |metadata| metadata.is_dir())
+            {
+                copy_missing_files(&source_path, &destination_path)?;
+            }
+        } else if file_type.is_file() && existing_destination.is_none() {
+            // Stage the full copy beside its destination before publishing it.
+            // If the app is interrupted, the next launch can safely retry
+            // instead of mistaking a truncated database for a complete copy.
+            let temporary_path = destination.join(format!(
+                ".nine-rings-migration-{}.tmp",
+                uuid::Uuid::new_v4()
+            ));
+            std::fs::copy(source_path, &temporary_path)?;
+            match std::fs::rename(&temporary_path, &destination_path) {
+                Ok(()) => {}
+                Err(error) if destination_path.exists() => {
+                    let _ = std::fs::remove_file(&temporary_path);
+                    log::debug!(
+                        "migration kept existing file {:?}: {}",
+                        destination_path,
+                        error
+                    );
+                }
+                Err(error) => {
+                    let _ = std::fs::remove_file(&temporary_path);
+                    return Err(error);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod app_data_migration_tests {
+    use super::{
+        copy_missing_files, migrate_legacy_app_data, APP_IDENTIFIER, LEGACY_APP_IDENTIFIER,
+    };
+    use std::path::PathBuf;
+
+    fn test_root() -> PathBuf {
+        std::env::temp_dir().join(format!("nine-rings-migration-{}", uuid::Uuid::new_v4()))
+    }
+
+    #[test]
+    fn bundle_identifier_avoids_the_macos_app_extension_and_migration_tracks_it() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let identifier = config["identifier"].as_str().unwrap();
+        assert_eq!(identifier, APP_IDENTIFIER);
+        assert!(!identifier.ends_with(".app"));
+        assert_ne!(APP_IDENTIFIER, LEGACY_APP_IDENTIFIER);
+    }
+
+    #[test]
+    fn copies_legacy_data_without_overwriting_and_keeps_legacy_copy() {
+        let root = test_root();
+        let legacy = root.join("com.ninerings.app");
+        let current = root.join("com.ninerings.desktop");
+        std::fs::create_dir_all(legacy.join("reader")).unwrap();
+        std::fs::write(legacy.join("nine-rings.db"), b"legacy-db").unwrap();
+        std::fs::write(legacy.join("config.json"), b"legacy-config").unwrap();
+        std::fs::write(legacy.join("reader/progress.json"), b"reader-progress").unwrap();
+        std::fs::create_dir_all(&current).unwrap();
+        std::fs::write(current.join("config.json"), b"current-config").unwrap();
+
+        assert!(migrate_legacy_app_data(&current).unwrap());
+        assert_eq!(
+            std::fs::read(current.join("nine-rings.db")).unwrap(),
+            b"legacy-db"
+        );
+        assert_eq!(
+            std::fs::read(current.join("config.json")).unwrap(),
+            b"current-config"
+        );
+        assert_eq!(
+            std::fs::read(current.join("reader/progress.json")).unwrap(),
+            b"reader-progress"
+        );
+        assert_eq!(
+            std::fs::read(legacy.join("nine-rings.db")).unwrap(),
+            b"legacy-db"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn does_not_copy_legacy_data_over_an_existing_current_database() {
+        let root = test_root();
+        let legacy = root.join("com.ninerings.app");
+        let current = root.join("com.ninerings.desktop");
+        std::fs::create_dir_all(&legacy).unwrap();
+        std::fs::create_dir_all(&current).unwrap();
+        std::fs::write(legacy.join("nine-rings.db"), b"legacy-db").unwrap();
+        std::fs::write(current.join("nine-rings.db"), b"current-db").unwrap();
+
+        assert!(!migrate_legacy_app_data(&current).unwrap());
+        assert_eq!(
+            std::fs::read(current.join("nine-rings.db")).unwrap(),
+            b"current-db"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn copies_nested_files_and_creates_missing_directories() {
+        let root = test_root();
+        let source = root.join("source");
+        let destination = root.join("destination");
+        std::fs::create_dir_all(source.join("nested")).unwrap();
+        std::fs::write(source.join("nested/value"), b"value").unwrap();
+        copy_missing_files(&source, &destination).unwrap();
+        assert_eq!(
+            std::fs::read(destination.join("nested/value")).unwrap(),
+            b"value"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}
+
 /// 统一切换主窗口全屏。macOS 的 frameless 窗口不能依赖 Cocoa 原生
 /// `toggleFullScreen:` 菜单动作；Tauri 的 set_fullscreen 路径会临时补齐
 /// 所需 window style mask，进入和退出均可靠。
@@ -266,7 +440,7 @@ fn bump_webview2(window: &tauri::WebviewWindow) {
 fn app_local_data_dir() -> Option<std::path::PathBuf> {
     std::env::var("LOCALAPPDATA")
         .ok()
-        .map(|p| std::path::PathBuf::from(p).join("com.ninerings.app"))
+        .map(|p| std::path::PathBuf::from(p).join(APP_IDENTIFIER))
 }
 
 pub fn run() {
@@ -342,8 +516,12 @@ pub fn run() {
                 .path()
                 .app_data_dir()
                 .expect("failed to get app data dir");
+            startup_log!("application identifier={}", APP_IDENTIFIER);
             startup_log!("app_data_dir={:?}", app_dir);
-            std::fs::create_dir_all(&app_dir).ok();
+            if migrate_legacy_app_data(&app_dir)? {
+                startup_log!("legacy application data copied to the current identifier directory");
+            }
+            std::fs::create_dir_all(&app_dir)?;
             let db_path = app_dir.join("nine-rings.db");
             log::info!("database path: {:?}", db_path);
 

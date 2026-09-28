@@ -41,15 +41,17 @@ export function SettingsSection({
   desc,
   children,
   visible = true,
+  className,
 }: {
   title: string;
   desc: string;
   children: ReactNode;
   visible?: boolean;
+  className?: string;
 }) {
   if (!visible) return null;
   return (
-    <div className="settings-section" data-settings-label={title}>
+    <div className={`settings-section${className ? ` ${className}` : ""}`} data-settings-label={title}>
       <div className="settings-section-header">
         <div className="settings-section-title">{title}</div>
         <div className="settings-section-desc">{desc}</div>
