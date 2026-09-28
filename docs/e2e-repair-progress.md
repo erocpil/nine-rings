@@ -6,7 +6,7 @@ macOS Chromium CI 的失败期望值为文首 `1`，而后退后的实际位置�
 
 用例现在等待模型中的折叠选区进入被点击段落，并确认导航历史记录了同一位置，随后才创建第二篇文档；输入第二篇内容后也等待光标位于文本末尾。保留后退/前进的精确位置比较和弹窗内禁止导航检查，不增加重试、固定等待或容差。本批仅修改测试及记录。
 
-目标用例 Chromium 连续 **10/10 通过**；完整平台套件 Chromium **30/30 通过**、WebKit **28 通过、2 项既有平台能力跳过**。`git diff --check` 通过。完整回归日志位于 `.local-tools/e2e/repair-batch87/`。GitHub 新矩阵结果待推送后确认。
+目标用例 Chromium 连续 **10/10 通过**；完整平台套件 Chromium **30/30 通过**、WebKit **28 通过、2 项既有平台能力跳过**。`git diff --check` 通过。完整回归日志位于 `.local-tools/e2e/repair-batch87/`。修复提交 `d6f584e` 的 GitHub [E2E Native Platforms run 36377981427](https://github.com/erocpil/nine-rings/actions/runs/36377981427) 六个 job 全部成功，包含此前失败的 macOS Chromium。
 
 ## 第 86 批：复核最新 macOS Chromium 原生矩阵
 
