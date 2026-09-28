@@ -40,7 +40,10 @@ async function newDocument(page: Page, title: string) {
   await page.getByPlaceholder("文档标题...").fill(title);
   await page.getByRole("button", { name: "创建", exact: true }).click();
   await expect(page.locator(".note-title")).toHaveValue(title);
-  return (await page.evaluate(() => localStorage.getItem("nr:lastNote")))!;
+  const id = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
+  await expect.poll(() => activeSession(page).locator(".note-title").inputValue()).toBe(title);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:lastNote"))).toBe(id);
+  return id!;
 }
 async function sideButton(page: Page, button: number) {
   await page.evaluate(button => {

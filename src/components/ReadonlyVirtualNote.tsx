@@ -273,6 +273,7 @@ export function ReadonlyVirtualNote(
   const bodyRef = useRef<HTMLDivElement>(null);
   const heights = useRef(new Map<number, number>());
   const pendingAnchor = useRef<ReadingAnchor | null>(null);
+  const pendingNavigationRequest = useRef<number | null>(null);
   const pendingMatch = useRef<SearchMatch | null>(null);
   const pendingBookmark = useRef<number | null>(null);
   const [revision, setRevision] = useState(0);
@@ -400,8 +401,8 @@ export function ReadonlyVirtualNote(
   }, [noteId, capture, active]);
   useEffect(() => {
     if (!navigationTarget || !active) return;
+    pendingNavigationRequest.current = navigationTarget.requestId;
     jump(Math.max(0, Math.min(navigationTarget.from, doc.content.size)));
-    useNavigationStore.getState().consumed(navigationTarget.requestId);
   }, [navigationTarget, jump, doc, active]);
   const fallback = useCallback(() => {
     handoffReadingAnchor(noteId, capture());
@@ -464,6 +465,11 @@ export function ReadonlyVirtualNote(
       const index = layout.atPosition(anchor.position);
       root.scrollTop = Math.max(0, layout.offsets[index] + anchor.offset);
       pendingAnchor.current = null;
+      const requestId = pendingNavigationRequest.current;
+      if (requestId !== null) {
+        pendingNavigationRequest.current = null;
+        useNavigationStore.getState().consumed(requestId);
+      }
     }
     setViewport((current) =>
       current.top === root.scrollTop && current.height === root.clientHeight
