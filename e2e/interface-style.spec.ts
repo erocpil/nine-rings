@@ -14,6 +14,7 @@ test("清雅采用完整预设，跟随系统；经典配置在切回后恢复",
       JSON.stringify({
         ...config,
         interface_style: "classic",
+        interface_color_mode: "system",
         theme: "nord",
         note_font_size: 22,
         editor_line_height: 2.1,
@@ -65,7 +66,7 @@ test("清雅采用完整预设，跟随系统；经典配置在切回后恢复",
   const styles = page.getByRole("group", { name: "界面风格", exact: true });
   await styles.getByRole("button").nth(1).click();
   await expect(editor).toHaveCSS("font-size", "15px");
-  await expect(editor).toHaveCSS("line-height", "28.5px");
+  await expect(editor).toHaveCSS("line-height", "27px");
   await expect(page.locator("body")).toHaveCSS(
     "background-color",
     "rgb(252, 251, 248)",
@@ -116,7 +117,7 @@ test("清雅采用完整预设，跟随系统；经典配置在切回后恢复",
   await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^外观与布局/ }).click();
   await styles.getByRole("button", { name: /^精简/ }).click();
-  await expect(editor).toHaveCSS("font-size", "14px");
+  await expect(editor).toHaveCSS("font-size", "15px");
   await page.setViewportSize({ width: 390, height: 844 });
   await expect
     .poll(() => styles.evaluate((el) => el.scrollWidth <= el.clientWidth + 1))
@@ -139,4 +140,42 @@ test("清雅采用完整预设，跟随系统；经典配置在切回后恢复",
       };
     }),
   ).toEqual({ size: 22, line: 2.1, theme: "nord" });
+});
+
+test("纸页风格使用截图启发的明暗语法配色并适配桌面与手机", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await createBlankDocument(page);
+  await page.evaluate(() => {
+    const config = JSON.parse(localStorage.getItem("nine_rings_config") || "{}");
+    localStorage.setItem("nine_rings_config", JSON.stringify({
+      ...config,
+      interface_style: "paper",
+      interface_color_mode: "light",
+    }));
+  });
+  await page.reload();
+
+  const html = page.locator("html");
+  const token = (name: string) => html.evaluate(
+    (element, variable) => getComputedStyle(element).getPropertyValue(variable).trim(),
+    name,
+  );
+  await expect.poll(() => token("--bg")).toBe("#f8f2e5");
+  await expect.poll(() => token("--syntax-keyword-color")).toBe("#ad3d31");
+  await expect.poll(() => token("--syntax-string-color")).toBe("#386d46");
+  await expect.poll(() => token("--syntax-type-color")).toBe("#346d91");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+  await page.evaluate(() => {
+    const config = JSON.parse(localStorage.getItem("nine_rings_config") || "{}");
+    localStorage.setItem("nine_rings_config", JSON.stringify({ ...config, interface_color_mode: "dark" }));
+  });
+  await page.reload();
+  await expect.poll(() => token("--bg")).toBe("#1b1b1b");
+  await expect.poll(() => token("--accent")).toBe("#e5b65c");
+  await expect.poll(() => token("--syntax-string-color")).toBe("#79c987");
+  await expect.poll(() => token("--syntax-type-color")).toBe("#64cde0");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

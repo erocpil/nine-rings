@@ -409,19 +409,23 @@
 }
 
 .code-syntax-highlighted :is(.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-section, .hljs-link) {
-  color: color-mix(in srgb, var(--danger) 82%, var(--text));
+  color: var(--syntax-keyword-color);
 }
 
 .code-syntax-highlighted :is(.hljs-string, .hljs-title, .hljs-name, .hljs-type, .hljs-attribute, .hljs-symbol, .hljs-bullet, .hljs-addition) {
-  color: color-mix(in srgb, var(--success) 82%, var(--text));
+  color: var(--syntax-string-color);
 }
 
 .code-syntax-highlighted :is(.hljs-number, .hljs-built_in, .hljs-variable, .hljs-template-variable, .hljs-selector-class, .hljs-selector-id) {
-  color: color-mix(in srgb, var(--accent) 86%, var(--text));
+  color: var(--syntax-value-color);
 }
 
 .code-syntax-highlighted :is(.hljs-meta, .hljs-regexp, .hljs-deletion) {
-  color: color-mix(in srgb, #b45f06 82%, var(--text));
+  color: var(--syntax-meta-color);
+}
+
+.code-syntax-highlighted :is(.hljs-type, .hljs-built_in, .hljs-class .hljs-title, .hljs-title.class_) {
+  color: var(--syntax-type-color);
 }
 
 .code-syntax-highlighted :is(.hljs-strong, .hljs-title.class_) {

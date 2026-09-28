@@ -41,6 +41,13 @@ html {
   --link-hover: #0550ae;
   --danger: #cf222e;
   --success: #1a7f37;
+  /* Shared syntax roles echo the terminal palette while adapting to each
+     interface style's own accent, link and semantic status colours. */
+  --syntax-keyword-color: color-mix(in srgb, var(--danger) 82%, var(--text));
+  --syntax-string-color: color-mix(in srgb, var(--success) 82%, var(--text));
+  --syntax-value-color: color-mix(in srgb, var(--accent) 86%, var(--text));
+  --syntax-meta-color: color-mix(in srgb, #b45f06 82%, var(--text));
+  --syntax-type-color: color-mix(in srgb, var(--link-color) 78%, var(--text));
   --hover-bg: rgba(0, 0, 0, 0.04);
   /* Semantic aliases used by components. Keep them defined centrally so a
      typo/missing token cannot silently invalidate an entire CSS declaration. */

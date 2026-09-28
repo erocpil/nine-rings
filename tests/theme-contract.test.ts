@@ -74,4 +74,29 @@ for (const selector of [
   }
 }
 
+for (const token of [
+  "--syntax-keyword-color",
+  "--syntax-string-color",
+  "--syntax-value-color",
+  "--syntax-meta-color",
+  "--syntax-type-color",
+]) {
+  if (!definitions.has(token)) {
+    console.error(`Syntax highlighting must define ${token}`);
+    process.exit(1);
+  }
+}
+
+const paperLight = css.match(/:root\[data-interface-style="paper"\]:not\(\.theme-dark\)[^{]*\{([^}]+)\}/)?.[1] ?? "";
+const paperDark = css.match(/:root\[data-interface-style="paper"\]\.theme-dark[^{]*\{([^}]+)\}/)?.[1] ?? "";
+for (const [name, palette, expected] of [
+  ["paper light", paperLight, ["#93611f", "#386d46", "#346d91"]],
+  ["paper dark", paperDark, ["#e5b65c", "#79c987", "#64cde0"]],
+] as const) {
+  if (!palette || expected.some((color) => !palette.toLowerCase().includes(color))) {
+    console.error(`${name} must include the screenshot-inspired amber, green and blue palette`);
+    process.exit(1);
+  }
+}
+
 console.log(`Theme contract passed (${definitions.size} tokens defined)`);

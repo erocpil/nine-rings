@@ -6,6 +6,7 @@ import {
   normalizeInterfaceColorMode,
 } from "../../src/lib/interface-style";
 import { getConfig, setConfig } from "../../src/lib/storage/db-config";
+import { editorAppearanceVariables } from "../../src/lib/editor-appearance";
 
 afterEach(() => vi.unstubAllGlobals());
 test("legacy and unknown styles use classic, known styles remain independent of theme", () => {
@@ -80,7 +81,7 @@ test("calm projection leaves stored appearance and editor behaviours intact", ()
   expect(normalizeInterfaceColorMode("invalid")).toBe("system");
 });
 
-test("all eight managed interface styles share the wabi-sabi reading typography", () => {
+test("all eight managed interface styles share the original wabi-sabi reading typography", () => {
   for (const style of ["calm", "calm-compact", "paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"] as const) {
     const original = {
       interface_style: style,
@@ -88,12 +89,15 @@ test("all eight managed interface styles share the wabi-sabi reading typography"
       editor_font_family: "monospace" as const,
     };
     const display = resolveInterfaceConfig(original);
-    expect(display.editor_font_family).toBe("serif");
+    expect(display.editor_font_family).toBe("system");
     expect(display.note_font_size).toBe(15);
     expect(display.editor_line_height).toBe(1.8);
     expect(display.editor_block_spacing).toBeCloseTo(16 / 15);
     expect(display.editor_heading_margin_top).toBeCloseTo(28 / 15);
     expect(display.editor_heading_margin_bottom).toBeCloseTo(12 / 15);
+    expect(editorAppearanceVariables(display)["--editor-font-family"]).toBe(
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif',
+    );
     expect(original.note_font_size).toBe(23);
     expect(original.editor_font_family).toBe("monospace");
   }

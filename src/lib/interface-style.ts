@@ -32,7 +32,7 @@ export const INTERFACE_STYLES: ReadonlyArray<{
   {
     value: "paper",
     label: "纸页",
-    description: "暖色纸面、衬线正文，适合长文阅读与写作",
+    description: "暖色纸面、琥珀与青蓝强调色，适合长文阅读与写作",
   },
   {
     value: "minimal",
@@ -115,7 +115,7 @@ export function resolveInterfaceConfig<T extends Partial<AppConfig>>(
     ...config,
     ...DEFAULT_EDITOR_APPEARANCE,
     ...navigation,
-    editor_font_family: "serif",
+    editor_font_family: "system",
     note_font_size: size,
     editor_line_height: 1.8,
     editor_block_spacing: 16 / size,

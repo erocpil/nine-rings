@@ -1,31 +1,41 @@
 /* Independent palettes share the preset interaction and responsive foundations. */
 :root[data-interface-style="paper"]:not(.theme-dark),
 :root:not(.theme-dark) .interface-style-preview.preview-paper {
-  --bg: #faf6ed;
-  --surface: #f0e9dc;
-  --border: #d8cebd;
-  --text: #39342d;
-  --text-secondary: #6d6255;
-  --accent: #876044;
-  --accent-hover: #69462f;
-  --hover-bg: #eee5d6;
-  --active-bg: #e8dcc8;
-  --code-bg: #f1ebdf;
-  --drawer-surface: #f0e9dc;
+  --bg: #f8f2e5;
+  --surface: #efe5d3;
+  --border: #d8c9ae;
+  --text: #302e2a;
+  --text-secondary: #70665a;
+  --accent: #93611f;
+  --accent-hover: #704718;
+  --hover-bg: #efe4d1;
+  --active-bg: #e8d4b0;
+  --code-bg: #efe6d8;
+  --drawer-surface: var(--surface);
+  --syntax-keyword-color: #ad3d31;
+  --syntax-string-color: #386d46;
+  --syntax-value-color: #8a5a16;
+  --syntax-meta-color: #88551c;
+  --syntax-type-color: #346d91;
 }
 :root[data-interface-style="paper"].theme-dark,
 :root.theme-dark .interface-style-preview.preview-paper {
-  --bg: #28241f;
-  --surface: #211e1a;
-  --border: #51473b;
-  --text: #e9dfce;
-  --text-secondary: #b9ab96;
-  --accent: #d8b58a;
-  --accent-hover: #ecd0aa;
-  --hover-bg: #383127;
-  --active-bg: #473a2b;
-  --code-bg: #302b24;
-  --drawer-surface: #211e1a;
+  --bg: #1b1b1b;
+  --surface: #242321;
+  --border: #45423b;
+  --text: #e8e3d8;
+  --text-secondary: #b2a998;
+  --accent: #e5b65c;
+  --accent-hover: #f2cf82;
+  --hover-bg: #302c25;
+  --active-bg: #41351f;
+  --code-bg: #23211d;
+  --drawer-surface: var(--surface);
+  --syntax-keyword-color: #ef7764;
+  --syntax-string-color: #79c987;
+  --syntax-value-color: #e5b65c;
+  --syntax-meta-color: #efb75c;
+  --syntax-type-color: #64cde0;
 }
 :root[data-interface-style="minimal"]:not(.theme-dark),
 :root:not(.theme-dark) .interface-style-preview.preview-minimal {
