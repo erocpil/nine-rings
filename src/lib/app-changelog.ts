@@ -2,6 +2,13 @@
 export const APP_CHANGELOG = [
   {
     date: "2026-09-28",
+    title: "资料库搜索快捷键",
+    changes: [
+      "资料库打开时，Command/Ctrl+F 聚焦资料库搜索框，不再被底层文档查找拦截。",
+    ],
+  },
+  {
+    date: "2026-09-28",
     title: "关闭搜索后恢复键盘焦点",
     changes: [
       "打开全局搜索时先保留触发按钮焦点；关闭后键盘焦点会返回该按钮。",

@@ -57,9 +57,28 @@ export default function ReadingLibrary({
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const headingRef = useRef<HTMLElement>(null);
+  const libraryRef = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     if (autoFocusOnOpen) headingRef.current?.focus({ preventScroll: true });
   }, [autoFocusOnOpen]);
+  useLayoutEffect(() => {
+    const focusLibrarySearch = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        !libraryRef.current?.getClientRects().length ||
+        !isPrimaryShortcutModifier(event) ||
+        event.key.toLowerCase() !== "f"
+      ) return;
+      if (event.target instanceof Element && event.target.closest(
+        '[role="dialog"][aria-modal="true"], .pdf-reader, .epub-reader',
+      )) return;
+      event.preventDefault();
+      event.stopPropagation();
+      searchRef.current?.focus({ preventScroll: true });
+    };
+    window.addEventListener("keydown", focusLibrarySearch, true);
+    return () => window.removeEventListener("keydown", focusLibrarySearch, true);
+  }, []);
   const restoredRef = useRef(false);
   const [initialReady, setInitialReady] = useState(false);
   const coverRequestRef = useRef(0);
@@ -296,6 +315,7 @@ export default function ReadingLibrary({
   }, [initialReady, session]);
   return (
     <section
+      ref={libraryRef}
       className="reading-library-page"
       aria-label="阅读资料库"
       onKeyDown={(event) => {

@@ -1737,6 +1737,9 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       if (event.isComposing || event.keyCode === 229) return;
       if (editor.view.dom.closest("[inert]")) return;
       if (event.target instanceof Element && event.target.closest(".settings-overlay, .block-workspace")) return;
+      // The visible reading library owns Cmd/Ctrl+F even when focus remains
+      // on the editor or its workspace trigger beneath a hover sidebar.
+      if (document.querySelector<HTMLElement>(".reading-library-page")?.getClientRects().length) return;
       // The adjacent PDF reader owns search and Escape while it has focus.
       if (event.target instanceof Element && event.target.closest(".pdf-reader:not(.epub-reader)")) return;
       const isCtrlF = event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
