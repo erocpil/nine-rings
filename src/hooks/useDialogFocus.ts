@@ -22,6 +22,9 @@ export function useDialogFocus(
       previousFocusRef.current = document.activeElement;
     }
     const previous = previousFocusRef.current;
+    // Capture this dialog's trigger before cleanup can observe a cleared or
+    // reassigned ref (for example when another dialog is opened).
+    const restoreTarget = restoreFocusRef?.current ?? previous;
     initialFocusRef.current?.focus({ preventScroll: true });
     const keydown = (event: KeyboardEvent) => {
       if (event.key !== "Tab") return;
@@ -66,9 +69,8 @@ export function useDialogFocus(
           !container.contains(current)
         )
           return;
-        const target = restoreFocusRef?.current ?? previous;
-        if (target instanceof HTMLElement && target.isConnected)
-          target.focus({ preventScroll: true });
+        if (restoreTarget instanceof HTMLElement && restoreTarget.isConnected)
+          restoreTarget.focus({ preventScroll: true });
       });
     };
   }, [active, containerRef, initialFocusRef, restoreFocusRef]);
