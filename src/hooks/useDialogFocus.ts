@@ -5,6 +5,7 @@ export function useDialogFocus(
   containerRef: RefObject<HTMLElement>,
   active: boolean,
   initialFocusRef: RefObject<HTMLElement>,
+  restoreFocusRef?: RefObject<HTMLElement | null>,
 ) {
   const restoreFrameRef = useRef<number | null>(null);
   const previousFocusRef = useRef<Element | null>(null);
@@ -65,9 +66,10 @@ export function useDialogFocus(
           !container.contains(current)
         )
           return;
-        if (previous instanceof HTMLElement && previous.isConnected)
-          previous.focus({ preventScroll: true });
+        const target = restoreFocusRef?.current ?? previous;
+        if (target instanceof HTMLElement && target.isConnected)
+          target.focus({ preventScroll: true });
       });
     };
-  }, [active, containerRef, initialFocusRef]);
+  }, [active, containerRef, initialFocusRef, restoreFocusRef]);
 }

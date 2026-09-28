@@ -4,12 +4,13 @@ import { useDialogFocus } from "../hooks/useDialogFocus";
 import { ToolbarIcon } from "./ToolbarIcon";
 
 /** Shared, opaque workspace overlay; it does not replace the mounted editor. */
-export function WorkspaceDialog({ title, onClose, children, initialFocusRef }: {
+export function WorkspaceDialog({ title, onClose, children, initialFocusRef, restoreFocusRef }: {
   title: string; onClose: () => void; children: ReactNode; initialFocusRef?: RefObject<HTMLInputElement>;
+  restoreFocusRef?: RefObject<HTMLElement | null>;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef<HTMLButtonElement>(null);
-  useDialogFocus(panel, true, initialFocusRef ?? close);
+  useDialogFocus(panel, true, initialFocusRef ?? close, restoreFocusRef);
   return createPortal(<div className="workspace-dialog-backdrop" onPointerDown={event => {
     if (event.target === event.currentTarget) onClose();
   }}>

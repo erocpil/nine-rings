@@ -10,7 +10,7 @@ import { useWorkspaceSidebar } from "./hooks/useWorkspaceSidebar";
 import { useSidebarPresentation } from "./hooks/useSidebarPresentation";
 import { useSidebarHoverPreview } from "./hooks/useSidebarHoverPreview";
 import { useEditorStartup } from "./hooks/useEditorStartup";
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useNoteSessionBoundary } from "./hooks/useNoteSessionBoundary";
 import { flushSync } from "react-dom";
 import { useNotes } from "./hooks/useNotes";
@@ -411,13 +411,18 @@ function App() {
   const [searchExpanded, setSearchExpanded] = useState(false);
   const globalSearchQueryRef = useRef<{ text: string; storagePath?: string; docType?: DocType; concept?: string }>({ text: "" });
   const headerSearchInputRef = useRef<HTMLInputElement>(null);
-  const openGlobalSearch = useCallback(() => {
+  const globalSearchRestoreFocusRef = useRef<HTMLElement | null>(null);
+  const openGlobalSearch = useCallback((event?: ReactMouseEvent<HTMLElement>) => {
+    const active = event?.currentTarget ?? document.activeElement;
+    globalSearchRestoreFocusRef.current =
+      active instanceof HTMLElement && active !== document.body
+        ? active
+        : null;
     flushSync(() => {
       setDocTreePopupOpen(false);
       setQuickSwitcherOpen(false);
       setSearchExpanded(true);
     });
-    headerSearchInputRef.current?.focus({ preventScroll: true });
   }, []);
   const [sidebarHidden, setSidebarHidden] = useState(() => {
     if (!window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return readDesktopSidebarState().hidden;
@@ -1825,7 +1830,7 @@ function App() {
     </div>
     </ExhibitionWorkspace>
     {mobileReadingLibraryPanel}
-    {searchExpanded && <WorkspaceDialog title="全局搜索" onClose={dismissSearchResults} initialFocusRef={headerSearchInputRef}>
+    {searchExpanded && <WorkspaceDialog title="全局搜索" onClose={dismissSearchResults} initialFocusRef={headerSearchInputRef} restoreFocusRef={globalSearchRestoreFocusRef}>
       <SearchBar inputRef={headerSearchInputRef} cancelRequestId={searchCancelRequestId}
         initialQuery={globalSearchQueryRef.current} onQueryChange={query => { globalSearchQueryRef.current = query; }}
         onSearch={search} onDocSearch={handleDocSearch} onEscape={dismissSearchResults} />
