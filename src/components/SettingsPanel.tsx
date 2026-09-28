@@ -805,7 +805,6 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               ]] as const).map(([label, modeKey, colorsKey]) => {
                 const mode = config[modeKey];
                 const colors = config[colorsKey];
-                const levelNames = ["青蓝", "琥珀", "靛蓝", "苔绿", "紫藤", "砖红"];
                 return <fieldset key={modeKey} className="hierarchy-style-card">
                   <legend>{label}</legend>
                   <div className="settings-radio-group" role="group" aria-label={`${label}配色模式`}>
@@ -817,9 +816,9 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                       <button type="button" className="settings-btn settings-btn-compact" onClick={() => update({ [colorsKey]: [...DEFAULT_CONFIG[colorsKey]] })}>恢复默认配色</button>
                     </div>
                     <div className="hierarchy-color-grid">
-                    {levelNames.map((name, index) => <label key={name}>
-                      <span className="hierarchy-color-name"><span>第 {index + 1} 层</span><span>{name}</span></span>
-                      <input type="color" aria-label={`${label}第 ${index + 1} 层颜色`} value={colors[index] ?? DEFAULT_CONFIG[colorsKey][index]} onChange={event => {
+                    {DEFAULT_CONFIG[colorsKey].map((defaultColor, index) => <label key={index}>
+                      <span>第 {index + 1} 层</span>
+                      <input type="color" aria-label={`${label}第 ${index + 1} 层颜色`} value={colors[index] ?? defaultColor} onChange={event => {
                         const next = [...colors];
                         next[index] = event.target.value;
                         update({ [colorsKey]: next });

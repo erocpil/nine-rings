@@ -137,12 +137,15 @@ test("层次展示可分别设置路径与目录标题颜色", async ({ page }) 
   const pathSettings = page.getByRole("group", { name: "文档树路径配色模式" });
   const outlineSettings = page.getByRole("group", { name: "文档目录标题配色模式" });
   const pathCard = page.locator(".hierarchy-style-card").first();
+  const section = page.locator(".hierarchy-settings-section");
+  expect(await section.evaluate(element => element.getBoundingClientRect().width / element.parentElement!.getBoundingClientRect().width)).toBeGreaterThan(0.9);
   await expect(pathSettings.getByRole("button", { name: "默认配色" })).toHaveAttribute("aria-pressed", "true");
   await pathSettings.getByRole("button", { name: "自定义" }).click();
   const firstColor = page.getByLabel("文档树路径第 1 层颜色");
   await expect(firstColor).toBeVisible();
   await expect(firstColor).toHaveValue("#247f7b");
-  await expect(pathCard.getByText("青蓝", { exact: true })).toBeVisible();
+  await expect(pathCard.locator(".hierarchy-color-grid label").first()).toContainText("第 1 层");
+  await expect(pathCard.getByText("青蓝", { exact: true })).toHaveCount(0);
   await firstColor.evaluate(element => {
     const input = element as HTMLInputElement;
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "#123456");
