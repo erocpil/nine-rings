@@ -186,7 +186,7 @@ fn default_hierarchy_mode() -> String {
 }
 fn default_hierarchy_colors() -> Vec<String> {
     [
-        "#9A5B00", "#B0473C", "#5E7C36", "#247F7B", "#5266A8", "#8356A1",
+        "#247F7B", "#9A5B00", "#5266A8", "#5E7C36", "#8356A1", "#B0473C",
     ]
     .into_iter()
     .map(String::from)
@@ -440,6 +440,21 @@ mod tests {
         assert_eq!(config.hierarchy_outline_mode, "default");
         assert_eq!(config.hierarchy_path_custom_colors.len(), 6);
         assert_eq!(config.hierarchy_outline_custom_colors.len(), 6);
+        assert_eq!(
+            config.hierarchy_path_custom_colors,
+            vec![
+                "#247F7B".to_string(),
+                "#9A5B00".to_string(),
+                "#5266A8".to_string(),
+                "#5E7C36".to_string(),
+                "#8356A1".to_string(),
+                "#B0473C".to_string()
+            ]
+        );
+        assert_eq!(
+            config.hierarchy_outline_custom_colors,
+            config.hierarchy_path_custom_colors
+        );
         assert_eq!(config.interface_style, "classic");
         assert_eq!(config.interface_color_mode, "light");
         assert_eq!(config.note_font_size, 19);

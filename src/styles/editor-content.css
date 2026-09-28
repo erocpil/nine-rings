@@ -461,6 +461,12 @@
   margin-bottom: var(--editor-block-spacing);
 }
 
+/* Code NodeViews already carry a trailing block gap. Give quote NodeViews the
+   same trailing gap so quote → code matches code → quote in classic mode. */
+.editor-content .ProseMirror > .blockquote-wrap {
+  margin-bottom: var(--editor-block-spacing);
+}
+
 .editor-content .ProseMirror > [data-indent="1"] { margin-inline-start: calc(var(--editor-block-indent-step, var(--editor-list-indent)) * 1); }
 .editor-content .ProseMirror > [data-indent="2"] { margin-inline-start: calc(var(--editor-block-indent-step, var(--editor-list-indent)) * 2); }
 .editor-content .ProseMirror > [data-indent="3"] { margin-inline-start: calc(var(--editor-block-indent-step, var(--editor-list-indent)) * 3); }

@@ -70,9 +70,9 @@ export interface AppConfig {
 
 export const DEFAULT_CONFIG: AppConfig = {
   hierarchy_path_mode: "default",
-  hierarchy_path_custom_colors: ["#9A5B00", "#B0473C", "#5E7C36", "#247F7B", "#5266A8", "#8356A1"],
+  hierarchy_path_custom_colors: ["#247F7B", "#9A5B00", "#5266A8", "#5E7C36", "#8356A1", "#B0473C"],
   hierarchy_outline_mode: "default",
-  hierarchy_outline_custom_colors: ["#9A5B00", "#B0473C", "#5E7C36", "#247F7B", "#5266A8", "#8356A1"],
+  hierarchy_outline_custom_colors: ["#247F7B", "#9A5B00", "#5266A8", "#5E7C36", "#8356A1", "#B0473C"],
   interface_style: "classic",
   workspace_layout: "standard",
   exhibition_text_width: "wide",

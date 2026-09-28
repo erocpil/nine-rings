@@ -291,8 +291,8 @@ test("风格默认浅色宽幅舒适，非经典风格共享侘寂排版", async
     return { fontSize: style.fontSize, lineHeight: style.lineHeight, fontFamily: style.fontFamily };
   });
   const baseline = await typography();
-  expect(baseline.fontSize).toBe("15px");
-  expect(baseline.lineHeight).toBe("27px");
+  expect(baseline.fontSize).toBe("16px");
+  expect(baseline.lineHeight).toBe("28.8px");
   expect(baseline.fontFamily).toMatch(/serif/i);
   for (const style of ["paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"]) {
     await selectAppearance(page, "工作区风格", style);
@@ -314,7 +314,7 @@ test("桌面顶部菜单一次点击切换，取消不修改配置，手机仍�
   await expect(page.getByRole("listbox")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "工作区风格", exact: true })).toBeFocused();
   expect(await page.evaluate(() => localStorage.getItem("nine_rings_config"))).toBe(before);
-  await expect(page.getByRole("button", { name: "文本宽度", exact: true })).toHaveText("标准");
+  await expect(page.getByRole("button", { name: "文本宽度", exact: true })).toHaveText("宽幅");
   await selectAppearance(page, "工作区配色", "dark");
   await expect(page.locator("html")).toHaveClass(/theme-dark/);
   await page.getByRole("button", { name: "工作区风格", exact: true }).click();

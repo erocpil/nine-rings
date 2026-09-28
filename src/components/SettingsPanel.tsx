@@ -804,7 +804,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               ]] as const).map(([label, modeKey, colorsKey]) => {
                 const mode = config[modeKey];
                 const colors = config[colorsKey];
-                const levelNames = ["琥珀", "砖红", "苔绿", "青蓝", "靛蓝", "紫藤"];
+                const levelNames = ["青蓝", "琥珀", "靛蓝", "苔绿", "紫藤", "砖红"];
                 return <fieldset key={modeKey} className="hierarchy-style-card">
                   <legend>{label}</legend>
                   <div className="settings-radio-group" role="group" aria-label={`${label}配色模式`}>

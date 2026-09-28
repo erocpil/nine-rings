@@ -52,7 +52,7 @@ test("长文档在编辑、源码和局部只读中随实际分栏宽度调整",
       Object.assign((el as HTMLElement).style, { maxWidth: "440px" }),
     );
   await expect(editor.locator("h1").first()).toHaveCSS("font-size", "27px");
-  await expect(editor.locator("p").first()).toHaveCSS("font-size", "15px");
+  await expect(editor.locator("p").first()).toHaveCSS("font-size", "16px");
   await page.getByRole("button", { name: "源码", exact: true }).click();
   await expect(page.locator(".markdown-cm-host")).toBeVisible();
   await page

@@ -7,6 +7,7 @@ import {
 } from "../../src/lib/interface-style";
 import { getConfig, setConfig } from "../../src/lib/storage/db-config";
 import { editorAppearanceVariables } from "../../src/lib/editor-appearance";
+import { DEFAULT_CONFIG } from "../../src/lib/storage/types";
 
 afterEach(() => vi.unstubAllGlobals());
 test("legacy and unknown styles use classic, known styles remain independent of theme", () => {
@@ -66,7 +67,7 @@ test("calm projection leaves stored appearance and editor behaviours intact", ()
   };
   const snapshot = JSON.stringify(saved);
   const display = resolveInterfaceConfig(saved);
-  expect(display.note_font_size).toBe(15);
+  expect(display.note_font_size).toBe(16);
   expect(display.editor_line_height).toBe(1.8);
   expect(display.navigation_outline_text_color).toBe("#333333");
   expect(display.editor_show_line_numbers).toBe(true);
@@ -77,7 +78,7 @@ test("calm projection leaves stored appearance and editor behaviours intact", ()
   expect(
     resolveInterfaceConfig({ ...saved, interface_style: "calm-compact" })
       .note_font_size,
-  ).toBe(15);
+  ).toBe(16);
   expect(normalizeInterfaceColorMode("invalid")).toBe("system");
 });
 
@@ -90,17 +91,27 @@ test("all eight managed interface styles share the original wabi-sabi reading ty
     };
     const display = resolveInterfaceConfig(original);
     expect(display.editor_font_family).toBe("system");
-    expect(display.note_font_size).toBe(15);
+    expect(display.note_font_size).toBe(16);
     expect(display.editor_line_height).toBe(1.8);
-    expect(display.editor_block_spacing).toBeCloseTo(16 / 15);
-    expect(display.editor_heading_margin_top).toBeCloseTo(28 / 15);
-    expect(display.editor_heading_margin_bottom).toBeCloseTo(12 / 15);
+    expect(display.editor_block_spacing).toBeCloseTo(1);
+    expect(display.editor_heading_margin_top).toBeCloseTo(28 / 16);
+    expect(display.editor_heading_margin_bottom).toBeCloseTo(12 / 16);
     expect(editorAppearanceVariables(display)["--editor-font-family"]).toBe(
       '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif',
     );
     expect(original.note_font_size).toBe(23);
     expect(original.editor_font_family).toBe("monospace");
   }
+});
+
+test("default hierarchy palette alternates through cool/warm hues and ends with brick red", () => {
+  expect(DEFAULT_CONFIG.hierarchy_path_custom_colors).toEqual([
+    "#247F7B", "#9A5B00", "#5266A8", "#5E7C36", "#8356A1", "#B0473C",
+  ]);
+  expect(DEFAULT_CONFIG.hierarchy_outline_custom_colors).toEqual(DEFAULT_CONFIG.hierarchy_path_custom_colors);
+  const variables = editorAppearanceVariables();
+  expect(variables["--hierarchy-path-custom-1"]).toBe("#247F7B");
+  expect(variables["--hierarchy-outline-custom-6"]).toBe("#B0473C");
 });
 
 test("workspace layout defaults safely and survives classic style changes", async () => {

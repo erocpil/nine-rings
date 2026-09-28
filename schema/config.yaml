@@ -12,7 +12,7 @@ AppConfig:
 
     hierarchy_path_custom_colors:
       type: array(color)
-      default: ["#9A5B00", "#B0473C", "#5E7C36", "#247F7B", "#5266A8", "#8356A1"]
+      default: ["#247F7B", "#9A5B00", "#5266A8", "#5E7C36", "#8356A1", "#B0473C"]
       description: 文档树路径各层自定义颜色，按六层循环
 
     hierarchy_outline_mode:
@@ -22,7 +22,7 @@ AppConfig:
 
     hierarchy_outline_custom_colors:
       type: array(color)
-      default: ["#9A5B00", "#B0473C", "#5E7C36", "#247F7B", "#5266A8", "#8356A1"]
+      default: ["#247F7B", "#9A5B00", "#5266A8", "#5E7C36", "#8356A1", "#B0473C"]
       description: 文档目录各层自定义颜色，按六层循环
 
     interface_style:

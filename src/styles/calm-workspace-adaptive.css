@@ -3,8 +3,8 @@
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     .ProseMirror
-    > :is(p, ul, ol, .code-block-wrap, .blockquote-wrap, .tableWrapper) {
-    margin-block: 0 var(--style-block-gap, 16px);
+    > :is(p, ul, ol, .code-block-wrap, .node-codeBlock, .blockquote-wrap, .tableWrapper) {
+    margin-block: 0 var(--style-block-gap, 10px);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content

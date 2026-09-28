@@ -100,7 +100,7 @@ export function resolveInterfaceConfig<T extends Partial<AppConfig>>(
 ): T {
   if (normalizeInterfaceStyle(config.interface_style) === "classic")
     return config;
-  const size = 15;
+  const size = 16;
   const navigation = Object.fromEntries(
     NAVIGATION_APPEARANCE_KEYS.map((key) => [
       key,

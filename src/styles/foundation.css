@@ -30,24 +30,24 @@ html {
 }
 
 :root {
-  --hierarchy-default-1: #9a5b00;
-  --hierarchy-default-2: #b0473c;
-  --hierarchy-default-3: #5e7c36;
-  --hierarchy-default-4: #247f7b;
-  --hierarchy-default-5: #5266a8;
-  --hierarchy-default-6: #8356a1;
-  --hierarchy-path-custom-1: #9a5b00;
-  --hierarchy-path-custom-2: #b0473c;
-  --hierarchy-path-custom-3: #5e7c36;
-  --hierarchy-path-custom-4: #247f7b;
-  --hierarchy-path-custom-5: #5266a8;
-  --hierarchy-path-custom-6: #8356a1;
-  --hierarchy-outline-custom-1: #9a5b00;
-  --hierarchy-outline-custom-2: #b0473c;
-  --hierarchy-outline-custom-3: #5e7c36;
-  --hierarchy-outline-custom-4: #247f7b;
-  --hierarchy-outline-custom-5: #5266a8;
-  --hierarchy-outline-custom-6: #8356a1;
+  --hierarchy-default-1: #247f7b;
+  --hierarchy-default-2: #9a5b00;
+  --hierarchy-default-3: #5266a8;
+  --hierarchy-default-4: #5e7c36;
+  --hierarchy-default-5: #8356a1;
+  --hierarchy-default-6: #b0473c;
+  --hierarchy-path-custom-1: #247f7b;
+  --hierarchy-path-custom-2: #9a5b00;
+  --hierarchy-path-custom-3: #5266a8;
+  --hierarchy-path-custom-4: #5e7c36;
+  --hierarchy-path-custom-5: #8356a1;
+  --hierarchy-path-custom-6: #b0473c;
+  --hierarchy-outline-custom-1: #247f7b;
+  --hierarchy-outline-custom-2: #9a5b00;
+  --hierarchy-outline-custom-3: #5266a8;
+  --hierarchy-outline-custom-4: #5e7c36;
+  --hierarchy-outline-custom-5: #8356a1;
+  --hierarchy-outline-custom-6: #b0473c;
   --bg: #ffffff;
   --surface: #f6f8fa;
   --border: #d0d7de;
@@ -160,12 +160,12 @@ html {
 
 /* Default hierarchy accents stay muted and legible across dark palettes. */
 :root:is(.theme-dark, .theme-azure-dark, .theme-nord, .theme-dracula) {
-  --hierarchy-default-1: #e7b85c;
-  --hierarchy-default-2: #f08b7d;
-  --hierarchy-default-3: #a8c982;
-  --hierarchy-default-4: #6ec5bb;
-  --hierarchy-default-5: #a6b5f5;
-  --hierarchy-default-6: #c5a0e8;
+  --hierarchy-default-1: #6ec5bb;
+  --hierarchy-default-2: #e7b85c;
+  --hierarchy-default-3: #a6b5f5;
+  --hierarchy-default-4: #a8c982;
+  --hierarchy-default-5: #c5a0e8;
+  --hierarchy-default-6: #f08b7d;
 }
 
 /* ── 深色主题 ── */

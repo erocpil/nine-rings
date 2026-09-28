@@ -1,15 +1,18 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
 
-async function fixture(page: Page, kind = "text") {
-  await page.addInitScript(() =>
-    localStorage.setItem(
-      "nine_rings_config",
-      JSON.stringify({
-        editor_show_line_numbers: true,
-        use_custom_context_menu: true,
-      }),
-    ),
+async function fixture(page: Page, kind = "text", interfaceStyle = "classic") {
+  await page.addInitScript(
+    (style) =>
+      localStorage.setItem(
+        "nine_rings_config",
+        JSON.stringify({
+          editor_show_line_numbers: true,
+          use_custom_context_menu: true,
+          interface_style: style,
+        }),
+      ),
+    interfaceStyle,
   );
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible({ timeout: 15000 });
@@ -215,6 +218,30 @@ test("代码块与后续引用、代码块和正文保持间隔", async ({ page 
   });
   expect(gaps).toHaveLength(3);
   for (const gap of gaps) expect(gap).toBeGreaterThan(0);
+  expect(Math.abs(gaps[0] - gaps[1])).toBeLessThanOrEqual(1);
+});
+
+test("独立风格中的代码块与引用块间距统一收至 10px", async ({ page }) => {
+  await fixture(page, "text", "calm");
+  const editor = page.locator(".ProseMirror");
+  await editor.evaluate((el) => {
+    const ed = (el as HTMLElement & { editor: Editor }).editor;
+    ed.commands.setContent({
+      type: "doc",
+      content: [
+        { type: "codeBlock", content: [{ type: "text", text: "first" }] },
+        { type: "blockquote", content: [{ type: "paragraph", content: [{ type: "text", text: "quote" }] }] },
+        { type: "codeBlock", content: [{ type: "text", text: "last" }] },
+      ],
+    });
+  });
+  const measurements = await editor.evaluate((el) => {
+    const blocks = [...el.children] as HTMLElement[];
+    return blocks.slice(0, -1).map((block, index) => blocks[index + 1].getBoundingClientRect().top - block.getBoundingClientRect().bottom);
+  });
+  expect(measurements).toHaveLength(2);
+  for (const gap of measurements) expect(gap).toBeGreaterThanOrEqual(9);
+  for (const gap of measurements) expect(gap).toBeLessThanOrEqual(11);
 });
 
 test("首次工具提示快速显示并在离开后消失", async ({ page }) => {
