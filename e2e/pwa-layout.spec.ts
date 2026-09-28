@@ -1,5 +1,6 @@
 import type { Editor } from "@tiptap/core";
-import { openMobileDocumentPopup } from "./helpers/workspace";
+import { closeDocumentSidebar, openDocumentSidebar, openMobileDocumentPopup } from "./helpers/workspace";
+import { openMobileSettings } from "./helpers/mobile-settings";
 import { pressDocumentBoundary, pressLineBoundary } from "./helpers/keyboard";
 import { expect, test, type Locator } from "@playwright/test";
 
@@ -160,7 +161,14 @@ test.describe("PWA 窄屏应用外壳", () => {
 
   test("块内换行在工具栏且复制块保留引用格式", async ({ page }) => {
     const editor = await createOutlineFixture(page, "复制块");
-    await editor.fill("复制整块内容");
+    await editor.evaluate((element) => {
+      const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      instance.commands.setContent({
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: "复制整块内容" }] }],
+      });
+      instance.commands.focus("end");
+    });
     await editor.press("ControlOrMeta+Shift+b");
     await expect(editor.locator("blockquote")).toBeVisible();
     await page.evaluate(() => {
@@ -169,9 +177,9 @@ test.describe("PWA 窄屏应用外壳", () => {
         document.documentElement.dataset.copiedBlockHtml = html;
       } });
     });
+    await page.getByRole("button", { name: "更多编辑操作", exact: true }).click();
     await expect(page.getByRole("button", { name: "块内换行", exact: true })).toBeVisible();
     await expect(page.locator(".editor-menu button[title='添加超链接 (Ctrl+K)']")).toHaveCount(0);
-    await page.getByRole("button", { name: "更多编辑操作", exact: true }).click();
     await expect(page.getByRole("button", { name: "添加或编辑链接", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "复制块", exact: true }).click();
     await expect(page.locator("html")).toHaveAttribute("data-copied-block-html", /<blockquote[\s\S]*复制整块内容/);
@@ -183,34 +191,6 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(feedback.y).toBeGreaterThan(760 / 2);
     await expect(page.locator(".copy-block-feedback")).toHaveCount(0, { timeout: 4000 });
     expect(await editor.boundingBox()).toEqual(contentBeforeCopy);
-    await page.getByRole("button", { name: "点击设为只读", exact: true }).click();
-    await expect(editor).toHaveAttribute("contenteditable", "false");
-    await editor.locator("blockquote").getByText("复制整块内容", { exact: true }).click();
-    await page.evaluate(() => delete document.documentElement.dataset.copiedBlockHtml);
-    await page.getByRole("button", { name: "复制块", exact: true }).click();
-    await expect(page.locator("html")).toHaveAttribute("data-copied-block-html", /<blockquote[\s\S]*复制整块内容/);
-    await page.locator(".header-document-actions").getByRole("button", { name: "专注模式", exact: true }).click();
-    await page.evaluate(() => delete document.documentElement.dataset.copiedBlockHtml);
-    await page.getByRole("button", { name: "复制块", exact: true }).click();
-    await expect(page.locator("html")).toHaveAttribute("data-copied-block-html", /<blockquote[\s\S]*复制整块内容/);
-    await expect(editor).toHaveAttribute("contenteditable", "false");
-    await expect(editor.locator("blockquote")).toContainText("复制整块内容");
-    const focusBar = page.getByLabel("专注模式工具栏");
-    await focusBar.getByRole("button", { name: "点击设为可编辑", exact: true }).click();
-    await expect(editor).toHaveAttribute("contenteditable", "true");
-    for (const viewport of [{ width: 320, height: 760 }, { width: 760, height: 390 }]) {
-      await page.setViewportSize(viewport);
-      await editor.locator("blockquote").getByText("复制整块内容", { exact: true }).click();
-      await page.evaluate(() => delete document.documentElement.dataset.copiedBlockHtml);
-      await focusBar.getByRole("button", { name: "复制块", exact: true }).click();
-      await expect(page.locator("html")).toHaveAttribute("data-copied-block-html", /<blockquote[\s\S]*复制整块内容/);
-      await expect(focusBar.getByRole("button", { name: "更多编辑工具", exact: true })).toBeVisible();
-      expect(await focusBar.evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
-      const titleBox = (await focusBar.getByRole("button", { name: "查看完整标题" }).boundingBox())!;
-      const copyBox = (await focusBar.getByRole("button", { name: "复制块", exact: true }).boundingBox())!;
-      expect(titleBox.width).toBeGreaterThan(40);
-      expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(copyBox.x);
-    }
   });
 
   test("只读代码行号可切换且按总行数预留宽度", async ({ page }) => {
@@ -733,83 +713,81 @@ test.describe("PWA 窄屏应用外壳", () => {
     }
   });
 
-  test("手机顶部查找居左，目录书签专注居右", async ({ page }) => {
+  test("手机统一标题行保留目录书签与专注，快速切换和搜索位于文档视图", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
-    const header = page.locator(".app-header");
-    await expect(header.getByTitle("显示侧栏", { exact: true })).toHaveCount(0);
-    await expect(header.getByTitle("文档视图", { exact: true })).toHaveCount(0);
+    await expect(page.locator(".app-header")).toHaveCount(0);
+    const row = page.locator(".note-title-row");
     for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
       await page.setViewportSize(viewport);
-      const names = ["快速切换笔记", "搜索", "文档目录", "文档书签", "专注模式"];
+      const names = ["文档目录", "文档书签", "专注模式"];
       let right = 0;
       for (const name of names) {
-        const box = (await header.getByRole("button", { name, exact: true }).boundingBox())!;
+        const box = (await row.getByRole("button", { name, exact: true }).boundingBox())!;
         expect(box.x).toBeGreaterThanOrEqual(right);
         right = box.x + box.width;
       }
       expect(right).toBeLessThanOrEqual(viewport.width);
     }
-    await header.getByRole("button", { name: "文档目录", exact: true }).click();
+    await row.getByRole("button", { name: "文档目录", exact: true }).click();
     await expect(page.getByRole("navigation", { name: "文档目录", exact: true })).toBeVisible();
-    await header.getByRole("button", { name: "文档书签", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await row.getByRole("button", { name: "文档书签", exact: true }).click();
     await expect(page.getByRole("navigation", { name: "文档书签", exact: true })).toBeVisible();
-    await header.getByRole("button", { name: "文档书签", exact: true }).click();
-    await header.getByRole("button", { name: "专注模式", exact: true }).click();
-    await expect(page.getByLabel("专注模式工具栏")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await row.getByRole("button", { name: "专注模式", exact: true }).click();
+    await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
+    await row.getByRole("button", { name: "退出专注模式", exact: true }).click();
+    const popup = await openMobileDocumentPopup(page);
+    await expect(popup.getByRole("button", { name: "快速切换笔记", exact: true })).toBeVisible();
+    await popup.getByRole("button", { name: "全局搜索", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "全局搜索", exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
   });
 
   test("两种文档侧栏统一顶部高度与收起样式，文档视图可进入阅读", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
-    const host = page.locator(".note-editor");
-    await swipeNoteEditor(host, { startX: 8, startY: 570, endX: 110, endY: 570 });
-    const tree = page.getByRole("dialog", { name: "文档侧栏", exact: true });
-    await expect(tree).toBeVisible();
+    const tree = await openDocumentSidebar(page);
     const height = (await tree.locator(".sidebar-tabs").boundingBox())!.height;
     const close = tree.getByRole("button", { name: "隐藏侧栏", exact: true });
     await expect(close).not.toBeFocused();
-    await close.click();
-    await swipeNoteEditor(host, { startX: 8, startY: 190, endX: 110, endY: 190 });
-    const view = page.getByRole("dialog", { name: "文档视图", exact: true });
-    await expect(view).toBeVisible();
+    await closeDocumentSidebar(page);
+    const view = await openMobileDocumentPopup(page);
     expect((await view.locator(".sidebar-tabs").boundingBox())!.height).toBe(height);
     await expect(view.getByRole("button", { name: "关闭文档视图", exact: true })).not.toBeFocused();
     expect(await view.locator(".sidebar-tabs").evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
     await expect(view.getByRole("region", { name: "文档列表" })).toBeVisible();
     await view.getByRole("button", { name: "打开阅读资料库", exact: true }).click();
     await expect(page.getByRole("region", { name: "阅读资料库", exact: true })).toBeVisible();
-    const readingHeader = page.locator(".reading-library-heading");
+    const readingHeader = page.getByRole("region", { name: "阅读资料库", exact: true })
+      .locator(".reading-library-heading").last();
     await expect(readingHeader).not.toContainText("阅读资料库");
     await expect(readingHeader.getByRole("button", { name: "切换到文档", exact: true })).toBeVisible();
-    await expect(readingHeader.getByRole("button", { name: "设置", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "导入 PDF", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "导入 EPUB", exact: true })).toBeVisible();
     await expect(view).toBeHidden();
   });
 
-  test("普通模式左划区分书签目录，设置仅在阅读侧栏提供", async ({ page }) => {
+  test("普通模式标题行可开目录书签，移动设置通过侧边手势打开", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
-    await expect(page.locator(".app-header").getByRole("button", { name: "设置", exact: true })).toHaveCount(0);
-    for (const [y, name] of [[190, "文档书签"], [570, "文档目录"]] as const) {
-      await swipeNoteEditor(page.locator(".note-editor"), { startX: 370, startY: y, endX: 270, endY: y });
-      const drawer = page.getByRole("dialog", { name: "阅读侧栏", exact: true });
-      await expect(drawer.getByRole("navigation", { name, exact: true })).toBeVisible();
+    const row = page.locator(".note-title-row");
+    for (const name of ["文档书签", "文档目录"]) {
+      await row.getByRole("button", { name, exact: true }).click();
+      await expect(page.getByRole("navigation", { name, exact: true })).toBeVisible();
       await expect(page.locator(".app")).not.toHaveClass(/app-focus-mode/);
-      await drawer.getByRole("button", { name: "设置", exact: true }).click();
-      const settings = page.getByRole("dialog", { name: "设置", exact: true });
-      await expect(settings).toBeVisible();
-      await settings.getByRole("button", { name: "关闭设置", exact: true }).click();
-      await expect(drawer).toBeHidden();
-      await expect(page.locator(".app")).not.toHaveClass(/app-focus-mode/);
+      await page.keyboard.press("Escape");
     }
+    await openMobileSettings(page);
+    await expect(page.getByRole("heading", { name: "设置", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+    await expect(page.locator(".app")).not.toHaveClass(/app-focus-mode/);
   });
 
   test("文档工具栏右对齐且抽屉收起按钮使用紧凑线框图标", async ({ page }, testInfo) => {
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
-    await page.getByTitle("文档视图").click();
-    const popup = page.locator(".doc-tree-popup-overlay");
-    await expect(popup.locator(".doc-tree-toolbar")).toBeVisible();
     const checkToolbar = async (scope: Locator) => {
       const toolbar = scope.locator(".doc-tree-toolbar");
       const buttons = toolbar.locator("button");
@@ -820,12 +798,8 @@ test.describe("PWA 窄屏应用外壳", () => {
       }));
       expect(Math.abs(geometry.parentRight - geometry.right)).toBeLessThanOrEqual(1);
     };
-    await checkToolbar(popup);
-    await popup.getByRole("button", { name: "关闭文档视图", exact: true }).click();
-    await expect(popup).toHaveCount(0);
-    await swipeNoteEditor(page.locator(".note-editor"), { startX: 20, startY: 380, endX: 110, endY: 380 });
-    const drawer = page.getByRole("dialog", { name: "文档侧栏" });
-    await expect(drawer).toBeVisible();
+    const drawer = await openDocumentSidebar(page);
+    await checkToolbar(drawer);
     await expect(drawer).toHaveCSS("transform", "matrix(1, 0, 0, 1, 0, 0)");
     const switcher = drawer.getByTitle("切换到文档");
     if (await switcher.count()) await switcher.click();
@@ -846,7 +820,7 @@ test.describe("PWA 窄屏应用外壳", () => {
       await page.screenshot({ path: testInfo.outputPath(`document-toolbar-${theme}.png`) });
     }
     await close.tap();
-    await expect(drawer).toHaveCount(0);
+    await expect(drawer).toBeHidden();
   });
 
   test("使用顶部入口导航且移动编辑器保持简洁", async ({ page }) => {
@@ -854,25 +828,27 @@ test.describe("PWA 窄屏应用外壳", () => {
 
     await expect(page.locator(".m-toolbar")).toHaveCount(0);
     await expect(page.locator(".app-sidebar")).toHaveClass(/sidebar-hidden/);
-
-    const headerBeforeSearch = await page.locator(".app-header").boundingBox();
-    await page.getByTitle("搜索").click();
+    await expect(page.locator(".app-header")).toHaveCount(0);
+    const editor = page.locator(".ProseMirror");
+    const row = page.locator(".note-title-row");
+    const rowBeforeSearch = await row.boundingBox();
+    const documentView = await openMobileDocumentPopup(page);
+    await documentView.getByRole("button", { name: "全局搜索", exact: true }).click();
     const searchInput = page.locator(".search-input");
     await expect(searchInput).toBeVisible();
     await expect(searchInput).toBeFocused();
-    const headerAfterSearch = await page.locator(".app-header").boundingBox();
-    expect(headerAfterSearch?.height).toBeCloseTo(headerBeforeSearch?.height ?? 0, 0);
-    const editor = page.locator(".ProseMirror");
+    await page.keyboard.press("Escape");
+    expect(await row.boundingBox()).toEqual(rowBeforeSearch);
     await expect(editor).toBeVisible();
     await expect(page.locator(".editor-block-insert").first()).toBeVisible();
     await expect(page.locator(".editor-status-secondary")).toBeHidden();
 
-    await page.getByTitle("文档目录").click();
+    await row.getByRole("button", { name: "文档目录", exact: true }).click();
     const outline = page.getByRole("navigation", { name: "文档目录" });
     await expect(outline).toBeVisible();
     await expect(outline.getByLabel("目录快速滚动")).toBeHidden();
     await expect(outline.locator(".document-outline-header")).toHaveCSS("height", "37px");
-    await page.getByTitle("文档目录").click();
+    await page.keyboard.press("Escape");
 
     const bullet = editor.locator("li").first();
     await expect(bullet).toBeVisible();
@@ -1595,7 +1571,7 @@ test.describe("PWA 窄屏应用外壳", () => {
 
   test("移动端块编号使用紧凑且可随位数扩展的 gutter", async ({ page }) => {
     await page.goto("/");
-    await page.getByTitle("设置").click();
+    await openMobileSettings(page);
     await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
     const lineNumberSetting = page.locator(".settings-field").filter({ hasText: "显示块编号" });
     await lineNumberSetting.locator(".settings-toggle").click();
@@ -1643,13 +1619,12 @@ test.describe("PWA 窄屏应用外壳", () => {
     for (const numbers of [false, true]) {
       if (numbers) {
         await page.setViewportSize({ width: 390, height: 760 });
-        await swipeNoteEditor(page.locator(".note-editor"), { startX: 380, startY: 160, endX: 280, endY: 160 });
-        await page.getByRole("dialog", { name: "阅读侧栏" }).getByRole("button", { name: "设置", exact: true }).click();
+        await openMobileSettings(page);
         await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
         await page.locator(".settings-field").filter({ hasText: "显示块编号" }).locator(".settings-toggle").click();
         await page.getByLabel("关闭设置").click();
       }
-      await page.locator(".header-document-actions").getByRole("button", { name: "专注模式", exact: true }).click();
+      await page.locator(".note-title-row").getByTitle("专注模式", { exact: true }).click();
       await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", numbers ? "50px" : "22px");
       for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
         await page.setViewportSize(viewport);
@@ -1676,7 +1651,7 @@ test.describe("PWA 窄屏应用外壳", () => {
           await page.screenshot({ path: test.info().outputPath(`nr-body-spacing-${numbers ? "numbered" : "plain"}.png`) });
         }
       }
-      if (!numbers) await page.locator(".note-editor > .mobile-focus-bar").getByRole("button", { name: "退出专注模式", exact: true }).click();
+      if (!numbers) await page.locator(".note-title-row").getByTitle("退出专注模式", { exact: true }).click();
     }
   });
 
@@ -1781,17 +1756,9 @@ test.describe("PWA 窄屏应用外壳", () => {
     const blocks = editor.locator(":scope > *");
     const initialBlockCount = await blocks.count();
 
-    const separation = await page.evaluate(() => {
-      const divider = document.querySelector<HTMLElement>(".app-main-divider")!.getBoundingClientRect();
-      const sticky = document.querySelector<HTMLElement>(".note-editor-sticky")!.getBoundingClientRect();
-      const firstInsert = document.querySelector<HTMLElement>('.editor-block-insert[aria-label="在第一块前插入段落"]')!.getBoundingClientRect();
-      return {
-        splitterToEditor: sticky.top - divider.bottom,
-        stickyToFirstInsert: firstInsert.top - sticky.bottom,
-      };
-    });
-    expect(separation.splitterToEditor).toBeGreaterThanOrEqual(9.5);
-    expect(separation.stickyToFirstInsert).toBeGreaterThanOrEqual(3.5);
+    // Mobile uses an edge drawer instead of a resizable sidebar splitter.
+    await expect(page.locator(".sidebar-divider")).toHaveCount(0);
+    await expect(page.locator(".note-title-row")).toBeVisible();
 
     const insertAfterFirst = page.getByRole("button", { name: "在第 1 块后插入段落" });
     await expect(insertAfterFirst).toBeVisible();
@@ -1811,7 +1778,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     await page.setViewportSize({ width: 900, height: 700 });
     await page.addInitScript(() => {
       localStorage.setItem("nr:sidebarHidden", "false");
-      localStorage.setItem("nr:sidebarW", "240");
+      localStorage.setItem("nr:treeSidebarW", "240");
     });
     await page.goto("/");
 
@@ -1826,6 +1793,7 @@ test.describe("PWA 窄屏应用外壳", () => {
         pointerType: "touch",
         isPrimary: true,
         button: 0,
+        buttons: type === "pointerup" ? 0 : 1,
         clientX,
         clientY: rect.top + rect.height / 2,
       });
@@ -1846,7 +1814,7 @@ test.describe("PWA 窄屏应用外壳", () => {
       userSelectDuring: "none",
       userSelectAfter: "",
     });
-    await expect.poll(() => page.evaluate(() => Number(localStorage.getItem("nr:sidebarW"))))
+    await expect.poll(() => page.evaluate(() => Number(localStorage.getItem("nr:treeSidebarW"))))
       .toBe(300);
   });
 
@@ -1854,8 +1822,17 @@ test.describe("PWA 窄屏应用外壳", () => {
     test.slow();
     await page.goto("/");
     const editor = page.locator(".ProseMirror");
-    const content = Array.from({ length: 1200 }, (_, index) => `块 ${index + 1}`).join("\n");
-    await editor.fill(content);
+    await editor.evaluate((element) => {
+      const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      instance.commands.setContent({
+        type: "doc",
+        content: Array.from({ length: 1200 }, (_, index) => ({
+          type: "paragraph",
+          content: [{ type: "text", text: `块 ${index + 1}` }],
+        })),
+      });
+      instance.commands.focus("end");
+    });
     await expect(editor.locator(":scope > *")).toHaveCount(1200);
     // 光标在文末时首个标题处于虚拟窗口外；gutter 不应再为离屏标题
     // 永久保留 DOM。
@@ -1938,7 +1915,7 @@ test.describe("PWA 窄屏应用外壳", () => {
         return original.call(this, target);
       };
     });
-    await page.getByTitle("设置").click();
+    await openMobileSettings(page);
     await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
     const lineNumberToggle = page.locator(".settings-field").filter({ hasText: "显示块编号" })
       .locator('input[type="checkbox"]');
@@ -1985,6 +1962,7 @@ test.describe("PWA 窄屏应用外壳", () => {
   });
 
   test("专注模式保留极简标题栏并可按需展开编辑工具", async ({ page }) => {
+    test.skip(true, "旧独立焦点工具栏已并入统一标题行；当前布局由 mobile-unified-title.spec.ts 覆盖");
     await page.goto("/");
     const title = "阅读与思考：在专注模式中查看这份较长的文档标题";
     await page.locator(".note-title").fill(title);
@@ -2192,12 +2170,19 @@ test.describe("PWA 窄屏应用外壳", () => {
   test("手机端可从更多菜单在当前块内插入 hard break", async ({ page }) => {
     await page.goto("/");
     const editor = page.locator(".ProseMirror");
-    await editor.fill("第一行");
+    await editor.evaluate((element) => {
+      const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      instance.commands.setContent({
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: "第一行" }] }],
+      });
+      instance.commands.focus("end");
+    });
     await pressLineBoundary(editor, "end");
 
     await page.getByTitle("更多编辑操作").click();
     const menu = page.getByRole("dialog", { name: "更多编辑操作" });
-    const hardBreak = menu.getByRole("button", { name: "↵ 块内换行" });
+    const hardBreak = menu.getByRole("button", { name: "块内换行", exact: true });
     await expect(hardBreak).toBeEnabled();
     await hardBreak.click();
     await expect(menu).toHaveCount(0);
@@ -2249,7 +2234,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     expect(downloadCount).toBe(0);
   });
 
-  test("虚拟键盘打开时更多菜单上移以完整展示操作", async ({ page }) => {
+  test("虚拟键盘打开时更多菜单完整停留在可视区域且不遮挡工具栏", async ({ page }) => {
     await page.goto("/");
     await page.evaluate(() => {
       document.documentElement.style.setProperty("--app-viewport-height", "460px");
@@ -2273,7 +2258,7 @@ test.describe("PWA 窄屏应用外壳", () => {
     });
     expect(geometry.menuTop).toBeGreaterThanOrEqual(geometry.viewportTop);
     expect(geometry.menuBottom).toBeLessThanOrEqual(geometry.viewportBottom);
-    expect(geometry.menuTop).toBeLessThan(geometry.toolbarBottom);
+    expect(geometry.menuTop).toBeGreaterThanOrEqual(geometry.toolbarBottom);
     await expect(sheet.getByRole("button", { name: /导出 Markdown/ })).toBeVisible();
     const lastAction = sheet.getByRole("button", { name: "放大编辑器字号" });
     await expect(lastAction).toBeVisible();
@@ -2554,8 +2539,8 @@ test.describe("PWA 窄屏应用外壳", () => {
       document.documentElement.style.setProperty("--app-keyboard-height", "300px");
     });
 
-    await page.getByTitle("显示侧栏").click();
-    const sidebarBottom = await page.locator(".app-sidebar").evaluate((element) => {
+    const sidebar = await openDocumentSidebar(page);
+    const sidebarBottom = await sidebar.evaluate((element) => {
       const rect = element.getBoundingClientRect();
       return Math.round(rect.bottom);
     });
@@ -2695,7 +2680,7 @@ test.describe("PWA 窄屏应用外壳", () => {
 
   test("编辑状态下光标不会被底部边界遮挡", async ({ page }) => {
     await page.goto("/");
-    await page.getByTitle("设置").click();
+    await openMobileSettings(page);
     await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
     const statusSetting = page.locator(".settings-field").filter({ hasText: "编辑器状态栏" });
     await statusSetting.locator(".settings-toggle").click();

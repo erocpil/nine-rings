@@ -149,7 +149,10 @@ export function flattenPartialStructuredClipboard(slice: Slice, schema: Schema, 
     }
     return true;
   });
-  if (!structuredContext && slice.openStart === 0 && slice.openEnd === 0) return slice;
+  const containsCompleteStructuredRoot = slice.content.content.some((node) =>
+    node.type.name === "blockquote" || node.type.name === "codeBlock",
+  );
+  if (slice.openStart === 0 && slice.openEnd === 0 && (!structuredContext || containsCompleteStructuredRoot)) return slice;
   if (!structured) return slice;
   const text = clipboardSliceToPlainText(slice);
   const paragraph = schema.nodes.paragraph.create(

@@ -72,6 +72,24 @@ console.log("\n── clipboardSliceToPlainText ──");
 }
 
 {
+  const quote = schema.node("blockquote", null, [schema.node("paragraph", null, schema.text("完整引用块"))]);
+  const completeQuote = new Slice(Fragment.from(quote), 0, 0);
+  assert(
+    flattenPartialStructuredClipboard(completeQuote, schema, true) === completeQuote,
+    "copying a complete blockquote from inside its node view preserves rich HTML",
+  );
+}
+
+{
+  const codeBlock = schema.node("codeBlock", null, schema.text("完整代码块"));
+  const completeCodeBlock = new Slice(Fragment.from(codeBlock), 0, 0);
+  assert(
+    flattenPartialStructuredClipboard(completeCodeBlock, schema, true) === completeCodeBlock,
+    "copying a complete code block from inside its node view preserves rich HTML",
+  );
+}
+
+{
   const leading = schema.node("paragraph");
   const trailing = schema.node("paragraph", null, [schema.node("hardBreak")]);
   const content = schema.node("paragraph", null, [schema.text("正文")]);
