@@ -51,7 +51,7 @@ test("加密文档清理旧阅读状态，解锁后折叠和源码滚动也不�
 test("局部只读渲染刷新后恢复折叠和块锚点", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".ProseMirror")).toBeVisible();
-  await seedReadingDocuments(page, true);
+  const { a } = await seedReadingDocuments(page, true);
   await page.evaluate(() => {
     localStorage.setItem("nr:experimentalReadonlyRendering", "true");
     window.dispatchEvent(new Event("nine-rings:readonly-rendering-change"));
@@ -66,14 +66,35 @@ test("局部只读渲染刷新后恢复折叠和块锚点", async ({ page }) => 
     return el.scrollTop;
   });
   expect(before).toBeGreaterThan(600);
+  await expect
+    .poll(() => page.evaluate((id) => {
+      const state = JSON.parse(localStorage.getItem(`nr:readingState:${id}`) ?? "null");
+      return state?.virtual?.position ?? 0;
+    }, a))
+    .toBeGreaterThan(0);
+  const savedAnchor = await page.evaluate((id) => {
+    const state = JSON.parse(localStorage.getItem(`nr:readingState:${id}`) ?? "null");
+    return state?.virtual as { position: number; offset: number } | null;
+  }, a);
+  expect(savedAnchor).not.toBeNull();
+  expect(savedAnchor!.position).toBeGreaterThan(0);
   await page.reload();
   await expect(root).toBeVisible();
-  // Row measurement uses fractional CSS pixels; WebKit rounds scrollTop.
+  const restoredRow = root.locator(`[data-reading-row][data-position="${savedAnchor!.position}"]`);
+  await expect(restoredRow).toHaveCount(1);
+  // Layout estimates may change the absolute scrollTop across engines. The
+  // persisted contract is the same block and its offset inside that block.
   await expect
-    .poll(async () =>
-      Math.abs((await scroll.evaluate((el) => el.scrollTop)) - before),
-    )
-    .toBeLessThanOrEqual(1);
+    .poll(async () => {
+      const [row, viewport] = await Promise.all([
+        restoredRow.boundingBox(),
+        scroll.boundingBox(),
+      ]);
+      return row && viewport
+        ? Math.abs(row.y - viewport.y + savedAnchor!.offset)
+        : Number.POSITIVE_INFINITY;
+    })
+    .toBeLessThanOrEqual(1.5);
   await scroll.evaluate((el) => {
     el.scrollTop = 0;
   });
