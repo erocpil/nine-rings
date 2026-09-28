@@ -1,6 +1,6 @@
 # 隔离工具链与安装记录
 
-更新：2026-09-27。适用 Nine Rings 的 Web/PWA 与 Tauri 桌面验证，不安装 Flutter。
+更新：2026-09-28。适用 Nine Rings 的 Web/PWA 与 Tauri 桌面验证，不安装 Flutter。
 
 ## 稳定目录与隔离边界
 
@@ -61,7 +61,23 @@ MACOSX_DEPLOYMENT_TARGET=11.0 bash scripts/with-local-tools.sh npx tauri build \
 Tauri CLI 使用 `package-lock.json` 中的项目版本（此次为 2.11.4），不额外全局安装 Cargo CLI。
 迁移整个仓库到新路径后，重新创建 Python venv（它包含绝对路径）；其他工具通过包装脚本定位当前仓库。
 
-## 本次安装记录
+## DMG 打包失败排查
+
+前端输出 `Some chunks are larger than 500 kB` 是体积警告；若随后显示 `built` 和 Rust `Finished release`，不应将其当作 `bundle_dmg.sh` 失败的原因。区分编译、`.app` 生成、DMG 包装三个阶段；只有最后一步失败时，可复用已经编译的程序单独打包：
+
+```bash
+bash scripts/with-local-tools.sh npx tauri bundle \
+  --target aarch64-apple-darwin --bundles dmg \
+  --config '{"bundle":{"macOS":{"minimumSystemVersion":"11.0"}}}' \
+  --verbose > .local-tools/logs/dmg-diagnosis.log 2>&1
+hdiutil verify ".local-tools/target/aarch64-apple-darwin/release/bundle/dmg/Nine Rings_0.1.0_aarch64.dmg"
+```
+
+`tauri bundle` 不重新编译源码；源码已变更时应先执行上面的完整构建。详细日志用于区分磁盘映像创建、Finder/AppleScript、卸载和压缩阶段。用 `hdiutil info` 检查是否残留临时挂载，只对已确认属于失败构建的卷进行清理，不批量卸载其它磁盘。
+
+2026-09-28：一次构建在 `bundle_dmg.sh` 阶段失败，留下仍挂载的 `rw.*.dmg`；详细日志重试成功，最终 DMG 的 `hdiutil verify` 校验通过。原失败未复现，具体原因未确定，不能据此认定为 Finder 权限或工具版本问题。该校验不代表签名、公证或应用交互验收通过。
+
+## 首次安装记录（2026-09-27）
 
 1. 复制之前 `/tmp/nine-rings-cargo`、`/tmp/nine-rings-rustup` 的工具与下载缓存到稳定目录；保留原目录，不影响旧任务。
 2. 运行安装脚本，下载并校验 Node 22.23.3，安装命名为 1.98.1 的 Rust 工具链。未修改系统原有 Node 24。
@@ -86,7 +102,9 @@ bash scripts/with-local-tools.sh cargo update --manifest-path src-tauri/Cargo.to
 Node CI 读取 `.node-version`，Rust CI 固定 1.98.1，与 `rust-toolchain.toml` 一致。
 不要仅运行无约束的 `cargo update`，否则可能重新引入不兼容组合。升级时同时检查 Rust、Node 版本文件、工作流和两端 Tauri 依赖，再执行验证。
 
-## 验证记录
+## 首次安装验证记录（2026-09-27）
+
+以下为安装当时的历史快照，不代表当前依赖审计、测试或远端 CI 状态。后续验证见 [E2E 修复进度](e2e-repair-progress.md)，最新 CI 应按提交 SHA 查询。
 
 - 工具版本、Node 下载 SHA-256：通过，见 `logs/install.log`。
 - `npm ci`、TypeScript、Web 生产构建：通过。

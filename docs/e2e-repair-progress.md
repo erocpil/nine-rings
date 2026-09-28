@@ -1,5 +1,14 @@
 # E2E 清理进度（2026-09-28）
 
+## 2026-09-28 补充：首页分栏恢复与 CI 焦点修复
+
+- `9249d40`：首页未打开文件时，返回恢复面板类型、展开和固定状态，同时取消遗留悬停定时器。首页选择文档保留原有悬停/固定模式；全局查找不强制改变分栏。最终八项针对性回归在 Chromium、WebKit 各 **8/8 通过**；恢复逻辑此前还通过首页布局、悬停交互与文档实例保留共 **17/17** 双浏览器回归。
+- `c1f3581`：修复 `useDialogFocus` 在 cleanup 中读取 `restoreFocusRef.current` 引发的 `react-hooks/exhaustive-deps` 错误。改为弹窗打开时捕获目标，保留“编辑器已接管焦点时不抢回”的逻辑。全仓 lint、类型检查通过；快速切换、设置、全局搜索焦点回归在 Chromium、WebKit 各 **3/3 通过**。
+
+远端状态快照：`c1f3581` 的 [CI 36383045733](https://github.com/erocpil/nine-rings/actions/runs/36383045733)、[E2E Native Platforms 36383045686](https://github.com/erocpil/nine-rings/actions/runs/36383045686)、[macOS ARM64 36383045667](https://github.com/erocpil/nine-rings/actions/runs/36383045667) 和 [Windows Tauri 36383045743](https://github.com/erocpil/nine-rings/actions/runs/36383045743) 均成功；[Test 36383045698](https://github.com/erocpil/nine-rings/actions/runs/36383045698) 在最后查询时仍运行，不能视为全部通过。
+
+本记录按验证批次保留历史证据。旧批次的累计关闭数存在重复复核风险，不能仅凭“剩余 0”推断当前完整 E2E 全绿；全量结论需要同一提交的完整报告和去重后的用例清单。
+
 ## 第 87 批：跨文档历史回归等待点击选区同步
 
 macOS Chromium CI 的失败期望值为文首 `1`，而后退后的实际位置为 `561`。原用例在段落点击返回后立即读取 ProseMirror 选区，未确认原生 `selectionchange` 已同步；延迟该事件的诊断中观察到原生光标已位于 `561`、模型快照仍为 `1`。此前仅等待新文档标题稳定，无法修正这个更早捕获的错误期望值。

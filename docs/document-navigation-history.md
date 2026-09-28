@@ -13,3 +13,10 @@
 鼠标处理依据 [MouseEvent.button 的标准键位定义](https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/button)，在 mousedown、mouseup、auxclick 阻止浏览器默认导航，仅在 mouseup 执行一次应用内跳转。Chromium 回归使用 CDP 发送真实侧键事件，并检查 URL 保持不变；WebKit 使用 DOM 事件序列检查去重和跳转。原生 Tauri 外壳与实体鼠标驱动仍需在对应操作系统上实测。
 
 同一块内距离不超过 80 个文档位置的普通点按合并到当前项，避免微调光标刷满历史；显式搜索/目录跳转仍逐次记录。可靠性回归与保存审计见 [后续改进记录](editor-reliability-followup.md)。
+
+
+## 回归中的异步位置同步
+
+真实点击返回并不保证原生 `selectionchange` 已同步到 ProseMirror。捕获历史期望值前，等待模型选区进入目标段落，并确认当前历史项记录了相同文档及位置；新文档标题出现不能替代选区同步。保留后退/前进的精确位置断言，不用增加重试或位置容差掩盖错误快照。
+
+局部只读导航应等待阅读锚点真正恢复后再报告导航完成，避免测试或后续导航看到“完成”但滚动仍未恢复。用例见 `e2e/document-history.spec.ts`，原生鼠标侧键仍保留平台能力限制。

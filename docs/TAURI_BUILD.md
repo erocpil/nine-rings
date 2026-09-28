@@ -276,38 +276,40 @@ node --version   # 应 ≥ 18
 brew install node@20
 ```
 
-### 3.5 安装 Node.js 依赖
+### 3.5 安装项目依赖
+
+优先使用仓库隔离工具链，避免改变系统 Node/Rust：
 
 ```bash
-cd nine-rings
-npm install
+bash scripts/install-local-tools.sh
+bash scripts/with-local-tools.sh npm ci
 ```
 
-### 3.6 构建
+### 3.6 macOS ARM64 构建
+
+与当前 macOS CI 一致，明确指定架构、最低系统版本和 Cargo 锁文件：
 
 ```bash
-# 方式一：一步完成（前端 + Rust + 打包）
-npm run tauri build
-
-# 方式二：开发模式运行（热重载）
-npm run tauri dev
+MACOSX_DEPLOYMENT_TARGET=11.0 bash scripts/with-local-tools.sh npx tauri build \
+  --target aarch64-apple-darwin --bundles dmg \
+  --config '{"bundle":{"macOS":{"minimumSystemVersion":"11.0"}}}' \
+  -- --locked
 ```
 
-首次构建 `rusqlite`（`bundled` feature）会从源码编译 SQLite，耗时 3–5 分钟。后续增量构建仅需数秒。
+开发模式使用 `bash scripts/with-local-tools.sh npm run tauri dev`。首次构建需要编译 SQLite 等依赖，耗时依本机和缓存而定。
 
-### 3.7 产物位置
+### 3.7 产物位置与打包排查
+
+隔离脚本设置 `CARGO_TARGET_DIR=.local-tools/target`，显式 target 的产物为：
 
 | 格式 | 路径 |
 |------|------|
-| `.dmg` | `src-tauri/target/release/bundle/dmg/Nine Rings_0.1.0_x64.dmg` |
-| `.app` | `src-tauri/target/release/bundle/macos/Nine Rings.app` |
+| `.dmg` | `.local-tools/target/aarch64-apple-darwin/release/bundle/dmg/Nine Rings_0.1.0_aarch64.dmg` |
+| `.app` | `.local-tools/target/aarch64-apple-darwin/release/bundle/macos/Nine Rings.app` |
 
-> **Apple Silicon (ARM64) 用户**：Tauri 默认编译为 `x64`（通过 Rosetta 2 运行）。若需原生 ARM64 二进制，添加 target 后构建：
-> ```bash
-> rustup target add aarch64-apple-darwin
-> npm run tauri build -- --target aarch64-apple-darwin
-> ```
-> ARM64 构建的 `.dmg` 无法在 Intel Mac 上运行。若需通用分发，建议默认使用 x64（Rosetta 2 开销对便签应用可忽略），或分别构建两个架构版本。
+Tauri 未指定 target 时随所用 Rust 工具链的宿主目标构建，并非 Apple Silicon 默认生成 x64。Intel Mac 需要对应的 x86_64 构建；跨架构或 universal 构建需要安装相应 Rust targets 并单独验证。
+
+`500 kB` 前端体积警告不等同于构建失败。Rust 与 `.app` 已完成、仅 `bundle_dmg.sh` 失败时，可单独重试打包并启用详细日志，见 [DMG 打包失败排查](local-toolchain.md#dmg-打包失败排查)。后文未使用隔离脚本的 `src-tauri/target` 示例，需要按实际 `CARGO_TARGET_DIR` 和 target 调整。
 
 ### 3.8 产物使用
 
@@ -438,16 +440,18 @@ npm install
 
 ## 六、CI/CD
 
-项目已配置 GitHub Actions，见 `.github/workflows/ci.yml`。每次推送到 `main` 或发起 PR 时自动执行：
+各工作流分开维护，以 `.github/workflows/` 中的触发条件和版本为准：
 
-| Job | Runner | 产物 |
-|-----|--------|------|
-| Web Frontend | ubuntu-22.04 | `dist/` (artifact) |
-| Tauri Desktop (Linux) | ubuntu-22.04 | `.deb` + `.rpm` + `.AppImage` |
-| Tauri Desktop (Windows) | windows-2022 | `.msi` + `.exe` |
-| Flutter (Android APK) | ubuntu-22.04 | `.apk` |
+| 工作流 | 范围 |
+| --- | --- |
+| `ci.yml` | Schema、Web 构建及包体预算；符合条件时发布 Release |
+| `test.yml` | 按变更路径执行前端/Rust/Flutter/Schema 等检查，包含严格 lint |
+| `tauri-macos.yml` | main 推送、PR 或手动触发；macos-15 ARM64，生成并验证 DMG |
+| `tauri-windows.yml` | main 推送、PR 或手动触发；Windows 安装包 |
+| `tauri-linux.yml` | 手动触发 Linux 打包 |
+| `e2e-platforms.yml` | Linux/macOS/Windows × Chromium/WebKit 原生平台回归；手动 full 模式覆盖更完整套件 |
 
-> **macOS / iOS 不在 CI 中**：GitHub Actions macOS runner 费用是 Linux 的 10 倍（[定价](https://docs.github.com/en/billing/managing-billing-for-your-products/managing-billing-for-github-actions/about-billing-for-github-actions)）。Tauri macOS `.dmg`、Flutter macOS `.app` 和 Flutter iOS `.ipa` 需在本地 macOS 机器上构建。详见 [`FLUTTER_BUILD.md`](./FLUTTER_BUILD.md)。
+Flutter 的平台工作流另行维护；仅验证 Web/Tauri 时不要求在本地安装 Flutter。平台回归通过不等于完整 E2E、Tauri 原生交互或签名公证验收通过。具体运行结果见 [验证记录](e2e-repair-progress.md)。
 
 CI 运行页：https://github.com/erocpil/nine-rings/actions
 
