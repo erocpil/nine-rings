@@ -10,6 +10,11 @@
 .navigation-style-settings input[type="color"] { width: 34px; height: 28px; padding: 2px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
 .navigation-style-settings output { min-width: 40px; color: var(--text); }
 .navigation-style-settings-detail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.hierarchy-style-card { min-width: 0; margin: 10px 0 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
+.hierarchy-style-card legend { padding: 0 6px; font-weight: 600; }
+.hierarchy-color-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.hierarchy-color-grid label { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); }
+.hierarchy-color-grid input[type="color"] { width: 32px; height: 26px; padding: 2px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); }
 .navigation-style-card { display: grid; gap: 10px; min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
 .navigation-style-card legend { padding: 0 5px; color: var(--text); font-weight: 600; }
 .navigation-style-card label { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text-secondary); font-size: 13px; }
@@ -19,6 +24,7 @@
   .navigation-style-settings { grid-template-columns: 1fr 1fr; }
   .navigation-style-settings label:first-child { grid-column: 1 / -1; }
   .navigation-style-settings-detail { grid-template-columns: 1fr; }
+  .hierarchy-color-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .settings-changelog {

@@ -5,6 +5,26 @@ AppConfig:
   description: 应用全局配置
   persistence: 本地持久化，各端独立。不参与同步
   fields:
+    hierarchy_path_mode:
+      type: enum(off, default, custom)
+      default: default
+      description: 文档树目录路径层次配色模式，不影响末端文档名称
+
+    hierarchy_path_custom_colors:
+      type: array(color)
+      default: ["#9A5B00", "#B0473C", "#5E7C36", "#247F7B", "#5266A8", "#8356A1"]
+      description: 文档树路径各层自定义颜色，按六层循环
+
+    hierarchy_outline_mode:
+      type: enum(off, default, custom)
+      default: default
+      description: 文档目录标题层次配色模式
+
+    hierarchy_outline_custom_colors:
+      type: array(color)
+      default: ["#9A5B00", "#B0473C", "#5E7C36", "#247F7B", "#5266A8", "#8356A1"]
+      description: 文档目录各层自定义颜色，按六层循环
+
     interface_style:
       type: enum(classic, calm, calm-compact, paper, minimal, nine-rings, mono-aware, yugen, wabi-sabi)
       default: classic

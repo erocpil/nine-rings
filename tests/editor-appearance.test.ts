@@ -20,6 +20,8 @@ assert.equal(defaults["--editor-heading-margin-bottom"], "0.35em");
 assert.equal(defaults["--editor-block-spacing"], "1em");
 assert.equal(defaults["--editor-list-margin-top"], "0.25em");
 assert.equal(defaults["--editor-list-margin-bottom"], "0.25em");
+assert.equal(defaults["--hierarchy-path-custom-1"], "#9A5B00");
+assert.equal(defaults["--hierarchy-outline-custom-6"], "#8356A1");
 
 const custom = editorAppearanceVariables({
   note_font_size: 20,
@@ -48,6 +50,14 @@ assert.equal(custom["--editor-heading-margin-bottom"], "0.45em");
 assert.equal(custom["--editor-block-spacing"], "1.4em");
 assert.equal(custom["--editor-list-margin-top"], "0.8em");
 assert.equal(custom["--editor-list-margin-bottom"], "0.4em");
+const hierarchy = editorAppearanceVariables({
+  hierarchy_path_custom_colors: ["#123456", "#234567", "#345678", "#456789", "#56789A", "#6789AB"],
+  hierarchy_outline_custom_colors: ["#654321", "#765432", "#876543", "#987654", "#A98765", "#BA9876"],
+});
+assert.equal(hierarchy["--hierarchy-path-custom-1"], "#123456");
+assert.equal(hierarchy["--hierarchy-path-custom-6"], "#6789AB");
+assert.equal(hierarchy["--hierarchy-outline-custom-1"], "#654321");
+assert.equal(hierarchy["--hierarchy-outline-custom-6"], "#BA9876");
 
 const guarded = editorAppearanceVariables({
   note_font_size: 200,

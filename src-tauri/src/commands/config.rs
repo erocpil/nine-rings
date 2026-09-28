@@ -8,6 +8,14 @@ use tauri::{command, State};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct AppConfig {
+    #[serde(default = "default_hierarchy_mode")]
+    pub hierarchy_path_mode: String,
+    #[serde(default = "default_hierarchy_colors")]
+    pub hierarchy_path_custom_colors: Vec<String>,
+    #[serde(default = "default_hierarchy_mode")]
+    pub hierarchy_outline_mode: String,
+    #[serde(default = "default_hierarchy_colors")]
+    pub hierarchy_outline_custom_colors: Vec<String>,
     #[serde(default = "default_interface_style")]
     pub interface_style: String,
     #[serde(default = "default_interface_color_mode")]
@@ -173,9 +181,25 @@ fn default_interface_style() -> String {
     "classic".into()
 }
 
+fn default_hierarchy_mode() -> String {
+    "default".into()
+}
+fn default_hierarchy_colors() -> Vec<String> {
+    [
+        "#9A5B00", "#B0473C", "#5E7C36", "#247F7B", "#5266A8", "#8356A1",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect()
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
+            hierarchy_path_mode: default_hierarchy_mode(),
+            hierarchy_path_custom_colors: default_hierarchy_colors(),
+            hierarchy_outline_mode: default_hierarchy_mode(),
+            hierarchy_outline_custom_colors: default_hierarchy_colors(),
             theme: "light".into(),
             interface_style: default_interface_style(),
             interface_color_mode: default_interface_color_mode(),
@@ -412,8 +436,12 @@ mod tests {
         }"#;
         let config: AppConfig = serde_json::from_str(legacy).expect("legacy config should migrate");
         assert_eq!(config.theme, "grace");
+        assert_eq!(config.hierarchy_path_mode, "default");
+        assert_eq!(config.hierarchy_outline_mode, "default");
+        assert_eq!(config.hierarchy_path_custom_colors.len(), 6);
+        assert_eq!(config.hierarchy_outline_custom_colors.len(), 6);
         assert_eq!(config.interface_style, "classic");
-        assert_eq!(config.interface_color_mode, "system");
+        assert_eq!(config.interface_color_mode, "light");
         assert_eq!(config.note_font_size, 19);
         assert_eq!(config.editor_font_family, "system");
         assert_eq!(config.editor_line_height, 1.6);

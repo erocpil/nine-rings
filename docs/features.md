@@ -1,7 +1,7 @@
 # Nine Rings（九环）功能规格
 
 > 版本：持续更新（复核至 2026-09-27）
-> 最后更新：2026-09-27（移除未发布的随笔和独立待办功能）
+> 最后更新：2026-09-28（层次配色与 Markdown 扩展）
 >
 > 本文档列出主要功能域，并覆盖数据模型、输入/输出、接口规格、行为约定、边界条件及跨端差异。
 
@@ -376,6 +376,8 @@ interface AppConfig {
 
 Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `localStorage`。
 
+外观与布局中的“层次展示”分别控制文档树路径和文档目录标题的颜色，可关闭、使用按明暗主题适配的六色默认方案，或逐层自定义。深于六层的路径和标题循环使用六色；文档树末端的文档名称不受路径配色影响。
+
 ### 快捷记录（Quick Capture）
 
 - Tauri 桌面端：`toggle_quick_capture` 打开独立 frameless 窗口（400×280，置顶，无任务栏图标）
@@ -418,8 +420,10 @@ Tauri 端配置持久化到 `{app_data_dir}/config.json`，Web 端持久化到 `
 
 ### Markdown 支持
 
-- **导入**：`md-parser.ts` 将 Markdown → Quill Delta（支持 H1-H3、粗体、斜体、行内代码、代码块、无序列表、有序列表、引用、链接、分割线）
-- **导出**：`delta-converter.ts` 将 Quill Delta → Markdown（支持标题、粗体、斜体、删除线、代码、链接、引用、列表、代码块、分割线、图片）
+- **导入**：`md-parser.ts` 将 Markdown → Quill Delta（支持标题、常用行内样式、代码块、任务列表、引用、链接、表格、脚注、LaTeX 公式，以及受限的 `<mark>` 和 `<details><summary>`）
+- **导出**：`delta-converter.ts` 与 Markdown 序列化器将文档转换回 Markdown，保留脚注、行内/块级公式、高亮和折叠区块。
+- **HTML 安全边界**：只识别无属性或仅带 `open` 的 `<details>`、纯文本 `<summary>` 和成对 `<mark>`；其它原始 HTML 按普通文本处理，不执行脚本、事件属性或任意 HTML。
+- **公式渲染**：KaTeX 从应用本地资源按需加载，桌面与移动端离线可用；块级公式可在窄屏内横向滚动。
 - **数据库存储**：统一存 Quill Delta 格式，Web 端编辑器 (TipTap) 用 ProseMirror 格式（通过 `delta-converter.ts` 双向转换）
 
 ---

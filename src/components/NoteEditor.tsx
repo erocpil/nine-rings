@@ -19,6 +19,7 @@ import { useEditor } from "@tiptap/react";
 import { DocumentStarterKit } from "../extensions/DocumentStarterKit";
 import { OrderedListLayout } from "../extensions/OrderedListLayout";
 import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
+import { MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes } from "../extensions/MarkdownExtras";
 import { createToolbarSelectionCommands } from "../lib/editor-toolbar-commands";
 import Placeholder from "@tiptap/extension-placeholder";
 import Heading from "@tiptap/extension-heading";
@@ -451,6 +452,7 @@ function DocumentEditor(props: NoteEditorProps) {
     readonlySchema ??= getSchema([
       DocumentStarterKit.configure({ codeBlock: false, blockquote: false }), TextStyle, Color, FontSize,
       LinkExt, CodeBlockLineNumbers, CollapsibleBlockquote, BlockIndent, MarkdownTaskState,
+      MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes,
     ]);
     const doc = buildReadonlyDocument(JSON.parse(readingSource), readonlySchema);
     return doc ? { doc, key: ++readonlyDocumentSequence } : null;
@@ -885,6 +887,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       Heading.configure({ levels: [1, 2, 3, 4, 5, 6] }).extend({ addInputRules: () => [] }),
       OrderedListLayout,
       MarkdownTaskState,
+      MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes,
       // 仅使用扩展的 is-editor-empty class 识别空段落；不在 gutter
       // 内显示文字，避免与行号和行间插入按钮争用伪元素。
       Placeholder.configure({ placeholder: "" }),

@@ -190,6 +190,10 @@ export interface NoteVersion {
 
 /** 应用配置（与 schema/config.yaml 对齐） */
 export interface AppConfig {
+  hierarchy_path_mode: "off" | "default" | "custom";
+  hierarchy_path_custom_colors: string[];
+  hierarchy_outline_mode: "off" | "default" | "custom";
+  hierarchy_outline_custom_colors: string[];
   interface_style: "classic" | "calm" | "calm-compact" | "paper" | "minimal" | "nine-rings" | "mono-aware" | "yugen" | "wabi-sabi";
   workspace_layout: "standard" | "exhibition";
   exhibition_text_width: "narrow" | "standard" | "wide";

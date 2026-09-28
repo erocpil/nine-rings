@@ -85,6 +85,7 @@ describe("static settings search", () => {
     expect(searchSettings("不存在的关键词", options)).toEqual([]);
     expect(searchSettings("浮层", options)[0].page).toBe("sidebar");
     expect(searchSettings("文件树 字体", options)[0].page).toBe("navigation");
+    expect(searchSettings("层次展示", options)[0].page).toBe("hierarchy");
     expect(searchSettings("存储", options)[0].page).toBe("data");
     expect(searchSettings("  ", options)).toEqual([]);
   });

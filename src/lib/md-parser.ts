@@ -7,7 +7,7 @@
  */
 
 interface DeltaOp {
-  insert: string | { hr: true } | { image: string } | { table: import("./table-embed").TableEmbed };
+  insert: string | Record<string, unknown>;
   attributes?: Record<string, unknown>;
 }
 
@@ -24,6 +24,13 @@ export function looksLikeMarkdown(text: string): boolean {
   for (let index = 0; index + 1 < lines.length; index++) {
     if (isMarkdownTableRow(lines[index]) && isMarkdownTableSeparator(lines[index + 1])) return true;
   }
+
+  // New standalone Markdown blocks should paste as structured content even
+  // when the text has no heading/list/link signal to activate the legacy test.
+  if (lines.some(line => /^\s*(?:\$\$|\[\^[A-Za-z0-9_-]+\]:|<details(?:\s+open)?\s*>)/i.test(line))
+    || /\[\^[A-Za-z0-9_-]+\]/.test(text)
+    || /\$(?!\$)[^$\n]+\$(?!\$)|\\\(.+?\\\)/.test(text)
+    || /<mark>[^<>]+<\/mark>/i.test(text)) return true;
 
   if (lines.length === 1 && /^\s*#{1,6}\s+\S/.test(lines[0])) return true;
 
@@ -44,7 +51,7 @@ export function looksLikeMarkdown(text: string): boolean {
 // ── 行内解析 ──
 
 interface InlineSegment {
-  insert: string | { image: string };
+  insert: string | { image: string } | { mathInline: string };
   attrs: Record<string, unknown>;
 }
 
@@ -62,11 +69,48 @@ function appendItems<T>(target: T[], items: readonly T[]): void {
   for (const item of items) target.push(item);
 }
 
-function parseInline(text: string): InlineSegment[] {
+function parseInline(text: string, footnoteIds: ReadonlySet<string> = new Set()): InlineSegment[] {
   const result: InlineSegment[] = [];
   let i = 0;
 
   while (i < text.length) {
+    // Parenthesized math delimiters must be recognized before CommonMark's
+    // punctuation escape handling consumes the opening backslash.
+    if (text.startsWith("\\(", i)) {
+      const end = text.indexOf("\\)", i + 2);
+      if (end > i + 2) {
+        result.push({ insert: { mathInline: text.slice(i + 2, end) }, attrs: {} });
+        i = end + 2;
+        continue;
+      }
+    }
+    if (text[i] === "$" && text[i + 1] !== "$" && text[i + 1] !== " ") {
+      const end = findInlineEnd(text, "$", i + 1);
+      if (end > i + 1 && text[end - 1] !== " ") {
+        result.push({ insert: { mathInline: text.slice(i + 1, end) }, attrs: {} });
+        i = end + 1;
+        continue;
+      }
+    }
+    // Accept standalone references so they can be pasted before their
+    // definition exists; also tolerate the old auto-escaped `\[^id\]` form.
+    const footnote = text.slice(i).match(/^\\?\[\^([A-Za-z0-9_-]+)\\?\]/);
+    if (footnote) {
+      result.push({ insert: footnote[1], attrs: { footnoteRef: footnote[1] } });
+      i += footnote[0].length;
+      continue;
+    }
+    if (text.startsWith("<mark>", i)) {
+      const end = text.indexOf("</mark>", i + 6);
+      if (end >= i + 6) {
+        appendItems(result, parseInline(text.slice(i + 6, end), footnoteIds).map(segment => ({
+          ...segment,
+          attrs: { ...segment.attrs, highlight: true },
+        })));
+        i = end + 7;
+        continue;
+      }
+    }
     // CommonMark escapes consume exactly one backslash before ASCII punctuation.
     // Do this before matching syntax; code spans below keep their raw contents.
     const nextCode = text.charCodeAt(i + 1);
@@ -145,18 +189,19 @@ function parseInline(text: string): InlineSegment[] {
     // 未匹配的语法起始符仍消费一个字符，再从下一个可能的起始符重试。
     const start = i++;
     while (i < text.length && text[i] !== "!" && text[i] !== "["
-      && text[i] !== "*" && text[i] !== "`" && text[i] !== "\\" && text[i] !== "~") i++;
+      && text[i] !== "*" && text[i] !== "`" && text[i] !== "\\" && text[i] !== "~"
+      && text[i] !== "$" && text[i] !== "<") i++;
     result.push({ insert: text.slice(start, i), attrs: {} });
   }
 
   return result;
 }
 
-function inlineToDelta(text: string, baseAttrs?: Record<string, unknown>): DeltaOp[] {
+function inlineToDelta(text: string, baseAttrs?: Record<string, unknown>, footnoteIds: ReadonlySet<string> = new Set()): DeltaOp[] {
   if (!text) return [];
 
-  const segments = parseInline(text);
-  const merged: Array<{ insert: string | { image: string }; attrs: Record<string, unknown> }> = [];
+  const segments = parseInline(text, footnoteIds);
+  const merged: Array<{ insert: InlineSegment["insert"]; attrs: Record<string, unknown> }> = [];
 
   for (const seg of segments) {
     if (typeof seg.insert !== "string") {
@@ -280,6 +325,28 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
   // 块级正则（尤其列表）会匹配失败，缩进列表继而退化成以 `-` 开头的段落。
   const lines = mdText.replace(/\r\n?/g, "\n").split("\n");
   const ops: DeltaOp[] = [];
+  const definitions = new Map<string, string>();
+  const definitionLines = new Set<number>();
+  let definitionScanFence = "";
+  for (let index = 0; index < lines.length; index++) {
+    const fence = lines[index].trim().match(/^(`{3,}|~{3,})/);
+    if (fence) {
+      if (!definitionScanFence) definitionScanFence = fence[1];
+      else if (fence[1][0] === definitionScanFence[0] && fence[1].length >= definitionScanFence.length) definitionScanFence = "";
+      continue;
+    }
+    if (definitionScanFence) continue;
+    const definition = lines[index].match(/^\[\^([A-Za-z0-9_-]+)\]:\s*(.*)$/);
+    if (!definition) continue;
+    definitionLines.add(index);
+    const body = [definition[2]];
+    while (index + 1 < lines.length && /^(?: {2,}|\t)\S/.test(lines[index + 1])) {
+      definitionLines.add(++index);
+      body.push(lines[index].trim());
+    }
+    definitions.set(definition[1], body.join(" "));
+  }
+  const footnoteIds = new Set(definitions.keys());
   let i = 0;
   let inCode = false;
   let codeBuf: string[] = [];
@@ -329,11 +396,14 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
     /^>\s?(.*)$/.test(text) ||
     /^[-*+]\s+.+$/.test(text) ||
     /^\d+\.\s+.+$/.test(text) ||
+    /^\[\^[A-Za-z0-9_-]+\]:/.test(text) ||
+    /^\$\$/.test(text) ||
+    /^<details(?:\s+open)?\s*>$/i.test(text) ||
     isStandaloneBoldLabel(text) ||
     isMarkdownTableRow(text);
 
   const appendParagraph = (paragraphLines: string[]) => {
-    appendItems(ops, inlineToDelta(paragraphLines.join(" ")));
+    appendItems(ops, inlineToDelta(paragraphLines.join(" "), undefined, footnoteIds));
     ops.push({ insert: "\n" });
   };
 
@@ -383,6 +453,52 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
       continue;
     }
 
+    // Footnote definitions are collected below into a semantic footer node.
+    if (definitionLines.has(i)) { i++; continue; }
+
+    // KaTeX formulas are parsed as inert source and rendered locally. Only a
+    // standalone delimiter line forms a block; inline math is handled above.
+    const sameLineMathEnd = stripped.startsWith("$$") ? stripped.indexOf("$$", 2) : -1;
+    if (stripped.startsWith("$$") && (sameLineMathEnd >= 2
+      || lines.slice(i + 1).some(candidate => candidate.trim().endsWith("$$")))) {
+      let source = "";
+      let suffix = "";
+      if (sameLineMathEnd >= 2) {
+        source = stripped.slice(2, sameLineMathEnd);
+        suffix = stripped.slice(sameLineMathEnd + 2).trim();
+        i++;
+      }
+      else {
+        const body = [stripped.slice(2)]; i++;
+        while (i < lines.length && !lines[i].trim().endsWith("$$")) body.push(lines[i++]);
+        if (i < lines.length) body.push(lines[i++].trim().slice(0, -2));
+        source = body.join("\n").trim();
+      }
+      ops.push({ insert: { mathBlock: source } }, { insert: "\n" });
+      if (suffix) {
+        appendItems(ops, inlineToDelta(suffix, undefined, footnoteIds));
+        ops.push({ insert: "\n" });
+      }
+      continue;
+    }
+
+    // Strict subset of raw HTML: one details element, one plain-text summary,
+    // no attributes except `open`; body is parsed as Markdown, never injected.
+    if (/^<details(?:\s+open)?\s*>(?:<summary>[^<>]*<\/summary>)?$/i.test(stripped)
+      && lines.slice(i + 1).some(candidate => /^<\/details>\s*$/i.test(candidate.trim()))) {
+      const opened = /\bopen\b/i.test(stripped);
+      const inlineSummary = stripped.match(/^<details(?:\s+open)?\s*><summary>([^<>]*)<\/summary>$/i)?.[1];
+      i++;
+      const summaryMatch = inlineSummary ? null : (lines[i] ?? "").trim().match(/^<summary>([^<>]*)<\/summary>$/i);
+      if (summaryMatch) i++;
+      const body: string[] = [];
+      while (i < lines.length && !/^<\/details>\s*$/i.test(lines[i].trim())) body.push(lines[i++]);
+      if (i < lines.length) i++;
+      const content = mdToDelta(body.join("\n")).ops;
+      ops.push({ insert: { htmlDetails: { summary: inlineSummary || summaryMatch?.[1] || "点击展开", open: opened, content } } }, { insert: "\n" });
+      continue;
+    }
+
     // ── Markdown 表格 ──
     // 保持表头、分隔行和每个数据行各自独立，避免换行被普通段落折叠。
     if (isTableStart(i)) {
@@ -410,7 +526,7 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
       resetListIndent();
       const level = hMatch[1].length;
       const text = hMatch[2];
-      appendItems(ops, inlineToDelta(text));
+      appendItems(ops, inlineToDelta(text, undefined, footnoteIds));
       ops.push({ insert: "\n", attributes: { header: level } });
       i++;
       continue;
@@ -432,7 +548,7 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
         i++;
       }
 
-      appendItems(ops, inlineToDelta(paragraphLines.join(" ")));
+      appendItems(ops, inlineToDelta(paragraphLines.join(" "), undefined, footnoteIds));
       ops.push({ insert: "\n", attributes: { blockquote: true } });
       continue;
     }
@@ -444,7 +560,7 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
       const list = /^\d/.test(listMatch[2]) ? "ordered" : "bullet";
       const listStart = list === "ordered" ? Number.parseInt(listMatch[2], 10) : undefined;
       const task = /^\[([ xX])\](?:[ \t]+(.*)|$)/.exec(listMatch[3]);
-      appendItems(ops, inlineToDelta(task ? task[2] ?? "" : listMatch[3]));
+      appendItems(ops, inlineToDelta(task ? task[2] ?? "" : listMatch[3], undefined, footnoteIds));
       i++;
 
       // 列表项的 lazy continuation（以及显式缩进的续行）仍属于当前项。
@@ -453,7 +569,7 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
       while (i < lines.length) {
         const continuation = lines[i].trim();
         if (!continuation || startsBlock(continuation)) break;
-        const continuationOps = inlineToDelta(continuation);
+        const continuationOps = inlineToDelta(continuation, undefined, footnoteIds);
         const [first, ...rest] = continuationOps;
         if (first && typeof first.insert === "string") {
           ops.push({ ...first, insert: `\n${first.insert}` });
@@ -508,6 +624,11 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
       attributes: { "code-block": true, ...(codeLanguage ? { language: codeLanguage } : {}) },
     });
     sourceSpans?.push({ fromLine: codeStartLine, toLine: lines.length, fromOp, toOp: ops.length });
+  }
+
+  if (definitions.size) {
+    const footnotes = [...definitions].map(([id, body]) => ({ id, content: inlineToDelta(body) }));
+    ops.push({ insert: { footnotes } }, { insert: "\n" });
   }
 
   return { ops };

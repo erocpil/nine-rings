@@ -1511,6 +1511,19 @@
   word-break: break-word;
 }
 
+.app[data-hierarchy-outline-mode="default"] .document-outline-item[data-hierarchy-level="1"] .document-outline-link { color: var(--hierarchy-default-1); }
+.app[data-hierarchy-outline-mode="default"] .document-outline-item[data-hierarchy-level="2"] .document-outline-link { color: var(--hierarchy-default-2); }
+.app[data-hierarchy-outline-mode="default"] .document-outline-item[data-hierarchy-level="3"] .document-outline-link { color: var(--hierarchy-default-3); }
+.app[data-hierarchy-outline-mode="default"] .document-outline-item[data-hierarchy-level="4"] .document-outline-link { color: var(--hierarchy-default-4); }
+.app[data-hierarchy-outline-mode="default"] .document-outline-item[data-hierarchy-level="5"] .document-outline-link { color: var(--hierarchy-default-5); }
+.app[data-hierarchy-outline-mode="default"] .document-outline-item[data-hierarchy-level="6"] .document-outline-link { color: var(--hierarchy-default-6); }
+.app[data-hierarchy-outline-mode="custom"] .document-outline-item[data-hierarchy-level="1"] .document-outline-link { color: var(--hierarchy-outline-custom-1); }
+.app[data-hierarchy-outline-mode="custom"] .document-outline-item[data-hierarchy-level="2"] .document-outline-link { color: var(--hierarchy-outline-custom-2); }
+.app[data-hierarchy-outline-mode="custom"] .document-outline-item[data-hierarchy-level="3"] .document-outline-link { color: var(--hierarchy-outline-custom-3); }
+.app[data-hierarchy-outline-mode="custom"] .document-outline-item[data-hierarchy-level="4"] .document-outline-link { color: var(--hierarchy-outline-custom-4); }
+.app[data-hierarchy-outline-mode="custom"] .document-outline-item[data-hierarchy-level="5"] .document-outline-link { color: var(--hierarchy-outline-custom-5); }
+.app[data-hierarchy-outline-mode="custom"] .document-outline-item[data-hierarchy-level="6"] .document-outline-link { color: var(--hierarchy-outline-custom-6); }
+
 .document-outline-header-actions > button,
 .document-outline-header-primary > button {
   height: 20px;

@@ -54,7 +54,7 @@ interface Props {
   libraryError?: string | null;
 }
 
-type SettingsPage = "root" | "appearance" | "navigation" | "editor" | "vim" | "sidebar" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced" | "changelog";
+type SettingsPage = "root" | "appearance" | "hierarchy" | "navigation" | "editor" | "vim" | "sidebar" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced" | "changelog";
 const EDITOR_APPEARANCE_KEYS: Array<keyof AppConfig> = [
   "note_font_size",
   "editor_font_family",
@@ -94,6 +94,7 @@ const SETTINGS_CATEGORIES: Array<{
 const SETTINGS_PAGE_TITLES: Record<SettingsPage, string> = {
   root: "设置",
   appearance: "外观与布局",
+  hierarchy: "层次展示",
   navigation: "导航区样式",
   editor: "编辑器",
   vim: "代码块 Vim",
@@ -166,6 +167,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const [settingsSearchOpen, setSettingsSearchOpen] = useState(false);
   const parentPage: SettingsPage = settingsPage === "vim" ? "editor"
     : settingsPage === "sidebar" ? "appearance"
+    : settingsPage === "hierarchy" ? "appearance"
     : settingsPage === "navigation" ? "appearance"
     : ["bookmarks", "tags", "profile"].includes(settingsPage) ? "documents" : "root";
   const [syncBusy, setSyncBusy] = useState(false);
@@ -777,6 +779,13 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </button>
             </Field>
 
+            <Field label="层次展示" desc="分别设置文档树路径和文档目录标题的层级颜色" visible={settingsPage === "appearance"}>
+              <button className="editor-appearance-entry" type="button" onClick={() => setSettingsPage("hierarchy")}>
+                <span><strong>层次展示</strong><small>路径与目录各自设置关闭、默认配色或自定义</small></span>
+                <span className="editor-appearance-entry-action">打开层次设置 →</span>
+              </button>
+            </Field>
+
             <Field label="布局设置" desc="调整分栏位置、阅读面板排列、顺序与宽度" visible={settingsPage === "appearance"}>
               <button className="editor-appearance-entry" type="button" onClick={() => setSettingsPage("sidebar")}>
                 <span>
@@ -786,6 +795,34 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 <span className="editor-appearance-entry-action">打开布局设置 →</span>
               </button>
             </Field>
+
+            {settingsPage === "hierarchy" && <SettingsSection title="层次展示" desc="文档树仅为路径目录着色，文档名称保持原样；标题和路径超过六层后循环使用颜色。默认配色会随浅色或深色主题调整。" visible>
+              {([[
+                "文档树路径", "hierarchy_path_mode", "hierarchy_path_custom_colors",
+              ], [
+                "文档目录标题", "hierarchy_outline_mode", "hierarchy_outline_custom_colors",
+              ]] as const).map(([label, modeKey, colorsKey]) => {
+                const mode = config[modeKey];
+                const colors = config[colorsKey];
+                const levelNames = ["琥珀", "砖红", "苔绿", "青蓝", "靛蓝", "紫藤"];
+                return <fieldset key={modeKey} className="hierarchy-style-card">
+                  <legend>{label}</legend>
+                  <div className="settings-radio-group" role="group" aria-label={`${label}配色模式`}>
+                    {([["off", "关闭"], ["default", "默认配色"], ["custom", "自定义"]] as const).map(([value, text]) => <button key={value} type="button" className={`settings-radio${mode === value ? " active" : ""}`} aria-pressed={mode === value} onClick={() => update({ [modeKey]: value })}>{text}</button>)}
+                  </div>
+                  {mode === "custom" && <div className="hierarchy-color-grid">
+                    {levelNames.map((name, index) => <label key={name}>
+                      <span>第 {index + 1} 层 · {name}</span>
+                      <input type="color" aria-label={`${label}第 ${index + 1} 层颜色`} value={colors[index] ?? "#9A5B00"} onChange={event => {
+                        const next = [...colors];
+                        next[index] = event.target.value;
+                        update({ [colorsKey]: next });
+                      }} />
+                    </label>)}
+                  </div>}
+                </fieldset>;
+              })}
+            </SettingsSection>}
 
             <Field label="导航区样式" desc="分别调整目录、书签、文件树和文件列表的字体与颜色；后续可导出为外观配置" visible={settingsPage === "appearance" && config.interface_style === "classic"}>
               <button className="editor-appearance-entry" type="button" onClick={() => setSettingsPage("navigation")}><span><strong>导航区样式</strong><small>目录、书签、文件树和文件列表分别设置</small></span><span className="editor-appearance-entry-action">打开详细设置 →</span></button>

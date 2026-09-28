@@ -1,5 +1,6 @@
 import { BlockIndent } from "../extensions/BlockIndent";
 import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
+import { MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes } from "../extensions/MarkdownExtras";
 import {
   useEffect,
   useMemo,
@@ -40,6 +41,7 @@ function previewDocument(revision: SourceNavigationDocument) {
     Link,
     BlockIndent,
     MarkdownTaskState,
+    MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes,
   ]);
   const doc = schema.nodeFromJSON(revision.document);
   doc.check();

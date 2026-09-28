@@ -58,6 +58,8 @@ function pmMarkToAttr(mark: NonNullable<JSONContent["marks"]>[number]): Record<s
       }
       return Object.keys(attrs).length > 0 ? attrs : null;
     }
+    case "inlineHighlight": return { highlight: true };
+    case "footnoteReference": return { footnoteRef: mark.attrs?.id ?? "" };
     default:
       return null;
   }
@@ -72,6 +74,8 @@ function deltaAttrToMarks(attrs: Record<string, unknown> | undefined): NonNullab
   if (attrs.strike)    marks.push({ type: "strike" });
   if (attrs.code)      marks.push({ type: "code" });
   if (attrs.link)      marks.push({ type: "link", attrs: { href: attrs.link } });
+  if (attrs.highlight) marks.push({ type: "inlineHighlight" });
+  if (attrs.footnoteRef) marks.push({ type: "footnoteReference", attrs: { id: attrs.footnoteRef } });
   if (attrs.color)     marks.push({ type: "textStyle", attrs: { color: attrs.color } });
   if (attrs.size) {
     const px = namedToPx(String(attrs.size));
@@ -156,6 +160,22 @@ export function proseMirrorToDelta(pmJson: JSONContent | null | undefined): Delt
       case "table":
         ops.push({ insert: { table: tableNodeToEmbed(node) } });
         ops.push({ insert: "\n" });
+        break;
+
+      case "mathBlock":
+        ops.push({ insert: { mathBlock: String(node.attrs?.source ?? "") } }, { insert: "\n" });
+        break;
+      case "htmlDetails":
+        ops.push({ insert: { htmlDetails: {
+          summary: String(node.attrs?.summary ?? "点击展开"), open: node.attrs?.open === true,
+          content: proseMirrorToDelta({ type: "doc", content: node.content ?? [] }).ops,
+        } } }, { insert: "\n" });
+        break;
+      case "footnotes":
+        ops.push({ insert: { footnotes: (node.content ?? []).map(definition => ({
+          id: String(definition.attrs?.id ?? ""),
+          content: proseMirrorToDelta({ type: "doc", content: definition.content ?? [] }).ops,
+        })) } }, { insert: "\n" });
         break;
     }
   }
@@ -275,6 +295,8 @@ function extractInlineOps(
       ops.push({ insert: "\n", attributes: { "hard-break": true } });
     } else if (inline.type === "image" || inline.type === "resizableImage") {
       ops.push({ insert: { image: inline.attrs?.src ?? "" } });
+    } else if (inline.type === "mathInline") {
+      ops.push({ insert: { mathInline: String(inline.attrs?.source ?? "") } });
     } else if (inline.type === "paragraph" || inline.type === "listItem") {
       // 递归提取嵌套文本（如 listItem → paragraph → text）
       extractInlineOps(inline, ops, inheritAttrs);
@@ -516,6 +538,11 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
         });
       }
     } else if (typeof insert === "object" && insert !== null) {
+      if (typeof insert.mathInline === "string") {
+        const marks = deltaAttrToMarks(attrs);
+        currentParagraph.content.push({ type: "mathInline", attrs: { source: insert.mathInline }, ...(marks.length ? { marks } : {}) });
+        continue;
+      }
       flushList();
       const table = getTableEmbed(insert);
       if (table) {
@@ -540,6 +567,28 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
           flushParagraph();
         }
         doc.push({ type: "horizontalRule", content: [] });
+        skipEmptyLineAfterBlockEmbed = true;
+      } else if (typeof insert.mathBlock === "string") {
+        if (currentParagraph.content.length) flushParagraph();
+        doc.push({ type: "mathBlock", attrs: { source: insert.mathBlock } });
+        currentParagraph = { type: "paragraph", content: [] };
+        skipEmptyLineAfterBlockEmbed = true;
+      } else if (insert.htmlDetails && typeof insert.htmlDetails === "object") {
+        if (currentParagraph.content.length) flushParagraph();
+        const details = insert.htmlDetails as { summary?: unknown; open?: unknown; content?: DeltaOp[] };
+        const body = deltaToProseMirror({ ops: details.content ?? [] }).content;
+        doc.push({ type: "htmlDetails", attrs: { summary: String(details.summary ?? "点击展开"), open: details.open === true }, content: body.length ? body : [{ type: "paragraph", content: [] }] });
+        currentParagraph = { type: "paragraph", content: [] };
+        skipEmptyLineAfterBlockEmbed = true;
+      } else if (Array.isArray(insert.footnotes)) {
+        if (currentParagraph.content.length) flushParagraph();
+        const definitions = (insert.footnotes as Array<{ id?: unknown; content?: DeltaOp[] }>).map(item => ({
+          type: "footnoteDefinition",
+          attrs: { id: String(item.id ?? "") },
+          content: deltaToProseMirror({ ops: item.content ?? [] }).content,
+        }));
+        if (definitions.length) doc.push({ type: "footnotes", content: definitions });
+        currentParagraph = { type: "paragraph", content: [] };
         skipEmptyLineAfterBlockEmbed = true;
       }
     }

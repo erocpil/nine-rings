@@ -55,6 +55,7 @@ import { isDocumentFindKeyEvent, isPrimaryShortcutModifier } from "../lib/shortc
 import { readingBlockSession, type ReadingBlockState as BlockState } from "../lib/reading-block-session";
 import { patchReadingState, readReadingState } from "../lib/reading-state";
 import { centerSearchMatch } from "../lib/search-scroll";
+import { KaTeXFormula } from "../extensions/MarkdownExtras";
 
 export function renderReadonlyBlock(
   node: PMNode,
@@ -119,6 +120,14 @@ export function renderReadonlyBlock(
             );
           break;
         }
+        case "inlineHighlight":
+          rendered = <mark>{rendered}</mark>;
+          break;
+        case "footnoteReference": {
+          const id = String(mark.attrs.id ?? "");
+          rendered = <sup id={`nr-footnote-ref-${encodeURIComponent(id)}`} className="nr-footnote-reference"><a href={`#nr-footnote-${encodeURIComponent(id)}`}>{rendered}</a></sup>;
+          break;
+        }
       }
     }
     return rendered;
@@ -147,6 +156,16 @@ export function renderReadonlyBlock(
       return <hr />;
     case "paragraph":
       return <p {...attrs}>{children.length ? children : <br />}</p>;
+    case "mathInline":
+      return <KaTeXFormula source={String(node.attrs.source ?? "")} />;
+    case "mathBlock":
+      return <div className="nr-math-block"><KaTeXFormula source={String(node.attrs.source ?? "")} displayMode /> </div>;
+    case "htmlDetails":
+      return <details open={node.attrs.open === true}><summary>{String(node.attrs.summary ?? "点击展开")}</summary>{children}</details>;
+    case "footnotes":
+      return <section className="nr-footnotes"><ol>{children}</ol></section>;
+    case "footnoteDefinition":
+      { const id = encodeURIComponent(String(node.attrs.id ?? "")); return <li id={`nr-footnote-${id}`}>{children}<a href={`#nr-footnote-ref-${id}`} aria-label="返回脚注引用"> ↩</a></li>; }
     case "heading":
       return React.createElement(`h${node.attrs.level}`, attrs, children);
     case "bulletList":

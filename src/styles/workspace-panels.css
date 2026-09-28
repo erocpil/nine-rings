@@ -1830,6 +1830,19 @@ button.doc-tree-toggle:focus-visible {
   text-overflow: ellipsis;
 }
 
+.app[data-hierarchy-path-mode="default"] .doc-tree-folder .doc-tree-name[data-hierarchy-level="1"] { color: var(--hierarchy-default-1); }
+.app[data-hierarchy-path-mode="default"] .doc-tree-folder .doc-tree-name[data-hierarchy-level="2"] { color: var(--hierarchy-default-2); }
+.app[data-hierarchy-path-mode="default"] .doc-tree-folder .doc-tree-name[data-hierarchy-level="3"] { color: var(--hierarchy-default-3); }
+.app[data-hierarchy-path-mode="default"] .doc-tree-folder .doc-tree-name[data-hierarchy-level="4"] { color: var(--hierarchy-default-4); }
+.app[data-hierarchy-path-mode="default"] .doc-tree-folder .doc-tree-name[data-hierarchy-level="5"] { color: var(--hierarchy-default-5); }
+.app[data-hierarchy-path-mode="default"] .doc-tree-folder .doc-tree-name[data-hierarchy-level="6"] { color: var(--hierarchy-default-6); }
+.app[data-hierarchy-path-mode="custom"] .doc-tree-folder .doc-tree-name[data-hierarchy-level="1"] { color: var(--hierarchy-path-custom-1); }
+.app[data-hierarchy-path-mode="custom"] .doc-tree-folder .doc-tree-name[data-hierarchy-level="2"] { color: var(--hierarchy-path-custom-2); }
+.app[data-hierarchy-path-mode="custom"] .doc-tree-folder .doc-tree-name[data-hierarchy-level="3"] { color: var(--hierarchy-path-custom-3); }
+.app[data-hierarchy-path-mode="custom"] .doc-tree-folder .doc-tree-name[data-hierarchy-level="4"] { color: var(--hierarchy-path-custom-4); }
+.app[data-hierarchy-path-mode="custom"] .doc-tree-folder .doc-tree-name[data-hierarchy-level="5"] { color: var(--hierarchy-path-custom-5); }
+.app[data-hierarchy-path-mode="custom"] .doc-tree-folder .doc-tree-name[data-hierarchy-level="6"] { color: var(--hierarchy-path-custom-6); }
+
 .doc-tree-type {
   font-size: 10px;
   padding: 1px 4px;

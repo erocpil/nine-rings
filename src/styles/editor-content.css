@@ -44,6 +44,25 @@
   line-height: var(--editor-line-height);
 }
 
+.nr-math.mathBlock,
+.nr-math-block {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.35em 0;
+  text-align: center;
+}
+.nr-math.mathInline { display: inline; }
+.nr-math code,
+.nr-math-block code { white-space: pre-wrap; }
+.nr-footnotes { margin-top: 1.5em; border-top: 1px solid var(--border-subtle, #8884); padding-top: 0.5em; font-size: 0.9em; }
+.nr-footnote-reference { vertical-align: super; font-size: 0.75em; }
+.ProseMirror details,
+.nr-footnotes { overflow-wrap: anywhere; }
+.ProseMirror details > summary { cursor: pointer; }
+.ProseMirror mark { background: color-mix(in srgb, #f4d35e 45%, transparent); }
+
 .ProseMirror > * {
   scroll-margin-bottom: 32px;
 }

@@ -1,4 +1,4 @@
-import type { AppConfig } from "./storage/types";
+import { DEFAULT_CONFIG, type AppConfig } from "./storage/types";
 
 export const DEFAULT_EDITOR_APPEARANCE = {
   note_font_size: 16,
@@ -78,7 +78,15 @@ export function editorAppearanceVariables(config?: Partial<AppConfig>): Record<s
   const bookmark = style("navigation_bookmark");
   const tree = style("navigation_tree");
   const list = style("navigation_list");
+  const safeHierarchyColors = (colors: unknown, defaults: readonly string[]): string[] => Array.from({ length: 6 }, (_, index) => {
+    const color = Array.isArray(colors) ? colors[index] : undefined;
+    return /^#[0-9a-f]{6}$/i.test(String(color ?? "")) ? String(color) : defaults[index];
+  });
+  const pathColors = safeHierarchyColors(config?.hierarchy_path_custom_colors, DEFAULT_CONFIG.hierarchy_path_custom_colors);
+  const outlineColors = safeHierarchyColors(config?.hierarchy_outline_custom_colors, DEFAULT_CONFIG.hierarchy_outline_custom_colors);
   return {
+    ...Object.fromEntries(pathColors.map((color, index) => [`--hierarchy-path-custom-${index + 1}`, color])),
+    ...Object.fromEntries(outlineColors.map((color, index) => [`--hierarchy-outline-custom-${index + 1}`, color])),
     "--editor-font-family": config?.interface_style && config.interface_style !== "classic"
       ? '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif'
       : FONT_STACKS[resolvedFamily],

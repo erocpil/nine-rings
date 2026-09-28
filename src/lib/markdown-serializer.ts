@@ -3,12 +3,25 @@ import { getTableEmbed, type TableEmbed } from "./table-embed";
 
 type BlockKind = "paragraph" | "list" | "table" | "code" | "quote" | "heading" | "embed";
 
+function safeFootnoteId(value: unknown): string {
+  const id = String(value ?? "");
+  return /^[A-Za-z0-9_-]+$/.test(id) ? id : "note";
+}
+
 function escapeMarkdownText(text: string, inTable: boolean): string {
-  let escaped = text
+  // Preserve the CommonMark footnote reference form while escaping other
+  // square brackets that could otherwise start links or reference links.
+  const footnotes: string[] = [];
+  const protectedText = text.replace(/\[\^[A-Za-z0-9_-]+\]/g, (match) => {
+    const marker = `\uE000NRFOOTNOTE${footnotes.length}\uE001`;
+    footnotes.push(match);
+    return marker;
+  });
+  let escaped = protectedText
     .replace(/\\/g, "\\\\")
     .replace(/[*_[\]`~]/g, "\\$&");
   if (inTable) escaped = escaped.replace(/\|/g, "\\|");
-  return escaped;
+  return escaped.replace(/\uE000NRFOOTNOTE(\d+)\uE001/g, (_match, index: string) => footnotes[Number(index)]);
 }
 
 function wrapCode(text: string): string {
@@ -19,7 +32,11 @@ function wrapCode(text: string): string {
 }
 
 function inlineOpToMarkdown(op: DeltaOp, inTable = false): string {
-  if (typeof op.insert !== "string") return "";
+  if (typeof op.insert !== "string") {
+    const embed = op.insert as Record<string, unknown>;
+    if (typeof embed.mathInline === "string") return `$${embed.mathInline}$`;
+    return "";
+  }
   const attrs = op.attributes ?? {};
   if (attrs.code) return wrapCode(inTable ? op.insert.replace(/\|/g, "\\|") : op.insert);
 
@@ -28,6 +45,8 @@ function inlineOpToMarkdown(op: DeltaOp, inTable = false): string {
   if (attrs.italic) text = `*${text}*`;
   if (attrs.strike) text = `~~${text}~~`;
   if (typeof attrs.link === "string" && attrs.link) text = `[${text}](${attrs.link})`;
+  if (attrs.footnoteRef) text = `[^${safeFootnoteId(attrs.footnoteRef)}]`;
+  if (attrs.highlight) text = `<mark>${text}</mark>`;
   return text;
 }
 
@@ -137,14 +156,29 @@ export function deltaToMarkdown(content: unknown): string {
       continue;
     }
 
+    const embedValue = op.insert as Record<string, unknown>;
+    if (typeof embedValue.mathInline === "string") {
+      inline += `$${embedValue.mathInline}$`;
+      continue;
+    }
     if (inline) flushLine();
     const table = getTableEmbed(op.insert);
     if (table) {
       push("table", tableToMarkdown(table));
       continue;
     }
-    const insert = op.insert as Record<string, unknown>;
-    if (insert.hr) push("embed", "---");
+    const insert = embedValue;
+    if (typeof insert.mathBlock === "string") push("embed", `$$${insert.mathBlock}$$`);
+    else if (insert.htmlDetails && typeof insert.htmlDetails === "object") {
+      const details = insert.htmlDetails as { summary?: unknown; open?: unknown; content?: DeltaOp[] };
+      const body = deltaToMarkdown({ ops: details.content ?? [] });
+      const summary = String(details.summary ?? "点击展开").replace(/[\r\n<>]/g, "");
+      push("embed", `<details${details.open ? " open" : ""}>\n<summary>${summary}</summary>${body ? `\n\n${body}` : ""}\n</details>`);
+    } else if (Array.isArray(insert.footnotes)) {
+      const definitions = insert.footnotes as Array<{ id?: unknown; content?: DeltaOp[] }>;
+      for (const item of definitions) push("embed", `[^${safeFootnoteId(item.id)}]: ${inlineDeltaToMarkdown({ ops: item.content ?? [] })}`);
+    }
+    else if (insert.hr) push("embed", "---");
     else {
       const image = typeof insert.image === "string"
         ? insert.image

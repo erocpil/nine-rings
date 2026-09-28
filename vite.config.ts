@@ -44,6 +44,9 @@ export default defineConfig(async () => {
           const normalized = normalizePath(id);
 
           if (normalized.includes("/node_modules/")) {
+            // KaTeX only loads after a formula is mounted; ship its JS/fonts as
+            // a local lazy chunk so math also works offline and on mobile.
+            if (normalized.includes("/node_modules/katex/")) return "katex";
             // Mermaid is loaded only when a Mermaid code block is shown. Keep
             // its parser and diagram layouts out of the shared vendor chunk.
             if (normalized.includes("/node_modules/mermaid/")) return "mermaid";

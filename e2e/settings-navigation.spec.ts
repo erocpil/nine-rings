@@ -120,6 +120,33 @@ test("设置子页首个分组没有多余顶部留白和分割线", async ({ pa
   await expect(page.getByRole("heading", { name: "文档管理", exact: true })).toBeVisible();
 });
 
+test("层次展示可分别设置路径与目录标题颜色", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTitle("设置").click();
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
+  await page.getByRole("button", { name: /^层次展示/ }).click();
+  await expect(page.getByRole("heading", { name: "层次展示", exact: true })).toBeVisible();
+
+  const pathSettings = page.getByRole("group", { name: "文档树路径配色模式" });
+  const outlineSettings = page.getByRole("group", { name: "文档目录标题配色模式" });
+  await expect(pathSettings.getByRole("button", { name: "默认配色" })).toHaveAttribute("aria-pressed", "true");
+  await pathSettings.getByRole("button", { name: "自定义" }).click();
+  const firstColor = page.getByLabel("文档树路径第 1 层颜色");
+  await expect(firstColor).toBeVisible();
+  await firstColor.evaluate(element => {
+    const input = element as HTMLInputElement;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "#123456");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await expect.poll(() => page.locator(".app").evaluate(element => getComputedStyle(element).getPropertyValue("--hierarchy-path-custom-1").trim())).toBe("#123456");
+  await pathSettings.getByRole("button", { name: "关闭" }).click();
+  await expect(page.locator(".app")).toHaveAttribute("data-hierarchy-path-mode", "off");
+  await outlineSettings.getByRole("button", { name: "自定义" }).click();
+  await expect(page.getByLabel("文档目录标题第 6 层颜色")).toBeVisible();
+  await expect(page.locator(".app")).toHaveAttribute("data-hierarchy-outline-mode", "custom");
+});
+
 test.describe("触屏设置导航", () => {
   test.use({ viewport: { width: 390, height: 760 }, hasTouch: true });
 

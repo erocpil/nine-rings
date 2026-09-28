@@ -1344,6 +1344,8 @@ function App() {
       <div
       className={`app app-unified-workspace ${focusMode ? "app-focus-mode" : ""}${desktopWorkspace ? " app-desktop-workspace" : " app-mobile-workspace"}${homeReaderOpen || readerPrimaryView ? " app-home-reader" : ""}${readerCompanionCollapsed ? " reader-companion-collapsed" : ""}${mobileReaderOpen ? " app-mobile-reader" : ""}`}
       style={editorAppearanceVariables(config ?? undefined)}
+      data-hierarchy-path-mode={config?.hierarchy_path_mode ?? "default"}
+      data-hierarchy-outline-mode={config?.hierarchy_outline_mode ?? "default"}
       {...(mobileReadingLibraryOpen ? { inert: "", "aria-hidden": true } : {})}
       {...(protectionBusy || applyingWebUpdate ? { inert: "", "aria-busy": true } : {})}
       {...(searchExpanded || errorDetailsOpen ? { inert: "" } : {})}

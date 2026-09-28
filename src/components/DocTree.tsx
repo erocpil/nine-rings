@@ -705,6 +705,7 @@ function DocTree({
               <>
                 <span
                   className="doc-tree-name"
+                  data-hierarchy-level={(depth % 6) + 1}
                   title={node.name}
                 >
                   {node.name}

@@ -1,6 +1,7 @@
 export type SearchSettingsPage =
   | "root"
   | "appearance"
+  | "hierarchy"
   | "navigation"
   | "sidebar"
   | "editor"
@@ -24,6 +25,7 @@ export interface SettingsSearchEntry {
   target?: string;
 }
 const entries: SettingsSearchEntry[] = [
+  { title: "层次展示", description: "外观与布局 › 层次展示 · 文档树路径和目录标题分别设置层级配色", keywords: "层级 层次 路径 目录 标题 琥珀 砖红 苔绿 青蓝 靛蓝 紫藤 配色", page: "hierarchy", target: ".hierarchy-style-card" },
   { title: "工作区布局", description: "标准或展陈布局，顶部标识与四栏概览", keywords: "展陈 布局 首页 四栏 工作区 概览", page: "appearance", target: '[data-settings-label="工作区布局"]' },
   { title: "风格配色", description: "独立风格 · 浅色、深色或跟随系统", keywords: "清雅 深色 浅色 系统 风格 配色", page: "appearance", target: '[data-settings-label="界面风格"]' },
   { title: "界面风格", description: "外观与布局 · 经典自定义外观，独立风格统一配色与排版", keywords: "风格 物哀 幽玄 侘寂 诧寂 纸页 精简 清雅 紧凑 经典 demo 界面 留白 密度 样式 style", page: "appearance", target: '[data-settings-label="界面风格"]' },
