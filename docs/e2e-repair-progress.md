@@ -1,5 +1,13 @@
 # E2E 清理进度（2026-09-28）
 
+## 第 87 批：跨文档历史回归等待点击选区同步
+
+macOS Chromium CI 的失败期望值为文首 `1`，而后退后的实际位置为 `561`。原用例在段落点击返回后立即读取 ProseMirror 选区，未确认原生 `selectionchange` 已同步；延迟该事件的诊断中观察到原生光标已位于 `561`、模型快照仍为 `1`。此前仅等待新文档标题稳定，无法修正这个更早捕获的错误期望值。
+
+用例现在等待模型中的折叠选区进入被点击段落，并确认导航历史记录了同一位置，随后才创建第二篇文档；输入第二篇内容后也等待光标位于文本末尾。保留后退/前进的精确位置比较和弹窗内禁止导航检查，不增加重试、固定等待或容差。本批仅修改测试及记录。
+
+目标用例 Chromium 连续 **10/10 通过**；完整平台套件 Chromium **30/30 通过**、WebKit **28 通过、2 项既有平台能力跳过**。`git diff --check` 通过。完整回归日志位于 `.local-tools/e2e/repair-batch87/`。GitHub 新矩阵结果待推送后确认。
+
 ## 第 86 批：复核最新 macOS Chromium 原生矩阵
 
 最新 `E2E Native Platforms` run [36376429517](https://github.com/erocpil/nine-rings/actions/runs/36376429517) 中，除 `macos-14 / chromium` 外的五个 job 均成功；失败发生在 `Native platform regressions` 步骤。GitHub API 的 job 日志返回 403，保留的 macOS Chromium artifact 下载返回 401，无法读取该 runner 上具体失败断言。

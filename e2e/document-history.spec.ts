@@ -77,11 +77,28 @@ test("同文档后退前进恢复光标，编辑不刷历史，新跳转清除�
 
 test("跨文档恢复位置，鼠标侧键一次只跳一次且弹窗内不切换文档", async ({ page }) => {
   const first = await fixture(page);
-  await editor(page).locator("p").nth(22).click();
+  const paragraph = editor(page).locator("p").nth(22);
+  await paragraph.click();
+  // Chromium can finish the native click before ProseMirror processes
+  // selectionchange. Snapshot only after the caret reaches the clicked block;
+  // otherwise the expected position may still be the fixture's initial 1.
+  await expect.poll(() => paragraph.evaluate(element => {
+    const instance = (element.closest(".ProseMirror") as HTMLElement & { editor: Editor }).editor;
+    const start = instance.view.posAtDOM(element, 0);
+    const end = instance.view.posAtDOM(element, element.childNodes.length);
+    const { from, to } = instance.state.selection;
+    return from === to && from >= start && to <= end;
+  }), { message: "clicked paragraph must own the caret before saving its history position" }).toBe(true);
   const firstPosition = await location(page);
+  await expect.poll(async () => {
+    const state = await history(page);
+    return state.entries[state.index];
+  }).toEqual({ noteId: first, ...firstPosition });
   const second = await newDocument(page, "第二篇导航文档");
-  await editor(page).fill("第二篇的内容");
-  const secondPosition = await location(page);
+  const secondText = "第二篇的内容";
+  await editor(page).fill(secondText);
+  const secondPosition = { from: secondText.length + 1, to: secondText.length + 1 };
+  await expect.poll(() => location(page)).toEqual(secondPosition);
   await sideButton(page, 3);
   await expect.poll(() => page.evaluate(() => localStorage.getItem("nr:lastNote"))).toBe(first);
   await expect.poll(() => location(page)).toEqual(firstPosition);
