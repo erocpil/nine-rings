@@ -1,5 +1,11 @@
 # E2E 清理进度（2026-09-28）
 
+## 第 86 批：复核最新 macOS Chromium 原生矩阵
+
+最新 `E2E Native Platforms` run [36376429517](https://github.com/erocpil/nine-rings/actions/runs/36376429517) 中，除 `macos-14 / chromium` 外的五个 job 均成功；失败发生在 `Native platform regressions` 步骤。GitHub API 的 job 日志返回 403，保留的 macOS Chromium artifact 下载返回 401，无法读取该 runner 上具体失败断言。
+
+本机按 CI 相同平台配置完整重跑 Chromium 原生套件 **30/30 通过**，包括文档历史、内存会话、展陈工作区及阅读器分栏。当前证据更符合未复现的 macOS CI 波动；本批不修改代码，也不影响已清零的原始 56 项基线。日志位于 `.local-tools/e2e/repair-batch86/chromium.log` 和 `chromium.json`。
+
 ## 第 85 批：文档移动后路径恢复复核
 
 重跑目录与属性面板共用移动对话框、重载后路径仍正确的原失败项。Chromium、WebKit 当前均通过，旧 WebKit 失败未复现，无需改动产品代码。
