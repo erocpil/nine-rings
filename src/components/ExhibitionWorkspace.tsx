@@ -34,12 +34,7 @@ interface Props {
 export function ExhibitionWorkspace(props: Props) {
   const { enabled, focus, blocked, config, noteId, path, refreshKey } = props;
   const active = enabled && !focus;
-  const density =
-    config?.exhibition_density ??
-    (config?.interface_style === "calm-compact" ||
-    config?.interface_style === "minimal"
-      ? "compact"
-      : "comfortable");
+  const density = config?.exhibition_density ?? "comfortable";
   const [expanded, setExpanded] = useState(false);
   const [openAppearance, setOpenAppearance] = useState<string | null>(null);
   const showOverview = active && (!noteId || expanded);
@@ -149,7 +144,7 @@ export function ExhibitionWorkspace(props: Props) {
         [{ value: "light", label: "浅色" }, { value: "dark", label: "深色" }, { value: "system", label: "跟随系统" }],
         value => ({ interface_color_mode: value as AppConfig["interface_color_mode"] }))}
       {props.desktop && <>
-        {choose("文本宽度", config?.exhibition_text_width ?? "standard",
+      {choose("文本宽度", config?.exhibition_text_width ?? "wide",
           [{ value: "narrow", label: "窄幅" }, { value: "standard", label: "标准" }, { value: "wide", label: "宽幅" }],
           value => ({ exhibition_text_width: value as AppConfig["exhibition_text_width"] }))}
         {choose("紧凑程度", density,
@@ -163,7 +158,7 @@ export function ExhibitionWorkspace(props: Props) {
       className={`exhibition-shell${active ? " is-exhibition" : ""}`}
       data-text-width={
         enabled && props.desktop
-          ? (config?.exhibition_text_width ?? "standard")
+          ? (config?.exhibition_text_width ?? "wide")
           : undefined
       }
       data-density={enabled && props.desktop ? density : undefined}

@@ -100,16 +100,7 @@ export function resolveInterfaceConfig<T extends Partial<AppConfig>>(
 ): T {
   if (normalizeInterfaceStyle(config.interface_style) === "classic")
     return config;
-  const compact =
-    config.interface_style === "calm-compact" ||
-    config.interface_style === "minimal";
-  const paper = config.interface_style === "paper";
-  const literary =
-    paper ||
-    config.interface_style === "mono-aware" ||
-    config.interface_style === "wabi-sabi";
-  const size =
-    paper || config.interface_style === "mono-aware" ? 16 : compact ? 14 : 15;
+  const size = 15;
   const navigation = Object.fromEntries(
     NAVIGATION_APPEARANCE_KEYS.map((key) => [
       key,
@@ -124,18 +115,9 @@ export function resolveInterfaceConfig<T extends Partial<AppConfig>>(
     ...config,
     ...DEFAULT_EDITOR_APPEARANCE,
     ...navigation,
-    editor_font_family: literary ? "serif" : "system",
+    editor_font_family: "serif",
     note_font_size: size,
-    editor_line_height:
-      config.interface_style === "mono-aware"
-        ? 2
-        : config.interface_style === "wabi-sabi"
-          ? 1.8
-          : paper
-            ? 1.95
-            : config.interface_style === "minimal"
-              ? 1.7
-              : 1.9,
+    editor_line_height: 1.8,
     editor_block_spacing: 16 / size,
     editor_heading_margin_top: 28 / size,
     editor_heading_margin_bottom: 12 / size,

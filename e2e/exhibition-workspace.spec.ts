@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { createEpubFixture, createPdfFixture } from "./helpers/reader-fixtures";
 
 async function selectAppearance(page: Page, label: string, value: string) {
   await page.getByRole("button", { name: label, exact: true }).click();
@@ -273,6 +274,32 @@ test("桌面展陈宽度和密度独立持久化，手机保持原布局", async
   );
 });
 
+test("风格默认浅色宽幅舒适，非经典风格共享侘寂排版", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({
+    interface_style: "calm",
+    workspace_layout: "exhibition",
+  })));
+  await page.goto("/");
+  const shell = page.locator(".exhibition-shell");
+  await expect(shell).toHaveAttribute("data-text-width", "wide");
+  await expect(shell).toHaveAttribute("data-density", "comfortable");
+  await expect(page.locator("html")).toHaveClass(/theme-light/);
+
+  const editor = page.locator(".note-editor .ProseMirror");
+  const typography = async () => editor.evaluate(element => {
+    const style = getComputedStyle(element);
+    return { fontSize: style.fontSize, lineHeight: style.lineHeight, fontFamily: style.fontFamily };
+  });
+  const baseline = await typography();
+  expect(baseline.fontSize).toBe("15px");
+  expect(baseline.lineHeight).toBe("27px");
+  expect(baseline.fontFamily).toMatch(/serif/i);
+  for (const style of ["paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"]) {
+    await selectAppearance(page, "工作区风格", style);
+    await expect.poll(typography).toEqual(baseline);
+  }
+});
+
 
 test("桌面顶部菜单一次点击切换，取消不修改配置，手机仍为原生选择", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "nine-rings", interface_color_mode: "light", workspace_layout: "exhibition" })));
@@ -326,6 +353,63 @@ test("首页快速往返不保存恢复期间的临时滚动位置", async ({ pa
   await page.evaluate(() => { for (const style of document.querySelectorAll("style")) if (style.textContent?.includes("max-height: 150px !important")) style.remove(); });
   await page.getByRole("button", {name: "返回上一页面", exact: true}).click();
   await expect.poll(() => page.locator(".note-editor-scroll").evaluate(element => element.scrollTop)).toBeCloseTo(target, 0);
+});
+
+test("首页从固定阅读分栏打开 PDF 后收回空栏，返回时保留 PDF 阅读器", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "calm", workspace_layout: "exhibition" }));
+    localStorage.setItem("nr:sidebarPresentation", "split");
+    localStorage.setItem("nr:desktopSidebar", JSON.stringify({ panel: "reader", hidden: false, pinned: true }));
+  });
+  await page.goto("/");
+  const title = page.locator(".note-title");
+  await expect(title).toBeVisible();
+  const originalTitle = await title.inputValue();
+  await page.getByRole("button", { name: "返回工作区首页", exact: true }).click();
+
+  await page.locator(".desktop-activity-bar").hover();
+  await page.getByRole("button", { name: "PDF / EPUB 阅读", exact: true }).click();
+  const library = page.getByRole("region", { name: "阅读资料库", exact: true });
+  await expect(library).toBeVisible();
+  await library.locator('input[accept="application/pdf,.pdf"]').setInputFiles({
+    name: "home-reader.pdf", mimeType: "application/pdf", buffer: createPdfFixture(),
+  });
+
+  const reader = page.getByLabel("PDF 阅读器", { exact: true });
+  const sidebar = page.locator(".app-sidebar");
+  await expect(reader).toBeVisible();
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
+  await expect(page.locator(".sidebar-divider")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "返回上一页面", exact: true }).click();
+  await expect(title).toHaveValue(originalTitle);
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
+  await expect(page.locator(".app-main").getByLabel("PDF 阅读器", { exact: true })).toBeVisible();
+});
+
+test("首页悬停阅读分栏打开 EPUB 后取消悬停并收回分栏", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "calm", workspace_layout: "exhibition" }));
+    localStorage.setItem("nr:sidebarPresentation", "overlay");
+    localStorage.setItem("nr:desktopSidebar", JSON.stringify({ panel: "reader", hidden: true, pinned: false }));
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "返回工作区首页", exact: true }).click();
+
+  const activityBar = page.locator(".desktop-activity-bar");
+  await activityBar.hover();
+  await page.getByRole("button", { name: "PDF / EPUB 阅读", exact: true }).hover();
+  const library = page.getByRole("region", { name: "阅读资料库", exact: true });
+  await expect(library).toBeVisible();
+  await library.locator('input[accept="application/epub+zip,.epub"]').setInputFiles({
+    name: "home-reader.epub", mimeType: "application/epub+zip", buffer: createEpubFixture(),
+  });
+
+  const sidebar = page.locator(".app-sidebar");
+  await expect(page.getByLabel("EPUB 阅读器", { exact: true })).toBeVisible();
+  await page.mouse.move(850, 500);
+  await expect(sidebar).toHaveClass(/sidebar-hidden/);
+  await expect(page.locator(".sidebar-divider")).toHaveCount(0);
 });
 
 for (const presentation of ["overlay", "split"] as const) {

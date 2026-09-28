@@ -74,17 +74,7 @@
   --style-content-inset: 24px;
   --style-content-top: 24px;
 }
-html[data-interface-style="paper"] :is(.editor-content, .vr-block) h1 {
-  font-weight: 600;
-  letter-spacing: 0;
-}
 @media (min-width: 769px) and (pointer: fine) {
-  html[data-interface-style="minimal"] :is(.editor-content, .vr-block) h1 {
-    font-size: 28px;
-  }
-  html[data-interface-style="minimal"] :is(.editor-content, .vr-block) h2 {
-    font-size: 20px;
-  }
   html[data-interface-style="minimal"]
     :is(
       .menu-btn,
@@ -93,11 +83,6 @@ html[data-interface-style="paper"] :is(.editor-content, .vr-block) h1 {
       .document-bookmark-item
     ) {
     border-radius: 3px;
-  }
-}
-@media (max-width: 768px) {
-  html[data-interface-style="paper"] :is(.editor-content, .vr-block) {
-    font-size: 15px;
   }
 }
 .preview-paper {

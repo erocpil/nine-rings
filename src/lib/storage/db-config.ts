@@ -6,8 +6,8 @@ import { DEFAULT_CONFIG } from "./types";
 
 function normalizeExhibition(config: AppConfig): AppConfig {
   return { ...config,
-    exhibition_text_width: config.exhibition_text_width === "narrow" || config.exhibition_text_width === "wide" ? config.exhibition_text_width : "standard",
-    exhibition_density: config.exhibition_density === "comfortable" || config.exhibition_density === "compact" ? config.exhibition_density : null,
+    exhibition_text_width: config.exhibition_text_width === "narrow" || config.exhibition_text_width === "standard" ? config.exhibition_text_width : "wide",
+    exhibition_density: config.exhibition_density === "compact" ? "compact" : "comfortable",
   };
 }
 

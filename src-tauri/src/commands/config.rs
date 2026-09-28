@@ -16,7 +16,7 @@ pub struct AppConfig {
     pub workspace_layout: String,
     #[serde(default = "default_exhibition_text_width")]
     pub exhibition_text_width: String,
-    #[serde(default)]
+    #[serde(default = "default_exhibition_density")]
     pub exhibition_density: Option<String>,
     pub theme: String, // "system" | "light" | "dark" | "fu" | ...
     pub auto_clean_days: i32,
@@ -157,13 +157,16 @@ fn default_editor_fold_icon_expanded() -> String {
 }
 
 fn default_exhibition_text_width() -> String {
-    "standard".into()
+    "wide".into()
+}
+fn default_exhibition_density() -> Option<String> {
+    Some("comfortable".into())
 }
 fn default_workspace_layout() -> String {
     "standard".into()
 }
 fn default_interface_color_mode() -> String {
-    "system".into()
+    "light".into()
 }
 
 fn default_interface_style() -> String {
@@ -178,7 +181,7 @@ impl Default for AppConfig {
             interface_color_mode: default_interface_color_mode(),
             workspace_layout: default_workspace_layout(),
             exhibition_text_width: default_exhibition_text_width(),
-            exhibition_density: None,
+            exhibition_density: default_exhibition_density(),
             auto_clean_days: 30,
             note_font_size: 16,
             editor_font_family: default_editor_font_family(),
@@ -350,8 +353,8 @@ mod tests {
         value.as_object_mut().unwrap().remove("exhibition_density");
         let migrated: AppConfig = serde_json::from_value(value).unwrap();
         assert_eq!(migrated.workspace_layout, "standard");
-        assert_eq!(migrated.exhibition_text_width, "standard");
-        assert_eq!(migrated.exhibition_density, None);
+        assert_eq!(migrated.exhibition_text_width, "wide");
+        assert_eq!(migrated.exhibition_density.as_deref(), Some("comfortable"));
         let mut config = migrated;
         config.workspace_layout = "exhibition".into();
         config.exhibition_text_width = "wide".into();

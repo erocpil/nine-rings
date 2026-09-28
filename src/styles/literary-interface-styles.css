@@ -142,24 +142,6 @@ html[data-interface-style="wabi-sabi"]
   ) {
   border-radius: 2px;
 }
-@media (min-width: 769px) and (pointer: fine) {
-  html[data-interface-style="mono-aware"]
-    .editor-content
-    .ProseMirror:not(.vr-block)
-    > :has(+ :is(h1, h2, h3, h4, h5, h6)),
-  html[data-interface-style="mono-aware"]
-    .editor-content
-    .vr-row[data-next-heading="true"]
-    .vr-block
-    > :last-child {
-    margin-bottom: var(--style-heading-gap, 32px);
-  }
-}
-@media (max-width: 768px) {
-  html[data-interface-style="mono-aware"] :is(.editor-content, .vr-block) {
-    font-size: 15px;
-  }
-}
 .preview-mono-aware {
   background: var(--bg);
   border-color: var(--border);

@@ -367,9 +367,6 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
   font-weight: 650;
   letter-spacing: -0.6px;
 }
-html[data-interface-style="calm-compact"] :is(.editor-content, .vr-block) h1 {
-  font-size: 30px;
-}
 html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
   :is(.editor-content, .vr-block)
   h2 {

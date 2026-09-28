@@ -193,7 +193,7 @@ export interface AppConfig {
   interface_style: "classic" | "calm" | "calm-compact" | "paper" | "minimal" | "nine-rings" | "mono-aware" | "yugen" | "wabi-sabi";
   workspace_layout: "standard" | "exhibition";
   exhibition_text_width: "narrow" | "standard" | "wide";
-  exhibition_density: "comfortable" | "compact" | null;
+  exhibition_density: "comfortable" | "compact";
   interface_color_mode: "light" | "dark" | "system";
   theme: "system" | "light" | "dark" | "fu" | "azure" | "azure-dark" | "grace" | "sui" | "zhi" | "nord" | "dracula";
   auto_clean_days: number;

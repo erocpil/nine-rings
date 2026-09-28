@@ -281,9 +281,11 @@ function App() {
   }, [flushAutoSave]);
 
   const [workspaceHomeRequested, setWorkspaceHomeRequested] = useState(false);
+  const [exhibitionReaderActive, setExhibitionReaderActive] = useState(false);
 
   const handleSelectNote = useCallback((note: Note | null) => {
     setWorkspaceHomeRequested(false);
+    setExhibitionReaderActive(false);
     if (note) {
       setWorkspaceHomeChromeHidden(false);
       setExhibitionReturnTarget(null);
@@ -350,12 +352,16 @@ function App() {
     readingLibraryOpen: boolean;
     pdfReaderDocumentId: string | null;
     epubReaderDocumentId: string | null;
+    activeReaderFormat: "pdf" | "epub" | null;
+    exhibitionReaderActive: boolean;
+    homeOpenedReader: { format: "pdf" | "epub"; documentId: string } | null;
   } | null>(null);
   const [workspaceHomeChromeHidden, setWorkspaceHomeChromeHidden] = useState(false);
   const [workspaceHomePanelActivated, setWorkspaceHomePanelActivated] = useState(false);
   const [readingLibraryError, setReadingLibraryError] = useState<string | null>(null);
   const readingLibrarySession = useRef<ReadingLibrarySession>({ format: "all", query: "", scrollTop: 0 });
   const [pdfReaderDocumentId, setPdfReaderDocumentId] = useState<string | null>(null);
+  const [activeReaderFormat, setActiveReaderFormat] = useState<"pdf" | "epub" | null>(null);
   const [pdfReaderTargetHighlightId, setPdfReaderTargetHighlightId] = useState<string | null>(null);
   const [pdfReaderTargetRange, setPdfReaderTargetRange] = useState<{ page: number; start: number; end: number } | null>(null);
   const [pdfReaderFullscreen, setPdfReaderFullscreen] = useState(false);
@@ -860,10 +866,27 @@ function App() {
   const desktopWorkspace = !mobileDrawerViewport;
   const workspaceLayout = useWorkspaceLayout();
   const sidebarOnRight = desktopWorkspace && workspaceLayout.sidebarSide === "right";
+  const activeReaderFullscreen = activeReaderFormat === "epub"
+    ? Boolean(epubReaderDocumentId && epubReaderFullscreen)
+    : activeReaderFormat === "pdf"
+      ? Boolean(pdfReaderDocumentId && pdfReaderFullscreen)
+      : Boolean(pdfReaderDocumentId ? pdfReaderFullscreen : epubReaderDocumentId && epubReaderFullscreen);
   const readerFocus = desktopWorkspace && desktopPanel === "reader" && !sidebarHidden
-    && Boolean(pdfReaderDocumentId ? pdfReaderFullscreen : epubReaderDocumentId && epubReaderFullscreen);
+    && activeReaderFullscreen;
   const sidebarHoverEnabled = desktopWorkspace && sidebarPresentation === "overlay";
   const sidebarHover = useSidebarHoverPreview({ enabled: sidebarHoverEnabled, panel: desktopPanel, hidden: sidebarHidden, resizing: sidebarResizing || readerFocus, openPanel: setSidebarPanel, setHidden: setSidebarHidden });
+  const workspaceHome = workspaceHomeRequested || (!selectedNote && !selectedFolderPath && !selectedConcept);
+  const closeHomeReaderSidebar = useCallback((format: "pdf" | "epub", documentId: string) => {
+    if (!desktopWorkspace || !workspaceHome) return;
+    // The home reader takes over the main area. Cancel both pinned and hover
+    // sidebar state so neither an empty split nor a delayed hover remains.
+    sidebarHover.restore({ panel: "reader", hidden: true, pinned: false });
+    setWorkspaceHomePanelActivated(false);
+    setWorkspaceHomeChromeHidden(true);
+    setExhibitionReturnTarget(current => current
+      ? { ...current, homeOpenedReader: { format, documentId } }
+      : current);
+  }, [desktopWorkspace, sidebarHover, workspaceHome]);
   const sidebarOverlay = sidebarHoverEnabled && !sidebarHover.pinned;
   const previousDesktopWorkspace = useRef(desktopWorkspace);
   useEffect(() => {
@@ -1110,6 +1133,7 @@ function App() {
             onClose={() => {
               setPdfReaderFullscreen(false);
               setPdfReaderDocumentId(null);
+              setActiveReaderFormat(epubReaderDocumentId ? "epub" : null);
               setPdfReaderTargetHighlightId(null);
               setPdfReaderTargetRange(null);
             }}
@@ -1162,6 +1186,7 @@ function App() {
             onClose={() => {
               setEpubReaderFullscreen(false);
               setEpubReaderDocumentId(null);
+              setActiveReaderFormat(pdfReaderDocumentId ? "pdf" : null);
               setEpubReaderTargetHighlightId(null);
             }}
           />
@@ -1222,8 +1247,8 @@ function App() {
           <ReadingLibrary session={readingLibrarySession.current}
             showWorkspaceSwitch
             onClose={() => setReadingLibraryOpen(false)}
-            onOpenPdf={id => { if (mobileDrawerViewport) setReadingLibraryOpen(false); setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
-            onOpenEpub={id => { if (mobileDrawerViewport) setReadingLibraryOpen(false); setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }}
+            onOpenPdf={id => { if (mobileDrawerViewport) setReadingLibraryOpen(false); closeHomeReaderSidebar("pdf", id); setActiveReaderFormat("pdf"); setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
+            onOpenEpub={id => { if (mobileDrawerViewport) setReadingLibraryOpen(false); closeHomeReaderSidebar("epub", id); setActiveReaderFormat("epub"); setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }}
           />
         </Suspense>
       </div>
@@ -1232,12 +1257,15 @@ function App() {
   ) : null;
 
   const exhibitionEnabled = config?.workspace_layout === "exhibition" && config.interface_style !== "classic";
-  const workspaceHome = workspaceHomeRequested || (!selectedNote && !selectedFolderPath && !selectedConcept);
   const readerWasOpenBeforeHome = Boolean(
     exhibitionReturnTarget?.pdfReaderDocumentId || exhibitionReturnTarget?.epubReaderDocumentId,
   );
-  const homeReaderOpen = desktopWorkspace && workspaceHome && !readerWasOpenBeforeHome
-    && Boolean(pdfReaderPanel || epubReaderPanel);
+  const homeReaderOpen = desktopWorkspace && workspaceHome
+    && Boolean(exhibitionReturnTarget?.homeOpenedReader || (!readerWasOpenBeforeHome && (pdfReaderPanel || epubReaderPanel)));
+  const activeReaderPanel = activeReaderFormat === "epub"
+    ? epubReaderPanel ?? pdfReaderPanel
+    : pdfReaderPanel ?? epubReaderPanel;
+  const readerPrimaryView = desktopWorkspace && !workspaceHome && exhibitionReaderActive && Boolean(activeReaderPanel);
   return (
     <EditorFoldIconContext.Provider value={config}>
     <ExhibitionWorkspace desktop={desktopWorkspace} enabled={exhibitionEnabled && !mobileReaderOpen} focus={focusMode} config={config}
@@ -1261,12 +1289,23 @@ function App() {
           setSelectedConcept(target.concept);
           if (desktopWorkspace) {
             saveWorkspaceLayout(target.workspaceLayout);
-            setDesktopPanel(target.desktopSidebar.panel);
-            sidebarHover.restore(target.desktopSidebar);
+            if (target.homeOpenedReader) {
+              setDesktopPanel("reader");
+              sidebarHover.restore({ panel: "reader", hidden: true, pinned: false });
+            } else {
+              setDesktopPanel(target.desktopSidebar.panel);
+              sidebarHover.restore(target.desktopSidebar);
+            }
           }
-          setReadingLibraryOpen(target.readingLibraryOpen);
-          setPdfReaderDocumentId(target.pdfReaderDocumentId);
-          setEpubReaderDocumentId(target.epubReaderDocumentId);
+          setExhibitionReaderActive(target.homeOpenedReader ? true : target.exhibitionReaderActive);
+          setReadingLibraryOpen(target.homeOpenedReader ? false : target.readingLibraryOpen);
+          setPdfReaderDocumentId(target.homeOpenedReader?.format === "pdf"
+            ? target.homeOpenedReader.documentId
+            : target.pdfReaderDocumentId);
+          setEpubReaderDocumentId(target.homeOpenedReader?.format === "epub"
+            ? target.homeOpenedReader.documentId
+            : target.epubReaderDocumentId);
+          setActiveReaderFormat(target.homeOpenedReader?.format ?? target.activeReaderFormat);
           setWorkspaceHomeChromeHidden(false);
           setWorkspaceHomePanelActivated(false);
           setExhibitionReturnTarget(null);
@@ -1282,6 +1321,9 @@ function App() {
           readingLibraryOpen,
           pdfReaderDocumentId,
           epubReaderDocumentId,
+          activeReaderFormat,
+          exhibitionReaderActive,
+          homeOpenedReader: null,
         });
         if (desktopWorkspace) {
           saveWorkspaceLayout({ outlinePinned: false, bookmarkPinned: false });
@@ -1300,7 +1342,7 @@ function App() {
       onCreate={() => setDocCreateOpen(true)} onSearch={openGlobalSearch} onSettings={() => setSettingsOpen(true)}>
 
       <div
-      className={`app app-unified-workspace ${focusMode ? "app-focus-mode" : ""}${desktopWorkspace ? " app-desktop-workspace" : " app-mobile-workspace"}${homeReaderOpen ? " app-home-reader" : ""}${readerCompanionCollapsed ? " reader-companion-collapsed" : ""}${mobileReaderOpen ? " app-mobile-reader" : ""}`}
+      className={`app app-unified-workspace ${focusMode ? "app-focus-mode" : ""}${desktopWorkspace ? " app-desktop-workspace" : " app-mobile-workspace"}${homeReaderOpen || readerPrimaryView ? " app-home-reader" : ""}${readerCompanionCollapsed ? " reader-companion-collapsed" : ""}${mobileReaderOpen ? " app-mobile-reader" : ""}`}
       style={editorAppearanceVariables(config ?? undefined)}
       {...(mobileReadingLibraryOpen ? { inert: "", "aria-hidden": true } : {})}
       {...(protectionBusy || applyingWebUpdate ? { inert: "", "aria-busy": true } : {})}
@@ -1363,7 +1405,7 @@ function App() {
               if (workspaceHome) {
                 setWorkspaceHomePanelActivated(true);
                 setWorkspaceHomeChromeHidden(false);
-              }
+              } else setExhibitionReaderActive(false);
               sidebarHover.click(panel);
             }}>
             <ToolbarIcon name={icon} />
@@ -1475,14 +1517,14 @@ function App() {
             onPointerDownCapture={event => {
               if (event.target instanceof Element && !event.target.closest('button, input, textarea, select, a, [contenteditable=true]')) event.currentTarget.focus({ preventScroll: true });
             }}>
-            {!homeReaderOpen && (pdfReaderPanel ?? epubReaderPanel ?? (!mobileDrawerViewport && desktopPanel === 'reader' && <Suspense fallback={<div className="doc-tree-loading">正在加载阅读资料…</div>}>
+            {!homeReaderOpen && !readerPrimaryView && (activeReaderPanel ?? (!mobileDrawerViewport && desktopPanel === 'reader' && <Suspense fallback={<div className="doc-tree-loading">正在加载阅读资料…</div>}>
               <ReadingLibrary session={readingLibrarySession.current}
                 showWorkspaceSwitch={false}
                 autoFocusOnOpen={!sidebarOverlay}
                 onHide={desktopWorkspace ? undefined : () => setSidebarHidden(true)}
                 onClose={sidebarOverlay ? sidebarHover.dismiss : () => setSidebarPanel('tree')}
-                onOpenPdf={id => { setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
-                onOpenEpub={id => { setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }} />
+                onOpenPdf={id => { closeHomeReaderSidebar("pdf", id); setActiveReaderFormat("pdf"); setPdfReaderTargetHighlightId(null); setPdfReaderTargetRange(null); setPdfReaderDocumentId(id); }}
+                onOpenEpub={id => { closeHomeReaderSidebar("epub", id); setActiveReaderFormat("epub"); setEpubReaderTargetHighlightId(null); setEpubReaderDocumentId(id); }} />
             </Suspense>))}
           </section>
           {mobileDrawerViewport && <div className="sidebar-footer">
@@ -1501,7 +1543,7 @@ function App() {
             <button type="button" className="btn-icon" aria-label="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>
             <button type="button" className="btn-icon" aria-label="设置" onClick={() => setSettingsOpen(true)}><ToolbarIcon name="sliders" /></button>
           </div>}
-          {homeReaderOpen ? (pdfReaderPanel ?? epubReaderPanel) : exhibitionEnabled && workspaceHome ? (
+          {homeReaderOpen || readerPrimaryView ? activeReaderPanel : exhibitionEnabled && workspaceHome ? (
             <ExhibitionWelcome disabled={syncBusy} onCreate={() => setDocCreateOpen(true)} onSearch={openGlobalSearch} />
           ) : selectedConcept && !selectedNote ? (
             <DocMOC
@@ -1529,7 +1571,7 @@ function App() {
               selectedId={null}
             />
           ) : null}
-            <div className="app-main-split" style={{ display: homeReaderOpen || (exhibitionEnabled && workspaceHome) || (!selectedNote && Boolean(selectedConcept || selectedFolderPath)) ? "none" : undefined }}>
+            <div className="app-main-split" style={{ display: homeReaderOpen || readerPrimaryView || (exhibitionEnabled && workspaceHome) || (!selectedNote && Boolean(selectedConcept || selectedFolderPath)) ? "none" : undefined }}>
 
 
               <div
@@ -1596,6 +1638,7 @@ function App() {
                           );
                           setPdfReaderDocumentId(source.pdfId);
                           setEpubReaderDocumentId(null);
+                          setActiveReaderFormat("pdf");
                           setSidebarPanel("reader");
                         } catch (reason) {
                           window.alert(`无法打开 PDF 来源：${reason instanceof Error ? reason.message : String(reason)}`);
@@ -1610,6 +1653,7 @@ function App() {
                           setEpubReaderTargetHighlightId(source.highlightId ?? null);
                           setEpubReaderDocumentId(source.epubId);
                           setPdfReaderDocumentId(null);
+                          setActiveReaderFormat("epub");
                           setSidebarPanel("reader");
                         } catch (reason) {
                           window.alert(`无法打开 EPUB 来源：${reason instanceof Error ? reason.message : String(reason)}`);

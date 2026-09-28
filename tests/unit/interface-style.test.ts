@@ -66,7 +66,7 @@ test("calm projection leaves stored appearance and editor behaviours intact", ()
   const snapshot = JSON.stringify(saved);
   const display = resolveInterfaceConfig(saved);
   expect(display.note_font_size).toBe(15);
-  expect(display.editor_line_height).toBe(1.9);
+  expect(display.editor_line_height).toBe(1.8);
   expect(display.navigation_outline_text_color).toBe("#333333");
   expect(display.editor_show_line_numbers).toBe(true);
   expect(display.highlight_active_line).toBe(false);
@@ -76,22 +76,24 @@ test("calm projection leaves stored appearance and editor behaviours intact", ()
   expect(
     resolveInterfaceConfig({ ...saved, interface_style: "calm-compact" })
       .note_font_size,
-  ).toBe(14);
+  ).toBe(15);
   expect(normalizeInterfaceColorMode("invalid")).toBe("system");
 });
 
-test("paper and minimal project typography without rewriting saved preferences", () => {
-  for (const style of ["paper", "minimal"] as const) {
+test("all eight managed interface styles share the wabi-sabi reading typography", () => {
+  for (const style of ["calm", "calm-compact", "paper", "minimal", "nine-rings", "mono-aware", "yugen", "wabi-sabi"] as const) {
     const original = {
       interface_style: style,
       note_font_size: 23,
       editor_font_family: "monospace" as const,
     };
     const display = resolveInterfaceConfig(original);
-    expect(display.editor_font_family).toBe(
-      style === "paper" ? "serif" : "system",
-    );
-    expect(display.note_font_size).toBe(style === "paper" ? 16 : 14);
+    expect(display.editor_font_family).toBe("serif");
+    expect(display.note_font_size).toBe(15);
+    expect(display.editor_line_height).toBe(1.8);
+    expect(display.editor_block_spacing).toBeCloseTo(16 / 15);
+    expect(display.editor_heading_margin_top).toBeCloseTo(28 / 15);
+    expect(display.editor_heading_margin_bottom).toBeCloseTo(12 / 15);
     expect(original.note_font_size).toBe(23);
     expect(original.editor_font_family).toBe("monospace");
   }
@@ -122,8 +124,8 @@ test("exhibition display preferences migrate, persist and validate independently
     },
   });
   expect(await getConfig()).toMatchObject({
-    exhibition_text_width: "standard",
-    exhibition_density: null,
+    exhibition_text_width: "wide",
+    exhibition_density: "comfortable",
   });
   await setConfig({
     exhibition_text_width: "wide",
@@ -140,7 +142,16 @@ test("exhibition display preferences migrate, persist and validate independently
     exhibition_density: "invalid",
   });
   expect(await getConfig()).toMatchObject({
-    exhibition_text_width: "standard",
-    exhibition_density: null,
+    exhibition_text_width: "wide",
+    exhibition_density: "comfortable",
+  });
+});
+
+test("new workspaces default to light, wide and comfortable presentation", async () => {
+  vi.stubGlobal("localStorage", { getItem: () => "{}", setItem: vi.fn() });
+  expect(await getConfig()).toMatchObject({
+    interface_color_mode: "light",
+    exhibition_text_width: "wide",
+    exhibition_density: "comfortable",
   });
 });

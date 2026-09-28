@@ -12,8 +12,8 @@ AppConfig:
 
     interface_color_mode:
       type: enum(light, dark, system)
-      default: system
-      description: 清雅系列独立配色模式，不改变经典主题
+      default: light
+      description: 非经典风格独立配色模式，默认浅色，不改变经典主题
 
     workspace_layout:
       type: enum(standard, exhibition)
@@ -22,13 +22,13 @@ AppConfig:
 
     exhibition_text_width:
       type: enum(narrow, standard, wide)
-      default: standard
-      description: 桌面展陈正文宽度（690px、窄幅与宽幅的中点、铺满可用宽度），手机不应用
+      default: wide
+      description: 桌面展陈正文宽度（690px、窄幅与宽幅的中点、铺满可用宽度），默认宽幅，手机不应用
 
     exhibition_density:
-      type: enum(comfortable, compact) | null
-      default: null
-      description: 桌面展陈控件与留白密度；null 沿用风格默认密度，手机不应用
+      type: enum(comfortable, compact)
+      default: comfortable
+      description: 桌面展陈控件与留白密度，默认舒适，手机不应用
 
     theme:
       type: enum(light, dark, fu, azure, azure-dark, grace, sui, zhi)

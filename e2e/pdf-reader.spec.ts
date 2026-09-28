@@ -43,18 +43,20 @@ test("本地 PDF 从阅读资料库导入后在独立阅读器打开并可再次
   await expect(page.getByText("/ 2", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "进入全屏阅读" }).click();
-  await expect(page.getByRole("button", { name: "退出全屏阅读" })).toBeVisible();
   await expect(reader).toHaveClass(/pdf-reader-fullscreen/);
-  await expect(reader).toHaveClass(/pdf-fullscreen-controls-hidden/, { timeout: 2000 });
+  // Entering fullscreen changes the toolbar geometry. Move the pointer out
+  // explicitly so the hide timer does not depend on where the browser leaves it.
+  await page.mouse.move(8, 100);
+  await expect(reader).toHaveClass(/pdf-fullscreen-controls-hidden/, { timeout: 5000 });
   await viewport.click({ position: { x: 20, y: 20 } });
   await expect(reader).not.toHaveClass(/pdf-fullscreen-controls-hidden/);
   await viewport.click({ position: { x: 20, y: 20 } });
   await expect(reader).toHaveClass(/pdf-fullscreen-controls-hidden/);
   await viewport.click({ position: { x: 20, y: 20 } });
+  await expect(page.getByRole("button", { name: "退出全屏阅读" })).toBeVisible();
   await page.getByRole("button", { name: "退出全屏阅读" }).click();
   await expect(page.getByRole("button", { name: "进入全屏阅读" })).toBeVisible();
   await expect(reader).toBeVisible();
-
   await page.evaluate(() => {
     delete (Element.prototype as unknown as { requestFullscreen?: () => Promise<void> }).requestFullscreen;
     delete (Element.prototype as unknown as { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen;
