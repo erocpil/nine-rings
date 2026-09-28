@@ -11,6 +11,7 @@ on:
       - "playwright*.config.ts"
       - "vite.config.*"
       - ".github/workflows/e2e-platforms.yml"
+      - ".github/workflows/artifact-cleanup.yml"
   push:
     branches: [main]
     paths:
@@ -22,6 +23,7 @@ on:
       - "playwright*.config.ts"
       - "vite.config.*"
       - ".github/workflows/e2e-platforms.yml"
+      - ".github/workflows/artifact-cleanup.yml"
   workflow_dispatch:
     inputs:
       suite:

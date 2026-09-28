@@ -49,7 +49,8 @@ jobs:
               nine-rings-tauri-macos-x64 | \
               nine-rings-flutter-windows-x64 | \
               nine-rings-flutter-linux-x64 | \
-              nine-rings-flutter-macos-arm64)
+              nine-rings-flutter-macos-arm64 | \
+              e2e-*)
                 ;;
               *)
                 if gh api \
