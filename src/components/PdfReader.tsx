@@ -629,7 +629,11 @@ export function PdfReader({ documentId, resizing = false, onClose, onFullscreenC
       setFitHeight(Boolean(stored.entry.fitHeight));
       setViewMode(stored.entry.viewMode === "vertical" ? "vertical" : "horizontal");
 
-      loadingTask = getDocument({ data: stored.data });
+      loadingTask = getDocument({
+        data: stored.data,
+        cMapUrl: new URL(`${import.meta.env.BASE_URL}pdfjs-cmaps/`, window.location.href).href,
+        cMapPacked: true,
+      });
       loadingTask.onPassword = (updatePassword: (password: string) => void, reason: number) => {
         const promptText = reason === PasswordResponses.INCORRECT_PASSWORD
           ? "密码不正确，请重新输入 PDF 密码"

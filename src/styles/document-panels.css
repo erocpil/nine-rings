@@ -29,6 +29,7 @@
   height: auto;
   flex-wrap: wrap;
 }
+.desktop-document-panels .document-outline-header-actions { flex-wrap: nowrap; }
 .desktop-document-panels .document-bookmark-header > span + span {
   color: var(--text-secondary);
   font-size: 11px;
@@ -135,6 +136,7 @@
   box-sizing: border-box;
   overflow: auto;
 }
+.document-panel-slot > .document-outline-panel { overflow: hidden; }
 .document-panel-slot :is(.document-outline-list, .document-bookmark-list) {
   min-height: 0;
   flex: 1;
@@ -233,7 +235,7 @@
   gap: 6px;
 }
 .document-panel-slot .document-outline-header-actions {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   height: auto;
 }
 

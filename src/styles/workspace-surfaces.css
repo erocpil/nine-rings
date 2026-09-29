@@ -1383,6 +1383,7 @@
   min-width: 0;
   height: 20px;
 }
+.document-outline-header-actions { flex-wrap: nowrap; }
 
 .document-outline-header-primary > span {
   flex: none;

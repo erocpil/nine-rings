@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import importPlugin from "./plugins/vite-import-plugin";
 import pwaPlugin from "./plugins/vite-pwa-plugin";
+import pdfjsCMapAssets from "./plugins/vite-pdfjs-cmaps-plugin";
 import { execSync } from "child_process";
 import { readFileSync } from "fs";
 
@@ -38,7 +39,7 @@ export default defineConfig(async () => {
     normalizePath(id).endsWith(`/src/${suffix}`);
 
   return ({
-  plugins: [react(), importPlugin(), pwaPlugin(version)],
+  plugins: [react(), importPlugin(), pdfjsCMapAssets(), pwaPlugin(version)],
   define: {
     __APP_VERSION__: JSON.stringify(version),
   },

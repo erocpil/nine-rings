@@ -1,5 +1,71 @@
 import { expect, test } from "@playwright/test";
 
+test("长目录的滚动按钮在悬浮和固定面板中与收起按钮对齐且持续可见", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
+  const ids = await page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts") as typeof import("../src/lib/api");
+    const { mdToDelta } = await load("/src/lib/md-parser.ts") as typeof import("../src/lib/md-parser");
+    const { useNotesStore } = await load("/src/stores/useNotesStore.ts") as typeof import("../src/stores/useNotesStore");
+    const date = useNotesStore.getState().currentDate;
+    const long = await api.notes.create({ title: "长目录", date, storagePath: "tests", content: mdToDelta(Array.from({ length: 140 }, (_, i) => `# 章节 ${i}\n\n正文`).join("\n\n")) });
+    const short = await api.notes.create({ title: "短目录", date, storagePath: "tests", content: mdToDelta("# 唯一章节\n\n正文") });
+    useNotesStore.getState().selectNote(long);
+    return { long: long.id, short: short.id };
+  });
+  await expect(page.locator(".note-title")).toHaveValue("长目录");
+  const trigger = page.getByRole("button", { name: "文档目录", exact: true });
+  await trigger.hover();
+  const preview = page.locator(".document-outline-panel[data-document-preview]");
+  await expect(preview).toBeVisible();
+  const checkHeader = async (panel: typeof preview) => {
+    await expect(panel.locator(".document-outline-jumps:not(.is-placeholder)")).toBeVisible();
+    const alignment = await panel.evaluate(element => {
+      const close = element.querySelector<HTMLButtonElement>('button[aria-label="固定目录"], button[aria-label="收起固定目录"]')!;
+      const closeRect = close.getBoundingClientRect();
+      const panelRect = element.getBoundingClientRect();
+      const buttons = ["Top", "Mid", "Bot"].map(label => {
+        const button = Array.from(element.querySelectorAll<HTMLButtonElement>(".document-outline-jumps button"))
+          .find(candidate => candidate.textContent === label)!;
+        const rect = button.getBoundingClientRect();
+        return { offset: Math.abs((rect.top + rect.bottom) / 2 - (closeRect.top + closeRect.bottom) / 2), inside: rect.left >= panelRect.left && rect.right <= panelRect.right };
+      });
+      return { buttons, closeInside: closeRect.left >= panelRect.left && closeRect.right <= panelRect.right };
+    });
+    expect(Math.max(...alignment.buttons.map(button => button.offset))).toBeLessThanOrEqual(2);
+    expect(alignment.closeInside && alignment.buttons.every(button => button.inside)).toBe(true);
+  };
+  await checkHeader(preview);
+  await trigger.click();
+  const pinned = page.getByRole("complementary", { name: "固定阅读面板" }).locator(".document-outline-panel");
+  await expect(pinned).toBeVisible();
+  await checkHeader(pinned);
+  await pinned.evaluate(element => element.closest<HTMLElement>(".note-editor")?.style.setProperty("--document-dock-width", "180px"));
+  await expect.poll(async () => (await pinned.boundingBox())?.width ?? 0).toBeLessThanOrEqual(181);
+  await checkHeader(pinned);
+  const headerTop = (await pinned.locator(".document-outline-header").boundingBox())!.y;
+  await pinned.locator(".document-outline-list").evaluate(element => { element.scrollTop = element.scrollHeight; });
+  await expect(pinned.getByTitle("滚动至顶部")).toBeInViewport();
+  expect(Math.abs((await pinned.locator(".document-outline-header").boundingBox())!.y - headerTop)).toBeLessThanOrEqual(1);
+
+  await page.evaluate(async ({ short }) => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts") as typeof import("../src/lib/api");
+    const { useNotesStore } = await load("/src/stores/useNotesStore.ts") as typeof import("../src/stores/useNotesStore");
+    useNotesStore.getState().selectNote(await api.notes.get(short));
+  }, ids);
+  await expect(page.locator(".note-title")).toHaveValue("短目录");
+  await page.evaluate(async ({ long }) => {
+    const load = (path: string) => import(/* @vite-ignore */ path);
+    const { api } = await load("/src/lib/api.ts") as typeof import("../src/lib/api");
+    const { useNotesStore } = await load("/src/stores/useNotesStore.ts") as typeof import("../src/stores/useNotesStore");
+    useNotesStore.getState().selectNote(await api.notes.get(long));
+  }, ids);
+  await expect(page.locator(".note-title")).toHaveValue("长目录");
+  await checkHeader(pinned);
+});
+
 for (const virtual of [false, true])
   test(`目录书签独立固定、比例保存与左右布局 ${virtual ? "局部只读" : "编辑"}`, async ({
     page,

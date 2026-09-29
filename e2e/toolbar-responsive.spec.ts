@@ -13,6 +13,22 @@ async function expectNoHorizontalOverflow(page: import("@playwright/test").Page)
 }
 
 test.describe("响应式编辑器工具栏", () => {
+  test("工具栏保留可用按钮时不会在右侧留下大片空白", async ({ page }) => {
+    await createBlankNote(page);
+    const toolbar = page.locator(".editor-menu");
+    for (const width of [900, 1000, 1100, 1200, 1300, 1400]) {
+      await page.setViewportSize({ width, height: 800 });
+      await expect.poll(() => toolbar.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(2);
+      const layout = await toolbar.evaluate(element => {
+        const visible = Array.from(element.querySelectorAll<HTMLElement>(":scope > *, .toolbar-secondary > *"))
+          .filter(node => node !== element.querySelector(".toolbar-secondary") && getComputedStyle(node).display !== "none");
+        const right = Math.max(...visible.map(node => node.getBoundingClientRect().right));
+        return { minimal: element.classList.contains("toolbar-minimal"), gap: element.getBoundingClientRect().right - right };
+      });
+      if (layout.minimal) expect(layout.gap).toBeLessThan(100);
+    }
+  });
+
   test("桌面固定工具按实际占宽切换，宽敞时补回可选按钮", async ({ page }) => {
     await createBlankNote(page);
     const toolbar = page.locator(".editor-menu");

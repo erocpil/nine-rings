@@ -618,6 +618,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const [linkDialogUrl, setLinkDialogUrl] = useState("");
   const [toolbarWidth, setToolbarWidth] = useState(1000);
   const [fullToolbarMinWidth, setFullToolbarMinWidth] = useState(0);
+  const [compactToolbarMinWidth, setCompactToolbarMinWidth] = useState(0);
   const [isMobileToolbarViewport, setIsMobileToolbarViewport] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
@@ -648,7 +649,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   // Optional controls have their own measured overflow. Switch the fixed
   // groups only when their actual full-mode width no longer fits.
   const isNarrow = isMobileToolbarViewport || (fullToolbarMinWidth > 0 && toolbarWidth < fullToolbarMinWidth);
-  const isMinimalToolbar = isNarrow;
+  const isMinimalToolbar = isMobileToolbarViewport || (isNarrow && compactToolbarMinWidth > 0 && toolbarWidth < compactToolbarMinWidth);
   const [showCodeLineNumbers, setShowCodeLineNumbers] = useState(codeLineNumbersEnabled);
   useEffect(() => {
     const sync = () => setShowCodeLineNumbers(codeLineNumbersEnabled());
@@ -756,7 +757,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   }, []);
   useLayoutEffect(() => {
     const toolbar = toolbarRef.current;
-    if (!toolbar || isNarrow || isMobileToolbarViewport) return;
+    if (!toolbar || isMobileToolbarViewport || isMinimalToolbar) return;
     const measure = () => {
       const style = getComputedStyle(toolbar);
       const gap = parseFloat(style.columnGap) || 0;
@@ -768,7 +769,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         return sum + element.getBoundingClientRect().width
           + (parseFloat(childStyle.marginLeft) || 0) + (parseFloat(childStyle.marginRight) || 0);
       }, 0) + Math.max(0, fixed.length - 1) * gap + 12);
-      setFullToolbarMinWidth(current => current === required ? current : required);
+      const update = isNarrow ? setCompactToolbarMinWidth : setFullToolbarMinWidth;
+      update(current => current === required ? current : required);
     };
     measure();
     let frame = 0;
@@ -777,7 +779,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     });
     observer.observe(toolbar, { childList: true, subtree: true, characterData: true });
     return () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame); };
-  }, [toolbarWidth, isNarrow, isMobileToolbarViewport, readonly]);
+  }, [toolbarWidth, isNarrow, isMinimalToolbar, isMobileToolbarViewport, readonly]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1422,11 +1424,21 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   useLayoutEffect(() => {
     const list = outlineListRef.current;
     if (!outlineOpen || !list) return;
-    const measureOverflow = () => setOutlineOverflow(list.scrollHeight > list.clientHeight + 1);
-    const frame = requestAnimationFrame(measureOverflow);
-    const observer = new ResizeObserver(measureOverflow);
+    const measureOverflow = () => setOutlineOverflow(current => {
+      const next = list.scrollHeight > list.clientHeight + 1;
+      return current === next ? current : next;
+    });
+    let frame = requestAnimationFrame(() => { frame = 0; measureOverflow(); });
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(() => { frame = 0; measureOverflow(); });
+    };
+    const observer = new ResizeObserver(schedule);
     observer.observe(list);
-    return () => { cancelAnimationFrame(frame); observer.disconnect(); };
+    const content = list.firstElementChild;
+    if (content instanceof HTMLElement) observer.observe(content);
+    const mutations = new MutationObserver(schedule);
+    mutations.observe(list, { childList: true, subtree: true, characterData: true });
+    return () => { if (frame) cancelAnimationFrame(frame); observer.disconnect(); mutations.disconnect(); };
   }, [documentOutline.length, headingFoldRevision, outlineCollapsedHeadingKeys, outlineOpen, panelPresentation]);
 
   const scrollOutlineTo = useCallback((target: "top" | "middle" | "bottom") => {
@@ -3550,9 +3562,9 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             </div>
             <div className="document-outline-header-actions">
               <div
-                className={`document-outline-jumps ${outlineOverflow ? "" : "is-placeholder"}`}
+                className={`document-outline-jumps ${outlineOverflow || visibleOutlineEntries.length > 16 ? "" : "is-placeholder"}`}
                 aria-label="目录快速滚动"
-                aria-hidden={!outlineOverflow}
+                aria-hidden={!outlineOverflow && visibleOutlineEntries.length <= 16}
               >
                 <button type="button" onClick={() => scrollOutlineTo("top")} title="滚动至顶部">Top</button>
                 <button type="button" onClick={() => scrollOutlineTo("middle")} title="滚动至中部">Mid</button>

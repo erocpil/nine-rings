@@ -10,6 +10,7 @@ const first = createServiceWorkerSource([
   "assets/pdfjs-lazy.js",
   "assets/PdfReader-lazy.js",
   "assets/pdf.worker.min-lazy.mjs",
+  "pdfjs-cmaps/Adobe-GB1-UCS2.bcmap",
 ], "build-one");
 const second = createServiceWorkerSource([
   "assets/index-abc.js",
@@ -22,6 +23,8 @@ assert.doesNotMatch(first, /index-def\.css\.map/);
 assert.doesNotMatch(first, /\/assets\/pdfjs-lazy\.js/);
 assert.doesNotMatch(first, /\/assets\/PdfReader-lazy\.js/);
 assert.doesNotMatch(first, /\/assets\/pdf\.worker\.min-lazy\.mjs/);
+assert.doesNotMatch(first, /\/pdfjs-cmaps\/Adobe-GB1-UCS2\.bcmap/, "CMaps are loaded and cached on demand");
+assert.match(first, /url\.pathname\.startsWith\("\/pdfjs-cmaps\/"\)/);
 assert.match(first, /SKIP_WAITING/);
 assert.match(first, /new Request\(url, \{ cache: "reload" \}\)/);
 assert.doesNotMatch(first, /await caches\.match\(request\)/, "运行时资源只从当前构建缓存读取");

@@ -25,6 +25,9 @@ function cacheKey(paths: string[]): string {
  */
 export function shouldPrecache(path: string): boolean {
   if (path.endsWith(".map")) return false;
+  // PDF.js loads CMaps only for documents that need them. Cache each map on
+  // demand so they do not enlarge every PWA installation or update.
+  if (path.startsWith("/pdfjs-cmaps/")) return false;
   return !/^\/assets\/(?:pdfjs-|PdfReader-|pdf\.worker)/.test(path);
 }
 
@@ -132,6 +135,11 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || url.pathname === "/__import") return;
+
+  if (url.pathname.startsWith("/pdfjs-cmaps/")) {
+    event.respondWith(cacheFirst(request));
+    return;
+  }
 
   if (request.mode === "navigate" || request.destination === "document") {
     // HTML 与当前版本预缓存的哈希资源必须保持原子性。不能用后台
