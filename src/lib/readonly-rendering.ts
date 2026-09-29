@@ -1,6 +1,8 @@
 import type { Node as PMNode, Schema } from "@tiptap/pm/model";
 import { editorDocumentFromContent } from "./editor-content-model";
 import { collapsedHeadingContentRanges } from "./heading-fold";
+import { isRelativeMarkdownLink } from "./relative-document-link";
+import { internalNoteId } from "./internal-note-link";
 
 export const READONLY_RENDERING_KEY = "nr:experimentalReadonlyRendering";
 export const READONLY_RENDERING_EVENT = "nine-rings:readonly-rendering-change";
@@ -57,7 +59,9 @@ export function buildReadonlyDocument(
         (mark) =>
           supportedMarks.has(mark.type) &&
           (mark.type !== "link" ||
-            /^(https?:|mailto:|tel:)/i.test(String(mark.attrs?.href ?? ""))),
+            (/^(https?:|mailto:|tel:)/i.test(String(mark.attrs?.href ?? ""))
+              || isRelativeMarkdownLink(String(mark.attrs?.href ?? ""))
+              || internalNoteId(String(mark.attrs?.href ?? "")) !== null)),
       ) &&
       (node.content ?? []).every(supported);
     if (!json || !supported(json)) return null;

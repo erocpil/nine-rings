@@ -29,7 +29,7 @@
 @media (min-width: 769px) {
   .show-line-numbers .editor-content-shell,
   .vr-note.show-line-numbers .vr-body {
-    --editor-gutter-text-gap: 12px;
+    --editor-gutter-text-gap: var(--editor-block-number-gap, 8px);
   }
 }
 

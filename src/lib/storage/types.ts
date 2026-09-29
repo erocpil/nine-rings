@@ -13,12 +13,20 @@ export interface AppConfig {
   exhibition_text_width: "narrow" | "standard" | "wide";
   exhibition_density: "comfortable" | "compact";
   interface_color_mode: "light" | "dark" | "system";
+  interface_font_family: "system" | "sans" | "serif" | "monospace";
+  interface_font_size: number;
+  interface_line_height: number;
+  interface_block_spacing_px: number;
+  interface_heading_margin_top_px: number;
+  interface_heading_margin_bottom_px: number;
+  interface_content_width: number;
   theme: "system" | "light" | "dark" | "fu" | "azure" | "azure-dark" | "grace" | "sui" | "zhi" | "nord" | "dracula";
   auto_clean_days: number;
   note_font_size: number;
   editor_font_family: "system" | "sans" | "serif" | "monospace";
   editor_line_height: number;
   editor_block_spacing: number;
+  editor_block_number_gap: number;
   editor_paragraph_indent: number;
   editor_heading_margin_top: number;
   editor_heading_margin_bottom: number;
@@ -78,12 +86,20 @@ export const DEFAULT_CONFIG: AppConfig = {
   exhibition_text_width: "wide",
   exhibition_density: "comfortable",
   interface_color_mode: "light",
+  interface_font_family: "system",
+  interface_font_size: 16,
+  interface_line_height: 1.8,
+  interface_block_spacing_px: 16,
+  interface_heading_margin_top_px: 28,
+  interface_heading_margin_bottom_px: 12,
+  interface_content_width: 0,
   theme: "light",
   auto_clean_days: 30,
   note_font_size: 16,
   editor_font_family: "system",
   editor_line_height: 1.6,
   editor_block_spacing: 1,
+  editor_block_number_gap: 8,
   editor_paragraph_indent: 0,
   editor_heading_margin_top: 0.7,
   editor_heading_margin_bottom: 0.35,

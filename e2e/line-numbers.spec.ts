@@ -28,14 +28,14 @@ test.describe("编辑器块级 gutter", () => {
     const editor = await createBlankNote(page);
     await editor.fill("带块号的正文");
     await expect(page.locator(".editor-block-number")).toHaveText("1");
-    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-text-gap", "12px");
+    await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-text-gap", "8px");
 
     const editGap = await page.evaluate(() => {
       const number = document.querySelector(".editor-block-number")!.getBoundingClientRect();
       const text = document.querySelector(".ProseMirror > p")!.getBoundingClientRect();
       return text.left - number.right;
     });
-    expect(editGap).toBeGreaterThanOrEqual(7);
+    expect(editGap).toBeGreaterThanOrEqual(3);
 
     const noteId = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
     await page.evaluate(async id => {
@@ -45,13 +45,13 @@ test.describe("编辑器块级 gutter", () => {
     }, noteId);
     await page.reload();
     await expect(page.locator(".vr-note .vr-row")).toHaveCount(1);
-    await expect(page.locator(".vr-note .vr-body")).toHaveCSS("--editor-gutter-text-gap", "12px");
+    await expect(page.locator(".vr-note .vr-body")).toHaveCSS("--editor-gutter-text-gap", "8px");
     const virtualGap = await page.evaluate(() => {
       const number = document.querySelector(".vr-gutter span")!.getBoundingClientRect();
       const text = document.querySelector(".vr-row .vr-block")!.getBoundingClientRect();
       return text.left - number.right;
     });
-    expect(virtualGap).toBeGreaterThanOrEqual(10);
+    expect(virtualGap).toBeGreaterThanOrEqual(6);
   });
 
   test("Alt-G 可按稳定块编号跳转且不挤压正文", async ({ page }) => {

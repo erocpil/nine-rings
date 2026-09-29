@@ -37,7 +37,7 @@ import {
   normalizeSingleParagraphPaste,
 } from "../extensions/NormalizeSingleParagraphPaste";
 import CharacterCount from "@tiptap/extension-character-count";
-import type { DeltaOps, DocumentBookmark, DocumentMetadata, SearchNavigationTarget } from "../types/models";
+import type { DeltaOps, DocumentBookmark, DocumentMetadata, Note, SearchNavigationTarget } from "../types/models";
 import { DocumentBookmarkRow } from "./DocumentBookmarkRow";
 import {
   proseMirrorToDelta,
@@ -271,6 +271,7 @@ export interface NoteEditorProps {
   securityToolbarTarget?: HTMLElement | null;
   focusToolbarTarget?: HTMLElement | null;
   onFlush?: () => Promise<void>;
+  onOpenLinkedNote?: (note: Note) => Promise<void>;
   onSecurityChanged?: () => Promise<void>;
   onProtectionBusy?: (busy: boolean) => void;
   onSecurityError?: (message: string) => void;
@@ -420,7 +421,7 @@ let readonlySchema: ReturnType<typeof getSchema> | undefined;
 let readonlyDocumentSequence = 0;
 
 export function NoteEditor(props: NoteEditorProps) {
-  return <ProtectedNoteEditor props={props} render={next => <RenderedLinkMenu key={next.noteId}><MarkdownDocumentView props={next} render={current => <DocumentEditor {...current} />} /></RenderedLinkMenu>} />;
+  return <ProtectedNoteEditor props={props} render={next => <RenderedLinkMenu key={next.noteId} noteId={next.noteId} onOpenLinkedNote={next.onOpenLinkedNote}><MarkdownDocumentView props={next} render={current => <DocumentEditor {...current} />} /></RenderedLinkMenu>} />;
 }
 
 function DocumentEditor(props: NoteEditorProps) {
@@ -897,7 +898,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       Color.configure({ types: ["textStyle"] }),
       FontSize,
       ResizableImage.configure({ inline: false, allowBase64: true }),
-      LinkExt.configure({ openOnClick: true }),
+      LinkExt.configure({ openOnClick: true, protocols: ["nr-note"] }),
       Table.configure({
         resizable: true,
         handleWidth: 8,
@@ -1042,10 +1043,13 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         }
         setWikiOpen(true);
         // 异步搜索匹配笔记
-        api.notes.search(query || " ").then((notes) => {
-          setWikiSuggestions(
-            notes.map((n) => ({ title: n.title || "无标题", id: n.id }))
-          );
+        const matches = query.trim()
+          ? api.notes.search(query)
+          : Promise.all([api.notes.all(), api.docs.search({})]).then(([notes, docs]) =>
+            [...new Map([...notes, ...docs].map(note => [note.id, note])).values()]);
+        void matches.then(notes => {
+          setWikiSuggestions(notes.filter(note => !note.deleted_at && note.id !== noteId)
+            .slice(0, 20).map(note => ({ title: note.title || "无标题", id: note.id })));
         });
       } else {
         setWikiOpen(false);
@@ -2483,6 +2487,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       .focus()
       .deleteRange({ from: start, to: end })
       .insertContent(note.title)
+      .setTextSelection({ from: start, to: start + note.title.length })
       .setLink({ href: `nr-note://${note.id}` })
       .setTextSelection(start + note.title.length)
       .run();

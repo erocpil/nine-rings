@@ -3,6 +3,7 @@ import React, { useEffect, useState, useRef } from "react";
 import type { AppConfig } from "../types/models";
 import { DEFAULT_EDITOR_APPEARANCE, editorAppearanceVariables } from "../lib/editor-appearance";
 import { blockWorkspacePreferences, codeBlockHeightPercent } from "../lib/block-display-settings";
+import { DEFAULT_CONFIG } from "../lib/storage/types";
 
 import type { BlockDisplayDraft } from "../lib/save-editor-appearance";
 
@@ -85,7 +86,26 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
 
         <div className="editor-appearance-workspace">
           <fieldset className="editor-appearance-controls" disabled={applying}>
-            {managed && <p className="settings-hint">配色与排版由当前风格统一管理；经典设置已保留，切回经典可继续调整。下方编辑功能仍然有效。</p>}
+            {managed && <>
+              <p className="settings-hint">这些排版设置作用于所有非经典风格；每种风格的配色和预设宽度仍独立。经典排版设置会保留。</p>
+              <AppearanceField label="风格正文字体" desc="系统默认保持当前无衬线排版；也可选衬线或等宽字体">
+                <select className="settings-input editor-appearance-select" aria-label="风格正文字体" value={config.interface_font_family} onChange={event => onUpdate({ interface_font_family: event.target.value as AppConfig["interface_font_family"] })}>
+                  <option value="system">系统默认</option><option value="sans">无衬线</option><option value="serif">衬线 / 宋体</option><option value="monospace">等宽字体</option>
+                </select>
+              </AppearanceField>
+              <div className="editor-appearance-control-grid">
+                <AppearanceField label="风格正文字号" desc="正文与标题的基础字号"><AppearanceStepper label="风格正文字号" value={config.interface_font_size} minimum={12} maximum={32} step={1} unit="px" onChange={value => onUpdate({ interface_font_size: value })} /></AppearanceField>
+                <AppearanceField label="风格行距" desc="正文各行之间的垂直距离"><AppearanceStepper label="风格行距" value={config.interface_line_height} minimum={1.2} maximum={2.2} step={0.1} onChange={value => onUpdate({ interface_line_height: value })} /></AppearanceField>
+                <AppearanceField label="风格正文块间距" desc="相邻顶层正文块的距离"><AppearanceStepper label="风格正文块间距" value={config.interface_block_spacing_px} minimum={0} maximum={48} step={2} unit="px" onChange={value => onUpdate({ interface_block_spacing_px: value })} /></AppearanceField>
+                <AppearanceField label="风格标题上间距" desc="标题与前一块的距离"><AppearanceStepper label="风格标题上间距" value={config.interface_heading_margin_top_px} minimum={0} maximum={48} step={2} unit="px" onChange={value => onUpdate({ interface_heading_margin_top_px: value })} /></AppearanceField>
+                <AppearanceField label="风格标题下间距" desc="标题与后一块的距离"><AppearanceStepper label="风格标题下间距" value={config.interface_heading_margin_bottom_px} minimum={0} maximum={32} step={2} unit="px" onChange={value => onUpdate({ interface_heading_margin_bottom_px: value })} /></AppearanceField>
+                <AppearanceField label="桌面正文最大宽度" desc="预设保留各风格原有宽度；自定义宽度统一作用于非经典风格">
+                  <select className="settings-input editor-appearance-select" aria-label="桌面正文最大宽度" value={config.interface_content_width} onChange={event => onUpdate({ interface_content_width: Number(event.target.value) })}>
+                    <option value={0}>风格预设</option>{[640, 740, 820, 900, 1000, 1200].map(width => <option value={width} key={width}>{width}px</option>)}
+                  </select>
+                </AppearanceField>
+              </div>
+            </>}
             {!managed && <>
             <AppearanceField label="正文字体" desc="选择编辑器正文的字体组合">
               <select
@@ -162,6 +182,9 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
             </AppearanceField>
 
             </>}
+            <AppearanceField label="桌面块号与正文间距" desc="显示块编号时生效；手机视图保持原有间距">
+              <AppearanceStepper label="桌面块号与正文间距" value={config.editor_block_number_gap} minimum={4} maximum={32} step={2} unit="px" onChange={value => onUpdate({ editor_block_number_gap: value })} />
+            </AppearanceField>
             <section aria-label="块显示设置">
               <h3>代码／引用块显示</h3>
               <p>保存在当前设备；空白字符仅在弹层阅读模式显示，不修改正文。</p>
@@ -203,8 +226,17 @@ export function EditorAppearancePanel({ config, onClose, onApply, dirty, onUpdat
             <button
               className="settings-btn-secondary editor-appearance-reset"
               type="button"
-              onClick={() => { if (!managed) onUpdate({ ...DEFAULT_EDITOR_APPEARANCE }); setBlockDisplay({ mermaidDisplay: "fit", fontSize: undefined, whitespace: "off", tabSize: 4, lineNumbers: false, wrap: true }); setCodeHeight(60); setBlockDirty(true); }}
-            >{managed ? "恢复默认块显示" : "恢复默认排版"}</button>
+              onClick={() => { onUpdate(managed ? {
+                interface_font_family: DEFAULT_CONFIG.interface_font_family,
+                interface_font_size: DEFAULT_CONFIG.interface_font_size,
+                interface_line_height: DEFAULT_CONFIG.interface_line_height,
+                interface_block_spacing_px: DEFAULT_CONFIG.interface_block_spacing_px,
+                interface_heading_margin_top_px: DEFAULT_CONFIG.interface_heading_margin_top_px,
+                interface_heading_margin_bottom_px: DEFAULT_CONFIG.interface_heading_margin_bottom_px,
+                interface_content_width: DEFAULT_CONFIG.interface_content_width,
+                editor_block_number_gap: DEFAULT_CONFIG.editor_block_number_gap,
+              } : { ...DEFAULT_EDITOR_APPEARANCE, editor_block_number_gap: DEFAULT_CONFIG.editor_block_number_gap }); setBlockDisplay({ mermaidDisplay: "fit", fontSize: undefined, whitespace: "off", tabSize: 4, lineNumbers: false, wrap: true }); setCodeHeight(60); setBlockDirty(true); }}
+            >恢复默认排版</button>
             <div className="editor-appearance-actions">
               <button className="settings-btn-secondary editor-appearance-cancel" type="button" onClick={close} disabled={applying}>取消</button>
               <button

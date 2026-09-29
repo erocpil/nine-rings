@@ -57,10 +57,18 @@ interface Props {
 
 type SettingsPage = "root" | "appearance" | "hierarchy" | "navigation" | "editor" | "vim" | "sidebar" | "documents" | "bookmarks" | "general" | "profile" | "tags" | "data" | "sync" | "advanced" | "changelog";
 const EDITOR_APPEARANCE_KEYS: Array<keyof AppConfig> = [
+  "interface_font_family",
+  "interface_font_size",
+  "interface_line_height",
+  "interface_block_spacing_px",
+  "interface_heading_margin_top_px",
+  "interface_heading_margin_bottom_px",
+  "interface_content_width",
   "note_font_size",
   "editor_font_family",
   "editor_line_height",
   "editor_block_spacing",
+  "editor_block_number_gap",
   "editor_paragraph_indent",
   "editor_heading_margin_top",
   "editor_heading_margin_bottom",
@@ -200,8 +208,11 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   const mobileSettingsViewport = useMobileViewport();
   const [searchDestination, setSearchDestination] = useState<SettingsSearchEntry | null>(null);
   const settingsResults = searchSettings(settingsQuery, { web: !isTauri(), updates: Boolean(webUpdate) }).map(result =>
-    config && config.interface_style !== "classic" && (result.page === "navigation" || result.title === "主题" || (result.action === "typography" && !/Tab|行号|换行|Mermaid|空白|代码|图形/.test(result.title)))
-      ? { ...result, description: "由当前风格统一管理；切回经典可自定义", page: "appearance" as const, action: undefined, target: '[data-settings-label="界面风格"]' } : result);
+    config && config.interface_style !== "classic" && (result.page === "navigation" || result.title === "主题")
+      ? { ...result, description: "当前风格独立管理；切回经典可自定义", page: "appearance" as const, action: undefined, target: '[data-settings-label="界面风格"]' }
+      : config && config.interface_style !== "classic" && result.action === "typography" && !/Tab|行号|换行|Mermaid|空白|代码|图形/.test(result.title)
+        ? { ...result, description: "外观与布局 · 风格排版", page: "appearance" as const, target: '[data-settings-label="风格排版"]' }
+        : result);
   const closeSettingsSearch = () => {
     setSettingsQuery("");
     setSettingsSearchOpen(false);
@@ -706,7 +717,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </div>
             )}
 
-            <Field label="界面风格" desc="经典使用自定义主题与排版；独立风格统一管理配色与排版，切回经典可恢复原设置" visible={settingsPage === "appearance"}>
+            <Field label="界面风格" desc="各风格保留自己的配色；经典排版和非经典风格排版分别保存" visible={settingsPage === "appearance"}>
               <div className={`interface-style-options${mobileSettingsViewport ? "" : " interface-style-options-desktop"}`}>
                 {INTERFACE_STYLES.map(style => <button key={style.value} type="button" className="interface-style-option" aria-pressed={(config.interface_style === "calm-compact" ? "calm" : normalizeInterfaceStyle(config.interface_style)) === style.value} onClick={() => update({ interface_style: style.value })}>
                   <span className={`interface-style-preview preview-${style.value}`} aria-hidden="true"><i /><span><b /><i /><i /><em /></span></span>
@@ -721,8 +732,18 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 {([["standard", "标准"], ["exhibition", "展陈"]] as const).map(([value, label]) => <button type="button" key={value} className={`settings-radio${config.workspace_layout === value ? " active" : ""}`} aria-pressed={config.workspace_layout === value} disabled={config.interface_style === "classic"} onClick={() => update({ workspace_layout: value })}>{label}</button>)}
               </div>
             </Field>
-            <Field label="风格配色" desc="当前风格的浅色、深色或跟随系统配色，不改变经典主题。字体、字号、行距与导航外观由当前风格统一管理。" visible={settingsPage === "appearance" && config.interface_style !== "classic"}>
+            <Field label="风格配色" desc="当前风格的浅色、深色或跟随系统配色，不改变经典主题。" visible={settingsPage === "appearance" && config.interface_style !== "classic"}>
               <div className="settings-radio-group">{([["light", "浅色"], ["dark", "深色"], ["system", "跟随系统"]] as const).map(([value, label]) => <button type="button" className={`settings-radio${(config.interface_color_mode ?? "system") === value ? " active" : ""}`} key={value} aria-pressed={(config.interface_color_mode ?? "system") === value} onClick={() => update({ interface_color_mode: value })}>{label}</button>)}</div>
+            </Field>
+            <Field label="风格排版" desc="调整非经典风格的字体、字号、行距、块间距、正文宽度及桌面块号间距" visible={settingsPage === "appearance" && config.interface_style !== "classic"}>
+              <button className="editor-appearance-entry" type="button" onClick={() => {
+                setEditorAppearanceDraft({ ...config });
+                setEditorAppearanceSearch("");
+                setEditorAppearanceOpen(true);
+              }}>
+                <span><strong>风格排版</strong><small>{config.interface_font_size}px · {config.interface_line_height.toFixed(1)} 行距 · {config.interface_content_width || "风格预设"} 宽度</small></span>
+                <span className="editor-appearance-entry-action">打开排版设置 →</span>
+              </button>
             </Field>
             <Field label="主题" desc="切换整体配色" visible={settingsPage === "appearance" && config.interface_style === "classic"}>
               <div className={mobileSettingsViewport ? "settings-radio-group settings-theme-mobile" : "settings-theme-grid"} role="group" aria-label="主题">
@@ -763,8 +784,8 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                 }}
               >
                 <span>
-                  <strong>{config.interface_style === "classic" ? `${config.note_font_size}px` : "块显示与编辑功能"}</strong>
-                  <small>{config.interface_style === "classic" ? `${config.editor_font_family === "system" ? "系统字体" : config.editor_font_family} · ${config.editor_line_height.toFixed(1)} 行距` : "外观由风格管理；仍可调整行号、Tab 与图形显示"}</small>
+                  <strong>{config.interface_style === "classic" ? `${config.note_font_size}px` : `${config.interface_font_size}px`}</strong>
+                  <small>{config.interface_style === "classic" ? `${config.editor_font_family === "system" ? "系统字体" : config.editor_font_family} · ${config.editor_line_height.toFixed(1)} 行距` : `非经典风格排版 · ${config.interface_line_height.toFixed(1)} 行距`}</small>
                 </span>
                 <span className="editor-appearance-entry-action">打开排版设置 →</span>
               </button>

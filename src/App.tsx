@@ -1588,6 +1588,11 @@ function App() {
                       onOpenSettings={() => setSettingsOpen(true)}
                       key={`${selectedNote.id}:${externalReloadKey}`}
                       onFlush={flushAutoSave}
+                      onOpenLinkedNote={async note => {
+                        await flushAutoSave();
+                        handleSelectNote(note);
+                        closeSidebarOnNarrowScreen();
+                      }}
                       onProtectionBusy={setProtectionBusy}
                       onSecurityError={message => useNotesStore.setState({ error: message })}
                       hideDocumentPasswordControls

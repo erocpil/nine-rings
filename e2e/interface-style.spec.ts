@@ -2,6 +2,48 @@ import { expect, test } from "@playwright/test";
 import type { Editor } from "@tiptap/core";
 import { createBlankDocument } from "./helpers/document";
 
+test("物哀风格排版可调整、重载并恢复预设，经典排版保持独立", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 850 });
+  await createBlankDocument(page);
+  await page.evaluate(() => {
+    const config = JSON.parse(localStorage.getItem("nine_rings_config") || "{}");
+    localStorage.setItem("nine_rings_config", JSON.stringify({ ...config, editor_show_line_numbers: true, note_font_size: 22 }));
+  });
+  await page.reload();
+  await page.getByTitle("设置", { exact: true }).click();
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
+  const styles = page.getByRole("group", { name: "界面风格", exact: true });
+  await styles.getByRole("button", { name: /^物哀/ }).click();
+  await page.getByRole("button", { name: /打开排版设置/ }).click();
+  await page.getByLabel("风格正文字体", { exact: true }).selectOption("serif");
+  await page.getByRole("button", { name: "增大风格正文字号" }).click();
+  await page.getByRole("button", { name: "增大风格行距" }).click();
+  await page.getByRole("button", { name: "增大风格正文块间距" }).click();
+  await page.getByRole("button", { name: "增大桌面块号与正文间距" }).click();
+  await page.getByLabel("桌面正文最大宽度").selectOption("900");
+  await page.getByRole("button", { name: "应用到编辑器" }).click();
+  const editor = page.locator(".note-editor .ProseMirror");
+  await expect(editor).toHaveCSS("font-size", "17px");
+  await expect.poll(() => editor.evaluate(element => Number(parseFloat(getComputedStyle(element).lineHeight).toFixed(1)))).toBe(32.3);
+  await expect(page.locator(".app")).toHaveCSS("--style-content-width", "900px");
+  await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-text-gap", "10px");
+  await expect(editor).toHaveCSS("font-family", /serif/);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nine_rings_config")!).interface_font_size)).toBe(17);
+  await page.reload();
+  await expect(editor).toHaveCSS("font-size", "17px");
+  await page.getByTitle("设置", { exact: true }).click();
+  await page.getByRole("button", { name: /^外观与布局/ }).click();
+  await page.getByRole("button", { name: /打开排版设置/ }).click();
+  await page.getByRole("button", { name: "恢复默认排版" }).click();
+  await page.getByRole("button", { name: "应用到编辑器" }).click();
+  await expect(editor).toHaveCSS("font-size", "16px");
+  await expect(page.locator(".app")).toHaveCSS("--style-content-width", "820px");
+  await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-text-gap", "8px");
+  await styles.getByRole("button", { name: /^经典/ }).click();
+  await expect(editor).toHaveCSS("font-size", "22px");
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("nine_rings_config")!).editor_font_family)).toBe("system");
+});
+
 test("清雅采用完整预设，跟随系统；经典配置在切回后恢复", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await createBlankDocument(page);
@@ -66,7 +108,7 @@ test("清雅采用完整预设，跟随系统；经典配置在切回后恢复",
   const styles = page.getByRole("group", { name: "界面风格", exact: true });
   await styles.getByRole("button").nth(1).click();
   await expect(editor).toHaveCSS("font-size", "16px");
-  await expect(editor).toHaveCSS("line-height", "28.8px");
+  await expect.poll(() => editor.evaluate(element => Number(parseFloat(getComputedStyle(element).lineHeight).toFixed(1)))).toBe(28.8);
   await expect(page.locator("body")).toHaveCSS(
     "background-color",
     "rgb(252, 251, 248)",

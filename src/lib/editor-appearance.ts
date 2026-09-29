@@ -87,9 +87,12 @@ export function editorAppearanceVariables(config?: Partial<AppConfig>): Record<s
   return {
     ...Object.fromEntries(pathColors.map((color, index) => [`--hierarchy-path-custom-${index + 1}`, color])),
     ...Object.fromEntries(outlineColors.map((color, index) => [`--hierarchy-outline-custom-${index + 1}`, color])),
-    "--editor-font-family": config?.interface_style && config.interface_style !== "classic"
+    "--editor-font-family": config?.interface_style && config.interface_style !== "classic" && resolvedFamily === "system"
       ? '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif'
       : FONT_STACKS[resolvedFamily],
+    "--editor-block-number-gap": `${clamp(config?.editor_block_number_gap, 4, 32, 8)}px`,
+    ...(config?.interface_style && config.interface_style !== "classic" && Number(config.interface_content_width) > 0
+      ? { "--style-content-width": `${clamp(config.interface_content_width, 560, 1200, 820)}px` } : {}),
     "--editor-font-size": `${clamp(config?.note_font_size, 12, 32, 16)}px`,
     "--editor-line-height": String(clamp(config?.editor_line_height, 1.2, 2.2, 1.6)),
     "--editor-block-spacing": `${clamp(config?.editor_block_spacing, 0, 3, 1)}em`,

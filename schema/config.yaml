@@ -35,6 +35,53 @@ AppConfig:
       default: light
       description: 非经典风格独立配色模式，默认浅色，不改变经典主题
 
+    interface_font_family:
+      type: enum(system, sans, serif, monospace)
+      default: system
+      description: 非经典风格正文字体
+
+    interface_font_size:
+      type: integer
+      default: 16
+      min: 12
+      max: 32
+      description: 非经典风格正文字号（px）
+
+    interface_line_height:
+      type: number
+      default: 1.8
+      min: 1.2
+      max: 2.2
+      description: 非经典风格正文行距
+
+    interface_block_spacing_px:
+      type: integer
+      default: 16
+      min: 0
+      max: 48
+      description: 非经典风格顶层正文块间距（px）
+
+    interface_heading_margin_top_px:
+      type: integer
+      default: 28
+      min: 0
+      max: 48
+      description: 非经典风格标题上间距（px）
+
+    interface_heading_margin_bottom_px:
+      type: integer
+      default: 12
+      min: 0
+      max: 32
+      description: 非经典风格标题下间距（px）
+
+    interface_content_width:
+      type: integer
+      default: 0
+      min: 0
+      max: 1200
+      description: 非经典风格桌面正文最大宽度（px），0 表示使用各风格预设
+
     workspace_layout:
       type: enum(standard, exhibition)
       default: standard
@@ -87,6 +134,13 @@ AppConfig:
       min: 0
       max: 3
       description: 相邻顶层正文段落之间的距离（em）
+
+    editor_block_number_gap:
+      type: integer
+      default: 8
+      min: 4
+      max: 32
+      description: 桌面渲染视图块号与正文间距（px）
 
     editor_paragraph_indent:
       type: number

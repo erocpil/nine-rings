@@ -919,12 +919,14 @@
 .rendered-link-scope .editor-content a { -webkit-touch-callout: none; }
 .rendered-link-menu {
   position: fixed; z-index: 10050; width: 260px; max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px); overflow-y: auto;
   padding: 6px; border: 1px solid var(--border); border-radius: 8px;
   background: var(--bg); color: var(--text); box-shadow: 0 6px 24px #0003;
 }
 .rendered-link-address { padding: 6px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; opacity: .7; }
 .rendered-link-menu button { display: block; width: 100%; min-height: 44px; text-align: left; background: transparent; border: 0; border-radius: 4px; color: inherit; padding: 8px; cursor: pointer; }
 .rendered-link-menu button:hover, .rendered-link-menu button:focus-visible { background: var(--hover-bg); outline: 2px solid var(--accent); }
+.rendered-link-menu button small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .7; }
 .rendered-link-notice { position: fixed; z-index: 10051; bottom: 48px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 32px); padding: 10px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); }
 
 .quick-tooltip {

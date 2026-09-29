@@ -28,7 +28,8 @@ const entries: SettingsSearchEntry[] = [
   { title: "层次展示", description: "外观与布局 › 层次展示 · 文档树路径和目录标题分别设置层级配色", keywords: "层级 层次 路径 目录 标题 琥珀 砖红 苔绿 青蓝 靛蓝 紫藤 配色", page: "hierarchy", target: ".hierarchy-style-card" },
   { title: "工作区布局", description: "标准或展陈布局，顶部标识与四栏概览", keywords: "展陈 布局 首页 四栏 工作区 概览", page: "appearance", target: '[data-settings-label="工作区布局"]' },
   { title: "风格配色", description: "独立风格 · 浅色、深色或跟随系统", keywords: "清雅 深色 浅色 系统 风格 配色", page: "appearance", target: '[data-settings-label="界面风格"]' },
-  { title: "界面风格", description: "外观与布局 · 经典自定义外观，独立风格统一配色与排版", keywords: "风格 物哀 幽玄 侘寂 诧寂 纸页 精简 清雅 紧凑 经典 demo 界面 留白 密度 样式 style", page: "appearance", target: '[data-settings-label="界面风格"]' },
+  { title: "界面风格", description: "外观与布局 · 经典与非经典风格分别保存排版设置", keywords: "风格 物哀 幽玄 侘寂 诧寂 纸页 精简 清雅 紧凑 经典 demo 界面 留白 密度 样式 style", page: "appearance", target: '[data-settings-label="界面风格"]' },
+  { title: "风格排版", description: "外观与布局 · 非经典风格字体、字号、行距、块间距及正文宽度", keywords: "物哀 字体 字号 行距 正文宽度 块号 标题 间距 风格 排版", page: "appearance", target: '[data-settings-label="风格排版"]' },
   {
     title: "更新记录",
     description: "查看近期功能改进与问题修复",

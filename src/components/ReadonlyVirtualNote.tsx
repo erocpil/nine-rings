@@ -58,6 +58,8 @@ import { centerSearchMatch } from "../lib/search-scroll";
 import { KaTeXFormula } from "../extensions/MarkdownExtras";
 import { findFootnoteElement, footnoteBlockPosition, footnoteLinkTarget, scrollToFootnote } from "../lib/footnote-navigation";
 import { useFootnoteHoverPreview } from "./FootnoteHoverPreview";
+import { isRelativeMarkdownLink } from "../lib/relative-document-link";
+import { internalNoteId } from "../lib/internal-note-link";
 
 export function renderReadonlyBlock(
   node: PMNode,
@@ -120,6 +122,7 @@ export function renderReadonlyBlock(
                 {rendered}
               </a>
             );
+          else if (isRelativeMarkdownLink(href) || internalNoteId(href)) rendered = <a href={href}>{rendered}</a>;
           break;
         }
         case "inlineHighlight":

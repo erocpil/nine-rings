@@ -49,7 +49,7 @@ export function useSettings() {
   const handleConfigChange = (c: AppConfig) => {
     const previous = configRef.current;
     configRef.current = c;
-    const styleChanged = !previous || c.interface_style !== previous.interface_style || c.interface_color_mode !== previous.interface_color_mode || c.workspace_layout !== previous.workspace_layout || c.exhibition_text_width !== previous.exhibition_text_width || c.exhibition_density !== previous.exhibition_density;
+    const styleChanged = !previous || c.interface_style !== previous.interface_style || c.interface_color_mode !== previous.interface_color_mode || c.workspace_layout !== previous.workspace_layout || c.exhibition_text_width !== previous.exhibition_text_width || c.exhibition_density !== previous.exhibition_density || c.interface_content_width !== previous.interface_content_width;
     if (styleChanged || c.theme !== previous?.theme) preserveReadingPositions(() => applyInterfaceAppearance(c));
     // 主题只由根节点 CSS 变量驱动。仅主题变化时无需让包含长文档的整个 App
     // React 树重新渲染；设置面板自身仍维护并持久化最新选择。
@@ -58,7 +58,7 @@ export function useSettings() {
       const onlyThemeChanged = keys.every((key) => key === "theme" || c[key] === previous[key]);
       if (onlyThemeChanged) return;
     }
-    const appearanceChanged = previous && (Object.keys(DEFAULT_EDITOR_APPEARANCE) as Array<keyof typeof DEFAULT_EDITOR_APPEARANCE>)
+    const appearanceChanged = previous && ([...Object.keys(DEFAULT_EDITOR_APPEARANCE), "interface_font_family", "interface_font_size", "interface_line_height", "interface_block_spacing_px", "interface_heading_margin_top_px", "interface_heading_margin_bottom_px", "editor_block_number_gap"] as Array<keyof AppConfig>)
       .some(key => previous[key] !== c[key]);
     if (appearanceChanged || styleChanged) preserveReadingPositions(() => setConfig(c));
     else setConfig(c);

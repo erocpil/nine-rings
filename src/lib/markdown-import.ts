@@ -64,7 +64,7 @@ export function buildTextImportInput(file: TextImportSource, options: MarkdownIm
   // Build metadata through the same path but keep plain text out of the Markdown parser.
   const input = buildMarkdownImportInput(file.fileName, "", { ...options, storagePath });
   input.title = file.fileName.replace(/\.[^.]+$/, "");
-  input.content = { ...plainTextToDelta(source), metadata: { sourceFormat: "text" } };
+  input.content = { ...plainTextToDelta(source), metadata: { sourceFormat: "text", originalFileName: file.fileName } };
   return input;
 }
 
@@ -95,7 +95,7 @@ export function buildMarkdownImportInput(
   const input: CreateNoteInput = {
     date: options.date,
     title: extractTitle(source, fallbackTitle),
-    content: { ...mdToDelta(source), metadata: { sourceFormat: "markdown", markdownSource: source } },
+    content: { ...mdToDelta(source), metadata: { sourceFormat: "markdown", originalFileName: fileName, markdownSource: source } },
     tags: options.tags ?? [],
   };
 

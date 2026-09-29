@@ -20,6 +20,20 @@ pub struct AppConfig {
     pub interface_style: String,
     #[serde(default = "default_interface_color_mode")]
     pub interface_color_mode: String,
+    #[serde(default = "default_interface_font_family")]
+    pub interface_font_family: String,
+    #[serde(default = "default_interface_font_size")]
+    pub interface_font_size: i32,
+    #[serde(default = "default_interface_line_height")]
+    pub interface_line_height: f64,
+    #[serde(default = "default_interface_block_spacing_px")]
+    pub interface_block_spacing_px: i32,
+    #[serde(default = "default_interface_heading_margin_top_px")]
+    pub interface_heading_margin_top_px: i32,
+    #[serde(default = "default_interface_heading_margin_bottom_px")]
+    pub interface_heading_margin_bottom_px: i32,
+    #[serde(default)]
+    pub interface_content_width: i32,
     #[serde(default = "default_workspace_layout")]
     pub workspace_layout: String,
     #[serde(default = "default_exhibition_text_width")]
@@ -35,6 +49,8 @@ pub struct AppConfig {
     pub editor_line_height: f64,
     #[serde(default = "default_editor_block_spacing")]
     pub editor_block_spacing: f64,
+    #[serde(default = "default_editor_block_number_gap")]
+    pub editor_block_number_gap: i32,
     #[serde(default)]
     pub editor_paragraph_indent: f64,
     #[serde(default = "default_editor_heading_margin_top")]
@@ -112,6 +128,34 @@ fn default_editor_line_height() -> f64 {
 
 fn default_editor_block_spacing() -> f64 {
     1.0
+}
+
+fn default_interface_font_family() -> String {
+    "system".into()
+}
+
+fn default_interface_font_size() -> i32 {
+    16
+}
+
+fn default_interface_line_height() -> f64 {
+    1.8
+}
+
+fn default_interface_block_spacing_px() -> i32 {
+    16
+}
+
+fn default_interface_heading_margin_top_px() -> i32 {
+    28
+}
+
+fn default_interface_heading_margin_bottom_px() -> i32 {
+    12
+}
+
+fn default_editor_block_number_gap() -> i32 {
+    8
 }
 
 fn default_editor_heading_margin_top() -> f64 {
@@ -203,6 +247,13 @@ impl Default for AppConfig {
             theme: "light".into(),
             interface_style: default_interface_style(),
             interface_color_mode: default_interface_color_mode(),
+            interface_font_family: default_interface_font_family(),
+            interface_font_size: default_interface_font_size(),
+            interface_line_height: default_interface_line_height(),
+            interface_block_spacing_px: default_interface_block_spacing_px(),
+            interface_heading_margin_top_px: default_interface_heading_margin_top_px(),
+            interface_heading_margin_bottom_px: default_interface_heading_margin_bottom_px(),
+            interface_content_width: 0,
             workspace_layout: default_workspace_layout(),
             exhibition_text_width: default_exhibition_text_width(),
             exhibition_density: default_exhibition_density(),
@@ -211,6 +262,7 @@ impl Default for AppConfig {
             editor_font_family: default_editor_font_family(),
             editor_line_height: default_editor_line_height(),
             editor_block_spacing: default_editor_block_spacing(),
+            editor_block_number_gap: default_editor_block_number_gap(),
             editor_paragraph_indent: 0.0,
             editor_heading_margin_top: default_editor_heading_margin_top(),
             editor_heading_margin_bottom: default_editor_heading_margin_bottom(),
@@ -428,6 +480,34 @@ mod tests {
     }
 
     #[test]
+    fn interface_typography_round_trips_without_changing_classic_typography() {
+        let config = AppConfig {
+            interface_style: "mono-aware".into(),
+            interface_font_family: "serif".into(),
+            interface_font_size: 18,
+            interface_line_height: 1.9,
+            interface_block_spacing_px: 20,
+            interface_heading_margin_top_px: 30,
+            interface_heading_margin_bottom_px: 8,
+            interface_content_width: 900,
+            editor_block_number_gap: 18,
+            note_font_size: 23,
+            ..AppConfig::default()
+        };
+        let restored: AppConfig =
+            serde_json::from_value(serde_json::to_value(config).unwrap()).unwrap();
+        assert_eq!(restored.interface_font_family, "serif");
+        assert_eq!(restored.interface_font_size, 18);
+        assert_eq!(restored.interface_line_height, 1.9);
+        assert_eq!(restored.interface_block_spacing_px, 20);
+        assert_eq!(restored.interface_heading_margin_top_px, 30);
+        assert_eq!(restored.interface_heading_margin_bottom_px, 8);
+        assert_eq!(restored.interface_content_width, 900);
+        assert_eq!(restored.editor_block_number_gap, 18);
+        assert_eq!(restored.note_font_size, 23);
+    }
+
+    #[test]
     fn outline_fold_preference_round_trips_without_changing_body_style() {
         for style in ["triangle", "chevron", "inherit"] {
             let config = AppConfig {
@@ -479,6 +559,11 @@ mod tests {
         );
         assert_eq!(config.interface_style, "classic");
         assert_eq!(config.interface_color_mode, "light");
+        assert_eq!(config.interface_font_family, "system");
+        assert_eq!(config.interface_font_size, 16);
+        assert_eq!(config.interface_line_height, 1.8);
+        assert_eq!(config.interface_content_width, 0);
+        assert_eq!(config.editor_block_number_gap, 8);
         assert_eq!(config.note_font_size, 19);
         assert_eq!(config.editor_font_family, "system");
         assert_eq!(config.editor_line_height, 1.6);

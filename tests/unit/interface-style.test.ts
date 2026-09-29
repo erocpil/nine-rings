@@ -113,6 +113,36 @@ test("all eight managed interface styles share the original wabi-sabi reading ty
   }
 });
 
+test("managed typography overrides preserve classic values and selected style colors", () => {
+  const saved = {
+    ...DEFAULT_CONFIG,
+    interface_style: "mono-aware" as const,
+    note_font_size: 23,
+    editor_font_family: "monospace" as const,
+    interface_font_family: "serif" as const,
+    interface_font_size: 18,
+    interface_line_height: 1.9,
+    interface_block_spacing_px: 20,
+    interface_heading_margin_top_px: 30,
+    interface_heading_margin_bottom_px: 8,
+    interface_content_width: 900,
+    editor_block_number_gap: 18,
+  };
+  const display = resolveInterfaceConfig(saved);
+  expect(display).toMatchObject({ editor_font_family: "serif", note_font_size: 18, editor_line_height: 1.9 });
+  expect(display.editor_block_spacing).toBeCloseTo(20 / 18);
+  expect(display.editor_heading_margin_top).toBeCloseTo(30 / 18);
+  expect(display.editor_heading_margin_bottom).toBeCloseTo(8 / 18);
+  expect(editorAppearanceVariables(display)).toMatchObject({
+    "--style-content-width": "900px",
+    "--editor-block-number-gap": "18px",
+  });
+  expect(editorAppearanceVariables(resolveInterfaceConfig({ ...saved, interface_content_width: 0 }))["--style-content-width"]).toBeUndefined();
+  const classic = resolveInterfaceConfig({ ...saved, interface_style: "classic" });
+  expect(classic.note_font_size).toBe(23);
+  expect(classic.editor_font_family).toBe("monospace");
+});
+
 test("default hierarchy palette alternates through cool/warm hues and ends with brick red", () => {
   expect(DEFAULT_CONFIG.hierarchy_path_custom_colors).toEqual([
     "#247F7B",

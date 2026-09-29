@@ -71,6 +71,8 @@ export interface DeltaOps {
 
 export interface DocumentMetadata {
   sourceFormat?: "text" | "markdown";
+  /** Filename at import time, retained when the displayed title changes. */
+  originalFileName?: string;
   /** Original Markdown, retained until the rendered body is edited. */
   markdownSource?: string;
   author?: string;
@@ -199,12 +201,20 @@ export interface AppConfig {
   exhibition_text_width: "narrow" | "standard" | "wide";
   exhibition_density: "comfortable" | "compact";
   interface_color_mode: "light" | "dark" | "system";
+  interface_font_family: "system" | "sans" | "serif" | "monospace";
+  interface_font_size: number;
+  interface_line_height: number;
+  interface_block_spacing_px: number;
+  interface_heading_margin_top_px: number;
+  interface_heading_margin_bottom_px: number;
+  interface_content_width: number;
   theme: "system" | "light" | "dark" | "fu" | "azure" | "azure-dark" | "grace" | "sui" | "zhi" | "nord" | "dracula";
   auto_clean_days: number;
   note_font_size: number;
   editor_font_family: "system" | "sans" | "serif" | "monospace";
   editor_line_height: number;
   editor_block_spacing: number;
+  editor_block_number_gap: number;
   editor_paragraph_indent: number;
   editor_heading_margin_top: number;
   editor_heading_margin_bottom: number;

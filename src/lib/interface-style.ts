@@ -47,7 +47,7 @@ export const INTERFACE_STYLES: ReadonlyArray<{
   {
     value: "mono-aware",
     label: "物哀",
-    description: "樱灰与玫瑰、舒展衬线，温柔的阅读余韵",
+    description: "樱灰与玫瑰、舒展排版，温柔的阅读余韵",
   },
   {
     value: "yugen",
@@ -100,7 +100,11 @@ export function resolveInterfaceConfig<T extends Partial<AppConfig>>(
 ): T {
   if (normalizeInterfaceStyle(config.interface_style) === "classic")
     return config;
-  const size = 16;
+  const bounded = (value: unknown, fallback: number, minimum: number, maximum: number) => {
+    const number = Number(value);
+    return value == null || !Number.isFinite(number) ? fallback : Math.min(maximum, Math.max(minimum, number));
+  };
+  const size = bounded(config.interface_font_size, 16, 12, 32);
   const navigation = Object.fromEntries(
     NAVIGATION_APPEARANCE_KEYS.map((key) => [
       key,
@@ -115,11 +119,11 @@ export function resolveInterfaceConfig<T extends Partial<AppConfig>>(
     ...config,
     ...DEFAULT_EDITOR_APPEARANCE,
     ...navigation,
-    editor_font_family: "system",
+    editor_font_family: config.interface_font_family ?? "system",
     note_font_size: size,
-    editor_line_height: 1.8,
-    editor_block_spacing: 16 / size,
-    editor_heading_margin_top: 28 / size,
-    editor_heading_margin_bottom: 12 / size,
+    editor_line_height: bounded(config.interface_line_height, 1.8, 1.2, 2.2),
+    editor_block_spacing: bounded(config.interface_block_spacing_px, 16, 0, 48) / size,
+    editor_heading_margin_top: bounded(config.interface_heading_margin_top_px, 28, 0, 48) / size,
+    editor_heading_margin_bottom: bounded(config.interface_heading_margin_bottom_px, 12, 0, 32) / size,
   };
 }
