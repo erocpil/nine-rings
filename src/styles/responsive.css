@@ -418,8 +418,11 @@
 
   .editor-stats {
     min-height: 20px;
+    gap: 6px;
     padding: 1px 0 0;
   }
+
+  .editor-save-state { font-size: 9px; }
 
   .editor-status-actions {
     margin-left: auto;

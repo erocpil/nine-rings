@@ -2947,6 +2947,52 @@ button.doc-tree-toggle:focus-visible {
   flex-shrink: 0;
 }
 
+.moc-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-left: -6px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.moc-filter-toggle:hover,
+.moc-filter-toggle.active {
+  color: var(--accent);
+  background: var(--hover);
+  border-color: var(--border);
+}
+
+.moc-filter-toggle .toolbar-icon { width: 15px; height: 15px; }
+
+.moc-filter-input {
+  flex: 0 1 260px;
+  min-width: 120px;
+  height: 28px;
+  padding: 3px 8px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+  font: inherit;
+  font-size: 12px;
+}
+
+.moc-filter-input:focus { border-color: var(--accent); }
+
+.moc-filter-empty {
+  padding: 24px 16px;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
 .moc-breadcrumb {
   font-size: 13px;
   font-weight: 600;
@@ -2964,7 +3010,8 @@ button.doc-tree-toggle:focus-visible {
 }
 
 .moc-table {
-  width: 100%;
+  width: max-content;
+  max-width: 100%;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -2985,6 +3032,7 @@ button.doc-tree-toggle:focus-visible {
   color: var(--text-tertiary);
   background: var(--bg);
   border-bottom: 1px solid var(--border);
+  white-space: nowrap;
 }
 
 .moc-table td {
@@ -3007,7 +3055,8 @@ button.doc-tree-toggle:focus-visible {
 }
 
 .moc-col-title {
-  min-width: 160px;
+  width: 1%;
+  min-width: 0;
   max-width: 300px;
 }
 
@@ -3038,7 +3087,8 @@ button.doc-tree-toggle:focus-visible {
 }
 
 .moc-col-type {
-  width: 70px;
+  width: 1%;
+  white-space: nowrap;
 }
 
 .moc-type-badge {
@@ -3057,6 +3107,7 @@ button.doc-tree-toggle:focus-visible {
 }
 
 .moc-col-concepts {
+  width: 1%;
   max-width: 200px;
 }
 
@@ -3093,8 +3144,9 @@ button.doc-tree-toggle:focus-visible {
 }
 
 .moc-col-links {
-  width: 50px;
+  width: 1%;
   text-align: center;
+  white-space: nowrap;
 }
 
 .moc-link-count {
@@ -3112,8 +3164,16 @@ button.doc-tree-toggle:focus-visible {
 }
 
 .moc-col-date {
-  width: 100px;
+  width: 1%;
   text-align: right;
+  white-space: nowrap;
+}
+
+.moc-col-size {
+  width: 1%;
+  text-align: right;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .moc-table th.moc-col-date {

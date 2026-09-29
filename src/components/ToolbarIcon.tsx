@@ -34,6 +34,8 @@ const paths = {
   document: <><path d="M5 3h9l5 5v13H5ZM14 3v6h5M8 13h8M8 17h6" /></>,
   note: <><path d="M4 4h16v16H4ZM8 8h8M8 12h8M8 16h5" /></>,
   search: <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></>,
+  history: <><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8" /><path d="M3 3v5h5m4-1v5l3 2" /></>,
+  bug: <><path d="M8 8 6 6m10 2 2-2M4 13H2m20 0h-2M5 9l-2-1m16 1 2-1M5 17l-2 1m16-1 2 1M12 4V2" /><rect x="6" y="7" width="12" height="14" rx="6" /><path d="M9 12h.01M15 12h.01M12 7v14" /></>,
   bookmark: <path d="M6 3h12v18l-6-4-6 4Z" />,
   sliders: <><path d="M4 7h16M4 17h16" /><circle cx="9" cy="7" r="2" /><circle cx="15" cy="17" r="2" /></>,
   annotate: <><path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14Z" /></>,

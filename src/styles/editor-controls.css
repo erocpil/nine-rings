@@ -798,9 +798,9 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
 .editor-stats {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 10px;
   min-height: 20px;
-  padding: 1px 0 0;
+  padding: 1px 2px 0;
   line-height: 1.25;
   font-size: 11px;
   color: var(--text-secondary);
@@ -813,15 +813,37 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
 }
 
 .editor-status-secondary {
-  display: contents;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
 }
 
 .editor-status-actions {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   margin-left: auto;
 }
+
+.editor-save-state,
+.editor-status-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-save-state { color: var(--success, #2e8b57); }
+.editor-save-state-dirty,
+.editor-save-state-saving { color: var(--warning, #b36b00); }
+.editor-save-state-error { color: var(--danger, #c0392b); }
+.editor-save-state .toolbar-icon { width: 13px; height: 13px; }
+.editor-status-block { color: var(--text-secondary); }
 
 .stat-sep {
   color: var(--border);
@@ -929,35 +951,51 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
 }
 
 .btn-version-icon {
-  background: none;
-  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
   cursor: pointer;
-  font-size: 11px;
-  padding: 0 2px;
-  opacity: 0.5;
-  line-height: 1;
-  transition: opacity var(--transition);
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.2;
+  transition: color var(--transition), background var(--transition), border-color var(--transition);
 }
 .btn-version-icon:hover {
-  opacity: 1;
+  color: var(--accent);
+  background: var(--hover);
+  border-color: var(--border);
 }
+.btn-version-icon .toolbar-icon { width: 14px; height: 14px; }
 
 /* ── 调试日志面板 ── */
 
 .btn-debug-toggle {
-  background: none;
-  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
   cursor: pointer;
-  font-size: 11px;
-  padding: 0 2px;
-  opacity: 0.5;
-  line-height: 1;
-  transition: opacity var(--transition);
+  font: inherit;
+  font-size: 10px;
+  line-height: 1.2;
+  transition: color var(--transition), background var(--transition), border-color var(--transition);
 }
 .btn-debug-toggle:hover,
 .btn-debug-toggle.active {
-  opacity: 1;
+  color: var(--accent);
+  background: var(--hover);
+  border-color: var(--border);
 }
+.btn-debug-toggle .toolbar-icon { width: 14px; height: 14px; }
 
 .debug-panel {
   max-height: 200px;
@@ -976,21 +1014,22 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
   border-bottom: 1px solid var(--border);
   font-size: 10px;
 }
+.debug-panel-actions { display: flex; align-items: center; gap: 8px; }
+.debug-panel-action {
+  padding: 2px 6px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+}
+.debug-panel-action:hover:not(:disabled) { color: var(--accent); background: var(--hover); }
+.debug-panel-action:disabled { opacity: 0.4; cursor: default; }
+.debug-copy-state { color: var(--success, #2e8b57); }
 .debug-panel-title {
   color: var(--text-secondary);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-}
-.debug-panel-clear {
-  background: none;
-  border: none;
-  color: var(--accent);
-  cursor: pointer;
-  font-size: 10px;
-  padding: 0;
-  line-height: 1;
-}
-.debug-panel-clear:hover {
-  text-decoration: underline;
 }
 .debug-panel-body {
   overflow-y: auto;

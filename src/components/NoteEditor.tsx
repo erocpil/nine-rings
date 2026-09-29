@@ -55,7 +55,7 @@ import { Plugin, TextSelection, type Selection, type Transaction } from "@tiptap
 import type { EditorView } from "@tiptap/pm/view";
 import { closeHistory } from "@tiptap/pm/history";
 import { CellSelection, deleteCellSelection, TableMap } from "@tiptap/pm/tables";
-import { addLog, toggleDebug } from "../lib/debugLog";
+import { addLog, isDebugOpen, subscribeDebugOpen, toggleDebug } from "../lib/debugLog";
 import { copyToClipboard } from "../lib/clipboard";
 import {
   CodeBlockLineNumbers,
@@ -496,6 +496,8 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const bookmarkJumpPulseTimerRef = useRef<number | null>(null);
   const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
   const [activeSearchMatch, setActiveSearchMatch] = useState(0);
+  const [debugOpen, setDebugOpen] = useState(isDebugOpen);
+  useEffect(() => subscribeDebugOpen(setDebugOpen), []);
   const [editorFindOpen, setEditorFindOpen] = useState(false);
   const [editorFindQuery, setEditorFindQuery] = useState("");
   const [editorReplaceOpen, setEditorReplaceOpen] = useState(false);
@@ -4200,7 +4202,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         )}
       </div>
 
-      {/* ── 底部信息栏（位置 + 字数 + 版本历史）─ */}
+      {/* ── 文档状态栏：本机保存状态、位置统计与诊断/历史入口 ── */}
       {(showStatusBar || searchMatches.length > 0) && <div className={`editor-stats${showStatusBar ? "" : " editor-stats-search-only"}${searchMatches.length > 0 && !editorFindOpen ? " editor-stats-has-search-navigation" : ""}`}>
         {saveIssue && <button type="button" className="workspace-error-indicator" onClick={onOpenSaveIssue}>保存异常 · 查看详情</button>}
         {searchMatches.length > 0 && !editorFindOpen && (
@@ -4220,39 +4222,30 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             >×</button>
           </span>
         )}
-        {showStatusBlockNumber && (
-          <>
-            <span className="editor-status-block">块 {currentStatusBlock} / {totalBlocks}</span>
-            <span className="stat-sep">|</span>
-          </>
-        )}
+        {showStatusBar && <span className={`editor-save-state editor-save-state-${saveStatus ?? "clean"}`} role="status" title="仅表示当前设备的保存状态；GitHub 备份需要单独 Push">
+          <ToolbarIcon name={saveStatus === "saving" ? "saving" : saveStatus === "error" ? "warning" : "check"} />
+          {saveStatus === "dirty" ? "待保存" : saveStatus === "saving" ? "保存中" : saveStatus === "error" ? "保存失败" : "本机已保存"}
+        </span>}
+        {showStatusBlockNumber && <span className="editor-status-block">块 {currentStatusBlock}/{totalBlocks}</span>}
         <span className="editor-status-secondary">
           <span ref={scrollPositionRef} className="editor-status-position">位置 0%</span>
-          <span className="stat-sep">|</span>
           <span>{chars} 字符</span>
-          <span className="stat-sep">|</span>
           <span>{words} 词</span>
-          <span className="stat-sep">|</span>
-          <span className="stat-hint">
-            Ctrl+Z · 粘贴/拖入图片
-          </span>
         </span>
         {onVersionOpen && (
           <span className="editor-status-actions">
-            <span className="stat-sep" />
             <span className="btn-debug-toggle-wrapper">
               <button
-                className="btn-debug-toggle"
+                className={`btn-debug-toggle${debugOpen ? " active" : ""}`}
                 onClick={toggleDebug}
-                title="调试日志"
+                title={debugOpen ? "关闭调试日志" : "打开调试日志"}
+                aria-label={debugOpen ? "关闭调试日志" : "打开调试日志"}
+                aria-pressed={debugOpen}
                 type="button"
-              >
-                🐛
-              </button>
+              ><ToolbarIcon name="bug" /><span>日志</span></button>
             </span>
-            <span className="stat-sep" />
-            <button className="btn-version-icon" onClick={onVersionOpen} title="版本历史">
-              📋
+            <button className="btn-version-icon" onClick={onVersionOpen} title="版本历史" aria-label="打开本机版本历史" type="button">
+              <ToolbarIcon name="history" /><span>历史</span>
             </button>
           </span>
         )}

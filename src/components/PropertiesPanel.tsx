@@ -14,6 +14,7 @@ import { transformMarkdownSource } from "../lib/data-transform-client";
 import { extractPlainText } from "../lib/storage/core";
 import { useTransientMessage } from "../hooks/useTransientMessage";
 import { PropertyRename } from "./PropertyRename";
+import { documentSizeBytes, formatDocumentSize } from "../lib/document-size";
 
 interface PropertiesPanelProps {
   note: Note;
@@ -506,6 +507,12 @@ function PropertiesPanel({
           <div className="prop-label">名称</div>
           <PropertyRename key={note.id} kind="文档" value={note.title ?? ""} disabled={readonly || securityDisabled} onRename={onRename} />
           {readonly && <div className="prop-empty">只读文档；切换为可编辑后可重命名。</div>}
+        </div>
+        <div className="prop-section" aria-label="文档大小">
+          <div className="prop-label">大小</div>
+          <div className="prop-empty" title="按正文内容的 UTF-8 存储大小估算">
+            {formatDocumentSize(documentSizeBytes(note.content))}
+          </div>
         </div>
         <div className="prop-section" aria-label="文档标签">
           <div className="prop-label">标签</div>
