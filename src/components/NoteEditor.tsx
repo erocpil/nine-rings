@@ -11,6 +11,7 @@ import { ActiveLinePlugin, activeLinePluginKey, type ActiveLinePluginMeta, Toolb
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CopyBlockNotice } from "./CopyBlockNotice";
 import { RenderedLinkMenu } from "./RenderedLinkMenu";
+import { filterQuickSwitcherNotes, rankQuickSwitcherNotes, readRecentNoteIds } from "../lib/quick-switcher";
 import { MarkdownDocumentView } from "./MarkdownDocumentView";
 import { useEditorToolbarMenus } from "../hooks/useEditorToolbarMenus";
 import { useBlockSelectionGestures } from "../hooks/useBlockSelectionGestures";
@@ -616,6 +617,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const [linkDialog, setLinkDialog] = useState(false);
   const [linkDialogUrl, setLinkDialogUrl] = useState("");
   const [toolbarWidth, setToolbarWidth] = useState(1000);
+  const [fullToolbarMinWidth, setFullToolbarMinWidth] = useState(0);
   const [isMobileToolbarViewport, setIsMobileToolbarViewport] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
@@ -643,11 +645,9 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     compact: isMobileToolbarViewport, layoutKey: focusMode,
     width: isMobileToolbarViewport ? undefined : desktopPanels.widths[previewKind === "bookmark" ? "bookmark" : "outline"],
   });
-  // 桌面 Web 的编辑区通常会因侧栏被压缩到 700～900px；900px 阈值过于
-  // 保守，会在仍有足够空间时提前切换精简工具栏。移动端仍始终使用精简布局。
-  // Full mode includes fixed heading/list/table controls; leave room for their
-  // native font metrics in both WebKit and Chromium plus the More entry.
-  const isNarrow = toolbarWidth < 900 || isMobileToolbarViewport;
+  // Optional controls have their own measured overflow. Switch the fixed
+  // groups only when their actual full-mode width no longer fits.
+  const isNarrow = isMobileToolbarViewport || (fullToolbarMinWidth > 0 && toolbarWidth < fullToolbarMinWidth);
   const isMinimalToolbar = isNarrow;
   const [showCodeLineNumbers, setShowCodeLineNumbers] = useState(codeLineNumbersEnabled);
   useEffect(() => {
@@ -734,9 +734,12 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
 
   // ── [[ 双向链接自动补全 ──
   const [wikiOpen, setWikiOpen] = useState(false);
-  const [wikiSuggestions, setWikiSuggestions] = useState<{ title: string; id: string }[]>([]);
+  const [wikiSuggestions, setWikiSuggestions] = useState<{ title: string; id: string; path: string }[]>([]);
   const [wikiPos, setWikiPos] = useState({ top: 0, left: 0 });
   const wikiStartRef = useRef<number | null>(null); // [[ 在文档中的起始位置
+  const wikiRequestRef = useRef(0);
+  const wikiDismissedStartRef = useRef<number | null>(null);
+  const wikiDocumentsRef = useRef<Promise<Note[]> | null>(null);
 
   // 工具栏的可用空间取决于侧栏、属性面板和窗口宽度，不能使用 window
   // 作为断点来源。直接观察工具栏容器，布局变化时立即切换分组模式。
@@ -751,6 +754,30 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     observer.observe(element);
     toolbarResizeObserver.current = observer;
   }, []);
+  useLayoutEffect(() => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar || isNarrow || isMobileToolbarViewport) return;
+    const measure = () => {
+      const style = getComputedStyle(toolbar);
+      const gap = parseFloat(style.columnGap) || 0;
+      const fixed = Array.from(toolbar.children).filter((element): element is HTMLElement =>
+        element instanceof HTMLElement && !element.classList.contains("toolbar-secondary")
+          && getComputedStyle(element).display !== "none");
+      const required = Math.ceil(fixed.reduce((sum, element) => {
+        const childStyle = getComputedStyle(element);
+        return sum + element.getBoundingClientRect().width
+          + (parseFloat(childStyle.marginLeft) || 0) + (parseFloat(childStyle.marginRight) || 0);
+      }, 0) + Math.max(0, fixed.length - 1) * gap + 12);
+      setFullToolbarMinWidth(current => current === required ? current : required);
+    };
+    measure();
+    let frame = 0;
+    const observer = new MutationObserver(() => {
+      if (!frame) frame = requestAnimationFrame(() => { frame = 0; measure(); });
+    });
+    observer.observe(toolbar, { childList: true, subtree: true, characterData: true });
+    return () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame); };
+  }, [toolbarWidth, isNarrow, isMobileToolbarViewport, readonly]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1028,11 +1055,19 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       // ── [[ 双向链接检测 ──
       const { from } = ed.state.selection;
       const $from = ed.state.doc.resolve(from);
-      const textBefore = $from.parent?.textContent?.slice(0, from - $from.start()) ?? "";
-      const match = textBefore.match(/\[\[([^\]]*)$/);
-      if (match && !readonly) {
-        const query = match[1];
-        wikiStartRef.current = from - query.length - 2; // [[ 位置
+      // ProseMirror positions include inline nodes such as hard breaks and
+      // images; parent.textContent does not. Read the exact model range so a
+      // link typed before existing text still matches after those nodes.
+      const textBefore = ed.state.doc.textBetween($from.start(), from, "\n", "\uFFFC");
+      const trigger = textBefore.lastIndexOf("[[");
+      const query = trigger < 0 ? null : textBefore.slice(trigger + 2);
+      const hasQuery = query !== null && !/[\]\n]/.test(query);
+      if (hasQuery && !readonly && wikiDismissedStartRef.current !== from - query.length - 2) {
+        const start = from - query.length - 2;
+        if (wikiStartRef.current !== start) {
+          wikiDocumentsRef.current = api.docs.search({}).then(notes => rankQuickSwitcherNotes(notes, readRecentNoteIds()));
+        }
+        wikiStartRef.current = start; // [[ 位置
         // 获取光标位置用于定位下拉
         const view = ed.view;
         const coords = view.coordsAtPos(from);
@@ -1042,18 +1077,19 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           setWikiPos({ top: coords.bottom - er.top + 4, left: coords.left - er.left });
         }
         setWikiOpen(true);
-        // 异步搜索匹配笔记
-        const matches = query.trim()
-          ? api.notes.search(query)
-          : Promise.all([api.notes.all(), api.docs.search({})]).then(([notes, docs]) =>
-            [...new Map([...notes, ...docs].map(note => [note.id, note])).values()]);
-        void matches.then(notes => {
-          setWikiSuggestions(notes.filter(note => !note.deleted_at && note.id !== noteId)
-            .slice(0, 20).map(note => ({ title: note.title || "无标题", id: note.id })));
-        });
+        // Reuse the document list's title/path/tag filtering and recent order.
+        const request = ++wikiRequestRef.current;
+        void wikiDocumentsRef.current?.then(notes => {
+          if (request !== wikiRequestRef.current) return;
+          setWikiSuggestions(filterQuickSwitcherNotes(notes, query).filter(note => note.id !== noteId)
+            .slice(0, 20).map(note => ({ title: note.title || "无标题", id: note.id, path: note.storagePath ?? "" })));
+        }).catch(() => { if (request === wikiRequestRef.current) setWikiSuggestions([]); });
       } else {
+        if (!hasQuery) wikiDismissedStartRef.current = null;
+        wikiRequestRef.current++;
         setWikiOpen(false);
         wikiStartRef.current = null;
+        if (!hasQuery) wikiDocumentsRef.current = null;
       }
     },
   }, [noteId]);
@@ -1780,6 +1816,15 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         event.preventDefault();
         closeEditorFind();
         editor.commands.focus();
+        return;
+      }
+      if (event.key === "Escape" && wikiOpen && editor.view.dom.contains(event.target as Node)) {
+        event.preventDefault();
+        event.stopPropagation();
+        wikiDismissedStartRef.current = wikiStartRef.current;
+        wikiStartRef.current = null;
+        wikiRequestRef.current++;
+        setWikiOpen(false);
       }
     };
     const onWindowHidden = () => {
@@ -1797,7 +1842,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       window.removeEventListener("nine-rings:main-window-hide", onWindowHidden);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [closeEditorFind, closeLineJump, editor, editorFindOpen, lineJumpOpen, openEditorFind, openLineJump]);
+  }, [closeEditorFind, closeLineJump, editor, editorFindOpen, lineJumpOpen, openEditorFind, openLineJump, wikiOpen]);
 
   useEffect(() => {
     if (!editor || !editorFindOpen) return;
@@ -4126,7 +4171,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             style={{ top: wikiPos.top, left: wikiPos.left }}
           >
             {wikiSuggestions.length === 0 ? (
-              <div className="wiki-empty">无匹配笔记</div>
+              <div className="wiki-empty">无匹配文档</div>
             ) : (
               wikiSuggestions.map((n) => (
                 <div
@@ -4135,6 +4180,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
                   onClick={() => selectWikiLink(n)}
                 >
                   <span className="wiki-title">{n.title}</span>
+                  {n.path && <small className="wiki-path">{n.path}</small>}
                 </div>
               ))
             )}

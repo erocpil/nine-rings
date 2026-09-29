@@ -613,6 +613,9 @@
   color: #fff;
 }
 
+.wiki-title, .wiki-path { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wiki-path { font-size: 11px; opacity: 0.7; }
+
 .wiki-empty {
   padding: 8px 12px;
   font-size: 12px;

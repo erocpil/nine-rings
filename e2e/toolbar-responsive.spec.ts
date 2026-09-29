@@ -13,6 +13,30 @@ async function expectNoHorizontalOverflow(page: import("@playwright/test").Page)
 }
 
 test.describe("响应式编辑器工具栏", () => {
+  test("桌面固定工具按实际占宽切换，宽敞时补回可选按钮", async ({ page }) => {
+    await createBlankNote(page);
+    const toolbar = page.locator(".editor-menu");
+    await page.setViewportSize({ width: 2000, height: 800 });
+    await expect(toolbar).toHaveClass(/toolbar-full/);
+    const required = await toolbar.evaluate(element => {
+      const gap = parseFloat(getComputedStyle(element).columnGap) || 0;
+      const fixed = Array.from(element.children).filter((child): child is HTMLElement =>
+        child instanceof HTMLElement && !child.classList.contains("toolbar-secondary")
+          && getComputedStyle(child).display !== "none");
+      return fixed.reduce((sum, child) => sum + child.getBoundingClientRect().width, 0)
+        + Math.max(0, fixed.length - 1) * gap + 12;
+    });
+    await expect.poll(() => toolbar.locator(".toolbar-secondary > [data-toolbar-tool][data-toolbar-overflow='true']").count()).toBe(0);
+    for (const width of [900, 1100, 1250, 1400, 2000]) {
+      await page.setViewportSize({ width, height: 800 });
+      await expect.poll(async () => toolbar.evaluate((element, minimum) => {
+        const enough = element.clientWidth >= minimum + 2;
+        return element.classList.contains("toolbar-full") === enough
+          && element.scrollWidth - element.clientWidth <= 2;
+      }, required)).toBe(true);
+    }
+  });
+
   test("线条图标工具栏保留可访问名称与撤销重做状态", async ({ page }) => {
     await createBlankNote(page);
     await page.setViewportSize({ width: 390, height: 760 });
