@@ -2,7 +2,7 @@
 
 Nine Rings 使用 Tauri v2 打包为桌面应用，支持 macOS（`.dmg`）、Linux（`.deb` / `.AppImage`）和 Windows（`.msi` / `.exe`）。
 
-macOS ARM64 和 Windows 工作流在 `main` 推送及 PR 时运行；Linux x86_64 工作流当前通过 `workflow_dispatch` 手动触发。具体触发条件和产物以 `.github/workflows/tauri-*.yml` 为准。
+macOS ARM64、Linux x86_64 和 Windows 工作流都会在推送到 `main` 及针对 `main` 的 PR 时构建；也可以通过 `workflow_dispatch` 手动触发。非 PR 构建会上传短期 Actions 产物，并发布对应平台的 CI 预发布版本。具体产物以 `.github/workflows/tauri-*.yml` 为准。
 
 ---
 
