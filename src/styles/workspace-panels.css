@@ -2947,6 +2947,13 @@ button.doc-tree-toggle:focus-visible {
   flex-shrink: 0;
 }
 
+.moc-filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
 .moc-filter-toggle {
   display: inline-flex;
   align-items: center;
@@ -2954,7 +2961,6 @@ button.doc-tree-toggle:focus-visible {
   width: 28px;
   height: 28px;
   padding: 0;
-  margin-left: -6px;
   color: var(--text-secondary);
   background: transparent;
   border: 1px solid transparent;
@@ -3010,8 +3016,9 @@ button.doc-tree-toggle:focus-visible {
 }
 
 .moc-table {
-  width: max-content;
+  width: 100%;
   max-width: 100%;
+  table-layout: auto;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -3055,35 +3062,32 @@ button.doc-tree-toggle:focus-visible {
 }
 
 .moc-col-title {
-  width: 1%;
+  width: auto;
   min-width: 0;
-  max-width: 300px;
 }
 
 .moc-title-line {
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  align-items: stretch;
   min-width: 0;
-  gap: 7px;
+  gap: 2px;
 }
 
 .moc-title-text {
   min-width: 0;
-  flex-shrink: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
   font-weight: 500;
 }
 
 .moc-title-path {
   min-width: 0;
-  overflow: hidden;
+  overflow-wrap: anywhere;
   color: var(--text-tertiary);
   font-family: var(--font-mono);
   font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .moc-col-type {

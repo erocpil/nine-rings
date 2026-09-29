@@ -117,26 +117,28 @@ export function DocMOC({ storagePath, concept, onSelect, onOpenConcept, selected
       <div className="moc-header">
         <span className="moc-breadcrumb">{isConcept ? `#${concept}` : storagePath}</span>
         <span className="moc-count">{filter.trim() ? `${matchingNotes.length} / ${notes.length} 篇文档` : `${notes.length} 篇文档`}</span>
-        {!isConcept && <button
-          type="button"
-          className={`moc-filter-toggle${filterOpen ? " active" : ""}`}
-          aria-label={filterOpen ? "关闭文档搜索" : "搜索当前路径文档"}
-          aria-expanded={filterOpen}
-          title={filterOpen ? "关闭文档搜索" : "搜索当前路径文档"}
-          onClick={() => { setFilterOpen((open) => !open); setFilter(""); }}
-        ><ToolbarIcon name={filterOpen ? "close" : "search"} /></button>}
-        {filterOpen && <input
-          ref={filterInputRef}
-          className="moc-filter-input"
-          type="search"
-          aria-label="搜索当前路径文档"
-          placeholder="搜索文档名称或子路径"
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") { setFilter(""); setFilterOpen(false); }
-          }}
-        />}
+        {!isConcept && <div className="moc-filter-controls">
+          {filterOpen && <input
+            ref={filterInputRef}
+            className="moc-filter-input"
+            type="search"
+            aria-label="搜索当前路径文档"
+            placeholder="搜索文档名称或子路径"
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") { setFilter(""); setFilterOpen(false); }
+            }}
+          />}
+          <button
+            type="button"
+            className={`moc-filter-toggle${filterOpen ? " active" : ""}`}
+            aria-label={filterOpen ? "关闭文档搜索" : "搜索当前路径文档"}
+            aria-expanded={filterOpen}
+            title={filterOpen ? "关闭文档搜索" : "搜索当前路径文档"}
+            onClick={() => { setFilterOpen((open) => !open); setFilter(""); }}
+          ><ToolbarIcon name={filterOpen ? "close" : "search"} /></button>
+        </div>}
       </div>
       <div className="moc-table-wrap">
         <table className="moc-table">

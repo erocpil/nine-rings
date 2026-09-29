@@ -34,13 +34,18 @@ test("路径目录列表和文档属性显示一致的正文大小", async ({ pa
       table.querySelector<HTMLElement>(`.moc-col-${name}`)!.getBoundingClientRect().width,
     ]),
   ));
-  expect(columnWidths.title).toBeLessThan(170);
+  expect(columnWidths.title).toBeGreaterThan(columnWidths.concepts);
   expect(columnWidths.concepts).toBeLessThan(80);
   expect(columnWidths.links).toBeLessThan(80);
   expect(columnWidths.size).toBeLessThan(100);
   expect(await page.locator(".moc-table th").evaluateAll(headers =>
     headers.every(header => getComputedStyle(header).whiteSpace === "nowrap"),
   )).toBe(true);
+  const tableFill = await page.locator(".moc-table").evaluate(table => ({
+    table: table.getBoundingClientRect().width,
+    available: table.parentElement!.clientWidth,
+  }));
+  expect(tableFill.table).toBeGreaterThanOrEqual(tableFill.available - 2);
 
   await row.click();
   await expect(page.locator(".note-title")).toHaveValue("正文大小测试文档");
