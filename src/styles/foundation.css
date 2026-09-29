@@ -501,6 +501,10 @@ body {
   background: transparent;
   border-color: transparent;
 }
+.desktop-activity-bar .btn-icon[data-sidebar-panel]:hover:not(:disabled) .toolbar-icon,
+.desktop-activity-bar .btn-icon[data-sidebar-panel][aria-pressed="true"] .toolbar-icon {
+  stroke-width: 2.4;
+}
 .desktop-activity-bar .toolbar-icon { width: 20px; height: 20px; }
 .desktop-reader-panel { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
 /* Only the outer sidebar changes size during splitter interaction. Keep both
