@@ -495,7 +495,12 @@ body {
 .desktop-activity-bar-home-hidden:focus-within { opacity: 1; }
 .desktop-activity-bar .btn-icon { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 6px; color: var(--text-secondary); }
 .desktop-activity-footer { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; gap: 6px; margin-top: auto; }
-.desktop-activity-bar .btn-icon[aria-pressed="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.desktop-activity-bar .btn-icon[data-sidebar-panel]:hover:not(:disabled),
+.desktop-activity-bar .btn-icon[data-sidebar-panel][aria-pressed="true"] {
+  color: var(--accent);
+  background: transparent;
+  border-color: transparent;
+}
 .desktop-activity-bar .toolbar-icon { width: 20px; height: 20px; }
 .desktop-reader-panel { display: flex; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
 /* Only the outer sidebar changes size during splitter interaction. Keep both
