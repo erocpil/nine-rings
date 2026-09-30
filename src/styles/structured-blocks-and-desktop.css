@@ -329,7 +329,9 @@
 .nr-details-content > :last-child { margin-bottom: 0; }
 
 .blockquote-wrap {
-  position: relative;
+  /* Keep the editable container unpositioned. WebKit can replace an empty
+     positioned ancestor while committing macOS IME composition, which may
+     detach the composing text from its ProseMirror paragraph. */
   background: var(--surface);
   background: var(--code-bg);
   border-radius: var(--radius);
