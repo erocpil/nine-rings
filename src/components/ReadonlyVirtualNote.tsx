@@ -153,7 +153,12 @@ export function renderReadonlyBlock(
     ),
   );
   const state = states.get(pos) ?? {};
-  const attrs = { "data-indent": node.attrs.indent || undefined, "data-list-followup": followsList || undefined };
+  const explicitIndent = node.attrs.indentExplicit === true;
+  const attrs = {
+    "data-indent": node.attrs.indent || explicitIndent ? String(node.attrs.indent || 0) : undefined,
+    "data-indent-explicit": explicitIndent ? "true" : undefined,
+    "data-list-followup": followsList && !explicitIndent ? true : undefined,
+  };
   switch (node.type.name) {
     case "hardBreak":
       return <br />;
@@ -180,7 +185,7 @@ export function renderReadonlyBlock(
     case "footnotes":
       return <section {...attrs} className="nr-footnotes"><ol>{children}</ol></section>;
     case "footnoteDefinition":
-      { const id = encodeURIComponent(String(node.attrs.id ?? "")); return <li id={`nr-footnote-${id}`} tabIndex={-1}><div data-footnote-content="">{children}</div><a className="nr-footnote-backref" href={`#nr-footnote-ref-${id}`} aria-label="返回脚注引用">↩</a></li>; }
+      { const id = encodeURIComponent(String(node.attrs.id ?? "")); return <li {...attrs} id={`nr-footnote-${id}`} tabIndex={-1}><div data-footnote-content="">{children}</div><a className="nr-footnote-backref" href={`#nr-footnote-ref-${id}`} aria-label="返回脚注引用">↩</a></li>; }
     case "heading":
       return React.createElement(`h${node.attrs.level}`, attrs, children);
     case "bulletList":

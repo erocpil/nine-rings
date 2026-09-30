@@ -68,8 +68,8 @@ export function changeBlockIndent(
   const transaction = state.tr;
   state.doc.forEach((node: ProseMirrorNode, _offset: number, index: number) => {
     const indent = nextLevels.get(index);
-    if (indent !== undefined && indent !== normalizeIndent(node.attrs.indent)) {
-      transaction.setNodeMarkup(position, undefined, { ...node.attrs, indent });
+    if (indent !== undefined && (indent !== normalizeIndent(node.attrs.indent) || node.attrs.indentExplicit !== true)) {
+      transaction.setNodeMarkup(position, undefined, { ...node.attrs, indent, indentExplicit: true });
       changed = true;
     }
     position += node.nodeSize;
@@ -103,7 +103,8 @@ export const BlockIndent = Extension.create({
         // so outdent cannot leave an old node-view attribute behind.
         decorations.push(Decoration.node(pos, pos + node.nodeSize, {
           "data-indent": String(normalizeIndent(node.attrs.indent)),
-          ...((node.type.name === "codeBlock" || node.type.name === "blockquote") && followups.has(pos)
+          ...(node.attrs.indentExplicit === true ? { "data-indent-explicit": "true" } : {}),
+          ...(node.attrs.indentExplicit !== true && (node.type.name === "codeBlock" || node.type.name === "blockquote") && followups.has(pos)
             ? { "data-list-followup": "true" }
             : {}),
         }));
@@ -127,6 +128,11 @@ export const BlockIndent = Extension.create({
             const indent = normalizeIndent(attributes.indent);
             return indent > 0 ? { "data-indent": String(indent) } : {};
           },
+        },
+        indentExplicit: {
+          default: false,
+          parseHTML: (element) => element.getAttribute("data-indent-explicit") === "true",
+          renderHTML: (attributes) => attributes.indentExplicit === true ? { "data-indent-explicit": "true" } : {},
         },
       },
     }];

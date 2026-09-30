@@ -91,15 +91,20 @@ export function proseMirrorToDelta(pmJson: JSONContent | null | undefined): Delt
   const content = pmJson?.content ?? [];
   const indentAttrs = (node: { attrs?: Record<string, unknown> }) => {
     const indent = Math.max(0, Math.min(8, Math.floor(Number(node.attrs?.indent) || 0)));
-    return indent > 0 ? { indent } : {};
+    return {
+      ...(indent > 0 ? { indent } : {}),
+      ...(node.attrs?.indentExplicit === true ? { "indent-explicit": true } : {}),
+    };
   };
 
   for (const node of content) {
     switch (node.type) {
-      case "paragraph":
+      case "paragraph": {
         extractInlineOps(node, ops);
-        ops.push({ insert: "\n", ...(node.attrs?.indent > 0 ? { attributes: indentAttrs(node) } : {}) });
+        const attributes = indentAttrs(node);
+        ops.push({ insert: "\n", ...(Object.keys(attributes).length ? { attributes } : {}) });
         break;
+      }
 
       case "heading":
         extractInlineOps(node, ops);
@@ -228,7 +233,8 @@ function appendListOps(listNode: JSONContent, ops: DeltaOp[], depth: number): vo
       list,
       ...(typeof item.attrs?.taskChecked === "boolean" ? { taskChecked: item.attrs.taskChecked } : {}),
       ...(depth > 0 ? { indent: depth } : {}),
-      ...(Number(nodeIndent(listNode)) > 0 ? { "block-indent": nodeIndent(listNode) } : {}),
+      ...(nodeIndent(listNode) > 0 ? { "block-indent": nodeIndent(listNode) } : {}),
+      ...(listNode.attrs?.indentExplicit === true ? { "block-indent-explicit": true } : {}),
       ...(orderedStart !== undefined ? { listStart: orderedStart + itemIndex } : {}),
     };
 
@@ -338,6 +344,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
     type: "bulletList" | "orderedList";
     indent: number;
     blockIndent: number;
+    blockIndentExplicit: boolean;
     start?: number;
     taskChecked?: boolean;
     paragraph: JSONContent;
@@ -372,9 +379,10 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
         : undefined;
       const list = {
         type,
-        ...((start !== undefined && start !== 1) || (normalized[index]?.blockIndent ?? 0) > 0
+        ...((start !== undefined && start !== 1) || (normalized[index]?.blockIndent ?? 0) > 0 || normalized[index]?.blockIndentExplicit
           ? { attrs: { ...(start !== undefined && start !== 1 ? { start } : {}),
-            ...((normalized[index]?.blockIndent ?? 0) > 0 ? { indent: normalized[index].blockIndent } : {}) } }
+            ...((normalized[index]?.blockIndent ?? 0) > 0 ? { indent: normalized[index].blockIndent } : {}),
+            ...(normalized[index]?.blockIndentExplicit ? { indentExplicit: true } : {}) } }
           : {}),
         content: [] as JSONContent[],
       };
@@ -461,6 +469,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
             ...(typeof attrs.taskChecked === "boolean" ? { taskChecked: attrs.taskChecked } : {}),
             indent: Number.isFinite(rawIndent) ? Math.max(0, Math.floor(rawIndent)) : 0,
             blockIndent: Math.max(0, Math.min(8, Math.floor(Number(attrs["block-indent"]) || 0))),
+            blockIndentExplicit: attrs["block-indent-explicit"] === true,
             ...(attrs.list === "ordered" && Number.isFinite(Number(attrs.listStart))
               ? { start: Math.max(1, Math.floor(Number(attrs.listStart))) }
               : {}),
@@ -483,7 +492,10 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
         flushList();
 
         const blockIndent = Math.max(0, Math.min(8, Math.floor(Number(attrs.indent) || 0)));
-        const blockIndentAttrs = blockIndent > 0 ? { indent: blockIndent } : {};
+        const blockIndentAttrs = {
+          ...(blockIndent > 0 ? { indent: blockIndent } : {}),
+          ...(attrs["indent-explicit"] === true ? { indentExplicit: true } : {}),
+        };
 
         if (attrs.header) {
           currentParagraph.type = "heading";
@@ -559,7 +571,10 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
       flushList();
       const rawEmbedIndent = Number(attrs.indent);
       const embedIndent = Number.isFinite(rawEmbedIndent) ? Math.max(0, Math.min(8, Math.floor(rawEmbedIndent))) : 0;
-      const embedIndentAttrs = embedIndent > 0 ? { indent: embedIndent } : {};
+      const embedIndentAttrs = {
+        ...(embedIndent > 0 ? { indent: embedIndent } : {}),
+        ...(attrs["indent-explicit"] === true ? { indentExplicit: true } : {}),
+      };
       const table = getTableEmbed(insert);
       if (table) {
         if (currentParagraph.content.length > 0 || isImageBlock) flushParagraph();

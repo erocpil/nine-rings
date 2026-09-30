@@ -131,12 +131,32 @@ describe("desktop layout and list continuation presentation", () => {
       type: "doc",
       content: [
         { type: "bulletList", attrs: { indent: 1 }, content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "item" }] }] }] },
-        { type: "mathBlock", attrs: { source: "x=1", indent: 2 } },
+        { type: "codeBlock", attrs: { indent: 0, indentExplicit: true }, content: [{ type: "text", text: "flowchart LR" }] },
+        { type: "mathBlock", attrs: { source: "x=1", indent: 2, indentExplicit: true } },
         { type: "horizontalRule", attrs: { indent: 3 } },
         { type: "resizableImage", attrs: { src: "image://test", indent: 4 } },
       ],
     };
     const restored = deltaToProseMirror(proseMirrorToDelta(source));
-    expect(restored.content?.map(block => block.attrs?.indent ?? 0)).toEqual([1, 2, 3, 4]);
+    expect(restored.content?.map(block => block.attrs?.indent ?? 0)).toEqual([1, 0, 2, 3, 4]);
+    expect(restored.content?.[1].attrs?.indentExplicit).toBe(true);
+    expect(restored.content?.[2].attrs?.indentExplicit).toBe(true);
+  });
+
+  it("records a manual zero indent so automatic list continuation cannot reapply", () => {
+    const doc = schema.nodeFromJSON({
+      type: "doc",
+      content: [
+        { type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "item" }] }] }] },
+        { type: "codeBlock", content: [{ type: "text", text: "flowchart LR" }] },
+      ],
+    });
+    let codeBlockPos = 0;
+    doc.forEach((node, pos) => { if (node.type.name === "codeBlock") codeBlockPos = pos; });
+    const state = EditorState.create({ doc, selection: TextSelection.create(doc, codeBlockPos + 1) });
+    let changedDoc = doc;
+    expect(changeBlockIndent(state, transaction => { changedDoc = transaction.doc; }, -1)).toBe(true);
+    expect(changedDoc.child(1).attrs.indent).toBe(0);
+    expect(changedDoc.child(1).attrs.indentExplicit).toBe(true);
   });
 });
