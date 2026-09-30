@@ -139,7 +139,10 @@ export function buildDocTree(
   docs: FlatDocRecord[],
 ): PathNode[] {
   const tree: PathNode[] = [];
-  const folders = new Set<string>();
+  // PARA root folders are part of the document workspace itself, not merely
+  // inferred from documents. Keep them visible when their last document is
+  // moved, deleted, or sent to the recycle bin.
+  const folders = new Set<string>(PARA_TOP_DIRS);
   const folderCounts = new Map<string, number>();
 
   // ── 1. 文档类笔记（有 storage_path）──

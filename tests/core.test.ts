@@ -9,7 +9,7 @@
  * - uuid / now（工具函数）
  */
 
-import { buildDocTree, buildDocumentStoragePath, splitSuggestedDocPath, upsertMatchKey, type FlatDocRecord } from "../src/lib/storage/core";
+import { buildDocTree, buildDocumentStoragePath, PARA_TOP_DIRS, splitSuggestedDocPath, upsertMatchKey, type FlatDocRecord } from "../src/lib/storage/core";
 import { getOtherFolderPaths } from "../src/lib/doc-tree-collapse";
 
 let passed = 0;
@@ -41,7 +41,11 @@ function deepEqual(a: unknown, b: unknown): boolean {
   console.log("\n── buildDocTree: empty inputs ──");
 
   const tree = buildDocTree([]);
-  assert(tree.length === 0, "empty inputs → empty tree");
+  assert(tree.length === PARA_TOP_DIRS.length, "empty inputs → persistent PARA root folders");
+  for (const path of PARA_TOP_DIRS) {
+    const folder = tree.find(node => node.type === "folder" && node.path === path);
+    assert(folder?.count === 0, `${path}/ remains visible with count=0`);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -88,8 +92,8 @@ function deepEqual(a: unknown, b: unknown): boolean {
   const doc2 = tree.find(n => n.path === "projects/bless/docs/d2" && n.type === "document");
   assert(doc2!.readonly === true, "doc2 readonly=true");
 
-  // total nodes = 4 documents + folders (references, references/dpdk, projects, projects/bless, projects/bless/docs) = 9
-  assert(tree.length === 9, `total nodes = 9 (got ${tree.length})`);
+  // Five PARA roots + three nested folders + four documents = 12 nodes.
+  assert(tree.length === 12, `total nodes = 12 (got ${tree.length})`);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -112,9 +116,11 @@ function deepEqual(a: unknown, b: unknown): boolean {
   assert(folders.some(n => n.path === "projects/a/b/c/d"), "projects/a/b/c/d/ exists");
 
   // 每级 count 都是 1（只有 1 个文档在该子树下）
-  for (const f of folders) {
+  for (const f of folders.filter(folder => folder.path.startsWith("projects/"))) {
     assert(f.count === 1, `${f.path} count=1`);
   }
+  assert(folders.filter(folder => PARA_TOP_DIRS.includes(folder.path as typeof PARA_TOP_DIRS[number]) && folder.count === 0).length === PARA_TOP_DIRS.length - 1,
+    "unused PARA roots remain present with zero documents");
 }
 
 // ═══════════════════════════════════════════════════════════════════
