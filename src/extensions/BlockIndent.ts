@@ -7,7 +7,14 @@ import { listFollowupBlocks } from "../lib/list-followup-blocks";
 
 export const MAX_BLOCK_INDENT = 8;
 
-const INDENTABLE_BLOCKS = new Set(["paragraph", "heading", "blockquote", "codeBlock"]);
+// Indentation is a presentation attribute on top-level content blocks. Keep
+// this list aligned with the document schema so embeds and containers retain
+// their indentation through editing and node-view rendering as well.
+const INDENTABLE_BLOCKS = new Set([
+  "paragraph", "heading", "blockquote", "codeBlock", "bulletList", "orderedList",
+  "horizontalRule", "resizableImage", "table", "mathBlock", "htmlDetails",
+  "footnotes", "footnoteDefinition",
+]);
 
 function normalizeIndent(value: unknown): number {
   const parsed = Number(value);
@@ -50,9 +57,8 @@ export function changeBlockIndent(
       continue;
     }
 
-    const desired = direction > 0
-      ? Math.max(current, Math.min(current + 1, previousLevel + 1, MAX_BLOCK_INDENT))
-      : Math.max(0, current - 1);
+    const stepped = current + direction;
+    const desired = Math.max(0, Math.min(stepped, previousLevel + 1, MAX_BLOCK_INDENT));
     nextLevels.set(index, desired);
     previousLevel = desired;
   }
@@ -91,13 +97,15 @@ export const BlockIndent = Extension.create({
       const followups = listFollowupBlocks(doc);
       const decorations: Decoration[] = [];
       doc.forEach((node, pos) => {
-        if (node.type.name !== "codeBlock" && node.type.name !== "blockquote") return;
+        if (!INDENTABLE_BLOCKS.has(node.type.name)) return;
         // React node views have an outer layout wrapper separate from their
         // editable content. Apply indentation to that wrapper, including zero
         // so outdent cannot leave an old node-view attribute behind.
         decorations.push(Decoration.node(pos, pos + node.nodeSize, {
           "data-indent": String(normalizeIndent(node.attrs.indent)),
-          ...(followups.has(pos) ? { "data-list-followup": "true" } : {}),
+          ...((node.type.name === "codeBlock" || node.type.name === "blockquote") && followups.has(pos)
+            ? { "data-list-followup": "true" }
+            : {}),
         }));
       });
       return DecorationSet.create(doc, decorations);

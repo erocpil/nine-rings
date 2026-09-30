@@ -148,34 +148,34 @@ export function proseMirrorToDelta(pmJson: JSONContent | null | undefined): Delt
 
       case "image":
       case "resizableImage":
-        ops.push({ insert: { image: node.attrs?.src ?? "" } });
+        ops.push({ insert: { image: node.attrs?.src ?? "" }, attributes: indentAttrs(node) });
         ops.push({ insert: "\n" });
         break;
 
       case "horizontalRule":
-        ops.push({ insert: { hr: true } });
+        ops.push({ insert: { hr: true }, attributes: indentAttrs(node) });
         ops.push({ insert: "\n" });
         break;
 
       case "table":
-        ops.push({ insert: { table: tableNodeToEmbed(node) } });
+        ops.push({ insert: { table: tableNodeToEmbed(node) }, attributes: indentAttrs(node) });
         ops.push({ insert: "\n" });
         break;
 
       case "mathBlock":
-        ops.push({ insert: { mathBlock: String(node.attrs?.source ?? "") } }, { insert: "\n" });
+        ops.push({ insert: { mathBlock: String(node.attrs?.source ?? "") }, attributes: indentAttrs(node) }, { insert: "\n" });
         break;
       case "htmlDetails":
         ops.push({ insert: { htmlDetails: {
           summary: String(node.attrs?.summary ?? "点击展开"), open: node.attrs?.open === true,
           content: proseMirrorToDelta({ type: "doc", content: node.content ?? [] }).ops,
-        } } }, { insert: "\n" });
+        } }, attributes: indentAttrs(node) }, { insert: "\n" });
         break;
       case "footnotes":
         ops.push({ insert: { footnotes: (node.content ?? []).map(definition => ({
           id: String(definition.attrs?.id ?? ""),
           content: proseMirrorToDelta({ type: "doc", content: definition.content ?? [] }).ops,
-        })) } }, { insert: "\n" });
+        })) }, attributes: indentAttrs(node) }, { insert: "\n" });
         break;
     }
   }
@@ -228,6 +228,7 @@ function appendListOps(listNode: JSONContent, ops: DeltaOp[], depth: number): vo
       list,
       ...(typeof item.attrs?.taskChecked === "boolean" ? { taskChecked: item.attrs.taskChecked } : {}),
       ...(depth > 0 ? { indent: depth } : {}),
+      ...(Number(nodeIndent(listNode)) > 0 ? { "block-indent": nodeIndent(listNode) } : {}),
       ...(orderedStart !== undefined ? { listStart: orderedStart + itemIndex } : {}),
     };
 
@@ -270,6 +271,11 @@ function appendListOps(listNode: JSONContent, ops: DeltaOp[], depth: number): vo
       });
     }
   }
+}
+
+function nodeIndent(node: JSONContent): number {
+  const value = Number(node.attrs?.indent);
+  return Number.isFinite(value) ? Math.max(0, Math.min(8, Math.floor(value))) : 0;
 }
 
 function extractInlineOps(
@@ -321,6 +327,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
 
   const doc: JSONContent[] = [];
   const footnoteDefinitions: JSONContent[] = [];
+  let footnotesIndent = 0;
   let currentParagraph: JSONContent & { content: JSONContent[] } = { type: "paragraph", content: [] };
   let isImageBlock = false;
   // Quill 用紧随 embed 的换行标记块结束。它不是编辑器中的空段落，
@@ -330,6 +337,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
   let pendingListLines: Array<{
     type: "bulletList" | "orderedList";
     indent: number;
+    blockIndent: number;
     start?: number;
     taskChecked?: boolean;
     paragraph: JSONContent;
@@ -364,7 +372,10 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
         : undefined;
       const list = {
         type,
-        ...(start !== undefined && start !== 1 ? { attrs: { start } } : {}),
+        ...((start !== undefined && start !== 1) || (normalized[index]?.blockIndent ?? 0) > 0
+          ? { attrs: { ...(start !== undefined && start !== 1 ? { start } : {}),
+            ...((normalized[index]?.blockIndent ?? 0) > 0 ? { indent: normalized[index].blockIndent } : {}) } }
+          : {}),
         content: [] as JSONContent[],
       };
 
@@ -449,6 +460,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
             type: attrs.list === "bullet" ? "bulletList" : "orderedList",
             ...(typeof attrs.taskChecked === "boolean" ? { taskChecked: attrs.taskChecked } : {}),
             indent: Number.isFinite(rawIndent) ? Math.max(0, Math.floor(rawIndent)) : 0,
+            blockIndent: Math.max(0, Math.min(8, Math.floor(Number(attrs["block-indent"]) || 0))),
             ...(attrs.list === "ordered" && Number.isFinite(Number(attrs.listStart))
               ? { start: Math.max(1, Math.floor(Number(attrs.listStart))) }
               : {}),
@@ -545,10 +557,13 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
         continue;
       }
       flushList();
+      const rawEmbedIndent = Number(attrs.indent);
+      const embedIndent = Number.isFinite(rawEmbedIndent) ? Math.max(0, Math.min(8, Math.floor(rawEmbedIndent))) : 0;
+      const embedIndentAttrs = embedIndent > 0 ? { indent: embedIndent } : {};
       const table = getTableEmbed(insert);
       if (table) {
         if (currentParagraph.content.length > 0 || isImageBlock) flushParagraph();
-        doc.push(tableEmbedToProseMirror(table));
+        doc.push({ ...tableEmbedToProseMirror(table), ...(embedIndent > 0 ? { attrs: embedIndentAttrs } : {}) });
         currentParagraph = { type: "paragraph", content: [] };
         isImageBlock = false;
         skipEmptyLineAfterBlockEmbed = true;
@@ -556,7 +571,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
       }
       if (insert.image) {
         if (currentParagraph.content.length > 0 || isImageBlock) flushParagraph();
-        doc.push({ type: "resizableImage", attrs: { src: insert.image }, content: [] });
+        doc.push({ type: "resizableImage", attrs: { src: insert.image, ...embedIndentAttrs }, content: [] });
         currentParagraph = { type: "paragraph", content: [] };
         isImageBlock = false;
         skipEmptyLineAfterBlockEmbed = true;
@@ -567,18 +582,18 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
         if (currentParagraph.content.length > 0 || isImageBlock) {
           flushParagraph();
         }
-        doc.push({ type: "horizontalRule", content: [] });
+        doc.push({ type: "horizontalRule", ...(embedIndent > 0 ? { attrs: embedIndentAttrs } : {}), content: [] });
         skipEmptyLineAfterBlockEmbed = true;
       } else if (typeof insert.mathBlock === "string") {
         if (currentParagraph.content.length) flushParagraph();
-        doc.push({ type: "mathBlock", attrs: { source: insert.mathBlock } });
+        doc.push({ type: "mathBlock", attrs: { source: insert.mathBlock, ...embedIndentAttrs } });
         currentParagraph = { type: "paragraph", content: [] };
         skipEmptyLineAfterBlockEmbed = true;
       } else if (insert.htmlDetails && typeof insert.htmlDetails === "object") {
         if (currentParagraph.content.length) flushParagraph();
         const details = insert.htmlDetails as { summary?: unknown; open?: unknown; content?: DeltaOp[] };
         const body = deltaToProseMirror({ ops: details.content ?? [] }).content;
-        doc.push({ type: "htmlDetails", attrs: { summary: String(details.summary ?? "点击展开"), open: details.open === true }, content: body.length ? body : [{ type: "paragraph", content: [] }] });
+        doc.push({ type: "htmlDetails", attrs: { summary: String(details.summary ?? "点击展开"), open: details.open === true, ...embedIndentAttrs }, content: body.length ? body : [{ type: "paragraph", content: [] }] });
         currentParagraph = { type: "paragraph", content: [] };
         skipEmptyLineAfterBlockEmbed = true;
       } else if (Array.isArray(insert.footnotes)) {
@@ -589,6 +604,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
           content: deltaToProseMirror({ ops: item.content ?? [] }).content,
         }));
         footnoteDefinitions.push(...definitions);
+        footnotesIndent = embedIndent;
         currentParagraph = { type: "paragraph", content: [] };
         skipEmptyLineAfterBlockEmbed = true;
       }
@@ -602,7 +618,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
   }
   if (footnoteDefinitions.length) {
     if (doc[doc.length - 1]?.type !== "horizontalRule") doc.push({ type: "horizontalRule" });
-    doc.push({ type: "footnotes", content: footnoteDefinitions });
+    doc.push({ type: "footnotes", ...(footnotesIndent > 0 ? { attrs: { indent: footnotesIndent } } : {}), content: footnoteDefinitions });
   }
 
   // ProseMirror/TipTap 需要至少一个可编辑的块节点。Chromium 通常会

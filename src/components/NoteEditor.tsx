@@ -3131,13 +3131,6 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   };
 
   const changeSelectedBlockIndent = (direction: 1 | -1) => {
-    if (editor.isActive("table")) return;
-    if (editor.isActive("listItem")) {
-      const chain = editor.chain().focus();
-      if (direction > 0) chain.sinkListItem("listItem").run();
-      else chain.liftListItem("listItem").run();
-      return;
-    }
     const chain = editor.chain().focus();
     if (direction > 0) chain.indentBlocks().run();
     else chain.outdentBlocks().run();

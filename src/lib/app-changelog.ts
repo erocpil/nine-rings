@@ -1,6 +1,13 @@
 /** User-facing highlights shipped with the app, newest first. Keep dates in ISO format. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-01",
+    title: "支持任意内容块调整缩进",
+    changes: [
+      "段落、标题、代码、引用、列表、表格、图片、公式等块都可调整缩进；每一级最多比上一块深一级，并在保存和只读视图中保持一致。",
+    ],
+  },
+  {
     date: "2026-09-29",
     title: "路径文档筛选与状态栏优化",
     changes: [

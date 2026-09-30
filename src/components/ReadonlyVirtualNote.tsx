@@ -158,15 +158,15 @@ export function renderReadonlyBlock(
     case "hardBreak":
       return <br />;
     case "horizontalRule":
-      return <hr />;
+      return <hr {...attrs} />;
     case "paragraph":
       return <p {...attrs}>{children.length ? children : <br />}</p>;
     case "mathInline":
       return <KaTeXFormula source={String(node.attrs.source ?? "")} />;
     case "mathBlock":
-      return <div className="nr-math-block"><KaTeXFormula source={String(node.attrs.source ?? "")} displayMode /> </div>;
+      return <div {...attrs} className="nr-math-block"><KaTeXFormula source={String(node.attrs.source ?? "")} displayMode /> </div>;
     case "htmlDetails":
-      { const collapsed = state.collapsed ?? node.attrs.open !== true; return <details className="nr-details" open={!collapsed}>
+      { const collapsed = state.collapsed ?? node.attrs.open !== true; return <details {...attrs} className="nr-details" open={!collapsed}>
         <summary className="nr-details-summary" onClick={event => { if (event.target instanceof Element && event.target.closest("button")) return; event.preventDefault(); update(pos, { ...state, collapsed: !collapsed }); }}>
           <span className="nr-details-fold-icon"><EditorFoldIcon expanded={!collapsed} /></span>
           <span className="nr-details-title">{String(node.attrs.summary ?? "点击展开")}</span>
@@ -178,7 +178,7 @@ export function renderReadonlyBlock(
         <div className="nr-details-content">{children}</div>
       </details>; }
     case "footnotes":
-      return <section className="nr-footnotes"><ol>{children}</ol></section>;
+      return <section {...attrs} className="nr-footnotes"><ol>{children}</ol></section>;
     case "footnoteDefinition":
       { const id = encodeURIComponent(String(node.attrs.id ?? "")); return <li id={`nr-footnote-${id}`} tabIndex={-1}><div data-footnote-content="">{children}</div><a className="nr-footnote-backref" href={`#nr-footnote-ref-${id}`} aria-label="返回脚注引用">↩</a></li>; }
     case "heading":
@@ -203,9 +203,9 @@ export function renderReadonlyBlock(
       );
     case "resizableImage":
     case "image":
-      return <ReadonlyImage src={String(node.attrs.src || "")} alt={node.attrs.alt} title={node.attrs.title} />;
+      return <div {...attrs}><ReadonlyImage src={String(node.attrs.src || "")} alt={node.attrs.alt} title={node.attrs.title} /></div>;
     case "table":
-      return <div className="tableWrapper"><table><tbody>{children}</tbody></table></div>;
+      return <div {...attrs} className="tableWrapper"><table><tbody>{children}</tbody></table></div>;
     case "tableRow": return <tr>{children}</tr>;
     case "tableHeader": return <th colSpan={node.attrs.colspan} rowSpan={node.attrs.rowspan} style={{ textAlign: node.attrs.textAlign || undefined }}>{children}</th>;
     case "tableCell": return <td colSpan={node.attrs.colspan} rowSpan={node.attrs.rowspan} style={{ textAlign: node.attrs.textAlign || undefined }}>{children}</td>;
