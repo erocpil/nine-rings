@@ -649,6 +649,34 @@ test.describe("编辑器复制粘贴", () => {
     await expect(table.locator("td")).toHaveText(["DPDK", "百度 / Bless / 商汤", "NIC", "CX-5/CX-6 / Bless"]);
   });
 
+  test("带段落样式的 Markdown 文本仍按列表语法粘贴", async ({ page }) => {
+    await createBlankNote(page);
+
+    const markdown = [
+      "模块五：实时渲染训练指南 (Runtime Execution Guide)",
+      "1. 摆脱文本（Drop the Text）：复习与准备表达时，严禁背诵完整的段落或长文本。只打开思维模型图表（Mermaid / 决策树）。",
+      "2. 限时解说（Micro-Practice）：随机抽取一张架构图或故障决策树节点，限时 60 秒调取控制流与词块，进行口头复述。",
+      "3. 挂载调优（Hit the Cache）：",
+      "    * 若表达卡顿，说明缺少对应的词块（Data Chunk）或句式管道（Pipeline）。",
+      "    * 查阅词汇库补齐该模块，出声朗读 3 次，形成神经肌肉记忆后重新解说。",
+      "4. 母语反哺（Native Polish）：在中文沟通（如架构评审、技术汇报）前，先在脑海中挂载 1. 痛点/上下文 -> 2. 核心技术动作 -> 3. 结果/量化数据 管道，剔除“然后”、“就是说”等无意义胶水词，实现高质量信息压缩。",
+    ].join("\n");
+    const html = markdown.split("\n").map((line) => `<p><span style="font-family: Arial">${line}</span></p>`).join("");
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element, content) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", content.text);
+      clipboardData.setData("text/html", content.html);
+      element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    }, { text: markdown, html });
+
+    await expect(editor.locator(":scope > ol > li")).toHaveCount(4);
+    await expect(editor.locator(":scope > ol > li").nth(2).locator(":scope > ul > li")).toHaveCount(2);
+    await expect(editor).toContainText("Runtime Execution Guide");
+    await expect(editor.locator(":scope > ol")).not.toContainText("\\.");
+    await expect(editor.locator(":scope > ol")).not.toContainText("\\*");
+  });
+
   test("单行 Markdown 标题粘贴转换为一级标题", async ({ page }) => {
     await createBlankNote(page);
 

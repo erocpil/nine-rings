@@ -6,6 +6,20 @@ export function shouldParseClipboardMarkdown(text: string, html = ""): boolean {
   if (!looksLikeMarkdown(text)) return false;
   if (!html.trim()) return true;
   const doc = new DOMParser().parseFromString(html, "text/html");
+
+  // Some apps put each copied Markdown source line in a styled paragraph (and
+  // may mark Markdown punctuation as bold/italic). That is still source text:
+  // parse its block markers unless the HTML already represents those blocks
+  // structurally. Otherwise list markers become literal text and the Markdown
+  // serializer has to escape them on the next round trip.
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  const blockSignals = lines.filter((line) =>
+    /^\s*(?:#{1,6}\s+\S.*|>\s+\S.*|[-*+]\s+\S.*|\d+\.\s+\S.*|(?:-{3,}|_{3,}|\*{3,})\s*)$/.test(line),
+  ).length;
+  if (blockSignals >= 2 && !doc.body.querySelector(
+    "[data-pm-slice], h1, h2, h3, h4, h5, h6, ul, ol, blockquote, pre, table, img, a",
+  )) return true;
+
   return !doc.body.querySelector(
     "[data-pm-slice], h1, h2, h3, h4, h5, h6, ul, ol, blockquote, pre, code, table, img, a, strong, b, em, i, s, del, u, [style]",
   );
