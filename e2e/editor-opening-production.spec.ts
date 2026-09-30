@@ -5,7 +5,7 @@ test.skip(
   "显式启用的生产构建 A/B 诊断，不设置机器相关的性能门槛",
 );
 
-for (const count of [1500]) {
+for (const count of [500, 1500, 5000]) {
   test(`${count} 块已有文档：完整可编辑正文首次挂载三次`, async ({
     page,
     context,
@@ -68,6 +68,17 @@ for (const count of [1500]) {
         const sample = await context.newPage();
         await sample.addInitScript(
           ({ id, enabled, count }) => {
+            const longTasks: number[] = [];
+            if ("PerformanceObserver" in window) {
+              try {
+                new PerformanceObserver((list) => {
+                  for (const entry of list.getEntries())
+                    longTasks.push(entry.duration);
+                }).observe({ type: "longtask", buffered: true });
+              } catch {
+                // Long Task timing is not available in every browser engine.
+              }
+            }
             localStorage.setItem("nr:lastNote", id);
             localStorage.setItem(
               "nr:workspaceTarget",
@@ -110,6 +121,17 @@ for (const count of [1500]) {
                         : document
                             .querySelector(".ProseMirror")!
                             .querySelectorAll("*").length,
+                      longTaskCount: longTasks.length,
+                      longTaskTotalMs: longTasks.reduce(
+                        (sum, duration) => sum + duration,
+                        0,
+                      ),
+                      heapUsedBytes:
+                        (
+                          performance as Performance & {
+                            memory?: { usedJSHeapSize: number };
+                          }
+                        ).memory?.usedJSHeapSize ?? null,
                     },
                   });
                 }),

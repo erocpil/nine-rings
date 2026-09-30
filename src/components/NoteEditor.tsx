@@ -4222,9 +4222,14 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
             >×</button>
           </span>
         )}
-        {showStatusBar && <span className={`editor-save-state editor-save-state-${saveStatus ?? "clean"}`} role="status" title="仅表示当前设备的保存状态；GitHub 备份需要单独 Push">
+        {showStatusBar && <span
+          className={`editor-save-state editor-save-state-${saveStatus ?? "clean"}`}
+          role="status"
+          aria-label={saveStatus === "dirty" ? "待保存" : saveStatus === "saving" ? "保存中" : saveStatus === "error" ? "保存失败" : "已保存到本机；GitHub 备份需要单独 Push"}
+          title="仅表示当前设备的保存状态；GitHub 备份需要单独 Push"
+        >
           <ToolbarIcon name={saveStatus === "saving" ? "saving" : saveStatus === "error" ? "warning" : "check"} />
-          {saveStatus === "dirty" ? "待保存" : saveStatus === "saving" ? "保存中" : saveStatus === "error" ? "保存失败" : "本机已保存"}
+          {saveStatus === "dirty" ? "待保存" : saveStatus === "saving" ? "保存中" : saveStatus === "error" ? "保存失败" : null}
         </span>}
         {showStatusBlockNumber && <span className="editor-status-block">块 {currentStatusBlock}/{totalBlocks}</span>}
         <span className="editor-status-secondary">
