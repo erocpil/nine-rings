@@ -238,7 +238,7 @@ export function isMarkdownTableRow(text: string): boolean {
 }
 
 function isMarkdownTableSeparator(text: string): boolean {
-  return /^\s*\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|\s*$/.test(text);
+  return /^\s*\|\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)+\|\s*$/.test(text);
 }
 
 function splitMarkdownTableRow(source: string): string[] {
@@ -284,7 +284,7 @@ function splitMarkdownTableRow(source: string): string[] {
 
 function separatorAlignment(cell: string): import("./table-embed").TableAlignment {
   const value = cell.trim();
-  if (!/^:?-{3,}:?$/.test(value)) return null;
+  if (!/^:?-+:?$/.test(value)) return null;
   if (value.startsWith(":") && value.endsWith(":")) return "center";
   if (value.endsWith(":")) return "right";
   return "left";

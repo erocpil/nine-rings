@@ -817,6 +817,43 @@ test.describe("编辑器复制粘贴", () => {
     await expect(table.locator("td").last()).toHaveText("queue级资源隔离");
   });
 
+  test("剪贴板同时提供 Markdown 文本和 HTML 表格时按 Markdown 表格解析", async ({ page }) => {
+    await createBlankNote(page);
+
+    const markdown = [
+      "| 周 | 阶段 | 重点 | 新语块 | 话题（语块主题） |",
+      "| :-- | :-- | :-- | :-- | :-- |",
+      "| 1 | 诊断与搭系统 | 全真诊断、建 Anki、认识题型 | 40 | 通用衔接与观点表达 |",
+      "| 2 | 打基础 | T2 结构、Speaking 管道、听读题型 | 60 | 教育 |",
+      "| 3 | 扩展 | Task 1、Part 3、精读技巧 | 60 | 科技与工作 |",
+      "| 4 | 中期检查 | 全真模拟 1、复盘、调整 | 50 | 环境与交通 |",
+      "| 5 | 强化 | 限时产出为主 | 60 | 健康与社会 |",
+      "| 6 | 高强度输出 | 每周 2 篇作文 + 2 次录音 | 50 | 政府、犯罪、全球化 |",
+      "| 7 | 模拟冲刺 | 全真模拟 ×2、错误日志 | 30 | 只补缺口 |",
+      "| 8 | 收尾减压 | 复习、轻量练习、考试日准备 | 10 | 不再学新块 |",
+    ].join("\n");
+    const htmlRows = markdown.split("\n").filter(line => !line.includes(":--"));
+    const html = `<table>${htmlRows.map((line, index) => {
+      const cells = line.split("|").slice(1, -1).map(cell => cell.trim());
+      const tag = index === 0 ? "th" : "td";
+      return `<tr>${cells.map(cell => `<${tag}>${cell}</${tag}>`).join("")}</tr>`;
+    }).join("")}</table>`;
+    const editor = page.locator(".ProseMirror");
+    await editor.evaluate((element, content) => {
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", content.text);
+      clipboardData.setData("text/html", content.html);
+      element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+    }, { text: markdown, html });
+
+    const table = editor.locator(":scope > table, :scope > .tableWrapper table");
+    await expect(table.locator("tr")).toHaveCount(9);
+    await expect(table.locator("th")).toHaveText(["周", "阶段", "重点", "新语块", "话题（语块主题）"]);
+    await expect(table.locator("tr").nth(8).locator("td")).toHaveText([
+      "8", "收尾减压", "复习、轻量练习、考试日准备", "10", "不再学新块",
+    ]);
+  });
+
   test("编辑后的表格可规范化导出为 Markdown", async ({ page }) => {
     await createBlankNote(page);
 

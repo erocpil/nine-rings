@@ -321,6 +321,13 @@ function assert(condition: boolean | undefined, msg: string): void {
   assert(pm.content[1]?.content?.[2]?.content?.[0]?.content?.[0]?.content?.[0]?.text === "Flow Director",
     "table data cell text is preserved");
 
+  const shortSeparatorMarkdown = "| 周 | 阶段 |\n| :-- | :-- |\n| 1 | 诊断与搭系统 |";
+  const shortSeparator = mdToDelta(shortSeparatorMarkdown);
+  const shortTable = getTableEmbed(shortSeparator.ops.find((op) => typeof op.insert === "object")?.insert);
+  assert(looksLikeMarkdown(shortSeparatorMarkdown), "one-or-more-hyphen table separators are recognized as Markdown");
+  assert(shortTable?.rows.length === 2 && shortTable.columns.length === 2,
+    "short aligned table separator still creates a table");
+
   const escaped = mdToDelta("| Code | Pipe |\n| :--- | ---: |\n| `a | b` | escaped \\| pipe |");
   const escapedTable = getTableEmbed(escaped.ops[0].insert)!;
   assert(escapedTable.columns[0].align === "left" && escapedTable.columns[1].align === "right",

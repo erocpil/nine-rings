@@ -1,10 +1,21 @@
-import { looksLikeMarkdown } from "./md-parser";
+import { isMarkdownTableRow, looksLikeMarkdown } from "./md-parser";
 
 /** Source copied from a browser/code viewer may be wrapped in div/p/br, but
  * real rich text (or a ProseMirror slice) must retain its marks and structure. */
 export function shouldParseClipboardMarkdown(text: string, html = ""): boolean {
   if (!looksLikeMarkdown(text)) return false;
   if (!html.trim()) return true;
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  const containsMarkdownTable = lines.some((line, index) =>
+    isMarkdownTableRow(line)
+      && /^\s*\|\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)+\|\s*$/.test(lines[index + 1] ?? ""),
+  );
+  // Clipboard HTML may contain a browser-rendered table while text/plain
+  // contains its Markdown source. Prefer the source representation so table
+  // parsing and alignment follow the same Markdown path as plain-text paste.
+  // Keep our own rich clipboard slices intact, since they carry editor metadata.
+  if (containsMarkdownTable && !html.includes("data-pm-slice")) return true;
+
   const doc = new DOMParser().parseFromString(html, "text/html");
 
   // Some apps put each copied Markdown source line in a styled paragraph (and
@@ -12,7 +23,6 @@ export function shouldParseClipboardMarkdown(text: string, html = ""): boolean {
   // parse its block markers unless the HTML already represents those blocks
   // structurally. Otherwise list markers become literal text and the Markdown
   // serializer has to escape them on the next round trip.
-  const lines = text.replace(/\r\n?/g, "\n").split("\n");
   const blockSignals = lines.filter((line) =>
     /^\s*(?:#{1,6}\s+\S.*|>\s+\S.*|[-*+]\s+\S.*|\d+\.\s+\S.*|(?:-{3,}|_{3,}|\*{3,})\s*)$/.test(line),
   ).length;
