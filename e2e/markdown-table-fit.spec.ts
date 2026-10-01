@@ -21,5 +21,11 @@ test(`小型 Markdown 表格按内容收紧 ${width}`, async ({ page }) => {
   expect(dimensions.table).toBeGreaterThan(150);
   expect(dimensions.table).toBeLessThan(dimensions.content * 0.75);
   expect(dimensions.wrapper).toBeLessThan(dimensions.content * 0.75);
+  const scrollbarHeight = await editor.evaluate(element =>
+    CSS.supports("selector(::-webkit-scrollbar)")
+      ? getComputedStyle(element.querySelector(".tableWrapper")!, "::-webkit-scrollbar").height
+      : null,
+  );
+  if (scrollbarHeight !== null) expect(scrollbarHeight).toBe("4px");
 });
 }

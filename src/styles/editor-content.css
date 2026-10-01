@@ -381,6 +381,11 @@
   overflow-x: auto;
 }
 
+/* 宽表格仍使用原生水平滚动条，但缩小轨道高度，减少对正文的占用。 */
+.editor-content .tableWrapper::-webkit-scrollbar {
+  height: 4px;
+}
+
 .editor-content table {
   width: max-content;
   max-width: 100%;
