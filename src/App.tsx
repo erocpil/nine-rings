@@ -1469,8 +1469,7 @@ function App() {
                 setSelectedFolderPath(path);
                 setSelectedConcept(null);
                 handleSelectNote(null);
-                // Keep the mobile tree open so the selected path's toolbar
-                // actions (copy/delete) remain reachable. Tapping outside closes it.
+                closeSidebarOnNarrowScreen();
               }}
               selectedId={selectedNote?.id ?? null}
               selectedTitle={selectedNote?.title ?? undefined}

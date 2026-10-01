@@ -305,6 +305,26 @@ test.describe("PWA 窄屏应用外壳", () => {
     }
   });
 
+  test("手机文档树选择路径后自动收起抽屉", async ({ page }) => {
+    await createOutlineFixture(page, "路径抽屉关闭测试");
+    await page.evaluate(async () => {
+      const load = (path: string) => import(/* @vite-ignore */ path);
+      const { api }: typeof import("../src/lib/api") = await load("/src/lib/api.ts");
+      await api.notes.create({
+        title: "路径内文档",
+        date: "2026-09-09",
+        storagePath: "projects/drawer-test",
+        content: { ops: [{ insert: "路径内容\n" }] },
+      });
+    });
+    await openDocumentSidebar(page);
+    const tree = page.locator(".app-sidebar");
+    await expect(tree).not.toHaveClass(/sidebar-hidden/);
+    await tree.locator(".doc-tree-folder").filter({ hasText: /^projects/ }).click();
+    await expect(tree).toHaveClass(/sidebar-hidden/);
+    await expect(page.locator(".moc-breadcrumb")).toHaveText("projects");
+  });
+
   test("文档显示字段独立配置且排序方向保留", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator(".ProseMirror")).toBeVisible();
