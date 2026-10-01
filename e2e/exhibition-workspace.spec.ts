@@ -129,6 +129,39 @@ for (const style of ["calm", "mono-aware"] as const) {
   });
 }
 
+test("手机展陈首页竖屏方形欢迎区、横屏并排且展开概览节省标题空间", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({
+    interface_style: "calm",
+    workspace_layout: "exhibition",
+    interface_color_mode: "light",
+  })));
+  await page.goto("/");
+  await expect(page.locator(".exhibition-welcome")).toBeVisible();
+
+  const app = page.locator(".is-exhibition > .app");
+  const overview = page.locator(".exhibition-overview");
+  const portrait = (await app.boundingBox())!;
+  expect(Math.abs(portrait.width - portrait.height)).toBeLessThan(2);
+  expect((await overview.boundingBox())!.y).toBeGreaterThanOrEqual(portrait.y + portrait.height - 1);
+
+  await page.setViewportSize({ width: 740, height: 390 });
+  const landscape = (await app.boundingBox())!;
+  const adjacentOverview = (await overview.boundingBox())!;
+  expect(Math.abs(landscape.width - landscape.height)).toBeLessThan(2);
+  expect(adjacentOverview.x).toBeGreaterThanOrEqual(landscape.x + landscape.width - 1);
+
+  await overview.getByRole("button", { name: "新建文档", exact: true }).click();
+  await page.getByPlaceholder("文档标题...").fill("手机横屏空间测试");
+  await page.getByRole("button", { name: "创建", exact: true }).click();
+  await expect(page.locator(".note-editor-scroll")).toBeVisible();
+  const editorHeight = (await page.locator(".note-editor-scroll").boundingBox())!.height;
+  expect(editorHeight).toBeGreaterThan(180);
+  await page.getByRole("button", { name: "展开概览", exact: true }).click();
+  await expect(page.locator(".exhibition-columns")).toBeVisible();
+  await expect(overview.locator(":scope > .exhibition-overview-heading .exhibition-eyebrow")).toBeHidden();
+});
+
 test("布局设置可切换，经典暂时停用且保留展陈选择", async ({ page }) => {
   await page.addInitScript(() =>
     localStorage.setItem(

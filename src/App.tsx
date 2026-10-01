@@ -1541,7 +1541,7 @@ function App() {
         {!sidebarHidden && <div className="sidebar-divider" style={sidebarHoverEnabled ? { [sidebarOnRight ? "right" : "left"]: 44 + sidebarWidth } : undefined} onPointerEnter={sidebarHover.enterPanel} onPointerLeave={sidebarHover.leave} onPointerDown={handleSidePointerDown} />}
 
         <main className={`app-main${!mobileDrawerViewport && !sidebarOverlay && !sidebarHidden && desktopPanel === "reader" ? " reader-companion-editor" : ""}`}>
-          {mobileDrawerViewport && !selectedNote && <div className="mobile-workspace-empty-actions" aria-label="工作区工具">
+          {mobileDrawerViewport && !selectedNote && !selectedFolderPath && !selectedConcept && <div className="mobile-workspace-empty-actions" aria-label="工作区工具">
             <button type="button" className="btn-icon" aria-label="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>
             <button type="button" className="btn-icon" aria-label="设置" onClick={() => setSettingsOpen(true)}><ToolbarIcon name="sliders" /></button>
           </div>}

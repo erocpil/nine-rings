@@ -18,6 +18,15 @@
     > :has(+ :is(h1, h2, h3, h4, h5, h6)) {
     margin-bottom: var(--style-heading-gap, 28px);
   }
+  /* A collapsed heading's next heading can be a hidden child heading. Do not
+     keep the expanded section gap just because that hidden node remains in
+     the ProseMirror tree; all collapsed headings share the same compact row. */
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
+    .editor-content
+    .ProseMirror
+    > :is(h1, h2, h3, h4, h5, h6):has(.editor-heading-fold.folded) {
+    margin-bottom: var(--style-heading-bottom, var(--editor-heading-margin-bottom));
+  }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
     .vr-row[data-next-heading="true"]

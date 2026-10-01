@@ -1,6 +1,72 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument } from "./helpers/document";
 
+test("折叠标题间距一致，列表与代码引用图块留白协调", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "wabi-sabi" })));
+  await createBlankDocument(page);
+  const editor = page.locator(".ProseMirror");
+  await editor.evaluate(element => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", [
+      "## 段落",
+      "普通正文。",
+      "## 含子标题",
+      "### 子标题",
+      "子标题正文。",
+      "## 列表",
+      "- 第一项",
+      "- 第二项",
+      "## 代码",
+      "```ts",
+      "const value = 1;",
+      "```",
+      "## 结构块",
+      "- 列表项",
+      "```ts",
+      "const block = 1;",
+      "```",
+      "> 引用文本。",
+      "```mermaid",
+      "flowchart TD",
+      "  A --> B",
+      "```",
+      "这些结构块的间距应保持紧凑且一致。",
+      "## 末节",
+      "末尾正文。",
+    ].join("\n\n"));
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  });
+  const headings = editor.locator(":scope > h2");
+  await expect(headings).toHaveCount(6);
+  const expandedSpacing = await editor.evaluate(element => {
+    const children = [...element.children] as HTMLElement[];
+    const structure = children.findIndex(child => child.tagName === "H2" && child.textContent === "结构块");
+    const blocks: HTMLElement[] = [];
+    for (let index = structure + 1; index < children.length && !/^H[1-6]$/.test(children[index].tagName); index += 1) blocks.push(children[index]);
+    return {
+      structuralBlockTopMargins: blocks.filter(block => block.tagName !== "P").map(block => getComputedStyle(block).marginTop),
+      structuralBlockMargins: blocks.filter(block => block.tagName !== "P").map(block => getComputedStyle(block).marginBottom),
+      trailingParagraphMargin: getComputedStyle(blocks.at(-1)!).marginBottom,
+      headingGapMargins: children.filter((child, index) => /^H[1-6]$/.test(children[index + 1]?.tagName ?? "")).map(child => getComputedStyle(child).marginBottom),
+    };
+  });
+  expect(expandedSpacing.structuralBlockTopMargins).toEqual(["0px", "0px", "0px", "0px"]);
+  expect(expandedSpacing.structuralBlockMargins).toEqual(["10px", "10px", "10px", "10px"]);
+  expect(expandedSpacing.trailingParagraphMargin).toBe("28px");
+  expect(expandedSpacing.headingGapMargins.length).toBeGreaterThan(0);
+  expect(new Set(expandedSpacing.headingGapMargins)).toEqual(new Set(["28px"]));
+  const expandedMargins = await headings.evaluateAll(elements => elements.map(element => getComputedStyle(element).marginBottom));
+  expect(new Set(expandedMargins).size).toBeGreaterThan(1);
+  for (let index = 0; index < 6; index += 1) {
+    await headings.nth(index).locator(".editor-heading-fold").click();
+  }
+  const collapsed = await headings.evaluateAll(elements => elements.map(element => ({ top: element.getBoundingClientRect().top, marginBottom: getComputedStyle(element).marginBottom })));
+  const positions = collapsed.map(item => item.top);
+  const gaps = positions.slice(1).map((position, index) => position - positions[index]);
+  expect(new Set(collapsed.map(item => item.marginBottom)).size).toBe(1);
+  expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThan(2);
+});
+
 test("只有 H1 与普通正文时正文和目录都能折叠章节", async ({ page }) => {
   await createBlankDocument(page);
   const editor = page.locator(".ProseMirror");

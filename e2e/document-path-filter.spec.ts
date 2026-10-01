@@ -57,7 +57,7 @@ test("路径目录可搜索文档名称和子路径，并在状态栏区分本�
   await page.locator(".moc-row").first().click();
 
   const status = page.locator(".editor-stats");
-  await expect(status.getByText("本机已保存")).toBeVisible();
+  await expect(status.locator(".editor-save-state")).toHaveAttribute("aria-label", "已保存到本机；GitHub 备份需要单独 Push");
   const logsButton = status.getByRole("button", { name: "打开调试日志" });
   await logsButton.click();
   await expect(status.getByRole("button", { name: "关闭调试日志" })).toHaveAttribute("aria-pressed", "true");
@@ -65,4 +65,21 @@ test("路径目录可搜索文档名称和子路径，并在状态栏区分本�
   await status.getByRole("button", { name: "关闭调试日志" }).click();
   await status.getByRole("button", { name: "打开本机版本历史" }).click();
   await expect(page.getByRole("dialog", { name: "版本历史" })).toBeVisible();
+});
+
+test("手机选中路径后不显示空白页专用的搜索和设置行", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(async () => {
+    const { api } = await import(/* @vite-ignore */ "/src/lib/api.ts");
+    const { useNotesStore } = await import(/* @vite-ignore */ "/src/stores/useNotesStore.ts");
+    await api.notes.create({ title: "路径页工具栏测试", storagePath: "tests/mobile-path-actions", date: useNotesStore.getState().currentDate, content: { ops: [{ insert: "内容\n" }] } });
+  });
+  await page.reload();
+  const folder = page.locator(".app-sidebar .doc-tree-folder").filter({
+    has: page.locator(".doc-tree-name", { hasText: /^mobile-path-actions$/ }),
+  });
+  await folder.locator(".doc-tree-name").click();
+  await expect(page.locator(".moc-row")).toHaveCount(1);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator(".mobile-workspace-empty-actions")).toHaveCount(0);
 });

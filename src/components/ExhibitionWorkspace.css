@@ -359,3 +359,128 @@
   flex-shrink: 0;
 }
 .exhibition-select > .toolbar-icon:last-child { transform: rotate(90deg); }
+
+/* On phones, make the welcome surface a square. In landscape, keep that square
+   beside the overview instead of letting the welcome pane become a letterbox. */
+@media (max-width: 768px) and (orientation: portrait) {
+  .is-exhibition:has(.exhibition-welcome) > .app {
+    flex: 0 0 auto;
+    width: 100%;
+    min-height: 0;
+    aspect-ratio: 1;
+  }
+
+  .exhibition-overview {
+    min-height: 36px;
+    max-height: 12dvh;
+    flex: 0 0 auto;
+    padding: 0 10px 2px;
+  }
+
+  .exhibition-overview-heading {
+    min-height: 32px;
+    gap: 8px;
+  }
+
+  .exhibition-overview h2 {
+    margin: 0;
+    line-height: 1.25;
+  }
+
+  .exhibition-overview:has(.exhibition-columns) {
+    flex: 0 1 auto;
+    max-height: 36dvh;
+    min-height: 0;
+  }
+
+  .exhibition-overview:has(.exhibition-columns) .exhibition-eyebrow {
+    display: none;
+  }
+
+  .exhibition-overview:has(.exhibition-columns) h2 {
+    font-size: 15px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+  .exhibition-shell.is-exhibition {
+    gap: 4px;
+    padding: env(safe-area-inset-top) 6px env(safe-area-inset-bottom);
+  }
+
+  .exhibition-masthead {
+    min-height: 30px;
+    padding: 0 4px;
+  }
+
+  .exhibition-overview {
+    min-height: 32px;
+    max-height: 14dvh;
+    padding: 0 10px 2px;
+  }
+
+  .exhibition-overview-heading {
+    min-height: 30px;
+  }
+
+  .exhibition-overview h2 {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.2;
+  }
+
+  .exhibition-overview:has(.exhibition-columns) {
+    max-height: 36dvh;
+    min-height: 0;
+  }
+
+  .exhibition-overview:has(.exhibition-columns) .exhibition-eyebrow {
+    display: none;
+  }
+
+  .exhibition-overview:has(.exhibition-columns) h2 {
+    font-size: 14px;
+  }
+
+  .is-exhibition > .app {
+    min-height: 0;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+  .exhibition-shell.is-exhibition:has(.exhibition-welcome) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    column-gap: 8px;
+    row-gap: 4px;
+  }
+
+  .exhibition-shell.is-exhibition:has(.exhibition-welcome) > .exhibition-masthead {
+    grid-column: 1 / -1;
+  }
+
+  .exhibition-shell.is-exhibition:has(.exhibition-welcome) > .app {
+    grid-column: 1;
+    grid-row: 2;
+    width: auto;
+    height: 100%;
+    aspect-ratio: 1;
+    justify-self: center;
+    align-self: center;
+  }
+
+  .exhibition-shell.is-exhibition:has(.exhibition-welcome) > .exhibition-overview {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: stretch;
+    width: 100%;
+    max-height: none;
+    min-height: 0;
+    padding: 4px 10px;
+  }
+
+  .exhibition-shell.is-exhibition:has(.exhibition-welcome) > .exhibition-overview .exhibition-overview-heading {
+    align-items: flex-start;
+  }
+}
