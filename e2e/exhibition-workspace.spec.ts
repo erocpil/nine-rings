@@ -143,7 +143,12 @@ test("手机展陈首页竖屏方形欢迎区、横屏并排且展开概览节�
   const overview = page.locator(".exhibition-overview");
   const portrait = (await app.boundingBox())!;
   expect(Math.abs(portrait.width - portrait.height)).toBeLessThan(2);
-  expect((await overview.boundingBox())!.y).toBeGreaterThanOrEqual(portrait.y + portrait.height - 1);
+  const portraitOverview = (await overview.boundingBox())!;
+  expect(portraitOverview.y).toBeGreaterThanOrEqual(portrait.y + portrait.height - 1);
+  expect(portraitOverview.height).toBeGreaterThan(300);
+  const thirdSectionHeading = await overview.locator(".exhibition-columns > section").nth(2).locator("h3").boundingBox();
+  expect(thirdSectionHeading).not.toBeNull();
+  expect(thirdSectionHeading!.y + thirdSectionHeading!.height).toBeLessThanOrEqual(portraitOverview.y + portraitOverview.height + 1);
 
   await page.setViewportSize({ width: 740, height: 390 });
   const landscape = (await app.boundingBox())!;

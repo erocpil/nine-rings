@@ -400,6 +400,14 @@
   .exhibition-overview:has(.exhibition-columns) h2 {
     font-size: 15px;
   }
+
+  /* The square welcome card has a fixed height. Let the overview consume the
+     remaining screen below it so its last rows are not clipped early. */
+  .exhibition-shell.is-exhibition:has(.exhibition-welcome) > .exhibition-overview:has(.exhibition-columns) {
+    flex: 1 1 0;
+    max-height: none;
+    min-height: 0;
+  }
 }
 
 @media (orientation: landscape) and (max-height: 600px) {
