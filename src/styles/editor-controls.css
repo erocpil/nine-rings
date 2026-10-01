@@ -1255,6 +1255,16 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
+.markdown-paste-notice-bottom {
+  position: absolute;
+  z-index: 20;
+  left: 50%;
+  bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  margin: 0;
+}
+
 .markdown-paste-notice button {
   border: 0;
   padding: 0;

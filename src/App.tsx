@@ -349,6 +349,8 @@ function App() {
     concept: string | null;
     desktopSidebar: ReturnType<typeof readDesktopSidebarState>;
     workspaceLayout: WorkspaceLayout;
+    editorViewportWidth: number | null;
+    editorViewportHeight: number | null;
     readingLibraryOpen: boolean;
     pdfReaderDocumentId: string | null;
     epubReaderDocumentId: string | null;
@@ -1266,6 +1268,8 @@ function App() {
     ? epubReaderPanel ?? pdfReaderPanel
     : pdfReaderPanel ?? epubReaderPanel;
   const readerPrimaryView = desktopWorkspace && !workspaceHome && exhibitionReaderActive && Boolean(activeReaderPanel);
+  const retainEditorLayoutAtHome = desktopWorkspace && exhibitionEnabled && workspaceHome && Boolean(selectedNote);
+  const hideEditorSplit = homeReaderOpen || readerPrimaryView || (exhibitionEnabled && workspaceHome) || (!selectedNote && Boolean(selectedConcept || selectedFolderPath));
   return (
     <EditorFoldIconContext.Provider value={config}>
     <ExhibitionWorkspace desktop={desktopWorkspace} enabled={exhibitionEnabled && !mobileReaderOpen} focus={focusMode} config={config}
@@ -1275,6 +1279,9 @@ function App() {
       onOpen={async note => { await flushAutoSave(); setQuery(""); setDocResults(null); handleSelectNote(note); closeSidebarOnNarrowScreen(); }}
       canReturn={workspaceHome && Boolean(exhibitionReturnTarget)}
       onHome={async () => {
+        const editorViewport = !workspaceHome && desktopWorkspace
+          ? document.querySelector<HTMLElement>(".app-main-split")?.getBoundingClientRect() ?? null
+          : null;
         await flushAutoSave();
         if (workspaceHome) {
           if (!exhibitionReturnTarget) return;
@@ -1318,6 +1325,8 @@ function App() {
           concept: selectedConcept,
           desktopSidebar: readDesktopSidebarState(),
           workspaceLayout: readWorkspaceLayout(),
+          editorViewportWidth: editorViewport?.width ?? null,
+          editorViewportHeight: editorViewport?.height ?? null,
           readingLibraryOpen,
           pdfReaderDocumentId,
           epubReaderDocumentId,
@@ -1540,7 +1549,7 @@ function App() {
 
         {!sidebarHidden && <div className="sidebar-divider" style={sidebarHoverEnabled ? { [sidebarOnRight ? "right" : "left"]: 44 + sidebarWidth } : undefined} onPointerEnter={sidebarHover.enterPanel} onPointerLeave={sidebarHover.leave} onPointerDown={handleSidePointerDown} />}
 
-        <main className={`app-main${!mobileDrawerViewport && !sidebarOverlay && !sidebarHidden && desktopPanel === "reader" ? " reader-companion-editor" : ""}`}>
+        <main className={`app-main${!mobileDrawerViewport && !sidebarOverlay && !sidebarHidden && desktopPanel === "reader" ? " reader-companion-editor" : ""}${retainEditorLayoutAtHome ? " app-main-retaining-editor" : ""}`}>
           {mobileDrawerViewport && !selectedNote && !selectedFolderPath && !selectedConcept && <div className="mobile-workspace-empty-actions" aria-label="工作区工具">
             <button type="button" className="btn-icon" aria-label="全局搜索" onClick={openGlobalSearch}><ToolbarIcon name="search" /></button>
             <button type="button" className="btn-icon" aria-label="设置" onClick={() => setSettingsOpen(true)}><ToolbarIcon name="sliders" /></button>
@@ -1573,7 +1582,20 @@ function App() {
               selectedId={null}
             />
           ) : null}
-            <div className="app-main-split" style={{ display: homeReaderOpen || readerPrimaryView || (exhibitionEnabled && workspaceHome) || (!selectedNote && Boolean(selectedConcept || selectedFolderPath)) ? "none" : undefined }}>
+            <div
+              className="app-main-split"
+              style={{
+                display: hideEditorSplit && !retainEditorLayoutAtHome ? "none" : undefined,
+                ...(retainEditorLayoutAtHome && exhibitionReturnTarget?.editorViewportWidth ? {
+                  width: exhibitionReturnTarget.editorViewportWidth,
+                  height: exhibitionReturnTarget.editorViewportHeight ?? undefined,
+                  maxWidth: "100%",
+                  left: exhibitionReturnTarget.workspaceLayout.sidebarSide === "right" ? 0 : "auto",
+                  right: exhibitionReturnTarget.workspaceLayout.sidebarSide === "right" ? "auto" : 0,
+                } : {}),
+              }}
+              {...(retainEditorLayoutAtHome ? { inert: "", "aria-hidden": true } : {})}
+            >
 
 
               <div

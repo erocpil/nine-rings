@@ -335,7 +335,7 @@
   --style-panel-gap: 16px;
   --ui-control-height: 32px;
   --style-content-inset: 40px;
-  --style-content-top: 40px;
+  --style-content-top: 20px;
   --style-block-gap: 10px;
   --style-heading-gap: 28px;
   --style-heading-bottom: 12px;
@@ -346,7 +346,7 @@
   --style-panel-gap: 10px;
   --ui-control-height: 28px;
   --style-content-inset: 28px;
-  --style-content-top: 28px;
+  --style-content-top: 14px;
   --style-block-gap: 10px;
   --style-heading-gap: 20px;
   --style-heading-bottom: 8px;

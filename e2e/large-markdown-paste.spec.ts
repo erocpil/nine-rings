@@ -140,6 +140,14 @@ for (const entry of ["原生", "工具栏"] as const) {
       await (await toolbarAction(page, "paste")).click();
     }
     await expect(page.getByText("已按 Markdown 格式化", { exact: true })).toBeVisible({ timeout: 20000 });
+    const pasteNotice = page.locator(".markdown-paste-notice-bottom");
+    await expect(pasteNotice).toBeVisible();
+    await expect(pasteNotice).toHaveCSS("position", "absolute");
+    const noticeBottomGap = await pasteNotice.evaluate(element => {
+      const editor = element.closest(".note-editor")!;
+      return editor.getBoundingClientRect().bottom - element.getBoundingClientRect().bottom;
+    });
+    expect(noticeBottomGap).toBeCloseTo(28, 0);
     await expect(editor.locator(":scope > h2")).toHaveCount(200);
     await expect(editor.locator("pre code")).toHaveCount(201);
     await expect(editor.locator("ul li")).toHaveCount(800);

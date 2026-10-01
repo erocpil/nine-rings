@@ -21,6 +21,10 @@
   margin-top: 12px;
 }
 
+@media (min-width: 769px) {
+  .editor-content-shell { margin-top: 6px; }
+}
+
 .show-line-numbers .editor-content-shell {
   --editor-gutter-width: 30px;
   --editor-gutter-text-gap: 4px;

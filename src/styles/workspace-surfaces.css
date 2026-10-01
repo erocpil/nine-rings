@@ -2039,6 +2039,18 @@
   flex-direction: column;
 }
 
+/* Keep the desktop editor's viewport stable behind the exhibition home. Its
+   retained TipTap session can then resume without a display:none layout reset. */
+.app-main-retaining-editor {
+  position: relative;
+}
+.app-main-retaining-editor > .app-main-split {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 /* The parent clips the companion editor when the reader fills the workspace.
    Never squeeze a mounted long document into a zero-width column. */
 .app-main.reader-companion-editor { min-width: 320px; }

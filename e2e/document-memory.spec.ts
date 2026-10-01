@@ -90,3 +90,41 @@ test("最近三份文档保留实例和撤销历史，首页往返不卸载，�
   await expect(editor).toContainText("externally replaced");
   await expect.poll(() => a.evaluate(instance => instance.isDestroyed)).toBe(true);
 });
+
+test("首页隐藏编辑区但保留原布局，从首页打开新文档时切换活动实例", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ workspace_layout: "exhibition", interface_style: "calm" })));
+  await page.goto("/");
+  await expect(page.locator(".note-title")).toBeVisible();
+  const originalTitle = await page.locator(".note-title").evaluate(el => el instanceof HTMLInputElement ? el.value : el.textContent ?? "");
+  const originalEditor = await page.locator(".note-editor .ProseMirror").evaluateHandle(el => (el as HTMLElement & { editor: Editor }).editor);
+  const originalBox = await page.locator(".app-main-split").boundingBox();
+  expect(originalBox).not.toBeNull();
+
+  const title = "首页打开的新文档";
+  await page.evaluate(async title => {
+    const { api } = await import(/* @vite-ignore */ "/src/lib/api.ts");
+    await api.notes.create({ title, date: "2026-10-01", storagePath: "tests/memory", content: { ops: [{ insert: "这是从工作区首页打开的另一份文档。\n" }] } });
+  }, title);
+  await page.getByRole("button", { name: "返回工作区首页", exact: true }).click();
+  await expect(page.locator(".exhibition-welcome")).toBeVisible();
+  const split = page.locator(".app-main-split");
+  await expect(split).toHaveCSS("display", "flex");
+  await expect(split).toHaveCSS("visibility", "hidden");
+  await expect(split).toHaveAttribute("inert", "");
+  await expect(split).toHaveAttribute("aria-hidden", "true");
+  const homeBox = await split.boundingBox();
+  expect(homeBox).not.toBeNull();
+  expect(homeBox!.width).toBeCloseTo(originalBox!.width, 0);
+  expect(homeBox!.height).toBeCloseTo(originalBox!.height, 0);
+  expect(await originalEditor.evaluate(instance => instance.isDestroyed)).toBe(false);
+
+  const recentlyEdited = page.locator(".exhibition-columns > section").nth(2);
+  await recentlyEdited.getByRole("button", { name: title, exact: true }).click();
+  await expect(page.locator(".note-title")).toHaveValue(title);
+  await expect(split).toHaveCSS("visibility", "visible");
+  expect(await originalEditor.evaluate(instance => instance.isDestroyed)).toBe(false);
+  const activeCount = await page.locator(".note-editor .ProseMirror").count();
+  expect(activeCount).toBe(1);
+  expect(await page.locator(".note-editor .ProseMirror").evaluate((el, previous) => (el as HTMLElement & { editor: Editor }).editor === previous, originalEditor)).toBe(false);
+  await expect(page.locator(".note-title")).not.toHaveValue(originalTitle);
+});

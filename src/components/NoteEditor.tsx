@@ -4111,7 +4111,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           </div>
         )}
         {markdownPasteText && (
-          <div className="markdown-paste-notice" role="status">
+          <div className="markdown-paste-notice markdown-paste-notice-bottom" role="status">
             <span>已按 Markdown 格式化</span>
             <button type="button" onClick={() => { editor.chain().focus().undo().run(); setMarkdownPasteText(null); }}>撤销</button>
             <button type="button" onClick={() => {

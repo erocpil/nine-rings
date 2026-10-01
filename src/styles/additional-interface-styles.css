@@ -82,7 +82,7 @@
   --ui-control-height: 28px;
   --style-content-width: 740px;
   --style-content-inset: 24px;
-  --style-content-top: 24px;
+  --style-content-top: 12px;
 }
 @media (min-width: 769px) and (pointer: fine) {
   html[data-interface-style="minimal"]
