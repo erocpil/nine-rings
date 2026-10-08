@@ -109,14 +109,20 @@ export function useDocumentPanelPosition({
     observer.observe(panel);
     if (editor) observer.observe(editor);
     window.addEventListener("resize", schedule);
-    document.addEventListener("scroll", schedule, true);
+    const onScroll = (event: Event) => {
+      // Scrolling within the panel cannot move its trigger. Avoid re-reading
+      // editor/panel geometry on every virtual outline scroll frame.
+      if (event.target instanceof Node && panel.contains(event.target)) return;
+      schedule();
+    };
+    document.addEventListener("scroll", onScroll, true);
     viewport?.addEventListener("resize", schedule);
     viewport?.addEventListener("scroll", schedule);
     return () => {
       if (frame) cancelAnimationFrame(frame);
       observer.disconnect();
       window.removeEventListener("resize", schedule);
-      document.removeEventListener("scroll", schedule, true);
+      document.removeEventListener("scroll", onScroll, true);
       viewport?.removeEventListener("resize", schedule);
       viewport?.removeEventListener("scroll", schedule);
     };

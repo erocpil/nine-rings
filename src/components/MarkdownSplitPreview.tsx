@@ -1,3 +1,4 @@
+import { flowBlockAttributes } from "../lib/flow-presentation";
 import { BlockIndent } from "../extensions/BlockIndent";
 import { MarkdownTaskState } from "../extensions/MarkdownTaskState";
 import { MathInline, MathBlock, InlineHighlight, FootnoteReference, HTMLDetails, FootnoteDefinition, Footnotes } from "../extensions/MarkdownExtras";
@@ -22,7 +23,7 @@ import {
 } from "../extensions/ContentSizedTable";
 import TableRow from "@tiptap/extension-table-row";
 import Link from "@tiptap/extension-link";
-import { renderReadonlyBlock } from "./ReadonlyVirtualNote";
+import { renderReadonlyBlock, decorateFlowBlock } from "./ReadonlyVirtualNote";
 import type { SourceNavigationDocument } from "../lib/markdown-source-navigation";
 import type { SourceEditorHandle } from "../lib/source-editor-handle";
 import type { ReadingBlockState } from "../lib/reading-block-session";
@@ -57,16 +58,19 @@ export function MarkdownSplitPreview({
   children,
   fontSize,
   enabled,
+  flowLevel = 0,
 }: {
   revision: SourceNavigationDocument;
   areaRef: RefObject<SourceEditorHandle>;
   children: ReactNode;
   fontSize: number;
   enabled: boolean;
+  flowLevel?: number;
 }) {
   const [snapshot, setSnapshot] = useState<ReturnType<
     typeof previewDocument
   > | null>(null);
+  const flowAttributes = useMemo(() => snapshot ? flowBlockAttributes(snapshot.doc, flowLevel) : new Map<number, Record<string, string>>(), [snapshot, flowLevel]);
   const [error, setError] = useState("");
   const [sync, setSync] = useState(
     () => localStorage.getItem("nr:markdownPreviewSync") !== "false",
@@ -215,7 +219,7 @@ export function MarkdownSplitPreview({
                   data-source-offset={offset}
                   className="markdown-preview-block"
                 >
-                  {renderReadonlyBlock(
+                  {decorateFlowBlock(renderReadonlyBlock(
                     node,
                     pos,
                     states,
@@ -228,7 +232,7 @@ export function MarkdownSplitPreview({
                       ),
                     undefined,
                     true,
-                  )}
+                  ), flowAttributes.get(pos))}
                 </div>
               ))}
             </div>

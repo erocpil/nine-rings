@@ -41,6 +41,7 @@ const OVERSCAN_PX = SINGLE_ROW_HEIGHT * 8;
 // Session objects only: reopening an unchanged outline reuses size estimates.
 // Weak keys let closed/encrypted document data be collected; nothing is persisted.
 const rowEstimateCache = new WeakMap<DocumentOutlineItem, Map<string, number>>();
+export const OUTLINE_SCROLL_EVENT = "nine-rings:outline-scroll";
 
 function entryKey(entry: VisibleOutlineEntry): string {
   return `${entry.index}:${entry.item.pos}:${entry.item.text}`;
@@ -122,6 +123,8 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
   const listWidthRef = useRef(DEFAULT_LIST_WIDTH);
   const measuredHeightsRef = useRef(new Map<string, number>());
   const rowObserverRef = useRef<ResizeObserver | null>(null);
+  const observedRowsRef = useRef(new Set<Element>());
+  const navigationTargetRef = useRef<"top" | "middle" | "bottom" | null>(null);
 
   const rowLayout = useMemo(() => {
     const tops: number[] = [];
@@ -138,6 +141,15 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
   }, [entries, measuredHeights, listWidth, outlineBaseLevel]);
   const rowLayoutRef = useRef(rowLayout);
   rowLayoutRef.current = rowLayout;
+
+  const applyNavigation = useCallback(() => {
+    const list = listRef.current;
+    const target = navigationTargetRef.current;
+    if (!list || !target) return;
+    const maximum = Math.max(0, list.scrollHeight - list.clientHeight);
+    const top = target === "top" ? 0 : target === "middle" ? maximum / 2 : maximum;
+    if (Math.abs(list.scrollTop - top) > 0.5) list.scrollTop = top;
+  }, [listRef]);
 
   const updateWindow = useCallback(() => {
     frameRef.current = 0;
@@ -163,6 +175,28 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
   }, [updateWindow, virtualized]);
 
   useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const navigate = (event: Event) => {
+      const target = (event as CustomEvent<string>).detail;
+      if (target !== "top" && target !== "middle" && target !== "bottom") return;
+      navigationTargetRef.current = target;
+      applyNavigation();
+      scheduleWindowUpdate();
+    };
+    const cancel = () => { navigationTargetRef.current = null; };
+    const inputs = ["wheel", "touchstart", "pointerdown", "keydown"];
+    list.addEventListener(OUTLINE_SCROLL_EVENT, navigate);
+    inputs.forEach(name => list.addEventListener(name, cancel, { passive: true }));
+    return () => {
+      list.removeEventListener(OUTLINE_SCROLL_EVENT, navigate);
+      inputs.forEach(name => list.removeEventListener(name, cancel));
+      navigationTargetRef.current = null;
+    };
+  }, [applyNavigation, listRef, scheduleWindowUpdate]);
+
+  useLayoutEffect(() => {
+    applyNavigation();
     if (!virtualized) return;
     // 首次挂载先保留当前章节附近的窗口，让父级可以立即测量并居中；
     // 下一帧再根据实际 scrollTop 收敛到可视范围。
@@ -172,7 +206,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
       frameRef.current = 0;
     };
-  }, [activeOutlineIndex, entries.length, measuredHeights, listWidth, updateWindow, virtualized]);
+  }, [activeOutlineIndex, entries.length, measuredHeights, listWidth, updateWindow, virtualized, applyNavigation]);
 
   useLayoutEffect(() => {
     const list = listRef.current;
@@ -186,10 +220,14 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
       setListWidth(width);
     };
     updateWidth();
-    const observer = new ResizeObserver(updateWidth);
+    const observer = new ResizeObserver(() => {
+      updateWidth();
+      applyNavigation();
+      scheduleWindowUpdate();
+    });
     observer.observe(list);
     return () => observer.disconnect();
-  }, [listRef]);
+  }, [listRef, applyNavigation, scheduleWindowUpdate]);
 
   useLayoutEffect(() => {
     if (!virtualized || typeof ResizeObserver === "undefined") return;
@@ -205,15 +243,12 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
         const key = row.dataset.outlineRowKey;
         const visibleIndex = Number(row.dataset.visibleIndex);
         if (!key || !Number.isInteger(visibleIndex) || visibleIndex < 0) continue;
-        const content = row.querySelector<HTMLElement>(".document-outline-link");
         // min-height 会把「高估预留」的行撑高，直接测 row 高度得到的是被撑高
         // 的假值（自我实现预言），单行文本因此永远留白。改测内容元素（link）
         // 的自然高度 + 固定垂直 padding，高估的行才能被实测值回缩。
         const measured = Math.max(
           SINGLE_ROW_HEIGHT,
-          Math.round((content
-            ? content.getBoundingClientRect().height + VERTICAL_PADDING
-            : row.getBoundingClientRect().height) * 2) / 2,
+          Math.round((record.borderBoxSize?.[0]?.blockSize ?? record.contentRect.height) * 2) / 2 + VERTICAL_PADDING,
         );
         const previous = measuredHeightsRef.current.get(key) ?? layout.heights[visibleIndex];
         measuredHeightsRef.current.set(key, measured);
@@ -235,6 +270,7 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
     rowObserverRef.current = observer;
     return () => {
       observer.disconnect();
+      observedRowsRef.current.clear();
       if (rowObserverRef.current === observer) rowObserverRef.current = null;
     };
   }, [listRef, virtualized]);
@@ -244,13 +280,19 @@ export const DocumentOutlineList = memo(function DocumentOutlineList({
     const observer = rowObserverRef.current;
     const list = listRef.current;
     if (!observer || !list) return;
-    observer.disconnect();
+    const nextRows = new Set<Element>();
     list.querySelectorAll<HTMLElement>(".document-outline-item").forEach((row) => {
       // The row's reserved min-height masks content shrinking. Observe the
       // same natural content box we measure, so both growth and shrink notify.
-      observer.observe(row.querySelector(".document-outline-link") ?? row);
+      const content = row.querySelector(".document-outline-link") ?? row;
+      nextRows.add(content);
+      if (!observedRowsRef.current.has(content)) observer.observe(content);
     });
-  }, [measuredHeights, listRef, virtualized, windowRange.end, windowRange.start]);
+    for (const row of observedRowsRef.current) {
+      if (!nextRows.has(row)) observer.unobserve(row);
+    }
+    observedRowsRef.current = nextRows;
+  }, [entries, listRef, virtualized, windowRange.end, windowRange.start]);
 
   const renderEntry = (entry: VisibleOutlineEntry, visibleIndex: number) => {
     const { item, index, folded } = entry;

@@ -1464,8 +1464,8 @@
   background: transparent;
   color: var(--text);
   text-align: start;
-  content-visibility: auto;
-  contain-intrinsic-block-size: auto 45px;
+  /* Large outlines use explicit windowing. Small outlines need their natural
+     height immediately, so edge buttons do not target placeholder geometry. */
 }
 
 .document-outline-item:hover,

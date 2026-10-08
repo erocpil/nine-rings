@@ -1,0 +1,41 @@
+/* Decorations add a rail without wrapping or rewriting editable content. */
+.editor-content .ProseMirror .flow-stage,
+.editor-content .ProseMirror .flow-body {
+  padding-inline-start: 38px;
+  background-image: linear-gradient(
+    to bottom,
+    var(--border) 50%,
+    transparent 50%
+  );
+  background-size: 1px 8px;
+  background-position: 13px 0;
+  background-repeat: repeat-y;
+}
+.editor-content .ProseMirror .flow-stage {
+  background-image: none;
+}
+.editor-content .ProseMirror .flow-stage::before {
+  content: attr(data-flow-step);
+  float: inline-start;
+  box-sizing: border-box;
+  width: 26px;
+  height: 26px;
+  margin-inline-start: -38px;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  color: var(--accent);
+  background: var(--bg);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 24px;
+  text-align: center;
+}
+@media (max-width: 767px) {
+  .editor-content .ProseMirror .flow-stage,
+  .editor-content .ProseMirror .flow-body {
+    padding-inline-start: 30px;
+  }
+  .editor-content .ProseMirror .flow-stage::before {
+    margin-inline-start: -30px;
+  }
+}

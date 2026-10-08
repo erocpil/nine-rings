@@ -138,9 +138,15 @@ export const HeadingFold = Extension.create<HeadingFoldOptions>({
 
         let previous = "";
         let previousVisibility = "";
+        let visibilityDocument: ProseMirrorNode | undefined;
+        let visibilityState: HeadingFoldState | undefined;
         const updateVisibility = (view: import("@tiptap/pm/view").EditorView) => {
           if (!style) return;
-          const collapsedKeys = headingFoldPluginKey.getState(view.state)?.collapsedKeys ?? new Set<string>();
+          const foldState = headingFoldPluginKey.getState(view.state);
+          if (visibilityDocument === view.state.doc && visibilityState === foldState) return;
+          visibilityDocument = view.state.doc;
+          visibilityState = foldState;
+          const collapsedKeys = foldState?.collapsedKeys ?? new Set<string>();
           const ranges = hiddenChildRanges(view.state.doc, collapsedKeys);
           const selector = `[data-heading-fold-scope="${scope}"]`;
           const css = ranges.length === 0
@@ -185,13 +191,33 @@ export function getCollapsedHeadingKeys(editor: Editor): ReadonlySet<string> {
 }
 
 export function getCollapsedHeadingPositions(editor: Editor): ReadonlySet<number> {
-  const collapsedKeys = getCollapsedHeadingKeys(editor);
-  // 未折叠是最常见状态。避免 gutter 初始化和窗口变化时为了得到一个
-  // 空集合反复遍历整篇大文档。
-  if (collapsedKeys.size === 0) return new Set();
-  return new Set(extractHeadingSections(editor.state.doc)
-    .filter((section) => collapsedKeys.has(section.key))
-    .map((section) => section.pos));
+  return foldPositions(editor).headings;
+}
+
+const emptyPositions: ReadonlySet<number> = new Set();
+const foldPositionCache = new WeakMap<ProseMirrorNode, WeakMap<HeadingFoldState, {
+  headings: ReadonlySet<number>;
+  hiddenBlocks: ReadonlySet<number>;
+}>>();
+
+function foldPositions(editor: Editor) {
+  const state = headingFoldPluginKey.getState(editor.state);
+  if (!state?.collapsedKeys.size) return { headings: emptyPositions, hiddenBlocks: emptyPositions };
+  const doc = editor.state.doc;
+  let states = foldPositionCache.get(doc);
+  const cached = states?.get(state);
+  if (cached) return cached;
+  states ??= new WeakMap();
+  foldPositionCache.set(doc, states);
+  const positions = {
+    headings: new Set(extractHeadingSections(doc)
+      .filter(section => state.collapsedKeys.has(section.key))
+      .map(section => section.pos)),
+    hiddenBlocks: new Set(topLevelBlocksInHeadingFoldRanges(doc,
+      collapsedHeadingContentRanges(doc, state.collapsedKeys)).map(block => block.from)),
+  };
+  states.set(state, positions);
+  return positions;
 }
 
 /**
@@ -202,11 +228,7 @@ export function getCollapsedHeadingPositions(editor: Editor): ReadonlySet<number
  * 可见性的权威来源，几何观察只应负责定位仍然可见的块。
  */
 export function getHiddenHeadingFoldBlockPositions(editor: Editor): ReadonlySet<number> {
-  const collapsedKeys = getCollapsedHeadingKeys(editor);
-  if (collapsedKeys.size === 0) return new Set();
-  const doc = editor.state.doc;
-  const ranges = collapsedHeadingContentRanges(doc, collapsedKeys);
-  return new Set(topLevelBlocksInHeadingFoldRanges(doc, ranges).map((block) => block.from));
+  return foldPositions(editor).hiddenBlocks;
 }
 
 export function toggleHeadingFold(editor: Editor, position: number): boolean {

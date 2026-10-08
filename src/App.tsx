@@ -1,3 +1,5 @@
+import { mergeDocumentMetadata } from "./lib/document-metadata";
+import { ensureFlowPresentationSample } from "./lib/flow-presentation-sample";
 import { RetainedDocument } from "./components/RetainedDocument";
 import { useWorkspaceLayout } from "./hooks/useWorkspaceLayout";
 import { readDesktopSidebarState, saveDesktopSidebarState, normalizeSidebarOrder, sidebarPanelLabel } from "./lib/desktop-sidebar-state";
@@ -537,7 +539,8 @@ function App() {
     const latest = await api.notes.get(currentSelected.id);
     if (!latest) throw new Error("文档不存在或已被删除");
     const nextContent: DeltaOps = { ...latest.content };
-    if (Object.keys(metadata).length > 0) nextContent.metadata = metadata;
+    const mergedMetadata = mergeDocumentMetadata(currentSelected.content.metadata, metadata, latest.content.metadata);
+    if (Object.keys(mergedMetadata).length > 0) nextContent.metadata = mergedMetadata;
     else delete nextContent.metadata;
     const updated = await api.notes.update(latest.id, { content: nextContent });
     selectNote(updated);
@@ -831,6 +834,7 @@ function App() {
           // 已有笔记，标记已播种
           localStorage.setItem(SEED_KEY, "1");
           if (await ensureAestheticStyleSample()) refreshNoteViews();
+          if (await ensureFlowPresentationSample()) refreshNoteViews();
           return;
         }
         // 整个工作区为空 → 写入示例笔记
@@ -848,6 +852,7 @@ function App() {
         }
         refreshNotes(); // 刷新
         if (await ensureAestheticStyleSample()) refreshNoteViews();
+        if (await ensureFlowPresentationSample()) refreshNoteViews();
       } catch {
         // 静默忽略——非首次运行或环境问题
       }

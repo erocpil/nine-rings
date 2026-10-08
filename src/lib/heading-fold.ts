@@ -62,16 +62,16 @@ function buildDocumentIndex(doc: ProseMirrorNode): HeadingDocumentIndex {
     });
     stack.push({ level, key });
   });
-  const sections = headings.map((heading, index) => {
-    let end = doc.content.size;
-    for (let next = index + 1; next < headings.length; next += 1) {
-      if (headings[next].level <= heading.level) {
-        end = headings[next].pos;
-        break;
-      }
+  // Resolve section ends in one pass. A forward scan per heading becomes
+  // quadratic when a long chapter contains many deeper headings.
+  const sections = headings.map(heading => ({ ...heading, end: doc.content.size }));
+  const open: HeadingSection[] = [];
+  for (const section of sections) {
+    while (open.length && open[open.length - 1].level >= section.level) {
+      open.pop()!.end = section.pos;
     }
-    return { ...heading, end };
-  });
+    open.push(section);
+  }
   const index = {
     sections,
     sectionByKey: new Map(sections.map((section) => [section.key, section])),

@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getSchema } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
-import { BlockIndent, changeBlockIndent } from "../../src/extensions/BlockIndent";
+import {
+  BlockIndent,
+  changeBlockIndent,
+} from "../../src/extensions/BlockIndent";
 import { EditorState, TextSelection } from "@tiptap/pm/state";
 import { listFollowupBlocks } from "../../src/lib/list-followup-blocks";
 import {
@@ -98,31 +101,79 @@ describe("desktop layout and list continuation presentation", () => {
     const doc = schema.nodeFromJSON({
       type: "doc",
       content: [
-        { type: "paragraph", attrs: { indent: 0 }, content: [{ type: "text", text: "one" }] },
-        { type: "heading", attrs: { level: 2, indent: 1 }, content: [{ type: "text", text: "two" }] },
-        { type: "codeBlock", attrs: { indent: 0 }, content: [{ type: "text", text: "three" }] },
+        {
+          type: "paragraph",
+          attrs: { indent: 0 },
+          content: [{ type: "text", text: "one" }],
+        },
+        {
+          type: "heading",
+          attrs: { level: 2, indent: 1 },
+          content: [{ type: "text", text: "two" }],
+        },
+        {
+          type: "codeBlock",
+          attrs: { indent: 0 },
+          content: [{ type: "text", text: "three" }],
+        },
       ],
     });
     const positions: number[] = [];
     doc.forEach((_node, pos) => positions.push(pos));
-    const state = EditorState.create({ doc, selection: TextSelection.create(doc, positions[2] + 1) });
+    const state = EditorState.create({
+      doc,
+      selection: TextSelection.create(doc, positions[2] + 1),
+    });
     let nextDoc = doc;
-    expect(changeBlockIndent(state, transaction => { nextDoc = transaction.doc; }, 1)).toBe(true);
+    expect(
+      changeBlockIndent(
+        state,
+        (transaction) => {
+          nextDoc = transaction.doc;
+        },
+        1,
+      ),
+    ).toBe(true);
     expect(nextDoc.child(2).attrs.indent).toBe(1);
 
     // Even if older content contains an invalid jump, another increment is
     // clamped to one level past the immediately preceding top-level block.
     const invalidDoc = doc.type.create(null, [
       doc.child(0),
-      doc.child(1).type.create({ ...doc.child(1).attrs, indent: 1 }, doc.child(1).content),
-      doc.child(2).type.create({ ...doc.child(2).attrs, indent: 5 }, doc.child(2).content),
+      doc
+        .child(1)
+        .type.create(
+          { ...doc.child(1).attrs, indent: 1 },
+          doc.child(1).content,
+        ),
+      doc
+        .child(2)
+        .type.create(
+          { ...doc.child(2).attrs, indent: 5 },
+          doc.child(2).content,
+        ),
     ]);
     const invalidPositions: number[] = [];
     invalidDoc.forEach((_node, pos) => invalidPositions.push(pos));
-    const invalidState = EditorState.create({ doc: invalidDoc, selection: TextSelection.create(invalidDoc, invalidPositions[2] + 1) });
-    changeBlockIndent(invalidState, transaction => { nextDoc = transaction.doc; }, 1);
+    const invalidState = EditorState.create({
+      doc: invalidDoc,
+      selection: TextSelection.create(invalidDoc, invalidPositions[2] + 1),
+    });
+    changeBlockIndent(
+      invalidState,
+      (transaction) => {
+        nextDoc = transaction.doc;
+      },
+      1,
+    );
     expect(nextDoc.child(2).attrs.indent).toBe(2);
-    changeBlockIndent(invalidState, transaction => { nextDoc = transaction.doc; }, -1);
+    changeBlockIndent(
+      invalidState,
+      (transaction) => {
+        nextDoc = transaction.doc;
+      },
+      -1,
+    );
     expect(nextDoc.child(2).attrs.indent).toBe(2);
   });
 
@@ -130,15 +181,38 @@ describe("desktop layout and list continuation presentation", () => {
     const source = {
       type: "doc",
       content: [
-        { type: "bulletList", attrs: { indent: 1 }, content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "item" }] }] }] },
-        { type: "codeBlock", attrs: { indent: 0, indentExplicit: true }, content: [{ type: "text", text: "flowchart LR" }] },
-        { type: "mathBlock", attrs: { source: "x=1", indent: 2, indentExplicit: true } },
+        {
+          type: "bulletList",
+          attrs: { indent: 1 },
+          content: [
+            {
+              type: "listItem",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: "item" }],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          type: "codeBlock",
+          attrs: { indent: 0, indentExplicit: true },
+          content: [{ type: "text", text: "flowchart LR" }],
+        },
+        {
+          type: "mathBlock",
+          attrs: { source: "x=1", indent: 2, indentExplicit: true },
+        },
         { type: "horizontalRule", attrs: { indent: 3 } },
         { type: "resizableImage", attrs: { src: "image://test", indent: 4 } },
       ],
     };
     const restored = deltaToProseMirror(proseMirrorToDelta(source));
-    expect(restored.content?.map(block => block.attrs?.indent ?? 0)).toEqual([1, 0, 2, 3, 4]);
+    expect(restored.content?.map((block) => block.attrs?.indent ?? 0)).toEqual([
+      1, 0, 2, 3, 4,
+    ]);
     expect(restored.content?.[1].attrs?.indentExplicit).toBe(true);
     expect(restored.content?.[2].attrs?.indentExplicit).toBe(true);
   });
@@ -147,15 +221,44 @@ describe("desktop layout and list continuation presentation", () => {
     const doc = schema.nodeFromJSON({
       type: "doc",
       content: [
-        { type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "item" }] }] }] },
-        { type: "codeBlock", content: [{ type: "text", text: "flowchart LR" }] },
+        {
+          type: "bulletList",
+          content: [
+            {
+              type: "listItem",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: "item" }],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          type: "codeBlock",
+          content: [{ type: "text", text: "flowchart LR" }],
+        },
       ],
     });
     let codeBlockPos = 0;
-    doc.forEach((node, pos) => { if (node.type.name === "codeBlock") codeBlockPos = pos; });
-    const state = EditorState.create({ doc, selection: TextSelection.create(doc, codeBlockPos + 1) });
+    doc.forEach((node, pos) => {
+      if (node.type.name === "codeBlock") codeBlockPos = pos;
+    });
+    const state = EditorState.create({
+      doc,
+      selection: TextSelection.create(doc, codeBlockPos + 1),
+    });
     let changedDoc = doc;
-    expect(changeBlockIndent(state, transaction => { changedDoc = transaction.doc; }, -1)).toBe(true);
+    expect(
+      changeBlockIndent(
+        state,
+        (transaction) => {
+          changedDoc = transaction.doc;
+        },
+        -1,
+      ),
+    ).toBe(true);
     expect(changedDoc.child(1).attrs.indent).toBe(0);
     expect(changedDoc.child(1).attrs.indentExplicit).toBe(true);
   });

@@ -1,3 +1,5 @@
+import { FlowPresentation, flowPresentationKey } from "../extensions/FlowPresentation";
+import { flowHeadingLevel } from "../lib/flow-presentation";
 import { useDocumentActive } from "./RetainedDocument";
 import { isReadingPositionRestoring } from "../lib/reading-position";
 import { IncrementalDocumentSerializer } from "../lib/incremental-document-serializer";
@@ -69,7 +71,7 @@ import { DocumentEditorContent } from "./DocumentEditorContent";
 import { EDITOR_NAVIGATION_EVENT, useEditorScrollPersistence } from "../hooks/useEditorScrollPersistence";
 import { headingFoldAnchors } from "../lib/heading-fold-anchors";
 import { ReadingBlockSession } from "../extensions/ReadingBlockSession";
-import { DocumentOutlineList, type VisibleOutlineEntry } from "./DocumentOutlineList";
+import { DocumentOutlineList, OUTLINE_SCROLL_EVENT, type VisibleOutlineEntry } from "./DocumentOutlineList";
 import { EditorToolbarContents } from "./EditorToolbarContents";
 import { flushSync } from "react-dom";
 import { createReplacementTransaction } from "../lib/editor-replace";
@@ -971,6 +973,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       CjkLatinSpacing,
       BlockIndent,
       StandaloneStrongLabel,
+      FlowPresentation.configure({ level: flowHeadingLevel(content.metadata) }),
       HeadingFold.configure({
         initialCollapsedKeys: sensitive ? [] : sessionHeadingFoldStore.load(noteId)?.collapsedKeys ?? [],
         onChange: (collapsedKeys) => {
@@ -1389,7 +1392,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     if (!list) return;
     let userInteracted = false;
     const stopCentering = () => { userInteracted = true; };
-    const interactionEvents = ["pointerdown", "touchstart", "wheel", "keydown"];
+    const interactionEvents = ["pointerdown", "touchstart", "wheel", "keydown", OUTLINE_SCROLL_EVENT];
     interactionEvents.forEach(name => list.addEventListener(name, stopCentering, { passive: true }));
     const centerActiveItem = () => {
       if (userInteracted) return;
@@ -1457,9 +1460,9 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const scrollOutlineTo = useCallback((target: "top" | "middle" | "bottom") => {
     const list = outlineListRef.current;
     if (!list) return;
-    const maxScroll = Math.max(0, list.scrollHeight - list.clientHeight);
-    const top = target === "top" ? 0 : target === "middle" ? maxScroll / 2 : maxScroll;
-    list.scrollTo({ top, behavior: "smooth" });
+    // The list owns its measured height. Keep the destination attached to that
+    // height while newly mounted rows settle; user input cancels it immediately.
+    list.dispatchEvent(new CustomEvent(OUTLINE_SCROLL_EVENT, { detail: target }));
   }, []);
 
   const currentBookmark = useMemo(() => {
@@ -2881,6 +2884,13 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   ), [documentOutline, headingSectionByPosition, outlineCollapsedHeadingKeys, outlineVisibleHeadingPositions]);
 
   const footnoteHover = useFootnoteHoverPreview(() => editor?.state.doc ?? null);
+  const presentationLevel = flowHeadingLevel(content.metadata);
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    if (flowPresentationKey.getState(editor.state)?.level === presentationLevel) return;
+    editor.view.dispatch(editor.state.tr.setMeta(flowPresentationKey, presentationLevel).setMeta("addToHistory", false));
+  }, [editor, presentationLevel]);
+
   if (!editor) return <div className="note-editor"><div className="empty-state">加载中...</div></div>;
 
   const { rememberToolbarSelection, runToolbarFormat } = createToolbarSelectionCommands(editor, toolbarSelectionRef, toolbarCellSelectionRef);

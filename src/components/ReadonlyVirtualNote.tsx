@@ -1,3 +1,4 @@
+import { flowBlockAttributes, flowHeadingLevel } from "../lib/flow-presentation";
 import { useDocumentActive } from "./RetainedDocument";
 import { ReadonlyImage } from "./ReadonlyImage";
 import { BlockquoteToolbar } from "./BlockquoteToolbar";
@@ -330,6 +331,8 @@ export function ReadonlyVirtualNote(
   );
   const states = useMemo(() => props.sensitive ? new Map<number, BlockState>() : readingBlockSession(noteId, contentVersion), [noteId, contentVersion, props.sensitive]);
   const sections = useMemo(() => extractHeadingSections(doc), [doc]);
+  const presentationLevel = flowHeadingLevel(props.content.metadata);
+  const flowAttributes = useMemo(() => flowBlockAttributes(doc, presentationLevel), [doc, presentationLevel]);
   const followupBlocks = useMemo(() => listFollowupBlocks(doc), [doc]);
   const sectionByPos = useMemo(
     () => new Map(sections.map((section) => [section.pos, section])),
@@ -1273,7 +1276,7 @@ export function ReadonlyVirtualNote(
                   {props.showLineNumbers && <span>{block.number}</span>}
                 </div>
                 <div className="ProseMirror vr-block" contentEditable={false}>
-                  {renderReadonlyBlock(
+                  {decorateFlowBlock(renderReadonlyBlock(
                     block.node,
                     block.pos,
                     states,
@@ -1281,7 +1284,7 @@ export function ReadonlyVirtualNote(
                     activeMatch,
                     props.defaultCodeBlockWrap,
                     followupBlocks.has(block.pos),
-                  )}
+                  ), flowAttributes.get(block.pos))}
                 </div>
               </div>
             );
@@ -1305,4 +1308,10 @@ export function ReadonlyVirtualNote(
       )}
     </div>
   );
+}
+
+export function decorateFlowBlock(block: React.ReactNode, attrs?: Record<string, string>): React.ReactNode {
+  if (!attrs || !React.isValidElement<{ className?: string }>(block)) return block;
+  const { class: flowClass, ...data } = attrs;
+  return React.cloneElement(block, { ...data, className: `${block.props.className ?? ""} ${flowClass}` });
 }

@@ -1,3 +1,4 @@
+import { flowHeadingLevel } from "../lib/flow-presentation";
 import { useDocumentActive } from "./RetainedDocument";
 import { MarkdownSplitPreview } from "./MarkdownSplitPreview";
 import { useMobileViewport } from "../hooks/useEdgeDrawer";
@@ -184,7 +185,7 @@ export function MarkdownDocumentView({ props, render }: { props: NoteEditorProps
         {props.onFocusModeChange && <button type="button" className="focus-btn" aria-label={props.focusMode ? "退出专注模式" : "专注模式"}
           onClick={() => props.onFocusModeChange?.(!props.focusMode)}><ToolbarIcon name={props.focusMode ? "compress" : "expand"} /></button>}
       </div>
-      <MarkdownSplitPreview enabled={preview && !mobile} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
+      <MarkdownSplitPreview flowLevel={flowHeadingLevel(props.content.metadata)} enabled={preview && !mobile} revision={sourceSession.current!.current} areaRef={viewPosition.area} fontSize={props.editorFontSize}>
       <Suspense fallback={<div className="markdown-source-loading" role="status">正在加载源码编辑器…</div>}>
       <MarkdownSourceEditor value={source} readonly={Boolean(props.readonly) || busy}
         areaRef={viewPosition.area} session={sourceEditorState} onChange={editSource}

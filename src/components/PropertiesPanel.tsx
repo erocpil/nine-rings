@@ -783,6 +783,21 @@ function PropertiesPanel({
           )}
         </div>
 
+        <div className="prop-section">
+          <div className="prop-label">文档展示</div>
+          <div className="prop-metadata-grid">
+            <select className="prop-input" aria-label="文档展示方式" disabled={readonly} value={metadataDraft.presentationMode ?? "ordinary"} onChange={event => updateMetadataField("presentationMode", event.target.value === "flow" ? "flow" : undefined)}>
+              <option value="ordinary">普通文档</option><option value="flow">流程展示</option>
+            </select>
+            {metadataDraft.presentationMode === "flow" && <select className="prop-input" aria-label="流程阶段标题级别" disabled={readonly} value={metadataDraft.flowHeadingLevel ?? 2} onChange={event => updateMetadataField("flowHeadingLevel", Number(event.target.value))}>
+              {[1, 2, 3, 4, 5, 6].map(level => <option key={level} value={level}>H{level} 标题作为阶段</option>)}
+            </select>}
+          </div>
+          <p className="prop-empty">按标题组织阶段，自动生成编号与连接线；不会改写 Markdown 正文。</p>
+          <button type="button" className="settings-sm-btn" disabled={readonly || metadataSaving} onClick={() => { void saveMetadata(); }}>保存展示方式</button>
+          {metadataMessage && <div role="status" className="prop-metadata-message">{metadataMessage}</div>}
+        </div>
+
         {/* 发布元信息 */}
         <div className="prop-section">
           <div className="prop-label">发布元信息</div>

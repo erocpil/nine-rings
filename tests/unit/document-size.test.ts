@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { documentSizeBytes, formatDocumentSize } from "../../src/lib/document-size";
+import {
+  documentSizeBytes,
+  formatDocumentSize,
+} from "../../src/lib/document-size";
 
 describe("document body size", () => {
   it("counts serialized Unicode content as UTF-8 bytes", () => {
     const content = { ops: [{ insert: "中文🌱" }, { insert: "\n" }] };
-    expect(documentSizeBytes(content)).toBe(new TextEncoder().encode(JSON.stringify(content)).byteLength);
-    expect(documentSizeBytes(content)).toBeGreaterThan(JSON.stringify(content).length);
+    expect(documentSizeBytes(content)).toBe(
+      new TextEncoder().encode(JSON.stringify(content)).byteLength,
+    );
+    expect(documentSizeBytes(content)).toBeGreaterThan(
+      JSON.stringify(content).length,
+    );
   });
 
   it("formats byte, kilobyte and megabyte sizes", () => {

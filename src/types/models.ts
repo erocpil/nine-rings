@@ -71,6 +71,9 @@ export interface DeltaOps {
 }
 
 export interface DocumentMetadata {
+  /** Presentation only: ordinary Markdown remains unchanged. */
+  presentationMode?: "flow";
+  flowHeadingLevel?: number;
   sourceFormat?: "text" | "markdown";
   /** Filename at import time, retained when the displayed title changes. */
   originalFileName?: string;

@@ -129,7 +129,11 @@ test("managed typography overrides preserve classic values and selected style co
     editor_block_number_gap: 18,
   };
   const display = resolveInterfaceConfig(saved);
-  expect(display).toMatchObject({ editor_font_family: "serif", note_font_size: 18, editor_line_height: 1.9 });
+  expect(display).toMatchObject({
+    editor_font_family: "serif",
+    note_font_size: 18,
+    editor_line_height: 1.9,
+  });
   expect(display.editor_block_spacing).toBeCloseTo(20 / 18);
   expect(display.editor_heading_margin_top).toBeCloseTo(30 / 18);
   expect(display.editor_heading_margin_bottom).toBeCloseTo(8 / 18);
@@ -137,8 +141,15 @@ test("managed typography overrides preserve classic values and selected style co
     "--style-content-width": "900px",
     "--editor-block-number-gap": "18px",
   });
-  expect(editorAppearanceVariables(resolveInterfaceConfig({ ...saved, interface_content_width: 0 }))["--style-content-width"]).toBeUndefined();
-  const classic = resolveInterfaceConfig({ ...saved, interface_style: "classic" });
+  expect(
+    editorAppearanceVariables(
+      resolveInterfaceConfig({ ...saved, interface_content_width: 0 }),
+    )["--style-content-width"],
+  ).toBeUndefined();
+  const classic = resolveInterfaceConfig({
+    ...saved,
+    interface_style: "classic",
+  });
   expect(classic.note_font_size).toBe(23);
   expect(classic.editor_font_family).toBe("monospace");
 });

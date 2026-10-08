@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
 import type { Transaction } from "@tiptap/pm/state";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import {
   extractHeadingSections,
   headingSectionAtPosition,
@@ -176,7 +177,18 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
     let observedWindow = { start: -1, end: -1 };
     let foldedHeadingPositions = getCollapsedHeadingPositions(editor);
     let hiddenFoldBlockPositions = getHiddenHeadingFoldBlockPositions(editor);
-    let topLevelBlocks: Array<{ pos: number; index: number; heading: boolean }> = [];
+    let topLevelBlocks: Array<{ pos: number; index: number; heading: boolean; node: ProseMirrorNode }> = [];
+    const blockDomCache = new Map<number, HTMLElement>();
+    let blockByDom = new WeakMap<HTMLElement, (typeof topLevelBlocks)[number]>();
+    const blockDom = (block: (typeof topLevelBlocks)[number]) => {
+      const cached = blockDomCache.get(block.pos);
+      if (cached?.isConnected) return cached;
+      const dom = editor.view.nodeDOM(block.pos);
+      if (!(dom instanceof HTMLElement)) return null;
+      blockDomCache.set(block.pos, dom);
+      blockByDom.set(dom, block);
+      return dom;
+    };
     let indexedDoc = editor.state.doc;
     // 窗口和预读按折叠后的布局顺序计算；原始 index 只用于显示块号。
     let layoutBlocks: typeof topLevelBlocks = [];
@@ -190,6 +202,8 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
     };
 
     const positionForDom = (dom: HTMLElement) => {
+      const cached = blockByDom.get(dom);
+      if (cached && indexedDoc === editor.state.doc) return cached.pos;
       const domPosition = editor.view.posAtDOM(dom, 0, -1);
       const position = Math.max(0, Math.min(domPosition, editor.state.doc.content.size));
       const $position = editor.state.doc.resolve(position);
@@ -212,11 +226,14 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       // IntersectionObserver 的矩形可能来自折叠前布局。先按 ProseMirror
       // 折叠状态过滤，避免隐藏正文重新发布块号、插入按钮或错误边界。
       if (hiddenFoldBlockPositions.has(pos)) return null;
-      const node = editor.state.doc.nodeAt(pos);
+      const indexedBlock = blockByDom.get(dom);
+      const node = indexedDoc === editor.state.doc && indexedBlock?.pos === pos
+        ? indexedBlock.node : editor.state.doc.nodeAt(pos);
       if (!node) return null;
       // 原生退格可能保留最后一个空段的 DOM、删除它前面的空段。
       // DOM 身份没有变化不代表块号没变，编号必须取当前文档中的位置。
-      const index = editor.state.doc.resolve(pos).index(0) + 1;
+      const index = indexedDoc === editor.state.doc && indexedBlock?.pos === pos
+        ? indexedBlock.index : editor.state.doc.resolve(pos).index(0) + 1;
       const selectionPos = editor.state.selection.from;
       const section = node.type.name === "heading"
         ? headingSectionAtPosition(extractHeadingSections(editor.state.doc), pos)
@@ -393,7 +410,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
           const rectAt = (index: number) => {
             let rect = rects.get(index);
             if (!rect) {
-              const dom = editor.view.nodeDOM(layoutBlocks[index].pos);
+              const dom = blockDom(layoutBlocks[index]);
               if (!(dom instanceof HTMLElement)) throw new Error("Missing layout block");
               rect = dom.getBoundingClientRect();
               rects.set(index, rect);
@@ -421,12 +438,16 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
 
     const refreshBlockIndex = (force = false) => {
       if (!force && indexedDoc === editor.state.doc) return false;
+      if (indexedDoc !== editor.state.doc) {
+        blockDomCache.clear();
+        blockByDom = new WeakMap();
+      }
       indexedDoc = editor.state.doc;
       foldedHeadingPositions = getCollapsedHeadingPositions(editor);
       hiddenFoldBlockPositions = getHiddenHeadingFoldBlockPositions(editor);
       topLevelBlocks = [];
       indexedDoc.forEach((node, pos, index) => {
-        topLevelBlocks.push({ pos, index: index + 1, heading: node.type.name === "heading" });
+        topLevelBlocks.push({ pos, index: index + 1, heading: node.type.name === "heading", node });
       });
       layoutBlocks = topLevelBlocks.filter((block) => !hiddenFoldBlockPositions.has(block.pos));
       layoutIndexByPosition.clear();
@@ -464,7 +485,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       for (let blockIndex = start; blockIndex <= end; blockIndex += 1) {
         const block = layoutBlocks[blockIndex];
         if (!block || hiddenFoldBlockPositions.has(block.pos)) continue;
-        const dom = editor.view.nodeDOM(block.pos);
+        const dom = blockDom(block);
         if (!(dom instanceof HTMLElement)) continue;
         nextLayoutElements.add(dom);
         if (!layoutElements.has(dom)) blockResizeObserver?.observe(dom, { box: "border-box" });

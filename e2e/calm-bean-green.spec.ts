@@ -31,16 +31,16 @@ for (const width of [390, 1280]) {
         );
       });
     expect(await tokens()).toEqual({
-      "--bg": "#d8e8ce",
-      "--surface": "#ccdfc3",
+      "--bg": "#dde8d8",
+      "--surface": "#d2dfcd",
       "--text": "#29372c",
-      "--accent": "#356744",
-      "--code-bg": "#cddfc7",
+      "--accent": "#416849",
+      "--code-bg": "#d4e1cf",
       "--syntax-keyword-color": "#7c5047",
     });
     await expect(page.locator(".note-editor-sticky")).toHaveCSS(
       "background-color",
-      "rgb(216, 232, 206)",
+      "rgb(221, 232, 216)",
     );
     await page.screenshot({
       path: testInfo.outputPath("calm-bean-green-light.png"),
