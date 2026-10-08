@@ -27,7 +27,7 @@ export const INTERFACE_STYLES: ReadonlyArray<{
   {
     value: "calm",
     label: "清雅",
-    description: "舒适留白、轻边框，让正文更突出",
+    description: "柔和豆绿纸面、沉静绿墨与舒适留白",
   },
   {
     value: "paper",

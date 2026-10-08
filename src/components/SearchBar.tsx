@@ -3,13 +3,17 @@ import { flushSync } from "react-dom";
 import { api } from "../lib/api";
 import { ToolbarIcon } from "./ToolbarIcon";
 import type { DocType } from "../types/models";
+import { searchPatternError, type SearchOptions } from "../lib/search-matching";
+import { useSearchRegex } from "../hooks/useSearchRegex";
+
+export interface GlobalSearchQuery { text: string; storagePath?: string; docType?: DocType; concept?: string; options?: SearchOptions }
 
 interface SearchBarProps {
-  initialQuery?: { text: string; storagePath?: string; docType?: DocType; concept?: string };
-  onQueryChange?: (query: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => void;
+  initialQuery?: GlobalSearchQuery;
+  onQueryChange?: (query: GlobalSearchQuery) => void;
   inputRef?: RefObject<HTMLInputElement>;
-  onSearch: (query: string) => void;
-  onDocSearch?: (query: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => void;
+  onSearch: (query: string, options?: SearchOptions) => void;
+  onDocSearch?: (query: GlobalSearchQuery) => void;
   onInputBlur?: () => void;
   onEscape?: () => void;
   cancelRequestId?: number;
@@ -34,14 +38,17 @@ const TYPE_FILTERS: { value: DocType | ""; label: string }[] = [
 
 export function SearchBar({ initialQuery, onQueryChange, inputRef, onSearch, onDocSearch, onInputBlur, onEscape, cancelRequestId }: SearchBarProps) {
   const [value, setValue] = useState(initialQuery?.text ?? "");
+  const [options, setOptions] = useState<SearchOptions>(initialQuery?.options ?? {});
+  const regex = useSearchRegex(options.regex === true);
+  const patternError = options.regex ? regex.error || searchPatternError(value, options) : "";
   const [filterOpen, setFilterOpen] = useState(false);
   const [pathFilter, setPathFilter] = useState(initialQuery?.storagePath ?? "");
   const [typeFilter, setTypeFilter] = useState<DocType | "">(initialQuery?.docType ?? "");
   const [conceptInput, setConceptInput] = useState(initialQuery?.concept ?? "");
   const [conceptFilter, setConceptFilter] = useState(initialQuery?.concept ?? "");
   useEffect(() => {
-    onQueryChange?.({ text: value, storagePath: pathFilter || undefined, docType: typeFilter || undefined, concept: conceptFilter || undefined });
-  }, [value, pathFilter, typeFilter, conceptFilter, onQueryChange]);
+    onQueryChange?.({ text: value, storagePath: pathFilter || undefined, docType: typeFilter || undefined, concept: conceptFilter || undefined, options });
+  }, [value, pathFilter, typeFilter, conceptFilter, options, onQueryChange]);
   const [conceptSuggestions, setConceptSuggestions] = useState<string[]>([]);
   const [existingConcepts, setExistingConcepts] = useState<string[]>([]);
   const filterRef = useRef<HTMLDivElement>(null);
@@ -74,6 +81,11 @@ export function SearchBar({ initialQuery, onQueryChange, inputRef, onSearch, onD
   }, [filterOpen]);
 
   const fireSearch = useCallback((text: string, path: string, type: DocType | "", concept: string) => {
+    if (options.regex && (!regex.ready || regex.error || searchPatternError(text, options))) {
+      onDocSearch?.({ text: "" });
+      onSearch("");
+      return;
+    }
     if (text || path || type || concept) {
       if (onDocSearch) {
         onDocSearch({
@@ -81,9 +93,10 @@ export function SearchBar({ initialQuery, onQueryChange, inputRef, onSearch, onD
           storagePath: path || undefined,
           docType: type || undefined,
           concept: concept || undefined,
+          options,
         });
       } else {
-        onSearch(text);
+        onSearch(text, options);
       }
     } else {
       // 全部条件清空时，两条搜索路径都要复位。App 同时提供
@@ -91,7 +104,7 @@ export function SearchBar({ initialQuery, onQueryChange, inputRef, onSearch, onD
       onDocSearch?.({ text: "" });
       onSearch("");
     }
-  }, [onSearch, onDocSearch]);
+  }, [onSearch, onDocSearch, options, regex.ready, regex.error]);
 
   const scheduleSearch = useCallback((text: string, path: string, type: DocType | "", concept: string) => {
     if (searchTimerRef.current) {
@@ -103,6 +116,10 @@ export function SearchBar({ initialQuery, onQueryChange, inputRef, onSearch, onD
       searchTimerRef.current = null;
     }, 180);
   }, [fireSearch]);
+
+  useEffect(() => {
+    scheduleSearch(value, pathFilter, typeFilter, conceptFilter);
+  }, [options, regex.ready, value, pathFilter, typeFilter, conceptFilter, scheduleSearch]);
 
   const handleChange = useCallback((v: string) => {
     setValue(v);
@@ -232,6 +249,14 @@ export function SearchBar({ initialQuery, onQueryChange, inputRef, onSearch, onD
           {activeFilterCount > 0 && <span className="search-filter-badge">{activeFilterCount}</span>}
         </button>
       </div>
+
+      <div className="search-matching-options">
+        <label><input type="checkbox" checked={options.caseSensitive === true} onChange={event => setOptions(current => ({ ...current, caseSensitive: event.target.checked }))} />区分大小写</label>
+        <label title="匹配完整单词，不匹配单词中的一部分"><input type="checkbox" checked={options.wholeWord === true} onChange={event => setOptions(current => ({ ...current, wholeWord: event.target.checked }))} />全词匹配</label>
+        <label><input type="checkbox" checked={options.regex === true} onChange={event => setOptions(current => ({ ...current, regex: event.target.checked }))} />正则表达式（Perl）</label>
+      </div>
+      {patternError && <p className="search-pattern-error" role="alert">{patternError}</p>}
+      {options.regex && <small className="search-pattern-help">^word 行首 · word$ 行尾 · foo|bar 任一 · (?i) 忽略大小写 · 不输入 /…/ 分隔符</small>}
 
       {filterOpen && (
         <div className="search-filters">

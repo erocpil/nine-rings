@@ -1,15 +1,16 @@
 import { NoteSearchIndex, type SearchNote } from "../lib/search-index-core";
+import { initializeSearchRegex, type SearchOptions } from "../lib/search-matching";
 
 type Request =
   | { id: number; type: "rebuild"; notes: SearchNote[] }
   | { id: number; type: "upsert"; note: SearchNote }
   | { id: number; type: "upsertMany"; notes: SearchNote[] }
   | { id: number; type: "remove"; noteId: string }
-  | { id: number; type: "search"; query: string };
+  | { id: number; type: "search"; query: string; options?: SearchOptions };
 
 const index = new NoteSearchIndex();
 
-self.onmessage = (event: MessageEvent<Request>) => {
+self.onmessage = async (event: MessageEvent<Request>) => {
   const request = event.data;
   try {
     if (request.type === "rebuild") {
@@ -25,7 +26,8 @@ self.onmessage = (event: MessageEvent<Request>) => {
       index.remove(request.noteId);
       self.postMessage({ id: request.id, result: index.size });
     } else {
-      self.postMessage({ id: request.id, result: index.search(request.query) });
+      if (request.options?.regex) await initializeSearchRegex();
+      self.postMessage({ id: request.id, result: index.search(request.query, request.options) });
     }
   } catch (error) {
     self.postMessage({ id: request.id, error: error instanceof Error ? error.message : String(error) });

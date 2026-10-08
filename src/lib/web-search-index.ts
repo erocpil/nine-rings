@@ -5,13 +5,14 @@ import { isTauriRuntime } from "./runtime";
 import { subscribeToDataChanges } from "./tab-coordination";
 import { getAdapter } from "./storage";
 import { NoteSearchIndex, toSearchNote, type SearchNote } from "./search-index-core";
+import { initializeSearchRegex, type SearchOptions } from "./search-matching";
 
 type WorkerRequest =
   | { type: "rebuild"; notes: SearchNote[] }
   | { type: "upsert"; note: SearchNote }
   | { type: "upsertMany"; notes: SearchNote[] }
   | { type: "remove"; noteId: string }
-  | { type: "search"; query: string };
+  | { type: "search"; query: string; options?: SearchOptions };
 
 interface WorkerResponse {
   id: number;
@@ -92,27 +93,28 @@ export async function searchWebNotes(adapter: StorageAdapter, query: string): Pr
   return notes;
 }
 
-export async function searchWebNoteSummaries(adapter: StorageAdapter, query: string): Promise<SearchNote[]> {
-  query = query.trim();
+export async function searchWebNoteSummaries(adapter: StorageAdapter, query: string, options: SearchOptions = {}): Promise<SearchNote[]> {
+  query = options.regex ? query : query.trim();
   // In particular, native LIKE '%%' must not turn a cleared query into results.
   if (!query) return [];
-  if (typeof Worker === "undefined") return searchLocally(adapter, query);
+  if (typeof Worker === "undefined") return searchLocally(adapter, query, options);
   try {
     await ensureReady(adapter);
-    return await send<SearchNote[]>({ type: "search", query });
+    return await send<SearchNote[]>({ type: "search", query, options });
   } catch (error) {
+    if (options.regex && error instanceof Error && /PCRE2/.test(error.message)) throw error;
     console.warn("[search-index] Worker 不可用，使用相同规则的本地搜索:", error);
-    return searchLocally(adapter, query);
+    return searchLocally(adapter, query, options);
   }
 }
 
 /** Filters narrow the shared ranked results; they never change text matching.
  * Filter-only queries load fresh documents and keep updated-time ordering. */
 export async function searchDocumentSummaries(adapter: StorageAdapter, query: DocSearchQuery): Promise<SearchNote[]> {
-  const text = query.text?.trim();
+  const text = query.options?.regex ? query.text : query.text?.trim();
   const compare = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
   const candidates = text
-    ? await searchWebNoteSummaries(adapter, text)
+    ? await searchWebNoteSummaries(adapter, text, query.options)
     : (await adapter.searchDocs({})).map(toSearchNote).sort((a, b) =>
       compare(b.updated_at, a.updated_at) || compare(a.id, b.id));
   const before = query.staleBefore ? Date.parse(query.staleBefore) : null;
@@ -129,14 +131,15 @@ export async function searchDocumentSummaries(adapter: StorageAdapter, query: Do
 /** A degraded browser must preserve matching, ranking and redaction semantics.
  * Do not cache this fallback: writes in another tab must be visible even when
  * workers are unavailable. Yield between batches to keep the UI responsive. */
-async function searchLocally(adapter: StorageAdapter, query: string): Promise<SearchNote[]> {
+async function searchLocally(adapter: StorageAdapter, query: string, options: SearchOptions = {}): Promise<SearchNote[]> {
+  if (options.regex) await initializeSearchRegex();
   const notes = await loadSearchNotes(adapter);
   const index = new NoteSearchIndex();
   for (let offset = 0; offset < notes.length; offset += 250) {
     for (const note of notes.slice(offset, offset + 250)) index.upsert(note);
     if (offset + 250 < notes.length) await new Promise<void>(resolve => setTimeout(resolve, 0));
   }
-  return index.search(query);
+  return index.search(query, options);
 }
 
 // getAllNotes intentionally contains essays only. Documents must be loaded

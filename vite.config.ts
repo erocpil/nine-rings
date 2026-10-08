@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import importPlugin from "./plugins/vite-import-plugin";
 import pwaPlugin from "./plugins/vite-pwa-plugin";
 import pdfjsCMapAssets from "./plugins/vite-pdfjs-cmaps-plugin";
+import pcre2Assets from "./plugins/vite-pcre2-assets";
 import { execSync } from "child_process";
 import { readFileSync } from "fs";
 
@@ -39,7 +40,8 @@ export default defineConfig(async () => {
     normalizePath(id).endsWith(`/src/${suffix}`);
 
   return ({
-  plugins: [react(), importPlugin(), pdfjsCMapAssets(), pwaPlugin(version)],
+  plugins: [react(), importPlugin(), pdfjsCMapAssets(), pcre2Assets(), pwaPlugin(version)],
+  worker: { format: "es", plugins: () => [pcre2Assets()] },
   define: {
     __APP_VERSION__: JSON.stringify(version),
   },
@@ -56,6 +58,8 @@ export default defineConfig(async () => {
           const normalized = normalizePath(id);
 
           if (normalized.includes("/node_modules/")) {
+            // PCRE2 is downloaded only when regular-expression search is used.
+            if (packagePath(normalized, "pcre2-wasm")) return undefined;
             // Keep Mermaid's source and diagram-specific dependencies in the
             // dynamic-import graph. Assigning every Mermaid module to one
             // manual chunk eagerly pulls all diagram engines into the shared

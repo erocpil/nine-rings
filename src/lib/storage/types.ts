@@ -218,6 +218,7 @@ export interface StorageAdapter extends TemplateStorage {
 
 export interface DocSearchQuery {
   text?: string;
+  options?: import("../search-matching").SearchOptions;
   storagePath?: string;
   docType?: DocType;
   concept?: string;

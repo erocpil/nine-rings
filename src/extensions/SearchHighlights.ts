@@ -3,11 +3,9 @@ import type { Editor } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
+import { findTextMatches, type SearchOptions, type TextMatch } from "../lib/search-matching";
 
-export interface SearchMatch {
-  from: number;
-  to: number;
-}
+export type SearchMatch = TextMatch;
 
 interface TextSegment {
   text: string;
@@ -22,12 +20,12 @@ interface HighlightMeta {
 const searchHighlightsKey = new PluginKey<DecorationSet>("searchHighlights");
 
 /**
- * Find case-insensitive literal matches while retaining ProseMirror positions.
+ * Find literal or Perl-compatible matches while retaining ProseMirror positions.
  * Adjacent text nodes (for example, text split by a bold mark) are treated as
  * one run; structural gaps between blocks are kept as hard boundaries.
  */
-export function findMatchesInTextSegments(segments: TextSegment[], query: string, preserveWhitespace = false, caseSensitive = false): SearchMatch[] {
-  const needle = preserveWhitespace ? query : query.trim();
+export function findMatchesInTextSegments(segments: TextSegment[], query: string, preserveWhitespace = false, caseSensitive = false, options: SearchOptions = {}): SearchMatch[] {
+  const needle = preserveWhitespace || options.regex ? query : query.trim();
   if (!needle) return [];
   const runs: TextSegment[] = [];
   for (const segment of segments) {
@@ -36,26 +34,20 @@ export function findMatchesInTextSegments(segments: TextSegment[], query: string
     if (previous && previous.from + previous.text.length === segment.from) previous.text += segment.text;
     else runs.push({ ...segment });
   }
-  // Regex is escaped literal text. Native match indices retain original UTF-16
-  // positions even when case folding would change a character's string length.
-  const pattern = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), caseSensitive ? "gu" : "giu");
+  // Both engines retain original UTF-16 positions across inline marks.
   const matches: SearchMatch[] = [];
   for (const run of runs) {
-    pattern.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(run.text))) {
-      matches.push({ from: run.from + match.index, to: run.from + match.index + match[0].length });
-    }
+    matches.push(...findTextMatches(run.text, needle, { ...options, caseSensitive }).map(match => ({ ...match, from: run.from + match.from, to: run.from + match.to })));
   }
   return matches;
 }
 
-export function findSearchMatches(doc: ProseMirrorNode, query: string, preserveWhitespace = false, caseSensitive = false): SearchMatch[] {
+export function findSearchMatches(doc: ProseMirrorNode, query: string, preserveWhitespace = false, caseSensitive = false, options: SearchOptions = {}): SearchMatch[] {
   const segments: TextSegment[] = [];
   doc.descendants((node, pos) => {
     if (node.isText && node.text) segments.push({ text: node.text, from: pos });
   });
-  return findMatchesInTextSegments(segments, query, preserveWhitespace, caseSensitive);
+  return findMatchesInTextSegments(segments, query, preserveWhitespace, caseSensitive, options);
 }
 
 /** Resolve the first navigation target relative to the editor caret. */

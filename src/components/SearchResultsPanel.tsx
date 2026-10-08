@@ -4,6 +4,7 @@ import type { SearchNote } from "../lib/search-index-core";
 import type { Note } from "../types/models";
 import { extractPlainText } from "../lib/storage/core";
 import { DocumentListContent, ListState } from "./ListPresentation";
+import type { SearchOptions } from "../lib/search-matching";
 
 const PAGE_SIZE = 80;
 
@@ -11,6 +12,7 @@ interface Props {
   notes: (SearchNote | Note)[];
   searchTerm: string;
   searching: boolean;
+  options?: SearchOptions;
   onClose: () => void;
   onSelectNote: (note: SearchNote | Note, keepSearch: boolean, searchTerm: string) => void;
 }
@@ -19,6 +21,7 @@ export function SearchResultsPanel({
   notes,
   searchTerm,
   searching,
+  options,
   onClose,
   onSelectNote,
 }: Props) {
@@ -37,7 +40,7 @@ export function SearchResultsPanel({
       {total === 0 && <ListState kind={searching ? "loading" : "empty"} title={searching ? "正在搜索…" : "没有匹配的结果"} detail={searching ? "正在查找文档" : "试试更短的关键词，或调整筛选条件"} />}
       {notes.length > 0 && <div className="search-section-label">笔记</div>}
       {visibleNotes.map((note) => {
-        const snippet = snippetParts((note as SearchNote).search_text ?? ("content" in note ? extractPlainText(note.content) : ""), searchTerm);
+        const snippet = (note as SearchNote).search_parts ?? snippetParts((note as SearchNote).search_text ?? ("content" in note ? extractPlainText(note.content) : ""), searchTerm, options);
         return (
           <button
             type="button"

@@ -2,6 +2,8 @@ import type { Note } from "../types/models";
 import { extractPlainText } from "./storage/core";
 import { snippetParts } from "./storage/idb-snippet";
 import { isEncrypted } from "./document-crypto";
+import { findTextMatches, type SearchOptions } from "./search-matching";
+import type { SnippetPart } from "./storage/idb-snippet";
 
 function normalize(value: string): string {
   return value.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
@@ -13,7 +15,7 @@ interface IndexedNote {
   text: string;
 }
 
-export type SearchNote = Omit<Note, "content"> & { search_text: string };
+export type SearchNote = Omit<Note, "content"> & { search_text: string; search_parts?: SnippetPart[] };
 export function toSearchNote(note: Note | SearchNote): SearchNote {
   const { content, ...metadata } = note as Note;
   if (isEncrypted(content)) return { ...metadata, tags: [], concepts: [], search_text: "" };
@@ -46,12 +48,17 @@ export class NoteSearchIndex {
     this.notes.delete(id);
   }
 
-  search(query: string): SearchNote[] {
+  search(query: string, options: SearchOptions = {}): SearchNote[] {
     const normalized = normalize(query);
-    if (!normalized) return [];
+    if (options.regex ? !query : !normalized) return [];
     const terms = normalized.split(" ").filter(Boolean);
+    const advanced = options.regex || options.wholeWord || options.caseSensitive;
+    const rawTerms = options.regex ? [query] : query.trim().split(/\s+/).filter(Boolean);
     return [...this.notes.values()]
-      .filter(({ text }) => terms.every((term) => text.includes(term)))
+      .filter(({ text, note }) => advanced
+        ? rawTerms.every(term => [note.title ?? "", note.search_text, ...(note.tags ?? []), ...(note.concepts ?? []), note.storagePath ?? ""]
+          .some(field => findTextMatches(field, term, options).length > 0))
+        : terms.every((term) => text.includes(term)))
       .sort((a, b) => {
         const rank = (entry: IndexedNote) => entry.title === normalized ? 3 : entry.title.startsWith(normalized) ? 2 : entry.title.includes(normalized) ? 1 : 0;
         return rank(b) - rank(a)
@@ -59,7 +66,10 @@ export class NoteSearchIndex {
           || compareText(b.note.updated_at, a.note.updated_at)
           || compareText(a.note.id, b.note.id);
       })
-      .map(({ note }) => ({ ...note, search_text: snippetParts(note.search_text, query).map((part) => part.text).join("") }));
+      .map(({ note }) => {
+        const parts = snippetParts(note.search_text, query, options);
+        return { ...note, search_text: parts.map(part => part.text).join(""), ...(advanced ? { search_parts: parts } : {}) };
+      });
   }
 
   get size(): number {

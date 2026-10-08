@@ -321,7 +321,7 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
   background: var(--navigation-bookmark-bg, var(--navigation-bg, var(--bg)));
 }
 
-/* Complete calm presets. Theme classes only select the light/dark variant. */
+/* Shared starting palette; individual presets override their own colours. */
 :root:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"]),
 .interface-style-preview.preview-calm {
   --bg: #fcfbf8;
@@ -371,6 +371,54 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
   --style-content-width: 690px;
   --style-content-inset: 28px;
   --style-content-top: 14px;
+}
+
+/* Calm's bean-green page, with darker green chrome and muted ink colours. */
+:root:is([data-interface-style="calm"], [data-interface-style="calm-compact"]):not(.theme-dark),
+.interface-style-preview:is(.preview-calm, .preview-calm-compact) {
+  --bg: #d8e8ce;
+  --surface: #ccdfc3;
+  --border: #acbfa4;
+  --text: #29372c;
+  --text-secondary: #586953;
+  --accent: #356744;
+  --accent-hover: #254f32;
+  --link-color: #356744;
+  --link-hover: #254f32;
+  --hover-bg: #c5dbb9;
+  --active-bg: #bed6b3;
+  --accent-bg: #bed6b3;
+  --code-bg: #cddfc7;
+  --activeline-bg: #bdd4b180;
+  --drawer-surface: #ccdfc3;
+  --syntax-keyword-color: #7c5047;
+  --syntax-string-color: #356746;
+  --syntax-value-color: #856628;
+  --syntax-meta-color: #536f7a;
+  --syntax-type-color: #615d86;
+}
+:root.theme-dark:is([data-interface-style="calm"], [data-interface-style="calm-compact"]),
+:root.theme-dark .interface-style-preview:is(.preview-calm, .preview-calm-compact) {
+  --bg: #202c23;
+  --surface: #1b251e;
+  --border: #405345;
+  --text: #e0e9db;
+  --text-secondary: #a6b7a0;
+  --accent: #a6cea0;
+  --accent-hover: #c1deb8;
+  --link-color: #a6cea0;
+  --link-hover: #c1deb8;
+  --hover-bg: #304335;
+  --active-bg: #37513a;
+  --accent-bg: #37513a;
+  --code-bg: #26372b;
+  --activeline-bg: #37513a80;
+  --drawer-surface: #1b251e;
+  --syntax-keyword-color: #dba095;
+  --syntax-string-color: #a4ca96;
+  --syntax-value-color: #d9c17c;
+  --syntax-meta-color: #91b8c0;
+  --syntax-type-color: #bab0d5;
 }
 html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
   :is(.editor-content, .vr-block)

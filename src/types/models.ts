@@ -31,6 +31,7 @@ export interface SearchNavigationTarget {
   noteId: string;
   query: string;
   requestId: number;
+  options?: import("../lib/search-matching").SearchOptions;
   /** Navigate to a saved bookmark instead of searching text. */
   bookmarkId?: string;
 }

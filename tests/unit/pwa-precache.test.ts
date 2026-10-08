@@ -34,6 +34,45 @@ describe("generated service worker precache", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
+  it("serves a precached WASM fetch with an empty request destination while offline", async () => {
+    const handlers = new Map<
+      string,
+      (event: {
+        request: Request;
+        respondWith: (response: Promise<Response>) => void;
+      }) => void
+    >();
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(new Error("offline"));
+    worker(fetcher, {
+      URL,
+      self: {
+        location: { origin: "https://example.test" },
+        addEventListener: (
+          name: string,
+          handler: typeof handlers extends Map<string, infer Handler>
+            ? Handler
+            : never,
+        ) => handlers.set(name, handler),
+      },
+      caches: {
+        open: async () => ({ match: async () => new Response("cached wasm") }),
+      },
+    });
+    const request = new Request("https://example.test/assets/pcre2-hash.wasm");
+    expect(request.destination).toBe("");
+    let response: Promise<Response> | undefined;
+    handlers.get("fetch")!({
+      request,
+      respondWith: (value) => {
+        response = value;
+      },
+    });
+    expect(await (await response!).text()).toBe("cached wasm");
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it("retries a timed-out body after HTTP 200 before writing the cache", async () => {
     const fetcher = vi
       .fn<typeof fetch>()

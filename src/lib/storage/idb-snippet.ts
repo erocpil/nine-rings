@@ -1,4 +1,5 @@
 /** 纯文本搜索片段提取 — 从文本中提取匹配区域并高亮 */
+import { findTextMatches, type SearchOptions } from "../search-matching";
 
 /**
  * 从纯文本中提取匹配片段（带 `<mark>` 高亮），上下文各约 40 字符。
@@ -9,8 +10,25 @@ export interface SnippetPart {
   match: boolean;
 }
 
-export function snippetParts(text: string, query: string): SnippetPart[] {
+export function snippetParts(text: string, query: string, options: SearchOptions = {}): SnippetPart[] {
   if (!text || !query) return [];
+  if (options.regex || options.wholeWord || options.caseSensitive) {
+    const matches = (options.regex ? [query] : [...new Set(query.trim().split(/\s+/).filter(Boolean))])
+      .flatMap(term => findTextMatches(text, term, options)).sort((a, b) => a.from - b.from || b.to - a.to);
+    if (!matches.length) return [{ text: text.slice(0, 120), match: false }];
+    const start = Math.max(0, matches[0].from - 40), end = Math.min(text.length, matches[0].to + 60);
+    const parts: SnippetPart[] = start ? [{ text: "…", match: false }] : [];
+    let cursor = start;
+    for (const match of matches) {
+      if (match.from < cursor || match.from >= end) continue;
+      if (match.from > cursor) parts.push({ text: text.slice(cursor, match.from), match: false });
+      parts.push({ text: text.slice(match.from, Math.min(end, match.to)), match: true });
+      cursor = Math.min(end, match.to);
+    }
+    if (cursor < end) parts.push({ text: text.slice(cursor, end), match: false });
+    if (end < text.length) parts.push({ text: "…", match: false });
+    return parts;
+  }
   const lower = text.toLowerCase();
   const qLower = query.toLowerCase();
   const terms = [...new Set(qLower.trim().split(/\s+/).filter(Boolean))];

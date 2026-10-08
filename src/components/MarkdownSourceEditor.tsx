@@ -50,12 +50,8 @@ import {
 } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
-import {
-  search,
-  searchKeymap,
-  openSearchPanel,
-  gotoLine,
-} from "@codemirror/search";
+import { gotoLine } from "@codemirror/search";
+import { sourceSearchExtension, sourceSearchKeymap, openSourceSearch as openSearchPanel } from "../lib/source-search";
 import { SourceEditorHandle } from "../lib/source-editor-handle";
 import {
   BLOCK_WORKSPACE_DISPLAY_EVENT,
@@ -187,7 +183,7 @@ export function MarkdownSourceEditor({
           { tag: tags.strikethrough, textDecoration: "line-through" },
         ]),
       ),
-      search({ top: true }),
+      sourceSearchExtension,
       EditorState.phrases.of({
         Find: "查找",
         Replace: "替换",
@@ -253,7 +249,7 @@ export function MarkdownSourceEditor({
         ...closeBracketsKeymap,
         ...defaultKeymap,
         ...historyKeymap,
-        ...searchKeymap,
+        ...sourceSearchKeymap,
         ...foldKeymap,
         indentWithTab,
       ]),

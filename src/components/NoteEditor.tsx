@@ -8,6 +8,8 @@ import { NavigationButtons } from "./NavigationButtons";
 import { useMobileEditorScroll, handleMobileEditorScroll } from "../hooks/useMobileEditorScroll";
 import { useEditorNavigation, setNavigationSelection } from "../hooks/useEditorNavigation";
 import { ActiveLinePlugin, activeLinePluginKey, type ActiveLinePluginMeta, ToolbarSelection, setToolbarSelectionHighlight } from "../extensions/EditorHighlights";
+import { findTextMatches, searchPatternError } from "../lib/search-matching";
+import { useSearchRegex } from "../hooks/useSearchRegex";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CopyBlockNotice } from "./CopyBlockNotice";
 import { RenderedLinkMenu } from "./RenderedLinkMenu";
@@ -504,6 +506,12 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   const [editorReplaceValue, setEditorReplaceValue] = useState("");
   const [editorReplaceMessage, setEditorReplaceMessage] = useState("");
   const [editorFindCaseSensitive, setEditorFindCaseSensitive] = useState(false);
+  const [editorFindWholeWord, setEditorFindWholeWord] = useState(false);
+  const [editorFindRegex, setEditorFindRegex] = useState(false);
+  const [editorFindMatchError, setEditorFindMatchError] = useState("");
+  const regexEngine = useSearchRegex(editorFindRegex || searchTarget?.options?.regex === true);
+  const editorFindOptions = { wholeWord: editorFindWholeWord, regex: editorFindRegex };
+  const editorFindError = editorFindRegex ? regexEngine.error || searchPatternError(editorFindQuery, { ...editorFindOptions, caseSensitive: editorFindCaseSensitive }) || editorFindMatchError : "";
   useEffect(() => {
     setEditorFindOpen(false);
     setEditorFindQuery("");
@@ -511,6 +519,9 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     setEditorReplaceValue("");
     setEditorReplaceMessage("");
     setEditorFindCaseSensitive(false);
+    setEditorFindWholeWord(false);
+    setEditorFindRegex(false);
+    setEditorFindMatchError("");
   }, [noteId]);
   const [lineJumpOpen, setLineJumpOpen] = useState(false);
   const [lineJumpValue, setLineJumpValue] = useState("");
@@ -1739,22 +1750,25 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
 
   const replaceEditorText = (all: boolean) => {
     if (readonly || !editor?.isEditable || editor.isDestroyed || !editorFindQuery) return;
-    const matches = findSearchMatches(editor.state.doc, editorFindQuery, true, editorFindCaseSensitive);
-    const index = activeSearchMatch >= 0 && activeSearchMatch < matches.length ? activeSearchMatch
-      : searchMatchIndexFromPosition(matches, editorFindOriginRef.current, 1);
-    const { transaction, count, nextPosition } = createReplacementTransaction(editor.state, editorFindQuery, editorReplaceValue, all ? undefined : index, editorFindCaseSensitive);
-    if (count) editor.view.dispatch(transaction);
-    const remaining = findSearchMatches(editor.state.doc, editorFindQuery, true, editorFindCaseSensitive);
-    searchMatchesRef.current = remaining;
-    setSearchMatches(remaining);
-    setActiveSearchMatch(-1);
-    setSearchHighlights(editor, remaining, -1);
-    editorFindOriginRef.current = nextPosition;
-    setEditorReplaceMessage(count ? `已替换 ${count} 处，可撤销` : "没有需要替换的内容");
-    if (!all && remaining.length) {
-      revealSearchMatch(searchMatchIndexFromPosition(remaining, nextPosition, 1), remaining, false);
-    }
-    editorReplaceInputRef.current?.focus({ preventScroll: true });
+    if (editorFindError) return;
+    try {
+      const matches = findSearchMatches(editor.state.doc, editorFindQuery, true, editorFindCaseSensitive, editorFindOptions);
+      const index = activeSearchMatch >= 0 && activeSearchMatch < matches.length ? activeSearchMatch
+        : searchMatchIndexFromPosition(matches, editorFindOriginRef.current, 1);
+      const { transaction, count, nextPosition } = createReplacementTransaction(editor.state, editorFindQuery, editorReplaceValue, all ? undefined : index, editorFindCaseSensitive, editorFindOptions);
+      if (count) editor.view.dispatch(transaction);
+      const remaining = findSearchMatches(editor.state.doc, editorFindQuery, true, editorFindCaseSensitive, editorFindOptions);
+      searchMatchesRef.current = remaining;
+      setSearchMatches(remaining);
+      setActiveSearchMatch(-1);
+      setSearchHighlights(editor, remaining, -1);
+      editorFindOriginRef.current = nextPosition;
+      setEditorReplaceMessage(count ? `已替换 ${count} 处，可撤销` : "没有需要替换的内容");
+      if (!all && remaining.length) {
+        revealSearchMatch(searchMatchIndexFromPosition(remaining, nextPosition, 1), remaining, false);
+      }
+      editorReplaceInputRef.current?.focus({ preventScroll: true });
+    } catch { setEditorFindMatchError("正则匹配超出执行限制，请简化表达式。"); }
   };
 
   const navigateEditorFind = useCallback((direction: number) => {
@@ -1861,7 +1875,11 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   useEffect(() => {
     if (!editor || !editorFindOpen) return;
     const refresh = () => {
-      const matches = findSearchMatches(editor.state.doc, editorFindQuery, editorReplaceOpen, editorFindCaseSensitive);
+      let matches: SearchMatch[] = [];
+      try {
+        matches = findSearchMatches(editor.state.doc, editorFindQuery, editorReplaceOpen, editorFindCaseSensitive, { wholeWord: editorFindWholeWord, regex: editorFindRegex });
+        setEditorFindMatchError("");
+      } catch { setEditorFindMatchError("正则匹配超出执行限制，请简化表达式。"); }
       editorFindOriginRef.current = editor.state.selection.from;
       searchMatchesRef.current = matches;
       setSearchMatches(matches);
@@ -1872,24 +1890,27 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
     refresh();
     editor.on("update", refresh);
     return () => { editor.off("update", refresh); };
-  }, [editor, editorFindOpen, editorFindQuery, editorReplaceOpen, editorFindCaseSensitive]);
+  }, [editor, editorFindOpen, editorFindQuery, editorReplaceOpen, editorFindCaseSensitive, editorFindWholeWord, editorFindRegex, regexEngine.ready]);
 
   // 接收搜索列表传来的一次性定位请求。优先匹配完整短语；FTS 的
   // 多词 AND 查询若没有连续短语，则回退到各个词的命中位置。
   useEffect(() => {
     if (!editor || !searchTarget || searchTarget.noteId !== noteId) return;
+    if (searchTarget.options?.regex && !regexEngine.ready) return;
     if (searchTarget.bookmarkId) {
       const bookmark = bookmarksRef.current.find(item => item.id === searchTarget.bookmarkId);
       if (bookmark) requestAnimationFrame(() => { if (!editor.isDestroyed) jumpToBookmark(bookmark); });
       onSearchTargetConsumed?.(searchTarget.requestId);
       return;
     }
-    let matches = findSearchMatches(editor.state.doc, searchTarget.query);
+    let matches: SearchMatch[] = [];
+    try { matches = findSearchMatches(editor.state.doc, searchTarget.query, false, searchTarget.options?.caseSensitive, searchTarget.options); }
+    catch { setEditorFindMatchError("正则匹配超出执行限制，请简化表达式。"); }
     if (matches.length === 0) {
       const terms = Array.from(new Set(searchTarget.query.trim().split(/\s+/).filter(Boolean)));
-      if (terms.length > 1) {
+      if (terms.length > 1 && !searchTarget.options?.regex) {
         matches = terms
-          .flatMap((term) => findSearchMatches(editor.state.doc, term))
+          .flatMap((term) => findSearchMatches(editor.state.doc, term, false, searchTarget.options?.caseSensitive, searchTarget.options))
           .sort((a, b) => a.from - b.from || a.to - b.to)
           .filter((match, index, all) => index === 0 || match.from !== all[index - 1].from || match.to !== all[index - 1].to);
       }
@@ -1905,16 +1926,10 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       setSearchHighlights(editor, [], 0);
       const input = titleInputRef.current;
       const titleText = title ?? "";
-      const loweredTitle = titleText.toLocaleLowerCase();
-      let index = loweredTitle.indexOf(searchTarget.query.toLocaleLowerCase());
-      let length = searchTarget.query.length;
-      if (index < 0) {
-        const term = searchTarget.query.trim().split(/\s+/).find((part) => loweredTitle.includes(part.toLocaleLowerCase()));
-        if (term) {
-          index = loweredTitle.indexOf(term.toLocaleLowerCase());
-          length = term.length;
-        }
-      }
+      const titleMatch = findTextMatches(titleText, searchTarget.query, searchTarget.options)[0]
+        ?? (!searchTarget.options?.regex ? searchTarget.query.trim().split(/\s+/).flatMap(term => findTextMatches(titleText, term, searchTarget.options))[0] : undefined);
+      const index = titleMatch?.from ?? -1;
+      const length = titleMatch ? titleMatch.to - titleMatch.from : 0;
       if (input && index >= 0) {
         input.focus({ preventScroll: true });
         input.setSelectionRange(index, index + length);
@@ -1922,7 +1937,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
       }
     }
     onSearchTargetConsumed?.(searchTarget.requestId);
-  }, [editor, jumpToBookmark, noteId, onSearchTargetConsumed, revealSearchMatch, searchTarget, title]);
+  }, [editor, jumpToBookmark, noteId, onSearchTargetConsumed, revealSearchMatch, searchTarget, title, regexEngine.ready]);
 
   // 宽度变化会让软换行重排。编辑且光标可见时锚定光标；布局按钮暂时
   // 获得焦点时延续该锚点。只读或光标移出视口后改用顶部第一个可见块。
@@ -3770,7 +3785,13 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
           {!readonly && <button type="button" className="editor-find-replace-toggle" onClick={() => setEditorReplaceOpen(open => !open)} aria-expanded={editorReplaceOpen} aria-label="显示替换">替换</button>}
           <button type="button" onClick={() => { closeEditorFind(); editor.commands.focus(); }} title="关闭查找" aria-label="关闭查找">×</button>
           </div>
-          <div className="editor-find-options"><span className="search-scope-label">当前文档</span><label><input type="checkbox" checked={editorFindCaseSensitive} onChange={event => setEditorFindCaseSensitive(event.target.checked)} />区分大小写</label></div>
+          <div className="editor-find-options"><span className="search-scope-label">当前文档</span>
+            <label><input type="checkbox" checked={editorFindCaseSensitive} onChange={event => setEditorFindCaseSensitive(event.target.checked)} />区分大小写</label>
+            <label title="匹配完整单词，不匹配单词中的一部分"><input type="checkbox" checked={editorFindWholeWord} onChange={event => setEditorFindWholeWord(event.target.checked)} />全词匹配</label>
+            <label><input type="checkbox" checked={editorFindRegex} onChange={event => setEditorFindRegex(event.target.checked)} />正则表达式（Perl）</label>
+          </div>
+          {editorFindError && <p className="search-pattern-error" role="alert">{editorFindError}</p>}
+          {editorFindRegex && <small className="search-pattern-help">^word 行首 · word$ 行尾 · foo|bar 任一 · 替换支持 $1、$&#123;name&#125;、$&amp;</small>}
           {editorReplaceOpen && !readonly && <>
             <div className="editor-find-row">
               <input ref={editorReplaceInputRef} aria-label="替换为" placeholder="替换为（留空则删除）" value={editorReplaceValue} onChange={event => { setEditorReplaceValue(event.target.value); setEditorReplaceMessage(""); }}
@@ -3778,7 +3799,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
               <button type="button" className="editor-replace-action" disabled={!searchMatches.length} onClick={() => replaceEditorText(false)}>替换当前</button>
               <button type="button" className="editor-replace-action" disabled={!searchMatches.length} onClick={() => replaceEditorText(true)}>全部替换</button>
             </div>
-            <div className="editor-replace-status" role="status"><span>{editorReplaceMessage || "普通文本匹配；仅替换当前正文"}</span>
+            <div className="editor-replace-status" role="status"><span>{editorReplaceMessage || (editorFindRegex ? "Perl 正则匹配；仅替换当前正文" : "普通文本匹配；仅替换当前正文")}</span>
               {editorReplaceMessage.startsWith("已替换") && <button type="button" className="editor-replace-action" onClick={() => editor.commands.undo()}>撤销替换</button>}
             </div>
           </>}

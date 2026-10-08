@@ -136,7 +136,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || url.pathname === "/__import") return;
 
-  if (url.pathname.startsWith("/pdfjs-cmaps/")) {
+  if (url.pathname.startsWith("/pdfjs-cmaps/") || /^\\/assets\\/[^/]+\\.wasm$/.test(url.pathname)) {
     event.respondWith(cacheFirst(request));
     return;
   }

@@ -149,11 +149,12 @@ function App() {
   } = useNotes(startupNoteIdRef.current, !restoreWorkspaceInsteadOfNote);
 
   const batchDelete = useNotesStore((s) => s.batchDelete);
-  const { search, results, query, setQuery, clear: clearSearch } = useSearch();
+  const { search, results, query, setQuery, error: searchError, clear: clearSearch } = useSearch();
   const [docResults, setDocResults] = useState<Awaited<ReturnType<typeof api.docs.searchSummaries>> | null>(null);
   const [searchCancelRequestId, setSearchCancelRequestId] = useState(0);
   const [docSearchText, setDocSearchText] = useState("");
   const [docSearching, setDocSearching] = useState(false);
+  const [docSearchError, setDocSearchError] = useState("");
   const docSearchRequestIdRef = useRef(0);
   const [editorSearchTarget, setEditorSearchTarget] = useState<SearchNavigationTarget | null>(null);
   const [externalNoteConflict, setExternalNoteConflict] = useState(false);
@@ -298,9 +299,10 @@ function App() {
 
   useNoteSessionBoundary(selectedNote?.id ?? null, setAutoSaveNoteId);
 
-  const handleDocSearch = useCallback(async (q: { text: string; storagePath?: string; docType?: DocType; concept?: string }) => {
+  const handleDocSearch = useCallback(async (q: import("./components/SearchBar").GlobalSearchQuery) => {
     const requestId = ++docSearchRequestIdRef.current;
     clearSearch();
+    setDocSearchError("");
     if (!q.text && !q.storagePath && !q.docType && !q.concept) {
       setDocResults(null);
       setDocSearchText("");
@@ -317,7 +319,7 @@ function App() {
       if (requestId !== docSearchRequestIdRef.current) return;
       // Search all documents unless explicit document filters are active.
       if (!q.storagePath && !q.docType && !q.concept) {
-        await search(q.text);
+        await search(q.text, q.options);
         if (requestId === docSearchRequestIdRef.current) setDocResults(null);
         return;
       }
@@ -326,6 +328,7 @@ function App() {
         storagePath: q.storagePath,
         docType: q.docType,
         concept: q.concept,
+        options: q.options,
       });
       if (requestId === docSearchRequestIdRef.current) {
         setDocResults(notes);
@@ -333,6 +336,7 @@ function App() {
     } catch (error) {
       if (requestId === docSearchRequestIdRef.current) {
         setDocResults([]);
+        setDocSearchError(`搜索失败：${String(error)}`);
         console.error("[App] 搜索前保存或文档搜索失败:", error);
       }
     } finally {
@@ -419,7 +423,7 @@ function App() {
   });
   const HIDDEN_KEY = "nr:sidebarHidden";
   const [searchExpanded, setSearchExpanded] = useState(false);
-  const globalSearchQueryRef = useRef<{ text: string; storagePath?: string; docType?: DocType; concept?: string }>({ text: "" });
+  const globalSearchQueryRef = useRef<import("./components/SearchBar").GlobalSearchQuery>({ text: "" });
   const headerSearchInputRef = useRef<HTMLInputElement>(null);
   const globalSearchRestoreFocusRef = useRef<HTMLElement | null>(null);
   const openGlobalSearch = useCallback((event?: ReactMouseEvent<HTMLElement>) => {
@@ -972,13 +976,14 @@ function App() {
   };
 
   // ── 清除搜索状态（搜索结果点击 / 侧栏选择时调用）──
-  const clearSearchAndSelect = useCallback((note: Note, keepSearch = false, searchTerm = "") => {
-    if (searchTerm.trim()) {
+  const clearSearchAndSelect = useCallback((note: Note, keepSearch = false, searchTerm = "", options?: import("./lib/search-matching").SearchOptions) => {
+    if (options?.regex ? searchTerm : searchTerm.trim()) {
       searchRequestIdRef.current += 1;
       setEditorSearchTarget({
         noteId: note.id,
-        query: searchTerm.trim(),
+        query: options?.regex ? searchTerm : searchTerm.trim(),
         requestId: searchRequestIdRef.current,
+        options,
       });
     }
     if (!keepSearch) {
@@ -1923,13 +1928,15 @@ function App() {
       <SearchBar inputRef={headerSearchInputRef} cancelRequestId={searchCancelRequestId}
         initialQuery={globalSearchQueryRef.current} onQueryChange={query => { globalSearchQueryRef.current = query; }}
         onSearch={search} onDocSearch={handleDocSearch} onEscape={dismissSearchResults} />
+      {(searchError || docSearchError) && <p className="search-pattern-error" role="alert">{searchError || docSearchError}</p>}
       {query || docResults ? <SearchResultsPanel notes={docResults ?? results.notes}
-        searchTerm={docResults ? docSearchText : query} searching={docSearching} onClose={dismissSearchResults}
+        searchTerm={docResults ? docSearchText : query} options={globalSearchQueryRef.current.options} searching={docSearching} onClose={dismissSearchResults}
         onSelectNote={(summary, keepSearch, term) => {
           if (!keepSearch) { setSearchCancelRequestId(id => id + 1); docSearchRequestIdRef.current += 1; }
           const request = ++searchRequestIdRef.current;
+          const options = { ...globalSearchQueryRef.current.options };
           void api.notes.get(summary.id).then(note => {
-            if (note && searchRequestIdRef.current === request) clearSearchAndSelect(note, keepSearch, term);
+            if (note && searchRequestIdRef.current === request) clearSearchAndSelect(note, keepSearch, term, options);
           }).catch(reason => useNotesStore.setState({ error: `打开搜索结果失败：${String(reason)}` }));
         }} />
         : <p className="workspace-dialog-empty">搜索全部文档；加密正文不会出现在结果中。</p>}

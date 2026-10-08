@@ -7,6 +7,7 @@ import { addFrontendSettingsToBackup, withFrontendSettings } from "./backup-user
 import { parseJsonAsync, stringifyJsonAsync } from "./data-transform-client";
 import { validateBackup } from "./backup-validation";
 import { assertRestoreContext, withBackupRestore, type RestoreContext } from "./backup-restore-coordination";
+import type { SearchOptions } from "./search-matching";
 
 /**
  * API 层 — 统一接口，底层自动适配 Tauri IPC / IndexedDB
@@ -75,7 +76,7 @@ export const api = {
 
     search: (query: string) =>
       adapter().then((a) => searchWebNotes(a, query)),
-    searchSummaries: (query: string) => adapter().then((a) => searchWebNoteSummaries(a, query)),
+    searchSummaries: (query: string, options?: SearchOptions) => adapter().then((a) => searchWebNoteSummaries(a, query, options)),
 
     listByTag: (tag: string) =>
       adapter().then((a) => a.getNotesByTag(tag)),
