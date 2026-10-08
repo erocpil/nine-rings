@@ -376,21 +376,21 @@ html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [d
 /* Calm's bean-green page, with darker green chrome and muted ink colours. */
 :root:is([data-interface-style="calm"], [data-interface-style="calm-compact"]):not(.theme-dark),
 .interface-style-preview:is(.preview-calm, .preview-calm-compact) {
-  --bg: #dde8d8;
-  --surface: #d2dfcd;
-  --border: #b2c1ac;
+  --bg: #e8f0e3;
+  --surface: #e0eadb;
+  --border: #bdcbb7;
   --text: #29372c;
   --text-secondary: #586953;
   --accent: #416849;
   --accent-hover: #305539;
   --link-color: #416849;
   --link-hover: #305539;
-  --hover-bg: #cedfc7;
-  --active-bg: #c7dbc0;
-  --accent-bg: #c7dbc0;
-  --code-bg: #d4e1cf;
-  --activeline-bg: #c7dbc080;
-  --drawer-surface: #d2dfcd;
+  --hover-bg: #dce9d5;
+  --active-bg: #d4e4cb;
+  --accent-bg: #d4e4cb;
+  --code-bg: #e1ecdc;
+  --activeline-bg: #d4e4cb80;
+  --drawer-surface: #e0eadb;
   --syntax-keyword-color: #7c5047;
   --syntax-string-color: #356746;
   --syntax-value-color: #856628;

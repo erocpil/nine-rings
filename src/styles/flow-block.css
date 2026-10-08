@@ -1,0 +1,121 @@
+.flow-block-wrap .code-block-frame {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.flow-block-preview {
+  min-height: 80px;
+}
+.flow-block-preview[hidden] {
+  display: none;
+}
+.flow-block-content {
+  --flow-inset: 42px;
+  padding: 16px 20px;
+  font-family: var(--editor-font-family);
+  font-size: var(--editor-font-size);
+  line-height: var(--editor-line-height);
+  color: var(--text);
+  background: var(--bg);
+  border-radius: 0 0 9px 9px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.flow-block-content .flow-prose {
+  padding: 0;
+  min-height: 0;
+  white-space: normal;
+}
+.flow-stages {
+  position: relative;
+}
+.flow-stages::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 15px;
+  bottom: 0;
+  border-inline-start: 1px dashed var(--border);
+  pointer-events: none;
+}
+.flow-step {
+  position: relative;
+  padding-inline-start: var(--flow-inset);
+}
+.flow-step + .flow-step {
+  margin-top: 24px;
+}
+.flow-step-number {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 3px;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  color: var(--accent);
+  background: var(--bg);
+  font: 600 13px/24px var(--editor-font-family);
+  text-align: center;
+  box-sizing: border-box;
+}
+.flow-block-content.editor-content .ProseMirror.flow-prose > :first-child {
+  margin-top: 0;
+}
+.flow-block-content.editor-content .ProseMirror.flow-prose > :last-child {
+  margin-bottom: 0;
+}
+.flow-block-content.editor-content
+  .ProseMirror.flow-prose
+  > :is(h1, h2, h3, h4, h5, h6) {
+  margin-bottom: 12px;
+}
+.flow-block-content.editor-content
+  .ProseMirror.flow-prose
+  > :is(h1, h2, h3, h4, h5, h6):not(:first-child) {
+  margin-top: 20px;
+}
+.flow-block-content.editor-content .ProseMirror.flow-prose > p {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+.flow-block-content.editor-content .ProseMirror.flow-prose > :is(ul, ol) {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+.flow-block-content.editor-content
+  .ProseMirror.flow-prose
+  > :is(.blockquote-wrap, .code-block-wrap, .tableWrapper, .nr-details) {
+  margin-block: 12px;
+  margin-inline-start: 0;
+}
+.flow-block-content .block-workspace-open {
+  display: none;
+}
+.flow-block-content .flow-prose + .flow-stages,
+.flow-block-content .flow-stages + .flow-prose {
+  margin-top: 24px;
+}
+.flow-block-empty,
+.flow-block-error {
+  padding: 18px;
+  color: var(--text-secondary);
+  white-space: normal;
+}
+.flow-block-error pre {
+  white-space: pre-wrap;
+}
+@media (max-width: 768px) {
+  .flow-block-content {
+    --flow-inset: 34px;
+    padding: 12px 10px;
+  }
+  .flow-step + .flow-step {
+    margin-top: 20px;
+  }
+}
+
+.vr-note .flow-block-wrap {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}

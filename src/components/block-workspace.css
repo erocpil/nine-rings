@@ -96,3 +96,9 @@
   .mermaid-diagram-interactive { padding: 50px 8px 10px; }
   .mermaid-diagram-controls { top: 6px; right: 6px; }
 }
+.block-workspace-body.flow-edit-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.flow-edit-split > .codemirror-block-editor { min-width: 0; }
+.flow-workspace-preview { min-width: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+@media (max-width: 768px) {
+  .block-workspace-body.flow-edit-split { grid-template-columns: minmax(0, 1fr); }
+}

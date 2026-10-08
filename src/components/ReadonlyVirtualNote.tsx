@@ -1,3 +1,4 @@
+import { DeferredFlowBlock } from "./DeferredFlowBlock";
 import { flowBlockAttributes, flowHeadingLevel } from "../lib/flow-presentation";
 import { useDocumentActive } from "./RetainedDocument";
 import { ReadonlyImage } from "./ReadonlyImage";
@@ -232,48 +233,50 @@ export function renderReadonlyBlock(
       );
     }
     case "codeBlock": {
-      const { collapsed, isMermaid, showDiagram, wrap } = codeBlockDisplay(node.attrs, state, defaultWrap);
+      const { collapsed, isMermaid, showDiagram, isFlow, showFlow, wrap } = codeBlockDisplay(node.attrs, state, defaultWrap);
       const lineNumbers = codeLineNumbersEnabled();
       const lines = node.textContent.split("\n");
       let linePosition = pos + 1;
       return (
         <div
           {...attrs}
-          className={`code-block-wrap ${collapsed ? "collapsed" : ""}`}
+          className={`code-block-wrap ${isFlow ? "flow-block-wrap" : ""} ${collapsed ? "collapsed" : ""}`}
           data-code-wrap={String(wrap)}
         >
-          <div className="vr-code-toolbar" contentEditable={false} data-diagram={isMermaid && showDiagram ? "true" : undefined}>
-            <span>{node.attrs.title || "代码"}</span>
+          <div className="vr-code-toolbar" contentEditable={false} data-diagram={(isMermaid && showDiagram || isFlow && showFlow) ? "true" : undefined}>
+            <span>{node.attrs.title || (isFlow ? "流程" : "代码")}</span>
             <span aria-label="代码语言">{CODE_LANGUAGE_OPTIONS.find(option => option.value === (normalizeCodeLanguage(node.attrs.language) ?? ""))?.label}</span>
+            {isFlow && <button type="button" aria-label={showFlow ? "显示 Flow 源码" : "显示 Flow 流程"} aria-pressed={showFlow} onClick={() => update(pos, { diagram: !showFlow })}>{showFlow ? "源码" : "流程"}</button>}
             {isMermaid && <button type="button" aria-label={showDiagram ? "显示 Mermaid 源码" : "显示 Mermaid 图形"} aria-pressed={showDiagram} onClick={() => update(pos, { diagram: !showDiagram })}>{showDiagram ? "源码" : "图形"}</button>}
             {isMermaid && <span data-mermaid-controls hidden={!showDiagram || collapsed} />}
-            <button hidden={isMermaid && showDiagram} type="button" aria-label={lineNumbers ? "隐藏代码行号" : "显示代码行号"} aria-pressed={lineNumbers} onClick={() => saveBlockWorkspacePreferences({ lineNumbers: !lineNumbers })}>行号</button>
+            <button hidden={isMermaid && showDiagram || isFlow && showFlow} type="button" aria-label={lineNumbers ? "隐藏代码行号" : "显示代码行号"} aria-pressed={lineNumbers} onClick={() => saveBlockWorkspacePreferences({ lineNumbers: !lineNumbers })}>行号</button>
             <button
               type="button"
               onClick={() => void copyToClipboard(node.textContent)}
             >
-              复制代码
+              {isFlow ? "复制流程源码" : "复制代码"}
             </button>
             <button
               type="button"
               aria-pressed={wrap}
-              hidden={isMermaid && showDiagram}
+              hidden={isMermaid && showDiagram || isFlow && showFlow}
               onClick={() => update(pos, { wrap: !wrap })}
             >
               换行
             </button>
-            <button type="button" className="block-workspace-open" data-workspace-position={pos} title="放大阅读代码块" aria-label="放大阅读代码块"><ToolbarIcon name="expand" /></button>
+            <button type="button" className="block-workspace-open" data-workspace-position={pos} title={isFlow ? "放大阅读流程块" : "放大阅读代码块"} aria-label={isFlow ? "放大阅读流程块" : "放大阅读代码块"}><ToolbarIcon name="expand" /></button>
             <button
               type="button"
-              aria-label={collapsed ? "展开代码块" : "折叠代码块"}
+              aria-label={collapsed ? `展开${isFlow ? "流程" : "代码"}块` : `折叠${isFlow ? "流程" : "代码"}块`}
               aria-expanded={!collapsed}
               onClick={() => update(pos, { collapsed: !collapsed })}
             >
               <EditorFoldIcon expanded={!collapsed} />
             </button>
           </div>
+          {isFlow && <DeferredFlowBlock source={node.textContent} visible={showFlow && !collapsed} />}
           {isMermaid && <DeferredMermaidDiagram source={node.textContent} visible={showDiagram && !collapsed} />}
-          {!collapsed && !showDiagram && (
+          {!collapsed && !showDiagram && !showFlow && (
             <div className="code-block-inner">
               <pre>
                 <code>{lineNumbers ? lines.map((line, index) => {
@@ -329,7 +332,7 @@ export function ReadonlyVirtualNote(
   const [folds, setFolds] = useState(
     () => new Set(props.sensitive ? [] : sessionHeadingFoldStore.load(noteId)?.collapsedKeys ?? []),
   );
-  const states = useMemo(() => props.sensitive ? new Map<number, BlockState>() : readingBlockSession(noteId, contentVersion), [noteId, contentVersion, props.sensitive]);
+  const states = useMemo(() => props.sensitive ? new Map<number, BlockState>() : readingBlockSession(noteId, props.readingBlockVersion ?? contentVersion), [noteId, contentVersion, props.readingBlockVersion, props.sensitive]);
   const sections = useMemo(() => extractHeadingSections(doc), [doc]);
   const presentationLevel = flowHeadingLevel(props.content.metadata);
   const flowAttributes = useMemo(() => flowBlockAttributes(doc, presentationLevel), [doc, presentationLevel]);

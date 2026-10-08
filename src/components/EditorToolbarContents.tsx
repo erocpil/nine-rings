@@ -1,3 +1,4 @@
+import { FLOW_BLOCK_TEMPLATE } from "../lib/flow-block";
 import { resetTableColumnWidths } from "../extensions/ContentSizedTable";
 import { DisclosureIcon } from "./DisclosureIcon";
 import React, { type ReactNode, type RefObject } from "react";
@@ -131,10 +132,17 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     editor.chain().focus().toggleBlockquote().run();
     if (editor.state.doc === before) editor.chain().focus().setNode("blockquote").run();
   };
+  const insertFlow = () => {
+    editor.chain().focus().insertContent([
+      { type: "codeBlock", attrs: { language: "flow" }, content: [{ type: "text", text: FLOW_BLOCK_TEMPLATE }] },
+      { type: "paragraph" },
+    ]).run();
+  };
   const clearTextFormatting = () => {
     editor.chain().focus().unsetAllMarks().run();
   };
   const moreActions = (<>
+    <button className="menu-dropdown-item" disabled={readonly} onClick={() => { insertFlow(); closeMore(); }} type="button">插入流程块</button>
     {isMinimalToolbar && <button className="menu-dropdown-item" disabled={readonly || editor.isActive("codeBlock") || !editor.can().setHardBreak()} onClick={() => { editor.chain().focus().setHardBreak().run(); closeMore(); }} type="button"><ToolbarIcon name="lineBreak" />块内换行</button>}
     {isMinimalToolbar && <button className="menu-dropdown-item" disabled={readonly} onClick={() => { closeMore(); actions.openEditorReplace(); }} type="button"><ToolbarIcon name="search" />查找与替换</button>}
     {isMobileToolbarViewport && <button className="menu-dropdown-item" disabled={readonly} onClick={() => { clearTextFormatting(); closeMore(); }} type="button"><ToolbarIcon name="erase" />清除格式</button>}
@@ -335,6 +343,10 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
               onClick={handleToggleCodeBlock}
               type="button"
             >⏹ 代码块</button>
+            <button type="button" className="menu-dropdown-item" disabled={readonly} onMouseDown={event => event.preventDefault()} onClick={() => {
+              insertFlow();
+              setBlockOpen(false);
+            }}>流程块</button>
             {(editor.isActive("codeBlock") || editor.isActive("blockquote")) && (
               <button
                 className="menu-dropdown-item"

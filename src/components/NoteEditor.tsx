@@ -1,3 +1,4 @@
+import { markdownContentFingerprint } from "../lib/external-markdown-source";
 import { FlowPresentation, flowPresentationKey } from "../extensions/FlowPresentation";
 import { flowHeadingLevel } from "../lib/flow-presentation";
 import { useDocumentActive } from "./RetainedDocument";
@@ -284,6 +285,7 @@ export interface NoteEditorProps {
   title: string | null;
   content: DeltaOps;
   contentVersion?: string;
+  readingBlockVersion?: string;
   pdfDocumentInfo?: PdfDocumentInfo;
   pdfExportRequestId?: number;
   tags: string[];
@@ -449,12 +451,13 @@ function DocumentEditor(props: NoteEditorProps) {
     window.addEventListener("storage", sync);
     return () => { window.removeEventListener(READONLY_RENDERING_EVENT, sync); window.removeEventListener("storage", sync); };
   }, []);
-  const readingSource = useMemo(() => {
-    if (!experimental || !props.readonly || props.pdfExcerptSource || props.epubExcerptSource) return null;
+  const bodySource = useMemo(() => {
     // Readonly/metadata saves update updated_at too. They must not remount a
     // reader with identical text and discard an open panel or native selection.
     return JSON.stringify(isDelta(props.content) ? { ops: props.content.ops, metadata: { sourceFormat: props.content.metadata?.sourceFormat } } : props.content);
-  }, [experimental, props.readonly, props.pdfExcerptSource, props.epubExcerptSource, props.content]);
+  }, [props.content]);
+  const readingBlockVersion = useMemo(() => markdownContentFingerprint(bodySource), [bodySource]);
+  const readingSource = experimental && props.readonly && !props.pdfExcerptSource && !props.epubExcerptSource ? bodySource : null;
   const readingDocument = useMemo(() => {
     if (!readingSource) return null;
     readonlySchema ??= getSchema([
@@ -465,11 +468,11 @@ function DocumentEditor(props: NoteEditorProps) {
     const doc = buildReadonlyDocument(JSON.parse(readingSource), readonlySchema);
     return doc ? { doc, key: ++readonlyDocumentSequence } : null;
   }, [readingSource]);
-  if (readingDocument && !full && !exportRequested) return <ReadonlyVirtualNote {...props} key={`${props.noteId}:${readingDocument.key}`} doc={readingDocument.doc} onFallback={(selectAll = false) => { setSelectAllOnOpen(selectAll); setFull(true); }} />;
-  return <FullNoteEditor {...props} initialPdfExportRequest={exportRequested} selectAllOnOpen={selectAllOnOpen} />;
+  if (readingDocument && !full && !exportRequested) return <ReadonlyVirtualNote {...props} readingBlockVersion={readingBlockVersion} key={`${props.noteId}:${readingDocument.key}`} doc={readingDocument.doc} onFallback={(selectAll = false) => { setSelectAllOnOpen(selectAll); setFull(true); }} />;
+  return <FullNoteEditor {...props} readingBlockVersion={readingBlockVersion} initialPdfExportRequest={exportRequested} selectAllOnOpen={selectAllOnOpen} />;
 }
 
-function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
+function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTitleBar = false, titleSecurityAction, saveIssue, onOpenSaveIssue, sensitive = false, focusToolbarTarget, onFlush, onOpenSettings, onOpenProperties, noteId, title, content, contentVersion = "", readingBlockVersion = contentVersion, pdfDocumentInfo, pdfExportRequestId, initialPdfExportRequest, selectAllOnOpen, focusMode, showLineNumbers, showStatusBlockNumber, showStatusBar, readonlyHeadingFoldInFocusMode, vimModeEnabled, defaultCodeBlockWrap, highlightActiveLine, useCustomContextMenu, cjkLatinSpacing, editorFontSize, onEditorFontSizeChange, onTitleChange, onContentChange, tags, onTagsChange, readonly, onReadonlyChange, onVersionOpen, onFocusModeChange, onStickyTitleChange, onOutlineAvailabilityChange, onBookmarkCountChange, outlineRequestId, bookmarkRequestId, saveStatus, searchTarget, onSearchTargetConsumed, pdfExcerptSource, onOpenPdfExcerpt, epubExcerptSource, onOpenEpubExcerpt }: NoteEditorProps & { initialPdfExportRequest?: boolean; selectAllOnOpen?: boolean }) {
   const [documentSerializer] = useState(() => new IncrementalDocumentSerializer());
   const noteEditorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
@@ -964,7 +967,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         defaultWrap: defaultCodeBlockWrap,
       }),
       CollapsibleBlockquote,
-      ReadingBlockSession.configure({ noteId, version: contentVersion, sensitive }),
+      ReadingBlockSession.configure({ noteId, version: readingBlockVersion, sensitive }),
       createReadonlyDocumentGuard(() => readonlyRef.current),
       StructuredBlockExit,
       CodeBlockIndent,

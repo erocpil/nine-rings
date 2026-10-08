@@ -16,10 +16,15 @@ for (const width of [1280, 390]) {
       const { useNotesStore } = await import(/* @vite-ignore */ storePath);
       const notes = await api.docs.search({});
       const note = notes.find((item: { title: string }) => item.title === FLOW_SAMPLE_TITLE);
-      useNotesStore.getState().selectNote(note);
+      const legacyPath = "/src/lib/flow-presentation-sample-v1.md?raw";
+      const parserPath = "/src/lib/md-parser.ts";
+      const { default: markdown } = await import(/* @vite-ignore */ legacyPath);
+      const { mdToDelta } = await import(/* @vite-ignore */ parserPath);
+      const legacy = await api.notes.create({ date: "2026-10-08", title: "旧版流程兼容", storagePath: "ideas", content: { ...mdToDelta(markdown), metadata: { presentationMode: "flow", flowHeadingLevel: 2 } } });
+      useNotesStore.getState().selectNote(legacy);
       const converterPath = "/src/lib/delta-converter.ts";
       const { deltaToProseMirror } = await import(/* @vite-ignore */ converterPath);
-      return { id: note.id, document: deltaToProseMirror(note.content), path: note.storagePath };
+      return { id: legacy.id, document: deltaToProseMirror(legacy.content), path: legacy.storagePath };
     });
     expect(seed.path).toBe("ideas");
     if (width < 769 && await page.locator(".sidebar-overlay.active").count()) {
@@ -101,7 +106,7 @@ test("局部只读流程保留全局阶段编号和深色配色", async ({ page 
     const { mdToDelta } = await import(/* @vite-ignore */ parserPath);
     const created = await api.notes.create({ date: "2026-10-08", title: "局部流程验证", storagePath: "ideas", content: {
       ...mdToDelta(Array.from({ length: 3 }, (_, index) => `## 阶段 ${index + 1}\n\n${("正文与阶段说明。\n\n").repeat(30)}`).join("\n\n")),
-      metadata: note.content.metadata,
+      metadata: { presentationMode: "flow", flowHeadingLevel: 2 },
     } });
     useNotesStore.getState().selectNote(created);
   });

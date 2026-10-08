@@ -10,11 +10,13 @@ assert.equal(normalizeCodeLanguage("TS"), "typescript");
 assert.equal(normalizeCodeLanguage("html"), "xml");
 assert.equal(normalizeCodeLanguage("plaintext"), null);
 assert.equal(normalizeCodeLanguage("MERMAID"), "mermaid");
+assert.equal(normalizeCodeLanguage("FLOW"), "flow");
+assert.deepEqual(highlightCode("## 阶段", "flow"), []);
 assert.equal(normalizeCodeLanguage("unsupported-language"), null);
 assert(CODE_LANGUAGE_OPTIONS.length <= 19, "only the curated common language set is exposed");
 assert.deepEqual(
   CODE_LANGUAGE_OPTIONS.map((option) => option.label),
-  ["C", "C#", "C++", "CSS", "Go", "HTML / XML", "Java", "JavaScript", "JSON", "Markdown", "Mermaid", "Python", "Rust", "Shell / Bash", "SQL", "text", "TypeScript", "YAML"],
+  ["C", "C#", "C++", "CSS", "Flow / 流程", "Go", "HTML / XML", "Java", "JavaScript", "JSON", "Markdown", "Mermaid", "Python", "Rust", "Shell / Bash", "SQL", "text", "TypeScript", "YAML"],
   "code languages stay alphabetically ordered",
 );
 

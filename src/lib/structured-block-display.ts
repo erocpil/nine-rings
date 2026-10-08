@@ -12,6 +12,8 @@ export function codeBlockDisplay(
     collapsed: override.collapsed ?? attrs.collapsed === true,
     wrap: override.wrap ?? (attrs.wrap === undefined ? defaultWrap : attrs.wrap !== false),
     isMermaid: language === "mermaid",
+    isFlow: language === "flow",
+    showFlow: language === "flow" && override.diagram !== false,
     showDiagram: language === "mermaid" && override.diagram !== false,
   };
 }

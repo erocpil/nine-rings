@@ -1,3 +1,4 @@
+import { DeferredFlowBlock } from "../components/DeferredFlowBlock";
 import { EditorFoldIcon } from "../components/EditorFoldIcon";
 import { NodeViewWrapper, NodeViewContent, type NodeViewProps } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
@@ -218,7 +219,7 @@ function changedCodeBlocks(document: ProseMirrorNode, ranges: ChangedRange[]) {
  *     </div>
  *   </NodeViewWrapper>
  */
-function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps) {
+function CodeBlockView({ node, editor, updateAttributes, getPos, extension }: NodeViewProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
@@ -232,7 +233,9 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
   const display = codeBlockDisplay(node.attrs);
   const code = node.textContent;
   const isMermaid = display.isMermaid;
-  const inWorkspace = Boolean(editor.view?.dom.closest(".block-workspace"));
+  const isFlow = display.isFlow;
+  const isRendered = isMermaid || isFlow;
+  const inWorkspace = extension.options.renderAsSource === true || Boolean(editor.view?.dom.closest(".block-workspace"));
   const [showDiagram, setShowDiagram] = useState(!inWorkspace);
   const codeTitle = display.title;
   const storedWrapEnabled = display.wrap;
@@ -261,7 +264,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
 
 
   useEffect(() => {
-    if (!nearViewport || collapsed || (isMermaid && showDiagram)) return;
+    if (!nearViewport || collapsed || (isRendered && showDiagram)) return;
     if (!showLineNumbers) {
       setLineHeights((current) => current.length === lineCount && current.every((height) => height === 0)
         ? current
@@ -299,7 +302,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
       resizeObserver?.disconnect();
       mutationObserver.disconnect();
     };
-  }, [code, lineCount, showLineNumbers, isMermaid, showDiagram, nearViewport, collapsed]);
+  }, [code, lineCount, showLineNumbers, isRendered, showDiagram, nearViewport, collapsed]);
 
   useEffect(() => {
     const syncEditable = () => {
@@ -331,7 +334,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
 
   return (
     <NodeViewWrapper
-      className={`code-block-wrap ${collapsed ? "collapsed" : ""}`}
+      className={`code-block-wrap ${isFlow ? "flow-block-wrap" : ""} ${collapsed ? "collapsed" : ""}`}
       data-indent={node.attrs.indent > 0 ? node.attrs.indent : undefined}
       data-code-wrap={wrapEnabled ? "true" : "false"}
       data-collapsed={collapsed ? "true" : "false"}
@@ -339,14 +342,14 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
       <div ref={wrapperRef} className="code-block-frame">
         <div
           className="code-block-toolbar"
-          data-diagram={isMermaid && showDiagram && !inWorkspace ? "true" : undefined}
+          data-diagram={isRendered && showDiagram && !inWorkspace ? "true" : undefined}
           data-pdf-exclude
           contentEditable={false}
         >
           <input
             className="code-block-title"
             value={codeTitle}
-            placeholder=""
+            placeholder={isFlow ? "流程" : ""}
             disabled={!editable}
             onMouseDown={(event) => event.stopPropagation()}
             onKeyDown={(event) => event.stopPropagation()}
@@ -355,16 +358,17 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
           />
           <div className="code-block-actions">
             {isMermaid && <span data-mermaid-controls hidden={!showDiagram || collapsed} />}
-            {isMermaid && !inWorkspace && <button
+            {isRendered && !inWorkspace && <button
               type="button"
               className={`code-block-wrap-toggle ${showDiagram ? "active" : ""}`}
-              aria-label={showDiagram ? "显示 Mermaid 源码" : "显示 Mermaid 图形"}
+              aria-label={showDiagram ? `显示 ${isFlow ? "Flow" : "Mermaid"} 源码` : `显示 ${isFlow ? "Flow" : "Mermaid"} ${isFlow ? "流程" : "图形"}`}
               aria-pressed={showDiagram}
               onMouseDown={event => event.preventDefault()}
               onClick={() => setShowDiagram(value => !value)}
-            >{showDiagram ? "源码" : "图形"}</button>}
+            >{showDiagram ? "源码" : isFlow ? "流程" : "图形"}</button>}
             <button
               type="button"
+              hidden={isRendered && showDiagram}
               className={`code-block-wrap-toggle ${showLineNumbers ? "active" : ""}`}
               aria-label={showLineNumbers ? "隐藏代码行号" : "显示代码行号"}
               aria-pressed={showLineNumbers}
@@ -380,6 +384,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
               onChange={language => updateAttributes({ language: language || null })}
             />
             <button
+              hidden={isRendered && showDiagram}
               className={`code-block-wrap-toggle ${wrapEnabled ? "active" : ""}`}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => {
@@ -397,12 +402,12 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
               onMouseDown={(event) => event.preventDefault()}
               onClick={handleCopy}
               type="button"
-              title="复制代码"
-              aria-label={copyError ? "复制代码失败" : copied ? "代码已复制" : "复制代码"}
+              title={isFlow ? "复制流程源码" : "复制代码"}
+              aria-label={copyError ? (isFlow ? "复制流程失败" : "复制代码失败") : copied ? (isFlow ? "流程已复制" : "代码已复制") : isFlow ? "复制流程源码" : "复制代码"}
             >
               {copyError ? "!" : copied ? "✓" : "⎘"}
             </button>
-            <button type="button" className="block-workspace-open" title="放大阅读代码块" aria-label="放大阅读代码块"
+            <button type="button" className="block-workspace-open" title={isFlow ? "放大阅读流程块" : "放大阅读代码块"} aria-label={isFlow ? "放大阅读流程块" : "放大阅读代码块"}
               onMouseDown={event => event.preventDefault()}
               onClick={event => openBlockWorkspace(editor, getPos(), event.currentTarget)}><ToolbarIcon name="expand" /></button>
             <button
@@ -417,14 +422,15 @@ function CodeBlockView({ node, editor, updateAttributes, getPos }: NodeViewProps
                 if (editable) updateAttributes({ collapsed: nextCollapsed });
               }}
               type="button"
-              aria-label={collapsed ? "展开代码块" : "折叠代码块"}
+              aria-label={collapsed ? `展开${isFlow ? "流程" : "代码"}块` : `折叠${isFlow ? "流程" : "代码"}块`}
               aria-expanded={!collapsed}
-              title={collapsed ? "展开代码块" : "折叠代码块"}
+              title={collapsed ? `展开${isFlow ? "流程" : "代码"}块` : `折叠${isFlow ? "流程" : "代码"}块`}
             ><EditorFoldIcon expanded={!collapsed} /></button>
           </div>
         </div>
+        {isFlow && <DeferredFlowBlock source={code} visible={showDiagram && !collapsed} />}
         {isMermaid && <DeferredMermaidDiagram source={code} visible={showDiagram && !collapsed} />}
-        <div className={`code-block-inner ${isMermaid && showDiagram ? "mermaid-source-hidden" : ""}`}>
+        <div className={`code-block-inner ${isRendered && showDiagram ? "mermaid-source-hidden" : ""}`}>
           <div
             className="code-block-gutter"
             style={{ display: showLineNumbers ? "block" : "none", width: `calc(${String(lineCount).length}ch + var(--code-line-number-padding, 8px))` }}
@@ -467,13 +473,14 @@ import { ReactNodeViewRenderer } from "@tiptap/react";
 interface CodeBlockLineNumberOptions {
   lineNumbersEnabled: boolean;
   defaultWrap: boolean;
+  renderAsSource: boolean;
 }
 
 export const CodeBlockLineNumbers = Node.create<CodeBlockLineNumberOptions>({
   name: "codeBlock",
 
   addOptions() {
-    return { lineNumbersEnabled: false, defaultWrap: true };
+    return { lineNumbersEnabled: false, defaultWrap: true, renderAsSource: false };
   },
 
   group: "block",

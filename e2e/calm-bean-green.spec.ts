@@ -31,16 +31,16 @@ for (const width of [390, 1280]) {
         );
       });
     expect(await tokens()).toEqual({
-      "--bg": "#dde8d8",
-      "--surface": "#d2dfcd",
+      "--bg": "#e8f0e3",
+      "--surface": "#e0eadb",
       "--text": "#29372c",
       "--accent": "#416849",
-      "--code-bg": "#d4e1cf",
+      "--code-bg": "#e1ecdc",
       "--syntax-keyword-color": "#7c5047",
     });
     await expect(page.locator(".note-editor-sticky")).toHaveCSS(
       "background-color",
-      "rgb(221, 232, 216)",
+      "rgb(232, 240, 227)",
     );
     await page.screenshot({
       path: testInfo.outputPath("calm-bean-green-light.png"),

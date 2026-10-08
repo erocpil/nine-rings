@@ -1,3 +1,4 @@
+import { DeferredFlowBlock } from "./DeferredFlowBlock";
 import { DisclosureIcon } from "./DisclosureIcon";
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { preserveReadingPositions } from "../lib/reading-position";
@@ -89,7 +90,10 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
   const body = useRef<HTMLDivElement>(null);
   const rootType = initial.type.name;
   const mermaidCodeBlock = rootType === "codeBlock" && normalizeCodeLanguage(initial.attrs.language) === "mermaid";
+  const flowCodeBlock = rootType === "codeBlock" && normalizeCodeLanguage(initial.attrs.language) === "flow";
   const [mode, setMode] = useState<"read" | "edit">(() => request.startInEditMode && !readonly ? "edit" : "read");
+  const [showFlowSource, setShowFlowSource] = useState(false);
+  const [flowPreview, setFlowPreview] = useState(true);
   const [showMermaidSource, setShowMermaidSource] = useState(false);
   const [mermaidView, setMermaidView] = useState<MermaidViewTransform>({ scale: 1, x: 0, y: 0 });
   const editable = !mermaidCodeBlock && mode === "edit" && !readonly;
@@ -129,6 +133,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
   const imageInput = useRef<HTMLInputElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const name = mermaidCodeBlock ? "图像"
+    : flowCodeBlock ? "流程块"
     : rootType === "codeBlock" ? "代码块"
     : rootType === "blockquote" ? "引用块"
     : rootType === "htmlDetails" ? "折叠区块"
@@ -140,10 +145,11 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
     sourceDocument.descendants((node, position) => {
       if (node.type.name !== rootType) return;
       if (mermaidCodeBlock && normalizeCodeLanguage(node.attrs.language) !== "mermaid") return;
+      if (flowCodeBlock && normalizeCodeLanguage(node.attrs.language) !== "flow") return;
       positions.push(position);
     });
     return positions;
-  }, [sourceDocument, rootType, mermaidCodeBlock]);
+  }, [sourceDocument, rootType, mermaidCodeBlock, flowCodeBlock]);
   const peers = selectedPositions.current ?? sameTypePeers;
   const peerIndex = peers.indexOf(position.current);
   const extensions = useMemo(() => [
@@ -151,7 +157,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
       extension.type === "node" || extension.type === "mark" || ["blockIndent", "codeBlockIndent", "fontSize", "orderedListLayout", "blockSelectAll"].includes(extension.name),
     ).map(extension => extension.name === "doc"
       ? extension.extend({ content: rootType })
-      : extension.configure({ ...extension.options })),
+      : extension.configure({ ...extension.options, ...(extension.name === "codeBlock" ? { renderAsSource: true } : {}) })),
     WorkspaceWhitespace, SearchHighlights,
     Extension.create({
       name: "blockWorkspaceScope",
@@ -210,7 +216,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
   };
   const preservePosition = (change: () => void) => {
     const element = body.current;
-    if (!element || !editor) { change(); return; }
+    if (!element || !editor || flowCodeBlock) { change(); return; }
     const rect = element.getBoundingClientRect();
     const pos = editor.view.posAtCoords({ left: rect.left + Math.min(80, rect.width / 2), top: rect.top + 8 })?.pos;
     const offset = pos === undefined ? 0 : editor.view.coordsAtPos(pos).top - rect.top;
@@ -400,6 +406,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
         event.preventDefault(); event.stopPropagation();
         if (sensitive) { setNotice("加密正文不参与查找。"); return; }
         if (mermaidCodeBlock && !editable) setShowMermaidSource(true);
+        if (flowCodeBlock && !editable) setShowFlowSource(true);
         setFindOpen(true); window.requestAnimationFrame(() => searchInput.current?.focus());
         return;
       }
@@ -410,10 +417,12 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
       {editable && rootType === "codeBlock" && vimModeEnabled && <span className="block-workspace-vim-mode" role="status">VIM {vimMode.toUpperCase()}</span>}
       <span className="block-workspace-header-spacer" aria-hidden="true" />
       <div className="block-workspace-view-controls">
-        {editable && rootType === "codeBlock" && <CodeLanguageSelect editable value={normalizeCodeLanguage(editor?.state.doc.firstChild?.attrs.language) ?? ""} onChange={language => editor?.commands.updateAttributes("codeBlock", { language: language || null })} />}
-        {rootType === "codeBlock" && (!mermaidCodeBlock || showMermaidSource) && <button type="button" aria-label={lineNumbers ? "隐藏代码行号" : "显示代码行号"} aria-pressed={lineNumbers} title="代码行号" onMouseDown={event => event.preventDefault()} onClick={() => {
+        {editable && rootType === "codeBlock" && !flowCodeBlock && <CodeLanguageSelect editable value={normalizeCodeLanguage(editor?.state.doc.firstChild?.attrs.language) ?? ""} onChange={language => editor?.commands.updateAttributes("codeBlock", { language: language || null })} />}
+        {rootType === "codeBlock" && (!mermaidCodeBlock || showMermaidSource) && (!flowCodeBlock || editable || showFlowSource) && <button type="button" aria-label={lineNumbers ? "隐藏代码行号" : "显示代码行号"} aria-pressed={lineNumbers} title="代码行号" onMouseDown={event => event.preventDefault()} onClick={() => {
           preservePosition(() => { setLineNumbers(!lineNumbers); saveBlockWorkspacePreferences({ lineNumbers: !lineNumbers }); });
         }}>行号</button>}
+        {flowCodeBlock && !editable && <button type="button" aria-label={showFlowSource ? "显示 Flow 流程" : "显示 Flow 源码"} onClick={() => { setFindOpen(false); setShowFlowSource(value => !value); }}>{showFlowSource ? "流程" : "源码"}</button>}
+        {flowCodeBlock && editable && <button type="button" aria-label="流程并排预览" aria-pressed={flowPreview} onClick={() => setFlowPreview(value => !value)}>并排预览</button>}
         {!mermaidCodeBlock && !readonly && <div role="group" aria-label="块模式">
           <button type="button" disabled={readonly || codeConflict !== null} aria-pressed={editable} aria-label={editable ? "切换到阅读模式" : "切换到编辑模式"} title={rootType === "codeBlock" ? `Tab 缩进，Shift+Tab 减少缩进；${isMacPlatform() ? "Cmd" : "Ctrl"}+Enter 退出到正文` : undefined} onClick={() => preservePosition(() => setMode(editable ? "read" : "edit"))}>{editable ? "阅读" : "编辑"}</button>
         </div>}
@@ -423,7 +432,7 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
       </div>
       {(saveStatus === "error" || saveStatus === "saving" || saveStatus === "dirty") && <span className="block-workspace-save" data-error={saveStatus === "error"} role="status" title="本机保存状态，不代表已完成备份">{saveStatus === "error" ? "保存失败" : "保存中…"}</span>}
       {iconButton("复制块", "copy", () => void copy())}
-      {!sensitive && !mermaidCodeBlock && iconButton("块内查找", "search", () => { setFindOpen(!findOpen); window.requestAnimationFrame(() => searchInput.current?.focus()); })}
+      {!sensitive && !mermaidCodeBlock && iconButton("块内查找", "search", () => { if (flowCodeBlock && !editable) setShowFlowSource(true); setFindOpen(!findOpen); window.requestAnimationFrame(() => searchInput.current?.focus()); })}
       <button type="button" aria-label="关闭块工作区" title="关闭" disabled={closing} onClick={() => void close()}><ToolbarIcon name="compress" /></button>
     </header>
     {findOpen && !sensitive && <div className="block-workspace-find" role="search" aria-label="当前块查找">
@@ -516,12 +525,12 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
         }} />
       <span>正文</span>
     </div>}
-    <div ref={body} className="block-workspace-body editor-content" style={{ fontSize: `${fontSize}px`, tabSize }} onPasteCapture={event => { if (!editable) event.preventDefault(); }} onBeforeInputCapture={event => { if (!editable) event.preventDefault(); }}>
+    <div ref={body} className={`block-workspace-body editor-content${flowCodeBlock && editable && flowPreview ? " flow-edit-split" : ""}`} style={{ fontSize: `${fontSize}px`, tabSize }} onPasteCapture={event => { if (!editable) event.preventDefault(); }} onBeforeInputCapture={event => { if (!editable) event.preventDefault(); }}>
       {editable && rootType === "codeBlock" ? (
         <Suspense fallback={<div className="block-workspace-code-loading" aria-busy="true" />}>
         <CodeMirrorBlockEditor vimEnabled={vimModeEnabled}
           value={codeConflict ?? editor?.state.doc.firstChild?.textContent ?? initial.textContent}
-          language={codeLanguage}
+          language={codeLanguage === "flow" ? "markdown" : codeLanguage}
           wrap={wrap}
           lineNumbers={lineNumbers}
           onUndo={() => { source.commands.undo(); }}
@@ -547,13 +556,15 @@ function BlockWorkspace({ source, vimModeEnabled = false, readonly, sensitive, s
           }}
         />
         </Suspense>
-      ) : mermaidCodeBlock && !showMermaidSource ? <MermaidDiagram
+      ) : flowCodeBlock && !showFlowSource ? <DeferredFlowBlock source={editor?.state.doc.firstChild?.textContent ?? initial.textContent} />
+        : mermaidCodeBlock && !showMermaidSource ? <MermaidDiagram
         source={editor?.state.doc.firstChild?.textContent ?? initial.textContent}
         interactive
         initialView={mermaidView}
         onViewChange={setMermaidView}
       />
         : <EditorContent editor={editor} />}
+      {flowCodeBlock && editable && flowPreview && <aside className="flow-workspace-preview" aria-label="流程块预览"><DeferredFlowBlock source={codeConflict ?? editor?.state.doc.firstChild?.textContent ?? initial.textContent} /></aside>}
     </div>
     {peers.length > 1 && <nav className="block-workspace-navigation" aria-label={request.selectedPositions ? "所选块导航" : mermaidCodeBlock ? "Mermaid 图形导航" : "同类块导航"}>
       <button type="button" disabled={closing || peerIndex <= 0} onClick={() => void nextBlock(-1)}><ToolbarIcon name="chevronLeft" />上一个{request.selectedPositions ? "块" : mermaidCodeBlock ? "图形" : name}</button>
