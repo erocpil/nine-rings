@@ -37,6 +37,10 @@ test.describe("搜索定位与编辑器布局锚点", () => {
     await page.getByRole("button", { name: "下一处匹配" }).click();
     await expect(page.locator(".editor-search-navigation")).toContainText("2 / 2");
     await expect(page.locator(".search-match-active")).toHaveCount(1);
+    await page.getByRole("button", { name: "关闭搜索高亮", exact: true }).click();
+    await expect(page.locator(".search-match")).toHaveCount(0);
+    await expect(page.locator(".editor-search-navigation")).toBeHidden();
+    await expect(editor).toContainText("unique-search-target");
   });
 
   test("专注模式搜索导航使用显式状态类保持可见", async ({ page }) => {

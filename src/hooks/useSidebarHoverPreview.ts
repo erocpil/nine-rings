@@ -7,7 +7,7 @@ import {
 } from "react";
 
 import { readDesktopSidebarState, saveDesktopSidebarState, type DesktopSidebarState } from "../lib/desktop-sidebar-state";
-type Panel = "tree" | "list" | "reader";
+type Panel = import("../lib/desktop-sidebar-state").DesktopSidebarPanel;
 interface Options {
   enabled: boolean;
   panel: Panel;

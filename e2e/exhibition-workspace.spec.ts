@@ -265,6 +265,12 @@ test("桌面展陈宽度和密度独立持久化，手机保持原布局", async
   await selectAppearance(page, "文本宽度", "wide");
   await expect(content).toHaveCSS("max-width", "100%");
   const wide = (await content.boundingBox())!.width;
+  const margins = await content.evaluate(element => {
+    const style = getComputedStyle(element);
+    return { left: parseFloat(style.marginLeft), right: parseFloat(style.marginRight) };
+  });
+  expect(margins.left).toBeGreaterThanOrEqual(4);
+  expect(margins.right).toBeCloseTo(margins.left * 2, 1);
   expect(Math.abs(standard - (narrow + wide) / 2)).toBeLessThan(1);
   await page.setViewportSize({ width: 1800, height: 1000 });
   const resizedWide = (await content.boundingBox())!.width;

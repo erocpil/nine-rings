@@ -6,6 +6,7 @@ const BACKED_UP_LOCAL_SETTINGS = [
   "nr:sidebarOrder",
   "nr:treeSidebarW",
   "nr:listSidebarW",
+  "nr:notesSidebarW",
   "nr:readerSidebarW",
   "nr:readerSidebarRatio",
   "nr:blockWorkspaceDisplay",

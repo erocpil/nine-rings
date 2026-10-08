@@ -25,7 +25,7 @@ export function SettingsWorkspaceLayout({
               ["left", "左侧"],
               ["right", "右侧"],
             ],
-            "文档树、文档列表与 PDF / EPUB 阅读分栏相对于正文的位置。",
+            "文档树、文档列表、随记与 PDF / EPUB 阅读分栏相对于正文的位置。",
           ],
           [
             "panelsSide",

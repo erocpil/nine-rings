@@ -131,6 +131,9 @@ function handleListEnter(editor: Editor): boolean {
     view.dispatch(state.tr.split($from.pos, 2).scrollIntoView());
     return true;
   }
+  if (!emptyItem && typeof item.attrs.taskChecked === "boolean") {
+    return editor.chain().splitListItem("listItem").updateAttributes("listItem", { taskChecked: false }).run();
+  }
   if (editor.commands.splitListItem("listItem")) return true;
   // Only a genuinely empty item may leave the list. Never lift a populated
   // item just because its final paragraph happens to be empty.

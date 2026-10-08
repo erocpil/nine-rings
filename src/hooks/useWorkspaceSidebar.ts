@@ -9,7 +9,7 @@ import {
 } from "react";
 import { MOBILE_VIEWPORT_QUERY } from "./useEdgeDrawer";
 
-type SidebarPanel = "tree" | "list" | "reader";
+type SidebarPanel = import("../lib/desktop-sidebar-state").DesktopSidebarPanel;
 interface Options {
   desktopPanel: SidebarPanel;
   setDesktopPanel: Dispatch<SetStateAction<SidebarPanel>>;
@@ -30,10 +30,11 @@ const readerAvailableWidth = () =>
   );
 const TREE_SIDEBAR_WIDTH_KEY = "nr:treeSidebarW";
 const LIST_SIDEBAR_WIDTH_KEY = "nr:listSidebarW";
-const sidebarWidthKey = (panel: "tree" | "list" | "reader") =>
+const NOTES_SIDEBAR_WIDTH_KEY = "nr:notesSidebarW";
+const sidebarWidthKey = (panel: SidebarPanel) =>
   panel === "reader"
     ? READER_SIDEBAR_WIDTH_KEY
-    : panel === "list"
+    : panel === "notes" ? NOTES_SIDEBAR_WIDTH_KEY : panel === "list"
       ? LIST_SIDEBAR_WIDTH_KEY
       : TREE_SIDEBAR_WIDTH_KEY;
 
@@ -162,6 +163,7 @@ export function useWorkspaceSidebar({
       readerRatioRef.current = null;
       localStorage.removeItem(TREE_SIDEBAR_WIDTH_KEY);
       localStorage.removeItem(LIST_SIDEBAR_WIDTH_KEY);
+      localStorage.removeItem(NOTES_SIDEBAR_WIDTH_KEY);
       applyPanelSidebarWidth(desktopPanel);
     };
     window.addEventListener("nr:reset-sidebar-widths", reset);

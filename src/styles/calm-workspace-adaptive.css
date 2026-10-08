@@ -1,4 +1,4 @@
-/* Long-document rhythm and actual reading-column adaptation, desktop calm only. */
+/* Long-document rhythm and reading-column adaptation for managed styles. */
 @media (min-width: 769px) and (pointer: fine) {
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
@@ -18,6 +18,18 @@
     > :has(+ :is(h1, h2, h3, h4, h5, h6)) {
     margin-bottom: var(--style-heading-gap, 28px);
   }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
+    .editor-content
+    .ProseMirror:not(.vr-block)
+    > :is(h1, h2, h3, h4, h5, h6):has(+ :is(h1, h2, h3, h4, h5, h6)) {
+    margin-bottom: clamp(10px, 0.4em, 14px);
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
+    .editor-content
+    .ProseMirror:not(.vr-block)
+    > :is(h1, h2, h3, h4, h5, h6) + :is(h1, h2, h3, h4, h5, h6) {
+    margin-top: clamp(10px, 0.4em, 14px);
+  }
   /* A collapsed heading's next heading can be a hidden child heading. Do not
      keep the expanded section gap just because that hidden node remains in
      the ProseMirror tree; all collapsed headings share the same compact row. */
@@ -33,6 +45,13 @@
     .vr-block
     > :last-child {
     margin-bottom: var(--style-heading-gap, 28px);
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
+    .editor-content
+    .vr-row[data-next-heading="true"]:has(.vr-block > :is(h1, h2, h3, h4, h5, h6))
+    .vr-block
+    > :last-child {
+    margin-bottom: clamp(10px, 0.4em, 14px);
   }
   html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
     .editor-content
@@ -252,6 +271,56 @@
     :is(.settings-feedback-close, .ui-operation-error button):focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: -2px;
+  }
+}
+/* Mobile headings use actual pixel rhythm instead of scaling the configured
+   desktop em value by H1/H2's larger font size. Text-to-heading stays clear;
+   adjacent headings remain compact. Apply the same rhythm to virtual reading. */
+@media (max-width: 768px) {
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
+    .editor-content
+    .ProseMirror
+    > :is(h1, h2, h3, h4, h5, h6) {
+    margin-top: 0;
+    margin-bottom: 8px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
+    .editor-content
+    .ProseMirror
+    > :not(:is(h1, h2, h3, h4, h5, h6)):has(+ :is(h1, h2, h3, h4, h5, h6)) {
+    margin-bottom: 16px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
+    .editor-content
+    .ProseMirror
+    > :is(h1, h2, h3, h4, h5, h6):has(+ :is(h1, h2, h3, h4, h5, h6)) {
+    margin-bottom: clamp(10px, 0.4em, 14px);
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
+    .editor-content
+    .ProseMirror
+    > :is(h1, h2, h3, h4, h5, h6):has(.editor-heading-fold.folded) {
+    margin-bottom: 8px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
+    .editor-content
+    .ProseMirror
+    > :is(h1, h2, h3, h4, h5, h6) + :is(h1, h2, h3, h4, h5, h6) {
+    margin-top: clamp(10px, 0.4em, 14px);
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
+    .editor-content
+    .vr-row[data-next-heading="true"]
+    .vr-block
+    > :last-child {
+    margin-bottom: 16px;
+  }
+  html:is([data-interface-style="calm"], [data-interface-style="calm-compact"], [data-interface-style="paper"], [data-interface-style="minimal"], [data-interface-style="nine-rings"], [data-interface-style="mono-aware"], [data-interface-style="yugen"], [data-interface-style="wabi-sabi"])
+    .editor-content
+    .vr-row[data-next-heading="true"]:has(.vr-block > :is(h1, h2, h3, h4, h5, h6))
+    .vr-block
+    > :last-child {
+    margin-bottom: clamp(10px, 0.4em, 14px);
   }
 }
 @media (prefers-reduced-motion: reduce) {

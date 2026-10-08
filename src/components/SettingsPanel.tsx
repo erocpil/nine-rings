@@ -1,3 +1,4 @@
+import { normalizeSidebarOrder, sidebarPanelLabel } from "../lib/desktop-sidebar-state";
 import { INTERFACE_STYLES, normalizeInterfaceStyle } from "../lib/interface-style";
 import { blockWorkspacePreferences, saveBlockWorkspacePreferences, BLOCK_WORKSPACE_DISPLAY_EVENT } from "../lib/block-display-settings";
 import { useConfirmation } from "./ConfirmationDialog";
@@ -155,7 +156,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
   }, []);
   const [panelOrder, setPanelOrder] = useState<string[]>(() => {
     const saved = localStorage.getItem("nr:sidebarOrder")?.split(",") ?? [];
-    return [...new Set(saved.filter((item) => ["tree", "list", "reader"].includes(item))), ...["tree", "list", "reader"].filter((item) => !saved.includes(item))];
+    return normalizeSidebarOrder(saved);
   });
   const [draggedPanel, setDraggedPanel] = useState<string | null>(null);
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -891,10 +892,10 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
                       setDraggedPanel(null);
                     }}>
                       <span className="sidebar-panel-order-position">{String(index + 1).padStart(2, "0")}</span>
-                      <span className="sidebar-panel-order-label">{panel === "tree" ? "文档树" : panel === "list" ? "文档列表" : "PDF / EPUB 阅读"}</span>
+                      <span className="sidebar-panel-order-label">{sidebarPanelLabel(panel)}</span>
                       <span className="sidebar-panel-order-actions">
-                        <button type="button" className="sidebar-panel-order-button" disabled={index === 0} onClick={() => movePanel(index, -1)} aria-label={`将${panel === "tree" ? "文档树" : panel === "list" ? "文档列表" : "PDF / EPUB 阅读"}上移`} title="上移">↑</button>
-                        <button type="button" className="sidebar-panel-order-button" disabled={index === panelOrder.length - 1} onClick={() => movePanel(index, 1)} aria-label={`将${panel === "tree" ? "文档树" : panel === "list" ? "文档列表" : "PDF / EPUB 阅读"}下移`} title="下移">↓</button>
+                        <button type="button" className="sidebar-panel-order-button" disabled={index === 0} onClick={() => movePanel(index, -1)} aria-label={`将${sidebarPanelLabel(panel)}上移`} title="上移">↑</button>
+                        <button type="button" className="sidebar-panel-order-button" disabled={index === panelOrder.length - 1} onClick={() => movePanel(index, 1)} aria-label={`将${sidebarPanelLabel(panel)}下移`} title="下移">↓</button>
                         <span className="sidebar-panel-order-grip" aria-label="拖动排序" title="拖动排序">⠿</span>
                       </span>
                     </div>
@@ -903,7 +904,7 @@ export function SettingsPanel({ open, onClose, onConfigChange, onImport, onMarkd
               </div>
               <div className="sidebar-settings-reset-grid">
                 <div className="sidebar-width-reset-card">
-                  <div><strong>分栏宽度</strong><span>恢复文档树、文档列表和阅读分栏的默认宽度</span></div>
+                  <div><strong>分栏宽度</strong><span>恢复文档树、文档列表、随记和阅读分栏的默认宽度</span></div>
                   <button type="button" className="settings-btn settings-btn-compact" onClick={() => window.dispatchEvent(new Event("nr:reset-sidebar-widths"))}>恢复默认</button>
                 </div>
                 <div className="sidebar-width-reset-card">

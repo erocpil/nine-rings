@@ -1,6 +1,6 @@
 import { RetainedDocument } from "./components/RetainedDocument";
 import { useWorkspaceLayout } from "./hooks/useWorkspaceLayout";
-import { readDesktopSidebarState, saveDesktopSidebarState } from "./lib/desktop-sidebar-state";
+import { readDesktopSidebarState, saveDesktopSidebarState, normalizeSidebarOrder, sidebarPanelLabel } from "./lib/desktop-sidebar-state";
 import { readWorkspaceLayout, saveWorkspaceLayout, type WorkspaceLayout } from "./lib/workspace-layout";
 import { useDocumentNavigation } from "./hooks/useDocumentNavigation";
 import { NavigationButtons } from "./components/NavigationButtons";
@@ -36,6 +36,7 @@ import { MOBILE_VIEWPORT_QUERY, useEdgeDrawer, useMobileViewport } from "./hooks
 import { useAutoSave } from "./hooks/useAutoSave";
 import { useSettings } from "./hooks/useSettings";
 import DocTree from "./components/DocTree";
+import { NotesPanel, type NotesPanelSession } from "./components/NotesPanel";
 import { DocumentBrowser, type DocumentBrowserSession } from "./components/DocumentBrowser";
 import { DocMOC } from "./components/DocMOC";
 import type { DeltaOps, DocumentMetadata, ExternalMarkdownSource, Note, DocType, SearchNavigationTarget } from "./types/models";
@@ -372,6 +373,7 @@ function App() {
   const [epubReaderFullscreen, setEpubReaderFullscreen] = useState(false);
   const [docTreePopupOpen, setDocTreePopupOpen] = useState(false);
   const documentBrowserSession = useRef<DocumentBrowserSession>({});
+  const notesPanelSession = useRef<NotesPanelSession>({});
   const [browserToolbarHost, setBrowserToolbarHost] = useState<HTMLDivElement | null>(null);
   const [desktopPanel, setDesktopPanel] = useState(() => readDesktopSidebarState().panel);
   const [sidebarBrowserToolbarHost, setSidebarBrowserToolbarHost] = useState<HTMLDivElement | null>(null);
@@ -1400,12 +1402,9 @@ function App() {
         >
           {(error || autoSave.status === "error") && <button type="button" className="btn-icon workspace-error-indicator" aria-label="查看错误详情" title="查看错误详情" onClick={() => setErrorDetailsOpen(true)}><ToolbarIcon name="warning" /></button>}
           {((() => {
-            const fallback = ['tree', 'list', 'reader'] as const;
-            const saved = localStorage.getItem('nr:sidebarOrder')?.split(',') ?? [];
-            const order = saved.filter((panel): panel is typeof fallback[number] => fallback.includes(panel as typeof fallback[number]));
-            return [...order, ...fallback.filter((panel) => !order.includes(panel))].map((panel) => [panel,
-              panel === 'tree' ? '文档树' : panel === 'list' ? '文档列表' : 'PDF / EPUB 阅读',
-              panel === 'tree' ? 'folder' : panel === 'list' ? 'bullet' : 'document'] as const);
+            return normalizeSidebarOrder(localStorage.getItem('nr:sidebarOrder')?.split(',') ?? []).map((panel) => [panel,
+              sidebarPanelLabel(panel),
+              panel === 'tree' ? 'folder' : panel === 'list' ? 'bullet' : panel === 'notes' ? 'note' : 'document'] as const);
           })()).map(([panel, label, icon]) => <button key={panel} type="button" className="btn-icon"
             title={`${label}${sidebarHoverEnabled ? sidebarHover.pinned && !sidebarHidden && desktopPanel === panel ? "（已固定并排，点击收起）" : "（悬停预览，点击固定，方向键进入）" : ""}`} aria-label={label} aria-pressed={!sidebarHidden && desktopPanel === panel}
             data-sidebar-panel={panel} data-pinned={sidebarHoverEnabled && sidebarHover.pinned && !sidebarHidden && desktopPanel === panel || undefined}
@@ -1438,9 +1437,10 @@ function App() {
           aria-modal={mobileDrawerViewport && !mobileReaderOpen && !sidebarHidden || undefined}
           aria-hidden={(mobileDrawerViewport || sidebarOverlay) && sidebarHidden && !mobileReaderOpen || undefined}
           {...((mobileDrawerViewport || sidebarOverlay) && sidebarHidden && !mobileReaderOpen ? { inert: "" } : {})}>
-          <div className="desktop-panel-content" style={mobileDrawerViewport ? { display: 'contents' } : undefined} hidden={!mobileDrawerViewport && desktopPanel !== 'tree'}>
+          <div className="desktop-panel-content" style={mobileDrawerViewport ? { display: desktopPanel === 'notes' ? 'none' : 'contents' } : undefined} hidden={desktopPanel === 'notes' || (!mobileDrawerViewport && desktopPanel !== 'tree')}>
           <WorkspacePanelHeading className="sidebar-tabs" title={mobileDrawerViewport ? <WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} /> : null}>
             <div className="doc-tree-toolbar-host" ref={setDocTreeToolbarHost} />
+            {mobileDrawerViewport && <button type="button" className="btn-icon" aria-label="随记" title="随记（Notes）" onClick={() => setDesktopPanel("notes")}><ToolbarIcon name="note" /></button>}
             {!desktopWorkspace && <button data-drawer-close type="button" className="btn-icon sidebar-tab-hide" onClick={() => setSidebarHidden(true)} title="隐藏侧栏" aria-label="隐藏侧栏">
               <ToolbarIcon name="chevronLeft" />
             </button>}
@@ -1497,6 +1497,20 @@ function App() {
             />
           )}
           </div>
+          {desktopPanel === 'notes' && <NotesPanel
+            session={notesPanelSession.current}
+            selectedNote={selectedNote}
+            refreshKey={docTreeKey}
+            disabled={syncBusy}
+            beforeChange={flushAutoSave}
+            onSelect={note => { setQuery(""); setDocResults(null); handleSelectNote(note); closeSidebarOnNarrowScreen(); }}
+            onChanged={() => { void refreshNotes(); setDocTreeKey(key => key + 1); }}
+            onMove={handleBatchMoveDocuments}
+            onRenameGroup={handleRenameFolder}
+            onRename={(id, title) => updateNote(id, { title })}
+            onDelete={handleDeleteWithUndo}
+            onClose={() => setSidebarHidden(true)}
+          />}
           {!mobileDrawerViewport && desktopPanel === 'list' && <section className="sidebar-document-list is-open" aria-label="文档列表分区">
             <WorkspacePanelHeading className="sidebar-document-list-heading" title={null}>
               <div className="doc-tree-toolbar-host" ref={setSidebarBrowserToolbarHost} />
@@ -1815,6 +1829,11 @@ function App() {
           <div ref={popupBackdropRef} className="doc-tree-popup-backdrop" aria-hidden="true" />
           <div ref={popupPanelRef} className="doc-tree-popup" role="dialog" aria-modal="true" aria-label="文档视图" onClick={(e) => e.stopPropagation()}>
             <WorkspacePanelHeading className="sidebar-tabs" title={<WorkspaceSwitch mode="documents" disabled={syncBusy} onSwitch={() => void openReadingLibrary()} />}>
+              {mobileDrawerViewport && <button className="btn-icon" type="button" aria-label="随记" title="随记（Notes）" onClick={() => {
+                setDocTreePopupOpen(false);
+                setDesktopPanel("notes");
+                setSidebarHidden(false);
+              }}><ToolbarIcon name="note" /></button>}
               <button className="btn-icon btn-quick-switcher" type="button" aria-label="快速切换笔记" title="快速切换笔记 (Ctrl+P)" onClick={() => {
                 flushSync(() => { setDocTreePopupOpen(false); setQuickSwitcherOpen(true); });
                 document.querySelector<HTMLInputElement>('.quick-switcher-search input')?.focus({ preventScroll: true });

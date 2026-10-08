@@ -525,6 +525,15 @@
   margin: var(--editor-heading-margin-top) 0 var(--editor-heading-margin-bottom);
 }
 
+/* Consecutive headings form one hierarchy. Keep their gap tighter than the
+   section break before a heading, which is owned by the preceding block. */
+.editor-content .ProseMirror > :is(h1, h2, h3, h4, h5, h6):has(+ :is(h1, h2, h3, h4, h5, h6)) {
+  margin-bottom: clamp(10px, 0.4em, 14px);
+}
+.editor-content .ProseMirror > :is(h1, h2, h3, h4, h5, h6) + :is(h1, h2, h3, h4, h5, h6) {
+  margin-top: clamp(10px, 0.4em, 14px);
+}
+
 .editor-content p {
   margin: 2px 0;
 }

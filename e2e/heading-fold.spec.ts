@@ -54,7 +54,8 @@ test("折叠标题间距一致，列表与代码引用图块留白协调", async
   expect(expandedSpacing.structuralBlockMargins).toEqual(["10px", "10px", "10px", "10px"]);
   expect(expandedSpacing.trailingParagraphMargin).toBe("28px");
   expect(expandedSpacing.headingGapMargins.length).toBeGreaterThan(0);
-  expect(new Set(expandedSpacing.headingGapMargins)).toEqual(new Set(["28px"]));
+  expect(expandedSpacing.headingGapMargins).toContain("28px");
+  expect(expandedSpacing.headingGapMargins.some(margin => parseFloat(margin) >= 10 && parseFloat(margin) <= 14)).toBe(true);
   const expandedMargins = await headings.evaluateAll(elements => elements.map(element => getComputedStyle(element).marginBottom));
   expect(new Set(expandedMargins).size).toBeGreaterThan(1);
   for (let index = 0; index < 6; index += 1) {
@@ -65,6 +66,50 @@ test("折叠标题间距一致，列表与代码引用图块留白协调", async
   const gaps = positions.slice(1).map((position, index) => position - positions[index]);
   expect(new Set(collapsed.map(item => item.marginBottom)).size).toBe(1);
   expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThan(2);
+});
+
+test("手机 H1 到 H6 的连续层级紧凑，正文与章节标题仍有分隔", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("nine_rings_config", JSON.stringify({ interface_style: "wabi-sabi" })));
+  await createBlankDocument(page, "手机标题节奏");
+  await page.setViewportSize({ width: 390, height: 760 });
+  const editor = page.locator(".ProseMirror");
+  await editor.evaluate(element => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", [
+      "章节前的正文。",
+      "# 一级标题",
+      "## 二级标题",
+      "### 三级标题",
+      "#### 四级标题",
+      "##### 五级标题",
+      "###### 六级标题",
+      "标题后的正文。",
+    ].join("\n\n"));
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+  });
+  const rhythm = await editor.evaluate(element => {
+    const blocks = [...element.children] as HTMLElement[];
+    const heading = (level: number) => blocks.find(block => block.tagName === `H${level}`)!;
+    const gap = (before: HTMLElement, after: HTMLElement) => after.getBoundingClientRect().top - before.getBoundingClientRect().bottom;
+    return {
+      paragraphToH1: gap(blocks.find(block => block.tagName === "P")!, heading(1)),
+      headingGaps: [1, 2, 3, 4, 5].map(level => gap(heading(level), heading(level + 1))),
+      h6ToParagraph: gap(heading(6), blocks.find(block => block.tagName === "P" && block.textContent === "标题后的正文。")!),
+      headingMargins: [1, 2, 3, 4, 5, 6].map(level => ({
+        top: getComputedStyle(heading(level)).marginTop,
+        bottom: getComputedStyle(heading(level)).marginBottom,
+      })),
+    };
+  });
+  expect(rhythm.paragraphToH1).toBeGreaterThanOrEqual(15);
+  expect(rhythm.paragraphToH1).toBeLessThanOrEqual(17);
+  for (const gap of rhythm.headingGaps) {
+    expect(gap).toBeGreaterThanOrEqual(9);
+    expect(gap).toBeLessThanOrEqual(15);
+  }
+  expect(rhythm.h6ToParagraph).toBeGreaterThanOrEqual(7);
+  expect(rhythm.h6ToParagraph).toBeLessThanOrEqual(9);
+  expect(rhythm.headingMargins[0].top).toBe("0px");
 });
 
 test("只有 H1 与普通正文时正文和目录都能折叠章节", async ({ page }) => {

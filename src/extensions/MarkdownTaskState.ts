@@ -1,4 +1,4 @@
-import { Extension } from "@tiptap/core";
+import { Extension, InputRule } from "@tiptap/core";
 import { Plugin } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
@@ -6,6 +6,30 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 /** Keep Markdown task state on existing list items without replacing list editing commands. */
 export const MarkdownTaskState = Extension.create({
   name: "markdownTaskState",
+  priority: 1_100,
+  addInputRules() {
+    return [new InputRule({
+      find: /^\/todo[ \u00a0]$/,
+      handler: ({ chain, range }) => {
+        if (this.editor.view.composing || this.editor.state.selection.$from.parent.type.name !== "paragraph") return null;
+        const commands = chain().deleteRange(range);
+        if (!this.editor.isActive("listItem")) commands.wrapInList("bulletList");
+        commands.updateAttributes("listItem", { taskChecked: false }).run();
+      },
+    })];
+  },
+  addKeyboardShortcuts() {
+    return {
+      Enter: () => {
+        const { selection } = this.editor.state;
+        if (this.editor.view.composing || !selection.empty || selection.$from.parent.type.name !== "paragraph"
+          || selection.$from.parent.textContent !== "/todo" || selection.$from.parentOffset !== 5) return false;
+        const commands = this.editor.chain().deleteRange({ from: selection.$from.start(), to: selection.$from.end() });
+        if (!this.editor.isActive("listItem")) commands.wrapInList("bulletList");
+        return commands.updateAttributes("listItem", { taskChecked: false }).run();
+      },
+    };
+  },
   addProseMirrorPlugins() {
     const editor = this.editor;
     let document: ProseMirrorNode | null = null;

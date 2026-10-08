@@ -1,6 +1,26 @@
 /** User-facing highlights shipped with the app, newest first. Keep dates in ISO format. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-08",
+    title: "收紧宽幅正文左侧留白",
+    changes: ["桌面宽幅展示时，折叠按钮左侧的外部留白缩小一半，保留块号与正文间距。"],
+  },
+  {
+    date: "2026-10-08",
+    title: "新增随记分栏与快捷待办",
+    changes: [
+      "文档列表下方新增随记（Notes），新随记默认按日期时间命名，可多选分组、修改文档和分组名称；内容使用普通文档的保存、搜索与备份机制。",
+      "正文输入 /todo 后按空格或回车创建可勾选的待办项。",
+    ],
+  },
+  {
+    date: "2026-10-08",
+    title: "收紧手机连续标题间距",
+    changes: [
+      "H1 至 H6 连续出现时使用更紧凑且一致的层级间距；手机端标题不再继承随大字号放大的桌面留白，正文到标题仍保留清晰分隔。",
+    ],
+  },
+  {
     date: "2026-10-01",
     title: "选择路径后收起手机文档树",
     changes: [
