@@ -3302,6 +3302,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
   };
 
   const preventReadonlyTableResize = (event: React.MouseEvent) => {
+    if (event.target instanceof Element && event.target.closest(".flow-block-content")) return;
     if (!readonly || !(event.target instanceof Element)) return;
     const cell = event.target.closest("td, th");
     if (!cell) return;
@@ -3672,6 +3673,7 @@ function FullNoteEditor({ documentViewToggle, unifiedTitleBar = false, mobileTit
         setToolbarSelectionHighlight(editor, null);
       }}
       onPointerDownCapture={(event) => {
+        if (event.target instanceof Element && event.target.closest(".flow-block-content")) return;
         if (!(event.target instanceof Element) || !event.target.closest(".ProseMirror")) return;
         if (readonly) readonlyCopyPosition.current = editor.view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? null;
         toolbarSelectionRef.current = null;

@@ -532,7 +532,31 @@ export const CodeBlockLineNumbers = Node.create<CodeBlockLineNumberOptions>({
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(CodeBlockView);
+    const render = ReactNodeViewRenderer(CodeBlockView);
+    return props => {
+      const view = render(props);
+      const ignoreMutation = view.ignoreMutation?.bind(view);
+      const stopEvent = view.stopEvent?.bind(view);
+      // Rendered flow text has native DOM positions, independent of the hidden
+      // Markdown contentDOM. Do not remap its selection to the outer code block.
+      view.ignoreMutation = mutation => {
+        if (mutation.type === "selection") {
+          const selection = view.dom?.ownerDocument.getSelection();
+          const anchor = selection?.anchorNode;
+          const focus = selection?.focusNode;
+          const element = anchor instanceof Element ? anchor : anchor?.parentElement;
+          const flow = element?.closest(".flow-block-content");
+          if (flow && focus && flow.contains(focus) && view.dom?.contains(flow)) return true;
+        }
+        return ignoreMutation?.(mutation) ?? false;
+      };
+      view.stopEvent = event => {
+        const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest(".flow-block-content") && view.dom?.contains(target)) return true;
+        return stopEvent?.(event) ?? false;
+      };
+      return view;
+    };
   },
 
   addProseMirrorPlugins() {

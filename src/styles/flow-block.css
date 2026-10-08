@@ -119,3 +119,14 @@
   border-radius: 10px;
   overflow: hidden;
 }
+
+/* Explicitly allow native selection inside the noneditable NodeView projection. */
+.flow-block-content,
+.flow-block-content .flow-prose {
+  -webkit-user-select: text;
+  user-select: text;
+}
+.flow-step-number {
+  -webkit-user-select: none;
+  user-select: none;
+}

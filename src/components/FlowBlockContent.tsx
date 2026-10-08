@@ -5,6 +5,8 @@ import {
   useContext,
   useMemo,
   useState,
+  useEffect,
+  useRef,
 } from "react";
 import { getSchema } from "@tiptap/core";
 import { DocumentStarterKit } from "../extensions/DocumentStarterKit";
@@ -34,7 +36,12 @@ import { deltaToProseMirror } from "../lib/delta-converter";
 import { flowParts } from "../lib/flow-block";
 import { renderReadonlyBlock } from "./ReadonlyVirtualNote";
 import type { ReadingBlockState } from "../lib/reading-block-session";
-import type { Node as PMNode } from "@tiptap/pm/model";
+import {
+  DOMParser,
+  DOMSerializer,
+  type Node as PMNode,
+} from "@tiptap/pm/model";
+import { clipboardSliceToPlainText } from "../lib/clipboard-plain-text";
 import {
   footnoteLinkTarget,
   scrollToFootnote,
@@ -70,6 +77,7 @@ function parse(source: string) {
 
 /** A single read-only projection used by the document, source preview and block workspace. */
 export function FlowBlockContent({ source }: { source: string }) {
+  const host = useRef<HTMLDivElement>(null);
   const depth = useContext(nesting);
   const [states, setStates] = useState(new Map<number, ReadingBlockState>());
   const result = useMemo(() => {
@@ -82,6 +90,60 @@ export function FlowBlockContent({ source }: { source: string }) {
       return null;
     }
   }, [source]);
+  useEffect(() => {
+    const root = host.current;
+    if (!root || !result) return;
+    const owner = root.ownerDocument;
+    const copy = (event: ClipboardEvent) => {
+      if (
+        event.target instanceof Element &&
+        event.target.closest("input, textarea, select")
+      )
+        return;
+      const selection = owner.getSelection();
+      if (
+        !event.clipboardData ||
+        !selection?.rangeCount ||
+        selection.isCollapsed ||
+        !selection.anchorNode ||
+        !selection.focusNode ||
+        !root.contains(selection.anchorNode) ||
+        !root.contains(selection.focusNode)
+      )
+        return;
+      // Only the innermost flow owns a selection in a nested projection.
+      const anchor =
+        selection.anchorNode instanceof Element
+          ? selection.anchorNode
+          : selection.anchorNode.parentElement;
+      if (anchor?.closest(".flow-block-content") !== root) return;
+      const fragment = owner.createElement("div");
+      fragment.append(selection.getRangeAt(0).cloneContents());
+      fragment
+        .querySelectorAll(
+          ".flow-step-number, button, input, select, textarea, .vr-code-toolbar, .vr-code-line-number, .blockquote-toolbar",
+        )
+        .forEach((element) => element.remove());
+      const slice = DOMParser.fromSchema(schema!).parseSlice(fragment);
+      const html = owner.createElement("div");
+      html.append(
+        DOMSerializer.fromSchema(schema!).serializeFragment(slice.content, {
+          document: owner,
+        }),
+      );
+      event.clipboardData.setData(
+        "text/plain",
+        clipboardSliceToPlainText(slice),
+      );
+      event.clipboardData.setData("text/html", html.innerHTML);
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    // Browser copy can target the focused outer editor or body, so bind to
+    // document capture and scope by the actual native selection, not focus.
+    owner.addEventListener("copy", copy, true);
+    return () => owner.removeEventListener("copy", copy, true);
+  }, [result]);
   if (depth >= 3 || !result)
     return (
       <div className="flow-block-error" role="status">
@@ -120,6 +182,12 @@ export function FlowBlockContent({ source }: { source: string }) {
   return (
     <nesting.Provider value={depth + 1}>
       <div
+        tabIndex={0}
+        aria-label="流程内容"
+        onMouseDown={(event) => event.stopPropagation()}
+        onDoubleClick={(event) => event.stopPropagation()}
+        onContextMenu={(event) => event.stopPropagation()}
+        ref={host}
         className="flow-block-content editor-content"
         onClickCapture={(event) => {
           // Inner read-only block positions belong to this projection, not the outer document.
