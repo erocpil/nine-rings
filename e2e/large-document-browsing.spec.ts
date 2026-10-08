@@ -56,6 +56,12 @@ for (const width of [1280, 390])
         ).editor;
         const view = instance.view;
         const original = view.nodeDOM;
+        const originalHitTest = document.elementsFromPoint;
+        let hitTests = 0;
+        document.elementsFromPoint = function (x, y) {
+          hitTests++;
+          return originalHitTest.call(this, x, y);
+        };
         let lookups = 0;
         view.nodeDOM = function (position) {
           lookups++;
@@ -72,20 +78,39 @@ for (const width of [1280, 390])
             root.scrollTop += 100;
           }
           const forwardLookups = lookups;
+          const forwardHitTests = hitTests;
+          hitTests = 0;
           lookups = 0;
           for (let index = 0; index < 60; index++) {
             root.scrollTop = Math.max(0, root.scrollTop - 100);
             await new Promise(requestAnimationFrame);
+          }
+          const returnLookups = lookups;
+          const returnHitTests = hitTests;
+          const distantWindows = [];
+          for (const fraction of [0.45, 0.85]) {
+            lookups = 0;
+            hitTests = 0;
+            root.scrollTop = (root.scrollHeight - root.clientHeight) * fraction;
+            for (let index = 0; index < 60; index++) {
+              await new Promise(requestAnimationFrame);
+              root.scrollTop += 100;
+            }
+            distantWindows.push({ fraction, lookups, hitTests });
           }
           return {
             frames,
             maximum: Math.max(...frames),
             over50ms: frames.filter((value) => value > 50).length,
             forwardLookups,
-            returnLookups: lookups,
+            returnLookups,
+            forwardHitTests,
+            returnHitTests,
+            distantWindows,
           };
         } finally {
           view.nodeDOM = original;
+          document.elementsFromPoint = originalHitTest;
         }
       });
       console.log(
@@ -99,6 +124,14 @@ for (const width of [1280, 390])
       // Returning through unchanged, already visited blocks should reuse their
       // DOM mapping, rather than walking all preceding siblings every frame.
       expect(metrics.returnLookups).toBeLessThan(120);
+      // Permit occasional caret/reading-anchor hit tests, but prohibit native
+      // document hit testing on every scroll frame, including middle and tail.
+      expect(metrics.forwardHitTests).toBeLessThan(20);
+      expect(metrics.returnHitTests).toBeLessThan(20);
+      for (const window of metrics.distantWindows) {
+        expect(window.hitTests).toBeLessThan(20);
+        expect(window.lookups).toBeLessThan(240);
+      }
       await page.getByTitle("文档目录", { exact: true }).click();
       const outline = page.getByRole("navigation", { name: "文档目录" });
       const list = outline.locator(".document-outline-list");

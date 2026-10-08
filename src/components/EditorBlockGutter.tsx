@@ -368,68 +368,35 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       try {
         const viewport = scrollRoot.getBoundingClientRect();
         const editorRect = editor.view.dom.getBoundingClientRect();
-        const left = Math.max(editorRect.left + 1, Math.min(
-          editorRect.right - 1,
-          editorRect.left + Math.min(80, Math.max(1, editorRect.width / 2)),
-        ));
         const top = Math.max(viewport.top + 1, editorRect.top + 1);
         const bottom = Math.min(viewport.bottom - 1, editorRect.bottom - 1);
-        const indexAt = (vertical: number, direction: 1 | -1): number | undefined => {
-          // posAtCoords 会让 ProseMirror 读取候选文本块的几何；连续滚动时
-          // WebKit 因此可能每帧强制布局。浏览器已经为命中测试维护了结果，
-          // elementsFromPoint 再向上找到编辑器顶层块即可得到同一位置。
-          const ownerDocument = editor.view.dom.ownerDocument;
-          for (let offset = 0; offset <= 192; offset += 16) {
-            const probe = Math.max(top, Math.min(bottom, vertical + direction * offset));
-            for (const hit of ownerDocument.elementsFromPoint(left, probe)) {
-              let target: Element | null = hit;
-              while (target && target.parentElement !== editor.view.dom) {
-                if (target === editor.view.dom) break;
-                target = target.parentElement;
-              }
-              if (!(target instanceof HTMLElement) || target.parentElement !== editor.view.dom) continue;
-              try {
-                const position = positionForDom(target);
-                const index = layoutIndexByPosition.get(position);
-                if (index !== undefined) return index;
-              } catch {
-                // Try the next hit/probe.
-              }
-            }
-          }
-          return undefined;
-        };
         if (bottom <= top) return { start: fallbackIndex, end: fallbackIndex };
-        let first = indexAt(top, 1);
-        let last = indexAt(bottom, -1);
-        if (first === undefined || last === undefined) {
-          // 尾部留白、段间距或覆盖层可让命中测试完全落空。对折叠后
-          // 有序的布局块二分定位边界，不把末块错误地退回首块，也不在
-          // 每次滚动时扫描全文 DOM。仅回退路径读取 O(log n) 个矩形。
-          const rects = new Map<number, DOMRect>();
-          const rectAt = (index: number) => {
-            let rect = rects.get(index);
-            if (!rect) {
-              const dom = blockDom(layoutBlocks[index]);
-              if (!(dom instanceof HTMLElement)) throw new Error("Missing layout block");
-              rect = dom.getBoundingClientRect();
-              rects.set(index, rect);
-            }
-            return rect;
-          };
-          const lowerBound = (after: (rect: DOMRect) => boolean) => {
-            let low = 0;
-            let high = count;
-            while (low < high) {
-              const middle = (low + high) >>> 1;
-              if (after(rectAt(middle))) high = middle;
-              else low = middle + 1;
-            }
-            return low;
-          };
-          first ??= Math.min(count - 1, lowerBound((rect) => rect.bottom >= top));
-          last ??= Math.max(0, lowerBound((rect) => rect.top > bottom) - 1);
-        }
+        // Browser hit testing can traverse the full rendered document even when
+        // model-to-DOM mappings are cached. Locate both viewport boundaries
+        // directly in ordered, unfolded blocks using O(log n) geometry reads.
+        const rects = new Map<number, DOMRect>();
+        const rectAt = (index: number) => {
+          let rect = rects.get(index);
+          if (!rect) {
+            const dom = blockDom(layoutBlocks[index]);
+            if (!(dom instanceof HTMLElement)) throw new Error("Missing layout block");
+            rect = dom.getBoundingClientRect();
+            rects.set(index, rect);
+          }
+          return rect;
+        };
+        const lowerBound = (after: (rect: DOMRect) => boolean) => {
+          let low = 0;
+          let high = count;
+          while (low < high) {
+            const middle = (low + high) >>> 1;
+            if (after(rectAt(middle))) high = middle;
+            else low = middle + 1;
+          }
+          return low;
+        };
+        const first = Math.min(count - 1, lowerBound((rect) => rect.bottom >= top));
+        const last = Math.max(0, lowerBound((rect) => rect.top > bottom) - 1);
         return { start: Math.min(first, last), end: Math.max(first, last) };
       } catch {
         return { start: fallbackIndex, end: fallbackIndex };
@@ -459,7 +426,7 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
       windowFrame = 0;
       if (disposed || editor.isDestroyed || !root.isConnected) return;
       // Editing within a block shifts later positions even when childCount is
-      // unchanged. Refresh the model index before nodeDOM/hit testing so a
+      // unchanged. Refresh the model index before nodeDOM/layout lookup so a
       // stale offset cannot point inside the preceding code block. Coalesce
       // this work with idle measurement/scrolling, not every input transaction.
       force = refreshBlockIndex() || force;

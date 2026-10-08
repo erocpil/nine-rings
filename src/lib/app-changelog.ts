@@ -1,6 +1,13 @@
 /** User-facing highlights shipped with the app, newest first. Keep dates in ISO format. */
 export const APP_CHANGELOG = [
   {
+    date: "2026-10-09",
+    title: "手机长文档浏览优化",
+    changes: [
+      "块号与折叠按钮按有序正文块定位可视范围，移除滚动每帧的整页命中测试，降低手机只读长文档浏览开销。",
+    ],
+  },
+  {
     date: "2026-10-08",
     title: "流程正文选择与复制",
     changes: [
