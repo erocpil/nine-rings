@@ -125,11 +125,11 @@ test("本地 EPUB 可导入、阅读目录章节并恢复进度", async ({ page,
   await expect.poll(() => chapterFrame.locator("#manual-line-a").evaluate((element) => element.getBoundingClientRect().top)).toBeCloseTo(manualLineTop, 0);
   await expect(page.getByRole("button", { name: "管理 EPUB 人工断行修复", includeHidden: true })).toContainText("1");
   await swipeFrame(300, 390);
-  await expect(page.getByRole("status")).toHaveText("已经是第一章");
+  await expect(page.getByRole("status").filter({ hasText: "已经是第一章" })).toHaveText("已经是第一章");
   await swipeFrame(330, 100);
   await expect(chapterFrame.getByRole("heading", { name: "第二章" })).toBeVisible();
   await swipeFrame(330, 100);
-  await expect(page.getByRole("status")).toHaveText("已经是最后一章");
+  await expect(page.getByRole("status").filter({ hasText: "已经是最后一章" })).toHaveText("已经是最后一章");
   await swipeFrame(100, 330);
   await expect(chapterFrame.getByRole("heading", { name: "第一章" })).toBeVisible();
   await expect(chapterFrame.locator('script[src="/epub-frame-bridge.js"]')).toHaveCount(1);

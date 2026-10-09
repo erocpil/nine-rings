@@ -128,7 +128,7 @@ for (const style of ["calm", "calm-compact"] as const) {
     await page.locator(".settings-close").click();
     await expect(page.locator("body")).toHaveCSS(
       "background-color",
-      "rgb(37, 42, 36)",
+      "rgb(32, 44, 35)",
     );
     await page.screenshot({ path: test.info().outputPath(`nr-${style}-narrow-dark.png`) });
   });

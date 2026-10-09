@@ -89,13 +89,19 @@ export function deltaToMarkdown(content: unknown): string {
   const ops = Array.isArray(candidate?.ops)
     ? candidate.ops
     : Array.isArray(content) ? content as DeltaOp[] : [];
-  const blocks: Array<{ kind: BlockKind; value: string }> = [];
+  const blocks: Array<{ kind: BlockKind; value: string; followup: boolean }> = [];
   const footnoteDefinitions: string[] = [];
   let inline = "";
   let raw = "";
+  let quoteEmbedTerminator = false;
 
-  const push = (kind: BlockKind, value: string) => {
-    blocks.push({ kind, value });
+  const push = (kind: BlockKind, value: string, attrs: Record<string, unknown> = {}) => {
+    const indent = Math.max(0, Math.floor(Number(attrs.indent) || 0));
+    if (indent && (kind === "quote" || kind === "code")) {
+      const lines = value.split("\n");
+      value = lines.map((line, index) => kind === "quote" || index === 0 || index === lines.length - 1 ? "  ".repeat(indent) + line : line).join("\n");
+    }
+    blocks.push({ kind, value, followup: attrs["indent-explicit"] !== true || indent > 0 });
   };
   const flushLine = (attrs: Record<string, unknown> = {}) => {
     const value = inline;
@@ -109,7 +115,7 @@ export function deltaToMarkdown(content: unknown): string {
       const fence = "`".repeat((raw.match(/`+/g) ?? []).reduce((max, run) => Math.max(max, run.length + 1), 3));
       const code = `${fence}${language}\n${raw}\n${fence}`;
       if (continuation) pushContinuation(code);
-      else push("code", code);
+      else push("code", code, attrs);
       raw = "";
       return;
     }
@@ -136,7 +142,7 @@ export function deltaToMarkdown(content: unknown): string {
       return;
     }
     if (attrs.blockquote) {
-      push("quote", `> ${value}`);
+      push("quote", `> ${value}`, attrs);
       return;
     }
     // Plain rich-editor text must not turn into block syntax on the next parse.
@@ -147,6 +153,11 @@ export function deltaToMarkdown(content: unknown): string {
 
   for (const op of ops) {
     if (typeof op.insert === "string") {
+      if (quoteEmbedTerminator && op.insert === "\n") {
+        quoteEmbedTerminator = false;
+        continue;
+      }
+      quoteEmbedTerminator = false;
       if (op.insert === "\n" && op.attributes?.["hard-break"] === true) {
         inline += "  \n";
       } else if (op.insert === "\n") flushLine(op.attributes ?? {});
@@ -169,7 +180,19 @@ export function deltaToMarkdown(content: unknown): string {
       continue;
     }
     const insert = embedValue;
-    if (typeof insert.mathBlock === "string") push("embed", `$$${insert.mathBlock}$$`);
+    if (insert.blockquote && typeof insert.blockquote === "object") {
+      const quote = insert.blockquote as { content?: DeltaOp[] };
+      const body = deltaToMarkdown({ ops: quote.content ?? [] });
+      const text = body.split("\n").map(line => `>${line ? ` ${line}` : ""}`).join("\n");
+      const attrs = op.attributes ?? {};
+      if (attrs.list === "bullet" || attrs.list === "ordered") {
+        const prefix = " ".repeat(2 * Math.max(0, Math.floor(Number(attrs.indent) || 0))
+          + (attrs.list === "ordered" ? `${Math.max(1, Number(attrs.listStart) || 1)}. `.length : 2));
+        push("list", "\n" + text.split("\n").map(line => prefix + line).join("\n"));
+      } else push("quote", text, attrs);
+      quoteEmbedTerminator = true;
+    }
+    else if (typeof insert.mathBlock === "string") push("embed", `$$${insert.mathBlock}$$`);
     else if (insert.htmlDetails && typeof insert.htmlDetails === "object") {
       const details = insert.htmlDetails as { summary?: unknown; open?: unknown; content?: DeltaOp[] };
       const body = deltaToMarkdown({ ops: details.content ?? [] });
@@ -195,14 +218,17 @@ export function deltaToMarkdown(content: unknown): string {
   }
 
   let markdown = "";
+  let followsList = false;
   blocks.forEach((block, index) => {
     if (index > 0) {
       const previous = blocks[index - 1];
       const sameCompactContainer = block.kind === previous.kind
         && (block.kind === "list" || block.kind === "quote");
-      markdown += sameCompactContainer ? "\n" : "\n\n";
+      const compactFollowup = followsList && block.followup && (block.kind === "code" || block.kind === "quote");
+      markdown += sameCompactContainer || compactFollowup ? "\n" : "\n\n";
     }
     markdown += block.value;
+    followsList = block.kind === "list" || (followsList && block.followup && (block.kind === "code" || block.kind === "quote"));
   });
   return markdown.trim();
 }

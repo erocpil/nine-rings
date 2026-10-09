@@ -45,6 +45,7 @@ async function gateWorker(page: Page, actions: string[]) {
 
 async function importPdf(page: Page) {
   await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
   await page.getByRole("button", { name: "PDF / EPUB 阅读", exact: true }).click();
   await page.locator('input[accept="application/pdf,.pdf"]').setInputFiles({
     name: "opening.pdf", mimeType: "application/pdf", buffer: createPdfFixture(),

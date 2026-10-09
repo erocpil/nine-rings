@@ -834,6 +834,8 @@ details[open] > summary.disclosure-summary > .disclosure-icon { transform: rotat
   font-variant-numeric: tabular-nums;
 }
 
+.editor-stats .btn-debug-toggle-wrapper { display: inline-flex; }
+
 .editor-status-actions {
   display: inline-flex;
   align-items: center;

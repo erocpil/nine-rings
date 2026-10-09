@@ -55,13 +55,12 @@ function firstLineTextCenter(
     return fallbackRect.top + lineHeight / 2;
   }
   if (typeName === "codeBlock") {
-    // Collapsed code retains its text DOM for editing, but that text is clipped.
-    // Graph mode also retains hidden source. Anchor both to the visible toolbar.
-    const collapsed = dom.matches(".code-block-wrap.collapsed")
-      ? dom : dom.querySelector<HTMLElement>(".code-block-wrap.collapsed");
-    if (collapsed || dom.querySelector(".mermaid-source-hidden")) {
-      const toolbar = (collapsed ?? dom).querySelector<HTMLElement>(".code-block-toolbar");
-      const rect = toolbar?.getBoundingClientRect() ?? fallbackRect;
+    // The block number identifies the whole block, beside its title/type row.
+    // Keep this anchor stable across source, diagram and collapsed modes.
+    const toolbar = dom.querySelector<HTMLElement>(".code-block-toolbar, .vr-code-toolbar");
+    if (toolbar) {
+      const title = toolbar.querySelector<HTMLElement>(".code-block-title, .structured-block-caption");
+      const rect = (title ?? toolbar).getBoundingClientRect();
       return rect.top + rect.height / 2;
     }
   }
@@ -69,8 +68,7 @@ function firstLineTextCenter(
     ? (dom.matches("code") ? dom : dom.querySelector<HTMLElement>("code")) ?? dom
     : dom;
   if (typeName === "codeBlock") {
-    // 主块号始终对齐代码正文首行；工具栏高度变化或横竖屏切换不会
-    // 再把块号推到工具栏中部。
+    // Without a toolbar, fall back to the first source line.
     const rect = textRoot.getBoundingClientRect();
     const style = getComputedStyle(textRoot);
     const lineHeight = Number.parseFloat(style.lineHeight) || editorLineHeight;
@@ -653,8 +651,9 @@ export function EditorBlockGutter({ editor, foldHosts, compact = false, showNumb
   const boundaries = !showInsertButtons || blocks.length === 0
     ? []
     : [
+        // Keep the center below the scroll edge without overlapping the first heading fold.
         ...(blocks[0].index === 1
-          ? [{ key: "start", pos: blocks[0].pos, top: blocks[0].top, label: "在第一块前插入段落", blockIndex: blocks[0].index, adjacent: hoveredBlockIndex === blocks[0].index }]
+          ? [{ key: "start", pos: blocks[0].pos, top: Math.max(1, blocks[0].top), label: "在第一块前插入段落", blockIndex: blocks[0].index, adjacent: hoveredBlockIndex === blocks[0].index }]
           : []),
         ...blocks.map((block, index) => {
           const nextBlock = blocks[index + 1];

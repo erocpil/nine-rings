@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openDocumentSidebar } from "./helpers/workspace";
 
 async function fixture(page: Page) {
   await page.goto("/");
@@ -45,12 +46,13 @@ test("桌面右键复制目录和文档所在路径，复制失败不假报成�
 
 test.describe("手机目录操作", () => {
   test.use({ hasTouch: true });
-  test("点击目录计数选中并保留抽屉，顶部复制、取消删除、删除含子目录且不误删相似前缀", async ({ page }) => {
+  test("点击目录计数选中并收回抽屉，顶部复制、取消删除、删除含子目录且不误删相似前缀", async ({ page }) => {
     const ids = await fixture(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await folder(page).locator(".doc-tree-count").click();
     await expect(folder(page)).toHaveClass(/doc-tree-selected/);
-    await expect(page.getByRole("dialog", { name: "文档侧栏" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "文档侧栏" })).toBeHidden();
+    await openDocumentSidebar(page);
     const copy = page.getByTitle("复制路径", { exact: true });
     await copy.click();
     await expect(page.locator("body")).toHaveAttribute("data-copied-path", "references/操作目录");

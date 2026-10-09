@@ -11,7 +11,8 @@ export function listFollowupBlocks(doc: Node): Set<number> {
       followsList &&
       (node.type.name === "codeBlock" || node.type.name === "blockquote")
     ) {
-      positions.add(pos);
+      if (node.attrs.indentExplicit === true && !node.attrs.indent) followsList = false;
+      else positions.add(pos);
     } else {
       followsList = false;
     }

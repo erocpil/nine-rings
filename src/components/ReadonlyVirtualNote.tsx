@@ -26,7 +26,7 @@ import type { NoteEditorProps } from "./NoteEditor";
 import { FocusModeBar, FocusModeIcon } from "./FocusModeBar";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { DeferredMermaidDiagram } from "./DeferredMermaidDiagram";
-import { codeBlockDisplay } from "../lib/structured-block-display";
+import { codeBlockDisplay, structuredBlockSymbol } from "../lib/structured-block-display";
 import { DocumentTitlePreview } from "./DocumentTitlePreview";
 import { queueBlockWorkspace } from "../lib/block-workspace";
 import { DocumentPanelDrawer } from "./DocumentPanelDrawer";
@@ -244,7 +244,8 @@ export function renderReadonlyBlock(
           data-code-wrap={String(wrap)}
         >
           <div className="vr-code-toolbar" contentEditable={false} data-diagram={(isMermaid && showDiagram || isFlow && showFlow) ? "true" : undefined}>
-            <span>{node.attrs.title || (isFlow ? "流程" : "代码")}</span>
+            <span className="structured-block-symbol" aria-hidden="true">{structuredBlockSymbol(node.attrs.language)}</span>
+            <span className="structured-block-caption">{node.attrs.title || (isFlow ? "流程" : "代码")}</span>
             <span aria-label="代码语言">{CODE_LANGUAGE_OPTIONS.find(option => option.value === (normalizeCodeLanguage(node.attrs.language) ?? ""))?.label}</span>
             {isFlow && <button type="button" aria-label={showFlow ? "显示 Flow 源码" : "显示 Flow 流程"} aria-pressed={showFlow} onClick={() => update(pos, { diagram: !showFlow })}>{showFlow ? "源码" : "流程"}</button>}
             {isMermaid && <button type="button" aria-label={showDiagram ? "显示 Mermaid 源码" : "显示 Mermaid 图形"} aria-pressed={showDiagram} onClick={() => update(pos, { diagram: !showDiagram })}>{showDiagram ? "源码" : "图形"}</button>}
@@ -626,17 +627,29 @@ export function ReadonlyVirtualNote(
     const body = bodyRef.current!;
     const measure = () => {
       const changes: [number, number][] = [];
+      const toolbarCenters: [HTMLElement, string][] = [];
       for (const row of body.querySelectorAll<HTMLElement>(
         "[data-reading-row]",
       )) {
         const pos = Number(row.dataset.position);
-        const height = row.getBoundingClientRect().height;
+        const rowRect = row.getBoundingClientRect();
+        const height = rowRect.height;
+        if (row.dataset.blockType === "codeBlock") {
+          const toolbar = row.querySelector<HTMLElement>(".vr-code-toolbar");
+          if (toolbar) {
+            const title = toolbar.querySelector<HTMLElement>(".structured-block-caption");
+            const rect = (title ?? toolbar).getBoundingClientRect();
+            const center = `${rect.top - rowRect.top + rect.height / 2}px`;
+            if (row.style.getPropertyValue("--vr-block-toolbar-center") !== center) toolbarCenters.push([row, center]);
+          }
+        }
         if (
           height > 0 &&
           Math.abs((heights.current.get(pos) ?? -1) - height) > 0.5
         )
           changes.push([pos, height]);
       }
+      for (const [row, center] of toolbarCenters) row.style.setProperty("--vr-block-toolbar-center", center);
       if (!changes.length) return;
       if (!pendingAnchor.current && !scrollBusy.current) preserve();
       for (const [pos, height] of changes) heights.current.set(pos, height);
@@ -1261,6 +1274,7 @@ export function ReadonlyVirtualNote(
                 className="vr-row"
                 key={block.pos}
                 data-reading-row
+                data-block-type={block.node.type.name}
                 data-next-heading={blocks[start + visibleIndex + 1]?.node.type.name === "heading" || undefined}
                 data-position={block.pos}
                 data-block-number={block.number}

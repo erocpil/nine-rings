@@ -1649,8 +1649,9 @@ test.describe("PWA 窄屏应用外壳", () => {
         await page.getByRole("button", { name: /^编辑器.*字体排版/ }).click();
         await page.locator(".settings-field").filter({ hasText: "显示块编号" }).locator(".settings-toggle").click();
         await page.getByLabel("关闭设置").click();
+        await expect(page.getByRole("dialog", { name: "设置", exact: true })).toBeHidden();
       }
-      await page.locator(".note-title-row").getByTitle("专注模式", { exact: true }).click();
+      await page.locator(".note-title-row").getByRole("button", { name: "专注模式", exact: true }).click();
       await expect(page.locator(".editor-content-shell")).toHaveCSS("--editor-gutter-width", numbers ? "50px" : "22px");
       for (const viewport of [{ width: 390, height: 760 }, { width: 760, height: 390 }]) {
         await page.setViewportSize(viewport);
@@ -1677,7 +1678,10 @@ test.describe("PWA 窄屏应用外壳", () => {
           await page.screenshot({ path: test.info().outputPath(`nr-body-spacing-${numbers ? "numbered" : "plain"}.png`) });
         }
       }
-      if (!numbers) await page.locator(".note-title-row").getByTitle("退出专注模式", { exact: true }).click();
+      if (!numbers) {
+        await page.locator(".note-title-row").getByRole("button", { name: "退出专注模式", exact: true }).click();
+        await expect(page.locator(".note-editor")).not.toHaveClass(/focus-mode/);
+      }
     }
   });
 
@@ -1998,122 +2002,6 @@ test.describe("PWA 窄屏应用外壳", () => {
     );
   });
 
-  test("专注模式保留极简标题栏并可按需展开编辑工具", async ({ page }) => {
-    test.skip(true, "旧独立焦点工具栏已并入统一标题行；当前布局由 mobile-unified-title.spec.ts 覆盖");
-    await page.goto("/");
-    const title = "阅读与思考：在专注模式中查看这份较长的文档标题";
-    await page.locator(".note-title").fill(title);
-    await page.getByTitle("专注模式").click();
-
-    await expect(page.locator(".app-header")).toBeHidden();
-    const focusBar = page.getByLabel("专注模式工具栏");
-    await expect(focusBar).toBeVisible();
-    await expect(focusBar).toHaveCSS("backdrop-filter", "none");
-    const focusTitle = focusBar.locator(".mobile-focus-title");
-    await expect(focusTitle).toHaveText(title);
-    await expect(focusTitle).toHaveCSS("font-size", "16px");
-    await expect(focusBar).toHaveCSS("height", "30px");
-    await expect(page.locator(".note-title-row")).toBeHidden();
-    await expect(page.locator(".editor-menu")).toBeHidden();
-
-    const initialContentGeometry = await page.locator(".note-editor").evaluate((element) => {
-      const focusBarRect = element.querySelector(".mobile-focus-bar")!.getBoundingClientRect();
-      const firstBlockRect = element.querySelector(".ProseMirror > :first-child")!.getBoundingClientRect();
-      return { focusBarBottom: focusBarRect.bottom, firstBlockTop: firstBlockRect.top };
-    });
-    expect(initialContentGeometry.firstBlockTop).toBeGreaterThanOrEqual(initialContentGeometry.focusBarBottom);
-    // 为首个 24px gutter 加号的上半部预留空间后，正文仍保持紧凑。
-    expect(initialContentGeometry.firstBlockTop - initialContentGeometry.focusBarBottom).toBeLessThanOrEqual(40);
-
-    const focusOutlineButton = focusBar.getByTitle("文档目录");
-    const focusBookmarkButton = focusBar.getByLabel(/文档书签/);
-    const focusMoreButton = focusBar.getByTitle("更多编辑工具");
-    const focusExitButton = focusBar.getByTitle("退出专注模式");
-    for (const button of [focusOutlineButton, focusBookmarkButton, focusMoreButton, focusExitButton]) {
-      await expect(button.locator("svg")).toBeVisible();
-    }
-    const barBefore = await focusBar.boundingBox();
-    const bookmarkBefore = await focusBookmarkButton.boundingBox();
-    await focusTitle.tap();
-    await expect(page.getByRole("tooltip")).toHaveText(title);
-    expect(await focusBar.boundingBox()).toEqual(barBefore);
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("tooltip")).toHaveCount(0);
-    await expect(focusTitle).toBeFocused();
-    await focusTitle.tap();
-    const focusButtonOrder = await focusBar.locator("button").evaluateAll((buttons) =>
-      buttons.map((button) => button.getAttribute("title")),
-    );
-    expect(focusButtonOrder.indexOf("更多编辑工具")).toBeLessThan(focusButtonOrder.indexOf("退出专注模式"));
-    await focusBookmarkButton.click();
-    await expect(page.getByRole("tooltip")).toHaveCount(0);
-    const bookmarkPanel = page.getByRole("navigation", { name: "文档书签" });
-    await expect(bookmarkPanel).toBeVisible();
-    await bookmarkPanel.getByRole("button", { name: "添加当前位置书签", exact: true }).click();
-    await expect(focusBookmarkButton.locator(".focus-bookmark-count")).toHaveText("1");
-    expect(await focusBookmarkButton.boundingBox()).toEqual(bookmarkBefore);
-    expect(await focusBar.boundingBox()).toEqual(barBefore);
-    await expect(focusOutlineButton).toBeVisible();
-    await focusOutlineButton.click();
-    await expect(bookmarkPanel).toHaveCount(0);
-    const outline = page.getByRole("navigation", { name: "文档目录" });
-    await expect(outline).toBeVisible();
-    const outlineGeometry = await page.evaluate(() => {
-      const focusBarRect = document.querySelector(".mobile-focus-bar")!.getBoundingClientRect();
-      const outlineRect = document.querySelector(".note-editor .document-outline-panel")!.getBoundingClientRect();
-      return {
-        focusBarBottom: focusBarRect.bottom,
-        outlineTop: outlineRect.top,
-        outlineRight: outlineRect.right,
-        outlineLeft: outlineRect.left,
-        viewportWidth: window.visualViewport?.width ?? window.innerWidth,
-      };
-    });
-    expect(outlineGeometry.outlineTop).toBeGreaterThanOrEqual(outlineGeometry.focusBarBottom);
-    expect(outlineGeometry.outlineLeft).toBeGreaterThanOrEqual(0);
-    expect(outlineGeometry.outlineRight).toBeLessThanOrEqual(outlineGeometry.viewportWidth);
-    await focusOutlineButton.click();
-    await expect(outline).toHaveCount(0);
-
-    await focusBar.getByTitle("更多编辑工具").click();
-    const toolbar = page.locator(".editor-menu");
-    await expect(toolbar).toBeVisible();
-    await expect(toolbar).toHaveCSS("position", "fixed");
-    const toolbarGeometry = await page.locator(".note-editor").evaluate((element) => {
-      const focusBarRect = element.querySelector(".mobile-focus-bar")!.getBoundingClientRect();
-      const toolbarElement = element.querySelector(".editor-menu")!;
-      const toolbarRect = toolbarElement.getBoundingClientRect();
-      const contentRect = element.querySelector(".editor-content-shell")!.getBoundingClientRect();
-      const style = getComputedStyle(toolbarElement);
-      return {
-        focusBarBottom: focusBarRect.bottom,
-        toolbar: { top: toolbarRect.top, right: toolbarRect.right, bottom: toolbarRect.bottom, left: toolbarRect.left },
-        contentTop: contentRect.top,
-        viewportWidth: window.visualViewport?.width ?? window.innerWidth,
-        overflowX: style.overflowX,
-        overflowY: style.overflowY,
-      };
-    });
-    expect(toolbarGeometry.toolbar.left).toBeGreaterThanOrEqual(0);
-    expect(toolbarGeometry.toolbar.right).toBeLessThanOrEqual(toolbarGeometry.viewportWidth);
-    expect(toolbarGeometry.toolbar.top).toBeGreaterThanOrEqual(toolbarGeometry.focusBarBottom);
-    expect(toolbarGeometry.contentTop).toBeGreaterThanOrEqual(toolbarGeometry.toolbar.bottom);
-    expect(toolbarGeometry.overflowX).toBe("visible");
-    expect(toolbarGeometry.overflowY).toBe("visible");
-
-    await page.getByTitle("样式").click();
-    const boldButton = page.getByRole("button", { name: "B 加粗" });
-    await expect(boldButton).toBeVisible();
-    await expect.poll(() => boldButton.evaluate((button) => {
-      const rect = button.getBoundingClientRect();
-      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-      return hit === button || button.contains(hit);
-    })).toBe(true);
-    await focusBar.getByTitle("退出专注模式").click();
-    await expect(focusBar).toHaveCount(0);
-    await expect(page.locator(".app-header")).toBeVisible();
-  });
-
   test("专注模式首个 gutter 加号完整避开固定标题栏并可触摸", async ({ page }) => {
     await page.goto("/");
     const editor = page.locator(".ProseMirror");
@@ -2352,6 +2240,9 @@ test.describe("PWA 窄屏应用外壳", () => {
       await page.setViewportSize(viewport);
       await expect.poll(() => sheet.locator(".mobile-action-sheet-content").evaluate((content) =>
         content.scrollHeight - content.clientHeight)).toBeLessThanOrEqual(2);
+      // The content can already fit before the viewport-resize layout commits.
+      await expect.poll(() => sheet.evaluate(element =>
+        element.getBoundingClientRect().bottom)).toBeLessThanOrEqual(viewport.height);
       const bounds = await sheet.evaluate((element) => {
         const rect = element.getBoundingClientRect();
         return { top: rect.top, bottom: rect.bottom, width: element.clientWidth, scrollWidth: element.scrollWidth };

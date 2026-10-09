@@ -111,7 +111,7 @@ test("清雅采用完整预设，跟随系统；经典配置在切回后恢复",
   await expect.poll(() => editor.evaluate(element => Number(parseFloat(getComputedStyle(element).lineHeight).toFixed(1)))).toBe(28.8);
   await expect(page.locator("body")).toHaveCSS(
     "background-color",
-    "rgb(252, 251, 248)",
+    "rgb(232, 240, 227)",
   );
   await expect(page.getByTitle("Nord · 北境", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^导航区样式/ })).toHaveCount(
@@ -124,13 +124,13 @@ test("清雅采用完整预设，跟随系统；经典配置在切回后恢复",
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator("body")).toHaveCSS(
     "background-color",
-    "rgb(37, 42, 36)",
+    "rgb(32, 44, 35)",
   );
   const colors = page.getByRole("group", { name: "风格配色", exact: true });
   await colors.getByRole("button", { name: "浅色", exact: true }).click();
   await expect(page.locator("body")).toHaveCSS(
     "background-color",
-    "rgb(252, 251, 248)",
+    "rgb(232, 240, 227)",
   );
   await expect
     .poll(() =>
@@ -145,7 +145,7 @@ test("清雅采用完整预设，跟随系统；经典配置在切回后恢复",
   await expect(editor).toHaveCSS("font-size", "16px");
   await expect(page.locator("body")).toHaveCSS(
     "background-color",
-    "rgb(252, 251, 248)",
+    "rgb(232, 240, 227)",
   );
   await expect(editor.locator("h2")).toHaveCSS("font-size", "21px");
   await page.screenshot({ path: test.info().outputPath("nr-preset-desktop.png") });

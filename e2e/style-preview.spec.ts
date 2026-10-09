@@ -13,7 +13,7 @@ test("风格预览跟随深浅配色，桌面四列，旧紧凑配置仍可识�
   );
   await page.goto("/");
   await expect(page.getByLabel("工作区风格")).toHaveAttribute("data-value","calm");
-  await expect(page.getByLabel("紧凑程度")).toHaveAttribute("data-value","compact");
+  await expect(page.getByLabel("紧凑程度")).toHaveAttribute("data-value","comfortable");
   await page.getByTitle("设置", { exact: true }).click();
   await page.getByRole("button", { name: /^外观与布局/ }).click();
   const styles = page.getByRole("group", { name: "界面风格", exact: true });
@@ -35,8 +35,8 @@ test("风格预览跟随深浅配色，桌面四列，旧紧凑配置仍可识�
     )
     .toBe(4);
   const palettes = [
-    ["calm", "rgb(252, 251, 248)", "rgb(37, 42, 36)"],
-    ["paper", "rgb(250, 246, 237)", "rgb(40, 36, 31)"],
+    ["calm", "rgb(232, 240, 227)", "rgb(32, 44, 35)"],
+    ["paper", "rgb(248, 242, 229)", "rgb(27, 27, 27)"],
     ["minimal", "rgb(250, 250, 250)", "rgb(32, 34, 38)"],
     ["nine-rings", "rgb(240, 235, 245)", "rgb(55, 49, 63)"],
     ["mono-aware", "rgb(250, 244, 243)", "rgb(41, 35, 39)"],
@@ -79,6 +79,6 @@ test("风格预览跟随深浅配色，桌面四列，旧紧凑配置仍可识�
     .toBe(1);
   await expect(page.locator(".preview-paper")).toHaveCSS(
     "background-color",
-    "rgb(40, 36, 31)",
+    "rgb(27, 27, 27)",
   );
 });

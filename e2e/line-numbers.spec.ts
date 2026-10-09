@@ -111,7 +111,7 @@ test.describe("编辑器块级 gutter", () => {
           return anchor?.parentElement?.closest("p")?.textContent ?? "";
         })).toBe("第 30 块");
       }
-      await expect(page.locator(".editor-status-block")).toHaveText("块 30 / 36");
+      await expect(page.locator(".editor-status-block")).toHaveText("块 30/36");
       await expect.poll(() => page.locator(".note-editor-scroll").evaluate(el => el.scrollTop)).toBeGreaterThan(100);
     });
   }
@@ -511,7 +511,7 @@ test.describe("编辑器块级 gutter", () => {
     const editor = await createBlankNote(page);
     await editor.fill("第一块\n第二块\n第三块");
     await editor.locator(":scope > p").nth(1).click();
-    await expect(page.locator(".editor-status-block")).toHaveText("块 2 / 3");
+    await expect(page.locator(".editor-status-block")).toHaveText("块 2/3");
     await expect(page.locator(".editor-status-position")).toBeVisible();
 
     await openEditorSettings(page);

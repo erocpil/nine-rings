@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openDocumentSidebar } from "./helpers/workspace";
 import { readFile } from "node:fs/promises";
 import { strFromU8, unzipSync } from "fflate";
 
@@ -37,6 +38,8 @@ for (const mobile of [false, true]) {
     const downloadPromise = page.waitForEvent("download");
     if (mobile) {
       await folder.click();
+      await expect(page.getByRole("dialog", { name: "文档侧栏" })).toBeHidden();
+      await openDocumentSidebar(page);
       await page
         .getByTitle("导出路径下的文档（Markdown ZIP）", { exact: true })
         .click();
@@ -57,6 +60,6 @@ for (const mobile of [false, true]) {
       ["导出验证/嵌套/任务.md", "导出验证/说明.md"].sort(),
     );
     expect(strFromU8(files["导出验证/说明.md"])).toContain("第二行");
-    await expect(page.getByRole("status")).toContainText("已导出 2 篇文档");
+    await expect(page.getByRole("status").filter({ hasText: "已导出 2 篇文档" })).toContainText("已导出 2 篇文档");
   });
 }

@@ -142,6 +142,11 @@ export function proseMirrorToDelta(pmJson: JSONContent | null | undefined): Delt
             ...(node.attrs?.collapsed === true ? { "blockquote-collapsed": true } : {}),
           };
           const blocks = node.content?.length ? node.content : [{ type: "paragraph", content: [] }];
+          if (blocks.some(block => block.type !== "paragraph")) {
+            ops.push({ insert: { blockquote: { version: 1, content: proseMirrorToDelta({ type: "doc", content: blocks }).ops } }, attributes });
+            ops.push({ insert: "\n" });
+            break;
+          }
           // 一个 ProseMirror blockquote 可以包含多个段落。每个段落都写成
           // 带 blockquote 属性的 Delta 行，避免保存后把段落文字直接拼接。
           for (const block of blocks) {
@@ -265,6 +270,8 @@ function appendListOps(listNode: JSONContent, ops: DeltaOp[], depth: number): vo
               ...(!emittedItemLine && itemIndex === 0 ? { "list-block-start": true } : {}),
             } });
             emittedItemLine = true;
+          } else if (typeof op.insert === "object" && op.insert.blockquote) {
+            ops.push({ ...op, attributes: { ...op.attributes, ...lineAttributes } });
           } else ops.push(op);
         }
       }
@@ -475,7 +482,7 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
               : {}),
             continuation: attrs["list-continuation"] === true,
             blockStart: attrs["list-block-start"] === true,
-            paragraph: attrs["code-block"] ? {
+            paragraph: currentParagraph.type === "blockquote" ? currentParagraph : attrs["code-block"] ? {
               type: "codeBlock", content: currentParagraph.content,
               attrs: { language: attrs.language || null, title: attrs["code-title"] || "", wrap: attrs["code-wrap"] !== false, collapsed: attrs["code-collapsed"] === true },
             } : attrs.blockquote ? {
@@ -515,9 +522,8 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
           if (Object.keys(codeBlockAttrs).length > 0) currentParagraph.attrs = codeBlockAttrs;
           flushParagraph();
         } else if (attrs.blockquote) {
-          // ProseMirror 的 blockquote schema 要求 content: "paragraph*"
-          // 文本必须用 paragraph 包裹，不能直接放在 blockquote 下
-          const quoteAttrs = blockIndent > 0 || attrs["blockquote-collapsed"] === true
+          // Legacy quote lines store inline text, which needs a paragraph wrapper.
+          const quoteAttrs = blockIndent > 0 || attrs["indent-explicit"] === true || attrs["blockquote-collapsed"] === true
             ? {
                 ...blockIndentAttrs,
                 ...(attrs["blockquote-collapsed"] === true ? { collapsed: true } : {}),
@@ -566,6 +572,30 @@ export function deltaToProseMirror(value: unknown): JSONContent & { content: JSO
       if (typeof insert.mathInline === "string") {
         const marks = deltaAttrToMarks(attrs);
         currentParagraph.content.push({ type: "mathInline", attrs: { source: insert.mathInline }, ...(marks.length ? { marks } : {}) });
+        continue;
+      }
+      if (insert.blockquote && typeof insert.blockquote === "object" && Array.isArray((insert.blockquote as { content?: unknown }).content)) {
+        const quote = insert.blockquote as { content: DeltaOp[] };
+        const body = deltaToProseMirror({ ops: quote.content }).content;
+        const quoteNode = {
+          type: "blockquote",
+          attrs: {
+            indent: Math.max(0, Math.min(8, Math.floor(Number(attrs.indent) || 0))),
+            indentExplicit: attrs["indent-explicit"] === true,
+            collapsed: attrs["blockquote-collapsed"] === true,
+          },
+          content: body.length ? body : [{ type: "paragraph", content: [] }],
+        };
+        if (attrs.list === "bullet" || attrs.list === "ordered") {
+          currentParagraph = quoteNode;
+        } else {
+          flushList();
+          if (currentParagraph.content.length || isImageBlock) flushParagraph();
+          doc.push(quoteNode);
+          currentParagraph = { type: "paragraph", content: [] };
+          isImageBlock = false;
+          skipEmptyLineAfterBlockEmbed = true;
+        }
         continue;
       }
       flushList();

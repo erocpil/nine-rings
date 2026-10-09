@@ -1,17 +1,19 @@
 import { expect, test } from '@playwright/test';
+import { closeDocumentSidebar } from './helpers/workspace';
 
 for (const status of [true, false]) {
   test(`手机展陈底部不重复留安全区，状态栏 ${status}`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.addInitScript((status) => localStorage.setItem('nine_rings_config', JSON.stringify({ interface_style: 'minimal', workspace_layout: 'exhibition', editor_show_status_bar: status })), status);
     await page.goto('/');
+    await expect(page.locator('.ProseMirror')).toBeVisible();
     await page.addStyleTag({ content: ':root { --safe-bottom: 34px; }' });
     const sample = page.locator('.doc-tree-open').filter({ hasText: '物哀、幽玄与侘寂：风格设计与验证' });
     await expect(sample).toBeVisible();
     await sample.click();
     await page.setViewportSize({ width: 390, height: 844 });
-    const overlay = page.locator(".sidebar-overlay.active");
-    if (await overlay.isVisible()) await overlay.click({ position: { x: 380, y: 400 } });
+    await expect(page.locator(".app")).toHaveClass(/app-mobile-workspace/);
+    await closeDocumentSidebar(page);
     await expect(page.locator('.note-title')).toHaveValue('物哀、幽玄与侘寂：风格设计与验证');
     await expect(page.locator('.is-exhibition .app-main')).toHaveCSS('padding-bottom', '0px');
     await expect(page.locator('.note-editor .editor-stats')).toBeVisible({ visible: status });

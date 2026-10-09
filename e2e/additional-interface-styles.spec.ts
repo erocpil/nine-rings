@@ -3,7 +3,7 @@ import type { Editor } from "@tiptap/core";
 import { createBlankDocument } from "./helpers/document";
 
 for (const [style, label, background] of [
-  ["paper", "纸页", "rgb(250, 246, 237)"],
+  ["paper", "纸页", "rgb(248, 242, 229)"],
   ["minimal", "精简", "rgb(250, 250, 250)"],
   ["nine-rings", "九环", "rgb(240, 235, 245)"],
 ] as const) {

@@ -12,7 +12,7 @@ import { openBlockWorkspace } from "../lib/block-workspace";
 import { ToolbarIcon } from "../components/ToolbarIcon";
 import { DeferredMermaidDiagram } from "../components/DeferredMermaidDiagram";
 import { useNearViewport } from "../hooks/useNearViewport";
-import { codeBlockDisplay } from "../lib/structured-block-display";
+import { codeBlockDisplay, structuredBlockSymbol } from "../lib/structured-block-display";
 import { BLOCK_WORKSPACE_DISPLAY_EVENT, blockWorkspacePreferences, codeLineNumbersEnabled, saveBlockWorkspacePreferences } from "../lib/block-display-settings";
 import { CODE_LANGUAGE_OPTIONS, highlightCode, normalizeCodeLanguage } from "../lib/code-highlight";
 
@@ -346,6 +346,7 @@ function CodeBlockView({ node, editor, updateAttributes, getPos, extension }: No
           data-pdf-exclude
           contentEditable={false}
         >
+          <span className="structured-block-symbol" aria-hidden="true">{structuredBlockSymbol(display.language)}</span>
           <input
             className="code-block-title"
             value={codeTitle}

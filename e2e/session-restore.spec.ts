@@ -2,11 +2,12 @@ import { openDocumentSidebar, openMobileDocumentPopup } from "./helpers/workspac
 import { expect, test, type Page } from "@playwright/test";
 
 
-async function createDocument(page: Page, title: string) {
+async function createDocument(page: Page, title: string, root?: string) {
   await page.goto("/");
   const previousNoteId = await page.evaluate(() => localStorage.getItem("nr:lastNote"));
   await page.getByTitle("新建文档").click();
   await page.getByPlaceholder("文档标题...").fill(title);
+  if (root) await page.getByRole("combobox", { name: "顶级目录", exact: true }).selectOption(root);
   await page.getByRole("button", { name: "创建", exact: true }).click();
   await expect(page.locator(".note-title")).toHaveValue(title);
   await expect(page.locator(".ProseMirror")).toBeEditable();
@@ -137,7 +138,7 @@ test.describe("会话位置恢复与编辑器查找", () => {
     await expect(page.locator(".daily-overview")).toBeHidden();
 
     await page.getByTitle("折叠所有目录").click();
-    const firstFolder = page.locator(".doc-tree-folder").first();
+    const firstFolder = page.locator(".doc-tree-folder").filter({ has: page.locator("button.doc-tree-toggle") }).first();
     await expect(firstFolder.locator(".doc-tree-toggle")).toHaveAttribute("aria-expanded", "false");
     const folderName = await firstFolder.locator(".doc-tree-name").innerText();
     await firstFolder.locator(".doc-tree-name").click();
@@ -151,13 +152,13 @@ test.describe("会话位置恢复与编辑器查找", () => {
     await expect(page.locator(".app")).toHaveClass(/app-focus-mode/);
     await expect(page.locator(".moc-breadcrumb")).toHaveText(folderName);
     await expect(page.locator(".ProseMirror")).toHaveCount(0);
-    await expect(page.locator(".doc-tree-folder").first().locator(".doc-tree-toggle")).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator(".doc-tree-folder").filter({ has: page.locator(".doc-tree-name", { hasText: folderName }) }).locator("button.doc-tree-toggle")).toHaveAttribute("aria-expanded", "false");
     await expect.poll(() => sidebar.evaluate((element) => element.getBoundingClientRect().width))
       .toBeGreaterThan(280);
   });
 
   test("切换移动文档列表保留侧栏的目录折叠状态", async ({ page }) => {
-    await createDocument(page, "折叠状态同步测试文档");
+    await createDocument(page, "折叠状态同步测试文档", "projects");
     const sidebar = page.locator(".app-sidebar");
     await sidebar.getByTitle("折叠所有目录").click();
     const firstToggle = sidebar.getByRole("button", { name: /^(展开|折叠)目录 projects$/, exact: true });
@@ -199,7 +200,7 @@ test.describe("会话位置恢复与编辑器查找", () => {
 
     await findInput.press("Escape");
     await expect(findInput).toHaveCount(0);
-    await page.keyboard.press("ControlOrMeta+f");
+    await page.keyboard.press("Alt+f");
     await expect(page.getByRole("search").getByLabel("在当前文档中查找")).toBeVisible();
 
     // Web E2E 没有 Tauri 标题栏；直接验证标题栏在 hide 前广播的同一事件。

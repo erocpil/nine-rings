@@ -142,7 +142,7 @@ export function EditorToolbarContents({ editor, readonly, saveStatus, layout, me
     editor.chain().focus().unsetAllMarks().run();
   };
   const moreActions = (<>
-    <button className="menu-dropdown-item" disabled={readonly} onClick={() => { insertFlow(); closeMore(); }} type="button">插入流程块</button>
+    <button className="menu-dropdown-item" disabled={readonly} onClick={() => { insertFlow(); closeMore(); }} type="button"><ToolbarIcon name="code" />插入流程块</button>
     {isMinimalToolbar && <button className="menu-dropdown-item" disabled={readonly || editor.isActive("codeBlock") || !editor.can().setHardBreak()} onClick={() => { editor.chain().focus().setHardBreak().run(); closeMore(); }} type="button"><ToolbarIcon name="lineBreak" />块内换行</button>}
     {isMinimalToolbar && <button className="menu-dropdown-item" disabled={readonly} onClick={() => { closeMore(); actions.openEditorReplace(); }} type="button"><ToolbarIcon name="search" />查找与替换</button>}
     {isMobileToolbarViewport && <button className="menu-dropdown-item" disabled={readonly} onClick={() => { clearTextFormatting(); closeMore(); }} type="button"><ToolbarIcon name="erase" />清除格式</button>}

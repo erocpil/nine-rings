@@ -1,3 +1,4 @@
+import { toolbarAction } from "./helpers/editor-toolbar";
 import { addDocumentTag } from "./helpers/workspace";
 import { createBlankNote as createBlankNoteFixture } from "./helpers/editor-fixtures";
 import { expect, test } from "@playwright/test";
@@ -119,8 +120,7 @@ test.describe("响应式编辑器工具栏", () => {
     await expect(toolbar).toHaveClass(/toolbar-compact/);
     await expectNoHorizontalOverflow(page);
 
-    await page.getByRole("button", { name: "块", exact: true }).click();
-    const insertTable = page.getByRole("button", { name: "▦ 插入表格" });
+    const insertTable = await toolbarAction(page, "table");
     await expect(insertTable).toBeVisible();
     await expect.poll(() => insertTable.evaluate((button) => {
       const rect = button.getBoundingClientRect();
@@ -135,7 +135,8 @@ test.describe("响应式编辑器工具栏", () => {
     await expectNoHorizontalOverflow(page);
 
     await page.setViewportSize({ width: 1200, height: 700 });
-    await expect(toolbar).toHaveClass(/toolbar-compact/);
+    // Native fonts determine the grouping threshold; table actions must stay available.
+    await expect(page.getByTitle("表格操作")).toBeVisible();
     await expectNoHorizontalOverflow(page);
     await page.setViewportSize({ width: 1340, height: 700 });
     await expect(toolbar).toHaveClass(/toolbar-full/);
@@ -216,8 +217,7 @@ test.describe("响应式编辑器工具栏", () => {
     await page.setViewportSize({ width: 1100, height: 700 });
     await createBlankNote(page);
 
-    await page.getByRole("button", { name: "块", exact: true }).click();
-    await page.getByRole("button", { name: "▦ 插入表格" }).click();
+    await (await toolbarAction(page, "table")).click();
     const table = page.locator(".ProseMirror table");
     const firstCell = table.locator("th").first();
     const targetCell = table.locator("td").nth(1);

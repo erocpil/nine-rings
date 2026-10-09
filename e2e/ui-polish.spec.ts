@@ -9,6 +9,8 @@ test("新建表单校验路径，添加标签不提交，创建失败可重试",
     const create = api.notes.create;
     let calls = 0;
     api.notes.create = async (...args: unknown[]) => {
+      // Ignore asynchronously seeded example documents; only this form is under test.
+      if ((args[0] as { title?: string }).title !== "表单优化验证") return create(...args);
       calls++;
       document.body.dataset.createCalls = String(calls);
       if (calls === 1) throw new Error("模拟存储失败");

@@ -37,7 +37,9 @@ test("长文档在编辑、源码和局部只读中随实际分栏宽度调整",
       date: "2026-09-25",
       content: mdToDelta(markdown),
     });
-    useNotesStore.getState().selectNote(note);
+    // Resolve the CDP evaluation before mounting the large document; Chromium
+    // can otherwise collect its pending Promise during synchronous rendering.
+    setTimeout(() => useNotesStore.getState().selectNote(note), 0);
   }, markdown);
   const editor = page.locator(".note-editor .ProseMirror");
   await expect(editor.locator("h1").first()).toHaveCSS("font-size", "34px");
@@ -82,9 +84,8 @@ test("长文档在编辑、源码和局部只读中随实际分栏宽度调整",
       date: "2026-09-25",
       content: mdToDelta(markdown),
     });
-    useNotesStore
-      .getState()
-      .selectNote(await api.notes.update(note.id, { readonly: true }));
+    const readonlyNote = await api.notes.update(note.id, { readonly: true });
+    setTimeout(() => useNotesStore.getState().selectNote(readonlyNote), 0);
   }, markdown);
   await expect(page.locator(".vr-body")).toBeVisible();
   await page
@@ -161,7 +162,7 @@ test("导航键盘操作、无结果反馈、对比度与减少动画", async ({
         );
     const a = luminance(color),
       b = luminance(bg);
-    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    return { ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05), color, bg };
   });
-  expect(contrast).toBeGreaterThanOrEqual(4.5);
+  expect(contrast.ratio, JSON.stringify(contrast)).toBeGreaterThanOrEqual(4.5);
 });

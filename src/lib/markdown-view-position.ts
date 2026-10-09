@@ -6,6 +6,10 @@ import { getTableEmbed } from "./table-embed";
 const textWeight = (text: string) => text.replace(/\s/g, "").length;
 function opWeight(op: DeltaOp): number {
   if (typeof op.insert === "string") return textWeight(op.insert);
+  if (op.insert && typeof op.insert === "object" && op.insert.blockquote && typeof op.insert.blockquote === "object") {
+    const quote = op.insert.blockquote as { content?: DeltaOp[] };
+    if (Array.isArray(quote.content)) return quote.content.reduce((sum, child) => sum + opWeight(child), 0);
+  }
   const table = getTableEmbed(op.insert);
   return table
     ? Math.max(

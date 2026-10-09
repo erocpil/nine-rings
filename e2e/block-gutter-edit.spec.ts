@@ -125,8 +125,11 @@ test.describe("桌面加号状态", () => {
       const box = await target.boundingBox();
       if (!box) throw new Error("插入按钮没有布局位置");
       // One jump, no intermediate movement over the gutter/number. Exercise
-      // the first button's upper half outside the gutter's own bounds too.
-      await page.mouse.move(box.x + box.width / 2, box.y + 2);
+      // hit the visible part of the first target below the sticky toolbar.
+      const gutterTop = await page.locator(".editor-block-gutter").evaluate(el => el.getBoundingClientRect().top);
+      const y = Math.max(box.y + 2, gutterTop + 2);
+      await expect.poll(() => target.evaluate((el, point) => el.contains(document.elementFromPoint(point.x, point.y)), { x: box.x + box.width / 2, y })).toBe(true);
+      await page.mouse.move(box.x + box.width / 2, y);
       await expect.poll(visibleLabels).toEqual([...pair]);
       await expect(target).toHaveCSS("opacity", "1");
     }

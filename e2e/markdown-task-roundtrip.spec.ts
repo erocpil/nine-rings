@@ -48,6 +48,8 @@ for (const width of [390, 1280]) {
     for (let i = 0; i < 5; i++) {
       await page.getByRole("button", { name: "源码", exact: true }).click();
       await expect(editor).toHaveCount(0);
+      await expect(source).toBeVisible();
+      await expect.poll(async () => (await sourceInfo(source)).value).toContain("- [ ] 待处理");
       const value = (await sourceInfo(source)).value;
       expect(value).toContain("- [ ] 待处理");
       expect(value).toContain("  - [x] 已完成");

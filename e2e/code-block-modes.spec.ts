@@ -212,7 +212,10 @@ for (const mac of [false, true]) {
     const dialog = page.getByRole('dialog', { name: '代码块工作区' });
     await dialog.getByRole("button", { name: "切换到编辑模式", exact: true }).click();
     const code = dialog.locator('.cm-content');
+    await expect(code).toBeFocused();
+    await expect(dialog.locator('.block-workspace-vim-mode')).toHaveText('VIM NORMAL');
     await page.keyboard.type('ggi');
+    await expect(dialog.locator('.block-workspace-vim-mode')).toHaveText('VIM INSERT');
     await page.keyboard.press('Tab');
     await page.keyboard.press('Escape');
     await page.keyboard.press('Tab');

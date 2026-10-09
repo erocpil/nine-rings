@@ -353,7 +353,9 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
   let codeLanguage = "";
   let codeFence = "";
   let codeStartLine = 0;
+  let codeIndentAttrs: Record<string, unknown> = {};
   let listIndentStack: number[] = [];
+  let simpleQuoteRegionEnd = -1;
 
   const resetListIndent = () => {
     listIndentStack = [];
@@ -417,12 +419,13 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
     // ── 代码块 ──
     const fence = stripped.match(/^(`{3,}|~{3,})(.*)$/);
     if (fence && (!inCode || (fence[1][0] === codeFence[0] && fence[1].length >= codeFence.length && !fence[2].trim()))) {
+      const listDepth = listIndentStack.length;
       resetListIndent();
       if (inCode) {
         ops.push({ insert: codeBuf.join("\n") });
         ops.push({
           insert: "\n",
-          attributes: { "code-block": true, ...(codeLanguage ? { language: codeLanguage } : {}) },
+          attributes: { "code-block": true, ...codeIndentAttrs, ...(codeLanguage ? { language: codeLanguage } : {}) },
         });
         codeBuf = [];
         codeLanguage = "";
@@ -431,6 +434,9 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
         codeFence = fence[1];
         codeStartLine = i;
         codeLanguage = fence[2].trim().split(/\s/)[0];
+        codeIndentAttrs = /^[ \t]+/.test(line)
+          ? { indent: Math.max(1, listDepth), "indent-explicit": true }
+          : i > 0 && !lines[i - 1].trim() ? { "indent-explicit": true } : {};
         inCode = true;
       }
       i++;
@@ -535,6 +541,28 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
     // ── 引用 ──
     const bqMatch = stripped.match(/^>\s?(.*)$/);
     if (bqMatch) {
+      const quoteIndentAttrs = /^[ \t]+/.test(line)
+        ? { indent: Math.max(1, listIndentStack.length), "indent-explicit": true }
+        : i > 0 && !lines[i - 1].trim() ? { "indent-explicit": true } : {};
+      // A quote can contain real block nodes, not just paragraphs beginning
+      // with literal list markers. Preserve those nodes as a nested Delta.
+      const body: string[] = [];
+      let end = i;
+      while (i >= simpleQuoteRegionEnd && end < lines.length) {
+        const quoted = lines[end].match(/^[ \t]*> ?(.*)$/);
+        if (quoted) body.push(quoted[1]);
+        else if (lines[end].trim() && !startsBlock(lines[end].trim())) body.push(lines[end].trim());
+        else break;
+        end++;
+      }
+      if (body.some(text => /^(?:[-*+]\s+|\d+\.\s+|#{1,6}\s+|>|`{3,}|~{3,}|\$\$|<details|\|)/.test(text.trim()))) {
+        resetListIndent();
+        ops.push({ insert: { blockquote: { version: 1, content: mdToDelta(body.join("\n")).ops } }, attributes: quoteIndentAttrs });
+        ops.push({ insert: "\n" });
+        i = end;
+        continue;
+      }
+      simpleQuoteRegionEnd = Math.max(simpleQuoteRegionEnd, end);
       resetListIndent();
       const paragraphLines = [bqMatch[1].trim()];
       i++;
@@ -549,7 +577,7 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
       }
 
       appendItems(ops, inlineToDelta(paragraphLines.join(" "), undefined, footnoteIds));
-      ops.push({ insert: "\n", attributes: { blockquote: true } });
+      ops.push({ insert: "\n", attributes: { blockquote: true, ...quoteIndentAttrs } });
       continue;
     }
 
@@ -621,7 +649,7 @@ export function mdToDelta(mdText: string, sourceSpans?: MarkdownSourceSpan[]): D
     ops.push({ insert: codeBuf.join("\n") });
     ops.push({
       insert: "\n",
-      attributes: { "code-block": true, ...(codeLanguage ? { language: codeLanguage } : {}) },
+      attributes: { "code-block": true, ...codeIndentAttrs, ...(codeLanguage ? { language: codeLanguage } : {}) },
     });
     sourceSpans?.push({ fromLine: codeStartLine, toLine: lines.length, fromOp, toOp: ops.length });
   }

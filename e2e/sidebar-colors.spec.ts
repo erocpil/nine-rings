@@ -19,7 +19,16 @@ test("分栏导航和工具栏跟随主题背景，保留选中反馈", async ({
       await expect(rail).toHaveCSS("background-color", background);
       await expect(heading).toHaveCSS("background-color", background);
       await expect(button).toHaveAttribute("aria-pressed", "true");
-      expect(await button.evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
+      await expect(button).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+      const icon = button.locator(".toolbar-icon");
+      await expect(icon).toHaveCSS("stroke-width", "2.4px");
+      const accent = await rail.evaluate(el => getComputedStyle(el).getPropertyValue("--accent").trim());
+      await expect.poll(() => icon.evaluate((el, value) => {
+        const sample = document.createElement("span");
+        sample.style.color = value; el.appendChild(sample);
+        const expected = getComputedStyle(sample).color; sample.remove();
+        return getComputedStyle(el).color === expected;
+      }, accent)).toBe(true);
     }
   }
 });

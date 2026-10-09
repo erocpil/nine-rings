@@ -1,3 +1,4 @@
+import { toolbarAction } from "./helpers/editor-toolbar";
 import { requireNativeClipboard } from "./helpers/native-clipboard";
 import { pressLineBoundary } from "./helpers/keyboard";
 import { test, expect } from "@playwright/test";
@@ -27,26 +28,42 @@ const wrappedRgCommand = [
   "",
 ].join("\n");
 
-async function clickToolbarAction(page: import("@playwright/test").Page, title: string, menuTitle: string, actionName: string) {
-  const direct = page.getByTitle(title, { exact: true });
-  if (await direct.isVisible().catch(() => false)) {
-    await direct.click();
-    return;
-  }
-  await page.getByTitle(menuTitle, { exact: true }).click();
-  await page.getByRole("button", { name: actionName, exact: true }).click();
-}
-
 async function clickPaste(page: import("@playwright/test").Page) {
-  await clickToolbarAction(page, "粘贴 (Ctrl+V)", "剪贴", "📝 粘贴");
+  await (await toolbarAction(page, "paste")).click();
 }
 
 async function clickCopy(page: import("@playwright/test").Page) {
-  await clickToolbarAction(page, "复制 (Ctrl+C)", "剪贴", "📋 复制");
+  await (await toolbarAction(page, "copy")).click();
 }
 
 async function clickCodeBlock(page: import("@playwright/test").Page) {
-  await clickToolbarAction(page, "代码块 (Ctrl+Alt+C)", "块", "⏹ 代码块");
+  await (await toolbarAction(page, "code")).click();
+}
+
+/** Native pointer selection also completes ProseMirror's mouseup synchronization. */
+async function dragParagraphText(page: import("@playwright/test").Page, value: string) {
+  const viewport = page.locator(".note-editor-scroll");
+  await viewport.hover();
+  await page.mouse.wheel(0, -1000);
+  await expect.poll(() => viewport.evaluate(element => element.scrollTop)).toBe(0);
+  const points = await page.locator(".ProseMirror").evaluate((element, value) => {
+    const text = element.querySelector("p")?.firstChild;
+    if (!text) throw new Error("paragraph text missing");
+    const start = text.textContent?.indexOf(value) ?? -1;
+    if (start < 0) throw new Error("selection text missing");
+    const range = document.createRange();
+    range.setStart(text, start);
+    range.setEnd(text, start + 1);
+    const first = range.getBoundingClientRect();
+    range.setStart(text, start + value.length - 1);
+    range.setEnd(text, start + value.length);
+    const last = range.getBoundingClientRect();
+    return { x1: first.left + 1, x2: last.right - 1, y1: first.top + first.height / 2, y2: last.top + last.height / 2 };
+  }, value);
+  await page.mouse.move(points.x1, points.y1);
+  await page.mouse.down();
+  await page.mouse.move(points.x2, points.y2, { steps: 12 });
+  await page.mouse.up();
 }
 
 test.describe("编辑器复制粘贴", () => {
@@ -231,8 +248,7 @@ test.describe("编辑器复制粘贴", () => {
 
     const editor = page.locator(".ProseMirror");
     await editor.click();
-    await page.getByRole("button", { name: "块", exact: true }).click();
-    await page.getByRole("button", { name: "⏹ 代码块", exact: true }).click();
+    await (await toolbarAction(page, "code")).click();
     await editor.evaluate((element, text) => {
       const clipboardData = new DataTransfer();
       clipboardData.setData("text/plain", text);
@@ -320,33 +336,23 @@ test.describe("编辑器复制粘贴", () => {
 
     const editor = page.locator(".ProseMirror");
     await editor.fill("前缀 中间文本 后缀");
+    await editor.focus();
 
-    await editor.evaluate((element) => {
-      const text = element.querySelector("p")?.firstChild;
-      if (!text) throw new Error("editor text node not found");
-      const value = text.textContent ?? "";
-      const start = value.indexOf("中间文本");
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.setStart(text, start);
-      range.setEnd(text, start + "中间文本".length);
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-    });
+    await dragParagraphText(page, "中间文本");
+    await expect.poll(() => editor.evaluate(element => {
+      const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      const { from, to } = instance.state.selection;
+      return instance.state.doc.textBetween(from, to);
+    })).toBe("中间文本");
     await page.keyboard.press("ControlOrMeta+C");
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
       .toBe("中间文本");
 
-    await editor.evaluate((element) => {
-      const text = element.querySelector("p")?.firstChild;
-      if (!text) throw new Error("editor text node not found");
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.setStart(text, text.textContent?.length ?? 0);
-      range.collapse(true);
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-    });
+    await pressLineBoundary(page, "end");
+    await expect.poll(() => editor.evaluate(element => {
+      const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
+      return instance.state.selection.from === instance.state.doc.content.size - 1 && instance.state.selection.empty;
+    })).toBe(true);
     await page.keyboard.press("ControlOrMeta+V");
 
     await expect(editor.locator("p")).toHaveCount(1);
@@ -363,18 +369,8 @@ test.describe("编辑器复制粘贴", () => {
     await editor.press("ControlOrMeta+Shift+8");
     await expect(editor.locator("ul > li")).toBeVisible();
 
-    await editor.evaluate((element, selectedText) => {
-      const text = element.querySelector("li p")?.firstChild;
-      if (!text) throw new Error("list item text node not found");
-      const value = text.textContent ?? "";
-      const start = value.indexOf(selectedText);
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.setStart(text, start);
-      range.setEnd(text, start + selectedText.length);
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-    }, phrase);
+    await editor.focus();
+    await dragParagraphText(page, phrase);
     await expect.poll(() => editor.evaluate(element => {
       const instance = (element as HTMLElement & { editor: import("@tiptap/core").Editor }).editor;
       const { from, to } = instance.state.selection;
@@ -876,14 +872,7 @@ test.describe("编辑器复制粘贴", () => {
     await expect(table.locator("tr")).toHaveCount(3);
 
     const downloadPromise = page.waitForEvent("download");
-    const clipboardToolbar = page.locator('[data-toolbar-tool="clipboard"]');
-    const directExport = clipboardToolbar.getByTitle("导出 Markdown", { exact: true });
-    if (await directExport.isVisible()) {
-      await directExport.click();
-    } else {
-      await clipboardToolbar.getByRole("button", { name: "剪贴", exact: true }).click();
-      await clipboardToolbar.getByRole("button", { name: /导出 Markdown/ }).click();
-    }
+    await (await toolbarAction(page, "exportMarkdown")).click();
     const download = await downloadPromise;
     const path = await download.path();
     expect(path).not.toBeNull();

@@ -15,7 +15,8 @@ export function BlockquoteToolbar({ text, collapsed, toggle, onOpen, position }:
   const touchRef = useRef<{ identifier: number; x: number; y: number; moved: boolean } | null>(null);
   return (
       <div className="blockquote-toolbar" data-pdf-exclude contentEditable={false}>
-        <span>{blockquoteCaption(text, collapsed)}</span>
+        <span className="structured-block-symbol" aria-hidden="true">❝</span>
+        <span className="structured-block-caption">{blockquoteCaption(text, collapsed)}</span>
         <button type="button" className="block-workspace-open" title="放大阅读引用块" aria-label="放大阅读引用块"
           onMouseDown={event => event.preventDefault()}
           data-workspace-position={position} onClick={onOpen}><ToolbarIcon name="expand" /></button>

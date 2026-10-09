@@ -1,3 +1,4 @@
+import { toolbarAction } from "./helpers/editor-toolbar";
 import { createBlankNote as createBlankNoteFixture } from "./helpers/editor-fixtures";
 import { requireNativeClipboard } from "./helpers/native-clipboard";
 import { test, expect, type Page, type Locator } from "@playwright/test";
@@ -219,7 +220,7 @@ test.describe("触控图片尺寸", () => {
 
   test("拖动图片手柄调整尺寸并双击恢复", async ({ page }) => {
     const editor = await createBlankNote(page);
-    await page.getByTitle("插入图片").click();
+    await (await toolbarAction(page, "image")).click();
     await page.locator(".image-dialog-input").fill(
       "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='120'%3E%3Crect width='240' height='120' fill='blue'/%3E%3C/svg%3E",
     );

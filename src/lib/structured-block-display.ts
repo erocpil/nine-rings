@@ -1,6 +1,11 @@
 import { normalizeCodeLanguage } from "./code-highlight";
 import type { ReadingBlockState } from "./reading-block-session";
 
+export function structuredBlockSymbol(language?: unknown): string {
+  const normalized = normalizeCodeLanguage(language);
+  return normalized === "mermaid" ? "◇→◇" : normalized === "flow" ? "①→②" : "</>";
+}
+
 /** Presentation rules shared by NodeViews and virtual readonly rendering. */
 export function codeBlockDisplay(
   attrs: Record<string, unknown>, override: ReadingBlockState = {}, defaultWrap = true,

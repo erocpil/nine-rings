@@ -30,6 +30,7 @@ for (const wide of [false, true]) {
         };
       });
       await page.goto("/");
+      await expect(page.locator(".ProseMirror")).toBeVisible();
       if (wide) await page.getByRole("button", { name: "PDF / EPUB 阅读", exact: true }).click();
       else await openMobileReadingLibrary(page);
     });

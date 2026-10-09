@@ -23,6 +23,10 @@ export function extractPlainText(content: unknown): string {
       if (!op || typeof op !== "object") return [];
       const insert = (op as { insert?: unknown }).insert;
       if (typeof insert === "string") return [insert];
+      if (insert && typeof insert === "object" && "blockquote" in insert) {
+        const quote = insert.blockquote as { content?: unknown } | null;
+        if (quote && Array.isArray(quote.content)) return [extractPlainText({ ops: quote.content })];
+      }
       const table = getTableEmbed(insert);
       if (table) {
         return [table.rows

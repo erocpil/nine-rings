@@ -26,6 +26,7 @@ test("本地 PDF 从阅读资料库导入后在独立阅读器打开并可再次
     });
   });
   await page.goto("/");
+  await expect(page.locator(".ProseMirror")).toBeVisible();
   await page.getByRole("button", { name: "PDF / EPUB 阅读", exact: true }).click();
 
   await page.locator('input[type="file"][accept="application/pdf,.pdf"]').setInputFiles({

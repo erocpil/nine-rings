@@ -137,10 +137,10 @@
     .editor-content
     :not(pre)
     > code {
-    border-color: transparent;
+    border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
     border-radius: 4px;
     padding-inline: 5px;
-    background: var(--code-bg);
+    background: color-mix(in srgb, var(--accent) 9%, var(--bg));
     color: inherit;
     box-decoration-break: clone;
     -webkit-box-decoration-break: clone;

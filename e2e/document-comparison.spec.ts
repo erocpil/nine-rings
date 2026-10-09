@@ -44,7 +44,7 @@ test("右键菜单跨越分栏边界仍可点击，并能独立比较两篇文�
     return el.contains(document.elementFromPoint(box.right - 8, box.top + box.height / 2));
   })).toBe(true);
   await option.click();
-  await expect(page.getByRole("status")).toContainText("已选择左侧文档");
+  await expect(page.getByRole("status").filter({ hasText: "已选择左侧文档" })).toContainText("已选择左侧文档");
   await page.locator(".doc-tree-doc").filter({ hasText: "对比乙" }).click();
   const dialog = page.getByRole("dialog", { name: "文档对比" });
   await expect(dialog).toBeVisible();
