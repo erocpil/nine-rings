@@ -96,8 +96,8 @@
 /* Standard Markdown additions share the document palette in every view/theme. */
 .nr-raw-html[data-html-comment="true"] { display: none; }
 .nr-raw-html { white-space: pre-wrap; overflow-wrap: anywhere; }
-.markdown-inline-image { display: inline; vertical-align: middle; }
-.markdown-inline-image img { max-width: 100%; vertical-align: middle; }
+.editor-content .markdown-inline-image { display: inline-block; vertical-align: middle; margin: 0; }
+.editor-content .markdown-inline-image img { display: inline-block; max-width: 100%; vertical-align: middle; margin: 0; }
 [data-list-spread="true"] > li > p + p { margin-top: .65em; }
 blockquote[data-alert] { border-left-color: var(--accent); }
 blockquote[data-alert="WARNING"], blockquote[data-alert="CAUTION"] { border-left-color: var(--color-danger, #b66b53); }

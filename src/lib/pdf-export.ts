@@ -73,6 +73,8 @@ const PRINT_STYLES = `
   .document-content h2 { font-size: 23px; border-bottom: 1px solid #e1e3e8; padding-bottom: 5px; }
   .document-content h3 { font-size: 19px; }
   .document-content h4 { font-size: 16px; }
+  .document-content h5, .document-content h6 { font-size: 15px; font-weight: 700; }
+  .document-content h6 { color: #4b5260; }
   .document-content p { margin: 0.7em 0; }
   .document-content a { color: #1d5fd1; }
   .document-content blockquote {

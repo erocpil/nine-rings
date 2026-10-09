@@ -380,8 +380,11 @@
 /* ── Markdown / TipTap 表格 ── */
 .editor-content .tableWrapper {
   width: fit-content;
-  max-width: 100%;
+  max-width: calc(100% - 4px);
+  box-sizing: content-box;
   margin: 8px 0;
+  /* Leave room for collapsed borders and WebKit's intrinsic-width rounding. */
+  padding: 1px 2px;
   /* 表格通常应随正文宽度重排；这里保留滚动仅作为浏览器无法断行时的兜底。 */
   overflow-x: auto;
 }

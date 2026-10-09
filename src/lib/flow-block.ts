@@ -1,7 +1,7 @@
 import type { Node as PMNode } from "@tiptap/pm/model";
 
 export const FLOW_BLOCK_TEMPLATE =
-  "## 明确问题\n\n*目的：说明为什么要做。*\n\n- 记录输入与约束\n- 确定完成标准\n\n## 执行与验证\n\n描述操作、条件分支和输出。";
+  "### 明确问题\n\n*目的：说明为什么要做。*\n\n- 记录输入与约束\n- 确定完成标准\n\n### 执行与验证\n\n描述操作、条件分支和输出。";
 export type FlowPart =
   | { kind: "text"; nodes: PMNode[] }
   | { kind: "stages"; stages: { heading: PMNode; body: PMNode[] }[] };

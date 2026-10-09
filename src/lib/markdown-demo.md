@@ -224,7 +224,13 @@ console.log("内层代码");
 
 标准自动链接：<https://github.github.com/gfm/>、<demo@example.com>。
 
-GFM 扩展自动链接：https://github.github.com/gfm/、www.github.com，以及 demo@example.com。
+GFM 扩展自动链接：
+
+- https://github.github.com/gfm/
+- www.github.com
+- demo@example.com
+
+裸 URL 与周围文字应使用空白分隔。中文顿号、逗号等不会自动结束 URL；需要紧接中文标点时，使用 `<https://github.github.com/gfm/>` 或显式 Markdown 链接。
 
 ### 文档内标题跳转
 
@@ -450,7 +456,7 @@ GitHub 会把 `toc` 围栏作为普通代码，不自动生成这种目录。
 ### 独立流程块：flow
 
 ````flow
-## 捕捉
+### 捕捉
 
 **输入**：一次观察。
 
@@ -459,7 +465,7 @@ GitHub 会把 `toc` 围栏作为普通代码，不自动生成这种目录。
 
 **输出**：一个明确的问题。
 
-## 行动
+### 行动
 
 **输入**：上一阶段的问题。
 
@@ -472,7 +478,7 @@ const next = "执行一个最小步骤";
 - [ ] 完成步骤
 - [ ] 记录结果
 
-## 复核
+### 复核
 
 | 检查项 | 结果 |
 | :--- | :--- |

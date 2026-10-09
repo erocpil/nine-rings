@@ -1,5 +1,34 @@
 import { expect, test } from "@playwright/test";
 import { createBlankDocument, waitForSavedText } from "./helpers/document";
+import { replaceSource, scrollSourceTo } from "./helpers/source-editor";
+
+test("源码已在中部时打开或重新开启预览同步，不停留在文档开头", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await createBlankDocument(page, "打开预览对齐当前位置");
+  await page.getByRole("button", { name: "源码", exact: true }).click();
+  const area = page.getByRole("textbox", { name: "Markdown 源码", exact: true });
+  const split = page.getByRole("button", { name: "并排预览", exact: true });
+  if (await split.getAttribute("aria-pressed") === "true") await split.click();
+  await replaceSource(area, Array.from({ length: 80 }, (_, i) => `## 同步章节 ${i}\n\n${"正文用于验证同步。".repeat(8)}`).join("\n\n"));
+  await scrollSourceTo(area, "## 同步章节 40");
+  await split.click();
+  const preview = page.locator(".markdown-preview-scroll");
+  const heading = preview.getByRole("heading", { name: "同步章节 40", exact: true });
+  const distance = () => heading.evaluate(element => Math.abs(element.getBoundingClientRect().top - element.closest(".markdown-preview-scroll")!.getBoundingClientRect().top));
+  await expect.poll(distance).toBeLessThan(65);
+  // Model content above the current block gaining height after image/math layout.
+  await preview.locator(".ProseMirror").evaluate(element => { element.style.paddingTop = "260px"; });
+  await expect.poll(distance).toBeLessThan(65);
+  await split.click();
+  await split.click();
+  await expect.poll(distance).toBeLessThan(65);
+  const sync = page.getByRole("checkbox", { name: "同步滚动", exact: true });
+  await sync.uncheck();
+  await scrollSourceTo(area, "## 同步章节 60");
+  await sync.check();
+  const next = preview.getByRole("heading", { name: "同步章节 60", exact: true });
+  await expect.poll(() => next.evaluate(element => Math.abs(element.getBoundingClientRect().top - element.closest(".markdown-preview-scroll")!.getBoundingClientRect().top))).toBeLessThan(65);
+});
 
 test("桌面设置外部点击不关闭，按住查看正文，释放和失焦恢复且不穿透", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });

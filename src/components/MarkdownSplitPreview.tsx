@@ -134,11 +134,6 @@ export function MarkdownSplitPreview({
       }
       anchors.push({ source: sourceMax, preview: previewMax });
     };
-    const observer = new ResizeObserver(() => { dirty = true; });
-    observer.observe(panel);
-    observer.observe(area.view.scrollDOM);
-    const body = panel.querySelector(".ProseMirror");
-    if (body) observer.observe(body);
     const fromSource = () => {
       if (active.current !== "source") return;
       measure();
@@ -150,9 +145,33 @@ export function MarkdownSplitPreview({
       // Assign the scroll position now instead of queueing a CM measurement.
       area.scrollTop = mapScrollPosition(panel.scrollTop, anchors, "preview");
     };
+    let frame = 0;
+    const refresh = () => {
+      dirty = true;
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        // Images, diagrams and CodeMirror wrapping may settle after initial layout.
+        // Keep whichever pane the user last operated as the scroll authority.
+        if (active.current === "preview") fromPreview();
+        else fromSource();
+      });
+    };
+    const observer = new ResizeObserver(refresh);
+    observer.observe(panel);
+    observer.observe(area.view.scrollDOM);
+    observer.observe(area.view.contentDOM);
+    const body = panel.querySelector(".ProseMirror");
+    if (body) observer.observe(body);
     area.addEventListener("scroll", fromSource);
     panel.addEventListener("scroll", fromPreview);
+    // Opening/reopening preview, editing its snapshot or enabling sync must align
+    // immediately, even when the source has not emitted another scroll event.
+    active.current = "source";
+    fromSource();
+    refresh();
     return () => {
+      cancelAnimationFrame(frame);
       observer.disconnect();
       area.removeEventListener("scroll", fromSource);
       panel.removeEventListener("scroll", fromPreview);

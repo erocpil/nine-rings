@@ -66,6 +66,12 @@ import { useDocumentHoverPreview } from "./FootnoteHoverPreview";
 import { isRelativeMarkdownLink } from "../lib/relative-document-link";
 import { internalNoteId } from "../lib/internal-note-link";
 
+function readonlyLink(href: string, title: string | undefined, content: React.ReactNode) {
+  if (/^(https?:|mailto:|tel:)/i.test(href)) return <a href={href} title={title} target="_blank" rel="noopener noreferrer">{content}</a>;
+  if (href.startsWith("#") || isRelativeMarkdownLink(href) || internalNoteId(href)) return <a href={href} title={title}>{content}</a>;
+  return content;
+}
+
 export function renderReadonlyBlock(
   node: PMNode,
   pos: number,
@@ -121,13 +127,7 @@ export function renderReadonlyBlock(
           break;
         case "link": {
           const href = String(mark.attrs.href ?? "");
-          if (/^(https?:|mailto:|tel:)/i.test(href))
-            rendered = (
-              <a href={href} title={mark.attrs.title ?? undefined} target="_blank" rel="noopener noreferrer">
-                {rendered}
-              </a>
-            );
-          else if (href.startsWith("#") || isRelativeMarkdownLink(href) || internalNoteId(href)) rendered = <a href={href} title={mark.attrs.title ?? undefined}>{rendered}</a>;
+          rendered = readonlyLink(href, mark.attrs.title ?? undefined, rendered);
           break;
         }
         case "htmlStyle":
@@ -185,7 +185,11 @@ export function renderReadonlyBlock(
       return React.createElement(node.type.name === "rawHtml" ? "div" : "span", { ...attrs, className: "nr-raw-html" }, <code>{source}</code>);
     }
     case "htmlAnchor": return <a {...attrs} id={String(node.attrs.id)} data-document-anchor="" />;
-    case "markdownImage": return <span {...attrs} className="markdown-inline-image"><ReadonlyImage src={String(node.attrs.src || "")} alt={node.attrs.alt} title={node.attrs.title} /></span>;
+    case "markdownImage": {
+      const image = <span {...attrs} className="markdown-inline-image"><ReadonlyImage src={String(node.attrs.src || "")} alt={node.attrs.alt} title={node.attrs.title} width={node.attrs.width} /></span>;
+      const link = node.marks.find(mark => mark.type.name === "link");
+      return link ? readonlyLink(String(link.attrs.href ?? ""), link.attrs.title ?? undefined, image) : image;
+    }
     case "htmlDetails":
       { const collapsed = state.collapsed ?? node.attrs.open !== true; return <details {...attrs} className="nr-details" open={!collapsed}>
         <summary className="nr-details-summary" onClick={event => { if (event.target instanceof Element && event.target.closest("button")) return; event.preventDefault(); update(pos, { ...state, collapsed: !collapsed }); }}>
@@ -225,7 +229,7 @@ export function renderReadonlyBlock(
       );
     case "resizableImage":
     case "image":
-      return <div {...attrs}><ReadonlyImage src={String(node.attrs.src || "")} alt={node.attrs.alt} title={node.attrs.title} /></div>;
+      return <div {...attrs}><ReadonlyImage src={String(node.attrs.src || "")} alt={node.attrs.alt} title={node.attrs.title} width={node.attrs.width} /></div>;
     case "table":
       return <div {...attrs} className="tableWrapper"><table><tbody>{children}</tbody></table></div>;
     case "tableRow": return <tr>{children}</tr>;

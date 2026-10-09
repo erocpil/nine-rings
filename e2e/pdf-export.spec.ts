@@ -75,6 +75,26 @@ test("PDF 保留渲染后的流程阶段、任务、表格、公式与图表，�
   await expect(preview.locator(".print-flow pre code")).toContainText("const next = 1;");
 });
 
+test("PDF 六级标题字号完整，H3 流程步骤与 H4 分支保持层级", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".note-editor")).toBeVisible();
+  const popup = page.waitForEvent("popup");
+  await page.evaluate(async () => {
+    const { exportDocumentAsPdf } = await import("/src/lib/pdf-export.ts");
+    const headings = Array.from({ length: 6 }, (_, i) => `<h${i + 1}>标题 ${i + 1}</h${i + 1}>`).join("");
+    exportDocumentAsPdf({ title: "标题排版", contentHtml: `${headings}<p>普通正文</p><pre data-language="flow"><code>### 输入\n\n正文\n\n#### 条件分支\n\n分支说明\n\n### 输出\n\n完成</code></pre>` });
+  });
+  const preview = await popup;
+  await expect(preview.getByRole("button", { name: "打印 / 存储为 PDF" })).toBeEnabled();
+  for (const [index, size] of [28, 23, 19, 16, 15, 15].entries()) {
+    await expect(preview.getByRole("heading", { name: `标题 ${index + 1}`, exact: true })).toHaveCSS("font-size", `${size}px`);
+  }
+  await expect(preview.getByText("普通正文", { exact: true })).toHaveCSS("font-size", "15px");
+  await expect(preview.locator(".print-flow-step")).toHaveCount(2);
+  await expect(preview.locator(".print-flow-step > h3")).toHaveCount(2);
+  await expect(preview.locator(".print-flow h4")).toHaveText("条件分支");
+});
+
 test("PDF 打印视图用语义标题生成侧栏书签且不在正文插入目录", async ({ page, browserName }) => {
   await page.goto("/");
   await page.getByTitle("新建文档").click();

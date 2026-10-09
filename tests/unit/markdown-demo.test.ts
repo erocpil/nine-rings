@@ -43,6 +43,21 @@ test("creates one ideas document and preserves source syntax for viewing", async
     node.content?.forEach(walk);
   };
   walk(doc);
+  const autolinks = doc.content
+    ?.filter((node) => node.type === "bulletList")
+    .flatMap((list) => list.content ?? [])
+    .flatMap((item) => item.content ?? [])
+    .flatMap((paragraph) => paragraph.content ?? [])
+    .flatMap((node) => node.marks ?? [])
+    .filter((mark) => mark.type === "link")
+    .map((mark) => mark.attrs?.href);
+  for (const href of [
+    "https://github.github.com/gfm/",
+    "http://www.github.com",
+    "mailto:demo@example.com",
+  ])
+    expect(autolinks).toContain(href);
+  expect(autolinks?.some((href) => /[、，]/u.test(href ?? ""))).toBe(false);
   for (const type of [
     "heading",
     "bulletList",
