@@ -349,11 +349,11 @@
 .blockquote-toolbar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: var(--block-toolbar-gap);
   min-height: 28px;
   /* Match the code toolbar's 5px inset plus its outer 1px border. */
-  padding: 4px 6px 4px 0;
+  padding: 4px 6px;
   margin-bottom: 0;
   color: var(--text-secondary);
   font: 11px/1.4 var(--font);
@@ -361,7 +361,14 @@
   user-select: none;
 }
 
-.blockquote-toolbar > .structured-block-caption { margin-right: auto; }
+.blockquote-toolbar > .structured-block-caption {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .blockquote-toolbar button:not(.block-workspace-open) {
   flex: 0 0 22px;
